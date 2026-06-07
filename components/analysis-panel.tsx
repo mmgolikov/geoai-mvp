@@ -1,7 +1,13 @@
 "use client";
 
 import demoObjects from "@/src/data/demo-objects.json";
-import type { AnalysisScenario, AnalysisScenarioId, SelectedDemoObject, SelectedPoint } from "@/src/types/geo";
+import type {
+  AnalysisScenario,
+  AnalysisScenarioId,
+  ComparisonItem,
+  SelectedDemoObject,
+  SelectedPoint
+} from "@/src/types/geo";
 
 type AnalysisPanelProps = {
   selectedPoint: SelectedPoint | null;
@@ -11,9 +17,14 @@ type AnalysisPanelProps = {
   customQuery: string;
   isAnalyzing: boolean;
   analysisError: string | null;
+  comparisonItems: ComparisonItem[];
+  comparisonMessage: string | null;
   onScenarioChange: (scenario: AnalysisScenarioId) => void;
   onCustomQueryChange: (query: string) => void;
   onRunAnalysis: () => void;
+  onAddToComparison: () => void;
+  onRemoveComparisonItem: (itemId: string) => void;
+  onRunComparison: () => void;
 };
 
 function formatCoordinate(value: number) {
@@ -39,9 +50,14 @@ export function AnalysisPanel({
   customQuery,
   isAnalyzing,
   analysisError,
+  comparisonItems,
+  comparisonMessage,
   onScenarioChange,
   onCustomQueryChange,
-  onRunAnalysis
+  onRunAnalysis,
+  onAddToComparison,
+  onRemoveComparisonItem,
+  onRunComparison
 }: AnalysisPanelProps) {
   const featuredObject = demoObjects[0];
   const hasSelectedPoint = selectedPoint !== null;
@@ -158,6 +174,14 @@ export function AnalysisPanel({
         <section className="rounded-lg border border-line bg-white p-4 shadow-sm">
           <button
             type="button"
+            disabled={!hasSelectedPoint}
+            onClick={onAddToComparison}
+            className="mb-3 inline-flex h-10 w-full items-center justify-center rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink transition hover:border-brand disabled:cursor-not-allowed disabled:bg-surface disabled:text-muted"
+          >
+            Add to Comparison
+          </button>
+          <button
+            type="button"
             disabled={!hasSelectedPoint || isAnalyzing}
             onClick={onRunAnalysis}
             className="inline-flex h-11 w-full items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white transition hover:bg-[#113f50] disabled:cursor-not-allowed disabled:bg-[#c9d2d7] disabled:text-white"
@@ -168,6 +192,62 @@ export function AnalysisPanel({
           {analysisError ? (
             <p className="mt-3 rounded-md border border-[#f2c6bd] bg-[#fff4ed] px-3 py-2 text-sm leading-5 text-[#9f3412]">
               {analysisError}
+            </p>
+          ) : null}
+        </section>
+
+        <section className="rounded-lg border border-line bg-surface p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">
+                Comparison Set
+              </p>
+              <h2 className="mt-1 text-sm font-semibold text-ink">
+                {comparisonItems.length}/3 selected
+              </h2>
+            </div>
+            <button
+              type="button"
+              disabled={comparisonItems.length < 2}
+              onClick={onRunComparison}
+              className="inline-flex h-9 items-center justify-center rounded-md bg-brand px-3 text-xs font-semibold text-white transition hover:bg-[#113f50] disabled:cursor-not-allowed disabled:bg-[#c9d2d7]"
+            >
+              Compare Selected
+            </button>
+          </div>
+
+          <div className="mt-3 grid gap-2">
+            {comparisonItems.length === 0 ? (
+              <div className="rounded-md border border-line bg-white px-3 py-3 text-sm leading-5 text-muted">
+                Add 2-3 map points or demo objects to compare.
+              </div>
+            ) : (
+              comparisonItems.map((item) => (
+                <div key={item.id} className="rounded-md border border-line bg-white p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h3 className="truncate text-sm font-semibold text-ink">{item.name}</h3>
+                      <p className="mt-1 text-xs leading-5 text-muted">
+                        {item.itemType} / {item.scenarioLabel}
+                      </p>
+                      <p className="mt-1 truncate text-xs text-muted">{item.locationLabel}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => onRemoveComparisonItem(item.id)}
+                      className="shrink-0 rounded-md border border-line px-2 py-1 text-xs font-semibold text-muted transition hover:border-brand hover:text-ink"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {comparisonMessage ? (
+            <p className="mt-3 rounded-md border border-line bg-white px-3 py-2 text-sm leading-5 text-muted">
+              {comparisonMessage}
             </p>
           ) : null}
         </section>

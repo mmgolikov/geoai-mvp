@@ -62,3 +62,34 @@ export type ExpressAnalysis = {
   nextActions: string[];
   evidence: string[];
 };
+
+export type ComparisonItem = {
+  id: string;
+  name: string;
+  itemType: "point" | "object";
+  scenarioId: AnalysisScenarioId;
+  scenarioLabel: string;
+  point: SelectedPoint;
+  selectedObject?: SelectedDemoObject;
+  locationLabel: string;
+};
+
+export type ComparisonScorecard = {
+  item: ComparisonItem;
+  scores: Record<ScoreKey, number>;
+  overallScore: number;
+  riskLevel: "Low" | "Moderate" | "Elevated";
+  recommendedUse: string;
+  keyConcern: string;
+};
+
+export type ComparisonResult = {
+  id: string;
+  items: ComparisonScorecard[];
+  winner: ComparisonScorecard;
+  whyPreferred: string;
+  whenAnotherMayBeBetter: string;
+  sharedOpportunities: string[];
+  differentiatedRisks: string[];
+  nextActions: string[];
+};
