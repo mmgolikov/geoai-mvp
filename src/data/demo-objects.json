@@ -1,0 +1,38 @@
+[
+  {
+    "id": "dubai-south-development-site",
+    "name": "Dubai South Development Site",
+    "market": "Dubai",
+    "type": "Land plot",
+    "geometry": {
+      "type": "Point",
+      "coordinates": [55.1597, 24.9336]
+    },
+    "tags": ["development", "airport corridor", "mixed-use"],
+    "status": "mock"
+  },
+  {
+    "id": "downtown-dubai-redevelopment-node",
+    "name": "Downtown Dubai Redevelopment Node",
+    "market": "Dubai",
+    "type": "Redevelopment asset",
+    "geometry": {
+      "type": "Point",
+      "coordinates": [55.2744, 25.1972]
+    },
+    "tags": ["retail", "hospitality", "high-density"],
+    "status": "mock"
+  },
+  {
+    "id": "saadiyat-cultural-district-parcel",
+    "name": "Saadiyat Cultural District Parcel",
+    "market": "Abu Dhabi",
+    "type": "Mixed-use parcel",
+    "geometry": {
+      "type": "Point",
+      "coordinates": [54.435, 24.535]
+    },
+    "tags": ["tourism", "culture", "premium"],
+    "status": "mock"
+  }
+]
