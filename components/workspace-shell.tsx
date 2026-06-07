@@ -5,6 +5,7 @@ import { AnalysisPanel } from "@/components/analysis-panel";
 import { ComparisonDashboard } from "@/components/comparison-dashboard";
 import { ExpressDashboard } from "@/components/express-dashboard";
 import { MapWorkspace } from "@/components/map-workspace";
+import { ReportPreview } from "@/components/report-preview";
 import { createComparisonItem, createMockComparison } from "@/src/lib/mock-comparison";
 import { analysisScenarios, createMockExpressAnalysis } from "@/src/lib/mock-express-analysis";
 import type {
@@ -24,6 +25,7 @@ export function WorkspaceShell() {
   const [analysis, setAnalysis] = useState<ExpressAnalysis | null>(null);
   const [comparisonItems, setComparisonItems] = useState<ComparisonItem[]>([]);
   const [comparison, setComparison] = useState<ComparisonResult | null>(null);
+  const [reportPreview, setReportPreview] = useState<"analysis" | "comparison" | null>(null);
   const [comparisonMessage, setComparisonMessage] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
@@ -33,6 +35,7 @@ export function WorkspaceShell() {
     setSelectedObject(null);
     setAnalysis(null);
     setComparison(null);
+    setReportPreview(null);
     setComparisonMessage(null);
     setAnalysisError(null);
     setIsAnalyzing(false);
@@ -43,6 +46,7 @@ export function WorkspaceShell() {
     setSelectedPoint(object.center);
     setAnalysis(null);
     setComparison(null);
+    setReportPreview(null);
     setComparisonMessage(null);
     setAnalysisError(null);
     setIsAnalyzing(false);
@@ -76,6 +80,7 @@ export function WorkspaceShell() {
   function removeComparisonItem(itemId: string) {
     setComparisonItems((items) => items.filter((item) => item.id !== itemId));
     setComparison(null);
+    setReportPreview(null);
     setComparisonMessage(null);
   }
 
@@ -89,11 +94,13 @@ export function WorkspaceShell() {
     setAnalysisError(null);
     setComparisonMessage(null);
     setComparison(createMockComparison(comparisonItems));
+    setReportPreview(null);
   }
 
   function backToMap() {
     setAnalysis(null);
     setComparison(null);
+    setReportPreview(null);
   }
 
   function runExpressAnalysis() {
@@ -110,6 +117,7 @@ export function WorkspaceShell() {
     setIsAnalyzing(true);
     setAnalysisError(null);
     setComparison(null);
+    setReportPreview(null);
 
     window.setTimeout(() => {
       try {
@@ -125,12 +133,27 @@ export function WorkspaceShell() {
 
   return (
     <div className="grid flex-1 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_400px]">
-      {comparison ? (
-        <ComparisonDashboard comparison={comparison} onBackToMap={backToMap} />
+      {reportPreview === "analysis" && analysis ? (
+        <ReportPreview key={`report-${analysis.id}`} mode="analysis" analysis={analysis} onBack={() => setReportPreview(null)} />
+      ) : reportPreview === "comparison" && comparison ? (
+        <ReportPreview key={`report-${comparison.id}`} mode="comparison" comparison={comparison} onBack={() => setReportPreview(null)} />
+      ) : comparison ? (
+        <ComparisonDashboard
+          key={comparison.id}
+          comparison={comparison}
+          onBackToMap={backToMap}
+          onExportComparison={() => setReportPreview("comparison")}
+        />
       ) : analysis ? (
-        <ExpressDashboard analysis={analysis} onBackToMap={backToMap} />
+        <ExpressDashboard
+          key={analysis.id}
+          analysis={analysis}
+          onBackToMap={backToMap}
+          onExportReport={() => setReportPreview("analysis")}
+        />
       ) : (
         <MapWorkspace
+          key="map-workspace"
           selectedPoint={selectedPoint}
           selectedObject={selectedObject}
           onPointSelect={handlePointSelect}
@@ -147,6 +170,7 @@ export function WorkspaceShell() {
         analysisError={analysisError}
         comparisonItems={comparisonItems}
         comparisonMessage={comparisonMessage}
+        hasResult={analysis !== null || comparison !== null}
         onScenarioChange={(scenario) => {
           setSelectedScenario(scenario);
           setAnalysisError(null);
@@ -160,6 +184,16 @@ export function WorkspaceShell() {
         onAddToComparison={addSelectionToComparison}
         onRemoveComparisonItem={removeComparisonItem}
         onRunComparison={runComparison}
+        onExportCurrentResult={() => {
+          if (comparison) {
+            setReportPreview("comparison");
+            return;
+          }
+
+          if (analysis) {
+            setReportPreview("analysis");
+          }
+        }}
       />
     </div>
   );

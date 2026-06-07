@@ -1,11 +1,13 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { MapWorkspace } from "@/components/map-workspace";
 import type { ExpressAnalysis, ScoreKey } from "@/src/types/geo";
 
 type ExpressDashboardProps = {
   analysis: ExpressAnalysis;
   onBackToMap: () => void;
+  onExportReport: () => void;
 };
 
 const scoreOrder: ScoreKey[] = [
@@ -31,9 +33,15 @@ function scoreTone(scoreKey: ScoreKey, value: number) {
   return "text-[#9f3412] bg-[#fff4ed]";
 }
 
-export function ExpressDashboard({ analysis, onBackToMap }: ExpressDashboardProps) {
+export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: ExpressDashboardProps) {
+  const dashboardRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    dashboardRef.current?.scrollTo({ top: 0, left: 0 });
+  }, [analysis.id]);
+
   return (
-    <section className="h-[calc(100vh-72px)] overflow-y-auto bg-surface p-6">
+    <section ref={dashboardRef} className="h-[calc(100vh-72px)] overflow-y-auto bg-surface p-6">
       <div className="mx-auto flex max-w-7xl flex-col gap-5">
         <header className="flex flex-col justify-between gap-4 rounded-lg border border-line bg-white p-5 shadow-sm lg:flex-row lg:items-start">
           <div>
@@ -57,6 +65,7 @@ export function ExpressDashboard({ analysis, onBackToMap }: ExpressDashboardProp
             </button>
             <button
               type="button"
+              onClick={onExportReport}
               className="inline-flex h-10 items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white transition hover:bg-[#113f50]"
             >
               Export report

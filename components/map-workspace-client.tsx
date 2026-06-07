@@ -32,6 +32,7 @@ const initialLayerVisibility = demoLayers.reduce<Record<DemoLayerId, boolean>>((
 }, {} as Record<DemoLayerId, boolean>);
 
 const selectedObjectSourceId = "geoai-selected-object";
+const hoverObjectSourceId = "geoai-hover-object";
 
 function getSourceId(layer: DemoLayer) {
   return `geoai-${layer.id}`;
@@ -98,7 +99,7 @@ function addDemoLayerToMap(map: MapboxMap, layer: DemoLayer) {
         source: sourceId,
         paint: {
           "fill-color": layer.color,
-          "fill-opacity": 0.18
+          "fill-opacity": 0.14
         }
       });
     }
@@ -110,8 +111,8 @@ function addDemoLayerToMap(map: MapboxMap, layer: DemoLayer) {
         source: sourceId,
         paint: {
           "line-color": layer.color,
-          "line-width": 1.5,
-          "line-opacity": 0.82
+          "line-width": 1.8,
+          "line-opacity": 0.86
         }
       });
     }
@@ -143,8 +144,8 @@ function addDemoLayerToMap(map: MapboxMap, layer: DemoLayer) {
       },
       paint: {
         "line-color": layer.color,
-        "line-width": 3,
-        "line-opacity": 0.72
+        "line-width": 3.2,
+        "line-opacity": 0.76
       }
     });
   }
@@ -165,7 +166,7 @@ function addSelectedObjectLayer(map: MapboxMap) {
       source: selectedObjectSourceId,
       paint: {
         "fill-color": "#111827",
-        "fill-opacity": 0.12
+        "fill-opacity": 0.16
       }
     });
   }
@@ -177,7 +178,7 @@ function addSelectedObjectLayer(map: MapboxMap) {
       source: selectedObjectSourceId,
       paint: {
         "line-color": "#111827",
-        "line-width": 3,
+        "line-width": 4,
         "line-opacity": 0.9
       }
     });
@@ -190,9 +191,57 @@ function addSelectedObjectLayer(map: MapboxMap) {
       source: selectedObjectSourceId,
       paint: {
         "circle-color": "#111827",
-        "circle-radius": 9,
+        "circle-radius": 10,
         "circle-stroke-color": "#ffffff",
         "circle-stroke-width": 3
+      }
+    });
+  }
+}
+
+function addHoverObjectLayer(map: MapboxMap) {
+  if (!map.getSource(hoverObjectSourceId)) {
+    map.addSource(hoverObjectSourceId, {
+      type: "geojson",
+      data: toFeatureCollection([])
+    });
+  }
+
+  if (!map.getLayer("geoai-hover-fill")) {
+    map.addLayer({
+      id: "geoai-hover-fill",
+      type: "fill",
+      source: hoverObjectSourceId,
+      paint: {
+        "fill-color": "#111827",
+        "fill-opacity": 0.08
+      }
+    });
+  }
+
+  if (!map.getLayer("geoai-hover-line")) {
+    map.addLayer({
+      id: "geoai-hover-line",
+      type: "line",
+      source: hoverObjectSourceId,
+      paint: {
+        "line-color": "#111827",
+        "line-width": 2.4,
+        "line-opacity": 0.72
+      }
+    });
+  }
+
+  if (!map.getLayer("geoai-hover-circle")) {
+    map.addLayer({
+      id: "geoai-hover-circle",
+      type: "circle",
+      source: hoverObjectSourceId,
+      paint: {
+        "circle-color": "#111827",
+        "circle-radius": 8,
+        "circle-stroke-color": "#ffffff",
+        "circle-stroke-width": 2
       }
     });
   }
@@ -214,6 +263,7 @@ export function MapWorkspaceClient({
   const onObjectSelectRef = useRef(onObjectSelect);
   const layerVisibilityRef = useRef(initialLayerVisibility);
   const [layerVisibility, setLayerVisibility] = useState(initialLayerVisibility);
+  const [layersExpanded, setLayersExpanded] = useState(false);
   const [isMapReady, setIsMapReady] = useState(false);
   const [mapResourceError, setMapResourceError] = useState<string | null>(null);
   const mapboxToken = getMapboxToken();
@@ -293,7 +343,29 @@ export function MapWorkspaceClient({
           setMapResourceError(null);
           demoLayers.forEach((layer) => addDemoLayerToMap(mapRef.current as MapboxMap, layer));
           addSelectedObjectLayer(mapRef.current as MapboxMap);
+          addHoverObjectLayer(mapRef.current as MapboxMap);
+          window.setTimeout(() => mapRef.current?.resize(), 0);
           setIsMapReady(true);
+        }
+      });
+
+      mapRef.current.on("mousemove", (event) => {
+        const interactiveLayers = getInteractiveLayerIds(layerVisibilityRef.current).filter((layerId) =>
+          Boolean(mapRef.current?.getLayer(layerId))
+        );
+        const features = interactiveLayers.length > 0
+          ? mapRef.current?.queryRenderedFeatures(event.point, { layers: interactiveLayers })
+          : [];
+        const featureId = features?.[0]?.properties?.id as string | undefined;
+        const demoFeature = featureId ? getDemoFeatureById(featureId) : null;
+        const source = mapRef.current?.getSource(hoverObjectSourceId) as GeoJSONSource | undefined;
+
+        if (source) {
+          source.setData(toFeatureCollection(demoFeature ? [demoFeature] : []));
+        }
+
+        if (mapRef.current) {
+          mapRef.current.getCanvas().style.cursor = demoFeature ? "pointer" : "";
         }
       });
 
@@ -371,6 +443,14 @@ export function MapWorkspaceClient({
       return;
     }
 
+    window.setTimeout(() => mapRef.current?.resize(), 0);
+  }, [canUseMapbox, isMapReady, selectedObject, selectedPoint]);
+
+  useEffect(() => {
+    if (!canUseMapbox || !mapRef.current || !isMapReady) {
+      return;
+    }
+
     demoLayers.forEach((layer) => {
       const visibility = layerVisibility[layer.id] ? "visible" : "none";
       getLayerIds(layer).forEach((layerId) => {
@@ -379,6 +459,9 @@ export function MapWorkspaceClient({
         }
       });
     });
+
+    const hoverSource = mapRef.current.getSource(hoverObjectSourceId) as GeoJSONSource | undefined;
+    hoverSource?.setData(toFeatureCollection([]));
   }, [canUseMapbox, isMapReady, layerVisibility]);
 
   useEffect(() => {
@@ -410,6 +493,17 @@ export function MapWorkspaceClient({
       [layerId]: !currentVisibility[layerId]
     }));
   }
+
+  function setAllLayers(visible: boolean) {
+    setLayerVisibility(
+      demoLayers.reduce<Record<DemoLayerId, boolean>>((visibility, layer) => {
+        visibility[layer.id] = visible;
+        return visibility;
+      }, {} as Record<DemoLayerId, boolean>)
+    );
+  }
+
+  const activeLayerCount = Object.values(layerVisibility).filter(Boolean).length;
 
   return (
     <section
@@ -452,47 +546,85 @@ export function MapWorkspaceClient({
         </div>
       ) : null}
 
-      {canUseMapbox && showLayerControls ? (
-        <div
-          className="absolute right-5 top-5 z-10 w-[280px] rounded-lg border border-white/75 bg-white/92 p-4 shadow-soft backdrop-blur"
-          onClick={(event) => event.stopPropagation()}
-        >
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">
-                Demo layers
-              </p>
-              <h2 className="mt-1 text-sm font-semibold text-ink">Spatial intelligence overlays</h2>
-            </div>
-            <span className="rounded-full bg-surface px-2 py-1 text-[11px] font-semibold text-brand">
-              Synthetic
-            </span>
-          </div>
-
-          <div className="mt-3 grid gap-2">
-            {demoLayers.map((layer) => (
-              <label key={layer.id} className="flex cursor-pointer items-center justify-between gap-3 rounded-md border border-line bg-surface px-3 py-2">
-                <span className="flex min-w-0 items-center gap-2">
-                  <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: layer.color }} />
-                  <span className="truncate text-xs font-semibold text-ink">{layer.name}</span>
-                </span>
-                <input
-                  type="checkbox"
-                  checked={layerVisibility[layer.id]}
-                  onChange={() => toggleLayer(layer.id)}
-                  className="h-4 w-4 accent-[#174f63]"
-                />
-              </label>
-            ))}
-          </div>
-
-          <div className="mt-3 rounded-md bg-white px-3 py-2 text-xs leading-5 text-muted">
-            Click a layer object to select it, or click empty map space to select a custom point.
-          </div>
+      {canUseMapbox && showEmptyOverlay && !selectedPoint && !mapResourceError ? (
+        <div className="absolute left-5 top-5 z-10 max-w-sm rounded-lg border border-white/75 bg-white/92 p-4 shadow-soft backdrop-blur">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-brand">
+            Start here
+          </p>
+          <ol className="mt-2 space-y-1 text-sm leading-6 text-muted">
+            <li>1. Select a point or object on the map</li>
+            <li>2. Choose a scenario</li>
+            <li>3. Run Express Analysis</li>
+          </ol>
         </div>
       ) : null}
 
       {canUseMapbox && showLayerControls ? (
+        <div
+          className="absolute right-5 top-5 z-10 w-[290px] rounded-lg border border-white/75 bg-white/92 p-3 shadow-soft backdrop-blur"
+          onClick={(event) => event.stopPropagation()}
+        >
+          <button
+            type="button"
+            onClick={() => setLayersExpanded((isExpanded) => !isExpanded)}
+            className="flex w-full items-center justify-between gap-3 text-left"
+          >
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">
+                Spatial layers
+              </p>
+              <h2 className="mt-1 text-sm font-semibold text-ink">Spatial intelligence overlays</h2>
+            </div>
+            <span className="rounded-full bg-surface px-2 py-1 text-[11px] font-semibold text-brand">
+              {activeLayerCount} active
+            </span>
+          </button>
+
+          {layersExpanded ? (
+            <div className="mt-3">
+              <div className="mb-2 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setAllLayers(true)}
+                  className="h-8 flex-1 rounded-md border border-line bg-white text-xs font-semibold text-ink transition hover:border-brand"
+                >
+                  Show all
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAllLayers(false)}
+                  className="h-8 flex-1 rounded-md border border-line bg-white text-xs font-semibold text-ink transition hover:border-brand"
+                >
+                  Hide all
+                </button>
+              </div>
+
+              <div className="grid gap-2">
+                {demoLayers.map((layer) => (
+                  <label key={layer.id} className="flex cursor-pointer items-center justify-between gap-3 rounded-md border border-line bg-surface px-3 py-2">
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: layer.color }} />
+                      <span className="truncate text-xs font-semibold text-ink">{layer.name}</span>
+                    </span>
+                    <input
+                      type="checkbox"
+                      checked={layerVisibility[layer.id]}
+                      onChange={() => toggleLayer(layer.id)}
+                      className="h-4 w-4 accent-[#174f63]"
+                    />
+                  </label>
+                ))}
+              </div>
+
+              <div className="mt-3 rounded-md bg-white px-3 py-2 text-xs leading-5 text-muted">
+                Click a layer object to select it, or click empty map space to select a custom point.
+              </div>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      {canUseMapbox && showLayerControls && layersExpanded ? (
         <div
           className="absolute bottom-5 left-5 z-10 flex max-w-[720px] flex-wrap gap-2 rounded-lg border border-white/75 bg-white/90 px-3 py-2 shadow-soft backdrop-blur"
           onClick={(event) => event.stopPropagation()}

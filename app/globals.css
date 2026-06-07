@@ -25,3 +25,32 @@ body {
 .mapboxgl-ctrl-bottom-right {
   display: none;
 }
+
+@media print {
+  @page {
+    size: A4;
+    margin: 14mm;
+  }
+
+  html,
+  body {
+    background: #ffffff !important;
+  }
+
+  body {
+    color: #172033;
+  }
+
+  nav,
+  aside {
+    display: none !important;
+  }
+
+  .report-page {
+    width: 100%;
+  }
+
+  .report-section {
+    break-inside: avoid;
+  }
+}

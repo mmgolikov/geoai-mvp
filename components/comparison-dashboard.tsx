@@ -1,10 +1,12 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import type { ComparisonResult, ScoreKey } from "@/src/types/geo";
 
 type ComparisonDashboardProps = {
   comparison: ComparisonResult;
   onBackToMap: () => void;
+  onExportComparison: () => void;
 };
 
 const scoreLabels: Record<ScoreKey, string> = {
@@ -35,9 +37,15 @@ function riskTone(riskLevel: string) {
   return "bg-[#eaf3f1] text-brand";
 }
 
-export function ComparisonDashboard({ comparison, onBackToMap }: ComparisonDashboardProps) {
+export function ComparisonDashboard({ comparison, onBackToMap, onExportComparison }: ComparisonDashboardProps) {
+  const dashboardRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    dashboardRef.current?.scrollTo({ top: 0, left: 0 });
+  }, [comparison.id]);
+
   return (
-    <section className="h-[calc(100vh-72px)] overflow-y-auto bg-surface p-6">
+    <section ref={dashboardRef} className="h-[calc(100vh-72px)] overflow-y-auto bg-surface p-6">
       <div className="mx-auto flex max-w-7xl flex-col gap-5">
         <header className="flex flex-col justify-between gap-4 rounded-lg border border-line bg-white p-5 shadow-sm lg:flex-row lg:items-start">
           <div>
@@ -61,6 +69,7 @@ export function ComparisonDashboard({ comparison, onBackToMap }: ComparisonDashb
             </button>
             <button
               type="button"
+              onClick={onExportComparison}
               className="inline-flex h-10 items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white transition hover:bg-[#113f50]"
             >
               Export comparison

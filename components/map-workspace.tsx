@@ -18,7 +18,7 @@ const MapWorkspaceClient = dynamic(
   {
     ssr: false,
     loading: () => (
-      <section className="relative min-h-[calc(100vh-72px)] overflow-hidden bg-[#dfe8ec]" />
+      <section className="relative h-full min-h-[360px] overflow-hidden bg-[#dfe8ec]" />
     )
   }
 );

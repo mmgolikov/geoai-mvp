@@ -109,18 +109,24 @@ export const demoLayers: DemoLayer[] = [
     color: "#174f63",
     features: [
       polygon("dev-dubai-south", "Dubai South Growth Zone", "Development zone", "developmentZones", "Development Zones", "#174f63", [
-        [55.098, 24.93],
-        [55.205, 24.93],
-        [55.225, 24.995],
-        [55.118, 25.018],
+        [55.092, 24.925],
+        [55.139, 24.912],
+        [55.193, 24.928],
+        [55.231, 24.968],
+        [55.214, 25.008],
+        [55.162, 25.027],
+        [55.112, 25.006],
         [55.098, 24.93]
       ]),
       polygon("dev-creek-east", "Creek East Redevelopment Area", "Redevelopment zone", "developmentZones", "Development Zones", "#174f63", [
-        [55.333, 25.185],
-        [55.42, 25.19],
-        [55.41, 25.245],
-        [55.332, 25.238],
-        [55.333, 25.185]
+        [55.327, 25.188],
+        [55.362, 25.176],
+        [55.411, 25.191],
+        [55.43, 25.224],
+        [55.405, 25.253],
+        [55.351, 25.247],
+        [55.324, 25.22],
+        [55.327, 25.188]
       ])
     ]
   },
@@ -131,18 +137,24 @@ export const demoLayers: DemoLayer[] = [
     color: "#c5a76a",
     features: [
       polygon("premium-marina", "Dubai Marina Prime Cluster", "Premium real estate area", "premiumRealEstateAreas", "Premium Real Estate Areas", "#c5a76a", [
-        [55.125, 25.065],
-        [55.18, 25.065],
-        [55.185, 25.108],
-        [55.13, 25.116],
-        [55.125, 25.065]
+        [55.119, 25.071],
+        [55.144, 25.058],
+        [55.174, 25.066],
+        [55.192, 25.092],
+        [55.179, 25.112],
+        [55.142, 25.119],
+        [55.121, 25.099],
+        [55.119, 25.071]
       ]),
       polygon("premium-downtown", "Downtown Dubai Prime Cluster", "Premium real estate area", "premiumRealEstateAreas", "Premium Real Estate Areas", "#c5a76a", [
-        [55.255, 25.178],
-        [55.295, 25.18],
-        [55.296, 25.212],
-        [55.25, 25.212],
-        [55.255, 25.178]
+        [55.249, 25.181],
+        [55.268, 25.172],
+        [55.294, 25.182],
+        [55.304, 25.202],
+        [55.288, 25.219],
+        [55.258, 25.215],
+        [55.244, 25.199],
+        [55.249, 25.181]
       ])
     ]
   },
@@ -176,18 +188,25 @@ export const demoLayers: DemoLayer[] = [
     color: "#2c7fb8",
     features: [
       polygon("risk-coastal-marina", "Marina Coastal Exposure Band", "Coastal exposure zone", "coastalFloodRiskZones", "Coastal / Flood Risk Zones", "#2c7fb8", [
-        [55.09, 25.035],
-        [55.205, 25.035],
-        [55.215, 25.135],
-        [55.1, 25.14],
-        [55.09, 25.035]
+        [55.086, 25.042],
+        [55.126, 25.031],
+        [55.179, 25.039],
+        [55.222, 25.078],
+        [55.214, 25.126],
+        [55.166, 25.146],
+        [55.111, 25.134],
+        [55.088, 25.094],
+        [55.086, 25.042]
       ]),
       polygon("risk-creek-flood", "Dubai Creek Flood Sensitivity Zone", "Flood sensitivity zone", "coastalFloodRiskZones", "Coastal / Flood Risk Zones", "#2c7fb8", [
-        [55.305, 25.19],
-        [55.405, 25.198],
-        [55.405, 25.265],
-        [55.3, 25.258],
-        [55.305, 25.19]
+        [55.298, 25.196],
+        [55.338, 25.182],
+        [55.391, 25.195],
+        [55.42, 25.228],
+        [55.403, 25.266],
+        [55.352, 25.274],
+        [55.309, 25.25],
+        [55.298, 25.196]
       ])
     ]
   },
@@ -198,18 +217,24 @@ export const demoLayers: DemoLayer[] = [
     color: "#d95f02",
     features: [
       polygon("heat-industrial-south", "South Industrial Heat Island", "Heat exposure zone", "heatRiskZones", "Heat Risk Zones", "#d95f02", [
-        [55.12, 24.98],
-        [55.275, 24.985],
-        [55.28, 25.06],
-        [55.13, 25.062],
-        [55.12, 24.98]
+        [55.113, 24.984],
+        [55.168, 24.966],
+        [55.243, 24.977],
+        [55.289, 25.016],
+        [55.268, 25.061],
+        [55.192, 25.076],
+        [55.129, 25.052],
+        [55.113, 24.984]
       ]),
       polygon("heat-inland-core", "Inland Urban Heat Band", "Heat exposure zone", "heatRiskZones", "Heat Risk Zones", "#d95f02", [
-        [55.24, 25.105],
-        [55.37, 25.105],
-        [55.365, 25.18],
-        [55.235, 25.178],
-        [55.24, 25.105]
+        [55.233, 25.112],
+        [55.286, 25.092],
+        [55.35, 25.104],
+        [55.382, 25.144],
+        [55.356, 25.184],
+        [55.291, 25.194],
+        [55.238, 25.168],
+        [55.233, 25.112]
       ])
     ]
   },

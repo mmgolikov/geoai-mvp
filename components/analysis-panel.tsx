@@ -19,12 +19,14 @@ type AnalysisPanelProps = {
   analysisError: string | null;
   comparisonItems: ComparisonItem[];
   comparisonMessage: string | null;
+  hasResult: boolean;
   onScenarioChange: (scenario: AnalysisScenarioId) => void;
   onCustomQueryChange: (query: string) => void;
   onRunAnalysis: () => void;
   onAddToComparison: () => void;
   onRemoveComparisonItem: (itemId: string) => void;
   onRunComparison: () => void;
+  onExportCurrentResult: () => void;
 };
 
 function formatCoordinate(value: number) {
@@ -52,12 +54,14 @@ export function AnalysisPanel({
   analysisError,
   comparisonItems,
   comparisonMessage,
+  hasResult,
   onScenarioChange,
   onCustomQueryChange,
   onRunAnalysis,
   onAddToComparison,
   onRemoveComparisonItem,
-  onRunComparison
+  onRunComparison,
+  onExportCurrentResult
 }: AnalysisPanelProps) {
   const featuredObject = demoObjects[0];
   const hasSelectedPoint = selectedPoint !== null;
@@ -66,8 +70,8 @@ export function AnalysisPanel({
   const isCustomQuery = selectedScenario === "customQuery";
 
   return (
-    <aside className="border-l border-line bg-white p-5 lg:w-[400px]">
-      <div className="flex h-full flex-col gap-3">
+    <aside className="border-l border-line bg-white lg:h-[calc(100vh-72px)] lg:w-[400px] lg:overflow-y-auto">
+      <div className="flex min-h-full flex-col gap-3 p-5">
         <section>
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted">
             Command panel
@@ -166,12 +170,9 @@ export function AnalysisPanel({
               </p>
             ) : null}
           </div>
-          <PlaceholderRow label="Data sources" value="Demo map, infrastructure, risk context" />
-          <PlaceholderRow label="Upload documents" value="Coming later" />
-          <PlaceholderRow label="Integrations" value="GIS, CRM, docs, imagery later" />
         </section>
 
-        <section className="rounded-lg border border-line bg-white p-4 shadow-sm">
+        <section className="sticky top-0 z-20 rounded-lg border border-line bg-white p-4 shadow-soft">
           <button
             type="button"
             disabled={!hasSelectedPoint}
@@ -194,6 +195,12 @@ export function AnalysisPanel({
               {analysisError}
             </p>
           ) : null}
+        </section>
+
+        <section className="grid gap-3">
+          <PlaceholderRow label="Data sources" value="Demo map, infrastructure, risk context" />
+          <PlaceholderRow label="Upload documents" value="Coming later" />
+          <PlaceholderRow label="Integrations" value="GIS, CRM, docs, imagery later" />
         </section>
 
         <section className="rounded-lg border border-line bg-surface p-4">
@@ -253,7 +260,19 @@ export function AnalysisPanel({
         </section>
 
         <section className="mt-auto grid gap-3">
-          <PlaceholderRow label="Export" value="Report export placeholder" />
+          <div className="rounded-md border border-line bg-white px-3 py-3">
+            <div className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">
+              Export
+            </div>
+            <button
+              type="button"
+              disabled={!hasResult}
+              onClick={onExportCurrentResult}
+              className="mt-2 inline-flex h-9 w-full items-center justify-center rounded-md border border-line bg-surface px-3 text-sm font-semibold text-ink transition hover:border-brand disabled:cursor-not-allowed disabled:text-muted"
+            >
+              Preview report
+            </button>
+          </div>
           <div className="rounded-md border border-line bg-surface px-3 py-3">
             <div className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">
               Status
