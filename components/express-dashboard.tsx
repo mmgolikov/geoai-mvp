@@ -8,15 +8,6 @@ type ExpressDashboardProps = {
   onBackToMap: () => void;
 };
 
-const scoreLabels: Record<ScoreKey, string> = {
-  developmentPotential: "Development Potential",
-  investmentAttractiveness: "Investment Attractiveness",
-  accessibility: "Accessibility",
-  infrastructureReadiness: "Infrastructure Readiness",
-  climateHeatRisk: "Climate / Heat Risk",
-  overallRisk: "Overall Risk"
-};
-
 const scoreOrder: ScoreKey[] = [
   "developmentPotential",
   "investmentAttractiveness",
@@ -25,10 +16,6 @@ const scoreOrder: ScoreKey[] = [
   "climateHeatRisk",
   "overallRisk"
 ];
-
-function formatCoordinate(value: number) {
-  return value.toFixed(6);
-}
 
 function scoreTone(scoreKey: ScoreKey, value: number) {
   const riskMetric = scoreKey === "climateHeatRisk" || scoreKey === "overallRisk";
@@ -51,13 +38,13 @@ export function ExpressDashboard({ analysis, onBackToMap }: ExpressDashboardProp
         <header className="flex flex-col justify-between gap-4 rounded-lg border border-line bg-white p-5 shadow-sm lg:flex-row lg:items-start">
           <div>
             <div className="flex flex-wrap items-center gap-3">
-              <h1 className="text-3xl font-semibold text-ink">Express Site Intelligence</h1>
+              <h1 className="text-3xl font-semibold text-ink">{analysis.title}</h1>
               <span className="rounded-full bg-[#eaf3f1] px-3 py-1 text-xs font-semibold text-brand">
                 Demo analysis
               </span>
             </div>
             <p className="mt-2 text-sm font-medium text-muted">
-              {formatCoordinate(analysis.point.latitude)}, {formatCoordinate(analysis.point.longitude)}
+              {analysis.subtitle}
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
@@ -90,9 +77,11 @@ export function ExpressDashboard({ analysis, onBackToMap }: ExpressDashboardProp
             </div>
             <MapWorkspace
               selectedPoint={analysis.point}
+              selectedObject={analysis.selectedObject ?? null}
               onPointSelect={() => undefined}
               className="relative h-[360px] overflow-hidden bg-[#dfe8ec]"
               showEmptyOverlay={false}
+              showLayerControls={false}
             />
           </section>
 
@@ -112,7 +101,7 @@ export function ExpressDashboard({ analysis, onBackToMap }: ExpressDashboardProp
                 <div key={scoreKey} className="rounded-md border border-line bg-white p-4">
                   <div className="flex items-start justify-between gap-4">
                     <span className="text-sm font-semibold leading-5 text-ink">
-                      {scoreLabels[scoreKey]}
+                      {analysis.scoreLabels[scoreKey]}
                     </span>
                     <span className={`rounded-full px-3 py-1 text-sm font-semibold ${scoreTone(scoreKey, score)}`}>
                       {score}

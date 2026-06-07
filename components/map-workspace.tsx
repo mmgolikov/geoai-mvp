@@ -1,13 +1,16 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import type { SelectedPoint } from "@/src/types/geo";
+import type { SelectedDemoObject, SelectedPoint } from "@/src/types/geo";
 
 type MapWorkspaceProps = {
   selectedPoint: SelectedPoint | null;
+  selectedObject?: SelectedDemoObject | null;
   onPointSelect: (point: SelectedPoint) => void;
+  onObjectSelect?: (object: SelectedDemoObject) => void;
   className?: string;
   showEmptyOverlay?: boolean;
+  showLayerControls?: boolean;
 };
 
 const MapWorkspaceClient = dynamic(

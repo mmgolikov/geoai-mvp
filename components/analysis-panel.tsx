@@ -1,12 +1,18 @@
 "use client";
 
 import demoObjects from "@/src/data/demo-objects.json";
-import type { SelectedPoint } from "@/src/types/geo";
+import type { AnalysisScenario, AnalysisScenarioId, SelectedDemoObject, SelectedPoint } from "@/src/types/geo";
 
 type AnalysisPanelProps = {
   selectedPoint: SelectedPoint | null;
+  selectedObject: SelectedDemoObject | null;
+  scenarios: AnalysisScenario[];
+  selectedScenario: AnalysisScenarioId;
+  customQuery: string;
   isAnalyzing: boolean;
   analysisError: string | null;
+  onScenarioChange: (scenario: AnalysisScenarioId) => void;
+  onCustomQueryChange: (query: string) => void;
   onRunAnalysis: () => void;
 };
 
@@ -27,16 +33,25 @@ function PlaceholderRow({ label, value }: { label: string; value: string }) {
 
 export function AnalysisPanel({
   selectedPoint,
+  selectedObject,
+  scenarios,
+  selectedScenario,
+  customQuery,
   isAnalyzing,
   analysisError,
+  onScenarioChange,
+  onCustomQueryChange,
   onRunAnalysis
 }: AnalysisPanelProps) {
   const featuredObject = demoObjects[0];
   const hasSelectedPoint = selectedPoint !== null;
+  const hasSelectedObject = selectedObject !== null;
+  const scenario = scenarios.find((item) => item.id === selectedScenario) ?? scenarios[0];
+  const isCustomQuery = selectedScenario === "customQuery";
 
   return (
     <aside className="border-l border-line bg-white p-5 lg:w-[400px]">
-      <div className="flex h-full flex-col gap-4">
+      <div className="flex h-full flex-col gap-3">
         <section>
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted">
             Command panel
@@ -51,14 +66,23 @@ export function AnalysisPanel({
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">
-                Selected point
+                {hasSelectedObject ? "Demo object selection" : "Selected point"}
               </p>
               <h2 className="mt-2 text-lg font-semibold text-ink">
-                {hasSelectedPoint ? "Custom map selection" : "No point selected"}
+                {hasSelectedObject
+                  ? selectedObject.name
+                  : hasSelectedPoint
+                    ? "Custom map selection"
+                    : "No point selected"}
               </h2>
+              {hasSelectedObject ? (
+                <p className="mt-1 text-sm leading-5 text-muted">
+                  {selectedObject.type} / {selectedObject.layerName}
+                </p>
+              ) : null}
             </div>
             <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-brand">
-              Point
+              {hasSelectedObject ? "Object" : "Point"}
             </span>
           </div>
 
@@ -79,7 +103,28 @@ export function AnalysisPanel({
         </section>
 
         <section className="grid gap-3">
-          <PlaceholderRow label="Scenario" value="Development intelligence" />
+          <div className="rounded-md border border-line bg-white px-3 py-3">
+            <label
+              htmlFor="analysis-scenario"
+              className="text-xs font-semibold uppercase tracking-[0.12em] text-muted"
+            >
+              Scenario
+            </label>
+            <select
+              id="analysis-scenario"
+              value={selectedScenario}
+              onChange={(event) => onScenarioChange(event.target.value as AnalysisScenarioId)}
+              className="mt-2 h-10 w-full rounded-md border border-line bg-surface px-3 text-sm font-semibold text-ink outline-none transition focus:border-brand"
+            >
+              {scenarios.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.label}
+                </option>
+              ))}
+            </select>
+            <p className="mt-2 text-sm leading-5 text-muted">{scenario.description}</p>
+          </div>
+
           <div className="rounded-md border border-line bg-white px-3 py-3">
             <label
               htmlFor="custom-query"
@@ -89,13 +134,25 @@ export function AnalysisPanel({
             </label>
             <textarea
               id="custom-query"
-              rows={3}
-              placeholder="Ask a site, investment, risk, or infrastructure question"
+              rows={isCustomQuery ? 4 : 3}
+              value={customQuery}
+              onChange={(event) => onCustomQueryChange(event.target.value)}
+              placeholder={
+                isCustomQuery
+                  ? "Enter the spatial question you want GeoAI to answer"
+                  : "Optional context for this scenario"
+              }
               className="mt-2 w-full resize-none rounded-md border border-line bg-surface px-3 py-2 text-sm text-ink outline-none transition placeholder:text-muted/70 focus:border-brand"
             />
+            {isCustomQuery ? (
+              <p className="mt-2 text-xs leading-5 text-muted">
+                Custom Query requires a question before analysis can run.
+              </p>
+            ) : null}
           </div>
           <PlaceholderRow label="Data sources" value="Demo map, infrastructure, risk context" />
           <PlaceholderRow label="Upload documents" value="Coming later" />
+          <PlaceholderRow label="Integrations" value="GIS, CRM, docs, imagery later" />
         </section>
 
         <section className="rounded-lg border border-line bg-white p-4 shadow-sm">
