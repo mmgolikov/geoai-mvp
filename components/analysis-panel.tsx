@@ -158,7 +158,9 @@ export function AnalysisPanel({
               </h2>
               {hasSelectedObject ? (
                 <p className="mt-1 truncate text-xs leading-5 text-muted">
-                  {selectedObject.type} / {selectedObject.layerName}
+                  {selectedObject.spatialContext
+                    ? `${selectedObject.spatialContext.category.replace(/_/g, " ")} / ${selectedObject.spatialContext.geometryStatus}`
+                    : `${selectedObject.type} / ${selectedObject.layerName}`}
                 </p>
               ) : null}
             </div>
@@ -181,6 +183,18 @@ export function AnalysisPanel({
               </dd>
             </div>
           </dl>
+          {selectedObject?.spatialContext ? (
+            <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+              <div className="rounded-md bg-white px-2 py-2">
+                <span className="text-muted">Source</span>
+                <p className="mt-1 font-semibold text-ink">{selectedObject.spatialContext.sourceStatus}</p>
+              </div>
+              <div className="rounded-md bg-white px-2 py-2">
+                <span className="text-muted">Confidence</span>
+                <p className="mt-1 font-semibold text-ink">{selectedObject.spatialContext.confidenceLevel}</p>
+              </div>
+            </div>
+          ) : null}
         </section>
 
         <section className="grid gap-2">

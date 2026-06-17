@@ -30,6 +30,7 @@ OpenAI is optional. If `OPENAI_API_KEY` is not configured, GeoAI automatically u
 - Mock fallback mode when OpenAI is not configured or unavailable
 - Dubai Market Context Adapter v0.1 with seed/demo-normalized area matching
 - Data Ingestion v0.1 for seed_static market metrics and deterministic normalization
+- Spatial Data Adapter v0.1 for seed_geojson demo layers and structured feature selection
 - Comparison mode for 2-3 selected points or demo objects
 - Comparison dashboard with scores, recommendation, risks, and next actions
 - Print-friendly report preview for single-site analysis and comparison
@@ -49,6 +50,7 @@ OpenAI is optional. If `OPENAI_API_KEY` is not configured, GeoAI automatically u
 - Server-side OpenAI analysis route with mock fallback
 - Seed market context adapter for Dubai area-level qualitative intelligence
 - Local market ingestion layer with validation, normalization, aggregation, and data quality notes
+- Spatial adapter layer with geometry validation, centroid/area utilities, and seed GeoJSON registry
 
 ## Local Setup
 
@@ -124,6 +126,14 @@ The current seed metrics are qualitative/index-style only:
 
 No external API keys are required for Data Ingestion v0.1. Future modes are prepared for `csv_ready`, `api_ready`, and `manual_upload_planned` workflows so DLD, Dubai Pulse, Dubai Municipality, licensed datasets, or customer uploads can be added later without changing the workspace UX.
 
+## Spatial Data Adapter v0.1
+
+GeoAI includes a spatial data adapter for demo geospatial layers. The current ingestion mode is `seed_geojson`, which loads lightweight synthetic Dubai geometries for development zones, premium real estate clusters, infrastructure nodes, construction monitoring sites, coastal/flood exposure zones, heat exposure zones, transport corridors, and parcel-like demo assets.
+
+The adapter validates geometry type, coordinate ranges, required properties, centroids, and simple polygon area estimates. Selected map features now carry structured spatial metadata into the command panel, Express Analysis, Evidence / Data Used, and report preview.
+
+Current geometries are synthetic/demo only. They are not official parcel, planning, cadastral, utility, infrastructure, or risk-zone boundaries. Future ingestion modes are prepared for `uploaded_geojson_planned`, `api_ready`, and `database_ready` workflows for official GIS, customer uploads, or database-backed spatial layers.
+
 ## Deploy To Vercel
 
 1. Push the repository to GitHub.
@@ -140,6 +150,7 @@ No external API keys are required for Data Ingestion v0.1. Future modes are prep
 - OpenAI generates narrative interpretation only; scores remain deterministic mock values.
 - Market context is seed/demo-normalized and not official market evidence.
 - Data ingestion currently uses local seed_static records only.
+- Spatial layers currently use local seed_geojson demo geometries only.
 - No database or persistence yet.
 - No authentication or user accounts.
 - No real parcel, zoning, transaction, satellite, or regulatory data adapters.

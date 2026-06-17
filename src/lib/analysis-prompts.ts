@@ -28,7 +28,8 @@ export function buildAnalyzePrompt(request: AnalyzeRequest) {
         objectType: request.selectedObject.type,
         layerName: request.selectedObject.layerName,
         geometryType: request.selectedObject.geometryType,
-        coordinates: request.point
+        coordinates: request.point,
+        spatialContext: request.selectedObject.spatialContext
       }
     : {
         selectionType: "map_point",
@@ -85,6 +86,7 @@ Critical rules:
 - Do not claim exact zoning, ownership, permitted density, transaction values, rents, yields, or official approvals unless the supplied evidence explicitly validates them.
 - If market context is provided, use the matched Dubai area name and its qualitative/index-style signals, but clearly treat seed/demo-normalized market context as non-official.
 - If enriched marketMetrics are provided, refer to them as seed_static demo-normalized indicators: activity, rental demand, liquidity, development pipeline, risk, and trend.
+- If spatialContext is provided, use its feature category, geometry type, centroid, estimated area, geometry confidence, source status and limitations. Never describe seed_geojson geometries as official parcel or planning boundaries.
 - Keep the content polished, specific, and suitable for a professional pilot demo.
 
 Scenario:

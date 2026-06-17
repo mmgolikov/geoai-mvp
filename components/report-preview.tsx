@@ -318,6 +318,43 @@ function AnalysisReport({ analysis, onBack }: { analysis: ExpressAnalysis; onBac
           </Section>
         ) : null}
 
+        {analysis.selectedObject?.spatialContext ? (
+          <Section title="Spatial Object Details">
+            <div className="rounded-md border border-line bg-surface p-5">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-lg font-semibold text-ink">{analysis.selectedObject.name}</p>
+                  <p className="mt-1 text-sm text-muted">
+                    {analysis.selectedObject.spatialContext.category.replace(/_/g, " ")} / {analysis.selectedObject.spatialContext.subtype}
+                  </p>
+                </div>
+                <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-muted">
+                  {analysis.selectedObject.spatialContext.geometryStatus} / {analysis.selectedObject.spatialContext.confidenceLevel}
+                </span>
+              </div>
+              <dl className="mt-4 grid gap-3 text-sm md:grid-cols-3">
+                <div className="rounded-md bg-white p-4">
+                  <dt className="font-semibold text-muted">Geometry type</dt>
+                  <dd className="mt-1 text-ink">{analysis.selectedObject.spatialContext.geometryType}</dd>
+                </div>
+                <div className="rounded-md bg-white p-4">
+                  <dt className="font-semibold text-muted">Estimated area</dt>
+                  <dd className="mt-1 text-ink">
+                    {analysis.selectedObject.spatialContext.areaSqm
+                      ? `${analysis.selectedObject.spatialContext.areaSqm.toLocaleString()} sqm`
+                      : "Not available"}
+                  </dd>
+                </div>
+                <div className="rounded-md bg-white p-4">
+                  <dt className="font-semibold text-muted">Source status</dt>
+                  <dd className="mt-1 text-ink">{analysis.selectedObject.spatialContext.sourceStatus}</dd>
+                </div>
+              </dl>
+              <p className="mt-4 text-sm leading-6 text-muted">{analysis.selectedObject.spatialContext.limitations[0]}</p>
+            </div>
+          </Section>
+        ) : null}
+
         <div className="grid gap-6 md:grid-cols-2">
           <Section title="Key Factors">
             <ul className="space-y-3 text-sm leading-6 text-muted">

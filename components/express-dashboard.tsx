@@ -246,6 +246,37 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
           </section>
         ) : null}
 
+        {analysis.selectedObject?.spatialContext ? (
+          <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold text-ink">Spatial Object Details</h2>
+                <p className="mt-1 text-sm text-muted">{analysis.selectedObject.name}</p>
+              </div>
+              <span className="rounded-full bg-[#eef2f5] px-3 py-1 text-xs font-semibold text-muted">
+                {analysis.selectedObject.spatialContext.geometryStatus} / {analysis.selectedObject.spatialContext.confidenceLevel}
+              </span>
+            </div>
+            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              <MetricPill
+                label="Category"
+                value={analysis.selectedObject.spatialContext.category.replace(/_/g, " ")}
+                detail={analysis.selectedObject.spatialContext.subtype}
+              />
+              <MetricPill
+                label="Geometry"
+                value={analysis.selectedObject.spatialContext.geometryType}
+                detail={analysis.selectedObject.spatialContext.areaSqm ? `Estimated area ${analysis.selectedObject.spatialContext.areaSqm.toLocaleString()} sqm` : "Area not available for this geometry."}
+              />
+              <MetricPill
+                label="Source status"
+                value={analysis.selectedObject.spatialContext.sourceStatus}
+                detail={analysis.selectedObject.spatialContext.limitations[0]}
+              />
+            </div>
+          </section>
+        ) : null}
+
         <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
           <h2 className="text-lg font-semibold text-ink">Key Factors</h2>
           <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">

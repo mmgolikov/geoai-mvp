@@ -1,5 +1,6 @@
 import type { EvidenceItem } from "@/src/types/data-source";
 import type { MarketContext } from "@/src/types/market-context";
+import type { SpatialSelectionContext } from "@/src/types/spatial-data";
 
 export type SelectedPoint = {
   latitude: number;
@@ -15,7 +16,10 @@ export type DemoLayerId =
   | "constructionSites"
   | "coastalFloodRiskZones"
   | "heatRiskZones"
-  | "transportCorridors";
+  | "transportCorridors"
+  | "assetParcelObjects"
+  | "futureMunicipalityGis"
+  | "futureCustomerAssets";
 
 export type SelectedDemoObject = {
   id: string;
@@ -25,6 +29,7 @@ export type SelectedDemoObject = {
   layerName: string;
   geometryType: DemoLayerType;
   center: SelectedPoint;
+  spatialContext?: SpatialSelectionContext;
 };
 
 export type ScoreKey =

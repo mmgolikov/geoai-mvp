@@ -196,9 +196,11 @@ function commonEvidence(point: SelectedPoint, scenarioLabel: string, selectedObj
       0,
       createEvidenceItem(
         "selected-demo-object",
-        "synthetic-demo-layers",
-        `Selected object: ${selectedObject.name}`,
-        `${selectedObject.type} from ${selectedObject.layerName}.`
+        selectedObject.spatialContext?.sourceId ?? "synthetic-demo-layers",
+        `Spatial feature: ${selectedObject.name}`,
+        selectedObject.spatialContext
+          ? `${selectedObject.spatialContext.subtype} / ${selectedObject.spatialContext.geometryType}; geometry status ${selectedObject.spatialContext.geometryStatus}, ${selectedObject.spatialContext.confidenceLevel} confidence. ${selectedObject.spatialContext.limitations[0]}`
+          : `${selectedObject.type} from ${selectedObject.layerName}.`
       )
     );
   }
