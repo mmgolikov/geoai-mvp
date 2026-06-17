@@ -1,3 +1,4 @@
+import { createEvidenceItem } from "@/src/data/data-source-registry";
 import { analysisScenarios, createMockExpressAnalysis } from "@/src/lib/mock-express-analysis";
 import type {
   AnalysisScenario,
@@ -170,6 +171,40 @@ export function createMockComparison(items: ComparisonItem[]): ComparisonResult 
       "Validate transport accessibility and infrastructure capacity.",
       "Prepare an investment memo with assumptions and ranking rationale.",
       "Compare financial assumptions under conservative, base, and upside cases."
+    ],
+    evidence: [
+      createEvidenceItem(
+        "comparison-map-selections",
+        "synthetic-demo-layers",
+        "Comparison map selections",
+        "Selected points and demo objects used as the comparison set."
+      ),
+      createEvidenceItem(
+        "comparison-scenarios",
+        "synthetic-demo-layers",
+        "Selected scenario context",
+        "Scenario metadata used to frame comparison scoring."
+      ),
+      createEvidenceItem(
+        "comparison-planning-source",
+        "dubai-municipality-gis-planning",
+        "Planned planning validation",
+        "Future official GIS/planning source for regulatory and land-use confirmation.",
+        "medium"
+      ),
+      createEvidenceItem(
+        "comparison-osm-source",
+        "osm-geofabrik",
+        "Planned infrastructure validation",
+        "Future open-data source for transport and access context.",
+        "medium"
+      ),
+      createEvidenceItem(
+        "comparison-mock-model",
+        "synthetic-demo-layers",
+        "Mock comparison scoring model",
+        "Deterministic local comparison model used for MVP demonstration."
+      )
     ]
   };
 }

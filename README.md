@@ -1,15 +1,48 @@
 # GeoAI MVP
 
-GeoAI is an early Next.js MVP skeleton for a spatial decision intelligence platform. This milestone creates the deployable application foundation only: homepage, workspace shell, Mapbox-ready map area, analysis panel placeholder, API routes, and mock demo objects.
+GeoAI is a Next.js spatial decision intelligence MVP for evaluating Dubai real estate, infrastructure, construction, and climate-risk scenarios. The current version is a public demo prototype: it uses Mapbox for the workspace, synthetic/demo geospatial layers, deterministic mock analysis, comparison dashboards, and print-friendly report previews.
+
+No OpenAI API, database, or real external data adapters are connected yet.
+
+## Implemented Features
+
+- Homepage and `/workspace` application shell
+- Dubai-centered Mapbox workspace
+- Point selection with marker and coordinates
+- Synthetic demo geospatial layers:
+  - Development Zones
+  - Premium Real Estate Areas
+  - Infrastructure Nodes
+  - Construction Sites
+  - Coastal / Flood Risk Zones
+  - Heat Risk Zones
+  - Transport Corridors
+- Collapsed spatial layer controls with toggles and legend
+- Demo object selection from map layers
+- Scenario selector:
+  - Real Estate Development
+  - Investment Site Selection
+  - Construction Monitoring
+  - Infrastructure / Urban Planning
+  - Climate & Risk
+  - Custom Query
+- Deterministic mock Express Analysis dashboard
+- Comparison mode for 2-3 selected points or demo objects
+- Comparison dashboard with scores, recommendation, risks, and next actions
+- Print-friendly report preview for single-site analysis and comparison
+- API route skeletons for health and demo objects
+- Vercel-ready Next.js deployment structure
 
 ## Tech Stack
 
 - Next.js App Router
 - TypeScript
+- React
 - Tailwind CSS
 - Mapbox GL JS
 - Next.js API routes
-- Mock JSON data
+- Synthetic GeoJSON-style demo data
+- Deterministic local mock scoring logic
 
 ## Local Setup
 
@@ -19,13 +52,15 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+Open the URL printed by Next.js, then go to `/workspace`.
 
-`NEXT_PUBLIC_MAPBOX_TOKEN` is optional for the skeleton. Without it, the workspace shows a polished placeholder. Add a real Mapbox token later to render the live basemap.
+Example:
 
-If port `3000` is already occupied, Next.js may start on the next available port. Use the URL printed in the terminal and open `/workspace` on that same port. If an old browser tab shows `404` or `Internal Server Error`, close the old dev server/tab and reopen the current printed URL.
+```text
+http://localhost:3000/workspace
+```
 
-The default development command uses stable Webpack mode with polling enabled, which is more reliable for this Mapbox workspace in the local Codex/macOS environment.
+If port `3000` is occupied, Next.js may start on another port. Use the exact URL printed in the terminal.
 
 ## Environment Variables
 
@@ -34,7 +69,11 @@ NEXT_PUBLIC_MAPBOX_TOKEN=
 OPENAI_API_KEY=
 ```
 
-Do not commit real tokens. This milestone does not call OpenAI yet; `OPENAI_API_KEY` is reserved for a future task.
+`NEXT_PUBLIC_MAPBOX_TOKEN` is required for the live Mapbox basemap.
+
+`OPENAI_API_KEY` is reserved for a future AI engine milestone. The current MVP does not call OpenAI.
+
+Do not commit real tokens. `.env`, `.env.local`, and `.env*.local` are ignored.
 
 ## Useful Commands
 
@@ -45,41 +84,44 @@ npm run build
 npm run start
 ```
 
+The default `npm run dev` command uses stable Webpack mode with polling enabled for local reliability.
+
 ## API Routes
 
 - `GET /api/health` returns app status.
-- `GET /api/demo-objects` returns mock spatial objects for future demos.
+- `GET /api/demo-objects` returns mock spatial objects for demo use.
 
 ## Deploy To Vercel
 
-1. Push the repository to GitHub, GitLab, or Bitbucket.
-2. Create a new project in Vercel and import the repository.
+1. Push the repository to GitHub.
+2. Create a Vercel project from the repository.
 3. Keep the default Next.js build settings.
-4. Add `NEXT_PUBLIC_MAPBOX_TOKEN` in Vercel project environment variables when ready.
-5. Add `OPENAI_API_KEY` later, only when the OpenAI integration is implemented.
+4. Add `NEXT_PUBLIC_MAPBOX_TOKEN` in Vercel environment variables.
+5. Add `OPENAI_API_KEY` later only when OpenAI integration is implemented.
 6. Deploy.
 
-## Current Scope
+## Current Limitations
 
-Implemented:
+- Uses synthetic/demo geospatial data only.
+- Uses deterministic mock scoring only.
+- No OpenAI API integration yet.
+- No database or persistence yet.
+- No authentication or user accounts.
+- No real parcel, zoning, transaction, satellite, or regulatory data adapters.
+- Report export is print-preview based, not a generated server-side PDF.
+- Comparison mode is local state only and is not saved.
 
-- Homepage
-- Workspace page
-- Top navigation with GeoAI branding
-- Full-screen map workspace placeholder with Mapbox GL JS integration hook
-- Right-side analysis panel placeholder
-- API route skeleton
-- Mock data structure
-- Vercel-ready project files
+## Documentation
 
-Not implemented yet:
+- [Architecture](docs/architecture.md)
+- [Data Strategy](docs/data-strategy.md)
+- [Roadmap](docs/roadmap.md)
+- [QA Checklist](docs/qa-checklist.md)
+- [Changelog](CHANGELOG.md)
 
-- OpenAI API calls
-- Database or persistence
-- Full scenario engine
-- Drawing tools, scoring, comparison, or report export
-- Authentication
+## Next Roadmap
 
-## Recommended Next Task
-
-Implement the first interactive workspace flow: load mock objects from `/api/demo-objects`, render them as Mapbox markers when a Mapbox token is present, and show a selected object summary in the right-side panel.
+- v0.2: AI analysis engine with OpenAI API route integration and structured prompts
+- v0.3: Data Source Registry and real data adapters
+- v0.4: Pilot-ready workflows for saved studies, evidence, and client reports
+- v0.5: Enterprise readiness with auth, governance, auditability, and deployment controls

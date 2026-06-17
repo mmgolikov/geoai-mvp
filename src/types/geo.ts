@@ -1,3 +1,5 @@
+import type { EvidenceItem } from "@/src/types/data-source";
+
 export type SelectedPoint = {
   latitude: number;
   longitude: number;
@@ -60,7 +62,7 @@ export type ExpressAnalysis = {
   opportunities: string[];
   risks: string[];
   nextActions: string[];
-  evidence: string[];
+  evidence: EvidenceItem[];
 };
 
 export type ComparisonItem = {
@@ -92,4 +94,5 @@ export type ComparisonResult = {
   sharedOpportunities: string[];
   differentiatedRisks: string[];
   nextActions: string[];
+  evidence: EvidenceItem[];
 };

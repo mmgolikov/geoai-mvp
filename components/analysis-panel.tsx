@@ -1,6 +1,7 @@
 "use client";
 
 import demoObjects from "@/src/data/demo-objects.json";
+import { getScenarioDataSources } from "@/src/data/data-source-registry";
 import type {
   AnalysisScenario,
   AnalysisScenarioId,
@@ -68,6 +69,7 @@ export function AnalysisPanel({
   const hasSelectedObject = selectedObject !== null;
   const scenario = scenarios.find((item) => item.id === selectedScenario) ?? scenarios[0];
   const isCustomQuery = selectedScenario === "customQuery";
+  const availableSources = getScenarioDataSources(selectedScenario).slice(0, 3);
 
   return (
     <aside className="border-l border-line bg-white lg:h-[calc(100vh-72px)] lg:w-[400px] lg:overflow-y-auto">
@@ -198,7 +200,31 @@ export function AnalysisPanel({
         </section>
 
         <section className="grid gap-3">
-          <PlaceholderRow label="Data sources" value="Demo map, infrastructure, risk context" />
+          <div className="rounded-md border border-line bg-white px-3 py-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">
+                Data sources
+              </div>
+              <span className="rounded-full bg-surface px-2 py-1 text-[11px] font-semibold text-brand">
+                {availableSources.length} shown
+              </span>
+            </div>
+            <div className="mt-2 grid gap-2">
+              {availableSources.map((source) => (
+                <div key={source.id} className="rounded-md bg-surface px-3 py-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="truncate text-sm font-semibold text-ink">{source.name}</span>
+                    <span className="shrink-0 rounded-full bg-white px-2 py-1 text-[11px] font-semibold text-muted">
+                      {source.status}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs leading-5 text-muted">
+                    {source.sourceType} / {source.reliabilityLevel} reliability
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
           <PlaceholderRow label="Upload documents" value="Coming later" />
           <PlaceholderRow label="Integrations" value="GIS, CRM, docs, imagery later" />
         </section>

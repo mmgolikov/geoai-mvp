@@ -1,3 +1,4 @@
+import { createEvidenceItem } from "@/src/data/data-source-registry";
 import type {
   AnalysisScenario,
   AnalysisScenarioId,
@@ -155,20 +156,50 @@ function createScores(point: SelectedPoint, scenarioId: AnalysisScenarioId): Rec
 
 function commonEvidence(point: SelectedPoint, scenarioLabel: string, selectedObject?: SelectedDemoObject | null) {
   const evidence = [
-    "Map selection",
-    `Coordinates: ${formatCoordinate(point)}`,
-    `${scenarioLabel} scenario`,
-    "Demo infrastructure context",
-    "Demo risk context",
-    "Mock scoring model"
+    createEvidenceItem(
+      "map-selection",
+      "synthetic-demo-layers",
+      "Map selection",
+      `Selected coordinates: ${formatCoordinate(point)}`
+    ),
+    createEvidenceItem(
+      "scenario-context",
+      "synthetic-demo-layers",
+      `${scenarioLabel} scenario`,
+      "Scenario-specific mock context generated from deterministic demo assumptions."
+    ),
+    createEvidenceItem(
+      "infrastructure-context",
+      "osm-geofabrik",
+      "Infrastructure context",
+      "Planned future source for road, access, and infrastructure validation.",
+      "medium"
+    ),
+    createEvidenceItem(
+      "planning-context",
+      "dubai-municipality-gis-planning",
+      "Planning / GIS context",
+      "Planned future source for zoning, land-use, and planning constraints.",
+      "medium"
+    ),
+    createEvidenceItem(
+      "mock-scoring-model",
+      "synthetic-demo-layers",
+      "Mock scoring model",
+      "Deterministic local scoring model used for MVP demonstration."
+    )
   ];
 
   if (selectedObject) {
     evidence.splice(
       2,
       0,
-      `Selected object: ${selectedObject.name}`,
-      `Selected layer: ${selectedObject.layerName}`
+      createEvidenceItem(
+        "selected-demo-object",
+        "synthetic-demo-layers",
+        `Selected object: ${selectedObject.name}`,
+        `${selectedObject.type} from ${selectedObject.layerName}.`
+      )
     );
   }
 
@@ -449,7 +480,16 @@ export function createMockExpressAnalysis(
         "List the official data sources needed to answer the question rigorously.",
         "Prepare a short memo with assumptions, evidence gaps, and next checks."
       ],
-      evidence: [...commonEvidence(point, scenario.label, selectedObject), "User custom question"]
+      evidence: [
+        ...commonEvidence(point, scenario.label, selectedObject),
+        createEvidenceItem(
+          "user-custom-question",
+          "customer-uploaded-documents",
+          "User custom question",
+          "User-entered question captured as optional context for future AI/document workflows.",
+          "low"
+        )
+      ]
     }
   };
   const scenarioAnalysis = scenarios[scenario.id];

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { EvidenceSourceCards } from "@/components/evidence-source-cards";
 import type { ComparisonResult, ScoreKey } from "@/src/types/geo";
 
 type ComparisonDashboardProps = {
@@ -217,6 +218,13 @@ export function ComparisonDashboard({ comparison, onBackToMap, onExportCompariso
             </ul>
           </section>
         </div>
+
+        <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
+          <h2 className="text-lg font-semibold text-ink">Evidence / Data Used</h2>
+          <div className="mt-4">
+            <EvidenceSourceCards evidence={comparison.evidence} />
+          </div>
+        </section>
 
         <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
           <h2 className="text-lg font-semibold text-ink">Recommended Next Actions</h2>

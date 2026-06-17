@@ -1,5 +1,6 @@
 "use client";
 
+import { EvidenceSourceCards } from "@/components/evidence-source-cards";
 import type { ComparisonResult, ExpressAnalysis, ScoreKey } from "@/src/types/geo";
 
 type ReportPreviewProps =
@@ -216,9 +217,7 @@ function AnalysisReport({ analysis, onBack }: { analysis: ExpressAnalysis; onBac
             </ul>
           </Section>
           <Section title="Evidence / Data Used">
-            <ul className="space-y-3 text-sm leading-6 text-muted">
-              {analysis.evidence.map((item) => <li key={item}>{item}</li>)}
-            </ul>
+            <EvidenceSourceCards evidence={analysis.evidence} compact />
           </Section>
         </div>
 
@@ -355,13 +354,7 @@ function ComparisonReport({ comparison, onBack }: { comparison: ComparisonResult
             </ul>
           </Section>
           <Section title="Evidence / Data Used">
-            <ul className="space-y-3 text-sm leading-6 text-muted">
-              <li>Map selections</li>
-              <li>Selected scenario context</li>
-              <li>Demo geospatial layer metadata where available</li>
-              <li>Mock comparison scoring model</li>
-              <li>No official datasets, OpenAI API, or database connected</li>
-            </ul>
+            <EvidenceSourceCards evidence={comparison.evidence} compact />
           </Section>
         </div>
 

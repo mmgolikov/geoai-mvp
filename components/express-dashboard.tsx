@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { EvidenceSourceCards } from "@/components/evidence-source-cards";
 import { MapWorkspace } from "@/components/map-workspace";
 import type { ExpressAnalysis, ScoreKey } from "@/src/types/geo";
 
@@ -178,15 +179,8 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
 
           <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
             <h2 className="text-lg font-semibold text-ink">Evidence / Data Used</h2>
-            <div className="mt-4 flex flex-wrap gap-2">
-              {analysis.evidence.map((item) => (
-                <span
-                  key={item}
-                  className="rounded-full border border-line bg-surface px-3 py-2 text-xs font-medium text-muted"
-                >
-                  {item}
-                </span>
-              ))}
+            <div className="mt-4">
+              <EvidenceSourceCards evidence={analysis.evidence} compact />
             </div>
           </section>
         </div>
