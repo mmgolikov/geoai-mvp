@@ -349,6 +349,14 @@ function AnalysisReport({ analysis, onBack }: { analysis: ExpressAnalysis; onBac
                   <dt className="font-semibold text-muted">Source status</dt>
                   <dd className="mt-1 text-ink">{analysis.selectedObject.spatialContext.sourceStatus}</dd>
                 </div>
+                <div className="rounded-md bg-white p-4">
+                  <dt className="font-semibold text-muted">Dataset</dt>
+                  <dd className="mt-1 text-ink">{analysis.selectedObject.spatialContext.datasetName}</dd>
+                </div>
+                <div className="rounded-md bg-white p-4">
+                  <dt className="font-semibold text-muted">Scenario relevance</dt>
+                  <dd className="mt-1 text-ink">{analysis.selectedObject.spatialContext.scenarioRelevance.join(", ")}</dd>
+                </div>
               </dl>
               <p className="mt-4 text-sm leading-6 text-muted">{analysis.selectedObject.spatialContext.limitations[0]}</p>
             </div>

@@ -271,9 +271,17 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
               <MetricPill
                 label="Source status"
                 value={analysis.selectedObject.spatialContext.sourceStatus}
-                detail={analysis.selectedObject.spatialContext.limitations[0]}
+                detail={analysis.selectedObject.spatialContext.datasetName}
+              />
+              <MetricPill
+                label="Scenario relevance"
+                value={`${analysis.selectedObject.spatialContext.scenarioRelevance.length} scenarios`}
+                detail={analysis.selectedObject.spatialContext.scenarioRelevance.join(", ")}
               />
             </div>
+            <p className="mt-4 rounded-md border border-line bg-surface px-3 py-2 text-sm leading-6 text-muted">
+              {analysis.selectedObject.spatialContext.limitations[0]}
+            </p>
           </section>
         ) : null}
 

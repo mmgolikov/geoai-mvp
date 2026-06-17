@@ -164,9 +164,10 @@ function addSelectedObjectLayer(map: MapboxMap) {
       id: "geoai-selected-fill",
       type: "fill",
       source: selectedObjectSourceId,
+      filter: ["==", ["geometry-type"], "Polygon"],
       paint: {
-        "fill-color": "#111827",
-        "fill-opacity": 0.16
+        "fill-color": "#174f63",
+        "fill-opacity": 0.24
       }
     });
   }
@@ -177,9 +178,10 @@ function addSelectedObjectLayer(map: MapboxMap) {
       type: "line",
       source: selectedObjectSourceId,
       paint: {
-        "line-color": "#111827",
-        "line-width": 4,
-        "line-opacity": 0.9
+        "line-color": "#174f63",
+        "line-width": 2.6,
+        "line-opacity": 0.96,
+        "line-blur": 0.25
       }
     });
   }
@@ -189,11 +191,12 @@ function addSelectedObjectLayer(map: MapboxMap) {
       id: "geoai-selected-circle",
       type: "circle",
       source: selectedObjectSourceId,
+      filter: ["==", ["geometry-type"], "Point"],
       paint: {
-        "circle-color": "#111827",
-        "circle-radius": 10,
+        "circle-color": "#174f63",
+        "circle-radius": 8,
         "circle-stroke-color": "#ffffff",
-        "circle-stroke-width": 3
+        "circle-stroke-width": 2.5
       }
     });
   }
@@ -212,9 +215,10 @@ function addHoverObjectLayer(map: MapboxMap) {
       id: "geoai-hover-fill",
       type: "fill",
       source: hoverObjectSourceId,
+      filter: ["==", ["geometry-type"], "Polygon"],
       paint: {
-        "fill-color": "#111827",
-        "fill-opacity": 0.08
+        "fill-color": "#174f63",
+        "fill-opacity": 0.1
       }
     });
   }
@@ -225,8 +229,8 @@ function addHoverObjectLayer(map: MapboxMap) {
       type: "line",
       source: hoverObjectSourceId,
       paint: {
-        "line-color": "#111827",
-        "line-width": 2.4,
+        "line-color": "#174f63",
+        "line-width": 1.8,
         "line-opacity": 0.72
       }
     });
@@ -237,9 +241,10 @@ function addHoverObjectLayer(map: MapboxMap) {
       id: "geoai-hover-circle",
       type: "circle",
       source: hoverObjectSourceId,
+      filter: ["==", ["geometry-type"], "Point"],
       paint: {
-        "circle-color": "#111827",
-        "circle-radius": 8,
+        "circle-color": "#174f63",
+        "circle-radius": 7,
         "circle-stroke-color": "#ffffff",
         "circle-stroke-width": 2
       }

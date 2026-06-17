@@ -199,8 +199,9 @@ function commonEvidence(point: SelectedPoint, scenarioLabel: string, selectedObj
         selectedObject.spatialContext?.sourceId ?? "synthetic-demo-layers",
         `Spatial feature: ${selectedObject.name}`,
         selectedObject.spatialContext
-          ? `${selectedObject.spatialContext.subtype} / ${selectedObject.spatialContext.geometryType}; geometry status ${selectedObject.spatialContext.geometryStatus}, ${selectedObject.spatialContext.confidenceLevel} confidence. ${selectedObject.spatialContext.limitations[0]}`
-          : `${selectedObject.type} from ${selectedObject.layerName}.`
+          ? `${selectedObject.spatialContext.datasetName}; ${selectedObject.spatialContext.subtype} / ${selectedObject.spatialContext.geometryType}; source ${selectedObject.spatialContext.sourceStatus}, geometry status ${selectedObject.spatialContext.geometryStatus}, ${selectedObject.spatialContext.confidenceLevel} confidence. Scenario relevance: ${selectedObject.spatialContext.scenarioRelevance.join(", ")}. ${selectedObject.spatialContext.limitations[0]}`
+          : `${selectedObject.type} from ${selectedObject.layerName}.`,
+        selectedObject.spatialContext?.confidenceLevel ?? "demo"
       )
     );
   }

@@ -154,6 +154,8 @@ export function toSpatialSelectionContext(feature: SpatialFeature): SpatialSelec
   return {
     featureId: feature.id,
     featureName: feature.properties.name,
+    datasetId: dataset?.id ?? "unknown-spatial-dataset",
+    datasetName: dataset?.name ?? "Unknown spatial dataset",
     category: feature.properties.category,
     subtype: feature.properties.subtype,
     geometryType: feature.geometry.type,

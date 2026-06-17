@@ -91,6 +91,8 @@ export type SpatialValidationResult = {
 export type SpatialSelectionContext = {
   featureId: string;
   featureName: string;
+  datasetId: string;
+  datasetName: string;
   category: SpatialLayerCategory;
   subtype: string;
   geometryType: SpatialGeometry["type"];

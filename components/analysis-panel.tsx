@@ -186,12 +186,29 @@ export function AnalysisPanel({
           {selectedObject?.spatialContext ? (
             <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
               <div className="rounded-md bg-white px-2 py-2">
+                <span className="text-muted">Geometry</span>
+                <p className="mt-1 font-semibold text-ink">{selectedObject.spatialContext.geometryType}</p>
+              </div>
+              <div className="rounded-md bg-white px-2 py-2">
+                <span className="text-muted">Area</span>
+                <p className="mt-1 font-semibold text-ink">
+                  {selectedObject.spatialContext.areaSqm
+                    ? `${Math.round(selectedObject.spatialContext.areaSqm / 1000).toLocaleString()}k sqm`
+                    : "n/a"}
+                </p>
+              </div>
+              <div className="rounded-md bg-white px-2 py-2">
                 <span className="text-muted">Source</span>
                 <p className="mt-1 font-semibold text-ink">{selectedObject.spatialContext.sourceStatus}</p>
               </div>
               <div className="rounded-md bg-white px-2 py-2">
                 <span className="text-muted">Confidence</span>
                 <p className="mt-1 font-semibold text-ink">{selectedObject.spatialContext.confidenceLevel}</p>
+              </div>
+              <div className="col-span-2 rounded-md bg-white px-2 py-2">
+                <span className="text-muted">Dataset</span>
+                <p className="mt-1 truncate font-semibold text-ink">{selectedObject.spatialContext.datasetName}</p>
+                <p className="mt-1 truncate text-muted">{selectedObject.spatialContext.limitations[0]}</p>
               </div>
             </div>
           ) : null}
