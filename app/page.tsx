@@ -115,43 +115,43 @@ function LandingHeader() {
 
 function HeroVisual() {
   return (
-    <div className="relative rounded-xl border border-[#ded7c9] bg-white p-3 shadow-soft">
-      <div className="overflow-hidden rounded-lg border border-line bg-[#f7f8f6]">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line bg-white px-4 py-3">
+    <div className="relative max-h-[480px] overflow-hidden rounded-xl border border-[#ded7c9] bg-white p-3 shadow-soft">
+      <div className="grid h-[430px] max-h-[calc(100vh-150px)] min-h-[360px] grid-rows-[52px_minmax(0,1fr)_74px] overflow-hidden rounded-lg border border-line bg-[#f7f8f6]">
+        <div className="flex min-h-0 flex-wrap items-center justify-between gap-3 border-b border-line bg-white px-4 py-2">
           <div className="flex min-w-0 items-center gap-3">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-brand text-xs font-semibold text-white">
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-brand text-xs font-semibold text-white">
               G
             </div>
             <div className="min-w-0">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted">GeoAI workspace</p>
-              <h2 className="truncate text-base font-semibold text-ink">Dubai site screening</h2>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted">GeoAI workspace</p>
+              <h2 className="truncate text-sm font-semibold text-ink">Dubai site screening</h2>
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
             {["Demo", "Layers active", "AI-ready"].map((item) => (
-              <span key={item} className="rounded-full bg-surface px-3 py-1 text-xs font-semibold text-muted">
+              <span key={item} className="rounded-full bg-surface px-2.5 py-1 text-[11px] font-semibold text-muted">
                 {item}
               </span>
             ))}
           </div>
         </div>
 
-        <div className="grid gap-3 p-3 xl:grid-cols-[minmax(0,1fr)_310px]">
+        <div className="grid min-h-0 gap-3 p-3 xl:grid-cols-[minmax(0,1fr)_300px]">
           <div className="overflow-hidden rounded-lg border border-line bg-white">
-            <div className="h-[380px] md:h-[430px]">
+            <div className="h-full min-h-0">
               <LandingHeroMap />
             </div>
           </div>
 
-          <aside className="grid gap-3 rounded-lg border border-line bg-white p-4">
+          <aside className="grid min-h-0 content-start gap-2 overflow-hidden rounded-lg border border-line bg-white p-3">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted">AI decision summary</p>
-              <h2 className="mt-2 text-2xl font-semibold text-ink">Proceed with conditions</h2>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted">AI decision summary</p>
+              <h2 className="mt-1 text-xl font-semibold text-ink">Proceed with conditions</h2>
             </div>
-            <div className="rounded-md bg-[#edf4f2] p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-brand">Suitability score</p>
-              <p className="mt-2 text-4xl font-semibold text-brand">82/100</p>
-              <p className="mt-2 text-sm leading-6 text-muted">Strong demo signal, pending official validation.</p>
+            <div className="rounded-md bg-[#edf4f2] p-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-brand">Suitability score</p>
+              <p className="mt-1 text-3xl font-semibold text-brand">82/100</p>
+              <p className="mt-1 text-xs leading-5 text-muted">Strong demo signal, pending official validation.</p>
             </div>
             <div className="grid gap-2">
               {[
@@ -159,7 +159,7 @@ function HeroVisual() {
                 ["Key risk", "Pipeline pressure"],
                 ["Data confidence", "Demo-normalized / official-ready"]
               ].map(([label, value]) => (
-                <div key={label} className="rounded-md border border-line bg-surface px-3 py-2">
+                <div key={label} className="rounded-md border border-line bg-surface px-3 py-1.5">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">{label}</p>
                   <p className="mt-1 text-sm font-semibold text-ink">{value}</p>
                 </div>
@@ -185,14 +185,14 @@ function HeroVisual() {
           </aside>
         </div>
 
-        <div className="grid gap-2 border-t border-line bg-white px-3 py-3 md:grid-cols-4">
+        <div className="grid min-h-0 gap-2 border-t border-line bg-white px-3 py-2 md:grid-cols-4">
           {[
             ["Market context", "Dubai Marina seed"],
             ["Spatial layers", "7 demo overlays"],
             ["AI recommendation", "Proceed conditionally"],
             ["Evidence confidence", "Demo / planned official"]
           ].map(([label, value]) => (
-            <div key={label} className="rounded-md bg-surface px-3 py-2">
+            <div key={label} className="rounded-md bg-surface px-3 py-1.5">
               <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">{label}</p>
               <p className="mt-1 truncate text-sm font-semibold text-ink">{value}</p>
             </div>
@@ -208,10 +208,10 @@ export default function HomePage() {
     <main className="min-h-screen bg-[#fbfaf7] text-ink">
       <LandingHeader />
 
-      <section id="product" className="mx-auto grid max-w-7xl gap-12 px-5 py-16 sm:px-6 lg:grid-cols-[0.92fr_1.08fr] lg:px-8 lg:py-20">
+      <section id="product" className="mx-auto grid max-w-7xl gap-10 px-5 py-10 sm:px-6 lg:grid-cols-[0.86fr_1.14fr] lg:px-8 lg:py-12">
         <div className="flex flex-col justify-center">
           <SectionLabel>Dubai real estate intelligence</SectionLabel>
-          <h1 className="mt-5 text-5xl font-semibold leading-[1.02] text-ink md:text-7xl">
+          <h1 className="mt-5 text-5xl font-semibold leading-[1.02] text-ink md:text-6xl">
             AI spatial intelligence for Dubai real estate decisions
           </h1>
           <p className="mt-6 max-w-2xl text-lg leading-8 text-muted">

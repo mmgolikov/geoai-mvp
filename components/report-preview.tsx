@@ -2,6 +2,7 @@
 
 import { EvidenceSourceCards } from "@/components/evidence-source-cards";
 import { MapContextCard } from "@/components/map-context-card";
+import { PrintableReport } from "@/components/printable-report";
 import type { ComparisonResult, ExpressAnalysis, ScoreKey } from "@/src/types/geo";
 
 type ReportPreviewProps =
@@ -70,7 +71,7 @@ function ReportShell({
   onBack: () => void;
 }) {
   return (
-    <section className="h-[calc(100vh-72px)] overflow-y-auto bg-[#eef2f5] p-6 print:h-auto print:overflow-visible print:bg-white print:p-0">
+    <section className="screen-only h-[calc(100vh-72px)] overflow-y-auto bg-[#eef2f5] p-6">
       <div className="mx-auto max-w-5xl print:max-w-none">
         <div className="mb-4 flex flex-wrap justify-end gap-3 print:hidden">
           <button
@@ -117,9 +118,10 @@ function AnalysisReport({ analysis, onBack }: { analysis: ExpressAnalysis; onBac
   const dataLimitation = analysis.limitations?.[0] ?? "Structured evidence context with deterministic demo scoring.";
 
   return (
-    <ReportShell onBack={onBack}>
-      <div className="flex flex-col gap-8">
-        <header className="border-b border-line pb-6">
+    <>
+      <ReportShell onBack={onBack}>
+        <div className="flex flex-col gap-8">
+          <header className="border-b border-line pb-6">
           <div className="flex items-start justify-between gap-6">
             <div>
               <p className="text-sm font-semibold uppercase tracking-[0.18em] text-brand">GeoAI</p>
@@ -355,15 +357,18 @@ function AnalysisReport({ analysis, onBack }: { analysis: ExpressAnalysis; onBac
             </ul>
           </Section>
         ) : null}
-      </div>
-    </ReportShell>
+        </div>
+      </ReportShell>
+      <PrintableReport mode="analysis" analysis={analysis} />
+    </>
   );
 }
 
 function ComparisonReport({ comparison, onBack }: { comparison: ComparisonResult; onBack: () => void }) {
   return (
-    <ReportShell onBack={onBack}>
-      <div className="flex flex-col gap-8">
+    <>
+      <ReportShell onBack={onBack}>
+        <div className="flex flex-col gap-8">
         <header className="border-b border-line pb-6">
           <div className="flex items-start justify-between gap-6">
             <div>
@@ -489,8 +494,10 @@ function ComparisonReport({ comparison, onBack }: { comparison: ComparisonResult
             ))}
           </ol>
         </Section>
-      </div>
-    </ReportShell>
+        </div>
+      </ReportShell>
+      <PrintableReport mode="comparison" comparison={comparison} />
+    </>
   );
 }
 

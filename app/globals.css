@@ -73,6 +73,12 @@ body {
   -webkit-line-clamp: 4;
 }
 
+@media screen {
+  .print-only {
+    display: none !important;
+  }
+}
+
 @media print {
   @page {
     size: A4;
@@ -91,12 +97,17 @@ body {
     font-size: 11px;
   }
 
+  .screen-only,
   nav,
   aside,
   body > header,
   .mapboxgl-control-container,
   .geoai-hover-popup {
     display: none !important;
+  }
+
+  .print-only {
+    display: block !important;
   }
 
   .report-page {
@@ -189,5 +200,227 @@ body {
 
   .report-page .mapboxgl-canvas {
     max-width: 100% !important;
+  }
+
+  .print-memo {
+    width: 100%;
+    max-width: 186mm;
+    margin: 0 auto;
+    color: #172033;
+    font-family: Arial, sans-serif;
+  }
+
+  .print-memo-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #d9dee5;
+    break-inside: avoid;
+  }
+
+  .print-brand {
+    margin: 0 0 5px;
+    color: #174f63;
+    font-size: 10px !important;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .print-memo h1 {
+    margin: 0;
+    font-size: 22px !important;
+    line-height: 1.15 !important;
+  }
+
+  .print-memo h2 {
+    margin: 0 0 7px;
+    font-size: 13px !important;
+    line-height: 1.25 !important;
+  }
+
+  .print-memo p,
+  .print-memo li,
+  .print-memo span,
+  .print-memo td,
+  .print-memo th,
+  .print-memo small {
+    font-size: 9.5px !important;
+    line-height: 1.42 !important;
+  }
+
+  .print-status {
+    flex-shrink: 0;
+    border: 1px solid #d9dee5;
+    border-radius: 999px;
+    padding: 4px 8px;
+    color: #174f63;
+    font-size: 9px !important;
+    font-weight: 700;
+  }
+
+  .print-memo-meta,
+  .print-score-grid,
+  .print-evidence-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 7px;
+  }
+
+  .print-memo-section {
+    margin-top: 11px;
+    padding-top: 9px;
+    border-top: 1px solid #d9dee5;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .print-memo-card {
+    border: 1px solid #d9dee5;
+    border-radius: 6px;
+    background: #f7f9fb;
+    padding: 7px;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .print-memo-card strong {
+    display: block;
+    margin-bottom: 3px;
+    color: #172033;
+    font-size: 9.5px !important;
+  }
+
+  .print-memo-card span {
+    display: block;
+    color: #344054;
+    font-weight: 600;
+  }
+
+  .print-score {
+    color: #174f63 !important;
+    font-size: 18px !important;
+    font-weight: 700;
+  }
+
+  .print-two-col-list {
+    columns: 2;
+    column-gap: 12px;
+    margin: 0;
+    padding-left: 14px;
+  }
+
+  .print-two-col-list li {
+    break-inside: avoid;
+    margin-bottom: 4px;
+  }
+
+  .print-map-block {
+    position: relative;
+    height: 118px;
+    overflow: hidden;
+    border: 1px solid #d9dee5;
+    border-radius: 8px;
+    background: #dfe8ec;
+    break-inside: avoid;
+  }
+
+  .print-map-grid {
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(90deg, rgba(23, 79, 99, 0.14) 1px, transparent 1px),
+      linear-gradient(rgba(23, 79, 99, 0.14) 1px, transparent 1px);
+    background-size: 28px 28px;
+  }
+
+  .print-map-zone {
+    position: absolute;
+    border-radius: 999px;
+    border: 1px solid rgba(23, 79, 99, 0.38);
+    background: rgba(23, 79, 99, 0.10);
+  }
+
+  .print-map-zone.zone-a {
+    left: 26px;
+    top: 28px;
+    width: 145px;
+    height: 42px;
+    transform: rotate(-8deg);
+  }
+
+  .print-map-zone.zone-b {
+    right: 52px;
+    top: 22px;
+    width: 120px;
+    height: 58px;
+    border-color: rgba(197, 167, 106, 0.6);
+    background: rgba(197, 167, 106, 0.16);
+  }
+
+  .print-map-zone.zone-c {
+    left: 210px;
+    bottom: 20px;
+    width: 160px;
+    height: 44px;
+    border-color: rgba(44, 127, 184, 0.52);
+    background: rgba(44, 127, 184, 0.12);
+  }
+
+  .print-map-marker {
+    position: absolute;
+    left: 48%;
+    top: 48%;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transform: translate(-50%, -50%);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.94);
+    padding: 4px 8px;
+  }
+
+  .print-map-marker span {
+    width: 9px;
+    height: 9px;
+    border-radius: 999px;
+    background: #174f63;
+  }
+
+  .print-map-caption {
+    position: absolute;
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.9);
+    padding: 5px 7px;
+  }
+
+  .print-evidence-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .print-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .print-table th,
+  .print-table td {
+    border: 1px solid #d9dee5;
+    padding: 5px;
+    text-align: left;
+  }
+
+  .print-table th {
+    background: #f7f9fb;
   }
 }
