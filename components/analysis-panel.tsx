@@ -155,87 +155,71 @@ export function AnalysisPanel({
 
   return (
     <aside className="max-w-full overflow-y-auto overflow-x-hidden border-l border-line bg-white lg:h-[calc(100vh-72px)] lg:w-[400px]">
-      <div className="flex min-h-full min-w-0 max-w-full flex-col gap-3 overflow-x-hidden p-4">
-        <section className="min-w-0">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted">
-            Command panel
-          </p>
-          <h1 className="mt-1 text-xl font-semibold text-ink">GeoAI workspace</h1>
-        </section>
+      <section className="flex min-h-[calc(100vh-72px)] min-w-0 max-w-full flex-col gap-3 overflow-hidden p-4">
+        <div className="grid min-w-0 gap-3">
+          <section className="min-w-0">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted">
+              Command panel
+            </p>
+            <h1 className="mt-1 text-xl font-semibold text-ink">GeoAI workspace</h1>
+          </section>
 
-        <section className="min-w-0 max-w-full overflow-hidden rounded-lg border border-line bg-surface p-3">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">
-                {hasSelectedObject ? "Demo object" : "Selected point"}
-              </p>
-              <h2 className="mt-1 truncate text-base font-semibold text-ink">
-                {hasSelectedObject
-                  ? selectedObject.name
-                  : hasSelectedPoint
-                    ? "Custom map selection"
-                    : "No point selected"}
-              </h2>
-              {hasSelectedObject ? (
+          <section className="min-w-0 max-w-full overflow-hidden rounded-lg border border-line bg-surface p-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">
+                  {hasSelectedObject ? "Selected object" : "Selected point"}
+                </p>
+                <h2 className="mt-1 truncate text-base font-semibold text-ink">
+                  {hasSelectedObject
+                    ? selectedObject.name
+                    : hasSelectedPoint
+                      ? "Custom map selection"
+                      : "No point selected"}
+                </h2>
                 <p className="mt-1 truncate text-xs leading-5 text-muted">
-                  {selectedObject.spatialContext
-                    ? `${selectedObject.spatialContext.category.replace(/_/g, " ")} / ${selectedObject.spatialContext.geometryStatus}`
-                    : `${selectedObject.type} / ${selectedObject.layerName}`}
-                </p>
-              ) : null}
-            </div>
-            <span className="shrink-0 rounded-full bg-white px-2 py-1 text-[11px] font-semibold text-brand">
-              {hasSelectedObject ? "Object" : "Point"}
-            </span>
-          </div>
-
-          <dl className="mt-3 grid grid-cols-2 gap-2 text-xs">
-            <div className="rounded-md bg-white px-2 py-2">
-              <dt className="text-muted">Lat</dt>
-              <dd className="mt-1 font-semibold text-ink">
-                {selectedPoint ? formatCoordinate(selectedPoint.latitude) : "-"}
-              </dd>
-            </div>
-            <div className="rounded-md bg-white px-2 py-2">
-              <dt className="text-muted">Lng</dt>
-              <dd className="mt-1 font-semibold text-ink">
-                {selectedPoint ? formatCoordinate(selectedPoint.longitude) : "-"}
-              </dd>
-            </div>
-          </dl>
-          {selectedObject?.spatialContext ? (
-            <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
-              <div className="min-w-0 rounded-md bg-white px-2 py-2">
-                <span className="text-muted">Geometry</span>
-                <p className="mt-1 break-words font-semibold text-ink">{selectedObject.spatialContext.geometryType}</p>
-              </div>
-              <div className="min-w-0 rounded-md bg-white px-2 py-2">
-                <span className="text-muted">Area</span>
-                <p className="mt-1 break-words font-semibold text-ink">
-                  {selectedObject.spatialContext.areaSqm
-                    ? `${Math.round(selectedObject.spatialContext.areaSqm / 1000).toLocaleString()}k sqm`
-                    : "n/a"}
+                  {hasSelectedObject
+                    ? selectedObject.spatialContext?.datasetName ?? selectedObject.layerName
+                    : hasSelectedPoint
+                      ? "Map point / user selection"
+                      : "Select a point or demo object on the map"}
                 </p>
               </div>
-              <div className="min-w-0 rounded-md bg-white px-2 py-2">
-                <span className="text-muted">Source</span>
-                <p className="mt-1 break-words font-semibold text-ink">{selectedObject.spatialContext.sourceStatus}</p>
-              </div>
-              <div className="min-w-0 rounded-md bg-white px-2 py-2">
-                <span className="text-muted">Confidence</span>
-                <p className="mt-1 break-words font-semibold text-ink">{selectedObject.spatialContext.confidenceLevel}</p>
-              </div>
-              <div className="col-span-2 min-w-0 rounded-md bg-white px-2 py-2">
-                <span className="text-muted">Dataset</span>
-                <p className="mt-1 truncate font-semibold text-ink">{selectedObject.spatialContext.datasetName}</p>
-                <p className="mt-1 whitespace-normal break-words text-muted">{selectedObject.spatialContext.limitations[0]}</p>
-              </div>
+              <span className="shrink-0 rounded-full bg-white px-2 py-1 text-[11px] font-semibold text-brand">
+                {hasSelectedObject ? "Object" : "Point"}
+              </span>
             </div>
-          ) : null}
-        </section>
 
-        <section className="grid min-w-0 max-w-full gap-2 overflow-hidden">
-          <div className="min-w-0 max-w-full overflow-hidden rounded-md border border-line bg-white px-3 py-2">
+            <dl className="mt-3 grid grid-cols-2 gap-2 text-xs">
+              <div className="min-w-0 rounded-md bg-white px-2 py-2">
+                <dt className="text-muted">Lat</dt>
+                <dd className="mt-1 truncate font-semibold text-ink">
+                  {selectedPoint ? formatCoordinate(selectedPoint.latitude) : "-"}
+                </dd>
+              </div>
+              <div className="min-w-0 rounded-md bg-white px-2 py-2">
+                <dt className="text-muted">Lng</dt>
+                <dd className="mt-1 truncate font-semibold text-ink">
+                  {selectedPoint ? formatCoordinate(selectedPoint.longitude) : "-"}
+                </dd>
+              </div>
+              <div className="min-w-0 rounded-md bg-white px-2 py-2">
+                <dt className="text-muted">Type</dt>
+                <dd className="mt-1 truncate font-semibold text-ink">
+                  {hasSelectedObject ? selectedObject.type : "Point"}
+                </dd>
+              </div>
+              <div className="min-w-0 rounded-md bg-white px-2 py-2">
+                <dt className="text-muted">Confidence</dt>
+                <dd className="mt-1 truncate font-semibold text-ink">
+                  {selectedObject?.spatialContext?.confidenceLevel ?? (hasSelectedPoint ? "user" : "-")}
+                </dd>
+              </div>
+            </dl>
+          </section>
+
+          <section className="grid min-w-0 max-w-full gap-2 overflow-hidden">
+            <div className="min-w-0 max-w-full overflow-hidden rounded-md border border-line bg-white px-3 py-2">
             <label
               htmlFor="analysis-scenario"
               className="text-xs font-semibold uppercase tracking-[0.12em] text-muted"
@@ -257,7 +241,7 @@ export function AnalysisPanel({
             <p className="mt-1 text-xs leading-5 text-muted">{scenario.description}</p>
           </div>
 
-          <div className="min-w-0 max-w-full overflow-hidden rounded-md border border-line bg-white px-3 py-2">
+            <div className="min-w-0 max-w-full overflow-hidden rounded-md border border-line bg-white px-3 py-2">
             <label
               htmlFor="custom-query"
               className="text-xs font-semibold uppercase tracking-[0.12em] text-muted"
@@ -282,10 +266,11 @@ export function AnalysisPanel({
               </p>
             ) : null}
           </div>
-        </section>
+          </section>
+        </div>
 
         {/* Primary actions stay in the normal command flow, directly below scenario/query controls. */}
-        <section className="min-w-0 max-w-full overflow-hidden rounded-lg border border-line bg-white p-3 shadow-soft">
+        <section className="mt-auto min-w-0 max-w-full overflow-hidden rounded-lg border border-line bg-white p-3 shadow-soft">
           <button
             type="button"
             disabled={!hasSelectedPoint}
@@ -319,8 +304,9 @@ export function AnalysisPanel({
             </p>
           ) : null}
         </section>
+      </section>
 
-        <section className="grid min-w-0 max-w-full gap-2 overflow-hidden">
+      <section className="grid min-w-0 max-w-full gap-2 overflow-hidden px-4 pb-4">
           <CollapsedSection
             title="Market Context"
             badge={isMarketContextLoading ? "loading" : contextStatus}
@@ -499,7 +485,6 @@ export function AnalysisPanel({
             ) : null}
           </CollapsedSection>
       </section>
-      </div>
     </aside>
   );
 }
