@@ -67,6 +67,7 @@ export type ExpressAnalysis = {
   confidenceLevel?: "low" | "medium" | "high";
   limitations?: string[];
   analysisNotice?: string;
+  generatedAt?: string;
 };
 
 export type ComparisonItem = {

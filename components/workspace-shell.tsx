@@ -49,7 +49,8 @@ function mergeNarrativeAnalysis(
     analysisMode: narrative.mode,
     confidenceLevel: narrative.confidence_level,
     limitations: narrative.limitations,
-    analysisNotice: narrative.notice
+    analysisNotice: narrative.notice,
+    generatedAt: new Date().toISOString()
   };
 }
 
@@ -196,7 +197,8 @@ export function WorkspaceShell() {
         limitations: [
           "Narrative content is generated from deterministic demo context.",
           "Official parcel, planning, transaction, imagery, and risk data are not connected yet."
-        ]
+        ],
+        generatedAt: new Date().toISOString()
       });
     } finally {
       setIsAnalyzing(false);
@@ -243,6 +245,8 @@ export function WorkspaceShell() {
         comparisonItems={comparisonItems}
         comparisonMessage={comparisonMessage}
         hasResult={analysis !== null || comparison !== null}
+        analysisMode={analysis?.analysisMode}
+        analysisGeneratedAt={analysis?.generatedAt}
         onScenarioChange={(scenario) => {
           setSelectedScenario(scenario);
           setAnalysisError(null);

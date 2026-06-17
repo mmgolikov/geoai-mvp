@@ -34,9 +34,24 @@ function scoreTone(scoreKey: ScoreKey, value: number) {
   return "text-[#9f3412] bg-[#fff4ed]";
 }
 
+function formatGeneratedAt(value?: string) {
+  if (!value) {
+    return "Current session";
+  }
+
+  return new Intl.DateTimeFormat("en", {
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(new Date(value));
+}
+
 export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: ExpressDashboardProps) {
   const dashboardRef = useRef<HTMLElement | null>(null);
   const analysisBadge = analysis.analysisMode === "openai" ? "AI analysis" : "Demo fallback";
+  const modeLabel = analysis.analysisMode === "openai" ? "AI-powered" : "Demo fallback";
+  const dataLimitation = analysis.limitations?.[0] ?? "Structured evidence context with deterministic demo scoring.";
 
   useEffect(() => {
     dashboardRef.current?.scrollTo({ top: 0, left: 0 });
@@ -104,17 +119,33 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
                 {analysis.analysisNotice}
               </p>
             ) : null}
-            <div className="mt-4 flex flex-wrap gap-2">
-              {analysis.confidenceLevel ? (
-                <span className="rounded-full bg-surface px-3 py-1 text-xs font-semibold text-muted">
-                  Confidence: {analysis.confidenceLevel}
+            <div className="mt-4 grid gap-2 text-sm md:grid-cols-2">
+              <div className="rounded-md border border-line bg-surface px-3 py-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">
+                  Analysis mode
                 </span>
-              ) : null}
-              {analysis.limitations?.slice(0, 2).map((limitation) => (
-                <span key={limitation} className="rounded-full bg-surface px-3 py-1 text-xs font-semibold text-muted">
-                  {limitation}
+                <p className="mt-1 font-semibold text-ink">{modeLabel}</p>
+              </div>
+              <div className="rounded-md border border-line bg-surface px-3 py-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">
+                  Confidence level
                 </span>
-              ))}
+                <p className="mt-1 font-semibold capitalize text-ink">
+                  {analysis.confidenceLevel ?? "medium"}
+                </p>
+              </div>
+              <div className="rounded-md border border-line bg-surface px-3 py-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">
+                  Data confidence / limitation
+                </span>
+                <p className="mt-1 leading-5 text-muted">{dataLimitation}</p>
+              </div>
+              <div className="rounded-md border border-line bg-surface px-3 py-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">
+                  Generated
+                </span>
+                <p className="mt-1 font-semibold text-ink">{formatGeneratedAt(analysis.generatedAt)}</p>
+              </div>
             </div>
           </section>
         </div>

@@ -6,6 +6,7 @@ import type {
   AnalysisScenario,
   AnalysisScenarioId,
   ComparisonItem,
+  ExpressAnalysis,
   SelectedDemoObject,
   SelectedPoint
 } from "@/src/types/geo";
@@ -21,6 +22,8 @@ type AnalysisPanelProps = {
   comparisonItems: ComparisonItem[];
   comparisonMessage: string | null;
   hasResult: boolean;
+  analysisMode?: ExpressAnalysis["analysisMode"];
+  analysisGeneratedAt?: string;
   onScenarioChange: (scenario: AnalysisScenarioId) => void;
   onCustomQueryChange: (query: string) => void;
   onRunAnalysis: () => void;
@@ -45,6 +48,19 @@ function PlaceholderRow({ label, value }: { label: string; value: string }) {
   );
 }
 
+function formatGeneratedAt(value?: string) {
+  if (!value) {
+    return "";
+  }
+
+  return new Intl.DateTimeFormat("en", {
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(new Date(value));
+}
+
 export function AnalysisPanel({
   selectedPoint,
   selectedObject,
@@ -56,6 +72,8 @@ export function AnalysisPanel({
   comparisonItems,
   comparisonMessage,
   hasResult,
+  analysisMode,
+  analysisGeneratedAt,
   onScenarioChange,
   onCustomQueryChange,
   onRunAnalysis,
@@ -70,6 +88,18 @@ export function AnalysisPanel({
   const scenario = scenarios.find((item) => item.id === selectedScenario) ?? scenarios[0];
   const isCustomQuery = selectedScenario === "customQuery";
   const availableSources = getScenarioDataSources(selectedScenario).slice(0, 3);
+  const modeStatus =
+    analysisMode === "openai"
+      ? "AI-powered"
+      : analysisMode === "mock_fallback"
+        ? "Demo fallback"
+        : "Not run yet";
+  const modeNote =
+    analysisMode === "openai"
+      ? "Generated from selected scenario, coordinates and evidence context"
+      : analysisMode === "mock_fallback"
+        ? "Using deterministic demo analysis because AI is unavailable"
+        : "Run analysis to generate the current intelligence mode";
 
   return (
     <aside className="border-l border-line bg-white lg:h-[calc(100vh-72px)] lg:w-[400px] lg:overflow-y-auto">
@@ -197,6 +227,23 @@ export function AnalysisPanel({
               {analysisError}
             </p>
           ) : null}
+
+          <div className="mt-3 rounded-md border border-line bg-surface px-3 py-3">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">
+                Analysis Mode
+              </p>
+              <span className="rounded-full bg-white px-2 py-1 text-[11px] font-semibold text-brand">
+                {modeStatus}
+              </span>
+            </div>
+            <p className="mt-2 text-xs leading-5 text-muted">{modeNote}</p>
+            {analysisGeneratedAt ? (
+              <p className="mt-1 text-xs font-semibold text-muted">
+                Generated {formatGeneratedAt(analysisGeneratedAt)}
+              </p>
+            ) : null}
+          </div>
         </section>
 
         <section className="grid gap-3">

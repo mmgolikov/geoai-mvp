@@ -43,6 +43,20 @@ function formatDate() {
   }).format(new Date());
 }
 
+function formatDateValue(value?: string) {
+  if (!value) {
+    return formatDate();
+  }
+
+  return new Intl.DateTimeFormat("en", {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(new Date(value));
+}
+
 function formatCoordinate(latitude: number, longitude: number) {
   return `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
 }
@@ -142,6 +156,8 @@ function Section({
 
 function AnalysisReport({ analysis, onBack }: { analysis: ExpressAnalysis; onBack: () => void }) {
   const analysisBadge = analysis.analysisMode === "openai" ? "AI analysis" : "Demo fallback";
+  const analysisModeLabel = analysis.analysisMode === "openai" ? "AI-generated" : "Demo fallback";
+  const dataLimitation = analysis.limitations?.[0] ?? "Structured evidence context with deterministic demo scoring.";
 
   return (
     <ReportShell onBack={onBack}>
@@ -172,7 +188,15 @@ function AnalysisReport({ analysis, onBack }: { analysis: ExpressAnalysis; onBac
             </div>
             <div className="rounded-md bg-surface p-4">
               <dt className="font-semibold text-muted">Generated</dt>
-              <dd className="mt-1 text-ink">{formatDate()}</dd>
+              <dd className="mt-1 text-ink">{formatDateValue(analysis.generatedAt)}</dd>
+            </div>
+            <div className="rounded-md bg-surface p-4">
+              <dt className="font-semibold text-muted">Analysis mode</dt>
+              <dd className="mt-1 text-ink">{analysisModeLabel}</dd>
+            </div>
+            <div className="rounded-md bg-surface p-4">
+              <dt className="font-semibold text-muted">Confidence</dt>
+              <dd className="mt-1 capitalize text-ink">{analysis.confidenceLevel ?? "medium"}</dd>
             </div>
           </dl>
         </header>
@@ -180,18 +204,17 @@ function AnalysisReport({ analysis, onBack }: { analysis: ExpressAnalysis; onBac
         <Section title="Executive Summary">
           <p className="text-base leading-8 text-muted">{analysis.summary}</p>
           <div className="mt-4 grid gap-3 text-sm md:grid-cols-2">
-            {analysis.confidenceLevel ? (
-              <div className="rounded-md bg-surface p-4">
-                <span className="font-semibold text-muted">Confidence</span>
-                <p className="mt-1 capitalize text-ink">{analysis.confidenceLevel}</p>
-              </div>
-            ) : null}
-            {analysis.analysisNotice ? (
-              <div className="rounded-md bg-surface p-4">
-                <span className="font-semibold text-muted">Analysis mode</span>
-                <p className="mt-1 text-ink">{analysis.analysisNotice}</p>
-              </div>
-            ) : null}
+            <div className="rounded-md bg-surface p-4">
+              <span className="font-semibold text-muted">Analysis mode</span>
+              <p className="mt-1 text-ink">
+                {analysisModeLabel}
+                {analysis.analysisNotice ? ` - ${analysis.analysisNotice}` : ""}
+              </p>
+            </div>
+            <div className="rounded-md bg-surface p-4">
+              <span className="font-semibold text-muted">Data confidence / limitation</span>
+              <p className="mt-1 text-ink">{dataLimitation}</p>
+            </div>
           </div>
         </Section>
 

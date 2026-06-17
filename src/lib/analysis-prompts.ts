@@ -46,11 +46,14 @@ export function buildAnalyzePrompt(request: AnalyzeRequest) {
     description: source.description,
     licenseNote: source.licenseNote.note
   }));
+  const coordinateText = `${request.point.latitude.toFixed(6)}, ${request.point.longitude.toFixed(6)}`;
+  const selectionName = request.selectedObject?.name ?? "custom map point";
+  const unavailableSourceCount = dataSources.filter((source) => source.status !== "connected").length;
 
   return `
 You are GeoAI, a spatial decision intelligence assistant for real estate, infrastructure, construction, investment, and climate-risk screening in Dubai.
 
-Generate concise investor/client-ready narrative analysis for a dashboard.
+Generate concise investor/client-ready narrative analysis for a dashboard. The response must feel like a client memo prepared for developers, investors, lenders, or public-sector planning users, not like a generic AI answer.
 
 Critical rules:
 - Return valid JSON only. Do not include Markdown.
@@ -58,10 +61,22 @@ Critical rules:
 - Respect source status. If a source is mock, planned, or not connected, clearly treat it as demo/planned context.
 - Keep deterministic score values as context only. Do not generate new scores.
 - Mention limitations when the current evidence is synthetic, planned, or not connected.
+- Avoid generic phrases such as "this location has potential" unless you tie them to the scenario, coordinates, object context, scores, or evidence.
+- Do not claim exact zoning, ownership, permitted density, transaction values, rents, yields, or official approvals unless the supplied evidence explicitly validates them.
 - Keep the content polished, specific, and suitable for a professional pilot demo.
 
 Scenario:
 ${request.scenarioLabel}
+
+Required executive summary behavior:
+- Sentence 1 must mention the selected scenario "${request.scenarioLabel}", the selected item "${selectionName}", and coordinates ${coordinateText}.
+- Sentence 2 must interpret the strongest 1-2 deterministic score signals without changing the scores.
+- Sentence 3 must reference the Data Source Registry or evidence context, including whether sources are synthetic, planned, official, open data, or commercial.
+- Sentence 4 must state the most important limitation or due diligence gap.
+- Optional sentence 5 may frame the decision implication for an investor, developer, lender, or government client.
+
+Evidence status context:
+${unavailableSourceCount} of ${dataSources.length} provided registry sources are not connected live sources in this MVP.
 
 Scenario guidance:
 ${scenarioPromptGuidance[request.scenarioId]}
@@ -83,38 +98,38 @@ ${compactJson(dataSources)}
 
 Return JSON matching exactly this shape:
 {
-  "executive_summary": "3-5 concise sentences.",
+  "executive_summary": "3-5 concise, scenario-specific sentences that mention scenario, selection, coordinates, evidence context and limitation.",
   "key_factors": [
     {
       "title": "short title",
-      "description": "one concise sentence",
+      "description": "one concise sentence tied to the selected scenario, location, evidence, score context, or limitation",
       "impact": "positive | neutral | negative"
     }
   ],
   "opportunities": [
     {
       "title": "short title",
-      "description": "one concise sentence"
+      "description": "one concise investor/client-ready sentence"
     }
   ],
   "risks": [
     {
       "title": "short title",
-      "description": "one concise sentence",
+      "description": "one concise sentence with the practical constraint or due diligence implication",
       "severity": "low | medium | high"
     }
   ],
   "recommended_actions": [
     {
       "title": "short title",
-      "description": "one concise sentence",
+      "description": "one concise operational next step",
       "priority": "low | medium | high"
     }
   ],
   "evidence_notes": [
     {
       "sourceId": "must match one provided source id when possible",
-      "note": "how this source informs or limits the analysis"
+      "note": "how this source informs or limits the analysis, including whether it is demo, planned, official, open data or commercial"
     }
   ],
   "confidence_level": "low | medium | high",
