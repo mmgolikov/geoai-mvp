@@ -150,9 +150,9 @@ export function AnalysisPanel({
       : "real-ready";
 
   return (
-    <aside className="max-w-full overflow-x-hidden border-l border-line bg-white lg:h-[calc(100vh-72px)] lg:w-[400px] lg:overflow-y-auto">
-      <div className="flex min-h-full min-w-0 max-w-full flex-col gap-3 overflow-x-hidden p-4">
-        <section>
+    <aside className="flex max-w-full flex-col overflow-hidden border-l border-line bg-white lg:h-[calc(100vh-72px)] lg:w-[400px]">
+      <div className="flex shrink-0 flex-col gap-3 p-4 pb-3">
+        <section className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted">
             Command panel
           </p>
@@ -280,43 +280,9 @@ export function AnalysisPanel({
           </div>
         </section>
 
-        {/* Primary CTA must remain above secondary/advanced blocks. */}
-        <section className="sticky top-0 z-20 min-w-0 max-w-full overflow-hidden rounded-lg border border-line bg-white p-3 shadow-soft">
-          <button
-            type="button"
-            disabled={!hasSelectedPoint}
-            onClick={onAddToComparison}
-            className="mb-2 inline-flex h-9 w-full items-center justify-center rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink transition hover:border-brand disabled:cursor-not-allowed disabled:bg-surface disabled:text-muted"
-          >
-            Add to Comparison
-          </button>
-          {hasResult ? (
-            <button
-              type="button"
-              onClick={onExportCurrentResult}
-              className="inline-flex h-11 w-full items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white transition hover:bg-[#113f50]"
-            >
-              Export Report
-            </button>
-          ) : (
-            <button
-              type="button"
-              disabled={!hasSelectedPoint || isAnalyzing}
-              onClick={onRunAnalysis}
-              className="inline-flex h-11 w-full items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white transition hover:bg-[#113f50] disabled:cursor-not-allowed disabled:bg-[#c9d2d7] disabled:text-white"
-            >
-              {isAnalyzing ? "Running Express Analysis..." : "Run Express Analysis"}
-            </button>
-          )}
+      </div>
 
-          {analysisError ? (
-            <p className="mt-3 rounded-md border border-[#f2c6bd] bg-[#fff4ed] px-3 py-2 text-sm leading-5 text-[#9f3412]">
-              {analysisError}
-            </p>
-          ) : null}
-        </section>
-
-        <section className="grid min-w-0 max-w-full gap-2 overflow-hidden">
+      <section className="grid min-h-0 min-w-0 flex-1 gap-2 overflow-y-auto overflow-x-hidden px-4 pb-4">
           <CollapsedSection
             title="Market Context"
             badge={isMarketContextLoading ? "loading" : contextStatus}
@@ -494,8 +460,45 @@ export function AnalysisPanel({
               </p>
             ) : null}
           </CollapsedSection>
-        </section>
-      </div>
+      </section>
+
+      {/* Primary action footer must stay outside the scrollable middle content. */}
+      <section className="shrink-0 border-t border-line bg-white/96 p-4 shadow-[0_-12px_28px_rgba(15,35,45,0.06)]">
+        <div className="min-w-0 max-w-full overflow-hidden rounded-lg border border-line bg-white p-3">
+          <button
+            type="button"
+            disabled={!hasSelectedPoint}
+            onClick={onAddToComparison}
+            className="mb-2 inline-flex h-9 w-full max-w-full items-center justify-center rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink transition hover:border-brand disabled:cursor-not-allowed disabled:bg-surface disabled:text-muted"
+          >
+            Add to Comparison
+          </button>
+          {hasResult ? (
+            <button
+              type="button"
+              onClick={onExportCurrentResult}
+              className="inline-flex h-11 w-full max-w-full items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white transition hover:bg-[#113f50]"
+            >
+              Export Report
+            </button>
+          ) : (
+            <button
+              type="button"
+              disabled={!hasSelectedPoint || isAnalyzing}
+              onClick={onRunAnalysis}
+              className="inline-flex h-11 w-full max-w-full items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white transition hover:bg-[#113f50] disabled:cursor-not-allowed disabled:bg-[#c9d2d7] disabled:text-white"
+            >
+              {isAnalyzing ? "Running Express Analysis..." : "Run Express Analysis"}
+            </button>
+          )}
+
+          {analysisError ? (
+            <p className="mt-3 break-words rounded-md border border-[#f2c6bd] bg-[#fff4ed] px-3 py-2 text-sm leading-5 text-[#9f3412]">
+              {analysisError}
+            </p>
+          ) : null}
+        </div>
+      </section>
     </aside>
   );
 }
