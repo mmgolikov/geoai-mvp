@@ -159,6 +159,7 @@ Current geometries are synthetic/demo only. They are not official parcel, planni
 
 ## Documentation
 
+- [Current Prototype Checkpoint v0.2](docs/CHECKPOINT_2026-06-18_investor_prototype_v02.md)
 - [Architecture](docs/architecture.md)
 - [Data Strategy](docs/data-strategy.md)
 - [Roadmap](docs/roadmap.md)
