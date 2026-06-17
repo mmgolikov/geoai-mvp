@@ -224,10 +224,12 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
               <MetricPill
                 label="Trend"
                 value={analysis.marketContext.marketMetrics?.trend ?? analysis.marketContext.marketActivityLevel.trend}
-                detail={analysis.marketContext.dataQualityNotes?.[0] ?? "Seed_static demo-normalized context."}
+                detail="Directional market signal for the selected area."
               />
             </div>
-            <p className="mt-4 rounded-md border border-line bg-surface px-3 py-2 text-sm leading-6 text-muted">
+            <p className="mt-4 text-sm leading-6 text-muted">
+              Note: {analysis.marketContext.dataQualityNotes?.[0] ?? "Current values are demo-normalized indices and not official market data."}
+              {" "}
               {analysis.marketContext.dataQualityNotes?.[1] ?? analysis.marketContext.limitations[0]}
             </p>
           </section>
@@ -266,8 +268,8 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
                 detail={analysis.selectedObject.spatialContext.scenarioRelevance.join(", ")}
               />
             </div>
-            <p className="mt-4 rounded-md border border-line bg-surface px-3 py-2 text-sm leading-6 text-muted">
-              {analysis.selectedObject.spatialContext.limitations[0]}
+            <p className="mt-4 text-sm leading-6 text-muted">
+              Note: {analysis.selectedObject.spatialContext.limitations[0]}
             </p>
           </section>
         ) : null}

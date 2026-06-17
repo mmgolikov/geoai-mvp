@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { LandingHeroMap } from "@/components/landing-hero-map";
 
 const painCards = [
   {
@@ -124,25 +125,8 @@ function HeroVisual() {
             </div>
             <span className="rounded-full bg-[#edf4f2] px-3 py-1 text-xs font-semibold text-brand">Live-style demo</span>
           </div>
-          <div className="relative h-[430px] bg-[linear-gradient(90deg,rgba(23,79,99,0.10)_1px,transparent_1px),linear-gradient(rgba(23,79,99,0.10)_1px,transparent_1px)] bg-[size:32px_32px]">
-            <div className="absolute left-[8%] top-[12%] h-[72%] w-[82%] rounded-[42%] border border-white/70 bg-white/24" />
-            <div className="absolute left-[10%] top-[24%] h-24 w-[44%] rotate-[-8deg] rounded-[28px] border border-brand/45 bg-brand/12" />
-            <div className="absolute right-[10%] top-[18%] h-28 w-[36%] rounded-[30px] border border-[#c5a76a]/60 bg-[#c5a76a]/18" />
-            <div className="absolute bottom-[20%] left-[18%] h-28 w-[46%] rotate-[7deg] rounded-[30px] border border-[#2c7fb8]/50 bg-[#2c7fb8]/12" />
-            <div className="absolute left-[52%] top-[48%] flex -translate-x-1/2 -translate-y-1/2 items-center gap-2">
-              <span className="h-5 w-5 rounded-full border-4 border-white bg-brand shadow-soft" />
-              <span className="rounded-full bg-white/95 px-3 py-1 text-xs font-semibold text-ink shadow-sm">Selected site: Dubai Marina</span>
-            </div>
-            <div className="absolute left-5 top-5 rounded-md border border-white/80 bg-white/90 px-3 py-2 text-xs font-semibold text-muted shadow-sm">
-              Demo layers active
-            </div>
-            <div className="absolute bottom-5 left-5 right-5 grid gap-2 sm:grid-cols-3">
-              {["Market context", "Spatial layers", "Risk zones"].map((item) => (
-                <div key={item} className="rounded-md border border-white/80 bg-white/90 px-3 py-2 text-xs font-semibold text-muted shadow-sm">
-                  {item}
-                </div>
-              ))}
-            </div>
+          <div className="h-[430px]">
+            <LandingHeroMap />
           </div>
         </div>
         <div className="rounded-lg border border-line bg-white p-5">

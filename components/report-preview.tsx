@@ -258,12 +258,12 @@ function AnalysisReport({ analysis, onBack }: { analysis: ExpressAnalysis; onBac
                   <p className="mt-1 capitalize text-ink">
                     {analysis.marketContext.marketMetrics?.trend ?? analysis.marketContext.marketActivityLevel.trend}
                   </p>
-                  <p className="mt-2 leading-6 text-muted">
-                    {analysis.marketContext.dataQualityNotes?.[0] ?? "Seed_static demo-normalized context."}
-                  </p>
+                  <p className="mt-2 leading-6 text-muted">Directional market signal for the selected area.</p>
                 </div>
               </div>
               <p className="mt-4 text-sm leading-6 text-muted">
+                Note: {analysis.marketContext.dataQualityNotes?.[0] ?? "Current values are demo-normalized indices and not official market data."}
+                {" "}
                 {analysis.marketContext.dataQualityNotes?.[1] ?? analysis.marketContext.limitations[0]}
               </p>
             </div>
@@ -310,7 +310,7 @@ function AnalysisReport({ analysis, onBack }: { analysis: ExpressAnalysis; onBac
                   <dd className="mt-1 text-ink">{analysis.selectedObject.spatialContext.scenarioRelevance.join(", ")}</dd>
                 </div>
               </dl>
-              <p className="mt-4 text-sm leading-6 text-muted">{analysis.selectedObject.spatialContext.limitations[0]}</p>
+              <p className="mt-4 text-sm leading-6 text-muted">Note: {analysis.selectedObject.spatialContext.limitations[0]}</p>
             </div>
           </Section>
         ) : null}
