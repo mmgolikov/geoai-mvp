@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { demoLayers, getDemoFeatureById, getSelectedDemoObject } from "@/src/data/demo-layers";
-import type { DemoLayer } from "@/src/data/demo-layers";
-import type { GeoJSONSource, Map as MapboxMap, Marker as MapboxMarker } from "mapbox-gl";
+import type { DemoLayer, DemoLayerFeature } from "@/src/data/demo-layers";
+import type { GeoJSONSource, Map as MapboxMap, Marker as MapboxMarker, Popup as MapboxPopup } from "mapbox-gl";
 import type { DemoLayerId, SelectedDemoObject, SelectedPoint } from "@/src/types/geo";
 
 const defaultCenter: [number, number] = [55.2708, 25.2048];
@@ -61,6 +61,44 @@ function toFeatureCollection(features: unknown[]): GeoJSON.FeatureCollection {
   };
 }
 
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function getFeatureLabel(feature: DemoLayerFeature) {
+  return {
+    title: feature.properties.name,
+    detail: `${feature.properties.layerName} / ${feature.properties.objectType}`
+  };
+}
+
+function setHoverTooltip(
+  popup: MapboxPopup | null,
+  lngLat: { lng: number; lat: number },
+  feature: DemoLayerFeature,
+  map: MapboxMap
+) {
+  if (!popup) {
+    return;
+  }
+
+  const label = getFeatureLabel(feature);
+  popup
+    .setLngLat(lngLat)
+    .setHTML(
+      `<div class="geoai-map-tooltip">
+        <div class="geoai-map-tooltip-title">${escapeHtml(label.title)}</div>
+        <div class="geoai-map-tooltip-detail">${escapeHtml(label.detail)}</div>
+      </div>`
+    )
+    .addTo(map);
+}
+
 function getFallbackPoint(clientX: number, clientY: number, rect: DOMRect): SelectedPoint {
   const xRatio = Math.min(Math.max((clientX - rect.left) / rect.width, 0), 1);
   const yRatio = Math.min(Math.max((clientY - rect.top) / rect.height, 0), 1);
@@ -99,7 +137,7 @@ function addDemoLayerToMap(map: MapboxMap, layer: DemoLayer) {
         source: sourceId,
         paint: {
           "fill-color": layer.color,
-          "fill-opacity": 0.14
+          "fill-opacity": 0.09
         }
       });
     }
@@ -111,8 +149,8 @@ function addDemoLayerToMap(map: MapboxMap, layer: DemoLayer) {
         source: sourceId,
         paint: {
           "line-color": layer.color,
-          "line-width": 1.8,
-          "line-opacity": 0.86
+          "line-width": 1.05,
+          "line-opacity": 0.54
         }
       });
     }
@@ -125,10 +163,10 @@ function addDemoLayerToMap(map: MapboxMap, layer: DemoLayer) {
       source: sourceId,
       paint: {
         "circle-color": layer.color,
-        "circle-radius": 6,
+        "circle-radius": 5.5,
         "circle-stroke-color": "#ffffff",
-        "circle-stroke-width": 1.5,
-        "circle-opacity": 0.88
+        "circle-stroke-width": 1.4,
+        "circle-opacity": 0.82
       }
     });
   }
@@ -144,8 +182,8 @@ function addDemoLayerToMap(map: MapboxMap, layer: DemoLayer) {
       },
       paint: {
         "line-color": layer.color,
-        "line-width": 3.2,
-        "line-opacity": 0.76
+        "line-width": 2.4,
+        "line-opacity": 0.62
       }
     });
   }
@@ -167,7 +205,7 @@ function addSelectedObjectLayer(map: MapboxMap) {
       filter: ["==", ["geometry-type"], "Polygon"],
       paint: {
         "fill-color": "#174f63",
-        "fill-opacity": 0.24
+        "fill-opacity": 0.28
       }
     });
   }
@@ -178,10 +216,10 @@ function addSelectedObjectLayer(map: MapboxMap) {
       type: "line",
       source: selectedObjectSourceId,
       paint: {
-        "line-color": "#174f63",
-        "line-width": 2.6,
+        "line-color": "#0f5f76",
+        "line-width": 2.4,
         "line-opacity": 0.96,
-        "line-blur": 0.25
+        "line-blur": 0.15
       }
     });
   }
@@ -193,8 +231,8 @@ function addSelectedObjectLayer(map: MapboxMap) {
       source: selectedObjectSourceId,
       filter: ["==", ["geometry-type"], "Point"],
       paint: {
-        "circle-color": "#174f63",
-        "circle-radius": 8,
+        "circle-color": "#0f5f76",
+        "circle-radius": 8.5,
         "circle-stroke-color": "#ffffff",
         "circle-stroke-width": 2.5
       }
@@ -218,7 +256,7 @@ function addHoverObjectLayer(map: MapboxMap) {
       filter: ["==", ["geometry-type"], "Polygon"],
       paint: {
         "fill-color": "#174f63",
-        "fill-opacity": 0.1
+        "fill-opacity": 0.16
       }
     });
   }
@@ -229,9 +267,9 @@ function addHoverObjectLayer(map: MapboxMap) {
       type: "line",
       source: hoverObjectSourceId,
       paint: {
-        "line-color": "#174f63",
-        "line-width": 1.8,
-        "line-opacity": 0.72
+        "line-color": "#0f5f76",
+        "line-width": 1.6,
+        "line-opacity": 0.82
       }
     });
   }
@@ -243,8 +281,8 @@ function addHoverObjectLayer(map: MapboxMap) {
       source: hoverObjectSourceId,
       filter: ["==", ["geometry-type"], "Point"],
       paint: {
-        "circle-color": "#174f63",
-        "circle-radius": 7,
+        "circle-color": "#0f5f76",
+        "circle-radius": 7.5,
         "circle-stroke-color": "#ffffff",
         "circle-stroke-width": 2
       }
@@ -264,6 +302,7 @@ export function MapWorkspaceClient({
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapboxMap | null>(null);
   const markerRef = useRef<MapboxMarker | null>(null);
+  const hoverPopupRef = useRef<MapboxPopup | null>(null);
   const onPointSelectRef = useRef(onPointSelect);
   const onObjectSelectRef = useRef(onObjectSelect);
   const layerVisibilityRef = useRef(initialLayerVisibility);
@@ -333,6 +372,13 @@ export function MapWorkspaceClient({
         zoom: 9
       });
 
+      hoverPopupRef.current = new mapboxgl.Popup({
+        closeButton: false,
+        closeOnClick: false,
+        offset: 12,
+        className: "geoai-hover-popup"
+      });
+
       mapRef.current.on("error", () => {
         if (!isMounted) {
           return;
@@ -371,6 +417,22 @@ export function MapWorkspaceClient({
 
         if (mapRef.current) {
           mapRef.current.getCanvas().style.cursor = demoFeature ? "pointer" : "";
+
+          if (demoFeature) {
+            setHoverTooltip(hoverPopupRef.current, event.lngLat, demoFeature, mapRef.current);
+          } else {
+            hoverPopupRef.current?.remove();
+          }
+        }
+      });
+
+      mapRef.current.on("mouseleave", () => {
+        const source = mapRef.current?.getSource(hoverObjectSourceId) as GeoJSONSource | undefined;
+        source?.setData(toFeatureCollection([]));
+        hoverPopupRef.current?.remove();
+
+        if (mapRef.current) {
+          mapRef.current.getCanvas().style.cursor = "";
         }
       });
 
@@ -403,6 +465,8 @@ export function MapWorkspaceClient({
       setIsMapReady(false);
       markerRef.current?.remove();
       markerRef.current = null;
+      hoverPopupRef.current?.remove();
+      hoverPopupRef.current = null;
       mapRef.current?.remove();
       mapRef.current = null;
     };

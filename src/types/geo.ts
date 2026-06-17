@@ -108,3 +108,16 @@ export type ComparisonResult = {
   nextActions: string[];
   evidence: EvidenceItem[];
 };
+
+export type AnalysisHistoryItem = {
+  id: string;
+  title: string;
+  scenarioId: AnalysisScenarioId;
+  scenarioLabel: string;
+  timestamp: string;
+  locationLabel: string;
+  analysisMode?: ExpressAnalysis["analysisMode"];
+  confidenceLevel?: ExpressAnalysis["confidenceLevel"];
+  recommendation: string;
+  analysis: ExpressAnalysis;
+};

@@ -16,6 +16,7 @@ import { analysisScenarios, createMockExpressAnalysis } from "@/src/lib/mock-exp
 import type { StructuredAnalysisResult } from "@/src/types/analysis";
 import type {
   AnalysisScenarioId,
+  AnalysisHistoryItem,
   ComparisonItem,
   ComparisonResult,
   ExpressAnalysis,
@@ -23,6 +24,9 @@ import type {
   SelectedPoint
 } from "@/src/types/geo";
 import type { MarketContext } from "@/src/types/market-context";
+
+const analysisHistoryStorageKey = "geoai-analysis-history-v1";
+const maxAnalysisHistoryItems = 8;
 
 function titledText(title: string, description: string) {
   return title ? `${title}: ${description}` : description;
@@ -93,6 +97,47 @@ function withMarketContext(analysis: ExpressAnalysis, marketContext: MarketConte
   };
 }
 
+function formatLocationLabel(analysis: ExpressAnalysis) {
+  return analysis.selectedObject?.name ?? `${analysis.point.latitude.toFixed(5)}, ${analysis.point.longitude.toFixed(5)}`;
+}
+
+function createHistoryItem(analysis: ExpressAnalysis, scenarioLabel: string): AnalysisHistoryItem {
+  return {
+    id: `${analysis.id}-${analysis.generatedAt ?? Date.now()}`,
+    title: analysis.selectedObject?.name ?? analysis.title,
+    scenarioId: analysis.scenarioId,
+    scenarioLabel,
+    timestamp: analysis.generatedAt ?? new Date().toISOString(),
+    locationLabel: formatLocationLabel(analysis),
+    analysisMode: analysis.analysisMode,
+    confidenceLevel: analysis.confidenceLevel,
+    recommendation: analysis.nextActions[0] ?? "Review evidence and validate constraints.",
+    analysis
+  };
+}
+
+function readAnalysisHistory() {
+  try {
+    const storedHistory = window.localStorage.getItem(analysisHistoryStorageKey);
+    if (!storedHistory) {
+      return [];
+    }
+
+    const parsed = JSON.parse(storedHistory) as AnalysisHistoryItem[];
+    return Array.isArray(parsed) ? parsed.slice(0, maxAnalysisHistoryItems) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeAnalysisHistory(items: AnalysisHistoryItem[]) {
+  try {
+    window.localStorage.setItem(analysisHistoryStorageKey, JSON.stringify(items.slice(0, maxAnalysisHistoryItems)));
+  } catch {
+    // Local history is a convenience feature; storage failures should not affect analysis.
+  }
+}
+
 export function WorkspaceShell() {
   const [selectedPoint, setSelectedPoint] = useState<SelectedPoint | null>(null);
   const [selectedObject, setSelectedObject] = useState<SelectedDemoObject | null>(null);
@@ -107,6 +152,11 @@ export function WorkspaceShell() {
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [marketContext, setMarketContext] = useState<MarketContext | null>(null);
   const [isMarketContextLoading, setIsMarketContextLoading] = useState(false);
+  const [analysisHistory, setAnalysisHistory] = useState<AnalysisHistoryItem[]>([]);
+
+  useEffect(() => {
+    setAnalysisHistory(readAnalysisHistory());
+  }, []);
 
   useEffect(() => {
     if (!selectedPoint) {
@@ -229,6 +279,38 @@ export function WorkspaceShell() {
     setReportPreview(null);
   }
 
+  function saveAnalysisHistory(analysisResult: ExpressAnalysis, scenarioLabel: string) {
+    const historyItem = createHistoryItem(analysisResult, scenarioLabel);
+
+    setAnalysisHistory((items) => {
+      const nextItems = [
+        historyItem,
+        ...items.filter((item) => item.analysis.id !== analysisResult.id)
+      ].slice(0, maxAnalysisHistoryItems);
+
+      writeAnalysisHistory(nextItems);
+      return nextItems;
+    });
+  }
+
+  function openHistoryItem(item: AnalysisHistoryItem) {
+    setSelectedPoint(item.analysis.point);
+    setSelectedObject(item.analysis.selectedObject ?? null);
+    setSelectedScenario(item.scenarioId);
+    setAnalysis(item.analysis);
+    setComparison(null);
+    setReportPreview(null);
+    setComparisonMessage(null);
+    setAnalysisError(null);
+    setIsAnalyzing(false);
+    setMarketContext(item.analysis.marketContext ?? null);
+  }
+
+  function clearAnalysisHistory() {
+    setAnalysisHistory([]);
+    writeAnalysisHistory([]);
+  }
+
   async function runExpressAnalysis() {
     if (!selectedPoint || isAnalyzing) {
       return;
@@ -280,9 +362,11 @@ export function WorkspaceShell() {
       }
 
       const narrative = (await response.json()) as StructuredAnalysisResult;
-      setAnalysis(mergeNarrativeAnalysis(deterministicAnalysis, narrative));
+      const finalAnalysis = mergeNarrativeAnalysis(deterministicAnalysis, narrative);
+      setAnalysis(finalAnalysis);
+      saveAnalysisHistory(finalAnalysis, scenario.label);
     } catch {
-      setAnalysis({
+      const fallbackAnalysis: ExpressAnalysis = {
         ...deterministicAnalysis,
         analysisMode: "mock_fallback",
         confidenceLevel: "medium",
@@ -292,7 +376,10 @@ export function WorkspaceShell() {
           "Official parcel, planning, transaction, imagery, and risk data are not connected yet."
         ],
         generatedAt: new Date().toISOString()
-      });
+      };
+
+      setAnalysis(fallbackAnalysis);
+      saveAnalysisHistory(fallbackAnalysis, scenario.label);
     } finally {
       setIsAnalyzing(false);
     }
@@ -337,6 +424,7 @@ export function WorkspaceShell() {
         analysisError={analysisError}
         comparisonItems={comparisonItems}
         comparisonMessage={comparisonMessage}
+        analysisHistory={analysisHistory}
         hasResult={analysis !== null || comparison !== null}
         analysisMode={analysis?.analysisMode}
         analysisGeneratedAt={analysis?.generatedAt}
@@ -355,6 +443,8 @@ export function WorkspaceShell() {
         onAddToComparison={addSelectionToComparison}
         onRemoveComparisonItem={removeComparisonItem}
         onRunComparison={runComparison}
+        onOpenHistoryItem={openHistoryItem}
+        onClearAnalysisHistory={clearAnalysisHistory}
         onExportCurrentResult={() => {
           if (comparison) {
             setReportPreview("comparison");

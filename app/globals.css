@@ -26,6 +26,38 @@ body {
   display: none;
 }
 
+.geoai-hover-popup .mapboxgl-popup-content {
+  border: 1px solid rgba(222, 215, 201, 0.95);
+  border-radius: 8px;
+  box-shadow: 0 14px 35px rgba(15, 35, 45, 0.12);
+  padding: 0;
+}
+
+.geoai-hover-popup .mapboxgl-popup-tip {
+  border-top-color: rgba(255, 255, 255, 0.96);
+}
+
+.geoai-map-tooltip {
+  max-width: 220px;
+  padding: 9px 11px;
+  background: rgba(255, 255, 255, 0.97);
+  color: #172033;
+}
+
+.geoai-map-tooltip-title {
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.geoai-map-tooltip-detail {
+  margin-top: 3px;
+  color: #667085;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
 @media print {
   @page {
     size: A4;
