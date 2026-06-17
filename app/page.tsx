@@ -115,8 +115,8 @@ function LandingHeader() {
 
 function HeroVisual() {
   return (
-    <div className="relative max-h-[480px] overflow-hidden rounded-xl border border-[#ded7c9] bg-white p-3 shadow-soft">
-      <div className="grid h-[430px] max-h-[calc(100vh-150px)] min-h-[360px] grid-rows-[52px_minmax(0,1fr)_74px] overflow-hidden rounded-lg border border-line bg-[#f7f8f6]">
+    <div className="relative max-h-[462px] overflow-hidden rounded-xl border border-[#ded7c9] bg-white p-3 shadow-soft">
+      <div className="grid h-[415px] max-h-[calc(100vh-145px)] min-h-[350px] grid-rows-[48px_minmax(0,1fr)_68px] overflow-hidden rounded-lg border border-line bg-[#f7f8f6]">
         <div className="flex min-h-0 flex-wrap items-center justify-between gap-3 border-b border-line bg-white px-4 py-2">
           <div className="flex min-w-0 items-center gap-3">
             <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-brand text-xs font-semibold text-white">
@@ -146,11 +146,11 @@ function HeroVisual() {
           <aside className="grid min-h-0 content-start gap-2 overflow-hidden rounded-lg border border-line bg-white p-3">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted">AI decision summary</p>
-              <h2 className="mt-1 text-xl font-semibold text-ink">Proceed with conditions</h2>
+              <h2 className="mt-1 text-lg font-semibold text-ink">Proceed with conditions</h2>
             </div>
             <div className="rounded-md bg-[#edf4f2] p-3">
               <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-brand">Suitability score</p>
-              <p className="mt-1 text-3xl font-semibold text-brand">82/100</p>
+              <p className="mt-1 text-3xl font-semibold leading-none text-brand">82/100</p>
               <p className="mt-1 text-xs leading-5 text-muted">Strong demo signal, pending official validation.</p>
             </div>
             <div className="grid gap-2">

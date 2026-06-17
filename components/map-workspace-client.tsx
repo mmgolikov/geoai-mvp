@@ -205,7 +205,7 @@ function addSelectedObjectLayer(map: MapboxMap) {
       filter: ["==", ["geometry-type"], "Polygon"],
       paint: {
         "fill-color": "#174f63",
-        "fill-opacity": 0.28
+        "fill-opacity": 0.34
       }
     });
   }
@@ -216,10 +216,10 @@ function addSelectedObjectLayer(map: MapboxMap) {
       type: "line",
       source: selectedObjectSourceId,
       paint: {
-        "line-color": "#0f5f76",
-        "line-width": 2.4,
+        "line-color": "#0b5a6e",
+        "line-width": 3.2,
         "line-opacity": 0.96,
-        "line-blur": 0.15
+        "line-blur": 0.1
       }
     });
   }
@@ -232,9 +232,9 @@ function addSelectedObjectLayer(map: MapboxMap) {
       filter: ["==", ["geometry-type"], "Point"],
       paint: {
         "circle-color": "#0f5f76",
-        "circle-radius": 8.5,
+        "circle-radius": 9,
         "circle-stroke-color": "#ffffff",
-        "circle-stroke-width": 2.5
+        "circle-stroke-width": 3
       }
     });
   }
@@ -375,7 +375,7 @@ export function MapWorkspaceClient({
       hoverPopupRef.current = new mapboxgl.Popup({
         closeButton: false,
         closeOnClick: false,
-        offset: 12,
+        offset: 18,
         className: "geoai-hover-popup"
       });
 
@@ -642,7 +642,7 @@ export function MapWorkspaceClient({
               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">
                 Spatial layers
               </p>
-              <h2 className="mt-1 text-sm font-semibold text-ink">Spatial intelligence overlays</h2>
+              <h2 className="mt-1 text-sm font-semibold text-ink">Demo spatial overlays</h2>
             </div>
             <span className="rounded-full bg-surface px-2 py-1 text-[11px] font-semibold text-brand">
               {activeLayerCount} active
@@ -686,7 +686,7 @@ export function MapWorkspaceClient({
               </div>
 
               <div className="mt-3 rounded-md bg-white px-3 py-2 text-xs leading-5 text-muted">
-                Click a layer object to select it, or click empty map space to select a custom point.
+                Synthetic demo overlays. Hover for object names, click to select, or click empty map space for a custom point.
               </div>
             </div>
           ) : null}

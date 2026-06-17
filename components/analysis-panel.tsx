@@ -446,10 +446,18 @@ export function AnalysisPanel({
                             {item.scenarioLabel} / {formatHistoryTimestamp(item.timestamp)}
                           </p>
                           <p className="mt-1 truncate text-xs text-muted">{item.locationLabel}</p>
+                          <p className="mt-2 line-clamp-2 text-xs leading-5 text-muted">
+                            {item.recommendation}
+                          </p>
                         </div>
-                        <span className="shrink-0 rounded-full bg-surface px-2 py-1 text-[11px] font-semibold capitalize text-brand">
-                          {item.analysisMode === "openai" ? "AI" : "Demo"}
-                        </span>
+                        <div className="grid shrink-0 gap-1 text-right">
+                          <span className="rounded-full bg-surface px-2 py-1 text-[11px] font-semibold capitalize text-brand">
+                            {item.analysisMode === "openai" ? "AI" : "Demo"}
+                          </span>
+                          <span className="text-[11px] font-semibold text-muted">
+                            {item.analysis.scores.investmentAttractiveness}/100
+                          </span>
+                        </div>
                       </div>
                     </button>
                   ))}

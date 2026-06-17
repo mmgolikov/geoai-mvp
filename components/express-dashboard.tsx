@@ -103,6 +103,7 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
   const analysisBadge = analysis.analysisMode === "openai" ? "AI analysis" : "Demo fallback";
   const modeLabel = analysis.analysisMode === "openai" ? "AI-powered" : "Demo fallback";
   const dataLimitation = analysis.limitations?.[0] ?? "Structured evidence context with deterministic demo scoring.";
+  const decisionPosture = analysis.nextActions[0] ?? "Proceed to validation before underwriting.";
 
   useEffect(() => {
     dashboardRef.current?.scrollTo({ top: 0, left: 0 });
@@ -150,7 +151,14 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
           />
 
           <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
-            <h2 className="text-lg font-semibold text-ink">Executive Summary</h2>
+            <div className="rounded-md border border-[#d6c391] bg-[#fff9e8] p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#6f5817]">Decision Posture</p>
+              <p className="mt-2 text-base font-semibold leading-6 text-ink">{decisionPosture}</p>
+              <p className="mt-2 text-sm leading-6 text-muted">
+                Demo screening output only. Treat this as a diligence trigger, not decision-grade approval.
+              </p>
+            </div>
+            <h2 className="mt-5 text-lg font-semibold text-ink">Executive Summary</h2>
             <p className="mt-3 text-base leading-7 text-muted">{analysis.summary}</p>
             {analysis.analysisNotice ? (
               <p className="mt-4 rounded-md border border-line bg-surface px-3 py-2 text-sm leading-5 text-muted">
@@ -189,7 +197,8 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
         </div>
 
         <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
-          <h2 className="text-lg font-semibold text-ink">Score overview</h2>
+          <h2 className="text-lg font-semibold text-ink">Scenario-specific Score Overview</h2>
+          <p className="mt-1 text-sm text-muted">Demo-normalized scores for screening. Hover a score for interpretation and validation caveats.</p>
           <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {scoreOrder.map((scoreKey) => {
               const score = analysis.scores[scoreKey];
@@ -312,7 +321,7 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
         ) : null}
 
         <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
-          <h2 className="text-lg font-semibold text-ink">Key Factors</h2>
+          <h2 className="text-lg font-semibold text-ink">Key Value Drivers</h2>
           <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {analysis.keyFactors.map((factor) => (
               <article key={factor} className="rounded-md border border-line bg-surface p-4">
@@ -336,7 +345,7 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
           </section>
 
           <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
-            <h2 className="text-lg font-semibold text-ink">Risks & Constraints</h2>
+            <h2 className="text-lg font-semibold text-ink">Critical Constraints</h2>
             <ul className="mt-4 space-y-3">
               {analysis.risks.map((item) => (
                 <li key={item} className="rounded-md border border-line bg-surface px-4 py-3 text-sm leading-6 text-muted">
@@ -348,10 +357,26 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
         </div>
 
         <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
+          <h2 className="text-lg font-semibold text-ink">Data Gaps / Validation Required</h2>
+          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {[
+              "Official DLD transactions, ownership and recent comparable evidence",
+              "Dubai Municipality / GeoDubai land-use, zoning and planning controls",
+              "Transport, utility and infrastructure capacity confirmation",
+              "Customer or licensed commercial evidence before investment committee use"
+            ].map((item) => (
+              <div key={item} className="rounded-md border border-line bg-surface p-4 text-sm leading-6 text-muted">
+                {item}
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <h2 className="text-lg font-semibold text-ink">Recommended Next Actions</h2>
-              <p className="mt-1 text-sm text-muted">Concrete follow-up steps for diligence, comparison and memo preparation</p>
+              <h2 className="text-lg font-semibold text-ink">Due Diligence Checklist</h2>
+              <p className="mt-1 text-sm text-muted">Concrete follow-up steps before underwriting, approval or client recommendation</p>
             </div>
           </div>
           <ol className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
