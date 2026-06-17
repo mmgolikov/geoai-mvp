@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { EvidenceSourceCards } from "@/components/evidence-source-cards";
-import { MapWorkspace } from "@/components/map-workspace";
+import { MapContextCard } from "@/components/map-context-card";
 import type { ExpressAnalysis, ScoreKey } from "@/src/types/geo";
 
 type ExpressDashboardProps = {
@@ -111,25 +111,12 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
         </header>
 
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1.05fr)_0.95fr]">
-          <section className="overflow-hidden rounded-lg border border-line bg-white shadow-sm">
-            <div className="flex items-center justify-between border-b border-line px-5 py-4">
-              <div>
-                <h2 className="text-lg font-semibold text-ink">Selected object map</h2>
-                <p className="mt-1 text-sm text-muted">Selected point and surrounding Dubai context</p>
-              </div>
-              <span className="rounded-full bg-surface px-3 py-1 text-xs font-semibold text-muted">
-                Mapbox
-              </span>
-            </div>
-            <MapWorkspace
-              selectedPoint={analysis.point}
-              selectedObject={analysis.selectedObject ?? null}
-              onPointSelect={() => undefined}
-              className="relative h-[360px] overflow-hidden bg-[#dfe8ec]"
-              showEmptyOverlay={false}
-              showLayerControls={false}
-            />
-          </section>
+          <MapContextCard
+            title="Map Context"
+            subtitle="Selected point or spatial object with surrounding Dubai context"
+            selectedPoint={analysis.point}
+            selectedObject={analysis.selectedObject ?? null}
+          />
 
           <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
             <h2 className="text-lg font-semibold text-ink">Executive Summary</h2>

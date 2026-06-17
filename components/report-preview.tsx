@@ -1,6 +1,7 @@
 "use client";
 
 import { EvidenceSourceCards } from "@/components/evidence-source-cards";
+import { MapContextCard } from "@/components/map-context-card";
 import type { ComparisonResult, ExpressAnalysis, ScoreKey } from "@/src/types/geo";
 
 type ReportPreviewProps =
@@ -59,50 +60,6 @@ function formatDateValue(value?: string) {
 
 function formatCoordinate(latitude: number, longitude: number) {
   return `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
-}
-
-function MapWindow({
-  title,
-  subtitle,
-  markers
-}: {
-  title: string;
-  subtitle: string;
-  markers: Array<{ label: string; latitude: number; longitude: number }>;
-}) {
-  return (
-    <div className="overflow-hidden rounded-md border border-line">
-      <div className="flex items-center justify-between border-b border-line bg-white px-4 py-3">
-        <div>
-          <p className="text-sm font-semibold text-ink">{title}</p>
-          <p className="mt-1 text-xs text-muted">{subtitle}</p>
-        </div>
-        <span className="rounded-full bg-surface px-3 py-1 text-xs font-semibold text-brand">
-          Demo map
-        </span>
-      </div>
-      <div className="relative h-[260px] bg-[#dfe8ec] bg-[linear-gradient(90deg,rgba(23,79,99,0.12)_1px,transparent_1px),linear-gradient(rgba(23,79,99,0.12)_1px,transparent_1px)] bg-[size:38px_38px] print:h-[210px]">
-        <div className="absolute inset-x-8 top-10 h-20 rotate-[-7deg] rounded-full border border-[#4d7c0f]/40 bg-[#4d7c0f]/10" />
-        <div className="absolute bottom-10 left-10 h-24 w-44 rounded-[40%] border border-[#2c7fb8]/45 bg-[#2c7fb8]/12" />
-        <div className="absolute right-12 top-20 h-28 w-48 rounded-[45%] border border-[#c5a76a]/55 bg-[#c5a76a]/14" />
-        {markers.map((marker, index) => (
-          <div
-            key={`${marker.label}-${index}`}
-            className="absolute flex -translate-x-1/2 -translate-y-1/2 items-center gap-2"
-            style={{
-              left: `${35 + index * 22}%`,
-              top: `${48 + (index % 2) * 16}%`
-            }}
-          >
-            <span className="h-4 w-4 rounded-full border-2 border-white bg-brand shadow-soft" />
-            <span className="rounded-full bg-white/90 px-2 py-1 text-xs font-semibold text-ink shadow-sm">
-              {marker.label}
-            </span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
 }
 
 function ReportShell({
@@ -235,18 +192,13 @@ function AnalysisReport({ analysis, onBack }: { analysis: ExpressAnalysis; onBac
         </Section>
 
         <Section title="Map Context">
-          <MapWindow
+          <MapContextCard
             title={analysis.selectedObject?.name ?? "Custom map point"}
             subtitle={`${analysis.selectedObject?.type ?? "Point selection"} / ${analysis.subtitle}`}
-            markers={[{
-              label: "Selected",
-              latitude: analysis.point.latitude,
-              longitude: analysis.point.longitude
-            }]}
+            selectedPoint={analysis.point}
+            selectedObject={analysis.selectedObject ?? null}
+            reportMode
           />
-          <p className="mt-3 text-xs font-semibold uppercase tracking-[0.14em] text-muted">
-            Demo spatial context only. No official GIS, parcel, or risk data is connected.
-          </p>
         </Section>
 
         {analysis.marketContext ? (
@@ -447,14 +399,11 @@ function ComparisonReport({ comparison, onBack }: { comparison: ComparisonResult
         </Section>
 
         <Section title="Map Context">
-          <MapWindow
-            title="Comparison map window"
+          <MapContextCard
+            title="Comparison Map Context"
             subtitle="Selected locations / assets in synthetic Dubai context"
-            markers={comparison.items.map((scorecard, index) => ({
-              label: `Option ${index + 1}`,
-              latitude: scorecard.item.point.latitude,
-              longitude: scorecard.item.point.longitude
-            }))}
+            comparison={comparison}
+            reportMode
           />
         </Section>
 
