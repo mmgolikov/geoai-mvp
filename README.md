@@ -1,8 +1,8 @@
 # GeoAI MVP
 
-GeoAI is a Next.js spatial decision intelligence MVP for evaluating Dubai real estate, infrastructure, construction, and climate-risk scenarios. The current version is a public demo prototype: it uses Mapbox for the workspace, synthetic/demo geospatial layers, deterministic mock analysis, comparison dashboards, and print-friendly report previews.
+GeoAI is a Next.js spatial decision intelligence MVP for evaluating Dubai real estate, infrastructure, construction, and climate-risk scenarios. The current version is a public demo prototype: it uses Mapbox for the workspace, synthetic/demo geospatial layers, deterministic mock scoring, optional OpenAI-powered narrative analysis, comparison dashboards, and print-friendly report previews.
 
-No OpenAI API, database, or real external data adapters are connected yet.
+OpenAI is optional. If `OPENAI_API_KEY` is not configured, GeoAI automatically uses the deterministic mock fallback so the product remains fully usable for demos.
 
 ## Implemented Features
 
@@ -26,11 +26,12 @@ No OpenAI API, database, or real external data adapters are connected yet.
   - Infrastructure / Urban Planning
   - Climate & Risk
   - Custom Query
-- Deterministic mock Express Analysis dashboard
+- Express Analysis dashboard with deterministic scores and optional OpenAI narrative analysis
+- Mock fallback mode when OpenAI is not configured or unavailable
 - Comparison mode for 2-3 selected points or demo objects
 - Comparison dashboard with scores, recommendation, risks, and next actions
 - Print-friendly report preview for single-site analysis and comparison
-- API route skeletons for health and demo objects
+- API routes for health, demo objects, and analysis
 - Vercel-ready Next.js deployment structure
 
 ## Tech Stack
@@ -43,6 +44,7 @@ No OpenAI API, database, or real external data adapters are connected yet.
 - Next.js API routes
 - Synthetic GeoJSON-style demo data
 - Deterministic local mock scoring logic
+- Server-side OpenAI analysis route with mock fallback
 
 ## Local Setup
 
@@ -71,7 +73,9 @@ OPENAI_API_KEY=
 
 `NEXT_PUBLIC_MAPBOX_TOKEN` is required for the live Mapbox basemap.
 
-`OPENAI_API_KEY` is reserved for a future AI engine milestone. The current MVP does not call OpenAI.
+`OPENAI_API_KEY` is optional and server-only. When it is set in local or Vercel server environment variables, `/api/analyze` can use OpenAI to generate dashboard-ready narrative analysis. When it is missing or the API request fails, GeoAI returns a mock fallback response.
+
+Never expose the OpenAI key as a `NEXT_PUBLIC_*` variable. Only `NEXT_PUBLIC_MAPBOX_TOKEN` is intended for browser use.
 
 Do not commit real tokens. `.env`, `.env.local`, and `.env*.local` are ignored.
 
@@ -90,6 +94,7 @@ The default `npm run dev` command uses stable Webpack mode with polling enabled 
 
 - `GET /api/health` returns app status.
 - `GET /api/demo-objects` returns mock spatial objects for demo use.
+- `POST /api/analyze` returns structured analysis narrative. It uses OpenAI when `OPENAI_API_KEY` is available and otherwise returns mock fallback content.
 
 ## Deploy To Vercel
 
@@ -97,14 +102,14 @@ The default `npm run dev` command uses stable Webpack mode with polling enabled 
 2. Create a Vercel project from the repository.
 3. Keep the default Next.js build settings.
 4. Add `NEXT_PUBLIC_MAPBOX_TOKEN` in Vercel environment variables.
-5. Add `OPENAI_API_KEY` later only when OpenAI integration is implemented.
+5. Optionally add `OPENAI_API_KEY` as a server-side Vercel environment variable for OpenAI narrative analysis.
 6. Deploy.
 
 ## Current Limitations
 
 - Uses synthetic/demo geospatial data only.
 - Uses deterministic mock scoring only.
-- No OpenAI API integration yet.
+- OpenAI generates narrative interpretation only; scores remain deterministic mock values.
 - No database or persistence yet.
 - No authentication or user accounts.
 - No real parcel, zoning, transaction, satellite, or regulatory data adapters.
@@ -121,7 +126,7 @@ The default `npm run dev` command uses stable Webpack mode with polling enabled 
 
 ## Next Roadmap
 
-- v0.2: AI analysis engine with OpenAI API route integration and structured prompts
+- v0.2: AI analysis engine hardening, prompt evaluation, and production guardrails
 - v0.3: Data Source Registry and real data adapters
 - v0.4: Pilot-ready workflows for saved studies, evidence, and client reports
 - v0.5: Enterprise readiness with auth, governance, auditability, and deployment controls

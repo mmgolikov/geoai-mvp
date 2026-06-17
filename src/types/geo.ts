@@ -63,6 +63,10 @@ export type ExpressAnalysis = {
   risks: string[];
   nextActions: string[];
   evidence: EvidenceItem[];
+  analysisMode?: "openai" | "mock_fallback";
+  confidenceLevel?: "low" | "medium" | "high";
+  limitations?: string[];
+  analysisNotice?: string;
 };
 
 export type ComparisonItem = {

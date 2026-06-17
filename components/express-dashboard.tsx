@@ -36,6 +36,7 @@ function scoreTone(scoreKey: ScoreKey, value: number) {
 
 export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: ExpressDashboardProps) {
   const dashboardRef = useRef<HTMLElement | null>(null);
+  const analysisBadge = analysis.analysisMode === "openai" ? "AI analysis" : "Demo fallback";
 
   useEffect(() => {
     dashboardRef.current?.scrollTo({ top: 0, left: 0 });
@@ -49,7 +50,7 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
             <div className="flex flex-wrap items-center gap-3">
               <h1 className="text-3xl font-semibold text-ink">{analysis.title}</h1>
               <span className="rounded-full bg-[#eaf3f1] px-3 py-1 text-xs font-semibold text-brand">
-                Demo analysis
+                {analysisBadge}
               </span>
             </div>
             <p className="mt-2 text-sm font-medium text-muted">
@@ -98,6 +99,23 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
           <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
             <h2 className="text-lg font-semibold text-ink">Executive Summary</h2>
             <p className="mt-3 text-base leading-7 text-muted">{analysis.summary}</p>
+            {analysis.analysisNotice ? (
+              <p className="mt-4 rounded-md border border-line bg-surface px-3 py-2 text-sm leading-5 text-muted">
+                {analysis.analysisNotice}
+              </p>
+            ) : null}
+            <div className="mt-4 flex flex-wrap gap-2">
+              {analysis.confidenceLevel ? (
+                <span className="rounded-full bg-surface px-3 py-1 text-xs font-semibold text-muted">
+                  Confidence: {analysis.confidenceLevel}
+                </span>
+              ) : null}
+              {analysis.limitations?.slice(0, 2).map((limitation) => (
+                <span key={limitation} className="rounded-full bg-surface px-3 py-1 text-xs font-semibold text-muted">
+                  {limitation}
+                </span>
+              ))}
+            </div>
           </section>
         </div>
 

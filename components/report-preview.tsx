@@ -141,6 +141,8 @@ function Section({
 }
 
 function AnalysisReport({ analysis, onBack }: { analysis: ExpressAnalysis; onBack: () => void }) {
+  const analysisBadge = analysis.analysisMode === "openai" ? "AI analysis" : "Demo fallback";
+
   return (
     <ReportShell onBack={onBack}>
       <div className="flex flex-col gap-8">
@@ -152,7 +154,7 @@ function AnalysisReport({ analysis, onBack }: { analysis: ExpressAnalysis; onBac
               <p className="mt-3 text-base leading-7 text-muted">{analysis.title}</p>
             </div>
             <span className="rounded-full bg-[#eaf3f1] px-3 py-1 text-xs font-semibold text-brand">
-              Demo report
+              {analysisBadge}
             </span>
           </div>
           <dl className="mt-6 grid gap-3 text-sm md:grid-cols-2">
@@ -177,6 +179,20 @@ function AnalysisReport({ analysis, onBack }: { analysis: ExpressAnalysis; onBac
 
         <Section title="Executive Summary">
           <p className="text-base leading-8 text-muted">{analysis.summary}</p>
+          <div className="mt-4 grid gap-3 text-sm md:grid-cols-2">
+            {analysis.confidenceLevel ? (
+              <div className="rounded-md bg-surface p-4">
+                <span className="font-semibold text-muted">Confidence</span>
+                <p className="mt-1 capitalize text-ink">{analysis.confidenceLevel}</p>
+              </div>
+            ) : null}
+            {analysis.analysisNotice ? (
+              <div className="rounded-md bg-surface p-4">
+                <span className="font-semibold text-muted">Analysis mode</span>
+                <p className="mt-1 text-ink">{analysis.analysisNotice}</p>
+              </div>
+            ) : null}
+          </div>
         </Section>
 
         <Section title="Score Overview">
@@ -243,6 +259,14 @@ function AnalysisReport({ analysis, onBack }: { analysis: ExpressAnalysis; onBac
             ))}
           </ol>
         </Section>
+
+        {analysis.limitations?.length ? (
+          <Section title="Limitations">
+            <ul className="space-y-3 text-sm leading-6 text-muted">
+              {analysis.limitations.map((item) => <li key={item}>{item}</li>)}
+            </ul>
+          </Section>
+        ) : null}
       </div>
     </ReportShell>
   );

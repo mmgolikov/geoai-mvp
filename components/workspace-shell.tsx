@@ -6,8 +6,10 @@ import { ComparisonDashboard } from "@/components/comparison-dashboard";
 import { ExpressDashboard } from "@/components/express-dashboard";
 import { MapWorkspace } from "@/components/map-workspace";
 import { ReportPreview } from "@/components/report-preview";
+import { getScenarioDataSources } from "@/src/data/data-source-registry";
 import { createComparisonItem, createMockComparison } from "@/src/lib/mock-comparison";
 import { analysisScenarios, createMockExpressAnalysis } from "@/src/lib/mock-express-analysis";
+import type { StructuredAnalysisResult } from "@/src/types/analysis";
 import type {
   AnalysisScenarioId,
   ComparisonItem,
@@ -16,6 +18,40 @@ import type {
   SelectedDemoObject,
   SelectedPoint
 } from "@/src/types/geo";
+
+function titledText(title: string, description: string) {
+  return title ? `${title}: ${description}` : description;
+}
+
+function mergeNarrativeAnalysis(
+  deterministicAnalysis: ExpressAnalysis,
+  narrative: StructuredAnalysisResult
+): ExpressAnalysis {
+  return {
+    ...deterministicAnalysis,
+    summary: narrative.executive_summary || deterministicAnalysis.summary,
+    keyFactors:
+      narrative.key_factors.length > 0
+        ? narrative.key_factors.map((item) => titledText(item.title, item.description))
+        : deterministicAnalysis.keyFactors,
+    opportunities:
+      narrative.opportunities.length > 0
+        ? narrative.opportunities.map((item) => titledText(item.title, item.description))
+        : deterministicAnalysis.opportunities,
+    risks:
+      narrative.risks.length > 0
+        ? narrative.risks.map((item) => titledText(item.title, item.description))
+        : deterministicAnalysis.risks,
+    nextActions:
+      narrative.recommended_actions.length > 0
+        ? narrative.recommended_actions.map((item) => titledText(item.title, item.description))
+        : deterministicAnalysis.nextActions,
+    analysisMode: narrative.mode,
+    confidenceLevel: narrative.confidence_level,
+    limitations: narrative.limitations,
+    analysisNotice: narrative.notice
+  };
+}
 
 export function WorkspaceShell() {
   const [selectedPoint, setSelectedPoint] = useState<SelectedPoint | null>(null);
@@ -103,7 +139,7 @@ export function WorkspaceShell() {
     setReportPreview(null);
   }
 
-  function runExpressAnalysis() {
+  async function runExpressAnalysis() {
     if (!selectedPoint || isAnalyzing) {
       return;
     }
@@ -119,16 +155,52 @@ export function WorkspaceShell() {
     setComparison(null);
     setReportPreview(null);
 
-    window.setTimeout(() => {
-      try {
-        setAnalysis(createMockExpressAnalysis(selectedPoint, selectedScenario, customQuery, selectedObject));
-      } catch {
-        setAnalysis(null);
-        setAnalysisError("Express analysis could not be generated. Please select the point again and retry.");
-      } finally {
-        setIsAnalyzing(false);
+    const deterministicAnalysis = createMockExpressAnalysis(
+      selectedPoint,
+      selectedScenario,
+      customQuery,
+      selectedObject
+    );
+    const scenario = analysisScenarios.find((item) => item.id === selectedScenario) ?? analysisScenarios[0];
+
+    try {
+      const response = await fetch("/api/analyze", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          point: selectedPoint,
+          selectedObject,
+          scenarioId: selectedScenario,
+          scenarioLabel: scenario.label,
+          customQuery,
+          deterministicScores: deterministicAnalysis.scores,
+          evidence: deterministicAnalysis.evidence,
+          dataSources: getScenarioDataSources(selectedScenario)
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error("Analysis API unavailable");
       }
-    }, 700);
+
+      const narrative = (await response.json()) as StructuredAnalysisResult;
+      setAnalysis(mergeNarrativeAnalysis(deterministicAnalysis, narrative));
+    } catch {
+      setAnalysis({
+        ...deterministicAnalysis,
+        analysisMode: "mock_fallback",
+        confidenceLevel: "medium",
+        analysisNotice: "AI analysis is unavailable. Using deterministic demo fallback.",
+        limitations: [
+          "Narrative content is generated from deterministic demo context.",
+          "Official parcel, planning, transaction, imagery, and risk data are not connected yet."
+        ]
+      });
+    } finally {
+      setIsAnalyzing(false);
+    }
   }
 
   return (
