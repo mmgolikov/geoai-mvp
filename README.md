@@ -28,6 +28,7 @@ OpenAI is optional. If `OPENAI_API_KEY` is not configured, GeoAI automatically u
   - Custom Query
 - Express Analysis dashboard with deterministic scores and optional OpenAI narrative analysis
 - Mock fallback mode when OpenAI is not configured or unavailable
+- Dubai Market Context Adapter v0.1 with seed/demo-normalized area matching
 - Comparison mode for 2-3 selected points or demo objects
 - Comparison dashboard with scores, recommendation, risks, and next actions
 - Print-friendly report preview for single-site analysis and comparison
@@ -45,6 +46,7 @@ OpenAI is optional. If `OPENAI_API_KEY` is not configured, GeoAI automatically u
 - Synthetic GeoJSON-style demo data
 - Deterministic local mock scoring logic
 - Server-side OpenAI analysis route with mock fallback
+- Seed market context adapter for Dubai area-level qualitative intelligence
 
 ## Local Setup
 
@@ -95,6 +97,15 @@ The default `npm run dev` command uses stable Webpack mode with polling enabled 
 - `GET /api/health` returns app status.
 - `GET /api/demo-objects` returns mock spatial objects for demo use.
 - `POST /api/analyze` returns structured analysis narrative. It uses OpenAI when `OPENAI_API_KEY` is available and otherwise returns mock fallback content.
+- `POST /api/context/market` returns seed/demo-normalized Dubai market context for selected coordinates.
+
+## Market Context Adapter
+
+GeoAI includes Dubai Market Context Adapter v0.1. It matches selected coordinates or demo objects to a nearest seed Dubai market area, then enriches the dashboard, AI prompt context, evidence, and report preview with qualitative area-level context.
+
+Current market context is seed/demo-normalized only. It uses qualitative levels, 0-100 indices, trends, confidence labels, and limitations. It does not claim official transaction values, rents, ownership, zoning, density, or approvals.
+
+Future production adapters are intended to connect official or licensed sources such as Dubai Land Department, Dubai Pulse / Data.Dubai, Dubai Municipality / GeoDubai planning layers, Dubai 2040 Urban Master Plan context, OpenStreetMap infrastructure extracts, and customer-provided documents. No external API keys are required for v0.1.
 
 ## Deploy To Vercel
 
@@ -110,6 +121,7 @@ The default `npm run dev` command uses stable Webpack mode with polling enabled 
 - Uses synthetic/demo geospatial data only.
 - Uses deterministic mock scoring only.
 - OpenAI generates narrative interpretation only; scores remain deterministic mock values.
+- Market context is seed/demo-normalized and not official market evidence.
 - No database or persistence yet.
 - No authentication or user accounts.
 - No real parcel, zoning, transaction, satellite, or regulatory data adapters.

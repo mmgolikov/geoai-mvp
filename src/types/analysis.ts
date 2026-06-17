@@ -1,4 +1,5 @@
 import type { DataSource, EvidenceItem } from "@/src/types/data-source";
+import type { MarketContext } from "@/src/types/market-context";
 import type {
   AnalysisScenarioId,
   ScoreKey,
@@ -62,4 +63,5 @@ export type AnalyzeRequest = {
   deterministicScores: Record<ScoreKey, number>;
   evidence: EvidenceItem[];
   dataSources: DataSource[];
+  marketContext?: MarketContext | null;
 };

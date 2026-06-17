@@ -249,6 +249,57 @@ function AnalysisReport({ analysis, onBack }: { analysis: ExpressAnalysis; onBac
           </p>
         </Section>
 
+        {analysis.marketContext ? (
+          <Section title="Market Context">
+            <div className="rounded-md border border-line bg-surface p-5">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-lg font-semibold text-ink">{analysis.marketContext.areaName}</p>
+                  <p className="mt-1 text-sm text-muted">
+                    {analysis.marketContext.emirate} / seed demo context / {analysis.marketContext.confidenceLevel} confidence
+                  </p>
+                </div>
+                {analysis.marketContext.matchDistanceKm !== null ? (
+                  <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-muted">
+                    {analysis.marketContext.matchDistanceKm.toFixed(1)} km from seed centroid
+                  </span>
+                ) : null}
+              </div>
+              <div className="mt-4 grid gap-3 text-sm md:grid-cols-2">
+                <div className="rounded-md bg-white p-4">
+                  <span className="font-semibold text-muted">Market activity</span>
+                  <p className="mt-1 text-ink">
+                    {analysis.marketContext.marketActivityLevel.level} / {analysis.marketContext.marketActivityLevel.index}
+                  </p>
+                  <p className="mt-2 leading-6 text-muted">{analysis.marketContext.marketActivityLevel.note}</p>
+                </div>
+                <div className="rounded-md bg-white p-4">
+                  <span className="font-semibold text-muted">Transaction context</span>
+                  <p className="mt-1 text-ink">
+                    {analysis.marketContext.transactionContext.level} / {analysis.marketContext.transactionContext.trend}
+                  </p>
+                  <p className="mt-2 leading-6 text-muted">{analysis.marketContext.transactionContext.note}</p>
+                </div>
+                <div className="rounded-md bg-white p-4">
+                  <span className="font-semibold text-muted">Rent context</span>
+                  <p className="mt-1 text-ink">
+                    {analysis.marketContext.rentContext.level} / {analysis.marketContext.rentContext.trend}
+                  </p>
+                  <p className="mt-2 leading-6 text-muted">{analysis.marketContext.rentContext.note}</p>
+                </div>
+                <div className="rounded-md bg-white p-4">
+                  <span className="font-semibold text-muted">Planning context</span>
+                  <p className="mt-1 text-ink">
+                    {analysis.marketContext.planningContext.level} / {analysis.marketContext.planningContext.index}
+                  </p>
+                  <p className="mt-2 leading-6 text-muted">{analysis.marketContext.planningContext.note}</p>
+                </div>
+              </div>
+              <p className="mt-4 text-sm leading-6 text-muted">{analysis.marketContext.limitations[0]}</p>
+            </div>
+          </Section>
+        ) : null}
+
         <div className="grid gap-6 md:grid-cols-2">
           <Section title="Key Factors">
             <ul className="space-y-3 text-sm leading-6 text-muted">

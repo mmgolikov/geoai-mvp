@@ -2,6 +2,7 @@
 
 import demoObjects from "@/src/data/demo-objects.json";
 import { getScenarioDataSources } from "@/src/data/data-source-registry";
+import type { MarketContext } from "@/src/types/market-context";
 import type {
   AnalysisScenario,
   AnalysisScenarioId,
@@ -24,6 +25,8 @@ type AnalysisPanelProps = {
   hasResult: boolean;
   analysisMode?: ExpressAnalysis["analysisMode"];
   analysisGeneratedAt?: string;
+  marketContext: MarketContext | null;
+  isMarketContextLoading: boolean;
   onScenarioChange: (scenario: AnalysisScenarioId) => void;
   onCustomQueryChange: (query: string) => void;
   onRunAnalysis: () => void;
@@ -74,6 +77,8 @@ export function AnalysisPanel({
   hasResult,
   analysisMode,
   analysisGeneratedAt,
+  marketContext,
+  isMarketContextLoading,
   onScenarioChange,
   onCustomQueryChange,
   onRunAnalysis,
@@ -100,6 +105,11 @@ export function AnalysisPanel({
       : analysisMode === "mock_fallback"
         ? "Using deterministic demo analysis because AI is unavailable"
         : "Run analysis to generate the current intelligence mode";
+  const contextStatus = marketContext?.isGeneralContext
+    ? "demo"
+    : marketContext
+      ? "seed"
+      : "real-ready";
 
   return (
     <aside className="border-l border-line bg-white lg:h-[calc(100vh-72px)] lg:w-[400px] lg:overflow-y-auto">
@@ -152,6 +162,36 @@ export function AnalysisPanel({
               </dd>
             </div>
           </dl>
+        </section>
+
+        <section className="rounded-md border border-line bg-white px-3 py-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">
+              Context
+            </div>
+            <span className="rounded-full bg-surface px-2 py-1 text-[11px] font-semibold text-brand">
+              {isMarketContextLoading ? "loading" : contextStatus}
+            </span>
+          </div>
+          <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto] items-end gap-3">
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold text-ink">
+                {isMarketContextLoading
+                  ? "Matching Dubai area..."
+                  : marketContext?.areaName ?? "Select a point"}
+              </p>
+              <p className="mt-1 text-xs leading-5 text-muted">
+                {marketContext
+                  ? `Confidence: ${marketContext.confidenceLevel}`
+                  : "Market context appears after selection"}
+              </p>
+            </div>
+            {marketContext?.matchDistanceKm !== null && marketContext?.matchDistanceKm !== undefined ? (
+              <span className="rounded-full bg-surface px-2 py-1 text-[11px] font-semibold text-muted">
+                {marketContext.matchDistanceKm.toFixed(1)} km
+              </span>
+            ) : null}
+          </div>
         </section>
 
         <section className="grid gap-3">

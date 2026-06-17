@@ -1,4 +1,5 @@
 import type { EvidenceItem } from "@/src/types/data-source";
+import type { MarketContext } from "@/src/types/market-context";
 
 export type SelectedPoint = {
   latitude: number;
@@ -63,6 +64,7 @@ export type ExpressAnalysis = {
   risks: string[];
   nextActions: string[];
   evidence: EvidenceItem[];
+  marketContext?: MarketContext;
   analysisMode?: "openai" | "mock_fallback";
   confidenceLevel?: "low" | "medium" | "high";
   limitations?: string[];

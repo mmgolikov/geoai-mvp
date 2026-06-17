@@ -1,12 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AnalysisPanel } from "@/components/analysis-panel";
 import { ComparisonDashboard } from "@/components/comparison-dashboard";
 import { ExpressDashboard } from "@/components/express-dashboard";
 import { MapWorkspace } from "@/components/map-workspace";
 import { ReportPreview } from "@/components/report-preview";
-import { getScenarioDataSources } from "@/src/data/data-source-registry";
+import {
+  createEvidenceItem,
+  getDataSourceById,
+  getScenarioDataSources
+} from "@/src/data/data-source-registry";
 import { createComparisonItem, createMockComparison } from "@/src/lib/mock-comparison";
 import { analysisScenarios, createMockExpressAnalysis } from "@/src/lib/mock-express-analysis";
 import type { StructuredAnalysisResult } from "@/src/types/analysis";
@@ -18,6 +22,7 @@ import type {
   SelectedDemoObject,
   SelectedPoint
 } from "@/src/types/geo";
+import type { MarketContext } from "@/src/types/market-context";
 
 function titledText(title: string, description: string) {
   return title ? `${title}: ${description}` : description;
@@ -54,6 +59,40 @@ function mergeNarrativeAnalysis(
   };
 }
 
+function withMarketContext(analysis: ExpressAnalysis, marketContext: MarketContext | null): ExpressAnalysis {
+  if (!marketContext) {
+    return analysis;
+  }
+
+  const areaSlug = marketContext.areaName.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  const marketEvidence = marketContext.sourceIds.slice(0, 6).map((sourceId, index) => {
+    const source = getDataSourceById(sourceId);
+
+    return createEvidenceItem(
+      `market-context-${areaSlug}-${sourceId}`,
+      sourceId,
+      index === 0
+        ? `Market context: ${marketContext.areaName}`
+        : `Market validation source: ${source?.name ?? sourceId}`,
+      index === 0
+        ? `Seed/demo-normalized Dubai market context matched to ${marketContext.areaName}.`
+        : `Planned validation source for market, planning, infrastructure, or geospatial context related to ${marketContext.areaName}.`,
+      index === 0 ? "demo" : "medium"
+    );
+  });
+
+  return {
+    ...analysis,
+    marketContext,
+    evidence: [
+      ...marketEvidence.filter(
+        (marketItem) => !analysis.evidence.some((item) => item.id === marketItem.id)
+      ),
+      ...analysis.evidence
+    ]
+  };
+}
+
 export function WorkspaceShell() {
   const [selectedPoint, setSelectedPoint] = useState<SelectedPoint | null>(null);
   const [selectedObject, setSelectedObject] = useState<SelectedDemoObject | null>(null);
@@ -66,6 +105,54 @@ export function WorkspaceShell() {
   const [comparisonMessage, setComparisonMessage] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [marketContext, setMarketContext] = useState<MarketContext | null>(null);
+  const [isMarketContextLoading, setIsMarketContextLoading] = useState(false);
+
+  useEffect(() => {
+    if (!selectedPoint) {
+      setMarketContext(null);
+      setIsMarketContextLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    setIsMarketContextLoading(true);
+
+    fetch("/api/context/market", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        point: selectedPoint,
+        selectedObject,
+        scenarioId: selectedScenario
+      }),
+      signal: controller.signal
+    })
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error("Market context unavailable");
+        }
+
+        return response.json() as Promise<MarketContext>;
+      })
+      .then((context) => setMarketContext(context))
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return;
+        }
+
+        setMarketContext(null);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setIsMarketContextLoading(false);
+        }
+      });
+
+    return () => controller.abort();
+  }, [selectedPoint, selectedObject, selectedScenario]);
 
   function handlePointSelect(point: SelectedPoint) {
     setSelectedPoint(point);
@@ -76,6 +163,7 @@ export function WorkspaceShell() {
     setComparisonMessage(null);
     setAnalysisError(null);
     setIsAnalyzing(false);
+    setMarketContext(null);
   }
 
   function handleObjectSelect(object: SelectedDemoObject) {
@@ -87,6 +175,7 @@ export function WorkspaceShell() {
     setComparisonMessage(null);
     setAnalysisError(null);
     setIsAnalyzing(false);
+    setMarketContext(null);
   }
 
   function addSelectionToComparison() {
@@ -156,11 +245,14 @@ export function WorkspaceShell() {
     setComparison(null);
     setReportPreview(null);
 
-    const deterministicAnalysis = createMockExpressAnalysis(
-      selectedPoint,
-      selectedScenario,
-      customQuery,
-      selectedObject
+    const deterministicAnalysis = withMarketContext(
+      createMockExpressAnalysis(
+        selectedPoint,
+        selectedScenario,
+        customQuery,
+        selectedObject
+      ),
+      marketContext
     );
     const scenario = analysisScenarios.find((item) => item.id === selectedScenario) ?? analysisScenarios[0];
 
@@ -178,7 +270,8 @@ export function WorkspaceShell() {
           customQuery,
           deterministicScores: deterministicAnalysis.scores,
           evidence: deterministicAnalysis.evidence,
-          dataSources: getScenarioDataSources(selectedScenario)
+          dataSources: getScenarioDataSources(selectedScenario),
+          marketContext
         })
       });
 
@@ -247,6 +340,8 @@ export function WorkspaceShell() {
         hasResult={analysis !== null || comparison !== null}
         analysisMode={analysis?.analysisMode}
         analysisGeneratedAt={analysis?.generatedAt}
+        marketContext={marketContext}
+        isMarketContextLoading={isMarketContextLoading}
         onScenarioChange={(scenario) => {
           setSelectedScenario(scenario);
           setAnalysisError(null);

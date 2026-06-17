@@ -49,6 +49,23 @@ export function buildAnalyzePrompt(request: AnalyzeRequest) {
   const coordinateText = `${request.point.latitude.toFixed(6)}, ${request.point.longitude.toFixed(6)}`;
   const selectionName = request.selectedObject?.name ?? "custom map point";
   const unavailableSourceCount = dataSources.filter((source) => source.status !== "connected").length;
+  const marketContext = request.marketContext
+    ? {
+        matchedArea: request.marketContext.areaName,
+        emirate: request.marketContext.emirate,
+        matchDistanceKm: request.marketContext.matchDistanceKm,
+        confidenceLevel: request.marketContext.confidenceLevel,
+        marketActivityLevel: request.marketContext.marketActivityLevel,
+        transactionContext: request.marketContext.transactionContext,
+        rentContext: request.marketContext.rentContext,
+        developmentPipelineContext: request.marketContext.developmentPipelineContext,
+        accessibilityContext: request.marketContext.accessibilityContext,
+        planningContext: request.marketContext.planningContext,
+        riskContext: request.marketContext.riskContext,
+        limitations: request.marketContext.limitations,
+        sourceIds: request.marketContext.sourceIds
+      }
+    : null;
 
   return `
 You are GeoAI, a spatial decision intelligence assistant for real estate, infrastructure, construction, investment, and climate-risk screening in Dubai.
@@ -63,6 +80,7 @@ Critical rules:
 - Mention limitations when the current evidence is synthetic, planned, or not connected.
 - Avoid generic phrases such as "this location has potential" unless you tie them to the scenario, coordinates, object context, scores, or evidence.
 - Do not claim exact zoning, ownership, permitted density, transaction values, rents, yields, or official approvals unless the supplied evidence explicitly validates them.
+- If market context is provided, use the matched Dubai area name and its qualitative/index-style signals, but clearly treat seed/demo-normalized market context as non-official.
 - Keep the content polished, specific, and suitable for a professional pilot demo.
 
 Scenario:
@@ -70,7 +88,7 @@ ${request.scenarioLabel}
 
 Required executive summary behavior:
 - Sentence 1 must mention the selected scenario "${request.scenarioLabel}", the selected item "${selectionName}", and coordinates ${coordinateText}.
-- Sentence 2 must interpret the strongest 1-2 deterministic score signals without changing the scores.
+- Sentence 2 must mention the matched market area when available and interpret the strongest 1-2 deterministic score or market-context signals without changing the scores.
 - Sentence 3 must reference the Data Source Registry or evidence context, including whether sources are synthetic, planned, official, open data, or commercial.
 - Sentence 4 must state the most important limitation or due diligence gap.
 - Optional sentence 5 may frame the decision implication for an investor, developer, lender, or government client.
@@ -92,6 +110,9 @@ ${compactJson(request.deterministicScores)}
 
 Evidence already attached to the dashboard:
 ${compactJson(request.evidence)}
+
+Dubai market context:
+${marketContext ? compactJson(marketContext) : "No market context provided."}
 
 Available Data Source Registry entries:
 ${compactJson(dataSources)}
