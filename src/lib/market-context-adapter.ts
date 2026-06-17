@@ -1,4 +1,5 @@
 import { dubaiMarketAreas } from "@/src/data/dubai-market-areas";
+import { getMarketAggregateForArea } from "@/src/lib/market-data-ingestion";
 import type {
   AreaMatchResult,
   MarketArea,
@@ -108,6 +109,11 @@ function createGeneralDubaiContext(match: AreaMatchResult): MarketContext {
     accessibilityContext: metric("Accessibility", "medium", 56, "stable", "Access context requires district-level transport validation."),
     planningContext: metric("Planning context", "medium", 52, "stable", "Planning assumptions require official GIS and land-use confirmation."),
     riskContext: metric("Risk context", "medium", 59, "stable", "Risk context remains general until district and parcel evidence are connected."),
+    sourceMode: "seed_static",
+    dataQualityNotes: [
+      "No strong area match; general Dubai fallback uses deterministic seed defaults.",
+      "Current values are demo-normalized indices, not official market data."
+    ],
     confidenceLevel: "low",
     sourceIds: [
       "synthetic-demo-layers",
@@ -122,22 +128,77 @@ function createGeneralDubaiContext(match: AreaMatchResult): MarketContext {
 }
 
 function createAreaContext(area: MarketArea, match: AreaMatchResult): MarketContext {
+  const aggregate = getMarketAggregateForArea(area.name);
+  const marketActivityLevel = aggregate
+    ? metric(
+        "Market activity",
+        aggregate.activityIndex >= 75 ? "high" : aggregate.activityIndex >= 55 ? "medium" : "low",
+        aggregate.activityIndex,
+        aggregate.trend,
+        `Seed_static activity index for ${area.name}; not official market evidence.`
+      )
+    : area.marketActivityLevel;
+  const rentContext = aggregate
+    ? metric(
+        "Rental demand",
+        aggregate.rentalDemandIndex >= 75 ? "high" : aggregate.rentalDemandIndex >= 55 ? "medium" : "low",
+        aggregate.rentalDemandIndex,
+        aggregate.trend,
+        `Seed_static rental demand index for ${area.name}; requires official and licensed validation.`
+      )
+    : area.rentContext;
+  const transactionContext = aggregate
+    ? metric(
+        "Liquidity",
+        aggregate.liquidityIndex >= 75 ? "high" : aggregate.liquidityIndex >= 55 ? "medium" : "low",
+        aggregate.liquidityIndex,
+        aggregate.trend,
+        `Seed_static liquidity index for ${area.name}; no exact transaction values are included.`
+      )
+    : area.transactionContext;
+  const developmentPipelineContext = aggregate
+    ? metric(
+        "Development pipeline",
+        aggregate.developmentPipelineIndex >= 75 ? "high" : aggregate.developmentPipelineIndex >= 55 ? "medium" : "low",
+        aggregate.developmentPipelineIndex,
+        aggregate.trend,
+        `Seed_static development pipeline index for ${area.name}; phasing must be validated.`
+      )
+    : area.developmentPipelineContext;
+  const riskContext = aggregate
+    ? metric(
+        "Risk index",
+        aggregate.riskIndex >= 70 ? "high" : aggregate.riskIndex >= 50 ? "medium" : "low",
+        aggregate.riskIndex,
+        aggregate.trend,
+        `Seed_static risk index for ${area.name}; due diligence is still required.`
+      )
+    : area.riskContext;
+
   return {
     areaName: area.name,
     emirate: area.emirate,
     centroid: area.centroid,
     matchDistanceKm: match.distanceKm,
     isGeneralContext: false,
-    marketActivityLevel: area.marketActivityLevel,
-    transactionContext: area.transactionContext,
-    rentContext: area.rentContext,
-    developmentPipelineContext: area.developmentPipelineContext,
+    marketActivityLevel,
+    transactionContext,
+    rentContext,
+    developmentPipelineContext,
     accessibilityContext: area.accessibilityContext,
     planningContext: area.planningContext,
-    riskContext: area.riskContext,
-    confidenceLevel: match.confidenceLevel,
-    sourceIds: area.sourceIds,
-    limitations: area.limitations
+    riskContext,
+    marketMetrics: aggregate ?? undefined,
+    sourceMode: aggregate?.sourceMode ?? "seed_static",
+    dataQualityNotes: aggregate?.dataQualityNotes ?? [
+      "No normalized seed record matched this area; static area metadata was used."
+    ],
+    confidenceLevel: aggregate?.confidence ?? match.confidenceLevel,
+    sourceIds: Array.from(new Set([...(aggregate?.sourceIds ?? []), ...area.sourceIds])),
+    limitations: [
+      ...area.limitations,
+      ...(aggregate?.dataQualityNotes ?? [])
+    ]
   };
 }
 

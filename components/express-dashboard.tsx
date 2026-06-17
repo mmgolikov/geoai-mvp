@@ -205,43 +205,43 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
                 </p>
               </div>
               <span className="rounded-full bg-[#eef2f5] px-3 py-1 text-xs font-semibold text-muted">
-                Seed demo / {analysis.marketContext.confidenceLevel} confidence
+                {analysis.marketContext.sourceMode ?? "seed_static"} / {analysis.marketContext.confidenceLevel} confidence
               </span>
             </div>
             <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
               <MetricPill
-                label="Market activity"
-                value={`${analysis.marketContext.marketActivityLevel.level} / ${analysis.marketContext.marketActivityLevel.index}`}
+                label="Market Activity"
+                value={`${analysis.marketContext.marketMetrics?.activityIndex ?? analysis.marketContext.marketActivityLevel.index}/100`}
                 detail={analysis.marketContext.marketActivityLevel.note}
               />
               <MetricPill
-                label="Transaction context"
-                value={`${analysis.marketContext.transactionContext.level} / ${analysis.marketContext.transactionContext.trend}`}
-                detail={analysis.marketContext.transactionContext.note}
-              />
-              <MetricPill
-                label="Rent context"
-                value={`${analysis.marketContext.rentContext.level} / ${analysis.marketContext.rentContext.trend}`}
+                label="Rental Demand"
+                value={`${analysis.marketContext.marketMetrics?.rentalDemandIndex ?? analysis.marketContext.rentContext.index}/100`}
                 detail={analysis.marketContext.rentContext.note}
               />
               <MetricPill
-                label="Development pipeline"
-                value={`${analysis.marketContext.developmentPipelineContext.level} / ${analysis.marketContext.developmentPipelineContext.trend}`}
+                label="Liquidity"
+                value={`${analysis.marketContext.marketMetrics?.liquidityIndex ?? analysis.marketContext.transactionContext.index}/100`}
+                detail={analysis.marketContext.transactionContext.note}
+              />
+              <MetricPill
+                label="Development Pipeline"
+                value={`${analysis.marketContext.marketMetrics?.developmentPipelineIndex ?? analysis.marketContext.developmentPipelineContext.index}/100`}
                 detail={analysis.marketContext.developmentPipelineContext.note}
               />
               <MetricPill
-                label="Planning context"
-                value={`${analysis.marketContext.planningContext.level} / ${analysis.marketContext.planningContext.index}`}
-                detail={analysis.marketContext.planningContext.note}
+                label="Risk Index"
+                value={`${analysis.marketContext.marketMetrics?.riskIndex ?? analysis.marketContext.riskContext.index}/100`}
+                detail={analysis.marketContext.riskContext.note}
               />
               <MetricPill
-                label="Risk context"
-                value={`${analysis.marketContext.riskContext.level} / ${analysis.marketContext.riskContext.index}`}
-                detail={analysis.marketContext.riskContext.note}
+                label="Trend"
+                value={analysis.marketContext.marketMetrics?.trend ?? analysis.marketContext.marketActivityLevel.trend}
+                detail={analysis.marketContext.dataQualityNotes?.[0] ?? "Seed_static demo-normalized context."}
               />
             </div>
             <p className="mt-4 rounded-md border border-line bg-surface px-3 py-2 text-sm leading-6 text-muted">
-              {analysis.marketContext.limitations[0]}
+              {analysis.marketContext.dataQualityNotes?.[1] ?? analysis.marketContext.limitations[0]}
             </p>
           </section>
         ) : null}

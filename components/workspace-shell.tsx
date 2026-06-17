@@ -75,7 +75,7 @@ function withMarketContext(analysis: ExpressAnalysis, marketContext: MarketConte
         ? `Market context: ${marketContext.areaName}`
         : `Market validation source: ${source?.name ?? sourceId}`,
       index === 0
-        ? `Seed/demo-normalized Dubai market context matched to ${marketContext.areaName}.`
+        ? `${marketContext.sourceMode ?? "seed_static"} market context matched to ${marketContext.areaName}. ${marketContext.dataQualityNotes?.[0] ?? "Current values are demo-normalized indices, not official market data."}`
         : `Planned validation source for market, planning, infrastructure, or geospatial context related to ${marketContext.areaName}.`,
       index === 0 ? "demo" : "medium"
     );

@@ -29,6 +29,7 @@ OpenAI is optional. If `OPENAI_API_KEY` is not configured, GeoAI automatically u
 - Express Analysis dashboard with deterministic scores and optional OpenAI narrative analysis
 - Mock fallback mode when OpenAI is not configured or unavailable
 - Dubai Market Context Adapter v0.1 with seed/demo-normalized area matching
+- Data Ingestion v0.1 for seed_static market metrics and deterministic normalization
 - Comparison mode for 2-3 selected points or demo objects
 - Comparison dashboard with scores, recommendation, risks, and next actions
 - Print-friendly report preview for single-site analysis and comparison
@@ -47,6 +48,7 @@ OpenAI is optional. If `OPENAI_API_KEY` is not configured, GeoAI automatically u
 - Deterministic local mock scoring logic
 - Server-side OpenAI analysis route with mock fallback
 - Seed market context adapter for Dubai area-level qualitative intelligence
+- Local market ingestion layer with validation, normalization, aggregation, and data quality notes
 
 ## Local Setup
 
@@ -107,6 +109,21 @@ Current market context is seed/demo-normalized only. It uses qualitative levels,
 
 Future production adapters are intended to connect official or licensed sources such as Dubai Land Department, Dubai Pulse / Data.Dubai, Dubai Municipality / GeoDubai planning layers, Dubai 2040 Urban Master Plan context, OpenStreetMap infrastructure extracts, and customer-provided documents. No external API keys are required for v0.1.
 
+## Data Ingestion v0.1
+
+GeoAI includes a local market data ingestion layer for the Market Context Adapter. The current ingestion mode is `seed_static`, which reads local demo-normalized records, validates fields, normalizes area names, aggregates records by Dubai market area, and returns data quality notes.
+
+The current seed metrics are qualitative/index-style only:
+
+- Market activity index
+- Rental demand index
+- Liquidity index
+- Development pipeline index
+- Risk index
+- Trend and confidence
+
+No external API keys are required for Data Ingestion v0.1. Future modes are prepared for `csv_ready`, `api_ready`, and `manual_upload_planned` workflows so DLD, Dubai Pulse, Dubai Municipality, licensed datasets, or customer uploads can be added later without changing the workspace UX.
+
 ## Deploy To Vercel
 
 1. Push the repository to GitHub.
@@ -122,6 +139,7 @@ Future production adapters are intended to connect official or licensed sources 
 - Uses deterministic mock scoring only.
 - OpenAI generates narrative interpretation only; scores remain deterministic mock values.
 - Market context is seed/demo-normalized and not official market evidence.
+- Data ingestion currently uses local seed_static records only.
 - No database or persistence yet.
 - No authentication or user accounts.
 - No real parcel, zoning, transaction, satellite, or regulatory data adapters.

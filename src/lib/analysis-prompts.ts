@@ -62,6 +62,9 @@ export function buildAnalyzePrompt(request: AnalyzeRequest) {
         accessibilityContext: request.marketContext.accessibilityContext,
         planningContext: request.marketContext.planningContext,
         riskContext: request.marketContext.riskContext,
+        marketMetrics: request.marketContext.marketMetrics,
+        sourceMode: request.marketContext.sourceMode,
+        dataQualityNotes: request.marketContext.dataQualityNotes,
         limitations: request.marketContext.limitations,
         sourceIds: request.marketContext.sourceIds
       }
@@ -81,6 +84,7 @@ Critical rules:
 - Avoid generic phrases such as "this location has potential" unless you tie them to the scenario, coordinates, object context, scores, or evidence.
 - Do not claim exact zoning, ownership, permitted density, transaction values, rents, yields, or official approvals unless the supplied evidence explicitly validates them.
 - If market context is provided, use the matched Dubai area name and its qualitative/index-style signals, but clearly treat seed/demo-normalized market context as non-official.
+- If enriched marketMetrics are provided, refer to them as seed_static demo-normalized indicators: activity, rental demand, liquidity, development pipeline, risk, and trend.
 - Keep the content polished, specific, and suitable for a professional pilot demo.
 
 Scenario:
@@ -89,7 +93,7 @@ ${request.scenarioLabel}
 Required executive summary behavior:
 - Sentence 1 must mention the selected scenario "${request.scenarioLabel}", the selected item "${selectionName}", and coordinates ${coordinateText}.
 - Sentence 2 must mention the matched market area when available and interpret the strongest 1-2 deterministic score or market-context signals without changing the scores.
-- Sentence 3 must reference the Data Source Registry or evidence context, including whether sources are synthetic, planned, official, open data, or commercial.
+- Sentence 3 must reference the Data Source Registry, evidence context, or seed_static data quality notes, including whether sources are synthetic, planned, official, open data, or commercial.
 - Sentence 4 must state the most important limitation or due diligence gap.
 - Optional sentence 5 may frame the decision implication for an investor, developer, lender, or government client.
 
