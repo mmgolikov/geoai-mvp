@@ -58,31 +58,136 @@ body {
   line-height: 1.35;
 }
 
+.line-clamp-2,
+.line-clamp-4 {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.line-clamp-2 {
+  -webkit-line-clamp: 2;
+}
+
+.line-clamp-4 {
+  -webkit-line-clamp: 4;
+}
+
 @media print {
   @page {
     size: A4;
-    margin: 14mm;
+    margin: 12mm;
   }
 
   html,
   body {
     background: #ffffff !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 
   body {
     color: #172033;
+    font-size: 11px;
   }
 
   nav,
-  aside {
+  aside,
+  body > header,
+  .mapboxgl-control-container,
+  .geoai-hover-popup {
     display: none !important;
   }
 
   .report-page {
     width: 100%;
+    max-width: 184mm;
+    margin: 0 auto;
+    background: #ffffff !important;
+    color: #172033;
+    box-shadow: none !important;
+  }
+
+  .report-page h1 {
+    font-size: 24px !important;
+    line-height: 1.15 !important;
+  }
+
+  .report-page h2 {
+    font-size: 15px !important;
+    line-height: 1.25 !important;
+  }
+
+  .report-page p,
+  .report-page li,
+  .report-page dd,
+  .report-page td {
+    font-size: 10.5px !important;
+    line-height: 1.45 !important;
   }
 
   .report-section {
     break-inside: avoid;
+    page-break-inside: avoid;
+    padding-top: 12px !important;
+    margin-top: 0 !important;
+  }
+
+  .report-section + .report-section {
+    margin-top: 14px !important;
+  }
+
+  .report-page article,
+  .report-page section,
+  .report-page li,
+  .report-page dl > div,
+  .report-page [class*="rounded-md"],
+  .report-page [class*="rounded-lg"] {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .report-page [class*="shadow"] {
+    box-shadow: none !important;
+  }
+
+  .report-page [class*="p-8"] {
+    padding: 0 !important;
+  }
+
+  .report-page [class*="p-6"],
+  .report-page [class*="p-5"],
+  .report-page [class*="p-4"] {
+    padding: 10px !important;
+  }
+
+  .report-page [class*="gap-8"] {
+    gap: 16px !important;
+  }
+
+  .report-page [class*="gap-6"],
+  .report-page [class*="gap-5"],
+  .report-page [class*="gap-4"],
+  .report-page [class*="gap-3"] {
+    gap: 8px !important;
+  }
+
+  .report-page table {
+    font-size: 9.5px !important;
+  }
+
+  .report-page th,
+  .report-page td {
+    padding: 6px !important;
+  }
+
+  .report-page .mapboxgl-map,
+  .report-page [aria-label="GeoAI map workspace"],
+  .report-page [aria-label="GeoAI comparison map context"] {
+    min-height: 180px !important;
+  }
+
+  .report-page .mapboxgl-canvas {
+    max-width: 100% !important;
   }
 }

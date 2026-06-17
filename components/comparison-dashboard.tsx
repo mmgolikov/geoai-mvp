@@ -38,6 +38,42 @@ function riskTone(riskLevel: string) {
   return "bg-[#eaf3f1] text-brand";
 }
 
+function ComparisonCard({ scorecard }: { scorecard: ComparisonResult["items"][number] }) {
+  return (
+    <article className="grid h-full min-h-[360px] grid-rows-[92px_92px_78px_minmax(112px,1fr)] rounded-lg border border-line bg-white p-5 shadow-sm">
+      <div className="flex min-w-0 items-start justify-between gap-3 border-b border-line pb-4">
+        <div className="min-w-0">
+          <h2 className="line-clamp-2 text-lg font-semibold leading-6 text-ink">{scorecard.item.name}</h2>
+          <p className="mt-2 truncate text-sm text-muted">{scorecard.item.itemType} / {scorecard.item.scenarioLabel}</p>
+        </div>
+        <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${riskTone(scorecard.riskLevel)}`}>
+          {scorecard.riskLevel}
+        </span>
+      </div>
+
+      <div className="flex items-end justify-between gap-4 border-b border-line py-4">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Overall score</p>
+          <p className="mt-1 text-4xl font-semibold text-brand">{scorecard.overallScore}</p>
+        </div>
+        <span className="rounded-full bg-surface px-3 py-1 text-xs font-semibold text-muted">/100</span>
+      </div>
+
+      <div className="border-b border-line py-4">
+        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Location</p>
+        <p className="mt-2 text-sm font-semibold leading-5 text-ink">
+          {formatCoordinate(scorecard.item.point.latitude, scorecard.item.point.longitude)}
+        </p>
+      </div>
+
+      <div className="pt-4">
+        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Recommended use</p>
+        <p className="mt-2 line-clamp-4 text-sm leading-6 text-ink">{scorecard.recommendedUse}</p>
+      </div>
+    </article>
+  );
+}
+
 export function ComparisonDashboard({ comparison, onBackToMap, onExportComparison }: ComparisonDashboardProps) {
   const dashboardRef = useRef<HTMLElement | null>(null);
 
@@ -167,32 +203,9 @@ export function ComparisonDashboard({ comparison, onBackToMap, onExportCompariso
           </div>
         </section>
 
-        <section className="grid gap-4 lg:grid-cols-3">
+        <section className="grid items-stretch gap-4 lg:grid-cols-3">
           {comparison.items.map((scorecard) => (
-            <article key={scorecard.item.id} className="rounded-lg border border-line bg-white p-5 shadow-sm">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h2 className="text-lg font-semibold text-ink">{scorecard.item.name}</h2>
-                  <p className="mt-1 text-sm text-muted">{scorecard.item.itemType} / {scorecard.item.scenarioLabel}</p>
-                </div>
-                <span className={`rounded-full px-3 py-1 text-xs font-semibold ${riskTone(scorecard.riskLevel)}`}>
-                  {scorecard.riskLevel} risk
-                </span>
-              </div>
-              <div className="mt-5 flex items-end justify-between gap-4">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Overall score</p>
-                  <p className="mt-1 text-4xl font-semibold text-brand">{scorecard.overallScore}</p>
-                </div>
-                <div className="text-right text-sm leading-6 text-muted">
-                  {formatCoordinate(scorecard.item.point.latitude, scorecard.item.point.longitude)}
-                </div>
-              </div>
-              <div className="mt-5 rounded-md bg-surface p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Recommended use</p>
-                <p className="mt-2 text-sm leading-6 text-ink">{scorecard.recommendedUse}</p>
-              </div>
-            </article>
+            <ComparisonCard key={scorecard.item.id} scorecard={scorecard} />
           ))}
         </section>
 

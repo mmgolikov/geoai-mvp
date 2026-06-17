@@ -34,6 +34,37 @@ function scoreTone(scoreKey: ScoreKey, value: number) {
   return "text-[#9f3412] bg-[#fff4ed]";
 }
 
+function scoreInterpretation(scoreKey: ScoreKey, value: number) {
+  const scoreBand = value >= 75 ? "Strong" : value >= 55 ? "Moderate" : "Watchlist";
+  const drivers: Record<ScoreKey, string> = {
+    developmentPotential: "site context, land-use assumptions, infrastructure maturity and development fit",
+    investmentAttractiveness: "location quality, demand drivers, liquidity assumptions and risk-adjusted opportunity",
+    accessibility: "road proximity, corridor access, transport assumptions and surrounding urban connectivity",
+    infrastructureReadiness: "utility, access, construction and public infrastructure readiness assumptions",
+    climateHeatRisk: "heat exposure, coastal sensitivity, outdoor comfort and resilience requirements",
+    overallRisk: "combined execution, market, planning, climate and evidence maturity signals"
+  };
+
+  return `${scoreBand} demo-normalized signal based on ${drivers[scoreKey]}. Requires official source validation before underwriting.`;
+}
+
+function ScoreTooltip({
+  label,
+  score,
+  scoreKey
+}: {
+  label: string;
+  score: number;
+  scoreKey: ScoreKey;
+}) {
+  return (
+    <div className="pointer-events-none absolute left-4 top-4 z-30 hidden w-72 rounded-lg border border-line bg-white p-4 text-left shadow-soft group-hover:block group-focus-within:block">
+      <p className="text-sm font-semibold text-ink">{label} - {score}/100</p>
+      <p className="mt-2 text-xs leading-5 text-muted">{scoreInterpretation(scoreKey, score)}</p>
+    </div>
+  );
+}
+
 function formatGeneratedAt(value?: string) {
   if (!value) {
     return "Current session";
@@ -164,7 +195,13 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
               const score = analysis.scores[scoreKey];
 
               return (
-                <div key={scoreKey} className="rounded-md border border-line bg-white p-4">
+                <div
+                  key={scoreKey}
+                  tabIndex={0}
+                  className="group relative rounded-md border border-line bg-white p-4 outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15"
+                  aria-label={`${analysis.scoreLabels[scoreKey]} score ${score}`}
+                >
+                  <ScoreTooltip label={analysis.scoreLabels[scoreKey]} score={score} scoreKey={scoreKey} />
                   <div className="flex items-start justify-between gap-4">
                     <span className="text-sm font-semibold leading-5 text-ink">
                       {analysis.scoreLabels[scoreKey]}

@@ -116,38 +116,87 @@ function LandingHeader() {
 function HeroVisual() {
   return (
     <div className="relative rounded-xl border border-[#ded7c9] bg-white p-3 shadow-soft">
-      <div className="grid gap-3 xl:grid-cols-[minmax(0,1.22fr)_340px]">
-        <div className="overflow-hidden rounded-lg border border-line bg-[#e6e8df]">
-          <div className="flex items-center justify-between border-b border-white/80 bg-white/82 px-4 py-3">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted">Workspace / Map context</p>
-              <h2 className="mt-1 text-base font-semibold text-ink">Dubai investment screen</h2>
+      <div className="overflow-hidden rounded-lg border border-line bg-[#f7f8f6]">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line bg-white px-4 py-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-brand text-xs font-semibold text-white">
+              G
             </div>
-            <span className="rounded-full bg-[#edf4f2] px-3 py-1 text-xs font-semibold text-brand">Live-style demo</span>
+            <div className="min-w-0">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted">GeoAI workspace</p>
+              <h2 className="truncate text-base font-semibold text-ink">Dubai site screening</h2>
+            </div>
           </div>
-          <div className="h-[430px]">
-            <LandingHeroMap />
-          </div>
-        </div>
-        <div className="rounded-lg border border-line bg-white p-5">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted">Decision memo</p>
-          <h2 className="mt-2 text-2xl font-semibold text-ink">Proceed with conditions</h2>
-          <div className="mt-5 grid gap-3">
-            {[
-              ["Decision posture", "Proceed to due diligence"],
-              ["Suitability score", "82/100"],
-              ["Key risk", "Pipeline pressure"],
-              ["Data confidence", "demo-normalized / official-ready"]
-            ].map(([label, value]) => (
-              <div key={label} className="rounded-md border border-line bg-surface px-4 py-3">
-                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">{label}</p>
-                <p className="mt-1 text-sm font-semibold text-ink">{value}</p>
-              </div>
+          <div className="flex flex-wrap gap-2">
+            {["Demo", "Layers active", "AI-ready"].map((item) => (
+              <span key={item} className="rounded-full bg-surface px-3 py-1 text-xs font-semibold text-muted">
+                {item}
+              </span>
             ))}
           </div>
-          <div className="mt-5 rounded-md border border-[#d6c391] bg-[#fff9e8] px-4 py-3 text-sm leading-6 text-[#6f5817]">
-            Advance only after official land-use, transaction and infrastructure validation.
+        </div>
+
+        <div className="grid gap-3 p-3 xl:grid-cols-[minmax(0,1fr)_310px]">
+          <div className="overflow-hidden rounded-lg border border-line bg-white">
+            <div className="h-[380px] md:h-[430px]">
+              <LandingHeroMap />
+            </div>
           </div>
+
+          <aside className="grid gap-3 rounded-lg border border-line bg-white p-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted">AI decision summary</p>
+              <h2 className="mt-2 text-2xl font-semibold text-ink">Proceed with conditions</h2>
+            </div>
+            <div className="rounded-md bg-[#edf4f2] p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-brand">Suitability score</p>
+              <p className="mt-2 text-4xl font-semibold text-brand">82/100</p>
+              <p className="mt-2 text-sm leading-6 text-muted">Strong demo signal, pending official validation.</p>
+            </div>
+            <div className="grid gap-2">
+              {[
+                ["Decision posture", "Proceed to due diligence"],
+                ["Key risk", "Pipeline pressure"],
+                ["Data confidence", "Demo-normalized / official-ready"]
+              ].map(([label, value]) => (
+                <div key={label} className="rounded-md border border-line bg-surface px-3 py-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">{label}</p>
+                  <p className="mt-1 text-sm font-semibold text-ink">{value}</p>
+                </div>
+              ))}
+            </div>
+            <div className="grid gap-2">
+              {[
+                ["Market strength", "82%"],
+                ["Accessibility", "76%"],
+                ["Pipeline risk", "58%"]
+              ].map(([label, value]) => (
+                <div key={label}>
+                  <div className="flex items-center justify-between text-xs font-semibold text-muted">
+                    <span>{label}</span>
+                    <span>{value}</span>
+                  </div>
+                  <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-surface">
+                    <div className="h-full rounded-full bg-brand" style={{ width: value }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </aside>
+        </div>
+
+        <div className="grid gap-2 border-t border-line bg-white px-3 py-3 md:grid-cols-4">
+          {[
+            ["Market context", "Dubai Marina seed"],
+            ["Spatial layers", "7 demo overlays"],
+            ["AI recommendation", "Proceed conditionally"],
+            ["Evidence confidence", "Demo / planned official"]
+          ].map(([label, value]) => (
+            <div key={label} className="rounded-md bg-surface px-3 py-2">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">{label}</p>
+              <p className="mt-1 truncate text-sm font-semibold text-ink">{value}</p>
+            </div>
+          ))}
         </div>
       </div>
     </div>
