@@ -114,50 +114,56 @@ function LandingHeader() {
 
 function HeroVisual() {
   return (
-    <div className="grid gap-4 lg:grid-cols-[1.05fr_0.95fr]">
-      <div className="overflow-hidden rounded-lg border border-[#ded7c9] bg-white shadow-soft">
-        <div className="flex items-center justify-between border-b border-line px-4 py-3">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted">Map workspace</p>
-            <h2 className="mt-1 text-base font-semibold text-ink">Dubai site context</h2>
+    <div className="relative rounded-xl border border-[#ded7c9] bg-white p-3 shadow-soft">
+      <div className="grid gap-3 xl:grid-cols-[minmax(0,1.22fr)_340px]">
+        <div className="overflow-hidden rounded-lg border border-line bg-[#e6e8df]">
+          <div className="flex items-center justify-between border-b border-white/80 bg-white/82 px-4 py-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted">Workspace / Map context</p>
+              <h2 className="mt-1 text-base font-semibold text-ink">Dubai investment screen</h2>
+            </div>
+            <span className="rounded-full bg-[#edf4f2] px-3 py-1 text-xs font-semibold text-brand">Live-style demo</span>
           </div>
-          <span className="rounded-full bg-[#edf4f2] px-3 py-1 text-xs font-semibold text-brand">Demo</span>
+          <div className="relative h-[430px] bg-[linear-gradient(90deg,rgba(23,79,99,0.10)_1px,transparent_1px),linear-gradient(rgba(23,79,99,0.10)_1px,transparent_1px)] bg-[size:32px_32px]">
+            <div className="absolute left-[8%] top-[12%] h-[72%] w-[82%] rounded-[42%] border border-white/70 bg-white/24" />
+            <div className="absolute left-[10%] top-[24%] h-24 w-[44%] rotate-[-8deg] rounded-[28px] border border-brand/45 bg-brand/12" />
+            <div className="absolute right-[10%] top-[18%] h-28 w-[36%] rounded-[30px] border border-[#c5a76a]/60 bg-[#c5a76a]/18" />
+            <div className="absolute bottom-[20%] left-[18%] h-28 w-[46%] rotate-[7deg] rounded-[30px] border border-[#2c7fb8]/50 bg-[#2c7fb8]/12" />
+            <div className="absolute left-[52%] top-[48%] flex -translate-x-1/2 -translate-y-1/2 items-center gap-2">
+              <span className="h-5 w-5 rounded-full border-4 border-white bg-brand shadow-soft" />
+              <span className="rounded-full bg-white/95 px-3 py-1 text-xs font-semibold text-ink shadow-sm">Selected site: Dubai Marina</span>
+            </div>
+            <div className="absolute left-5 top-5 rounded-md border border-white/80 bg-white/90 px-3 py-2 text-xs font-semibold text-muted shadow-sm">
+              Demo layers active
+            </div>
+            <div className="absolute bottom-5 left-5 right-5 grid gap-2 sm:grid-cols-3">
+              {["Market context", "Spatial layers", "Risk zones"].map((item) => (
+                <div key={item} className="rounded-md border border-white/80 bg-white/90 px-3 py-2 text-xs font-semibold text-muted shadow-sm">
+                  {item}
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
-        <div className="relative h-[360px] bg-[#e3e7df] bg-[linear-gradient(90deg,rgba(23,79,99,0.12)_1px,transparent_1px),linear-gradient(rgba(23,79,99,0.12)_1px,transparent_1px)] bg-[size:34px_34px]">
-          <div className="absolute left-[14%] top-[21%] h-24 w-48 rotate-[-10deg] rounded-[36%] border border-[#2c7fb8]/50 bg-[#2c7fb8]/12" />
-          <div className="absolute right-[12%] top-[17%] h-28 w-52 rounded-[40%] border border-[#c5a76a]/60 bg-[#c5a76a]/18" />
-          <div className="absolute bottom-[16%] left-[18%] h-32 w-64 rotate-[8deg] rounded-[38%] border border-brand/50 bg-brand/12" />
-          <div className="absolute left-[48%] top-[46%] flex -translate-x-1/2 -translate-y-1/2 items-center gap-2">
-            <span className="h-5 w-5 rounded-full border-4 border-white bg-brand shadow-soft" />
-            <span className="rounded-full bg-white/95 px-3 py-1 text-xs font-semibold text-ink shadow-sm">Dubai Marina site</span>
-          </div>
-          <div className="absolute bottom-5 left-5 right-5 grid gap-2 sm:grid-cols-3">
-            {["Market context", "Spatial layers", "Risk zones"].map((item) => (
-              <div key={item} className="rounded-md border border-white/80 bg-white/88 px-3 py-2 text-xs font-semibold text-muted shadow-sm">
-                {item}
+        <div className="rounded-lg border border-line bg-white p-5">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted">Decision memo</p>
+          <h2 className="mt-2 text-2xl font-semibold text-ink">Proceed with conditions</h2>
+          <div className="mt-5 grid gap-3">
+            {[
+              ["Decision posture", "Proceed to due diligence"],
+              ["Suitability score", "82/100"],
+              ["Key risk", "Pipeline pressure"],
+              ["Data confidence", "demo-normalized / official-ready"]
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-md border border-line bg-surface px-4 py-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">{label}</p>
+                <p className="mt-1 text-sm font-semibold text-ink">{value}</p>
               </div>
             ))}
           </div>
-        </div>
-      </div>
-      <div className="rounded-lg border border-[#ded7c9] bg-white p-5 shadow-soft">
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted">Decision memo</p>
-        <h2 className="mt-2 text-2xl font-semibold text-ink">Proceed with conditions</h2>
-        <div className="mt-5 grid gap-3">
-          {[
-            ["Selected site", "Dubai Marina / JVC / Business Bay"],
-            ["Suitability score", "82/100"],
-            ["Key risk", "Pipeline pressure"],
-            ["Data confidence", "demo-normalized / official-ready"]
-          ].map(([label, value]) => (
-            <div key={label} className="rounded-md border border-line bg-surface px-4 py-3">
-              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">{label}</p>
-              <p className="mt-1 text-sm font-semibold text-ink">{value}</p>
-            </div>
-          ))}
-        </div>
-        <div className="mt-5 rounded-md border border-[#d6c391] bg-[#fff9e8] px-4 py-3 text-sm leading-6 text-[#6f5817]">
-          Recommendation: advance to official land-use, transaction and infrastructure validation before underwriting.
+          <div className="mt-5 rounded-md border border-[#d6c391] bg-[#fff9e8] px-4 py-3 text-sm leading-6 text-[#6f5817]">
+            Advance only after official land-use, transaction and infrastructure validation.
+          </div>
         </div>
       </div>
     </div>

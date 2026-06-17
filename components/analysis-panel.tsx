@@ -274,14 +274,24 @@ export function AnalysisPanel({
           >
             Add to Comparison
           </button>
-          <button
-            type="button"
-            disabled={!hasSelectedPoint || isAnalyzing}
-            onClick={onRunAnalysis}
-            className="inline-flex h-11 w-full items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white transition hover:bg-[#113f50] disabled:cursor-not-allowed disabled:bg-[#c9d2d7] disabled:text-white"
-          >
-            {isAnalyzing ? "Running Express Analysis..." : "Run Express Analysis"}
-          </button>
+          {hasResult ? (
+            <button
+              type="button"
+              onClick={onExportCurrentResult}
+              className="inline-flex h-11 w-full items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white transition hover:bg-[#113f50]"
+            >
+              Export Report
+            </button>
+          ) : (
+            <button
+              type="button"
+              disabled={!hasSelectedPoint || isAnalyzing}
+              onClick={onRunAnalysis}
+              className="inline-flex h-11 w-full items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white transition hover:bg-[#113f50] disabled:cursor-not-allowed disabled:bg-[#c9d2d7] disabled:text-white"
+            >
+              {isAnalyzing ? "Running Express Analysis..." : "Run Express Analysis"}
+            </button>
+          )}
 
           {analysisError ? (
             <p className="mt-3 rounded-md border border-[#f2c6bd] bg-[#fff4ed] px-3 py-2 text-sm leading-5 text-[#9f3412]">

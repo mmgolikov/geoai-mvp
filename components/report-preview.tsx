@@ -315,16 +315,15 @@ function AnalysisReport({ analysis, onBack }: { analysis: ExpressAnalysis; onBac
           </Section>
         ) : null}
 
-        <div className="grid gap-6 md:grid-cols-2">
-          <Section title="Key Factors">
-            <ul className="space-y-3 text-sm leading-6 text-muted">
-              {analysis.keyFactors.map((item) => <li key={item}>{item}</li>)}
-            </ul>
-          </Section>
-          <Section title="Evidence / Data Used">
-            <EvidenceSourceCards evidence={analysis.evidence} compact />
-          </Section>
-        </div>
+        <Section title="Key Factors">
+          <ul className="grid gap-3 text-sm leading-6 text-muted md:grid-cols-2">
+            {analysis.keyFactors.map((item) => <li key={item} className="rounded-md bg-surface p-4">{item}</li>)}
+          </ul>
+        </Section>
+
+        <Section title="Evidence / Data Used">
+          <EvidenceSourceCards evidence={analysis.evidence} />
+        </Section>
 
         <div className="grid gap-6 md:grid-cols-2">
           <Section title="Opportunities">

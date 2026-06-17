@@ -308,28 +308,39 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
           </section>
         </div>
 
-        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
-          <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
-            <h2 className="text-lg font-semibold text-ink">Recommended Next Actions</h2>
-            <ol className="mt-4 grid gap-3 md:grid-cols-2">
-              {analysis.nextActions.map((action, index) => (
-                <li key={action} className="flex gap-3 rounded-md border border-line bg-surface p-4">
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white text-sm font-semibold text-brand">
-                    {index + 1}
-                  </span>
-                  <span className="text-sm leading-6 text-muted">{action}</span>
-                </li>
-              ))}
-            </ol>
-          </section>
-
-          <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
-            <h2 className="text-lg font-semibold text-ink">Evidence / Data Used</h2>
-            <div className="mt-4">
-              <EvidenceSourceCards evidence={analysis.evidence} compact />
+        <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold text-ink">Recommended Next Actions</h2>
+              <p className="mt-1 text-sm text-muted">Concrete follow-up steps for diligence, comparison and memo preparation</p>
             </div>
-          </section>
-        </div>
+          </div>
+          <ol className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {analysis.nextActions.map((action, index) => (
+              <li key={action} className="flex gap-3 rounded-md border border-line bg-surface p-4">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white text-sm font-semibold text-brand">
+                  {index + 1}
+                </span>
+                <span className="text-sm leading-6 text-muted">{action}</span>
+              </li>
+            ))}
+          </ol>
+        </section>
+
+        <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold text-ink">Evidence / Data Used</h2>
+              <p className="mt-1 text-sm text-muted">Source context, maturity, confidence and limitations behind this analysis</p>
+            </div>
+            <span className="rounded-full bg-surface px-3 py-1 text-xs font-semibold text-muted">
+              {analysis.evidence.length} sources
+            </span>
+          </div>
+          <div className="mt-5">
+            <EvidenceSourceCards evidence={analysis.evidence} />
+          </div>
+        </section>
       </div>
     </section>
   );
