@@ -28,6 +28,13 @@ import type { MarketContext } from "@/src/types/market-context";
 const analysisHistoryStorageKey = "geoai-analysis-history-v1";
 const maxAnalysisHistoryItems = 8;
 
+type BackendStatus = {
+  configured: boolean;
+  status: "connected" | "configured_unavailable" | "local_only";
+  message: string;
+  sources_count: number | null;
+};
+
 function titledText(title: string, description: string) {
   return title ? `${title}: ${description}` : description;
 }
@@ -153,9 +160,31 @@ export function WorkspaceShell() {
   const [marketContext, setMarketContext] = useState<MarketContext | null>(null);
   const [isMarketContextLoading, setIsMarketContextLoading] = useState(false);
   const [analysisHistory, setAnalysisHistory] = useState<AnalysisHistoryItem[]>([]);
+  const [backendStatus, setBackendStatus] = useState<BackendStatus | null>(null);
 
   useEffect(() => {
     setAnalysisHistory(readAnalysisHistory());
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    fetch("/api/db/health")
+      .then((response) => (response.ok ? response.json() : null))
+      .then((status: BackendStatus | null) => {
+        if (isMounted) {
+          setBackendStatus(status);
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setBackendStatus(null);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -293,6 +322,33 @@ export function WorkspaceShell() {
     });
   }
 
+  async function persistAnalysisRun(analysisResult: ExpressAnalysis, scenarioLabel: string) {
+    try {
+      await fetch("/api/analysis-runs", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          runKey: analysisResult.id,
+          scenarioId: analysisResult.scenarioId,
+          selectedName: analysisResult.selectedObject?.name ?? "Custom map selection",
+          selectedType: analysisResult.selectedObject ? "object" : "point",
+          selectedPoint: analysisResult.point,
+          selectedObject: analysisResult.selectedObject ?? null,
+          result: analysisResult,
+          decisionPosture: analysisResult.nextActions[0] ?? null,
+          confidenceLevel: analysisResult.confidenceLevel ?? null,
+          dataConfidenceLevel: analysisResult.marketContext?.confidenceLevel ?? null,
+          analysisMode: analysisResult.analysisMode ?? null,
+          scenarioLabel
+        })
+      });
+    } catch {
+      // Persistence is optional in v0.1; local history remains the source of truth.
+    }
+  }
+
   function openHistoryItem(item: AnalysisHistoryItem) {
     setSelectedPoint(item.analysis.point);
     setSelectedObject(item.analysis.selectedObject ?? null);
@@ -365,6 +421,7 @@ export function WorkspaceShell() {
       const finalAnalysis = mergeNarrativeAnalysis(deterministicAnalysis, narrative);
       setAnalysis(finalAnalysis);
       saveAnalysisHistory(finalAnalysis, scenario.label);
+      void persistAnalysisRun(finalAnalysis, scenario.label);
     } catch {
       const fallbackAnalysis: ExpressAnalysis = {
         ...deterministicAnalysis,
@@ -380,6 +437,7 @@ export function WorkspaceShell() {
 
       setAnalysis(fallbackAnalysis);
       saveAnalysisHistory(fallbackAnalysis, scenario.label);
+      void persistAnalysisRun(fallbackAnalysis, scenario.label);
     } finally {
       setIsAnalyzing(false);
     }
@@ -428,6 +486,7 @@ export function WorkspaceShell() {
         hasResult={analysis !== null || comparison !== null}
         analysisMode={analysis?.analysisMode}
         analysisGeneratedAt={analysis?.generatedAt}
+        backendStatus={backendStatus}
         marketContext={marketContext}
         isMarketContextLoading={isMarketContextLoading}
         onScenarioChange={(scenario) => {

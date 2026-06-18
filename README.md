@@ -75,11 +75,16 @@ If port `3000` is occupied, Next.js may start on another port. Use the exact URL
 ```bash
 NEXT_PUBLIC_MAPBOX_TOKEN=
 OPENAI_API_KEY=
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
 ```
 
 `NEXT_PUBLIC_MAPBOX_TOKEN` is required for the live Mapbox basemap.
 
 `OPENAI_API_KEY` is optional and server-only. When it is set in local or Vercel server environment variables, `/api/analyze` can use OpenAI to generate dashboard-ready narrative analysis. When it is missing or the API request fails, GeoAI returns a mock fallback response.
+
+Supabase/PostGIS is optional in v0.1. When Supabase environment variables are not configured, GeoAI remains fully usable in local/demo mode and analysis history stays in browser storage.
 
 Never expose the OpenAI key as a `NEXT_PUBLIC_*` variable. Only `NEXT_PUBLIC_MAPBOX_TOKEN` is intended for browser use.
 
@@ -99,8 +104,11 @@ The default `npm run dev` command uses stable Webpack mode with polling enabled 
 ## API Routes
 
 - `GET /api/health` returns app status.
+- `GET /api/db/health` returns optional Supabase/PostGIS readiness without exposing secrets.
 - `GET /api/demo-objects` returns mock spatial objects for demo use.
 - `POST /api/analyze` returns structured analysis narrative. It uses OpenAI when `OPENAI_API_KEY` is available and otherwise returns mock fallback content.
+- `GET /api/analysis-runs` returns persisted analysis runs when Supabase is configured, or local-only mode otherwise.
+- `POST /api/analysis-runs` saves analysis runs when Supabase is configured, or returns a non-blocking local-only response otherwise.
 - `POST /api/context/market` returns seed/demo-normalized Dubai market context for selected coordinates.
 
 ## Market Context Adapter
@@ -160,6 +168,7 @@ Current geometries are synthetic/demo only. They are not official parcel, planni
 ## Documentation
 
 - [Current Prototype Checkpoint v0.2](docs/CHECKPOINT_2026-06-18_investor_prototype_v02.md)
+- [Supabase / PostGIS Foundation v0.1](docs/SUPABASE_POSTGIS_V01.md)
 - [Architecture](docs/architecture.md)
 - [Data Strategy](docs/data-strategy.md)
 - [Roadmap](docs/roadmap.md)

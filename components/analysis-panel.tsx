@@ -28,6 +28,12 @@ type AnalysisPanelProps = {
   hasResult: boolean;
   analysisMode?: ExpressAnalysis["analysisMode"];
   analysisGeneratedAt?: string;
+  backendStatus: {
+    configured: boolean;
+    status: "connected" | "configured_unavailable" | "local_only";
+    message: string;
+    sources_count: number | null;
+  } | null;
   marketContext: MarketContext | null;
   isMarketContextLoading: boolean;
   onScenarioChange: (scenario: AnalysisScenarioId) => void;
@@ -118,6 +124,7 @@ export function AnalysisPanel({
   hasResult,
   analysisMode,
   analysisGeneratedAt,
+  backendStatus,
   marketContext,
   isMarketContextLoading,
   onScenarioChange,
@@ -153,6 +160,16 @@ export function AnalysisPanel({
     : marketContext
       ? "seed"
       : "real-ready";
+  const persistenceStatus =
+    backendStatus?.status === "connected"
+      ? "Supabase configured"
+      : backendStatus?.configured
+        ? "Supabase configured, unavailable"
+        : "Local only";
+  const spatialDbStatus =
+    backendStatus?.status === "connected"
+      ? "PostGIS-ready"
+      : "Not configured";
 
   return (
     <aside className="max-w-full overflow-y-auto overflow-x-hidden border-l border-line bg-white lg:h-[calc(100vh-72px)] lg:w-[400px]">
@@ -477,6 +494,24 @@ export function AnalysisPanel({
                   : `Demo object: ${featuredObject.market}`}
             </div>
             <p className="mt-2 break-words text-xs leading-5 text-muted">{modeNote}</p>
+            <div className="mt-3 grid gap-2 rounded-md border border-line bg-surface p-3 text-xs">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-muted">Data mode</span>
+                <span className="font-semibold text-ink">Demo-normalized</span>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-muted">Persistence</span>
+                <span className="text-right font-semibold text-ink">{persistenceStatus}</span>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-muted">Spatial DB</span>
+                <span className="font-semibold text-ink">{spatialDbStatus}</span>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-muted">Real data adapters</span>
+                <span className="font-semibold text-ink">Planned</span>
+              </div>
+            </div>
             {analysisGeneratedAt ? (
               <p className="mt-1 text-xs font-semibold text-muted">
                 Generated {formatGeneratedAt(analysisGeneratedAt)}
