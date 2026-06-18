@@ -6,7 +6,8 @@ import type { DemoLayer, DemoLayerFeature } from "@/src/data/demo-layers";
 import type { GeoJSONSource, Map as MapboxMap, MapboxGeoJSONFeature, Marker as MapboxMarker, Popup as MapboxPopup } from "mapbox-gl";
 import type { DemoLayerId, SelectedDemoObject, SelectedPoint } from "@/src/types/geo";
 
-const defaultCenter: [number, number] = [55.2708, 25.2048];
+const defaultCenter: [number, number] = [55.235, 25.12];
+const defaultZoom = 9.75;
 
 function getMapboxToken() {
   return process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
@@ -33,6 +34,12 @@ const initialLayerVisibility = demoLayers.reduce<Record<DemoLayerId, boolean>>((
 
 const selectedObjectSourceId = "geoai-selected-object";
 const hoverObjectSourceId = "geoai-hover-object";
+const plannedLayerRows = [
+  "DLD / Dubai Pulse market data",
+  "Dubai Municipality / GeoDubai GIS",
+  "OSM / Geofabrik infrastructure",
+  "Customer parcels / portfolio upload"
+];
 
 function getSourceId(layer: DemoLayer) {
   return `geoai-${layer.id}`;
@@ -79,6 +86,33 @@ function getFeatureLabel(feature: DemoLayerFeature) {
   };
 }
 
+function getBasemapContextFeature(features: MapboxGeoJSONFeature[] = []) {
+  return features.find((feature) => {
+    const layerId = feature.layer?.id ?? "";
+    const name = feature.properties?.name_en ?? feature.properties?.name;
+
+    if (!name || layerId.startsWith("geoai-")) {
+      return false;
+    }
+
+    return (
+      layerId.includes("label") ||
+      layerId.includes("road") ||
+      layerId.includes("poi") ||
+      layerId.includes("place") ||
+      layerId.includes("building")
+    );
+  });
+}
+
+function getBasemapContextType(layerId: string) {
+  if (layerId.includes("road")) return "road / access context";
+  if (layerId.includes("poi")) return "POI / landmark context";
+  if (layerId.includes("place")) return "place label context";
+  if (layerId.includes("building")) return "building context";
+  return "basemap context";
+}
+
 function sortRenderedFeatures(features: MapboxGeoJSONFeature[] = []) {
   return [...features].sort((a, b) => {
     const priorityA = Number(a.properties?.clickPriority ?? 0);
@@ -111,6 +145,32 @@ function setHoverTooltip(
         <div class="geoai-map-tooltip-detail">${escapeHtml(label.type)}</div>
         <div class="geoai-map-tooltip-source">${escapeHtml(label.source)}</div>
         <div class="geoai-map-tooltip-note">${escapeHtml(label.relevance)}</div>
+      </div>`
+    )
+    .addTo(map);
+}
+
+function setBasemapTooltip(
+  popup: MapboxPopup | null,
+  lngLat: { lng: number; lat: number },
+  feature: MapboxGeoJSONFeature,
+  map: MapboxMap
+) {
+  if (!popup) {
+    return;
+  }
+
+  const title = String(feature.properties?.name_en ?? feature.properties?.name ?? "Basemap context");
+  const layerId = feature.layer?.id ?? "basemap";
+  const detail = getBasemapContextType(layerId);
+
+  popup
+    .setLngLat(lngLat)
+    .setHTML(
+      `<div class="geoai-map-tooltip">
+        <div class="geoai-map-tooltip-title">${escapeHtml(title)}</div>
+        <div class="geoai-map-tooltip-detail">${escapeHtml(detail)}</div>
+        <div class="geoai-map-tooltip-source">live basemap</div>
       </div>`
     )
     .addTo(map);
@@ -393,9 +453,9 @@ export function MapWorkspaceClient({
       mapboxgl.accessToken = mapboxToken;
       mapRef.current = new mapboxgl.Map({
         container: mapContainerRef.current,
-        style: "mapbox://styles/mapbox/light-v11",
+        style: "mapbox://styles/mapbox/streets-v12",
         center: defaultCenter,
-        zoom: 9
+        zoom: defaultZoom
       });
 
       hoverPopupRef.current = new mapboxgl.Popup({
@@ -436,6 +496,7 @@ export function MapWorkspaceClient({
         const orderedFeatures = sortRenderedFeatures(features);
         const featureId = orderedFeatures[0]?.properties?.id as string | undefined;
         const demoFeature = featureId ? getDemoFeatureById(featureId) : null;
+        const basemapFeature = demoFeature ? null : getBasemapContextFeature(mapRef.current?.queryRenderedFeatures(event.point) ?? []);
         const source = mapRef.current?.getSource(hoverObjectSourceId) as GeoJSONSource | undefined;
 
         if (source) {
@@ -447,6 +508,8 @@ export function MapWorkspaceClient({
 
           if (demoFeature) {
             setHoverTooltip(hoverPopupRef.current, event.lngLat, demoFeature, mapRef.current);
+          } else if (basemapFeature) {
+            setBasemapTooltip(hoverPopupRef.current, event.lngLat, basemapFeature, mapRef.current);
           } else {
             hoverPopupRef.current?.remove();
           }
@@ -619,6 +682,7 @@ export function MapWorkspaceClient({
   }
 
   const activeLayerCount = Object.values(layerVisibility).filter(Boolean).length;
+  const demoOverlayLayers = demoLayers.filter((layer) => !["planned_official", "customer_future"].includes(layer.sourceMode));
 
   return (
     <section
@@ -688,7 +752,7 @@ export function MapWorkspaceClient({
               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">
                 Spatial layers
               </p>
-              <h2 className="mt-1 text-sm font-semibold text-ink">Demo-normalized overlays</h2>
+              <h2 className="mt-1 text-sm font-semibold text-ink">Basemap + GeoAI signals</h2>
             </div>
             <span className="rounded-full bg-surface px-2 py-1 text-[11px] font-semibold text-brand">
               {activeLayerCount} active
@@ -714,8 +778,23 @@ export function MapWorkspaceClient({
                 </button>
               </div>
 
-              <div className="grid gap-2">
-                {demoLayers.map((layer) => (
+              <div className="rounded-md border border-line bg-white px-3 py-2">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-muted">Basemap Context</p>
+                    <p className="mt-1 text-xs font-semibold text-ink">Roads, coastline, labels, places</p>
+                  </div>
+                  <span className="rounded-full bg-[#eaf4ef] px-2 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-[#276749]">
+                    live
+                  </span>
+                </div>
+              </div>
+
+              <div className="mt-2 grid gap-2">
+                <p className="px-1 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted">
+                  GeoAI Demo Analytical Overlays
+                </p>
+                {demoOverlayLayers.map((layer) => (
                   <label key={layer.id} className="flex cursor-pointer items-center justify-between gap-3 rounded-md border border-line bg-surface px-3 py-2">
                     <span className="flex min-w-0 items-center gap-2">
                       <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ backgroundColor: layer.color }} />
@@ -736,11 +815,33 @@ export function MapWorkspaceClient({
                 ))}
               </div>
 
+              <div className="mt-3 rounded-md border border-line bg-white px-3 py-2">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-muted">
+                  Planned Official / Customer Layers
+                </p>
+                <div className="mt-2 grid gap-1.5">
+                  {plannedLayerRows.map((item) => (
+                    <div key={item} className="flex items-center justify-between gap-2 text-xs text-muted">
+                      <span className="truncate">{item}</span>
+                      <span className="rounded-full bg-surface px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-muted">
+                        planned
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               <div className="mt-3 rounded-md bg-white px-3 py-2 text-xs leading-5 text-muted">
-                Demo-normalized spatial layers. Not official GIS, parcel, zoning, planning, or risk boundaries.
+                GeoAI overlays are demo-normalized screening layers, not official GIS, parcel, zoning, planning, or risk boundaries.
               </div>
             </div>
           ) : null}
+        </div>
+      ) : null}
+
+      {canUseMapbox && selectedObject ? (
+        <div className={`pointer-events-none absolute left-5 z-10 max-w-sm rounded-lg border border-white/75 bg-white/92 px-3 py-2 text-sm font-semibold text-ink shadow-soft backdrop-blur ${layersExpanded ? "bottom-20" : "bottom-5"}`}>
+          <span className="text-brand">Selected:</span> {selectedObject.name}
         </div>
       ) : null}
 
@@ -749,7 +850,7 @@ export function MapWorkspaceClient({
           className="absolute bottom-5 left-5 z-10 flex max-w-[720px] flex-wrap gap-2 rounded-lg border border-white/75 bg-white/90 px-3 py-2 shadow-soft backdrop-blur"
           onClick={(event) => event.stopPropagation()}
         >
-          {demoLayers.map((layer) => (
+          {demoOverlayLayers.map((layer) => (
             <div key={layer.id} className="flex items-center gap-2 text-xs font-medium text-muted">
               <span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: layer.color }} />
               <span>{layer.legendLabel}</span>

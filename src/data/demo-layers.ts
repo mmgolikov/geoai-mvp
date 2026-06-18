@@ -78,99 +78,99 @@ export type DemoLayer = {
 
 const demoLayerDesign: Record<DemoLayerId, Omit<DemoLayer, "id" | "name" | "type" | "color" | "features">> = {
   coastalFloodRiskZones: {
-    description: "Indicative coastal and drainage exposure overlays for demo risk screening.",
+    description: "Subtle coastal and drainage exposure signals for demo risk screening.",
     category: "Climate / Risk",
     sourceMode: "demo_normalized",
     style: {
       fillColor: "#4f9ecf",
       strokeColor: "#1f6f9f",
-      strokeWidth: 1.25,
-      fillOpacity: 0.12,
-      strokeOpacity: 0.58
+      strokeWidth: 0.9,
+      fillOpacity: 0.055,
+      strokeOpacity: 0.42
     },
-    visibleByDefault: true,
-    minZoom: 8,
+    visibleByDefault: false,
+    minZoom: 9.2,
     maxZoom: 18,
     layerOrder: 10,
     clickPriority: 25,
-    legendLabel: "Coastal / Flood",
-    disclaimer: "Demo-normalized risk overlay; not an official flood or coastal hazard boundary."
+    legendLabel: "Coastal exposure signals",
+    disclaimer: "Demo-normalized exposure band; not an official flood or coastal hazard boundary."
   },
   heatRiskZones: {
-    description: "Indicative urban heat exposure overlays for climate resilience screening.",
+    description: "Subtle urban heat screening signals for climate resilience review.",
     category: "Climate / Risk",
     sourceMode: "demo_normalized",
     style: {
       fillColor: "#d98445",
       strokeColor: "#b75f21",
-      strokeWidth: 1.25,
-      fillOpacity: 0.13,
-      strokeOpacity: 0.6
+      strokeWidth: 0.9,
+      fillOpacity: 0.055,
+      strokeOpacity: 0.42
     },
-    visibleByDefault: true,
-    minZoom: 8,
+    visibleByDefault: false,
+    minZoom: 9.2,
     maxZoom: 18,
     layerOrder: 20,
     clickPriority: 24,
-    legendLabel: "Heat exposure",
-    disclaimer: "Demo-normalized heat overlay; official hazard validation is required."
+    legendLabel: "Heat exposure signals",
+    disclaimer: "Demo-normalized screening zone; official hazard validation is required."
   },
   developmentZones: {
-    description: "Indicative growth and redevelopment zones for early site-screening workflows.",
-    category: "Growth Zones",
+    description: "Compact growth and pipeline signals for early site-screening workflows.",
+    category: "Growth / Pipeline Signals",
     sourceMode: "demo_normalized",
     style: {
       fillColor: "#d5aa63",
       strokeColor: "#a87521",
-      strokeWidth: 1.35,
-      fillOpacity: 0.16,
-      strokeOpacity: 0.68
+      strokeWidth: 0.95,
+      fillOpacity: 0.07,
+      strokeOpacity: 0.45
     },
     visibleByDefault: true,
-    minZoom: 8.2,
+    minZoom: 9.4,
     maxZoom: 18,
     layerOrder: 30,
     clickPriority: 55,
-    legendLabel: "Growth zones",
-    disclaimer: "Demo-normalized development screen; not a planning or zoning boundary."
+    legendLabel: "Growth / pipeline signals",
+    disclaimer: "Demo-normalized screening overlay; not a planning or zoning boundary."
   },
   premiumRealEstateAreas: {
-    description: "Indicative high-value real estate clusters for investment and development screening.",
-    category: "Premium Areas",
+    description: "Compact market signal areas for investment and development screening.",
+    category: "Market Signal Areas",
     sourceMode: "demo_normalized",
     style: {
       fillColor: "#2f9f9a",
       strokeColor: "#087c78",
-      strokeWidth: 1.45,
-      fillOpacity: 0.15,
-      strokeOpacity: 0.72
+      strokeWidth: 1,
+      fillOpacity: 0.075,
+      strokeOpacity: 0.5
     },
     visibleByDefault: true,
-    minZoom: 9,
+    minZoom: 9.6,
     maxZoom: 18,
     layerOrder: 40,
     clickPriority: 70,
-    legendLabel: "Premium areas",
-    disclaimer: "Demo-normalized value cluster; not an official market boundary."
+    legendLabel: "Market signal areas",
+    disclaimer: "Demo-normalized market signal area; not an official market boundary."
   },
   assetParcelObjects: {
-    description: "Small parcel-like demo assets used for investor memo and object-selection flows.",
+    description: "Small selected AOI examples used for investor memo and object-selection flows.",
     category: "Asset Objects",
     sourceMode: "seed_static",
     style: {
       fillColor: "#7165e8",
       strokeColor: "#4d42c4",
-      strokeWidth: 1.5,
-      fillOpacity: 0.18,
-      strokeOpacity: 0.76
+      strokeWidth: 1.1,
+      fillOpacity: 0.1,
+      strokeOpacity: 0.55
     },
     visibleByDefault: true,
     minZoom: 11.2,
     maxZoom: 19,
     layerOrder: 50,
     clickPriority: 82,
-    legendLabel: "Demo assets",
-    disclaimer: "Parcel-like demo object only; not an official parcel, title, or ownership boundary."
+    legendLabel: "Selected AOI examples",
+    disclaimer: "Demo area of interest only; not an official parcel, title, ownership, or planning boundary."
   },
   transportCorridors: {
     description: "Indicative access corridors representing major demo mobility relationships.",
@@ -179,38 +179,38 @@ const demoLayerDesign: Record<DemoLayerId, Omit<DemoLayer, "id" | "name" | "type
     style: {
       fillColor: "#3f7f37",
       strokeColor: "#2f6f2e",
-      strokeWidth: 2.6,
+      strokeWidth: 1.7,
       fillOpacity: 0,
-      strokeOpacity: 0.68,
-      lineDasharray: [1.5, 1.2]
+      strokeOpacity: 0.46,
+      lineDasharray: [1.2, 1.4]
     },
     visibleByDefault: true,
-    minZoom: 8,
+    minZoom: 8.8,
     maxZoom: 18,
     layerOrder: 60,
     clickPriority: 35,
-    legendLabel: "Transport corridors",
+    legendLabel: "Access corridors",
     disclaimer: "Indicative demo corridor; not an official transport alignment."
   },
   infrastructureNodes: {
-    description: "Demo mobility, port, airport and utility-adjacent anchors.",
+    description: "Demo airports, mobility hubs, business anchors and development anchors.",
     category: "Anchors / POI",
     sourceMode: "demo_normalized",
     style: {
       fillColor: "#287aa0",
       strokeColor: "#135a78",
-      strokeWidth: 1.5,
-      fillOpacity: 0.88,
-      strokeOpacity: 0.9,
-      pointRadius: 5.2
+      strokeWidth: 1.15,
+      fillOpacity: 0.78,
+      strokeOpacity: 0.82,
+      pointRadius: 4.5
     },
     visibleByDefault: true,
-    minZoom: 9.2,
+    minZoom: 9.4,
     maxZoom: 18,
     layerOrder: 70,
     clickPriority: 95,
-    legendLabel: "Infrastructure nodes",
-    disclaimer: "Demo-normalized infrastructure anchor; official source validation is required."
+    legendLabel: "Spatial anchors",
+    disclaimer: "Demo-normalized anchor point; official source validation is required."
   },
   constructionSites: {
     description: "Demo construction monitoring targets for progress and lender-reporting workflows.",
@@ -219,21 +219,21 @@ const demoLayerDesign: Record<DemoLayerId, Omit<DemoLayer, "id" | "name" | "type
     style: {
       fillColor: "#8e681f",
       strokeColor: "#6e4f11",
-      strokeWidth: 1.5,
-      fillOpacity: 0.9,
-      strokeOpacity: 0.9,
-      pointRadius: 5.4
+      strokeWidth: 1.15,
+      fillOpacity: 0.74,
+      strokeOpacity: 0.82,
+      pointRadius: 4.5
     },
-    visibleByDefault: true,
-    minZoom: 10,
+    visibleByDefault: false,
+    minZoom: 10.6,
     maxZoom: 18,
     layerOrder: 80,
     clickPriority: 92,
-    legendLabel: "Construction targets",
+    legendLabel: "Pipeline watch points",
     disclaimer: "Demo construction target; not a live project-control record."
   },
   futureMunicipalityGis: {
-    description: "Placeholder for future official GIS integration.",
+    description: "Placeholder for future official GIS validation sources.",
     category: "Planned Official",
     sourceMode: "planned_official",
     style: {

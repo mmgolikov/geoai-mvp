@@ -138,7 +138,9 @@ export function ReportMapPreview({
     }
 
     let isMounted = true;
-    const contextFeatures = demoLayers.flatMap((layer) => layer.features);
+    const contextFeatures = demoLayers
+      .filter((layer) => layer.visibleByDefault)
+      .flatMap((layer) => layer.features);
     const primaryPoint = markers[0]?.point;
     const center: [number, number] = primaryPoint
       ? [primaryPoint.longitude, primaryPoint.latitude]
@@ -155,9 +157,9 @@ export function ReportMapPreview({
         mapboxgl.accessToken = mapboxToken;
         const map = new mapboxgl.Map({
           container: containerRef.current,
-          style: "mapbox://styles/mapbox/light-v11",
+          style: "mapbox://styles/mapbox/streets-v12",
           center,
-          zoom: comparison ? 9.4 : selectedObject ? 12 : 11.4,
+          zoom: comparison ? 9.65 : selectedObject ? 11.8 : 11.2,
           interactive: true,
           attributionControl: false,
           preserveDrawingBuffer: true
@@ -201,7 +203,7 @@ export function ReportMapPreview({
             filter: ["==", ["geometry-type"], "Polygon"],
             paint: {
               "fill-color": ["coalesce", ["get", "fillColor"], ["get", "color"], "#174f63"],
-              "fill-opacity": ["coalesce", ["get", "fillOpacity"], 0.1]
+              "fill-opacity": ["*", ["coalesce", ["get", "fillOpacity"], 0.08], 0.78]
             }
           });
           map.addLayer({
@@ -214,7 +216,7 @@ export function ReportMapPreview({
             },
             paint: {
               "line-color": ["coalesce", ["get", "strokeColor"], ["get", "color"], "#174f63"],
-              "line-opacity": ["coalesce", ["get", "strokeOpacity"], 0.42],
+              "line-opacity": ["*", ["coalesce", ["get", "strokeOpacity"], 0.42], 0.82],
               "line-width": ["coalesce", ["get", "strokeWidth"], 1.2]
             }
           });
