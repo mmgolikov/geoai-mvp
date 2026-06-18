@@ -200,18 +200,22 @@ export function ReportMapPreview({
             source: "geoai-report-context",
             filter: ["==", ["geometry-type"], "Polygon"],
             paint: {
-              "fill-color": ["coalesce", ["get", "color"], "#174f63"],
-              "fill-opacity": 0.08
+              "fill-color": ["coalesce", ["get", "fillColor"], ["get", "color"], "#174f63"],
+              "fill-opacity": ["coalesce", ["get", "fillOpacity"], 0.1]
             }
           });
           map.addLayer({
             id: "geoai-report-context-line",
             type: "line",
             source: "geoai-report-context",
+            layout: {
+              "line-cap": "round",
+              "line-join": "round"
+            },
             paint: {
-              "line-color": ["coalesce", ["get", "color"], "#174f63"],
-              "line-opacity": 0.38,
-              "line-width": 1.2
+              "line-color": ["coalesce", ["get", "strokeColor"], ["get", "color"], "#174f63"],
+              "line-opacity": ["coalesce", ["get", "strokeOpacity"], 0.42],
+              "line-width": ["coalesce", ["get", "strokeWidth"], 1.2]
             }
           });
           map.addLayer({
@@ -220,11 +224,11 @@ export function ReportMapPreview({
             source: "geoai-report-context",
             filter: ["==", ["geometry-type"], "Point"],
             paint: {
-              "circle-color": ["coalesce", ["get", "color"], "#174f63"],
-              "circle-opacity": 0.68,
-              "circle-radius": compact ? 3.5 : 4.5,
+              "circle-color": ["coalesce", ["get", "fillColor"], ["get", "color"], "#174f63"],
+              "circle-opacity": 0.82,
+              "circle-radius": compact ? 3.8 : ["coalesce", ["get", "pointRadius"], 5],
               "circle-stroke-color": "#ffffff",
-              "circle-stroke-width": 1
+              "circle-stroke-width": 1.2
             }
           });
           map.addLayer({
@@ -233,8 +237,8 @@ export function ReportMapPreview({
             source: "geoai-report-selected",
             filter: ["==", ["geometry-type"], "Polygon"],
             paint: {
-              "fill-color": "#174f63",
-              "fill-opacity": 0.26
+              "fill-color": ["coalesce", ["get", "fillColor"], "#174f63"],
+              "fill-opacity": 0.3
             }
           });
           map.addLayer({
@@ -242,7 +246,7 @@ export function ReportMapPreview({
             type: "line",
             source: "geoai-report-selected",
             paint: {
-              "line-color": "#0b5a6e",
+              "line-color": ["coalesce", ["get", "strokeColor"], "#0b5a6e"],
               "line-opacity": 0.94,
               "line-width": 3
             }

@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { demoLayers, getDemoFeatureById, getSelectedDemoObject } from "@/src/data/demo-layers";
+import { demoLayers, getDemoFeatureById, getLayerSourceModeLabel, getSelectedDemoObject } from "@/src/data/demo-layers";
 import type { DemoLayer, DemoLayerFeature } from "@/src/data/demo-layers";
-import type { GeoJSONSource, Map as MapboxMap, Marker as MapboxMarker, Popup as MapboxPopup } from "mapbox-gl";
+import type { GeoJSONSource, Map as MapboxMap, MapboxGeoJSONFeature, Marker as MapboxMarker, Popup as MapboxPopup } from "mapbox-gl";
 import type { DemoLayerId, SelectedDemoObject, SelectedPoint } from "@/src/types/geo";
 
 const defaultCenter: [number, number] = [55.2708, 25.2048];
@@ -27,7 +27,7 @@ type MapWorkspaceClientProps = {
 };
 
 const initialLayerVisibility = demoLayers.reduce<Record<DemoLayerId, boolean>>((visibility, layer) => {
-  visibility[layer.id] = true;
+  visibility[layer.id] = layer.visibleByDefault;
   return visibility;
 }, {} as Record<DemoLayerId, boolean>);
 
@@ -73,8 +73,23 @@ function escapeHtml(value: string) {
 function getFeatureLabel(feature: DemoLayerFeature) {
   return {
     title: feature.properties.name,
-    detail: `${feature.properties.layerName} / ${feature.properties.objectType}`
+    type: `${feature.properties.category} · ${feature.properties.objectType}`,
+    source: `${feature.properties.sourceMode.replace(/_/g, "-")} · ${feature.properties.confidenceLevel} confidence`,
+    relevance: feature.properties.relevance
   };
+}
+
+function sortRenderedFeatures(features: MapboxGeoJSONFeature[] = []) {
+  return [...features].sort((a, b) => {
+    const priorityA = Number(a.properties?.clickPriority ?? 0);
+    const priorityB = Number(b.properties?.clickPriority ?? 0);
+
+    if (priorityA !== priorityB) {
+      return priorityB - priorityA;
+    }
+
+    return Number(b.properties?.layerOrder ?? 0) - Number(a.properties?.layerOrder ?? 0);
+  });
 }
 
 function setHoverTooltip(
@@ -93,7 +108,9 @@ function setHoverTooltip(
     .setHTML(
       `<div class="geoai-map-tooltip">
         <div class="geoai-map-tooltip-title">${escapeHtml(label.title)}</div>
-        <div class="geoai-map-tooltip-detail">${escapeHtml(label.detail)}</div>
+        <div class="geoai-map-tooltip-detail">${escapeHtml(label.type)}</div>
+        <div class="geoai-map-tooltip-source">${escapeHtml(label.source)}</div>
+        <div class="geoai-map-tooltip-note">${escapeHtml(label.relevance)}</div>
       </div>`
     )
     .addTo(map);
@@ -137,8 +154,10 @@ function addDemoLayerToMap(map: MapboxMap, layer: DemoLayer) {
         source: sourceId,
         paint: {
           "fill-color": layer.color,
-          "fill-opacity": 0.09
-        }
+          "fill-opacity": layer.style.fillOpacity
+        },
+        minzoom: layer.minZoom,
+        maxzoom: layer.maxZoom
       });
     }
 
@@ -149,9 +168,11 @@ function addDemoLayerToMap(map: MapboxMap, layer: DemoLayer) {
         source: sourceId,
         paint: {
           "line-color": layer.color,
-          "line-width": 1.05,
-          "line-opacity": 0.54
-        }
+          "line-width": layer.style.strokeWidth,
+          "line-opacity": layer.style.strokeOpacity
+        },
+        minzoom: layer.minZoom,
+        maxzoom: layer.maxZoom
       });
     }
   }
@@ -163,11 +184,13 @@ function addDemoLayerToMap(map: MapboxMap, layer: DemoLayer) {
       source: sourceId,
       paint: {
         "circle-color": layer.color,
-        "circle-radius": 5.5,
+        "circle-radius": ["interpolate", ["linear"], ["zoom"], 9, Math.max((layer.style.pointRadius ?? 5.2) - 1.2, 3.8), 13, layer.style.pointRadius ?? 5.2],
         "circle-stroke-color": "#ffffff",
-        "circle-stroke-width": 1.4,
-        "circle-opacity": 0.82
-      }
+        "circle-stroke-width": layer.style.strokeWidth,
+        "circle-opacity": layer.style.fillOpacity
+      },
+      minzoom: layer.minZoom,
+      maxzoom: layer.maxZoom
     });
   }
 
@@ -182,9 +205,12 @@ function addDemoLayerToMap(map: MapboxMap, layer: DemoLayer) {
       },
       paint: {
         "line-color": layer.color,
-        "line-width": 2.4,
-        "line-opacity": 0.62
-      }
+        "line-width": ["interpolate", ["linear"], ["zoom"], 8, Math.max(layer.style.strokeWidth - 0.8, 1.6), 13, layer.style.strokeWidth],
+        "line-opacity": layer.style.strokeOpacity,
+        ...(layer.style.lineDasharray ? { "line-dasharray": layer.style.lineDasharray } : {})
+      },
+      minzoom: layer.minZoom,
+      maxzoom: layer.maxZoom
     });
   }
 }
@@ -204,8 +230,8 @@ function addSelectedObjectLayer(map: MapboxMap) {
       source: selectedObjectSourceId,
       filter: ["==", ["geometry-type"], "Polygon"],
       paint: {
-        "fill-color": "#174f63",
-        "fill-opacity": 0.34
+        "fill-color": ["coalesce", ["get", "fillColor"], "#174f63"],
+        "fill-opacity": 0.3
       }
     });
   }
@@ -216,10 +242,10 @@ function addSelectedObjectLayer(map: MapboxMap) {
       type: "line",
       source: selectedObjectSourceId,
       paint: {
-        "line-color": "#0b5a6e",
-        "line-width": 3.2,
+        "line-color": ["coalesce", ["get", "strokeColor"], "#0b5a6e"],
+        "line-width": 3,
         "line-opacity": 0.96,
-        "line-blur": 0.1
+        "line-blur": 0.2
       }
     });
   }
@@ -231,8 +257,8 @@ function addSelectedObjectLayer(map: MapboxMap) {
       source: selectedObjectSourceId,
       filter: ["==", ["geometry-type"], "Point"],
       paint: {
-        "circle-color": "#0f5f76",
-        "circle-radius": 9,
+        "circle-color": ["coalesce", ["get", "fillColor"], "#0f5f76"],
+        "circle-radius": 8.5,
         "circle-stroke-color": "#ffffff",
         "circle-stroke-width": 3
       }
@@ -255,8 +281,8 @@ function addHoverObjectLayer(map: MapboxMap) {
       source: hoverObjectSourceId,
       filter: ["==", ["geometry-type"], "Polygon"],
       paint: {
-        "fill-color": "#174f63",
-        "fill-opacity": 0.16
+        "fill-color": ["coalesce", ["get", "fillColor"], "#174f63"],
+        "fill-opacity": 0.19
       }
     });
   }
@@ -267,8 +293,8 @@ function addHoverObjectLayer(map: MapboxMap) {
       type: "line",
       source: hoverObjectSourceId,
       paint: {
-        "line-color": "#0f5f76",
-        "line-width": 1.6,
+        "line-color": ["coalesce", ["get", "strokeColor"], "#0f5f76"],
+        "line-width": 1.8,
         "line-opacity": 0.82
       }
     });
@@ -281,7 +307,7 @@ function addHoverObjectLayer(map: MapboxMap) {
       source: hoverObjectSourceId,
       filter: ["==", ["geometry-type"], "Point"],
       paint: {
-        "circle-color": "#0f5f76",
+        "circle-color": ["coalesce", ["get", "fillColor"], "#0f5f76"],
         "circle-radius": 7.5,
         "circle-stroke-color": "#ffffff",
         "circle-stroke-width": 2
@@ -407,7 +433,8 @@ export function MapWorkspaceClient({
         const features = interactiveLayers.length > 0
           ? mapRef.current?.queryRenderedFeatures(event.point, { layers: interactiveLayers })
           : [];
-        const featureId = features?.[0]?.properties?.id as string | undefined;
+        const orderedFeatures = sortRenderedFeatures(features);
+        const featureId = orderedFeatures[0]?.properties?.id as string | undefined;
         const demoFeature = featureId ? getDemoFeatureById(featureId) : null;
         const source = mapRef.current?.getSource(hoverObjectSourceId) as GeoJSONSource | undefined;
 
@@ -443,7 +470,8 @@ export function MapWorkspaceClient({
         const features = interactiveLayers.length > 0
           ? mapRef.current?.queryRenderedFeatures(event.point, { layers: interactiveLayers })
           : [];
-        const featureId = features?.[0]?.properties?.id as string | undefined;
+        const orderedFeatures = sortRenderedFeatures(features);
+        const featureId = orderedFeatures[0]?.properties?.id as string | undefined;
         const demoFeature = featureId ? getDemoFeatureById(featureId) : null;
 
         if (demoFeature && onObjectSelectRef.current) {
@@ -660,7 +688,7 @@ export function MapWorkspaceClient({
               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">
                 Spatial layers
               </p>
-              <h2 className="mt-1 text-sm font-semibold text-ink">Demo spatial overlays</h2>
+              <h2 className="mt-1 text-sm font-semibold text-ink">Demo-normalized overlays</h2>
             </div>
             <span className="rounded-full bg-surface px-2 py-1 text-[11px] font-semibold text-brand">
               {activeLayerCount} active
@@ -690,8 +718,13 @@ export function MapWorkspaceClient({
                 {demoLayers.map((layer) => (
                   <label key={layer.id} className="flex cursor-pointer items-center justify-between gap-3 rounded-md border border-line bg-surface px-3 py-2">
                     <span className="flex min-w-0 items-center gap-2">
-                      <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: layer.color }} />
-                      <span className="truncate text-xs font-semibold text-ink">{layer.name}</span>
+                      <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ backgroundColor: layer.color }} />
+                      <span className="min-w-0">
+                        <span className="block truncate text-xs font-semibold text-ink">{layer.legendLabel}</span>
+                        <span className="block truncate text-[10px] font-semibold uppercase tracking-[0.08em] text-muted">
+                          {layer.category} · {getLayerSourceModeLabel(layer)}
+                        </span>
+                      </span>
                     </span>
                     <input
                       type="checkbox"
@@ -704,7 +737,7 @@ export function MapWorkspaceClient({
               </div>
 
               <div className="mt-3 rounded-md bg-white px-3 py-2 text-xs leading-5 text-muted">
-                Synthetic demo overlays. Hover for object names, click to select, or click empty map space for a custom point.
+                Demo-normalized spatial layers. Not official GIS, parcel, zoning, planning, or risk boundaries.
               </div>
             </div>
           ) : null}
@@ -718,8 +751,8 @@ export function MapWorkspaceClient({
         >
           {demoLayers.map((layer) => (
             <div key={layer.id} className="flex items-center gap-2 text-xs font-medium text-muted">
-              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: layer.color }} />
-              <span>{layer.name}</span>
+              <span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: layer.color }} />
+              <span>{layer.legendLabel}</span>
             </div>
           ))}
         </div>

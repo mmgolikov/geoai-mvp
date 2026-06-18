@@ -14,22 +14,262 @@ export type DemoLayerFeature = {
   id: string;
   properties: {
     id: string;
+    featureId: string;
     name: string;
     objectType: string;
     layerId: DemoLayerId;
     layerName: string;
     geometryType: DemoLayerType;
     color: string;
+    category: string;
+    subcategory: string;
+    sourceMode: DemoLayerSourceMode;
+    confidenceLevel: string;
+    relevance: string;
+    hoverLabel: string;
+    selectedLabel: string;
+    fillColor: string;
+    strokeColor: string;
+    strokeWidth: number;
+    fillOpacity: number;
+    strokeOpacity: number;
+    pointRadius: number;
+    layerOrder: number;
+    clickPriority: number;
   };
   geometry: SpatialGeometry;
+};
+
+export type DemoLayerSourceMode =
+  | "demo_normalized"
+  | "imported_sample"
+  | "seed_static"
+  | "planned_official"
+  | "customer_future";
+
+export type DemoLayerStyle = {
+  fillColor: string;
+  strokeColor: string;
+  strokeWidth: number;
+  fillOpacity: number;
+  strokeOpacity: number;
+  lineDasharray?: number[];
+  pointRadius?: number;
 };
 
 export type DemoLayer = {
   id: DemoLayerId;
   name: string;
+  description: string;
+  category: string;
+  sourceMode: DemoLayerSourceMode;
   type: DemoLayerType;
   color: string;
+  style: DemoLayerStyle;
+  visibleByDefault: boolean;
+  minZoom: number;
+  maxZoom: number;
+  layerOrder: number;
+  clickPriority: number;
+  legendLabel: string;
+  disclaimer: string;
   features: DemoLayerFeature[];
+};
+
+const demoLayerDesign: Record<DemoLayerId, Omit<DemoLayer, "id" | "name" | "type" | "color" | "features">> = {
+  coastalFloodRiskZones: {
+    description: "Indicative coastal and drainage exposure overlays for demo risk screening.",
+    category: "Climate / Risk",
+    sourceMode: "demo_normalized",
+    style: {
+      fillColor: "#4f9ecf",
+      strokeColor: "#1f6f9f",
+      strokeWidth: 1.25,
+      fillOpacity: 0.12,
+      strokeOpacity: 0.58
+    },
+    visibleByDefault: true,
+    minZoom: 8,
+    maxZoom: 18,
+    layerOrder: 10,
+    clickPriority: 25,
+    legendLabel: "Coastal / Flood",
+    disclaimer: "Demo-normalized risk overlay; not an official flood or coastal hazard boundary."
+  },
+  heatRiskZones: {
+    description: "Indicative urban heat exposure overlays for climate resilience screening.",
+    category: "Climate / Risk",
+    sourceMode: "demo_normalized",
+    style: {
+      fillColor: "#d98445",
+      strokeColor: "#b75f21",
+      strokeWidth: 1.25,
+      fillOpacity: 0.13,
+      strokeOpacity: 0.6
+    },
+    visibleByDefault: true,
+    minZoom: 8,
+    maxZoom: 18,
+    layerOrder: 20,
+    clickPriority: 24,
+    legendLabel: "Heat exposure",
+    disclaimer: "Demo-normalized heat overlay; official hazard validation is required."
+  },
+  developmentZones: {
+    description: "Indicative growth and redevelopment zones for early site-screening workflows.",
+    category: "Growth Zones",
+    sourceMode: "demo_normalized",
+    style: {
+      fillColor: "#d5aa63",
+      strokeColor: "#a87521",
+      strokeWidth: 1.35,
+      fillOpacity: 0.16,
+      strokeOpacity: 0.68
+    },
+    visibleByDefault: true,
+    minZoom: 8.2,
+    maxZoom: 18,
+    layerOrder: 30,
+    clickPriority: 55,
+    legendLabel: "Growth zones",
+    disclaimer: "Demo-normalized development screen; not a planning or zoning boundary."
+  },
+  premiumRealEstateAreas: {
+    description: "Indicative high-value real estate clusters for investment and development screening.",
+    category: "Premium Areas",
+    sourceMode: "demo_normalized",
+    style: {
+      fillColor: "#2f9f9a",
+      strokeColor: "#087c78",
+      strokeWidth: 1.45,
+      fillOpacity: 0.15,
+      strokeOpacity: 0.72
+    },
+    visibleByDefault: true,
+    minZoom: 9,
+    maxZoom: 18,
+    layerOrder: 40,
+    clickPriority: 70,
+    legendLabel: "Premium areas",
+    disclaimer: "Demo-normalized value cluster; not an official market boundary."
+  },
+  assetParcelObjects: {
+    description: "Small parcel-like demo assets used for investor memo and object-selection flows.",
+    category: "Asset Objects",
+    sourceMode: "seed_static",
+    style: {
+      fillColor: "#7165e8",
+      strokeColor: "#4d42c4",
+      strokeWidth: 1.5,
+      fillOpacity: 0.18,
+      strokeOpacity: 0.76
+    },
+    visibleByDefault: true,
+    minZoom: 11.2,
+    maxZoom: 19,
+    layerOrder: 50,
+    clickPriority: 82,
+    legendLabel: "Demo assets",
+    disclaimer: "Parcel-like demo object only; not an official parcel, title, or ownership boundary."
+  },
+  transportCorridors: {
+    description: "Indicative access corridors representing major demo mobility relationships.",
+    category: "Infrastructure",
+    sourceMode: "demo_normalized",
+    style: {
+      fillColor: "#3f7f37",
+      strokeColor: "#2f6f2e",
+      strokeWidth: 2.6,
+      fillOpacity: 0,
+      strokeOpacity: 0.68,
+      lineDasharray: [1.5, 1.2]
+    },
+    visibleByDefault: true,
+    minZoom: 8,
+    maxZoom: 18,
+    layerOrder: 60,
+    clickPriority: 35,
+    legendLabel: "Transport corridors",
+    disclaimer: "Indicative demo corridor; not an official transport alignment."
+  },
+  infrastructureNodes: {
+    description: "Demo mobility, port, airport and utility-adjacent anchors.",
+    category: "Anchors / POI",
+    sourceMode: "demo_normalized",
+    style: {
+      fillColor: "#287aa0",
+      strokeColor: "#135a78",
+      strokeWidth: 1.5,
+      fillOpacity: 0.88,
+      strokeOpacity: 0.9,
+      pointRadius: 5.2
+    },
+    visibleByDefault: true,
+    minZoom: 9.2,
+    maxZoom: 18,
+    layerOrder: 70,
+    clickPriority: 95,
+    legendLabel: "Infrastructure nodes",
+    disclaimer: "Demo-normalized infrastructure anchor; official source validation is required."
+  },
+  constructionSites: {
+    description: "Demo construction monitoring targets for progress and lender-reporting workflows.",
+    category: "Anchors / POI",
+    sourceMode: "demo_normalized",
+    style: {
+      fillColor: "#8e681f",
+      strokeColor: "#6e4f11",
+      strokeWidth: 1.5,
+      fillOpacity: 0.9,
+      strokeOpacity: 0.9,
+      pointRadius: 5.4
+    },
+    visibleByDefault: true,
+    minZoom: 10,
+    maxZoom: 18,
+    layerOrder: 80,
+    clickPriority: 92,
+    legendLabel: "Construction targets",
+    disclaimer: "Demo construction target; not a live project-control record."
+  },
+  futureMunicipalityGis: {
+    description: "Placeholder for future official GIS integration.",
+    category: "Planned Official",
+    sourceMode: "planned_official",
+    style: {
+      fillColor: "#64748b",
+      strokeColor: "#475569",
+      strokeWidth: 1,
+      fillOpacity: 0.08,
+      strokeOpacity: 0.44
+    },
+    visibleByDefault: false,
+    minZoom: 9,
+    maxZoom: 18,
+    layerOrder: 90,
+    clickPriority: 10,
+    legendLabel: "Future official GIS",
+    disclaimer: "Planned official integration only; not connected in this MVP."
+  },
+  futureCustomerAssets: {
+    description: "Placeholder for customer-uploaded assets and boundaries.",
+    category: "Customer Future",
+    sourceMode: "customer_future",
+    style: {
+      fillColor: "#0f766e",
+      strokeColor: "#0b5f59",
+      strokeWidth: 1,
+      fillOpacity: 0.1,
+      strokeOpacity: 0.5
+    },
+    visibleByDefault: false,
+    minZoom: 10,
+    maxZoom: 19,
+    layerOrder: 100,
+    clickPriority: 15,
+    legendLabel: "Future customer assets",
+    disclaimer: "Future customer data placeholder; no customer geometry is connected."
+  }
 };
 
 function mapGeometryType(geometryType: SpatialGeometry["type"]): DemoLayerType {
@@ -38,18 +278,58 @@ function mapGeometryType(geometryType: SpatialGeometry["type"]): DemoLayerType {
   return "point";
 }
 
-function toDemoFeature(feature: SpatialFeature, layerId: DemoLayerId, layerName: string, color: string): DemoLayerFeature {
+function formatSourceMode(sourceMode: DemoLayerSourceMode) {
+  return sourceMode.replace(/_/g, "-");
+}
+
+function scenarioRelevanceText(feature: SpatialFeature) {
+  if (feature.properties.scenarioRelevance.includes("investmentSiteSelection")) {
+    return "Relevant for investment site selection and development screening.";
+  }
+
+  if (feature.properties.scenarioRelevance.includes("climateRisk")) {
+    return "Relevant for climate exposure and resilience screening.";
+  }
+
+  if (feature.properties.scenarioRelevance.includes("constructionMonitoring")) {
+    return "Relevant for construction monitoring and progress evidence workflows.";
+  }
+
+  if (feature.properties.scenarioRelevance.includes("infrastructureUrbanPlanning")) {
+    return "Relevant for infrastructure and urban planning review.";
+  }
+
+  return "Relevant for early spatial intelligence screening.";
+}
+
+function toDemoFeature(feature: SpatialFeature, layerId: DemoLayerId, layerName: string, layer: DemoLayer): DemoLayerFeature {
   return {
     type: "Feature",
     id: feature.id,
     properties: {
       id: feature.id,
+      featureId: feature.id,
       name: feature.properties.name,
       objectType: feature.properties.subtype,
       layerId,
       layerName,
       geometryType: mapGeometryType(feature.geometry.type),
-      color
+      color: layer.color,
+      category: layer.category,
+      subcategory: feature.properties.subtype,
+      sourceMode: layer.sourceMode,
+      confidenceLevel: feature.properties.confidenceLevel,
+      relevance: scenarioRelevanceText(feature),
+      hoverLabel: `${feature.properties.name} · ${layer.legendLabel}`,
+      selectedLabel: `Selected: ${feature.properties.name}`,
+      fillColor: layer.style.fillColor,
+      strokeColor: layer.style.strokeColor,
+      strokeWidth: layer.style.strokeWidth,
+      fillOpacity: layer.style.fillOpacity,
+      strokeOpacity: layer.style.strokeOpacity,
+      pointRadius: layer.style.pointRadius ?? 5,
+      layerOrder: layer.layerOrder,
+      clickPriority: layer.clickPriority
     },
     geometry: feature.geometry
   };
@@ -57,15 +337,30 @@ function toDemoFeature(feature: SpatialFeature, layerId: DemoLayerId, layerName:
 
 export const demoLayers: DemoLayer[] = spatialDatasetRegistry
   .filter((dataset) => dataset.features.length > 0)
-  .map((dataset) => ({
-    id: dataset.layerId as DemoLayerId,
-    name: dataset.layerName,
-    type: dataset.mapType as DemoLayerType,
-    color: dataset.color,
-    features: dataset.features.map((feature) =>
-      toDemoFeature(feature, dataset.layerId as DemoLayerId, dataset.layerName, dataset.color)
-    )
-  }));
+  .map((dataset) => {
+    const layerId = dataset.layerId as DemoLayerId;
+    const design = demoLayerDesign[layerId];
+    const layer: DemoLayer = {
+      ...design,
+      id: layerId,
+      name: dataset.layerName,
+      type: dataset.mapType as DemoLayerType,
+      color: design.style.fillColor,
+      features: []
+    };
+
+    return {
+      ...layer,
+      features: dataset.features.map((feature) =>
+        toDemoFeature(feature, layerId, dataset.layerName, layer)
+      )
+    };
+  })
+  .sort((a, b) => a.layerOrder - b.layerOrder);
+
+export function getLayerSourceModeLabel(layer: Pick<DemoLayer, "sourceMode">) {
+  return formatSourceMode(layer.sourceMode);
+}
 
 export function getFeatureCenter(feature: DemoLayerFeature): SelectedPoint {
   const spatialFeature = getSpatialFeatureById(feature.id);
