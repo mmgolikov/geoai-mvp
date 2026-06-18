@@ -65,6 +65,31 @@ function formatCoordinate(latitude: number, longitude: number) {
   return `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
 }
 
+function createStableKey(section: string, value: unknown, index: number): string {
+  const raw = typeof value === "string" ? value : JSON.stringify(value ?? "item");
+  const slug = raw
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60);
+
+  return `${section}-${index}-${slug || "item"}`;
+}
+
+function dedupeTextList(items: string[]) {
+  const seen = new Set<string>();
+
+  return items.filter((item) => {
+    const normalized = item.toLowerCase().replace(/\s+/g, " ").trim();
+    if (seen.has(normalized)) {
+      return false;
+    }
+
+    seen.add(normalized);
+    return true;
+  });
+}
+
 function ReportShell({
   children,
   onBack
@@ -382,7 +407,11 @@ function AnalysisReport({ analysis, onBack }: { analysis: ExpressAnalysis; onBac
 
         <Section title="Key Factors">
           <ul className="grid gap-3 text-sm leading-6 text-muted md:grid-cols-2">
-            {analysis.keyFactors.map((item) => <li key={item} className="rounded-md bg-surface p-4">{item}</li>)}
+            {analysis.keyFactors.map((item, index) => (
+              <li key={createStableKey("analysis-key-factor", item, index)} className="rounded-md bg-surface p-4">
+                {item}
+              </li>
+            ))}
           </ul>
         </Section>
 
@@ -398,12 +427,16 @@ function AnalysisReport({ analysis, onBack }: { analysis: ExpressAnalysis; onBac
         <div className="grid gap-6 md:grid-cols-2">
           <Section title="Opportunities">
             <ul className="space-y-3 text-sm leading-6 text-muted">
-              {analysis.opportunities.map((item) => <li key={item}>{item}</li>)}
+              {analysis.opportunities.map((item, index) => (
+                <li key={createStableKey("analysis-opportunity", item, index)}>{item}</li>
+              ))}
             </ul>
           </Section>
           <Section title="Risks & Constraints">
             <ul className="space-y-3 text-sm leading-6 text-muted">
-              {analysis.risks.map((item) => <li key={item}>{item}</li>)}
+              {analysis.risks.map((item, index) => (
+                <li key={createStableKey("analysis-risk", item, index)}>{item}</li>
+              ))}
             </ul>
           </Section>
         </div>
@@ -411,7 +444,7 @@ function AnalysisReport({ analysis, onBack }: { analysis: ExpressAnalysis; onBac
         <Section title="Recommended Next Actions">
           <ol className="grid gap-3 text-sm leading-6 text-muted md:grid-cols-2">
             {analysis.nextActions.map((item, index) => (
-              <li key={item} className="rounded-md bg-surface p-4">
+              <li key={createStableKey("analysis-next-action", item, index)} className="rounded-md bg-surface p-4">
                 <span className="font-semibold text-brand">{index + 1}. </span>{item}
               </li>
             ))}
@@ -421,7 +454,9 @@ function AnalysisReport({ analysis, onBack }: { analysis: ExpressAnalysis; onBac
         {analysis.limitations?.length ? (
           <Section title="Limitations">
             <ul className="space-y-3 text-sm leading-6 text-muted">
-              {analysis.limitations.map((item) => <li key={item}>{item}</li>)}
+              {analysis.limitations.map((item, index) => (
+                <li key={createStableKey("analysis-limitation", item, index)}>{item}</li>
+              ))}
             </ul>
           </Section>
         ) : null}
@@ -433,6 +468,10 @@ function AnalysisReport({ analysis, onBack }: { analysis: ExpressAnalysis; onBac
 }
 
 function ComparisonReport({ comparison, onBack }: { comparison: ComparisonResult; onBack: () => void }) {
+  const sharedOpportunities = dedupeTextList(comparison.sharedOpportunities);
+  const differentiatedRisks = dedupeTextList(comparison.differentiatedRisks);
+  const nextActions = dedupeTextList(comparison.nextActions);
+
   return (
     <>
       <ReportShell onBack={onBack}>
@@ -494,8 +533,8 @@ function ComparisonReport({ comparison, onBack }: { comparison: ComparisonResult
               <thead>
                 <tr>
                   <th className="border-b border-line px-3 py-3 font-semibold text-muted">Metric</th>
-                  {comparison.items.map((scorecard) => (
-                    <th key={scorecard.item.id} className="border-b border-line px-3 py-3 font-semibold text-ink">
+                  {comparison.items.map((scorecard, index) => (
+                    <th key={createStableKey("comparison-report-head", scorecard.item.id, index)} className="border-b border-line px-3 py-3 font-semibold text-ink">
                       {scorecard.item.name}
                     </th>
                   ))}
@@ -505,8 +544,8 @@ function ComparisonReport({ comparison, onBack }: { comparison: ComparisonResult
                 {scoreOrder.map((scoreKey) => (
                   <tr key={scoreKey}>
                     <td className="border-b border-line px-3 py-3 text-muted">{scoreLabels[scoreKey]}</td>
-                    {comparison.items.map((scorecard) => (
-                      <td key={scorecard.item.id} className="border-b border-line px-3 py-3 font-semibold text-ink">
+                    {comparison.items.map((scorecard, index) => (
+                      <td key={createStableKey(`${scoreKey}-report-score`, scorecard.item.id, index)} className="border-b border-line px-3 py-3 font-semibold text-ink">
                         {scorecard.scores[scoreKey]}
                       </td>
                     ))}
@@ -514,8 +553,8 @@ function ComparisonReport({ comparison, onBack }: { comparison: ComparisonResult
                 ))}
                 <tr>
                   <td className="border-b border-line px-3 py-3 text-muted">Recommended Use</td>
-                  {comparison.items.map((scorecard) => (
-                    <td key={scorecard.item.id} className="border-b border-line px-3 py-3 text-muted">
+                  {comparison.items.map((scorecard, index) => (
+                    <td key={createStableKey("comparison-report-use", scorecard.item.id, index)} className="border-b border-line px-3 py-3 text-muted">
                       {scorecard.recommendedUse}
                     </td>
                   ))}
@@ -527,8 +566,8 @@ function ComparisonReport({ comparison, onBack }: { comparison: ComparisonResult
 
         <Section title="Score Cards">
           <div className="grid gap-4 md:grid-cols-3">
-            {comparison.items.map((scorecard) => (
-              <div key={scorecard.item.id} className="rounded-md border border-line p-4">
+            {comparison.items.map((scorecard, index) => (
+              <div key={createStableKey("comparison-report-card", scorecard.item.id, index)} className="rounded-md border border-line p-4">
                 <p className="text-sm font-semibold text-ink">{scorecard.item.name}</p>
                 <p className="mt-2 text-3xl font-semibold text-brand">{scorecard.overallScore}</p>
                 <p className="mt-2 text-sm text-muted">{scorecard.riskLevel} risk</p>
@@ -541,7 +580,9 @@ function ComparisonReport({ comparison, onBack }: { comparison: ComparisonResult
         <div className="grid gap-6 md:grid-cols-2">
           <Section title="Key Risks By Option">
             <ul className="space-y-3 text-sm leading-6 text-muted">
-              {comparison.items.map((item) => <li key={item.item.id}>{item.item.name}: {item.keyConcern}</li>)}
+              {comparison.items.map((item, index) => (
+                <li key={createStableKey("comparison-report-key-risk", item.item.id, index)}>{item.item.name}: {item.keyConcern}</li>
+              ))}
             </ul>
           </Section>
           <Section title="Evidence / Data Used">
@@ -552,20 +593,24 @@ function ComparisonReport({ comparison, onBack }: { comparison: ComparisonResult
         <div className="grid gap-6 md:grid-cols-2">
           <Section title="Shared Opportunities">
             <ul className="space-y-3 text-sm leading-6 text-muted">
-              {comparison.sharedOpportunities.map((item) => <li key={item}>{item}</li>)}
+              {sharedOpportunities.map((item, index) => (
+                <li key={createStableKey("comparison-report-shared-opportunity", item, index)}>{item}</li>
+              ))}
             </ul>
           </Section>
           <Section title="Differentiated Risks">
             <ul className="space-y-3 text-sm leading-6 text-muted">
-              {comparison.differentiatedRisks.map((item) => <li key={item}>{item}</li>)}
+              {differentiatedRisks.map((item, index) => (
+                <li key={createStableKey("comparison-report-differentiated-risk", item, index)}>{item}</li>
+              ))}
             </ul>
           </Section>
         </div>
 
         <Section title="Recommended Next Actions">
           <ol className="grid gap-3 text-sm leading-6 text-muted md:grid-cols-2">
-            {comparison.nextActions.map((item, index) => (
-              <li key={item} className="rounded-md bg-surface p-4">
+            {nextActions.map((item, index) => (
+              <li key={createStableKey("comparison-report-next-action", item, index)} className="rounded-md bg-surface p-4">
                 <span className="font-semibold text-brand">{index + 1}. </span>{item}
               </li>
             ))}

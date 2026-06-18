@@ -478,7 +478,7 @@ export function ProjectDashboard() {
             <Panel title="Recommended Next Actions">
               <ol className="grid gap-2">
                 {nextActions.slice(0, 5).map((action, index) => (
-                  <li key={action} className="flex gap-3 rounded-md bg-surface p-3 text-sm leading-6 text-muted">
+                  <li key={`project-next-action-${index}-${action.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 48)}`} className="flex gap-3 rounded-md bg-surface p-3 text-sm leading-6 text-muted">
                     <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white text-xs font-semibold text-brand">
                       {index + 1}
                     </span>

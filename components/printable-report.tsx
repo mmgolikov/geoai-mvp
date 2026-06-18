@@ -48,6 +48,17 @@ function formatCoordinate(latitude: number, longitude: number) {
   return `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
 }
 
+function createStableKey(section: string, value: unknown, index: number): string {
+  const raw = typeof value === "string" ? value : JSON.stringify(value ?? "item");
+  const slug = raw
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60);
+
+  return `${section}-${index}-${slug || "item"}`;
+}
+
 function PrintSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="print-memo-section">
@@ -216,11 +227,15 @@ function AnalysisPrintable({ analysis }: { analysis: ExpressAnalysis }) {
       ) : null}
 
       <PrintSection title="Key Value Drivers">
-        <ul className="print-two-col-list">{valueDrivers.map((item) => <li key={item}>{item}</li>)}</ul>
+        <ul className="print-two-col-list">
+          {valueDrivers.map((item, index) => <li key={createStableKey("print-value-driver", item, index)}>{item}</li>)}
+        </ul>
       </PrintSection>
 
       <PrintSection title="Critical Constraints">
-        <ul className="print-two-col-list">{constraints.map((item) => <li key={item}>{item}</li>)}</ul>
+        <ul className="print-two-col-list">
+          {constraints.map((item, index) => <li key={createStableKey("print-constraint", item, index)}>{item}</li>)}
+        </ul>
       </PrintSection>
 
       <PrintSection title="Data Gaps / Validation Required">
@@ -246,14 +261,16 @@ function AnalysisPrintable({ analysis }: { analysis: ExpressAnalysis }) {
       </PrintSection>
 
       <PrintSection title="Recommended Due Diligence Actions">
-        <ol className="print-two-col-list">{analysis.nextActions.map((item) => <li key={item}>{item}</li>)}</ol>
+        <ol className="print-two-col-list">
+          {analysis.nextActions.map((item, index) => <li key={createStableKey("print-analysis-action", item, index)}>{item}</li>)}
+        </ol>
       </PrintSection>
 
       <PrintSection title="Limitations">
         <p>
           Current prototype output demonstrates the decision workflow using demo-normalized indicators. Pilot deployments should validate conclusions against official DLD, Dubai Pulse, Dubai Municipality / GeoDubai, customer and/or licensed datasets.
         </p>
-        {analysis.limitations?.map((item) => <p key={item}>{item}</p>)}
+        {analysis.limitations?.map((item, index) => <p key={createStableKey("print-analysis-limitation", item, index)}>{item}</p>)}
       </PrintSection>
     </article>
   );
@@ -285,14 +302,14 @@ function ComparisonPrintable({ comparison }: { comparison: ComparisonResult }) {
           <thead>
             <tr>
               <th>Metric</th>
-              {comparison.items.map((item) => <th key={item.item.id}>{item.item.name}</th>)}
+              {comparison.items.map((item, index) => <th key={createStableKey("print-comparison-head", item.item.id, index)}>{item.item.name}</th>)}
             </tr>
           </thead>
           <tbody>
             {scoreOrder.map((scoreKey) => (
               <tr key={scoreKey}>
                 <td>{comparisonScoreLabels[scoreKey]}</td>
-                {comparison.items.map((item) => <td key={item.item.id}>{item.scores[scoreKey]}</td>)}
+                {comparison.items.map((item, index) => <td key={createStableKey(`${scoreKey}-print-score`, item.item.id, index)}>{item.scores[scoreKey]}</td>)}
               </tr>
             ))}
           </tbody>
@@ -309,8 +326,8 @@ function ComparisonPrintable({ comparison }: { comparison: ComparisonResult }) {
 
       <PrintSection title="Recommended Use And Key Concerns">
         <div className="print-score-grid">
-          {comparison.items.map((item) => (
-            <PrintCard key={item.item.id}>
+          {comparison.items.map((item, index) => (
+            <PrintCard key={createStableKey("print-comparison-card", item.item.id, index)}>
               <strong>{item.item.name}</strong>
               <span className="print-score">{item.overallScore}</span>
               <p>{item.recommendedUse}</p>
@@ -325,7 +342,9 @@ function ComparisonPrintable({ comparison }: { comparison: ComparisonResult }) {
       </PrintSection>
 
       <PrintSection title="Recommended Due Diligence Actions">
-        <ol className="print-two-col-list">{comparison.nextActions.map((item) => <li key={item}>{item}</li>)}</ol>
+        <ol className="print-two-col-list">
+          {comparison.nextActions.map((item, index) => <li key={createStableKey("print-comparison-action", item, index)}>{item}</li>)}
+        </ol>
       </PrintSection>
 
       <PrintSection title="Limitations">
