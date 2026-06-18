@@ -204,6 +204,7 @@ export function AnalysisPanel({
   const activeGuidedDemo = guidedDemoPresets.find((preset) => preset.id === activeGuidedDemoId) ?? guidedDemoPresets[0];
   const demoGeojsonLoaded = uploadedDatasets.some((dataset) => dataset.id === "guided-demo-geojson-sites" && dataset.status === "parsed");
   const demoCsvLoaded = uploadedDatasets.some((dataset) => dataset.id === "guided-demo-csv-metrics" && dataset.status === "parsed");
+  const hasComparisonReady = comparisonItems.length >= 2;
   const demoSteps = [
     { label: "Load demo data", complete: demoGeojsonLoaded && demoCsvLoaded },
     { label: "Select site / polygon", complete: hasSelectedPoint },
@@ -675,17 +676,21 @@ export function AnalysisPanel({
 
           <CollapsedSection title="Comparison Set" badge={`${comparisonItems.length}/3`}>
             <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
-              <h2 className="min-w-0 text-sm font-semibold text-ink">
+              <div className="min-w-0">
+                <h2 className="text-sm font-semibold text-ink">
                 {comparisonItems.length}/3 selected
-              </h2>
-              <button
-                type="button"
-                disabled={comparisonItems.length < 2}
-                onClick={onRunComparison}
-                className="inline-flex h-9 max-w-full items-center justify-center rounded-md bg-brand px-3 text-xs font-semibold text-white transition hover:bg-[#113f50] disabled:cursor-not-allowed disabled:bg-[#c9d2d7]"
-              >
-                Compare Selected
-              </button>
+                </h2>
+                <p className="mt-1 text-xs leading-5 text-muted">
+                  {hasComparisonReady
+                    ? "Ready to compare from the primary footer action."
+                    : comparisonItems.length === 1
+                      ? "Add one more site to compare."
+                      : "Add at least 2 sites to compare."}
+                </p>
+              </div>
+              <span className={`shrink-0 rounded-full px-2 py-1 text-[11px] font-semibold ${hasComparisonReady ? "bg-[#edf4f2] text-brand" : "bg-surface text-muted"}`}>
+                {hasComparisonReady ? "Ready" : "Waiting"}
+              </span>
             </div>
 
             <div className="mt-3 grid min-w-0 gap-2">
@@ -842,6 +847,15 @@ export function AnalysisPanel({
           Add to Comparison
         </button>
         {hasResult ? (
+          hasComparisonReady ? (
+            <button
+              type="button"
+              onClick={onRunComparison}
+              className="inline-flex h-11 w-full max-w-full items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white transition hover:bg-[#113f50]"
+            >
+              Compare Selected
+            </button>
+          ) : (
           <button
             type="button"
             onClick={onExportCurrentResult}
@@ -849,15 +863,26 @@ export function AnalysisPanel({
           >
             Export Report
           </button>
+          )
         ) : (
-          <button
-            type="button"
-            disabled={!hasSelectedPoint || isAnalyzing}
-            onClick={onRunAnalysis}
-            className="inline-flex h-11 w-full max-w-full items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white transition hover:bg-[#113f50] disabled:cursor-not-allowed disabled:bg-[#c9d2d7] disabled:text-white"
-          >
-            {isAnalyzing ? "Running Express Analysis..." : "Run Express Analysis"}
-          </button>
+          hasComparisonReady ? (
+            <button
+              type="button"
+              onClick={onRunComparison}
+              className="inline-flex h-11 w-full max-w-full items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white transition hover:bg-[#113f50]"
+            >
+              Compare Selected
+            </button>
+          ) : (
+            <button
+              type="button"
+              disabled={!hasSelectedPoint || isAnalyzing}
+              onClick={onRunAnalysis}
+              className="inline-flex h-11 w-full max-w-full items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white transition hover:bg-[#113f50] disabled:cursor-not-allowed disabled:bg-[#c9d2d7] disabled:text-white"
+            >
+              {isAnalyzing ? "Running Express Analysis..." : "Run Express Analysis"}
+            </button>
+          )
         )}
 
         {analysisError ? (
