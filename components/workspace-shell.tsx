@@ -327,9 +327,43 @@ function readUploadedDatasets() {
       return [];
     }
 
-    const parsed = JSON.parse(stored) as UploadedDataset[];
-    return Array.isArray(parsed) ? parsed : [];
+    const parsed = JSON.parse(stored) as unknown;
+    if (!Array.isArray(parsed)) {
+      window.localStorage.removeItem(uploadedDatasetStorageKey);
+      return [];
+    }
+
+    const validItems = parsed.filter((item): item is UploadedDataset => {
+      if (typeof item !== "object" || item === null) {
+        return false;
+      }
+
+      const dataset = item as Partial<UploadedDataset>;
+      const hasValidGeojson =
+        dataset.type !== "geojson" ||
+        dataset.status !== "parsed" ||
+        dataset.geojson?.type === "FeatureCollection";
+
+      return (
+        typeof dataset.id === "string" &&
+        typeof dataset.name === "string" &&
+        (dataset.type === "csv" || dataset.type === "geojson") &&
+        (dataset.status === "parsed" || dataset.status === "invalid" || dataset.status === "uploaded-local") &&
+        hasValidGeojson
+      );
+    });
+
+    if (validItems.length !== parsed.length) {
+      writeUploadedDatasets(validItems);
+    }
+
+    return validItems;
   } catch {
+    try {
+      window.localStorage.removeItem(uploadedDatasetStorageKey);
+    } catch {
+      // Ignore storage cleanup failures.
+    }
     return [];
   }
 }
@@ -1008,7 +1042,7 @@ export function WorkspaceShell() {
   }
 
   return (
-    <div className="grid flex-1 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_400px]">
+    <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden lg:grid-cols-[minmax(0,1fr)_400px]">
       {reportPreview === "analysis" && analysis ? (
         <ReportPreview key={`report-${analysis.id}`} mode="analysis" analysis={analysis} onBack={() => setReportPreview(null)} />
       ) : reportPreview === "comparison" && comparison ? (
