@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SourceReadinessMatrix } from "@/components/data-readiness";
 import { LandingHeroMap } from "@/components/landing-hero-map";
 
 const painCards = [
@@ -331,20 +332,26 @@ export default function HomePage() {
       </section>
 
       <section id="data" className="border-y border-[#ded7c9] bg-white/72">
-        <div className="mx-auto grid max-w-7xl gap-10 px-5 py-16 sm:px-6 lg:grid-cols-[0.85fr_1.15fr] lg:px-8">
+        <div className="mx-auto grid max-w-7xl gap-10 px-5 py-16 sm:px-6 lg:grid-cols-[0.78fr_1.22fr] lg:px-8">
           <div>
             <SectionLabel>Trust and data strategy</SectionLabel>
             <h2 className="mt-3 text-3xl font-semibold text-ink md:text-4xl">Built for evidence-backed spatial decisions</h2>
             <p className="mt-5 text-base leading-7 text-muted">
-              The current public prototype uses demo-normalized data to demonstrate workflow. Production and pilot deployments are designed to connect official, open, commercial and customer data sources.
+              The current public prototype uses demo-normalized data to demonstrate workflow. Pilot deployments are designed around modular official, open, commercial and customer sources, with limitations shown directly in the memo.
+            </p>
+            <p className="mt-4 text-base leading-7 text-muted">
+              GeoAI is evidence-first: synthetic demo layers show the experience today, while DLD, Dubai Pulse, Dubai Municipality / GeoDubai, OSM, imagery and customer datasets define the validation path.
             </p>
           </div>
-          <div className="grid gap-3">
-            {evidenceSources.map((source) => (
-              <div key={source} className="rounded-lg border border-line bg-white px-5 py-4 text-sm font-semibold text-ink shadow-sm">
-                {source}
-              </div>
-            ))}
+          <div className="grid gap-4">
+            <SourceReadinessMatrix limit={6} />
+            <div className="grid gap-3 md:grid-cols-2">
+              {evidenceSources.slice(0, 4).map((source) => (
+                <div key={source} className="rounded-lg border border-line bg-white px-5 py-4 text-sm font-semibold text-ink shadow-sm">
+                  {source}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </section>

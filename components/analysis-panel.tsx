@@ -1,6 +1,7 @@
 "use client";
 
 import demoObjects from "@/src/data/demo-objects.json";
+import { DataReadinessCard } from "@/components/data-readiness";
 import { getScenarioDataSources } from "@/src/data/data-source-registry";
 import type { MarketContext } from "@/src/types/market-context";
 import type {
@@ -338,17 +339,7 @@ export function AnalysisPanel({
           <CollapsedSection title="Data Sources" badge={`${availableSources.length} shown`}>
             <div className="mt-2 grid gap-2">
               {availableSources.map((source) => (
-                <div key={source.id} className="min-w-0 max-w-full overflow-hidden rounded-md bg-surface px-3 py-2">
-                  <div className="flex min-w-0 items-center justify-between gap-3">
-                    <span className="min-w-0 truncate text-sm font-semibold text-ink">{source.name}</span>
-                    <span className="shrink-0 rounded-full bg-white px-2 py-1 text-[11px] font-semibold text-muted">
-                      {source.status}
-                    </span>
-                  </div>
-                  <p className="mt-1 break-words text-xs leading-5 text-muted">
-                    {source.sourceType} / {source.reliabilityLevel} reliability
-                  </p>
-                </div>
+                <DataReadinessCard key={source.id} source={source} compact />
               ))}
             </div>
           </CollapsedSection>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { ValidationRequirementList } from "@/components/data-readiness";
 import { EvidenceSourceCards } from "@/components/evidence-source-cards";
 import { MapContextCard } from "@/components/map-context-card";
 import type { ExpressAnalysis, ScoreKey } from "@/src/types/geo";
@@ -356,21 +357,7 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
           </section>
         </div>
 
-        <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
-          <h2 className="text-lg font-semibold text-ink">Data Gaps / Validation Required</h2>
-          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            {[
-              "Official DLD transactions, ownership and recent comparable evidence",
-              "Dubai Municipality / GeoDubai land-use, zoning and planning controls",
-              "Transport, utility and infrastructure capacity confirmation",
-              "Customer or licensed commercial evidence before investment committee use"
-            ].map((item) => (
-              <div key={item} className="rounded-md border border-line bg-surface p-4 text-sm leading-6 text-muted">
-                {item}
-              </div>
-            ))}
-          </div>
-        </section>
+        <ValidationRequirementList evidence={analysis.evidence} />
 
         <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-3">

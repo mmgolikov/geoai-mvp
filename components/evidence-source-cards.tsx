@@ -1,5 +1,6 @@
 "use client";
 
+import { DataMaturityBadge, SourceStatusBadge } from "@/components/data-readiness";
 import { getDataSourceById } from "@/src/data/data-source-registry";
 import type { EvidenceItem } from "@/src/types/data-source";
 
@@ -11,7 +12,9 @@ type EvidenceSourceCardsProps = {
 function sourceTypeLabel(sourceType: EvidenceItem["sourceType"]) {
   const labels: Record<EvidenceItem["sourceType"], string> = {
     mock: "Demo",
+    demo: "Demo",
     open_data: "Open data",
+    open_geospatial: "Open geo",
     official: "Official",
     commercial: "Commercial",
     customer: "Customer"
@@ -39,9 +42,8 @@ export function EvidenceSourceCards({ evidence, compact = false }: EvidenceSourc
               <span className={`rounded-full px-2 py-1 text-[11px] font-semibold ${statusTone(item.sourceStatus)}`}>
                 {sourceTypeLabel(item.sourceType)}
               </span>
-              <span className="rounded-full bg-white px-2 py-1 text-[11px] font-semibold text-muted">
-                {item.sourceStatus}
-              </span>
+              <DataMaturityBadge source={source} />
+              <SourceStatusBadge source={source} />
               <span className="rounded-full bg-white px-2 py-1 text-[11px] font-semibold text-muted">
                 {source?.reliabilityLevel ?? item.confidence} reliability
               </span>
@@ -51,6 +53,7 @@ export function EvidenceSourceCards({ evidence, compact = false }: EvidenceSourc
             <div className="mt-4 border-t border-line pt-4 text-xs leading-5 text-muted">
               <p className="font-semibold text-ink">{source?.name ?? item.sourceId}</p>
               <p>{source?.provider ?? "Source provider unavailable"}</p>
+              <p className="mt-2">{source?.usageInGeoAI ?? "Evidence source context for current or planned validation."}</p>
               <p className="mt-2">{source?.licenseNote.note ?? "No source note available."}</p>
             </div>
           </article>

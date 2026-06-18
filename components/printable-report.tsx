@@ -1,6 +1,7 @@
 "use client";
 
 import { getDataSourceById } from "@/src/data/data-source-registry";
+import { deriveDataConfidenceLevel } from "@/src/data/data-maturity";
 import type { ComparisonResult, ExpressAnalysis, ScoreKey } from "@/src/types/geo";
 
 type PrintableReportProps =
@@ -114,6 +115,7 @@ function AnalysisPrintable({ analysis }: { analysis: ExpressAnalysis }) {
   const coordinates = formatCoordinate(analysis.point.latitude, analysis.point.longitude);
   const constraints = analysis.risks.slice(0, 4);
   const valueDrivers = analysis.keyFactors.slice(0, 6);
+  const dataConfidence = deriveDataConfidenceLevel(analysis.evidence);
 
   return (
     <article className="print-memo">
@@ -132,6 +134,7 @@ function AnalysisPrintable({ analysis }: { analysis: ExpressAnalysis }) {
         <PrintCard><strong>Scenario</strong><span>{analysis.title}</span></PrintCard>
         <PrintCard><strong>Generated</strong><span>{formatDate(analysis.generatedAt)}</span></PrintCard>
         <PrintCard><strong>Confidence</strong><span>{analysis.confidenceLevel ?? "medium"}</span></PrintCard>
+        <PrintCard><strong>Data confidence</strong><span>{dataConfidence}</span></PrintCard>
         <PrintCard><strong>Decision posture</strong><span>{analysis.nextActions[0] ?? "Proceed to validation"}</span></PrintCard>
       </section>
 
@@ -195,6 +198,14 @@ function AnalysisPrintable({ analysis }: { analysis: ExpressAnalysis }) {
           <li>Infrastructure, transport and utility capacity checks.</li>
           <li>Customer or licensed commercial evidence before underwriting.</li>
         </ul>
+      </PrintSection>
+
+      <PrintSection title="Data Confidence / Validation Path">
+        <div className="print-score-grid">
+          <PrintCard><strong>Used in prototype</strong><span>Synthetic demo layers, seed_static context and deterministic scoring.</span></PrintCard>
+          <PrintCard><strong>Official validation</strong><span>DLD, Dubai Pulse and Dubai Municipality / GeoDubai should validate conclusions.</span></PrintCard>
+          <PrintCard><strong>Pilot integration</strong><span>Adapter stubs define the next path for permitted official, open, licensed and customer data.</span></PrintCard>
+        </div>
       </PrintSection>
 
       <PrintSection title="Evidence / Data Used">

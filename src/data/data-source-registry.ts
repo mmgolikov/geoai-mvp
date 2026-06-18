@@ -1,7 +1,7 @@
 import type { DataSource, EvidenceItem } from "@/src/types/data-source";
 import type { AnalysisScenarioId } from "@/src/types/geo";
 
-export const dataSourceRegistry: DataSource[] = [
+const baseDataSourceRegistry: DataSource[] = [
   {
     id: "synthetic-demo-layers",
     name: "Synthetic Demo Layers",
@@ -23,6 +23,45 @@ export const dataSourceRegistry: DataSource[] = [
     },
     reliabilityLevel: "demo",
     lastUpdated: "2026-06-17",
+    usedInScenarios: [
+      "realEstateDevelopment",
+      "investmentSiteSelection",
+      "constructionMonitoring",
+      "infrastructureUrbanPlanning",
+      "climateRisk",
+      "customQuery"
+    ]
+  },
+  {
+    id: "demo-market-context-seed",
+    name: "Demo Market Context / seed_static",
+    category: "demo",
+    geography: "Dubai demo market areas",
+    description: "Seed_static demo-normalized market context used for area matching, qualitative indices and data quality notes.",
+    provider: "GeoAI demo",
+    sourceType: "mock",
+    status: "mock",
+    integrationStatus: "active_demo",
+    updateFrequency: "Static demo",
+    coverage: {
+      geography: "Dubai-focused seed areas",
+      spatialResolution: "Area-level matching",
+      temporalCoverage: "Prototype baseline"
+    },
+    licenseNote: {
+      type: "synthetic",
+      note: "Seed/demo-normalized market context. Not official market data and not decision-grade."
+    },
+    accessNote: "No external access required for the public prototype.",
+    usageInGeoAI: "Used to demonstrate how market context, confidence notes and validation paths appear in analysis.",
+    limitations: "Does not represent official DLD, rental, transaction, zoning or absorption evidence.",
+    recommendedNextStep: "Validate against DLD, Dubai Pulse, customer and/or licensed datasets during pilot setup.",
+    maturityLevel: "demo_normalized",
+    usedInCurrentPrototype: true,
+    plannedForPilot: false,
+    decisionGrade: false,
+    reliabilityLevel: "demo",
+    lastUpdated: "2026-06-18",
     usedInScenarios: [
       "realEstateDevelopment",
       "investmentSiteSelection",
@@ -270,6 +309,43 @@ export const dataSourceRegistry: DataSource[] = [
     ]
   }
 ];
+
+function enrichDataSource(source: DataSource): DataSource {
+  const sourceTypeDefaults: Record<DataSource["sourceType"], NonNullable<DataSource["maturityLevel"]>> = {
+    mock: "demo_normalized",
+    demo: "demo_normalized",
+    open_data: "open_ready",
+    open_geospatial: "open_ready",
+    official: "official_ready",
+    commercial: "licensed_commercial_ready",
+    customer: "customer_provided"
+  };
+  const integrationStatus = source.integrationStatus ??
+    (source.status === "mock"
+      ? "active_demo"
+      : source.sourceType === "official"
+        ? "official_ready"
+        : source.sourceType === "commercial"
+          ? "requires_license"
+          : source.sourceType === "customer"
+            ? "future"
+            : "planned");
+
+  return {
+    ...source,
+    integrationStatus,
+    accessNote: source.accessNote ?? "Access path and permissions must be confirmed before pilot integration.",
+    usageInGeoAI: source.usageInGeoAI ?? "Planned validation source for GeoAI evidence, analysis and reporting workflows.",
+    limitations: source.limitations ?? "Not connected live in the current public prototype.",
+    recommendedNextStep: source.recommendedNextStep ?? "Confirm access, licensing, attribution, data schema and QA requirements.",
+    maturityLevel: source.maturityLevel ?? sourceTypeDefaults[source.sourceType],
+    usedInCurrentPrototype: source.usedInCurrentPrototype ?? source.status === "mock",
+    plannedForPilot: source.plannedForPilot ?? source.status !== "mock",
+    decisionGrade: source.decisionGrade ?? false
+  };
+}
+
+export const dataSourceRegistry: DataSource[] = baseDataSourceRegistry.map(enrichDataSource);
 
 export function getDataSourceById(sourceId: string) {
   return dataSourceRegistry.find((source) => source.id === sourceId) ?? null;
