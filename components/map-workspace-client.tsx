@@ -10,6 +10,13 @@ import type { DemoLayerId, SelectedDemoObject, SelectedPoint } from "@/src/types
 
 const defaultCenter: [number, number] = [55.235, 25.12];
 const defaultZoom = 9.75;
+const basemapOptions = [
+  { id: "streets", label: "Streets", styleUrl: "mapbox://styles/mapbox/streets-v12" },
+  { id: "light", label: "Light", styleUrl: "mapbox://styles/mapbox/light-v11" },
+  { id: "satellite", label: "Satellite", styleUrl: "mapbox://styles/mapbox/satellite-streets-v12" }
+] as const;
+
+type BasemapStyleId = (typeof basemapOptions)[number]["id"];
 
 function getMapboxToken() {
   return process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
@@ -559,6 +566,36 @@ function addHoverObjectLayer(map: MapboxMap) {
   }
 }
 
+function syncLayerVisibility(map: MapboxMap, visibility: Record<DemoLayerId, boolean>) {
+  demoLayers.forEach((layer) => {
+    const layerVisibility = visibility[layer.id] ? "visible" : "none";
+    getLayerIds(layer).forEach((layerId) => {
+      if (map.getLayer(layerId)) {
+        map.setLayoutProperty(layerId, "visibility", layerVisibility);
+      }
+    });
+  });
+}
+
+function syncSelectedObjectSource(map: MapboxMap, selectedObject: SelectedDemoObject | null) {
+  const source = map.getSource(selectedObjectSourceId) as GeoJSONSource | undefined;
+  const selectedFeature = selectedObject ? getDemoFeatureById(selectedObject.id) : null;
+  source?.setData(toFeatureCollection(selectedFeature ? [selectedFeature] : []));
+}
+
+function attachGeoAiMapLayers(
+  map: MapboxMap,
+  visibility: Record<DemoLayerId, boolean>,
+  selectedObject: SelectedDemoObject | null
+) {
+  addOpenGeodataLayers(map);
+  demoLayers.forEach((layer) => addDemoLayerToMap(map, layer));
+  addSelectedObjectLayer(map);
+  addHoverObjectLayer(map);
+  syncLayerVisibility(map, visibility);
+  syncSelectedObjectSource(map, selectedObject);
+}
+
 export function MapWorkspaceClient({
   selectedPoint,
   selectedObject = null,
@@ -574,9 +611,11 @@ export function MapWorkspaceClient({
   const hoverPopupRef = useRef<MapboxPopup | null>(null);
   const onPointSelectRef = useRef(onPointSelect);
   const onObjectSelectRef = useRef(onObjectSelect);
+  const selectedObjectRef = useRef<SelectedDemoObject | null>(selectedObject);
   const layerVisibilityRef = useRef(initialLayerVisibility);
   const [layerVisibility, setLayerVisibility] = useState(initialLayerVisibility);
   const [layersExpanded, setLayersExpanded] = useState(false);
+  const [basemapStyle, setBasemapStyle] = useState<BasemapStyleId>("streets");
   const [isMapReady, setIsMapReady] = useState(false);
   const [mapResourceError, setMapResourceError] = useState<string | null>(null);
   const mapboxToken = getMapboxToken();
@@ -589,6 +628,10 @@ export function MapWorkspaceClient({
   useEffect(() => {
     onObjectSelectRef.current = onObjectSelect;
   }, [onObjectSelect]);
+
+  useEffect(() => {
+    selectedObjectRef.current = selectedObject;
+  }, [selectedObject]);
 
   useEffect(() => {
     layerVisibilityRef.current = layerVisibility;
@@ -636,7 +679,7 @@ export function MapWorkspaceClient({
       mapboxgl.accessToken = mapboxToken;
       mapRef.current = new mapboxgl.Map({
         container: mapContainerRef.current,
-        style: "mapbox://styles/mapbox/streets-v12",
+        style: basemapOptions[0].styleUrl,
         center: defaultCenter,
         zoom: defaultZoom
       });
@@ -658,17 +701,21 @@ export function MapWorkspaceClient({
         );
       });
 
-      mapRef.current.on("load", () => {
+      const handleStyleReady = () => {
         if (isMounted) {
           setMapResourceError(null);
-          addOpenGeodataLayers(mapRef.current as MapboxMap);
-          demoLayers.forEach((layer) => addDemoLayerToMap(mapRef.current as MapboxMap, layer));
-          addSelectedObjectLayer(mapRef.current as MapboxMap);
-          addHoverObjectLayer(mapRef.current as MapboxMap);
+          attachGeoAiMapLayers(
+            mapRef.current as MapboxMap,
+            layerVisibilityRef.current,
+            selectedObjectRef.current
+          );
           window.setTimeout(() => mapRef.current?.resize(), 0);
           setIsMapReady(true);
         }
-      });
+      };
+
+      mapRef.current.on("load", handleStyleReady);
+      mapRef.current.on("style.load", handleStyleReady);
 
       mapRef.current.on("mousemove", (event) => {
         const interactiveLayers = getInteractiveLayerIds(layerVisibilityRef.current).filter((layerId) =>
@@ -772,6 +819,26 @@ export function MapWorkspaceClient({
   }, [canUseMapbox, mapboxToken]);
 
   useEffect(() => {
+    if (!canUseMapbox || !mapRef.current || !isMapReady) {
+      return;
+    }
+
+    const nextStyle = basemapOptions.find((option) => option.id === basemapStyle) ?? basemapOptions[0];
+    const currentStyle = mapRef.current.getStyle();
+
+    if (currentStyle?.sprite?.includes(nextStyle.id) || currentStyle?.name?.toLowerCase().includes(nextStyle.id)) {
+      return;
+    }
+
+    try {
+      mapRef.current.setStyle(nextStyle.styleUrl);
+      setMapResourceError(null);
+    } catch {
+      setMapResourceError("Basemap style could not be loaded. Keeping the current map style.");
+    }
+  }, [basemapStyle, canUseMapbox, isMapReady]);
+
+  useEffect(() => {
     if (!canUseMapbox || !mapRef.current || !selectedPoint) {
       markerRef.current?.remove();
       markerRef.current = null;
@@ -837,14 +904,7 @@ export function MapWorkspaceClient({
       return;
     }
 
-    demoLayers.forEach((layer) => {
-      const visibility = layerVisibility[layer.id] ? "visible" : "none";
-      getLayerIds(layer).forEach((layerId) => {
-        if (mapRef.current?.getLayer(layerId)) {
-          mapRef.current.setLayoutProperty(layerId, "visibility", visibility);
-        }
-      });
-    });
+    syncLayerVisibility(mapRef.current, layerVisibility);
 
     const hoverSource = mapRef.current.getSource(hoverObjectSourceId) as GeoJSONSource | undefined;
     hoverSource?.setData(toFeatureCollection([]));
@@ -855,14 +915,7 @@ export function MapWorkspaceClient({
       return;
     }
 
-    const source = mapRef.current.getSource(selectedObjectSourceId) as GeoJSONSource | undefined;
-
-    if (!source) {
-      return;
-    }
-
-    const selectedFeature = selectedObject ? getDemoFeatureById(selectedObject.id) : null;
-    source.setData(toFeatureCollection(selectedFeature ? [selectedFeature] : []));
+    syncSelectedObjectSource(mapRef.current, selectedObject);
   }, [canUseMapbox, isMapReady, selectedObject]);
 
   function handleFallbackClick(event: React.MouseEvent<HTMLElement>) {
@@ -948,88 +1001,91 @@ export function MapWorkspaceClient({
 
       {canUseMapbox && showLayerControls ? (
         <div
-          className="absolute right-5 top-5 z-10 w-[290px] rounded-lg border border-white/75 bg-white/92 p-3 shadow-soft backdrop-blur"
+          className={`absolute right-5 top-5 z-20 max-w-[calc(100%-40px)] rounded-lg border border-white/75 bg-white/92 shadow-soft backdrop-blur ${layersExpanded ? "flex w-[280px] flex-col overflow-hidden p-2.5" : "w-auto p-0"}`}
+          style={{ maxHeight: layersExpanded ? "calc(100% - 112px)" : undefined }}
           onClick={(event) => event.stopPropagation()}
         >
           <button
             type="button"
             onClick={() => setLayersExpanded((isExpanded) => !isExpanded)}
-            className="flex w-full items-center justify-between gap-3 text-left"
+            className={`flex w-full items-center justify-between gap-3 text-left ${layersExpanded ? "" : "h-10 rounded-lg px-3"}`}
           >
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">
+            <div className="min-w-0">
+              <p className={`font-semibold uppercase tracking-[0.12em] text-muted ${layersExpanded ? "text-[10px]" : "text-[10px]"}`}>
                 Spatial layers
               </p>
-              <h2 className="mt-1 text-sm font-semibold text-ink">Basemap + GeoAI signals</h2>
+              <h2 className={`truncate font-semibold text-ink ${layersExpanded ? "mt-0.5 text-sm" : "text-xs"}`}>
+                {layersExpanded ? "Basemap + GeoAI signals" : `Layers · ${activeLayerCount}`}
+              </h2>
             </div>
-            <span className="rounded-full bg-surface px-2 py-1 text-[11px] font-semibold text-brand">
+            <span className="shrink-0 rounded-full bg-surface px-2 py-1 text-[10px] font-semibold text-brand">
               {activeLayerCount} active
             </span>
           </button>
 
           {layersExpanded ? (
-            <div className="mt-3">
-              <div className="mb-2 flex gap-2">
+            <div className="mt-2 min-h-0 overflow-y-auto pr-1">
+              <div className="mb-2 flex gap-1.5">
                 <button
                   type="button"
                   onClick={() => setAllLayers(true)}
-                  className="h-8 flex-1 rounded-md border border-line bg-white text-xs font-semibold text-ink transition hover:border-brand"
+                  className="h-7 flex-1 rounded-md border border-line bg-white text-[11px] font-semibold text-ink transition hover:border-brand"
                 >
                   Show all
                 </button>
                 <button
                   type="button"
                   onClick={() => setAllLayers(false)}
-                  className="h-8 flex-1 rounded-md border border-line bg-white text-xs font-semibold text-ink transition hover:border-brand"
+                  className="h-7 flex-1 rounded-md border border-line bg-white text-[11px] font-semibold text-ink transition hover:border-brand"
                 >
                   Hide all
                 </button>
               </div>
 
-              <div className="rounded-md border border-line bg-white px-3 py-2">
+              <div className="rounded-md border border-line bg-white px-2.5 py-2">
                 <div className="flex items-center justify-between gap-2">
                   <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-muted">Basemap Context</p>
-                    <p className="mt-1 text-xs font-semibold text-ink">Roads, coastline, labels, places</p>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted">Basemap Context</p>
+                    <p className="mt-0.5 text-xs font-semibold text-ink">Roads, coastline, labels</p>
                   </div>
-                  <span className="rounded-full bg-[#eaf4ef] px-2 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-[#276749]">
+                  <span className="rounded-full bg-[#eaf4ef] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.08em] text-[#276749]">
                     live
                   </span>
                 </div>
               </div>
 
-              <div className="mt-2 grid gap-2">
-                <p className="px-1 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted">
+              <div className="mt-2 grid gap-1.5">
+                <p className="px-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-muted">
                   Open Geospatial Baseline
                 </p>
-                <div className="rounded-md border border-line bg-white px-3 py-2">
-                  <div className="grid gap-1.5 text-xs text-muted">
+                <div className="rounded-md border border-line bg-white px-2.5 py-2">
+                  <div className="grid gap-1 text-[11px] text-muted">
                     <div className="flex items-center justify-between gap-2">
                       <span className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-sm bg-[#536d7a]" />Roads / access</span>
-                      <span className="rounded-full bg-surface px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em]">OSM-style sample</span>
+                      <span className="rounded-full bg-surface px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.06em]">OSM-style</span>
                     </div>
                     <div className="flex items-center justify-between gap-2">
                       <span className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-[#1f6b83]" />POI / anchors</span>
-                      <span className="rounded-full bg-surface px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em]">open-data context</span>
+                      <span className="rounded-full bg-surface px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.06em]">open</span>
                     </div>
                     <div className="flex items-center justify-between gap-2">
                       <span className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-sm bg-[#9bb5a6]" />Landuse context</span>
-                      <span className="rounded-full bg-surface px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em]">not official GIS</span>
+                      <span className="rounded-full bg-surface px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.06em]">not official</span>
                     </div>
                   </div>
                 </div>
 
-                <p className="mt-2 px-1 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted">
+                <p className="mt-1.5 px-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-muted">
                   GeoAI Demo Analytical Overlays
                 </p>
                 {demoOverlayLayers.map((layer) => (
-                  <label key={layer.id} className="flex cursor-pointer items-center justify-between gap-3 rounded-md border border-line bg-surface px-3 py-2">
+                  <label key={layer.id} className="flex cursor-pointer items-center justify-between gap-2 rounded-md border border-line bg-surface px-2.5 py-1.5">
                     <span className="flex min-w-0 items-center gap-2">
                       <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ backgroundColor: layer.color }} />
                       <span className="min-w-0">
-                        <span className="block truncate text-xs font-semibold text-ink">{layer.legendLabel}</span>
-                        <span className="block truncate text-[10px] font-semibold uppercase tracking-[0.08em] text-muted">
-                          {layer.category} · {getLayerSourceModeLabel(layer)}
+                        <span className="block truncate text-[11px] font-semibold text-ink">{layer.legendLabel}</span>
+                        <span className="block truncate text-[9px] font-semibold uppercase tracking-[0.06em] text-muted">
+                          {getLayerSourceModeLabel(layer)}
                         </span>
                       </span>
                     </span>
@@ -1043,15 +1099,15 @@ export function MapWorkspaceClient({
                 ))}
               </div>
 
-              <div className="mt-3 rounded-md border border-line bg-white px-3 py-2">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-muted">
+              <div className="mt-2 rounded-md border border-line bg-white px-2.5 py-2">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted">
                   Planned Official / Customer Layers
                 </p>
-                <div className="mt-2 grid gap-1.5">
+                <div className="mt-1.5 grid gap-1">
                   {plannedLayerRows.map((item) => (
-                    <div key={item} className="flex items-center justify-between gap-2 text-xs text-muted">
+                    <div key={item} className="flex items-center justify-between gap-2 text-[11px] text-muted">
                       <span className="truncate">{item}</span>
-                      <span className="rounded-full bg-surface px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-muted">
+                      <span className="rounded-full bg-surface px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.06em] text-muted">
                         planned
                       </span>
                     </div>
@@ -1059,11 +1115,34 @@ export function MapWorkspaceClient({
                 </div>
               </div>
 
-              <div className="mt-3 rounded-md bg-white px-3 py-2 text-xs leading-5 text-muted">
+              <div className="mt-2 rounded-md bg-white px-2.5 py-2 text-[11px] leading-4 text-muted">
                 GeoAI overlays are demo-normalized screening layers, not official GIS, parcel, zoning, planning, or risk boundaries.
               </div>
             </div>
           ) : null}
+        </div>
+      ) : null}
+
+      {canUseMapbox ? (
+        <div
+          className="absolute bottom-5 right-5 z-20 flex max-w-[calc(100%-40px)] gap-1 rounded-lg border border-white/75 bg-white/92 p-1 shadow-soft backdrop-blur"
+          onClick={(event) => event.stopPropagation()}
+          aria-label="Basemap style switcher"
+        >
+          {basemapOptions.map((option) => (
+            <button
+              key={option.id}
+              type="button"
+              onClick={() => setBasemapStyle(option.id)}
+              className={`h-8 rounded-md px-2.5 text-[11px] font-semibold transition ${
+                basemapStyle === option.id
+                  ? "bg-brand text-white"
+                  : "text-muted hover:bg-surface hover:text-ink"
+              }`}
+            >
+              {option.label}
+            </button>
+          ))}
         </div>
       ) : null}
 
