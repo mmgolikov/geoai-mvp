@@ -216,9 +216,9 @@ function LandingHeader() {
 
 function HeroVisual() {
   const metrics = [
-    ["Market", "Dubai Marina", "seed sample"],
-    ["Evidence", "Polygon", "selected"],
-    ["Risk review", "Validation", "required"],
+    ["Market", "Dubai Marina", "sample"],
+    ["Evidence", "Polygon selected", "demo"],
+    ["Risk", "Validation gap", "review"],
     ["Confidence", "Demo + upload", "not official"]
   ];
 
@@ -247,11 +247,11 @@ function HeroVisual() {
         <div className="grid min-h-0 gap-2.5 p-2.5 lg:h-[320px] lg:grid-cols-[minmax(0,1.58fr)_minmax(240px,0.9fr)] xl:h-[336px]">
           <div className="relative min-h-[260px] overflow-hidden rounded-lg border border-line bg-white lg:min-h-0">
             <LandingHeroMap />
-            <div className="pointer-events-none absolute left-3 top-3 z-20 max-w-[230px] rounded-md border border-white bg-white/95 px-3 py-2 shadow-sm backdrop-blur">
+            <div className="pointer-events-none absolute left-3 top-3 z-30 max-w-[230px] rounded-md border border-white bg-white/96 px-3 py-2 shadow-sm backdrop-blur">
               <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-brand">Selected site</p>
               <p className="mt-1 truncate text-sm font-semibold text-ink">Dubai Marina screening area</p>
             </div>
-            <div className="pointer-events-none absolute left-[39%] top-[38%] z-10 h-[72px] w-[120px] rotate-[-9deg] rounded-[42%] border-2 border-brand/75 bg-brand/10 shadow-sm" />
+            <div className="pointer-events-none absolute left-[52%] top-[42%] z-10 h-[76px] w-[124px] rotate-[-9deg] rounded-[42%] border-2 border-brand/70 bg-brand/10 shadow-sm" />
             <div className="pointer-events-none absolute bottom-3 left-3 right-3 flex flex-wrap gap-1.5">
               {["Market context", "Spatial layers", "Risk signals"].map((item) => (
                 <span key={item} className="rounded-full border border-white/80 bg-white/90 px-2 py-1 text-[10px] font-semibold text-muted shadow-sm">
@@ -261,7 +261,7 @@ function HeroVisual() {
             </div>
           </div>
 
-          <aside className="grid min-h-0 grid-rows-[auto_auto_minmax(0,1fr)] gap-2 overflow-hidden rounded-lg border border-line bg-white p-2.5">
+          <aside className="flex min-h-0 flex-col gap-2 overflow-hidden rounded-lg border border-line bg-white p-2.5">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">Decision summary</p>
@@ -269,33 +269,21 @@ function HeroVisual() {
               </div>
               <span className="shrink-0 rounded-full bg-[#edf4f2] px-2 py-1 text-[10px] font-semibold text-brand">memo</span>
             </div>
-            <div className="grid grid-cols-[0.74fr_1fr] gap-2">
-              <div className="rounded-md bg-[#edf4f2] p-2.5">
+            <div className="grid gap-2">
+              <div className="rounded-md bg-[#edf4f2] p-3">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-brand">Score</p>
-                <p className="mt-1 text-3xl font-semibold leading-none text-brand">82</p>
-                <p className="mt-1 text-[11px] text-muted">/100 suitability</p>
+                <div className="mt-1 flex items-end gap-1.5">
+                  <p className="text-4xl font-semibold leading-none text-brand">82</p>
+                  <p className="pb-1 text-xs font-semibold text-brand/70">/100</p>
+                </div>
               </div>
-              <div className="grid gap-2">
-                {[
-                  ["Key risk", "Validation required"],
-                  ["Next action", "Due diligence"]
-                ].map(([label, value]) => (
-                  <div key={label} className="min-w-0 overflow-hidden rounded-md border border-line bg-surface px-2.5 py-2">
-                    <p className="truncate text-[10px] font-semibold uppercase tracking-[0.1em] text-muted">{label}</p>
-                    <p className="mt-1 text-xs font-semibold leading-4 text-ink">{value}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="grid min-h-0 content-start gap-2">
               {[
-                ["Output", "Memo + checklist"],
-                ["Evidence", "Demo + upload"],
-                ["Confidence", "Not live official"]
+                ["Risk", "Validation required"],
+                ["Next", "Due diligence memo"]
               ].map(([label, value]) => (
-                <div key={label} className="min-w-0 overflow-hidden rounded-md border border-line bg-white px-3 py-2">
+                <div key={label} className="min-w-0 rounded-md border border-line bg-surface px-3 py-2">
                   <p className="truncate text-[10px] font-semibold uppercase tracking-[0.1em] text-muted">{label}</p>
-                  <p className="mt-1 truncate text-sm font-semibold leading-5 text-ink">{value}</p>
+                  <p className="mt-1 text-sm font-semibold leading-5 text-ink">{value}</p>
                 </div>
               ))}
             </div>

@@ -19,9 +19,9 @@ function FallbackHeroMap() {
       <div className="absolute left-[10%] top-[24%] h-24 w-[44%] rotate-[-8deg] rounded-[28px] border border-brand/45 bg-brand/12" />
       <div className="absolute right-[10%] top-[18%] h-28 w-[36%] rounded-[30px] border border-[#c5a76a]/60 bg-[#c5a76a]/18" />
       <div className="absolute bottom-[20%] left-[18%] h-28 w-[46%] rotate-[7deg] rounded-[30px] border border-[#2c7fb8]/50 bg-[#2c7fb8]/12" />
-      <div className="absolute left-[52%] top-[48%] flex -translate-x-1/2 -translate-y-1/2 items-center gap-2">
+      <div className="absolute left-[36%] top-[32%] z-20 flex -translate-x-1/2 -translate-y-1/2 items-center gap-2">
         <span className="h-5 w-5 rounded-full border-4 border-white bg-brand shadow-soft" />
-        <span className="rounded-full bg-white/95 px-3 py-1 text-xs font-semibold text-ink shadow-sm">
+        <span className="rounded-full border border-white bg-white/96 px-3 py-1 text-xs font-semibold text-ink shadow-sm backdrop-blur">
           Selected site: Dubai Marina
         </span>
       </div>
@@ -98,9 +98,9 @@ export function LandingHeroMap() {
       <div className="pointer-events-none absolute left-5 top-5 rounded-md border border-white/80 bg-white/92 px-3 py-2 text-xs font-semibold text-muted shadow-sm">
         Demo layers active
       </div>
-      <div className="pointer-events-none absolute left-[48%] top-[48%] flex -translate-x-1/2 -translate-y-1/2 items-center gap-2">
+      <div className="pointer-events-none absolute left-[36%] top-[32%] z-20 flex -translate-x-1/2 -translate-y-1/2 items-center gap-2">
         <span className="h-5 w-5 rounded-full border-4 border-white bg-brand shadow-soft" />
-        <span className="rounded-full bg-white/95 px-3 py-1 text-xs font-semibold text-ink shadow-sm">
+        <span className="rounded-full border border-white bg-white/96 px-3 py-1 text-xs font-semibold text-ink shadow-sm backdrop-blur">
           Selected site: Dubai Marina
         </span>
       </div>
