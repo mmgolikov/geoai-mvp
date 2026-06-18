@@ -5,11 +5,12 @@ import { demoLayers, getDemoFeatureById } from "@/src/data/demo-layers";
 import { openGeodataBaseline } from "@/src/lib/open-geodata";
 import type { OpenLanduseFeature, OpenPoiFeature, OpenRoadFeature } from "@/src/lib/open-geodata";
 import type { Map as MapboxMap, Marker as MapboxMarker } from "mapbox-gl";
-import type { ComparisonResult, SelectedDemoObject, SelectedPoint } from "@/src/types/geo";
+import type { AnalysisTarget, ComparisonResult, SelectedDemoObject, SelectedPoint } from "@/src/types/geo";
 
 type ReportMapPreviewProps = {
   selectedPoint?: SelectedPoint | null;
   selectedObject?: SelectedDemoObject | null;
+  analysisTarget?: AnalysisTarget | null;
   comparison?: ComparisonResult;
   compact?: boolean;
 };
@@ -58,10 +59,43 @@ function getMarkers({
 function getSelectedFeatures(selectedObject?: SelectedDemoObject | null, comparison?: ComparisonResult) {
   if (comparison) {
     return comparison.items
-      .map((item) => item.item.selectedObject?.id)
-      .filter((id): id is string => Boolean(id))
-      .map((id) => getDemoFeatureById(id))
-      .filter((feature): feature is NonNullable<ReturnType<typeof getDemoFeatureById>> => Boolean(feature));
+      .map((item) => {
+        const target = item.item.selectedObject?.analysisTarget;
+        if (target?.geometry) {
+          return {
+            type: "Feature",
+            id: target.id,
+            properties: {
+              id: target.id,
+              name: target.label,
+              fillColor: target.type === "uploaded-feature" ? "#6b7fd7" : "#174f63",
+              strokeColor: target.type === "uploaded-feature" ? "#3447a5" : "#0b5a6e"
+            },
+            geometry: target.geometry
+          } satisfies GeoJSON.Feature;
+        }
+
+        const demoId = item.item.selectedObject?.id;
+        return demoId ? getDemoFeatureById(demoId) : null;
+      })
+      .filter(Boolean) as GeoJSON.Feature[];
+  }
+
+  const target = selectedObject?.analysisTarget;
+  if (target?.geometry) {
+    return [
+      {
+        type: "Feature",
+        id: target.id,
+        properties: {
+          id: target.id,
+          name: target.label,
+          fillColor: target.type === "uploaded-feature" ? "#6b7fd7" : "#174f63",
+          strokeColor: target.type === "uploaded-feature" ? "#3447a5" : "#0b5a6e"
+        },
+        geometry: target.geometry
+      } satisfies GeoJSON.Feature
+    ];
   }
 
   const feature = selectedObject ? getDemoFeatureById(selectedObject.id) : null;
@@ -73,6 +107,36 @@ function toFeatureCollection(features: unknown[]): GeoJSON.FeatureCollection {
     type: "FeatureCollection",
     features: features as GeoJSON.Feature[]
   };
+}
+
+function collectGeometryCoordinates(geometry: GeoJSON.Geometry): [number, number][] {
+  if (geometry.type === "Point") return [geometry.coordinates as [number, number]];
+  if (geometry.type === "MultiPoint" || geometry.type === "LineString") return geometry.coordinates as [number, number][];
+  if (geometry.type === "MultiLineString" || geometry.type === "Polygon") return geometry.coordinates.flat(1) as [number, number][];
+  if (geometry.type === "MultiPolygon") return geometry.coordinates.flat(2) as [number, number][];
+  return [];
+}
+
+function getFeatureBounds(features: GeoJSON.Feature[]) {
+  const coordinates = features.flatMap((feature) => collectGeometryCoordinates(feature.geometry));
+  if (coordinates.length === 0) {
+    return null;
+  }
+
+  return coordinates.reduce(
+    (bounds, coordinate) => ({
+      minLng: Math.min(bounds.minLng, coordinate[0]),
+      minLat: Math.min(bounds.minLat, coordinate[1]),
+      maxLng: Math.max(bounds.maxLng, coordinate[0]),
+      maxLat: Math.max(bounds.maxLat, coordinate[1])
+    }),
+    {
+      minLng: coordinates[0][0],
+      minLat: coordinates[0][1],
+      maxLng: coordinates[0][0],
+      maxLat: coordinates[0][1]
+    }
+  );
 }
 
 function openRoadToFeature(road: OpenRoadFeature): GeoJSON.Feature {
@@ -140,6 +204,7 @@ function FallbackMap({
 export function ReportMapPreview({
   selectedPoint = null,
   selectedObject = null,
+  analysisTarget = null,
   comparison,
   compact = false
 }: ReportMapPreviewProps) {
@@ -154,11 +219,26 @@ export function ReportMapPreview({
     [comparison, selectedObject, selectedPoint]
   );
   const selectedFeatures = useMemo(
-    () => getSelectedFeatures(selectedObject, comparison),
-    [comparison, selectedObject]
+    () => analysisTarget?.geometry
+      ? [
+          {
+            type: "Feature",
+            id: analysisTarget.id,
+            properties: {
+              id: analysisTarget.id,
+              name: analysisTarget.label,
+              fillColor: analysisTarget.type === "uploaded-feature" ? "#6b7fd7" : "#174f63",
+              strokeColor: analysisTarget.type === "uploaded-feature" ? "#3447a5" : "#0b5a6e"
+            },
+            geometry: analysisTarget.geometry
+          } satisfies GeoJSON.Feature
+        ]
+      : getSelectedFeatures(selectedObject, comparison),
+    [analysisTarget, comparison, selectedObject]
   );
   const mapKey = [
     selectedObject?.id ?? "point",
+    analysisTarget?.id ?? "no-target",
     selectedPoint?.latitude ?? selectedObject?.center.latitude ?? "no-lat",
     selectedPoint?.longitude ?? selectedObject?.center.longitude ?? "no-lng",
     comparison?.id ?? "single"
@@ -339,6 +419,32 @@ export function ReportMapPreview({
               .setLngLat([marker.point.longitude, marker.point.latitude])
               .addTo(map)
           );
+          const selectedBounds = getFeatureBounds(selectedFeatures);
+          if (selectedBounds) {
+            const isPointLike =
+              selectedBounds.minLng === selectedBounds.maxLng &&
+              selectedBounds.minLat === selectedBounds.maxLat;
+
+            if (isPointLike) {
+              map.easeTo({
+                center: [selectedBounds.minLng, selectedBounds.minLat],
+                zoom: comparison ? 9.8 : selectedObject ? 12.2 : 11.2,
+                duration: 0
+              });
+            } else {
+              map.fitBounds(
+                [
+                  [selectedBounds.minLng, selectedBounds.minLat],
+                  [selectedBounds.maxLng, selectedBounds.maxLat]
+                ],
+                {
+                  padding: compact ? 32 : 58,
+                  duration: 0,
+                  maxZoom: 13.6
+                }
+              );
+            }
+          }
           resize();
           window.setTimeout(resize, 120);
         });

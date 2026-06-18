@@ -6,7 +6,7 @@ import type { DemoLayer, DemoLayerFeature } from "@/src/data/demo-layers";
 import { openGeodataBaseline } from "@/src/lib/open-geodata";
 import type { OpenLanduseFeature, OpenPoiFeature, OpenRoadFeature } from "@/src/lib/open-geodata";
 import type { GeoJSONSource, Map as MapboxMap, MapboxGeoJSONFeature, Marker as MapboxMarker, Popup as MapboxPopup } from "mapbox-gl";
-import type { DemoLayerId, SelectedDemoObject, SelectedPoint } from "@/src/types/geo";
+import type { DemoLayerId, DemoLayerType, SelectedDemoObject, SelectedPoint } from "@/src/types/geo";
 import type { UploadedDataset } from "@/src/types/uploaded-data";
 
 const defaultCenter: [number, number] = [55.235, 25.12];
@@ -88,6 +88,46 @@ function toFeatureCollection(features: unknown[]): GeoJSON.FeatureCollection {
   return {
     type: "FeatureCollection",
     features: features as GeoJSON.Feature[]
+  };
+}
+
+function toDemoGeometryType(geometryType: GeoJSON.Geometry["type"]): DemoLayerType {
+  if (geometryType === "Point" || geometryType === "MultiPoint") {
+    return "point";
+  }
+
+  if (geometryType === "LineString" || geometryType === "MultiLineString") {
+    return "line";
+  }
+
+  return "polygon";
+}
+
+function collectGeometryCoordinates(geometry: GeoJSON.Geometry): [number, number][] {
+  if (geometry.type === "Point") return [geometry.coordinates as [number, number]];
+  if (geometry.type === "MultiPoint" || geometry.type === "LineString") return geometry.coordinates as [number, number][];
+  if (geometry.type === "MultiLineString" || geometry.type === "Polygon") return geometry.coordinates.flat(1) as [number, number][];
+  if (geometry.type === "MultiPolygon") return geometry.coordinates.flat(2) as [number, number][];
+  return [];
+}
+
+function getGeometryCenter(geometry: GeoJSON.Geometry, fallback: SelectedPoint): SelectedPoint {
+  const coordinates = collectGeometryCoordinates(geometry);
+  if (coordinates.length === 0) {
+    return fallback;
+  }
+
+  const total = coordinates.reduce(
+    (sum, coordinate) => ({
+      longitude: sum.longitude + coordinate[0],
+      latitude: sum.latitude + coordinate[1]
+    }),
+    { longitude: 0, latitude: 0 }
+  );
+
+  return {
+    longitude: total.longitude / coordinates.length,
+    latitude: total.latitude / coordinates.length
   };
 }
 
@@ -707,7 +747,20 @@ function syncLayerVisibility(map: MapboxMap, visibility: Record<DemoLayerId, boo
 function syncSelectedObjectSource(map: MapboxMap, selectedObject: SelectedDemoObject | null) {
   const source = map.getSource(selectedObjectSourceId) as GeoJSONSource | undefined;
   const selectedFeature = selectedObject ? getDemoFeatureById(selectedObject.id) : null;
-  source?.setData(toFeatureCollection(selectedFeature ? [selectedFeature] : []));
+  const analysisTargetFeature = selectedObject?.analysisTarget?.geometry
+    ? {
+        type: "Feature",
+        id: selectedObject.analysisTarget.id,
+        properties: {
+          id: selectedObject.analysisTarget.id,
+          name: selectedObject.analysisTarget.label,
+          fillColor: selectedObject.analysisTarget.type === "uploaded-feature" ? "#6b7fd7" : "#174f63",
+          strokeColor: selectedObject.analysisTarget.type === "uploaded-feature" ? "#3447a5" : "#0b5a6e"
+        },
+        geometry: selectedObject.analysisTarget.geometry
+      }
+    : null;
+  source?.setData(toFeatureCollection(selectedFeature ? [selectedFeature] : analysisTargetFeature ? [analysisTargetFeature] : []));
 }
 
 function attachGeoAiMapLayers(
@@ -915,6 +968,40 @@ export function MapWorkspaceClient({
 
         if (demoFeature && onObjectSelectRef.current) {
           onObjectSelectRef.current(getSelectedDemoObject(demoFeature));
+          return;
+        }
+
+        if (selectedRenderedFeature?.properties?.uploadedFeatureKind && onObjectSelectRef.current) {
+          const geometry = selectedRenderedFeature.geometry as GeoJSON.Geometry;
+          const center = getGeometryCenter(geometry, {
+            latitude: event.lngLat.lat,
+            longitude: event.lngLat.lng
+          });
+          const featureName = String(selectedRenderedFeature.properties.name ?? "Uploaded screening geometry");
+          const datasetName = String(selectedRenderedFeature.properties.uploadedDatasetName ?? "User-provided GeoJSON");
+          const datasetId = String(selectedRenderedFeature.properties.uploadedDatasetId ?? "uploaded-local");
+
+          onObjectSelectRef.current({
+            id: `uploaded-${datasetId}-${String(selectedRenderedFeature.properties.id ?? featureName)}`,
+            name: featureName,
+            type: "Uploaded screening geometry",
+            layerId: "futureCustomerAssets",
+            layerName: datasetName,
+            geometryType: toDemoGeometryType(geometry.type),
+            center,
+            analysisTarget: {
+              id: String(selectedRenderedFeature.properties.id ?? featureName),
+              type: "uploaded-feature",
+              label: featureName,
+              coordinates: center,
+              geometry,
+              properties: selectedRenderedFeature.properties as Record<string, unknown>,
+              datasetId,
+              datasetName,
+              sourceMode: "user-uploaded",
+              officialStatus: "official-validation-required"
+            }
+          });
           return;
         }
 
@@ -1213,17 +1300,17 @@ export function MapWorkspaceClient({
                 </p>
                 <div className="rounded-md border border-line bg-white px-2.5 py-2">
                   <div className="grid gap-1 text-[11px] text-muted">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-sm bg-[#536d7a]" />Roads / access</span>
-                      <span className="rounded-full bg-surface px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.06em]">OSM-style</span>
+                    <div className="flex min-w-0 items-center justify-between gap-2">
+                      <span className="flex min-w-0 items-center gap-2"><span className="h-2.5 w-2.5 shrink-0 rounded-sm bg-[#536d7a]" /><span className="truncate">Roads / access</span></span>
+                      <span className="shrink-0 rounded-full bg-surface px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.06em]">OSM</span>
                     </div>
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-[#1f6b83]" />POI / anchors</span>
-                      <span className="rounded-full bg-surface px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.06em]">open</span>
+                    <div className="flex min-w-0 items-center justify-between gap-2">
+                      <span className="flex min-w-0 items-center gap-2"><span className="h-2.5 w-2.5 shrink-0 rounded-full bg-[#1f6b83]" /><span className="truncate">POI / anchors</span></span>
+                      <span className="shrink-0 rounded-full bg-surface px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.06em]">open</span>
                     </div>
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-sm bg-[#9bb5a6]" />Landuse context</span>
-                      <span className="rounded-full bg-surface px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.06em]">not official</span>
+                    <div className="flex min-w-0 items-center justify-between gap-2">
+                      <span className="flex min-w-0 items-center gap-2"><span className="h-2.5 w-2.5 shrink-0 rounded-sm bg-[#9bb5a6]" /><span className="truncate">Landuse context</span></span>
+                      <span className="shrink-0 rounded-full bg-surface px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.06em]">sample</span>
                     </div>
                   </div>
                 </div>
@@ -1266,12 +1353,17 @@ export function MapWorkspaceClient({
                     <p className="text-[11px] leading-4 text-muted">Upload GeoJSON in Data Sources to render a local layer.</p>
                   ) : (
                     uploadedGeojsonDatasets.map((dataset) => (
-                      <div key={dataset.id} className="flex items-center justify-between gap-2 text-[11px] text-muted">
-                        <span className="flex min-w-0 items-center gap-2">
+                      <div key={dataset.id} className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-2 text-[11px] text-muted">
+                        <span className="flex min-w-0 items-start gap-2">
                           <span className="h-2.5 w-2.5 shrink-0 rounded-sm bg-[#6b7fd7]" />
-                          <span className="truncate">{dataset.name}</span>
+                          <span className="min-w-0">
+                            <span className="block truncate font-semibold text-ink">{dataset.name}</span>
+                            <span className="block truncate text-[9px] uppercase tracking-[0.06em] text-muted">
+                              GeoJSON / {dataset.featureCount ?? 0} features / validation required
+                            </span>
+                          </span>
                         </span>
-                        <span className="rounded-full bg-surface px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.06em] text-muted">
+                        <span className="max-w-[66px] shrink-0 truncate rounded-full bg-surface px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.04em] text-muted">
                           {dataset.visible === false ? "hidden" : "local"}
                         </span>
                       </div>
@@ -1286,9 +1378,9 @@ export function MapWorkspaceClient({
                 </p>
                 <div className="mt-1.5 grid gap-1">
                   {plannedLayerRows.map((item) => (
-                    <div key={item} className="flex items-center justify-between gap-2 text-[11px] text-muted">
-                      <span className="truncate">{item}</span>
-                      <span className="rounded-full bg-surface px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.06em] text-muted">
+                    <div key={item} className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 text-[11px] text-muted">
+                      <span className="min-w-0 truncate">{item}</span>
+                      <span className="max-w-[70px] shrink-0 truncate rounded-full bg-surface px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.04em] text-muted">
                         planned
                       </span>
                     </div>

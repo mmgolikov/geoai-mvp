@@ -332,7 +332,9 @@ export function AnalysisPanel({
               <div className="min-w-0 rounded-md bg-white px-2 py-2">
                 <dt className="text-muted">Confidence</dt>
                 <dd className="mt-1 truncate font-semibold text-ink">
-                  {selectedObject?.spatialContext?.confidenceLevel ?? (hasSelectedPoint ? "user" : "-")}
+                  {selectedObject?.analysisTarget?.type === "uploaded-feature"
+                    ? "validation req."
+                    : selectedObject?.spatialContext?.confidenceLevel ?? (hasSelectedPoint ? "user" : "-")}
                 </dd>
               </div>
             </dl>

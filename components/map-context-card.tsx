@@ -1,13 +1,14 @@
 "use client";
 
 import { ReportMapPreview } from "@/components/report-map-preview";
-import type { ComparisonResult, SelectedDemoObject, SelectedPoint } from "@/src/types/geo";
+import type { AnalysisTarget, ComparisonResult, SelectedDemoObject, SelectedPoint } from "@/src/types/geo";
 
 type MapContextCardProps = {
   title: string;
   subtitle: string;
   selectedPoint?: SelectedPoint | null;
   selectedObject?: SelectedDemoObject | null;
+  analysisTarget?: AnalysisTarget | null;
   comparison?: ComparisonResult;
   compact?: boolean;
   reportMode?: boolean;
@@ -19,10 +20,16 @@ export function MapContextCard({
   subtitle,
   selectedPoint = null,
   selectedObject = null,
+  analysisTarget = null,
   comparison,
   compact = false,
   reportMode = false
 }: MapContextCardProps) {
+  const contextNote = analysisTarget?.type === "uploaded-feature"
+    ? "Selected geometry is user-uploaded screening context; official validation is required before decisions."
+    : analysisTarget?.type === "demo-feature"
+      ? "Selected geometry is demo-normalized context; official validation is required before decisions."
+      : "Demo spatial context only. Synthetic geometries are not official GIS, parcel, planning, or risk boundaries.";
   const mapHeightClass = compact
     ? "min-h-[220px]"
     : reportMode
@@ -44,12 +51,13 @@ export function MapContextCard({
         <ReportMapPreview
           selectedPoint={selectedPoint}
           selectedObject={selectedObject}
+          analysisTarget={analysisTarget}
           comparison={comparison}
           compact={compact || reportMode}
         />
       </div>
       <div className="shrink-0 border-t border-line bg-white px-4 py-2 text-xs leading-5 text-muted">
-        Demo spatial context only. Synthetic geometries are not official GIS, parcel, planning, or risk boundaries.
+        {contextNote}
       </div>
     </section>
   );

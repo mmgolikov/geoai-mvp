@@ -12,6 +12,19 @@ export type SelectedPoint = {
 
 export type DemoLayerType = "polygon" | "point" | "line";
 
+export type AnalysisTarget = {
+  id: string;
+  type: "point" | "uploaded-feature" | "demo-feature";
+  label: string;
+  coordinates?: SelectedPoint;
+  geometry?: GeoJSON.Geometry;
+  properties?: Record<string, unknown>;
+  datasetId?: string;
+  datasetName?: string;
+  sourceMode?: "user-uploaded" | "sample-fixture" | "manual-offline" | "demo";
+  officialStatus?: "official-validation-required" | "not-official";
+};
+
 export type DemoLayerId =
   | "developmentZones"
   | "premiumRealEstateAreas"
@@ -33,6 +46,7 @@ export type SelectedDemoObject = {
   geometryType: DemoLayerType;
   center: SelectedPoint;
   spatialContext?: SpatialSelectionContext;
+  analysisTarget?: AnalysisTarget;
 };
 
 export type ScoreKey =
@@ -64,6 +78,7 @@ export type ExpressAnalysis = {
   subtitle: string;
   point: SelectedPoint;
   selectedObject?: SelectedDemoObject;
+  analysisTarget?: AnalysisTarget;
   summary: string;
   scoreLabels: Record<ScoreKey, string>;
   scores: Record<ScoreKey, number>;

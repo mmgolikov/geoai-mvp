@@ -293,9 +293,14 @@ function AnalysisReport({ analysis, onBack }: { analysis: ExpressAnalysis; onBac
         <Section title="Map Context">
           <MapContextCard
             title={analysis.selectedObject?.name ?? "Custom map point"}
-            subtitle={`${analysis.selectedObject?.type ?? "Point selection"} / ${analysis.subtitle}`}
+            subtitle={
+              analysis.analysisTarget?.type === "uploaded-feature"
+                ? `Uploaded screening geometry / ${analysis.subtitle}`
+                : `${analysis.selectedObject?.type ?? "Point selection"} / ${analysis.subtitle}`
+            }
             selectedPoint={analysis.point}
             selectedObject={analysis.selectedObject ?? null}
+            analysisTarget={analysis.analysisTarget ?? null}
             reportMode
           />
         </Section>

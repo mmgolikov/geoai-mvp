@@ -976,7 +976,19 @@ export function WorkspaceShell() {
               customQuery,
               selectedObject
             ),
-            project: activeProject
+            project: activeProject,
+            analysisTarget: selectedObject?.analysisTarget ?? {
+              id: `point-${selectedPoint.latitude.toFixed(6)}-${selectedPoint.longitude.toFixed(6)}`,
+              type: "point",
+              label: "Custom map selection",
+              coordinates: selectedPoint,
+              geometry: {
+                type: "Point",
+                coordinates: [selectedPoint.longitude, selectedPoint.latitude]
+              },
+              sourceMode: "demo",
+              officialStatus: "not-official"
+            }
           },
           marketContext
         )

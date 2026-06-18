@@ -363,9 +363,16 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
           <div className="grid min-h-0 flex-1 items-stretch gap-3 xl:grid-cols-[minmax(0,1.05fr)_0.95fr]">
             <MapContextCard
               title="Map Context"
-              subtitle="Selected point or spatial object with surrounding Dubai context"
+              subtitle={
+                analysis.analysisTarget?.type === "uploaded-feature"
+                  ? "Uploaded screening geometry with surrounding Dubai context"
+                  : analysis.analysisTarget?.type === "demo-feature"
+                    ? "Demo-normalized screening geometry with surrounding Dubai context"
+                    : "Selected point with surrounding Dubai context"
+              }
               selectedPoint={analysis.point}
               selectedObject={analysis.selectedObject ?? null}
+              analysisTarget={analysis.analysisTarget ?? null}
             />
 
             <section className="flex h-full min-h-[420px] flex-col overflow-hidden rounded-lg border border-line bg-white p-4 shadow-sm print:h-auto print:min-h-0 print:overflow-visible">

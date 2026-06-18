@@ -404,7 +404,18 @@ export function getSelectedDemoObject(feature: DemoLayerFeature): SelectedDemoOb
     layerName: feature.properties.layerName,
     geometryType: feature.properties.geometryType,
     center: getFeatureCenter(feature),
-    spatialContext
+    spatialContext,
+    analysisTarget: {
+      id: feature.properties.id,
+      type: "demo-feature",
+      label: feature.properties.name,
+      coordinates: getFeatureCenter(feature),
+      geometry: feature.geometry,
+      properties: feature.properties,
+      datasetName: feature.properties.layerName,
+      sourceMode: "demo",
+      officialStatus: "not-official"
+    }
   };
 }
 
