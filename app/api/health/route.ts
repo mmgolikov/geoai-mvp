@@ -4,6 +4,8 @@ export function GET() {
   return NextResponse.json({
     status: "ok",
     app: "GeoAI",
-    milestone: "nextjs-mvp-skeleton"
+    milestone: "geoai-investor-demo-v0.4",
+    mode: "investor_demo_prototype",
+    dataStatus: "Demo-normalized and sample/offline data only; live official integrations are not connected."
   });
 }

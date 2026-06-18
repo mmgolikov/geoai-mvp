@@ -16,7 +16,7 @@ Use this checklist before demos, Vercel deployments, and milestone checkpoints.
 
 - [ ] `/workspace` opens without runtime errors.
 - [ ] Mapbox basemap loads when token is configured.
-- [ ] Safe placeholder appears if Mapbox token is missing or invalid.
+- [ ] Safe fallback appears if Mapbox token is missing or invalid.
 - [ ] Map remains centered on Dubai on initial load.
 - [ ] Map does not jump after point selection.
 - [ ] Map does not reinitialize on every click.

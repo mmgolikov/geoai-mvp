@@ -50,7 +50,7 @@ The current project dashboard is ready to use optional DB-backed analysis runs w
 - Project data room for uploads, sources and files.
 - Project-level audit trail and governance.
 - Role-based access and client-specific workspaces.
-- Dashboard metrics from validated DLD, Dubai Pulse, Dubai Municipality / GeoDubai and customer data.
+- Future dashboard metrics from officially validated or customer-provided DLD, Dubai Pulse, Dubai Municipality / GeoDubai and customer data.
 
 ## Limitations
 
@@ -67,4 +67,4 @@ The current project dashboard is ready to use optional DB-backed analysis runs w
 2. Add persistent report library.
 3. Add project data room for documents, CSV and GeoJSON.
 4. Add user roles and client-specific workspaces.
-5. Connect dashboard metrics to validated real DLD / Dubai Pulse and official planning data.
+5. Connect dashboard metrics to officially validated DLD / Dubai Pulse and planning data when access and permissions are confirmed.

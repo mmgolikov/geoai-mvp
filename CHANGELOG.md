@@ -32,7 +32,7 @@ Initial public demo baseline for GeoAI MVP.
 - Print-friendly report preview for Express Analysis.
 - Print-friendly report preview for Comparison.
 - Static map-window cards in report previews.
-- API route skeletons for health and demo objects.
+- API routes for health and demo objects.
 - Documentation baseline for architecture, data strategy, roadmap, and manual QA.
 
 ### Current Limitations

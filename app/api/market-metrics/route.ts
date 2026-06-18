@@ -3,6 +3,7 @@ import {
   getMarketMetricsSourceMode,
   listImportedMarketMetrics
 } from "@/src/lib/market-metrics";
+import { getImportedMetricsReadinessMessage } from "@/src/lib/data-readiness";
 
 export const runtime = "nodejs";
 
@@ -13,8 +14,7 @@ export async function GET() {
     sourceMode: getMarketMetricsSourceMode(),
     count: metrics.length,
     availableAreaNames: metrics.map((metric) => metric.areaName),
-    fallbackStatus: metrics.length > 0
-      ? "Imported sample metrics available for deterministic matching."
-      : "No imported market metrics found; seed_static fallback is used."
+    fallbackStatus: getImportedMetricsReadinessMessage({ count: metrics.length }),
+    disclaimer: "Metrics are sample/manual offline imports only; no live official DLD or Dubai Pulse integration is connected in this demo."
   });
 }

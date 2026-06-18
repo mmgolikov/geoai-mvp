@@ -118,6 +118,16 @@ function AnalysisListItem({ children }: { children: React.ReactNode }) {
   );
 }
 
+function createStableKey(section: string, value: string, index: number) {
+  const slug = value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60);
+
+  return `${section}-${index}-${slug || "item"}`;
+}
+
 function ScoreTooltip({
   label,
   score,
@@ -501,8 +511,8 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
         <AnalysisCard>
           <AnalysisCardHeader title="Key Value Drivers" />
           <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {analysis.keyFactors.map((factor) => (
-              <article key={factor} className="h-full rounded-md border border-line bg-surface p-4">
+            {analysis.keyFactors.map((factor, index) => (
+              <article key={createStableKey("key-factor", factor, index)} className="h-full rounded-md border border-line bg-surface p-4">
                 <div className="mb-3 h-1 w-10 rounded-full bg-accent" />
                 <p className="text-sm leading-6 text-ink">{factor}</p>
               </article>
@@ -514,8 +524,8 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
           <AnalysisCard>
             <AnalysisCardHeader title="Opportunities" />
             <ul className="mt-4 grid gap-3">
-              {analysis.opportunities.map((item) => (
-                <AnalysisListItem key={item}>{item}</AnalysisListItem>
+              {analysis.opportunities.map((item, index) => (
+                <AnalysisListItem key={createStableKey("opportunity", item, index)}>{item}</AnalysisListItem>
               ))}
             </ul>
           </AnalysisCard>
@@ -523,8 +533,8 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
           <AnalysisCard>
             <AnalysisCardHeader title="Critical Constraints" />
             <ul className="mt-4 grid gap-3">
-              {analysis.risks.map((item) => (
-                <AnalysisListItem key={item}>{item}</AnalysisListItem>
+              {analysis.risks.map((item, index) => (
+                <AnalysisListItem key={createStableKey("risk", item, index)}>{item}</AnalysisListItem>
               ))}
             </ul>
           </AnalysisCard>
@@ -539,7 +549,7 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
           />
           <ol className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {analysis.nextActions.map((action, index) => (
-              <li key={action} className="flex h-full gap-3 rounded-md border border-line bg-surface p-4">
+              <li key={createStableKey("next-action", action, index)} className="flex h-full gap-3 rounded-md border border-line bg-surface p-4">
                 <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white text-sm font-semibold text-brand">
                   {index + 1}
                 </span>

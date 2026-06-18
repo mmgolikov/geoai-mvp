@@ -124,7 +124,7 @@ export const dubaiMarketAreas: MarketArea[] = [
     centroid: { latitude: 25.1180, longitude: 55.2470 },
     source: "seed_demo",
     marketActivityLevel: metric("Market activity", "high", 82, "rising", "Master-planned residential demand is represented as strong in seed context."),
-    transactionContext: metric("Transaction context", "high", 78, "rising", "Transaction depth is assumed but not connected to live DLD evidence."),
+    transactionContext: metric("Transaction context", "high", 78, "rising", "Transaction depth is assumed; official DLD evidence is not connected in this demo."),
     rentContext: metric("Rent context", "medium", 74, "rising", "Family-oriented rental demand is qualitative."),
     developmentPipelineContext: metric("Development pipeline", "medium", 70, "stable", "Pipeline context reflects continued master-plan delivery."),
     accessibilityContext: metric("Accessibility", "medium", 72, "stable", "Road access and district amenities are positive demo signals."),

@@ -6,7 +6,7 @@ This foundation is intentionally non-blocking: if Supabase is not configured, Ge
 
 ## Purpose
 
-- Prepare a production-ready database shape for sources, spatial layers, market areas, analysis runs, reports, and comparison sets.
+- Prepare a future production-oriented database shape for sources, spatial layers, market areas, analysis runs, reports, and comparison sets.
 - Keep current deterministic demo behavior available.
 - Add a safe path for future official, open, commercial, and customer data adapters.
 - Avoid exposing server keys or making Supabase required for local demos.

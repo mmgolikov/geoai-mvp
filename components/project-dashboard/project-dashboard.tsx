@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { sourceReadinessMatrix } from "@/src/data/data-maturity";
 import { dataSourceRegistry } from "@/src/data/data-source-registry";
 import { demoProjects, getDemoProject } from "@/src/data/demo-projects";
+import { getImportedMetricsReadinessMessage, getSupabaseFallbackMessage } from "@/src/lib/data-readiness";
 import { deriveDecisionPosture } from "@/src/lib/decision-posture";
 import type { GeoAIProject } from "@/src/lib/db/types";
 import type { AnalysisHistoryItem, AnalysisScenarioId, ExpressAnalysis } from "@/src/types/geo";
@@ -292,7 +293,7 @@ export function ProjectDashboard() {
   const localRows = useMemo(() => localHistoryToRows(localHistory, activeProject.projectKey), [activeProject.projectKey, localHistory]);
   const recentRows = dbHistory.length > 0 ? dbHistory : localRows;
   const importedAreas = marketMetrics?.count ?? 0;
-  const dataConfidence = importedAreas > 0 ? "Demo-normalized / low sample" : "Seed fallback";
+  const dataConfidence = importedAreas > 0 ? "Sample/offline import" : "Seed fallback";
   const persistenceMode = dbHealth?.status === "connected" ? "Supabase/PostGIS connected" : "Local fallback";
   const nextActions = getNextActions(activeProject, importedAreas);
   const openWorkspaceHref = "/workspace";
@@ -436,9 +437,7 @@ export function ProjectDashboard() {
                     <div>
                       <p className="font-semibold text-ink">DLD / Dubai Pulse ingestion</p>
                       <p className="mt-1 text-sm leading-5 text-muted">
-                        {importedAreas > 0
-                          ? `${importedAreas} imported sample market areas available.`
-                          : "No imported metrics found; seed fallback remains available."}
+                        {getImportedMetricsReadinessMessage({ count: importedAreas })}
                       </p>
                     </div>
                     <span className="shrink-0 rounded-full bg-white px-2 py-1 text-xs font-semibold text-brand">
@@ -449,7 +448,7 @@ export function ProjectDashboard() {
                 <div className="rounded-md border border-line bg-surface p-4">
                   <p className="font-semibold text-ink">Supabase / PostGIS</p>
                   <p className="mt-1 text-sm leading-5 text-muted">
-                    {dbHealth?.message ?? "Status unavailable; dashboard is using local/demo fallback."}
+                    {dbHealth?.message ?? getSupabaseFallbackMessage(false)}
                   </p>
                 </div>
                 <div className="grid gap-2">

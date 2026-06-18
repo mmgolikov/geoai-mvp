@@ -1,6 +1,6 @@
 # GeoAI MVP
 
-GeoAI is a Next.js spatial decision intelligence MVP for evaluating Dubai real estate, infrastructure, construction, and climate-risk scenarios. The current version is a public demo prototype: it uses Mapbox for the workspace, synthetic/demo geospatial layers, deterministic mock scoring, optional OpenAI-powered narrative analysis, comparison dashboards, and print-friendly report previews.
+GeoAI is a Next.js spatial decision intelligence MVP for evaluating Dubai real estate, infrastructure, construction, and climate-risk scenarios. The current version is an investor demo prototype, not a production-ready or pilot-ready product: it uses Mapbox for the workspace, synthetic/demo geospatial layers, OSM-style sample baseline fixtures, deterministic mock scoring, optional OpenAI-powered narrative analysis, comparison dashboards, and print-friendly report previews.
 
 OpenAI is optional. If `OPENAI_API_KEY` is not configured, GeoAI automatically uses the deterministic mock fallback so the product remains fully usable for demos.
 
@@ -191,6 +191,7 @@ Current geometries are synthetic/demo only. They are not official parcel, planni
 - [Project Dashboard v0.1](docs/PROJECT_DASHBOARD_V01.md)
 - [DLD / Dubai Pulse Ingestion v0.1](docs/DLD_DUBAI_PULSE_INGESTION_V01.md)
 - [Open Geospatial Baseline v0.1](docs/OPEN_GEODATA_BASELINE_V01.md)
+- [Audit QA — 2026-06-18](docs/AUDIT_QA_2026-06-18.md)
 - [Architecture](docs/architecture.md)
 - [Data Strategy](docs/data-strategy.md)
 - [Roadmap](docs/roadmap.md)

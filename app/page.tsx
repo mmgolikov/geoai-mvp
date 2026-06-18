@@ -346,8 +346,8 @@ export default function HomePage() {
           <div className="grid gap-4">
             <SourceReadinessMatrix limit={6} />
             <div className="grid gap-3 md:grid-cols-2">
-              {evidenceSources.slice(0, 4).map((source) => (
-                <div key={source} className="rounded-lg border border-line bg-white px-5 py-4 text-sm font-semibold text-ink shadow-sm">
+              {evidenceSources.slice(0, 4).map((source, index) => (
+                <div key={`evidence-source-${index}-${source.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 48)}`} className="rounded-lg border border-line bg-white px-5 py-4 text-sm font-semibold text-ink shadow-sm">
                   {source}
                 </div>
               ))}
