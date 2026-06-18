@@ -32,6 +32,7 @@ OpenAI is optional. If `OPENAI_API_KEY` is not configured, GeoAI automatically u
 - Data Ingestion v0.1 for seed_static market metrics and deterministic normalization
 - Open Geospatial Baseline v0.1 for local OSM-style roads, POI anchors, landuse context and accessibility metrics
 - Spatial Data Adapter v0.1 for seed_geojson demo layers and structured feature selection
+- Data Credibility v0.5 local-first CSV / GeoJSON upload workflow with browser-local source lineage
 - Comparison mode for 2-3 selected points or demo objects
 - Comparison dashboard with scores, recommendation, risks, and next actions
 - Print-friendly report preview for single-site analysis and comparison
@@ -159,6 +160,17 @@ The adapter validates geometry type, coordinate ranges, required properties, cen
 
 Current geometries are synthetic/demo only. They are not official parcel, planning, cadastral, utility, infrastructure, or risk-zone boundaries. Future ingestion modes are prepared for `uploaded_geojson_planned`, `api_ready`, and `database_ready` workflows for official GIS, customer uploads, or database-backed spatial layers.
 
+## Data Credibility Sprint v0.5
+
+GeoAI now supports local-first CSV and GeoJSON uploads from the Workspace command panel. Uploaded CSV files can provide user-supplied site/area metrics, while uploaded GeoJSON files render as toggleable local map layers under Spatial Layers / Uploaded datasets.
+
+Uploads are stored in browser `localStorage` only and are limited to 5 MB per file. They are never treated as official evidence by default: the UI, analysis, Evidence / Data Used, and report preview label them as user-provided, validation-required context. Sample files are available under `data/upload-samples/`:
+
+- `dubai_site_metrics_sample.csv`
+- `dubai_pipeline_sites_sample.geojson`
+
+See [Data Credibility v0.5](docs/DATA_CREDIBILITY_V05.md) for the upload schema, parsing rules, source-lineage behavior and QA checklist.
+
 ## Deploy To Vercel
 
 1. Push the repository to GitHub.
@@ -176,6 +188,7 @@ Current geometries are synthetic/demo only. They are not official parcel, planni
 - Market context is seed/demo-normalized and not official market evidence.
 - Data ingestion currently uses local seed/static context and imported sample CSV fixtures only.
 - Spatial layers currently use local seed_geojson demo geometries only.
+- Uploaded CSV / GeoJSON files are browser-local, user-provided, validation-required context.
 - Supabase/PostGIS and persistence are optional prototype foundations, not production-grade user storage yet.
 - No authentication or user accounts.
 - No real parcel, zoning, transaction, satellite, or regulatory data adapters.
@@ -191,6 +204,7 @@ Current geometries are synthetic/demo only. They are not official parcel, planni
 - [Project Dashboard v0.1](docs/PROJECT_DASHBOARD_V01.md)
 - [DLD / Dubai Pulse Ingestion v0.1](docs/DLD_DUBAI_PULSE_INGESTION_V01.md)
 - [Open Geospatial Baseline v0.1](docs/OPEN_GEODATA_BASELINE_V01.md)
+- [Data Credibility v0.5](docs/DATA_CREDIBILITY_V05.md)
 - [Audit QA — 2026-06-18](docs/AUDIT_QA_2026-06-18.md)
 - [Architecture](docs/architecture.md)
 - [Data Strategy](docs/data-strategy.md)

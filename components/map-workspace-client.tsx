@@ -7,6 +7,7 @@ import { openGeodataBaseline } from "@/src/lib/open-geodata";
 import type { OpenLanduseFeature, OpenPoiFeature, OpenRoadFeature } from "@/src/lib/open-geodata";
 import type { GeoJSONSource, Map as MapboxMap, MapboxGeoJSONFeature, Marker as MapboxMarker, Popup as MapboxPopup } from "mapbox-gl";
 import type { DemoLayerId, SelectedDemoObject, SelectedPoint } from "@/src/types/geo";
+import type { UploadedDataset } from "@/src/types/uploaded-data";
 
 const defaultCenter: [number, number] = [55.235, 25.12];
 const defaultZoom = 9.75;
@@ -34,6 +35,7 @@ type MapWorkspaceClientProps = {
   className?: string;
   showEmptyOverlay?: boolean;
   showLayerControls?: boolean;
+  uploadedDatasets?: UploadedDataset[];
 };
 
 const initialLayerVisibility = demoLayers.reduce<Record<DemoLayerId, boolean>>((visibility, layer) => {
@@ -45,6 +47,8 @@ const selectedObjectSourceId = "geoai-selected-object";
 const hoverObjectSourceId = "geoai-hover-object";
 const openGeodataSourceId = "geoai-open-geodata-baseline";
 const openGeodataLayerIds = ["geoai-open-landuse", "geoai-open-roads", "geoai-open-poi"];
+const uploadedDatasetSourceId = "geoai-uploaded-datasets";
+const uploadedDatasetLayerIds = ["geoai-uploaded-fill", "geoai-uploaded-line", "geoai-uploaded-circle"];
 const plannedLayerRows = [
   "DLD / Dubai Pulse market data",
   "Dubai Municipality / GeoDubai GIS",
@@ -68,9 +72,14 @@ function getLayerIds(layer: DemoLayer) {
   return [`${layer.id}-circle`];
 }
 
-function getInteractiveLayerIds(visibility: Record<DemoLayerId, boolean>) {
+function getInteractiveLayerIds(visibility: Record<DemoLayerId, boolean>, uploadedDatasets: UploadedDataset[] = []) {
+  const hasVisibleUploadedLayers = uploadedDatasets.some(
+    (dataset) => dataset.type === "geojson" && dataset.status === "parsed" && dataset.visible !== false
+  );
+
   return [
     ...openGeodataLayerIds,
+    ...(hasVisibleUploadedLayers ? uploadedDatasetLayerIds : []),
     ...demoLayers.flatMap((layer) => (visibility[layer.id] ? getLayerIds(layer) : []))
   ];
 }
@@ -198,6 +207,32 @@ function getOpenGeodataFeatures() {
   ];
 }
 
+function getUploadedGeojsonFeatures(uploadedDatasets: UploadedDataset[] = []) {
+  return uploadedDatasets
+    .filter((dataset) => dataset.type === "geojson" && dataset.status === "parsed" && dataset.visible !== false)
+    .flatMap((dataset) =>
+      (dataset.geojson?.features ?? []).map((feature, index) => ({
+        ...feature,
+        id: feature.id ?? `${dataset.id}-feature-${index}`,
+        properties: {
+          ...(feature.properties ?? {}),
+          id: String(feature.id ?? feature.properties?.id ?? `${dataset.id}-feature-${index}`),
+          name: String(feature.properties?.name ?? feature.properties?.site_name ?? feature.properties?.area_name ?? `${dataset.name} feature ${index + 1}`),
+          uploadedDatasetId: dataset.id,
+          uploadedDatasetName: dataset.name,
+          uploadedFeatureKind: "user-uploaded",
+          sourceMode: dataset.sourceMode,
+          confidenceLevel: dataset.confidence,
+          officialStatus: dataset.officialStatus,
+          fillColor: "#6b7fd7",
+          strokeColor: "#3447a5",
+          clickPriority: 82,
+          layerOrder: 82
+        }
+      }))
+    );
+}
+
 function sortRenderedFeatures(features: MapboxGeoJSONFeature[] = []) {
   return [...features].sort((a, b) => {
     const priorityA = Number(a.properties?.clickPriority ?? 0);
@@ -282,6 +317,34 @@ function setOpenGeodataTooltip(
       `<div class="geoai-map-tooltip">
         <div class="geoai-map-tooltip-title">${escapeHtml(title)}</div>
         <div class="geoai-map-tooltip-detail">${escapeHtml(detail)}</div>
+        <div class="geoai-map-tooltip-source">${escapeHtml(source)}</div>
+        <div class="geoai-map-tooltip-note">${escapeHtml(note)}</div>
+      </div>`
+    )
+    .addTo(map);
+}
+
+function setUploadedDatasetTooltip(
+  popup: MapboxPopup | null,
+  lngLat: { lng: number; lat: number },
+  feature: MapboxGeoJSONFeature,
+  map: MapboxMap
+) {
+  if (!popup) {
+    return;
+  }
+
+  const title = String(feature.properties?.name ?? "Uploaded spatial feature");
+  const datasetName = String(feature.properties?.uploadedDatasetName ?? "User-uploaded dataset");
+  const source = `${String(feature.properties?.sourceMode ?? "user-uploaded").replace(/-/g, " ")} · ${String(feature.properties?.confidenceLevel ?? "user-provided")}`;
+  const note = `Local-only ${datasetName}; official validation required.`;
+
+  popup
+    .setLngLat(lngLat)
+    .setHTML(
+      `<div class="geoai-map-tooltip">
+        <div class="geoai-map-tooltip-title">${escapeHtml(title)}</div>
+        <div class="geoai-map-tooltip-detail">${escapeHtml(datasetName)}</div>
         <div class="geoai-map-tooltip-source">${escapeHtml(source)}</div>
         <div class="geoai-map-tooltip-note">${escapeHtml(note)}</div>
       </div>`
@@ -465,6 +528,70 @@ function addOpenGeodataLayers(map: MapboxMap) {
   }
 }
 
+function addUploadedDatasetLayers(map: MapboxMap, uploadedDatasets: UploadedDataset[] = []) {
+  const features = getUploadedGeojsonFeatures(uploadedDatasets);
+
+  if (!map.getSource(uploadedDatasetSourceId)) {
+    map.addSource(uploadedDatasetSourceId, {
+      type: "geojson",
+      data: toFeatureCollection(features)
+    });
+  } else {
+    const source = map.getSource(uploadedDatasetSourceId) as GeoJSONSource | undefined;
+    source?.setData(toFeatureCollection(features));
+  }
+
+  if (!map.getLayer("geoai-uploaded-fill")) {
+    map.addLayer({
+      id: "geoai-uploaded-fill",
+      type: "fill",
+      source: uploadedDatasetSourceId,
+      filter: ["==", ["geometry-type"], "Polygon"],
+      paint: {
+        "fill-color": "#6b7fd7",
+        "fill-opacity": 0.16
+      },
+      minzoom: 8
+    });
+  }
+
+  if (!map.getLayer("geoai-uploaded-line")) {
+    map.addLayer({
+      id: "geoai-uploaded-line",
+      type: "line",
+      source: uploadedDatasetSourceId,
+      paint: {
+        "line-color": "#3447a5",
+        "line-width": ["interpolate", ["linear"], ["zoom"], 8, 1.6, 13, 2.5],
+        "line-opacity": 0.74
+      },
+      minzoom: 8
+    });
+  }
+
+  if (!map.getLayer("geoai-uploaded-circle")) {
+    map.addLayer({
+      id: "geoai-uploaded-circle",
+      type: "circle",
+      source: uploadedDatasetSourceId,
+      filter: ["==", ["geometry-type"], "Point"],
+      paint: {
+        "circle-color": "#5b66c7",
+        "circle-radius": ["interpolate", ["linear"], ["zoom"], 8, 5, 13, 7],
+        "circle-opacity": 0.82,
+        "circle-stroke-color": "#ffffff",
+        "circle-stroke-width": 1.7
+      },
+      minzoom: 8
+    });
+  }
+}
+
+function syncUploadedDatasetSource(map: MapboxMap, uploadedDatasets: UploadedDataset[] = []) {
+  const source = map.getSource(uploadedDatasetSourceId) as GeoJSONSource | undefined;
+  source?.setData(toFeatureCollection(getUploadedGeojsonFeatures(uploadedDatasets)));
+}
+
 function addSelectedObjectLayer(map: MapboxMap) {
   if (!map.getSource(selectedObjectSourceId)) {
     map.addSource(selectedObjectSourceId, {
@@ -586,14 +713,17 @@ function syncSelectedObjectSource(map: MapboxMap, selectedObject: SelectedDemoOb
 function attachGeoAiMapLayers(
   map: MapboxMap,
   visibility: Record<DemoLayerId, boolean>,
-  selectedObject: SelectedDemoObject | null
+  selectedObject: SelectedDemoObject | null,
+  uploadedDatasets: UploadedDataset[] = []
 ) {
   addOpenGeodataLayers(map);
+  addUploadedDatasetLayers(map, uploadedDatasets);
   demoLayers.forEach((layer) => addDemoLayerToMap(map, layer));
   addSelectedObjectLayer(map);
   addHoverObjectLayer(map);
   syncLayerVisibility(map, visibility);
   syncSelectedObjectSource(map, selectedObject);
+  syncUploadedDatasetSource(map, uploadedDatasets);
 }
 
 export function MapWorkspaceClient({
@@ -603,7 +733,8 @@ export function MapWorkspaceClient({
   onObjectSelect,
   className = "relative min-h-[calc(100vh-72px)] overflow-hidden bg-[#dfe8ec]",
   showEmptyOverlay = true,
-  showLayerControls = true
+  showLayerControls = true,
+  uploadedDatasets = []
 }: MapWorkspaceClientProps) {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapboxMap | null>(null);
@@ -613,6 +744,7 @@ export function MapWorkspaceClient({
   const onObjectSelectRef = useRef(onObjectSelect);
   const selectedObjectRef = useRef<SelectedDemoObject | null>(selectedObject);
   const layerVisibilityRef = useRef(initialLayerVisibility);
+  const uploadedDatasetsRef = useRef<UploadedDataset[]>(uploadedDatasets);
   const [layerVisibility, setLayerVisibility] = useState(initialLayerVisibility);
   const [layersExpanded, setLayersExpanded] = useState(false);
   const [basemapStyle, setBasemapStyle] = useState<BasemapStyleId>("streets");
@@ -632,6 +764,10 @@ export function MapWorkspaceClient({
   useEffect(() => {
     selectedObjectRef.current = selectedObject;
   }, [selectedObject]);
+
+  useEffect(() => {
+    uploadedDatasetsRef.current = uploadedDatasets;
+  }, [uploadedDatasets]);
 
   useEffect(() => {
     layerVisibilityRef.current = layerVisibility;
@@ -707,7 +843,8 @@ export function MapWorkspaceClient({
           attachGeoAiMapLayers(
             mapRef.current as MapboxMap,
             layerVisibilityRef.current,
-            selectedObjectRef.current
+            selectedObjectRef.current,
+            uploadedDatasetsRef.current
           );
           window.setTimeout(() => mapRef.current?.resize(), 0);
           setIsMapReady(true);
@@ -718,7 +855,7 @@ export function MapWorkspaceClient({
       mapRef.current.on("style.load", handleStyleReady);
 
       mapRef.current.on("mousemove", (event) => {
-        const interactiveLayers = getInteractiveLayerIds(layerVisibilityRef.current).filter((layerId) =>
+        const interactiveLayers = getInteractiveLayerIds(layerVisibilityRef.current, uploadedDatasetsRef.current).filter((layerId) =>
           Boolean(mapRef.current?.getLayer(layerId))
         );
         const features = interactiveLayers.length > 0
@@ -732,15 +869,18 @@ export function MapWorkspaceClient({
         const source = mapRef.current?.getSource(hoverObjectSourceId) as GeoJSONSource | undefined;
 
         if (source) {
-          source.setData(toFeatureCollection(demoFeature ? [demoFeature] : hoveredFeature?.properties?.openFeatureKind ? [hoveredFeature] : []));
+          source.setData(toFeatureCollection(demoFeature ? [demoFeature] : (hoveredFeature?.properties?.openFeatureKind || hoveredFeature?.properties?.uploadedFeatureKind) ? [hoveredFeature] : []));
         }
 
         if (mapRef.current) {
           const isSelectableOpenPoi = hoveredFeature?.properties?.openFeatureKind === "poi";
-          mapRef.current.getCanvas().style.cursor = demoFeature || isSelectableOpenPoi ? "pointer" : "";
+          const isUploadedFeature = Boolean(hoveredFeature?.properties?.uploadedFeatureKind);
+          mapRef.current.getCanvas().style.cursor = demoFeature || isSelectableOpenPoi || isUploadedFeature ? "pointer" : "";
 
           if (demoFeature) {
             setHoverTooltip(hoverPopupRef.current, event.lngLat, demoFeature, mapRef.current);
+          } else if (hoveredFeature?.properties?.uploadedFeatureKind) {
+            setUploadedDatasetTooltip(hoverPopupRef.current, event.lngLat, hoveredFeature, mapRef.current);
           } else if (hoveredFeature?.properties?.openFeatureKind) {
             setOpenGeodataTooltip(hoverPopupRef.current, event.lngLat, hoveredFeature, mapRef.current);
           } else if (basemapFeature) {
@@ -762,7 +902,7 @@ export function MapWorkspaceClient({
       });
 
       mapRef.current.on("click", (event) => {
-        const interactiveLayers = getInteractiveLayerIds(layerVisibilityRef.current).filter((layerId) =>
+        const interactiveLayers = getInteractiveLayerIds(layerVisibilityRef.current, uploadedDatasetsRef.current).filter((layerId) =>
           Boolean(mapRef.current?.getLayer(layerId))
         );
         const features = interactiveLayers.length > 0
@@ -918,6 +1058,15 @@ export function MapWorkspaceClient({
     syncSelectedObjectSource(mapRef.current, selectedObject);
   }, [canUseMapbox, isMapReady, selectedObject]);
 
+  useEffect(() => {
+    if (!canUseMapbox || !mapRef.current || !isMapReady) {
+      return;
+    }
+
+    addUploadedDatasetLayers(mapRef.current, uploadedDatasets);
+    syncUploadedDatasetSource(mapRef.current, uploadedDatasets);
+  }, [canUseMapbox, isMapReady, uploadedDatasets]);
+
   function handleFallbackClick(event: React.MouseEvent<HTMLElement>) {
     if (canUseMapbox) {
       return;
@@ -942,8 +1091,12 @@ export function MapWorkspaceClient({
     );
   }
 
-  const activeLayerCount = Object.values(layerVisibility).filter(Boolean).length;
+  const visibleUploadedLayerCount = uploadedDatasets.filter(
+    (dataset) => dataset.type === "geojson" && dataset.status === "parsed" && dataset.visible !== false
+  ).length;
+  const activeLayerCount = Object.values(layerVisibility).filter(Boolean).length + visibleUploadedLayerCount;
   const demoOverlayLayers = demoLayers.filter((layer) => !["planned_official", "customer_future"].includes(layer.sourceMode));
+  const uploadedGeojsonDatasets = uploadedDatasets.filter((dataset) => dataset.type === "geojson" && dataset.status === "parsed");
 
   return (
     <section
@@ -1097,6 +1250,34 @@ export function MapWorkspaceClient({
                     />
                   </label>
                 ))}
+              </div>
+
+              <div className="mt-2 rounded-md border border-line bg-white px-2.5 py-2">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted">
+                    Uploaded datasets
+                  </p>
+                  <span className="rounded-full bg-surface px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.06em] text-muted">
+                    {uploadedGeojsonDatasets.length}
+                  </span>
+                </div>
+                <div className="mt-1.5 grid gap-1">
+                  {uploadedGeojsonDatasets.length === 0 ? (
+                    <p className="text-[11px] leading-4 text-muted">Upload GeoJSON in Data Sources to render a local layer.</p>
+                  ) : (
+                    uploadedGeojsonDatasets.map((dataset) => (
+                      <div key={dataset.id} className="flex items-center justify-between gap-2 text-[11px] text-muted">
+                        <span className="flex min-w-0 items-center gap-2">
+                          <span className="h-2.5 w-2.5 shrink-0 rounded-sm bg-[#6b7fd7]" />
+                          <span className="truncate">{dataset.name}</span>
+                        </span>
+                        <span className="rounded-full bg-surface px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.06em] text-muted">
+                          {dataset.visible === false ? "hidden" : "local"}
+                        </span>
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
 
               <div className="mt-2 rounded-md border border-line bg-white px-2.5 py-2">

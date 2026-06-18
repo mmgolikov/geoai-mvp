@@ -17,6 +17,7 @@ import type {
   SelectedDemoObject,
   SelectedPoint
 } from "@/src/types/geo";
+import type { UploadedDataset } from "@/src/types/uploaded-data";
 
 type AnalysisPanelProps = {
   selectedPoint: SelectedPoint | null;
@@ -45,6 +46,8 @@ type AnalysisPanelProps = {
   } | null;
   marketContext: MarketContext | null;
   isMarketContextLoading: boolean;
+  uploadedDatasets: UploadedDataset[];
+  uploadedDataMessage: string | null;
   onProjectChange: (projectKey: string) => void;
   onScenarioChange: (scenario: AnalysisScenarioId) => void;
   onCustomQueryChange: (query: string) => void;
@@ -54,6 +57,10 @@ type AnalysisPanelProps = {
   onRunComparison: () => void;
   onOpenHistoryItem: (item: AnalysisHistoryItem) => void;
   onClearAnalysisHistory: () => void;
+  onUploadDataset: (file: File) => void;
+  onRemoveUploadedDataset: (datasetId: string) => void;
+  onClearUploadedDatasets: () => void;
+  onToggleUploadedDataset: (datasetId: string) => void;
   onExportCurrentResult: () => void;
 };
 
@@ -101,6 +108,14 @@ function formatIngestionTimestamp(value: string) {
     hour: "2-digit",
     minute: "2-digit"
   }).format(new Date(value));
+}
+
+function formatUploadedDatasetDetail(dataset: UploadedDataset) {
+  if (dataset.type === "geojson") {
+    return `${dataset.featureCount ?? 0} features`;
+  }
+
+  return `${dataset.rowCount ?? 0} rows`;
 }
 
 function CollapsedSection({
@@ -151,6 +166,8 @@ export function AnalysisPanel({
   backendStatus,
   marketContext,
   isMarketContextLoading,
+  uploadedDatasets,
+  uploadedDataMessage,
   onProjectChange,
   onScenarioChange,
   onCustomQueryChange,
@@ -160,6 +177,10 @@ export function AnalysisPanel({
   onRunComparison,
   onOpenHistoryItem,
   onClearAnalysisHistory,
+  onUploadDataset,
+  onRemoveUploadedDataset,
+  onClearUploadedDatasets,
+  onToggleUploadedDataset,
   onExportCurrentResult
 }: AnalysisPanelProps) {
   const featuredObject = demoObjects[0];
@@ -168,6 +189,7 @@ export function AnalysisPanel({
   const scenario = scenarios.find((item) => item.id === selectedScenario) ?? scenarios[0];
   const isCustomQuery = selectedScenario === "customQuery";
   const availableSources = getScenarioDataSources(selectedScenario).slice(0, 3);
+  const parsedUploads = uploadedDatasets.filter((dataset) => dataset.status === "parsed");
   const modeStatus =
     analysisMode === "openai"
       ? "AI-powered"
@@ -489,6 +511,91 @@ export function AnalysisPanel({
                 <p className="mt-2 text-xs leading-5 text-muted">
                   Latest local ingestion: {formatIngestionTimestamp(ingestionReport.generatedAt)}. Market comps, transaction activity, rental demand and pipeline validation support conservative scoring when matched.
                 </p>
+              </div>
+              <div className="rounded-md border border-line bg-surface p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-ink">Local dataset upload</p>
+                    <p className="mt-1 text-xs leading-5 text-muted">
+                      Upload CSV metrics or GeoJSON layers. Files stay in this browser and require official validation.
+                    </p>
+                  </div>
+                  <span className="shrink-0 rounded-full bg-white px-2 py-1 text-[11px] font-semibold text-muted">
+                    local
+                  </span>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <label className="inline-flex h-8 cursor-pointer items-center justify-center rounded-md bg-brand px-3 text-xs font-semibold text-white transition hover:bg-[#113f50]">
+                    Upload CSV / GeoJSON
+                    <input
+                      type="file"
+                      accept=".csv,.geojson,.json,text/csv,application/geo+json,application/json"
+                      className="sr-only"
+                      onChange={(event) => {
+                        const file = event.target.files?.[0];
+                        if (file) {
+                          void onUploadDataset(file);
+                        }
+                        event.target.value = "";
+                      }}
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    disabled={uploadedDatasets.length === 0}
+                    onClick={onClearUploadedDatasets}
+                    className="inline-flex h-8 items-center justify-center rounded-md border border-line bg-white px-3 text-xs font-semibold text-muted transition hover:border-brand hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Clear local uploads
+                  </button>
+                </div>
+                {uploadedDataMessage ? (
+                  <p className="mt-2 rounded-md border border-line bg-white px-2 py-2 text-xs leading-5 text-muted">
+                    {uploadedDataMessage}
+                  </p>
+                ) : null}
+                <div className="mt-3 grid gap-2">
+                  {uploadedDatasets.length === 0 ? (
+                    <div className="rounded-md border border-dashed border-line bg-white px-3 py-3 text-xs leading-5 text-muted">
+                      No local datasets uploaded. Try the sample CSV or GeoJSON in `data/upload-samples`.
+                    </div>
+                  ) : (
+                    uploadedDatasets.map((dataset) => (
+                      <div key={dataset.id} className="rounded-md border border-line bg-white p-2">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="truncate text-xs font-semibold text-ink">{dataset.name}</p>
+                            <p className="mt-1 text-[11px] leading-4 text-muted">
+                              {dataset.type.toUpperCase()} / {dataset.status} / {formatUploadedDatasetDetail(dataset)}
+                            </p>
+                          </div>
+                          <span className="shrink-0 rounded-full bg-surface px-1.5 py-0.5 text-[10px] font-semibold text-muted">
+                            {dataset.officialStatus.replace(/-/g, " ")}
+                          </span>
+                        </div>
+                        <p className="mt-2 line-clamp-2 text-[11px] leading-4 text-muted">{dataset.notes}</p>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {dataset.type === "geojson" && dataset.status === "parsed" ? (
+                            <button
+                              type="button"
+                              onClick={() => onToggleUploadedDataset(dataset.id)}
+                              className="rounded-md border border-line px-2 py-1 text-[11px] font-semibold text-muted transition hover:border-brand hover:text-ink"
+                            >
+                              {dataset.visible === false ? "Show layer" : "Hide layer"}
+                            </button>
+                          ) : null}
+                          <button
+                            type="button"
+                            onClick={() => onRemoveUploadedDataset(dataset.id)}
+                            className="rounded-md border border-line px-2 py-1 text-[11px] font-semibold text-muted transition hover:border-brand hover:text-ink"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
               {availableSources.map((source) => (
                 <DataReadinessCard key={source.id} source={source} compact />

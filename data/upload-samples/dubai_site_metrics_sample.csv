@@ -1,0 +1,5 @@
+site_name,area_name,latitude,longitude,transaction_count,median_price_per_sqm,rental_demand_index,pipeline_status,confidence,notes
+Dubai Marina Waterfront Parcel,Dubai Marina,25.0839,55.1416,128,31200,82,active pipeline,sample,Demo user-uploaded metric row for local-only screening.
+Business Bay Infill Site,Business Bay,25.1852,55.2694,164,28400,78,redevelopment watch,sample,Demo user-uploaded metric row for local-only screening.
+Dubai South Growth Zone,Dubai South,24.8922,55.1551,72,14600,61,early growth,sample,Demo user-uploaded metric row for local-only screening.
+Jebel Ali Logistics Node,Jebel Ali,24.9989,55.0637,56,11800,54,logistics corridor,sample,Demo user-uploaded metric row for local-only screening.

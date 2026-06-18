@@ -122,6 +122,34 @@ function EvidenceTable({ evidence }: { evidence: ExpressAnalysis["evidence"] | C
   );
 }
 
+function UploadedDataPrintBlock({ analysis }: { analysis: ExpressAnalysis }) {
+  const context = analysis.uploadedDataContext;
+
+  if (!context || context.uploadedDatasets.length === 0) {
+    return null;
+  }
+
+  return (
+    <PrintSection title="Source Lineage / Uploaded Data Used">
+      <div className="print-score-grid">
+        {context.uploadedDatasets.map((dataset) => {
+          const applied = context.appliedMetrics.find((match) => match.datasetId === dataset.id);
+          const available = context.availableButNotApplied.find((match) => match.datasetId === dataset.id);
+
+          return (
+            <PrintCard key={dataset.id}>
+              <strong>{dataset.name}</strong>
+              <span>{dataset.type} / {dataset.sourceMode.replace(/-/g, " ")}</span>
+              <small>{applied?.note ?? available?.note ?? dataset.notes ?? "Local upload available as validation-required context."}</small>
+              <small>Official status: {dataset.officialStatus.replace(/-/g, " ")} / confidence: {dataset.confidence.replace(/-/g, " ")}</small>
+            </PrintCard>
+          );
+        })}
+      </div>
+    </PrintSection>
+  );
+}
+
 function AnalysisPrintable({ analysis }: { analysis: ExpressAnalysis }) {
   const analysisMode = analysis.analysisMode === "openai" ? "AI-generated" : "Demo fallback";
   const siteName = analysis.selectedObject?.name ?? "Custom map point";
@@ -259,6 +287,8 @@ function AnalysisPrintable({ analysis }: { analysis: ExpressAnalysis }) {
       <PrintSection title="Evidence / Data Used">
         <EvidenceTable evidence={analysis.evidence} />
       </PrintSection>
+
+      <UploadedDataPrintBlock analysis={analysis} />
 
       <PrintSection title="Recommended Due Diligence Actions">
         <ol className="print-two-col-list">

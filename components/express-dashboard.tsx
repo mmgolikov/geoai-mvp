@@ -118,6 +118,53 @@ function AnalysisListItem({ children }: { children: React.ReactNode }) {
   );
 }
 
+function UploadedDataContextBlock({ analysis }: { analysis: ExpressAnalysis }) {
+  const context = analysis.uploadedDataContext;
+
+  if (!context || context.uploadedDatasets.length === 0) {
+    return null;
+  }
+
+  return (
+    <AnalysisCard>
+      <AnalysisCardHeader
+        title="Uploaded Data Context"
+        subtitle="Local user-provided files considered in this analysis. These are not official until validated."
+        badge={`${context.uploadedDatasets.length} local`}
+      />
+      <div className="mt-4 grid gap-3 md:grid-cols-2">
+        {context.uploadedDatasets.map((dataset) => {
+          const applied = context.appliedMetrics.find((match) => match.datasetId === dataset.id);
+          const available = context.availableButNotApplied.find((match) => match.datasetId === dataset.id);
+          const status = applied ? "Applied" : available ? "Available, not applied" : dataset.type === "geojson" ? "Map layer" : "Available";
+
+          return (
+            <div key={dataset.id} className="rounded-md border border-line bg-surface p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-ink">{dataset.name}</p>
+                  <p className="mt-1 text-xs uppercase tracking-[0.1em] text-muted">
+                    {dataset.type} / {dataset.sourceMode.replace(/-/g, " ")}
+                  </p>
+                </div>
+                <span className="shrink-0 rounded-full bg-white px-2 py-1 text-[11px] font-semibold text-brand">
+                  {status}
+                </span>
+              </div>
+              <p className="mt-3 text-sm leading-6 text-muted">
+                {applied?.note ?? available?.note ?? dataset.notes ?? "Local dataset available as validation-required context."}
+              </p>
+              <p className="mt-2 text-xs leading-5 text-muted">
+                Official status: {dataset.officialStatus.replace(/-/g, " ")}. Confidence: {dataset.confidence.replace(/-/g, " ")}.
+              </p>
+            </div>
+          );
+        })}
+      </div>
+    </AnalysisCard>
+  );
+}
+
 function createStableKey(section: string, value: string, index: number) {
   const slug = value
     .toLowerCase()
@@ -541,6 +588,8 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
         </div>
 
         <ValidationRequirementList evidence={analysis.evidence} />
+
+        <UploadedDataContextBlock analysis={analysis} />
 
         <AnalysisCard>
           <AnalysisCardHeader

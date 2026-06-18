@@ -24,6 +24,15 @@ import {
   getNearestAccessibilityMetric,
   getNearestOpenRoad
 } from "@/src/lib/open-geodata";
+import {
+  buildUploadedDataContext,
+  createInvalidUploadedDataset,
+  createUploadedCsvDataset,
+  createUploadedGeojsonDataset,
+  maxUploadedFileSizeBytes,
+  uploadedDatasetStorageKey,
+  withUploadedDataContext
+} from "@/src/lib/uploaded-data";
 import type { GeoAIProject } from "@/src/lib/db/types";
 import type { StructuredAnalysisResult } from "@/src/types/analysis";
 import type {
@@ -36,6 +45,7 @@ import type {
   SelectedPoint
 } from "@/src/types/geo";
 import type { MarketContext } from "@/src/types/market-context";
+import type { UploadedDataset } from "@/src/types/uploaded-data";
 
 const analysisHistoryStorageKey = "geoai-analysis-history-v1";
 const activeProjectStorageKey = "geoai-active-project-key-v1";
@@ -123,7 +133,7 @@ function mergeNarrativeAnalysis(
         : deterministicAnalysis.nextActions,
     analysisMode: narrative.mode,
     confidenceLevel: narrative.confidence_level,
-    limitations: narrative.limitations,
+    limitations: Array.from(new Set([...(deterministicAnalysis.limitations ?? []), ...narrative.limitations])),
     analysisNotice: narrative.notice,
     generatedAt: new Date().toISOString()
   };
@@ -310,6 +320,28 @@ function writeActiveProjectKey(projectKey: string) {
   }
 }
 
+function readUploadedDatasets() {
+  try {
+    const stored = window.localStorage.getItem(uploadedDatasetStorageKey);
+    if (!stored) {
+      return [];
+    }
+
+    const parsed = JSON.parse(stored) as UploadedDataset[];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeUploadedDatasets(items: UploadedDataset[]) {
+  try {
+    window.localStorage.setItem(uploadedDatasetStorageKey, JSON.stringify(items));
+  } catch {
+    // Local uploads are convenience context; parsing still works in memory if storage fails.
+  }
+}
+
 function createMarketMetricsMetadata(analysis: ExpressAnalysis) {
   const match = analysis.marketMetricsMatch;
 
@@ -395,6 +427,12 @@ export function WorkspaceShell() {
   const [analysisHistory, setAnalysisHistory] = useState<AnalysisHistoryItem[]>([]);
   const [analysisHistorySource, setAnalysisHistorySource] = useState<"DB" | "local">("local");
   const [backendStatus, setBackendStatus] = useState<BackendStatus | null>(null);
+  const [uploadedDatasets, setUploadedDatasets] = useState<UploadedDataset[]>([]);
+  const [uploadedDataMessage, setUploadedDataMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    setUploadedDatasets(readUploadedDatasets());
+  }, []);
 
   useEffect(() => {
     const storedProjectKey = readActiveProjectKey();
@@ -653,6 +691,7 @@ export function WorkspaceShell() {
             selectedObject: analysisResult.selectedObject ?? null,
             marketContext: analysisResult.marketContext ?? null,
             marketMetrics: createMarketMetricsMetadata(analysisResult),
+            uploadedDataContext: analysisResult.uploadedDataContext ?? null,
             evidence: analysisResult.evidence,
             project: activeProject
           },
@@ -693,6 +732,7 @@ export function WorkspaceShell() {
       ],
       dueDiligenceChecklist: analysisResult.nextActions,
       evidenceSourceReadiness: analysisResult.evidence,
+      uploadedDataContext: analysisResult.uploadedDataContext ?? null,
       limitations: analysisResult.limitations ?? [],
       generatedAt: new Date().toISOString()
     };
@@ -827,6 +867,54 @@ export function WorkspaceShell() {
     writeAnalysisHistory([]);
   }
 
+  function updateUploadedDatasets(updater: (items: UploadedDataset[]) => UploadedDataset[]) {
+    setUploadedDatasets((currentItems) => {
+      const nextItems = updater(currentItems);
+      writeUploadedDatasets(nextItems);
+      return nextItems;
+    });
+  }
+
+  async function uploadDataset(file: File) {
+    if (file.size > maxUploadedFileSizeBytes) {
+      const invalid = createInvalidUploadedDataset(file.name, "File is larger than the 5 MB local upload limit.");
+      updateUploadedDatasets((items) => [invalid, ...items].slice(0, 8));
+      setUploadedDataMessage(invalid.notes ?? "Upload rejected.");
+      return;
+    }
+
+    try {
+      const text = await file.text();
+      const dataset = file.name.toLowerCase().endsWith(".csv")
+        ? createUploadedCsvDataset(file.name, text)
+        : createUploadedGeojsonDataset(file.name, text);
+
+      updateUploadedDatasets((items) => [dataset, ...items.filter((item) => item.name !== dataset.name)].slice(0, 8));
+      setUploadedDataMessage(`${dataset.name} parsed locally. Validation is still required before official use.`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Dataset could not be parsed.";
+      const invalid = createInvalidUploadedDataset(file.name, message);
+      updateUploadedDatasets((items) => [invalid, ...items].slice(0, 8));
+      setUploadedDataMessage(message);
+    }
+  }
+
+  function removeUploadedDataset(datasetId: string) {
+    updateUploadedDatasets((items) => items.filter((item) => item.id !== datasetId));
+    setUploadedDataMessage("Uploaded dataset removed from local workspace.");
+  }
+
+  function clearUploadedDatasets() {
+    updateUploadedDatasets(() => []);
+    setUploadedDataMessage("Local uploaded datasets cleared.");
+  }
+
+  function toggleUploadedDataset(datasetId: string) {
+    updateUploadedDatasets((items) =>
+      items.map((item) => item.id === datasetId ? { ...item, visible: item.visible === false } : item)
+    );
+  }
+
   async function runExpressAnalysis() {
     if (!selectedPoint || isAnalyzing) {
       return;
@@ -843,19 +931,23 @@ export function WorkspaceShell() {
     setComparison(null);
     setReportPreview(null);
 
-    const deterministicAnalysis = withOpenGeodataContext(
-      withMarketContext(
-        {
-          ...createMockExpressAnalysis(
-            selectedPoint,
-            selectedScenario,
-            customQuery,
-            selectedObject
-          ),
-          project: activeProject
-        },
-        marketContext
-      )
+    const uploadedDataContext = buildUploadedDataContext(uploadedDatasets, selectedPoint, selectedObject);
+    const deterministicAnalysis = withUploadedDataContext(
+      withOpenGeodataContext(
+        withMarketContext(
+          {
+            ...createMockExpressAnalysis(
+              selectedPoint,
+              selectedScenario,
+              customQuery,
+              selectedObject
+            ),
+            project: activeProject
+          },
+          marketContext
+        )
+      ),
+      uploadedDataContext
     );
     const scenario = analysisScenarios.find((item) => item.id === selectedScenario) ?? analysisScenarios[0];
 
@@ -875,6 +967,7 @@ export function WorkspaceShell() {
           evidence: deterministicAnalysis.evidence,
           dataSources: getScenarioDataSources(selectedScenario),
           marketContext,
+          uploadedDataContext,
           openGeodataContext: {
             nearestAccessibility: getNearestAccessibilityMetric(selectedPoint),
             nearestRoad: getNearestOpenRoad(selectedPoint),
@@ -899,6 +992,7 @@ export function WorkspaceShell() {
         confidenceLevel: "medium",
         analysisNotice: "AI analysis is unavailable. Using deterministic demo fallback.",
         limitations: [
+          ...(deterministicAnalysis.limitations ?? []),
           "Narrative content is generated from deterministic demo context.",
           "Official parcel, planning, transaction, imagery, and risk data are not connected yet."
         ],
@@ -940,6 +1034,7 @@ export function WorkspaceShell() {
           selectedObject={selectedObject}
           onPointSelect={handlePointSelect}
           onObjectSelect={handleObjectSelect}
+          uploadedDatasets={uploadedDatasets}
         />
       )}
       <AnalysisPanel
@@ -964,6 +1059,8 @@ export function WorkspaceShell() {
         backendStatus={backendStatus}
         marketContext={marketContext}
         isMarketContextLoading={isMarketContextLoading}
+        uploadedDatasets={uploadedDatasets}
+        uploadedDataMessage={uploadedDataMessage}
         onScenarioChange={(scenario) => {
           setSelectedScenario(scenario);
           setAnalysisError(null);
@@ -980,6 +1077,10 @@ export function WorkspaceShell() {
         onRunComparison={runComparison}
         onOpenHistoryItem={openHistoryItem}
         onClearAnalysisHistory={clearAnalysisHistory}
+        onUploadDataset={uploadDataset}
+        onRemoveUploadedDataset={removeUploadedDataset}
+        onClearUploadedDatasets={clearUploadedDatasets}
+        onToggleUploadedDataset={toggleUploadedDataset}
         onExportCurrentResult={() => {
           if (comparison) {
             openComparisonReport();

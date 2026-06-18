@@ -3,6 +3,7 @@ import type { GeoAIProject } from "@/src/lib/db/types";
 import type { MarketMetricsMatch } from "@/src/lib/market-metrics/types";
 import type { MarketContext } from "@/src/types/market-context";
 import type { SpatialSelectionContext } from "@/src/types/spatial-data";
+import type { UploadedDataContext } from "@/src/types/uploaded-data";
 
 export type SelectedPoint = {
   latitude: number;
@@ -79,6 +80,7 @@ export type ExpressAnalysis = {
   generatedAt?: string;
   project?: GeoAIProject;
   marketMetricsMatch?: MarketMetricsMatch;
+  uploadedDataContext?: UploadedDataContext;
 };
 
 export type ComparisonItem = {

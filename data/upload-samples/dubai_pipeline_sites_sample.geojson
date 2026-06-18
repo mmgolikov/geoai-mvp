@@ -1,0 +1,74 @@
+{
+  "type": "FeatureCollection",
+  "name": "dubai_pipeline_sites_sample",
+  "metadata": {
+    "sourceMode": "sample-fixture",
+    "officialStatus": "official-validation-required",
+    "note": "Synthetic user-upload sample for GeoAI local-first upload testing. Not official GIS, parcel, zoning or planning data."
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Dubai Marina Demo Pipeline Area",
+        "site_type": "mixed_use_pipeline",
+        "confidence": "sample",
+        "note": "Synthetic polygon for upload workflow testing."
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [55.1328, 25.0894],
+            [55.1517, 25.0891],
+            [55.1542, 25.0769],
+            [55.1369, 25.0735],
+            [55.1328, 25.0894]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Business Bay Demo Infill Area",
+        "site_type": "redevelopment_watch",
+        "confidence": "sample",
+        "note": "Synthetic polygon for upload workflow testing."
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [55.2585, 25.1937],
+            [55.2781, 25.1905],
+            [55.2769, 25.1779],
+            [55.2603, 25.1788],
+            [55.2585, 25.1937]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Dubai South Demo Growth Node",
+        "site_type": "growth_pipeline",
+        "confidence": "sample",
+        "note": "Synthetic polygon for upload workflow testing."
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [55.1364, 24.9047],
+            [55.1758, 24.9012],
+            [55.1721, 24.8731],
+            [55.1327, 24.8758],
+            [55.1364, 24.9047]
+          ]
+        ]
+      }
+    }
+  ]
+}

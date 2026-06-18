@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import type { SelectedDemoObject, SelectedPoint } from "@/src/types/geo";
+import type { UploadedDataset } from "@/src/types/uploaded-data";
 
 type MapWorkspaceProps = {
   selectedPoint: SelectedPoint | null;
@@ -11,6 +12,7 @@ type MapWorkspaceProps = {
   className?: string;
   showEmptyOverlay?: boolean;
   showLayerControls?: boolean;
+  uploadedDatasets?: UploadedDataset[];
 };
 
 const MapWorkspaceClient = dynamic(

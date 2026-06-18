@@ -1,5 +1,6 @@
 import type { DataSource, EvidenceItem } from "@/src/types/data-source";
 import type { MarketContext } from "@/src/types/market-context";
+import type { UploadedDataContext } from "@/src/types/uploaded-data";
 import type {
   AnalysisScenarioId,
   ScoreKey,
@@ -64,4 +65,5 @@ export type AnalyzeRequest = {
   evidence: EvidenceItem[];
   dataSources: DataSource[];
   marketContext?: MarketContext | null;
+  uploadedDataContext?: UploadedDataContext | null;
 };

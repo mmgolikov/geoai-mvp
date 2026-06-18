@@ -90,6 +90,47 @@ function dedupeTextList(items: string[]) {
   });
 }
 
+function UploadedDataReportSection({ analysis }: { analysis: ExpressAnalysis }) {
+  const context = analysis.uploadedDataContext;
+
+  if (!context || context.uploadedDatasets.length === 0) {
+    return null;
+  }
+
+  return (
+    <Section title="Source Lineage / Uploaded Data Used">
+      <div className="grid gap-3 md:grid-cols-2">
+        {context.uploadedDatasets.map((dataset) => {
+          const applied = context.appliedMetrics.find((match) => match.datasetId === dataset.id);
+          const available = context.availableButNotApplied.find((match) => match.datasetId === dataset.id);
+
+          return (
+            <div key={dataset.id} className="rounded-md border border-line bg-surface p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="font-semibold text-ink">{dataset.name}</p>
+                  <p className="mt-1 text-xs uppercase tracking-[0.1em] text-muted">
+                    {dataset.type} / {dataset.sourceMode.replace(/-/g, " ")}
+                  </p>
+                </div>
+                <span className="rounded-full bg-white px-2 py-1 text-xs font-semibold text-muted">
+                  {applied ? "Applied" : available ? "Not applied" : "Visible"}
+                </span>
+              </div>
+              <p className="mt-3 text-sm leading-6 text-muted">
+                {applied?.note ?? available?.note ?? dataset.notes ?? "Local upload available as validation-required context."}
+              </p>
+              <p className="mt-2 text-xs leading-5 text-muted">
+                Confidence: {dataset.confidence.replace(/-/g, " ")}. Official status: {dataset.officialStatus.replace(/-/g, " ")}.
+              </p>
+            </div>
+          );
+        })}
+      </div>
+    </Section>
+  );
+}
+
 function ReportShell({
   children,
   onBack
@@ -423,6 +464,8 @@ function AnalysisReport({ analysis, onBack }: { analysis: ExpressAnalysis; onBac
             These sample/manual CSV metrics support conservative scoring when matched and are not a live official data connection.
           </div>
         </Section>
+
+        <UploadedDataReportSection analysis={analysis} />
 
         <div className="grid gap-6 md:grid-cols-2">
           <Section title="Opportunities">

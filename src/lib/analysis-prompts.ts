@@ -70,6 +70,21 @@ export function buildAnalyzePrompt(request: AnalyzeRequest) {
         sourceIds: request.marketContext.sourceIds
       }
     : null;
+  const uploadedDataContext = request.uploadedDataContext
+    ? {
+        appliedMetrics: request.uploadedDataContext.appliedMetrics,
+        availableButNotApplied: request.uploadedDataContext.availableButNotApplied,
+        visibleGeojsonLayers: request.uploadedDataContext.visibleGeojsonLayers.map((dataset) => ({
+          id: dataset.id,
+          name: dataset.name,
+          featureCount: dataset.featureCount,
+          confidence: dataset.confidence,
+          officialStatus: dataset.officialStatus,
+          notes: dataset.notes
+        })),
+        limitations: "Uploaded datasets are browser-local, user-provided context and are not official until externally validated."
+      }
+    : null;
 
   return `
 You are GeoAI, a spatial decision intelligence assistant for real estate, infrastructure, construction, investment, and climate-risk screening in Dubai.
@@ -87,6 +102,7 @@ Critical rules:
 - If market context is provided, use the matched Dubai area name and its qualitative/index-style signals, but clearly treat seed/demo-normalized market context as non-official.
 - If enriched marketMetrics are provided, refer to them as seed_static demo-normalized indicators: activity, rental demand, liquidity, development pipeline, risk, and trend.
 - If spatialContext is provided, use its feature category, geometry type, centroid, estimated area, geometry confidence, source status and limitations. Never describe seed_geojson geometries as official parcel or planning boundaries.
+- If uploadedDataContext is provided, reference uploaded CSV/GeoJSON only as user-provided local context. Do not treat it as official, live, verified, or decision-grade evidence unless validation is explicitly supplied.
 - Keep the content polished, specific, and suitable for a professional pilot demo.
 
 Scenario:
@@ -119,6 +135,9 @@ ${compactJson(request.evidence)}
 
 Dubai market context:
 ${marketContext ? compactJson(marketContext) : "No market context provided."}
+
+Uploaded local dataset context:
+${uploadedDataContext ? compactJson(uploadedDataContext) : "No uploaded dataset context provided."}
 
 Available Data Source Registry entries:
 ${compactJson(dataSources)}
