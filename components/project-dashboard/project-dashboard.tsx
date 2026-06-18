@@ -171,6 +171,11 @@ function Panel({ title, subtitle, children }: { title: string; subtitle?: string
   );
 }
 
+function getProjectMetadataText(project: GeoAIProject, key: string, fallback: string) {
+  const value = project.metadata?.[key];
+  return typeof value === "string" && value.trim().length > 0 ? value : fallback;
+}
+
 function getNextActions(project: GeoAIProject, importedMetricsCount: number) {
   const scenario = project.primaryScenario;
   const common = [
@@ -430,6 +435,29 @@ export function ProjectDashboard() {
           </div>
 
           <div className="grid content-start gap-5">
+            <Panel title="Guided Demo Brief" subtitle="Use this project as a controlled client-demo narrative, not as validated production evidence.">
+              <div className="grid gap-3">
+                <div className="rounded-md bg-surface p-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Purpose</p>
+                  <p className="mt-1 text-sm leading-6 text-ink">
+                    {getProjectMetadataText(activeProject, "demoPurpose", "Demonstrate GeoAI screening, memo and comparison workflows.")}
+                  </p>
+                </div>
+                <div className="rounded-md bg-surface p-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Data status</p>
+                  <p className="mt-1 text-sm leading-6 text-ink">
+                    {getProjectMetadataText(activeProject, "dataStatus", "Demo-normalized and sample/offline data; official validation required.")}
+                  </p>
+                </div>
+                <div className="rounded-md bg-surface p-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Recommended next action</p>
+                  <p className="mt-1 text-sm leading-6 text-ink">
+                    {getProjectMetadataText(activeProject, "recommendedNextAction", "Agree pilot data sources and validation path before operational use.")}
+                  </p>
+                </div>
+              </div>
+            </Panel>
+
             <Panel title="Data Readiness" subtitle="Current source maturity and persistence posture for this project.">
               <div className="grid gap-3">
                 <div className="rounded-md border border-line bg-surface p-4">

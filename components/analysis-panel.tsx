@@ -18,6 +18,7 @@ import type {
   SelectedDemoObject,
   SelectedPoint
 } from "@/src/types/geo";
+import type { GuidedDemoPreset } from "@/src/data/guided-demo";
 import type { UploadedDataset } from "@/src/types/uploaded-data";
 
 type AnalysisPanelProps = {
@@ -49,11 +50,15 @@ type AnalysisPanelProps = {
   isMarketContextLoading: boolean;
   uploadedDatasets: UploadedDataset[];
   uploadedDataMessage: string | null;
+  guidedDemoPresets: GuidedDemoPreset[];
+  activeGuidedDemoId: string | null;
   onProjectChange: (projectKey: string) => void;
   onScenarioChange: (scenario: AnalysisScenarioId) => void;
   onCustomQueryChange: (query: string) => void;
   onRunAnalysis: () => void;
   onAddToComparison: () => void;
+  onLoadGuidedDemo: (presetId: string) => void;
+  onLoadGuidedDemoComparison: (presetId: string) => void;
   onRemoveComparisonItem: (itemId: string) => void;
   onRunComparison: () => void;
   onOpenHistoryItem: (item: AnalysisHistoryItem) => void;
@@ -169,11 +174,15 @@ export function AnalysisPanel({
   isMarketContextLoading,
   uploadedDatasets,
   uploadedDataMessage,
+  guidedDemoPresets,
+  activeGuidedDemoId,
   onProjectChange,
   onScenarioChange,
   onCustomQueryChange,
   onRunAnalysis,
   onAddToComparison,
+  onLoadGuidedDemo,
+  onLoadGuidedDemoComparison,
   onRemoveComparisonItem,
   onRunComparison,
   onOpenHistoryItem,
@@ -192,6 +201,18 @@ export function AnalysisPanel({
   const isCustomQuery = selectedScenario === "customQuery";
   const availableSources = getScenarioDataSources(selectedScenario).slice(0, 3);
   const parsedUploads = uploadedDatasets.filter((dataset) => dataset.status === "parsed");
+  const activeGuidedDemo = guidedDemoPresets.find((preset) => preset.id === activeGuidedDemoId) ?? guidedDemoPresets[0];
+  const demoGeojsonLoaded = uploadedDatasets.some((dataset) => dataset.id === "guided-demo-geojson-sites" && dataset.status === "parsed");
+  const demoCsvLoaded = uploadedDatasets.some((dataset) => dataset.id === "guided-demo-csv-metrics" && dataset.status === "parsed");
+  const demoSteps = [
+    { label: "Load demo data", complete: demoGeojsonLoaded && demoCsvLoaded },
+    { label: "Select site / polygon", complete: hasSelectedPoint },
+    { label: "Run analysis", complete: hasResult },
+    { label: "Add to comparison", complete: comparisonItems.length > 0 },
+    { label: "Open report", complete: hasResult },
+    { label: "Review data used", complete: hasResult },
+    { label: "Open project dashboard", complete: false }
+  ];
   const modeStatus =
     analysisMode === "openai"
       ? "AI-powered"
@@ -338,6 +359,66 @@ export function AnalysisPanel({
                 </dd>
               </div>
             </dl>
+          </section>
+
+          <section className="min-w-0 max-w-full overflow-hidden rounded-lg border border-line bg-white p-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">
+                  Guided demo
+                </p>
+                <h2 className="mt-1 truncate text-sm font-semibold text-ink">
+                  {activeGuidedDemo.title}
+                </h2>
+                <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted">
+                  {activeGuidedDemo.clientType} / {activeGuidedDemo.expectedOutput}
+                </p>
+              </div>
+              <span className="shrink-0 rounded-full bg-surface px-2 py-1 text-[11px] font-semibold text-brand">
+                v0.6
+              </span>
+            </div>
+            <select
+              value={activeGuidedDemo.id}
+              onChange={(event) => onLoadGuidedDemo(event.target.value)}
+              className="mt-3 h-9 w-full rounded-md border border-line bg-surface px-3 text-sm font-semibold text-ink outline-none transition focus:border-brand"
+              aria-label="Guided demo scenario"
+            >
+              {guidedDemoPresets.map((preset) => (
+                <option key={preset.id} value={preset.id}>
+                  {preset.title}
+                </option>
+              ))}
+            </select>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => onLoadGuidedDemo(activeGuidedDemo.id)}
+                className="inline-flex h-9 items-center justify-center rounded-md bg-brand px-3 text-xs font-semibold text-white transition hover:bg-[#113f50]"
+              >
+                Load demo data
+              </button>
+              <button
+                type="button"
+                onClick={() => onLoadGuidedDemoComparison(activeGuidedDemo.id)}
+                className="inline-flex h-9 items-center justify-center rounded-md border border-line bg-surface px-3 text-xs font-semibold text-ink transition hover:border-brand"
+              >
+                Add demo sites
+              </button>
+            </div>
+            <div className="mt-3 grid gap-1.5">
+              {demoSteps.map((step, index) => (
+                <div key={`guided-demo-step-${index}`} className="flex min-w-0 items-center gap-2 text-xs leading-5">
+                  <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold ${step.complete ? "bg-brand text-white" : "bg-surface text-muted"}`}>
+                    {step.complete ? "✓" : index + 1}
+                  </span>
+                  <span className="truncate text-muted">{step.label}</span>
+                </div>
+              ))}
+            </div>
+            <p className="mt-3 line-clamp-2 text-xs leading-5 text-muted">
+              {activeGuidedDemo.dataHonestyNote}
+            </p>
           </section>
 
           <section className="grid min-w-0 max-w-full gap-2 overflow-hidden">

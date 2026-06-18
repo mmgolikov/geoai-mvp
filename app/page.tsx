@@ -384,7 +384,10 @@ export default function HomePage() {
             ))}
           </div>
           <div className="mt-7 flex flex-col gap-3 sm:flex-row">
-            <Link href="/workspace" className="inline-flex h-11 items-center justify-center rounded-md bg-brand px-5 text-sm font-semibold text-white shadow-soft transition hover:bg-[#113f50]">
+            <Link href="/workspace?guidedDemo=dubai-marina-investment" className="inline-flex h-11 items-center justify-center rounded-md bg-brand px-5 text-sm font-semibold text-white shadow-soft transition hover:bg-[#113f50]">
+              Launch guided demo
+            </Link>
+            <Link href="/workspace" className="inline-flex h-11 items-center justify-center rounded-md border border-[#ded7c9] bg-white px-5 text-sm font-semibold text-ink transition hover:border-brand">
               Open demo workspace
             </Link>
             <a href="#use-cases" className="inline-flex h-11 items-center justify-center rounded-md border border-[#ded7c9] bg-white px-5 text-sm font-semibold text-ink transition hover:border-brand">

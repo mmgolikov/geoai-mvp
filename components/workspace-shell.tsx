@@ -12,6 +12,13 @@ import {
   getScenarioDataSources
 } from "@/src/data/data-source-registry";
 import { demoProjects, getDemoProject } from "@/src/data/demo-projects";
+import {
+  createGuidedDemoComparisonItems,
+  createGuidedDemoDatasets,
+  createGuidedDemoSelection,
+  getGuidedDemoPreset,
+  guidedDemoPresets
+} from "@/src/data/guided-demo";
 import { createComparisonItem, createMockComparison } from "@/src/lib/mock-comparison";
 import { analysisScenarios, createMockExpressAnalysis } from "@/src/lib/mock-express-analysis";
 import { deriveDecisionPosture } from "@/src/lib/decision-posture";
@@ -463,9 +470,55 @@ export function WorkspaceShell() {
   const [backendStatus, setBackendStatus] = useState<BackendStatus | null>(null);
   const [uploadedDatasets, setUploadedDatasets] = useState<UploadedDataset[]>([]);
   const [uploadedDataMessage, setUploadedDataMessage] = useState<string | null>(null);
+  const [activeGuidedDemoId, setActiveGuidedDemoId] = useState<string | null>(null);
+
+  function loadGuidedDemo(presetId: string, includeComparisonSites = false) {
+    const preset = getGuidedDemoPreset(presetId);
+    const demoDatasets = createGuidedDemoDatasets();
+    const demoSelection = createGuidedDemoSelection(preset);
+    const nextProject = projects.find((project) => project.projectKey === preset.projectKey) ?? getDemoProject(preset.projectKey);
+
+    updateUploadedDatasets((items) => [
+      ...demoDatasets,
+      ...items.filter((item) => !demoDatasets.some((dataset) => dataset.id === item.id))
+    ].slice(0, 8));
+    setSelectedObject(demoSelection);
+    setSelectedPoint(demoSelection.center);
+    setSelectedScenario(preset.scenarioId);
+    setCustomQuery("");
+    setActiveProject(nextProject);
+    writeActiveProjectKey(nextProject.projectKey);
+    setAnalysis(null);
+    setComparison(null);
+    setReportPreview(null);
+    setAnalysisError(null);
+    setComparisonMessage(includeComparisonSites ? "Demo comparison sites loaded. Click Compare Selected when ready." : null);
+    setIsAnalyzing(false);
+    setMarketContext(null);
+    setActiveGuidedDemoId(preset.id);
+
+    if (includeComparisonSites) {
+      setComparisonItems(createGuidedDemoComparisonItems(preset));
+    }
+
+    setUploadedDataMessage(
+      `${preset.title} loaded with local demo CSV metrics and demo GeoJSON screening sites. Not official; validation required.`
+    );
+  }
 
   useEffect(() => {
     setUploadedDatasets(readUploadedDatasets());
+  }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const guidedDemoId = params.get("guidedDemo");
+
+    if (guidedDemoId) {
+      loadGuidedDemo(guidedDemoId);
+    }
+    // Run once from the initial URL only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -1107,6 +1160,8 @@ export function WorkspaceShell() {
         isMarketContextLoading={isMarketContextLoading}
         uploadedDatasets={uploadedDatasets}
         uploadedDataMessage={uploadedDataMessage}
+        guidedDemoPresets={guidedDemoPresets}
+        activeGuidedDemoId={activeGuidedDemoId}
         onScenarioChange={(scenario) => {
           setSelectedScenario(scenario);
           setAnalysisError(null);
@@ -1124,6 +1179,8 @@ export function WorkspaceShell() {
         onOpenHistoryItem={openHistoryItem}
         onClearAnalysisHistory={clearAnalysisHistory}
         onUploadDataset={uploadDataset}
+        onLoadGuidedDemo={(presetId) => loadGuidedDemo(presetId)}
+        onLoadGuidedDemoComparison={(presetId) => loadGuidedDemo(presetId, true)}
         onRemoveUploadedDataset={removeUploadedDataset}
         onClearUploadedDatasets={clearUploadedDatasets}
         onToggleUploadedDataset={toggleUploadedDataset}
