@@ -247,11 +247,11 @@ function HeroVisual() {
         <div className="grid min-h-0 gap-2.5 p-2.5 lg:h-[320px] lg:grid-cols-[minmax(0,1.58fr)_minmax(240px,0.9fr)] xl:h-[336px]">
           <div className="relative min-h-[260px] overflow-hidden rounded-lg border border-line bg-white lg:min-h-0">
             <LandingHeroMap />
-            <div className="pointer-events-none absolute left-3 top-3 max-w-[230px] rounded-md border border-white/80 bg-white/92 px-3 py-2 shadow-sm backdrop-blur">
+            <div className="pointer-events-none absolute left-3 top-3 z-20 max-w-[230px] rounded-md border border-white bg-white/95 px-3 py-2 shadow-sm backdrop-blur">
               <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-brand">Selected site</p>
               <p className="mt-1 truncate text-sm font-semibold text-ink">Dubai Marina screening area</p>
             </div>
-            <div className="pointer-events-none absolute left-[38%] top-[35%] h-20 w-32 rotate-[-9deg] rounded-[42%] border-2 border-brand/80 bg-brand/10 shadow-sm" />
+            <div className="pointer-events-none absolute left-[39%] top-[38%] z-10 h-[72px] w-[120px] rotate-[-9deg] rounded-[42%] border-2 border-brand/75 bg-brand/10 shadow-sm" />
             <div className="pointer-events-none absolute bottom-3 left-3 right-3 flex flex-wrap gap-1.5">
               {["Market context", "Spatial layers", "Risk signals"].map((item) => (
                 <span key={item} className="rounded-full border border-white/80 bg-white/90 px-2 py-1 text-[10px] font-semibold text-muted shadow-sm">
@@ -278,11 +278,11 @@ function HeroVisual() {
               <div className="grid gap-2">
                 {[
                   ["Key risk", "Validation required"],
-                  ["Next action", "Due diligence pack"]
+                  ["Next action", "Due diligence"]
                 ].map(([label, value]) => (
-                  <div key={label} className="min-w-0 overflow-hidden rounded-md border border-line bg-surface px-3 py-2">
+                  <div key={label} className="min-w-0 overflow-hidden rounded-md border border-line bg-surface px-2.5 py-2">
                     <p className="truncate text-[10px] font-semibold uppercase tracking-[0.1em] text-muted">{label}</p>
-                    <p className="mt-1 truncate text-sm font-semibold leading-5 text-ink">{value}</p>
+                    <p className="mt-1 text-xs font-semibold leading-4 text-ink">{value}</p>
                   </div>
                 ))}
               </div>
