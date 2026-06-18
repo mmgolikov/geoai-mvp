@@ -79,7 +79,10 @@ When Supabase is configured:
 
 - Analysis runs are posted to `/api/analysis-runs` after local history is saved.
 - The save is best-effort and will not block the dashboard.
+- Report/export preview payloads are posted to `/api/reports`.
 - The Status section shows whether persistence is local-only or Supabase-backed.
+
+See [Persistence v0.1](PERSISTENCE_V01.md) for the current analysis history and report persistence behavior.
 
 ## Security Notes
 

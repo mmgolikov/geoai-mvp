@@ -25,6 +25,7 @@ type AnalysisPanelProps = {
   comparisonItems: ComparisonItem[];
   comparisonMessage: string | null;
   analysisHistory: AnalysisHistoryItem[];
+  analysisHistorySource: "DB" | "local";
   hasResult: boolean;
   analysisMode?: ExpressAnalysis["analysisMode"];
   analysisGeneratedAt?: string;
@@ -121,6 +122,7 @@ export function AnalysisPanel({
   comparisonItems,
   comparisonMessage,
   analysisHistory,
+  analysisHistorySource,
   hasResult,
   analysisMode,
   analysisGeneratedAt,
@@ -170,6 +172,8 @@ export function AnalysisPanel({
     backendStatus?.status === "connected"
       ? "PostGIS-ready"
       : "Not configured";
+  const analysisHistoryStatus =
+    analysisHistorySource === "DB" ? "Supabase-backed" : "Local fallback";
 
   return (
     <aside className="max-w-full overflow-y-auto overflow-x-hidden border-l border-line bg-white lg:h-[calc(100vh-72px)] lg:w-[400px]">
@@ -420,17 +424,17 @@ export function AnalysisPanel({
             ) : null}
           </CollapsedSection>
 
-          <CollapsedSection title="Analysis History" badge={`${analysisHistory.length}`}>
+          <CollapsedSection title="Analysis History" badge={analysisHistoryStatus}>
             <div className="grid min-w-0 gap-2">
               {analysisHistory.length === 0 ? (
                 <div className="rounded-md border border-line bg-white px-3 py-3 text-sm leading-5 text-muted">
-                  Recent analysis runs will appear here after you run Express Analysis.
+                  Recent analysis runs will appear here after you run Express Analysis. Current mode: {analysisHistoryStatus}.
                 </div>
               ) : (
                 <>
                   <div className="flex min-w-0 items-center justify-between gap-3">
                     <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">
-                      Recent analyses
+                      Recent analyses / {analysisHistoryStatus}
                     </p>
                     <button
                       type="button"
@@ -460,10 +464,13 @@ export function AnalysisPanel({
                         </div>
                         <div className="grid shrink-0 gap-1 text-right">
                           <span className="rounded-full bg-surface px-2 py-1 text-[11px] font-semibold capitalize text-brand">
-                            {item.analysisMode === "openai" ? "AI" : "Demo"}
+                            {item.source ?? analysisHistorySource}
                           </span>
                           <span className="text-[11px] font-semibold text-muted">
                             {item.analysis.scores.investmentAttractiveness}/100
+                          </span>
+                          <span className="text-[11px] font-semibold capitalize text-muted">
+                            {item.confidenceLevel ?? "medium"}
                           </span>
                         </div>
                       </div>
@@ -502,6 +509,10 @@ export function AnalysisPanel({
               <div className="flex items-center justify-between gap-3">
                 <span className="text-muted">Persistence</span>
                 <span className="text-right font-semibold text-ink">{persistenceStatus}</span>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-muted">Analysis history</span>
+                <span className="text-right font-semibold text-ink">{analysisHistoryStatus}</span>
               </div>
               <div className="flex items-center justify-between gap-3">
                 <span className="text-muted">Spatial DB</span>

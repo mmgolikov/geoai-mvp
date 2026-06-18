@@ -19,13 +19,22 @@ function isAnalysisRunInput(value: unknown): value is DbAnalysisRunInput {
     typeof input.selectedName === "string" &&
     typeof input.selectedType === "string" &&
     input.selectedPoint !== undefined &&
-    input.result !== undefined
+    input.resultJson !== undefined
   );
 }
 
-export async function GET() {
-  const result = await listAnalysisRuns();
-  return NextResponse.json(result);
+export async function GET(request: Request) {
+  const url = new URL(request.url);
+  const limitParam = Number(url.searchParams.get("limit") ?? "10");
+  const limit = Number.isFinite(limitParam) ? Math.min(Math.max(limitParam, 1), 50) : 10;
+  const result = await listAnalysisRuns(limit);
+
+  return NextResponse.json({
+    ok: result.ok,
+    mode: result.mode,
+    items: result.data ?? [],
+    error: result.error
+  });
 }
 
 export async function POST(request: Request) {
@@ -50,10 +59,13 @@ export async function POST(request: Request) {
   const result = await saveAnalysisRun(body);
 
   return NextResponse.json({
-    ok: true,
-    persisted: result.persisted,
+    ok: result.ok,
+    persisted: result.mode === "db" && result.ok,
     mode: result.mode,
-    message: result.persisted
+    runKey: body.runKey,
+    data: result.data,
+    error: result.error,
+    message: result.mode === "db" && result.ok
       ? "Analysis run persisted."
       : "Analysis run kept local only; Supabase is not configured or unavailable."
   });

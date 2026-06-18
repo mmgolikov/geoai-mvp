@@ -35,6 +35,30 @@ type BackendStatus = {
   sources_count: number | null;
 };
 
+type AnalysisRunsResponse = {
+  ok: boolean;
+  mode: "db" | "local_only";
+  items: unknown[];
+  error: string | null;
+};
+
+type PersistedAnalysisRun = {
+  id?: string;
+  run_key?: string;
+  scenario_id?: AnalysisScenarioId;
+  selected_name?: string;
+  selected_type?: string;
+  selected_point?: SelectedPoint;
+  selected_object?: SelectedDemoObject | null;
+  result_json?: ExpressAnalysis;
+  result_payload?: ExpressAnalysis;
+  decision_posture?: string | null;
+  confidence_level?: ExpressAnalysis["confidenceLevel"];
+  data_confidence_level?: string | null;
+  analysis_mode?: ExpressAnalysis["analysisMode"];
+  created_at?: string;
+};
+
 function titledText(title: string, description: string) {
   return title ? `${title}: ${description}` : description;
 }
@@ -108,7 +132,11 @@ function formatLocationLabel(analysis: ExpressAnalysis) {
   return analysis.selectedObject?.name ?? `${analysis.point.latitude.toFixed(5)}, ${analysis.point.longitude.toFixed(5)}`;
 }
 
-function createHistoryItem(analysis: ExpressAnalysis, scenarioLabel: string): AnalysisHistoryItem {
+function createHistoryItem(
+  analysis: ExpressAnalysis,
+  scenarioLabel: string,
+  source: AnalysisHistoryItem["source"] = "local"
+): AnalysisHistoryItem {
   return {
     id: `${analysis.id}-${analysis.generatedAt ?? Date.now()}`,
     title: analysis.selectedObject?.name ?? analysis.title,
@@ -118,6 +146,8 @@ function createHistoryItem(analysis: ExpressAnalysis, scenarioLabel: string): An
     locationLabel: formatLocationLabel(analysis),
     analysisMode: analysis.analysisMode,
     confidenceLevel: analysis.confidenceLevel,
+    dataConfidenceLevel: analysis.marketContext?.confidenceLevel,
+    source,
     recommendation: analysis.nextActions[0] ?? "Review evidence and validate constraints.",
     analysis
   };
@@ -145,6 +175,38 @@ function writeAnalysisHistory(items: AnalysisHistoryItem[]) {
   }
 }
 
+function isPersistedAnalysisRun(value: unknown): value is PersistedAnalysisRun {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function historyItemFromPersistedRun(value: unknown): AnalysisHistoryItem | null {
+  if (!isPersistedAnalysisRun(value)) {
+    return null;
+  }
+
+  const analysis = value.result_json ?? value.result_payload;
+  if (!analysis?.id || !analysis.point || !analysis.scenarioId) {
+    return null;
+  }
+
+  const scenario = analysisScenarios.find((item) => item.id === analysis.scenarioId);
+
+  return {
+    id: value.id ?? value.run_key ?? analysis.id,
+    title: value.selected_name ?? analysis.selectedObject?.name ?? analysis.title,
+    scenarioId: analysis.scenarioId,
+    scenarioLabel: scenario?.label ?? analysis.title,
+    timestamp: value.created_at ?? analysis.generatedAt ?? new Date().toISOString(),
+    locationLabel: formatLocationLabel(analysis),
+    analysisMode: value.analysis_mode ?? analysis.analysisMode,
+    confidenceLevel: value.confidence_level ?? analysis.confidenceLevel,
+    dataConfidenceLevel: value.data_confidence_level ?? analysis.marketContext?.confidenceLevel,
+    source: "DB",
+    recommendation: value.decision_posture ?? analysis.nextActions[0] ?? "Review evidence and validate constraints.",
+    analysis
+  };
+}
+
 export function WorkspaceShell() {
   const [selectedPoint, setSelectedPoint] = useState<SelectedPoint | null>(null);
   const [selectedObject, setSelectedObject] = useState<SelectedDemoObject | null>(null);
@@ -160,10 +222,43 @@ export function WorkspaceShell() {
   const [marketContext, setMarketContext] = useState<MarketContext | null>(null);
   const [isMarketContextLoading, setIsMarketContextLoading] = useState(false);
   const [analysisHistory, setAnalysisHistory] = useState<AnalysisHistoryItem[]>([]);
+  const [analysisHistorySource, setAnalysisHistorySource] = useState<"DB" | "local">("local");
   const [backendStatus, setBackendStatus] = useState<BackendStatus | null>(null);
 
   useEffect(() => {
-    setAnalysisHistory(readAnalysisHistory());
+    const localHistory = readAnalysisHistory();
+    setAnalysisHistory(localHistory);
+
+    let isMounted = true;
+
+    fetch("/api/analysis-runs?limit=10")
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload: AnalysisRunsResponse | null) => {
+        if (!isMounted || !payload) {
+          return;
+        }
+
+        if (payload.mode !== "db") {
+          setAnalysisHistorySource("local");
+          return;
+        }
+
+        const dbHistory = payload.items
+          .map((item) => historyItemFromPersistedRun(item))
+          .filter((item): item is AnalysisHistoryItem => item !== null);
+
+        setAnalysisHistory(dbHistory);
+        setAnalysisHistorySource("DB");
+      })
+      .catch(() => {
+        if (isMounted) {
+          setAnalysisHistorySource("local");
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -309,7 +404,7 @@ export function WorkspaceShell() {
   }
 
   function saveAnalysisHistory(analysisResult: ExpressAnalysis, scenarioLabel: string) {
-    const historyItem = createHistoryItem(analysisResult, scenarioLabel);
+    const historyItem = createHistoryItem(analysisResult, scenarioLabel, analysisHistorySource);
 
     setAnalysisHistory((items) => {
       const nextItems = [
@@ -335,18 +430,134 @@ export function WorkspaceShell() {
           selectedName: analysisResult.selectedObject?.name ?? "Custom map selection",
           selectedType: analysisResult.selectedObject ? "object" : "point",
           selectedPoint: analysisResult.point,
+          selectedFeatureKey: analysisResult.selectedObject?.spatialContext?.featureId ?? analysisResult.selectedObject?.id ?? null,
+          inputContext: {
+            scenarioLabel,
+            selectedPoint: analysisResult.point,
+            selectedObject: analysisResult.selectedObject ?? null,
+            marketContext: analysisResult.marketContext ?? null,
+            evidence: analysisResult.evidence
+          },
           selectedObject: analysisResult.selectedObject ?? null,
-          result: analysisResult,
+          resultJson: analysisResult,
           decisionPosture: analysisResult.nextActions[0] ?? null,
           confidenceLevel: analysisResult.confidenceLevel ?? null,
           dataConfidenceLevel: analysisResult.marketContext?.confidenceLevel ?? null,
           analysisMode: analysisResult.analysisMode ?? null,
-          scenarioLabel
+          createdAt: analysisResult.generatedAt ?? new Date().toISOString()
         })
       });
     } catch {
       // Persistence is optional in v0.1; local history remains the source of truth.
     }
+  }
+
+  function createAnalysisReportPayload(analysisResult: ExpressAnalysis) {
+    return {
+      analysisRunId: analysisResult.id,
+      runKey: analysisResult.id,
+      title: "Express Analysis / Investment Memo",
+      selectedSite: analysisResult.selectedObject?.name ?? "Custom map selection",
+      selectedObject: analysisResult.selectedObject ?? null,
+      coordinates: analysisResult.point,
+      scenario: analysisResult.title,
+      memoJson: analysisResult,
+      decisionPosture: analysisResult.nextActions[0] ?? "Proceed to validation",
+      scoreOverview: analysisResult.scores,
+      keyValueDrivers: analysisResult.keyFactors,
+      criticalConstraints: analysisResult.risks,
+      dataGaps: analysisResult.limitations ?? [
+        "Official parcel, transaction, planning, imagery, and customer evidence are not connected yet."
+      ],
+      dueDiligenceChecklist: analysisResult.nextActions,
+      evidenceSourceReadiness: analysisResult.evidence,
+      limitations: analysisResult.limitations ?? [],
+      generatedAt: new Date().toISOString()
+    };
+  }
+
+  function createComparisonReportPayload(comparisonResult: ComparisonResult) {
+    return {
+      title: "Site Comparison Investment Memo",
+      comparedItems: comparisonResult.items.map((item) => ({
+        name: item.item.name,
+        type: item.item.itemType,
+        coordinates: item.item.point,
+        scenario: item.item.scenarioLabel,
+        overallScore: item.overallScore,
+        riskLevel: item.riskLevel,
+        recommendedUse: item.recommendedUse,
+        keyConcern: item.keyConcern
+      })),
+      scenario: "Comparison",
+      comparisonJson: comparisonResult,
+      decisionPosture: `Best option: ${comparisonResult.winner.item.name}`,
+      scoreOverview: comparisonResult.items.map((item) => ({
+        itemName: item.item.name,
+        scores: item.scores,
+        overallScore: item.overallScore
+      })),
+      keyValueDrivers: comparisonResult.sharedOpportunities,
+      criticalConstraints: comparisonResult.differentiatedRisks,
+      dataGaps: [
+        "Financial assumptions, official land-use validation, and customer requirements are not persisted yet."
+      ],
+      dueDiligenceChecklist: comparisonResult.nextActions,
+      evidenceSourceReadiness: comparisonResult.evidence,
+      limitations: [
+        "Comparison uses deterministic demo scoring and structured evidence readiness, not a validated underwriting model."
+      ],
+      generatedAt: new Date().toISOString()
+    };
+  }
+
+  async function persistReport(mode: "analysis" | "comparison") {
+    try {
+      if (mode === "analysis" && analysis) {
+        const reportJson = createAnalysisReportPayload(analysis);
+        await fetch("/api/reports", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            reportKey: `analysis-report-${analysis.id}`,
+            runKey: analysis.id,
+            reportType: "analysis",
+            title: reportJson.title,
+            reportJson,
+            decisionPosture: reportJson.decisionPosture,
+            generatedAt: reportJson.generatedAt
+          })
+        });
+      }
+
+      if (mode === "comparison" && comparison) {
+        const reportJson = createComparisonReportPayload(comparison);
+        await fetch("/api/reports", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            reportKey: `comparison-report-${comparison.id}`,
+            reportType: "comparison",
+            title: reportJson.title,
+            reportJson,
+            decisionPosture: reportJson.decisionPosture,
+            generatedAt: reportJson.generatedAt
+          })
+        });
+      }
+    } catch {
+      // Export remains print/screen-first; DB persistence is optional.
+    }
+  }
+
+  function openAnalysisReport() {
+    void persistReport("analysis");
+    setReportPreview("analysis");
+  }
+
+  function openComparisonReport() {
+    void persistReport("comparison");
+    setReportPreview("comparison");
   }
 
   function openHistoryItem(item: AnalysisHistoryItem) {
@@ -454,14 +665,14 @@ export function WorkspaceShell() {
           key={comparison.id}
           comparison={comparison}
           onBackToMap={backToMap}
-          onExportComparison={() => setReportPreview("comparison")}
+          onExportComparison={openComparisonReport}
         />
       ) : analysis ? (
         <ExpressDashboard
           key={analysis.id}
           analysis={analysis}
           onBackToMap={backToMap}
-          onExportReport={() => setReportPreview("analysis")}
+          onExportReport={openAnalysisReport}
         />
       ) : (
         <MapWorkspace
@@ -483,6 +694,7 @@ export function WorkspaceShell() {
         comparisonItems={comparisonItems}
         comparisonMessage={comparisonMessage}
         analysisHistory={analysisHistory}
+        analysisHistorySource={analysisHistorySource}
         hasResult={analysis !== null || comparison !== null}
         analysisMode={analysis?.analysisMode}
         analysisGeneratedAt={analysis?.generatedAt}
@@ -506,12 +718,12 @@ export function WorkspaceShell() {
         onClearAnalysisHistory={clearAnalysisHistory}
         onExportCurrentResult={() => {
           if (comparison) {
-            setReportPreview("comparison");
+            openComparisonReport();
             return;
           }
 
           if (analysis) {
-            setReportPreview("analysis");
+            openAnalysisReport();
           }
         }}
       />

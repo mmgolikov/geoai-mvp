@@ -1,25 +1,35 @@
 import { getSupabaseServerClient } from "@/src/lib/supabase/server";
-import type { DbReportInput } from "@/src/lib/db/types";
+import type { DbReportInput, DbRepositoryResult } from "@/src/lib/db/types";
 
-export async function saveReport(input: DbReportInput) {
+export async function saveReport(input: DbReportInput): Promise<DbRepositoryResult<unknown>> {
   const client = await getSupabaseServerClient();
   if (!client) {
-    return { persisted: false, mode: "local_only" as const };
+    return { ok: true, mode: "local_only", data: null, error: null };
   }
 
   try {
-    const query = client.from("reports").insert({
+    const query = client.from("reports").upsert({
       report_key: input.reportKey,
+      run_key: input.runKey ?? null,
       report_type: input.reportType,
       title: input.title,
-      payload: input.payload
-    }) as Promise<{ error?: unknown }>;
+      report_json: input.reportJson,
+      decision_posture: input.decisionPosture ?? null,
+      generated_at: input.generatedAt ?? new Date().toISOString()
+    }, { onConflict: "report_key" }) as Promise<{ data?: unknown; error?: unknown }>;
     const response = await query;
 
-    return response.error
-      ? { persisted: false, mode: "local_only" as const }
-      : { persisted: true, mode: "supabase" as const };
-  } catch {
-    return { persisted: false, mode: "local_only" as const };
+    if (response.error) {
+      return { ok: false, mode: "local_only", data: null, error: "Unable to persist report." };
+    }
+
+    return { ok: true, mode: "db", data: response.data ?? null, error: null };
+  } catch (error) {
+    return {
+      ok: false,
+      mode: "local_only",
+      data: null,
+      error: error instanceof Error ? error.message : "Unable to persist report."
+    };
   }
 }

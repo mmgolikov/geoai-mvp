@@ -1,10 +1,10 @@
 import { getSupabaseServerClient } from "@/src/lib/supabase/server";
-import type { DbAnalysisRunInput } from "@/src/lib/db/types";
+import type { DbAnalysisRunInput, DbRepositoryResult } from "@/src/lib/db/types";
 
-export async function listAnalysisRuns(limit = 10) {
+export async function listAnalysisRuns(limit = 10): Promise<DbRepositoryResult<unknown[]>> {
   const client = await getSupabaseServerClient();
   if (!client) {
-    return { mode: "local_only" as const, runs: [] };
+    return { ok: true, mode: "local_only", data: [], error: null };
   }
 
   try {
@@ -12,38 +12,53 @@ export async function listAnalysisRuns(limit = 10) {
       order: (column: string, options?: unknown) => { limit: (count: number) => Promise<{ data: unknown[] | null }> };
     };
     const response = await query.order("created_at", { ascending: false }).limit(limit);
-    return { mode: "supabase" as const, runs: response.data ?? [] };
-  } catch {
-    return { mode: "local_only" as const, runs: [] };
+    return { ok: true, mode: "db", data: response.data ?? [], error: null };
+  } catch (error) {
+    return {
+      ok: false,
+      mode: "local_only",
+      data: [],
+      error: error instanceof Error ? error.message : "Unable to load analysis runs."
+    };
   }
 }
 
-export async function saveAnalysisRun(input: DbAnalysisRunInput) {
+export async function saveAnalysisRun(input: DbAnalysisRunInput): Promise<DbRepositoryResult<unknown>> {
   const client = await getSupabaseServerClient();
   if (!client) {
-    return { persisted: false, mode: "local_only" as const };
+    return { ok: true, mode: "local_only", data: null, error: null };
   }
 
   try {
-    const query = client.from("analysis_runs").insert({
+    const query = client.from("analysis_runs").upsert({
       run_key: input.runKey,
       scenario_id: input.scenarioId,
       selected_name: input.selectedName,
       selected_type: input.selectedType,
       selected_point: input.selectedPoint,
+      selected_feature_key: input.selectedFeatureKey ?? null,
+      input_context: input.inputContext ?? null,
       selected_object: input.selectedObject ?? null,
-      result_payload: input.result,
+      result_json: input.resultJson,
       decision_posture: input.decisionPosture ?? null,
       confidence_level: input.confidenceLevel ?? null,
       data_confidence_level: input.dataConfidenceLevel ?? null,
-      analysis_mode: input.analysisMode ?? null
-    }) as Promise<{ error?: unknown }>;
+      analysis_mode: input.analysisMode ?? null,
+      created_at: input.createdAt ?? new Date().toISOString()
+    }, { onConflict: "run_key" }) as Promise<{ data?: unknown; error?: unknown }>;
     const response = await query;
 
-    return response.error
-      ? { persisted: false, mode: "local_only" as const }
-      : { persisted: true, mode: "supabase" as const };
-  } catch {
-    return { persisted: false, mode: "local_only" as const };
+    if (response.error) {
+      return { ok: false, mode: "local_only", data: null, error: "Unable to persist analysis run." };
+    }
+
+    return { ok: true, mode: "db", data: response.data ?? null, error: null };
+  } catch (error) {
+    return {
+      ok: false,
+      mode: "local_only",
+      data: null,
+      error: error instanceof Error ? error.message : "Unable to persist analysis run."
+    };
   }
 }

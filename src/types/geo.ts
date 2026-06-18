@@ -118,6 +118,8 @@ export type AnalysisHistoryItem = {
   locationLabel: string;
   analysisMode?: ExpressAnalysis["analysisMode"];
   confidenceLevel?: ExpressAnalysis["confidenceLevel"];
+  dataConfidenceLevel?: string;
+  source?: "DB" | "local";
   recommendation: string;
   analysis: ExpressAnalysis;
 };

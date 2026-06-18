@@ -48,17 +48,30 @@ export type DbAnalysisRunInput = {
   selectedName: string;
   selectedType: string;
   selectedPoint: unknown;
+  selectedFeatureKey?: string | null;
+  inputContext?: unknown;
   selectedObject?: unknown;
-  result: unknown;
+  resultJson: unknown;
   decisionPosture?: string | null;
   confidenceLevel?: string | null;
   dataConfidenceLevel?: string | null;
   analysisMode?: string | null;
+  createdAt?: string | null;
 };
 
 export type DbReportInput = {
   reportKey: string;
+  runKey?: string | null;
   reportType: "analysis" | "comparison";
   title: string;
-  payload: unknown;
+  reportJson: unknown;
+  decisionPosture?: string | null;
+  generatedAt?: string | null;
+};
+
+export type DbRepositoryResult<T> = {
+  ok: boolean;
+  mode: "db" | "local_only";
+  data: T | null;
+  error: string | null;
 };
