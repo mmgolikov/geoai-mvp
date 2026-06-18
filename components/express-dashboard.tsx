@@ -80,23 +80,34 @@ function formatGeneratedAt(value?: string) {
   }).format(new Date(value));
 }
 
-function compactText(value: string, maxLength = 460) {
-  const normalized = value.replace(/\s+/g, " ").trim();
-  if (normalized.length <= maxLength) {
-    return normalized;
+function formatScenarioLabel(value: string) {
+  return value
+    .replace(/([A-Z])/g, " $1")
+    .replace(/_/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+function createExecutivePreview(analysis: ExpressAnalysis) {
+  const subject = analysis.selectedObject?.name ?? "the selected location";
+  const area = analysis.marketContext?.areaName;
+  const scenario = formatScenarioLabel(analysis.scenarioId);
+  const sourceBasis = analysis.marketMetricsMatch?.importedMetricsUsed || analysis.marketContext?.importedMarketMetrics?.importedMetricsUsed
+    ? "imported sample market metrics and demo-normalized spatial context"
+    : "demo-normalized market and spatial context";
+  const place = area && !subject.toLowerCase().includes(area.toLowerCase())
+    ? `${subject} in ${area}`
+    : subject;
+
+  if (analysis.scenarioId === "climateRisk") {
+    return `This ${scenario} screening frames ${place} through heat, coastal exposure and resilience requirements using ${sourceBasis}. The site should remain conditional until official risk layers, infrastructure assumptions and mitigation requirements are validated.`;
   }
 
-  const sentences = normalized.match(/[^.!?]+[.!?]+/g) ?? [];
-  const preview = sentences.reduce((acc, sentence) => {
-    const next = `${acc}${sentence.trim()} `;
-    return next.length <= maxLength ? next : acc;
-  }, "");
-
-  if (preview.trim().length > 120) {
-    return preview.trim();
+  if (analysis.scenarioId === "constructionMonitoring") {
+    return `This ${scenario} screening positions ${place} as a monitoring candidate using ${sourceBasis}. The recommendation remains conditional until official site status, progress evidence and delivery-risk assumptions are validated.`;
   }
 
-  return `${normalized.slice(0, maxLength).trim().replace(/\s+\S*$/, "")}.`;
+  return `This ${scenario} screening highlights ${place} using ${sourceBasis}. The opportunity remains conditional until official land-use, transaction comps, infrastructure and planning constraints are validated.`;
 }
 
 function MetricPill({
@@ -128,9 +139,10 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
   const decisionRationale = deriveDecisionRationale(analysis);
   const marketMetricsMatch = analysis.marketContext?.importedMarketMetrics ?? analysis.marketMetricsMatch;
   const importedMetric = marketMetricsMatch?.metrics;
-  const summaryPreview = compactText(analysis.summary);
-  const noticePreview = analysis.analysisNotice ? compactText(analysis.analysisNotice, 190) : null;
-  const limitationPreview = compactText(dataLimitation, 160);
+  const summaryPreview = createExecutivePreview(analysis);
+  const limitationPreview = dataLimitation.length > 150
+    ? "Official validation is required before using this output as decision-grade evidence."
+    : dataLimitation;
 
   useEffect(() => {
     dashboardRef.current?.scrollTo({ top: 0, left: 0 });
@@ -139,91 +151,93 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
   return (
     <section ref={dashboardRef} className="h-[calc(100vh-72px)] overflow-y-auto bg-surface p-3 lg:p-4">
       <div className="mx-auto flex max-w-7xl flex-col gap-3">
-        <header className="flex flex-col justify-between gap-3 rounded-lg border border-line bg-white p-3 shadow-sm lg:flex-row lg:items-center">
-          <div>
-            <div className="flex flex-wrap items-center gap-3">
-              <h1 className="text-2xl font-semibold text-ink lg:text-[26px]">{analysis.title}</h1>
-              <span className="rounded-full bg-[#eaf3f1] px-3 py-1 text-xs font-semibold text-brand">
-                {analysisBadge}
-              </span>
-            </div>
-            <p className="mt-1 text-sm font-medium text-muted">
-              {analysis.subtitle}
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-3">
-            <button
-              type="button"
-              onClick={onBackToMap}
-              className="inline-flex h-10 items-center justify-center rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink transition hover:border-brand"
-            >
-              Back to map
-            </button>
-            <button
-              type="button"
-              onClick={onExportReport}
-              className="inline-flex h-10 items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white transition hover:bg-[#113f50]"
-            >
-              Export report
-            </button>
-          </div>
-        </header>
-
-        <div className="grid items-stretch gap-3 xl:h-[clamp(430px,calc(100vh-190px),520px)] xl:grid-cols-[minmax(0,1.05fr)_0.95fr]">
-          <MapContextCard
-            title="Map Context"
-            subtitle="Selected point or spatial object with surrounding Dubai context"
-            selectedPoint={analysis.point}
-            selectedObject={analysis.selectedObject ?? null}
-          />
-
-          <section className="flex h-full min-h-[420px] flex-col overflow-hidden rounded-lg border border-line bg-white p-4 shadow-sm print:h-auto print:min-h-0 print:overflow-visible">
-            <div className="shrink-0 rounded-md border border-[#d6c391] bg-[#fff9e8] p-3">
-              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#6f5817]">Decision Posture</p>
-              <p className="mt-2 text-base font-semibold leading-6 text-ink">{decisionPosture}</p>
-              <p className="mt-1 line-clamp-2 text-sm leading-5 text-muted print:line-clamp-none">
-                {decisionRationale}
+        <section className="flex min-h-[calc(100vh-104px)] flex-col gap-3 xl:h-[calc(100vh-104px)] xl:min-h-0">
+          <header className="flex shrink-0 flex-col justify-between gap-3 rounded-lg border border-line bg-white p-3 shadow-sm lg:flex-row lg:items-center">
+            <div>
+              <div className="flex flex-wrap items-center gap-3">
+                <h1 className="text-2xl font-semibold text-ink lg:text-[26px]">{analysis.title}</h1>
+                <span className="rounded-full bg-[#eaf3f1] px-3 py-1 text-xs font-semibold text-brand">
+                  {analysisBadge}
+                </span>
+              </div>
+              <p className="mt-1 text-sm font-medium text-muted">
+                {analysis.subtitle}
               </p>
             </div>
-            <h2 className="mt-4 shrink-0 text-lg font-semibold text-ink">Executive Summary</h2>
-            <div className="mt-2 shrink-0">
-              <p className="line-clamp-5 text-sm leading-6 text-muted print:line-clamp-none lg:text-base">{summaryPreview}</p>
-              {noticePreview ? (
-                <p className="mt-3 line-clamp-2 rounded-md border border-line bg-surface px-3 py-2 text-sm leading-5 text-muted print:line-clamp-none">
-                  {noticePreview}
-                </p>
-              ) : null}
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={onBackToMap}
+                className="inline-flex h-10 items-center justify-center rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink transition hover:border-brand"
+              >
+                Back to map
+              </button>
+              <button
+                type="button"
+                onClick={onExportReport}
+                className="inline-flex h-10 items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white transition hover:bg-[#113f50]"
+              >
+                Export report
+              </button>
             </div>
-            <div className="mt-auto grid shrink-0 gap-2 pt-3 text-sm md:grid-cols-2">
-              <div className="rounded-md border border-line bg-surface px-3 py-2">
-                <span className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">
-                  Analysis mode
-                </span>
-                <p className="mt-1 font-semibold text-ink">{modeLabel}</p>
-              </div>
-              <div className="rounded-md border border-line bg-surface px-3 py-2">
-                <span className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">
-                  Confidence level
-                </span>
-                <p className="mt-1 font-semibold capitalize text-ink">
-                  {analysis.confidenceLevel ?? "medium"}
+          </header>
+
+          <div className="grid min-h-0 flex-1 items-stretch gap-3 xl:grid-cols-[minmax(0,1.05fr)_0.95fr]">
+            <MapContextCard
+              title="Map Context"
+              subtitle="Selected point or spatial object with surrounding Dubai context"
+              selectedPoint={analysis.point}
+              selectedObject={analysis.selectedObject ?? null}
+            />
+
+            <section className="flex h-full min-h-[420px] flex-col overflow-hidden rounded-lg border border-line bg-white p-4 shadow-sm print:h-auto print:min-h-0 print:overflow-visible">
+              <div className="shrink-0 rounded-md border border-[#d6c391] bg-[#fff9e8] p-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#6f5817]">Decision Posture</p>
+                <p className="mt-2 text-base font-semibold leading-6 text-ink">{decisionPosture}</p>
+                <p className="mt-1 text-sm leading-5 text-muted">
+                  {decisionRationale}
                 </p>
               </div>
-              <div className="rounded-md border border-line bg-surface px-3 py-2">
-                <span className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">
-                  Data confidence / limitation
-                </span>
-                <p className="mt-1 line-clamp-2 leading-5 text-muted print:line-clamp-none">{limitationPreview}</p>
+              <div className="flex min-h-0 flex-1 flex-col justify-center py-3">
+                <h2 className="text-lg font-semibold text-ink">Executive Summary</h2>
+                <p className="mt-2 text-base leading-7 text-muted">{summaryPreview}</p>
+                {analysis.analysisNotice ? (
+                  <p className="mt-3 rounded-md border border-line bg-surface px-3 py-2 text-sm leading-5 text-muted">
+                    {analysis.analysisNotice}
+                  </p>
+                ) : null}
               </div>
-              <div className="rounded-md border border-line bg-surface px-3 py-2">
-                <span className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">
-                  Generated
-                </span>
-                <p className="mt-1 font-semibold text-ink">{formatGeneratedAt(analysis.generatedAt)}</p>
+              <div className="grid shrink-0 gap-2 text-sm md:grid-cols-2">
+                <div className="rounded-md border border-line bg-surface px-3 py-2">
+                  <span className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">
+                    Analysis mode
+                  </span>
+                  <p className="mt-1 font-semibold text-ink">{modeLabel}</p>
+                </div>
+                <div className="rounded-md border border-line bg-surface px-3 py-2">
+                  <span className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">
+                    Confidence level
+                  </span>
+                  <p className="mt-1 font-semibold capitalize text-ink">
+                    {analysis.confidenceLevel ?? "medium"}
+                  </p>
+                </div>
+                <div className="rounded-md border border-line bg-surface px-3 py-2">
+                  <span className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">
+                    Data confidence / limitation
+                  </span>
+                  <p className="mt-1 leading-5 text-muted">{limitationPreview}</p>
+                </div>
+                <div className="rounded-md border border-line bg-surface px-3 py-2">
+                  <span className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">
+                    Generated
+                  </span>
+                  <p className="mt-1 font-semibold text-ink">{formatGeneratedAt(analysis.generatedAt)}</p>
+                </div>
               </div>
-            </div>
-          </section>
-        </div>
+            </section>
+          </div>
+        </section>
 
         <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
           <h2 className="text-lg font-semibold text-ink">Scenario-specific Score Overview</h2>
@@ -255,6 +269,16 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
               );
             })}
           </div>
+        </section>
+
+        <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
+          <h2 className="text-lg font-semibold text-ink">Executive Narrative</h2>
+          <p className="mt-3 text-base leading-8 text-muted">{analysis.summary}</p>
+          {analysis.analysisNotice ? (
+            <p className="mt-4 rounded-md border border-line bg-surface px-3 py-2 text-sm leading-5 text-muted">
+              {analysis.analysisNotice}
+            </p>
+          ) : null}
         </section>
 
         {analysis.marketContext ? (
