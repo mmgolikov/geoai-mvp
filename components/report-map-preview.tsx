@@ -158,11 +158,23 @@ export function ReportMapPreview({
           style: "mapbox://styles/mapbox/light-v11",
           center,
           zoom: comparison ? 9.4 : selectedObject ? 12 : 11.4,
-          interactive: false,
+          interactive: true,
           attributionControl: false,
           preserveDrawingBuffer: true
         });
         mapRef.current = map;
+        map.scrollZoom.enable();
+        map.dragPan.enable();
+        map.doubleClickZoom.enable();
+        map.touchZoomRotate.enable();
+        map.keyboard.enable();
+        map.addControl(
+          new mapboxgl.NavigationControl({
+            showCompass: false,
+            visualizePitch: false
+          }),
+          "top-right"
+        );
 
         const resize = () => window.requestAnimationFrame(() => map.resize());
         const observer = new ResizeObserver(resize);
