@@ -14,6 +14,7 @@ import {
 import { demoProjects, getDemoProject } from "@/src/data/demo-projects";
 import { createComparisonItem, createMockComparison } from "@/src/lib/mock-comparison";
 import { analysisScenarios, createMockExpressAnalysis } from "@/src/lib/mock-express-analysis";
+import { deriveDecisionPosture } from "@/src/lib/decision-posture";
 import type { GeoAIProject } from "@/src/lib/db/types";
 import type { StructuredAnalysisResult } from "@/src/types/analysis";
 import type {
@@ -163,7 +164,7 @@ function createHistoryItem(
     source,
     project,
     projectKey: project.projectKey,
-    recommendation: analysis.nextActions[0] ?? "Review evidence and validate constraints.",
+    recommendation: deriveDecisionPosture(analysis),
     analysis: {
       ...analysis,
       project
@@ -243,7 +244,7 @@ function historyItemFromPersistedRun(value: unknown): AnalysisHistoryItem | null
     source: "DB",
     project,
     projectKey: value.project_key ?? project.projectKey,
-    recommendation: value.decision_posture ?? analysis.nextActions[0] ?? "Review evidence and validate constraints.",
+    recommendation: value.decision_posture ?? deriveDecisionPosture(analysis),
     analysis: {
       ...analysis,
       project
@@ -533,7 +534,7 @@ export function WorkspaceShell() {
           },
           selectedObject: analysisResult.selectedObject ?? null,
           resultJson: analysisResult,
-          decisionPosture: analysisResult.nextActions[0] ?? null,
+          decisionPosture: deriveDecisionPosture(analysisResult),
           confidenceLevel: analysisResult.confidenceLevel ?? null,
           dataConfidenceLevel: analysisResult.marketContext?.confidenceLevel ?? null,
           analysisMode: analysisResult.analysisMode ?? null,
@@ -556,7 +557,7 @@ export function WorkspaceShell() {
       coordinates: analysisResult.point,
       scenario: analysisResult.title,
       memoJson: analysisResult,
-      decisionPosture: analysisResult.nextActions[0] ?? "Proceed to validation",
+      decisionPosture: deriveDecisionPosture(analysisResult),
       scoreOverview: analysisResult.scores,
       keyValueDrivers: analysisResult.keyFactors,
       criticalConstraints: analysisResult.risks,

@@ -3,6 +3,7 @@
 import { EvidenceSourceCards } from "@/components/evidence-source-cards";
 import { MapContextCard } from "@/components/map-context-card";
 import { PrintableReport } from "@/components/printable-report";
+import { deriveDecisionPosture, deriveDecisionRationale } from "@/src/lib/decision-posture";
 import type { ComparisonResult, ExpressAnalysis, ScoreKey } from "@/src/types/geo";
 
 type ReportPreviewProps =
@@ -116,6 +117,8 @@ function AnalysisReport({ analysis, onBack }: { analysis: ExpressAnalysis; onBac
   const analysisBadge = analysis.analysisMode === "openai" ? "AI analysis" : "Demo fallback";
   const analysisModeLabel = analysis.analysisMode === "openai" ? "AI-generated" : "Demo fallback";
   const dataLimitation = analysis.limitations?.[0] ?? "Structured evidence context with deterministic demo scoring.";
+  const decisionPosture = deriveDecisionPosture(analysis);
+  const decisionRationale = deriveDecisionRationale(analysis);
 
   return (
     <>
@@ -169,6 +172,21 @@ function AnalysisReport({ analysis, onBack }: { analysis: ExpressAnalysis; onBac
             </div>
           </dl>
         </header>
+
+        <Section title="Decision Posture">
+          <div className="rounded-md border border-[#d6c391] bg-[#fff9e8] p-5">
+            <p className="text-xl font-semibold text-ink">{decisionPosture}</p>
+            <p className="mt-3 text-sm leading-6 text-muted">{decisionRationale}</p>
+            <div className="mt-4 flex flex-wrap gap-2 text-xs font-semibold">
+              <span className="rounded-full bg-white px-3 py-1 capitalize text-brand">
+                Confidence: {analysis.confidenceLevel ?? "medium"}
+              </span>
+              <span className="rounded-full bg-white px-3 py-1 text-muted">
+                {(analysis.project?.dataMode ?? "demo_normalized").replace(/_/g, "-")}
+              </span>
+            </div>
+          </div>
+        </Section>
 
         <Section title="Executive Summary">
           <p className="text-base leading-8 text-muted">{analysis.summary}</p>

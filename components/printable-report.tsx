@@ -2,6 +2,7 @@
 
 import { getDataSourceById } from "@/src/data/data-source-registry";
 import { deriveDataConfidenceLevel } from "@/src/data/data-maturity";
+import { deriveDecisionPosture, deriveDecisionRationale } from "@/src/lib/decision-posture";
 import type { ComparisonResult, ExpressAnalysis, ScoreKey } from "@/src/types/geo";
 
 type PrintableReportProps =
@@ -116,6 +117,8 @@ function AnalysisPrintable({ analysis }: { analysis: ExpressAnalysis }) {
   const constraints = analysis.risks.slice(0, 4);
   const valueDrivers = analysis.keyFactors.slice(0, 6);
   const dataConfidence = deriveDataConfidenceLevel(analysis.evidence);
+  const decisionPosture = deriveDecisionPosture(analysis);
+  const decisionRationale = deriveDecisionRationale(analysis);
 
   return (
     <article className="print-memo">
@@ -138,8 +141,15 @@ function AnalysisPrintable({ analysis }: { analysis: ExpressAnalysis }) {
         <PrintCard><strong>Generated</strong><span>{formatDate(analysis.generatedAt)}</span></PrintCard>
         <PrintCard><strong>Confidence</strong><span>{analysis.confidenceLevel ?? "medium"}</span></PrintCard>
         <PrintCard><strong>Data confidence</strong><span>{dataConfidence}</span></PrintCard>
-        <PrintCard><strong>Decision posture</strong><span>{analysis.nextActions[0] ?? "Proceed to validation"}</span></PrintCard>
+        <PrintCard><strong>Decision posture</strong><span>{decisionPosture}</span></PrintCard>
       </section>
+
+      <PrintSection title="Decision Posture">
+        <PrintCard>
+          <strong>{decisionPosture}</strong>
+          <p>{decisionRationale}</p>
+        </PrintCard>
+      </PrintSection>
 
       <PrintSection title="Executive Summary">
         <p>{analysis.summary}</p>

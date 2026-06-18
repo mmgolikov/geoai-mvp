@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { ValidationRequirementList } from "@/components/data-readiness";
 import { EvidenceSourceCards } from "@/components/evidence-source-cards";
 import { MapContextCard } from "@/components/map-context-card";
+import { deriveDecisionPosture, deriveDecisionRationale } from "@/src/lib/decision-posture";
 import type { ExpressAnalysis, ScoreKey } from "@/src/types/geo";
 
 type ExpressDashboardProps = {
@@ -104,7 +105,8 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
   const analysisBadge = analysis.analysisMode === "openai" ? "AI analysis" : "Demo fallback";
   const modeLabel = analysis.analysisMode === "openai" ? "AI-powered" : "Demo fallback";
   const dataLimitation = analysis.limitations?.[0] ?? "Structured evidence context with deterministic demo scoring.";
-  const decisionPosture = analysis.nextActions[0] ?? "Proceed to validation before underwriting.";
+  const decisionPosture = deriveDecisionPosture(analysis);
+  const decisionRationale = deriveDecisionRationale(analysis);
 
   useEffect(() => {
     dashboardRef.current?.scrollTo({ top: 0, left: 0 });
@@ -156,7 +158,7 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
               <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#6f5817]">Decision Posture</p>
               <p className="mt-2 text-base font-semibold leading-6 text-ink">{decisionPosture}</p>
               <p className="mt-2 text-sm leading-6 text-muted">
-                Demo screening output only. Treat this as a diligence trigger, not decision-grade approval.
+                {decisionRationale}
               </p>
             </div>
             <h2 className="mt-5 text-lg font-semibold text-ink">Executive Summary</h2>
