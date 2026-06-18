@@ -144,11 +144,15 @@ export function MapContextCard({
   compact = false,
   reportMode = false
 }: MapContextCardProps) {
-  const heightClass = compact ? "h-[260px]" : reportMode ? "h-[300px] print:h-[220px]" : "h-[360px]";
+  const mapHeightClass = compact
+    ? "min-h-[240px]"
+    : reportMode
+      ? "min-h-[300px] print:h-[220px] print:min-h-[220px] print:flex-none"
+      : "min-h-[320px]";
 
   return (
-    <section className="overflow-hidden rounded-lg border border-line bg-white shadow-sm print:shadow-none">
-      <div className="flex items-center justify-between border-b border-line px-5 py-4">
+    <section className="flex h-full min-h-[420px] flex-col overflow-hidden rounded-lg border border-line bg-white shadow-sm print:min-h-0 print:shadow-none">
+      <div className="flex shrink-0 items-center justify-between border-b border-line px-5 py-4">
         <div>
           <h2 className="text-lg font-semibold text-ink">{title}</h2>
           <p className="mt-1 text-sm text-muted">{subtitle}</p>
@@ -157,7 +161,7 @@ export function MapContextCard({
           Map context
         </span>
       </div>
-      <div className={`relative overflow-hidden bg-[#dfe8ec] ${heightClass}`}>
+      <div className={`relative min-h-0 flex-1 overflow-hidden bg-[#dfe8ec] ${mapHeightClass}`}>
         {comparison ? (
           <ComparisonMap comparison={comparison} compact={compact || reportMode} />
         ) : selectedPoint ? (
@@ -173,7 +177,7 @@ export function MapContextCard({
           <FallbackMap markers={[]} />
         )}
       </div>
-      <div className="border-t border-line bg-white px-5 py-3 text-xs leading-5 text-muted">
+      <div className="shrink-0 border-t border-line bg-white px-5 py-3 text-xs leading-5 text-muted">
         Demo spatial context only. Synthetic geometries are not official GIS, parcel, planning, or risk boundaries.
       </div>
     </section>

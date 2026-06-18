@@ -145,7 +145,7 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
           </div>
         </header>
 
-        <div className="grid gap-5 xl:grid-cols-[minmax(0,1.05fr)_0.95fr]">
+        <div className="grid items-stretch gap-5 xl:grid-cols-[minmax(0,1.05fr)_0.95fr]">
           <MapContextCard
             title="Map Context"
             subtitle="Selected point or spatial object with surrounding Dubai context"
@@ -153,7 +153,7 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
             selectedObject={analysis.selectedObject ?? null}
           />
 
-          <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
+          <section className="flex h-full flex-col rounded-lg border border-line bg-white p-5 shadow-sm">
             <div className="rounded-md border border-[#d6c391] bg-[#fff9e8] p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#6f5817]">Decision Posture</p>
               <p className="mt-2 text-base font-semibold leading-6 text-ink">{decisionPosture}</p>
