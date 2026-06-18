@@ -1,6 +1,7 @@
 "use client";
 
 import { getDataSourceById } from "@/src/data/data-source-registry";
+import ingestionReport from "@/data/normalized/ingestion_report.json";
 import { deriveDataConfidenceLevel } from "@/src/data/data-maturity";
 import { deriveDecisionPosture, deriveDecisionRationale } from "@/src/lib/decision-posture";
 import type { ComparisonResult, ExpressAnalysis, ScoreKey } from "@/src/types/geo";
@@ -217,6 +218,7 @@ function AnalysisPrintable({ analysis }: { analysis: ExpressAnalysis }) {
         <div className="print-score-grid">
           <PrintCard><strong>Used in prototype</strong><span>Synthetic demo layers, seed_static context and deterministic scoring.</span></PrintCard>
           <PrintCard><strong>Official validation</strong><span>DLD, Dubai Pulse and Dubai Municipality / GeoDubai should validate conclusions.</span></PrintCard>
+          <PrintCard><strong>DLD / Dubai Pulse ingestion</strong><span>{ingestionReport.marketMetricCount} sample market areas available for validation workflow, not used in scoring.</span></PrintCard>
           <PrintCard><strong>Pilot integration</strong><span>Adapter stubs define the next path for permitted official, open, licensed and customer data.</span></PrintCard>
         </div>
       </PrintSection>

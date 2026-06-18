@@ -1,6 +1,7 @@
 "use client";
 
 import demoObjects from "@/src/data/demo-objects.json";
+import ingestionReport from "@/data/normalized/ingestion_report.json";
 import { DataReadinessCard } from "@/components/data-readiness";
 import { getScenarioDataSources } from "@/src/data/data-source-registry";
 import type { GeoAIProject } from "@/src/lib/db/types";
@@ -82,6 +83,15 @@ function formatGeneratedAt(value?: string) {
 }
 
 function formatHistoryTimestamp(value: string) {
+  return new Intl.DateTimeFormat("en", {
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(new Date(value));
+}
+
+function formatIngestionTimestamp(value: string) {
   return new Intl.DateTimeFormat("en", {
     month: "short",
     day: "2-digit",
@@ -431,6 +441,34 @@ export function AnalysisPanel({
 
           <CollapsedSection title="Data Sources" badge={`${availableSources.length} shown`}>
             <div className="mt-2 grid gap-2">
+              <div className="rounded-md border border-line bg-surface p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-ink">DLD / Dubai Pulse ingestion</p>
+                    <p className="mt-1 text-xs leading-5 text-muted">
+                      Prototype-ready / sample manual CSV. Live API not connected.
+                    </p>
+                  </div>
+                  <span className="shrink-0 rounded-full bg-white px-2 py-1 text-[11px] font-semibold text-brand">
+                    ready
+                  </span>
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                  <div className="rounded-md bg-white p-2">
+                    <span className="text-muted">Metrics</span>
+                    <p className="mt-1 font-semibold text-ink">{ingestionReport.marketMetricCount} areas</p>
+                  </div>
+                  <div className="rounded-md bg-white p-2">
+                    <span className="text-muted">DB insert</span>
+                    <p className="mt-1 font-semibold text-ink">
+                      {backendStatus?.status === "connected" ? "enabled" : "local only"}
+                    </p>
+                  </div>
+                </div>
+                <p className="mt-2 text-xs leading-5 text-muted">
+                  Latest local ingestion: {formatIngestionTimestamp(ingestionReport.generatedAt)}. Market comps, transaction activity, rental demand and pipeline validation are available for validation workflow, not yet used in scoring.
+                </p>
+              </div>
               {availableSources.map((source) => (
                 <DataReadinessCard key={source.id} source={source} compact />
               ))}

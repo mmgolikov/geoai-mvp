@@ -1,6 +1,7 @@
 "use client";
 
 import { EvidenceSourceCards } from "@/components/evidence-source-cards";
+import ingestionReport from "@/data/normalized/ingestion_report.json";
 import { MapContextCard } from "@/components/map-context-card";
 import { PrintableReport } from "@/components/printable-report";
 import { deriveDecisionPosture, deriveDecisionRationale } from "@/src/lib/decision-posture";
@@ -353,6 +354,11 @@ function AnalysisReport({ analysis, onBack }: { analysis: ExpressAnalysis; onBac
 
         <Section title="Evidence / Data Used">
           <EvidenceSourceCards evidence={analysis.evidence} />
+          <div className="mt-4 rounded-md border border-line bg-surface p-4 text-sm leading-6 text-muted">
+            <span className="font-semibold text-ink">DLD / Dubai Pulse ingestion readiness:</span>{" "}
+            {ingestionReport.marketMetricCount} imported sample market areas are available for validation workflow.
+            These sample/manual CSV metrics are not yet used in scoring and are not a live official data connection.
+          </div>
         </Section>
 
         <div className="grid gap-6 md:grid-cols-2">

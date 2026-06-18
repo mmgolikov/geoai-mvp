@@ -1,0 +1,72 @@
+{
+  "generatedAt": "2026-06-18T09:03:39.551Z",
+  "sourceMode": "sample_fixture",
+  "liveApiConnected": false,
+  "supabaseMode": "not_configured",
+  "outputs": [
+    "data/normalized/dld_transactions_normalized.json",
+    "data/normalized/dld_rents_normalized.json",
+    "data/normalized/dld_projects_normalized.json",
+    "data/normalized/market_area_metrics.json",
+    "data/normalized/ingestion_report.json"
+  ],
+  "datasets": {
+    "transactions": {
+      "totalRows": 6,
+      "validRows": 6,
+      "skippedRows": 0,
+      "warningRows": 0,
+      "missingRequiredFieldCounts": {
+        "transactionDate": 0,
+        "areaName": 0,
+        "amountAed": 0,
+        "propertyType": 0
+      },
+      "confidenceDistribution": {
+        "high": 6,
+        "medium": 0,
+        "low": 0
+      }
+    },
+    "rents": {
+      "totalRows": 6,
+      "validRows": 6,
+      "skippedRows": 0,
+      "warningRows": 0,
+      "missingRequiredFieldCounts": {
+        "contractStartDate": 0,
+        "areaName": 0,
+        "annualRentAed": 0,
+        "propertyType": 0
+      },
+      "confidenceDistribution": {
+        "high": 6,
+        "medium": 0,
+        "low": 0
+      }
+    },
+    "projects": {
+      "totalRows": 6,
+      "validRows": 6,
+      "skippedRows": 0,
+      "warningRows": 0,
+      "missingRequiredFieldCounts": {
+        "projectName": 0,
+        "areaName": 0,
+        "projectStatus": 0
+      },
+      "confidenceDistribution": {
+        "high": 6,
+        "medium": 0,
+        "low": 0
+      }
+    }
+  },
+  "marketMetricCount": 6,
+  "warnings": [],
+  "notes": [
+    "Sample fixtures are synthetic parser tests, not official DLD or Dubai Pulse records.",
+    "No live API calls, scraping, credentials, geometry enrichment, or decision-grade validation are performed in v0.1.",
+    "Supabase not configured; wrote local normalized outputs only."
+  ]
+}

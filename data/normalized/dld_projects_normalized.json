@@ -1,0 +1,134 @@
+[
+  {
+    "id": "dld-project-1-95c30ef6",
+    "source": "sample_fixture",
+    "sourceDataset": "dld_projects_sample.csv",
+    "projectName": "Marina Residences Sample",
+    "developerName": "Demo Developer A",
+    "areaName": "Dubai Marina",
+    "projectStatus": "Under Construction",
+    "completionDate": "2026-12-31",
+    "projectType": "Residential",
+    "units": 420,
+    "confidence": "high",
+    "raw": {
+      "Project Name": "Marina Residences Sample",
+      "Developer Name": "Demo Developer A",
+      "Area": "Dubai Marina",
+      "Project Status": "Under Construction",
+      "Completion Date": "2026-12-31",
+      "Project Type": "Residential",
+      "Units": "420"
+    }
+  },
+  {
+    "id": "dld-project-2-8585ba1f",
+    "source": "sample_fixture",
+    "sourceDataset": "dld_projects_sample.csv",
+    "projectName": "Business Bay Tower Sample",
+    "developerName": "Demo Developer B",
+    "areaName": "Business Bay",
+    "projectStatus": "Registered",
+    "completionDate": "2027-06-30",
+    "projectType": "Mixed Use",
+    "units": 380,
+    "confidence": "high",
+    "raw": {
+      "Project Name": "Business Bay Tower Sample",
+      "Developer Name": "Demo Developer B",
+      "Area": "Business Bay",
+      "Project Status": "Registered",
+      "Completion Date": "2027-06-30",
+      "Project Type": "Mixed Use",
+      "Units": "380"
+    }
+  },
+  {
+    "id": "dld-project-3-3bdcaa45",
+    "source": "sample_fixture",
+    "sourceDataset": "dld_projects_sample.csv",
+    "projectName": "Downtown Residences Sample",
+    "developerName": "Demo Developer C",
+    "areaName": "Downtown Dubai",
+    "projectStatus": "Under Construction",
+    "completionDate": "2026-09-30",
+    "projectType": "Residential",
+    "units": 240,
+    "confidence": "high",
+    "raw": {
+      "Project Name": "Downtown Residences Sample",
+      "Developer Name": "Demo Developer C",
+      "Area": "Downtown Dubai",
+      "Project Status": "Under Construction",
+      "Completion Date": "2026-09-30",
+      "Project Type": "Residential",
+      "Units": "240"
+    }
+  },
+  {
+    "id": "dld-project-4-6f0474bb",
+    "source": "sample_fixture",
+    "sourceDataset": "dld_projects_sample.csv",
+    "projectName": "JVC Community Sample",
+    "developerName": "Demo Developer D",
+    "areaName": "JVC",
+    "projectStatus": "Registered",
+    "completionDate": "2027-03-31",
+    "projectType": "Residential",
+    "units": 610,
+    "confidence": "high",
+    "raw": {
+      "Project Name": "JVC Community Sample",
+      "Developer Name": "Demo Developer D",
+      "Area": "JVC",
+      "Project Status": "Registered",
+      "Completion Date": "2027-03-31",
+      "Project Type": "Residential",
+      "Units": "610"
+    }
+  },
+  {
+    "id": "dld-project-5-7ee01609",
+    "source": "sample_fixture",
+    "sourceDataset": "dld_projects_sample.csv",
+    "projectName": "MBR City Villas Sample",
+    "developerName": "Demo Developer E",
+    "areaName": "Meydan / MBR City",
+    "projectStatus": "Under Construction",
+    "completionDate": "2026-11-30",
+    "projectType": "Residential",
+    "units": 180,
+    "confidence": "high",
+    "raw": {
+      "Project Name": "MBR City Villas Sample",
+      "Developer Name": "Demo Developer E",
+      "Area": "Meydan / MBR City",
+      "Project Status": "Under Construction",
+      "Completion Date": "2026-11-30",
+      "Project Type": "Residential",
+      "Units": "180"
+    }
+  },
+  {
+    "id": "dld-project-6-1bb73ee9",
+    "source": "sample_fixture",
+    "sourceDataset": "dld_projects_sample.csv",
+    "projectName": "Dubai South Apartments Sample",
+    "developerName": "Demo Developer F",
+    "areaName": "Dubai South",
+    "projectStatus": "Registered",
+    "completionDate": "2027-12-31",
+    "projectType": "Residential",
+    "units": 720,
+    "confidence": "high",
+    "raw": {
+      "Project Name": "Dubai South Apartments Sample",
+      "Developer Name": "Demo Developer F",
+      "Area": "Dubai South",
+      "Project Status": "Registered",
+      "Completion Date": "2027-12-31",
+      "Project Type": "Residential",
+      "Units": "720"
+    }
+  }
+]
