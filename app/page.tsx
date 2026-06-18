@@ -216,15 +216,15 @@ function LandingHeader() {
 
 function HeroVisual() {
   const metrics = [
-    ["Market context", "Dubai Marina", "seed sample"],
-    ["Spatial evidence", "Polygon", "selected"],
-    ["Risk & constraints", "Validation", "required"],
-    ["Data confidence", "Demo + upload", "not official"]
+    ["Market", "Dubai Marina", "seed sample"],
+    ["Evidence", "Polygon", "selected"],
+    ["Risk review", "Validation", "required"],
+    ["Confidence", "Demo + upload", "not official"]
   ];
 
   return (
     <div className="w-full overflow-hidden rounded-xl border border-[#ded7c9] bg-white p-2.5 shadow-soft">
-      <div className="grid aspect-[16/9] min-h-[330px] max-h-[440px] overflow-hidden rounded-lg border border-line bg-[#f7f8f6] grid-rows-[46px_minmax(0,1fr)_72px]">
+      <div className="grid overflow-hidden rounded-lg border border-line bg-[#f7f8f6] grid-rows-[auto_auto_auto]">
         <div className="flex min-w-0 items-center justify-between gap-3 border-b border-line bg-white px-3 py-2">
           <div className="flex min-w-0 items-center gap-3">
             <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-brand text-[11px] font-semibold text-white">
@@ -244,8 +244,8 @@ function HeroVisual() {
           </div>
         </div>
 
-        <div className="grid min-h-0 gap-2.5 p-2.5 lg:grid-cols-[minmax(0,1.58fr)_minmax(240px,0.9fr)]">
-          <div className="relative min-h-0 overflow-hidden rounded-lg border border-line bg-white">
+        <div className="grid min-h-0 gap-2.5 p-2.5 lg:h-[320px] lg:grid-cols-[minmax(0,1.58fr)_minmax(240px,0.9fr)] xl:h-[336px]">
+          <div className="relative min-h-[260px] overflow-hidden rounded-lg border border-line bg-white lg:min-h-0">
             <LandingHeroMap />
             <div className="pointer-events-none absolute left-3 top-3 max-w-[230px] rounded-md border border-white/80 bg-white/92 px-3 py-2 shadow-sm backdrop-blur">
               <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-brand">Selected site</p>
@@ -280,22 +280,22 @@ function HeroVisual() {
                   ["Key risk", "Validation required"],
                   ["Next action", "Due diligence pack"]
                 ].map(([label, value]) => (
-                  <div key={label} className="rounded-md border border-line bg-surface px-3 py-2">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted">{label}</p>
-                    <p className="mt-1 truncate text-sm font-semibold text-ink">{value}</p>
+                  <div key={label} className="min-w-0 overflow-hidden rounded-md border border-line bg-surface px-3 py-2">
+                    <p className="truncate text-[10px] font-semibold uppercase tracking-[0.1em] text-muted">{label}</p>
+                    <p className="mt-1 truncate text-sm font-semibold leading-5 text-ink">{value}</p>
                   </div>
                 ))}
               </div>
             </div>
             <div className="grid min-h-0 content-start gap-2">
               {[
-                ["Output", "Investment memo + validation checklist"],
-                ["Evidence", "Demo + uploaded/sample data"],
+                ["Output", "Memo + checklist"],
+                ["Evidence", "Demo + upload"],
                 ["Confidence", "Not live official"]
               ].map(([label, value]) => (
-                <div key={label} className="rounded-md border border-line bg-white px-3 py-2">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted">{label}</p>
-                  <p className="mt-1 truncate text-sm font-semibold text-ink">{value}</p>
+                <div key={label} className="min-w-0 overflow-hidden rounded-md border border-line bg-white px-3 py-2">
+                  <p className="truncate text-[10px] font-semibold uppercase tracking-[0.1em] text-muted">{label}</p>
+                  <p className="mt-1 truncate text-sm font-semibold leading-5 text-ink">{value}</p>
                 </div>
               ))}
             </div>
@@ -304,9 +304,9 @@ function HeroVisual() {
 
         <div className="grid gap-2 border-t border-line bg-white p-2.5 sm:grid-cols-2 xl:grid-cols-4">
           {metrics.map(([label, value, note]) => (
-            <div key={label} className="min-w-0 rounded-md bg-surface px-3 py-2">
+            <div key={label} className="min-w-0 overflow-hidden rounded-md bg-surface px-3 py-2">
               <p className="truncate text-[10px] font-semibold uppercase tracking-[0.1em] text-muted">{label}</p>
-              <p className="mt-1 truncate text-sm font-semibold text-ink">{value}</p>
+              <p className="mt-1 truncate text-sm font-semibold leading-5 text-ink">{value}</p>
               <p className="truncate text-[11px] text-muted">{note}</p>
             </div>
           ))}
