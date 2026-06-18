@@ -4,8 +4,8 @@
   "private": true,
   "description": "GeoAI MVP skeleton for spatial decision intelligence.",
   "scripts": {
-    "dev": "WATCHPACK_POLLING=true CHOKIDAR_USEPOLLING=true next dev",
-    "dev:turbo": "WATCHPACK_POLLING=true CHOKIDAR_USEPOLLING=true next dev --turbopack",
+    "dev": "WATCHPACK_POLLING=true CHOKIDAR_USEPOLLING=true next dev -H 127.0.0.1",
+    "dev:turbo": "WATCHPACK_POLLING=true CHOKIDAR_USEPOLLING=true next dev -H 127.0.0.1 --turbopack",
     "build": "next build",
     "ingest:dld": "node scripts/ingest-dld-sample.mjs",
     "start": "next start",

@@ -35,6 +35,22 @@ function normalizeIndex(value: number, max: number) {
   return Math.min(100, Math.round((value / max) * 100));
 }
 
+function sampleAwareConfidence(transactionCount: number): IngestionConfidence {
+  if (transactionCount < 5) {
+    return "low";
+  }
+
+  if (transactionCount <= 20) {
+    return "medium";
+  }
+
+  return "high";
+}
+
+function capSmallSampleIndex(value: number, count: number, cap: number) {
+  return count < 5 ? Math.min(value, cap) : value;
+}
+
 function confidenceForArea(records: Array<{ confidence: IngestionConfidence }>): IngestionConfidence {
   const high = records.filter((record) => record.confidence === "high").length;
   const low = records.filter((record) => record.confidence === "low").length;
@@ -71,6 +87,12 @@ export function createMarketAreaMetrics(
       ...areaRents.map((item) => item.contractStartDate)
     ].filter((value): value is string => value !== null).sort();
 
+    const rawLiquidityIndex = normalizeIndex(areaTransactions.length, maxTransactionCount);
+    const rawRentalDemandProxy = normalizeIndex(areaRents.length, maxRentalCount);
+    const liquidityIndex = capSmallSampleIndex(rawLiquidityIndex, areaTransactions.length, 55);
+    const rentalDemandProxy = capSmallSampleIndex(rawRentalDemandProxy, areaRents.length, 58);
+    const dataConfidence = sampleAwareConfidence(areaTransactions.length);
+
     return {
       areaName,
       periodStart: allDates[0] ?? null,
@@ -83,10 +105,12 @@ export function createMarketAreaMetrics(
       medianRentPerSqm: median(rentPerSqm),
       projectCount: areaProjects.length,
       pipelineProxy: normalizeIndex(areaProjects.length, maxProjectCount),
-      liquidityIndex: normalizeIndex(areaTransactions.length, maxTransactionCount),
-      rentalDemandProxy: normalizeIndex(areaRents.length, maxRentalCount),
-      dataConfidence: confidenceForArea([...areaTransactions, ...areaRents, ...areaProjects]),
-      sourceSummary: "Derived from synthetic sample CSV fixtures for DLD / Dubai Pulse ingestion prototype. Available for validation workflow; not yet live-connected or decision-grade."
+      liquidityIndex,
+      rentalDemandProxy,
+      dataConfidence,
+      sourceSummary: areaTransactions.length < 5
+        ? "Derived from a tiny synthetic sample CSV fixture; liquidity and demand proxies are capped and require official DLD / Dubai Pulse validation."
+        : `Derived from synthetic sample CSV fixtures for DLD / Dubai Pulse ingestion prototype. Record confidence: ${confidenceForArea([...areaTransactions, ...areaRents, ...areaProjects])}.`
     };
   });
 }

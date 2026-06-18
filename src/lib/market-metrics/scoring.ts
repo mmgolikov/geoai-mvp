@@ -26,7 +26,7 @@ export function scoreSignalsFromMarketMetrics(match: MarketMetricsMatch): Market
     rentalDemandProxy,
     pipelinePressure,
     marketSupport,
-    dataConfidence: tinySample ? "medium" : match.metrics.dataConfidence,
+    dataConfidence: tinySample ? "low" : match.metrics.dataConfidence,
     sampleSizeNote: tinySample
       ? "Transaction sample is below 5 records, so liquidity and demand proxies are capped for conservative scoring."
       : "Imported metrics provide broader sample support for market scoring."

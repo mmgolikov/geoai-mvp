@@ -64,6 +64,7 @@ export type DbAnalysisRunInput = {
 
 export type DbReportInput = {
   reportKey: string;
+  analysisRunId?: string | null;
   projectId?: string | null;
   projectKey?: string | null;
   projectName?: string | null;

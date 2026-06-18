@@ -696,6 +696,7 @@ export function WorkspaceShell() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             reportKey: `analysis-report-${analysis.id}`,
+            analysisRunId: analysis.id,
             projectKey: activeProject.projectKey,
             projectName: activeProject.name,
             projectId: activeProject.id,

@@ -48,14 +48,14 @@ This checkpoint captures an investor-demo-oriented prototype stage. The product 
 - Scoring is deterministic mock logic and is not a validated investment, planning, or risk model.
 - OpenAI, when enabled, interprets the context narratively but does not produce official findings or validated scores.
 - No real DLD, Dubai Pulse, Dubai Municipality / GeoDubai, satellite, transaction, ownership, zoning, or regulatory integrations are connected yet.
-- No database, authentication, user accounts, audit trail, or saved server-side studies exist yet.
+- Supabase/PostGIS, projects, and persistence foundations exist as optional prototype paths, but there is no production-grade authentication, user account model, RLS hardening, audit trail, or saved-study governance yet.
 
 ## Known UX / Product Issues
 
 - Landing hero and investor-facing visual language should continue to be tested on real laptop and desktop viewports.
 - Print/PDF export now has a print-only memo direction, but should be manually checked in Chrome/Safari print dialogs.
 - Browser print headers/footers still depend on user print settings.
-- Comparison and analysis history are local-only and not persisted to a backend.
+- Comparison remains local/demo oriented; analysis history and reports can use optional persistence foundations but are not production-grade saved studies yet.
 - Map layer styling and synthetic geometries are good enough for demo, but official data quality will determine pilot credibility.
 - The command panel has improved first-screen behavior, but should be QA-tested across common viewport heights.
 - Report content still needs a production-grade editorial structure before pilot delivery.

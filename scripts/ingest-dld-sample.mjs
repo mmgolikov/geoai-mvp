@@ -257,6 +257,16 @@ function normalized(value, max) {
   return max <= 0 ? 0 : Math.min(100, Math.round((value / max) * 100));
 }
 
+function sampleAwareConfidence(transactionCount) {
+  if (transactionCount < 5) return "low";
+  if (transactionCount <= 20) return "medium";
+  return "high";
+}
+
+function capSmallSampleIndex(value, count, cap) {
+  return count < 5 ? Math.min(value, cap) : value;
+}
+
 function metrics(transactions, rents, projects) {
   const areas = new Set();
   transactions.forEach((item) => item.areaName && areas.add(item.areaName));
@@ -274,10 +284,11 @@ function metrics(transactions, rents, projects) {
     const prices = areaTx.map((item) => item.pricePerSqm).filter((value) => value !== null);
     const rentValues = areaRents.map((item) => item.rentPerSqm).filter((value) => value !== null);
     const dates = [...areaTx.map((item) => item.transactionDate), ...areaRents.map((item) => item.contractStartDate)].filter(Boolean).sort();
-    const allRecords = [...areaTx, ...areaRents, ...areaProjects];
-    const lowCount = allRecords.filter((item) => item.confidence === "low").length;
-    const highCount = allRecords.filter((item) => item.confidence === "high").length;
-    const dataConfidence = lowCount > allRecords.length / 2 ? "low" : highCount >= allRecords.length / 2 ? "high" : "medium";
+    const rawLiquidityIndex = normalized(areaTx.length, maxTx);
+    const rawRentalDemandProxy = normalized(areaRents.length, maxRent);
+    const liquidityIndex = capSmallSampleIndex(rawLiquidityIndex, areaTx.length, 55);
+    const rentalDemandProxy = capSmallSampleIndex(rawRentalDemandProxy, areaRents.length, 58);
+    const dataConfidence = sampleAwareConfidence(areaTx.length);
 
     return {
       areaName,
@@ -291,10 +302,12 @@ function metrics(transactions, rents, projects) {
       medianRentPerSqm: median(rentValues),
       projectCount: areaProjects.length,
       pipelineProxy: normalized(areaProjects.length, maxProject),
-      liquidityIndex: normalized(areaTx.length, maxTx),
-      rentalDemandProxy: normalized(areaRents.length, maxRent),
+      liquidityIndex,
+      rentalDemandProxy,
       dataConfidence,
-      sourceSummary: "Derived from synthetic sample CSV fixtures for DLD / Dubai Pulse ingestion prototype. Available for validation workflow; not yet live-connected or decision-grade."
+      sourceSummary: areaTx.length < 5
+        ? "Derived from a tiny synthetic sample CSV fixture; liquidity and demand proxies are capped and require official DLD / Dubai Pulse validation."
+        : "Derived from synthetic sample CSV fixtures for DLD / Dubai Pulse ingestion prototype. Available for validation workflow; not yet live-connected or decision-grade."
     };
   });
 }

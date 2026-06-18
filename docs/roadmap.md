@@ -18,21 +18,22 @@ Goals:
 Limitations:
 
 - Mock/demo data only.
-- No OpenAI integration.
-- No database.
+- OpenAI integration is optional and protected by mock fallback.
+- Supabase/PostGIS and persistence foundations exist, but are not production-grade user storage.
 - No authentication.
 - No real data adapters.
 
-## v0.2 — AI Analysis Engine
+## v0.2 — AI Analysis And Persistence Foundation
 
 Goals:
 
-- Add OpenAI API route integration.
+- Harden OpenAI API route integration.
 - Create structured prompt templates per scenario.
 - Add typed response schema validation.
 - Separate AI-generated insights from deterministic demo scoring.
 - Add error handling and retry behavior.
 - Keep mock fallback mode for demos.
+- Stabilize optional persistence, projects, and ingestion foundations.
 
 Key deliverables:
 
@@ -41,6 +42,8 @@ Key deliverables:
 - Structured AI response schema
 - Server-side OpenAI key usage only
 - AI/mock mode switch
+- Optional Supabase/PostGIS persistence foundation
+- Local ingestion and normalized market metric outputs
 
 ## v0.3 — Data Source Registry And Real Data Adapters
 

@@ -10,6 +10,7 @@ export async function saveReport(input: DbReportInput): Promise<DbRepositoryResu
   try {
     const query = client.from("reports").upsert({
       report_key: input.reportKey,
+      analysis_run_id: input.analysisRunId ?? null,
       project_id: input.projectId ?? null,
       project_key: input.projectKey ?? null,
       project_name: input.projectName ?? null,

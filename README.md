@@ -123,7 +123,7 @@ Future production adapters are intended to connect official or licensed sources 
 
 ## Data Ingestion v0.1
 
-GeoAI includes a local market data ingestion layer for the Market Context Adapter. The current ingestion mode is `seed_static`, which reads local demo-normalized records, validates fields, normalizes area names, aggregates records by Dubai market area, and returns data quality notes.
+GeoAI includes a local market data ingestion layer for the Market Context Adapter. The current ingestion modes combine bundled `seed_static` context with imported DLD / Dubai Pulse-style sample CSV fixtures. The ingestion script validates fields, normalizes area names, aggregates records by Dubai market area, writes normalized JSON outputs, and returns data quality notes.
 
 The current seed metrics are qualitative/index-style only:
 
@@ -134,7 +134,7 @@ The current seed metrics are qualitative/index-style only:
 - Risk index
 - Trend and confidence
 
-No external API keys are required for Data Ingestion v0.1. Future modes are prepared for `csv_ready`, `api_ready`, and `manual_upload_planned` workflows so DLD, Dubai Pulse, Dubai Municipality, licensed datasets, or customer uploads can be added later without changing the workspace UX.
+No external API keys are required for Data Ingestion v0.1. Tiny samples are scored conservatively: low transaction counts reduce confidence and cap liquidity/rental-demand proxy influence. Future modes are prepared for `csv_ready`, `api_ready`, and `manual_upload_planned` workflows so DLD, Dubai Pulse, Dubai Municipality, licensed datasets, or customer uploads can be added later without changing the workspace UX.
 
 ## Spatial Data Adapter v0.1
 
@@ -159,9 +159,9 @@ Current geometries are synthetic/demo only. They are not official parcel, planni
 - Uses deterministic mock scoring only.
 - OpenAI generates narrative interpretation only; scores remain deterministic mock values.
 - Market context is seed/demo-normalized and not official market evidence.
-- Data ingestion currently uses local seed_static records only.
+- Data ingestion currently uses local seed/static context and imported sample CSV fixtures only.
 - Spatial layers currently use local seed_geojson demo geometries only.
-- No database or persistence yet.
+- Supabase/PostGIS and persistence are optional prototype foundations, not production-grade user storage yet.
 - No authentication or user accounts.
 - No real parcel, zoning, transaction, satellite, or regulatory data adapters.
 - Report export is print-preview based, not a generated server-side PDF.

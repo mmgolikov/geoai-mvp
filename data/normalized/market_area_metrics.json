@@ -11,10 +11,10 @@
     "medianRentPerSqm": 1391,
     "projectCount": 1,
     "pipelineProxy": 100,
-    "liquidityIndex": 100,
-    "rentalDemandProxy": 100,
-    "dataConfidence": "high",
-    "sourceSummary": "Derived from synthetic sample CSV fixtures for DLD / Dubai Pulse ingestion prototype. Available for validation workflow; not yet live-connected or decision-grade."
+    "liquidityIndex": 55,
+    "rentalDemandProxy": 58,
+    "dataConfidence": "low",
+    "sourceSummary": "Derived from a tiny synthetic sample CSV fixture; liquidity and demand proxies are capped and require official DLD / Dubai Pulse validation."
   },
   {
     "areaName": "Downtown Dubai",
@@ -28,10 +28,10 @@
     "medianRentPerSqm": 1797,
     "projectCount": 1,
     "pipelineProxy": 100,
-    "liquidityIndex": 100,
-    "rentalDemandProxy": 100,
-    "dataConfidence": "high",
-    "sourceSummary": "Derived from synthetic sample CSV fixtures for DLD / Dubai Pulse ingestion prototype. Available for validation workflow; not yet live-connected or decision-grade."
+    "liquidityIndex": 55,
+    "rentalDemandProxy": 58,
+    "dataConfidence": "low",
+    "sourceSummary": "Derived from a tiny synthetic sample CSV fixture; liquidity and demand proxies are capped and require official DLD / Dubai Pulse validation."
   },
   {
     "areaName": "Dubai Marina",
@@ -45,10 +45,10 @@
     "medianRentPerSqm": 1473,
     "projectCount": 1,
     "pipelineProxy": 100,
-    "liquidityIndex": 100,
-    "rentalDemandProxy": 100,
-    "dataConfidence": "high",
-    "sourceSummary": "Derived from synthetic sample CSV fixtures for DLD / Dubai Pulse ingestion prototype. Available for validation workflow; not yet live-connected or decision-grade."
+    "liquidityIndex": 55,
+    "rentalDemandProxy": 58,
+    "dataConfidence": "low",
+    "sourceSummary": "Derived from a tiny synthetic sample CSV fixture; liquidity and demand proxies are capped and require official DLD / Dubai Pulse validation."
   },
   {
     "areaName": "Dubai South",
@@ -62,10 +62,10 @@
     "medianRentPerSqm": 1029,
     "projectCount": 1,
     "pipelineProxy": 100,
-    "liquidityIndex": 100,
-    "rentalDemandProxy": 100,
-    "dataConfidence": "high",
-    "sourceSummary": "Derived from synthetic sample CSV fixtures for DLD / Dubai Pulse ingestion prototype. Available for validation workflow; not yet live-connected or decision-grade."
+    "liquidityIndex": 55,
+    "rentalDemandProxy": 58,
+    "dataConfidence": "low",
+    "sourceSummary": "Derived from a tiny synthetic sample CSV fixture; liquidity and demand proxies are capped and require official DLD / Dubai Pulse validation."
   },
   {
     "areaName": "JVC",
@@ -79,10 +79,10 @@
     "medianRentPerSqm": 1060,
     "projectCount": 1,
     "pipelineProxy": 100,
-    "liquidityIndex": 100,
-    "rentalDemandProxy": 100,
-    "dataConfidence": "high",
-    "sourceSummary": "Derived from synthetic sample CSV fixtures for DLD / Dubai Pulse ingestion prototype. Available for validation workflow; not yet live-connected or decision-grade."
+    "liquidityIndex": 55,
+    "rentalDemandProxy": 58,
+    "dataConfidence": "low",
+    "sourceSummary": "Derived from a tiny synthetic sample CSV fixture; liquidity and demand proxies are capped and require official DLD / Dubai Pulse validation."
   },
   {
     "areaName": "Meydan / MBR City",
@@ -96,9 +96,9 @@
     "medianRentPerSqm": 1139,
     "projectCount": 1,
     "pipelineProxy": 100,
-    "liquidityIndex": 100,
-    "rentalDemandProxy": 100,
-    "dataConfidence": "high",
-    "sourceSummary": "Derived from synthetic sample CSV fixtures for DLD / Dubai Pulse ingestion prototype. Available for validation workflow; not yet live-connected or decision-grade."
+    "liquidityIndex": 55,
+    "rentalDemandProxy": 58,
+    "dataConfidence": "low",
+    "sourceSummary": "Derived from a tiny synthetic sample CSV fixture; liquidity and demand proxies are capped and require official DLD / Dubai Pulse validation."
   }
 ]

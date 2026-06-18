@@ -57,7 +57,9 @@ Use this checklist before demos, Vercel deployments, and milestone checkpoints.
 - [ ] Custom Query requires a question before analysis.
 - [ ] Express Analysis opens dashboard.
 - [ ] Dashboard title and content change by scenario.
-- [ ] No OpenAI API call is made.
+- [ ] OpenAI works only through the server route when configured.
+- [ ] Mock fallback works when `OPENAI_API_KEY` is missing.
+- [ ] No OpenAI key is exposed to the browser.
 
 ## Dashboard
 

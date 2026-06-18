@@ -38,8 +38,8 @@ Initial public demo baseline for GeoAI MVP.
 ### Current Limitations
 
 - Synthetic/demo data only.
-- No OpenAI API integration.
-- No database or persistence.
+- OpenAI analysis is optional and falls back to deterministic demo content.
+- Supabase/PostGIS and persistence foundations are optional prototype paths, not production-grade storage yet.
 - No authentication.
 - No real GIS, planning, real estate, satellite, or market data adapters.
 - Print-preview export only; no server-side PDF generation yet.
