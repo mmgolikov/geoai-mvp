@@ -50,6 +50,74 @@ function scoreInterpretation(scoreKey: ScoreKey, value: number) {
   return `${scoreBand} demo-normalized signal based on ${drivers[scoreKey]}. Requires official source validation before underwriting.`;
 }
 
+function AnalysisCard({
+  children,
+  className = ""
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <section className={`rounded-lg border border-line bg-white p-5 shadow-sm ${className}`}>
+      {children}
+    </section>
+  );
+}
+
+function AnalysisCardHeader({
+  title,
+  subtitle,
+  badge
+}: {
+  title: string;
+  subtitle?: string;
+  badge?: string;
+}) {
+  return (
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <h2 className="text-lg font-semibold text-ink">{title}</h2>
+        {subtitle ? <p className="mt-1 text-sm leading-6 text-muted">{subtitle}</p> : null}
+      </div>
+      {badge ? (
+        <span className="rounded-full bg-surface px-3 py-1 text-xs font-semibold text-muted">
+          {badge}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+function AnalysisMetricCard({
+  label,
+  value,
+  detail,
+  className = ""
+}: {
+  label: string;
+  value: string;
+  detail?: string;
+  className?: string;
+}) {
+  return (
+    <div className={`flex h-full min-h-[76px] flex-col rounded-md border border-line bg-surface px-3 py-2 ${className}`}>
+      <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
+        {label}
+      </span>
+      <p className="mt-1 break-words text-sm font-semibold capitalize leading-5 text-ink">{value}</p>
+      {detail ? <p className="mt-1 break-words text-xs leading-5 text-muted">{detail}</p> : null}
+    </div>
+  );
+}
+
+function AnalysisListItem({ children }: { children: React.ReactNode }) {
+  return (
+    <li className="h-full rounded-md border border-line bg-surface px-4 py-3 text-sm leading-6 text-muted">
+      {children}
+    </li>
+  );
+}
+
 function ScoreTooltip({
   label,
   score,
@@ -92,19 +160,18 @@ function createExecutivePreview(analysis: ExpressAnalysis) {
   const subject = analysis.selectedObject?.name ?? "the selected location";
   const area = analysis.marketContext?.areaName;
   const scenario = formatScenarioLabel(analysis.scenarioId);
-  const sourceBasis = analysis.marketMetricsMatch?.importedMetricsUsed || analysis.marketContext?.importedMarketMetrics?.importedMetricsUsed
-    ? "imported sample market metrics and demo-normalized spatial context"
-    : "demo-normalized market and spatial context";
+  const importedMetricsUsed = analysis.marketMetricsMatch?.importedMetricsUsed || analysis.marketContext?.importedMarketMetrics?.importedMetricsUsed;
+  const sourceBasis = importedMetricsUsed ? "imported sample metrics and spatial context" : "demo-normalized spatial and market context";
   const place = area && !subject.toLowerCase().includes(area.toLowerCase())
     ? `${subject} in ${area}`
     : subject;
 
   if (analysis.scenarioId === "climateRisk") {
-    return `This ${scenario} screening frames ${place} through heat, coastal exposure and resilience requirements using ${sourceBasis}. The site should remain conditional until official risk layers, infrastructure assumptions and mitigation requirements are validated.`;
+    return `This ${scenario} screening frames ${place} through heat, coastal exposure and resilience requirements using ${sourceBasis}. The site remains conditional until official risk layers, infrastructure assumptions and mitigation requirements are validated.`;
   }
 
   if (analysis.scenarioId === "constructionMonitoring") {
-    return `This ${scenario} screening positions ${place} as a monitoring candidate using ${sourceBasis}. The recommendation remains conditional until official site status, progress evidence and delivery-risk assumptions are validated.`;
+    return `This ${scenario} screening positions ${place} as a monitoring candidate using ${sourceBasis}. The recommendation remains conditional until site status, progress evidence and update cadence are validated.`;
   }
 
   return `This ${scenario} screening highlights ${place} using ${sourceBasis}. The opportunity remains conditional until official land-use, transaction comps, infrastructure and planning constraints are validated.`;
@@ -114,46 +181,74 @@ function createScreeningSignals(analysis: ExpressAnalysis, decisionPosture: stri
   const importedMetricsUsed =
     analysis.marketMetricsMatch?.importedMetricsUsed ||
     analysis.marketContext?.importedMarketMetrics?.importedMetricsUsed;
-  const marketBasis = importedMetricsUsed
-    ? "Imported sample metrics"
-    : analysis.marketContext
-      ? "Demo-normalized area context"
-      : "Seed fallback context";
-  const validationNeed = analysis.selectedObject?.spatialContext
-    ? "Planning, comps and geometry validation"
-    : "Official planning and comps";
-  const nextStep = analysis.scenarioId === "constructionMonitoring"
-    ? "Set monitoring cadence"
-    : analysis.scenarioId === "climateRisk"
-      ? "Validate risk layers"
-      : "Run due diligence";
+  const marketBasis = importedMetricsUsed ? "Imported sample metrics" : analysis.marketContext ? "Seed/static area context" : "Demo fallback context";
+
+  if (analysis.scenarioId === "realEstateDevelopment") {
+    return [
+      ["Market basis", importedMetricsUsed ? "Demand/development proxy" : "Demo demand proxy"],
+      ["Validation need", "Land-use, FAR and use checks"],
+      ["Decision logic", "Conditional suitability"],
+      ["Next step", "Planning and feasibility"]
+    ];
+  }
+
+  if (analysis.scenarioId === "climateRisk") {
+    return [
+      ["Market basis", "Exposure context only"],
+      ["Validation need", "Heat/flood official layers"],
+      ["Decision logic", "Mitigation required"],
+      ["Next step", "Specialist risk review"]
+    ];
+  }
+
+  if (analysis.scenarioId === "constructionMonitoring") {
+    return [
+      ["Market basis", "Secondary context"],
+      ["Validation need", "Imagery baseline"],
+      ["Decision logic", "Monitoring feasibility"],
+      ["Next step", "Define AOI cadence"]
+    ];
+  }
+
+  if (analysis.scenarioId === "investmentSiteSelection") {
+    return [
+      ["Market basis", marketBasis],
+      ["Validation need", "DLD comps and planning"],
+      ["Decision logic", decisionPosture],
+      ["Next step", decisionPosture.toLowerCase().includes("compare") ? "Compare alternatives" : "Run due diligence"]
+    ];
+  }
 
   return [
     ["Market basis", marketBasis],
-    ["Validation need", validationNeed],
+    ["Validation need", analysis.selectedObject?.spatialContext ? "Geometry and source checks" : "Official source checks"],
     ["Decision logic", decisionPosture],
-    ["Next step", nextStep]
+    ["Next step", "Validate evidence gaps"]
   ];
 }
 
-function MetricPill({
-  label,
-  value,
-  detail
-}: {
-  label: string;
-  value: string;
-  detail: string;
-}) {
-  return (
-    <div className="rounded-md border border-line bg-surface px-3 py-2">
-      <span className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">
-        {label}
-      </span>
-      <p className="mt-1 text-sm font-semibold capitalize text-ink">{value}</p>
-      <p className="mt-1 text-xs leading-5 text-muted">{detail}</p>
-    </div>
-  );
+function createDecisionRationalePreview(value: string) {
+  if (value.toLowerCase().includes("official validation")) {
+    return "Current evidence supports screening only; official planning, market and source validation must precede decision-grade use.";
+  }
+
+  if (value.length > 180) {
+    return "Current screening signals are useful for prioritization, but the recommendation remains conditional on source validation.";
+  }
+
+  return value;
+}
+
+function createDataConfidencePreview(value: string, importedMetricsUsed?: boolean) {
+  if (importedMetricsUsed) {
+    return "Demo-normalized / imported sample; official validation required.";
+  }
+
+  if (value.length > 95) {
+    return "Demo-normalized evidence; official validation required.";
+  }
+
+  return value;
 }
 
 export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: ExpressDashboardProps) {
@@ -167,9 +262,8 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
   const importedMetric = marketMetricsMatch?.metrics;
   const summaryPreview = createExecutivePreview(analysis);
   const screeningSignals = createScreeningSignals(analysis, decisionPosture);
-  const limitationPreview = dataLimitation.length > 150
-    ? "Official validation is required before using this output as decision-grade evidence."
-    : dataLimitation;
+  const decisionRationalePreview = createDecisionRationalePreview(decisionRationale);
+  const limitationPreview = createDataConfidencePreview(dataLimitation, marketMetricsMatch?.importedMetricsUsed);
 
   useEffect(() => {
     dashboardRef.current?.scrollTo({ top: 0, left: 0 });
@@ -222,16 +316,16 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
                 <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#6f5817]">Decision Posture</p>
                 <p className="mt-2 text-base font-semibold leading-6 text-ink">{decisionPosture}</p>
                 <p className="mt-1 text-sm leading-5 text-muted">
-                  {decisionRationale}
+                  {decisionRationalePreview}
                 </p>
               </div>
-              <div className="flex min-h-0 flex-1 flex-col justify-between gap-3 py-3">
+              <div className="grid min-h-0 flex-1 content-start gap-3 py-3">
                 <div>
                   <h2 className="text-lg font-semibold text-ink">Executive Summary</h2>
-                  <p className="mt-2 text-base leading-7 text-muted">{summaryPreview}</p>
+                  <p className="mt-2 text-sm leading-6 text-muted xl:text-[15px]">{summaryPreview}</p>
                 </div>
                 {analysis.analysisNotice ? (
-                  <p className="rounded-md border border-line bg-surface px-3 py-2 text-sm leading-5 text-muted">
+                  <p className="rounded-md border border-line bg-surface px-3 py-2 text-xs leading-5 text-muted">
                     {analysis.analysisNotice}
                   </p>
                 ) : null}
@@ -239,49 +333,29 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
                   <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Screening Signals</p>
                   <div className="mt-2 grid gap-2 sm:grid-cols-2">
                     {screeningSignals.map(([label, value]) => (
-                      <div key={label} className="rounded-md border border-line bg-surface px-3 py-2">
+                      <div key={label} className="flex min-h-[58px] flex-col justify-between rounded-md border border-line bg-surface px-3 py-2">
                         <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-muted">{label}</p>
-                        <p className="mt-1 text-sm font-semibold text-ink">{value}</p>
+                        <p className="mt-1 break-words text-sm font-semibold leading-5 text-ink">{value}</p>
                       </div>
                     ))}
                   </div>
                 </div>
               </div>
-              <div className="grid shrink-0 gap-2 text-sm md:grid-cols-2">
-                <div className="rounded-md border border-line bg-surface px-3 py-2">
-                  <span className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">
-                    Analysis mode
-                  </span>
-                  <p className="mt-1 font-semibold text-ink">{modeLabel}</p>
-                </div>
-                <div className="rounded-md border border-line bg-surface px-3 py-2">
-                  <span className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">
-                    Confidence level
-                  </span>
-                  <p className="mt-1 font-semibold capitalize text-ink">
-                    {analysis.confidenceLevel ?? "medium"}
-                  </p>
-                </div>
-                <div className="rounded-md border border-line bg-surface px-3 py-2">
-                  <span className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">
-                    Data confidence / limitation
-                  </span>
-                  <p className="mt-1 leading-5 text-muted">{limitationPreview}</p>
-                </div>
-                <div className="rounded-md border border-line bg-surface px-3 py-2">
-                  <span className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">
-                    Generated
-                  </span>
-                  <p className="mt-1 font-semibold text-ink">{formatGeneratedAt(analysis.generatedAt)}</p>
-                </div>
+              <div className="mt-auto grid shrink-0 gap-2 text-sm md:grid-cols-2">
+                <AnalysisMetricCard label="Analysis mode" value={modeLabel} />
+                <AnalysisMetricCard label="Confidence level" value={analysis.confidenceLevel ?? "medium"} />
+                <AnalysisMetricCard label="Data confidence" value={limitationPreview} />
+                <AnalysisMetricCard label="Generated" value={formatGeneratedAt(analysis.generatedAt)} />
               </div>
             </section>
           </div>
         </section>
 
-        <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
-          <h2 className="text-lg font-semibold text-ink">Scenario-specific Score Overview</h2>
-          <p className="mt-1 text-sm text-muted">Demo-normalized scores for screening. Hover a score for interpretation and validation caveats.</p>
+        <AnalysisCard>
+          <AnalysisCardHeader
+            title="Scenario-specific Score Overview"
+            subtitle="Demo-normalized scores for screening. Hover a score for interpretation and validation caveats."
+          />
           <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {scoreOrder.map((scoreKey) => {
               const score = analysis.scores[scoreKey];
@@ -290,7 +364,7 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
                 <div
                   key={scoreKey}
                   tabIndex={0}
-                  className="group relative rounded-md border border-line bg-white p-4 outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15"
+                  className="group relative flex h-full min-h-[150px] flex-col rounded-md border border-line bg-white p-4 outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15"
                   aria-label={`${analysis.scoreLabels[scoreKey]} score ${score}`}
                 >
                   <ScoreTooltip label={analysis.scoreLabels[scoreKey]} score={score} scoreKey={scoreKey} />
@@ -302,84 +376,78 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
                       {score}
                     </span>
                   </div>
-                  <div className="mt-4 h-2 overflow-hidden rounded-full bg-surface">
+                  <div className="mt-auto h-2 overflow-hidden rounded-full bg-surface">
                     <div className="h-full rounded-full bg-brand" style={{ width: `${score}%` }} />
                   </div>
                 </div>
               );
             })}
           </div>
-        </section>
+        </AnalysisCard>
 
-        <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
-          <h2 className="text-lg font-semibold text-ink">Executive Narrative</h2>
+        <AnalysisCard>
+          <AnalysisCardHeader title="Executive Narrative" />
           <p className="mt-3 text-base leading-8 text-muted">{analysis.summary}</p>
           {analysis.analysisNotice ? (
             <p className="mt-4 rounded-md border border-line bg-surface px-3 py-2 text-sm leading-5 text-muted">
               {analysis.analysisNotice}
             </p>
           ) : null}
-        </section>
+        </AnalysisCard>
 
         {analysis.marketContext ? (
-          <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <h2 className="text-lg font-semibold text-ink">Market Context</h2>
-                <p className="mt-1 text-sm text-muted">
-                  {analysis.marketContext.areaName} / {analysis.marketContext.emirate}
-                </p>
-              </div>
-              <span className="rounded-full bg-[#eef2f5] px-3 py-1 text-xs font-semibold text-muted">
-                {marketMetricsMatch?.sourceMode ?? analysis.marketContext.sourceMode ?? "seed_static"} / {marketMetricsMatch?.confidence ?? analysis.marketContext.confidenceLevel} confidence
-              </span>
-            </div>
+          <AnalysisCard>
+            <AnalysisCardHeader
+              title="Market Context"
+              subtitle={`${analysis.marketContext.areaName} / ${analysis.marketContext.emirate}`}
+              badge={`${marketMetricsMatch?.sourceMode ?? analysis.marketContext.sourceMode ?? "seed_static"} / ${marketMetricsMatch?.confidence ?? analysis.marketContext.confidenceLevel} confidence`}
+            />
             <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
               {importedMetric ? (
                 <>
-                  <MetricPill
+                  <AnalysisMetricCard
                     label="Matched imported area"
                     value={marketMetricsMatch?.matchedAreaName ?? importedMetric.areaName}
                     detail={`${marketMetricsMatch?.matchType ?? "exact"} match from local CSV ingestion output.`}
                   />
-                  <MetricPill
+                  <AnalysisMetricCard
                     label="Transactions"
                     value={`${importedMetric.transactionCount}`}
                     detail={`Value AED ${importedMetric.transactionValueAed.toLocaleString("en-US")}; median ${importedMetric.medianPricePerSqm?.toLocaleString("en-US") ?? "-"} AED/sqm.`}
                   />
-                  <MetricPill
+                  <AnalysisMetricCard
                     label="Rental records"
                     value={`${importedMetric.rentalRecordCount}`}
                     detail={`Median rent ${importedMetric.medianRentPerSqm?.toLocaleString("en-US") ?? "-"} AED/sqm; sample/manual import.`}
                   />
                 </>
               ) : null}
-              <MetricPill
+              <AnalysisMetricCard
                 label="Market Activity"
                 value={`${analysis.marketContext.marketMetrics?.activityIndex ?? analysis.marketContext.marketActivityLevel.index}/100`}
                 detail={analysis.marketContext.marketActivityLevel.note}
               />
-              <MetricPill
+              <AnalysisMetricCard
                 label="Rental Demand"
                 value={`${analysis.marketContext.marketMetrics?.rentalDemandIndex ?? analysis.marketContext.rentContext.index}/100`}
                 detail={analysis.marketContext.rentContext.note}
               />
-              <MetricPill
+              <AnalysisMetricCard
                 label="Liquidity"
                 value={`${analysis.marketContext.marketMetrics?.liquidityIndex ?? analysis.marketContext.transactionContext.index}/100`}
                 detail={analysis.marketContext.transactionContext.note}
               />
-              <MetricPill
+              <AnalysisMetricCard
                 label="Development Pipeline"
                 value={`${importedMetric?.pipelineProxy ?? analysis.marketContext.marketMetrics?.developmentPipelineIndex ?? analysis.marketContext.developmentPipelineContext.index}/100`}
                 detail={analysis.marketContext.developmentPipelineContext.note}
               />
-              <MetricPill
+              <AnalysisMetricCard
                 label="Risk Index"
                 value={`${analysis.marketContext.marketMetrics?.riskIndex ?? analysis.marketContext.riskContext.index}/100`}
                 detail={analysis.marketContext.riskContext.note}
               />
-              <MetricPill
+              <AnalysisMetricCard
                 label="Trend"
                 value={analysis.marketContext.marketMetrics?.trend ?? analysis.marketContext.marketActivityLevel.trend}
                 detail="Directional market signal for the selected area."
@@ -392,37 +460,33 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
                 ? "Imported sample metrics demonstrate the market-data workflow. Validate against official DLD / Dubai Pulse datasets before investment decisions."
                 : analysis.marketContext.dataQualityNotes?.[1] ?? analysis.marketContext.limitations[0]}
             </p>
-          </section>
+          </AnalysisCard>
         ) : null}
 
         {analysis.selectedObject?.spatialContext ? (
-          <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <h2 className="text-lg font-semibold text-ink">Spatial Object Details</h2>
-                <p className="mt-1 text-sm text-muted">{analysis.selectedObject.name}</p>
-              </div>
-              <span className="rounded-full bg-[#eef2f5] px-3 py-1 text-xs font-semibold text-muted">
-                {analysis.selectedObject.spatialContext.geometryStatus} / {analysis.selectedObject.spatialContext.confidenceLevel}
-              </span>
-            </div>
+          <AnalysisCard>
+            <AnalysisCardHeader
+              title="Spatial Object Details"
+              subtitle={analysis.selectedObject.name}
+              badge={`${analysis.selectedObject.spatialContext.geometryStatus} / ${analysis.selectedObject.spatialContext.confidenceLevel}`}
+            />
             <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-              <MetricPill
+              <AnalysisMetricCard
                 label="Category"
                 value={analysis.selectedObject.spatialContext.category.replace(/_/g, " ")}
                 detail={analysis.selectedObject.spatialContext.subtype}
               />
-              <MetricPill
+              <AnalysisMetricCard
                 label="Geometry"
                 value={analysis.selectedObject.spatialContext.geometryType}
                 detail={analysis.selectedObject.spatialContext.areaSqm ? `Estimated area ${analysis.selectedObject.spatialContext.areaSqm.toLocaleString()} sqm` : "Area not available for this geometry."}
               />
-              <MetricPill
+              <AnalysisMetricCard
                 label="Source status"
                 value={analysis.selectedObject.spatialContext.sourceStatus}
                 detail={analysis.selectedObject.spatialContext.datasetName}
               />
-              <MetricPill
+              <AnalysisMetricCard
                 label="Scenario relevance"
                 value={`${analysis.selectedObject.spatialContext.scenarioRelevance.length} scenarios`}
                 detail={analysis.selectedObject.spatialContext.scenarioRelevance.join(", ")}
@@ -431,57 +495,51 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
             <p className="mt-4 text-sm leading-6 text-muted">
               Note: {analysis.selectedObject.spatialContext.limitations[0]}
             </p>
-          </section>
+          </AnalysisCard>
         ) : null}
 
-        <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
-          <h2 className="text-lg font-semibold text-ink">Key Value Drivers</h2>
+        <AnalysisCard>
+          <AnalysisCardHeader title="Key Value Drivers" />
           <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {analysis.keyFactors.map((factor) => (
-              <article key={factor} className="rounded-md border border-line bg-surface p-4">
+              <article key={factor} className="h-full rounded-md border border-line bg-surface p-4">
                 <div className="mb-3 h-1 w-10 rounded-full bg-accent" />
                 <p className="text-sm leading-6 text-ink">{factor}</p>
               </article>
             ))}
           </div>
-        </section>
+        </AnalysisCard>
 
         <div className="grid gap-5 lg:grid-cols-2">
-          <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
-            <h2 className="text-lg font-semibold text-ink">Opportunities</h2>
-            <ul className="mt-4 space-y-3">
+          <AnalysisCard>
+            <AnalysisCardHeader title="Opportunities" />
+            <ul className="mt-4 grid gap-3">
               {analysis.opportunities.map((item) => (
-                <li key={item} className="rounded-md border border-line bg-surface px-4 py-3 text-sm leading-6 text-muted">
-                  {item}
-                </li>
+                <AnalysisListItem key={item}>{item}</AnalysisListItem>
               ))}
             </ul>
-          </section>
+          </AnalysisCard>
 
-          <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
-            <h2 className="text-lg font-semibold text-ink">Critical Constraints</h2>
-            <ul className="mt-4 space-y-3">
+          <AnalysisCard>
+            <AnalysisCardHeader title="Critical Constraints" />
+            <ul className="mt-4 grid gap-3">
               {analysis.risks.map((item) => (
-                <li key={item} className="rounded-md border border-line bg-surface px-4 py-3 text-sm leading-6 text-muted">
-                  {item}
-                </li>
+                <AnalysisListItem key={item}>{item}</AnalysisListItem>
               ))}
             </ul>
-          </section>
+          </AnalysisCard>
         </div>
 
         <ValidationRequirementList evidence={analysis.evidence} />
 
-        <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <h2 className="text-lg font-semibold text-ink">Due Diligence Checklist</h2>
-              <p className="mt-1 text-sm text-muted">Concrete follow-up steps before underwriting, approval or client recommendation</p>
-            </div>
-          </div>
+        <AnalysisCard>
+          <AnalysisCardHeader
+            title="Due Diligence Checklist"
+            subtitle="Concrete follow-up steps before underwriting, approval or client recommendation"
+          />
           <ol className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {analysis.nextActions.map((action, index) => (
-              <li key={action} className="flex gap-3 rounded-md border border-line bg-surface p-4">
+              <li key={action} className="flex h-full gap-3 rounded-md border border-line bg-surface p-4">
                 <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white text-sm font-semibold text-brand">
                   {index + 1}
                 </span>
@@ -489,22 +547,18 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
               </li>
             ))}
           </ol>
-        </section>
+        </AnalysisCard>
 
-        <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <h2 className="text-lg font-semibold text-ink">Evidence / Data Used</h2>
-              <p className="mt-1 text-sm text-muted">Source context, maturity, confidence and limitations behind this analysis</p>
-            </div>
-            <span className="rounded-full bg-surface px-3 py-1 text-xs font-semibold text-muted">
-              {analysis.evidence.length} sources
-            </span>
-          </div>
+        <AnalysisCard>
+          <AnalysisCardHeader
+            title="Evidence / Data Used"
+            subtitle="Source context, maturity, confidence and limitations behind this analysis"
+            badge={`${analysis.evidence.length} sources`}
+          />
           <div className="mt-5">
             <EvidenceSourceCards evidence={analysis.evidence} />
           </div>
-        </section>
+        </AnalysisCard>
       </div>
     </section>
   );
