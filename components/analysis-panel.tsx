@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import demoObjects from "@/src/data/demo-objects.json";
 import ingestionReport from "@/data/normalized/ingestion_report.json";
 import { DataReadinessCard } from "@/components/data-readiness";
@@ -210,12 +211,17 @@ export function AnalysisPanel({
           </section>
 
           <section className="min-w-0 max-w-full overflow-hidden rounded-lg border border-line bg-surface p-3">
-            <label
-              htmlFor="active-project"
-              className="text-xs font-semibold uppercase tracking-[0.14em] text-muted"
-            >
-              Project workspace
-            </label>
+            <div className="flex items-center justify-between gap-3">
+              <label
+                htmlFor="active-project"
+                className="text-xs font-semibold uppercase tracking-[0.14em] text-muted"
+              >
+                Project workspace
+              </label>
+              <Link href="/projects" className="text-xs font-semibold text-brand transition hover:text-[#113f50]">
+                Open dashboard
+              </Link>
+            </div>
             <select
               id="active-project"
               value={activeProject.projectKey}

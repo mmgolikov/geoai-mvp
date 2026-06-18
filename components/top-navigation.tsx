@@ -17,9 +17,12 @@ export function TopNavigation() {
             </div>
           </Link>
           <nav className="hidden items-center gap-2 sm:flex">
-            <span className="rounded-md bg-surface px-3 py-2 text-sm font-semibold text-ink">
+            <Link href="/workspace" className="rounded-md bg-surface px-3 py-2 text-sm font-semibold text-ink transition hover:text-brand">
               Workspace
-            </span>
+            </Link>
+            <Link href="/projects" className="rounded-md px-3 py-2 text-sm font-semibold text-muted transition hover:bg-surface hover:text-ink">
+              Projects
+            </Link>
             <span className="rounded-full bg-[#eaf3f1] px-3 py-1 text-xs font-semibold text-brand">
               Demo
             </span>

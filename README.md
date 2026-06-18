@@ -35,6 +35,7 @@ OpenAI is optional. If `OPENAI_API_KEY` is not configured, GeoAI automatically u
 - Comparison dashboard with scores, recommendation, risks, and next actions
 - Print-friendly report preview for single-site analysis and comparison
 - Lightweight project/workspace selector with local demo fallback
+- Project Dashboard v0.1 for active project summary, KPIs, recent analyses, data readiness and next actions
 - Offline DLD / Dubai Pulse CSV ingestion prototype with normalized sample outputs
 - API routes for health, demo objects, and analysis
 - Vercel-ready Next.js deployment structure
@@ -173,6 +174,7 @@ Current geometries are synthetic/demo only. They are not official parcel, planni
 - [Supabase / PostGIS Foundation v0.1](docs/SUPABASE_POSTGIS_V01.md)
 - [Persistence v0.1](docs/PERSISTENCE_V01.md)
 - [Projects / Workspaces v0.1](docs/PROJECTS_WORKSPACES_V01.md)
+- [Project Dashboard v0.1](docs/PROJECT_DASHBOARD_V01.md)
 - [DLD / Dubai Pulse Ingestion v0.1](docs/DLD_DUBAI_PULSE_INGESTION_V01.md)
 - [Architecture](docs/architecture.md)
 - [Data Strategy](docs/data-strategy.md)
