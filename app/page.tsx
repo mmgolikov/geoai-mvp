@@ -223,11 +223,11 @@ function HeroVisual() {
   ];
 
   return (
-    <div className="w-full self-end overflow-hidden rounded-xl border border-[#ded7c9] bg-white p-3 shadow-soft lg:mb-1">
-      <div className="grid aspect-[16/10] min-h-[380px] max-h-[500px] overflow-hidden rounded-lg border border-line bg-[#f7f8f6] grid-rows-[52px_minmax(0,1fr)_86px]">
-        <div className="flex min-w-0 items-center justify-between gap-3 border-b border-line bg-white px-4 py-2">
+    <div className="w-full overflow-hidden rounded-xl border border-[#ded7c9] bg-white p-2.5 shadow-soft">
+      <div className="grid aspect-[16/9] min-h-[330px] max-h-[440px] overflow-hidden rounded-lg border border-line bg-[#f7f8f6] grid-rows-[46px_minmax(0,1fr)_72px]">
+        <div className="flex min-w-0 items-center justify-between gap-3 border-b border-line bg-white px-3 py-2">
           <div className="flex min-w-0 items-center gap-3">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-brand text-xs font-semibold text-white">
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-brand text-[11px] font-semibold text-white">
               G
             </div>
             <div className="min-w-0">
@@ -244,10 +244,10 @@ function HeroVisual() {
           </div>
         </div>
 
-        <div className="grid min-h-0 gap-3 p-3 lg:grid-cols-[minmax(0,1.55fr)_minmax(250px,0.9fr)]">
+        <div className="grid min-h-0 gap-2.5 p-2.5 lg:grid-cols-[minmax(0,1.58fr)_minmax(240px,0.9fr)]">
           <div className="relative min-h-0 overflow-hidden rounded-lg border border-line bg-white">
             <LandingHeroMap />
-            <div className="pointer-events-none absolute left-4 top-4 max-w-[230px] rounded-md border border-white/80 bg-white/92 px-3 py-2 shadow-sm backdrop-blur">
+            <div className="pointer-events-none absolute left-3 top-3 max-w-[230px] rounded-md border border-white/80 bg-white/92 px-3 py-2 shadow-sm backdrop-blur">
               <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-brand">Selected site</p>
               <p className="mt-1 truncate text-sm font-semibold text-ink">Dubai Marina screening area</p>
             </div>
@@ -261,18 +261,18 @@ function HeroVisual() {
             </div>
           </div>
 
-          <aside className="grid min-h-0 grid-rows-[auto_auto_minmax(0,1fr)] gap-2 overflow-hidden rounded-lg border border-line bg-white p-3">
+          <aside className="grid min-h-0 grid-rows-[auto_auto_minmax(0,1fr)] gap-2 overflow-hidden rounded-lg border border-line bg-white p-2.5">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">Decision summary</p>
-                <h2 className="mt-1 truncate text-lg font-semibold text-ink">Proceed with conditions</h2>
+                <h2 className="mt-1 truncate text-base font-semibold text-ink">Proceed with conditions</h2>
               </div>
               <span className="shrink-0 rounded-full bg-[#edf4f2] px-2 py-1 text-[10px] font-semibold text-brand">memo</span>
             </div>
             <div className="grid grid-cols-[0.74fr_1fr] gap-2">
-              <div className="rounded-md bg-[#edf4f2] p-3">
+              <div className="rounded-md bg-[#edf4f2] p-2.5">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-brand">Score</p>
-                <p className="mt-1 text-4xl font-semibold leading-none text-brand">82</p>
+                <p className="mt-1 text-3xl font-semibold leading-none text-brand">82</p>
                 <p className="mt-1 text-[11px] text-muted">/100 suitability</p>
               </div>
               <div className="grid gap-2">
@@ -302,7 +302,7 @@ function HeroVisual() {
           </aside>
         </div>
 
-        <div className="grid gap-2 border-t border-line bg-white p-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-2 border-t border-line bg-white p-2.5 sm:grid-cols-2 xl:grid-cols-4">
           {metrics.map(([label, value, note]) => (
             <div key={label} className="min-w-0 rounded-md bg-surface px-3 py-2">
               <p className="truncate text-[10px] font-semibold uppercase tracking-[0.1em] text-muted">{label}</p>
@@ -366,23 +366,28 @@ export default function HomePage() {
     <main className="min-h-screen bg-[#fbfaf7] text-ink">
       <LandingHeader />
 
-      <section id="product" className="mx-auto grid max-w-7xl items-end gap-10 px-5 py-10 sm:px-6 lg:grid-cols-[0.82fr_1.18fr] lg:px-8 lg:py-14">
-        <div className="max-w-2xl self-end">
+      <section id="product" className="mx-auto grid max-w-7xl items-start gap-8 px-5 py-8 sm:px-6 lg:grid-cols-[0.88fr_1.12fr] lg:px-8 lg:py-10">
+        <div className="max-w-xl self-start pt-1">
           <SectionLabel>Dubai real estate intelligence</SectionLabel>
-          <h1 className="mt-5 text-4xl font-semibold leading-[1.04] text-ink md:text-6xl">
-            AI spatial intelligence for real estate, development and asset decisions
+          <h1 className="mt-4 text-4xl font-semibold leading-[1.03] text-ink md:text-5xl">
+            AI spatial intelligence for land, development and investment decisions
           </h1>
-          <p className="mt-6 text-lg leading-8 text-muted">
-            GeoAI turns sites, polygons, assets and portfolios into structured decision memos: where to build, where to invest, what to validate, what risks matter and what to do next.
+          <p className="mt-5 text-base leading-7 text-muted md:text-lg">
+            GeoAI turns sites, polygons, assets and portfolios into decision-ready memos: where to build, where to invest, what to validate and what to do next.
           </p>
-          <p className="mt-4 text-base leading-7 text-muted">
-            Built for developers, funds, banks and public-sector teams that need faster site screening, market context, spatial evidence and due diligence workflows.
+          <p className="mt-3 text-sm leading-6 text-muted md:text-base">
+            Built for developers, funds, banks and public-sector teams that need faster screening, clearer evidence and better due diligence workflows.
           </p>
-          <div className="mt-9 flex flex-col gap-3 sm:flex-row">
-            <Link href="/workspace" className="inline-flex h-12 items-center justify-center rounded-md bg-brand px-6 text-sm font-semibold text-white shadow-soft transition hover:bg-[#113f50]">
+          <div className="mt-5 flex flex-wrap gap-2">
+            {["Sites", "Polygons", "Assets", "Portfolios"].map((item) => (
+              <Chip key={item}>{item}</Chip>
+            ))}
+          </div>
+          <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+            <Link href="/workspace" className="inline-flex h-11 items-center justify-center rounded-md bg-brand px-5 text-sm font-semibold text-white shadow-soft transition hover:bg-[#113f50]">
               Open demo workspace
             </Link>
-            <a href="#use-cases" className="inline-flex h-12 items-center justify-center rounded-md border border-[#ded7c9] bg-white px-6 text-sm font-semibold text-ink transition hover:border-brand">
+            <a href="#use-cases" className="inline-flex h-11 items-center justify-center rounded-md border border-[#ded7c9] bg-white px-5 text-sm font-semibold text-ink transition hover:border-brand">
               Explore use cases
             </a>
           </div>
@@ -391,11 +396,11 @@ export default function HomePage() {
       </section>
 
       <section id="clients" className="border-y border-[#ded7c9] bg-white/72">
-        <div className="mx-auto max-w-7xl px-5 py-16 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl px-5 py-14 sm:px-6 lg:px-8">
           <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
             <div>
               <SectionLabel>Who it is for</SectionLabel>
-              <h2 className="mt-3 max-w-3xl text-3xl font-semibold text-ink md:text-4xl">
+              <h2 className="mt-3 max-w-3xl text-3xl font-semibold leading-tight text-ink">
                 Decision workflows for land, assets and infrastructure
               </h2>
             </div>
@@ -411,9 +416,9 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section id="use-cases" className="mx-auto max-w-7xl px-5 py-16 sm:px-6 lg:px-8">
+      <section id="use-cases" className="mx-auto max-w-7xl px-5 py-14 sm:px-6 lg:px-8">
         <SectionLabel>Use cases</SectionLabel>
-        <h2 className="mt-3 max-w-3xl text-3xl font-semibold text-ink md:text-4xl">
+        <h2 className="mt-3 max-w-3xl text-3xl font-semibold leading-tight text-ink">
           Input to analysis to output, in one workspace
         </h2>
         <div className="mt-8 grid items-stretch gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -424,12 +429,12 @@ export default function HomePage() {
       </section>
 
       <section id="workflow" className="bg-[#f3efe6]">
-        <div className="mx-auto max-w-7xl px-5 py-16 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl px-5 py-14 sm:px-6 lg:px-8">
           <SectionLabel>Workflow</SectionLabel>
-          <h2 className="mt-3 max-w-3xl text-3xl font-semibold text-ink md:text-4xl">
+          <h2 className="mt-3 max-w-3xl text-3xl font-semibold leading-tight text-ink">
             From map selection to evidence-backed decision memo
           </h2>
-          <div className="mt-9 grid gap-4 xl:grid-cols-4">
+          <div className="mt-8 grid gap-4 xl:grid-cols-4">
             {workflow.map((item, index) => (
               <article key={item.step} className="relative flex h-full min-h-[210px] flex-col rounded-lg border border-line bg-white p-5 shadow-sm">
                 {index < workflow.length - 1 ? (
@@ -448,11 +453,11 @@ export default function HomePage() {
       </section>
 
       <section id="data" className="border-y border-[#ded7c9] bg-white/72">
-        <div className="mx-auto max-w-7xl px-5 py-16 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl px-5 py-14 sm:px-6 lg:px-8">
           <div className="grid gap-8 lg:grid-cols-[0.72fr_1.28fr]">
             <div>
               <SectionLabel>Data and evidence</SectionLabel>
-              <h2 className="mt-3 text-3xl font-semibold text-ink md:text-4xl">
+              <h2 className="mt-3 text-3xl font-semibold leading-tight text-ink">
                 Source lineage is part of the product
               </h2>
               <div className="mt-6 rounded-lg border border-line bg-white p-5 shadow-sm">
@@ -486,9 +491,9 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-7xl px-5 py-16 sm:px-6 lg:px-8">
+      <section className="mx-auto max-w-7xl px-5 py-14 sm:px-6 lg:px-8">
         <SectionLabel>Business outcomes</SectionLabel>
-        <h2 className="mt-3 max-w-3xl text-3xl font-semibold text-ink md:text-4xl">
+        <h2 className="mt-3 max-w-3xl text-3xl font-semibold leading-tight text-ink">
           Earlier clarity before expensive due diligence
         </h2>
         <div className="mt-8 grid items-stretch gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -504,12 +509,12 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section id="demo" className="mx-auto max-w-7xl px-5 pb-16 sm:px-6 lg:px-8">
+      <section id="demo" className="mx-auto max-w-7xl px-5 pb-14 sm:px-6 lg:px-8">
         <div className="rounded-lg border border-line bg-white p-6 shadow-soft md:p-8">
           <div className="grid gap-8 lg:grid-cols-[0.86fr_1.14fr]">
             <div>
               <SectionLabel>Demo workspace</SectionLabel>
-              <h2 className="mt-3 text-3xl font-semibold text-ink md:text-4xl">
+              <h2 className="mt-3 text-3xl font-semibold leading-tight text-ink">
                 See how GeoAI screens a Dubai site
               </h2>
               <p className="mt-4 text-base leading-7 text-muted">
