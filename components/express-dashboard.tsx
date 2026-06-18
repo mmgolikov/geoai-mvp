@@ -115,17 +115,17 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
   }, [analysis.id]);
 
   return (
-    <section ref={dashboardRef} className="h-[calc(100vh-72px)] overflow-y-auto bg-surface p-6">
-      <div className="mx-auto flex max-w-7xl flex-col gap-5">
-        <header className="flex flex-col justify-between gap-4 rounded-lg border border-line bg-white p-5 shadow-sm lg:flex-row lg:items-start">
+    <section ref={dashboardRef} className="h-[calc(100vh-72px)] overflow-y-auto bg-surface p-4 lg:p-5">
+      <div className="mx-auto flex max-w-7xl flex-col gap-3 lg:gap-4">
+        <header className="flex flex-col justify-between gap-3 rounded-lg border border-line bg-white p-4 shadow-sm lg:flex-row lg:items-center">
           <div>
             <div className="flex flex-wrap items-center gap-3">
-              <h1 className="text-3xl font-semibold text-ink">{analysis.title}</h1>
+              <h1 className="text-2xl font-semibold text-ink lg:text-[28px]">{analysis.title}</h1>
               <span className="rounded-full bg-[#eaf3f1] px-3 py-1 text-xs font-semibold text-brand">
                 {analysisBadge}
               </span>
             </div>
-            <p className="mt-2 text-sm font-medium text-muted">
+            <p className="mt-1 text-sm font-medium text-muted">
               {analysis.subtitle}
             </p>
           </div>
@@ -147,7 +147,7 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
           </div>
         </header>
 
-        <div className="grid items-stretch gap-5 xl:grid-cols-[minmax(0,1.05fr)_0.95fr]">
+        <div className="grid items-stretch gap-3 lg:gap-4 xl:h-[clamp(500px,56vh,560px)] xl:grid-cols-[minmax(0,1.05fr)_0.95fr]">
           <MapContextCard
             title="Map Context"
             subtitle="Selected point or spatial object with surrounding Dubai context"
@@ -155,22 +155,24 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
             selectedObject={analysis.selectedObject ?? null}
           />
 
-          <section className="flex h-full flex-col rounded-lg border border-line bg-white p-5 shadow-sm">
-            <div className="rounded-md border border-[#d6c391] bg-[#fff9e8] p-4">
+          <section className="flex h-full min-h-[420px] flex-col overflow-hidden rounded-lg border border-line bg-white p-4 shadow-sm print:h-auto print:min-h-0 print:overflow-visible">
+            <div className="max-h-32 shrink-0 overflow-y-auto rounded-md border border-[#d6c391] bg-[#fff9e8] p-3 print:max-h-none print:overflow-visible">
               <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#6f5817]">Decision Posture</p>
               <p className="mt-2 text-base font-semibold leading-6 text-ink">{decisionPosture}</p>
-              <p className="mt-2 text-sm leading-6 text-muted">
+              <p className="mt-1 text-sm leading-5 text-muted">
                 {decisionRationale}
               </p>
             </div>
-            <h2 className="mt-5 text-lg font-semibold text-ink">Executive Summary</h2>
-            <p className="mt-3 text-base leading-7 text-muted">{analysis.summary}</p>
-            {analysis.analysisNotice ? (
-              <p className="mt-4 rounded-md border border-line bg-surface px-3 py-2 text-sm leading-5 text-muted">
-                {analysis.analysisNotice}
-              </p>
-            ) : null}
-            <div className="mt-4 grid gap-2 text-sm md:grid-cols-2">
+            <h2 className="mt-4 shrink-0 text-lg font-semibold text-ink">Executive Summary</h2>
+            <div className="mt-2 min-h-0 flex-1 overflow-y-auto pr-1 print:max-h-none print:overflow-visible">
+              <p className="text-sm leading-6 text-muted lg:text-base">{analysis.summary}</p>
+              {analysis.analysisNotice ? (
+                <p className="mt-3 rounded-md border border-line bg-surface px-3 py-2 text-sm leading-5 text-muted">
+                  {analysis.analysisNotice}
+                </p>
+              ) : null}
+            </div>
+            <div className="mt-3 grid shrink-0 gap-2 text-sm md:grid-cols-2">
               <div className="rounded-md border border-line bg-surface px-3 py-2">
                 <span className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">
                   Analysis mode
@@ -189,7 +191,7 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
                 <span className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">
                   Data confidence / limitation
                 </span>
-                <p className="mt-1 leading-5 text-muted">{dataLimitation}</p>
+                <p className="mt-1 max-h-16 overflow-y-auto leading-5 text-muted print:max-h-none print:overflow-visible">{dataLimitation}</p>
               </div>
               <div className="rounded-md border border-line bg-surface px-3 py-2">
                 <span className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">
