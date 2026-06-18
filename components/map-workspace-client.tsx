@@ -516,6 +516,24 @@ export function MapWorkspaceClient({
   }, [canUseMapbox, isMapReady, selectedObject, selectedPoint]);
 
   useEffect(() => {
+    if (!canUseMapbox || !mapContainerRef.current) {
+      return;
+    }
+
+    const resizeMap = () => {
+      window.requestAnimationFrame(() => mapRef.current?.resize());
+    };
+    const observer = new ResizeObserver(resizeMap);
+
+    observer.observe(mapContainerRef.current);
+    resizeMap();
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [canUseMapbox]);
+
+  useEffect(() => {
     if (!canUseMapbox || !mapRef.current || !isMapReady) {
       return;
     }

@@ -151,7 +151,7 @@ export function MapContextCard({
       : "min-h-[280px]";
 
   return (
-    <section className="flex h-full min-h-[420px] flex-col overflow-hidden rounded-lg border border-line bg-white shadow-sm print:h-auto print:min-h-0 print:shadow-none">
+    <section className="flex h-full min-h-[420px] w-full flex-col overflow-hidden rounded-lg border border-line bg-white shadow-sm print:h-auto print:min-h-0 print:shadow-none">
       <div className="flex shrink-0 items-center justify-between gap-3 border-b border-line px-4 py-3">
         <div>
           <h2 className="text-lg font-semibold text-ink">{title}</h2>
@@ -161,7 +161,7 @@ export function MapContextCard({
           Map context
         </span>
       </div>
-      <div className={`relative min-h-0 flex-1 overflow-hidden bg-[#dfe8ec] ${mapHeightClass}`}>
+      <div className={`relative h-full min-h-0 w-full flex-1 overflow-hidden bg-[#dfe8ec] ${mapHeightClass}`}>
         {comparison ? (
           <ComparisonMap comparison={comparison} compact={compact || reportMode} />
         ) : selectedPoint ? (
@@ -169,7 +169,7 @@ export function MapContextCard({
             selectedPoint={selectedPoint}
             selectedObject={selectedObject}
             onPointSelect={() => undefined}
-            className="relative h-full overflow-hidden bg-[#dfe8ec]"
+            className="relative h-full min-h-full w-full overflow-hidden bg-[#dfe8ec]"
             showEmptyOverlay={false}
             showLayerControls={false}
           />

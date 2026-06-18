@@ -110,6 +110,32 @@ function createExecutivePreview(analysis: ExpressAnalysis) {
   return `This ${scenario} screening highlights ${place} using ${sourceBasis}. The opportunity remains conditional until official land-use, transaction comps, infrastructure and planning constraints are validated.`;
 }
 
+function createScreeningSignals(analysis: ExpressAnalysis, decisionPosture: string) {
+  const importedMetricsUsed =
+    analysis.marketMetricsMatch?.importedMetricsUsed ||
+    analysis.marketContext?.importedMarketMetrics?.importedMetricsUsed;
+  const marketBasis = importedMetricsUsed
+    ? "Imported sample metrics"
+    : analysis.marketContext
+      ? "Demo-normalized area context"
+      : "Seed fallback context";
+  const validationNeed = analysis.selectedObject?.spatialContext
+    ? "Planning, comps and geometry validation"
+    : "Official planning and comps";
+  const nextStep = analysis.scenarioId === "constructionMonitoring"
+    ? "Set monitoring cadence"
+    : analysis.scenarioId === "climateRisk"
+      ? "Validate risk layers"
+      : "Run due diligence";
+
+  return [
+    ["Market basis", marketBasis],
+    ["Validation need", validationNeed],
+    ["Decision logic", decisionPosture],
+    ["Next step", nextStep]
+  ];
+}
+
 function MetricPill({
   label,
   value,
@@ -140,6 +166,7 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
   const marketMetricsMatch = analysis.marketContext?.importedMarketMetrics ?? analysis.marketMetricsMatch;
   const importedMetric = marketMetricsMatch?.metrics;
   const summaryPreview = createExecutivePreview(analysis);
+  const screeningSignals = createScreeningSignals(analysis, decisionPosture);
   const limitationPreview = dataLimitation.length > 150
     ? "Official validation is required before using this output as decision-grade evidence."
     : dataLimitation;
@@ -151,7 +178,7 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
   return (
     <section ref={dashboardRef} className="h-[calc(100vh-72px)] overflow-y-auto bg-surface p-3 lg:p-4">
       <div className="mx-auto flex max-w-7xl flex-col gap-3">
-        <section className="flex min-h-[calc(100vh-104px)] flex-col gap-3 xl:h-[calc(100vh-104px)] xl:min-h-0">
+        <section className="flex min-h-[calc(100vh-96px)] flex-col gap-3 xl:h-[calc(100vh-96px)] xl:min-h-0">
           <header className="flex shrink-0 flex-col justify-between gap-3 rounded-lg border border-line bg-white p-3 shadow-sm lg:flex-row lg:items-center">
             <div>
               <div className="flex flex-wrap items-center gap-3">
@@ -198,14 +225,27 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
                   {decisionRationale}
                 </p>
               </div>
-              <div className="flex min-h-0 flex-1 flex-col justify-center py-3">
-                <h2 className="text-lg font-semibold text-ink">Executive Summary</h2>
-                <p className="mt-2 text-base leading-7 text-muted">{summaryPreview}</p>
+              <div className="flex min-h-0 flex-1 flex-col justify-between gap-3 py-3">
+                <div>
+                  <h2 className="text-lg font-semibold text-ink">Executive Summary</h2>
+                  <p className="mt-2 text-base leading-7 text-muted">{summaryPreview}</p>
+                </div>
                 {analysis.analysisNotice ? (
-                  <p className="mt-3 rounded-md border border-line bg-surface px-3 py-2 text-sm leading-5 text-muted">
+                  <p className="rounded-md border border-line bg-surface px-3 py-2 text-sm leading-5 text-muted">
                     {analysis.analysisNotice}
                   </p>
                 ) : null}
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Screening Signals</p>
+                  <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                    {screeningSignals.map(([label, value]) => (
+                      <div key={label} className="rounded-md border border-line bg-surface px-3 py-2">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-muted">{label}</p>
+                        <p className="mt-1 text-sm font-semibold text-ink">{value}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
               <div className="grid shrink-0 gap-2 text-sm md:grid-cols-2">
                 <div className="rounded-md border border-line bg-surface px-3 py-2">
