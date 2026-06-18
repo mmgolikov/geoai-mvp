@@ -237,8 +237,8 @@ export function AnalysisPanel({
   }
 
   return (
-    <aside className="flex max-w-full flex-col overflow-hidden border-l border-line bg-white lg:h-[calc(100vh-72px)] lg:w-[400px]">
-      <section className="min-w-0 max-w-full flex-shrink-0 overflow-hidden p-4 pb-3">
+    <aside className="flex h-full max-w-full flex-col overflow-hidden border-l border-line bg-white lg:h-[calc(100vh-72px)] lg:w-[400px]">
+      <section className="min-h-0 flex-1 min-w-0 max-w-full overflow-y-auto overflow-x-hidden p-4 pb-6 [scrollbar-width:thin]">
         <div className="grid min-w-0 gap-3">
           <section className="min-w-0">
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted">
@@ -388,9 +388,8 @@ export function AnalysisPanel({
           </div>
           </section>
         </div>
-      </section>
 
-      <section className="grid min-h-0 flex-1 min-w-0 max-w-full gap-2 overflow-y-auto overflow-x-hidden px-4 pb-4 [scrollbar-width:thin]">
+        <div className="mt-3 grid min-w-0 max-w-full gap-2 overflow-hidden">
           <CollapsedSection
             title="Market Context"
             badge={isMarketContextLoading ? "loading" : contextStatus}
@@ -747,9 +746,10 @@ export function AnalysisPanel({
               </p>
             ) : null}
           </CollapsedSection>
+        </div>
       </section>
 
-      <section className="min-w-0 max-w-full flex-shrink-0 border-t border-line bg-white p-4 shadow-[0_-8px_18px_rgba(20,35,45,0.04)]">
+      <section className="min-w-0 max-w-full flex-shrink-0 border-t border-line bg-white p-4">
         <button
           type="button"
           disabled={!hasSelectedPoint}
