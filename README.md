@@ -30,6 +30,7 @@ OpenAI is optional. If `OPENAI_API_KEY` is not configured, GeoAI automatically u
 - Mock fallback mode when OpenAI is not configured or unavailable
 - Dubai Market Context Adapter v0.1 with seed/demo-normalized area matching
 - Data Ingestion v0.1 for seed_static market metrics and deterministic normalization
+- Open Geospatial Baseline v0.1 for local OSM-style roads, POI anchors, landuse context and accessibility metrics
 - Spatial Data Adapter v0.1 for seed_geojson demo layers and structured feature selection
 - Comparison mode for 2-3 selected points or demo objects
 - Comparison dashboard with scores, recommendation, risks, and next actions
@@ -113,6 +114,7 @@ The default `npm run dev` command uses stable Webpack mode with polling enabled 
 - `GET /api/analysis-runs` returns persisted analysis runs when Supabase is configured, or local-only mode otherwise.
 - `POST /api/analysis-runs` saves analysis runs when Supabase is configured, or returns a non-blocking local-only response otherwise.
 - `POST /api/context/market` returns seed/demo-normalized Dubai market context for selected coordinates.
+- `GET /api/open-geodata` returns local open-geodata baseline availability and counts.
 
 ## Market Context Adapter
 
@@ -136,6 +138,18 @@ The current seed metrics are qualitative/index-style only:
 - Trend and confidence
 
 No external API keys are required for Data Ingestion v0.1. Tiny samples are scored conservatively: low transaction counts reduce confidence and cap liquidity/rental-demand proxy influence. Future modes are prepared for `csv_ready`, `api_ready`, and `manual_upload_planned` workflows so DLD, Dubai Pulse, Dubai Municipality, licensed datasets, or customer uploads can be added later without changing the workspace UX.
+
+## Open Geospatial Baseline v0.1
+
+GeoAI includes an offline open-geodata baseline prototype for OSM-style roads, POI anchors, landuse context and accessibility metrics. It uses small local fixtures only; the app does not call live OSM, Geofabrik, Overpass or external GIS APIs at runtime.
+
+Run:
+
+```bash
+npm run ingest:open-geodata
+```
+
+Normalized outputs are written under `data/normalized/open_geodata_*`. The workspace and report maps use this baseline as subtle open-data context alongside Mapbox basemap labels and GeoAI demo analytical overlays. Evidence cards label this source as sample/open-geospatial context, not official GIS, planning, zoning or parcel data.
 
 ## Spatial Data Adapter v0.1
 
@@ -176,6 +190,7 @@ Current geometries are synthetic/demo only. They are not official parcel, planni
 - [Projects / Workspaces v0.1](docs/PROJECTS_WORKSPACES_V01.md)
 - [Project Dashboard v0.1](docs/PROJECT_DASHBOARD_V01.md)
 - [DLD / Dubai Pulse Ingestion v0.1](docs/DLD_DUBAI_PULSE_INGESTION_V01.md)
+- [Open Geospatial Baseline v0.1](docs/OPEN_GEODATA_BASELINE_V01.md)
 - [Architecture](docs/architecture.md)
 - [Data Strategy](docs/data-strategy.md)
 - [Roadmap](docs/roadmap.md)

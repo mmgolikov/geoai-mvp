@@ -1,0 +1,102 @@
+{
+  "sourceMode": "open_geodata_sample",
+  "generatedAt": "2026-06-18T15:55:35.533Z",
+  "items": [
+    {
+      "areaName": "Dubai Marina",
+      "coordinates": {
+        "latitude": 25.0796,
+        "longitude": 55.1488
+      },
+      "nearestMajorRoadKm": 7.8,
+      "nearestAirportKm": 20.4,
+      "nearestMobilityAnchorKm": 20.4,
+      "poiCountNearby": 3,
+      "demandAnchorCountNearby": 3,
+      "accessibilityIndex": 56,
+      "mobilityContext": "Sample open-baseline context: nearest major road 7.8 km, nearest mobility anchor 20.4 km, 3 nearby POI anchors.",
+      "sourceMode": "open_geodata_sample",
+      "confidence": "sample"
+    },
+    {
+      "areaName": "Downtown Dubai",
+      "coordinates": {
+        "latitude": 25.2015,
+        "longitude": 55.2797
+      },
+      "nearestMajorRoadKm": 9.4,
+      "nearestAirportKm": 10.4,
+      "nearestMobilityAnchorKm": 10.4,
+      "poiCountNearby": 3,
+      "demandAnchorCountNearby": 3,
+      "accessibilityIndex": 67,
+      "mobilityContext": "Sample open-baseline context: nearest major road 9.4 km, nearest mobility anchor 10.4 km, 3 nearby POI anchors.",
+      "sourceMode": "open_geodata_sample",
+      "confidence": "sample"
+    },
+    {
+      "areaName": "Business Bay",
+      "coordinates": {
+        "latitude": 25.1854,
+        "longitude": 55.2659
+      },
+      "nearestMajorRoadKm": 8.4,
+      "nearestAirportKm": 12.6,
+      "nearestMobilityAnchorKm": 12.6,
+      "poiCountNearby": 3,
+      "demandAnchorCountNearby": 3,
+      "accessibilityIndex": 67,
+      "mobilityContext": "Sample open-baseline context: nearest major road 8.4 km, nearest mobility anchor 12.6 km, 3 nearby POI anchors.",
+      "sourceMode": "open_geodata_sample",
+      "confidence": "sample"
+    },
+    {
+      "areaName": "JVC",
+      "coordinates": {
+        "latitude": 25.071,
+        "longitude": 55.205
+      },
+      "nearestMajorRoadKm": 6.5,
+      "nearestAirportKm": 19.9,
+      "nearestMobilityAnchorKm": 19.9,
+      "poiCountNearby": 2,
+      "demandAnchorCountNearby": 2,
+      "accessibilityIndex": 56,
+      "mobilityContext": "Sample open-baseline context: nearest major road 6.5 km, nearest mobility anchor 19.9 km, 2 nearby POI anchors.",
+      "sourceMode": "open_geodata_sample",
+      "confidence": "sample"
+    },
+    {
+      "areaName": "Meydan / MBR City",
+      "coordinates": {
+        "latitude": 25.163,
+        "longitude": 55.319
+      },
+      "nearestMajorRoadKm": 7.7,
+      "nearestAirportKm": 11.1,
+      "nearestMobilityAnchorKm": 11.1,
+      "poiCountNearby": 3,
+      "demandAnchorCountNearby": 3,
+      "accessibilityIndex": 70,
+      "mobilityContext": "Sample open-baseline context: nearest major road 7.7 km, nearest mobility anchor 11.1 km, 3 nearby POI anchors.",
+      "sourceMode": "open_geodata_sample",
+      "confidence": "sample"
+    },
+    {
+      "areaName": "Dubai South",
+      "coordinates": {
+        "latitude": 24.964,
+        "longitude": 55.172
+      },
+      "nearestMajorRoadKm": 2.9,
+      "nearestAirportKm": 7.6,
+      "nearestMobilityAnchorKm": 7.6,
+      "poiCountNearby": 1,
+      "demandAnchorCountNearby": 1,
+      "accessibilityIndex": 78,
+      "mobilityContext": "Sample open-baseline context: nearest major road 2.9 km, nearest mobility anchor 7.6 km, 1 nearby POI anchors.",
+      "sourceMode": "open_geodata_sample",
+      "confidence": "sample"
+    }
+  ]
+}

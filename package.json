@@ -8,6 +8,7 @@
     "dev:turbo": "WATCHPACK_POLLING=true CHOKIDAR_USEPOLLING=true next dev -H 127.0.0.1 --turbopack",
     "build": "next build",
     "ingest:dld": "node scripts/ingest-dld-sample.mjs",
+    "ingest:open-geodata": "node scripts/ingest-open-geodata-sample.mjs",
     "start": "next start",
     "lint": "next lint"
   },

@@ -1,0 +1,17 @@
+{
+  "type": "FeatureCollection",
+  "name": "dubai_osm_poi_sample",
+  "description": "Small OSM-style POI sample fixture for GeoAI open geospatial baseline v0.1. Not official GIS data.",
+  "features": [
+    { "type": "Feature", "id": "poi-dxb", "properties": { "name": "DXB Airport", "aeroway": "aerodrome", "subcategory": "airport" }, "geometry": { "type": "Point", "coordinates": [55.3657, 25.2532] } },
+    { "type": "Feature", "id": "poi-dwc", "properties": { "name": "DWC / Al Maktoum International Airport", "aeroway": "aerodrome", "subcategory": "airport" }, "geometry": { "type": "Point", "coordinates": [55.1614, 24.8964] } },
+    { "type": "Feature", "id": "poi-downtown", "properties": { "name": "Downtown / Burj Khalifa Area", "tourism": "landmark", "subcategory": "business / tourism anchor" }, "geometry": { "type": "Point", "coordinates": [55.2797, 25.2015] } },
+    { "type": "Feature", "id": "poi-marina", "properties": { "name": "Dubai Marina / JBR", "tourism": "waterfront", "subcategory": "tourism / residential anchor" }, "geometry": { "type": "Point", "coordinates": [55.1488, 25.0796] } },
+    { "type": "Feature", "id": "poi-business-bay", "properties": { "name": "Business Bay", "office": "business", "subcategory": "business anchor" }, "geometry": { "type": "Point", "coordinates": [55.2659, 25.1854] } },
+    { "type": "Feature", "id": "poi-palm", "properties": { "name": "Palm Jumeirah", "tourism": "landmark", "subcategory": "tourism anchor" }, "geometry": { "type": "Point", "coordinates": [55.1386, 25.1124] } },
+    { "type": "Feature", "id": "poi-meydan", "properties": { "name": "Meydan / MBR City", "development": "growth_anchor", "subcategory": "development anchor" }, "geometry": { "type": "Point", "coordinates": [55.319, 25.163] } },
+    { "type": "Feature", "id": "poi-jvc", "properties": { "name": "JVC / JVT", "development": "residential_growth", "subcategory": "development anchor" }, "geometry": { "type": "Point", "coordinates": [55.205, 25.071] } },
+    { "type": "Feature", "id": "poi-dubai-south", "properties": { "name": "Dubai South", "development": "logistics_growth", "subcategory": "development anchor" }, "geometry": { "type": "Point", "coordinates": [55.172, 24.964] } }
+  ]
+}
+

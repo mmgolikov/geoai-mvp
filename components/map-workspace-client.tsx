@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { demoLayers, getDemoFeatureById, getLayerSourceModeLabel, getSelectedDemoObject } from "@/src/data/demo-layers";
 import type { DemoLayer, DemoLayerFeature } from "@/src/data/demo-layers";
+import { openGeodataBaseline } from "@/src/lib/open-geodata";
+import type { OpenLanduseFeature, OpenPoiFeature, OpenRoadFeature } from "@/src/lib/open-geodata";
 import type { GeoJSONSource, Map as MapboxMap, MapboxGeoJSONFeature, Marker as MapboxMarker, Popup as MapboxPopup } from "mapbox-gl";
 import type { DemoLayerId, SelectedDemoObject, SelectedPoint } from "@/src/types/geo";
 
@@ -34,6 +36,8 @@ const initialLayerVisibility = demoLayers.reduce<Record<DemoLayerId, boolean>>((
 
 const selectedObjectSourceId = "geoai-selected-object";
 const hoverObjectSourceId = "geoai-hover-object";
+const openGeodataSourceId = "geoai-open-geodata-baseline";
+const openGeodataLayerIds = ["geoai-open-landuse", "geoai-open-roads", "geoai-open-poi"];
 const plannedLayerRows = [
   "DLD / Dubai Pulse market data",
   "Dubai Municipality / GeoDubai GIS",
@@ -58,7 +62,10 @@ function getLayerIds(layer: DemoLayer) {
 }
 
 function getInteractiveLayerIds(visibility: Record<DemoLayerId, boolean>) {
-  return demoLayers.flatMap((layer) => (visibility[layer.id] ? getLayerIds(layer) : []));
+  return [
+    ...openGeodataLayerIds,
+    ...demoLayers.flatMap((layer) => (visibility[layer.id] ? getLayerIds(layer) : []))
+  ];
 }
 
 function toFeatureCollection(features: unknown[]): GeoJSON.FeatureCollection {
@@ -111,6 +118,77 @@ function getBasemapContextType(layerId: string) {
   if (layerId.includes("place")) return "place label context";
   if (layerId.includes("building")) return "building context";
   return "basemap context";
+}
+
+function openRoadToFeature(road: OpenRoadFeature): GeoJSON.Feature {
+  return {
+    type: "Feature",
+    id: road.id,
+    properties: {
+      id: road.id,
+      name: road.name,
+      openFeatureKind: "road",
+      category: "Open geospatial baseline",
+      subtype: road.roadClass,
+      sourceMode: road.sourceMode,
+      confidenceLevel: road.confidence,
+      relevance: "Accessibility and road access context.",
+      clickPriority: 30,
+      layerOrder: 15
+    },
+    geometry: road.geometry
+  };
+}
+
+function openPoiToFeature(poi: OpenPoiFeature): GeoJSON.Feature {
+  return {
+    type: "Feature",
+    id: poi.id,
+    properties: {
+      id: poi.id,
+      name: poi.name,
+      openFeatureKind: "poi",
+      category: "Open geospatial baseline",
+      subtype: poi.subcategory,
+      sourceMode: poi.sourceMode,
+      confidenceLevel: poi.confidence,
+      relevance: `${poi.category.replace(/_/g, " ")} anchor context.`,
+      clickPriority: 88,
+      layerOrder: 75
+    },
+    geometry: {
+      type: "Point",
+      coordinates: [poi.coordinates.longitude, poi.coordinates.latitude]
+    }
+  };
+}
+
+function openLanduseToFeature(landuse: OpenLanduseFeature): GeoJSON.Feature {
+  return {
+    type: "Feature",
+    id: landuse.id,
+    properties: {
+      id: landuse.id,
+      name: landuse.name,
+      openFeatureKind: "landuse",
+      category: "Open geospatial baseline",
+      subtype: landuse.landuseClass.replace(/_/g, " "),
+      sourceMode: landuse.sourceMode,
+      confidenceLevel: landuse.confidence,
+      relevance: "Indicative landuse context from local OSM-style fixture.",
+      clickPriority: 18,
+      layerOrder: 12
+    },
+    geometry: landuse.geometry
+  };
+}
+
+function getOpenGeodataFeatures() {
+  return [
+    ...openGeodataBaseline.landuse.map(openLanduseToFeature),
+    ...openGeodataBaseline.roads.map(openRoadToFeature),
+    ...openGeodataBaseline.poi.map(openPoiToFeature)
+  ];
 }
 
 function sortRenderedFeatures(features: MapboxGeoJSONFeature[] = []) {
@@ -171,6 +249,34 @@ function setBasemapTooltip(
         <div class="geoai-map-tooltip-title">${escapeHtml(title)}</div>
         <div class="geoai-map-tooltip-detail">${escapeHtml(detail)}</div>
         <div class="geoai-map-tooltip-source">live basemap</div>
+      </div>`
+    )
+    .addTo(map);
+}
+
+function setOpenGeodataTooltip(
+  popup: MapboxPopup | null,
+  lngLat: { lng: number; lat: number },
+  feature: MapboxGeoJSONFeature,
+  map: MapboxMap
+) {
+  if (!popup) {
+    return;
+  }
+
+  const title = String(feature.properties?.name ?? "Open geospatial context");
+  const detail = `${String(feature.properties?.subtype ?? "context")} · ${String(feature.properties?.category ?? "Open geospatial baseline")}`;
+  const source = `${String(feature.properties?.sourceMode ?? "open_geodata_sample").replace(/_/g, "-")} · ${String(feature.properties?.confidenceLevel ?? "sample")} confidence`;
+  const note = String(feature.properties?.relevance ?? "Open baseline context.");
+
+  popup
+    .setLngLat(lngLat)
+    .setHTML(
+      `<div class="geoai-map-tooltip">
+        <div class="geoai-map-tooltip-title">${escapeHtml(title)}</div>
+        <div class="geoai-map-tooltip-detail">${escapeHtml(detail)}</div>
+        <div class="geoai-map-tooltip-source">${escapeHtml(source)}</div>
+        <div class="geoai-map-tooltip-note">${escapeHtml(note)}</div>
       </div>`
     )
     .addTo(map);
@@ -271,6 +377,83 @@ function addDemoLayerToMap(map: MapboxMap, layer: DemoLayer) {
       },
       minzoom: layer.minZoom,
       maxzoom: layer.maxZoom
+    });
+  }
+}
+
+function addOpenGeodataLayers(map: MapboxMap) {
+  if (!map.getSource(openGeodataSourceId)) {
+    map.addSource(openGeodataSourceId, {
+      type: "geojson",
+      data: toFeatureCollection(getOpenGeodataFeatures())
+    });
+  }
+
+  if (!map.getLayer("geoai-open-landuse")) {
+    map.addLayer({
+      id: "geoai-open-landuse",
+      type: "fill",
+      source: openGeodataSourceId,
+      filter: ["==", ["get", "openFeatureKind"], "landuse"],
+      paint: {
+        "fill-color": [
+          "match",
+          ["get", "subtype"],
+          "tourism waterfront",
+          "#7fb8c9",
+          "mixed use",
+          "#8aa98c",
+          "industrial logistics",
+          "#b99b70",
+          "#9bb5a6"
+        ],
+        "fill-opacity": 0.055
+      },
+      minzoom: 9.1
+    });
+  }
+
+  if (!map.getLayer("geoai-open-roads")) {
+    map.addLayer({
+      id: "geoai-open-roads",
+      type: "line",
+      source: openGeodataSourceId,
+      filter: ["==", ["get", "openFeatureKind"], "road"],
+      layout: {
+        "line-cap": "round",
+        "line-join": "round"
+      },
+      paint: {
+        "line-color": "#536d7a",
+        "line-opacity": [
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          9,
+          0.28,
+          12,
+          0.46
+        ],
+        "line-width": ["match", ["get", "subtype"], "motorway", 2.2, "trunk", 2, "primary", 1.8, 1.25]
+      },
+      minzoom: 8.8
+    });
+  }
+
+  if (!map.getLayer("geoai-open-poi")) {
+    map.addLayer({
+      id: "geoai-open-poi",
+      type: "circle",
+      source: openGeodataSourceId,
+      filter: ["==", ["get", "openFeatureKind"], "poi"],
+      paint: {
+        "circle-color": "#1f6b83",
+        "circle-radius": ["interpolate", ["linear"], ["zoom"], 9, 3.3, 13, 5],
+        "circle-opacity": 0.72,
+        "circle-stroke-color": "#ffffff",
+        "circle-stroke-width": 1.1
+      },
+      minzoom: 9.6
     });
   }
 }
@@ -478,6 +661,7 @@ export function MapWorkspaceClient({
       mapRef.current.on("load", () => {
         if (isMounted) {
           setMapResourceError(null);
+          addOpenGeodataLayers(mapRef.current as MapboxMap);
           demoLayers.forEach((layer) => addDemoLayerToMap(mapRef.current as MapboxMap, layer));
           addSelectedObjectLayer(mapRef.current as MapboxMap);
           addHoverObjectLayer(mapRef.current as MapboxMap);
@@ -494,20 +678,24 @@ export function MapWorkspaceClient({
           ? mapRef.current?.queryRenderedFeatures(event.point, { layers: interactiveLayers })
           : [];
         const orderedFeatures = sortRenderedFeatures(features);
-        const featureId = orderedFeatures[0]?.properties?.id as string | undefined;
+        const hoveredFeature = orderedFeatures[0];
+        const featureId = hoveredFeature?.properties?.id as string | undefined;
         const demoFeature = featureId ? getDemoFeatureById(featureId) : null;
         const basemapFeature = demoFeature ? null : getBasemapContextFeature(mapRef.current?.queryRenderedFeatures(event.point) ?? []);
         const source = mapRef.current?.getSource(hoverObjectSourceId) as GeoJSONSource | undefined;
 
         if (source) {
-          source.setData(toFeatureCollection(demoFeature ? [demoFeature] : []));
+          source.setData(toFeatureCollection(demoFeature ? [demoFeature] : hoveredFeature?.properties?.openFeatureKind ? [hoveredFeature] : []));
         }
 
         if (mapRef.current) {
-          mapRef.current.getCanvas().style.cursor = demoFeature ? "pointer" : "";
+          const isSelectableOpenPoi = hoveredFeature?.properties?.openFeatureKind === "poi";
+          mapRef.current.getCanvas().style.cursor = demoFeature || isSelectableOpenPoi ? "pointer" : "";
 
           if (demoFeature) {
             setHoverTooltip(hoverPopupRef.current, event.lngLat, demoFeature, mapRef.current);
+          } else if (hoveredFeature?.properties?.openFeatureKind) {
+            setOpenGeodataTooltip(hoverPopupRef.current, event.lngLat, hoveredFeature, mapRef.current);
           } else if (basemapFeature) {
             setBasemapTooltip(hoverPopupRef.current, event.lngLat, basemapFeature, mapRef.current);
           } else {
@@ -534,11 +722,31 @@ export function MapWorkspaceClient({
           ? mapRef.current?.queryRenderedFeatures(event.point, { layers: interactiveLayers })
           : [];
         const orderedFeatures = sortRenderedFeatures(features);
-        const featureId = orderedFeatures[0]?.properties?.id as string | undefined;
+        const selectedRenderedFeature = orderedFeatures[0];
+        const featureId = selectedRenderedFeature?.properties?.id as string | undefined;
         const demoFeature = featureId ? getDemoFeatureById(featureId) : null;
 
         if (demoFeature && onObjectSelectRef.current) {
           onObjectSelectRef.current(getSelectedDemoObject(demoFeature));
+          return;
+        }
+
+        if (selectedRenderedFeature?.properties?.openFeatureKind === "poi" && onObjectSelectRef.current) {
+          const coordinates = selectedRenderedFeature.geometry.type === "Point"
+            ? selectedRenderedFeature.geometry.coordinates as [number, number]
+            : [event.lngLat.lng, event.lngLat.lat];
+          onObjectSelectRef.current({
+            id: `open-${String(selectedRenderedFeature.properties.id)}`,
+            name: String(selectedRenderedFeature.properties.name ?? "Open baseline anchor"),
+            type: String(selectedRenderedFeature.properties.subtype ?? "Open geospatial anchor"),
+            layerId: "infrastructureNodes",
+            layerName: "Open geospatial baseline",
+            geometryType: "point",
+            center: {
+              longitude: coordinates[0],
+              latitude: coordinates[1]
+            }
+          });
           return;
         }
 
@@ -792,6 +1000,26 @@ export function MapWorkspaceClient({
 
               <div className="mt-2 grid gap-2">
                 <p className="px-1 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted">
+                  Open Geospatial Baseline
+                </p>
+                <div className="rounded-md border border-line bg-white px-3 py-2">
+                  <div className="grid gap-1.5 text-xs text-muted">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-sm bg-[#536d7a]" />Roads / access</span>
+                      <span className="rounded-full bg-surface px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em]">OSM-style sample</span>
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-[#1f6b83]" />POI / anchors</span>
+                      <span className="rounded-full bg-surface px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em]">open-data context</span>
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-sm bg-[#9bb5a6]" />Landuse context</span>
+                      <span className="rounded-full bg-surface px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em]">not official GIS</span>
+                    </div>
+                  </div>
+                </div>
+
+                <p className="mt-2 px-1 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted">
                   GeoAI Demo Analytical Overlays
                 </p>
                 {demoOverlayLayers.map((layer) => (

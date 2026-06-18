@@ -1,0 +1,201 @@
+{
+  "type": "FeatureCollection",
+  "sourceMode": "open_geodata_sample",
+  "generatedAt": "2026-06-18T15:55:35.533Z",
+  "features": [
+    {
+      "id": "poi-dxb",
+      "name": "DXB Airport",
+      "category": "airport",
+      "subcategory": "airport",
+      "coordinates": {
+        "longitude": 55.3657,
+        "latitude": 25.2532
+      },
+      "scenarioRelevance": [
+        "investmentSiteSelection",
+        "realEstateDevelopment",
+        "infrastructureUrbanPlanning"
+      ],
+      "sourceMode": "open_geodata_sample",
+      "confidence": "sample",
+      "properties": {
+        "name": "DXB Airport",
+        "aeroway": "aerodrome",
+        "subcategory": "airport"
+      }
+    },
+    {
+      "id": "poi-dwc",
+      "name": "DWC / Al Maktoum International Airport",
+      "category": "airport",
+      "subcategory": "airport",
+      "coordinates": {
+        "longitude": 55.1614,
+        "latitude": 24.8964
+      },
+      "scenarioRelevance": [
+        "investmentSiteSelection",
+        "realEstateDevelopment",
+        "infrastructureUrbanPlanning"
+      ],
+      "sourceMode": "open_geodata_sample",
+      "confidence": "sample",
+      "properties": {
+        "name": "DWC / Al Maktoum International Airport",
+        "aeroway": "aerodrome",
+        "subcategory": "airport"
+      }
+    },
+    {
+      "id": "poi-downtown",
+      "name": "Downtown / Burj Khalifa Area",
+      "category": "tourism",
+      "subcategory": "business / tourism anchor",
+      "coordinates": {
+        "longitude": 55.2797,
+        "latitude": 25.2015
+      },
+      "scenarioRelevance": [
+        "investmentSiteSelection",
+        "realEstateDevelopment"
+      ],
+      "sourceMode": "open_geodata_sample",
+      "confidence": "sample",
+      "properties": {
+        "name": "Downtown / Burj Khalifa Area",
+        "tourism": "landmark",
+        "subcategory": "business / tourism anchor"
+      }
+    },
+    {
+      "id": "poi-marina",
+      "name": "Dubai Marina / JBR",
+      "category": "tourism",
+      "subcategory": "tourism / residential anchor",
+      "coordinates": {
+        "longitude": 55.1488,
+        "latitude": 25.0796
+      },
+      "scenarioRelevance": [
+        "investmentSiteSelection",
+        "realEstateDevelopment"
+      ],
+      "sourceMode": "open_geodata_sample",
+      "confidence": "sample",
+      "properties": {
+        "name": "Dubai Marina / JBR",
+        "tourism": "waterfront",
+        "subcategory": "tourism / residential anchor"
+      }
+    },
+    {
+      "id": "poi-business-bay",
+      "name": "Business Bay",
+      "category": "business",
+      "subcategory": "business anchor",
+      "coordinates": {
+        "longitude": 55.2659,
+        "latitude": 25.1854
+      },
+      "scenarioRelevance": [
+        "investmentSiteSelection",
+        "realEstateDevelopment"
+      ],
+      "sourceMode": "open_geodata_sample",
+      "confidence": "sample",
+      "properties": {
+        "name": "Business Bay",
+        "office": "business",
+        "subcategory": "business anchor"
+      }
+    },
+    {
+      "id": "poi-palm",
+      "name": "Palm Jumeirah",
+      "category": "tourism",
+      "subcategory": "tourism anchor",
+      "coordinates": {
+        "longitude": 55.1386,
+        "latitude": 25.1124
+      },
+      "scenarioRelevance": [
+        "investmentSiteSelection",
+        "realEstateDevelopment"
+      ],
+      "sourceMode": "open_geodata_sample",
+      "confidence": "sample",
+      "properties": {
+        "name": "Palm Jumeirah",
+        "tourism": "landmark",
+        "subcategory": "tourism anchor"
+      }
+    },
+    {
+      "id": "poi-meydan",
+      "name": "Meydan / MBR City",
+      "category": "development_anchor",
+      "subcategory": "development anchor",
+      "coordinates": {
+        "longitude": 55.319,
+        "latitude": 25.163
+      },
+      "scenarioRelevance": [
+        "investmentSiteSelection",
+        "realEstateDevelopment",
+        "constructionMonitoring"
+      ],
+      "sourceMode": "open_geodata_sample",
+      "confidence": "sample",
+      "properties": {
+        "name": "Meydan / MBR City",
+        "development": "growth_anchor",
+        "subcategory": "development anchor"
+      }
+    },
+    {
+      "id": "poi-jvc",
+      "name": "JVC / JVT",
+      "category": "development_anchor",
+      "subcategory": "development anchor",
+      "coordinates": {
+        "longitude": 55.205,
+        "latitude": 25.071
+      },
+      "scenarioRelevance": [
+        "investmentSiteSelection",
+        "realEstateDevelopment",
+        "constructionMonitoring"
+      ],
+      "sourceMode": "open_geodata_sample",
+      "confidence": "sample",
+      "properties": {
+        "name": "JVC / JVT",
+        "development": "residential_growth",
+        "subcategory": "development anchor"
+      }
+    },
+    {
+      "id": "poi-dubai-south",
+      "name": "Dubai South",
+      "category": "development_anchor",
+      "subcategory": "development anchor",
+      "coordinates": {
+        "longitude": 55.172,
+        "latitude": 24.964
+      },
+      "scenarioRelevance": [
+        "investmentSiteSelection",
+        "realEstateDevelopment",
+        "constructionMonitoring"
+      ],
+      "sourceMode": "open_geodata_sample",
+      "confidence": "sample",
+      "properties": {
+        "name": "Dubai South",
+        "development": "logistics_growth",
+        "subcategory": "development anchor"
+      }
+    }
+  ]
+}

@@ -210,6 +210,45 @@ const baseDataSourceRegistry: DataSource[] = [
     usedInScenarios: ["realEstateDevelopment", "investmentSiteSelection", "infrastructureUrbanPlanning"]
   },
   {
+    id: "open-geodata-baseline-sample",
+    name: "Open Geospatial Baseline Context",
+    category: "infrastructure",
+    geography: "Dubai sample extent",
+    description: "Local OSM-style sample baseline for roads, POI anchors, landuse context and accessibility metrics.",
+    provider: "Local open-geodata ingestion prototype",
+    sourceType: "open_geospatial",
+    status: "mock",
+    integrationStatus: "active_demo",
+    updateFrequency: "Manual sample ingestion",
+    coverage: {
+      geography: "Dubai-focused sample fixtures",
+      spatialResolution: "Road, POI and landuse feature context",
+      temporalCoverage: "Prototype fixture baseline"
+    },
+    licenseNote: {
+      type: "open",
+      note: "OSM/Geofabrik/Overpass-compatible path. Production use requires ODbL attribution and compliance review."
+    },
+    accessNote: "No live API access in v0.1; normalized from local sample fixtures only.",
+    usageInGeoAI: "Used for indicative road, POI, anchor and accessibility context in maps, prompts and reports.",
+    limitations: "Not official GIS, zoning, parcel, planning, transport authority or government boundary data.",
+    recommendedNextStep: "Replace fixtures with dated OSM/Geofabrik extracts, attribution metadata and official validation where required.",
+    maturityLevel: "open_ready",
+    usedInCurrentPrototype: true,
+    plannedForPilot: true,
+    decisionGrade: false,
+    reliabilityLevel: "medium",
+    lastUpdated: "2026-06-18",
+    usedInScenarios: [
+      "realEstateDevelopment",
+      "investmentSiteSelection",
+      "infrastructureUrbanPlanning",
+      "constructionMonitoring",
+      "climateRisk",
+      "customQuery"
+    ]
+  },
+  {
     id: "copernicus-sentinel",
     name: "Copernicus Sentinel",
     category: "remote_sensing",

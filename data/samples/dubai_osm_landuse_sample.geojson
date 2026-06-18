@@ -1,0 +1,12 @@
+{
+  "type": "FeatureCollection",
+  "name": "dubai_osm_landuse_sample",
+  "description": "Small OSM-style landuse sample fixture for GeoAI open geospatial baseline v0.1. Not official GIS data.",
+  "features": [
+    { "type": "Feature", "id": "landuse-marina", "properties": { "name": "Dubai Marina Waterfront Context", "landuse": "tourism_waterfront" }, "geometry": { "type": "Polygon", "coordinates": [[[55.121, 25.066], [55.18, 25.068], [55.192, 25.105], [55.135, 25.121], [55.109, 25.093], [55.121, 25.066]]] } },
+    { "type": "Feature", "id": "landuse-downtown", "properties": { "name": "Downtown / Business Bay Mixed-use Context", "landuse": "mixed_use" }, "geometry": { "type": "Polygon", "coordinates": [[[55.244, 25.174], [55.311, 25.176], [55.319, 25.215], [55.258, 25.226], [55.236, 25.197], [55.244, 25.174]]] } },
+    { "type": "Feature", "id": "landuse-jvc", "properties": { "name": "JVC / JVT Residential Context", "landuse": "residential" }, "geometry": { "type": "Polygon", "coordinates": [[[55.162, 25.048], [55.245, 25.042], [55.264, 25.093], [55.19, 25.118], [55.149, 25.082], [55.162, 25.048]]] } },
+    { "type": "Feature", "id": "landuse-dubai-south", "properties": { "name": "Dubai South Airport / Logistics Context", "landuse": "industrial_logistics" }, "geometry": { "type": "Polygon", "coordinates": [[[55.105, 24.908], [55.218, 24.906], [55.247, 24.997], [55.135, 25.02], [55.092, 24.962], [55.105, 24.908]]] } }
+  ]
+}
+

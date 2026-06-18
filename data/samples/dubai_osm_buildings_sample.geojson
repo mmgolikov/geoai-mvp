@@ -1,0 +1,7 @@
+{
+  "type": "FeatureCollection",
+  "name": "dubai_osm_buildings_sample",
+  "description": "Optional lightweight OSM-style building sample fixture. Not official building data.",
+  "features": []
+}
+

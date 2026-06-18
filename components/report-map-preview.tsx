@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { demoLayers, getDemoFeatureById } from "@/src/data/demo-layers";
+import { openGeodataBaseline } from "@/src/lib/open-geodata";
+import type { OpenLanduseFeature, OpenPoiFeature, OpenRoadFeature } from "@/src/lib/open-geodata";
 import type { Map as MapboxMap, Marker as MapboxMarker } from "mapbox-gl";
 import type { ComparisonResult, SelectedDemoObject, SelectedPoint } from "@/src/types/geo";
 
@@ -73,6 +75,36 @@ function toFeatureCollection(features: unknown[]): GeoJSON.FeatureCollection {
   };
 }
 
+function openRoadToFeature(road: OpenRoadFeature): GeoJSON.Feature {
+  return {
+    type: "Feature",
+    id: road.id,
+    properties: { id: road.id, name: road.name, kind: "open-road", roadClass: road.roadClass },
+    geometry: road.geometry
+  };
+}
+
+function openPoiToFeature(poi: OpenPoiFeature): GeoJSON.Feature {
+  return {
+    type: "Feature",
+    id: poi.id,
+    properties: { id: poi.id, name: poi.name, kind: "open-poi", category: poi.category },
+    geometry: {
+      type: "Point",
+      coordinates: [poi.coordinates.longitude, poi.coordinates.latitude]
+    }
+  };
+}
+
+function openLanduseToFeature(landuse: OpenLanduseFeature): GeoJSON.Feature {
+  return {
+    type: "Feature",
+    id: landuse.id,
+    properties: { id: landuse.id, name: landuse.name, kind: "open-landuse", landuseClass: landuse.landuseClass },
+    geometry: landuse.geometry
+  };
+}
+
 function FallbackMap({
   markers,
   message
@@ -138,6 +170,11 @@ export function ReportMapPreview({
     }
 
     let isMounted = true;
+    const openContextFeatures = [
+      ...openGeodataBaseline.landuse.map(openLanduseToFeature),
+      ...openGeodataBaseline.roads.map(openRoadToFeature),
+      ...openGeodataBaseline.poi.map(openPoiToFeature)
+    ];
     const contextFeatures = demoLayers
       .filter((layer) => layer.visibleByDefault)
       .flatMap((layer) => layer.features);
@@ -191,9 +228,52 @@ export function ReportMapPreview({
             type: "geojson",
             data: toFeatureCollection(contextFeatures)
           });
+          map.addSource("geoai-report-open-context", {
+            type: "geojson",
+            data: toFeatureCollection(openContextFeatures)
+          });
           map.addSource("geoai-report-selected", {
             type: "geojson",
             data: toFeatureCollection(selectedFeatures)
+          });
+
+          map.addLayer({
+            id: "geoai-report-open-landuse",
+            type: "fill",
+            source: "geoai-report-open-context",
+            filter: ["==", ["get", "kind"], "open-landuse"],
+            paint: {
+              "fill-color": "#9bb5a6",
+              "fill-opacity": 0.04
+            }
+          });
+          map.addLayer({
+            id: "geoai-report-open-roads",
+            type: "line",
+            source: "geoai-report-open-context",
+            filter: ["==", ["get", "kind"], "open-road"],
+            layout: {
+              "line-cap": "round",
+              "line-join": "round"
+            },
+            paint: {
+              "line-color": "#536d7a",
+              "line-opacity": 0.34,
+              "line-width": ["match", ["get", "roadClass"], "motorway", 2, "trunk", 1.8, "primary", 1.6, 1.1]
+            }
+          });
+          map.addLayer({
+            id: "geoai-report-open-poi",
+            type: "circle",
+            source: "geoai-report-open-context",
+            filter: ["==", ["get", "kind"], "open-poi"],
+            paint: {
+              "circle-color": "#1f6b83",
+              "circle-opacity": 0.68,
+              "circle-radius": compact ? 3.2 : 4.2,
+              "circle-stroke-color": "#ffffff",
+              "circle-stroke-width": 1
+            }
           });
 
           map.addLayer({

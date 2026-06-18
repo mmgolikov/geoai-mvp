@@ -1,0 +1,181 @@
+{
+  "type": "FeatureCollection",
+  "sourceMode": "open_geodata_sample",
+  "generatedAt": "2026-06-18T15:55:35.533Z",
+  "features": [
+    {
+      "id": "road-sheikh-zayed",
+      "name": "Sheikh Zayed Road",
+      "roadClass": "motorway",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            55.055,
+            24.985
+          ],
+          [
+            55.13,
+            25.067
+          ],
+          [
+            55.206,
+            25.139
+          ],
+          [
+            55.284,
+            25.204
+          ],
+          [
+            55.342,
+            25.25
+          ]
+        ]
+      },
+      "sourceMode": "open_geodata_sample",
+      "confidence": "sample",
+      "displayPriority": 90,
+      "properties": {
+        "name": "Sheikh Zayed Road",
+        "highway": "motorway",
+        "sample_note": "OSM-style road fixture; not live OSM."
+      }
+    },
+    {
+      "id": "road-al-khail",
+      "name": "Al Khail Road",
+      "roadClass": "trunk",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            55.182,
+            25.001
+          ],
+          [
+            55.237,
+            25.074
+          ],
+          [
+            55.298,
+            25.151
+          ],
+          [
+            55.363,
+            25.215
+          ]
+        ]
+      },
+      "sourceMode": "open_geodata_sample",
+      "confidence": "sample",
+      "displayPriority": 82,
+      "properties": {
+        "name": "Al Khail Road",
+        "highway": "trunk",
+        "sample_note": "OSM-style road fixture; not live OSM."
+      }
+    },
+    {
+      "id": "road-airport",
+      "name": "Airport Road",
+      "roadClass": "primary",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            55.304,
+            25.232
+          ],
+          [
+            55.335,
+            25.246
+          ],
+          [
+            55.373,
+            25.258
+          ],
+          [
+            55.407,
+            25.271
+          ]
+        ]
+      },
+      "sourceMode": "open_geodata_sample",
+      "confidence": "sample",
+      "displayPriority": 72,
+      "properties": {
+        "name": "Airport Road",
+        "highway": "primary",
+        "sample_note": "OSM-style road fixture; not live OSM."
+      }
+    },
+    {
+      "id": "road-marina-corridor",
+      "name": "Dubai Marina Corridor",
+      "roadClass": "secondary",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            55.114,
+            25.067
+          ],
+          [
+            55.144,
+            25.079
+          ],
+          [
+            55.174,
+            25.097
+          ],
+          [
+            55.196,
+            25.109
+          ]
+        ]
+      },
+      "sourceMode": "open_geodata_sample",
+      "confidence": "sample",
+      "displayPriority": 55,
+      "properties": {
+        "name": "Dubai Marina Corridor",
+        "highway": "secondary",
+        "sample_note": "OSM-style access fixture; not live OSM."
+      }
+    },
+    {
+      "id": "road-dubai-south-access",
+      "name": "Dubai South Access Corridor",
+      "roadClass": "primary",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            55.116,
+            24.938
+          ],
+          [
+            55.161,
+            24.896
+          ],
+          [
+            55.197,
+            24.938
+          ],
+          [
+            55.226,
+            24.982
+          ]
+        ]
+      },
+      "sourceMode": "open_geodata_sample",
+      "confidence": "sample",
+      "displayPriority": 72,
+      "properties": {
+        "name": "Dubai South Access Corridor",
+        "highway": "primary",
+        "sample_note": "OSM-style access fixture; not live OSM."
+      }
+    }
+  ]
+}

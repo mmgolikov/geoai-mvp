@@ -19,6 +19,11 @@ import {
   enrichAnalysisWithMarketMetrics,
   findBestMarketMetricMatch
 } from "@/src/lib/market-metrics";
+import {
+  getNearbyOpenPoi,
+  getNearestAccessibilityMetric,
+  getNearestOpenRoad
+} from "@/src/lib/open-geodata";
 import type { GeoAIProject } from "@/src/lib/db/types";
 import type { StructuredAnalysisResult } from "@/src/types/analysis";
 import type {
@@ -180,6 +185,56 @@ function withMarketContext(analysis: ExpressAnalysis, marketContext: MarketConte
     },
     marketMetricsMatch
   );
+}
+
+function withOpenGeodataContext(analysis: ExpressAnalysis): ExpressAnalysis {
+  const accessibility = getNearestAccessibilityMetric(analysis.point);
+  const nearestRoad = getNearestOpenRoad(analysis.point);
+  const nearbyPoi = getNearbyOpenPoi(analysis.point, 7).slice(0, 4);
+
+  if (!accessibility && !nearestRoad && nearbyPoi.length === 0) {
+    return analysis;
+  }
+
+  const evidence = createEvidenceItem(
+    "open-geodata-baseline-context",
+    "open-geodata-baseline-sample",
+    "Open geospatial baseline context",
+    "Local OSM-style fixtures provide indicative road, POI, anchor and accessibility context. Not official GIS; attribution and validation are required before production use.",
+    "medium"
+  );
+  const openContextNotes = [
+    accessibility
+      ? `Open baseline accessibility context matched nearest area: ${accessibility.metric.areaName} (${accessibility.distanceKm.toFixed(1)} km from selection), accessibility index ${accessibility.metric.accessibilityIndex}/100.`
+      : null,
+    nearestRoad
+      ? `Nearest open-baseline road context: ${nearestRoad.road.name} (${nearestRoad.road.roadClass}), approximately ${nearestRoad.distanceKm.toFixed(1)} km from the selection.`
+      : null,
+    nearbyPoi.length > 0
+      ? `Nearby open-baseline anchors: ${nearbyPoi.map(({ item }) => item.name).join(", ")}.`
+      : null
+  ].filter((item): item is string => Boolean(item));
+  const openContextLimitation = "Open geospatial baseline fixtures are OSM-style sample context, not official GIS, parcel, zoning, planning or transport authority evidence.";
+
+  return {
+    ...analysis,
+    summary: `${analysis.summary} ${openContextNotes[0] ?? "Open geospatial baseline fixtures add indicative access and anchor context."}`,
+    keyFactors: [
+      ...openContextNotes,
+      ...analysis.keyFactors
+    ],
+    nextActions: [
+      ...analysis.nextActions,
+      "Validate open-baseline accessibility assumptions against dated OSM extracts, official transport data, and customer site requirements."
+    ],
+    limitations: [
+      ...(analysis.limitations ?? []),
+      openContextLimitation
+    ],
+    evidence: analysis.evidence.some((item) => item.id === evidence.id)
+      ? analysis.evidence
+      : [evidence, ...analysis.evidence]
+  };
 }
 
 function formatLocationLabel(analysis: ExpressAnalysis) {
@@ -788,17 +843,19 @@ export function WorkspaceShell() {
     setComparison(null);
     setReportPreview(null);
 
-    const deterministicAnalysis = withMarketContext(
-      {
-        ...createMockExpressAnalysis(
-          selectedPoint,
-          selectedScenario,
-          customQuery,
-          selectedObject
-        ),
-        project: activeProject
-      },
-      marketContext
+    const deterministicAnalysis = withOpenGeodataContext(
+      withMarketContext(
+        {
+          ...createMockExpressAnalysis(
+            selectedPoint,
+            selectedScenario,
+            customQuery,
+            selectedObject
+          ),
+          project: activeProject
+        },
+        marketContext
+      )
     );
     const scenario = analysisScenarios.find((item) => item.id === selectedScenario) ?? analysisScenarios[0];
 
@@ -817,7 +874,12 @@ export function WorkspaceShell() {
           deterministicScores: deterministicAnalysis.scores,
           evidence: deterministicAnalysis.evidence,
           dataSources: getScenarioDataSources(selectedScenario),
-          marketContext
+          marketContext,
+          openGeodataContext: {
+            nearestAccessibility: getNearestAccessibilityMetric(selectedPoint),
+            nearestRoad: getNearestOpenRoad(selectedPoint),
+            nearbyPoi: getNearbyOpenPoi(selectedPoint, 7).slice(0, 4)
+          }
         })
       });
 

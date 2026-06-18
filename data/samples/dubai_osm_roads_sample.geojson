@@ -1,0 +1,38 @@
+{
+  "type": "FeatureCollection",
+  "name": "dubai_osm_roads_sample",
+  "description": "Small OSM-style sample fixture for GeoAI open geospatial baseline v0.1. Not official GIS data.",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "road-sheikh-zayed",
+      "properties": { "name": "Sheikh Zayed Road", "highway": "motorway", "sample_note": "OSM-style road fixture; not live OSM." },
+      "geometry": { "type": "LineString", "coordinates": [[55.055, 24.985], [55.13, 25.067], [55.206, 25.139], [55.284, 25.204], [55.342, 25.25]] }
+    },
+    {
+      "type": "Feature",
+      "id": "road-al-khail",
+      "properties": { "name": "Al Khail Road", "highway": "trunk", "sample_note": "OSM-style road fixture; not live OSM." },
+      "geometry": { "type": "LineString", "coordinates": [[55.182, 25.001], [55.237, 25.074], [55.298, 25.151], [55.363, 25.215]] }
+    },
+    {
+      "type": "Feature",
+      "id": "road-airport",
+      "properties": { "name": "Airport Road", "highway": "primary", "sample_note": "OSM-style road fixture; not live OSM." },
+      "geometry": { "type": "LineString", "coordinates": [[55.304, 25.232], [55.335, 25.246], [55.373, 25.258], [55.407, 25.271]] }
+    },
+    {
+      "type": "Feature",
+      "id": "road-marina-corridor",
+      "properties": { "name": "Dubai Marina Corridor", "highway": "secondary", "sample_note": "OSM-style access fixture; not live OSM." },
+      "geometry": { "type": "LineString", "coordinates": [[55.114, 25.067], [55.144, 25.079], [55.174, 25.097], [55.196, 25.109]] }
+    },
+    {
+      "type": "Feature",
+      "id": "road-dubai-south-access",
+      "properties": { "name": "Dubai South Access Corridor", "highway": "primary", "sample_note": "OSM-style access fixture; not live OSM." },
+      "geometry": { "type": "LineString", "coordinates": [[55.116, 24.938], [55.161, 24.896], [55.197, 24.938], [55.226, 24.982]] }
+    }
+  ]
+}
+
