@@ -39,8 +39,11 @@ function riskTone(riskLevel: string) {
 }
 
 function ComparisonCard({ scorecard }: { scorecard: ComparisonResult["items"][number] }) {
+  const marketMatch = scorecard.marketMetricsMatch;
+  const metric = marketMatch?.metrics;
+
   return (
-    <article className="grid h-full min-h-[360px] grid-rows-[92px_92px_78px_minmax(112px,1fr)] rounded-lg border border-line bg-white p-5 shadow-sm">
+    <article className="grid h-full min-h-[420px] grid-rows-[92px_92px_78px_96px_minmax(112px,1fr)] rounded-lg border border-line bg-white p-5 shadow-sm">
       <div className="flex min-w-0 items-start justify-between gap-3 border-b border-line pb-4">
         <div className="min-w-0">
           <h2 className="line-clamp-2 text-lg font-semibold leading-6 text-ink">{scorecard.item.name}</h2>
@@ -63,6 +66,16 @@ function ComparisonCard({ scorecard }: { scorecard: ComparisonResult["items"][nu
         <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Location</p>
         <p className="mt-2 text-sm font-semibold leading-5 text-ink">
           {formatCoordinate(scorecard.item.point.latitude, scorecard.item.point.longitude)}
+        </p>
+      </div>
+
+      <div className="border-b border-line py-4">
+        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Market data basis</p>
+        <p className="mt-2 line-clamp-2 text-sm font-semibold leading-5 text-ink">
+          {marketMatch?.matchedAreaName ?? "Seed fallback"} / {marketMatch?.sourceMode ?? "seed_static"}
+        </p>
+        <p className="mt-1 text-xs leading-5 text-muted">
+          {metric ? `Liquidity ${metric.liquidityIndex}, demand ${metric.rentalDemandProxy}, pipeline ${metric.pipelineProxy}` : "Imported metrics not matched."}
         </p>
       </div>
 
@@ -150,6 +163,9 @@ export function ComparisonDashboard({ comparison, onBackToMap, onExportCompariso
                   </div>
                   <p className="mt-2 text-sm leading-5 text-muted">
                     {formatCoordinate(scorecard.item.point.latitude, scorecard.item.point.longitude)}
+                  </p>
+                  <p className="mt-2 text-xs leading-5 text-muted">
+                    Market basis: {scorecard.marketMetricsMatch?.matchedAreaName ?? "Seed fallback"} / {scorecard.marketMetricsMatch?.sourceMode ?? "seed_static"} / {scorecard.marketMetricsMatch?.confidence ?? "low"} confidence
                   </p>
                 </div>
               ))}

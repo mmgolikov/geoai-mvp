@@ -1,4 +1,8 @@
 import { createEvidenceItem } from "@/src/data/data-source-registry";
+import {
+  adjustScoresWithMarketMetrics,
+  findBestMarketMetricMatch
+} from "@/src/lib/market-metrics";
 import { analysisScenarios, createMockExpressAnalysis } from "@/src/lib/mock-express-analysis";
 import type {
   AnalysisScenario,
@@ -98,9 +102,14 @@ function objectScoreAdjustments(item: ComparisonItem): Partial<Record<ScoreKey, 
 
 function createScorecard(item: ComparisonItem): ComparisonScorecard {
   const analysis = createMockExpressAnalysis(item.point, item.scenarioId, "", item.selectedObject);
+  const marketMetricsMatch = findBestMarketMetricMatch({
+    point: item.point,
+    selectedObject: item.selectedObject ?? null
+  });
   const adjustments = objectScoreAdjustments(item);
+  const marketAdjustedScores = adjustScoresWithMarketMetrics(analysis, marketMetricsMatch);
   const scores = scoreOrder.reduce<Record<ScoreKey, number>>((nextScores, scoreKey) => {
-    nextScores[scoreKey] = clampScore(analysis.scores[scoreKey] + (adjustments[scoreKey] ?? 0));
+    nextScores[scoreKey] = clampScore(marketAdjustedScores[scoreKey] + (adjustments[scoreKey] ?? 0));
     return nextScores;
   }, {} as Record<ScoreKey, number>);
   const itemOverallScore = overallScore(scores);
@@ -111,7 +120,8 @@ function createScorecard(item: ComparisonItem): ComparisonScorecard {
     overallScore: itemOverallScore,
     riskLevel: riskLevel(scores.overallRisk, scores.climateHeatRisk),
     recommendedUse: recommendedUseForItem(item),
-    keyConcern: keyConcernForItem(item, scores)
+    keyConcern: keyConcernForItem(item, scores),
+    marketMetricsMatch
   };
 }
 
@@ -143,6 +153,7 @@ export function createMockComparison(items: ComparisonItem[]): ComparisonResult 
   const winner = scorecards[0];
   const runnerUp = scorecards[1];
   const riskierItems = scorecards.filter((item) => item.riskLevel !== "Low");
+  const importedSupportItems = scorecards.filter((item) => item.marketMetricsMatch?.importedMetricsUsed);
 
   return {
     id: `comparison-${scorecards.map((item) => item.item.id).join("-")}`,
@@ -150,17 +161,24 @@ export function createMockComparison(items: ComparisonItem[]): ComparisonResult 
     winner,
     whyPreferred:
       `${winner.item.name} has the strongest demo risk-adjusted profile, with an overall score of ${winner.overallScore}. ` +
-      `It combines ${winner.scores.investmentAttractiveness}/100 investment attractiveness, ${winner.scores.accessibility}/100 accessibility, and ${winner.scores.infrastructureReadiness}/100 infrastructure readiness while keeping key concerns manageable for early diligence.`,
+      `It combines ${winner.scores.investmentAttractiveness}/100 investment attractiveness, ${winner.scores.accessibility}/100 accessibility, and ${winner.scores.infrastructureReadiness}/100 infrastructure readiness while keeping key concerns manageable for early diligence. ` +
+      `${winner.marketMetricsMatch?.importedMetricsUsed ? `Imported sample market metrics matched ${winner.marketMetricsMatch.matchedAreaName} and support liquidity/demand proxy interpretation.` : "This option relies on seed/demo market fallback and requires imported market validation."}`,
     whenAnotherMayBeBetter: runnerUp
       ? `${runnerUp.item.name} may be preferable if the priority shifts toward ${runnerUp.recommendedUse.toLowerCase()} or if its open diligence items clear faster than the current best option.`
       : "Another option may be better if official land-use, title, infrastructure, or risk checks materially change the assumptions.",
     sharedOpportunities: [
+      importedSupportItems.length > 0
+        ? `${importedSupportItems.length} option(s) have imported sample market metrics available for liquidity, rental demand and pipeline validation.`
+        : "Imported market metrics were not matched to the selected options; use seed_static context until official datasets are connected.",
       "Use the selected locations as a short-list for structured investor or planning review.",
       "Compare land-use, access, infrastructure, and climate assumptions before deeper spend.",
       "Create a consistent scoring memo that can be reused for additional candidate sites.",
       "Prioritize data gaps that materially affect ranking and delivery confidence."
     ],
     differentiatedRisks: [
+      ...scorecards.map((item) =>
+        `${item.item.name}: market data basis ${item.marketMetricsMatch?.sourceMode ?? "seed_static"} / ${item.marketMetricsMatch?.confidence ?? "low"} confidence.`
+      ).slice(0, 3),
       `${winner.item.name}: ${winner.keyConcern}.`,
       ...riskierItems.slice(0, 2).map((item) => `${item.item.name}: ${item.keyConcern}.`),
       "All options require official title, planning, utility, transport, and risk-layer validation."
@@ -204,6 +222,15 @@ export function createMockComparison(items: ComparisonItem[]): ComparisonResult 
         "synthetic-demo-layers",
         "Mock comparison scoring model",
         "Deterministic local comparison model used for MVP demonstration."
+      ),
+      createEvidenceItem(
+        "comparison-imported-market-metrics",
+        "dubai-pulse-dld-apis",
+        "Imported market metrics readiness",
+        importedSupportItems.length > 0
+          ? "Local DLD / Dubai Pulse-style ingestion metrics used for matched comparison market context. Sample/manual import; official validation required."
+          : "Imported market metrics are available but did not match all selected comparison items.",
+        "medium"
       )
     ]
   };

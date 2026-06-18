@@ -5,6 +5,7 @@ import ingestionReport from "@/data/normalized/ingestion_report.json";
 import { DataReadinessCard } from "@/components/data-readiness";
 import { getScenarioDataSources } from "@/src/data/data-source-registry";
 import type { GeoAIProject } from "@/src/lib/db/types";
+import type { MarketMetricsMatch } from "@/src/lib/market-metrics/types";
 import type { MarketContext } from "@/src/types/market-context";
 import type {
   AnalysisScenario,
@@ -34,6 +35,7 @@ type AnalysisPanelProps = {
   hasResult: boolean;
   analysisMode?: ExpressAnalysis["analysisMode"];
   analysisGeneratedAt?: string;
+  marketMetricsMatch?: MarketMetricsMatch;
   backendStatus: {
     configured: boolean;
     status: "connected" | "configured_unavailable" | "local_only";
@@ -144,6 +146,7 @@ export function AnalysisPanel({
   hasResult,
   analysisMode,
   analysisGeneratedAt,
+  marketMetricsMatch,
   backendStatus,
   marketContext,
   isMarketContextLoading,
@@ -464,9 +467,21 @@ export function AnalysisPanel({
                       {backendStatus?.status === "connected" ? "enabled" : "local only"}
                     </p>
                   </div>
+                  <div className="rounded-md bg-white p-2">
+                    <span className="text-muted">Matched area</span>
+                    <p className="mt-1 truncate font-semibold text-ink">
+                      {marketMetricsMatch?.matchedAreaName ?? "not run"}
+                    </p>
+                  </div>
+                  <div className="rounded-md bg-white p-2">
+                    <span className="text-muted">Market source</span>
+                    <p className="mt-1 font-semibold text-ink">
+                      {marketMetricsMatch?.sourceMode ?? "pending"}
+                    </p>
+                  </div>
                 </div>
                 <p className="mt-2 text-xs leading-5 text-muted">
-                  Latest local ingestion: {formatIngestionTimestamp(ingestionReport.generatedAt)}. Market comps, transaction activity, rental demand and pipeline validation are available for validation workflow, not yet used in scoring.
+                  Latest local ingestion: {formatIngestionTimestamp(ingestionReport.generatedAt)}. Market comps, transaction activity, rental demand and pipeline validation support conservative scoring when matched.
                 </p>
               </div>
               {availableSources.map((source) => (

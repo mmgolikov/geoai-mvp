@@ -120,6 +120,8 @@ function AnalysisReport({ analysis, onBack }: { analysis: ExpressAnalysis; onBac
   const dataLimitation = analysis.limitations?.[0] ?? "Structured evidence context with deterministic demo scoring.";
   const decisionPosture = deriveDecisionPosture(analysis);
   const decisionRationale = deriveDecisionRationale(analysis);
+  const marketMetricsMatch = analysis.marketContext?.importedMarketMetrics ?? analysis.marketMetricsMatch;
+  const importedMetric = marketMetricsMatch?.metrics;
 
   return (
     <>
@@ -239,7 +241,7 @@ function AnalysisReport({ analysis, onBack }: { analysis: ExpressAnalysis; onBac
                 <div>
                   <p className="text-lg font-semibold text-ink">{analysis.marketContext.areaName}</p>
                   <p className="mt-1 text-sm text-muted">
-                    {analysis.marketContext.emirate} / {analysis.marketContext.sourceMode ?? "seed_static"} / {analysis.marketContext.confidenceLevel} confidence
+                    {analysis.marketContext.emirate} / {marketMetricsMatch?.sourceMode ?? analysis.marketContext.sourceMode ?? "seed_static"} / {marketMetricsMatch?.confidence ?? analysis.marketContext.confidenceLevel} confidence
                   </p>
                 </div>
                 {analysis.marketContext.matchDistanceKm !== null ? (
@@ -249,6 +251,36 @@ function AnalysisReport({ analysis, onBack }: { analysis: ExpressAnalysis; onBac
                 ) : null}
               </div>
               <div className="mt-4 grid gap-3 text-sm md:grid-cols-2">
+                {importedMetric ? (
+                  <>
+                    <div className="rounded-md bg-white p-4">
+                      <span className="font-semibold text-muted">Matched imported area</span>
+                      <p className="mt-1 text-ink">{marketMetricsMatch?.matchedAreaName ?? importedMetric.areaName}</p>
+                      <p className="mt-2 leading-6 text-muted">{marketMetricsMatch?.matchType ?? "exact"} match from local CSV ingestion output.</p>
+                    </div>
+                    <div className="rounded-md bg-white p-4">
+                      <span className="font-semibold text-muted">Imported transaction evidence</span>
+                      <p className="mt-1 text-ink">
+                        {importedMetric.transactionCount} records / AED {importedMetric.transactionValueAed.toLocaleString("en-US")}
+                      </p>
+                      <p className="mt-2 leading-6 text-muted">
+                        Median price {importedMetric.medianPricePerSqm?.toLocaleString("en-US") ?? "-"} AED/sqm.
+                      </p>
+                    </div>
+                    <div className="rounded-md bg-white p-4">
+                      <span className="font-semibold text-muted">Imported rent evidence</span>
+                      <p className="mt-1 text-ink">
+                        {importedMetric.rentalRecordCount} records / {importedMetric.medianRentPerSqm?.toLocaleString("en-US") ?? "-"} AED/sqm
+                      </p>
+                      <p className="mt-2 leading-6 text-muted">Sample/manual import; not live official market data.</p>
+                    </div>
+                    <div className="rounded-md bg-white p-4">
+                      <span className="font-semibold text-muted">Pipeline proxy</span>
+                      <p className="mt-1 text-ink">{importedMetric.projectCount} projects / {importedMetric.pipelineProxy}/100</p>
+                      <p className="mt-2 leading-6 text-muted">Pipeline pressure proxy from imported sample project rows.</p>
+                    </div>
+                  </>
+                ) : null}
                 <div className="rounded-md bg-white p-4">
                   <span className="font-semibold text-muted">Market activity</span>
                   <p className="mt-1 text-ink">
@@ -293,9 +325,11 @@ function AnalysisReport({ analysis, onBack }: { analysis: ExpressAnalysis; onBac
                 </div>
               </div>
               <p className="mt-4 text-sm leading-6 text-muted">
-                Note: {analysis.marketContext.dataQualityNotes?.[0] ?? "Current values are demo-normalized indices and not official market data."}
+                Note: {marketMetricsMatch?.note ?? analysis.marketContext.dataQualityNotes?.[0] ?? "Current values are demo-normalized indices and not official market data."}
                 {" "}
-                {analysis.marketContext.dataQualityNotes?.[1] ?? analysis.marketContext.limitations[0]}
+                {marketMetricsMatch?.importedMetricsUsed
+                  ? "Imported sample metrics are used to demonstrate the market-data workflow. Validate against official DLD / Dubai Pulse datasets before investment decisions."
+                  : analysis.marketContext.dataQualityNotes?.[1] ?? analysis.marketContext.limitations[0]}
               </p>
             </div>
           </Section>
@@ -357,7 +391,7 @@ function AnalysisReport({ analysis, onBack }: { analysis: ExpressAnalysis; onBac
           <div className="mt-4 rounded-md border border-line bg-surface p-4 text-sm leading-6 text-muted">
             <span className="font-semibold text-ink">DLD / Dubai Pulse ingestion readiness:</span>{" "}
             {ingestionReport.marketMetricCount} imported sample market areas are available for validation workflow.
-            These sample/manual CSV metrics are not yet used in scoring and are not a live official data connection.
+            These sample/manual CSV metrics support conservative scoring when matched and are not a live official data connection.
           </div>
         </Section>
 

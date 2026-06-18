@@ -15,6 +15,10 @@ import { demoProjects, getDemoProject } from "@/src/data/demo-projects";
 import { createComparisonItem, createMockComparison } from "@/src/lib/mock-comparison";
 import { analysisScenarios, createMockExpressAnalysis } from "@/src/lib/mock-express-analysis";
 import { deriveDecisionPosture } from "@/src/lib/decision-posture";
+import {
+  enrichAnalysisWithMarketMetrics,
+  findBestMarketMetricMatch
+} from "@/src/lib/market-metrics";
 import type { GeoAIProject } from "@/src/lib/db/types";
 import type { StructuredAnalysisResult } from "@/src/types/analysis";
 import type {
@@ -80,12 +84,25 @@ function mergeNarrativeAnalysis(
   deterministicAnalysis: ExpressAnalysis,
   narrative: StructuredAnalysisResult
 ): ExpressAnalysis {
+  const importedMarketNote = deterministicAnalysis.marketMetricsMatch?.importedMetricsUsed
+    ? ` Imported market metrics for ${deterministicAnalysis.marketMetricsMatch.matchedAreaName} support liquidity and demand proxy interpretation, but remain sample/manual-import derived and require official validation.`
+    : "";
+  const importedKeyFactor = deterministicAnalysis.marketMetricsMatch?.importedMetricsUsed
+    ? [`Imported market metrics matched to ${deterministicAnalysis.marketMetricsMatch.matchedAreaName} with ${deterministicAnalysis.marketMetricsMatch.confidence} match confidence.`]
+    : [];
+  const importedRisk = deterministicAnalysis.marketMetricsMatch?.importedMetricsUsed
+    ? ["Imported DLD / Dubai Pulse-style metrics are sample/manual-import derived and must be validated against official datasets before underwriting."]
+    : [];
+  const importedAction = deterministicAnalysis.marketMetricsMatch?.importedMetricsUsed
+    ? ["Validate imported market metrics against official DLD / Dubai Pulse exports before underwriting."]
+    : [];
+
   return {
     ...deterministicAnalysis,
-    summary: narrative.executive_summary || deterministicAnalysis.summary,
+    summary: `${narrative.executive_summary || deterministicAnalysis.summary}${importedMarketNote}`,
     keyFactors:
       narrative.key_factors.length > 0
-        ? narrative.key_factors.map((item) => titledText(item.title, item.description))
+        ? [...importedKeyFactor, ...narrative.key_factors.map((item) => titledText(item.title, item.description))]
         : deterministicAnalysis.keyFactors,
     opportunities:
       narrative.opportunities.length > 0
@@ -93,11 +110,11 @@ function mergeNarrativeAnalysis(
         : deterministicAnalysis.opportunities,
     risks:
       narrative.risks.length > 0
-        ? narrative.risks.map((item) => titledText(item.title, item.description))
+        ? [...importedRisk, ...narrative.risks.map((item) => titledText(item.title, item.description))]
         : deterministicAnalysis.risks,
     nextActions:
       narrative.recommended_actions.length > 0
-        ? narrative.recommended_actions.map((item) => titledText(item.title, item.description))
+        ? [...importedAction, ...narrative.recommended_actions.map((item) => titledText(item.title, item.description))]
         : deterministicAnalysis.nextActions,
     analysisMode: narrative.mode,
     confidenceLevel: narrative.confidence_level,
@@ -111,6 +128,27 @@ function withMarketContext(analysis: ExpressAnalysis, marketContext: MarketConte
   if (!marketContext) {
     return analysis;
   }
+
+  const marketMetricsMatch = findBestMarketMetricMatch({
+    point: analysis.point,
+    selectedObject: analysis.selectedObject ?? null,
+    marketContext
+  });
+  const enrichedMarketContext = {
+    ...marketContext,
+    sourceMode: marketMetricsMatch.sourceMode === "imported_sample" ? "seed_static" : marketContext.sourceMode,
+    importedMarketMetrics: marketMetricsMatch,
+    dataQualityNotes: [
+      marketMetricsMatch.note,
+      ...(marketContext.dataQualityNotes ?? [])
+    ],
+    limitations: [
+      marketMetricsMatch.importedMetricsUsed
+        ? "Imported sample metrics demonstrate the market-data workflow and require official DLD / Dubai Pulse validation before investment decisions."
+        : marketMetricsMatch.note,
+      ...marketContext.limitations
+    ]
+  };
 
   const areaSlug = marketContext.areaName.toLowerCase().replace(/[^a-z0-9]+/g, "-");
   const marketEvidence = marketContext.sourceIds.slice(0, 6).map((sourceId, index) => {
@@ -129,16 +167,19 @@ function withMarketContext(analysis: ExpressAnalysis, marketContext: MarketConte
     );
   });
 
-  return {
-    ...analysis,
-    marketContext,
-    evidence: [
-      ...marketEvidence.filter(
-        (marketItem) => !analysis.evidence.some((item) => item.id === marketItem.id)
-      ),
-      ...analysis.evidence
-    ]
-  };
+  return enrichAnalysisWithMarketMetrics(
+    {
+      ...analysis,
+      marketContext: enrichedMarketContext,
+      evidence: [
+        ...marketEvidence.filter(
+          (marketItem) => !analysis.evidence.some((item) => item.id === marketItem.id)
+        ),
+        ...analysis.evidence
+      ]
+    },
+    marketMetricsMatch
+  );
 }
 
 function formatLocationLabel(analysis: ExpressAnalysis) {
@@ -212,6 +253,33 @@ function writeActiveProjectKey(projectKey: string) {
   } catch {
     // Project selection still works in memory if localStorage is unavailable.
   }
+}
+
+function createMarketMetricsMetadata(analysis: ExpressAnalysis) {
+  const match = analysis.marketMetricsMatch;
+
+  return {
+    marketMetricsSourceMode: match?.sourceMode ?? analysis.marketContext?.sourceMode ?? "seed_static",
+    matchedMarketArea: match?.matchedAreaName ?? analysis.marketContext?.areaName ?? null,
+    marketMetricMatchType: match?.matchType ?? null,
+    marketMetricConfidence: match?.confidence ?? analysis.marketContext?.confidenceLevel ?? null,
+    importedMetricsUsed: Boolean(match?.importedMetricsUsed),
+    marketMetricsSnapshot: match?.metrics
+      ? {
+          areaName: match.metrics.areaName,
+          transactionCount: match.metrics.transactionCount,
+          transactionValueAed: match.metrics.transactionValueAed,
+          medianPricePerSqm: match.metrics.medianPricePerSqm,
+          rentalRecordCount: match.metrics.rentalRecordCount,
+          medianRentPerSqm: match.metrics.medianRentPerSqm,
+          projectCount: match.metrics.projectCount,
+          pipelineProxy: match.metrics.pipelineProxy,
+          liquidityIndex: match.metrics.liquidityIndex,
+          rentalDemandProxy: match.metrics.rentalDemandProxy,
+          dataConfidence: match.metrics.dataConfidence
+        }
+      : null
+  };
 }
 
 function isPersistedAnalysisRun(value: unknown): value is PersistedAnalysisRun {
@@ -529,6 +597,7 @@ export function WorkspaceShell() {
             selectedPoint: analysisResult.point,
             selectedObject: analysisResult.selectedObject ?? null,
             marketContext: analysisResult.marketContext ?? null,
+            marketMetrics: createMarketMetricsMetadata(analysisResult),
             evidence: analysisResult.evidence,
             project: activeProject
           },
@@ -547,10 +616,13 @@ export function WorkspaceShell() {
   }
 
   function createAnalysisReportPayload(analysisResult: ExpressAnalysis) {
+    const marketMetrics = createMarketMetricsMetadata(analysisResult);
+
     return {
       analysisRunId: analysisResult.id,
       runKey: analysisResult.id,
       project: activeProject,
+      ...marketMetrics,
       title: "Express Analysis / Investment Memo",
       selectedSite: analysisResult.selectedObject?.name ?? "Custom map selection",
       selectedObject: analysisResult.selectedObject ?? null,
@@ -583,7 +655,15 @@ export function WorkspaceShell() {
         overallScore: item.overallScore,
         riskLevel: item.riskLevel,
         recommendedUse: item.recommendedUse,
-        keyConcern: item.keyConcern
+        keyConcern: item.keyConcern,
+        marketMetrics: {
+          marketMetricsSourceMode: item.marketMetricsMatch?.sourceMode ?? "seed_static",
+          matchedMarketArea: item.marketMetricsMatch?.matchedAreaName ?? null,
+          marketMetricMatchType: item.marketMetricsMatch?.matchType ?? null,
+          marketMetricConfidence: item.marketMetricsMatch?.confidence ?? null,
+          importedMetricsUsed: Boolean(item.marketMetricsMatch?.importedMetricsUsed),
+          marketMetricsSnapshot: item.marketMetricsMatch?.metrics ?? null
+        }
       })),
       scenario: "Comparison",
       comparisonJson: comparisonResult,
@@ -817,6 +897,7 @@ export function WorkspaceShell() {
         hasResult={analysis !== null || comparison !== null}
         analysisMode={analysis?.analysisMode}
         analysisGeneratedAt={analysis?.generatedAt}
+        marketMetricsMatch={analysis?.marketMetricsMatch}
         backendStatus={backendStatus}
         marketContext={marketContext}
         isMarketContextLoading={isMarketContextLoading}

@@ -107,6 +107,8 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
   const dataLimitation = analysis.limitations?.[0] ?? "Structured evidence context with deterministic demo scoring.";
   const decisionPosture = deriveDecisionPosture(analysis);
   const decisionRationale = deriveDecisionRationale(analysis);
+  const marketMetricsMatch = analysis.marketContext?.importedMarketMetrics ?? analysis.marketMetricsMatch;
+  const importedMetric = marketMetricsMatch?.metrics;
 
   useEffect(() => {
     dashboardRef.current?.scrollTo({ top: 0, left: 0 });
@@ -241,10 +243,29 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
                 </p>
               </div>
               <span className="rounded-full bg-[#eef2f5] px-3 py-1 text-xs font-semibold text-muted">
-                {analysis.marketContext.sourceMode ?? "seed_static"} / {analysis.marketContext.confidenceLevel} confidence
+                {marketMetricsMatch?.sourceMode ?? analysis.marketContext.sourceMode ?? "seed_static"} / {marketMetricsMatch?.confidence ?? analysis.marketContext.confidenceLevel} confidence
               </span>
             </div>
             <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {importedMetric ? (
+                <>
+                  <MetricPill
+                    label="Matched imported area"
+                    value={marketMetricsMatch?.matchedAreaName ?? importedMetric.areaName}
+                    detail={`${marketMetricsMatch?.matchType ?? "exact"} match from local CSV ingestion output.`}
+                  />
+                  <MetricPill
+                    label="Transactions"
+                    value={`${importedMetric.transactionCount}`}
+                    detail={`Value AED ${importedMetric.transactionValueAed.toLocaleString("en-US")}; median ${importedMetric.medianPricePerSqm?.toLocaleString("en-US") ?? "-"} AED/sqm.`}
+                  />
+                  <MetricPill
+                    label="Rental records"
+                    value={`${importedMetric.rentalRecordCount}`}
+                    detail={`Median rent ${importedMetric.medianRentPerSqm?.toLocaleString("en-US") ?? "-"} AED/sqm; sample/manual import.`}
+                  />
+                </>
+              ) : null}
               <MetricPill
                 label="Market Activity"
                 value={`${analysis.marketContext.marketMetrics?.activityIndex ?? analysis.marketContext.marketActivityLevel.index}/100`}
@@ -262,7 +283,7 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
               />
               <MetricPill
                 label="Development Pipeline"
-                value={`${analysis.marketContext.marketMetrics?.developmentPipelineIndex ?? analysis.marketContext.developmentPipelineContext.index}/100`}
+                value={`${importedMetric?.pipelineProxy ?? analysis.marketContext.marketMetrics?.developmentPipelineIndex ?? analysis.marketContext.developmentPipelineContext.index}/100`}
                 detail={analysis.marketContext.developmentPipelineContext.note}
               />
               <MetricPill
@@ -277,9 +298,11 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
               />
             </div>
             <p className="mt-4 text-sm leading-6 text-muted">
-              Note: {analysis.marketContext.dataQualityNotes?.[0] ?? "Current values are demo-normalized indices and not official market data."}
+              Note: {marketMetricsMatch?.note ?? analysis.marketContext.dataQualityNotes?.[0] ?? "Current values are demo-normalized indices and not official market data."}
               {" "}
-              {analysis.marketContext.dataQualityNotes?.[1] ?? analysis.marketContext.limitations[0]}
+              {marketMetricsMatch?.importedMetricsUsed
+                ? "Imported sample metrics demonstrate the market-data workflow. Validate against official DLD / Dubai Pulse datasets before investment decisions."
+                : analysis.marketContext.dataQualityNotes?.[1] ?? analysis.marketContext.limitations[0]}
             </p>
           </section>
         ) : null}

@@ -1,5 +1,6 @@
 import type { AnalysisScenarioId, SelectedDemoObject, SelectedPoint } from "@/src/types/geo";
 import type { IngestionMode, MarketAreaAggregate } from "@/src/types/market-ingestion";
+import type { MarketMetricsMatch } from "@/src/lib/market-metrics/types";
 
 export type MarketContextConfidence = "demo" | "low" | "medium" | "high";
 
@@ -50,6 +51,7 @@ export type MarketContext = {
   planningContext: MarketMetric;
   riskContext: MarketMetric;
   marketMetrics?: MarketAreaAggregate;
+  importedMarketMetrics?: MarketMetricsMatch;
   sourceMode?: IngestionMode;
   dataQualityNotes?: string[];
   confidenceLevel: MarketContextConfidence;

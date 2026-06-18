@@ -120,6 +120,8 @@ function AnalysisPrintable({ analysis }: { analysis: ExpressAnalysis }) {
   const dataConfidence = deriveDataConfidenceLevel(analysis.evidence);
   const decisionPosture = deriveDecisionPosture(analysis);
   const decisionRationale = deriveDecisionRationale(analysis);
+  const marketMetricsMatch = analysis.marketContext?.importedMarketMetrics ?? analysis.marketMetricsMatch;
+  const importedMetric = marketMetricsMatch?.metrics;
 
   return (
     <article className="print-memo">
@@ -176,13 +178,29 @@ function AnalysisPrintable({ analysis }: { analysis: ExpressAnalysis }) {
       </PrintSection>
 
       {analysis.marketContext ? (
-        <PrintSection title="Market Context">
+        <PrintSection title="Market Data Basis">
           <div className="print-score-grid">
-            <PrintCard><strong>Area</strong><span>{analysis.marketContext.areaName}</span></PrintCard>
+            <PrintCard><strong>Matched area</strong><span>{marketMetricsMatch?.matchedAreaName ?? analysis.marketContext.areaName}</span></PrintCard>
+            <PrintCard><strong>Source mode</strong><span>{marketMetricsMatch?.sourceMode ?? analysis.marketContext.sourceMode ?? "seed_static"}</span></PrintCard>
+            <PrintCard><strong>Match confidence</strong><span>{marketMetricsMatch?.confidence ?? analysis.marketContext.confidenceLevel}</span></PrintCard>
+            <PrintCard><strong>Imported metrics used</strong><span>{marketMetricsMatch?.importedMetricsUsed ? "yes" : "no"}</span></PrintCard>
+            {importedMetric ? (
+              <>
+                <PrintCard><strong>Transactions</strong><span>{importedMetric.transactionCount} / AED {importedMetric.transactionValueAed.toLocaleString("en-US")}</span></PrintCard>
+                <PrintCard><strong>Median price</strong><span>{importedMetric.medianPricePerSqm?.toLocaleString("en-US") ?? "-"} AED/sqm</span></PrintCard>
+                <PrintCard><strong>Rental records</strong><span>{importedMetric.rentalRecordCount}</span></PrintCard>
+                <PrintCard><strong>Median rent</strong><span>{importedMetric.medianRentPerSqm?.toLocaleString("en-US") ?? "-"} AED/sqm</span></PrintCard>
+              </>
+            ) : null}
             <PrintCard><strong>Market activity</strong><span>{analysis.marketContext.marketActivityLevel.index}/100</span></PrintCard>
             <PrintCard><strong>Rental demand</strong><span>{analysis.marketContext.rentContext.index}/100</span></PrintCard>
             <PrintCard><strong>Liquidity</strong><span>{analysis.marketContext.transactionContext.index}/100</span></PrintCard>
           </div>
+          <p>
+            {marketMetricsMatch?.importedMetricsUsed
+              ? "Imported sample metrics demonstrate the market-data workflow and require official DLD / Dubai Pulse validation before investment decisions."
+              : "Seed_static demo metrics used because imported market metrics did not match this selection."}
+          </p>
         </PrintSection>
       ) : null}
 
@@ -218,7 +236,7 @@ function AnalysisPrintable({ analysis }: { analysis: ExpressAnalysis }) {
         <div className="print-score-grid">
           <PrintCard><strong>Used in prototype</strong><span>Synthetic demo layers, seed_static context and deterministic scoring.</span></PrintCard>
           <PrintCard><strong>Official validation</strong><span>DLD, Dubai Pulse and Dubai Municipality / GeoDubai should validate conclusions.</span></PrintCard>
-          <PrintCard><strong>DLD / Dubai Pulse ingestion</strong><span>{ingestionReport.marketMetricCount} sample market areas available for validation workflow, not used in scoring.</span></PrintCard>
+          <PrintCard><strong>DLD / Dubai Pulse ingestion</strong><span>{ingestionReport.marketMetricCount} sample market areas available for validation workflow and conservative matched scoring.</span></PrintCard>
           <PrintCard><strong>Pilot integration</strong><span>Adapter stubs define the next path for permitted official, open, licensed and customer data.</span></PrintCard>
         </div>
       </PrintSection>

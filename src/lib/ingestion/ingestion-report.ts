@@ -58,7 +58,7 @@ export function createIngestionReport(input: {
     notes: [
       "Sample fixtures are synthetic parser tests, not official DLD or Dubai Pulse records.",
       "No live API calls, scraping, credentials, geometry enrichment, or decision-grade validation are performed in v0.1.",
-      "Imported metrics are available for validation workflow and are not yet wired into scoring."
+      "Imported metrics are available for validation workflow and conservative matched scoring."
     ]
   };
 }

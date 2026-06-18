@@ -1,5 +1,6 @@
 import type { EvidenceItem } from "@/src/types/data-source";
 import type { GeoAIProject } from "@/src/lib/db/types";
+import type { MarketMetricsMatch } from "@/src/lib/market-metrics/types";
 import type { MarketContext } from "@/src/types/market-context";
 import type { SpatialSelectionContext } from "@/src/types/spatial-data";
 
@@ -77,6 +78,7 @@ export type ExpressAnalysis = {
   analysisNotice?: string;
   generatedAt?: string;
   project?: GeoAIProject;
+  marketMetricsMatch?: MarketMetricsMatch;
 };
 
 export type ComparisonItem = {
@@ -97,6 +99,7 @@ export type ComparisonScorecard = {
   riskLevel: "Low" | "Moderate" | "Elevated";
   recommendedUse: string;
   keyConcern: string;
+  marketMetricsMatch?: MarketMetricsMatch;
 };
 
 export type ComparisonResult = {
