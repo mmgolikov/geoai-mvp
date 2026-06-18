@@ -205,6 +205,7 @@ See [Data Credibility v0.5](docs/DATA_CREDIBILITY_V05.md) for the upload schema,
 - [DLD / Dubai Pulse Ingestion v0.1](docs/DLD_DUBAI_PULSE_INGESTION_V01.md)
 - [Open Geospatial Baseline v0.1](docs/OPEN_GEODATA_BASELINE_V01.md)
 - [Data Credibility v0.5](docs/DATA_CREDIBILITY_V05.md)
+- [Demo Release Candidate v0.6.1](docs/DEMO_RC_V061.md)
 - [Audit QA — 2026-06-18](docs/AUDIT_QA_2026-06-18.md)
 - [Architecture](docs/architecture.md)
 - [Data Strategy](docs/data-strategy.md)

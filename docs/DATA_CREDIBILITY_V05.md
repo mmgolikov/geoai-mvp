@@ -2,7 +2,7 @@
 
 Date: 2026-06-18
 
-GeoAI v0.5 introduces a local-first data credibility workflow for CSV and GeoJSON uploads. The goal is to move the investor demo from purely bundled fixtures toward a pilot-ready data architecture without adding a database dependency or claiming live official data.
+GeoAI v0.5 introduces a local-first data credibility workflow for CSV and GeoJSON uploads. The goal is to move the investor demo from purely bundled fixtures toward a clearer validation architecture without adding a database dependency or claiming live official data.
 
 ## What Works
 
