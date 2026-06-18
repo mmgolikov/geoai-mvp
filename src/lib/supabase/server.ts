@@ -10,6 +10,7 @@ type SupabaseClientLike = {
     select: (columns?: string, options?: unknown) => unknown;
     insert: (values: unknown) => unknown;
     upsert: (values: unknown, options?: unknown) => unknown;
+    update: (values: unknown) => unknown;
   };
 };
 

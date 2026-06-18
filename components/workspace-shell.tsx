@@ -11,8 +11,10 @@ import {
   getDataSourceById,
   getScenarioDataSources
 } from "@/src/data/data-source-registry";
+import { demoProjects, getDemoProject } from "@/src/data/demo-projects";
 import { createComparisonItem, createMockComparison } from "@/src/lib/mock-comparison";
 import { analysisScenarios, createMockExpressAnalysis } from "@/src/lib/mock-express-analysis";
+import type { GeoAIProject } from "@/src/lib/db/types";
 import type { StructuredAnalysisResult } from "@/src/types/analysis";
 import type {
   AnalysisScenarioId,
@@ -26,6 +28,7 @@ import type {
 import type { MarketContext } from "@/src/types/market-context";
 
 const analysisHistoryStorageKey = "geoai-analysis-history-v1";
+const activeProjectStorageKey = "geoai-active-project-key-v1";
 const maxAnalysisHistoryItems = 8;
 
 type BackendStatus = {
@@ -39,6 +42,13 @@ type AnalysisRunsResponse = {
   ok: boolean;
   mode: "db" | "local_only";
   items: unknown[];
+  error: string | null;
+};
+
+type ProjectsResponse = {
+  ok: boolean;
+  mode: "db" | "local_demo";
+  items: GeoAIProject[];
   error: string | null;
 };
 
@@ -56,6 +66,8 @@ type PersistedAnalysisRun = {
   confidence_level?: ExpressAnalysis["confidenceLevel"];
   data_confidence_level?: string | null;
   analysis_mode?: ExpressAnalysis["analysisMode"];
+  project_key?: string | null;
+  project_name?: string | null;
   created_at?: string;
 };
 
@@ -135,6 +147,7 @@ function formatLocationLabel(analysis: ExpressAnalysis) {
 function createHistoryItem(
   analysis: ExpressAnalysis,
   scenarioLabel: string,
+  project: GeoAIProject,
   source: AnalysisHistoryItem["source"] = "local"
 ): AnalysisHistoryItem {
   return {
@@ -148,8 +161,13 @@ function createHistoryItem(
     confidenceLevel: analysis.confidenceLevel,
     dataConfidenceLevel: analysis.marketContext?.confidenceLevel,
     source,
+    project,
+    projectKey: project.projectKey,
     recommendation: analysis.nextActions[0] ?? "Review evidence and validate constraints.",
-    analysis
+    analysis: {
+      ...analysis,
+      project
+    }
   };
 }
 
@@ -175,6 +193,26 @@ function writeAnalysisHistory(items: AnalysisHistoryItem[]) {
   }
 }
 
+function filterHistoryByProject(items: AnalysisHistoryItem[], projectKey: string) {
+  return items.filter((item) => item.projectKey === projectKey || item.project?.projectKey === projectKey);
+}
+
+function readActiveProjectKey() {
+  try {
+    return window.localStorage.getItem(activeProjectStorageKey) || demoProjects[0].projectKey;
+  } catch {
+    return demoProjects[0].projectKey;
+  }
+}
+
+function writeActiveProjectKey(projectKey: string) {
+  try {
+    window.localStorage.setItem(activeProjectStorageKey, projectKey);
+  } catch {
+    // Project selection still works in memory if localStorage is unavailable.
+  }
+}
+
 function isPersistedAnalysisRun(value: unknown): value is PersistedAnalysisRun {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -190,6 +228,7 @@ function historyItemFromPersistedRun(value: unknown): AnalysisHistoryItem | null
   }
 
   const scenario = analysisScenarios.find((item) => item.id === analysis.scenarioId);
+  const project = getDemoProject(value.project_key);
 
   return {
     id: value.id ?? value.run_key ?? analysis.id,
@@ -202,8 +241,13 @@ function historyItemFromPersistedRun(value: unknown): AnalysisHistoryItem | null
     confidenceLevel: value.confidence_level ?? analysis.confidenceLevel,
     dataConfidenceLevel: value.data_confidence_level ?? analysis.marketContext?.confidenceLevel,
     source: "DB",
+    project,
+    projectKey: value.project_key ?? project.projectKey,
     recommendation: value.decision_posture ?? analysis.nextActions[0] ?? "Review evidence and validate constraints.",
-    analysis
+    analysis: {
+      ...analysis,
+      project
+    }
   };
 }
 
@@ -221,17 +265,57 @@ export function WorkspaceShell() {
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [marketContext, setMarketContext] = useState<MarketContext | null>(null);
   const [isMarketContextLoading, setIsMarketContextLoading] = useState(false);
+  const [projects, setProjects] = useState<GeoAIProject[]>(demoProjects);
+  const [projectsMode, setProjectsMode] = useState<"db" | "local_demo">("local_demo");
+  const [activeProject, setActiveProject] = useState<GeoAIProject>(demoProjects[0]);
   const [analysisHistory, setAnalysisHistory] = useState<AnalysisHistoryItem[]>([]);
   const [analysisHistorySource, setAnalysisHistorySource] = useState<"DB" | "local">("local");
   const [backendStatus, setBackendStatus] = useState<BackendStatus | null>(null);
 
   useEffect(() => {
+    const storedProjectKey = readActiveProjectKey();
+    const localProject = getDemoProject(storedProjectKey);
+    let isMounted = true;
+
+    setActiveProject(localProject);
+
+    fetch("/api/projects")
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload: ProjectsResponse | null) => {
+        if (!isMounted || !payload?.items?.length) {
+          return;
+        }
+
+        const nextProjects = payload.items;
+        const nextActiveProject =
+          nextProjects.find((project) => project.projectKey === storedProjectKey) ?? nextProjects[0];
+
+        setProjects(nextProjects);
+        setProjectsMode(payload.mode);
+        setActiveProject(nextActiveProject);
+        writeActiveProjectKey(nextActiveProject.projectKey);
+      })
+      .catch(() => {
+        if (isMounted) {
+          setProjects(demoProjects);
+          setProjectsMode("local_demo");
+          setActiveProject(localProject);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
     const localHistory = readAnalysisHistory();
-    setAnalysisHistory(localHistory);
+    setAnalysisHistory(filterHistoryByProject(localHistory, activeProject.projectKey));
+    setAnalysisHistorySource("local");
 
     let isMounted = true;
 
-    fetch("/api/analysis-runs?limit=10")
+    fetch(`/api/analysis-runs?limit=10&projectKey=${encodeURIComponent(activeProject.projectKey)}`)
       .then((response) => (response.ok ? response.json() : null))
       .then((payload: AnalysisRunsResponse | null) => {
         if (!isMounted || !payload) {
@@ -245,7 +329,8 @@ export function WorkspaceShell() {
 
         const dbHistory = payload.items
           .map((item) => historyItemFromPersistedRun(item))
-          .filter((item): item is AnalysisHistoryItem => item !== null);
+          .filter((item): item is AnalysisHistoryItem => item !== null)
+          .filter((item) => item.projectKey === activeProject.projectKey || item.project?.projectKey === activeProject.projectKey);
 
         setAnalysisHistory(dbHistory);
         setAnalysisHistorySource("DB");
@@ -259,7 +344,7 @@ export function WorkspaceShell() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [activeProject.projectKey]);
 
   useEffect(() => {
     let isMounted = true;
@@ -393,7 +478,10 @@ export function WorkspaceShell() {
     setAnalysis(null);
     setAnalysisError(null);
     setComparisonMessage(null);
-    setComparison(createMockComparison(comparisonItems));
+    setComparison({
+      ...createMockComparison(comparisonItems),
+      project: activeProject
+    });
     setReportPreview(null);
   }
 
@@ -404,16 +492,17 @@ export function WorkspaceShell() {
   }
 
   function saveAnalysisHistory(analysisResult: ExpressAnalysis, scenarioLabel: string) {
-    const historyItem = createHistoryItem(analysisResult, scenarioLabel, analysisHistorySource);
+    const historyItem = createHistoryItem(analysisResult, scenarioLabel, activeProject, analysisHistorySource);
 
-    setAnalysisHistory((items) => {
+    setAnalysisHistory(() => {
+      const storedItems = readAnalysisHistory();
       const nextItems = [
         historyItem,
-        ...items.filter((item) => item.analysis.id !== analysisResult.id)
+        ...storedItems.filter((item) => item.analysis.id !== analysisResult.id)
       ].slice(0, maxAnalysisHistoryItems);
 
       writeAnalysisHistory(nextItems);
-      return nextItems;
+      return filterHistoryByProject(nextItems, activeProject.projectKey);
     });
   }
 
@@ -426,6 +515,9 @@ export function WorkspaceShell() {
         },
         body: JSON.stringify({
           runKey: analysisResult.id,
+          projectKey: activeProject.projectKey,
+          projectName: activeProject.name,
+          projectId: activeProject.id,
           scenarioId: analysisResult.scenarioId,
           selectedName: analysisResult.selectedObject?.name ?? "Custom map selection",
           selectedType: analysisResult.selectedObject ? "object" : "point",
@@ -436,7 +528,8 @@ export function WorkspaceShell() {
             selectedPoint: analysisResult.point,
             selectedObject: analysisResult.selectedObject ?? null,
             marketContext: analysisResult.marketContext ?? null,
-            evidence: analysisResult.evidence
+            evidence: analysisResult.evidence,
+            project: activeProject
           },
           selectedObject: analysisResult.selectedObject ?? null,
           resultJson: analysisResult,
@@ -456,6 +549,7 @@ export function WorkspaceShell() {
     return {
       analysisRunId: analysisResult.id,
       runKey: analysisResult.id,
+      project: activeProject,
       title: "Express Analysis / Investment Memo",
       selectedSite: analysisResult.selectedObject?.name ?? "Custom map selection",
       selectedObject: analysisResult.selectedObject ?? null,
@@ -479,6 +573,7 @@ export function WorkspaceShell() {
   function createComparisonReportPayload(comparisonResult: ComparisonResult) {
     return {
       title: "Site Comparison Investment Memo",
+      project: activeProject,
       comparedItems: comparisonResult.items.map((item) => ({
         name: item.item.name,
         type: item.item.itemType,
@@ -520,6 +615,9 @@ export function WorkspaceShell() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             reportKey: `analysis-report-${analysis.id}`,
+            projectKey: activeProject.projectKey,
+            projectName: activeProject.name,
+            projectId: activeProject.id,
             runKey: analysis.id,
             reportType: "analysis",
             title: reportJson.title,
@@ -537,6 +635,9 @@ export function WorkspaceShell() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             reportKey: `comparison-report-${comparison.id}`,
+            projectKey: activeProject.projectKey,
+            projectName: activeProject.name,
+            projectId: activeProject.id,
             reportType: "comparison",
             title: reportJson.title,
             reportJson,
@@ -560,11 +661,22 @@ export function WorkspaceShell() {
     setReportPreview("comparison");
   }
 
+  function changeActiveProject(projectKey: string) {
+    const nextProject = projects.find((project) => project.projectKey === projectKey) ?? getDemoProject(projectKey);
+    setActiveProject(nextProject);
+    writeActiveProjectKey(nextProject.projectKey);
+    setComparisonMessage(null);
+  }
+
   function openHistoryItem(item: AnalysisHistoryItem) {
     setSelectedPoint(item.analysis.point);
     setSelectedObject(item.analysis.selectedObject ?? null);
     setSelectedScenario(item.scenarioId);
     setAnalysis(item.analysis);
+    if (item.project) {
+      setActiveProject(item.project);
+      writeActiveProjectKey(item.project.projectKey);
+    }
     setComparison(null);
     setReportPreview(null);
     setComparisonMessage(null);
@@ -595,12 +707,15 @@ export function WorkspaceShell() {
     setReportPreview(null);
 
     const deterministicAnalysis = withMarketContext(
-      createMockExpressAnalysis(
-        selectedPoint,
-        selectedScenario,
-        customQuery,
-        selectedObject
-      ),
+      {
+        ...createMockExpressAnalysis(
+          selectedPoint,
+          selectedScenario,
+          customQuery,
+          selectedObject
+        ),
+        project: activeProject
+      },
       marketContext
     );
     const scenario = analysisScenarios.find((item) => item.id === selectedScenario) ?? analysisScenarios[0];
@@ -686,6 +801,9 @@ export function WorkspaceShell() {
       <AnalysisPanel
         selectedPoint={selectedPoint}
         selectedObject={selectedObject}
+        projects={projects}
+        projectsMode={projectsMode}
+        activeProject={activeProject}
         scenarios={analysisScenarios}
         selectedScenario={selectedScenario}
         customQuery={customQuery}
@@ -706,6 +824,7 @@ export function WorkspaceShell() {
           setAnalysisError(null);
           setComparisonMessage(null);
         }}
+        onProjectChange={changeActiveProject}
         onCustomQueryChange={(query) => {
           setCustomQuery(query);
           setAnalysisError(null);

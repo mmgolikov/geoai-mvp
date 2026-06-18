@@ -1,4 +1,5 @@
 import type { EvidenceItem } from "@/src/types/data-source";
+import type { GeoAIProject } from "@/src/lib/db/types";
 import type { MarketContext } from "@/src/types/market-context";
 import type { SpatialSelectionContext } from "@/src/types/spatial-data";
 
@@ -75,6 +76,7 @@ export type ExpressAnalysis = {
   limitations?: string[];
   analysisNotice?: string;
   generatedAt?: string;
+  project?: GeoAIProject;
 };
 
 export type ComparisonItem = {
@@ -107,6 +109,7 @@ export type ComparisonResult = {
   differentiatedRisks: string[];
   nextActions: string[];
   evidence: EvidenceItem[];
+  project?: GeoAIProject;
 };
 
 export type AnalysisHistoryItem = {
@@ -120,6 +123,8 @@ export type AnalysisHistoryItem = {
   confidenceLevel?: ExpressAnalysis["confidenceLevel"];
   dataConfidenceLevel?: string;
   source?: "DB" | "local";
+  project?: GeoAIProject;
+  projectKey?: string;
   recommendation: string;
   analysis: ExpressAnalysis;
 };

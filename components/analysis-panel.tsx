@@ -3,6 +3,7 @@
 import demoObjects from "@/src/data/demo-objects.json";
 import { DataReadinessCard } from "@/components/data-readiness";
 import { getScenarioDataSources } from "@/src/data/data-source-registry";
+import type { GeoAIProject } from "@/src/lib/db/types";
 import type { MarketContext } from "@/src/types/market-context";
 import type {
   AnalysisScenario,
@@ -17,6 +18,9 @@ import type {
 type AnalysisPanelProps = {
   selectedPoint: SelectedPoint | null;
   selectedObject: SelectedDemoObject | null;
+  projects: GeoAIProject[];
+  projectsMode: "db" | "local_demo";
+  activeProject: GeoAIProject;
   scenarios: AnalysisScenario[];
   selectedScenario: AnalysisScenarioId;
   customQuery: string;
@@ -37,6 +41,7 @@ type AnalysisPanelProps = {
   } | null;
   marketContext: MarketContext | null;
   isMarketContextLoading: boolean;
+  onProjectChange: (projectKey: string) => void;
   onScenarioChange: (scenario: AnalysisScenarioId) => void;
   onCustomQueryChange: (query: string) => void;
   onRunAnalysis: () => void;
@@ -114,6 +119,9 @@ function CollapsedSection({
 export function AnalysisPanel({
   selectedPoint,
   selectedObject,
+  projects,
+  projectsMode,
+  activeProject,
   scenarios,
   selectedScenario,
   customQuery,
@@ -129,6 +137,7 @@ export function AnalysisPanel({
   backendStatus,
   marketContext,
   isMarketContextLoading,
+  onProjectChange,
   onScenarioChange,
   onCustomQueryChange,
   onRunAnalysis,
@@ -174,6 +183,7 @@ export function AnalysisPanel({
       : "Not configured";
   const analysisHistoryStatus =
     analysisHistorySource === "DB" ? "Supabase-backed" : "Local fallback";
+  const projectPersistenceStatus = projectsMode === "db" ? "DB enabled" : "local demo";
 
   return (
     <aside className="max-w-full overflow-y-auto overflow-x-hidden border-l border-line bg-white lg:h-[calc(100vh-72px)] lg:w-[400px]">
@@ -184,6 +194,38 @@ export function AnalysisPanel({
               Command panel
             </p>
             <h1 className="mt-1 text-xl font-semibold text-ink">GeoAI workspace</h1>
+          </section>
+
+          <section className="min-w-0 max-w-full overflow-hidden rounded-lg border border-line bg-surface p-3">
+            <label
+              htmlFor="active-project"
+              className="text-xs font-semibold uppercase tracking-[0.14em] text-muted"
+            >
+              Project workspace
+            </label>
+            <select
+              id="active-project"
+              value={activeProject.projectKey}
+              onChange={(event) => onProjectChange(event.target.value)}
+              className="mt-1 h-9 w-full rounded-md border border-line bg-white px-3 text-sm font-semibold text-ink outline-none transition focus:border-brand"
+            >
+              {projects.map((project) => (
+                <option key={project.projectKey} value={project.projectKey}>
+                  {project.name}
+                </option>
+              ))}
+            </select>
+            <div className="mt-2 flex min-w-0 flex-wrap items-center gap-2">
+              <span className="rounded-full bg-white px-2 py-1 text-[11px] font-semibold capitalize text-brand">
+                {activeProject.clientType.replace(/_/g, " ")}
+              </span>
+              <span className="rounded-full bg-white px-2 py-1 text-[11px] font-semibold text-muted">
+                {activeProject.dataMode.replace(/_/g, "-")}
+              </span>
+              <span className="rounded-full bg-white px-2 py-1 text-[11px] font-semibold text-muted">
+                {projectPersistenceStatus}
+              </span>
+            </div>
           </section>
 
           <section className="min-w-0 max-w-full overflow-hidden rounded-lg border border-line bg-surface p-3">
@@ -355,6 +397,36 @@ export function AnalysisPanel({
             {marketContext ? (
               <p className="mt-2 break-words text-xs leading-5 text-muted">{marketContext.limitations[0]}</p>
             ) : null}
+          </CollapsedSection>
+
+          <CollapsedSection title="Project Overview" badge={projectPersistenceStatus}>
+            <div className="grid gap-2 text-sm">
+              <div className="rounded-md border border-line bg-white p-3">
+                <p className="font-semibold text-ink">{activeProject.name}</p>
+                <p className="mt-1 text-xs leading-5 text-muted">{activeProject.description}</p>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="rounded-md bg-white p-3">
+                  <span className="text-muted">Client type</span>
+                  <p className="mt-1 font-semibold capitalize text-ink">{activeProject.clientType.replace(/_/g, " ")}</p>
+                </div>
+                <div className="rounded-md bg-white p-3">
+                  <span className="text-muted">Primary scenario</span>
+                  <p className="mt-1 font-semibold text-ink">{activeProject.primaryScenario}</p>
+                </div>
+                <div className="rounded-md bg-white p-3">
+                  <span className="text-muted">Data mode</span>
+                  <p className="mt-1 font-semibold text-ink">{activeProject.dataMode.replace(/_/g, "-")}</p>
+                </div>
+                <div className="rounded-md bg-white p-3">
+                  <span className="text-muted">Recent analyses</span>
+                  <p className="mt-1 font-semibold text-ink">{analysisHistory.length}</p>
+                </div>
+              </div>
+              <p className="text-xs leading-5 text-muted">
+                Persistence: {projectPersistenceStatus === "DB enabled" ? "DB-enabled persistence" : "local demo persistence"}.
+              </p>
+            </div>
           </CollapsedSection>
 
           <CollapsedSection title="Data Sources" badge={`${availableSources.length} shown`}>

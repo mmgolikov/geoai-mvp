@@ -132,6 +132,9 @@ function AnalysisPrintable({ analysis }: { analysis: ExpressAnalysis }) {
         <PrintCard><strong>Selected site</strong><span>{siteName}</span></PrintCard>
         <PrintCard><strong>Coordinates</strong><span>{coordinates}</span></PrintCard>
         <PrintCard><strong>Scenario</strong><span>{analysis.title}</span></PrintCard>
+        <PrintCard><strong>Project</strong><span>{analysis.project?.name ?? "Dubai Investment Screening Demo"}</span></PrintCard>
+        <PrintCard><strong>Client type</strong><span>{analysis.project?.clientType?.replace(/_/g, " ") ?? "fund"}</span></PrintCard>
+        <PrintCard><strong>Data mode</strong><span>{analysis.project?.dataMode?.replace(/_/g, " ") ?? "demo normalized"}</span></PrintCard>
         <PrintCard><strong>Generated</strong><span>{formatDate(analysis.generatedAt)}</span></PrintCard>
         <PrintCard><strong>Confidence</strong><span>{analysis.confidenceLevel ?? "medium"}</span></PrintCard>
         <PrintCard><strong>Data confidence</strong><span>{dataConfidence}</span></PrintCard>
@@ -234,6 +237,7 @@ function ComparisonPrintable({ comparison }: { comparison: ComparisonResult }) {
           <p className="print-brand">GeoAI</p>
           <h1>Site Comparison Investment Memo</h1>
           <p>Comparing {comparison.items.length} selected locations / assets</p>
+          <p>Project: {comparison.project?.name ?? "Dubai Investment Screening Demo"}</p>
         </div>
         <div className="print-status">Demo comparison</div>
       </header>

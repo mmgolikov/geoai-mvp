@@ -44,6 +44,9 @@ export type DbSpatialFeature = {
 
 export type DbAnalysisRunInput = {
   runKey: string;
+  projectId?: string | null;
+  projectKey?: string | null;
+  projectName?: string | null;
   scenarioId: string;
   selectedName: string;
   selectedType: string;
@@ -61,6 +64,9 @@ export type DbAnalysisRunInput = {
 
 export type DbReportInput = {
   reportKey: string;
+  projectId?: string | null;
+  projectKey?: string | null;
+  projectName?: string | null;
   runKey?: string | null;
   reportType: "analysis" | "comparison";
   title: string;
@@ -71,7 +77,42 @@ export type DbReportInput = {
 
 export type DbRepositoryResult<T> = {
   ok: boolean;
-  mode: "db" | "local_only";
+  mode: "db" | "local_only" | "local_demo";
   data: T | null;
   error: string | null;
+};
+
+export type ProjectClientType =
+  | "developer"
+  | "fund"
+  | "family_office"
+  | "bank"
+  | "government"
+  | "demo";
+
+export type GeoAIProject = {
+  id: string | null;
+  projectKey: string;
+  name: string;
+  description: string;
+  geography: string;
+  clientType: ProjectClientType;
+  primaryScenario: string;
+  status: "active" | "archived" | "demo";
+  dataMode: string;
+  metadata: Record<string, unknown>;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type ProjectInput = {
+  projectKey?: string;
+  name: string;
+  description?: string;
+  geography?: string;
+  clientType?: ProjectClientType;
+  primaryScenario?: string;
+  status?: GeoAIProject["status"];
+  dataMode?: string;
+  metadata?: Record<string, unknown>;
 };

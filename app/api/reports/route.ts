@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getProjectByKey } from "@/src/lib/db/repositories/projects";
 import { saveReport } from "@/src/lib/db/repositories/reports";
 import type { DbReportInput } from "@/src/lib/db/types";
 
@@ -37,13 +38,20 @@ export async function POST(request: Request) {
     );
   }
 
-  const result = await saveReport(body);
+  const project = body.projectKey ? await getProjectByKey(body.projectKey) : null;
+  const result = await saveReport({
+    ...body,
+    projectId: body.projectId ?? (project?.mode === "db" ? project.data?.id ?? null : null),
+    projectKey: body.projectKey ?? project?.data?.projectKey ?? null,
+    projectName: body.projectName ?? project?.data?.name ?? null
+  });
 
   return NextResponse.json({
     ok: result.ok,
     persisted: result.mode === "db" && result.ok,
     mode: result.mode,
     reportKey: body.reportKey,
+    project: project?.data ?? null,
     data: result.data,
     error: result.error,
     message: result.mode === "db" && result.ok

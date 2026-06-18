@@ -150,6 +150,16 @@ function AnalysisReport({ analysis, onBack }: { analysis: ExpressAnalysis; onBac
               <dd className="mt-1 text-ink">{formatDateValue(analysis.generatedAt)}</dd>
             </div>
             <div className="rounded-md bg-surface p-4">
+              <dt className="font-semibold text-muted">Project</dt>
+              <dd className="mt-1 text-ink">{analysis.project?.name ?? "Dubai Investment Screening Demo"}</dd>
+            </div>
+            <div className="rounded-md bg-surface p-4">
+              <dt className="font-semibold text-muted">Project data mode</dt>
+              <dd className="mt-1 capitalize text-ink">
+                {(analysis.project?.dataMode ?? "demo_normalized").replace(/_/g, " ")}
+              </dd>
+            </div>
+            <div className="rounded-md bg-surface p-4">
               <dt className="font-semibold text-muted">Analysis mode</dt>
               <dd className="mt-1 text-ink">{analysisModeLabel}</dd>
             </div>
@@ -377,6 +387,9 @@ function ComparisonReport({ comparison, onBack }: { comparison: ComparisonResult
               <p className="mt-3 text-base leading-7 text-muted">
                 Comparing {comparison.items.length} selected locations / assets
               </p>
+              <p className="mt-2 text-sm font-semibold text-muted">
+                Project: {comparison.project?.name ?? "Dubai Investment Screening Demo"}
+              </p>
             </div>
             <span className="rounded-full bg-[#eaf3f1] px-3 py-1 text-xs font-semibold text-brand">
               Demo comparison
@@ -390,6 +403,12 @@ function ComparisonReport({ comparison, onBack }: { comparison: ComparisonResult
             <div className="rounded-md bg-surface p-4">
               <dt className="font-semibold text-muted">Generated</dt>
               <dd className="mt-1 text-ink">{formatDate()}</dd>
+            </div>
+            <div className="rounded-md bg-surface p-4">
+              <dt className="font-semibold text-muted">Project data mode</dt>
+              <dd className="mt-1 capitalize text-ink">
+                {(comparison.project?.dataMode ?? "demo_normalized").replace(/_/g, " ")}
+              </dd>
             </div>
           </dl>
         </header>

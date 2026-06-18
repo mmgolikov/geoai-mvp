@@ -3,6 +3,7 @@ import {
   listAnalysisRuns,
   saveAnalysisRun
 } from "@/src/lib/db/repositories/analysis-runs";
+import { getProjectByKey } from "@/src/lib/db/repositories/projects";
 import type { DbAnalysisRunInput } from "@/src/lib/db/types";
 
 export const runtime = "nodejs";
@@ -27,11 +28,26 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const limitParam = Number(url.searchParams.get("limit") ?? "10");
   const limit = Number.isFinite(limitParam) ? Math.min(Math.max(limitParam, 1), 50) : 10;
-  const result = await listAnalysisRuns(limit);
+  const projectKey = url.searchParams.get("projectKey");
+  const project = projectKey ? await getProjectByKey(projectKey) : null;
+  if (projectKey && project?.mode !== "db") {
+    return NextResponse.json({
+      ok: true,
+      mode: "local_only",
+      projectMode: project?.mode ?? "local_demo",
+      project: project?.data ?? null,
+      items: [],
+      error: null
+    });
+  }
+
+  const result = await listAnalysisRuns(limit, project?.mode === "db" ? project.data?.id ?? null : null);
 
   return NextResponse.json({
     ok: result.ok,
     mode: result.mode,
+    projectMode: project?.mode ?? null,
+    project: project?.data ?? null,
     items: result.data ?? [],
     error: result.error
   });
@@ -56,13 +72,20 @@ export async function POST(request: Request) {
     );
   }
 
-  const result = await saveAnalysisRun(body);
+  const project = body.projectKey ? await getProjectByKey(body.projectKey) : null;
+  const result = await saveAnalysisRun({
+    ...body,
+    projectId: body.projectId ?? (project?.mode === "db" ? project.data?.id ?? null : null),
+    projectKey: body.projectKey ?? project?.data?.projectKey ?? null,
+    projectName: body.projectName ?? project?.data?.name ?? null
+  });
 
   return NextResponse.json({
     ok: result.ok,
     persisted: result.mode === "db" && result.ok,
     mode: result.mode,
     runKey: body.runKey,
+    project: project?.data ?? null,
     data: result.data,
     error: result.error,
     message: result.mode === "db" && result.ok

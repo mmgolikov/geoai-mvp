@@ -34,6 +34,7 @@ OpenAI is optional. If `OPENAI_API_KEY` is not configured, GeoAI automatically u
 - Comparison mode for 2-3 selected points or demo objects
 - Comparison dashboard with scores, recommendation, risks, and next actions
 - Print-friendly report preview for single-site analysis and comparison
+- Lightweight project/workspace selector with local demo fallback
 - API routes for health, demo objects, and analysis
 - Vercel-ready Next.js deployment structure
 
@@ -170,6 +171,7 @@ Current geometries are synthetic/demo only. They are not official parcel, planni
 - [Current Prototype Checkpoint v0.2](docs/CHECKPOINT_2026-06-18_investor_prototype_v02.md)
 - [Supabase / PostGIS Foundation v0.1](docs/SUPABASE_POSTGIS_V01.md)
 - [Persistence v0.1](docs/PERSISTENCE_V01.md)
+- [Projects / Workspaces v0.1](docs/PROJECTS_WORKSPACES_V01.md)
 - [Architecture](docs/architecture.md)
 - [Data Strategy](docs/data-strategy.md)
 - [Roadmap](docs/roadmap.md)

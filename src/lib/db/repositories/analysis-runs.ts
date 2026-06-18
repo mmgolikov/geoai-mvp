@@ -1,17 +1,21 @@
 import { getSupabaseServerClient } from "@/src/lib/supabase/server";
 import type { DbAnalysisRunInput, DbRepositoryResult } from "@/src/lib/db/types";
 
-export async function listAnalysisRuns(limit = 10): Promise<DbRepositoryResult<unknown[]>> {
+export async function listAnalysisRuns(limit = 10, projectId?: string | null): Promise<DbRepositoryResult<unknown[]>> {
   const client = await getSupabaseServerClient();
   if (!client) {
     return { ok: true, mode: "local_only", data: [], error: null };
   }
 
   try {
-    const query = client.from("analysis_runs").select("*") as {
+    const baseQuery = client.from("analysis_runs").select("*") as {
+      eq: (column: string, value: string) => {
+        order: (column: string, options?: unknown) => { limit: (count: number) => Promise<{ data: unknown[] | null }> };
+      };
       order: (column: string, options?: unknown) => { limit: (count: number) => Promise<{ data: unknown[] | null }> };
     };
-    const response = await query.order("created_at", { ascending: false }).limit(limit);
+    const orderedQuery = projectId ? baseQuery.eq("project_id", projectId) : baseQuery;
+    const response = await orderedQuery.order("created_at", { ascending: false }).limit(limit);
     return { ok: true, mode: "db", data: response.data ?? [], error: null };
   } catch (error) {
     return {
@@ -32,6 +36,9 @@ export async function saveAnalysisRun(input: DbAnalysisRunInput): Promise<DbRepo
   try {
     const query = client.from("analysis_runs").upsert({
       run_key: input.runKey,
+      project_id: input.projectId ?? null,
+      project_key: input.projectKey ?? null,
+      project_name: input.projectName ?? null,
       scenario_id: input.scenarioId,
       selected_name: input.selectedName,
       selected_type: input.selectedType,
