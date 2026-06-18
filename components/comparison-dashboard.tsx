@@ -38,6 +38,32 @@ function riskTone(riskLevel: string) {
   return "bg-[#eaf3f1] text-brand";
 }
 
+function normalizeKeyText(value: unknown) {
+  return String(value ?? "item")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 56) || "item";
+}
+
+function createStableKey(section: string, value: unknown, index: number) {
+  return `${section}-${index}-${normalizeKeyText(value)}`;
+}
+
+function dedupeTextList(items: string[]) {
+  const seen = new Set<string>();
+
+  return items.filter((item) => {
+    const normalized = normalizeKeyText(item);
+    if (seen.has(normalized)) {
+      return false;
+    }
+
+    seen.add(normalized);
+    return true;
+  });
+}
+
 function ComparisonCard({ scorecard }: { scorecard: ComparisonResult["items"][number] }) {
   const marketMatch = scorecard.marketMetricsMatch;
   const metric = marketMatch?.metrics;
@@ -89,6 +115,9 @@ function ComparisonCard({ scorecard }: { scorecard: ComparisonResult["items"][nu
 
 export function ComparisonDashboard({ comparison, onBackToMap, onExportComparison }: ComparisonDashboardProps) {
   const dashboardRef = useRef<HTMLElement | null>(null);
+  const sharedOpportunities = dedupeTextList(comparison.sharedOpportunities);
+  const differentiatedRisks = dedupeTextList(comparison.differentiatedRisks);
+  const nextActions = dedupeTextList(comparison.nextActions);
 
   useEffect(() => {
     dashboardRef.current?.scrollTo({ top: 0, left: 0 });
@@ -149,7 +178,7 @@ export function ComparisonDashboard({ comparison, onBackToMap, onExportCompariso
             <h2 className="text-lg font-semibold text-ink">Map Context</h2>
             <div className="mt-4 grid gap-3">
               {comparison.items.map((scorecard, index) => (
-                <div key={scorecard.item.id} className="rounded-md border border-line bg-surface p-4">
+                <div key={createStableKey("map-context-item", scorecard.item.id, index)} className="rounded-md border border-line bg-surface p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">
@@ -180,8 +209,8 @@ export function ComparisonDashboard({ comparison, onBackToMap, onExportCompariso
               <thead>
                 <tr>
                   <th className="border-b border-line px-3 py-3 font-semibold text-muted">Metric</th>
-                  {comparison.items.map((scorecard) => (
-                    <th key={scorecard.item.id} className="border-b border-line px-3 py-3 font-semibold text-ink">
+                  {comparison.items.map((scorecard, index) => (
+                    <th key={createStableKey("comparison-table-head", scorecard.item.id, index)} className="border-b border-line px-3 py-3 font-semibold text-ink">
                       {scorecard.item.name}
                     </th>
                   ))}
@@ -191,8 +220,8 @@ export function ComparisonDashboard({ comparison, onBackToMap, onExportCompariso
                 {tableScores.map((scoreKey) => (
                   <tr key={scoreKey}>
                     <td className="border-b border-line px-3 py-3 font-medium text-muted">{scoreLabels[scoreKey]}</td>
-                    {comparison.items.map((scorecard) => (
-                      <td key={scorecard.item.id} className="border-b border-line px-3 py-3 font-semibold text-ink">
+                    {comparison.items.map((scorecard, index) => (
+                      <td key={createStableKey(`${scoreKey}-score`, scorecard.item.id, index)} className="border-b border-line px-3 py-3 font-semibold text-ink">
                         {scorecard.scores[scoreKey]}
                       </td>
                     ))}
@@ -200,16 +229,16 @@ export function ComparisonDashboard({ comparison, onBackToMap, onExportCompariso
                 ))}
                 <tr>
                   <td className="border-b border-line px-3 py-3 font-medium text-muted">Recommended Use</td>
-                  {comparison.items.map((scorecard) => (
-                    <td key={scorecard.item.id} className="border-b border-line px-3 py-3 text-muted">
+                  {comparison.items.map((scorecard, index) => (
+                    <td key={createStableKey("recommended-use", scorecard.item.id, index)} className="border-b border-line px-3 py-3 text-muted">
                       {scorecard.recommendedUse}
                     </td>
                   ))}
                 </tr>
                 <tr>
                   <td className="border-b border-line px-3 py-3 font-medium text-muted">Key Concern</td>
-                  {comparison.items.map((scorecard) => (
-                    <td key={scorecard.item.id} className="border-b border-line px-3 py-3 text-muted">
+                  {comparison.items.map((scorecard, index) => (
+                    <td key={createStableKey("key-concern", scorecard.item.id, index)} className="border-b border-line px-3 py-3 text-muted">
                       {scorecard.keyConcern}
                     </td>
                   ))}
@@ -220,8 +249,8 @@ export function ComparisonDashboard({ comparison, onBackToMap, onExportCompariso
         </section>
 
         <section className="grid items-stretch gap-4 lg:grid-cols-3">
-          {comparison.items.map((scorecard) => (
-            <ComparisonCard key={scorecard.item.id} scorecard={scorecard} />
+          {comparison.items.map((scorecard, index) => (
+            <ComparisonCard key={createStableKey("comparison-card", scorecard.item.id, index)} scorecard={scorecard} />
           ))}
         </section>
 
@@ -229,8 +258,8 @@ export function ComparisonDashboard({ comparison, onBackToMap, onExportCompariso
           <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
             <h2 className="text-lg font-semibold text-ink">Shared Opportunities</h2>
             <ul className="mt-4 space-y-3">
-              {comparison.sharedOpportunities.map((item) => (
-                <li key={item} className="rounded-md border border-line bg-surface px-4 py-3 text-sm leading-6 text-muted">
+              {sharedOpportunities.map((item, index) => (
+                <li key={createStableKey("shared-opportunity", item, index)} className="rounded-md border border-line bg-surface px-4 py-3 text-sm leading-6 text-muted">
                   {item}
                 </li>
               ))}
@@ -239,8 +268,8 @@ export function ComparisonDashboard({ comparison, onBackToMap, onExportCompariso
           <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
             <h2 className="text-lg font-semibold text-ink">Differentiated Risks</h2>
             <ul className="mt-4 space-y-3">
-              {comparison.differentiatedRisks.map((item) => (
-                <li key={item} className="rounded-md border border-line bg-surface px-4 py-3 text-sm leading-6 text-muted">
+              {differentiatedRisks.map((item, index) => (
+                <li key={createStableKey("differentiated-risk", item, index)} className="rounded-md border border-line bg-surface px-4 py-3 text-sm leading-6 text-muted">
                   {item}
                 </li>
               ))}
@@ -258,8 +287,8 @@ export function ComparisonDashboard({ comparison, onBackToMap, onExportCompariso
         <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
           <h2 className="text-lg font-semibold text-ink">Recommended Next Actions</h2>
           <ol className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {comparison.nextActions.map((action, index) => (
-              <li key={action} className="flex gap-3 rounded-md border border-line bg-surface p-4">
+            {nextActions.map((action, index) => (
+              <li key={createStableKey("next-action", action, index)} className="flex gap-3 rounded-md border border-line bg-surface p-4">
                 <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white text-sm font-semibold text-brand">
                   {index + 1}
                 </span>
