@@ -510,7 +510,7 @@ export default function HomePage() {
                 See how GeoAI screens a Dubai site
               </h2>
               <p className="mt-4 text-base leading-7 text-muted">
-                Use the demo workspace or discuss a pilot with uploaded client data. Current outputs are prototype demonstrations and require official validation before decisions.
+                Use the demo workspace or frame a 2-4 week pilot with uploaded client data, open snapshots and agreed validation sources. Current outputs are prototype demonstrations and require official validation before decisions.
               </p>
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                 <Link href="/workspace" className="inline-flex h-12 items-center justify-center rounded-md bg-brand px-6 text-sm font-semibold text-white shadow-soft transition hover:bg-[#113f50]">
@@ -524,7 +524,7 @@ export default function HomePage() {
             <div className="grid items-stretch gap-4 md:grid-cols-3">
               {[
                 ["Current demo", "Workspace, uploads, layers, analysis, comparison and report preview."],
-                ["Client pilot path", "Validated customer data, source access and governance requirements."],
+                ["Client pilot path", "Uploaded customer data, open snapshots and agreed validation requirements."],
                 ["Decision output", "Site memo, validation checklist and comparison dashboard."]
               ].map(([title, text]) => (
                 <article key={title} className="flex h-full flex-col rounded-lg border border-line bg-surface p-5">

@@ -39,6 +39,7 @@ OpenAI is optional. If `OPENAI_API_KEY` is not configured, GeoAI automatically u
 - Dedicated printable report route for saved reports: `/reports/[id]/print`
 - Lightweight project/workspace selector with local demo fallback
 - Project Dashboard v0.1 for active project summary, KPIs, recent analyses, data readiness and next actions
+- Pilot Readiness & Client Delivery Package v1.1 with client-specific pilot packages, readiness scoring, setup checklist and deliverable framing
 - Offline DLD / Dubai Pulse CSV ingestion prototype with normalized sample outputs
 - API routes for health, demo objects, and analysis
 - Vercel-ready Next.js deployment structure
@@ -191,6 +192,12 @@ GeoAI now has a local-first MVP persistence foundation. Analysis runs, report pa
 
 This is not production-ready persistence. There is no auth, multi-tenant security, production file storage or validated official source governance yet. See [Persistence & Project Workspace v0.8](docs/PERSISTENCE_PROJECT_WORKSPACE_V08.md).
 
+## Pilot Readiness & Client Delivery Package v1.1
+
+GeoAI now includes pilot package framing for developer, fund/family office, bank/lender and government/free zone demo workflows. The Project Dashboard shows a recommended pilot package, readiness status, required client data, validation sources, success criteria and pilot deliverables for the active project. The Workspace command panel includes a compact Pilot Setup Checklist below the main configuration flow.
+
+This is a client-delivery framing layer, not a production readiness claim. Pilot outputs still depend on uploaded/customer-approved data, open or sample snapshots, and agreed official validation before decisions. See [Pilot Readiness & Client Delivery Package v1.1](docs/PILOT_READINESS_CLIENT_PACKAGE_V11.md).
+
 ## Report Export & Client Deliverables v0.9
 
 GeoAI now includes a dedicated printable report route for saved analysis and comparison reports. The Project Dashboard can link to saved printable reports, and the report preview includes an "Open printable report" action.
@@ -218,6 +225,7 @@ Current export remains browser print/save as PDF. GeoAI does not generate server
 - Real Data Backbone v0.7 supports optional snapshots/API context, but live official validation sources are still not connected.
 - Persistence v0.8 supports local/API fallback saved objects, but auth, tenant security, production file storage and report libraries are not complete.
 - Supabase/PostGIS and persistence are optional prototype foundations, not production-grade user storage yet.
+- Pilot readiness scoring is a delivery checklist, not an approval, compliance or production-readiness certification.
 - No authentication or user accounts.
 - No real parcel, zoning, transaction, satellite, or regulatory data adapters.
 - Report export is browser print/save as PDF, not a generated server-side PDF.
@@ -235,6 +243,7 @@ Current export remains browser print/save as PDF. GeoAI does not generate server
 - [Data Credibility v0.5](docs/DATA_CREDIBILITY_V05.md)
 - [Real Data Backbone v0.7](docs/REAL_DATA_BACKBONE_V07.md)
 - [Persistence & Project Workspace v0.8](docs/PERSISTENCE_PROJECT_WORKSPACE_V08.md)
+- [Pilot Readiness & Client Delivery Package v1.1](docs/PILOT_READINESS_CLIENT_PACKAGE_V11.md)
 - [Report Export & Client Deliverables v0.9](docs/REPORT_EXPORT_DELIVERABLES_V09.md)
 - [UI Layout Guardrails](docs/UI_LAYOUT_GUARDRAILS.md)
 - [MVP UI System Hardening v1.0.1](docs/MVP_UI_HARDENING_V101.md)

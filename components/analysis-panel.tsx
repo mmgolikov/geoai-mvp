@@ -6,6 +6,7 @@ import demoObjects from "@/src/data/demo-objects.json";
 import ingestionReport from "@/data/normalized/ingestion_report.json";
 import { DataReadinessCard } from "@/components/data-readiness";
 import { getScenarioDataSources } from "@/src/data/data-source-registry";
+import { getPilotPackageForProject } from "@/src/lib/pilot/pilot-packages";
 import type { GeoAIProject } from "@/src/lib/db/types";
 import type { MarketMetricsMatch } from "@/src/lib/market-metrics/types";
 import type { MarketContext } from "@/src/types/market-context";
@@ -270,6 +271,17 @@ export function AnalysisPanel({
   const analysisHistoryStatus =
     analysisHistorySource === "DB" ? "Supabase-backed" : "Local fallback";
   const projectPersistenceStatus = projectsMode === "db" ? "DB enabled" : "local demo";
+  const pilotPackage = getPilotPackageForProject(activeProject.projectKey, activeProject.clientType);
+  const pilotChecklist = [
+    { label: "Select client type", status: activeProject.clientType ? "Done" : "Needed" },
+    { label: "Choose pilot package", status: pilotPackage ? "Done" : "Needed" },
+    { label: "Upload client CSV/GeoJSON", status: parsedUploads.length > 0 ? "Done" : "Needed" },
+    { label: "Run analysis on 3-10 sites", status: analysisHistory.length >= 3 ? "Done" : "Needed" },
+    { label: "Generate reports", status: hasResult ? "Done" : "Needed" },
+    { label: "Compare shortlisted sites", status: hasComparisonReady ? "Done" : "Needed" },
+    { label: "Validate official sources", status: "Needed" },
+    { label: "Export pilot deliverables", status: hasResult ? "Optional" : "Needed" }
+  ];
 
   useEffect(() => {
     let isMounted = true;
@@ -771,6 +783,31 @@ export function AnalysisPanel({
               </div>
               {availableSources.map((source) => (
                 <DataReadinessCard key={source.id} source={source} compact />
+              ))}
+            </div>
+          </CollapsedSection>
+
+          <CollapsedSection title="Pilot Setup Checklist" badge="v1.1">
+            <div className="grid gap-2">
+              <div className="rounded-md border border-line bg-surface p-3">
+                <p className="text-sm font-semibold text-ink">{pilotPackage.title}</p>
+                <p className="mt-1 text-xs leading-5 text-muted">
+                  {pilotPackage.pilotDuration} / client data and official validation still required before decisions.
+                </p>
+              </div>
+              {pilotChecklist.map((item, index) => (
+                <div key={`pilot-checklist-${index}-${item.label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`} className="flex items-center justify-between gap-3 rounded-md bg-white px-3 py-2 text-xs">
+                  <span className="min-w-0 truncate font-medium text-ink">{item.label}</span>
+                  <span className={`shrink-0 rounded-full px-2 py-1 font-semibold ${
+                    item.status === "Done"
+                      ? "bg-[#eaf3f1] text-brand"
+                      : item.status === "Optional"
+                        ? "bg-surface text-muted"
+                        : "bg-[#fff7ed] text-[#9f3412]"
+                  }`}>
+                    {item.status}
+                  </span>
+                </div>
               ))}
             </div>
           </CollapsedSection>

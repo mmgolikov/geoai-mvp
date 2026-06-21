@@ -7,6 +7,9 @@ import { dataSourceRegistry } from "@/src/data/data-source-registry";
 import { demoProjects, getDemoProject } from "@/src/data/demo-projects";
 import { getImportedMetricsReadinessMessage, getSupabaseFallbackMessage } from "@/src/lib/data-readiness";
 import { deriveDecisionPosture } from "@/src/lib/decision-posture";
+import { getPilotDataRequirements } from "@/src/lib/pilot/data-requirements";
+import { getPilotPackageForProject } from "@/src/lib/pilot/pilot-packages";
+import { calculatePilotReadiness } from "@/src/lib/pilot/pilot-readiness";
 import type { GeoAIProject } from "@/src/lib/db/types";
 import type { AnalysisHistoryItem, AnalysisScenarioId, ExpressAnalysis } from "@/src/types/geo";
 
@@ -362,6 +365,18 @@ export function ProjectDashboard() {
   const dataConfidence = importedAreas > 0 ? "Sample/offline import" : "Seed fallback";
   const persistenceMode = dbHealth?.status === "connected" ? "Supabase/PostGIS connected" : "Local fallback";
   const nextActions = getNextActions(activeProject, importedAreas);
+  const pilotPackage = getPilotPackageForProject(activeProject.projectKey, activeProject.clientType);
+  const pilotDataRequirements = getPilotDataRequirements(pilotPackage.clientType);
+  const pilotReadiness = calculatePilotReadiness({
+    targetSitesProvided: projectDatasets.length > 0 || recentRows.length > 0 || activeProject.status === "demo",
+    geometryAvailable: projectDatasets.length > 0 || activeProject.status === "demo",
+    marketDataAvailable: importedAreas > 0,
+    externalOpenDataAvailable: dataSourceRegistry.length > 0,
+    validationSourcesIdentified: false,
+    reportsGenerated: savedReports.length > 0,
+    comparisonGenerated: savedComparisons.length > 0,
+    officialCustomerValidationPending: true
+  });
   const openWorkspaceHref = "/workspace";
 
   function changeProject(projectKey: string) {
@@ -525,6 +540,26 @@ export function ProjectDashboard() {
                 />
               )}
             </Panel>
+
+            <Panel title="Pilot Deliverables" subtitle="Pilot deliverables — generated from uploaded/customer-approved and open snapshot data.">
+              <div className="grid gap-3 md:grid-cols-2">
+                {pilotPackage.deliverables.slice(0, 6).map((deliverable, index) => (
+                  <div key={`pilot-deliverable-${index}-${deliverable.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 36)}`} className="rounded-md border border-line bg-surface p-3">
+                    <p className="text-sm font-semibold text-ink">{deliverable}</p>
+                    <p className="mt-1 text-xs leading-5 text-muted">
+                      {pilotPackage.clientType === "developer"
+                        ? "Developer output"
+                        : pilotPackage.clientType === "fund"
+                          ? "Fund / family office output"
+                          : pilotPackage.clientType === "bank"
+                            ? "Bank / lender output"
+                            : "Government / free zone output"}
+                    </p>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-3 text-xs leading-5 text-muted">{pilotPackage.dataHonestyNote}</p>
+            </Panel>
           </div>
 
           <div className="grid content-start gap-5">
@@ -547,6 +582,53 @@ export function ProjectDashboard() {
                   <p className="mt-1 text-sm leading-6 text-ink">
                     {getProjectMetadataText(activeProject, "recommendedNextAction", "Agree pilot data sources and validation path before operational use.")}
                   </p>
+                </div>
+              </div>
+            </Panel>
+
+            <Panel title="Pilot Readiness" subtitle="Client delivery framing for the active demo project.">
+              <div className="grid gap-3">
+                <div className="rounded-md border border-line bg-surface p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-ink">{pilotPackage.title}</p>
+                      <p className="mt-1 text-xs leading-5 text-muted">{pilotPackage.objective}</p>
+                    </div>
+                    <span className="shrink-0 rounded-full bg-white px-2 py-1 text-xs font-semibold text-brand">
+                      {pilotReadiness.score}/100
+                    </span>
+                  </div>
+                  <p className="mt-2 text-xs font-semibold text-muted">{pilotReadiness.readinessLabel}</p>
+                </div>
+                <div className="grid gap-2 text-sm">
+                  <div className="rounded-md bg-surface p-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Required client data</p>
+                    <ul className="mt-2 grid gap-1.5 text-xs leading-5 text-ink">
+                      {pilotDataRequirements.required.slice(0, 4).map((item, index) => (
+                        <li key={`pilot-required-${index}-${item.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 36)}`}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div className="rounded-md bg-surface p-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Validation sources</p>
+                    <ul className="mt-2 grid gap-1.5 text-xs leading-5 text-ink">
+                      {pilotPackage.validationSources.slice(0, 3).map((item, index) => (
+                        <li key={`pilot-validation-${index}-${item.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 36)}`}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div className="rounded-md bg-surface p-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Success criteria</p>
+                    <ul className="mt-2 grid gap-1.5 text-xs leading-5 text-ink">
+                      {pilotPackage.successCriteria.slice(0, 3).map((item, index) => (
+                        <li key={`pilot-success-${index}-${item.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 36)}`}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+                <div className="rounded-md border border-line bg-white p-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Next action</p>
+                  <p className="mt-1 text-sm leading-6 text-ink">{pilotReadiness.nextActions[0]}</p>
                 </div>
               </div>
             </Panel>

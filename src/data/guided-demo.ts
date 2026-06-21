@@ -17,6 +17,7 @@ export type GuidedDemoPreset = {
   expectedOutput: string;
   dataHonestyNote: string;
   projectKey: string;
+  pilotPackageId: string;
 };
 
 export const guidedDemoPresets: GuidedDemoPreset[] = [
@@ -40,7 +41,8 @@ export const guidedDemoPresets: GuidedDemoPreset[] = [
     ],
     expectedOutput: "Investment memo + due diligence checklist.",
     dataHonestyNote: "Uses local demo sample data only. Official DLD / Dubai Pulse / GeoDubai validation is not connected in this demo.",
-    projectKey: "dubai-investment-screening-demo"
+    projectKey: "dubai-investment-screening-demo",
+    pilotPackageId: "fund-investment-screening"
   },
   {
     id: "dubai-south-development",
@@ -62,7 +64,8 @@ export const guidedDemoPresets: GuidedDemoPreset[] = [
     ],
     expectedOutput: "Development potential memo + validation checklist.",
     dataHonestyNote: "The growth polygon is a synthetic demo fixture, not official parcel, zoning or planning geometry.",
-    projectKey: "developer-land-pipeline-demo"
+    projectKey: "developer-land-pipeline-demo",
+    pilotPackageId: "developer-site-screening"
   },
   {
     id: "bank-asset-review",
@@ -84,7 +87,8 @@ export const guidedDemoPresets: GuidedDemoPreset[] = [
     ],
     expectedOutput: "Lender-ready review summary.",
     dataHonestyNote: "Sample/offline metrics and local screening geometries support the demo narrative; they are not official evidence.",
-    projectKey: "bank-asset-review-demo"
+    projectKey: "bank-asset-review-demo",
+    pilotPackageId: "bank-asset-review"
   }
 ];
 
