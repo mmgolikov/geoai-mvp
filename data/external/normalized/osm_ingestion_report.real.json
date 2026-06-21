@@ -1,0 +1,16 @@
+{
+  "generatedAt": "2026-06-21T17:40:00.450Z",
+  "source": {
+    "id": "osm-geofabrik-baseline",
+    "name": "OSM / Geofabrik open geospatial baseline",
+    "status": "connected-snapshot",
+    "sourceType": "open-data",
+    "updateMode": "manual",
+    "disclaimer": "Open geospatial baseline; not official municipal GIS, zoning or parcel boundary data."
+  },
+  "status": "missing-input",
+  "inputPath": "data/external/raw/osm/dubai_osm_baseline.geojson",
+  "message": "OSM / Geofabrik prepared baseline not found. Existing demo open-geodata sample remains available.",
+  "featuresRead": 0,
+  "featuresWritten": 0
+}

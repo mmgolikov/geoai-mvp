@@ -171,6 +171,19 @@ Uploads are stored in browser `localStorage` only and are limited to 5 MB per fi
 
 See [Data Credibility v0.5](docs/DATA_CREDIBILITY_V05.md) for the upload schema, parsing rules, source-lineage behavior and QA checklist.
 
+## Real Data Backbone v0.7
+
+GeoAI now includes the first Real Data Backbone layer for external source metadata, graceful snapshot ingestion and source-lineage visibility. It supports manual DLD / Dubai Pulse CSV snapshot normalization, prepared OSM / Geofabrik GeoJSON baseline normalization, Open-Meteo climate context routing, Copernicus/Sentinel connector status, and planned official validation paths for GeoDubai / Dubai Municipality and DLD API Gateway.
+
+Run:
+
+```bash
+npm run ingest:dld:real
+npm run ingest:osm:real
+```
+
+If raw external files are missing, the scripts exit gracefully and keep existing sample/demo fallback data available. This does not connect live official DLD, Dubai Pulse, GeoDubai, parcel, zoning, cadastral or ownership systems. See [Real Data Backbone v0.7](docs/REAL_DATA_BACKBONE_V07.md).
+
 ## Deploy To Vercel
 
 1. Push the repository to GitHub.
@@ -189,6 +202,7 @@ See [Data Credibility v0.5](docs/DATA_CREDIBILITY_V05.md) for the upload schema,
 - Data ingestion currently uses local seed/static context and imported sample CSV fixtures only.
 - Spatial layers currently use local seed_geojson demo geometries only.
 - Uploaded CSV / GeoJSON files are browser-local, user-provided, validation-required context.
+- Real Data Backbone v0.7 supports optional snapshots/API context, but live official validation sources are still not connected.
 - Supabase/PostGIS and persistence are optional prototype foundations, not production-grade user storage yet.
 - No authentication or user accounts.
 - No real parcel, zoning, transaction, satellite, or regulatory data adapters.
@@ -205,6 +219,7 @@ See [Data Credibility v0.5](docs/DATA_CREDIBILITY_V05.md) for the upload schema,
 - [DLD / Dubai Pulse Ingestion v0.1](docs/DLD_DUBAI_PULSE_INGESTION_V01.md)
 - [Open Geospatial Baseline v0.1](docs/OPEN_GEODATA_BASELINE_V01.md)
 - [Data Credibility v0.5](docs/DATA_CREDIBILITY_V05.md)
+- [Real Data Backbone v0.7](docs/REAL_DATA_BACKBONE_V07.md)
 - [Demo Release Candidate v0.6.1](docs/DEMO_RC_V061.md)
 - [Audit QA — 2026-06-18](docs/AUDIT_QA_2026-06-18.md)
 - [Architecture](docs/architecture.md)

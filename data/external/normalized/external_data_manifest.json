@@ -1,0 +1,61 @@
+{
+  "generatedAt": "2026-06-21T17:40:00.450Z",
+  "version": "0.7",
+  "summary": "GeoAI Real Data Backbone v0.7 manifest.",
+  "sources": [
+    {
+      "id": "osm-geofabrik-baseline",
+      "status": "manual-import",
+      "lastUpdated": "2026-06-21T17:40:00.450Z",
+      "availableFiles": [
+        "data/external/normalized/osm_ingestion_report.real.json"
+      ],
+      "featureCount": 0,
+      "usedInAnalysis": false,
+      "disclaimer": "Open geospatial baseline; not official municipal GIS, zoning or parcel boundary data."
+    },
+    {
+      "id": "dld-dubai-pulse-transactions",
+      "status": "manual-import",
+      "lastUpdated": "2026-06-21T17:39:56.074Z",
+      "availableFiles": [
+        "data/external/normalized/dld_ingestion_report.real.json"
+      ],
+      "rowCount": 0,
+      "usedInAnalysis": false,
+      "disclaimer": "Open official dataset snapshot; not a live official transactional feed."
+    },
+    {
+      "id": "open-meteo-climate",
+      "status": "connected-api",
+      "lastUpdated": null,
+      "availableFiles": [],
+      "usedInAnalysis": false,
+      "disclaimer": "Climate context from reanalysis/model data; not a site-specific engineering or insurance assessment."
+    },
+    {
+      "id": "copernicus-sentinel-catalog",
+      "status": "not-configured",
+      "lastUpdated": null,
+      "availableFiles": [],
+      "usedInAnalysis": false,
+      "disclaimer": "Satellite imagery availability check only; analytics pipeline planned."
+    },
+    {
+      "id": "geodubai-municipality-validation",
+      "status": "planned-access",
+      "lastUpdated": null,
+      "availableFiles": [],
+      "usedInAnalysis": false,
+      "disclaimer": "Planned official validation source; not connected in this demo."
+    },
+    {
+      "id": "dld-api-gateway-validation",
+      "status": "planned-access",
+      "lastUpdated": null,
+      "availableFiles": [],
+      "usedInAnalysis": false,
+      "disclaimer": "Enterprise validation/integration path; not connected in this demo."
+    }
+  ]
+}

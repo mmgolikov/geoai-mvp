@@ -4,6 +4,7 @@ import { EvidenceSourceCards } from "@/components/evidence-source-cards";
 import ingestionReport from "@/data/normalized/ingestion_report.json";
 import { MapContextCard } from "@/components/map-context-card";
 import { PrintableReport } from "@/components/printable-report";
+import { externalDataSources } from "@/src/lib/external-data/source-registry";
 import { deriveDecisionPosture, deriveDecisionRationale } from "@/src/lib/decision-posture";
 import type { ComparisonResult, ExpressAnalysis, ScoreKey } from "@/src/types/geo";
 
@@ -88,6 +89,102 @@ function dedupeTextList(items: string[]) {
     seen.add(normalized);
     return true;
   });
+}
+
+function sourceById(id: string) {
+  return externalDataSources.find((source) => source.id === id);
+}
+
+function ExternalDataLineageSection({
+  analysis,
+  comparison
+}: {
+  analysis?: ExpressAnalysis;
+  comparison?: ComparisonResult;
+}) {
+  const isClimateScenario = analysis?.scenarioId === "climateRisk";
+  const evidenceSourceIds = new Set([
+    ...(analysis?.evidence.map((item) => item.sourceId) ?? []),
+    ...(comparison?.evidence.map((item) => item.sourceId) ?? [])
+  ]);
+  const marketBasis = analysis?.marketMetricsMatch?.importedMetricsUsed || analysis?.marketContext?.importedMarketMetrics?.importedMetricsUsed
+    ? "sample/manual market metrics matched; validate against DLD / Dubai Pulse snapshot or official exports"
+    : "sample fallback unless real DLD / Dubai Pulse snapshot is loaded";
+  const usedRows = [
+    {
+      source: sourceById("dld-dubai-pulse-transactions"),
+      note: `Market basis: ${marketBasis}. Not a live transactional feed.`
+    },
+    {
+      source: sourceById("osm-geofabrik-baseline"),
+      note: evidenceSourceIds.has("open-geodata-baseline-sample")
+        ? "Access/context basis: existing OSM-style sample baseline; real OSM / Geofabrik prepared baseline can replace it when loaded."
+        : "Access/context basis: open geospatial baseline when available; otherwise demo open-geodata fallback."
+    },
+    isClimateScenario
+      ? {
+          source: sourceById("open-meteo-climate"),
+          note: "Climate basis: Open-Meteo reanalysis context can support climate scenario interpretation when queried; not engineering or insurance-grade."
+        }
+      : null
+  ].filter((item): item is { source: NonNullable<ReturnType<typeof sourceById>>; note: string } => Boolean(item?.source));
+  const availableRows = [
+    {
+      source: sourceById("copernicus-sentinel-catalog"),
+      note: "Available as optional connector status only; credentials and imagery analytics pipeline are not configured by default."
+    }
+  ].filter((item): item is { source: NonNullable<ReturnType<typeof sourceById>>; note: string } => Boolean(item.source));
+  const plannedRows = [
+    {
+      source: sourceById("geodubai-municipality-validation"),
+      note: "Planned official GIS/planning validation source; not connected in this demo."
+    },
+    {
+      source: sourceById("dld-api-gateway-validation"),
+      note: "Planned enterprise validation path for official DLD workflows; not connected in this demo."
+    }
+  ].filter((item): item is { source: NonNullable<ReturnType<typeof sourceById>>; note: string } => Boolean(item.source));
+
+  const renderRows = (rows: Array<{ source: NonNullable<ReturnType<typeof sourceById>>; note: string }>) => (
+    <div className="grid gap-3">
+      {rows.map(({ source, note }) => (
+        <div key={source.id} className="rounded-md border border-line bg-white p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="font-semibold text-ink">{source.name}</p>
+              <p className="mt-1 text-xs uppercase tracking-[0.12em] text-muted">{source.provider}</p>
+            </div>
+            <span className="rounded-full bg-surface px-2 py-1 text-xs font-semibold text-brand">
+              {source.status.replace(/-/g, " ")}
+            </span>
+          </div>
+          <p className="mt-3 text-sm leading-6 text-muted">{note}</p>
+          <p className="mt-2 text-xs leading-5 text-muted">{source.disclaimer}</p>
+        </div>
+      ))}
+    </div>
+  );
+
+  return (
+    <Section title="External Data Used In This Memo">
+      <div className="grid gap-4">
+        <div>
+          <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-muted">Used / source basis</h3>
+          <div className="mt-3">{renderRows(usedRows)}</div>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2">
+          <div>
+            <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-muted">Available but not used</h3>
+            <div className="mt-3">{renderRows(availableRows)}</div>
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-muted">Planned validation</h3>
+            <div className="mt-3">{renderRows(plannedRows)}</div>
+          </div>
+        </div>
+      </div>
+    </Section>
+  );
 }
 
 function UploadedDataReportSection({ analysis }: { analysis: ExpressAnalysis }) {
@@ -470,6 +567,8 @@ function AnalysisReport({ analysis, onBack }: { analysis: ExpressAnalysis; onBac
           </div>
         </Section>
 
+        <ExternalDataLineageSection analysis={analysis} />
+
         <UploadedDataReportSection analysis={analysis} />
 
         <div className="grid gap-6 md:grid-cols-2">
@@ -637,6 +736,8 @@ function ComparisonReport({ comparison, onBack }: { comparison: ComparisonResult
             <EvidenceSourceCards evidence={comparison.evidence} compact />
           </Section>
         </div>
+
+        <ExternalDataLineageSection comparison={comparison} />
 
         <div className="grid gap-6 md:grid-cols-2">
           <Section title="Shared Opportunities">

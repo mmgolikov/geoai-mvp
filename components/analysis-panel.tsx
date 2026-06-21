@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import demoObjects from "@/src/data/demo-objects.json";
 import ingestionReport from "@/data/normalized/ingestion_report.json";
@@ -68,6 +68,31 @@ type AnalysisPanelProps = {
   onClearUploadedDatasets: () => void;
   onToggleUploadedDataset: (datasetId: string) => void;
   onExportCurrentResult: () => void;
+};
+
+type ExternalDataStatusResponse = {
+  sources?: Array<{
+    id: string;
+    name: string;
+    status: string;
+    sourceType: string;
+    confidence: string;
+    disclaimer: string;
+  }>;
+  manifest?: {
+    generatedAt: string | null;
+    sources?: Array<{
+      id: string;
+      status: string;
+      rowCount?: number;
+      featureCount?: number;
+      usedInAnalysis?: boolean;
+    }>;
+  };
+  availableFiles?: {
+    dldMarketMetrics?: boolean;
+    osmBaseline?: boolean;
+  };
 };
 
 function formatCoordinate(value: number) {
@@ -194,6 +219,7 @@ export function AnalysisPanel({
   onExportCurrentResult
 }: AnalysisPanelProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [externalDataStatus, setExternalDataStatus] = useState<ExternalDataStatusResponse | null>(null);
   const featuredObject = demoObjects[0];
   const hasSelectedPoint = selectedPoint !== null;
   const hasSelectedObject = selectedObject !== null;
@@ -244,6 +270,62 @@ export function AnalysisPanel({
   const analysisHistoryStatus =
     analysisHistorySource === "DB" ? "Supabase-backed" : "Local fallback";
   const projectPersistenceStatus = projectsMode === "db" ? "DB enabled" : "local demo";
+
+  useEffect(() => {
+    let isMounted = true;
+
+    fetch("/api/external-data/status")
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data: ExternalDataStatusResponse | null) => {
+        if (isMounted) {
+          setExternalDataStatus(data);
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setExternalDataStatus(null);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const externalSources = externalDataStatus?.sources ?? [];
+  const externalSourceStatus = (id: string) => externalSources.find((source) => source.id === id);
+  const externalManifestSource = (id: string) => externalDataStatus?.manifest?.sources?.find((source) => source.id === id);
+  const externalStatusRows = [
+    {
+      label: "DLD / Dubai Pulse",
+      value: externalDataStatus?.availableFiles?.dldMarketMetrics
+        ? "Snapshot / not live feed"
+        : "Manual import / fallback",
+      detail: externalSourceStatus("dld-dubai-pulse-transactions")?.disclaimer
+    },
+    {
+      label: "OSM / Geofabrik",
+      value: externalDataStatus?.availableFiles?.osmBaseline
+        ? "Baseline / open data"
+        : "Sample fallback",
+      detail: externalSourceStatus("osm-geofabrik-baseline")?.disclaimer
+    },
+    {
+      label: "Open-Meteo",
+      value: "API context / reanalysis",
+      detail: externalSourceStatus("open-meteo-climate")?.disclaimer
+    },
+    {
+      label: "Copernicus / Sentinel",
+      value: "Optional / token required",
+      detail: externalSourceStatus("copernicus-sentinel-catalog")?.disclaimer
+    },
+    {
+      label: "GeoDubai / Municipality",
+      value: "Planned validation / not connected",
+      detail: externalSourceStatus("geodubai-municipality-validation")?.disclaimer
+    }
+  ];
   async function handleDatasetFileChange(event: React.ChangeEvent<HTMLInputElement>) {
     const input = event.currentTarget;
     const file = input.files?.[0];
@@ -505,6 +587,28 @@ export function AnalysisPanel({
             {marketContext ? (
               <p className="mt-2 break-words text-xs leading-5 text-muted">{marketContext.limitations[0]}</p>
             ) : null}
+          </CollapsedSection>
+
+          <CollapsedSection title="External Data Status" badge="v0.7">
+            <div className="grid gap-2">
+              {externalStatusRows.map((row) => (
+                <div key={row.label} className="rounded-md border border-line bg-surface p-2.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-xs font-semibold text-ink">{row.label}</p>
+                    <span className="shrink-0 rounded-full bg-white px-2 py-1 text-[10px] font-semibold text-brand">
+                      {row.value}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-[11px] leading-4 text-muted">{row.detail}</p>
+                </div>
+              ))}
+              <div className="rounded-md border border-line bg-white p-2.5 text-[11px] leading-4 text-muted">
+                Real snapshot files: DLD {externalDataStatus?.availableFiles?.dldMarketMetrics ? "available" : "not loaded"} / OSM {externalDataStatus?.availableFiles?.osmBaseline ? "available" : "not loaded"}.
+                {externalManifestSource("dld-dubai-pulse-transactions")?.rowCount
+                  ? ` DLD areas: ${externalManifestSource("dld-dubai-pulse-transactions")?.rowCount}.`
+                  : " Sample fallback remains active when snapshots are missing."}
+              </div>
+            </div>
           </CollapsedSection>
 
           <CollapsedSection title="Project Overview" badge={projectPersistenceStatus}>

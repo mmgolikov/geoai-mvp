@@ -1,0 +1,20 @@
+{
+  "generatedAt": "2026-06-21T17:39:56.074Z",
+  "source": {
+    "id": "dld-dubai-pulse-transactions",
+    "name": "DLD / Dubai Pulse transactions",
+    "status": "connected-snapshot",
+    "sourceType": "official-open-data",
+    "updateMode": "manual",
+    "notLiveFeed": true,
+    "disclaimer": "Open official dataset snapshot; not a live official transactional feed."
+  },
+  "status": "missing-input",
+  "message": "DLD/Dubai Pulse connector is configured for manual CSV snapshot. Live API/resource fetch is not enabled.",
+  "rowsRead": 0,
+  "areasWritten": 0,
+  "notes": [
+    "No raw DLD/Dubai Pulse CSV snapshot was ingested.",
+    "Existing sample/demo market metrics remain available as fallback."
+  ]
+}
