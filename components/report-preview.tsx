@@ -230,10 +230,12 @@ function UploadedDataReportSection({ analysis }: { analysis: ExpressAnalysis }) 
 
 function ReportShell({
   children,
-  onBack
+  onBack,
+  printableHref
 }: {
   children: React.ReactNode;
   onBack: () => void;
+  printableHref?: string;
 }) {
   return (
     <section className="screen-only h-[calc(100vh-72px)] overflow-y-auto bg-[#eef2f5] p-6">
@@ -246,6 +248,16 @@ function ReportShell({
           >
             Back to dashboard
           </button>
+          {printableHref ? (
+            <a
+              href={printableHref}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex h-10 items-center justify-center rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink transition hover:border-brand"
+            >
+              Open printable report
+            </a>
+          ) : null}
           <button
             type="button"
             onClick={() => window.print()}
@@ -288,7 +300,7 @@ function AnalysisReport({ analysis, onBack }: { analysis: ExpressAnalysis; onBac
 
   return (
     <>
-      <ReportShell onBack={onBack}>
+      <ReportShell onBack={onBack} printableHref={`/reports/${encodeURIComponent(`analysis-report-${analysis.id}`)}/print`}>
         <div className="flex flex-col gap-8">
           <header className="border-b border-line pb-6">
           <div className="flex items-start justify-between gap-6">
@@ -621,7 +633,7 @@ function ComparisonReport({ comparison, onBack }: { comparison: ComparisonResult
 
   return (
     <>
-      <ReportShell onBack={onBack}>
+      <ReportShell onBack={onBack} printableHref={`/reports/${encodeURIComponent(`comparison-report-${comparison.id}`)}/print`}>
         <div className="flex flex-col gap-8">
         <header className="border-b border-line pb-6">
           <div className="flex items-start justify-between gap-6">

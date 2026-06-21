@@ -58,6 +58,9 @@ type SavedObjectSummary = {
   title: string;
   createdAt?: string | null;
   sourceSummary?: string;
+  reportType?: "analysis" | "comparison";
+  scenario?: string | null;
+  targetLabel?: string | null;
 };
 
 function formatLabel(value: string) {
@@ -297,11 +300,22 @@ export function ProjectDashboard() {
         if (!cancelled) {
           setDbHistory(Array.isArray(analysisPayload.items) ? persistedRowsToRecent(analysisPayload.items) : []);
           setSavedReports(Array.isArray(reportsPayload.summaries)
-            ? reportsPayload.summaries.map((item: { id: string; title: string; createdAt?: string; sourceSummary?: string }) => ({
+            ? reportsPayload.summaries.map((item: {
+                id: string;
+                title: string;
+                createdAt?: string;
+                sourceSummary?: string;
+                reportType?: "analysis" | "comparison";
+                scenario?: string | null;
+                targetLabel?: string | null;
+              }) => ({
                 id: item.id,
                 title: item.title,
                 createdAt: item.createdAt,
-                sourceSummary: item.sourceSummary
+                sourceSummary: item.sourceSummary,
+                reportType: item.reportType,
+                scenario: item.scenario,
+                targetLabel: item.targetLabel
               }))
             : []);
           setSavedComparisons(Array.isArray(comparisonsPayload.items)
@@ -476,8 +490,28 @@ export function ProjectDashboard() {
                 <div className="grid gap-3">
                   {savedReports.slice(0, 5).map((report) => (
                     <article key={report.id} className="rounded-md border border-line bg-surface p-4">
-                      <h3 className="font-semibold text-ink">{report.title}</h3>
-                      <p className="mt-1 text-sm text-muted">{formatTimestamp(report.createdAt ?? undefined)}</p>
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="min-w-0">
+                          <h3 className="break-words font-semibold text-ink">{report.title}</h3>
+                          <p className="mt-1 text-sm text-muted">
+                            {formatTimestamp(report.createdAt ?? undefined)}
+                            {report.reportType ? ` / ${formatLabel(report.reportType)}` : ""}
+                          </p>
+                          {report.scenario || report.targetLabel ? (
+                            <p className="mt-1 break-words text-xs leading-5 text-muted">
+                              {[report.scenario, report.targetLabel].filter(Boolean).join(" / ")}
+                            </p>
+                          ) : null}
+                        </div>
+                        <Link
+                          href={`/reports/${encodeURIComponent(report.id)}/print`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex h-9 shrink-0 items-center justify-center rounded-md border border-line bg-white px-3 text-sm font-semibold text-ink transition hover:border-brand"
+                        >
+                          Open printable report
+                        </Link>
+                      </div>
                       <p className="mt-2 text-sm leading-5 text-muted">{report.sourceSummary ?? "Saved with demo/local source lineage; official validation required."}</p>
                     </article>
                   ))}

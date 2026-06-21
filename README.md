@@ -36,6 +36,7 @@ OpenAI is optional. If `OPENAI_API_KEY` is not configured, GeoAI automatically u
 - Comparison mode for 2-3 selected points or demo objects
 - Comparison dashboard with scores, recommendation, risks, and next actions
 - Print-friendly report preview for single-site analysis and comparison
+- Dedicated printable report route for saved reports: `/reports/[id]/print`
 - Lightweight project/workspace selector with local demo fallback
 - Project Dashboard v0.1 for active project summary, KPIs, recent analyses, data readiness and next actions
 - Offline DLD / Dubai Pulse CSV ingestion prototype with normalized sample outputs
@@ -190,6 +191,12 @@ GeoAI now has a local-first MVP persistence foundation. Analysis runs, report pa
 
 This is not production-ready persistence. There is no auth, multi-tenant security, production file storage or validated official source governance yet. See [Persistence & Project Workspace v0.8](docs/PERSISTENCE_PROJECT_WORKSPACE_V08.md).
 
+## Report Export & Client Deliverables v0.9
+
+GeoAI now includes a dedicated printable report route for saved analysis and comparison reports. The Project Dashboard can link to saved printable reports, and the report preview includes an "Open printable report" action.
+
+Current export remains browser print/save as PDF. GeoAI does not generate server-side PDFs yet. Printable reports use a stable schematic map fallback and include source lineage, validation checklist, next actions and explicit data honesty notes. See [Report Export & Client Deliverables v0.9](docs/REPORT_EXPORT_DELIVERABLES_V09.md).
+
 ## Deploy To Vercel
 
 1. Push the repository to GitHub.
@@ -213,8 +220,8 @@ This is not production-ready persistence. There is no auth, multi-tenant securit
 - Supabase/PostGIS and persistence are optional prototype foundations, not production-grade user storage yet.
 - No authentication or user accounts.
 - No real parcel, zoning, transaction, satellite, or regulatory data adapters.
-- Report export is print-preview based, not a generated server-side PDF.
-- Comparison mode is local state only and is not saved.
+- Report export is browser print/save as PDF, not a generated server-side PDF.
+- Comparison sets can be saved through the local/API fallback, but production report libraries still require auth, tenant security and validated persistence.
 
 ## Documentation
 
@@ -228,6 +235,7 @@ This is not production-ready persistence. There is no auth, multi-tenant securit
 - [Data Credibility v0.5](docs/DATA_CREDIBILITY_V05.md)
 - [Real Data Backbone v0.7](docs/REAL_DATA_BACKBONE_V07.md)
 - [Persistence & Project Workspace v0.8](docs/PERSISTENCE_PROJECT_WORKSPACE_V08.md)
+- [Report Export & Client Deliverables v0.9](docs/REPORT_EXPORT_DELIVERABLES_V09.md)
 - [Demo Release Candidate v0.6.1](docs/DEMO_RC_V061.md)
 - [Audit QA — 2026-06-18](docs/AUDIT_QA_2026-06-18.md)
 - [Architecture](docs/architecture.md)

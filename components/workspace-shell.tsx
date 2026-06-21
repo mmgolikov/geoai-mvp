@@ -948,13 +948,13 @@ export function WorkspaceShell() {
     }
   }
 
-  function openAnalysisReport() {
-    void persistReport("analysis");
+  async function openAnalysisReport() {
+    await persistReport("analysis");
     setReportPreview("analysis");
   }
 
-  function openComparisonReport() {
-    void persistReport("comparison");
+  async function openComparisonReport() {
+    await persistReport("comparison");
     setReportPreview("comparison");
   }
 

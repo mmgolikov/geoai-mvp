@@ -1,0 +1,164 @@
+# Report Export & Client Deliverables v0.9
+
+Date: 2026-06-21
+
+GeoAI v0.9 adds a dedicated browser-print deliverable path for saved analysis and comparison reports. This is still an MVP/demo prototype, not a server-generated PDF system and not production/pilot-ready evidence.
+
+## Report Types
+
+### Analysis Report
+
+Single selected point, polygon, uploaded feature, demo object or asset/site.
+
+Includes:
+
+- GeoAI branding and Demo/MVP report badge
+- selected target, scenario, coordinates and generated date
+- decision posture and executive memo
+- selected geometry map context
+- score overview
+- market/spatial context
+- key findings
+- opportunities, risks and constraints
+- source lineage / data used
+- validation checklist
+- recommended next actions
+- data honesty disclaimer
+
+### Comparison Report
+
+Two to three selected points, demo objects, uploaded features or assets/sites.
+
+Includes:
+
+- GeoAI comparison report branding
+- compared sites/assets
+- scenario and generated date
+- recommended option / winner
+- comparison map context
+- summary cards and score comparison
+- differentiated risks and trade-offs
+- source lineage / data used
+- validation checklist
+- recommended next actions
+- data honesty disclaimer
+
+## Printable Route
+
+Dedicated printable route:
+
+```text
+/reports/[id]/print
+```
+
+The route loads the saved report from the v0.8 report repository. If Supabase is unavailable, it can read the local fallback store. If the report cannot be found, the page shows:
+
+```text
+Report not found. Generate or save a report first.
+```
+
+The printable route is a normal full-page report, not a modal and not dependent on hidden Workspace UI.
+
+## Export Behavior
+
+Current MVP export behavior:
+
+- Workspace report preview remains available.
+- Report preview includes an "Open printable report" action.
+- Project Dashboard saved reports include an "Open printable report" action.
+- Printable report page includes "Print / Save PDF".
+
+PDF export currently uses browser print/save as PDF. Server-side PDF generation is planned and is not implemented in v0.9.
+
+## Map Rendering
+
+The printable report uses a print-safe schematic map block. It avoids relying on interactive Mapbox during print, which reduces the risk of grey/blank map output in PDF.
+
+The map block shows:
+
+- selected target label or compared item labels
+- coordinates where available
+- geometry type/context where available
+- explicit note that official validation is required
+
+Interactive Mapbox remains available in the Workspace/dashboard experience.
+
+## Source Lineage Requirements
+
+Every printable report includes Data Used / Source Lineage grouped into:
+
+- External data used
+- Uploaded / client data
+- Demo / sample fallback
+- Planned validation sources
+
+Each report must keep these distinctions visible:
+
+- used
+- available but not used where applicable
+- planned validation
+- official validation required
+- not a live official feed
+- not legal/cadastral/zoning/title validation
+
+## Validation Checklist
+
+Every printable report includes a validation checklist:
+
+- Confirm parcel / plot boundary through an authorized municipal or customer-approved source.
+- Validate zoning / planning constraints with the relevant authority or approved customer dataset.
+- Validate market metrics against an agreed DLD / Dubai Pulse snapshot or customer-approved data.
+- Review legal, ownership and title information outside GeoAI before transaction decisions.
+- Confirm climate, flood and heat exposure through engineering or insurance-grade assessment if required.
+- Confirm construction or progress evidence with agreed imagery and inspection workflow.
+
+GeoAI supports screening and decision preparation, not final legal, cadastral, underwriting or valuation approval.
+
+## Print QA Checklist
+
+Before client sessions:
+
+- Generate an analysis report from `/workspace`.
+- Open `/reports/[id]/print`.
+- Check browser print preview in Chrome.
+- Confirm map block is visible.
+- Confirm selected target and coordinates are visible.
+- Confirm source lineage is visible.
+- Confirm validation checklist is visible.
+- Confirm cards do not split awkwardly.
+- Confirm long source names and uploaded dataset names wrap safely.
+- Generate a comparison report with 2-3 items.
+- Confirm comparison score table/cards fit page width.
+- Confirm winner/recommendation and differentiated risks are visible.
+- Confirm no false official/live source claims appear.
+
+## Known Limitations
+
+- Browser print/save as PDF only; no server-side PDF generation yet.
+- Printable map is schematic/print-safe, not a live Mapbox canvas.
+- Local fallback reports are development/demo workspace records unless Supabase is configured.
+- No authentication, multi-tenant access control or report permissions.
+- Uploaded data is local/user-provided context and requires validation.
+- Report content remains MVP/demo screening output with deterministic scoring and optional AI narrative.
+
+## Data Honesty Rules
+
+Do not claim:
+
+- official parcel boundary
+- official zoning boundary
+- live DLD integration
+- live GeoDubai GIS
+- cadastral validation
+- ownership verification
+- certified valuation
+- production-ready or pilot-ready status
+
+Allowed framing:
+
+- demo/sample/local context
+- imported sample/offline snapshot
+- open-geospatial baseline fixture
+- customer-provided validation-required upload
+- planned official validation source
+- browser-print deliverable
