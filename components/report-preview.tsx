@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef, useState, type MouseEvent } from "react";
 import { EvidenceSourceCards } from "@/components/evidence-source-cards";
 import ingestionReport from "@/data/normalized/ingestion_report.json";
 import { MapContextCard } from "@/components/map-context-card";
@@ -38,6 +39,16 @@ const scoreOrder: ScoreKey[] = [
   "climateHeatRisk",
   "overallRisk"
 ];
+
+type PrintableReportOpenResult =
+  | {
+      ok: true;
+      url: string;
+    }
+  | {
+      ok: false;
+      error: string;
+    };
 
 function formatDate() {
   return new Intl.DateTimeFormat("en", {
@@ -240,23 +251,58 @@ function ReportShell({
   printableHref?: string;
   printableReportRecord?: unknown;
 }) {
-  function openPrintableReport() {
-    if (!printableHref) return;
+  const isPreparingPrintableReportRef = useRef(false);
+  const [isPreparingPrintableReport, setIsPreparingPrintableReport] = useState(false);
+  const [printableReportError, setPrintableReportError] = useState<string | null>(null);
 
-    try {
-      if (printableReportRecord) {
-        const reportId = printableHref.split("/reports/")[1]?.split("/print")[0];
-        if (reportId) {
-          window.sessionStorage.setItem(`geoai-print-report:${decodeURIComponent(reportId)}`, JSON.stringify(printableReportRecord));
-        }
-      }
-    } catch {
-      // Server/API persistence remains the primary path; session fallback is best effort.
+  function prepareAndOpenPrintableReport(): PrintableReportOpenResult {
+    if (!printableHref) {
+      return { ok: false, error: "Printable report route is not available yet." };
     }
 
-    const opened = window.open(printableHref, "_blank", "noopener,noreferrer");
-    if (!opened) {
-      window.location.assign(printableHref);
+    try {
+      const reportId = printableHref.split("/reports/")[1]?.split("/print")[0];
+      if (!reportId) {
+        return { ok: false, error: "Printable report id is missing." };
+      }
+
+      if (printableReportRecord) {
+        const serializedReport = JSON.stringify(printableReportRecord);
+        window.sessionStorage.setItem(`geoai-print-report:${decodeURIComponent(reportId)}`, serializedReport);
+      }
+    } catch {
+      return { ok: false, error: "Printable report could not be prepared. Please retry." };
+    }
+
+    return { ok: true, url: printableHref };
+  }
+
+  async function handleOpenPrintableReport(event: MouseEvent<HTMLButtonElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (isPreparingPrintableReportRef.current) {
+      return;
+    }
+
+    isPreparingPrintableReportRef.current = true;
+    setIsPreparingPrintableReport(true);
+    setPrintableReportError(null);
+
+    try {
+      const result = prepareAndOpenPrintableReport();
+      if (!result.ok) {
+        setPrintableReportError(result.error);
+        return;
+      }
+
+      const opened = window.open(result.url, "_blank", "noopener,noreferrer");
+      if (!opened) {
+        setPrintableReportError("Printable report could not be opened. Please allow pop-ups and retry.");
+      }
+    } finally {
+      isPreparingPrintableReportRef.current = false;
+      setIsPreparingPrintableReport(false);
     }
   }
 
@@ -274,10 +320,11 @@ function ReportShell({
           {printableHref ? (
             <button
               type="button"
-              onClick={openPrintableReport}
-              className="inline-flex h-10 items-center justify-center rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink transition hover:border-brand"
+              disabled={isPreparingPrintableReport}
+              onClick={handleOpenPrintableReport}
+              className="inline-flex h-10 items-center justify-center rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink transition hover:border-brand disabled:cursor-not-allowed disabled:bg-surface disabled:text-muted"
             >
-              Open printable report
+              {isPreparingPrintableReport ? "Preparing report..." : "Open printable report"}
             </button>
           ) : null}
           <button
@@ -288,6 +335,11 @@ function ReportShell({
             Print / Save as PDF
           </button>
         </div>
+        {printableReportError ? (
+          <div className="mb-4 rounded-md border border-[#f2c6bd] bg-[#fff7ed] px-4 py-3 text-sm font-semibold text-[#9f3412] print:hidden">
+            {printableReportError}
+          </div>
+        ) : null}
         <article className="report-page rounded-lg bg-white p-8 shadow-soft print:rounded-none print:p-0 print:shadow-none">
           {children}
         </article>

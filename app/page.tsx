@@ -253,6 +253,7 @@ function HeroVisual() {
               <p className="mt-1 truncate text-sm font-semibold text-ink">Dubai Marina</p>
             </div>
             <div className="pointer-events-none absolute left-[52%] top-[45%] z-10 h-[70px] w-[118px] rotate-[-9deg] rounded-[42%] border-2 border-brand/70 bg-brand/10 shadow-sm" />
+            <div className="pointer-events-none absolute left-[57%] top-[50%] z-20 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-4 border-white bg-brand shadow-soft" />
             <div className="pointer-events-none absolute bottom-3 left-3 right-3 z-20 flex flex-wrap gap-1.5">
               {["Market", "Spatial", "Risk"].map((item) => (
                 <span key={item} className="max-w-[86px] truncate rounded-full border border-white/80 bg-white/92 px-2 py-1 text-[10px] font-semibold text-muted shadow-sm">
@@ -373,13 +374,15 @@ export default function HomePage() {
             ))}
           </div>
           <div className="mt-7 flex flex-col gap-3 sm:flex-row">
-            <Link href="/workspace?guidedDemo=dubai-marina-investment" className="inline-flex h-11 items-center justify-center rounded-md bg-brand px-5 text-sm font-semibold text-white shadow-soft transition hover:bg-[#113f50]">
-              Launch guided demo
+            <Link href="/workspace?guidedDemo=dubai-marina-investment" className="inline-flex h-14 min-w-[210px] flex-col items-center justify-center rounded-md bg-brand px-5 text-center text-white shadow-soft transition hover:bg-[#113f50]">
+              <span className="text-sm font-semibold leading-5">Launch guided demo</span>
+              <span className="text-[11px] font-medium leading-4 text-white/78">Prepared 5-minute walkthrough</span>
             </Link>
-            <Link href="/workspace" className="inline-flex h-11 items-center justify-center rounded-md border border-[#ded7c9] bg-white px-5 text-sm font-semibold text-ink transition hover:border-brand">
-              Open demo workspace
+            <Link href="/workspace" className="inline-flex h-14 min-w-[210px] flex-col items-center justify-center rounded-md border border-[#ded7c9] bg-white px-5 text-center text-ink transition hover:border-brand">
+              <span className="text-sm font-semibold leading-5">Open workspace</span>
+              <span className="text-[11px] font-medium leading-4 text-muted">Explore manually</span>
             </Link>
-            <a href="#use-cases" className="inline-flex h-11 items-center justify-center rounded-md border border-[#ded7c9] bg-white px-5 text-sm font-semibold text-ink transition hover:border-brand">
+            <a href="#use-cases" className="inline-flex h-14 items-center justify-center rounded-md border border-[#ded7c9] bg-white px-5 text-sm font-semibold text-ink transition hover:border-brand">
               Explore use cases
             </a>
           </div>

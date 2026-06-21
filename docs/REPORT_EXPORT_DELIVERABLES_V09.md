@@ -67,6 +67,10 @@ Current MVP export behavior:
 - Report preview includes an "Open printable report" action.
 - Project Dashboard saved reports include an "Open printable report" action.
 - Printable report page includes "Print / Save PDF".
+- Printable report actions must use a single guarded prepare-and-open flow.
+- Never open a print route before the report payload or saved report id exists.
+- The print action should be disabled while preparing to prevent duplicate tabs.
+- If preparation fails, show an inline error and do not open a new tab.
 
 PDF export currently uses browser print/save as PDF. Server-side PDF generation is planned and is not implemented in v0.9.
 

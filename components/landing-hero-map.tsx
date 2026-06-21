@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { Map as MapboxMap, Marker as MapboxMarker } from "mapbox-gl";
+import type { Map as MapboxMap } from "mapbox-gl";
 
 function getMapboxToken() {
   return process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
@@ -19,12 +19,6 @@ function FallbackHeroMap() {
       <div className="absolute left-[10%] top-[24%] h-24 w-[44%] rotate-[-8deg] rounded-[28px] border border-brand/45 bg-brand/12" />
       <div className="absolute right-[10%] top-[18%] h-28 w-[36%] rounded-[30px] border border-[#c5a76a]/60 bg-[#c5a76a]/18" />
       <div className="absolute bottom-[20%] left-[18%] h-28 w-[46%] rotate-[7deg] rounded-[30px] border border-[#2c7fb8]/50 bg-[#2c7fb8]/12" />
-      <div className="absolute left-[36%] top-[32%] z-20 flex -translate-x-1/2 -translate-y-1/2 items-center gap-2">
-        <span className="h-5 w-5 rounded-full border-4 border-white bg-brand shadow-soft" />
-        <span className="rounded-full border border-white bg-white/96 px-3 py-1 text-xs font-semibold text-ink shadow-sm backdrop-blur">
-          Selected site: Dubai Marina
-        </span>
-      </div>
     </div>
   );
 }
@@ -32,7 +26,6 @@ function FallbackHeroMap() {
 export function LandingHeroMap() {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapboxMap | null>(null);
-  const markerRef = useRef<MapboxMarker | null>(null);
   const [mapFailed, setMapFailed] = useState(false);
   const mapboxToken = getMapboxToken();
   const canUseMapbox = hasUsableMapboxToken(mapboxToken);
@@ -65,11 +58,6 @@ export function LandingHeroMap() {
         });
 
         mapRef.current = map;
-        map.on("load", () => {
-          markerRef.current = new mapboxgl.Marker({ color: "#174f63" })
-            .setLngLat([55.1397, 25.078])
-            .addTo(map);
-        });
         map.on("error", () => setMapFailed(true));
       } catch {
         setMapFailed(true);
@@ -80,8 +68,6 @@ export function LandingHeroMap() {
 
     return () => {
       isMounted = false;
-      markerRef.current?.remove();
-      markerRef.current = null;
       mapRef.current?.remove();
       mapRef.current = null;
     };
@@ -95,22 +81,6 @@ export function LandingHeroMap() {
     <div className="relative h-full min-h-0 overflow-hidden">
       <div ref={mapContainerRef} className="absolute inset-0" />
       <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(251,250,247,0.08),rgba(251,250,247,0.34))]" />
-      <div className="pointer-events-none absolute left-5 top-5 rounded-md border border-white/80 bg-white/92 px-3 py-2 text-xs font-semibold text-muted shadow-sm">
-        Demo layers active
-      </div>
-      <div className="pointer-events-none absolute left-[36%] top-[32%] z-20 flex -translate-x-1/2 -translate-y-1/2 items-center gap-2">
-        <span className="h-5 w-5 rounded-full border-4 border-white bg-brand shadow-soft" />
-        <span className="rounded-full border border-white bg-white/96 px-3 py-1 text-xs font-semibold text-ink shadow-sm backdrop-blur">
-          Selected site: Dubai Marina
-        </span>
-      </div>
-      <div className="pointer-events-none absolute bottom-5 left-5 right-5 grid gap-2 sm:grid-cols-3">
-        {["Market context", "Spatial layers", "Risk zones"].map((item) => (
-          <div key={item} className="rounded-md border border-white/80 bg-white/92 px-3 py-2 text-xs font-semibold text-muted shadow-sm">
-            {item}
-          </div>
-        ))}
-      </div>
     </div>
   );
 }

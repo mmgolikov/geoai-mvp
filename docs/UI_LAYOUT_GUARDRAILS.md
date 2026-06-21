@@ -40,6 +40,9 @@ Pattern:
 - Polygon strokes must never cross selected-site labels.
 - Decorative chips must not overlap card text.
 - Small map previews should use at most 2-3 short chips.
+- Hero dashboard mockups must not duplicate signal cards and chips in the same map area.
+- Small mockups should use one visual signal pattern only: either compact chips or compact cards, not both.
+- Absolute labels must be bounded, layered above decorative geometry and checked at 1728px, 1440px and 1280px.
 
 Pattern:
 
