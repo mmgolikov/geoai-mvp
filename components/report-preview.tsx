@@ -296,10 +296,7 @@ function ReportShell({
         return;
       }
 
-      const opened = window.open(result.url, "_blank", "noopener,noreferrer");
-      if (!opened) {
-        setPrintableReportError("Printable report could not be opened. Please allow pop-ups and retry.");
-      }
+      window.location.assign(result.url);
     } finally {
       isPreparingPrintableReportRef.current = false;
       setIsPreparingPrintableReport(false);

@@ -328,6 +328,21 @@ function writeActiveProjectKey(projectKey: string) {
   }
 }
 
+function normalizeQuery(query: string) {
+  return query.trim();
+}
+
+function createTargetSignature(point: SelectedPoint | null, object: SelectedDemoObject | null) {
+  if (!point) return "no-target";
+
+  const objectKey = object?.analysisTarget?.id ?? object?.spatialContext?.featureId ?? object?.id ?? "point";
+  return `${object ? "object" : "point"}:${objectKey}:${point.latitude.toFixed(6)}:${point.longitude.toFixed(6)}`;
+}
+
+function createComparisonSignature(items: ComparisonItem[]) {
+  return items.map((item) => item.id).sort().join("|");
+}
+
 function readUploadedDatasets() {
   try {
     const stored = window.localStorage.getItem(uploadedDatasetStorageKey);
@@ -460,6 +475,17 @@ export function WorkspaceShell() {
   const [reportPreview, setReportPreview] = useState<"analysis" | "comparison" | null>(null);
   const [comparisonMessage, setComparisonMessage] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [lastAnalyzedState, setLastAnalyzedState] = useState<{
+    query: string;
+    scenarioId: AnalysisScenarioId;
+    targetSignature: string;
+  } | null>(null);
+  const [lastComparedState, setLastComparedState] = useState<{
+    query: string;
+    scenarioId: AnalysisScenarioId;
+    comparisonSignature: string;
+  } | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [marketContext, setMarketContext] = useState<MarketContext | null>(null);
   const [isMarketContextLoading, setIsMarketContextLoading] = useState(false);
@@ -491,6 +517,8 @@ export function WorkspaceShell() {
     writeActiveProjectKey(nextProject.projectKey);
     setAnalysis(null);
     setComparison(null);
+    setLastAnalyzedState(null);
+    setLastComparedState(null);
     setReportPreview(null);
     setAnalysisError(null);
     setComparisonMessage(includeComparisonSites ? "Demo comparison sites loaded. Click Compare Selected when ready." : null);
@@ -668,6 +696,8 @@ export function WorkspaceShell() {
     setSelectedObject(null);
     setAnalysis(null);
     setComparison(null);
+    setLastAnalyzedState(null);
+    setLastComparedState(null);
     setReportPreview(null);
     setComparisonMessage(null);
     setAnalysisError(null);
@@ -680,6 +710,8 @@ export function WorkspaceShell() {
     setSelectedPoint(object.center);
     setAnalysis(null);
     setComparison(null);
+    setLastAnalyzedState(null);
+    setLastComparedState(null);
     setReportPreview(null);
     setComparisonMessage(null);
     setAnalysisError(null);
@@ -709,12 +741,14 @@ export function WorkspaceShell() {
     }
 
     setComparisonItems((items) => [...items, comparisonItem]);
+    setLastComparedState(null);
     setComparisonMessage("Selection added to comparison.");
   }
 
   function removeComparisonItem(itemId: string) {
     setComparisonItems((items) => items.filter((item) => item.id !== itemId));
     setComparison(null);
+    setLastComparedState(null);
     setReportPreview(null);
     setComparisonMessage(null);
   }
@@ -729,10 +763,15 @@ export function WorkspaceShell() {
     setAnalysisError(null);
     setComparisonMessage(null);
     const comparisonResult = {
-      ...createMockComparison(comparisonItems),
+      ...createMockComparison(comparisonItems, customQuery),
       project: activeProject
     };
     setComparison(comparisonResult);
+    setLastComparedState({
+      query: normalizeQuery(customQuery),
+      scenarioId: selectedScenario,
+      comparisonSignature: createComparisonSignature(comparisonItems)
+    });
     void persistComparisonSet(comparisonResult);
     setReportPreview(null);
   }
@@ -741,6 +780,8 @@ export function WorkspaceShell() {
     setAnalysis(null);
     setComparison(null);
     setReportPreview(null);
+    setLastAnalyzedState(null);
+    setLastComparedState(null);
   }
 
   function saveAnalysisHistory(analysisResult: ExpressAnalysis, scenarioLabel: string) {
@@ -902,7 +943,49 @@ export function WorkspaceShell() {
     };
   }
 
+  function createPrintableSessionReport(mode: "analysis" | "comparison", reportKey: string) {
+    if (mode === "analysis" && analysis) {
+      return {
+        id: reportKey,
+        projectId: activeProject.id ?? null,
+        projectKey: activeProject.projectKey,
+        reportType: "analysis",
+        title: "Express Analysis / Investment Memo",
+        scenario: analysis.title,
+        targetLabel: analysis.selectedObject?.name ?? "Custom map selection",
+        reportPayload: createAnalysisReportPayload(analysis),
+        createdAt: new Date().toISOString()
+      };
+    }
+
+    if (mode === "comparison" && comparison) {
+      return {
+        id: reportKey,
+        projectId: activeProject.id ?? null,
+        projectKey: activeProject.projectKey,
+        reportType: "comparison",
+        title: "Site Comparison Investment Memo",
+        scenario: "Comparison",
+        targetLabel: comparison.items.map((item) => item.item.name).join(", "),
+        reportPayload: createComparisonReportPayload(comparison),
+        createdAt: new Date().toISOString()
+      };
+    }
+
+    return null;
+  }
+
   async function persistReport(mode: "analysis" | "comparison") {
+    const reportKey = mode === "analysis" && analysis
+      ? `analysis-report-${analysis.id}`
+      : mode === "comparison" && comparison
+        ? `comparison-report-${comparison.id}`
+        : null;
+
+    if (!reportKey) {
+      return null;
+    }
+
     try {
       if (mode === "analysis" && analysis) {
         const reportJson = createAnalysisReportPayload(analysis);
@@ -910,7 +993,7 @@ export function WorkspaceShell() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            reportKey: `analysis-report-${analysis.id}`,
+            reportKey,
             analysisRunId: analysis.id,
             projectKey: activeProject.projectKey,
             projectName: activeProject.name,
@@ -931,7 +1014,7 @@ export function WorkspaceShell() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            reportKey: `comparison-report-${comparison.id}`,
+            reportKey,
             projectKey: activeProject.projectKey,
             projectName: activeProject.name,
             projectId: activeProject.id,
@@ -946,6 +1029,8 @@ export function WorkspaceShell() {
     } catch {
       // Export remains print/screen-first; DB persistence is optional.
     }
+
+    return reportKey;
   }
 
   async function openAnalysisReport() {
@@ -956,6 +1041,39 @@ export function WorkspaceShell() {
   async function openComparisonReport() {
     await persistReport("comparison");
     setReportPreview("comparison");
+  }
+
+  async function exportPrintableReport(mode: "analysis" | "comparison") {
+    if (isExporting) {
+      return;
+    }
+
+    const hasPrintableResult = mode === "analysis" ? Boolean(analysis) : Boolean(comparison);
+    if (!hasPrintableResult) {
+      setAnalysisError("Printable report could not be prepared. Run an analysis or comparison first.");
+      return;
+    }
+
+    setIsExporting(true);
+    setAnalysisError(null);
+
+    try {
+      const reportKey = await persistReport(mode);
+      if (!reportKey) {
+        setAnalysisError("Printable report could not be prepared. Please retry.");
+        return;
+      }
+
+      const sessionRecord = createPrintableSessionReport(mode, reportKey);
+      if (sessionRecord) {
+        window.sessionStorage.setItem(`geoai-print-report:${reportKey}`, JSON.stringify(sessionRecord));
+      }
+
+      window.location.assign(`/reports/${encodeURIComponent(reportKey)}/print`);
+    } catch {
+      setAnalysisError("Printable report could not be prepared. Please retry.");
+      setIsExporting(false);
+    }
   }
 
   function changeActiveProject(projectKey: string) {
@@ -970,11 +1088,17 @@ export function WorkspaceShell() {
     setSelectedObject(item.analysis.selectedObject ?? null);
     setSelectedScenario(item.scenarioId);
     setAnalysis(item.analysis);
+    setLastAnalyzedState({
+      query: "",
+      scenarioId: item.scenarioId,
+      targetSignature: createTargetSignature(item.analysis.point, item.analysis.selectedObject ?? null)
+    });
     if (item.project) {
       setActiveProject(item.project);
       writeActiveProjectKey(item.project.projectKey);
     }
     setComparison(null);
+    setLastComparedState(null);
     setReportPreview(null);
     setComparisonMessage(null);
     setAnalysisError(null);
@@ -1083,6 +1207,7 @@ export function WorkspaceShell() {
     setAnalysisError(null);
     setComparison(null);
     setReportPreview(null);
+    setLastComparedState(null);
 
     const uploadedDataContext = buildUploadedDataContext(uploadedDatasets, selectedPoint, selectedObject);
     const deterministicAnalysis = withUploadedDataContext(
@@ -1148,6 +1273,11 @@ export function WorkspaceShell() {
       const narrative = (await response.json()) as StructuredAnalysisResult;
       const finalAnalysis = mergeNarrativeAnalysis(deterministicAnalysis, narrative);
       setAnalysis(finalAnalysis);
+      setLastAnalyzedState({
+        query: normalizeQuery(customQuery),
+        scenarioId: selectedScenario,
+        targetSignature: createTargetSignature(selectedPoint, selectedObject)
+      });
       saveAnalysisHistory(finalAnalysis, scenario.label);
       void persistAnalysisRun(finalAnalysis, scenario.label);
     } catch {
@@ -1165,12 +1295,74 @@ export function WorkspaceShell() {
       };
 
       setAnalysis(fallbackAnalysis);
+      setLastAnalyzedState({
+        query: normalizeQuery(customQuery),
+        scenarioId: selectedScenario,
+        targetSignature: createTargetSignature(selectedPoint, selectedObject)
+      });
       saveAnalysisHistory(fallbackAnalysis, scenario.label);
       void persistAnalysisRun(fallbackAnalysis, scenario.label);
     } finally {
       setIsAnalyzing(false);
     }
   }
+
+  const currentQuery = normalizeQuery(customQuery);
+  const currentTargetSignature = createTargetSignature(selectedPoint, selectedObject);
+  const currentComparisonSignature = createComparisonSignature(comparisonItems);
+  const isAnalysisUpToDate = Boolean(
+    analysis &&
+      lastAnalyzedState &&
+      lastAnalyzedState.query === currentQuery &&
+      lastAnalyzedState.scenarioId === selectedScenario &&
+      lastAnalyzedState.targetSignature === currentTargetSignature
+  );
+  const isComparisonUpToDate = Boolean(
+    comparison &&
+      lastComparedState &&
+      lastComparedState.query === currentQuery &&
+      lastComparedState.scenarioId === selectedScenario &&
+      lastComparedState.comparisonSignature === currentComparisonSignature
+  );
+  const primaryCtaState = comparison
+    ? isComparisonUpToDate
+      ? {
+          label: isExporting ? "Preparing comparison..." : "Export Comparison",
+          disabled: isExporting || isAnalyzing,
+          action: () => {
+            void exportPrintableReport("comparison");
+          }
+        }
+      : {
+          label: isAnalyzing ? "Continuing comparison..." : "Continue Comparison",
+          disabled: isAnalyzing || comparisonItems.length < 2,
+          action: runComparison
+        }
+    : comparisonItems.length >= 2
+      ? {
+          label: "Compare Selected",
+          disabled: isAnalyzing,
+          action: runComparison
+        }
+      : analysis
+        ? isAnalysisUpToDate
+          ? {
+              label: isExporting ? "Preparing report..." : "Export Report",
+              disabled: isExporting || isAnalyzing,
+              action: () => {
+                void exportPrintableReport("analysis");
+              }
+            }
+          : {
+              label: isAnalyzing ? "Continuing analysis..." : "Continue Analysis",
+              disabled: !selectedPoint || isAnalyzing,
+              action: runExpressAnalysis
+            }
+        : {
+            label: isAnalyzing ? "Running Express Analysis..." : "Run Express Analysis",
+            disabled: !selectedPoint || isAnalyzing,
+            action: runExpressAnalysis
+          };
 
   return (
     <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden lg:grid-cols-[minmax(0,1fr)_400px]">
@@ -1238,7 +1430,9 @@ export function WorkspaceShell() {
           setCustomQuery(query);
           setAnalysisError(null);
         }}
-        onRunAnalysis={runExpressAnalysis}
+        primaryCtaLabel={primaryCtaState.label}
+        primaryCtaDisabled={primaryCtaState.disabled}
+        onPrimaryCta={primaryCtaState.action}
         onAddToComparison={addSelectionToComparison}
         onRemoveComparisonItem={removeComparisonItem}
         onRunComparison={runComparison}

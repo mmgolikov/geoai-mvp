@@ -520,11 +520,9 @@ export function ProjectDashboard() {
                         </div>
                         <Link
                           href={`/reports/${encodeURIComponent(report.id)}/print`}
-                          target="_blank"
-                          rel="noreferrer"
                           className="inline-flex h-9 shrink-0 items-center justify-center rounded-md border border-line bg-white px-3 text-sm font-semibold text-ink transition hover:border-brand"
                         >
-                          Open printable report
+                          Export report
                         </Link>
                       </div>
                       <p className="mt-2 text-sm leading-5 text-muted">{report.sourceSummary ?? "Saved with demo/local source lineage; official validation required."}</p>

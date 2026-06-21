@@ -56,7 +56,9 @@ type AnalysisPanelProps = {
   onProjectChange: (projectKey: string) => void;
   onScenarioChange: (scenario: AnalysisScenarioId) => void;
   onCustomQueryChange: (query: string) => void;
-  onRunAnalysis: () => void;
+  primaryCtaLabel: string;
+  primaryCtaDisabled: boolean;
+  onPrimaryCta: () => void;
   onAddToComparison: () => void;
   onLoadGuidedDemo: (presetId: string) => void;
   onLoadGuidedDemoComparison: (presetId: string) => void;
@@ -205,7 +207,9 @@ export function AnalysisPanel({
   onProjectChange,
   onScenarioChange,
   onCustomQueryChange,
-  onRunAnalysis,
+  primaryCtaLabel,
+  primaryCtaDisabled,
+  onPrimaryCta,
   onAddToComparison,
   onLoadGuidedDemo,
   onLoadGuidedDemoComparison,
@@ -494,6 +498,8 @@ export function AnalysisPanel({
               placeholder={
                 isCustomQuery
                   ? "Enter the spatial question"
+                  : hasComparisonReady
+                    ? "Add context to refine comparison rationale"
                   : "Optional context"
               }
               className="mt-1 w-full resize-none rounded-md border border-line bg-surface px-3 py-2 text-sm text-ink outline-none transition placeholder:text-muted/70 focus:border-brand"
@@ -992,44 +998,14 @@ export function AnalysisPanel({
         >
           Add to Comparison
         </button>
-        {hasResult ? (
-          hasComparisonReady ? (
-            <button
-              type="button"
-              onClick={onRunComparison}
-              className="inline-flex h-11 w-full max-w-full items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white transition hover:bg-[#113f50]"
-            >
-              Compare Selected
-            </button>
-          ) : (
-          <button
-            type="button"
-            onClick={onExportCurrentResult}
-            className="inline-flex h-11 w-full max-w-full items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white transition hover:bg-[#113f50]"
-          >
-            Export Report
-          </button>
-          )
-        ) : (
-          hasComparisonReady ? (
-            <button
-              type="button"
-              onClick={onRunComparison}
-              className="inline-flex h-11 w-full max-w-full items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white transition hover:bg-[#113f50]"
-            >
-              Compare Selected
-            </button>
-          ) : (
-            <button
-              type="button"
-              disabled={!hasSelectedPoint || isAnalyzing}
-              onClick={onRunAnalysis}
-              className="inline-flex h-11 w-full max-w-full items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white transition hover:bg-[#113f50] disabled:cursor-not-allowed disabled:bg-[#c9d2d7] disabled:text-white"
-            >
-              {isAnalyzing ? "Running Express Analysis..." : "Run Express Analysis"}
-            </button>
-          )
-        )}
+        <button
+          type="button"
+          disabled={primaryCtaDisabled}
+          onClick={onPrimaryCta}
+          className="inline-flex h-11 w-full max-w-full items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white transition hover:bg-[#113f50] disabled:cursor-not-allowed disabled:bg-[#c9d2d7] disabled:text-white"
+        >
+          {primaryCtaLabel}
+        </button>
 
         {analysisError ? (
           <p className="mt-3 break-words rounded-md border border-[#f2c6bd] bg-[#fff4ed] px-3 py-2 text-sm leading-5 text-[#9f3412]">

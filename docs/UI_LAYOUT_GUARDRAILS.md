@@ -87,6 +87,14 @@ Within every major block, order content from decision value to supporting contex
 
 Generated time, mode labels and internal diagnostics should not create large visual weight unless they are part of the user's immediate decision.
 
+## 5.1 Workspace Primary CTA
+
+- The bottom primary CTA in the Workspace command panel must always represent the current next best action.
+- Do not leave a stale export CTA visible after the user changes Custom Query, scenario, target or comparison set.
+- Export should appear only when the current analysis or comparison is up to date with the selected target, scenario, comparison set and trimmed Custom Query.
+- If the current result is stale, the primary CTA should switch to `Continue Analysis` or `Continue Comparison`.
+- The footer CTA is the dominant action; dashboard/header export buttons should remain secondary when present.
+
 ## 6. No Visual Holes
 
 - Grid/flex layouts should distribute available space intentionally.
@@ -124,7 +132,7 @@ Pattern:
 
 ```tsx
 sessionStorage.setItem(`geoai-print-report:${reportId}`, JSON.stringify(reportRecord));
-window.open(`/reports/${reportId}/print`, "_blank", "noopener,noreferrer");
+window.location.assign(`/reports/${reportId}/print`);
 ```
 
 Server route behavior:

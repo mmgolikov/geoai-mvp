@@ -148,12 +148,16 @@ export function createComparisonItem(
   };
 }
 
-export function createMockComparison(items: ComparisonItem[]): ComparisonResult {
+export function createMockComparison(items: ComparisonItem[], customQuery = ""): ComparisonResult {
   const scorecards = items.map(createScorecard).sort((a, b) => b.overallScore - a.overallScore);
   const winner = scorecards[0];
   const runnerUp = scorecards[1];
   const riskierItems = scorecards.filter((item) => item.riskLevel !== "Low");
   const importedSupportItems = scorecards.filter((item) => item.marketMetricsMatch?.importedMetricsUsed);
+  const normalizedCustomQuery = customQuery.trim();
+  const queryContext = normalizedCustomQuery
+    ? ` The comparison rationale also reflects the user's custom query: "${normalizedCustomQuery.slice(0, 180)}".`
+    : "";
 
   return {
     id: `comparison-${scorecards.map((item) => item.item.id).join("-")}`,
@@ -162,7 +166,7 @@ export function createMockComparison(items: ComparisonItem[]): ComparisonResult 
     whyPreferred:
       `${winner.item.name} has the strongest demo risk-adjusted profile, with an overall score of ${winner.overallScore}. ` +
       `It combines ${winner.scores.investmentAttractiveness}/100 investment attractiveness, ${winner.scores.accessibility}/100 accessibility, and ${winner.scores.infrastructureReadiness}/100 infrastructure readiness while keeping key concerns manageable for early diligence. ` +
-      `${winner.marketMetricsMatch?.importedMetricsUsed ? `Imported sample market metrics matched ${winner.marketMetricsMatch.matchedAreaName} and support liquidity/demand proxy interpretation.` : "This option relies on seed/demo market fallback and requires imported market validation."}`,
+      `${winner.marketMetricsMatch?.importedMetricsUsed ? `Imported sample market metrics matched ${winner.marketMetricsMatch.matchedAreaName} and support liquidity/demand proxy interpretation.` : "This option relies on seed/demo market fallback and requires imported market validation."}${queryContext}`,
     whenAnotherMayBeBetter: runnerUp
       ? `${runnerUp.item.name} may be preferable if the priority shifts toward ${runnerUp.recommendedUse.toLowerCase()} or if its open diligence items clear faster than the current best option.`
       : "Another option may be better if official land-use, title, infrastructure, or risk checks materially change the assumptions.",
@@ -188,7 +192,8 @@ export function createMockComparison(items: ComparisonItem[]): ComparisonResult 
       "Run a detailed regulatory and constraints check.",
       "Validate transport accessibility and infrastructure capacity.",
       "Prepare an investment memo with assumptions and ranking rationale.",
-      "Compare financial assumptions under conservative, base, and upside cases."
+      "Compare financial assumptions under conservative, base, and upside cases.",
+      ...(normalizedCustomQuery ? ["Review the custom query context against each shortlisted option before exporting the memo."] : [])
     ],
     evidence: [
       createEvidenceItem(

@@ -153,7 +153,7 @@ export function ComparisonDashboard({ comparison, onBackToMap, onExportCompariso
             <button
               type="button"
               onClick={onExportComparison}
-              className="inline-flex h-10 items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white transition hover:bg-[#113f50]"
+              className="inline-flex h-10 items-center justify-center rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink transition hover:border-brand"
             >
               Export comparison
             </button>
