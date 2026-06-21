@@ -4,7 +4,15 @@ Date: 2026-06-21
 
 These rules protect GeoAI MVP screens from recurring UI regressions: overflow, overlapping text, accidental empty holes, uneven cards and broken printable report actions.
 
-## 1. No Overflow Outside Cards
+## 1. Container-First Layout
+
+- Every card, badge, label and text block must fit inside its parent.
+- Components must adapt to available width and height.
+- Content must be shortened before layout breaks.
+- If text is not essential, remove it from the primary surface or move it to a tooltip/detail state.
+- Do not let copy density drive component dimensions in dashboards, maps or report headers.
+
+## 2. No Overflow Outside Cards
 
 - Cards that contain flex/grid children must use `min-w-0`.
 - Long names, source labels, uploaded dataset names and report titles must use `truncate`, `line-clamp-*` or `break-words`.
@@ -24,11 +32,13 @@ Pattern:
 </div>
 ```
 
-## 2. No Overlapping Text
+## 3. No Overlapping Text
 
 - Avoid absolute-positioned text unless the parent has fixed bounds and QA at target widths.
 - Map labels must sit above polygon/overlay strokes with a higher z-index and solid/blurred background.
 - Decorative overlays must never cross text labels.
+- Polygon strokes must never cross selected-site labels.
+- Decorative chips must not overlap card text.
 - Small map previews should use at most 2-3 short chips.
 
 Pattern:
@@ -41,13 +51,6 @@ Pattern:
   <div className="absolute z-10 ...">polygon overlay</div>
 </div>
 ```
-
-## 3. No Visual Holes
-
-- Grid/flex layouts should distribute available space intentionally.
-- If one column has less content, add a meaningful summary, metadata, status or validation block.
-- Avoid large empty lower areas in dashboard cards.
-- Use `content-start` only when the remaining space is deliberately neutral; otherwise use `flex-1`, `grid-rows-*` or `mt-auto`.
 
 ## 4. Equal-Height Card Rows
 
@@ -68,12 +71,51 @@ Pattern:
 </div>
 ```
 
-## 5. Printable Route Reliability
+## 5. Information Priority
+
+Within every major block, order content from decision value to supporting context:
+
+1. Decision / recommendation
+2. Score or key status
+3. Evidence / source confidence
+4. Risks / validation need
+5. Next action
+6. Secondary metadata
+
+Generated time, mode labels and internal diagnostics should not create large visual weight unless they are part of the user's immediate decision.
+
+## 6. No Visual Holes
+
+- Grid/flex layouts should distribute available space intentionally.
+- If one column has less content, add a meaningful summary, metadata, status or validation block.
+- Avoid large empty lower areas in dashboard cards.
+- Use `content-start` only when the remaining space is deliberately neutral; otherwise use `flex-1`, `grid-rows-*` or `mt-auto`.
+- If a layout has empty space, either redistribute cards, add a summary/decision block, reduce container height, or collapse secondary content.
+
+## 7. Report Map Rule
+
+- Every report map must show the selected point, polygon, multipolygon or line clearly.
+- If Mapbox cannot render reliably in report/print, use a static SVG/HTML fallback.
+- A grey blank map is not acceptable.
+- A report map without selected geometry is not acceptable.
+- Map blocks need stable height and `overflow-hidden`.
+
+Pattern:
+
+```tsx
+<div className="relative min-h-[280px] overflow-hidden rounded-lg border">
+  <MapOrFallback selectedGeometry={geometry} selectedPoint={point} />
+</div>
+```
+
+## 8. Printable Route Reliability
 
 - Printable report actions must pass a valid saved report id or a local session fallback payload.
 - If the report is not saved yet, save before navigation.
 - Do not open `/reports/[id]/print` before preparing either server persistence or session fallback.
 - If persistence genuinely fails, stay on the current page or show a recoverable message.
+- Printable reports must be dedicated deliverable routes/templates, not raw workspace UI.
+- Browser header/footer may appear if the user prints manually; the report itself must not depend on workspace layout.
 
 Pattern:
 
@@ -88,7 +130,59 @@ Server route behavior:
 2. If missing, load local session fallback on the client.
 3. If both are missing, show a clear recovery path.
 
-## 6. Data Honesty
+## Implementation Patterns
+
+### SafeBadge
+
+Use for all pills/badges in constrained cards.
+
+```tsx
+<SafeBadge variant="planned">Planned</SafeBadge>
+```
+
+### SafeCard
+
+Use for cards in equal-height rows.
+
+```tsx
+<SafeCard>
+  <div className="min-w-0">Content</div>
+</SafeCard>
+```
+
+### EqualHeightGrid
+
+Use for card rows that should visually align.
+
+```tsx
+<EqualHeightGrid className="lg:grid-cols-2">
+  <SafeCard>One</SafeCard>
+  <SafeCard>Two</SafeCard>
+</EqualHeightGrid>
+```
+
+### PrintMapFallback
+
+Use for print/report surfaces when Mapbox may fail or be unavailable.
+
+```tsx
+<ReportPrintMap title="Selected site" subtitle="Print-safe context" coordinates={coordinates} />
+```
+
+### DecisionSummaryBox
+
+Use when a dashboard has empty decision space or needs a stronger hierarchy.
+
+```tsx
+<DecisionSummaryBox
+  decision="Proceed with conditions."
+  reason="Strongest demo-screened option."
+  validationNeed="Official validation required."
+  nextAction="Prepare due diligence memo."
+/>
+```
+
+## 9. Data Honesty
 
 Keep all source states explicit:
 
@@ -104,7 +198,7 @@ Keep all source states explicit:
 
 Do not claim live/official parcel, zoning, cadastral, ownership, title or certified valuation coverage unless it is actually implemented and validated.
 
-## QA Checklist
+## Mandatory No-Overflow QA Before Merge
 
 - Check 1728px, 1440px and 1280px desktop widths.
 - Check mobile stacking for changed sections.
@@ -112,4 +206,7 @@ Do not claim live/official parcel, zoning, cadastral, ownership, title or certif
 - Inspect long source names and uploaded file names.
 - Open comparison dashboard and confirm no dead top-row holes.
 - Open printable analysis and comparison reports from the current session.
+- Confirm report maps show selected geometry or a static fallback.
+- Confirm no visible badge escapes a card boundary.
+- Confirm no decorative map element crosses an important label.
 - Confirm `npm run build` passes before commit/push.

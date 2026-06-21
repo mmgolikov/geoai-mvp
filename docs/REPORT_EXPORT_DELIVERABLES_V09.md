@@ -181,3 +181,21 @@ Printable routing rule:
 4. The route tries the saved report first, then the browser session fallback, then shows a recovery message.
 
 Known limitation: browser session fallback only works from the same browser session that generated the report. Durable cross-device report access still requires configured persistence and future auth/governance.
+
+## v1.0.1 UI System Hardening Addendum
+
+Report/export hardening now includes:
+
+- report map fallbacks that explicitly draw selected geometry or compared-site markers when Mapbox is unavailable;
+- compact source/run metadata placement in the analysis dashboard so secondary grey cards do not create empty visual gaps;
+- a reusable Decision Summary pattern in comparison output;
+- bounded badge and text patterns documented in [UI Layout Guardrails](UI_LAYOUT_GUARDRAILS.md);
+- a current-session printable payload fallback before opening `/reports/[id]/print`.
+
+Printable route behavior remains:
+
+1. Load saved report by id.
+2. If unavailable, render current browser session fallback.
+3. If both are unavailable, show a clear recovery state.
+
+Browser print/save PDF remains the MVP export method. Server-side PDF generation remains planned.

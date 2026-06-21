@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { LandingHeroMap } from "@/components/landing-hero-map";
+import { SafeBadge } from "@/components/ui/safe-badge";
 
 const clientSegments = [
   {
@@ -237,9 +238,9 @@ function HeroVisual() {
           </div>
           <div className="flex min-w-0 shrink-0 flex-wrap justify-end gap-1.5">
             {["Demo", "Layers", "AI-ready"].map((item) => (
-              <span key={item} className="max-w-[96px] shrink-0 truncate rounded-full bg-surface px-2 py-1 text-[10px] font-semibold text-muted">
+              <SafeBadge key={item} variant={item === "AI-ready" ? "ready" : item === "Layers" ? "active" : "demo"} className="normal-case">
                 {item}
-              </span>
+              </SafeBadge>
             ))}
           </div>
         </div>
@@ -267,7 +268,7 @@ function HeroVisual() {
                 <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">Decision summary</p>
                 <h2 className="mt-1 truncate text-base font-semibold text-ink">Proceed with conditions</h2>
               </div>
-              <span className="max-w-[74px] shrink-0 truncate rounded-full bg-[#edf4f2] px-2 py-1 text-[10px] font-semibold text-brand">memo</span>
+              <SafeBadge variant="active" className="max-w-[74px] normal-case">memo</SafeBadge>
             </div>
             <div className="grid min-h-0 grid-rows-[1fr_1fr_1fr] gap-2">
               <div className="flex min-h-0 flex-col justify-center rounded-md bg-[#edf4f2] p-3">
@@ -463,9 +464,9 @@ export default function HomePage() {
                 <article key={lane.title} className="flex h-full min-h-[310px] flex-col rounded-lg border border-line bg-white p-5 shadow-sm">
                   <div className="flex min-w-0 items-start justify-between gap-3">
                     <h3 className="min-w-0 text-lg font-semibold leading-6 text-ink">{lane.title}</h3>
-                    <span className="max-w-[92px] shrink-0 truncate rounded-full bg-surface px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted">
+                    <SafeBadge variant={lane.status === "Planned" ? "planned" : lane.status === "Uploaded" ? "uploaded" : "demo"}>
                       {lane.status}
-                    </span>
+                    </SafeBadge>
                   </div>
                   <div className="mt-5 grid gap-2">
                     {lane.items.map((item) => (

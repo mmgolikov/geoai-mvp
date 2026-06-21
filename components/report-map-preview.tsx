@@ -40,6 +40,36 @@ function getFallbackMarkerStyle(point: SelectedPoint) {
   };
 }
 
+function coordinateToFallbackPosition([longitude, latitude]: [number, number]) {
+  const left = ((longitude - 54.85) / 0.78) * 100;
+  const top = ((25.45 - latitude) / 0.72) * 100;
+
+  return {
+    left: Math.min(Math.max(left, 8), 92),
+    top: Math.min(Math.max(top, 12), 88)
+  };
+}
+
+function getFallbackFeatureStyle(feature: GeoJSON.Feature) {
+  const coordinates = collectGeometryCoordinates(feature.geometry);
+  if (coordinates.length === 0) return null;
+
+  const positions = coordinates.map(coordinateToFallbackPosition);
+  const minLeft = Math.min(...positions.map((position) => position.left));
+  const maxLeft = Math.max(...positions.map((position) => position.left));
+  const minTop = Math.min(...positions.map((position) => position.top));
+  const maxTop = Math.max(...positions.map((position) => position.top));
+  const width = Math.max(maxLeft - minLeft, 6);
+  const height = Math.max(maxTop - minTop, 6);
+
+  return {
+    left: `${minLeft}%`,
+    top: `${minTop}%`,
+    width: `${width}%`,
+    height: `${height}%`
+  };
+}
+
 function getMarkers({
   selectedPoint,
   selectedObject,
@@ -171,9 +201,11 @@ function openLanduseToFeature(landuse: OpenLanduseFeature): GeoJSON.Feature {
 
 function FallbackMap({
   markers,
-  message
+  message,
+  selectedFeatures = []
 }: {
   markers: MapMarker[];
+  selectedFeatures?: GeoJSON.Feature[];
   message?: string;
 }) {
   return (
@@ -181,6 +213,25 @@ function FallbackMap({
       <div className="absolute inset-x-8 top-10 h-20 rotate-[-7deg] rounded-full border border-[#4d7c0f]/40 bg-[#4d7c0f]/10" />
       <div className="absolute bottom-10 left-10 h-24 w-44 rounded-[40%] border border-[#2c7fb8]/45 bg-[#2c7fb8]/12" />
       <div className="absolute right-12 top-20 h-28 w-48 rounded-[45%] border border-[#c5a76a]/55 bg-[#c5a76a]/14" />
+      {selectedFeatures.map((feature, index) => {
+        const style = getFallbackFeatureStyle(feature);
+        if (!style) return null;
+        const geometryType = feature.geometry.type;
+
+        return (
+          <div
+            key={`${feature.id ?? feature.properties?.id ?? "selected"}-${index}`}
+            className={`absolute z-10 border-2 border-brand/85 bg-brand/16 shadow-sm ${
+              geometryType === "LineString" || geometryType === "MultiLineString"
+                ? "h-1 rotate-[-8deg] rounded-full bg-brand/40"
+                : geometryType === "Point" || geometryType === "MultiPoint"
+                  ? "rounded-full"
+                  : "rounded-[28%]"
+            }`}
+            style={style}
+          />
+        );
+      })}
       <div className="absolute left-4 top-4 rounded-md border border-white/80 bg-white/90 px-3 py-2 shadow-sm">
         <p className="text-xs font-semibold uppercase tracking-[0.12em] text-brand">Dubai map context</p>
         {message ? <p className="mt-1 text-xs text-muted">{message}</p> : null}
@@ -475,11 +526,11 @@ export function ReportMapPreview({
   }, [canUseMapbox, compact, comparison, mapKey, mapboxToken, markers, selectedFeatures, selectedObject]);
 
   if (!canUseMapbox) {
-    return <FallbackMap markers={markers} message="Mapbox token not configured" />;
+    return <FallbackMap markers={markers} selectedFeatures={selectedFeatures} message="Mapbox token not configured" />;
   }
 
   if (mapFailed) {
-    return <FallbackMap markers={markers} message="Map preview unavailable" />;
+    return <FallbackMap markers={markers} selectedFeatures={selectedFeatures} message="Map preview unavailable" />;
   }
 
   return <div ref={containerRef} className="absolute inset-0 h-full min-h-[260px] w-full" aria-label="GeoAI report map preview" />;

@@ -383,7 +383,7 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
                   {decisionRationalePreview}
                 </p>
               </div>
-              <div className="grid min-h-0 flex-1 content-start gap-3 py-3">
+              <div className="flex min-h-0 flex-1 flex-col gap-3 py-3">
                 <div>
                   <h2 className="text-lg font-semibold text-ink">Executive Summary</h2>
                   <p className="mt-2 text-sm leading-6 text-muted xl:text-[15px]">{summaryPreview}</p>
@@ -404,12 +404,15 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
                     ))}
                   </div>
                 </div>
-              </div>
-              <div className="mt-auto grid shrink-0 gap-2 text-sm md:grid-cols-2">
-                <AnalysisMetricCard label="Analysis mode" value={modeLabel} />
-                <AnalysisMetricCard label="Confidence level" value={analysis.confidenceLevel ?? "medium"} />
-                <AnalysisMetricCard label="Data confidence" value={limitationPreview} />
-                <AnalysisMetricCard label="Generated" value={formatGeneratedAt(analysis.generatedAt)} />
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Source / Run Metadata</p>
+                  <div className="mt-2 grid gap-2 text-sm sm:grid-cols-2">
+                    <AnalysisMetricCard label="Analysis mode" value={modeLabel} className="min-h-[64px]" />
+                    <AnalysisMetricCard label="Confidence level" value={analysis.confidenceLevel ?? "medium"} className="min-h-[64px]" />
+                    <AnalysisMetricCard label="Data confidence" value={limitationPreview} className="min-h-[64px]" />
+                    <AnalysisMetricCard label="Generated" value={formatGeneratedAt(analysis.generatedAt)} className="min-h-[64px]" />
+                  </div>
+                </div>
               </div>
             </section>
           </div>

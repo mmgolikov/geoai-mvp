@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { EvidenceSourceCards } from "@/components/evidence-source-cards";
+import { DecisionSummaryBox } from "@/components/ui/decision-summary-box";
 import type { ComparisonResult, ScoreKey } from "@/src/types/geo";
 
 type ComparisonDashboardProps = {
@@ -175,37 +176,13 @@ export function ComparisonDashboard({ comparison, onBackToMap, onExportCompariso
               <h3 className="text-sm font-semibold text-ink">When another option may be better</h3>
               <p className="mt-2 text-sm leading-6 text-muted">{comparison.whenAnotherMayBeBetter}</p>
             </div>
-            <div className="mt-4 rounded-md border border-[#e7d49a] bg-[#fff9e8] p-4">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <h3 className="text-sm font-semibold text-ink">Decision Summary</h3>
-                  <p className="mt-1 text-sm leading-6 text-muted">
-                    Proceed with {comparison.winner.item.name} as the strongest demo-screened option, subject to official validation.
-                  </p>
-                </div>
-                <span className="max-w-[120px] shrink-0 truncate rounded-full bg-white px-2 py-1 text-xs font-semibold text-brand">
-                  Conditional
-                </span>
-              </div>
-              <dl className="mt-3 grid gap-2 text-sm md:grid-cols-2">
-                <div className="min-w-0 rounded-md bg-white/76 p-3">
-                  <dt className="text-[11px] font-semibold uppercase tracking-[0.1em] text-muted">Why</dt>
-                  <dd className="mt-1 line-clamp-2 break-words text-ink">Strongest demo risk-adjusted score and readiness signal.</dd>
-                </div>
-                <div className="min-w-0 rounded-md bg-white/76 p-3">
-                  <dt className="text-[11px] font-semibold uppercase tracking-[0.1em] text-muted">Trade-off</dt>
-                  <dd className="mt-1 line-clamp-2 break-words text-ink">{primaryTradeoff}.</dd>
-                </div>
-                <div className="min-w-0 rounded-md bg-white/76 p-3">
-                  <dt className="text-[11px] font-semibold uppercase tracking-[0.1em] text-muted">Validation need</dt>
-                  <dd className="mt-1 line-clamp-2 break-words text-ink">{primaryValidationNeed}</dd>
-                </div>
-                <div className="min-w-0 rounded-md bg-white/76 p-3">
-                  <dt className="text-[11px] font-semibold uppercase tracking-[0.1em] text-muted">Next action</dt>
-                  <dd className="mt-1 line-clamp-2 break-words text-ink">{primaryNextAction}</dd>
-                </div>
-              </dl>
-            </div>
+            <DecisionSummaryBox
+              className="mt-4"
+              decision={`Proceed with ${comparison.winner.item.name} as the strongest demo-screened option, subject to official validation.`}
+              reason={`Strongest demo risk-adjusted score and readiness signal. Trade-off: ${primaryTradeoff}.`}
+              validationNeed={primaryValidationNeed}
+              nextAction={primaryNextAction}
+            />
           </section>
 
           <section className="flex h-full min-w-0 flex-col rounded-lg border border-line bg-white p-5 shadow-sm">

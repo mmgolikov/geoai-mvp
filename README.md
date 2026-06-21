@@ -237,6 +237,7 @@ Current export remains browser print/save as PDF. GeoAI does not generate server
 - [Persistence & Project Workspace v0.8](docs/PERSISTENCE_PROJECT_WORKSPACE_V08.md)
 - [Report Export & Client Deliverables v0.9](docs/REPORT_EXPORT_DELIVERABLES_V09.md)
 - [UI Layout Guardrails](docs/UI_LAYOUT_GUARDRAILS.md)
+- [MVP UI System Hardening v1.0.1](docs/MVP_UI_HARDENING_V101.md)
 - [Demo Release Candidate v0.6.1](docs/DEMO_RC_V061.md)
 - [Audit QA — 2026-06-18](docs/AUDIT_QA_2026-06-18.md)
 - [Architecture](docs/architecture.md)
