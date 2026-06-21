@@ -1,6 +1,6 @@
 "use client";
 
-import dynamic from "next/dynamic";
+import { MapWorkspaceClient } from "@/components/map-workspace-client";
 import type { SelectedDemoObject, SelectedPoint } from "@/src/types/geo";
 import type { UploadedDataset } from "@/src/types/uploaded-data";
 
@@ -14,16 +14,6 @@ type MapWorkspaceProps = {
   showLayerControls?: boolean;
   uploadedDatasets?: UploadedDataset[];
 };
-
-const MapWorkspaceClient = dynamic(
-  () => import("@/components/map-workspace-client").then((module) => module.MapWorkspaceClient),
-  {
-    ssr: false,
-    loading: () => (
-      <section className="relative h-full min-h-[360px] overflow-hidden bg-[#dfe8ec]" />
-    )
-  }
-);
 
 export function MapWorkspace(props: MapWorkspaceProps) {
   return <MapWorkspaceClient {...props} />;

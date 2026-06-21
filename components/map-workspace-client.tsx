@@ -856,22 +856,40 @@ export function MapWorkspaceClient({
     }
 
     let isMounted = true;
+    const mapInitTimeout = window.setTimeout(() => {
+      if (isMounted && !mapRef.current) {
+        setMapResourceError(
+          "Map could not initialize in this browser. The demo fallback map remains available for point selection."
+        );
+      }
+    }, 4000);
 
     async function initializeMap() {
-      const mapboxgl = (await import("mapbox-gl")).default;
+      let mapboxgl: typeof import("mapbox-gl").default;
 
-      if (!isMounted || !mapContainerRef.current || mapRef.current) {
+      try {
+        mapboxgl = (await import("mapbox-gl")).default;
+
+        if (!isMounted || !mapContainerRef.current || mapRef.current) {
+          return;
+        }
+
+        setMapResourceError(null);
+        mapboxgl.accessToken = mapboxToken;
+        mapRef.current = new mapboxgl.Map({
+          container: mapContainerRef.current,
+          style: basemapOptions[0].styleUrl,
+          center: defaultCenter,
+          zoom: defaultZoom
+        });
+      } catch {
+        if (isMounted) {
+          setMapResourceError(
+            "Map could not initialize in this browser. The demo fallback map remains available for point selection."
+          );
+        }
         return;
       }
-
-      setMapResourceError(null);
-      mapboxgl.accessToken = mapboxToken;
-      mapRef.current = new mapboxgl.Map({
-        container: mapContainerRef.current,
-        style: basemapOptions[0].styleUrl,
-        center: defaultCenter,
-        zoom: defaultZoom
-      });
 
       hoverPopupRef.current = new mapboxgl.Popup({
         closeButton: false,
@@ -1035,6 +1053,7 @@ export function MapWorkspaceClient({
 
     return () => {
       isMounted = false;
+      window.clearTimeout(mapInitTimeout);
       setIsMapReady(false);
       markerRef.current?.remove();
       markerRef.current = null;
@@ -1154,8 +1173,11 @@ export function MapWorkspaceClient({
     syncUploadedDatasetSource(mapRef.current, uploadedDatasets);
   }, [canUseMapbox, isMapReady, uploadedDatasets]);
 
+  const shouldShowFallbackMap = !canUseMapbox || Boolean(mapResourceError && !isMapReady);
+  const shouldShowMapboxControls = canUseMapbox && !shouldShowFallbackMap;
+
   function handleFallbackClick(event: React.MouseEvent<HTMLElement>) {
-    if (canUseMapbox) {
+    if (!shouldShowFallbackMap) {
       return;
     }
 
@@ -1192,20 +1214,21 @@ export function MapWorkspaceClient({
     >
       <div ref={mapContainerRef} className="absolute inset-0" aria-label="GeoAI map workspace" />
 
-      {!canUseMapbox ? (
+      {shouldShowFallbackMap ? (
         <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(23,79,99,0.12)_1px,transparent_1px),linear-gradient(rgba(23,79,99,0.12)_1px,transparent_1px)] bg-[size:42px_42px]">
           {showEmptyOverlay ? (
             <>
               <div className="absolute left-6 top-6 max-w-md rounded-lg border border-white/70 bg-white/90 p-5 shadow-soft backdrop-blur">
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand">
-                  Mapbox placeholder
+                  {mapResourceError ? "Map status" : "Mapbox placeholder"}
                 </p>
                 <h2 className="mt-2 text-2xl font-semibold text-ink">
                   Full-screen spatial workspace
                 </h2>
                 <p className="mt-3 text-sm leading-6 text-muted">
-                  Add `NEXT_PUBLIC_MAPBOX_TOKEN` later to render the live Mapbox
-                  basemap. The app stays usable without local environment tokens.
+                  {mapResourceError
+                    ? mapResourceError
+                    : "Add `NEXT_PUBLIC_MAPBOX_TOKEN` later to render the live Mapbox basemap. The app stays usable without local environment tokens."}
                 </p>
               </div>
               <div className="absolute bottom-6 left-6 right-6 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-white/70 bg-white/85 px-4 py-3 text-sm text-muted shadow-soft backdrop-blur">
@@ -1217,7 +1240,7 @@ export function MapWorkspaceClient({
         </div>
       ) : null}
 
-      {canUseMapbox && mapResourceError && showEmptyOverlay ? (
+      {canUseMapbox && mapResourceError && isMapReady && showEmptyOverlay ? (
         <div className="absolute left-6 top-6 z-10 max-w-md rounded-lg border border-[#f2c6bd] bg-white/95 p-4 shadow-soft backdrop-blur">
           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#9f3412]">
             Map status
@@ -1226,7 +1249,7 @@ export function MapWorkspaceClient({
         </div>
       ) : null}
 
-      {canUseMapbox && showEmptyOverlay && !selectedPoint && !mapResourceError ? (
+      {shouldShowMapboxControls && showEmptyOverlay && !selectedPoint && !mapResourceError ? (
         <div className="absolute left-5 top-5 z-10 max-w-sm rounded-lg border border-white/75 bg-white/92 p-4 shadow-soft backdrop-blur">
           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-brand">
             Start here
@@ -1239,7 +1262,7 @@ export function MapWorkspaceClient({
         </div>
       ) : null}
 
-      {canUseMapbox && showLayerControls ? (
+      {shouldShowMapboxControls && showLayerControls ? (
         <div
           className={`absolute right-5 top-5 z-20 max-w-[calc(100%-40px)] rounded-lg border border-white/75 bg-white/92 shadow-soft backdrop-blur ${layersExpanded ? "flex w-[280px] flex-col overflow-hidden p-2.5" : "w-auto p-0"}`}
           style={{ maxHeight: layersExpanded ? "calc(100% - 112px)" : undefined }}
@@ -1396,7 +1419,7 @@ export function MapWorkspaceClient({
         </div>
       ) : null}
 
-      {canUseMapbox ? (
+      {shouldShowMapboxControls ? (
         <div
           className="absolute bottom-5 right-5 z-20 flex max-w-[calc(100%-40px)] gap-1 rounded-lg border border-white/75 bg-white/92 p-1 shadow-soft backdrop-blur"
           onClick={(event) => event.stopPropagation()}
@@ -1419,13 +1442,13 @@ export function MapWorkspaceClient({
         </div>
       ) : null}
 
-      {canUseMapbox && selectedObject ? (
+      {shouldShowMapboxControls && selectedObject ? (
         <div className={`pointer-events-none absolute left-5 z-10 max-w-sm rounded-lg border border-white/75 bg-white/92 px-3 py-2 text-sm font-semibold text-ink shadow-soft backdrop-blur ${layersExpanded ? "bottom-20" : "bottom-5"}`}>
           <span className="text-brand">Selected:</span> {selectedObject.name}
         </div>
       ) : null}
 
-      {canUseMapbox && showLayerControls && layersExpanded ? (
+      {shouldShowMapboxControls && showLayerControls && layersExpanded ? (
         <div
           className="absolute bottom-5 left-5 z-10 flex max-w-[720px] flex-wrap gap-2 rounded-lg border border-white/75 bg-white/90 px-3 py-2 shadow-soft backdrop-blur"
           onClick={(event) => event.stopPropagation()}
@@ -1439,7 +1462,7 @@ export function MapWorkspaceClient({
         </div>
       ) : null}
 
-      {!canUseMapbox && selectedPoint ? (
+      {shouldShowFallbackMap && selectedPoint ? (
         <div
           className="pointer-events-none absolute z-10 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-4 border-white bg-brand shadow-soft"
           style={getFallbackMarkerStyle(selectedPoint)}
