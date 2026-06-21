@@ -94,3 +94,7 @@ This is evidence/source-basis context only. It is not a validated conclusion, of
 4. Add customer-uploaded source approval workflow.
 5. Add persistent source manifests and report evidence snapshots.
 6. Implement official/customer validation adapters only after access, terms and credentials are confirmed.
+
+## v0.8 Persistence Alignment
+
+Persistence & Project Workspace v0.8 stores source-lineage snapshots with saved analyses, reports and comparison sets. Real Data Backbone sources should be captured into those snapshots when they are used or planned for validation, so saved memos do not depend only on mutable current source registry state.

@@ -53,6 +53,13 @@ type RecentAnalysisRow = {
   source: "local" | "DB";
 };
 
+type SavedObjectSummary = {
+  id: string;
+  title: string;
+  createdAt?: string | null;
+  sourceSummary?: string;
+};
+
 function formatLabel(value: string) {
   return value
     .replace(/([A-Z])/g, " $1")
@@ -225,6 +232,9 @@ export function ProjectDashboard() {
   const [dbHistory, setDbHistory] = useState<RecentAnalysisRow[]>([]);
   const [dbHealth, setDbHealth] = useState<DbHealth | null>(null);
   const [marketMetrics, setMarketMetrics] = useState<MarketMetricsSummary | null>(null);
+  const [savedReports, setSavedReports] = useState<SavedObjectSummary[]>([]);
+  const [savedComparisons, setSavedComparisons] = useState<SavedObjectSummary[]>([]);
+  const [projectDatasets, setProjectDatasets] = useState<SavedObjectSummary[]>([]);
 
   useEffect(() => {
     setActiveProjectKey(readActiveProjectKey());
@@ -272,14 +282,51 @@ export function ProjectDashboard() {
 
     async function loadDbHistory() {
       try {
-        const response = await fetch(`/api/analysis-runs?limit=8&projectKey=${encodeURIComponent(activeProjectKey)}`);
-        const payload = await response.json();
-        if (!cancelled && Array.isArray(payload.items)) {
-          setDbHistory(persistedRowsToRecent(payload.items));
+        const [analysisResponse, reportsResponse, comparisonsResponse, datasetsResponse] = await Promise.all([
+          fetch(`/api/analysis-runs?limit=8&projectKey=${encodeURIComponent(activeProjectKey)}`),
+          fetch(`/api/reports?projectKey=${encodeURIComponent(activeProjectKey)}`),
+          fetch(`/api/comparison-sets?projectKey=${encodeURIComponent(activeProjectKey)}`),
+          fetch(`/api/uploaded-datasets?projectKey=${encodeURIComponent(activeProjectKey)}`)
+        ]);
+        const [analysisPayload, reportsPayload, comparisonsPayload, datasetsPayload] = await Promise.all([
+          analysisResponse.json(),
+          reportsResponse.json(),
+          comparisonsResponse.json(),
+          datasetsResponse.json()
+        ]);
+        if (!cancelled) {
+          setDbHistory(Array.isArray(analysisPayload.items) ? persistedRowsToRecent(analysisPayload.items) : []);
+          setSavedReports(Array.isArray(reportsPayload.summaries)
+            ? reportsPayload.summaries.map((item: { id: string; title: string; createdAt?: string; sourceSummary?: string }) => ({
+                id: item.id,
+                title: item.title,
+                createdAt: item.createdAt,
+                sourceSummary: item.sourceSummary
+              }))
+            : []);
+          setSavedComparisons(Array.isArray(comparisonsPayload.items)
+            ? comparisonsPayload.items.map((item: { id: string; title: string; createdAt?: string; recommendation?: string }) => ({
+                id: item.id,
+                title: item.title,
+                createdAt: item.createdAt,
+                sourceSummary: item.recommendation
+              }))
+            : []);
+          setProjectDatasets(Array.isArray(datasetsPayload.items)
+            ? datasetsPayload.items.map((item: { id: string; name: string; uploadedAt?: string; officialStatus?: string }) => ({
+                id: item.id,
+                title: item.name,
+                createdAt: item.uploadedAt,
+                sourceSummary: item.officialStatus
+              }))
+            : []);
         }
       } catch {
         if (!cancelled) {
           setDbHistory([]);
+          setSavedReports([]);
+          setSavedComparisons([]);
+          setProjectDatasets([]);
         }
       }
     }
@@ -374,9 +421,9 @@ export function ProjectDashboard() {
 
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
           <KpiCard label="Analyses" value={recentRows.length} note={recentRows.length > 0 ? "Recent runs available for this project context." : "Run an analysis from the workspace."} />
-          <KpiCard label="Reports" value="0" note="Report library is planned; print memos are generated from workspace results." />
-          <KpiCard label="Compared sites" value="0" note="Comparison sets are workspace-local in v0.1." />
-          <KpiCard label="Data sources" value={dataSourceRegistry.length} note="Registry sources include demo, planned official, open and commercial sources." />
+          <KpiCard label="Reports" value={savedReports.length} note={savedReports.length > 0 ? "Saved reports available in local/API fallback." : "No saved reports yet."} />
+          <KpiCard label="Comparisons" value={savedComparisons.length} note={savedComparisons.length > 0 ? "Saved comparison sets available." : "Compare 2-3 sites to populate."} />
+          <KpiCard label="Data sources" value={dataSourceRegistry.length + projectDatasets.length} note={`${projectDatasets.length} project upload metadata records.`} />
           <KpiCard label="Market areas" value={importedAreas} note={marketMetrics?.sourceMode ?? "seed_static fallback"} />
           <KpiCard label="Data confidence" value={dataConfidence} note="Official validation required before pilot decisions." />
         </section>
@@ -425,12 +472,24 @@ export function ProjectDashboard() {
             </Panel>
 
             <Panel title="Reports / Memos" subtitle="Client-ready memo generation remains connected to the workspace result and report preview flow.">
-              <EmptyState
-                title="No saved report library yet"
-                text="Exported memos are currently screen/print based. A persistent report library is planned for the next project workflow iteration."
-                href={openWorkspaceHref}
-                action="Generate new memo"
-              />
+              {savedReports.length > 0 ? (
+                <div className="grid gap-3">
+                  {savedReports.slice(0, 5).map((report) => (
+                    <article key={report.id} className="rounded-md border border-line bg-surface p-4">
+                      <h3 className="font-semibold text-ink">{report.title}</h3>
+                      <p className="mt-1 text-sm text-muted">{formatTimestamp(report.createdAt ?? undefined)}</p>
+                      <p className="mt-2 text-sm leading-5 text-muted">{report.sourceSummary ?? "Saved with demo/local source lineage; official validation required."}</p>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <EmptyState
+                  title="No saved reports yet"
+                  text="Run an analysis and export a memo to populate this project. Saved reports remain demo/local until official validation is connected."
+                  href={openWorkspaceHref}
+                  action="Generate new memo"
+                />
+              )}
             </Panel>
           </div>
 
@@ -493,13 +552,25 @@ export function ProjectDashboard() {
               </div>
             </Panel>
 
-            <Panel title="Comparison Shortlist" subtitle="Shortlists are still managed in the map workspace for v0.1.">
-              <EmptyState
-                title="No sites added to comparison yet"
-                text="Open the workspace, select 2-3 points or demo objects, then compare selected sites."
-                href={openWorkspaceHref}
-                action="Compare sites"
-              />
+            <Panel title="Comparison Shortlist" subtitle="Saved comparison sets from the map workspace.">
+              {savedComparisons.length > 0 ? (
+                <div className="grid gap-3">
+                  {savedComparisons.slice(0, 4).map((comparison) => (
+                    <article key={comparison.id} className="rounded-md border border-line bg-surface p-4">
+                      <h3 className="font-semibold text-ink">{comparison.title}</h3>
+                      <p className="mt-1 text-sm text-muted">{formatTimestamp(comparison.createdAt ?? undefined)}</p>
+                      <p className="mt-2 text-sm leading-5 text-muted">{comparison.sourceSummary ?? "Saved comparison; official validation required."}</p>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <EmptyState
+                  title="No saved comparison sets yet"
+                  text="Open the workspace, select 2-3 points or demo objects, then compare selected sites."
+                  href={openWorkspaceHref}
+                  action="Compare sites"
+                />
+              )}
             </Panel>
 
             <Panel title="Recommended Next Actions">

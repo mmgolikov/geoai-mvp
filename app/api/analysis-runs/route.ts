@@ -30,26 +30,21 @@ export async function GET(request: Request) {
   const limit = Number.isFinite(limitParam) ? Math.min(Math.max(limitParam, 1), 50) : 10;
   const projectKey = url.searchParams.get("projectKey");
   const project = projectKey ? await getProjectByKey(projectKey) : null;
-  if (projectKey && project?.mode !== "db") {
-    return NextResponse.json({
-      ok: true,
-      mode: "local_only",
-      projectMode: project?.mode ?? "local_demo",
-      project: project?.data ?? null,
-      items: [],
-      error: null
-    });
-  }
 
   const result = await listAnalysisRuns(limit, project?.mode === "db" ? project.data?.id ?? null : null);
+  const localProjectItems = result.mode === "local_only" && projectKey && Array.isArray(result.data)
+    ? result.data.filter((item) => (item as { projectKey?: string | null }).projectKey === projectKey)
+    : result.data ?? [];
 
   return NextResponse.json({
     ok: result.ok,
-    mode: result.mode,
+    mode: result.mode === "db" ? "supabase" : "local-fallback",
     projectMode: project?.mode ?? null,
     project: project?.data ?? null,
-    items: result.data ?? [],
-    error: result.error
+    count: Array.isArray(localProjectItems) ? localProjectItems.length : 0,
+    items: localProjectItems,
+    error: result.error,
+    dataHonesty: "Analysis runs preserve demo/local source lineage unless externally validated."
   });
 }
 

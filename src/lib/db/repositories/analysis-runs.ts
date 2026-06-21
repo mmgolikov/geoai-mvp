@@ -1,10 +1,14 @@
 import { getSupabaseServerClient } from "@/src/lib/supabase/server";
+import { createSourceLineageSnapshot } from "@/src/lib/source-lineage-snapshot";
 import type { DbAnalysisRunInput, DbRepositoryResult } from "@/src/lib/db/types";
+import type { WorkspaceAnalysisRun } from "@/src/lib/project-workspace-types";
+import { localCreate, localList } from "@/src/lib/repositories/local-json-store";
 
 export async function listAnalysisRuns(limit = 10, projectId?: string | null): Promise<DbRepositoryResult<unknown[]>> {
   const client = await getSupabaseServerClient();
   if (!client) {
-    return { ok: true, mode: "local_only", data: [], error: null };
+    const result = localList<WorkspaceAnalysisRun>("analysis-runs", { projectId, limit });
+    return { ok: true, mode: "local_only", data: result.data, error: null };
   }
 
   try {
@@ -30,7 +34,25 @@ export async function listAnalysisRuns(limit = 10, projectId?: string | null): P
 export async function saveAnalysisRun(input: DbAnalysisRunInput): Promise<DbRepositoryResult<unknown>> {
   const client = await getSupabaseServerClient();
   if (!client) {
-    return { ok: true, mode: "local_only", data: null, error: null };
+    const result = localCreate<WorkspaceAnalysisRun>("analysis-runs", {
+      id: input.runKey,
+      projectId: input.projectId ?? null,
+      projectKey: input.projectKey ?? null,
+      title: input.selectedName,
+      scenario: input.scenarioId,
+      targetLabel: input.selectedName,
+      targetType: input.selectedObject ? "demo-feature" : "point",
+      targetGeometry: input.selectedObject ?? null,
+      targetCoordinates: input.selectedPoint,
+      decisionPosture: input.decisionPosture ?? "Screening result",
+      scoreSummary: (input.resultJson as { scores?: unknown })?.scores ?? null,
+      sourceLineage: createSourceLineageSnapshot({
+        evidence: (input.inputContext as { evidence?: [] })?.evidence ?? []
+      }),
+      payload: input.resultJson,
+      createdAt: input.createdAt ?? new Date().toISOString()
+    });
+    return { ok: true, mode: "local_only", data: result.data, error: null };
   }
 
   try {

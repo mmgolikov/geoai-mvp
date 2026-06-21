@@ -22,6 +22,7 @@ import {
 import { createComparisonItem, createMockComparison } from "@/src/lib/mock-comparison";
 import { analysisScenarios, createMockExpressAnalysis } from "@/src/lib/mock-express-analysis";
 import { deriveDecisionPosture } from "@/src/lib/decision-posture";
+import { createSourceLineageSnapshot } from "@/src/lib/source-lineage-snapshot";
 import {
   enrichAnalysisWithMarketMetrics,
   findBestMarketMetricMatch
@@ -727,10 +728,12 @@ export function WorkspaceShell() {
     setAnalysis(null);
     setAnalysisError(null);
     setComparisonMessage(null);
-    setComparison({
+    const comparisonResult = {
       ...createMockComparison(comparisonItems),
       project: activeProject
-    });
+    };
+    setComparison(comparisonResult);
+    void persistComparisonSet(comparisonResult);
     setReportPreview(null);
   }
 
@@ -793,6 +796,36 @@ export function WorkspaceShell() {
       });
     } catch {
       // Persistence is optional in v0.1; local history remains the source of truth.
+    }
+  }
+
+  async function persistComparisonSet(comparisonResult: ComparisonResult) {
+    try {
+      const sourceLineage = createSourceLineageSnapshot({
+        evidence: comparisonResult.evidence,
+        uploadedDatasets
+      });
+
+      await fetch("/api/comparison-sets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: comparisonResult.id,
+          projectId: activeProject.id,
+          projectKey: activeProject.projectKey,
+          title: "Site Comparison Intelligence",
+          itemCount: comparisonResult.items.length,
+          items: comparisonResult.items,
+          recommendation: `Best option: ${comparisonResult.winner.item.name}`,
+          sourceLineage,
+          payload: comparisonResult,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        })
+      });
+      setComparisonMessage("Comparison saved to project fallback.");
+    } catch {
+      setComparisonMessage("Comparison generated; persistence unavailable in local fallback.");
     }
   }
 
@@ -977,6 +1010,7 @@ export function WorkspaceShell() {
         : createUploadedGeojsonDataset(file.name, text);
 
       updateUploadedDatasets((items) => [dataset, ...items.filter((item) => item.name !== dataset.name)].slice(0, 8));
+      void persistUploadedDatasetMetadata(dataset);
       setUploadedDataMessage(`${dataset.name} parsed locally. Validation is still required before official use.`);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Dataset could not be parsed.";
@@ -988,6 +1022,7 @@ export function WorkspaceShell() {
 
   function removeUploadedDataset(datasetId: string) {
     updateUploadedDatasets((items) => items.filter((item) => item.id !== datasetId));
+    void fetch(`/api/uploaded-datasets?id=${encodeURIComponent(datasetId)}`, { method: "DELETE" }).catch(() => undefined);
     setUploadedDataMessage("Uploaded dataset removed from local workspace.");
   }
 
@@ -1000,6 +1035,37 @@ export function WorkspaceShell() {
     updateUploadedDatasets((items) =>
       items.map((item) => item.id === datasetId ? { ...item, visible: item.visible === false } : item)
     );
+  }
+
+  async function persistUploadedDatasetMetadata(dataset: UploadedDataset) {
+    try {
+      await fetch("/api/uploaded-datasets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: dataset.id,
+          projectId: activeProject.id,
+          projectKey: activeProject.projectKey,
+          name: dataset.name,
+          type: dataset.type,
+          status: dataset.status,
+          rowCount: dataset.type === "csv" ? dataset.rowCount ?? null : null,
+          featureCount: dataset.type === "geojson" ? dataset.featureCount ?? null : null,
+          columns: dataset.type === "csv" ? dataset.columns ?? [] : [],
+          sourceMode: dataset.sourceMode,
+          officialStatus: dataset.officialStatus,
+          uploadedAt: dataset.uploadedAt,
+          metadata: {
+            confidence: dataset.confidence,
+            notes: dataset.notes,
+            visible: dataset.visible
+          },
+          parsedContent: dataset.type === "geojson" && (dataset.featureCount ?? 0) <= 50 ? dataset.geojson : undefined
+        })
+      });
+    } catch {
+      // Browser-local upload remains available even when metadata persistence is unavailable.
+    }
   }
 
   async function runExpressAnalysis() {

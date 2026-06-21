@@ -62,6 +62,7 @@ HTTP route QA is marked Partial in this environment because local server binding
 ## Known Limitations
 
 - Browser/manual QA must be completed locally or in Vercel Preview.
+- v0.8 adds local/API fallback persistence for analyses, reports, comparison sets and uploaded dataset metadata, but this remains MVP/demo persistence rather than production-ready governance.
 - Mapbox rendering requires `NEXT_PUBLIC_MAPBOX_TOKEN`.
 - OpenAI narrative analysis requires server-only `OPENAI_API_KEY`; otherwise mock fallback is expected.
 - Supabase/PostGIS remains optional; local/demo fallback is expected when it is not configured.
