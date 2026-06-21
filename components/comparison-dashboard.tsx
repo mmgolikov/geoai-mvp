@@ -118,6 +118,9 @@ export function ComparisonDashboard({ comparison, onBackToMap, onExportCompariso
   const sharedOpportunities = dedupeTextList(comparison.sharedOpportunities);
   const differentiatedRisks = dedupeTextList(comparison.differentiatedRisks);
   const nextActions = dedupeTextList(comparison.nextActions);
+  const primaryTradeoff = comparison.whenAnotherMayBeBetter.split(".")[0] || "Alternative options may be better if the validation priority changes.";
+  const primaryValidationNeed = differentiatedRisks[0] ?? "Official market, planning and customer-approved data validation required.";
+  const primaryNextAction = nextActions[0] ?? "Prepare due diligence memo and validate top alternatives.";
 
   useEffect(() => {
     dashboardRef.current?.scrollTo({ top: 0, left: 0 });
@@ -156,14 +159,14 @@ export function ComparisonDashboard({ comparison, onBackToMap, onExportCompariso
           </div>
         </header>
 
-        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
-          <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
+        <div className="grid items-stretch gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
+          <section className="flex h-full min-w-0 flex-col rounded-lg border border-line bg-white p-5 shadow-sm">
             <div className="flex flex-wrap items-start justify-between gap-4">
-              <div>
+              <div className="min-w-0">
                 <h2 className="text-lg font-semibold text-ink">Winner / Recommendation</h2>
                 <p className="mt-1 text-sm text-muted">Best option based on deterministic demo scoring</p>
               </div>
-              <span className="rounded-full bg-[#eaf3f1] px-3 py-1 text-sm font-semibold text-brand">
+              <span className="max-w-full shrink-0 truncate rounded-full bg-[#eaf3f1] px-3 py-1 text-sm font-semibold text-brand">
                 Best option: {comparison.winner.item.name}
               </span>
             </div>
@@ -172,21 +175,52 @@ export function ComparisonDashboard({ comparison, onBackToMap, onExportCompariso
               <h3 className="text-sm font-semibold text-ink">When another option may be better</h3>
               <p className="mt-2 text-sm leading-6 text-muted">{comparison.whenAnotherMayBeBetter}</p>
             </div>
+            <div className="mt-4 rounded-md border border-[#e7d49a] bg-[#fff9e8] p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h3 className="text-sm font-semibold text-ink">Decision Summary</h3>
+                  <p className="mt-1 text-sm leading-6 text-muted">
+                    Proceed with {comparison.winner.item.name} as the strongest demo-screened option, subject to official validation.
+                  </p>
+                </div>
+                <span className="max-w-[120px] shrink-0 truncate rounded-full bg-white px-2 py-1 text-xs font-semibold text-brand">
+                  Conditional
+                </span>
+              </div>
+              <dl className="mt-3 grid gap-2 text-sm md:grid-cols-2">
+                <div className="min-w-0 rounded-md bg-white/76 p-3">
+                  <dt className="text-[11px] font-semibold uppercase tracking-[0.1em] text-muted">Why</dt>
+                  <dd className="mt-1 line-clamp-2 break-words text-ink">Strongest demo risk-adjusted score and readiness signal.</dd>
+                </div>
+                <div className="min-w-0 rounded-md bg-white/76 p-3">
+                  <dt className="text-[11px] font-semibold uppercase tracking-[0.1em] text-muted">Trade-off</dt>
+                  <dd className="mt-1 line-clamp-2 break-words text-ink">{primaryTradeoff}.</dd>
+                </div>
+                <div className="min-w-0 rounded-md bg-white/76 p-3">
+                  <dt className="text-[11px] font-semibold uppercase tracking-[0.1em] text-muted">Validation need</dt>
+                  <dd className="mt-1 line-clamp-2 break-words text-ink">{primaryValidationNeed}</dd>
+                </div>
+                <div className="min-w-0 rounded-md bg-white/76 p-3">
+                  <dt className="text-[11px] font-semibold uppercase tracking-[0.1em] text-muted">Next action</dt>
+                  <dd className="mt-1 line-clamp-2 break-words text-ink">{primaryNextAction}</dd>
+                </div>
+              </dl>
+            </div>
           </section>
 
-          <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
+          <section className="flex h-full min-w-0 flex-col rounded-lg border border-line bg-white p-5 shadow-sm">
             <h2 className="text-lg font-semibold text-ink">Map Context</h2>
-            <div className="mt-4 grid gap-3">
+            <div className="mt-4 grid flex-1 content-start gap-3">
               {comparison.items.map((scorecard, index) => (
                 <div key={createStableKey("map-context-item", scorecard.item.id, index)} className="rounded-md border border-line bg-surface p-4">
                   <div className="flex items-start justify-between gap-3">
-                    <div>
+                    <div className="min-w-0">
                       <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">
                         Option {index + 1}
                       </p>
-                      <h3 className="mt-1 text-sm font-semibold text-ink">{scorecard.item.name}</h3>
+                      <h3 className="mt-1 truncate text-sm font-semibold text-ink">{scorecard.item.name}</h3>
                     </div>
-                    <span className="rounded-full bg-white px-2 py-1 text-xs font-semibold text-brand">
+                    <span className="max-w-[76px] shrink-0 truncate rounded-full bg-white px-2 py-1 text-xs font-semibold text-brand">
                       {scorecard.item.itemType}
                     </span>
                   </div>

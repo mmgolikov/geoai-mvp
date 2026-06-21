@@ -6,6 +6,7 @@ import { MapContextCard } from "@/components/map-context-card";
 import { PrintableReport } from "@/components/printable-report";
 import { externalDataSources } from "@/src/lib/external-data/source-registry";
 import { deriveDecisionPosture, deriveDecisionRationale } from "@/src/lib/decision-posture";
+import { createSourceLineageSnapshot } from "@/src/lib/source-lineage-snapshot";
 import type { ComparisonResult, ExpressAnalysis, ScoreKey } from "@/src/types/geo";
 
 type ReportPreviewProps =
@@ -231,12 +232,34 @@ function UploadedDataReportSection({ analysis }: { analysis: ExpressAnalysis }) 
 function ReportShell({
   children,
   onBack,
-  printableHref
+  printableHref,
+  printableReportRecord
 }: {
   children: React.ReactNode;
   onBack: () => void;
   printableHref?: string;
+  printableReportRecord?: unknown;
 }) {
+  function openPrintableReport() {
+    if (!printableHref) return;
+
+    try {
+      if (printableReportRecord) {
+        const reportId = printableHref.split("/reports/")[1]?.split("/print")[0];
+        if (reportId) {
+          window.sessionStorage.setItem(`geoai-print-report:${decodeURIComponent(reportId)}`, JSON.stringify(printableReportRecord));
+        }
+      }
+    } catch {
+      // Server/API persistence remains the primary path; session fallback is best effort.
+    }
+
+    const opened = window.open(printableHref, "_blank", "noopener,noreferrer");
+    if (!opened) {
+      window.location.assign(printableHref);
+    }
+  }
+
   return (
     <section className="screen-only h-[calc(100vh-72px)] overflow-y-auto bg-[#eef2f5] p-6">
       <div className="mx-auto max-w-5xl print:max-w-none">
@@ -249,14 +272,13 @@ function ReportShell({
             Back to dashboard
           </button>
           {printableHref ? (
-            <a
-              href={printableHref}
-              target="_blank"
-              rel="noreferrer"
+            <button
+              type="button"
+              onClick={openPrintableReport}
               className="inline-flex h-10 items-center justify-center rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink transition hover:border-brand"
             >
               Open printable report
-            </a>
+            </button>
           ) : null}
           <button
             type="button"
@@ -272,6 +294,81 @@ function ReportShell({
       </div>
     </section>
   );
+}
+
+function createPrintableAnalysisRecord(analysis: ExpressAnalysis) {
+  const id = `analysis-report-${analysis.id}`;
+
+  return {
+    id,
+    projectId: analysis.project?.id ?? null,
+    projectKey: analysis.project?.projectKey ?? null,
+    reportType: "analysis",
+    title: "Express Analysis / Investment Memo",
+    scenario: analysis.title,
+    targetLabel: analysis.selectedObject?.name ?? "Custom map selection",
+    reportPayload: {
+      title: "Express Analysis / Investment Memo",
+      scenario: analysis.title,
+      selectedSite: analysis.selectedObject?.name ?? "Custom map selection",
+      selectedObject: analysis.selectedObject ?? null,
+      coordinates: analysis.point,
+      memoJson: analysis,
+      decisionPosture: deriveDecisionPosture(analysis),
+      scoreOverview: analysis.scores,
+      keyValueDrivers: analysis.keyFactors,
+      criticalConstraints: analysis.risks,
+      dueDiligenceChecklist: analysis.nextActions,
+      evidenceSourceReadiness: analysis.evidence,
+      uploadedDataContext: analysis.uploadedDataContext ?? null,
+      limitations: analysis.limitations ?? [],
+      generatedAt: analysis.generatedAt ?? new Date().toISOString()
+    },
+    sourceLineage: createSourceLineageSnapshot({
+      evidence: analysis.evidence,
+      uploadedDatasets: analysis.uploadedDataContext?.uploadedDatasets ?? []
+    }),
+    createdAt: analysis.generatedAt ?? new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+}
+
+function createPrintableComparisonRecord(comparison: ComparisonResult) {
+  const id = `comparison-report-${comparison.id}`;
+
+  return {
+    id,
+    projectId: comparison.project?.id ?? null,
+    projectKey: comparison.project?.projectKey ?? null,
+    reportType: "comparison",
+    title: "Site Comparison Investment Memo",
+    scenario: "Comparison",
+    targetLabel: comparison.items.map((item) => item.item.name).join(", "),
+    reportPayload: {
+      title: "Site Comparison Investment Memo",
+      scenario: "Comparison",
+      comparisonJson: comparison,
+      decisionPosture: `Best option: ${comparison.winner.item.name}`,
+      scoreOverview: comparison.items.map((item) => ({
+        itemName: item.item.name,
+        scores: item.scores,
+        overallScore: item.overallScore
+      })),
+      keyValueDrivers: comparison.sharedOpportunities,
+      criticalConstraints: comparison.differentiatedRisks,
+      dueDiligenceChecklist: comparison.nextActions,
+      evidenceSourceReadiness: comparison.evidence,
+      limitations: [
+        "Comparison uses deterministic demo scoring and structured evidence readiness, not a validated underwriting model."
+      ],
+      generatedAt: new Date().toISOString()
+    },
+    sourceLineage: createSourceLineageSnapshot({
+      evidence: comparison.evidence
+    }),
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
 }
 
 function Section({
@@ -300,7 +397,11 @@ function AnalysisReport({ analysis, onBack }: { analysis: ExpressAnalysis; onBac
 
   return (
     <>
-      <ReportShell onBack={onBack} printableHref={`/reports/${encodeURIComponent(`analysis-report-${analysis.id}`)}/print`}>
+      <ReportShell
+        onBack={onBack}
+        printableHref={`/reports/${encodeURIComponent(`analysis-report-${analysis.id}`)}/print`}
+        printableReportRecord={createPrintableAnalysisRecord(analysis)}
+      >
         <div className="flex flex-col gap-8">
           <header className="border-b border-line pb-6">
           <div className="flex items-start justify-between gap-6">
@@ -633,7 +734,11 @@ function ComparisonReport({ comparison, onBack }: { comparison: ComparisonResult
 
   return (
     <>
-      <ReportShell onBack={onBack} printableHref={`/reports/${encodeURIComponent(`comparison-report-${comparison.id}`)}/print`}>
+      <ReportShell
+        onBack={onBack}
+        printableHref={`/reports/${encodeURIComponent(`comparison-report-${comparison.id}`)}/print`}
+        printableReportRecord={createPrintableComparisonRecord(comparison)}
+      >
         <div className="flex flex-col gap-8">
         <header className="border-b border-line pb-6">
           <div className="flex items-start justify-between gap-6">

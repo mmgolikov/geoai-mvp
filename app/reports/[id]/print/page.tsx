@@ -2,6 +2,7 @@ import Link from "next/link";
 import { AnalysisReportPrint } from "@/components/reports/analysis-report-print";
 import { ComparisonReportPrint } from "@/components/reports/comparison-report-print";
 import { PrintButton } from "@/components/reports/print-button";
+import { PrintReportFallback } from "@/components/reports/print-report-fallback";
 import { getReport } from "@/src/lib/db/repositories/reports";
 import { normalizeReportDeliverable } from "@/src/lib/report-deliverables";
 
@@ -18,23 +19,7 @@ export default async function PrintableReportPage({ params }: PrintableReportPag
   const report = result.data ? normalizeReportDeliverable(result.data) : null;
 
   if (!report) {
-    return (
-      <main className="min-h-screen bg-[#f4f7f9] px-4 py-8 text-ink">
-        <section className="mx-auto max-w-3xl rounded-lg border border-line bg-white p-8 shadow-sm">
-          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-brand">GeoAI</p>
-          <h1 className="mt-3 text-3xl font-semibold">Report not found</h1>
-          <p className="mt-3 text-sm leading-6 text-muted">
-            Generate or save a report first. Local fallback reports are stored only in this development workspace unless Supabase persistence is configured.
-          </p>
-          <Link
-            href="/workspace"
-            className="mt-6 inline-flex h-10 items-center rounded-md bg-brand px-4 text-sm font-semibold text-white"
-          >
-            Open workspace
-          </Link>
-        </section>
-      </main>
-    );
+    return <PrintReportFallback reportId={decodedId} />;
   }
 
   return (

@@ -126,7 +126,7 @@ const sourceLanes = [
   },
   {
     title: "Official validation path",
-    status: "Planned validation",
+    status: "Planned",
     items: ["DLD / Dubai Pulse", "Dubai Municipality / GeoDubai", "Customer-approved sources"],
     note: "Required before operational decisions"
   }
@@ -161,7 +161,7 @@ function Marker({ children, size = "md" }: { children: React.ReactNode; size?: "
 
 function Chip({ children }: { children: React.ReactNode }) {
   return (
-    <span className="rounded-full bg-surface px-2.5 py-1 text-[11px] font-semibold text-muted">
+    <span className="max-w-full shrink-0 truncate rounded-full bg-surface px-2.5 py-1 text-[11px] font-semibold text-muted">
       {children}
     </span>
   );
@@ -235,9 +235,9 @@ function HeroVisual() {
               <h2 className="truncate text-sm font-semibold text-ink">Dubai site screening</h2>
             </div>
           </div>
-          <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
-            {["Demo prototype", "Layers active", "AI-ready"].map((item) => (
-              <span key={item} className="rounded-full bg-surface px-2 py-1 text-[10px] font-semibold text-muted">
+          <div className="flex min-w-0 shrink-0 flex-wrap justify-end gap-1.5">
+            {["Demo", "Layers", "AI-ready"].map((item) => (
+              <span key={item} className="max-w-[96px] shrink-0 truncate rounded-full bg-surface px-2 py-1 text-[10px] font-semibold text-muted">
                 {item}
               </span>
             ))}
@@ -247,30 +247,30 @@ function HeroVisual() {
         <div className="grid min-h-0 gap-2.5 p-2.5 lg:h-[320px] lg:grid-cols-[minmax(0,1.58fr)_minmax(240px,0.9fr)] xl:h-[336px]">
           <div className="relative min-h-[260px] overflow-hidden rounded-lg border border-line bg-white lg:min-h-0">
             <LandingHeroMap />
-            <div className="pointer-events-none absolute left-3 top-3 z-30 max-w-[230px] rounded-md border border-white bg-white/96 px-3 py-2 shadow-sm backdrop-blur">
+            <div className="pointer-events-none absolute left-3 top-3 z-30 max-w-[210px] rounded-md border border-white bg-white/96 px-3 py-2 shadow-sm backdrop-blur">
               <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-brand">Selected site</p>
-              <p className="mt-1 truncate text-sm font-semibold text-ink">Dubai Marina screening area</p>
+              <p className="mt-1 truncate text-sm font-semibold text-ink">Dubai Marina</p>
             </div>
-            <div className="pointer-events-none absolute left-[52%] top-[42%] z-10 h-[76px] w-[124px] rotate-[-9deg] rounded-[42%] border-2 border-brand/70 bg-brand/10 shadow-sm" />
-            <div className="pointer-events-none absolute bottom-3 left-3 right-3 flex flex-wrap gap-1.5">
-              {["Market context", "Spatial layers", "Risk signals"].map((item) => (
-                <span key={item} className="rounded-full border border-white/80 bg-white/90 px-2 py-1 text-[10px] font-semibold text-muted shadow-sm">
+            <div className="pointer-events-none absolute left-[52%] top-[45%] z-10 h-[70px] w-[118px] rotate-[-9deg] rounded-[42%] border-2 border-brand/70 bg-brand/10 shadow-sm" />
+            <div className="pointer-events-none absolute bottom-3 left-3 right-3 z-20 flex flex-wrap gap-1.5">
+              {["Market", "Spatial", "Risk"].map((item) => (
+                <span key={item} className="max-w-[86px] truncate rounded-full border border-white/80 bg-white/92 px-2 py-1 text-[10px] font-semibold text-muted shadow-sm">
                   {item}
                 </span>
               ))}
             </div>
           </div>
 
-          <aside className="flex min-h-0 flex-col gap-2 overflow-hidden rounded-lg border border-line bg-white p-2.5">
-            <div className="flex items-start justify-between gap-3">
+          <aside className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2 overflow-hidden rounded-lg border border-line bg-white p-2.5">
+            <div className="flex min-w-0 items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">Decision summary</p>
                 <h2 className="mt-1 truncate text-base font-semibold text-ink">Proceed with conditions</h2>
               </div>
-              <span className="shrink-0 rounded-full bg-[#edf4f2] px-2 py-1 text-[10px] font-semibold text-brand">memo</span>
+              <span className="max-w-[74px] shrink-0 truncate rounded-full bg-[#edf4f2] px-2 py-1 text-[10px] font-semibold text-brand">memo</span>
             </div>
-            <div className="grid gap-2">
-              <div className="rounded-md bg-[#edf4f2] p-3">
+            <div className="grid min-h-0 grid-rows-[1fr_1fr_1fr] gap-2">
+              <div className="flex min-h-0 flex-col justify-center rounded-md bg-[#edf4f2] p-3">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-brand">Score</p>
                 <div className="mt-1 flex items-end gap-1.5">
                   <p className="text-4xl font-semibold leading-none text-brand">82</p>
@@ -279,11 +279,11 @@ function HeroVisual() {
               </div>
               {[
                 ["Risk", "Validation required"],
-                ["Next", "Due diligence memo"]
+                ["Next", "Due diligence"]
               ].map(([label, value]) => (
-                <div key={label} className="min-w-0 rounded-md border border-line bg-surface px-3 py-2">
+                <div key={label} className="flex min-h-0 min-w-0 flex-col justify-center rounded-md border border-line bg-surface px-3 py-2">
                   <p className="truncate text-[10px] font-semibold uppercase tracking-[0.1em] text-muted">{label}</p>
-                  <p className="mt-1 text-sm font-semibold leading-5 text-ink">{value}</p>
+                  <p className="mt-1 break-words text-[13px] font-semibold leading-5 text-ink">{value}</p>
                 </div>
               ))}
             </div>
@@ -292,7 +292,7 @@ function HeroVisual() {
 
         <div className="grid gap-2 border-t border-line bg-white p-2.5 sm:grid-cols-2 xl:grid-cols-4">
           {metrics.map(([label, value, note]) => (
-            <div key={label} className="min-w-0 overflow-hidden rounded-md bg-surface px-3 py-2">
+            <div key={label} className="flex min-h-[74px] min-w-0 flex-col justify-center overflow-hidden rounded-md bg-surface px-3 py-2">
               <p className="truncate text-[10px] font-semibold uppercase tracking-[0.1em] text-muted">{label}</p>
               <p className="mt-1 truncate text-sm font-semibold leading-5 text-ink">{value}</p>
               <p className="truncate text-[11px] text-muted">{note}</p>
@@ -461,9 +461,9 @@ export default function HomePage() {
             <div className="grid gap-4 lg:grid-cols-3">
               {sourceLanes.map((lane) => (
                 <article key={lane.title} className="flex h-full min-h-[310px] flex-col rounded-lg border border-line bg-white p-5 shadow-sm">
-                  <div className="flex items-start justify-between gap-3">
-                    <h3 className="text-lg font-semibold leading-6 text-ink">{lane.title}</h3>
-                    <span className="shrink-0 rounded-full bg-surface px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted">
+                  <div className="flex min-w-0 items-start justify-between gap-3">
+                    <h3 className="min-w-0 text-lg font-semibold leading-6 text-ink">{lane.title}</h3>
+                    <span className="max-w-[92px] shrink-0 truncate rounded-full bg-surface px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted">
                       {lane.status}
                     </span>
                   </div>

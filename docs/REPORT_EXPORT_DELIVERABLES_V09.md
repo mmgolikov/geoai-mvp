@@ -162,3 +162,22 @@ Allowed framing:
 - customer-provided validation-required upload
 - planned official validation source
 - browser-print deliverable
+
+## v0.9.1 UI Hardening Fixes
+
+The v0.9.1 hardening pass adds:
+
+- safer landing hero dashboard card sizing and shorter map callouts;
+- badge containment rules for landing source-lineage cards;
+- a comparison dashboard Decision Summary block to remove empty top-row space;
+- a session fallback for `/reports/[id]/print` so current analysis/comparison reports can open even when server persistence is unavailable;
+- reusable UI guardrails in [UI Layout Guardrails](UI_LAYOUT_GUARDRAILS.md).
+
+Printable routing rule:
+
+1. Save the report through `/api/reports` where possible.
+2. Store a current-session report fallback before opening the print route.
+3. Open `/reports/[id]/print`.
+4. The route tries the saved report first, then the browser session fallback, then shows a recovery message.
+
+Known limitation: browser session fallback only works from the same browser session that generated the report. Durable cross-device report access still requires configured persistence and future auth/governance.
