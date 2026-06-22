@@ -126,6 +126,24 @@ function sourceBasisFor(target: string, scenarioId: AnalysisScenarioId) {
   ];
 }
 
+function isPremiumPositioningQuery(question: string) {
+  const normalized = question.toLowerCase();
+
+  return [
+    "elite",
+    "premium",
+    "luxury",
+    "branded residence",
+    "branded residences",
+    "waterfront",
+    "элит",
+    "премиум",
+    "люкс",
+    "люксов",
+    "брендирован"
+  ].some((keyword) => normalized.includes(keyword));
+}
+
 function buildFallbackAnswer(
   intent: CustomQueryIntent,
   point: SelectedPoint,
@@ -153,6 +171,59 @@ function buildFallbackAnswer(
   const confidenceNote = ru
     ? "Это screening hypothesis на основе demo/sample/uploaded/open context. Это не legal, cadastral, zoning, valuation или planning approval conclusion."
     : "This is a screening hypothesis based on demo/sample/uploaded/open context. It is not a legal, cadastral, zoning, valuation or planning approval conclusion.";
+
+  if (isPremiumPositioningQuery(intent.normalizedQuestion)) {
+    return {
+      question: intent.normalizedQuestion,
+      intent: intent.intent,
+      shortAnswer: ru
+        ? `На уровне screening-гипотезы ${target} можно рассматривать через premium / elite positioning lens: premium residential, serviced apartments, branded residence or hospitality-led concept, но только после проверки официальных planning, market comps, buyer profile and ownership constraints.`
+        : `At screening level, ${target} can be viewed through a premium / elite positioning lens: premium residential, serviced apartments, branded residence or hospitality-led concept, subject to official planning, market-comps, buyer-profile and ownership validation.`,
+      recommendation: ru
+        ? "Рекомендация: проверить premium positioning как гипотезу, а не как финальное best-use решение."
+        : "Recommendation: test premium positioning as a hypothesis, not as a final best-use decision.",
+      reasoning: ru
+        ? [
+            "Premium/elite query shifts the analysis toward buyer profile, price depth, brand fit, waterfront/lifestyle positioning and liquidity validation.",
+            "Selected spatial/market signals can support screening, but do not prove premium demand or permitted use.",
+            "A premium concept should be benchmarked against alternative elite locations before commitment."
+          ]
+        : [
+            "The premium/elite query shifts the analysis toward buyer profile, price depth, brand fit, waterfront/lifestyle positioning and liquidity validation.",
+            "Selected spatial/market signals can support screening, but do not prove premium demand or permitted use.",
+            "A premium concept should be benchmarked against alternative elite locations before commitment."
+          ],
+      keyRisks: [
+        "Premium pricing, demand depth, absorption and exit liquidity require validated market comps.",
+        "Permitted use, FAR, density, ownership and brand/operator fit are not validated.",
+        "Elite positioning may fail if access, views, amenity quality or competing supply are weaker than assumed."
+      ],
+      validationNeeded: ru
+        ? [
+            "Проверить premium transaction/rental comps through DLD / Dubai Pulse or customer-approved sources.",
+            "Подтвердить official land-use, FAR, ownership and planning constraints.",
+            "Проверить target buyer profile, brand/operator fit, views/access and competing elite locations."
+          ]
+        : [
+            "Validate premium transaction/rental comps through DLD / Dubai Pulse or customer-approved sources.",
+            "Confirm official land-use, FAR, ownership and planning constraints.",
+            "Test target buyer profile, brand/operator fit, views/access and competing elite locations."
+          ],
+      nextActions: ru
+        ? [
+            "Build a premium comps and buyer-profile validation checklist.",
+            "Compare against 2-3 alternative elite/waterfront locations.",
+            "Prepare a premium-positioning memo with validation gaps and no approval claims."
+          ]
+        : [
+            "Build a premium comps and buyer-profile validation checklist.",
+            "Compare against 2-3 alternative elite/waterfront locations.",
+            "Prepare a premium-positioning memo with validation gaps and no approval claims."
+          ],
+      sourceBasis: basis,
+      confidenceNote
+    };
+  }
 
   if (intent.intent === "what_to_build") {
     return {

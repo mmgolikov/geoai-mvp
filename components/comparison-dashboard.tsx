@@ -213,49 +213,6 @@ export function ComparisonDashboard({ comparison, onBackToMap, onExportCompariso
           </section>
         </div>
 
-        {comparison.customQueryAnswer ? (
-          <section className="rounded-lg border border-[#d6c391] bg-[#fff9e8] p-5 shadow-sm">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#6f5817]">Custom Comparison Response</p>
-                <h2 className="mt-2 text-lg font-semibold text-ink">{comparison.customQueryAnswer.question}</h2>
-              </div>
-              <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-[#6f5817]">
-                {comparison.customQueryAnswer.intent.replace(/_/g, " ")}
-              </span>
-            </div>
-            <p className="mt-4 text-base font-semibold leading-7 text-ink">{comparison.customQueryAnswer.shortAnswer}</p>
-            <p className="mt-2 text-sm leading-6 text-muted">{comparison.customQueryAnswer.recommendation}</p>
-            <div className="mt-4 grid gap-3 lg:grid-cols-3">
-              <div className="rounded-md border border-[#ead9a4] bg-white/80 p-4">
-                <h3 className="text-sm font-semibold text-ink">Why it wins</h3>
-                <ul className="mt-3 space-y-2 text-sm leading-6 text-muted">
-                  {comparison.customQueryAnswer.reasoning.slice(0, 3).map((item, index) => (
-                    <li key={createStableKey("comparison-query-reason", item, index)}>{item}</li>
-                  ))}
-                </ul>
-              </div>
-              <div className="rounded-md border border-[#ead9a4] bg-white/80 p-4">
-                <h3 className="text-sm font-semibold text-ink">Validation needed</h3>
-                <ul className="mt-3 space-y-2 text-sm leading-6 text-muted">
-                  {comparison.customQueryAnswer.validationNeeded.slice(0, 3).map((item, index) => (
-                    <li key={createStableKey("comparison-query-validation", item, index)}>{item}</li>
-                  ))}
-                </ul>
-              </div>
-              <div className="rounded-md border border-[#ead9a4] bg-white/80 p-4">
-                <h3 className="text-sm font-semibold text-ink">Next action</h3>
-                <ul className="mt-3 space-y-2 text-sm leading-6 text-muted">
-                  {comparison.customQueryAnswer.nextActions.slice(0, 3).map((item, index) => (
-                    <li key={createStableKey("comparison-query-action", item, index)}>{item}</li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-            <p className="mt-4 text-xs leading-5 text-muted">{comparison.customQueryAnswer.confidenceNote}</p>
-          </section>
-        ) : null}
-
         <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
           <h2 className="text-lg font-semibold text-ink">Comparison Table</h2>
           <div className="mt-4 overflow-x-auto">

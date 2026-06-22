@@ -374,6 +374,14 @@ function createComparisonSignature(items: ComparisonItem[]) {
   return items.map((item) => item.id).sort().join("|");
 }
 
+function hasPendingQueryChange(currentQuery: string, lastQuery: string) {
+  if (!currentQuery) {
+    return false;
+  }
+
+  return currentQuery !== lastQuery;
+}
+
 function readUploadedDatasets() {
   try {
     const stored = window.localStorage.getItem(uploadedDatasetStorageKey);
@@ -1426,14 +1434,14 @@ export function WorkspaceShell() {
   const isAnalysisUpToDate = Boolean(
     analysis &&
       lastAnalyzedState &&
-      lastAnalyzedState.query === currentQuery &&
+      !hasPendingQueryChange(currentQuery, lastAnalyzedState.query) &&
       lastAnalyzedState.scenarioId === selectedScenario &&
       lastAnalyzedState.targetSignature === currentTargetSignature
   );
   const isComparisonUpToDate = Boolean(
     comparison &&
       lastComparedState &&
-      lastComparedState.query === currentQuery &&
+      !hasPendingQueryChange(currentQuery, lastComparedState.query) &&
       lastComparedState.scenarioId === selectedScenario &&
       lastComparedState.comparisonSignature === currentComparisonSignature
   );

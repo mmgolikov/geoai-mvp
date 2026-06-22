@@ -223,6 +223,10 @@ function createExecutivePreview(analysis: ExpressAnalysis) {
     ? `${subject} in ${area}`
     : subject;
 
+  if (analysis.customQuerySummary) {
+    return `${analysis.customQuerySummary} ${analysis.customQueryAnswer?.confidenceNote ?? "This remains a screening interpretation and requires official validation before decision-grade use."}`;
+  }
+
   if (analysis.scenarioId === "climateRisk") {
     return `This ${scenario} screening frames ${place} through heat, coastal exposure and resilience requirements using ${sourceBasis}. The site remains conditional until official risk layers, infrastructure assumptions and mitigation requirements are validated.`;
   }
@@ -239,6 +243,18 @@ function createScreeningSignals(analysis: ExpressAnalysis, decisionPosture: stri
     analysis.marketMetricsMatch?.importedMetricsUsed ||
     analysis.marketContext?.importedMarketMetrics?.importedMetricsUsed;
   const marketBasis = importedMetricsUsed ? "Imported sample metrics" : analysis.marketContext ? "Seed/static area context" : "Demo fallback context";
+  const customLens = analysis.customQueryAnswer
+    ? analysis.customQueryAnswer.intent.replace(/_/g, " ")
+    : null;
+
+  if (customLens) {
+    return [
+      ["Analysis lens", customLens],
+      ["Market basis", marketBasis],
+      ["Validation need", analysis.customQueryAnswer?.validationNeeded[0] ?? "Official source checks"],
+      ["Next step", analysis.customQueryAnswer?.nextActions[0] ?? "Validate evidence gaps"]
+    ];
+  }
 
   if (analysis.scenarioId === "realEstateDevelopment") {
     return [
@@ -385,22 +401,6 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
               </div>
               <div className="flex min-h-0 flex-1 flex-col justify-between gap-3 pt-3">
                 <div className="grid gap-3">
-                  {analysis.customQuery ? (
-                    <div className="rounded-md border border-line bg-surface px-3 py-2">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">Custom query</p>
-                      <p className="mt-1 break-words text-sm font-semibold leading-5 text-ink">{analysis.customQuery}</p>
-                      {analysis.customQueryIntent ? (
-                        <p className="mt-1 text-xs leading-5 text-muted">Lens: {analysis.customQueryIntent}</p>
-                      ) : null}
-                    </div>
-                  ) : null}
-                  {analysis.customQueryAnswer ? (
-                    <div className="rounded-md border border-[#d6c391] bg-[#fff9e8] px-3 py-2">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#6f5817]">Custom Query Response</p>
-                      <p className="mt-1 text-sm font-semibold leading-5 text-ink">{analysis.customQueryAnswer.shortAnswer}</p>
-                      <p className="mt-1 text-xs leading-5 text-muted">{analysis.customQueryAnswer.confidenceNote}</p>
-                    </div>
-                  ) : null}
                   <div>
                     <h2 className="text-lg font-semibold text-ink">Executive Summary</h2>
                     <p className="mt-2 text-sm leading-6 text-muted xl:text-[15px]">{summaryPreview}</p>
@@ -428,7 +428,11 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
                     <AnalysisMetricCard label="Analysis mode" value={modeLabel} className="min-h-[64px]" />
                     <AnalysisMetricCard label="Confidence level" value={analysis.confidenceLevel ?? "medium"} className="min-h-[64px]" />
                     <AnalysisMetricCard label="Data confidence" value={limitationPreview} className="min-h-[64px]" />
-                    <AnalysisMetricCard label="Generated" value={formatGeneratedAt(analysis.generatedAt)} className="min-h-[64px]" />
+                    <AnalysisMetricCard
+                      label={analysis.customQueryIntent ? "Analysis lens" : "Generated"}
+                      value={analysis.customQueryIntent ? analysis.customQueryIntent.replace(/_/g, " ") : formatGeneratedAt(analysis.generatedAt)}
+                      className="min-h-[64px]"
+                    />
                   </div>
                 </div>
               </div>
@@ -479,50 +483,6 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
             </p>
           ) : null}
         </AnalysisCard>
-
-        {analysis.customQueryAnswer ? (
-          <AnalysisCard>
-            <AnalysisCardHeader
-              title="Custom Query Response"
-              subtitle={analysis.customQueryAnswer.question}
-              badge={analysis.customQueryAnswer.intent.replace(/_/g, " ")}
-            />
-            <div className="mt-4 rounded-md border border-[#d6c391] bg-[#fff9e8] p-4">
-              <p className="text-sm font-semibold uppercase tracking-[0.12em] text-[#6f5817]">Screening answer</p>
-              <p className="mt-2 text-base font-semibold leading-7 text-ink">{analysis.customQueryAnswer.shortAnswer}</p>
-              <p className="mt-3 text-sm leading-6 text-muted">{analysis.customQueryAnswer.recommendation}</p>
-            </div>
-            <div className="mt-4 grid gap-3 lg:grid-cols-3">
-              <div className="rounded-md border border-line bg-surface p-4">
-                <h3 className="text-sm font-semibold text-ink">Why this makes sense</h3>
-                <ul className="mt-3 space-y-2 text-sm leading-6 text-muted">
-                  {analysis.customQueryAnswer.reasoning.slice(0, 3).map((item, index) => (
-                    <li key={createStableKey("custom-query-reason", item, index)}>{item}</li>
-                  ))}
-                </ul>
-              </div>
-              <div className="rounded-md border border-line bg-surface p-4">
-                <h3 className="text-sm font-semibold text-ink">Key validation needed</h3>
-                <ul className="mt-3 space-y-2 text-sm leading-6 text-muted">
-                  {analysis.customQueryAnswer.validationNeeded.slice(0, 4).map((item, index) => (
-                    <li key={createStableKey("custom-query-validation", item, index)}>{item}</li>
-                  ))}
-                </ul>
-              </div>
-              <div className="rounded-md border border-line bg-surface p-4">
-                <h3 className="text-sm font-semibold text-ink">Next actions</h3>
-                <ul className="mt-3 space-y-2 text-sm leading-6 text-muted">
-                  {analysis.customQueryAnswer.nextActions.slice(0, 4).map((item, index) => (
-                    <li key={createStableKey("custom-query-action", item, index)}>{item}</li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-            <p className="mt-4 rounded-md border border-line bg-surface px-4 py-3 text-sm leading-6 text-muted">
-              {analysis.customQueryAnswer.confidenceNote}
-            </p>
-          </AnalysisCard>
-        ) : null}
 
         {analysis.marketContext ? (
           <AnalysisCard>
