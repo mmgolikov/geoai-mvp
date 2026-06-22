@@ -2,6 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import externalDataManifestStatic from "@/data/external/normalized/external_data_manifest.json";
+import dldMarketSnapshotStatic from "@/data/normalized/dld_market_snapshot.json";
+import openGeodataSnapshotStatic from "@/data/normalized/open_geodata_snapshot.json";
 import { dataSourceRegistry } from "@/src/data/data-source-registry";
 import { seededDemoComparisonSummaries, seededDemoRecentAnalyses, seededDemoReportRecords } from "@/src/data/demo-report-seeds";
 import { demoProjects, getDemoProject } from "@/src/data/demo-projects";
@@ -47,6 +50,8 @@ type ExternalDataStatus = {
       rowCount?: number;
       recordCount?: number;
       featureCount?: number;
+      coverageArea?: string;
+      confidence?: string;
       caveat?: string;
       disclaimer?: string;
     }>;
@@ -172,9 +177,51 @@ function manifestSourceToReadiness(source?: ManifestSource): ReadinessItem | und
     sourceId: source.id,
     status: source.status ?? "planned",
     recordCount: source.recordCount ?? source.rowCount ?? source.featureCount,
-    coverageArea: "Dubai / UAE screening context",
-    confidence: source.status === "snapshot_available" ? "medium" : "low",
+    coverageArea: source.coverageArea ?? "Dubai / UAE screening context",
+    confidence: source.confidence ?? (source.status === "snapshot_available" ? "medium" : "low"),
     caveat: source.caveat ?? source.disclaimer ?? "Screening context only; official validation required."
+  };
+}
+
+function createInitialMarketMetrics(): MarketMetricsSummary {
+  const areas = Array.isArray((dldMarketSnapshotStatic as { areas?: unknown[] }).areas)
+    ? (dldMarketSnapshotStatic as { areas: Array<{ areaName?: string }> }).areas
+    : [];
+
+  if (areas.length > 0) {
+    return {
+      sourceMode: "real_snapshot",
+      count: areas.length,
+      availableAreaNames: areas.map((area) => area.areaName ?? "Unknown area"),
+      fallbackStatus: "Sample metrics available - manual/offline import; not live official data."
+    };
+  }
+
+  return {
+    sourceMode: "sample_fallback",
+    count: 0,
+    availableAreaNames: [],
+    fallbackStatus: "seed_static fallback"
+  };
+}
+
+function createInitialExternalDataStatus(): ExternalDataStatus {
+  const manifest = externalDataManifestStatic as ExternalDataStatus["manifest"];
+  const manifestSources = manifest?.sources ?? [];
+  const osmSnapshot = openGeodataSnapshotStatic as { roads?: unknown[]; pois?: unknown[]; landuse?: unknown[] };
+  const osmFeatureCount = (osmSnapshot.roads?.length ?? 0) + (osmSnapshot.pois?.length ?? 0) + (osmSnapshot.landuse?.length ?? 0);
+  const manifestWithCounts = {
+    ...manifest,
+    sources: manifestSources.map((source) => source.id === "osm-geofabrik-baseline" && !source.recordCount
+      ? { ...source, recordCount: osmFeatureCount, featureCount: osmFeatureCount }
+      : source)
+  };
+
+  return {
+    manifest: manifestWithCounts,
+    readiness: (manifestWithCounts.sources ?? [])
+      .map((source) => manifestSourceToReadiness(source))
+      .filter((source): source is ReadinessItem => Boolean(source))
   };
 }
 
@@ -404,8 +451,8 @@ export function ProjectDashboard() {
   const [localHistory, setLocalHistory] = useState<AnalysisHistoryItem[]>([]);
   const [dbHistory, setDbHistory] = useState<RecentAnalysisRow[]>([]);
   const [dbHealth, setDbHealth] = useState<DbHealth | null>(null);
-  const [marketMetrics, setMarketMetrics] = useState<MarketMetricsSummary | null>(null);
-  const [externalDataStatus, setExternalDataStatus] = useState<ExternalDataStatus | null>(null);
+  const [marketMetrics, setMarketMetrics] = useState<MarketMetricsSummary | null>(() => createInitialMarketMetrics());
+  const [externalDataStatus, setExternalDataStatus] = useState<ExternalDataStatus | null>(() => createInitialExternalDataStatus());
   const [savedReports, setSavedReports] = useState<SavedObjectSummary[]>([]);
   const [savedComparisons, setSavedComparisons] = useState<SavedObjectSummary[]>([]);
   const [projectDatasets, setProjectDatasets] = useState<SavedObjectSummary[]>([]);
@@ -660,7 +707,7 @@ export function ProjectDashboard() {
       caveat: geodubaiReadiness?.caveat ?? "Not connected in this demo."
     }
   ];
-  const demoMarketAreas = marketMetrics?.availableAreaNames?.length ?? 6;
+  const demoMarketAreas = Math.max(marketMetrics?.availableAreaNames?.length ?? 0, 6);
   const dataConfidence = dldSnapshotAvailable ? "Snapshot + fallback" : "Seed fallback";
   const dataConfidenceNote = dldSnapshotAvailable
     ? "DLD/Dubai Pulse and OSM snapshots are available for screening context; official validation required."
