@@ -102,6 +102,7 @@ type PersistedAnalysisRun = {
 
 type OpenAnalysisRequest = {
   analysisId?: string;
+  projectId?: string | null;
   projectKey?: string;
   scenarioId?: AnalysisScenarioId;
   customQuery?: string;
@@ -330,6 +331,22 @@ function readActiveProjectKey() {
   } catch {
     return demoProjects[0].projectKey;
   }
+}
+
+function readProjectKeyFromUrl(projects: GeoAIProject[]) {
+  const params = new URLSearchParams(window.location.search);
+  const projectKey = params.get("projectKey");
+  const projectId = params.get("projectId");
+
+  if (projectKey) {
+    return projectKey;
+  }
+
+  if (!projectId) {
+    return null;
+  }
+
+  return projects.find((project) => project.id === projectId || project.projectKey === projectId)?.projectKey ?? null;
 }
 
 function writeActiveProjectKey(projectKey: string) {
@@ -597,7 +614,7 @@ export function WorkspaceShell() {
       return;
     }
 
-    const projectKey = params.get("projectKey");
+    const projectKey = params.get("projectKey") ?? readProjectKeyFromUrl(demoProjects);
     const restoreRequest = readOpenAnalysisRequest();
     const requestedAnalysis = restoreRequest?.analysis;
     const scenario = analysisScenarios.find((item) => item.id === requestedAnalysis?.scenarioId);
@@ -644,7 +661,8 @@ export function WorkspaceShell() {
   }, []);
 
   useEffect(() => {
-    const storedProjectKey = readActiveProjectKey();
+    const requestedProjectKey = readProjectKeyFromUrl(demoProjects);
+    const storedProjectKey = requestedProjectKey ?? readActiveProjectKey();
     const localProject = getDemoProject(storedProjectKey);
     let isMounted = true;
 
@@ -658,8 +676,9 @@ export function WorkspaceShell() {
         }
 
         const nextProjects = payload.items;
+        const urlProjectKey = readProjectKeyFromUrl(nextProjects);
         const nextActiveProject =
-          nextProjects.find((project) => project.projectKey === storedProjectKey) ?? nextProjects[0];
+          nextProjects.find((project) => project.projectKey === (urlProjectKey ?? storedProjectKey)) ?? nextProjects[0];
 
         setProjects(nextProjects);
         setProjectsMode(payload.mode);

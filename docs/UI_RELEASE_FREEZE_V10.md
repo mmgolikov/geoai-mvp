@@ -12,6 +12,7 @@ GeoAI MVP UI Freeze v1.0 freezes the current investor-demo UI baseline before ex
 - Comparison dashboard
 - Printable analysis and comparison reports
 - Projects dashboard and recent activity cards
+- Project dashboard scoping rules documented in `docs/PROJECT_SCOPED_PERSISTENCE_V13.md`
 
 ## Mandatory Content Budgets
 
@@ -75,6 +76,7 @@ Comparison:
 - Do not add external data connectors before UI no-overflow QA passes.
 - Do not claim live official integrations, cadastral validation, ownership verification or certified valuation.
 - Do not push critical CTAs below the first visible command panel area.
+- Do not show analyses, reports, comparisons or uploaded dataset metadata across projects unless explicit project metadata matches the active project.
 
 ## Freeze Result
 

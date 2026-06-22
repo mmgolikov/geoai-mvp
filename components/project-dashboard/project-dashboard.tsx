@@ -36,9 +36,12 @@ type PersistedAnalysisRun = {
   id?: string;
   run_key?: string;
   scenario_id?: AnalysisScenarioId;
+  scenario?: AnalysisScenarioId | string;
   selected_name?: string;
   selected_type?: string;
+  title?: string;
   decision_posture?: string | null;
+  decisionPosture?: string | null;
   confidence_level?: ExpressAnalysis["confidenceLevel"];
   data_confidence_level?: string | null;
   analysis_mode?: ExpressAnalysis["analysisMode"];
@@ -47,6 +50,8 @@ type PersistedAnalysisRun = {
   payload?: ExpressAnalysis;
   created_at?: string;
   createdAt?: string;
+  projectId?: string | null;
+  project_id?: string | null;
   projectKey?: string | null;
   project_key?: string | null;
   project_name?: string | null;
@@ -63,6 +68,7 @@ type RecentAnalysisRow = {
   source: "local" | "DB";
   reportId?: string;
   analysis?: ExpressAnalysis;
+  projectId?: string | null;
   projectKey?: string;
   scenarioId?: AnalysisScenarioId;
   customQuery?: string;
@@ -77,7 +83,12 @@ type SavedObjectSummary = {
   reportType?: "analysis" | "comparison";
   scenario?: string | null;
   targetLabel?: string | null;
+  reportId?: string;
+  projectId?: string | null;
+  projectKey?: string | null;
 };
+
+const defaultProjectKey = demoProjects[0].projectKey;
 
 function formatLabel(value: string) {
   return value
@@ -120,6 +131,7 @@ function writeOpenAnalysisRequest(row: RecentAnalysisRow) {
   try {
     window.localStorage.setItem(openAnalysisRequestStorageKey, JSON.stringify({
       analysisId: row.analysis.id,
+      projectId: row.projectId,
       projectKey: row.projectKey,
       scenarioId: row.scenarioId,
       customQuery: row.customQuery ?? row.analysis.customQuery ?? "",
@@ -142,11 +154,60 @@ function readLocalHistory() {
   }
 }
 
-function localHistoryToRows(items: AnalysisHistoryItem[], projectKey: string): RecentAnalysisRow[] {
-  const scoped = items.filter((item) => item.projectKey === projectKey || item.project?.projectKey === projectKey);
-  const fallback = scoped.length > 0 ? scoped : items;
+function readProjectKey(value: unknown): string | null {
+  if (!value || typeof value !== "object") return null;
 
-  return fallback.slice(0, 6).map((item) => ({
+  const item = value as {
+    projectKey?: string | null;
+    project_key?: string | null;
+    project?: { projectKey?: string | null } | null;
+    analysis?: { project?: { projectKey?: string | null } | null } | null;
+    reportPayload?: { project?: { projectKey?: string | null } | null } | null;
+    payload?: { project?: { projectKey?: string | null } | null } | null;
+  };
+
+  return item.projectKey
+    ?? item.project_key
+    ?? item.project?.projectKey
+    ?? item.analysis?.project?.projectKey
+    ?? item.reportPayload?.project?.projectKey
+    ?? item.payload?.project?.projectKey
+    ?? null;
+}
+
+function readProjectId(value: unknown): string | null {
+  if (!value || typeof value !== "object") return null;
+
+  const item = value as {
+    projectId?: string | null;
+    project_id?: string | null;
+    project?: { id?: string | null } | null;
+    analysis?: { project?: { id?: string | null } | null } | null;
+  };
+
+  return item.projectId
+    ?? item.project_id
+    ?? item.project?.id
+    ?? item.analysis?.project?.id
+    ?? null;
+}
+
+function belongsToProject(value: unknown, projectKey: string) {
+  const itemProjectKey = readProjectKey(value);
+
+  if (itemProjectKey) {
+    return itemProjectKey === projectKey;
+  }
+
+  // Legacy local fallback records without project metadata belong only to the
+  // original investment-screening demo, not every project dashboard.
+  return projectKey === defaultProjectKey;
+}
+
+function localHistoryToRows(items: AnalysisHistoryItem[], projectKey: string): RecentAnalysisRow[] {
+  const scoped = items.filter((item) => belongsToProject(item, projectKey));
+
+  return scoped.slice(0, 6).map((item) => ({
     id: item.id,
     title: item.title,
     scenarioLabel: item.scenarioLabel,
@@ -157,6 +218,7 @@ function localHistoryToRows(items: AnalysisHistoryItem[], projectKey: string): R
     source: item.source ?? "local",
     reportId: undefined,
     analysis: item.analysis,
+    projectId: item.project?.id ?? item.analysis.project?.id ?? null,
     projectKey: item.projectKey ?? item.project?.projectKey,
     scenarioId: item.scenarioId,
     customQuery: item.analysis.customQuery,
@@ -167,18 +229,25 @@ function localHistoryToRows(items: AnalysisHistoryItem[], projectKey: string): R
 function persistedRowsToRecent(items: PersistedAnalysisRun[]): RecentAnalysisRow[] {
   return items.slice(0, 6).map((item) => {
     const analysis = item.result_json ?? item.result_payload ?? item.payload;
+    const scenarioId = item.scenario_id ?? analysis?.scenarioId;
+    const scenarioLabel = scenarioId
+      ? formatLabel(scenarioId)
+      : item.scenario
+        ? formatLabel(String(item.scenario))
+        : "Scenario analysis";
 
     return {
       id: item.id ?? item.run_key ?? analysis?.id ?? `${item.selected_name}-${item.created_at ?? item.createdAt}`,
-      title: item.selected_name ?? analysis?.selectedObject?.name ?? analysis?.title ?? "Saved analysis run",
-      scenarioLabel: item.scenario_id ? formatLabel(item.scenario_id) : analysis?.scenarioId ? formatLabel(analysis.scenarioId) : "Scenario analysis",
+      title: item.selected_name ?? item.title ?? analysis?.selectedObject?.name ?? analysis?.title ?? "Saved analysis run",
+      scenarioLabel,
       timestamp: item.created_at ?? item.createdAt ?? analysis?.generatedAt ?? new Date().toISOString(),
-      decisionPosture: item.decision_posture ?? (analysis ? deriveDecisionPosture(analysis) : "Requires official validation"),
+      decisionPosture: item.decision_posture ?? item.decisionPosture ?? (analysis ? deriveDecisionPosture(analysis) : "Requires official validation"),
       confidence: item.confidence_level ?? analysis?.confidenceLevel ?? "medium",
       dataConfidence: item.data_confidence_level ?? analysis?.marketContext?.confidenceLevel ?? "Demo-normalized",
       source: "DB" as const,
       reportId: undefined,
       analysis,
+      projectId: item.project_id ?? item.projectId ?? analysis?.project?.id ?? null,
       projectKey: item.project_key ?? item.projectKey ?? analysis?.project?.projectKey ?? undefined,
       scenarioId: item.scenario_id ?? analysis?.scenarioId,
       customQuery: analysis?.customQuery,
@@ -356,6 +425,10 @@ export function ProjectDashboard() {
                 reportType?: "analysis" | "comparison";
                 scenario?: string | null;
                 targetLabel?: string | null;
+                projectId?: string | null;
+                project_id?: string | null;
+                projectKey?: string | null;
+                project_key?: string | null;
               }) => ({
                 id: item.id,
                 title: item.title,
@@ -363,23 +436,45 @@ export function ProjectDashboard() {
                 sourceSummary: item.sourceSummary,
                 reportType: item.reportType,
                 scenario: item.scenario,
-                targetLabel: item.targetLabel
+                targetLabel: item.targetLabel,
+                projectId: item.projectId ?? item.project_id ?? null,
+                projectKey: item.projectKey ?? item.project_key ?? null
               }))
             : []);
           setSavedComparisons(Array.isArray(comparisonsPayload.items)
-            ? comparisonsPayload.items.map((item: { id: string; title: string; createdAt?: string; recommendation?: string }) => ({
+            ? comparisonsPayload.items.map((item: {
+                id: string;
+                title: string;
+                createdAt?: string;
+                recommendation?: string;
+                projectId?: string | null;
+                project_id?: string | null;
+                projectKey?: string | null;
+                project_key?: string | null;
+              }) => ({
                 id: item.id,
                 title: item.title,
                 createdAt: item.createdAt,
-                sourceSummary: item.recommendation
+                sourceSummary: item.recommendation,
+                projectId: item.projectId ?? item.project_id ?? null,
+                projectKey: item.projectKey ?? item.project_key ?? null
               }))
             : []);
           setProjectDatasets(Array.isArray(datasetsPayload.items)
-            ? datasetsPayload.items.map((item: { id: string; name: string; uploadedAt?: string; officialStatus?: string }) => ({
+            ? datasetsPayload.items.map((item: {
+                id: string;
+                name: string;
+                uploadedAt?: string;
+                officialStatus?: string;
+                projectId?: string | null;
+                projectKey?: string | null;
+              }) => ({
                 id: item.id,
                 title: item.name,
                 createdAt: item.uploadedAt,
-                sourceSummary: item.officialStatus
+                sourceSummary: item.officialStatus,
+                projectId: item.projectId ?? null,
+                projectKey: item.projectKey ?? null
               }))
             : []);
         }
@@ -405,6 +500,10 @@ export function ProjectDashboard() {
     [activeProjectKey, projects]
   );
   const localRows = useMemo(() => localHistoryToRows(localHistory, activeProject.projectKey), [activeProject.projectKey, localHistory]);
+  const scopedDbHistory = dbHistory.filter((item) => belongsToProject(item, activeProject.projectKey));
+  const scopedSavedReports = savedReports.filter((item) => belongsToProject(item, activeProject.projectKey));
+  const scopedSavedComparisons = savedComparisons.filter((item) => belongsToProject(item, activeProject.projectKey));
+  const scopedProjectDatasets = projectDatasets.filter((item) => belongsToProject(item, activeProject.projectKey));
   const seededRows = seededDemoRecentAnalyses
     .filter((item) => item.analysis.project?.projectKey === activeProject.projectKey)
     .map((item) => ({
@@ -416,16 +515,17 @@ export function ProjectDashboard() {
       confidence: item.confidence,
       dataConfidence: item.dataConfidence,
       source: item.source,
-      reportId: item.id === "seeded-recent-analysis-marina" ? "seeded-analysis-dubai-marina-report" : undefined,
+      reportId: item.analysis.id === "seeded-analysis-dubai-marina" ? "seeded-analysis-dubai-marina-report" : undefined,
       analysis: item.analysis,
+      projectId: item.analysis.project?.id ?? null,
       projectKey: item.analysis.project?.projectKey,
       scenarioId: item.analysis.scenarioId,
       customQuery: item.analysis.customQuery,
       canOpenAnalysis: true
     }));
-  const recentRows = dbHistory.length > 0 ? dbHistory : localRows.length > 0 ? localRows : seededRows;
-  const reportRows = savedReports.length > 0
-    ? savedReports
+  const recentRows = scopedDbHistory.length > 0 ? scopedDbHistory : localRows.length > 0 ? localRows : seededRows;
+  const reportRows = scopedSavedReports.length > 0
+    ? scopedSavedReports
     : seededDemoReportRecords
       .filter((report) => report.projectKey === activeProject.projectKey)
       .map((report) => ({
@@ -435,11 +535,13 @@ export function ProjectDashboard() {
         sourceSummary: report.sourceSummary,
         reportType: report.reportType,
         scenario: report.scenario,
-        targetLabel: report.targetLabel
+        targetLabel: report.targetLabel,
+        projectId: report.projectId,
+        projectKey: report.projectKey
       }));
-  const comparisonRows = savedComparisons.length > 0
-    ? savedComparisons
-    : seededDemoComparisonSummaries;
+  const comparisonRows = scopedSavedComparisons.length > 0
+    ? scopedSavedComparisons
+    : seededDemoComparisonSummaries.filter((comparison) => comparison.projectKey === activeProject.projectKey);
   const importedAreas = marketMetrics?.count ?? 0;
   const demoMarketAreas = marketMetrics?.availableAreaNames?.length ?? 6;
   const dataConfidence = importedAreas > 0 ? "Sample/offline" : "Seed fallback";
@@ -451,8 +553,8 @@ export function ProjectDashboard() {
   const pilotPackage = getPilotPackageForProject(activeProject.projectKey, activeProject.clientType);
   const pilotDataRequirements = getPilotDataRequirements(pilotPackage.clientType);
   const pilotReadiness = calculatePilotReadiness({
-    targetSitesProvided: projectDatasets.length > 0 || recentRows.length > 0 || activeProject.status === "demo",
-    geometryAvailable: projectDatasets.length > 0 || activeProject.status === "demo",
+    targetSitesProvided: scopedProjectDatasets.length > 0 || recentRows.length > 0 || activeProject.status === "demo",
+    geometryAvailable: scopedProjectDatasets.length > 0 || activeProject.status === "demo",
     marketDataAvailable: importedAreas > 0,
     externalOpenDataAvailable: dataSourceRegistry.length > 0,
     validationSourcesIdentified: false,
@@ -460,7 +562,7 @@ export function ProjectDashboard() {
     comparisonGenerated: comparisonRows.length > 0,
     officialCustomerValidationPending: true
   });
-  const openWorkspaceHref = "/workspace";
+  const openWorkspaceHref = `/workspace?projectId=${encodeURIComponent(activeProject.id ?? activeProject.projectKey)}`;
 
   function changeProject(projectKey: string) {
     setActiveProjectKey(projectKey);
@@ -533,9 +635,9 @@ export function ProjectDashboard() {
 
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
           <KpiCard label="Analyses" value={recentRows.length} note={recentRows.length > 0 ? "Recent runs available for this project context." : "Run an analysis from the workspace."} />
-          <KpiCard label="Reports" value={reportRows.length} note={savedReports.length > 0 ? "Saved reports available in local/API fallback." : "Demo example memo available for fresh sessions."} />
-          <KpiCard label="Comparisons" value={comparisonRows.length} note={savedComparisons.length > 0 ? "Saved comparison sets available." : "Demo example comparison available."} />
-          <KpiCard label="Data sources" value={dataSourceRegistry.length + projectDatasets.length} note={`${projectDatasets.length} project upload metadata records.`} />
+          <KpiCard label="Reports" value={reportRows.length} note={scopedSavedReports.length > 0 ? "Saved reports available for this project." : "Demo example memo available for this project."} />
+          <KpiCard label="Comparisons" value={comparisonRows.length} note={scopedSavedComparisons.length > 0 ? "Saved comparison sets available for this project." : "Demo example comparison available for this project."} />
+          <KpiCard label="Data sources" value={dataSourceRegistry.length + scopedProjectDatasets.length} note={`${scopedProjectDatasets.length} project upload metadata records.`} />
           <KpiCard label="Market areas" value={importedAreas > 0 ? importedAreas : `0 official / ${demoMarketAreas} demo`} note={marketMetrics?.sourceMode ?? "seed_static fallback"} />
           <KpiCard label="Data confidence" value={dataConfidence} valueKind="text" note={dataConfidenceNote} />
         </section>
@@ -565,7 +667,7 @@ export function ProjectDashboard() {
                           </div>
                           <Link
                             href={item.canOpenAnalysis && item.analysis
-                              ? `/workspace?openAnalysis=${encodeURIComponent(item.analysis.id)}&projectKey=${encodeURIComponent(item.projectKey ?? activeProject.projectKey)}`
+                              ? `/workspace?openAnalysis=${encodeURIComponent(item.analysis.id)}&projectId=${encodeURIComponent(item.projectId ?? activeProject.id ?? item.projectKey ?? activeProject.projectKey)}&projectKey=${encodeURIComponent(item.projectKey ?? activeProject.projectKey)}`
                               : openWorkspaceHref}
                             onClick={() => {
                               writeActiveProjectKey(item.projectKey ?? activeProject.projectKey);
@@ -621,7 +723,7 @@ export function ProjectDashboard() {
                               {[report.scenario, report.targetLabel].filter(Boolean).join(" / ")}
                             </p>
                           ) : null}
-                          {savedReports.length === 0 ? (
+                          {scopedSavedReports.length === 0 ? (
                             <span className="mt-2 inline-flex rounded-full bg-white px-2 py-1 text-[11px] font-semibold text-brand">
                               Demo example
                             </span>
@@ -780,9 +882,10 @@ export function ProjectDashboard() {
                 <div className="grid gap-3">
                   {comparisonRows.slice(0, 4).map((comparison) => {
                     const comparisonReportId =
-                      comparison.id === "seeded-comparison-dubai-shortlist"
-                        ? "seeded-comparison-dubai-shortlist-report"
-                        : comparison.id;
+                      comparison.reportId
+                        ?? (comparison.id === "seeded-comparison-dubai-shortlist"
+                          ? "seeded-comparison-dubai-shortlist-report"
+                          : comparison.id);
 
                     return (
                     <article key={comparison.id} className="rounded-md border border-line bg-surface p-4">
