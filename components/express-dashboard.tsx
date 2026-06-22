@@ -100,12 +100,12 @@ function AnalysisMetricCard({
   className?: string;
 }) {
   return (
-    <div className={`flex h-full min-h-[76px] flex-col rounded-md border border-line bg-surface px-3 py-2 ${className}`}>
-      <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
+    <div className={`flex h-full min-h-[76px] min-w-0 flex-col overflow-hidden rounded-md border border-line bg-surface px-3 py-2 ${className}`}>
+      <span className="safe-line-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
         {label}
       </span>
-      <p className="mt-1 break-words text-sm font-semibold capitalize leading-5 text-ink">{value}</p>
-      {detail ? <p className="mt-1 break-words text-xs leading-5 text-muted">{detail}</p> : null}
+      <p className="safe-line-2 mt-1 text-sm font-semibold capitalize leading-5 text-ink">{value}</p>
+      {detail ? <p className="safe-line-2 mt-1 text-xs leading-5 text-muted">{detail}</p> : null}
     </div>
   );
 }
@@ -314,14 +314,26 @@ function createDecisionRationalePreview(value: string) {
 
 function createDataConfidencePreview(value: string, importedMetricsUsed?: boolean) {
   if (importedMetricsUsed) {
-    return "Demo-normalized / imported sample; official validation required.";
+    return "Demo / imported";
   }
 
   if (value.length > 95) {
-    return "Demo-normalized evidence; official validation required.";
+    return "Demo evidence";
   }
 
   return value;
+}
+
+function createMetadataDetail(label: string, analysis: ExpressAnalysis, marketMetricsImported?: boolean) {
+  if (label === "Data confidence") {
+    return marketMetricsImported ? "Validation required" : "Official validation required";
+  }
+
+  if (label === "Analysis lens" && analysis.customQueryAnswer) {
+    return analysis.customQueryAnswer.confidenceNote;
+  }
+
+  return undefined;
 }
 
 export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: ExpressDashboardProps) {
@@ -391,11 +403,11 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
               analysisTarget={analysis.analysisTarget ?? null}
             />
 
-            <section className="flex h-full min-h-[420px] flex-col overflow-hidden rounded-lg border border-line bg-white p-4 shadow-sm print:h-auto print:min-h-0 print:overflow-visible">
+            <section className="flex h-full min-h-[420px] min-w-0 flex-col overflow-hidden rounded-lg border border-line bg-white p-4 shadow-sm print:h-auto print:min-h-0 print:overflow-visible">
               <div className="shrink-0 rounded-md border border-[#d6c391] bg-[#fff9e8] p-3">
-                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#6f5817]">Decision Posture</p>
-                <p className="mt-2 text-base font-semibold leading-6 text-ink">{decisionPosture}</p>
-                <p className="mt-1 text-sm leading-5 text-muted">
+                <p className="safe-line-1 text-xs font-semibold uppercase tracking-[0.12em] text-[#6f5817]">Decision Posture</p>
+                <p className="safe-line-1 mt-2 text-base font-semibold leading-6 text-ink">{decisionPosture}</p>
+                <p className="safe-line-2 mt-1 text-sm leading-5 text-muted">
                   {decisionRationalePreview}
                 </p>
               </div>
@@ -403,34 +415,40 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
                 <div className="grid gap-3">
                   <div>
                     <h2 className="text-lg font-semibold text-ink">Executive Summary</h2>
-                    <p className="mt-2 text-sm leading-6 text-muted xl:text-[15px]">{summaryPreview}</p>
+                    <p className="safe-line-4 mt-2 text-sm leading-6 text-muted xl:text-[15px]">{summaryPreview}</p>
                   </div>
                   {analysis.analysisNotice ? (
-                    <p className="rounded-md border border-line bg-surface px-3 py-2 text-xs leading-5 text-muted">
+                    <p className="safe-line-2 rounded-md border border-line bg-surface px-3 py-2 text-xs leading-5 text-muted">
                       {analysis.analysisNotice}
                     </p>
                   ) : null}
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Screening Signals</p>
+                    <p className="safe-line-1 text-xs font-semibold uppercase tracking-[0.12em] text-muted">Screening Signals</p>
                     <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                      {screeningSignals.map(([label, value]) => (
-                        <div key={label} className="flex min-h-[58px] flex-col justify-between rounded-md border border-line bg-surface px-3 py-2">
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-muted">{label}</p>
-                          <p className="mt-1 break-words text-sm font-semibold leading-5 text-ink">{value}</p>
+                      {screeningSignals.slice(0, 4).map(([label, value]) => (
+                        <div key={label} className="flex min-h-[58px] min-w-0 flex-col justify-between overflow-hidden rounded-md border border-line bg-surface px-3 py-2">
+                          <p className="safe-line-1 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted">{label}</p>
+                          <p className="safe-line-2 mt-1 text-sm font-semibold leading-5 text-ink">{value}</p>
                         </div>
                       ))}
                     </div>
                   </div>
                 </div>
                 <div className="mt-auto">
-                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Source / Run Metadata</p>
+                  <p className="safe-line-1 text-xs font-semibold uppercase tracking-[0.12em] text-muted">Source / Run Metadata</p>
                   <div className="mt-2 grid gap-2 text-sm sm:grid-cols-2">
                     <AnalysisMetricCard label="Analysis mode" value={modeLabel} className="min-h-[64px]" />
                     <AnalysisMetricCard label="Confidence level" value={analysis.confidenceLevel ?? "medium"} className="min-h-[64px]" />
-                    <AnalysisMetricCard label="Data confidence" value={limitationPreview} className="min-h-[64px]" />
+                    <AnalysisMetricCard
+                      label="Data confidence"
+                      value={limitationPreview}
+                      detail={createMetadataDetail("Data confidence", analysis, marketMetricsMatch?.importedMetricsUsed)}
+                      className="min-h-[64px]"
+                    />
                     <AnalysisMetricCard
                       label={analysis.customQueryIntent ? "Analysis lens" : "Generated"}
                       value={analysis.customQueryIntent ? analysis.customQueryIntent.replace(/_/g, " ") : formatGeneratedAt(analysis.generatedAt)}
+                      detail={analysis.customQueryIntent ? "Query lens applied" : undefined}
                       className="min-h-[64px]"
                     />
                   </div>
@@ -483,6 +501,41 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
             </p>
           ) : null}
         </AnalysisCard>
+
+        {analysis.customQueryAnswer ? (
+          <AnalysisCard>
+            <AnalysisCardHeader
+              title="Custom Query Details"
+              subtitle={analysis.customQueryAnswer.question}
+              badge={analysis.customQueryAnswer.intent.replace(/_/g, " ")}
+            />
+            <div className="mt-4 grid gap-3 lg:grid-cols-3">
+              <article className="rounded-md border border-line bg-surface p-4">
+                <h3 className="safe-line-1 text-sm font-semibold text-ink">Screening hypothesis</h3>
+                <p className="mt-2 text-sm leading-6 text-muted">{analysis.customQueryAnswer.shortAnswer}</p>
+              </article>
+              <article className="rounded-md border border-line bg-surface p-4">
+                <h3 className="safe-line-1 text-sm font-semibold text-ink">Validation needed</h3>
+                <ul className="mt-2 space-y-2 text-sm leading-6 text-muted">
+                  {analysis.customQueryAnswer.validationNeeded.slice(0, 3).map((item, index) => (
+                    <li key={createStableKey("custom-detail-validation", item, index)}>{item}</li>
+                  ))}
+                </ul>
+              </article>
+              <article className="rounded-md border border-line bg-surface p-4">
+                <h3 className="safe-line-1 text-sm font-semibold text-ink">Next steps</h3>
+                <ul className="mt-2 space-y-2 text-sm leading-6 text-muted">
+                  {analysis.customQueryAnswer.nextActions.slice(0, 3).map((item, index) => (
+                    <li key={createStableKey("custom-detail-action", item, index)}>{item}</li>
+                  ))}
+                </ul>
+              </article>
+            </div>
+            <p className="mt-4 rounded-md border border-line bg-surface px-4 py-3 text-sm leading-6 text-muted">
+              {analysis.customQueryAnswer.confidenceNote}
+            </p>
+          </AnalysisCard>
+        ) : null}
 
         {analysis.marketContext ? (
           <AnalysisCard>
@@ -593,7 +646,7 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
             {analysis.keyFactors.map((factor, index) => (
               <article key={createStableKey("key-factor", factor, index)} className="h-full rounded-md border border-line bg-surface p-4">
                 <div className="mb-3 h-1 w-10 rounded-full bg-accent" />
-                <p className="text-sm leading-6 text-ink">{factor}</p>
+                <p className="safe-line-4 text-sm leading-6 text-ink">{factor}</p>
               </article>
             ))}
           </div>

@@ -95,6 +95,20 @@ Generated time, mode labels and internal diagnostics should not create large vis
 - If the current result is stale, the primary CTA should switch to `Continue Analysis` or `Continue Comparison`.
 - The footer CTA is the dominant action; dashboard/header export buttons should remain secondary when present.
 
+## 5.2 Dashboard Content Budgets
+
+- All dynamic AI, custom-query, source, evidence and project text must have a display budget.
+- Dashboard view is not full memo view.
+- Long AI/custom-query output must be summarized in first-screen cards and moved to detail/printable sections.
+- No external data connector work may start if UI no-overflow QA fails.
+- Decision Posture title is max 1 line; explanation is max 2 lines.
+- Executive Summary is max 4 lines in dashboard view.
+- Screening Signals show max 4 cards; labels are max 1 line and values max 2 lines.
+- Source / Run Metadata shows max 4 cards; labels max 1 line and values/details max 2 lines.
+- Comparison top recommendation is max 4 lines; alternative interpretation is max 3 lines.
+
+Use `safe-line-*`, `line-clamp-*`, `truncate`, `min-w-0`, `overflow-hidden`, `break-words`, and stable grid/flex sizing for all dashboard cards.
+
 ## 6. No Visual Holes
 
 - Grid/flex layouts should distribute available space intentionally.

@@ -73,7 +73,7 @@ function ComparisonCard({ scorecard }: { scorecard: ComparisonResult["items"][nu
     <article className="grid h-full min-h-[420px] grid-rows-[92px_92px_78px_96px_minmax(112px,1fr)] rounded-lg border border-line bg-white p-5 shadow-sm">
       <div className="flex min-w-0 items-start justify-between gap-3 border-b border-line pb-4">
         <div className="min-w-0">
-          <h2 className="line-clamp-2 text-lg font-semibold leading-6 text-ink">{scorecard.item.name}</h2>
+          <h2 className="safe-line-2 text-lg font-semibold leading-6 text-ink">{scorecard.item.name}</h2>
           <p className="mt-2 truncate text-sm text-muted">{scorecard.item.itemType} / {scorecard.item.scenarioLabel}</p>
         </div>
         <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${riskTone(scorecard.riskLevel)}`}>
@@ -91,24 +91,24 @@ function ComparisonCard({ scorecard }: { scorecard: ComparisonResult["items"][nu
 
       <div className="border-b border-line py-4">
         <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Location</p>
-        <p className="mt-2 text-sm font-semibold leading-5 text-ink">
+        <p className="safe-line-2 mt-2 text-sm font-semibold leading-5 text-ink">
           {formatCoordinate(scorecard.item.point.latitude, scorecard.item.point.longitude)}
         </p>
       </div>
 
       <div className="border-b border-line py-4">
         <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Market data basis</p>
-        <p className="mt-2 line-clamp-2 text-sm font-semibold leading-5 text-ink">
+        <p className="safe-line-2 mt-2 text-sm font-semibold leading-5 text-ink">
           {marketMatch?.matchedAreaName ?? "Seed fallback"} / {marketMatch?.sourceMode ?? "seed_static"}
         </p>
-        <p className="mt-1 text-xs leading-5 text-muted">
+        <p className="safe-line-2 mt-1 text-xs leading-5 text-muted">
           {metric ? `Liquidity ${metric.liquidityIndex}, demand ${metric.rentalDemandProxy}, pipeline ${metric.pipelineProxy}` : "Imported metrics not matched."}
         </p>
       </div>
 
       <div className="pt-4">
         <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Recommended use</p>
-        <p className="mt-2 line-clamp-4 text-sm leading-6 text-ink">{scorecard.recommendedUse}</p>
+        <p className="safe-line-3 mt-2 text-sm leading-6 text-ink">{scorecard.recommendedUse}</p>
       </div>
     </article>
   );
@@ -171,10 +171,10 @@ export function ComparisonDashboard({ comparison, onBackToMap, onExportCompariso
                 Best option: {comparison.winner.item.name}
               </span>
             </div>
-            <p className="mt-4 text-base leading-7 text-muted">{comparison.whyPreferred}</p>
+            <p className="safe-line-4 mt-4 text-base leading-7 text-muted">{comparison.whyPreferred}</p>
             <div className="mt-4 rounded-md border border-line bg-surface p-4">
-              <h3 className="text-sm font-semibold text-ink">When another option may be better</h3>
-              <p className="mt-2 text-sm leading-6 text-muted">{comparison.whenAnotherMayBeBetter}</p>
+              <h3 className="safe-line-1 text-sm font-semibold text-ink">When another option may be better</h3>
+              <p className="safe-line-3 mt-2 text-sm leading-6 text-muted">{comparison.whenAnotherMayBeBetter}</p>
             </div>
             <DecisionSummaryBox
               className="mt-4"
@@ -186,7 +186,7 @@ export function ComparisonDashboard({ comparison, onBackToMap, onExportCompariso
           </section>
 
           <section className="flex h-full min-w-0 flex-col rounded-lg border border-line bg-white p-5 shadow-sm">
-            <h2 className="text-lg font-semibold text-ink">Map Context</h2>
+            <h2 className="safe-line-1 text-lg font-semibold text-ink">Map Context</h2>
             <div className="mt-4 grid flex-1 content-start gap-3">
               {comparison.items.map((scorecard, index) => (
                 <div key={createStableKey("map-context-item", scorecard.item.id, index)} className="rounded-md border border-line bg-surface p-4">
@@ -195,16 +195,16 @@ export function ComparisonDashboard({ comparison, onBackToMap, onExportCompariso
                       <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">
                         Option {index + 1}
                       </p>
-                      <h3 className="mt-1 truncate text-sm font-semibold text-ink">{scorecard.item.name}</h3>
+                      <h3 className="safe-line-1 mt-1 text-sm font-semibold text-ink">{scorecard.item.name}</h3>
                     </div>
                     <span className="max-w-[76px] shrink-0 truncate rounded-full bg-white px-2 py-1 text-xs font-semibold text-brand">
                       {scorecard.item.itemType}
                     </span>
                   </div>
-                  <p className="mt-2 text-sm leading-5 text-muted">
+                  <p className="safe-line-1 mt-2 text-sm leading-5 text-muted">
                     {formatCoordinate(scorecard.item.point.latitude, scorecard.item.point.longitude)}
                   </p>
-                  <p className="mt-2 text-xs leading-5 text-muted">
+                  <p className="safe-line-2 mt-2 text-xs leading-5 text-muted">
                     Market basis: {scorecard.marketMetricsMatch?.matchedAreaName ?? "Seed fallback"} / {scorecard.marketMetricsMatch?.sourceMode ?? "seed_static"} / {scorecard.marketMetricsMatch?.confidence ?? "low"} confidence
                   </p>
                 </div>
@@ -270,7 +270,7 @@ export function ComparisonDashboard({ comparison, onBackToMap, onExportCompariso
             <h2 className="text-lg font-semibold text-ink">Shared Opportunities</h2>
             <ul className="mt-4 space-y-3">
               {sharedOpportunities.map((item, index) => (
-                <li key={createStableKey("shared-opportunity", item, index)} className="rounded-md border border-line bg-surface px-4 py-3 text-sm leading-6 text-muted">
+                <li key={createStableKey("shared-opportunity", item, index)} className="safe-line-4 rounded-md border border-line bg-surface px-4 py-3 text-sm leading-6 text-muted">
                   {item}
                 </li>
               ))}
@@ -280,7 +280,7 @@ export function ComparisonDashboard({ comparison, onBackToMap, onExportCompariso
             <h2 className="text-lg font-semibold text-ink">Differentiated Risks</h2>
             <ul className="mt-4 space-y-3">
               {differentiatedRisks.map((item, index) => (
-                <li key={createStableKey("differentiated-risk", item, index)} className="rounded-md border border-line bg-surface px-4 py-3 text-sm leading-6 text-muted">
+                <li key={createStableKey("differentiated-risk", item, index)} className="safe-line-4 rounded-md border border-line bg-surface px-4 py-3 text-sm leading-6 text-muted">
                   {item}
                 </li>
               ))}
@@ -303,7 +303,7 @@ export function ComparisonDashboard({ comparison, onBackToMap, onExportCompariso
                 <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white text-sm font-semibold text-brand">
                   {index + 1}
                 </span>
-                <span className="text-sm leading-6 text-muted">{action}</span>
+                <span className="safe-line-4 text-sm leading-6 text-muted">{action}</span>
               </li>
             ))}
           </ol>
