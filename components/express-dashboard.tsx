@@ -385,6 +385,15 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
               </div>
               <div className="flex min-h-0 flex-1 flex-col justify-between gap-3 pt-3">
                 <div className="grid gap-3">
+                  {analysis.customQuery ? (
+                    <div className="rounded-md border border-line bg-surface px-3 py-2">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">Custom query</p>
+                      <p className="mt-1 break-words text-sm font-semibold leading-5 text-ink">{analysis.customQuery}</p>
+                      {analysis.customQueryIntent ? (
+                        <p className="mt-1 text-xs leading-5 text-muted">Lens: {analysis.customQueryIntent}</p>
+                      ) : null}
+                    </div>
+                  ) : null}
                   <div>
                     <h2 className="text-lg font-semibold text-ink">Executive Summary</h2>
                     <p className="mt-2 text-sm leading-6 text-muted xl:text-[15px]">{summaryPreview}</p>

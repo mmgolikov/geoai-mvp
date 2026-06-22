@@ -49,6 +49,7 @@ export function buildAnalyzePrompt(request: AnalyzeRequest) {
   }));
   const coordinateText = `${request.point.latitude.toFixed(6)}, ${request.point.longitude.toFixed(6)}`;
   const selectionName = request.selectedObject?.name ?? "custom map point";
+  const customQuery = request.customQuery?.trim() ?? "";
   const unavailableSourceCount = dataSources.filter((source) => source.status !== "connected").length;
   const marketContext = request.marketContext
     ? {
@@ -103,6 +104,9 @@ Critical rules:
 - If enriched marketMetrics are provided, refer to them as seed_static demo-normalized indicators: activity, rental demand, liquidity, development pipeline, risk, and trend.
 - If spatialContext is provided, use its feature category, geometry type, centroid, estimated area, geometry confidence, source status and limitations. Never describe seed_geojson geometries as official parcel or planning boundaries.
 - If uploadedDataContext is provided, reference uploaded CSV/GeoJSON only as user-provided local context. Do not treat it as official, live, verified, or decision-grade evidence unless validation is explicitly supplied.
+- If the custom query is non-empty, it is an additional decision lens and must materially affect the executive summary, key factors, risks and recommended actions.
+- Do not ignore the custom query even when the scenario is not Custom Query.
+- Answer the custom query within the constraints of available evidence and clearly state what official/customer-approved validation is required.
 - Keep the content polished, specific, and suitable for a professional pilot demo.
 
 Scenario:
@@ -122,7 +126,12 @@ Scenario guidance:
 ${scenarioPromptGuidance[request.scenarioId]}
 
 Custom user context:
-${request.customQuery?.trim() || "No custom query provided."}
+${customQuery || "No custom query provided."}
+
+Custom query instruction:
+${customQuery
+  ? `The user's custom query is: "${customQuery}". Make the answer visibly reflect this query in executive_summary, key_factors, risks and recommended_actions.`
+  : "No additional custom query lens is active."}
 
 Selected location or object:
 ${compactJson(selection)}
@@ -144,11 +153,11 @@ ${compactJson(dataSources)}
 
 Return JSON matching exactly this shape:
 {
-  "executive_summary": "3-5 concise, scenario-specific sentences that mention scenario, selection, coordinates, evidence context and limitation.",
+  "executive_summary": "3-5 concise, scenario-specific sentences that mention scenario, selection, coordinates, evidence context and limitation. If a custom query is provided, answer it explicitly as an additional decision lens.",
   "key_factors": [
     {
       "title": "short title",
-      "description": "one concise sentence tied to the selected scenario, location, evidence, score context, or limitation",
+      "description": "one concise sentence tied to the selected scenario, custom query, location, evidence, score context, or limitation",
       "impact": "positive | neutral | negative"
     }
   ],
@@ -161,14 +170,14 @@ Return JSON matching exactly this shape:
   "risks": [
     {
       "title": "short title",
-      "description": "one concise sentence with the practical constraint or due diligence implication",
+      "description": "one concise sentence with the practical constraint, custom query implication, or due diligence implication",
       "severity": "low | medium | high"
     }
   ],
   "recommended_actions": [
     {
       "title": "short title",
-      "description": "one concise operational next step",
+      "description": "one concise operational next step that reflects the custom query when provided",
       "priority": "low | medium | high"
     }
   ],

@@ -77,6 +77,228 @@ function formatCoordinate(point: SelectedPoint) {
   return `${point.latitude.toFixed(6)}, ${point.longitude.toFixed(6)}`;
 }
 
+export function normalizeCustomQuery(query: string) {
+  return query.trim().replace(/\s+/g, " ");
+}
+
+function createQuerySlug(query: string) {
+  const normalized = normalizeCustomQuery(query).toLowerCase();
+  let hash = 0;
+
+  for (let index = 0; index < normalized.length; index += 1) {
+    hash = (hash * 31 + normalized.charCodeAt(index)) >>> 0;
+  }
+
+  return hash.toString(36).slice(0, 6) || "query";
+}
+
+export function classifyCustomQueryIntent(query: string) {
+  const normalized = normalizeCustomQuery(query).toLowerCase();
+  const checks: Array<[string, string[]]> = [
+    ["use-class fit / development strategy", ["logistics", "residential", "land banking", "landbank", "use class", "better for"]],
+    ["land use / zoning / planning constraints", ["zoning", "land use", "far", "density", "planning", "permission", "permit", "allowed use"]],
+    ["climate / heat / coastal / flood risk", ["climate", "heat", "coastal", "flood", "drainage", "resilience", "insurance"]],
+    ["investment / underwriting / liquidity", ["investment", "underwriting", "irr", "yield", "liquidity", "return", "exit", "cash flow"]],
+    ["access / transport / catchment", ["access", "transport", "metro", "road", "catchment", "traffic", "commute", "connectivity"]],
+    ["infrastructure / utilities / readiness", ["infrastructure", "utility", "utilities", "power", "water", "readiness", "capacity"]],
+    ["construction monitoring / progress", ["construction", "progress", "monitoring", "drone", "satellite", "milestone", "delay"]],
+    ["banking / collateral / lender review", ["bank validate", "bank check", "bank should", "lender", "financing", "collateral", "loan", "mortgage", "encumbrance", "title"]],
+    ["insurance / risk review", ["insurer", "insurance", "premium", "risk review", "hazard", "exposure"]],
+    ["government monitoring / compliance", ["government", "municipality", "compliance", "public", "authority", "free zone"]],
+    ["retail / hospitality / business location", ["retail", "hotel", "hospitality", "restaurant", "business location", "footfall"]]
+  ];
+
+  return checks.find(([, keywords]) => keywords.some((keyword) => normalized.includes(keyword)))?.[0] ?? "generic custom question";
+}
+
+function createCustomQueryOverlay(
+  query: string,
+  scenarioId: AnalysisScenarioId,
+  selectedObject: SelectedDemoObject | null | undefined,
+  point: SelectedPoint
+) {
+  const normalizedQuery = normalizeCustomQuery(query);
+  const intent = classifyCustomQueryIntent(normalizedQuery);
+  const targetName = selectedObject?.name ?? `the selected coordinate ${formatCoordinate(point)}`;
+  const commonLimit = "This custom query is answered as demo screening intelligence only; official parcel, planning, title, market and risk evidence must be validated before decisions.";
+
+  const byIntent: Record<string, {
+    summary: string;
+    keyFactors: string[];
+    opportunities: string[];
+    risks: string[];
+    nextActions: string[];
+  }> = {
+    "land use / zoning / planning constraints": {
+      summary: `The custom query adds a land-use and planning-constraint lens to ${targetName}, so the result prioritizes permitted-use validation, FAR/density assumptions and authority review before any development conclusion.`,
+      keyFactors: [
+        "Custom query lens: land-use, FAR, zoning and permission risk are now primary decision checks.",
+        "Planning fit cannot be concluded until official Dubai Municipality / GeoDubai or customer-approved planning evidence is reviewed."
+      ],
+      opportunities: ["Use this query to turn the site screen into a planning validation checklist before feasibility spend."],
+      risks: ["Permitted use, FAR, density, setbacks and ownership constraints are not validated in the demo context."],
+      nextActions: [
+        "Request official land-use, zoning, FAR and permitted-use confirmation.",
+        "Compare the site against alternatives with clearer planning evidence."
+      ]
+    },
+    "investment / underwriting / liquidity": {
+      summary: `The custom query shifts the analysis toward underwriting quality for ${targetName}, emphasizing liquidity, risk-adjusted returns, exit depth and comparable evidence gaps.`,
+      keyFactors: [
+        "Custom query lens: investment underwriting requires pricing, liquidity, demand and exit assumptions to be tested.",
+        "Current scores can frame the thesis, but do not replace transaction, rental, yield or ownership evidence."
+      ],
+      opportunities: ["Use the query to structure an IC memo around risk-adjusted upside and alternative-site comparison."],
+      risks: ["IRR, yield, pricing, liquidity and exit depth cannot be validated from demo data alone."],
+      nextActions: [
+        "Validate transaction and rental comparables with official or customer-approved sources.",
+        "Model conservative, base and upside underwriting cases."
+      ]
+    },
+    "access / transport / catchment": {
+      summary: `The custom query adds an access and catchment lens for ${targetName}, so transport corridors, travel-time assumptions and demand-generator proximity become more important in the result.`,
+      keyFactors: [
+        "Custom query lens: access, road hierarchy, public transport and catchment quality drive site suitability.",
+        "Open-baseline roads and demo POIs are useful screening context but not official transport evidence."
+      ],
+      opportunities: ["Use this query to compare the site against alternatives by access quality and catchment strength."],
+      risks: ["Traffic, travel time, transit access and catchment depth require validated transport and demand datasets."],
+      nextActions: [
+        "Validate transport accessibility with official network and travel-time data.",
+        "Create a catchment comparison against 2-3 alternative sites."
+      ]
+    },
+    "infrastructure / utilities / readiness": {
+      summary: `The custom query reframes ${targetName} around infrastructure readiness, utility capacity, access works and delivery dependencies.`,
+      keyFactors: [
+        "Custom query lens: utility capacity, road access and delivery dependencies are treated as feasibility-critical.",
+        "Infrastructure readiness is currently inferred from demo context and must be confirmed by utility and authority data."
+      ],
+      opportunities: ["Use the query to identify infrastructure dependencies that can be validated before acquisition or design lock-in."],
+      risks: ["Utility capacity, access upgrades and service connections are not confirmed in the current evidence base."],
+      nextActions: [
+        "Request utility capacity and road-access confirmation.",
+        "Map infrastructure dependencies and likely delivery sequencing."
+      ]
+    },
+    "climate / heat / coastal / flood risk": {
+      summary: `The custom query adds a climate and resilience lens to ${targetName}, emphasizing heat exposure, coastal/flood assumptions, drainage and underwriting implications.`,
+      keyFactors: [
+        "Custom query lens: heat, flood, coastal and drainage risk are now central to the decision frame.",
+        "Climate screening is indicative only until official hazard, elevation, drainage and engineering evidence is reviewed."
+      ],
+      opportunities: ["Use the query to position resilience measures as value protection for lenders, insurers and long-term owners."],
+      risks: ["Heat, coastal, flood and drainage exposure are not certified by official or engineering-grade sources in this MVP."],
+      nextActions: [
+        "Validate exposure with official hazard, elevation and drainage datasets.",
+        "Request insurance and lender resilience requirements before underwriting."
+      ]
+    },
+    "construction monitoring / progress": {
+      summary: `The custom query changes the analysis for ${targetName} toward construction monitoring, progress evidence, schedule deviation and imagery/document cadence.`,
+      keyFactors: [
+        "Custom query lens: monitoring value depends on project boundary, baseline schedule, imagery cadence and site-report evidence.",
+        "Progress interpretation cannot be operational without drawings, milestones and validated field or imagery data."
+      ],
+      opportunities: ["Use this query to define a repeatable lender or investor monitoring workflow."],
+      risks: ["No live imagery, approved drawings or schedule baseline is connected for this demo analysis."],
+      nextActions: [
+        "Upload project boundary, schedule and baseline drawings when available.",
+        "Define monitoring cadence and deviation categories."
+      ]
+    },
+    "banking / collateral / lender review": {
+      summary: `The custom query applies a lender and collateral-review lens to ${targetName}, focusing on title, ownership, encumbrances, liquidity, construction status and evidence gaps.`,
+      keyFactors: [
+        "Custom query lens: bank review requires title, ownership, encumbrance, collateral liquidity and borrower/project evidence.",
+        "Spatial scores support screening, but credit decisions require legal, valuation and official collateral documentation."
+      ],
+      opportunities: ["Use the query to prepare a lender due-diligence checklist and collateral memo outline."],
+      risks: ["Title, ownership, encumbrances, valuation, borrower risk and legal enforceability are not validated by this demo."],
+      nextActions: [
+        "Request title, ownership, encumbrance and valuation evidence.",
+        "Validate collateral liquidity and project progress before financing approval."
+      ]
+    },
+    "insurance / risk review": {
+      summary: `The custom query reframes ${targetName} for insurance and risk review, emphasizing hazard exposure, resilience obligations and underwriting evidence gaps.`,
+      keyFactors: [
+        "Custom query lens: insurability depends on validated hazard exposure, mitigation measures and asset-use assumptions.",
+        "Demo risk signals must be replaced with insurer-approved or engineering-grade evidence before pricing decisions."
+      ],
+      opportunities: ["Use this query to create an insurer-facing risk evidence checklist."],
+      risks: ["Insurance pricing, exclusions and mitigation requirements cannot be inferred from demo data."],
+      nextActions: [
+        "Request hazard, resilience and engineering evidence required by insurers.",
+        "Compare mitigation cost and risk posture against alternative sites."
+      ]
+    },
+    "government monitoring / compliance": {
+      summary: `The custom query applies a government or compliance-monitoring lens to ${targetName}, focusing on approved use, public infrastructure dependency and authority validation.`,
+      keyFactors: [
+        "Custom query lens: compliance depends on official planning status, authority approvals and public infrastructure interface.",
+        "Demo geometry is not an official parcel, planning or compliance boundary."
+      ],
+      opportunities: ["Use the query to prepare a planning or compliance evidence request for public-sector review."],
+      risks: ["Compliance status, public obligations and authority approvals are not validated in the current evidence base."],
+      nextActions: [
+        "Request official compliance, planning and approval evidence.",
+        "Map authority dependencies and public infrastructure interfaces."
+      ]
+    },
+    "retail / hospitality / business location": {
+      summary: `The custom query adds a business-location lens for ${targetName}, emphasizing catchment, visibility, access, footfall proxies and demand-generator evidence.`,
+      keyFactors: [
+        "Custom query lens: retail or hospitality fit depends on catchment depth, access, visibility and surrounding demand generators.",
+        "Footfall, spend, hotel demand and leasing assumptions are not connected as official/live sources."
+      ],
+      opportunities: ["Use the query to build a location-fit memo for tenant, hotel or business-use screening."],
+      risks: ["Customer demand, footfall, trade area and leasing evidence require validated market datasets."],
+      nextActions: [
+        "Validate catchment, footfall and leasing assumptions.",
+        "Compare the location against alternative business nodes."
+      ]
+    },
+    "use-class fit / development strategy": {
+      summary: `The custom query compares use-class fit for ${targetName} at screening level, contrasting logistics, residential development and land-banking potential without claiming permitted use.`,
+      keyFactors: [
+        "Custom query lens: logistics fit depends on access and corridor position, while residential fit depends on catchment, amenities and planning permission.",
+        "Land-banking potential depends on infrastructure timing, holding cost, ownership and future planning clarity."
+      ],
+      opportunities: ["Use the query to compare logistics, residential and land-banking strategies using the same validation checklist."],
+      risks: ["Permitted use, FAR, access rights and market absorption are not validated, so no use-class conclusion is final."],
+      nextActions: [
+        "Validate permitted use and planning envelope for each strategy.",
+        "Compare logistics, residential and land-banking scenarios against 2-3 alternative sites."
+      ]
+    },
+    "generic custom question": {
+      summary: `The custom query adds a user-defined decision lens to ${targetName}: "${normalizedQuery}". The result highlights the evidence needed to answer it rigorously without treating demo context as official.`,
+      keyFactors: [
+        `Custom query lens: ${normalizedQuery}`,
+        `The ${scenarioId} scenario is interpreted through the user's additional question and available demo evidence.`
+      ],
+      opportunities: ["Use the query to turn a broad spatial question into a repeatable site-screening checklist."],
+      risks: ["The custom question may require official, customer-approved or live data that is not connected in this MVP."],
+      nextActions: [
+        "Define the measurable criteria needed to answer the custom question.",
+        "List the official or customer-approved evidence required before decisions."
+      ]
+    }
+  };
+
+  return {
+    intent,
+    summary: byIntent[intent].summary,
+    keyFactors: byIntent[intent].keyFactors,
+    opportunities: byIntent[intent].opportunities,
+    risks: byIntent[intent].risks,
+    nextActions: byIntent[intent].nextActions,
+    limitations: [commonLimit],
+    evidenceNote: `Custom query "${normalizedQuery}" applied as a ${intent} lens. This is demo screening context and requires official validation.`
+  };
+}
+
 function getBaseSignals(point: SelectedPoint) {
   const seed = coordinateSeed(point);
   const dubaiCoreProximity = scoreNear(point.longitude, 55.27, 105);
@@ -216,9 +438,13 @@ export function createMockExpressAnalysis(
   selectedObject?: SelectedDemoObject | null
 ): ExpressAnalysis {
   const scenario = analysisScenarios.find((item) => item.id === scenarioId) ?? analysisScenarios[0];
+  const normalizedCustomQuery = normalizeCustomQuery(customQuery);
+  const queryOverlay = normalizedCustomQuery
+    ? createCustomQueryOverlay(normalizedCustomQuery, scenario.id, selectedObject, point)
+    : null;
   const signals = getBaseSignals(point);
   const scores = createScores(point, scenario.id);
-  const id = `express-${scenario.id}-${point.latitude.toFixed(5)}-${point.longitude.toFixed(5)}`;
+  const id = `express-${scenario.id}-${point.latitude.toFixed(5)}-${point.longitude.toFixed(5)}${normalizedCustomQuery ? `-q-${createQuerySlug(normalizedCustomQuery)}` : ""}`;
   const objectContext = selectedObject
     ? `The selected demo object is ${selectedObject.name}, a synthetic ${selectedObject.type.toLowerCase()} from the ${selectedObject.layerName} layer. `
     : "";
@@ -496,6 +722,18 @@ export function createMockExpressAnalysis(
     }
   };
   const scenarioAnalysis = scenarios[scenario.id];
+  const evidence = queryOverlay
+    ? [
+        ...scenarioAnalysis.evidence,
+        createEvidenceItem(
+          "custom-query-lens",
+          "customer-uploaded-documents",
+          "Custom query lens",
+          queryOverlay.evidenceNote,
+          "low"
+        )
+      ]
+    : scenarioAnalysis.evidence;
 
   return {
     id,
@@ -505,12 +743,26 @@ export function createMockExpressAnalysis(
     point,
     selectedObject: selectedObject ?? undefined,
     scores,
-    summary: scenarioAnalysis.summary,
+    summary: queryOverlay
+      ? `${scenarioAnalysis.summary} ${queryOverlay.summary}`
+      : scenarioAnalysis.summary,
     scoreLabels: scenarioAnalysis.scoreLabels,
-    keyFactors: scenarioAnalysis.keyFactors,
-    opportunities: scenarioAnalysis.opportunities,
-    risks: scenarioAnalysis.risks,
-    nextActions: scenarioAnalysis.nextActions,
-    evidence: scenarioAnalysis.evidence
+    keyFactors: queryOverlay
+      ? [...queryOverlay.keyFactors, ...scenarioAnalysis.keyFactors]
+      : scenarioAnalysis.keyFactors,
+    opportunities: queryOverlay
+      ? [...queryOverlay.opportunities, ...scenarioAnalysis.opportunities]
+      : scenarioAnalysis.opportunities,
+    risks: queryOverlay
+      ? [...queryOverlay.risks, ...scenarioAnalysis.risks]
+      : scenarioAnalysis.risks,
+    nextActions: queryOverlay
+      ? [...queryOverlay.nextActions, ...scenarioAnalysis.nextActions]
+      : scenarioAnalysis.nextActions,
+    evidence,
+    limitations: queryOverlay?.limitations,
+    customQuery: normalizedCustomQuery || undefined,
+    customQueryIntent: queryOverlay?.intent,
+    customQuerySummary: queryOverlay?.summary
   };
 }

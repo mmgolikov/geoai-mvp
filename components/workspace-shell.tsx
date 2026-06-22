@@ -57,6 +57,7 @@ import type { UploadedDataset } from "@/src/types/uploaded-data";
 
 const analysisHistoryStorageKey = "geoai-analysis-history-v1";
 const activeProjectStorageKey = "geoai-active-project-key-v1";
+const openAnalysisRequestStorageKey = "geoai-open-analysis-request-v1";
 const maxAnalysisHistoryItems = 8;
 
 type BackendStatus = {
@@ -97,6 +98,14 @@ type PersistedAnalysisRun = {
   project_key?: string | null;
   project_name?: string | null;
   created_at?: string;
+};
+
+type OpenAnalysisRequest = {
+  analysisId?: string;
+  projectKey?: string;
+  scenarioId?: AnalysisScenarioId;
+  customQuery?: string;
+  analysis?: ExpressAnalysis;
 };
 
 function titledText(title: string, description: string) {
@@ -332,6 +341,25 @@ function normalizeQuery(query: string) {
   return query.trim();
 }
 
+function readOpenAnalysisRequest() {
+  try {
+    const raw = window.localStorage.getItem(openAnalysisRequestStorageKey);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as OpenAnalysisRequest;
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function clearOpenAnalysisRequest() {
+  try {
+    window.localStorage.removeItem(openAnalysisRequestStorageKey);
+  } catch {
+    // One-time restore handoff is optional.
+  }
+}
+
 function createTargetSignature(point: SelectedPoint | null, object: SelectedDemoObject | null) {
   if (!point) return "no-target";
 
@@ -547,6 +575,60 @@ export function WorkspaceShell() {
       loadGuidedDemo(guidedDemoId);
     }
     // Run once from the initial URL only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const openAnalysisId = params.get("openAnalysis");
+
+    if (!openAnalysisId) {
+      return;
+    }
+
+    const projectKey = params.get("projectKey");
+    const restoreRequest = readOpenAnalysisRequest();
+    const requestedAnalysis = restoreRequest?.analysis;
+    const scenario = analysisScenarios.find((item) => item.id === requestedAnalysis?.scenarioId);
+
+    if (
+      requestedAnalysis &&
+      (requestedAnalysis.id === openAnalysisId || restoreRequest?.analysisId === openAnalysisId)
+    ) {
+      restoreAnalysisDashboard({
+        id: `restore-${requestedAnalysis.id}`,
+        title: requestedAnalysis.selectedObject?.name ?? requestedAnalysis.title,
+        scenarioId: requestedAnalysis.scenarioId,
+        scenarioLabel: scenario?.label ?? requestedAnalysis.title,
+        timestamp: requestedAnalysis.generatedAt ?? new Date().toISOString(),
+        locationLabel: formatLocationLabel(requestedAnalysis),
+        analysisMode: requestedAnalysis.analysisMode,
+        confidenceLevel: requestedAnalysis.confidenceLevel,
+        dataConfidenceLevel: requestedAnalysis.marketContext?.confidenceLevel,
+        source: "local",
+        project: requestedAnalysis.project ?? getDemoProject(restoreRequest?.projectKey ?? projectKey),
+        projectKey: requestedAnalysis.project?.projectKey ?? restoreRequest?.projectKey ?? projectKey ?? undefined,
+        recommendation: deriveDecisionPosture(requestedAnalysis),
+        analysis: {
+          ...requestedAnalysis,
+          customQuery: restoreRequest?.customQuery ?? requestedAnalysis.customQuery
+        }
+      });
+      clearOpenAnalysisRequest();
+      return;
+    }
+
+    const historyItem = readAnalysisHistory().find((item) =>
+      item.id === openAnalysisId ||
+      item.analysis.id === openAnalysisId ||
+      `${item.analysis.id}-${item.analysis.generatedAt ?? ""}` === openAnalysisId
+    );
+
+    if (historyItem) {
+      restoreAnalysisDashboard(historyItem);
+      clearOpenAnalysisRequest();
+    }
+    // Run once from initial URL only.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -818,6 +900,9 @@ export function WorkspaceShell() {
           selectedFeatureKey: analysisResult.selectedObject?.spatialContext?.featureId ?? analysisResult.selectedObject?.id ?? null,
           inputContext: {
             scenarioLabel,
+            customQuery: analysisResult.customQuery ?? "",
+            customQueryIntent: analysisResult.customQueryIntent ?? null,
+            customQuerySummary: analysisResult.customQuerySummary ?? null,
             selectedPoint: analysisResult.point,
             selectedObject: analysisResult.selectedObject ?? null,
             marketContext: analysisResult.marketContext ?? null,
@@ -883,6 +968,9 @@ export function WorkspaceShell() {
       selectedObject: analysisResult.selectedObject ?? null,
       coordinates: analysisResult.point,
       scenario: analysisResult.title,
+      customQuery: analysisResult.customQuery ?? null,
+      customQueryIntent: analysisResult.customQueryIntent ?? null,
+      customQuerySummary: analysisResult.customQuerySummary ?? null,
       memoJson: analysisResult,
       decisionPosture: deriveDecisionPosture(analysisResult),
       scoreOverview: analysisResult.scores,
@@ -1086,19 +1174,27 @@ export function WorkspaceShell() {
     setComparisonMessage(null);
   }
 
-  function openHistoryItem(item: AnalysisHistoryItem) {
-    setSelectedPoint(item.analysis.point);
-    setSelectedObject(item.analysis.selectedObject ?? null);
-    setSelectedScenario(item.scenarioId);
-    setAnalysis(item.analysis);
+  function restoreAnalysisDashboard(item: AnalysisHistoryItem) {
+    const restoredCustomQuery = normalizeQuery(item.analysis.customQuery ?? "");
+    const restoredProject = item.project ?? item.analysis.project ?? getDemoProject(item.projectKey);
+    const restoredAnalysis = {
+      ...item.analysis,
+      project: restoredProject
+    };
+
+    setSelectedPoint(restoredAnalysis.point);
+    setSelectedObject(restoredAnalysis.selectedObject ?? null);
+    setSelectedScenario(restoredAnalysis.scenarioId);
+    setCustomQuery(restoredCustomQuery);
+    setAnalysis(restoredAnalysis);
     setLastAnalyzedState({
-      query: "",
-      scenarioId: item.scenarioId,
-      targetSignature: createTargetSignature(item.analysis.point, item.analysis.selectedObject ?? null)
+      query: restoredCustomQuery,
+      scenarioId: restoredAnalysis.scenarioId,
+      targetSignature: createTargetSignature(restoredAnalysis.point, restoredAnalysis.selectedObject ?? null)
     });
-    if (item.project) {
-      setActiveProject(item.project);
-      writeActiveProjectKey(item.project.projectKey);
+    if (restoredProject) {
+      setActiveProject(restoredProject);
+      writeActiveProjectKey(restoredProject.projectKey);
     }
     setComparison(null);
     setLastComparedState(null);
@@ -1106,7 +1202,11 @@ export function WorkspaceShell() {
     setComparisonMessage(null);
     setAnalysisError(null);
     setIsAnalyzing(false);
-    setMarketContext(item.analysis.marketContext ?? null);
+    setMarketContext(restoredAnalysis.marketContext ?? null);
+  }
+
+  function openHistoryItem(item: AnalysisHistoryItem) {
+    restoreAnalysisDashboard(item);
   }
 
   function clearAnalysisHistory() {

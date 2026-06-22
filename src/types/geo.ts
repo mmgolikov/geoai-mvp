@@ -96,6 +96,9 @@ export type ExpressAnalysis = {
   project?: GeoAIProject;
   marketMetricsMatch?: MarketMetricsMatch;
   uploadedDataContext?: UploadedDataContext;
+  customQuery?: string;
+  customQueryIntent?: string;
+  customQuerySummary?: string;
 };
 
 export type ComparisonItem = {
