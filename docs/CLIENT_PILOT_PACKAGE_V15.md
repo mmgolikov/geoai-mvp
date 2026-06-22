@@ -101,6 +101,7 @@ Out of scope:
 - Use `/projects` to show the active project and client pilot package.
 - Use `/workspace` to run the guided analysis and comparison.
 - Use report preview or printable report routes to show memo output.
+- Public/open source context from v1.6 can be used as screening support only; client-approved and official validation sources remain required before pilot decisions.
 
 ## Limitations
 

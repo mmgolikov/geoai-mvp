@@ -7,6 +7,10 @@ const qualityPath = "data/normalized/open_geodata_snapshot_quality.json";
 const manifestPath = "data/external/normalized/external_data_manifest.json";
 const caveat = "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.";
 
+function inputStatus(file) {
+  return file.includes("_sample.") || file.includes("/samples/") ? "sample_fallback" : "snapshot_available";
+}
+
 function argValue(name) {
   const prefix = `--${name}=`;
   return process.argv.find((arg) => arg.startsWith(prefix))?.slice(prefix.length) ?? null;
@@ -48,6 +52,7 @@ function normalizeFeature(feature, index) {
 }
 
 function updateManifest(featureCount, generatedAt, inputFile) {
+  const status = featureCount > 0 ? inputStatus(inputFile) : "sample_fallback";
   let manifest = {
     generatedAt,
     version: "1.4",
@@ -65,16 +70,16 @@ function updateManifest(featureCount, generatedAt, inputFile) {
 
   const next = {
     id: "osm-geofabrik-baseline",
-    status: featureCount > 0 ? "snapshot_available" : "sample_fallback",
+    status,
     lastUpdated: generatedAt,
     availableFiles: featureCount > 0 ? [inputFile, outputPath, qualityPath] : [qualityPath],
     featureCount,
     recordCount: featureCount,
     coverageArea: "Dubai open geospatial baseline",
-    confidence: featureCount > 0 ? "medium" : "low",
+    confidence: status === "snapshot_available" ? "medium" : "low",
     usedInAnalysis: featureCount > 0,
     caveat: featureCount > 0
-      ? `OSM / Geofabrik snapshot context available; ${caveat}`
+      ? `OSM / Geofabrik ${status === "snapshot_available" ? "snapshot context available" : "sample fallback active"}; ${caveat}`
       : `OSM / Geofabrik snapshot missing; sample fallback active; ${caveat}`,
     disclaimer: "Open geospatial baseline; not official municipal GIS, zoning or parcel boundary data."
   };
@@ -91,7 +96,7 @@ if (!existsSync(inputFile)) {
   ensureDir(qualityPath);
   const report = {
     generatedAt,
-    status: "missing-input",
+    status: "unavailable",
     inputFile,
     message: "No OSM / Geofabrik GeoJSON snapshot found. Sample/demo fallback remains active.",
     caveat
@@ -114,7 +119,7 @@ const normalized = {
   source: {
     id: "osm-geofabrik-baseline",
     name: "OSM / Geofabrik open geospatial baseline",
-    status: "snapshot_available",
+    status: inputStatus(inputFile),
     sourceType: "open-data",
     accessMode: "snapshot",
     disclaimer: "Open geospatial baseline; not official municipal GIS, zoning or parcel boundary data."

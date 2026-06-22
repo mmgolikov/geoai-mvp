@@ -1,0 +1,10 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": { "id": "overture-transport-szr", "name": "Sheikh Zayed Road sample", "class": "primary" },
+      "geometry": { "type": "LineString", "coordinates": [[55.118,25.065],[55.160,25.092],[55.205,25.126],[55.268,25.188]] }
+    }
+  ]
+}

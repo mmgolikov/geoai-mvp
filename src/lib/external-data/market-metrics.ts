@@ -74,7 +74,7 @@ export function readExternalMarketMetrics(): ExternalMarketMetricsResponse {
         source: parsed.source ?? {
           id: "dld-dubai-pulse-transactions",
           name: "DLD / Dubai Pulse transactions",
-          status: "connected-snapshot",
+          status: "snapshot_available",
           sourceType: "official-open-data",
           disclaimer: "Open official dataset snapshot; not a live official transactional feed."
         },
@@ -96,7 +96,7 @@ export function readExternalMarketMetrics(): ExternalMarketMetricsResponse {
     source: {
       id: "sample-market-area-metrics",
       name: "GeoAI sample market metrics fallback",
-      status: "sample-fallback",
+      status: "sample_fallback",
       sourceType: "demo-normalized",
       disclaimer: "Sample/manual offline imports only; no live official DLD or Dubai Pulse integration is connected."
     },

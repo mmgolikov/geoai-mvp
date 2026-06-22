@@ -1,0 +1,42 @@
+{
+  "generatedAt": "2026-06-22T22:26:22.934Z",
+  "version": "1.6",
+  "sourceId": "worldpop-demographics",
+  "status": "sample_fallback",
+  "featureCount": 2,
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "worldpop-marina-sample",
+        "areaName": "Dubai Marina",
+        "populationDensityProxy": 78,
+        "confidence": "sample"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          55.1431,
+          25.0822
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "worldpop-dubai-south-sample",
+        "areaName": "Dubai South",
+        "populationDensityProxy": 42,
+        "confidence": "sample"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          55.1542,
+          24.8887
+        ]
+      }
+    }
+  ],
+  "caveat": "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
+}

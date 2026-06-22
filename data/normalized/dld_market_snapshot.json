@@ -1,10 +1,10 @@
 {
-  "generatedAt": "2026-06-22T21:04:29.915Z",
+  "generatedAt": "2026-06-22T22:26:13.716Z",
   "version": "1.4",
   "source": {
     "id": "dld-dubai-pulse-transactions",
     "name": "DLD / Dubai Pulse market snapshot",
-    "status": "snapshot_available",
+    "status": "sample_fallback",
     "sourceType": "official-open-data",
     "accessMode": "snapshot",
     "disclaimer": "DLD / Dubai Pulse snapshot context; not a live official transactional feed."

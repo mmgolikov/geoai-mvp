@@ -12,6 +12,7 @@ import { demoProjects, getDemoProject } from "@/src/data/demo-projects";
 import { getClientPilotPackageForProject } from "@/src/data/pilot-packages";
 import { getSupabaseFallbackMessage } from "@/src/lib/data-readiness";
 import { deriveDecisionPosture } from "@/src/lib/decision-posture";
+import { normalizeSourceStatus, sourceStatusToLabel } from "@/src/lib/external-data/source-status";
 import { getPilotDataRequirements } from "@/src/lib/pilot/data-requirements";
 import { getPilotPackageForProject } from "@/src/lib/pilot/pilot-packages";
 import { calculatePilotReadiness } from "@/src/lib/pilot/pilot-readiness";
@@ -171,12 +172,7 @@ function writeActiveProjectKey(projectKey: string) {
 }
 
 function compactReadinessStatus(status?: string) {
-  if (status === "snapshot_available") return "snapshot";
-  if (status === "connected") return "API context";
-  if (status === "planned") return "planned validation";
-  if (status === "sample_fallback") return "sample fallback";
-  if (status === "missing") return "missing";
-  return "planned";
+  return sourceStatusToLabel(status ?? "planned");
 }
 
 function manifestSourceToReadiness(source?: ManifestSource): ReadinessItem | undefined {
@@ -198,11 +194,15 @@ function createInitialMarketMetrics(): MarketMetricsSummary {
     : [];
 
   if (areas.length > 0) {
+    const sourceStatus = normalizeSourceStatus((dldMarketSnapshotStatic as { source?: { status?: string } }).source?.status);
+
     return {
-      sourceMode: "real_snapshot",
+      sourceMode: sourceStatus === "snapshot_available" ? "real_snapshot" : "sample_fallback",
       count: areas.length,
       availableAreaNames: areas.map((area) => area.areaName ?? "Unknown area"),
-      fallbackStatus: "Sample metrics available - manual/offline import; not live official data."
+      fallbackStatus: sourceStatus === "snapshot_available"
+        ? "Manual/offline snapshot available - not live official data."
+        : "Sample metrics available - manual/offline import; not live official data."
     };
   }
 
@@ -671,8 +671,12 @@ export function ProjectDashboard() {
   const getReadiness = (sourceId: string) => externalReadinessById.get(sourceId) ?? manifestReadinessById.get(sourceId);
   const dldReadiness = getReadiness("dld-dubai-pulse-transactions");
   const osmReadiness = getReadiness("osm-geofabrik-baseline");
+  const overtureReadiness = getReadiness("overture-maps-open-buildings");
   const climateReadiness = getReadiness("open-meteo-climate");
-  const copernicusReadiness = getReadiness("copernicus-sentinel-catalog");
+  const solarReadiness = getReadiness("nasa-power-solar-energy");
+  const airReadiness = getReadiness("openaq-air-quality");
+  const worldpopReadiness = getReadiness("worldpop-demographics");
+  const copernicusReadiness = getReadiness("copernicus-sentinel-metadata") ?? getReadiness("copernicus-sentinel-catalog");
   const geodubaiReadiness = getReadiness("geodubai-municipality-validation");
   const marketSnapshotAvailable = marketMetrics?.sourceMode === "real_snapshot" && importedAreas > 0;
   const dldSnapshotAvailable = (
@@ -686,7 +690,7 @@ export function ProjectDashboard() {
       source: "DLD / Dubai Pulse snapshot",
       currentStatus: dldSnapshotAvailable ? "snapshot" : compactReadinessStatus(dldReadiness?.status),
       caveat: dldSnapshotAvailable
-        ? `Snapshot available: ${dldRecordCount} sample market-area records. Official validation required before decisions.`
+        ? `Snapshot available: ${dldRecordCount} market-area records. Official validation required before decisions.`
         : dldReadiness?.caveat ?? "Sample fallback remains active until a DLD / Dubai Pulse snapshot is available."
     },
     {
@@ -698,10 +702,34 @@ export function ProjectDashboard() {
         : osmReadiness?.caveat ?? "Open geospatial sample fallback remains active."
     },
     {
+      sourceId: "overture-maps-open-buildings",
+      source: "Overture Maps open snapshot",
+      currentStatus: compactReadinessStatus(overtureReadiness?.status),
+      caveat: overtureReadiness?.caveat ?? "Manual import ready for buildings, places and transportation open snapshots."
+    },
+    {
       sourceId: "open-meteo-climate",
       source: "Open-Meteo climate context",
       currentStatus: compactReadinessStatus(climateReadiness?.status),
       caveat: climateReadiness?.caveat ?? "Screening-level heat/rainfall proxy only."
+    },
+    {
+      sourceId: "nasa-power-solar-energy",
+      source: "NASA POWER solar / energy",
+      currentStatus: compactReadinessStatus(solarReadiness?.status),
+      caveat: solarReadiness?.caveat ?? "Screening-level solar and wind proxy only."
+    },
+    {
+      sourceId: "openaq-air-quality",
+      source: "OpenAQ air quality",
+      currentStatus: compactReadinessStatus(airReadiness?.status),
+      caveat: airReadiness?.caveat ?? "Screening-level air quality context with fallback."
+    },
+    {
+      sourceId: "worldpop-demographics",
+      source: "WorldPop demographics",
+      currentStatus: compactReadinessStatus(worldpopReadiness?.status),
+      caveat: worldpopReadiness?.caveat ?? "Population density proxy; not official census validation."
     },
     {
       sourceId: "copernicus-sentinel-catalog",
@@ -717,10 +745,10 @@ export function ProjectDashboard() {
     }
   ];
   const demoMarketAreas = Math.max(marketMetrics?.availableAreaNames?.length ?? 0, 6);
-  const dataConfidence = dldSnapshotAvailable ? "Snapshot + fallback" : "Seed fallback";
+  const dataConfidence = dldSnapshotAvailable ? "Snapshot + fallback" : "Sample fallback";
   const dataConfidenceNote = dldSnapshotAvailable
     ? "DLD/Dubai Pulse and OSM snapshots are available for screening context; official validation required."
-    : "Demo fallback; official validation required before decisions.";
+    : "Sample/open fallbacks are active; official validation required before decisions.";
   const persistenceMode = dbHealth?.status === "connected" ? "Supabase/PostGIS connected" : "Local fallback";
   const nextActions = getNextActions(activeProject, dldRecordCount);
   const pilotPackage = getPilotPackageForProject(activeProject.projectKey, activeProject.clientType);

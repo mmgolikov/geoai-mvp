@@ -1,0 +1,15 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": { "id": "overture-place-marina-mall", "name": "Dubai Marina retail sample", "category": "retail" },
+      "geometry": { "type": "Point", "coordinates": [55.140,25.077] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "id": "overture-place-business-bay-metro", "name": "Business Bay mobility sample", "category": "transport" },
+      "geometry": { "type": "Point", "coordinates": [55.260,25.192] }
+    }
+  ]
+}

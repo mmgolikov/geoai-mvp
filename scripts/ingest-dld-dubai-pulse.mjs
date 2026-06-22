@@ -7,7 +7,7 @@ const manifestPath = "data/external/normalized/external_data_manifest.json";
 const source = {
   id: "dld-dubai-pulse-transactions",
   name: "DLD / Dubai Pulse transactions",
-  status: "connected-snapshot",
+  status: "snapshot_available",
   sourceType: "official-open-data",
   updateMode: "manual",
   notLiveFeed: true,
@@ -16,7 +16,7 @@ const source = {
 const defaultManifestSources = [
   {
     id: "dld-dubai-pulse-transactions",
-    status: "manual-import",
+    status: "manual_import_ready",
     lastUpdated: null,
     availableFiles: [],
     rowCount: 0,
@@ -25,7 +25,7 @@ const defaultManifestSources = [
   },
   {
     id: "osm-geofabrik-baseline",
-    status: "manual-import",
+    status: "manual_import_ready",
     lastUpdated: null,
     availableFiles: [],
     featureCount: 0,
@@ -34,7 +34,7 @@ const defaultManifestSources = [
   },
   {
     id: "open-meteo-climate",
-    status: "connected-api",
+    status: "connected",
     lastUpdated: null,
     availableFiles: [],
     usedInAnalysis: false,
@@ -42,7 +42,7 @@ const defaultManifestSources = [
   },
   {
     id: "copernicus-sentinel-catalog",
-    status: "not-configured",
+    status: "token_required",
     lastUpdated: null,
     availableFiles: [],
     usedInAnalysis: false,
@@ -50,7 +50,7 @@ const defaultManifestSources = [
   },
   {
     id: "geodubai-municipality-validation",
-    status: "planned-access",
+    status: "planned",
     lastUpdated: null,
     availableFiles: [],
     usedInAnalysis: false,
@@ -58,7 +58,7 @@ const defaultManifestSources = [
   },
   {
     id: "dld-api-gateway-validation",
-    status: "planned-access",
+    status: "permission_required",
     lastUpdated: null,
     availableFiles: [],
     usedInAnalysis: false,
@@ -222,7 +222,7 @@ if (!input.ok) {
   const report = {
     generatedAt,
     source,
-    status: "missing-input",
+    status: "unavailable",
     message: input.message,
     rowsRead: 0,
     areasWritten: 0,
@@ -232,7 +232,7 @@ if (!input.ok) {
     ]
   };
   writeFileSync(reportPath, JSON.stringify(report, null, 2));
-  updateManifest({ status: "manual-import" }, false, true, 0, generatedAt);
+  updateManifest({ status: "manual_import_ready" }, false, true, 0, generatedAt);
   console.log(input.message);
   process.exit(0);
 }

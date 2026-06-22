@@ -1,0 +1,56 @@
+{
+  "generatedAt": "2026-06-22T22:26:22.926Z",
+  "version": "1.6",
+  "sourceId": "dld-dubai-pulse-public-land",
+  "status": "sample_fallback",
+  "category": "land",
+  "recordCount": 3,
+  "records": [
+    {
+      "id": "land-dubai-marina-1",
+      "category": "land",
+      "sourceId": "dld-dubai-pulse-public-land",
+      "areaName": "Dubai Marina",
+      "sourceFile": "data/external/samples/dld_land_sample.csv",
+      "fields": {
+        "area_name": "Dubai Marina",
+        "record_count": "18",
+        "area_sqm": "185000",
+        "value_aed": "920000000",
+        "source_date": "2026-06-01"
+      },
+      "caveat": "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
+    },
+    {
+      "id": "land-business-bay-2",
+      "category": "land",
+      "sourceId": "dld-dubai-pulse-public-land",
+      "areaName": "Business Bay",
+      "sourceFile": "data/external/samples/dld_land_sample.csv",
+      "fields": {
+        "area_name": "Business Bay",
+        "record_count": "24",
+        "area_sqm": "230000",
+        "value_aed": "1120000000",
+        "source_date": "2026-06-01"
+      },
+      "caveat": "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
+    },
+    {
+      "id": "land-dubai-south-3",
+      "category": "land",
+      "sourceId": "dld-dubai-pulse-public-land",
+      "areaName": "Dubai South",
+      "sourceFile": "data/external/samples/dld_land_sample.csv",
+      "fields": {
+        "area_name": "Dubai South",
+        "record_count": "31",
+        "area_sqm": "950000",
+        "value_aed": "760000000",
+        "source_date": "2026-06-01"
+      },
+      "caveat": "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
+    }
+  ],
+  "caveat": "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
+}

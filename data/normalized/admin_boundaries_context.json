@@ -1,0 +1,46 @@
+{
+  "generatedAt": "2026-06-22T22:26:22.934Z",
+  "version": "1.6",
+  "sourceId": "overture-divisions-admin-context",
+  "status": "sample_fallback",
+  "featureCount": 1,
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "admin-dubai-demo",
+        "name": "Dubai demo administrative context",
+        "source": "Overture divisions sample",
+        "officialStatus": "non-official-context"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              54.9,
+              24.75
+            ],
+            [
+              55.6,
+              24.75
+            ],
+            [
+              55.6,
+              25.35
+            ],
+            [
+              54.9,
+              25.35
+            ],
+            [
+              54.9,
+              24.75
+            ]
+          ]
+        ]
+      }
+    }
+  ],
+  "caveat": "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
+}

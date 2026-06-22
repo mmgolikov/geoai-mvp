@@ -1,15 +1,22 @@
+import {
+  publicDataCaveat,
+  publicSourceCatalog
+} from "@/src/lib/external-data/public-source-catalog";
+import type {
+  PublicSourceAccessMode,
+  PublicSourceCatalogItem,
+  PublicSourceCategory,
+  PublicSourceConnectionStatus
+} from "@/src/lib/external-data/public-source-types";
+import type { SourceStatus } from "@/src/lib/external-data/source-status";
+
 export type ExternalDataSource = {
   id: string;
   name: string;
   provider: string;
   geography: string;
-  category: "market" | "spatial" | "climate" | "satellite" | "official-validation";
-  status:
-    | "connected-snapshot"
-    | "connected-api"
-    | "manual-import"
-    | "planned-access"
-    | "not-configured";
+  category: PublicSourceCategory;
+  status: PublicSourceConnectionStatus;
   sourceType:
     | "official-open-data"
     | "open-data"
@@ -17,7 +24,7 @@ export type ExternalDataSource = {
     | "satellite-catalog"
     | "customer-uploaded"
     | "planned-official";
-  accessMode: "snapshot" | "api-context" | "sample-fallback" | "planned-validation" | "customer-upload";
+  accessMode: PublicSourceAccessMode | "snapshot" | "sample_fallback" | "customer-upload";
   updateMode: "manual" | "scripted" | "api-on-demand" | "planned";
   freshness: "static-snapshot" | "on-demand-context" | "sample" | "planned" | "unknown";
   lastUpdated?: string;
@@ -31,9 +38,11 @@ export type ExternalDataSource = {
   allowedUse: string[];
   forbiddenClaims: string[];
   disclaimer: string;
+  updateCadence: string;
+  dataQualityTier: PublicSourceCatalogItem["dataQualityTier"];
 };
 
-export type DataReadinessStatus = "connected" | "snapshot_available" | "sample_fallback" | "planned" | "missing";
+export type DataReadinessStatus = SourceStatus;
 
 export type DataReadinessResult = {
   sourceId: string;
@@ -57,179 +66,113 @@ export type SourceLineageItem = {
   validationRequired: boolean;
 };
 
-export const externalDataCaveat =
-  "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.";
+export const externalDataCaveat = publicDataCaveat;
 
-const commonForbiddenClaims = [
-  "live official integration",
-  "legal, cadastral, zoning, planning or valuation conclusion",
-  "certified flood risk",
-  "engineering-grade climate assessment",
-  "insurance-grade hazard model"
-];
+const legacyIdAliases: Record<string, string> = {
+  "dld-dubai-pulse-transactions": "dld-dubai-pulse-public-transactions",
+  "osm-geofabrik-baseline": "osm-geofabrik-open-roads",
+  "copernicus-sentinel-catalog": "copernicus-sentinel-metadata"
+};
 
-export const externalDataSources: ExternalDataSource[] = [
+function confidenceFromTier(tier: PublicSourceCatalogItem["dataQualityTier"]): ExternalDataSource["confidence"] {
+  if (tier === "snapshot" || tier === "open-context" || tier === "screening") return "medium";
+  if (tier === "sample") return "low";
+  return "requires-validation";
+}
+
+function sourceTypeFromCatalog(source: PublicSourceCatalogItem): ExternalDataSource["sourceType"] {
+  if (source.category === "official-validation" || source.accessMode === "permissioned" || source.accessMode === "planned-validation") {
+    return "planned-official";
+  }
+  if (source.category === "climate" || source.category === "energy") return "reanalysis";
+  if (source.category === "satellite-metadata") return "satellite-catalog";
+  if (source.provider.includes("Dubai Land Department") || source.provider.includes("Dubai Pulse")) return "official-open-data";
+  return "open-data";
+}
+
+function updateModeFromAccess(accessMode: PublicSourceAccessMode): ExternalDataSource["updateMode"] {
+  if (accessMode === "open-api" || accessMode === "api-context" || accessMode === "token-optional") return "api-on-demand";
+  if (accessMode === "planned-validation" || accessMode === "permissioned") return "planned";
+  return "manual";
+}
+
+function freshnessFromStatus(status: PublicSourceConnectionStatus): ExternalDataSource["freshness"] {
+  if (status === "connected") return "on-demand-context";
+  if (status === "snapshot_available" || status === "manual_import_ready") return "static-snapshot";
+  if (status === "sample_fallback") return "sample";
+  if (status === "planned" || status === "permission_required" || status === "token_required") return "planned";
+  return "unknown";
+}
+
+function validationStatusFromSource(source: PublicSourceCatalogItem): ExternalDataSource["validationStatus"] {
+  if (source.connectionStatus === "sample_fallback") return "sample-only";
+  if (source.category === "official-validation" || source.connectionStatus === "permission_required" || source.connectionStatus === "planned") {
+    return "planned-validation";
+  }
+  if (source.accessMode === "open-api" || source.accessMode === "api-context") return "open-context";
+  return "snapshot-not-live";
+}
+
+function reliabilityFromSource(source: PublicSourceCatalogItem): ExternalDataSource["reliabilityTier"] {
+  if (source.dataQualityTier === "requires-validation") return "requires-validation";
+  if (source.dataQualityTier === "sample") return "demo";
+  if (source.dataQualityTier === "snapshot" || source.dataQualityTier === "open-context" || source.dataQualityTier === "screening") return "medium";
+  return "low";
+}
+
+function toExternalSource(source: PublicSourceCatalogItem): ExternalDataSource {
+  return {
+    id: source.id,
+    name: source.name,
+    provider: source.provider,
+    geography: source.geography,
+    category: source.category,
+    status: source.connectionStatus,
+    sourceType: sourceTypeFromCatalog(source),
+    accessMode: source.accessMode,
+    updateMode: updateModeFromAccess(source.accessMode),
+    freshness: freshnessFromStatus(source.connectionStatus),
+    usedInAnalysis: source.connectionStatus === "connected" || source.connectionStatus === "snapshot_available",
+    confidence: confidenceFromTier(source.dataQualityTier),
+    licenseNote: source.licenseNote,
+    validationStatus: validationStatusFromSource(source),
+    reliabilityTier: reliabilityFromSource(source),
+    officialClaimAllowed: source.officialClaimAllowed,
+    limitations: source.limitations,
+    allowedUse: source.allowedUse,
+    forbiddenClaims: source.forbiddenClaims,
+    disclaimer: `${source.name}: ${source.limitations[0]} ${source.caveat}`,
+    updateCadence: source.updateCadence,
+    dataQualityTier: source.dataQualityTier
+  };
+}
+
+const legacyExternalSources: ExternalDataSource[] = [
   {
+    ...toExternalSource(publicSourceCatalog.find((source) => source.id === "dld-dubai-pulse-public-transactions")!),
     id: "dld-dubai-pulse-transactions",
-    name: "DLD / Dubai Pulse market snapshot",
-    provider: "Dubai Land Department / Dubai Pulse",
-    geography: "Dubai",
-    category: "market",
-    status: "manual-import",
-    sourceType: "official-open-data",
-    accessMode: "snapshot",
-    updateMode: "manual",
-    freshness: "static-snapshot",
-    usedInAnalysis: false,
-    confidence: "requires-validation",
-    licenseNote: "Use depends on dataset-specific Dubai Pulse/DLD terms, attribution and redistribution limits.",
-    validationStatus: "snapshot-not-live",
-    reliabilityTier: "requires-validation",
-    officialClaimAllowed: false,
-    limitations: [
-      "Snapshot/manual import only; no live official DLD feed is connected.",
-      "Schema varies by source file and may not include complete transaction semantics.",
-      externalDataCaveat
-    ],
-    allowedUse: [
-      "screening-level market context",
-      "source lineage and data readiness display",
-      "hypothesis support for investor demo memos"
-    ],
-    forbiddenClaims: commonForbiddenClaims,
-    disclaimer: "DLD / Dubai Pulse snapshot context; not a live official transactional feed."
+    name: "DLD / Dubai Pulse public snapshot"
   },
   {
+    ...toExternalSource(publicSourceCatalog.find((source) => source.id === "osm-geofabrik-open-roads")!),
     id: "osm-geofabrik-baseline",
-    name: "OSM / Geofabrik open geospatial baseline",
-    provider: "OpenStreetMap / Geofabrik-compatible extract",
-    geography: "Dubai / UAE",
-    category: "spatial",
-    status: "manual-import",
-    sourceType: "open-data",
-    accessMode: "snapshot",
-    updateMode: "manual",
-    freshness: "static-snapshot",
-    usedInAnalysis: false,
-    confidence: "medium",
-    licenseNote: "Requires ODbL attribution and compliance handling for production use.",
-    validationStatus: "snapshot-not-live",
-    reliabilityTier: "medium",
-    officialClaimAllowed: false,
-    limitations: [
-      "Open geospatial context only; not official municipal GIS, zoning or parcel boundary data.",
-      "Completeness depends on the dated extract or sample fixture.",
-      externalDataCaveat
-    ],
-    allowedUse: ["road/POI/landuse context", "accessibility screening", "source lineage display"],
-    forbiddenClaims: commonForbiddenClaims,
-    disclaimer: "Open geospatial baseline; not official municipal GIS, zoning or parcel boundary data."
+    name: "OSM / Geofabrik open snapshot"
   },
   {
-    id: "open-meteo-climate",
-    name: "Open-Meteo historical weather",
-    provider: "Open-Meteo",
-    geography: "Global / Dubai",
-    category: "climate",
-    status: "connected-api",
-    sourceType: "reanalysis",
-    accessMode: "api-context",
-    updateMode: "api-on-demand",
-    freshness: "on-demand-context",
-    usedInAnalysis: false,
-    confidence: "medium",
-    licenseNote: "Open-Meteo API terms and attribution apply; cache and citation policy required for production.",
-    validationStatus: "open-context",
-    reliabilityTier: "medium",
-    officialClaimAllowed: false,
-    limitations: [
-      "Screening-level heat/rainfall proxy from open climate context.",
-      "Not site-specific engineering, drainage, flood or insurance-grade hazard modeling.",
-      externalDataCaveat
-    ],
-    allowedUse: ["climate context", "screening-level heat/rainfall proxy", "resilience due diligence framing"],
-    forbiddenClaims: commonForbiddenClaims,
-    disclaimer: "Climate context from reanalysis/model data; not a site-specific engineering or insurance assessment."
-  },
-  {
+    ...toExternalSource(publicSourceCatalog.find((source) => source.id === "copernicus-sentinel-metadata")!),
     id: "copernicus-sentinel-catalog",
-    name: "Copernicus / Sentinel imagery availability",
-    provider: "Copernicus / Sentinel Hub",
-    geography: "Global / Dubai",
-    category: "satellite",
-    status: "not-configured",
-    sourceType: "satellite-catalog",
-    accessMode: "planned-validation",
-    updateMode: "planned",
-    freshness: "planned",
-    usedInAnalysis: false,
-    confidence: "requires-validation",
-    licenseNote: "Open mission data/product-specific license and API access review required.",
-    validationStatus: "planned-validation",
-    reliabilityTier: "requires-validation",
-    officialClaimAllowed: false,
-    limitations: [
-      "Metadata availability path only; no imagery analytics pipeline is connected.",
-      externalDataCaveat
-    ],
-    allowedUse: ["planned source readiness", "future remote-sensing evidence lineage"],
-    forbiddenClaims: commonForbiddenClaims,
-    disclaimer: "Satellite imagery availability check only; analytics pipeline planned."
-  },
-  {
-    id: "geodubai-municipality-validation",
-    name: "GeoDubai / Dubai Municipality official validation",
-    provider: "GeoDubai / Dubai Municipality",
-    geography: "Dubai",
-    category: "official-validation",
-    status: "planned-access",
-    sourceType: "planned-official",
-    accessMode: "planned-validation",
-    updateMode: "planned",
-    freshness: "planned",
-    usedInAnalysis: false,
-    confidence: "requires-validation",
-    licenseNote: "Requires official access, permissions and use-case-specific validation.",
-    validationStatus: "planned-validation",
-    reliabilityTier: "requires-validation",
-    officialClaimAllowed: false,
-    limitations: [
-      "Planned official validation only; not connected in this demo.",
-      externalDataCaveat
-    ],
-    allowedUse: ["validation roadmap", "source gap disclosure"],
-    forbiddenClaims: commonForbiddenClaims,
-    disclaimer: "Planned official validation source; not connected in this demo."
-  },
-  {
-    id: "dld-api-gateway-validation",
-    name: "DLD API Gateway / official validation path",
-    provider: "Dubai Land Department",
-    geography: "Dubai",
-    category: "official-validation",
-    status: "planned-access",
-    sourceType: "planned-official",
-    accessMode: "planned-validation",
-    updateMode: "planned",
-    freshness: "planned",
-    usedInAnalysis: false,
-    confidence: "requires-validation",
-    licenseNote: "Requires enterprise access path, auth, contract and permission review.",
-    validationStatus: "planned-validation",
-    reliabilityTier: "requires-validation",
-    officialClaimAllowed: false,
-    limitations: [
-      "Enterprise validation/integration path; not connected in this demo.",
-      externalDataCaveat
-    ],
-    allowedUse: ["future official validation roadmap"],
-    forbiddenClaims: commonForbiddenClaims,
-    disclaimer: "Enterprise validation/integration path; not connected in this demo."
+    name: "Copernicus / Sentinel metadata availability"
   }
 ];
 
+export const externalDataSources: ExternalDataSource[] = [
+  ...legacyExternalSources,
+  ...publicSourceCatalog.map(toExternalSource)
+];
+
 export function getExternalDataSource(id: string) {
-  return externalDataSources.find((source) => source.id === id) ?? null;
+  const resolvedId = legacyIdAliases[id] ?? id;
+  return externalDataSources.find((source) => source.id === id || source.id === resolvedId) ?? null;
 }
 
 export function getExternalDataSourcesByCategory(category: ExternalDataSource["category"]) {

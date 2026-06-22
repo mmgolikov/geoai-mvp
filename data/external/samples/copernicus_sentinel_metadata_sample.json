@@ -1,0 +1,12 @@
+{
+  "generatedAt": "2026-06-22T00:00:00.000Z",
+  "source": "Copernicus Data Space sample metadata",
+  "status": "sample_fallback",
+  "collections": [
+    { "name": "Sentinel-1", "sceneCount": 4, "latestSceneDate": "2026-05-28" },
+    { "name": "Sentinel-2", "sceneCount": 6, "latestSceneDate": "2026-05-30", "cloudCoverProxy": "medium" },
+    { "name": "Sentinel-3 / CLMS", "sceneCount": 2, "latestSceneDate": "2026-05-20" }
+  ],
+  "limitation": "Sample metadata only; no imagery download or raster analytics connected.",
+  "caveat": "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
+}

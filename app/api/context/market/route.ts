@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getMarketSourceLineage } from "@/src/lib/context/market-context-service";
 import { seedDubaiMarketContextAdapter } from "@/src/lib/market-context-adapter";
 import type { MarketContextAdapterRequest } from "@/src/types/market-context";
 
@@ -29,5 +30,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid market context request." }, { status: 400 });
   }
 
-  return NextResponse.json(seedDubaiMarketContextAdapter.getContext(body));
+  return NextResponse.json({
+    ...seedDubaiMarketContextAdapter.getContext(body),
+    ...getMarketSourceLineage()
+  });
 }

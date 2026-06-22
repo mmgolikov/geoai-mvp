@@ -172,3 +172,30 @@ Current API context:
 - `/api/context/climate` for screening-level Open-Meteo heat/rainfall proxy with demo fallback.
 
 Every snapshot-backed output must retain this caveat: screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.
+
+## Public Data Connectors v1.6
+
+GeoAI v1.6 expands the source strategy from v1.4 snapshots into a structured public source catalog.
+
+Canonical files:
+
+- `src/lib/external-data/public-source-types.ts`
+- `src/lib/external-data/public-source-catalog.ts`
+- `src/lib/external-data/source-registry.ts`
+
+Supported public/open source groups:
+
+- DLD / Dubai Pulse public snapshots for transactions, rents, projects, land, building and unit context.
+- DLD API Gateway as a separate permission-required validation path.
+- OSM / Geofabrik open snapshots for roads, buildings, POIs, landuse and transport context.
+- Overture Maps manual snapshots for buildings, places, transportation and divisions.
+- Open-Meteo climate context.
+- NASA POWER solar and wind screening context.
+- OpenAQ air-quality context.
+- WorldPop demographic/catchment context.
+- Copernicus / Sentinel metadata availability path.
+- Non-official administrative context through Overture divisions or optional GADM caveated usage.
+
+The v1.6 strategy keeps source text centralized in the catalog so UI, manifest, readiness and reports can refer to source metadata instead of scattered hardcoded claims.
+
+Every v1.6 source remains screening-level unless separately validated by client-approved or authorized official sources.

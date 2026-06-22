@@ -1,0 +1,47 @@
+{
+  "generatedAt": "2026-06-22T22:26:22.931Z",
+  "version": "1.6",
+  "sourceId": "osm-geofabrik-open-pois",
+  "status": "sample_fallback",
+  "featureCount": 1,
+  "features": [
+    {
+      "id": "osm-public-3",
+      "sourceFile": "data/external/osm/dubai_osm_baseline_sample.geojson",
+      "type": "Feature",
+      "properties": {
+        "name": "Dubai Marina mixed-use sample context",
+        "landuse": "mixed_use"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              55.13,
+              25.068
+            ],
+            [
+              55.157,
+              25.07
+            ],
+            [
+              55.159,
+              25.091
+            ],
+            [
+              55.134,
+              25.092
+            ],
+            [
+              55.13,
+              25.068
+            ]
+          ]
+        ]
+      },
+      "caveat": "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
+    }
+  ],
+  "caveat": "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
+}

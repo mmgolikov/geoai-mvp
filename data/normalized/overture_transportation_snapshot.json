@@ -1,0 +1,39 @@
+{
+  "generatedAt": "2026-06-22T22:26:22.933Z",
+  "version": "1.6",
+  "sourceId": "overture-maps-open-transportation",
+  "status": "sample_fallback",
+  "featureCount": 1,
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "overture-transport-szr",
+        "name": "Sheikh Zayed Road sample",
+        "class": "primary"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            55.118,
+            25.065
+          ],
+          [
+            55.16,
+            25.092
+          ],
+          [
+            55.205,
+            25.126
+          ],
+          [
+            55.268,
+            25.188
+          ]
+        ]
+      }
+    }
+  ],
+  "caveat": "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
+}

@@ -1,0 +1,56 @@
+{
+  "generatedAt": "2026-06-22T22:26:22.926Z",
+  "version": "1.6",
+  "sourceId": "dld-dubai-pulse-public-projects",
+  "status": "sample_fallback",
+  "category": "projects",
+  "recordCount": 3,
+  "records": [
+    {
+      "id": "projects-dubai-marina-1",
+      "category": "projects",
+      "sourceId": "dld-dubai-pulse-public-projects",
+      "areaName": "Dubai Marina",
+      "sourceFile": "data/external/samples/dld_projects_sample.csv",
+      "fields": {
+        "project_name": "Marina Waterfront Pipeline",
+        "area_name": "Dubai Marina",
+        "project_count": "8",
+        "value_aed": "3900000000",
+        "source_date": "2026-06-01"
+      },
+      "caveat": "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
+    },
+    {
+      "id": "projects-business-bay-2",
+      "category": "projects",
+      "sourceId": "dld-dubai-pulse-public-projects",
+      "areaName": "Business Bay",
+      "sourceFile": "data/external/samples/dld_projects_sample.csv",
+      "fields": {
+        "project_name": "Business Bay Infill Pipeline",
+        "area_name": "Business Bay",
+        "project_count": "12",
+        "value_aed": "4700000000",
+        "source_date": "2026-06-01"
+      },
+      "caveat": "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
+    },
+    {
+      "id": "projects-dubai-south-3",
+      "category": "projects",
+      "sourceId": "dld-dubai-pulse-public-projects",
+      "areaName": "Dubai South",
+      "sourceFile": "data/external/samples/dld_projects_sample.csv",
+      "fields": {
+        "project_name": "Dubai South Growth Pipeline",
+        "area_name": "Dubai South",
+        "project_count": "15",
+        "value_aed": "5200000000",
+        "source_date": "2026-06-01"
+      },
+      "caveat": "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
+    }
+  ],
+  "caveat": "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
+}

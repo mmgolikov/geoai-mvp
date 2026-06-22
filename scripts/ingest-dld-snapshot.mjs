@@ -7,6 +7,10 @@ const qualityPath = "data/normalized/dld_market_snapshot_quality.json";
 const manifestPath = "data/external/normalized/external_data_manifest.json";
 const caveat = "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.";
 
+function inputStatus(file) {
+  return file.includes("_sample.") || file.includes("/samples/") ? "sample_fallback" : "snapshot_available";
+}
+
 function argValue(name) {
   const prefix = `--${name}=`;
   return process.argv.find((arg) => arg.startsWith(prefix))?.slice(prefix.length) ?? null;
@@ -82,6 +86,7 @@ function readInput(file) {
 }
 
 function updateManifest(areaCount, generatedAt, inputFile) {
+  const status = areaCount > 0 ? inputStatus(inputFile) : "sample_fallback";
   let manifest = {
     generatedAt,
     version: "1.4",
@@ -99,16 +104,16 @@ function updateManifest(areaCount, generatedAt, inputFile) {
 
   const next = {
     id: "dld-dubai-pulse-transactions",
-    status: areaCount > 0 ? "snapshot_available" : "sample_fallback",
+    status,
     lastUpdated: generatedAt,
     availableFiles: areaCount > 0 ? [inputFile, outputPath, qualityPath] : [qualityPath],
     rowCount: areaCount,
     recordCount: areaCount,
     coverageArea: "Dubai market areas",
-    confidence: areaCount > 0 ? "medium" : "requires-validation",
+    confidence: status === "snapshot_available" ? "medium" : "low",
     usedInAnalysis: areaCount > 0,
     caveat: areaCount > 0
-      ? `DLD / Dubai Pulse snapshot available; ${caveat}`
+      ? `DLD / Dubai Pulse ${status === "snapshot_available" ? "snapshot available" : "sample fallback"}; ${caveat}`
       : `DLD / Dubai Pulse snapshot missing; sample fallback active; ${caveat}`,
     disclaimer: "DLD / Dubai Pulse snapshot context; not a live official transactional feed."
   };
@@ -126,7 +131,7 @@ if (!rawRows) {
   ensureDir(qualityPath);
   const report = {
     generatedAt,
-    status: "missing-input",
+    status: "unavailable",
     inputFile,
     message: "No DLD / Dubai Pulse snapshot file found. Sample/demo fallback remains active.",
     caveat
@@ -183,7 +188,7 @@ const normalized = {
   source: {
     id: "dld-dubai-pulse-transactions",
     name: "DLD / Dubai Pulse market snapshot",
-    status: "snapshot_available",
+    status: inputStatus(inputFile),
     sourceType: "official-open-data",
     accessMode: "snapshot",
     disclaimer: "DLD / Dubai Pulse snapshot context; not a live official transactional feed."

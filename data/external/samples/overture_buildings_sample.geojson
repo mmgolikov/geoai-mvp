@@ -1,0 +1,15 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": { "id": "overture-building-marina-1", "name": "Dubai Marina sample building cluster", "source": "Overture Maps sample" },
+      "geometry": { "type": "Polygon", "coordinates": [[[55.136,25.080],[55.139,25.080],[55.139,25.083],[55.136,25.083],[55.136,25.080]]] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "id": "overture-building-business-bay-1", "name": "Business Bay sample building cluster", "source": "Overture Maps sample" },
+      "geometry": { "type": "Polygon", "coordinates": [[[55.266,25.184],[55.270,25.184],[55.270,25.188],[55.266,25.188],[55.266,25.184]]] }
+    }
+  ]
+}
