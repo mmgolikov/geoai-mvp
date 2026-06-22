@@ -356,8 +356,8 @@ export default function HomePage() {
     <main className="min-h-screen bg-[#fbfaf7] text-ink">
       <LandingHeader />
 
-      <section id="product" className="mx-auto grid max-w-7xl items-start gap-8 px-5 py-8 sm:px-6 lg:grid-cols-[0.88fr_1.12fr] lg:px-8 lg:py-10">
-        <div className="max-w-xl self-start pt-1">
+      <section id="product" className="mx-auto grid max-w-7xl items-stretch gap-8 px-5 py-8 sm:px-6 lg:grid-cols-[0.88fr_1.12fr] lg:px-8 lg:py-10">
+        <div className="flex h-full max-w-xl flex-col self-stretch pt-1">
           <SectionLabel>Dubai real estate intelligence</SectionLabel>
           <h1 className="mt-4 text-4xl font-semibold leading-[1.03] text-ink md:text-5xl">
             AI spatial intelligence for land, development and investment decisions
@@ -373,18 +373,17 @@ export default function HomePage() {
               <Chip key={item}>{item}</Chip>
             ))}
           </div>
-          <div className="mt-7 flex flex-col gap-3 sm:flex-row">
-            <Link href="/workspace?guidedDemo=dubai-marina-investment" className="inline-flex h-14 min-w-[210px] flex-col items-center justify-center rounded-md bg-brand px-5 text-center text-white shadow-soft transition hover:bg-[#113f50]">
-              <span className="text-sm font-semibold leading-5">Launch guided demo</span>
-              <span className="text-[11px] font-medium leading-4 text-white/78">Prepared 5-minute walkthrough</span>
-            </Link>
-            <Link href="/workspace" className="inline-flex h-14 min-w-[210px] flex-col items-center justify-center rounded-md border border-[#ded7c9] bg-white px-5 text-center text-ink transition hover:border-brand">
-              <span className="text-sm font-semibold leading-5">Open workspace</span>
-              <span className="text-[11px] font-medium leading-4 text-muted">Explore manually</span>
-            </Link>
-            <a href="#use-cases" className="inline-flex h-14 items-center justify-center rounded-md border border-[#ded7c9] bg-white px-5 text-sm font-semibold text-ink transition hover:border-brand">
-              Explore use cases
-            </a>
+          <div className="pt-7 lg:mt-auto">
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <Link href="/workspace?guidedDemo=dubai-marina-investment" className="inline-flex h-16 min-w-[230px] flex-col items-center justify-center rounded-md bg-brand px-6 text-center text-white shadow-soft transition hover:bg-[#113f50]">
+                <span className="text-sm font-semibold leading-5">Launch guided demo</span>
+                <span className="text-[11px] font-medium leading-4 text-white/78">Prepared 5-minute walkthrough</span>
+              </Link>
+              <Link href="/workspace" className="inline-flex h-16 min-w-[230px] flex-col items-center justify-center rounded-md border border-[#ded7c9] bg-white px-6 text-center text-ink transition hover:border-brand">
+                <span className="text-sm font-semibold leading-5">Open workspace</span>
+                <span className="text-[11px] font-medium leading-4 text-muted">Explore manually</span>
+              </Link>
+            </div>
           </div>
         </div>
         <HeroVisual />

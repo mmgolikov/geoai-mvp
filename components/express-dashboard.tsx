@@ -383,28 +383,30 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
                   {decisionRationalePreview}
                 </p>
               </div>
-              <div className="flex min-h-0 flex-1 flex-col gap-3 py-3">
-                <div>
-                  <h2 className="text-lg font-semibold text-ink">Executive Summary</h2>
-                  <p className="mt-2 text-sm leading-6 text-muted xl:text-[15px]">{summaryPreview}</p>
-                </div>
-                {analysis.analysisNotice ? (
-                  <p className="rounded-md border border-line bg-surface px-3 py-2 text-xs leading-5 text-muted">
-                    {analysis.analysisNotice}
-                  </p>
-                ) : null}
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Screening Signals</p>
-                  <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                    {screeningSignals.map(([label, value]) => (
-                      <div key={label} className="flex min-h-[58px] flex-col justify-between rounded-md border border-line bg-surface px-3 py-2">
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-muted">{label}</p>
-                        <p className="mt-1 break-words text-sm font-semibold leading-5 text-ink">{value}</p>
-                      </div>
-                    ))}
+              <div className="flex min-h-0 flex-1 flex-col justify-between gap-3 pt-3">
+                <div className="grid gap-3">
+                  <div>
+                    <h2 className="text-lg font-semibold text-ink">Executive Summary</h2>
+                    <p className="mt-2 text-sm leading-6 text-muted xl:text-[15px]">{summaryPreview}</p>
+                  </div>
+                  {analysis.analysisNotice ? (
+                    <p className="rounded-md border border-line bg-surface px-3 py-2 text-xs leading-5 text-muted">
+                      {analysis.analysisNotice}
+                    </p>
+                  ) : null}
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Screening Signals</p>
+                    <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                      {screeningSignals.map(([label, value]) => (
+                        <div key={label} className="flex min-h-[58px] flex-col justify-between rounded-md border border-line bg-surface px-3 py-2">
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-muted">{label}</p>
+                          <p className="mt-1 break-words text-sm font-semibold leading-5 text-ink">{value}</p>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
-                <div>
+                <div className="mt-auto">
                   <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Source / Run Metadata</p>
                   <div className="mt-2 grid gap-2 text-sm sm:grid-cols-2">
                     <AnalysisMetricCard label="Analysis mode" value={modeLabel} className="min-h-[64px]" />

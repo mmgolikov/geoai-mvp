@@ -70,6 +70,14 @@ function getFallbackFeatureStyle(feature: GeoJSON.Feature) {
   };
 }
 
+function formatFallbackLabel(label: string) {
+  if (label.toLowerCase().includes("dubai marina")) {
+    return "Dubai Marina Demo";
+  }
+
+  return label.length > 24 ? "Selected site" : label;
+}
+
 function getMarkers({
   selectedPoint,
   selectedObject,
@@ -209,10 +217,19 @@ function FallbackMap({
   message?: string;
 }) {
   return (
-    <div className="relative h-full min-h-[260px] w-full overflow-hidden bg-[#dfe8ec] bg-[linear-gradient(90deg,rgba(23,79,99,0.12)_1px,transparent_1px),linear-gradient(rgba(23,79,99,0.12)_1px,transparent_1px)] bg-[size:38px_38px]">
-      <div className="absolute inset-x-8 top-10 h-20 rotate-[-7deg] rounded-full border border-[#4d7c0f]/40 bg-[#4d7c0f]/10" />
-      <div className="absolute bottom-10 left-10 h-24 w-44 rounded-[40%] border border-[#2c7fb8]/45 bg-[#2c7fb8]/12" />
-      <div className="absolute right-12 top-20 h-28 w-48 rounded-[45%] border border-[#c5a76a]/55 bg-[#c5a76a]/14" />
+    <div className="relative h-full min-h-[260px] w-full overflow-hidden bg-[#eef3f1]">
+      <div className="absolute inset-y-[-18%] right-[-12%] w-[38%] rounded-l-[55%] bg-[#cfe2ea]" />
+      <div className="absolute bottom-[-12%] left-[-6%] h-[36%] w-[44%] rounded-tr-[70%] bg-[#d8e7e3]" />
+      <div className="absolute left-[8%] top-[18%] h-[22%] w-[38%] rotate-[-8deg] rounded-[48%] bg-[#f6f2e8]" />
+      <div className="absolute left-[42%] top-[24%] h-[24%] w-[32%] rotate-[8deg] rounded-[45%] bg-[#e7eee7]" />
+      <div className="absolute bottom-[18%] right-[16%] h-[26%] w-[28%] rotate-[-16deg] rounded-[42%] bg-[#f1ead9]" />
+      <div className="absolute left-[-8%] top-[40%] h-[2px] w-[116%] rotate-[-9deg] rounded-full bg-white/95 shadow-[0_0_0_1px_rgba(83,109,122,0.16)]" />
+      <div className="absolute left-[14%] top-[-8%] h-[2px] w-[86%] rotate-[36deg] rounded-full bg-white/90 shadow-[0_0_0_1px_rgba(83,109,122,0.12)]" />
+      <div className="absolute bottom-[26%] left-[2%] h-[2px] w-[74%] rotate-[17deg] rounded-full bg-white/90 shadow-[0_0_0_1px_rgba(83,109,122,0.12)]" />
+      <div className="absolute left-[11%] top-[31%] rounded-full bg-white/72 px-2 py-1 text-[10px] font-semibold text-muted shadow-sm">Dubai Marina</div>
+      <div className="absolute left-[30%] top-[49%] rounded-full bg-white/68 px-2 py-1 text-[10px] font-semibold text-muted shadow-sm">JLT</div>
+      <div className="absolute right-[21%] top-[34%] rounded-full bg-white/68 px-2 py-1 text-[10px] font-semibold text-muted shadow-sm">Al Thanyah</div>
+      <div className="absolute bottom-[20%] left-[18%] rounded-full bg-white/64 px-2 py-1 text-[10px] font-semibold text-muted shadow-sm">Emirates Hills</div>
       {selectedFeatures.map((feature, index) => {
         const style = getFallbackFeatureStyle(feature);
         if (!style) return null;
@@ -221,7 +238,7 @@ function FallbackMap({
         return (
           <div
             key={`${feature.id ?? feature.properties?.id ?? "selected"}-${index}`}
-            className={`absolute z-10 border-2 border-brand/85 bg-brand/16 shadow-sm ${
+            className={`absolute z-20 border-2 border-brand/90 bg-brand/18 shadow-[0_12px_28px_rgba(23,79,99,0.18)] ${
               geometryType === "LineString" || geometryType === "MultiLineString"
                 ? "h-1 rotate-[-8deg] rounded-full bg-brand/40"
                 : geometryType === "Point" || geometryType === "MultiPoint"
@@ -232,19 +249,19 @@ function FallbackMap({
           />
         );
       })}
-      <div className="absolute left-4 top-4 rounded-md border border-white/80 bg-white/90 px-3 py-2 shadow-sm">
+      <div className="absolute left-4 top-4 z-30 rounded-md border border-white/80 bg-white/92 px-3 py-2 shadow-sm backdrop-blur">
         <p className="text-xs font-semibold uppercase tracking-[0.12em] text-brand">Dubai map context</p>
-        {message ? <p className="mt-1 text-xs text-muted">{message}</p> : null}
+        {message ? <p className="mt-1 text-[11px] text-muted">{message}</p> : null}
       </div>
       {markers.map((marker) => (
         <div
           key={marker.label}
-          className="absolute flex -translate-x-1/2 -translate-y-1/2 items-center gap-2"
+          className="absolute z-30 flex -translate-x-1/2 -translate-y-1/2 items-center gap-2"
           style={getFallbackMarkerStyle(marker.point)}
         >
-          <span className="h-4 w-4 rounded-full border-2 border-white bg-brand shadow-soft" />
-          <span className="max-w-[180px] truncate rounded-full bg-white/90 px-2 py-1 text-xs font-semibold text-ink shadow-sm">
-            {marker.label}
+          <span className="h-5 w-5 rounded-full border-[5px] border-white bg-brand shadow-soft" />
+          <span title={marker.label} className="whitespace-nowrap rounded-full border border-white/80 bg-white/94 px-2.5 py-1 text-xs font-semibold text-ink shadow-sm">
+            {formatFallbackLabel(marker.label)}
           </span>
         </div>
       ))}
