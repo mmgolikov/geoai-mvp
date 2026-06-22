@@ -2,11 +2,10 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { sourceReadinessMatrix } from "@/src/data/data-maturity";
 import { dataSourceRegistry } from "@/src/data/data-source-registry";
 import { seededDemoComparisonSummaries, seededDemoRecentAnalyses, seededDemoReportRecords } from "@/src/data/demo-report-seeds";
 import { demoProjects, getDemoProject } from "@/src/data/demo-projects";
-import { getImportedMetricsReadinessMessage, getSupabaseFallbackMessage } from "@/src/lib/data-readiness";
+import { getSupabaseFallbackMessage } from "@/src/lib/data-readiness";
 import { deriveDecisionPosture } from "@/src/lib/decision-posture";
 import { getPilotDataRequirements } from "@/src/lib/pilot/data-requirements";
 import { getPilotPackageForProject } from "@/src/lib/pilot/pilot-packages";
@@ -41,7 +40,28 @@ type ExternalDataStatus = {
     confidence: string;
     caveat: string;
   }>;
+  manifest?: {
+    sources?: Array<{
+      id: string;
+      status?: string;
+      rowCount?: number;
+      recordCount?: number;
+      featureCount?: number;
+      caveat?: string;
+      disclaimer?: string;
+    }>;
+  };
 };
+
+type ProjectReadinessRow = {
+  sourceId: string;
+  source: string;
+  currentStatus: string;
+  caveat: string;
+};
+
+type ReadinessItem = NonNullable<ExternalDataStatus["readiness"]>[number];
+type ManifestSource = NonNullable<NonNullable<ExternalDataStatus["manifest"]>["sources"]>[number];
 
 type PersistedAnalysisRun = {
   id?: string;
@@ -134,6 +154,28 @@ function writeActiveProjectKey(projectKey: string) {
   } catch {
     // Dashboard still works in-memory if localStorage is unavailable.
   }
+}
+
+function compactReadinessStatus(status?: string) {
+  if (status === "snapshot_available") return "snapshot";
+  if (status === "connected") return "API context";
+  if (status === "planned") return "planned validation";
+  if (status === "sample_fallback") return "sample fallback";
+  if (status === "missing") return "missing";
+  return "planned";
+}
+
+function manifestSourceToReadiness(source?: ManifestSource): ReadinessItem | undefined {
+  if (!source) return undefined;
+
+  return {
+    sourceId: source.id,
+    status: source.status ?? "planned",
+    recordCount: source.recordCount ?? source.rowCount ?? source.featureCount,
+    coverageArea: "Dubai / UAE screening context",
+    confidence: source.status === "snapshot_available" ? "medium" : "low",
+    caveat: source.caveat ?? source.disclaimer ?? "Screening context only; official validation required."
+  };
 }
 
 function writeOpenAnalysisRequest(row: RecentAnalysisRow) {
@@ -564,28 +606,73 @@ export function ProjectDashboard() {
   const externalReadinessById = new Map(
     (externalDataStatus?.readiness ?? []).map((item) => [item.sourceId, item])
   );
-  const projectReadinessRows = sourceReadinessMatrix.slice(0, 5).map((source) => {
-    const mappedSourceId = source.sourceId === "osm-geofabrik" ? "osm-geofabrik-baseline" : source.sourceId;
-    const readiness = externalReadinessById.get(mappedSourceId);
-
-    return {
-      ...source,
-      currentStatus: readiness?.status?.replace(/_/g, " ") ?? source.currentStatus
-    };
-  });
+  const manifestReadinessById = new Map(
+    (externalDataStatus?.manifest?.sources ?? [])
+      .map((source) => manifestSourceToReadiness(source))
+      .filter((source): source is ReadinessItem => Boolean(source))
+      .map((source) => [source.sourceId, source])
+  );
+  const getReadiness = (sourceId: string) => externalReadinessById.get(sourceId) ?? manifestReadinessById.get(sourceId);
+  const dldReadiness = getReadiness("dld-dubai-pulse-transactions");
+  const osmReadiness = getReadiness("osm-geofabrik-baseline");
+  const climateReadiness = getReadiness("open-meteo-climate");
+  const copernicusReadiness = getReadiness("copernicus-sentinel-catalog");
+  const geodubaiReadiness = getReadiness("geodubai-municipality-validation");
+  const marketSnapshotAvailable = marketMetrics?.sourceMode === "real_snapshot" && importedAreas > 0;
+  const dldSnapshotAvailable = (
+    dldReadiness?.status === "snapshot_available"
+    && Boolean(dldReadiness.recordCount && dldReadiness.recordCount > 0)
+  ) || marketSnapshotAvailable;
+  const dldRecordCount = dldReadiness?.recordCount ?? importedAreas;
+  const projectReadinessRows: ProjectReadinessRow[] = [
+    {
+      sourceId: "dld-dubai-pulse-transactions",
+      source: "DLD / Dubai Pulse snapshot",
+      currentStatus: dldSnapshotAvailable ? "snapshot" : compactReadinessStatus(dldReadiness?.status),
+      caveat: dldSnapshotAvailable
+        ? `Snapshot available: ${dldRecordCount} sample market-area records. Official validation required before decisions.`
+        : dldReadiness?.caveat ?? "Sample fallback remains active until a DLD / Dubai Pulse snapshot is available."
+    },
+    {
+      sourceId: "osm-geofabrik-baseline",
+      source: "OSM / Geofabrik open snapshot",
+      currentStatus: compactReadinessStatus(osmReadiness?.status),
+      caveat: osmReadiness?.status === "snapshot_available"
+        ? "Open geospatial context; not official municipal GIS, zoning or parcel boundary data."
+        : osmReadiness?.caveat ?? "Open geospatial sample fallback remains active."
+    },
+    {
+      sourceId: "open-meteo-climate",
+      source: "Open-Meteo climate context",
+      currentStatus: compactReadinessStatus(climateReadiness?.status),
+      caveat: climateReadiness?.caveat ?? "Screening-level heat/rainfall proxy only."
+    },
+    {
+      sourceId: "copernicus-sentinel-catalog",
+      source: "Copernicus / Sentinel",
+      currentStatus: compactReadinessStatus(copernicusReadiness?.status),
+      caveat: copernicusReadiness?.caveat ?? "Metadata availability only; analytics pipeline planned."
+    },
+    {
+      sourceId: "geodubai-municipality-validation",
+      source: "GeoDubai / Dubai Municipality",
+      currentStatus: compactReadinessStatus(geodubaiReadiness?.status),
+      caveat: geodubaiReadiness?.caveat ?? "Not connected in this demo."
+    }
+  ];
   const demoMarketAreas = marketMetrics?.availableAreaNames?.length ?? 6;
-  const dataConfidence = importedAreas > 0 ? "Sample/offline" : "Seed fallback";
-  const dataConfidenceNote = importedAreas > 0
-    ? "Import; official validation required before pilot decisions."
-    : "Demo fallback; official validation required before pilot decisions.";
+  const dataConfidence = dldSnapshotAvailable ? "Snapshot + fallback" : "Seed fallback";
+  const dataConfidenceNote = dldSnapshotAvailable
+    ? "DLD/Dubai Pulse and OSM snapshots are available for screening context; official validation required."
+    : "Demo fallback; official validation required before decisions.";
   const persistenceMode = dbHealth?.status === "connected" ? "Supabase/PostGIS connected" : "Local fallback";
-  const nextActions = getNextActions(activeProject, importedAreas);
+  const nextActions = getNextActions(activeProject, dldRecordCount);
   const pilotPackage = getPilotPackageForProject(activeProject.projectKey, activeProject.clientType);
   const pilotDataRequirements = getPilotDataRequirements(pilotPackage.clientType);
   const pilotReadiness = calculatePilotReadiness({
     targetSitesProvided: scopedProjectDatasets.length > 0 || recentRows.length > 0 || activeProject.status === "demo",
     geometryAvailable: scopedProjectDatasets.length > 0 || activeProject.status === "demo",
-    marketDataAvailable: importedAreas > 0,
+    marketDataAvailable: dldRecordCount > 0,
     externalOpenDataAvailable: dataSourceRegistry.length > 0,
     validationSourcesIdentified: false,
     reportsGenerated: reportRows.length > 0,
@@ -668,7 +755,12 @@ export function ProjectDashboard() {
           <KpiCard label="Reports" value={reportRows.length} note={scopedSavedReports.length > 0 ? "Saved reports available for this project." : "Demo example memo available for this project."} />
           <KpiCard label="Comparisons" value={comparisonRows.length} note={scopedSavedComparisons.length > 0 ? "Saved comparison sets available for this project." : "Demo example comparison available for this project."} />
           <KpiCard label="Data sources" value={dataSourceRegistry.length + scopedProjectDatasets.length} note={`${scopedProjectDatasets.length} project upload metadata records.`} />
-          <KpiCard label="Market areas" value={importedAreas > 0 ? importedAreas : `0 official / ${demoMarketAreas} demo`} note={marketMetrics?.sourceMode ?? "seed_static fallback"} />
+          <KpiCard
+            label="Market areas"
+            value={dldSnapshotAvailable ? `${dldRecordCount} snapshot / ${demoMarketAreas} demo` : `0 snapshot / ${demoMarketAreas} demo`}
+            valueKind="text"
+            note={dldSnapshotAvailable ? "DLD / Dubai Pulse snapshot context." : "seed_static fallback"}
+          />
           <KpiCard label="Data confidence" value={dataConfidence} valueKind="text" note={dataConfidenceNote} />
         </section>
 
@@ -877,13 +969,15 @@ export function ProjectDashboard() {
                 <div className="rounded-md border border-line bg-surface p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="font-semibold text-ink">DLD / Dubai Pulse ingestion</p>
+                      <p className="font-semibold text-ink">{dldSnapshotAvailable ? "DLD / Dubai Pulse snapshot" : "DLD / Dubai Pulse ingestion"}</p>
                       <p className="mt-1 text-sm leading-5 text-muted">
-                        {getImportedMetricsReadinessMessage({ count: importedAreas })}
+                        {dldSnapshotAvailable
+                          ? `Snapshot available: ${dldRecordCount} sample market-area records. Official validation required before decisions.`
+                          : dldReadiness?.caveat ?? "Sample fallback remains active until a DLD / Dubai Pulse snapshot is available."}
                       </p>
                     </div>
                     <span className="shrink-0 rounded-full bg-white px-2 py-1 text-xs font-semibold text-brand">
-                      {marketMetrics?.sourceMode === "real_snapshot" ? "snapshot" : "fallback"}
+                      {dldSnapshotAvailable ? "snapshot" : "fallback"}
                     </span>
                   </div>
                 </div>
@@ -895,9 +989,12 @@ export function ProjectDashboard() {
                 </div>
                 <div className="grid gap-2">
                   {projectReadinessRows.map((source) => (
-                    <div key={source.sourceId} className="flex items-center justify-between gap-3 rounded-md bg-surface px-3 py-2 text-sm">
-                      <span className="min-w-0 truncate font-medium text-ink">{source.source}</span>
-                      <span className="shrink-0 text-xs font-semibold text-muted">{source.currentStatus}</span>
+                    <div key={source.sourceId} className="rounded-md bg-surface px-3 py-2 text-sm">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="min-w-0 truncate font-medium text-ink">{source.source}</span>
+                        <span className="shrink-0 text-xs font-semibold text-muted">{source.currentStatus}</span>
+                      </div>
+                      <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted">{source.caveat}</p>
                     </div>
                   ))}
                 </div>

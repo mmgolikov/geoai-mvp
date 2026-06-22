@@ -1,12 +1,12 @@
 {
-  "generatedAt": "2026-06-22T20:51:14.529Z",
+  "generatedAt": "2026-06-22T21:04:33.655Z",
   "version": "1.4",
   "summary": "GeoAI external data manifest v1.4. Snapshot connectors are optional and fall back safely to demo/sample context.",
   "sources": [
     {
       "id": "osm-geofabrik-baseline",
       "status": "snapshot_available",
-      "lastUpdated": "2026-06-22T20:51:14.529Z",
+      "lastUpdated": "2026-06-22T21:04:33.655Z",
       "availableFiles": [
         "data/external/osm/dubai_osm_baseline_sample.geojson",
         "data/normalized/open_geodata_snapshot.json",
@@ -23,7 +23,7 @@
     {
       "id": "dld-dubai-pulse-transactions",
       "status": "snapshot_available",
-      "lastUpdated": "2026-06-22T20:46:19.694Z",
+      "lastUpdated": "2026-06-22T21:04:29.915Z",
       "availableFiles": [
         "data/external/dld/dld_market_snapshot_sample.csv",
         "data/normalized/dld_market_snapshot.json",
