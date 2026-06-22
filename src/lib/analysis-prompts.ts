@@ -130,8 +130,11 @@ ${customQuery || "No custom query provided."}
 
 Custom query instruction:
 ${customQuery
-  ? `The user's custom query is: "${customQuery}". Make the answer visibly reflect this query in executive_summary, key_factors, risks and recommended_actions.`
+  ? `The user's custom query is: "${customQuery}". The detected intent is "${request.customQueryIntent ?? "custom"}". Make the answer visibly reflect this query in executive_summary, key_factors, risks, recommended_actions and custom_query_answer. If the query asks what to build, provide a concrete screening hypothesis such as residential-led mixed-use, serviced apartments/hospitality, office/mixed-use, logistics/light industrial, hold/validate, or compare alternatives first. If the query is Russian, write custom_query_answer.shortAnswer, recommendation and confidenceNote in concise Russian or bilingual Russian/English.`
   : "No additional custom query lens is active."}
+
+Deterministic custom query answer baseline:
+${request.customQueryAnswer ? compactJson(request.customQueryAnswer) : "No deterministic custom query answer baseline."}
 
 Selected location or object:
 ${compactJson(selection)}
@@ -188,9 +191,21 @@ Return JSON matching exactly this shape:
     }
   ],
   "confidence_level": "low | medium | high",
-  "limitations": ["concise limitation"]
+  "limitations": ["concise limitation"],
+  "custom_query_answer": {
+    "question": "the user question, only if a custom query was provided",
+    "intent": "what_to_build | site_suitability | investment_decision | risk_review | comparison_preference | due_diligence | construction_monitoring | climate_risk | custom",
+    "shortAnswer": "direct screening answer to the user question with validation caveat",
+    "recommendation": "recommended direction or next decision posture",
+    "reasoning": ["2-4 concise reasons tied to scenario, coordinates, object, source lineage and scores"],
+    "keyRisks": ["2-4 risks or constraints"],
+    "validationNeeded": ["2-4 official/customer-approved validation needs"],
+    "nextActions": ["2-4 concrete next actions"],
+    "sourceBasis": ["2-4 source/data basis notes"],
+    "confidenceNote": "screening-only caveat; not legal, cadastral, zoning, valuation or approval conclusion"
+  }
 }
 
-Use 4-6 key_factors, 3-4 opportunities, 3-4 risks, 3-5 recommended_actions, and 3-5 evidence_notes.
+Use 4-6 key_factors, 3-4 opportunities, 3-4 risks, 3-5 recommended_actions, and 3-5 evidence_notes. Include custom_query_answer only when a custom query is provided.
 `.trim();
 }

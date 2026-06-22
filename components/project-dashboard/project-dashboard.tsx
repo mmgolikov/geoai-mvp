@@ -570,7 +570,7 @@ export function ProjectDashboard() {
                           </Link>
                           {item.customQuery ? (
                             <span className="w-fit rounded-full bg-[#fff9e8] px-2 py-1 text-[11px] font-semibold text-[#6f5817]">
-                              custom query
+                              Custom query analysis
                             </span>
                           ) : null}
                         </div>

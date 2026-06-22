@@ -152,6 +152,9 @@ function mergeNarrativeAnalysis(
     confidenceLevel: narrative.confidence_level,
     limitations: Array.from(new Set([...(deterministicAnalysis.limitations ?? []), ...narrative.limitations])),
     analysisNotice: narrative.notice,
+    customQueryAnswer: narrative.custom_query_answer ?? deterministicAnalysis.customQueryAnswer,
+    customQueryIntent: narrative.custom_query_answer?.intent ?? deterministicAnalysis.customQueryIntent,
+    customQuerySummary: narrative.custom_query_answer?.shortAnswer ?? deterministicAnalysis.customQuerySummary,
     generatedAt: new Date().toISOString()
   };
 }
@@ -903,6 +906,7 @@ export function WorkspaceShell() {
             customQuery: analysisResult.customQuery ?? "",
             customQueryIntent: analysisResult.customQueryIntent ?? null,
             customQuerySummary: analysisResult.customQuerySummary ?? null,
+            customQueryAnswer: analysisResult.customQueryAnswer ?? null,
             selectedPoint: analysisResult.point,
             selectedObject: analysisResult.selectedObject ?? null,
             marketContext: analysisResult.marketContext ?? null,
@@ -971,6 +975,7 @@ export function WorkspaceShell() {
       customQuery: analysisResult.customQuery ?? null,
       customQueryIntent: analysisResult.customQueryIntent ?? null,
       customQuerySummary: analysisResult.customQuerySummary ?? null,
+      customQueryAnswer: analysisResult.customQueryAnswer ?? null,
       memoJson: analysisResult,
       decisionPosture: deriveDecisionPosture(analysisResult),
       scoreOverview: analysisResult.scores,
@@ -1010,6 +1015,9 @@ export function WorkspaceShell() {
         }
       })),
       scenario: "Comparison",
+      customQuery: comparisonResult.customQuery ?? null,
+      customQueryIntent: comparisonResult.customQueryIntent ?? null,
+      customQueryAnswer: comparisonResult.customQueryAnswer ?? null,
       comparisonJson: comparisonResult,
       decisionPosture: `Best option: ${comparisonResult.winner.item.name}`,
       scoreOverview: comparisonResult.items.map((item) => ({
@@ -1356,6 +1364,8 @@ export function WorkspaceShell() {
           scenarioId: selectedScenario,
           scenarioLabel: scenario.label,
           customQuery,
+          customQueryIntent: deterministicAnalysis.customQueryIntent,
+          customQueryAnswer: deterministicAnalysis.customQueryAnswer,
           deterministicScores: deterministicAnalysis.scores,
           evidence: deterministicAnalysis.evidence,
           dataSources: getScenarioDataSources(selectedScenario),

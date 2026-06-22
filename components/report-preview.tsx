@@ -365,6 +365,9 @@ function createPrintableAnalysisRecord(analysis: ExpressAnalysis) {
       selectedObject: analysis.selectedObject ?? null,
       coordinates: analysis.point,
       memoJson: analysis,
+      customQuery: analysis.customQuery ?? null,
+      customQueryIntent: analysis.customQueryIntent ?? null,
+      customQueryAnswer: analysis.customQueryAnswer ?? null,
       decisionPosture: deriveDecisionPosture(analysis),
       scoreOverview: analysis.scores,
       keyValueDrivers: analysis.keyFactors,
@@ -399,6 +402,9 @@ function createPrintableComparisonRecord(comparison: ComparisonResult) {
       title: "Site Comparison Investment Memo",
       scenario: "Comparison",
       comparisonJson: comparison,
+      customQuery: comparison.customQuery ?? null,
+      customQueryIntent: comparison.customQueryIntent ?? null,
+      customQueryAnswer: comparison.customQueryAnswer ?? null,
       decisionPosture: `Best option: ${comparison.winner.item.name}`,
       scoreOverview: comparison.items.map((item) => ({
         itemName: item.item.name,
@@ -434,6 +440,59 @@ function Section({
       <h2 className="text-xl font-semibold text-ink">{title}</h2>
       <div className="mt-4">{children}</div>
     </section>
+  );
+}
+
+function CustomQueryAnswerSection({
+  title,
+  answer
+}: {
+  title: string;
+  answer: NonNullable<ExpressAnalysis["customQueryAnswer"]>;
+}) {
+  return (
+    <Section title={title}>
+      <div className="rounded-md border border-[#d6c391] bg-[#fff9e8] p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-[0.12em] text-[#6f5817]">User question</p>
+            <p className="mt-2 text-base font-semibold leading-7 text-ink">{answer.question}</p>
+          </div>
+          <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-[#6f5817]">
+            {answer.intent.replace(/_/g, " ")}
+          </span>
+        </div>
+        <p className="mt-4 text-lg font-semibold leading-7 text-ink">{answer.shortAnswer}</p>
+        <p className="mt-3 text-sm leading-6 text-muted">{answer.recommendation}</p>
+        <div className="mt-4 grid gap-3 md:grid-cols-3">
+          <div className="rounded-md bg-white p-4">
+            <h3 className="text-sm font-semibold text-ink">Why this makes sense</h3>
+            <ul className="mt-3 space-y-2 text-sm leading-6 text-muted">
+              {answer.reasoning.slice(0, 3).map((item, index) => (
+                <li key={createStableKey("report-custom-query-reason", item, index)}>{item}</li>
+              ))}
+            </ul>
+          </div>
+          <div className="rounded-md bg-white p-4">
+            <h3 className="text-sm font-semibold text-ink">Key validation needed</h3>
+            <ul className="mt-3 space-y-2 text-sm leading-6 text-muted">
+              {answer.validationNeeded.slice(0, 4).map((item, index) => (
+                <li key={createStableKey("report-custom-query-validation", item, index)}>{item}</li>
+              ))}
+            </ul>
+          </div>
+          <div className="rounded-md bg-white p-4">
+            <h3 className="text-sm font-semibold text-ink">Next actions</h3>
+            <ul className="mt-3 space-y-2 text-sm leading-6 text-muted">
+              {answer.nextActions.slice(0, 4).map((item, index) => (
+                <li key={createStableKey("report-custom-query-action", item, index)}>{item}</li>
+              ))}
+            </ul>
+          </div>
+        </div>
+        <p className="mt-4 text-sm leading-6 text-muted">{answer.confidenceNote}</p>
+      </div>
+    </Section>
   );
 }
 
@@ -534,6 +593,10 @@ function AnalysisReport({ analysis, onBack }: { analysis: ExpressAnalysis; onBac
             </div>
           </div>
         </Section>
+
+        {analysis.customQueryAnswer ? (
+          <CustomQueryAnswerSection title="Custom Query Response" answer={analysis.customQueryAnswer} />
+        ) : null}
 
         <Section title="Score Overview">
           <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
@@ -832,6 +895,10 @@ function ComparisonReport({ comparison, onBack }: { comparison: ComparisonResult
             <p className="mt-4 text-sm leading-6 text-muted">{comparison.whenAnotherMayBeBetter}</p>
           </div>
         </Section>
+
+        {comparison.customQueryAnswer ? (
+          <CustomQueryAnswerSection title="Custom Comparison Response" answer={comparison.customQueryAnswer} />
+        ) : null}
 
         <Section title="Map Context">
           <MapContextCard

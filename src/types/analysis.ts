@@ -1,4 +1,5 @@
 import type { DataSource, EvidenceItem } from "@/src/types/data-source";
+import type { CustomQueryAnswer } from "@/src/lib/custom-query/query-answer";
 import type { MarketContext } from "@/src/types/market-context";
 import type { UploadedDataContext } from "@/src/types/uploaded-data";
 import type {
@@ -52,6 +53,7 @@ export type StructuredAnalysisResult = {
   evidence_notes: StructuredEvidenceNote[];
   confidence_level: ConfidenceLevel;
   limitations: string[];
+  custom_query_answer?: CustomQueryAnswer;
   notice?: string;
 };
 
@@ -61,6 +63,8 @@ export type AnalyzeRequest = {
   scenarioId: AnalysisScenarioId;
   scenarioLabel: string;
   customQuery?: string;
+  customQueryIntent?: string;
+  customQueryAnswer?: CustomQueryAnswer;
   deterministicScores: Record<ScoreKey, number>;
   evidence: EvidenceItem[];
   dataSources: DataSource[];

@@ -394,6 +394,13 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
                       ) : null}
                     </div>
                   ) : null}
+                  {analysis.customQueryAnswer ? (
+                    <div className="rounded-md border border-[#d6c391] bg-[#fff9e8] px-3 py-2">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#6f5817]">Custom Query Response</p>
+                      <p className="mt-1 text-sm font-semibold leading-5 text-ink">{analysis.customQueryAnswer.shortAnswer}</p>
+                      <p className="mt-1 text-xs leading-5 text-muted">{analysis.customQueryAnswer.confidenceNote}</p>
+                    </div>
+                  ) : null}
                   <div>
                     <h2 className="text-lg font-semibold text-ink">Executive Summary</h2>
                     <p className="mt-2 text-sm leading-6 text-muted xl:text-[15px]">{summaryPreview}</p>
@@ -472,6 +479,50 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
             </p>
           ) : null}
         </AnalysisCard>
+
+        {analysis.customQueryAnswer ? (
+          <AnalysisCard>
+            <AnalysisCardHeader
+              title="Custom Query Response"
+              subtitle={analysis.customQueryAnswer.question}
+              badge={analysis.customQueryAnswer.intent.replace(/_/g, " ")}
+            />
+            <div className="mt-4 rounded-md border border-[#d6c391] bg-[#fff9e8] p-4">
+              <p className="text-sm font-semibold uppercase tracking-[0.12em] text-[#6f5817]">Screening answer</p>
+              <p className="mt-2 text-base font-semibold leading-7 text-ink">{analysis.customQueryAnswer.shortAnswer}</p>
+              <p className="mt-3 text-sm leading-6 text-muted">{analysis.customQueryAnswer.recommendation}</p>
+            </div>
+            <div className="mt-4 grid gap-3 lg:grid-cols-3">
+              <div className="rounded-md border border-line bg-surface p-4">
+                <h3 className="text-sm font-semibold text-ink">Why this makes sense</h3>
+                <ul className="mt-3 space-y-2 text-sm leading-6 text-muted">
+                  {analysis.customQueryAnswer.reasoning.slice(0, 3).map((item, index) => (
+                    <li key={createStableKey("custom-query-reason", item, index)}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+              <div className="rounded-md border border-line bg-surface p-4">
+                <h3 className="text-sm font-semibold text-ink">Key validation needed</h3>
+                <ul className="mt-3 space-y-2 text-sm leading-6 text-muted">
+                  {analysis.customQueryAnswer.validationNeeded.slice(0, 4).map((item, index) => (
+                    <li key={createStableKey("custom-query-validation", item, index)}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+              <div className="rounded-md border border-line bg-surface p-4">
+                <h3 className="text-sm font-semibold text-ink">Next actions</h3>
+                <ul className="mt-3 space-y-2 text-sm leading-6 text-muted">
+                  {analysis.customQueryAnswer.nextActions.slice(0, 4).map((item, index) => (
+                    <li key={createStableKey("custom-query-action", item, index)}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+            <p className="mt-4 rounded-md border border-line bg-surface px-4 py-3 text-sm leading-6 text-muted">
+              {analysis.customQueryAnswer.confidenceNote}
+            </p>
+          </AnalysisCard>
+        ) : null}
 
         {analysis.marketContext ? (
           <AnalysisCard>

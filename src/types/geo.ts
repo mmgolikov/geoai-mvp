@@ -1,6 +1,7 @@
 import type { EvidenceItem } from "@/src/types/data-source";
 import type { GeoAIProject } from "@/src/lib/db/types";
 import type { MarketMetricsMatch } from "@/src/lib/market-metrics/types";
+import type { CustomQueryAnswer } from "@/src/lib/custom-query/query-answer";
 import type { MarketContext } from "@/src/types/market-context";
 import type { SpatialSelectionContext } from "@/src/types/spatial-data";
 import type { UploadedDataContext } from "@/src/types/uploaded-data";
@@ -99,6 +100,7 @@ export type ExpressAnalysis = {
   customQuery?: string;
   customQueryIntent?: string;
   customQuerySummary?: string;
+  customQueryAnswer?: CustomQueryAnswer;
 };
 
 export type ComparisonItem = {
@@ -133,6 +135,9 @@ export type ComparisonResult = {
   nextActions: string[];
   evidence: EvidenceItem[];
   project?: GeoAIProject;
+  customQuery?: string;
+  customQueryIntent?: string;
+  customQueryAnswer?: CustomQueryAnswer;
 };
 
 export type AnalysisHistoryItem = {

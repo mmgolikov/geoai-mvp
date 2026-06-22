@@ -1,4 +1,6 @@
 import { createEvidenceItem } from "@/src/data/data-source-registry";
+import { createComparisonCustomQueryAnswer } from "@/src/lib/custom-query/query-answer";
+import { normalizeCustomQueryText } from "@/src/lib/custom-query/query-intent";
 import {
   adjustScoresWithMarketMetrics,
   findBestMarketMetricMatch
@@ -154,13 +156,12 @@ export function createMockComparison(items: ComparisonItem[], customQuery = ""):
   const runnerUp = scorecards[1];
   const riskierItems = scorecards.filter((item) => item.riskLevel !== "Low");
   const importedSupportItems = scorecards.filter((item) => item.marketMetricsMatch?.importedMetricsUsed);
-  const normalizedCustomQuery = customQuery.trim();
+  const normalizedCustomQuery = normalizeCustomQueryText(customQuery);
   const queryContext = normalizedCustomQuery
     ? ` The comparison rationale also reflects the user's custom query: "${normalizedCustomQuery.slice(0, 180)}".`
     : "";
-
-  return {
-    id: `comparison-${scorecards.map((item) => item.item.id).join("-")}`,
+  const baseComparison: Omit<ComparisonResult, "customQuery" | "customQueryIntent" | "customQueryAnswer"> = {
+    id: `comparison-${scorecards.map((item) => item.item.id).join("-")}${normalizedCustomQuery ? `-q-${stableQuerySlug(normalizedCustomQuery)}` : ""}`,
     items: scorecards,
     winner,
     whyPreferred:
@@ -239,4 +240,49 @@ export function createMockComparison(items: ComparisonItem[], customQuery = ""):
       )
     ]
   };
+  const queryAnswer = normalizedCustomQuery
+    ? createComparisonCustomQueryAnswer({
+        query: normalizedCustomQuery,
+        comparison: baseComparison
+      })
+    : null;
+
+  return {
+    ...baseComparison,
+    sharedOpportunities: queryAnswer
+      ? [queryAnswer.recommendation, ...baseComparison.sharedOpportunities]
+      : baseComparison.sharedOpportunities,
+    differentiatedRisks: queryAnswer
+      ? [...queryAnswer.keyRisks, ...baseComparison.differentiatedRisks]
+      : baseComparison.differentiatedRisks,
+    nextActions: queryAnswer
+      ? [...queryAnswer.nextActions, ...baseComparison.nextActions]
+      : baseComparison.nextActions,
+    evidence: queryAnswer
+      ? [
+          ...baseComparison.evidence,
+          createEvidenceItem(
+            "comparison-custom-query",
+            "customer-uploaded-documents",
+            "Custom comparison query",
+            `User query "${normalizedCustomQuery}" applied as a ${queryAnswer.intent} comparison lens. Screening-only; official validation required.`,
+            "low"
+          )
+        ]
+      : baseComparison.evidence,
+    customQuery: normalizedCustomQuery || undefined,
+    customQueryIntent: queryAnswer?.intent,
+    customQueryAnswer: queryAnswer ?? undefined
+  };
+}
+
+function stableQuerySlug(query: string) {
+  let hash = 0;
+  const normalized = query.toLowerCase();
+
+  for (let index = 0; index < normalized.length; index += 1) {
+    hash = (hash * 31 + normalized.charCodeAt(index)) >>> 0;
+  }
+
+  return hash.toString(36).slice(0, 6) || "query";
 }
