@@ -521,7 +521,7 @@ export function WorkspaceShell() {
     setLastComparedState(null);
     setReportPreview(null);
     setAnalysisError(null);
-    setComparisonMessage(includeComparisonSites ? "Demo comparison sites loaded. Click Compare Selected when ready." : null);
+    setComparisonMessage(includeComparisonSites ? "Demo comparison sites loaded. Click Compare when ready." : null);
     setIsAnalyzing(false);
     setMarketContext(null);
     setActiveGuidedDemoId(preset.id);
@@ -1066,7 +1066,10 @@ export function WorkspaceShell() {
 
       const sessionRecord = createPrintableSessionReport(mode, reportKey);
       if (sessionRecord) {
-        window.sessionStorage.setItem(`geoai-print-report:${reportKey}`, JSON.stringify(sessionRecord));
+        const serializedReport = JSON.stringify(sessionRecord);
+        const storageKey = `geoai-print-report:${reportKey}`;
+        window.sessionStorage.setItem(storageKey, serializedReport);
+        window.localStorage.setItem(storageKey, serializedReport);
       }
 
       window.location.assign(`/reports/${encodeURIComponent(reportKey)}/print`);
@@ -1327,39 +1330,39 @@ export function WorkspaceShell() {
   const primaryCtaState = comparison
     ? isComparisonUpToDate
       ? {
-          label: isExporting ? "Preparing comparison..." : "Export Comparison",
+          label: isExporting ? "Exporting..." : "Export",
           disabled: isExporting || isAnalyzing,
           action: () => {
             void exportPrintableReport("comparison");
           }
         }
       : {
-          label: isAnalyzing ? "Continuing comparison..." : "Continue Comparison",
+          label: isAnalyzing ? "Continuing..." : "Continue",
           disabled: isAnalyzing || comparisonItems.length < 2,
           action: runComparison
         }
     : comparisonItems.length >= 2
       ? {
-          label: "Compare Selected",
+          label: "Compare",
           disabled: isAnalyzing,
           action: runComparison
         }
       : analysis
         ? isAnalysisUpToDate
           ? {
-              label: isExporting ? "Preparing report..." : "Export Report",
+              label: isExporting ? "Exporting..." : "Export",
               disabled: isExporting || isAnalyzing,
               action: () => {
                 void exportPrintableReport("analysis");
               }
             }
           : {
-              label: isAnalyzing ? "Continuing analysis..." : "Continue Analysis",
+              label: isAnalyzing ? "Continuing..." : "Continue",
               disabled: !selectedPoint || isAnalyzing,
               action: runExpressAnalysis
             }
         : {
-            label: isAnalyzing ? "Running Express Analysis..." : "Run Express Analysis",
+            label: isAnalyzing ? "Analyzing..." : "Analyze",
             disabled: !selectedPoint || isAnalyzing,
             action: runExpressAnalysis
           };
@@ -1375,14 +1378,18 @@ export function WorkspaceShell() {
           key={comparison.id}
           comparison={comparison}
           onBackToMap={backToMap}
-          onExportComparison={openComparisonReport}
+          onExportComparison={() => {
+            void exportPrintableReport("comparison");
+          }}
         />
       ) : analysis ? (
         <ExpressDashboard
           key={analysis.id}
           analysis={analysis}
           onBackToMap={backToMap}
-          onExportReport={openAnalysisReport}
+          onExportReport={() => {
+            void exportPrintableReport("analysis");
+          }}
         />
       ) : (
         <MapWorkspace
@@ -1411,7 +1418,6 @@ export function WorkspaceShell() {
         analysisHistorySource={analysisHistorySource}
         hasResult={analysis !== null || comparison !== null}
         analysisMode={analysis?.analysisMode}
-        analysisGeneratedAt={analysis?.generatedAt}
         marketMetricsMatch={analysis?.marketMetricsMatch}
         backendStatus={backendStatus}
         marketContext={marketContext}
@@ -1444,16 +1450,6 @@ export function WorkspaceShell() {
         onRemoveUploadedDataset={removeUploadedDataset}
         onClearUploadedDatasets={clearUploadedDatasets}
         onToggleUploadedDataset={toggleUploadedDataset}
-        onExportCurrentResult={() => {
-          if (comparison) {
-            openComparisonReport();
-            return;
-          }
-
-          if (analysis) {
-            openAnalysisReport();
-          }
-        }}
       />
     </div>
   );

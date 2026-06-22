@@ -268,7 +268,9 @@ function ReportShell({
 
       if (printableReportRecord) {
         const serializedReport = JSON.stringify(printableReportRecord);
-        window.sessionStorage.setItem(`geoai-print-report:${decodeURIComponent(reportId)}`, serializedReport);
+        const storageKey = `geoai-print-report:${decodeURIComponent(reportId)}`;
+        window.sessionStorage.setItem(storageKey, serializedReport);
+        window.localStorage.setItem(storageKey, serializedReport);
       }
     } catch {
       return { ok: false, error: "Printable report could not be prepared. Please retry." };

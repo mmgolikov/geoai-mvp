@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { sourceReadinessMatrix } from "@/src/data/data-maturity";
 import { dataSourceRegistry } from "@/src/data/data-source-registry";
+import { seededDemoComparisonSummaries, seededDemoRecentAnalyses, seededDemoReportRecords } from "@/src/data/demo-report-seeds";
 import { demoProjects, getDemoProject } from "@/src/data/demo-projects";
 import { getImportedMetricsReadinessMessage, getSupabaseFallbackMessage } from "@/src/lib/data-readiness";
 import { deriveDecisionPosture } from "@/src/lib/decision-posture";
@@ -54,6 +55,7 @@ type RecentAnalysisRow = {
   confidence: string;
   dataConfidence: string;
   source: "local" | "DB";
+  reportId?: string;
 };
 
 type SavedObjectSummary = {
@@ -125,7 +127,8 @@ function localHistoryToRows(items: AnalysisHistoryItem[], projectKey: string): R
     decisionPosture: item.recommendation || deriveDecisionPosture(item.analysis),
     confidence: item.confidenceLevel ?? item.analysis.confidenceLevel ?? "medium",
     dataConfidence: item.dataConfidenceLevel ?? "Demo-normalized",
-    source: item.source ?? "local"
+    source: item.source ?? "local",
+    reportId: undefined
   }));
 }
 
@@ -138,7 +141,8 @@ function persistedRowsToRecent(items: PersistedAnalysisRun[]): RecentAnalysisRow
     decisionPosture: item.decision_posture ?? "Requires official validation",
     confidence: item.confidence_level ?? "medium",
     dataConfidence: item.data_confidence_level ?? "Demo-normalized",
-    source: "DB"
+    source: "DB",
+    reportId: undefined
   }));
 }
 
@@ -360,8 +364,38 @@ export function ProjectDashboard() {
     [activeProjectKey, projects]
   );
   const localRows = useMemo(() => localHistoryToRows(localHistory, activeProject.projectKey), [activeProject.projectKey, localHistory]);
-  const recentRows = dbHistory.length > 0 ? dbHistory : localRows;
+  const seededRows = seededDemoRecentAnalyses
+    .filter((item) => item.analysis.project?.projectKey === activeProject.projectKey)
+    .map((item) => ({
+      id: item.id,
+      title: item.title,
+      scenarioLabel: item.scenarioLabel,
+      timestamp: item.timestamp,
+      decisionPosture: item.decisionPosture,
+      confidence: item.confidence,
+      dataConfidence: item.dataConfidence,
+      source: item.source,
+      reportId: item.id === "seeded-recent-analysis-marina" ? "seeded-analysis-dubai-marina-report" : undefined
+    }));
+  const recentRows = dbHistory.length > 0 ? dbHistory : localRows.length > 0 ? localRows : seededRows;
+  const reportRows = savedReports.length > 0
+    ? savedReports
+    : seededDemoReportRecords
+      .filter((report) => report.projectKey === activeProject.projectKey)
+      .map((report) => ({
+        id: report.id,
+        title: report.title,
+        createdAt: report.createdAt,
+        sourceSummary: report.sourceSummary,
+        reportType: report.reportType,
+        scenario: report.scenario,
+        targetLabel: report.targetLabel
+      }));
+  const comparisonRows = savedComparisons.length > 0
+    ? savedComparisons
+    : seededDemoComparisonSummaries;
   const importedAreas = marketMetrics?.count ?? 0;
+  const demoMarketAreas = marketMetrics?.availableAreaNames?.length ?? 6;
   const dataConfidence = importedAreas > 0 ? "Sample/offline import" : "Seed fallback";
   const persistenceMode = dbHealth?.status === "connected" ? "Supabase/PostGIS connected" : "Local fallback";
   const nextActions = getNextActions(activeProject, importedAreas);
@@ -373,8 +407,8 @@ export function ProjectDashboard() {
     marketDataAvailable: importedAreas > 0,
     externalOpenDataAvailable: dataSourceRegistry.length > 0,
     validationSourcesIdentified: false,
-    reportsGenerated: savedReports.length > 0,
-    comparisonGenerated: savedComparisons.length > 0,
+    reportsGenerated: reportRows.length > 0,
+    comparisonGenerated: comparisonRows.length > 0,
     officialCustomerValidationPending: true
   });
   const openWorkspaceHref = "/workspace";
@@ -450,10 +484,10 @@ export function ProjectDashboard() {
 
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
           <KpiCard label="Analyses" value={recentRows.length} note={recentRows.length > 0 ? "Recent runs available for this project context." : "Run an analysis from the workspace."} />
-          <KpiCard label="Reports" value={savedReports.length} note={savedReports.length > 0 ? "Saved reports available in local/API fallback." : "No saved reports yet."} />
-          <KpiCard label="Comparisons" value={savedComparisons.length} note={savedComparisons.length > 0 ? "Saved comparison sets available." : "Compare 2-3 sites to populate."} />
+          <KpiCard label="Reports" value={reportRows.length} note={savedReports.length > 0 ? "Saved reports available in local/API fallback." : "Demo example memo available for fresh sessions."} />
+          <KpiCard label="Comparisons" value={comparisonRows.length} note={savedComparisons.length > 0 ? "Saved comparison sets available." : "Demo example comparison available."} />
           <KpiCard label="Data sources" value={dataSourceRegistry.length + projectDatasets.length} note={`${projectDatasets.length} project upload metadata records.`} />
-          <KpiCard label="Market areas" value={importedAreas} note={marketMetrics?.sourceMode ?? "seed_static fallback"} />
+          <KpiCard label="Market areas" value={importedAreas > 0 ? importedAreas : `0 official / ${demoMarketAreas} demo`} note={marketMetrics?.sourceMode ?? "seed_static fallback"} />
           <KpiCard label="Data confidence" value={dataConfidence} note="Official validation required before pilot decisions." />
         </section>
 
@@ -469,9 +503,18 @@ export function ProjectDashboard() {
                           <h3 className="font-semibold text-ink">{item.title}</h3>
                           <p className="mt-1 text-sm leading-5 text-muted">{item.scenarioLabel} / {formatTimestamp(item.timestamp)}</p>
                         </div>
-                        <span className="w-fit rounded-full bg-white px-3 py-1 text-xs font-semibold text-brand">
-                          {item.source}
-                        </span>
+                        <div className="flex shrink-0 flex-wrap items-center gap-2">
+                          <span className="w-fit rounded-full bg-white px-3 py-1 text-xs font-semibold text-brand">
+                            {item.source}
+                          </span>
+                          <Link
+                            href={item.reportId ? `/reports/${encodeURIComponent(item.reportId)}/print` : openWorkspaceHref}
+                            onClick={() => writeActiveProjectKey(activeProject.projectKey)}
+                            className="inline-flex h-8 items-center rounded-md border border-line bg-white px-3 text-xs font-semibold text-ink transition hover:border-brand"
+                          >
+                            {item.reportId ? "Open memo" : "Open analysis"}
+                          </Link>
+                        </div>
                       </div>
                       <div className="mt-3 grid gap-2 text-sm md:grid-cols-3">
                         <div className="rounded-md bg-white p-3">
@@ -501,9 +544,9 @@ export function ProjectDashboard() {
             </Panel>
 
             <Panel title="Reports / Memos" subtitle="Client-ready memo generation remains connected to the workspace result and report preview flow.">
-              {savedReports.length > 0 ? (
+              {reportRows.length > 0 ? (
                 <div className="grid gap-3">
-                  {savedReports.slice(0, 5).map((report) => (
+                  {reportRows.slice(0, 5).map((report) => (
                     <article key={report.id} className="rounded-md border border-line bg-surface p-4">
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div className="min-w-0">
@@ -516,6 +559,11 @@ export function ProjectDashboard() {
                             <p className="mt-1 break-words text-xs leading-5 text-muted">
                               {[report.scenario, report.targetLabel].filter(Boolean).join(" / ")}
                             </p>
+                          ) : null}
+                          {savedReports.length === 0 ? (
+                            <span className="mt-2 inline-flex rounded-full bg-white px-2 py-1 text-[11px] font-semibold text-brand">
+                              Demo example
+                            </span>
                           ) : null}
                         </div>
                         <Link
@@ -667,15 +715,37 @@ export function ProjectDashboard() {
             </Panel>
 
             <Panel title="Comparison Shortlist" subtitle="Saved comparison sets from the map workspace.">
-              {savedComparisons.length > 0 ? (
+              {comparisonRows.length > 0 ? (
                 <div className="grid gap-3">
-                  {savedComparisons.slice(0, 4).map((comparison) => (
+                  {comparisonRows.slice(0, 4).map((comparison) => {
+                    const comparisonReportId =
+                      comparison.id === "seeded-comparison-dubai-shortlist"
+                        ? "seeded-comparison-dubai-shortlist-report"
+                        : comparison.id;
+
+                    return (
                     <article key={comparison.id} className="rounded-md border border-line bg-surface p-4">
                       <h3 className="font-semibold text-ink">{comparison.title}</h3>
                       <p className="mt-1 text-sm text-muted">{formatTimestamp(comparison.createdAt ?? undefined)}</p>
                       <p className="mt-2 text-sm leading-5 text-muted">{comparison.sourceSummary ?? "Saved comparison; official validation required."}</p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <Link
+                          href={openWorkspaceHref}
+                          onClick={() => writeActiveProjectKey(activeProject.projectKey)}
+                          className="inline-flex h-9 items-center justify-center rounded-md border border-line bg-white px-3 text-sm font-semibold text-ink transition hover:border-brand"
+                        >
+                          Open comparison
+                        </Link>
+                        <Link
+                          href={`/reports/${encodeURIComponent(comparisonReportId)}/print`}
+                          className="inline-flex h-9 items-center justify-center rounded-md bg-brand px-3 text-sm font-semibold text-white transition hover:bg-[#113f50]"
+                        >
+                          Export memo
+                        </Link>
+                      </div>
                     </article>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <EmptyState

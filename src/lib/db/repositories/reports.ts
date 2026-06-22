@@ -1,4 +1,5 @@
 import { getSupabaseServerClient } from "@/src/lib/supabase/server";
+import { getSeededDemoReportRecord } from "@/src/data/demo-report-seeds";
 import { createSourceLineageSnapshot } from "@/src/lib/source-lineage-snapshot";
 import type { DbReportInput, DbRepositoryResult } from "@/src/lib/db/types";
 import type { WorkspaceReport } from "@/src/lib/project-workspace-types";
@@ -31,7 +32,7 @@ export async function getReport(id: string): Promise<DbRepositoryResult<Workspac
   const client = await getSupabaseServerClient();
   if (!client) {
     const result = localGet<WorkspaceReport>("reports", id);
-    return { ok: true, mode: "local_only", data: result.data, error: null };
+    return { ok: true, mode: "local_only", data: result.data ?? getSeededDemoReportRecord(id), error: null };
   }
 
   try {
@@ -39,7 +40,7 @@ export async function getReport(id: string): Promise<DbRepositoryResult<Workspac
       eq: (column: string, value: string) => { limit: (count: number) => Promise<{ data: unknown[] | null; error?: unknown }> };
     };
     const response = await query.eq("report_key", id).limit(1);
-    return { ok: !response.error, mode: "db", data: response.data?.[0] ?? null, error: response.error ? "Unable to load report." : null };
+    return { ok: !response.error, mode: "db", data: response.data?.[0] ?? getSeededDemoReportRecord(id), error: response.error ? "Unable to load report." : null };
   } catch (error) {
     return { ok: false, mode: "local_only", data: null, error: error instanceof Error ? error.message : "Unable to load report." };
   }

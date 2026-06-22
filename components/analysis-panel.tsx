@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import demoObjects from "@/src/data/demo-objects.json";
 import ingestionReport from "@/data/normalized/ingestion_report.json";
 import { DataReadinessCard } from "@/components/data-readiness";
 import { getScenarioDataSources } from "@/src/data/data-source-registry";
@@ -39,7 +38,6 @@ type AnalysisPanelProps = {
   analysisHistorySource: "DB" | "local";
   hasResult: boolean;
   analysisMode?: ExpressAnalysis["analysisMode"];
-  analysisGeneratedAt?: string;
   marketMetricsMatch?: MarketMetricsMatch;
   backendStatus: {
     configured: boolean;
@@ -70,7 +68,6 @@ type AnalysisPanelProps = {
   onRemoveUploadedDataset: (datasetId: string) => void;
   onClearUploadedDatasets: () => void;
   onToggleUploadedDataset: (datasetId: string) => void;
-  onExportCurrentResult: () => void;
 };
 
 type ExternalDataStatusResponse = {
@@ -100,30 +97,6 @@ type ExternalDataStatusResponse = {
 
 function formatCoordinate(value: number) {
   return value.toFixed(6);
-}
-
-function PlaceholderRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="w-full max-w-full overflow-hidden rounded-md border border-line bg-white px-3 py-3">
-      <div className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">
-        {label}
-      </div>
-      <div className="mt-1 break-words text-sm font-medium text-ink">{value}</div>
-    </div>
-  );
-}
-
-function formatGeneratedAt(value?: string) {
-  if (!value) {
-    return "";
-  }
-
-  return new Intl.DateTimeFormat("en", {
-    month: "short",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit"
-  }).format(new Date(value));
 }
 
 function formatHistoryTimestamp(value: string) {
@@ -195,7 +168,6 @@ export function AnalysisPanel({
   analysisHistorySource,
   hasResult,
   analysisMode,
-  analysisGeneratedAt,
   marketMetricsMatch,
   backendStatus,
   marketContext,
@@ -220,12 +192,10 @@ export function AnalysisPanel({
   onUploadDataset,
   onRemoveUploadedDataset,
   onClearUploadedDatasets,
-  onToggleUploadedDataset,
-  onExportCurrentResult
+  onToggleUploadedDataset
 }: AnalysisPanelProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [externalDataStatus, setExternalDataStatus] = useState<ExternalDataStatusResponse | null>(null);
-  const featuredObject = demoObjects[0];
   const hasSelectedPoint = selectedPoint !== null;
   const hasSelectedObject = selectedObject !== null;
   const scenario = scenarios.find((item) => item.id === selectedScenario) ?? scenarios[0];
@@ -237,13 +207,10 @@ export function AnalysisPanel({
   const demoCsvLoaded = uploadedDatasets.some((dataset) => dataset.id === "guided-demo-csv-metrics" && dataset.status === "parsed");
   const hasComparisonReady = comparisonItems.length >= 2;
   const demoSteps = [
-    { label: "Load demo data", complete: demoGeojsonLoaded && demoCsvLoaded },
-    { label: "Select site / polygon", complete: hasSelectedPoint },
-    { label: "Run analysis", complete: hasResult },
-    { label: "Add to comparison", complete: comparisonItems.length > 0 },
-    { label: "Open report", complete: hasResult },
-    { label: "Review data used", complete: hasResult },
-    { label: "Open project dashboard", complete: false }
+    { label: "Site selected", complete: hasSelectedPoint },
+    { label: "Analysis ready", complete: hasResult },
+    { label: "Comparison ready", complete: hasComparisonReady },
+    { label: "Report ready", complete: hasResult }
   ];
   const modeStatus =
     analysisMode === "openai"
@@ -251,30 +218,31 @@ export function AnalysisPanel({
       : analysisMode === "mock_fallback"
         ? "Demo fallback"
         : "Not run yet";
-  const modeNote =
-    analysisMode === "openai"
-      ? "Generated from selected scenario, coordinates and evidence context"
-      : analysisMode === "mock_fallback"
-        ? "Using deterministic demo analysis because AI is unavailable"
-        : "Run analysis to generate the current intelligence mode";
   const contextStatus = marketContext?.isGeneralContext
     ? "demo"
     : marketContext
       ? "seed"
       : "real-ready";
-  const persistenceStatus =
-    backendStatus?.status === "connected"
-      ? "Supabase configured"
-      : backendStatus?.configured
-        ? "Supabase configured, unavailable"
-        : "Local only";
-  const spatialDbStatus =
-    backendStatus?.status === "connected"
-      ? "PostGIS-ready"
-      : "Not configured";
   const analysisHistoryStatus =
     analysisHistorySource === "DB" ? "Supabase-backed" : "Local fallback";
   const projectPersistenceStatus = projectsMode === "db" ? "DB enabled" : "local demo";
+  const isComparisonWorkflow = primaryCtaLabel === "Compare" || (hasComparisonReady && hasResult);
+  const activeWorkflowLabel = isComparisonWorkflow
+    ? "Comparison active"
+    : hasResult
+      ? "Analysis ready"
+      : hasSelectedPoint
+        ? "Ready to analyze"
+        : "Select a site";
+  const activeWorkflowNote = isComparisonWorkflow
+    ? hasComparisonReady
+      ? "Export the comparison or edit scenario/query to continue."
+      : "Add another site to refresh comparison."
+    : hasResult
+      ? "Export the memo or edit scenario/query to continue."
+      : hasSelectedPoint
+        ? "Run analysis from the pinned footer."
+        : "Use the map or guided demo to start.";
   const pilotPackage = getPilotPackageForProject(activeProject.projectKey, activeProject.clientType);
   const pilotChecklist = [
     { label: "Select client type", status: activeProject.clientType ? "Done" : "Needed" },
@@ -557,25 +525,77 @@ export function AnalysisPanel({
                 Add demo sites
               </button>
             </div>
-            <details className="mt-2 rounded-md bg-surface px-3 py-2">
-              <summary className="cursor-pointer text-xs font-semibold text-muted">
-                Show demo steps
-              </summary>
-              <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5">
-                {demoSteps.slice(0, 5).map((step, index) => (
-                  <div key={`guided-demo-step-${index}`} className="flex min-w-0 items-center gap-2 text-xs leading-5">
-                    <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[9px] font-semibold ${step.complete ? "bg-brand text-white" : "bg-white text-muted"}`}>
-                      {step.complete ? "✓" : index + 1}
-                    </span>
-                    <span className="truncate text-muted">{step.label}</span>
-                  </div>
-                ))}
-              </div>
-            </details>
-            <p className="mt-2 truncate text-xs leading-5 text-muted">
+            <div className="mt-2 grid grid-cols-4 gap-1.5">
+              {demoSteps.map((step, index) => (
+                <div key={`guided-demo-step-${index}`} className="min-w-0 rounded-md bg-surface px-2 py-2 text-center">
+                  <span className={`mx-auto flex h-4 w-4 items-center justify-center rounded-full text-[9px] font-semibold ${step.complete ? "bg-brand text-white" : "bg-white text-muted"}`}>
+                    {step.complete ? "✓" : index + 1}
+                  </span>
+                  <p className="mt-1 line-clamp-2 text-[10px] font-semibold leading-3 text-muted">{step.label}</p>
+                </div>
+              ))}
+            </div>
+            <p className="mt-2 text-xs leading-5 text-muted">
               {activeGuidedDemo.dataHonestyNote}
             </p>
           </section>
+
+          <section className="min-w-0 max-w-full overflow-hidden rounded-lg border border-line bg-white p-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Active workflow</p>
+                <h2 className="mt-1 text-sm font-semibold text-ink">{activeWorkflowLabel}</h2>
+                <p className="mt-1 text-xs leading-5 text-muted">{activeWorkflowNote}</p>
+              </div>
+              <span className="shrink-0 rounded-full bg-surface px-2 py-1 text-[11px] font-semibold text-brand">
+                {primaryCtaLabel}
+              </span>
+            </div>
+            <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+              <div className="rounded-md bg-surface p-2">
+                <span className="text-muted">Mode</span>
+                <p className="mt-1 font-semibold text-ink">{modeStatus}</p>
+              </div>
+              <div className="rounded-md bg-surface p-2">
+                <span className="text-muted">Comparison</span>
+                <p className="mt-1 font-semibold text-ink">{comparisonItems.length}/3 sites</p>
+              </div>
+            </div>
+          </section>
+
+          {comparisonItems.length > 0 ? (
+            <section className="min-w-0 max-w-full overflow-hidden rounded-lg border border-line bg-white p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Comparison set</p>
+                  <h2 className="mt-1 text-sm font-semibold text-ink">{comparisonItems.length}/3 selected</h2>
+                </div>
+                <span className={`shrink-0 rounded-full px-2 py-1 text-[11px] font-semibold ${hasComparisonReady ? "bg-[#edf4f2] text-brand" : "bg-surface text-muted"}`}>
+                  {hasComparisonReady ? "Ready" : "Add one"}
+                </span>
+              </div>
+              <div className="mt-2 grid gap-2">
+                {comparisonItems.map((item) => (
+                  <div key={item.id} className="flex min-w-0 items-center justify-between gap-2 rounded-md bg-surface px-2 py-2">
+                    <div className="min-w-0">
+                      <p className="truncate text-xs font-semibold text-ink">{item.name}</p>
+                      <p className="truncate text-[11px] text-muted">{item.itemType}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => onRemoveComparisonItem(item.id)}
+                      className="shrink-0 rounded-md border border-line bg-white px-2 py-1 text-[11px] font-semibold text-muted transition hover:border-brand hover:text-ink"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
+              {comparisonMessage ? (
+                <p className="mt-2 rounded-md bg-surface px-2 py-2 text-xs leading-5 text-muted">{comparisonMessage}</p>
+              ) : null}
+            </section>
+          ) : null}
         </div>
 
         <div className="mt-3 grid min-w-0 max-w-full gap-2 overflow-hidden">
@@ -818,69 +838,6 @@ export function AnalysisPanel({
             </div>
           </CollapsedSection>
 
-          <CollapsedSection title="Upload Documents" badge="Later">
-            <PlaceholderRow label="Upload documents" value="Coming later" />
-          </CollapsedSection>
-
-          <CollapsedSection title="Integrations" badge="Later">
-            <PlaceholderRow label="Integrations" value="GIS, CRM, docs, imagery later" />
-          </CollapsedSection>
-
-          <CollapsedSection title="Comparison Set" badge={`${comparisonItems.length}/3`}>
-            <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
-              <div className="min-w-0">
-                <h2 className="text-sm font-semibold text-ink">
-                {comparisonItems.length}/3 selected
-                </h2>
-                <p className="mt-1 text-xs leading-5 text-muted">
-                  {hasComparisonReady
-                    ? "Ready to compare from the primary footer action."
-                    : comparisonItems.length === 1
-                      ? "Add one more site to compare."
-                      : "Add at least 2 sites to compare."}
-                </p>
-              </div>
-              <span className={`shrink-0 rounded-full px-2 py-1 text-[11px] font-semibold ${hasComparisonReady ? "bg-[#edf4f2] text-brand" : "bg-surface text-muted"}`}>
-                {hasComparisonReady ? "Ready" : "Waiting"}
-              </span>
-            </div>
-
-            <div className="mt-3 grid min-w-0 gap-2">
-              {comparisonItems.length === 0 ? (
-                <div className="rounded-md border border-line bg-white px-3 py-3 text-sm leading-5 text-muted">
-                  Add 2-3 map points or demo objects to compare.
-                </div>
-              ) : (
-                comparisonItems.map((item) => (
-                  <div key={item.id} className="min-w-0 max-w-full overflow-hidden rounded-md border border-line bg-white p-3">
-                    <div className="flex min-w-0 items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <h3 className="truncate text-sm font-semibold text-ink">{item.name}</h3>
-                        <p className="mt-1 break-words text-xs leading-5 text-muted">
-                          {item.itemType} / {item.scenarioLabel}
-                        </p>
-                        <p className="mt-1 whitespace-normal break-words text-xs text-muted">{item.locationLabel}</p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => onRemoveComparisonItem(item.id)}
-                        className="shrink-0 rounded-md border border-line px-2 py-1 text-xs font-semibold text-muted transition hover:border-brand hover:text-ink"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-
-            {comparisonMessage ? (
-              <p className="mt-3 break-words rounded-md border border-line bg-white px-3 py-2 text-sm leading-5 text-muted">
-                {comparisonMessage}
-              </p>
-            ) : null}
-          </CollapsedSection>
-
           <CollapsedSection title="Analysis History" badge={analysisHistoryStatus}>
             <div className="grid min-w-0 gap-2">
               {analysisHistory.length === 0 ? (
@@ -938,65 +895,22 @@ export function AnalysisPanel({
             </div>
           </CollapsedSection>
 
-          <CollapsedSection title="Export" badge={hasResult ? "Ready" : "No result"}>
-            <button
-              type="button"
-              disabled={!hasResult}
-              onClick={onExportCurrentResult}
-              className="inline-flex h-9 w-full items-center justify-center rounded-md border border-line bg-surface px-3 text-sm font-semibold text-ink transition hover:border-brand disabled:cursor-not-allowed disabled:text-muted"
-            >
-              Preview report
-            </button>
-          </CollapsedSection>
-
-          <CollapsedSection title="Status" badge={modeStatus}>
-            <div className="break-words text-sm font-medium text-ink">
-              {isAnalyzing
-                ? "Analysis running"
-                : hasSelectedPoint
-                  ? "Point ready for analysis"
-                  : `Demo object: ${featuredObject.market}`}
-            </div>
-            <p className="mt-2 break-words text-xs leading-5 text-muted">{modeNote}</p>
-            <div className="mt-3 grid gap-2 rounded-md border border-line bg-surface p-3 text-xs">
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-muted">Data mode</span>
-                <span className="font-semibold text-ink">Demo-normalized</span>
-              </div>
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-muted">Persistence</span>
-                <span className="text-right font-semibold text-ink">{persistenceStatus}</span>
-              </div>
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-muted">Analysis history</span>
-                <span className="text-right font-semibold text-ink">{analysisHistoryStatus}</span>
-              </div>
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-muted">Spatial DB</span>
-                <span className="font-semibold text-ink">{spatialDbStatus}</span>
-              </div>
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-muted">Real data adapters</span>
-                <span className="font-semibold text-ink">Planned</span>
-              </div>
-            </div>
-            {analysisGeneratedAt ? (
-              <p className="mt-1 text-xs font-semibold text-muted">
-                Generated {formatGeneratedAt(analysisGeneratedAt)}
-              </p>
-            ) : null}
-          </CollapsedSection>
         </div>
       </section>
 
       <section className="min-w-0 max-w-full flex-shrink-0 border-t border-line bg-white p-4">
+        <p className="mb-2 text-xs leading-5 text-muted">
+          {primaryCtaDisabled && !hasSelectedPoint
+            ? "Select a map point or load the guided demo to begin."
+            : activeWorkflowNote}
+        </p>
         <button
           type="button"
           disabled={!hasSelectedPoint}
           onClick={onAddToComparison}
           className="mb-2 inline-flex h-9 w-full max-w-full items-center justify-center rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink transition hover:border-brand disabled:cursor-not-allowed disabled:bg-surface disabled:text-muted"
         >
-          Add to Comparison
+          Add to compare
         </button>
         <button
           type="button"
