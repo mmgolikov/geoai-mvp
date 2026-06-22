@@ -81,3 +81,7 @@ Comparison:
 ## Freeze Result
 
 This release is a stable UI baseline for the current GeoAI MVP investor-demo flow. It is not production-ready or pilot-ready, but it is the approved layout foundation for the next external data integration iteration.
+
+## Stabilization Note
+
+The canonical stabilization branch is based on `codex/fix-custom-query-integration-v2` at and after commit `9e1b928`. The release baseline keeps the two-button landing hero, project-scoped dashboard persistence, same-tab printable report navigation, non-durable local fallback when Supabase/PostGIS is absent, and strict data-honesty caveats. `main` must not be treated as newer unless it contains this preview branch state.

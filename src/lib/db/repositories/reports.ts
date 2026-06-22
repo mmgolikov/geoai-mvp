@@ -9,7 +9,7 @@ export async function listReports(filters: { projectId?: string | null; projectK
   const client = await getSupabaseServerClient();
   if (!client) {
     const result = localList<WorkspaceReport>("reports", filters);
-    return { ok: true, mode: "local_only", data: result.data, error: null };
+    return { ok: true, mode: "local_only", data: result.data, error: result.error };
   }
 
   try {

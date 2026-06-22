@@ -98,3 +98,7 @@ This is evidence/source-basis context only. It is not a validated conclusion, of
 ## v0.8 Persistence Alignment
 
 Persistence & Project Workspace v0.8 stores source-lineage snapshots with saved analyses, reports and comparison sets. Real Data Backbone sources should be captured into those snapshots when they are used or planned for validation, so saved memos do not depend only on mutable current source registry state.
+
+## Release Stabilization Alignment
+
+The stabilized demo release keeps real-data work in metadata, snapshot and source-lineage mode only. It does not start new DLD, Dubai Pulse, OSM, GeoDubai or commercial connector expansion. When Supabase/PostGIS is absent, persistence routes return graceful local fallback responses and preserve demo usability without claiming durable production storage. Every data-backed output remains a screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.

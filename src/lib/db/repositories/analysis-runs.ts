@@ -52,7 +52,7 @@ export async function saveAnalysisRun(input: DbAnalysisRunInput): Promise<DbRepo
       payload: input.resultJson,
       createdAt: input.createdAt ?? new Date().toISOString()
     });
-    return { ok: true, mode: "local_only", data: result.data, error: null };
+    return { ok: true, mode: "local_only", data: result.data, error: result.error };
   }
 
   try {

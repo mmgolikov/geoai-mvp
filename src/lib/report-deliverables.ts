@@ -101,11 +101,14 @@ const fallbackLineage: SourceLineageSnapshot = {
     }
   ],
   disclaimers: [
+    "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.",
     "Saved report uses demo/sample/local/uploaded source lineage unless explicitly validated.",
     "Live official parcel, planning, cadastral, title, ownership and zoning validation is not provided by this MVP.",
     "GeoAI supports screening and decision preparation, not final legal, cadastral or valuation approval."
   ]
 };
+
+const releaseCaveat = "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.";
 
 const scoreKeys: ScoreKey[] = [
   "developmentPotential",
@@ -233,7 +236,15 @@ function readCreatedAt(record: ReportRecord, payload: unknown) {
 }
 
 function readSourceLineage(record: ReportRecord) {
-  return record.sourceLineage ?? record.source_lineage ?? fallbackLineage;
+  const sourceLineage = record.sourceLineage ?? record.source_lineage ?? fallbackLineage;
+  const disclaimers = Array.isArray(sourceLineage.disclaimers) ? sourceLineage.disclaimers : [];
+
+  return {
+    ...sourceLineage,
+    disclaimers: disclaimers.includes(releaseCaveat)
+      ? disclaimers
+      : [releaseCaveat, ...disclaimers]
+  };
 }
 
 function readAnalysisPayload(payload: unknown): ExpressAnalysis | null {

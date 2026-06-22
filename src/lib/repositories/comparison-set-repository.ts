@@ -52,7 +52,7 @@ export async function saveComparisonSet(input: ComparisonSetInput): Promise<DbRe
   const client = await getSupabaseServerClient();
   if (!client) {
     const result = localCreate<WorkspaceComparisonSet>("comparison-sets", localPayload);
-    return { ok: true, mode: "local_only", data: result.data, error: null };
+    return { ok: true, mode: "local_only", data: result.data, error: result.error };
   }
 
   try {
@@ -72,12 +72,12 @@ export async function saveComparisonSet(input: ComparisonSetInput): Promise<DbRe
     const response = await query;
     if (response.error) {
       const result = localCreate<WorkspaceComparisonSet>("comparison-sets", localPayload);
-      return { ok: true, mode: "local_only", data: result.data, error: "DB comparison persistence unavailable; local fallback used." };
+      return { ok: true, mode: "local_only", data: result.data, error: result.error ?? "DB comparison persistence unavailable; local fallback used." };
     }
     return { ok: true, mode: "db", data: response.data ?? localPayload, error: null };
   } catch {
     const result = localCreate<WorkspaceComparisonSet>("comparison-sets", localPayload);
-    return { ok: true, mode: "local_only", data: result.data, error: "DB comparison persistence unavailable; local fallback used." };
+    return { ok: true, mode: "local_only", data: result.data, error: result.error ?? "DB comparison persistence unavailable; local fallback used." };
   }
 }
 

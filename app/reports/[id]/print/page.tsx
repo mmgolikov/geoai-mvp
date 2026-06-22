@@ -34,7 +34,7 @@ export default async function PrintableReportPage({ params }: PrintableReportPag
             href="/projects"
             className="inline-flex h-10 items-center rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink transition hover:border-brand"
           >
-            Project library
+            Back
           </Link>
           <PrintButton />
         </div>

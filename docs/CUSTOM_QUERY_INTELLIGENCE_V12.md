@@ -103,6 +103,7 @@ Custom Query Intelligence must use screening language only:
 - subject to validation
 - based on available demo/sample/uploaded/open context
 - not a legal, cadastral, zoning, title, valuation or approval conclusion
+- exact release caveat: "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
 
 It must not claim:
 

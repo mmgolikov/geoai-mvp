@@ -169,8 +169,8 @@ function buildFallbackAnswer(
         "Confirm ownership, title, encumbrances and legal constraints outside GeoAI."
       ];
   const confidenceNote = ru
-    ? "Это screening hypothesis на основе demo/sample/uploaded/open context. Это не legal, cadastral, zoning, valuation или planning approval conclusion."
-    : "This is a screening hypothesis based on demo/sample/uploaded/open context. It is not a legal, cadastral, zoning, valuation or planning approval conclusion.";
+    ? "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
+    : "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.";
 
   if (isPremiumPositioningQuery(intent.normalizedQuestion)) {
     return {
@@ -410,9 +410,7 @@ export function createComparisonCustomQueryAnswer(args: {
       ],
       nextActions: ["Create a concept matrix by site.", "Request official planning validation for the top two options.", "Prepare a decision memo showing liquidity versus development-upside trade-offs."],
       sourceBasis: basis,
-      confidenceNote: ru
-        ? "Это comparison screening hypothesis; не является разрешением на строительство, valuation, zoning или legal conclusion."
-        : "This is a comparison screening hypothesis; it is not a construction approval, valuation, zoning or legal conclusion."
+      confidenceNote: "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
     };
   }
 
@@ -438,8 +436,6 @@ export function createComparisonCustomQueryAnswer(args: {
     ],
     nextActions: ["Prepare a short comparison memo.", "Assign validation owners by option.", "Re-rank after official/customer-approved evidence is added."],
     sourceBasis: basis,
-    confidenceNote: ru
-      ? "Ответ основан на demo/source-lineage context и не является final investment, legal, cadastral, zoning or valuation conclusion."
-      : "This answer is based on demo/source-lineage context and is not a final investment, legal, cadastral, zoning or valuation conclusion."
+    confidenceNote: "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
   };
 }

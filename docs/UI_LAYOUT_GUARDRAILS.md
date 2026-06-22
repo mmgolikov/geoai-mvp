@@ -94,6 +94,8 @@ Generated time, mode labels and internal diagnostics should not create large vis
 - Export should appear only when the current analysis or comparison is up to date with the selected target, scenario, comparison set and trimmed Custom Query.
 - If the current result is stale, the primary CTA should switch to `Continue Analysis` or `Continue Comparison`.
 - The footer CTA is the dominant action; dashboard/header export buttons should remain secondary when present.
+- The disabled initial state must still read `Run Express Analysis`, not a shortened `Analyze` label.
+- Exact release labels: `Run Express Analysis`, `Export Report`, `Continue Analysis`, `Compare Selected`, `Export Comparison`, `Continue Comparison`.
 
 ## 5.2 Dashboard Content Budgets
 

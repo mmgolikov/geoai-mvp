@@ -9,7 +9,8 @@ export type LocalRepositoryResult<T> = {
 };
 
 function storePath(name: string) {
-  return join(process.cwd(), "data/local-fallback", `${name}.json`);
+  const root = process.env.VERCEL ? "/tmp/geoai-local-fallback" : join(process.cwd(), "data/local-fallback");
+  return join(root, `${name}.json`);
 }
 
 function readStore<T extends { id: string }>(name: string): T[] {
@@ -26,8 +27,13 @@ function readStore<T extends { id: string }>(name: string): T[] {
 
 function writeStore<T extends { id: string }>(name: string, items: T[]) {
   const path = storePath(name);
-  mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, JSON.stringify(items, null, 2));
+  try {
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, JSON.stringify(items, null, 2));
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function localList<T extends { id: string; projectId?: string | null; projectKey?: string | null }>(
@@ -57,8 +63,13 @@ export function localCreate<T extends { id: string; createdAt?: string; updatedA
     updatedAt: item.updatedAt ?? now
   } as T;
   const items = readStore<T>(name).filter((stored) => stored.id !== item.id);
-  writeStore(name, [nextItem, ...items].slice(0, 200));
-  return { ok: true, mode: "local-fallback", data: nextItem, error: null };
+  const written = writeStore(name, [nextItem, ...items].slice(0, 200));
+  return {
+    ok: written,
+    mode: "local-fallback",
+    data: nextItem,
+    error: written ? null : "Runtime local fallback is non-durable; write storage is unavailable."
+  };
 }
 
 export function localUpdate<T extends { id: string; updatedAt?: string }>(
@@ -72,13 +83,23 @@ export function localUpdate<T extends { id: string; updatedAt?: string }>(
 
   const updated = { ...items[index], ...patch, updatedAt: new Date().toISOString() } as T;
   items[index] = updated;
-  writeStore(name, items);
-  return { ok: true, mode: "local-fallback", data: updated, error: null };
+  const written = writeStore(name, items);
+  return {
+    ok: written,
+    mode: "local-fallback",
+    data: updated,
+    error: written ? null : "Runtime local fallback is non-durable; write storage is unavailable."
+  };
 }
 
 export function localDelete(name: string, id: string): LocalRepositoryResult<boolean> {
   const items = readStore(name);
   const nextItems = items.filter((item) => item.id !== id);
-  writeStore(name, nextItems);
-  return { ok: true, mode: "local-fallback", data: nextItems.length !== items.length, error: null };
+  const written = writeStore(name, nextItems);
+  return {
+    ok: written,
+    mode: "local-fallback",
+    data: nextItems.length !== items.length,
+    error: written ? null : "Runtime local fallback is non-durable; write storage is unavailable."
+  };
 }

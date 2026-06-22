@@ -17,6 +17,8 @@ Project-scoped records include:
 - Uploaded dataset metadata
 - Project dashboard KPI counts
 
+API persistence fallback is intentionally non-blocking. When Supabase/PostGIS is absent, server routes return local fallback responses and the client/browser state remains usable for the demo. Serverless fallback storage must not be treated as durable production storage.
+
 ## Active Project Rule
 
 The Projects dashboard derives every activity section from the active project key:
@@ -74,6 +76,7 @@ When a new analysis, comparison, report or uploaded dataset metadata record is s
 - This is still an MVP local/Supabase fallback persistence layer.
 - Demo project IDs can be `null`; the stable demo identifier remains `projectKey`.
 - Historical records saved before project scoping may not include project metadata and are intentionally limited to the default investment screening demo.
+- Vercel serverless fallback responses can echo payloads without durable persistence; Supabase/PostGIS is required for durable project history.
 - Official customer, cadastral, zoning and valuation validation remain outside this persistence baseline.
 
 ## QA Checklist

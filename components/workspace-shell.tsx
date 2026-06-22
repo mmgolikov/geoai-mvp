@@ -1467,39 +1467,39 @@ export function WorkspaceShell() {
   const primaryCtaState = comparison
     ? isComparisonUpToDate
       ? {
-          label: isExporting ? "Exporting..." : "Export",
+          label: isExporting ? "Exporting..." : "Export Comparison",
           disabled: isExporting || isAnalyzing,
           action: () => {
             void exportPrintableReport("comparison");
           }
         }
       : {
-          label: isAnalyzing ? "Continuing..." : "Continue",
+          label: isAnalyzing ? "Continuing..." : "Continue Comparison",
           disabled: isAnalyzing || comparisonItems.length < 2,
           action: runComparison
         }
     : comparisonItems.length >= 2
       ? {
-          label: "Compare",
+          label: "Compare Selected",
           disabled: isAnalyzing,
           action: runComparison
         }
       : analysis
         ? isAnalysisUpToDate
           ? {
-              label: isExporting ? "Exporting..." : "Export",
+              label: isExporting ? "Exporting..." : "Export Report",
               disabled: isExporting || isAnalyzing,
               action: () => {
                 void exportPrintableReport("analysis");
               }
             }
           : {
-              label: isAnalyzing ? "Continuing..." : "Continue",
+              label: isAnalyzing ? "Continuing..." : "Continue Analysis",
               disabled: !selectedPoint || isAnalyzing,
               action: runExpressAnalysis
             }
         : {
-            label: isAnalyzing ? "Analyzing..." : "Analyze",
+            label: isAnalyzing ? "Analyzing..." : "Run Express Analysis",
             disabled: !selectedPoint || isAnalyzing,
             action: runExpressAnalysis
           };

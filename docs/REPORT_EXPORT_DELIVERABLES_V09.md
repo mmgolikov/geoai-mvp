@@ -51,7 +51,7 @@ Dedicated printable route:
 /reports/[id]/print
 ```
 
-The route loads the saved report from the v0.8 report repository. If Supabase is unavailable, it can read the local fallback store. If the report cannot be found, the page shows:
+The route loads the saved report from the v0.8 report repository. If Supabase is unavailable, it can read the local/browser fallback or seeded demo report records. If the report cannot be found, the page shows:
 
 ```text
 Report not found. Generate or save a report first.
@@ -66,10 +66,11 @@ Current MVP export behavior:
 - Workspace report preview remains available.
 - Report preview includes an "Open printable report" action.
 - Project Dashboard saved reports include an "Open printable report" action.
-- Printable report page includes "Print / Save PDF".
+- Printable report page includes only "Back" and "Print / Save as PDF" in the top action row.
 - Printable report actions must use a single guarded prepare-and-open flow.
 - Never open a print route before the report payload or saved report id exists.
-- The print action should be disabled while preparing to prevent duplicate tabs.
+- Use same-tab navigation for printable report routes; do not open async popup windows or duplicate tabs.
+- The print action should be controlled to prevent duplicate export actions.
 - If preparation fails, show an inline error and do not open a new tab.
 
 PDF export currently uses browser print/save as PDF. Server-side PDF generation is planned and is not implemented in v0.9.
