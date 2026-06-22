@@ -4,6 +4,7 @@ export type IngestionMode =
   | "seed_static"
   | "csv_ready"
   | "api_ready"
+  | "dld_dubai_pulse_snapshot"
   | "manual_upload_planned";
 
 export type DataQualityIssue = {

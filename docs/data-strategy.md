@@ -157,3 +157,18 @@ Mock fallback should:
 - Mirror future production schemas where possible.
 - Allow offline or token-limited demos.
 - Never mix mock and real evidence without clear labeling.
+
+## Snapshot Connector Strategy v1.4
+
+GeoAI now supports optional local snapshot connectors for DLD / Dubai Pulse-style market context and OSM / Geofabrik-style open geospatial context. Snapshot files are local CSV/JSON/GeoJSON inputs, not live official integrations.
+
+Current normalized outputs:
+
+- `data/normalized/dld_market_snapshot.json`
+- `data/normalized/open_geodata_snapshot.json`
+
+Current API context:
+
+- `/api/context/climate` for screening-level Open-Meteo heat/rainfall proxy with demo fallback.
+
+Every snapshot-backed output must retain this caveat: screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.

@@ -69,5 +69,6 @@ export type AnalyzeRequest = {
   evidence: EvidenceItem[];
   dataSources: DataSource[];
   marketContext?: MarketContext | null;
+  climateContext?: unknown;
   uploadedDataContext?: UploadedDataContext | null;
 };

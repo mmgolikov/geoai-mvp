@@ -4,6 +4,8 @@ Date: 2026-06-21
 
 GeoAI Real Data Backbone v0.7 starts the transition from demo-only context toward honest external data readiness. It adds source metadata, snapshot/manual ingestion paths, API-context routes and report lineage without claiming live official integrations.
 
+Update: v1.4 extends this backbone with stricter Source Registry fields, `DataReadinessResult`, report-ready `SourceLineageItem`, DLD / Dubai Pulse snapshot ingestion, OSM / Geofabrik snapshot ingestion, and `/api/context/climate`. See `docs/REAL_EXTERNAL_DATA_INTEGRATION_V14.md`.
+
 ## Supported Sources
 
 | Source | Status | Type | Current Use |

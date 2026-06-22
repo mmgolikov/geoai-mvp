@@ -9,8 +9,10 @@
     "build": "next build",
     "ingest:dld": "node scripts/ingest-dld-sample.mjs",
     "ingest:dld:real": "node scripts/ingest-dld-dubai-pulse.mjs",
+    "ingest:dld:snapshot": "node scripts/ingest-dld-snapshot.mjs",
     "ingest:open-geodata": "node scripts/ingest-open-geodata-sample.mjs",
     "ingest:osm:real": "node scripts/ingest-osm-geofabrik.mjs",
+    "ingest:osm:snapshot": "node scripts/ingest-osm-snapshot.mjs",
     "start": "next start",
     "lint": "tsc --noEmit --pretty false"
   },

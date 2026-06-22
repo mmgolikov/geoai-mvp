@@ -1,0 +1,131 @@
+{
+  "generatedAt": "2026-06-22T21:04:33.655Z",
+  "version": "1.4",
+  "source": {
+    "id": "osm-geofabrik-baseline",
+    "name": "OSM / Geofabrik open geospatial baseline",
+    "status": "snapshot_available",
+    "sourceType": "open-data",
+    "accessMode": "snapshot",
+    "disclaimer": "Open geospatial baseline; not official municipal GIS, zoning or parcel boundary data."
+  },
+  "featureCount": 3,
+  "roads": [
+    {
+      "id": "osm-snapshot-1",
+      "name": "Sheikh Zayed Road sample corridor",
+      "featureType": "road",
+      "geometryType": "LineString",
+      "properties": {
+        "name": "Sheikh Zayed Road sample corridor",
+        "highway": "primary",
+        "sourceId": "osm-geofabrik-baseline",
+        "sourceName": "OSM / Geofabrik open geospatial baseline",
+        "validationStatus": "open-data-not-official-municipal-gis"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            55.118,
+            25.065
+          ],
+          [
+            55.16,
+            25.092
+          ],
+          [
+            55.205,
+            25.126
+          ],
+          [
+            55.268,
+            25.188
+          ]
+        ]
+      },
+      "limitations": [
+        "Open geospatial context only; not official municipal GIS, zoning or parcel boundary data.",
+        "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
+      ]
+    }
+  ],
+  "pois": [
+    {
+      "id": "osm-snapshot-2",
+      "name": "Dubai Marina Mall sample anchor",
+      "featureType": "poi",
+      "geometryType": "Point",
+      "properties": {
+        "name": "Dubai Marina Mall sample anchor",
+        "amenity": "retail",
+        "sourceId": "osm-geofabrik-baseline",
+        "sourceName": "OSM / Geofabrik open geospatial baseline",
+        "validationStatus": "open-data-not-official-municipal-gis"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          55.14,
+          25.077
+        ]
+      },
+      "limitations": [
+        "Open geospatial context only; not official municipal GIS, zoning or parcel boundary data.",
+        "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
+      ]
+    }
+  ],
+  "landuse": [
+    {
+      "id": "osm-snapshot-3",
+      "name": "Dubai Marina mixed-use sample context",
+      "featureType": "landuse",
+      "geometryType": "Polygon",
+      "properties": {
+        "name": "Dubai Marina mixed-use sample context",
+        "landuse": "mixed_use",
+        "sourceId": "osm-geofabrik-baseline",
+        "sourceName": "OSM / Geofabrik open geospatial baseline",
+        "validationStatus": "open-data-not-official-municipal-gis"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              55.13,
+              25.068
+            ],
+            [
+              55.157,
+              25.07
+            ],
+            [
+              55.159,
+              25.091
+            ],
+            [
+              55.134,
+              25.092
+            ],
+            [
+              55.13,
+              25.068
+            ]
+          ]
+        ]
+      },
+      "limitations": [
+        "Open geospatial context only; not official municipal GIS, zoning or parcel boundary data.",
+        "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
+      ]
+    }
+  ],
+  "context": [],
+  "quality": {
+    "status": "ok",
+    "notes": [],
+    "caveat": "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
+  }
+}

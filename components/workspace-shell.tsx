@@ -81,6 +81,19 @@ type ProjectsResponse = {
   error: string | null;
 };
 
+type ClimateScreeningContext = {
+  status: "connected" | "sample_fallback";
+  sourceId: string;
+  source: string;
+  climateDataMode: string;
+  heatExposureProxy: string;
+  rainfallProxy: string;
+  confidence: "low" | "medium" | "high";
+  caveat: string;
+  limitation: string;
+  note: string;
+};
+
 type PersistedAnalysisRun = {
   id?: string;
   run_key?: string;
@@ -229,9 +242,9 @@ function withOpenGeodataContext(analysis: ExpressAnalysis): ExpressAnalysis {
 
   const evidence = createEvidenceItem(
     "open-geodata-baseline-context",
-    "open-geodata-baseline-sample",
+    "osm-geofabrik-baseline",
     "Open geospatial baseline context",
-    "Local OSM-style fixtures provide indicative road, POI, anchor and accessibility context. Not official GIS; attribution and validation are required before production use.",
+    "OSM / Geofabrik-style snapshot or sample fallback provides indicative road, POI, anchor and accessibility context. Not official GIS; attribution and validation are required before production use.",
     "medium"
   );
   const openContextNotes = [
@@ -265,6 +278,63 @@ function withOpenGeodataContext(analysis: ExpressAnalysis): ExpressAnalysis {
     evidence: analysis.evidence.some((item) => item.id === evidence.id)
       ? analysis.evidence
       : [evidence, ...analysis.evidence]
+  };
+}
+
+async function fetchClimateScreeningContext(point: SelectedPoint): Promise<ClimateScreeningContext | null> {
+  try {
+    const response = await fetch("/api/context/climate", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        latitude: point.latitude,
+        longitude: point.longitude
+      })
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    return await response.json() as ClimateScreeningContext;
+  } catch {
+    return null;
+  }
+}
+
+function withClimateScreeningContext(
+  analysis: ExpressAnalysis,
+  climateContext: ClimateScreeningContext | null
+): ExpressAnalysis {
+  if (!climateContext) {
+    return analysis;
+  }
+
+  const evidence = createEvidenceItem(
+    "open-climate-screening-context",
+    "open-meteo-climate",
+    "Climate screening context",
+    `${climateContext.climateDataMode}: heat proxy ${climateContext.heatExposureProxy}; rainfall proxy ${climateContext.rainfallProxy}. ${climateContext.caveat}`,
+    climateContext.confidence
+  );
+
+  return {
+    ...analysis,
+    keyFactors: [
+      `Climate screening: ${climateContext.note}`,
+      ...analysis.keyFactors
+    ],
+    limitations: Array.from(new Set([
+      ...(analysis.limitations ?? []),
+      climateContext.limitation,
+      climateContext.caveat
+    ])),
+    evidence: [
+      evidence,
+      ...analysis.evidence.filter((item) => item.id !== evidence.id)
+    ]
   };
 }
 
@@ -1348,34 +1418,38 @@ export function WorkspaceShell() {
     setLastComparedState(null);
 
     const uploadedDataContext = buildUploadedDataContext(uploadedDatasets, selectedPoint, selectedObject);
-    const deterministicAnalysis = withUploadedDataContext(
-      withOpenGeodataContext(
-        withMarketContext(
-          {
-            ...createMockExpressAnalysis(
-              selectedPoint,
-              selectedScenario,
-              customQuery,
-              selectedObject
-            ),
-            project: activeProject,
-            analysisTarget: selectedObject?.analysisTarget ?? {
-              id: `point-${selectedPoint.latitude.toFixed(6)}-${selectedPoint.longitude.toFixed(6)}`,
-              type: "point",
-              label: "Custom map selection",
-              coordinates: selectedPoint,
-              geometry: {
-                type: "Point",
-                coordinates: [selectedPoint.longitude, selectedPoint.latitude]
-              },
-              sourceMode: "demo",
-              officialStatus: "not-official"
-            }
-          },
-          marketContext
-        )
+    const climateContext = await fetchClimateScreeningContext(selectedPoint);
+    const deterministicAnalysis = withClimateScreeningContext(
+      withUploadedDataContext(
+        withOpenGeodataContext(
+          withMarketContext(
+            {
+              ...createMockExpressAnalysis(
+                selectedPoint,
+                selectedScenario,
+                customQuery,
+                selectedObject
+              ),
+              project: activeProject,
+              analysisTarget: selectedObject?.analysisTarget ?? {
+                id: `point-${selectedPoint.latitude.toFixed(6)}-${selectedPoint.longitude.toFixed(6)}`,
+                type: "point",
+                label: "Custom map selection",
+                coordinates: selectedPoint,
+                geometry: {
+                  type: "Point",
+                  coordinates: [selectedPoint.longitude, selectedPoint.latitude]
+                },
+                sourceMode: "demo",
+                officialStatus: "not-official"
+              }
+            },
+            marketContext
+          )
+        ),
+        uploadedDataContext
       ),
-      uploadedDataContext
+      climateContext
     );
     const scenario = analysisScenarios.find((item) => item.id === selectedScenario) ?? analysisScenarios[0];
 
@@ -1397,6 +1471,7 @@ export function WorkspaceShell() {
           evidence: deterministicAnalysis.evidence,
           dataSources: getScenarioDataSources(selectedScenario),
           marketContext,
+          climateContext,
           uploadedDataContext,
           openGeodataContext: {
             nearestAccessibility: getNearestAccessibilityMetric(selectedPoint),

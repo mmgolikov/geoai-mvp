@@ -148,6 +148,9 @@ ${compactJson(request.evidence)}
 Dubai market context:
 ${marketContext ? compactJson(marketContext) : "No market context provided."}
 
+Climate screening context:
+${request.climateContext ? compactJson(request.climateContext) : "No climate context provided."}
+
 Uploaded local dataset context:
 ${uploadedDataContext ? compactJson(uploadedDataContext) : "No uploaded dataset context provided."}
 

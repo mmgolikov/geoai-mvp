@@ -1,5 +1,4 @@
 import { dubaiMarketAreas } from "@/src/data/dubai-market-areas";
-import { distanceKm } from "@/src/lib/market-context-adapter";
 import {
   getMarketMetricsByArea,
   listImportedMarketMetrics,
@@ -22,6 +21,23 @@ const aliases: Record<string, string> = {
   "dubai south": "Dubai South",
   "business bay": "Business Bay"
 };
+
+function toRadians(value: number) {
+  return (value * Math.PI) / 180;
+}
+
+function distanceKm(pointA: NonNullable<MarketMetricSelectionContext["point"]>, pointB: NonNullable<MarketMetricSelectionContext["point"]>) {
+  const earthRadiusKm = 6371;
+  const latDelta = toRadians(pointB.latitude - pointA.latitude);
+  const lngDelta = toRadians(pointB.longitude - pointA.longitude);
+  const latA = toRadians(pointA.latitude);
+  const latB = toRadians(pointB.latitude);
+  const haversine =
+    Math.sin(latDelta / 2) ** 2 +
+    Math.cos(latA) * Math.cos(latB) * Math.sin(lngDelta / 2) ** 2;
+
+  return 2 * earthRadiusKm * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
+}
 
 function candidateText(context: MarketMetricSelectionContext) {
   return [

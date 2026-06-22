@@ -79,6 +79,14 @@ type ExternalDataStatusResponse = {
     confidence: string;
     disclaimer: string;
   }>;
+  readiness?: Array<{
+    sourceId: string;
+    status: string;
+    recordCount?: number;
+    coverageArea: string;
+    confidence: string;
+    caveat: string;
+  }>;
   manifest?: {
     generatedAt: string | null;
     sources?: Array<{
@@ -277,27 +285,30 @@ export function AnalysisPanel({
   }, []);
 
   const externalSources = externalDataStatus?.sources ?? [];
+  const externalReadiness = externalDataStatus?.readiness ?? [];
   const externalSourceStatus = (id: string) => externalSources.find((source) => source.id === id);
+  const externalReadinessStatus = (id: string) => externalReadiness.find((source) => source.sourceId === id);
   const externalManifestSource = (id: string) => externalDataStatus?.manifest?.sources?.find((source) => source.id === id);
   const externalStatusRows = [
     {
       label: "DLD / Dubai Pulse",
-      value: externalDataStatus?.availableFiles?.dldMarketMetrics
-        ? "Snapshot / not live feed"
-        : "Manual import / fallback",
-      detail: externalSourceStatus("dld-dubai-pulse-transactions")?.disclaimer
+      value: externalReadinessStatus("dld-dubai-pulse-transactions")?.status?.replace(/_/g, " ") ??
+        (externalDataStatus?.availableFiles?.dldMarketMetrics ? "snapshot available" : "sample fallback"),
+      detail: externalReadinessStatus("dld-dubai-pulse-transactions")?.caveat ??
+        externalSourceStatus("dld-dubai-pulse-transactions")?.disclaimer
     },
     {
       label: "OSM / Geofabrik",
-      value: externalDataStatus?.availableFiles?.osmBaseline
-        ? "Baseline / open data"
-        : "Sample fallback",
-      detail: externalSourceStatus("osm-geofabrik-baseline")?.disclaimer
+      value: externalReadinessStatus("osm-geofabrik-baseline")?.status?.replace(/_/g, " ") ??
+        (externalDataStatus?.availableFiles?.osmBaseline ? "snapshot available" : "sample fallback"),
+      detail: externalReadinessStatus("osm-geofabrik-baseline")?.caveat ??
+        externalSourceStatus("osm-geofabrik-baseline")?.disclaimer
     },
     {
       label: "Open-Meteo",
-      value: "API context / reanalysis",
-      detail: externalSourceStatus("open-meteo-climate")?.disclaimer
+      value: externalReadinessStatus("open-meteo-climate")?.status?.replace(/_/g, " ") ?? "API context / reanalysis",
+      detail: externalReadinessStatus("open-meteo-climate")?.caveat ??
+        externalSourceStatus("open-meteo-climate")?.disclaimer
     },
     {
       label: "Copernicus / Sentinel",
@@ -627,7 +638,7 @@ export function AnalysisPanel({
             ) : null}
           </CollapsedSection>
 
-          <CollapsedSection title="External Data Status" badge="v0.7">
+          <CollapsedSection title="External Data Status" badge="v1.4">
             <div className="grid gap-2">
               {externalStatusRows.map((row) => (
                 <div key={row.label} className="rounded-md border border-line bg-surface p-2.5">

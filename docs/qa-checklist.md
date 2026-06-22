@@ -11,6 +11,9 @@ Use this checklist before demos, Vercel deployments, and milestone checkpoints.
 - [ ] `NEXT_PUBLIC_MAPBOX_TOKEN` is configured in Vercel.
 - [ ] `OPENAI_API_KEY` is not required for current MVP behavior.
 - [ ] `npm run build` passes.
+- [ ] `npm run lint` passes.
+- [ ] `npm run ingest:dld:snapshot` exits successfully.
+- [ ] `npm run ingest:osm:snapshot` exits successfully.
 
 ## Map Loading
 
@@ -103,6 +106,16 @@ Use this checklist before demos, Vercel deployments, and milestone checkpoints.
 - [ ] `/workspace` renders.
 - [ ] Map loads in deployed environment.
 - [ ] Demo layers and analysis flows work after deployment.
+
+## External Data v1.4
+
+- [ ] `GET /api/external-data/manifest` returns v1.4 manifest JSON.
+- [ ] `GET /api/external-data/sources` returns Source Registry records.
+- [ ] `GET /api/external-data/status` returns readiness states.
+- [ ] `POST /api/context/market` returns snapshot-backed context when DLD snapshot area matches, otherwise seed/demo fallback.
+- [ ] `GET /api/context/climate?lat=25.08&lng=55.14` returns climate context or sample fallback.
+- [ ] UI says snapshot/sample fallback, not live official integration.
+- [ ] Evidence and reports retain official-validation-required caveats.
 
 ## Responsive Checks
 
