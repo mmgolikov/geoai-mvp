@@ -117,6 +117,25 @@ Use this checklist before demos, Vercel deployments, and milestone checkpoints.
 - [ ] UI says snapshot/sample fallback, not live official integration.
 - [ ] Evidence and reports retain official-validation-required caveats.
 
+## Investor Demo Narrative v1.5
+
+- [ ] `/demo` renders with three narrative cards.
+- [ ] `/demo` cards show buyer type, decision question, demo promise and pilot duration.
+- [ ] Start demo opens the correct prepared workspace for fund/family office.
+- [ ] Start demo opens the correct prepared workspace for developer land pipeline.
+- [ ] Start demo opens the correct prepared workspace for bank/lender asset review.
+- [ ] `/workspace?demoNarrativeId=fund-investment-screening&projectId=dubai-investment-screening-demo` loads the Dubai investment screening context.
+- [ ] `/workspace?demoNarrativeId=developer-land-pipeline&projectId=developer-land-pipeline-demo` loads the developer land pipeline context.
+- [ ] `/workspace?demoNarrativeId=bank-asset-review&projectId=bank-asset-review-demo` loads the bank asset review context.
+- [ ] Workspace command panel shows a compact Demo Script block when a narrative is active.
+- [ ] Scenario selector and custom query remain near the top of the command panel.
+- [ ] Primary CTA footer remains visible.
+- [ ] `/projects?projectKey=dubai-investment-screening-demo` shows the fund pilot package.
+- [ ] `/projects?projectKey=developer-land-pipeline-demo` shows the developer pilot package.
+- [ ] `/projects?projectKey=bank-asset-review-demo` shows the bank pilot package.
+- [ ] Report preview and printable report show decision question and pilot next action when project context exists.
+- [ ] Required caveat remains visible: screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.
+
 ## Responsive Checks
 
 - [ ] Homepage renders on desktop.

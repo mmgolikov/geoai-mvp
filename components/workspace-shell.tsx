@@ -11,6 +11,10 @@ import {
   getDataSourceById,
   getScenarioDataSources
 } from "@/src/data/data-source-registry";
+import {
+  getDemoNarrativeById,
+  getDemoNarrativeForGuidedDemo
+} from "@/src/data/demo-narratives";
 import { demoProjects, getDemoProject } from "@/src/data/demo-projects";
 import {
   createGuidedDemoComparisonItems,
@@ -624,9 +628,11 @@ export function WorkspaceShell() {
   const [uploadedDatasets, setUploadedDatasets] = useState<UploadedDataset[]>([]);
   const [uploadedDataMessage, setUploadedDataMessage] = useState<string | null>(null);
   const [activeGuidedDemoId, setActiveGuidedDemoId] = useState<string | null>(null);
+  const [activeDemoNarrativeId, setActiveDemoNarrativeId] = useState<string | null>(null);
 
   function loadGuidedDemo(presetId: string, includeComparisonSites = false) {
     const preset = getGuidedDemoPreset(presetId);
+    const narrative = getDemoNarrativeForGuidedDemo(preset.id);
     const demoDatasets = createGuidedDemoDatasets();
     const demoSelection = createGuidedDemoSelection(preset);
     const nextProject = projects.find((project) => project.projectKey === preset.projectKey) ?? getDemoProject(preset.projectKey);
@@ -651,6 +657,7 @@ export function WorkspaceShell() {
     setIsAnalyzing(false);
     setMarketContext(null);
     setActiveGuidedDemoId(preset.id);
+    setActiveDemoNarrativeId(narrative?.id ?? null);
 
     if (includeComparisonSites) {
       setComparisonItems(createGuidedDemoComparisonItems(preset));
@@ -661,6 +668,16 @@ export function WorkspaceShell() {
     );
   }
 
+  function loadDemoNarrative(narrativeId: string) {
+    const narrative = getDemoNarrativeById(narrativeId);
+    if (!narrative) {
+      return;
+    }
+
+    loadGuidedDemo(narrative.guidedDemoPresetId);
+    setActiveDemoNarrativeId(narrative.id);
+  }
+
   useEffect(() => {
     setUploadedDatasets(readUploadedDatasets());
   }, []);
@@ -668,6 +685,12 @@ export function WorkspaceShell() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const guidedDemoId = params.get("guidedDemo");
+    const demoNarrativeId = params.get("demoNarrativeId");
+
+    if (demoNarrativeId) {
+      loadDemoNarrative(demoNarrativeId);
+      return;
+    }
 
     if (guidedDemoId) {
       loadGuidedDemo(guidedDemoId);
@@ -1638,6 +1661,7 @@ export function WorkspaceShell() {
         uploadedDataMessage={uploadedDataMessage}
         guidedDemoPresets={guidedDemoPresets}
         activeGuidedDemoId={activeGuidedDemoId}
+        activeDemoNarrative={getDemoNarrativeById(activeDemoNarrativeId)}
         onScenarioChange={(scenario) => {
           setSelectedScenario(scenario);
           setAnalysisError(null);

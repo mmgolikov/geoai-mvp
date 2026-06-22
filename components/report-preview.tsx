@@ -5,6 +5,8 @@ import { EvidenceSourceCards } from "@/components/evidence-source-cards";
 import ingestionReport from "@/data/normalized/ingestion_report.json";
 import { MapContextCard } from "@/components/map-context-card";
 import { PrintableReport } from "@/components/printable-report";
+import { getDemoNarrativeByProjectKey } from "@/src/data/demo-narratives";
+import { getClientPilotPackageForProject } from "@/src/data/pilot-packages";
 import { externalDataSources } from "@/src/lib/external-data/source-registry";
 import { deriveDecisionPosture, deriveDecisionRationale } from "@/src/lib/decision-posture";
 import { createSourceLineageSnapshot } from "@/src/lib/source-lineage-snapshot";
@@ -451,6 +453,8 @@ function AnalysisReport({ analysis, onBack }: { analysis: ExpressAnalysis; onBac
   const decisionRationale = deriveDecisionRationale(analysis);
   const marketMetricsMatch = analysis.marketContext?.importedMarketMetrics ?? analysis.marketMetricsMatch;
   const importedMetric = marketMetricsMatch?.metrics;
+  const demoNarrative = getDemoNarrativeByProjectKey(analysis.project?.projectKey);
+  const clientPilotPackage = getClientPilotPackageForProject(analysis.project?.projectKey, analysis.project?.clientType);
 
   return (
     <>
@@ -523,6 +527,26 @@ function AnalysisReport({ analysis, onBack }: { analysis: ExpressAnalysis; onBac
             </div>
           </div>
         </Section>
+
+        {demoNarrative ? (
+          <Section title="Decision Question & Pilot Next Action">
+            <div className="grid gap-3 text-sm md:grid-cols-2">
+              <div className="rounded-md border border-line bg-surface p-4">
+                <span className="font-semibold text-muted">Decision question</span>
+                <p className="mt-2 leading-6 text-ink">{demoNarrative.decisionQuestion}</p>
+              </div>
+              <div className="rounded-md border border-line bg-surface p-4">
+                <span className="font-semibold text-muted">Pilot next action</span>
+                <p className="mt-2 leading-6 text-ink">{clientPilotPackage.validationRequirements[0]}</p>
+              </div>
+              <div className="rounded-md border border-line bg-surface p-4 md:col-span-2">
+                <span className="font-semibold text-muted">Pilot bridge</span>
+                <p className="mt-2 leading-6 text-ink">{demoNarrative.pilotBridge}</p>
+                <p className="mt-3 text-xs leading-5 text-muted">{demoNarrative.caveat}</p>
+              </div>
+            </div>
+          </Section>
+        ) : null}
 
         <Section title="Executive Summary">
           <p className="text-base leading-8 text-muted">{analysis.summary}</p>
@@ -788,6 +812,8 @@ function ComparisonReport({ comparison, onBack }: { comparison: ComparisonResult
   const sharedOpportunities = dedupeTextList(comparison.sharedOpportunities);
   const differentiatedRisks = dedupeTextList(comparison.differentiatedRisks);
   const nextActions = dedupeTextList(comparison.nextActions);
+  const demoNarrative = getDemoNarrativeByProjectKey(comparison.project?.projectKey);
+  const clientPilotPackage = getClientPilotPackageForProject(comparison.project?.projectKey, comparison.project?.clientType);
 
   return (
     <>
@@ -838,6 +864,26 @@ function ComparisonReport({ comparison, onBack }: { comparison: ComparisonResult
             <p className="mt-4 text-sm leading-6 text-muted">{comparison.whenAnotherMayBeBetter}</p>
           </div>
         </Section>
+
+        {demoNarrative ? (
+          <Section title="Decision Question & Pilot Next Action">
+            <div className="grid gap-3 text-sm md:grid-cols-2">
+              <div className="rounded-md border border-line bg-surface p-4">
+                <span className="font-semibold text-muted">Decision question</span>
+                <p className="mt-2 leading-6 text-ink">{demoNarrative.decisionQuestion}</p>
+              </div>
+              <div className="rounded-md border border-line bg-surface p-4">
+                <span className="font-semibold text-muted">Pilot next action</span>
+                <p className="mt-2 leading-6 text-ink">{clientPilotPackage.validationRequirements[0]}</p>
+              </div>
+              <div className="rounded-md border border-line bg-surface p-4 md:col-span-2">
+                <span className="font-semibold text-muted">Pilot bridge</span>
+                <p className="mt-2 leading-6 text-ink">{demoNarrative.pilotBridge}</p>
+                <p className="mt-3 text-xs leading-5 text-muted">{demoNarrative.caveat}</p>
+              </div>
+            </div>
+          </Section>
+        ) : null}
 
         <Section title="Map Context">
           <MapContextCard

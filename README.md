@@ -196,6 +196,14 @@ npm run ingest:osm:real
 
 If raw external files are missing, the scripts exit gracefully and keep existing sample/demo fallback data available. This does not connect live official DLD, Dubai Pulse, GeoDubai, parcel, zoning, cadastral or ownership systems. See [Real Data Backbone v0.7](docs/REAL_DATA_BACKBONE_V07.md).
 
+## Investor Demo Narrative & Client Pilot Package v1.5
+
+GeoAI now includes a guided investor/client narrative launcher at `/demo`. It frames the existing workspace around three buyer stories: fund/family office investment screening, developer land pipeline, and bank/lender asset review. Each narrative links to the prepared workspace, active project dashboard and client pilot package framing.
+
+This is a demo and pilot-framing layer, not a production or official-data claim. Outputs remain a screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.
+
+See [Investor Demo Narrative v1.5](docs/INVESTOR_DEMO_NARRATIVE_V15.md) and [Client Pilot Package v1.5](docs/CLIENT_PILOT_PACKAGE_V15.md).
+
 ## Persistence & Project Workspace v0.8
 
 GeoAI now has a local-first MVP persistence foundation. Analysis runs, report payloads, comparison sets and uploaded dataset metadata can be saved through API routes and associated with the active project. Supabase/PostGIS remains optional; when it is not configured, GeoAI returns non-blocking local fallback responses and relies on browser/local demo state for continuity. Vercel serverless fallback storage is non-durable and must not be treated as production persistence.
