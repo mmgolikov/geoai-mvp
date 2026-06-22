@@ -254,6 +254,7 @@ Current export remains browser print/save as PDF. GeoAI does not generate server
 - [Open Geospatial Baseline v0.1](docs/OPEN_GEODATA_BASELINE_V01.md)
 - [Data Credibility v0.5](docs/DATA_CREDIBILITY_V05.md)
 - [Real Data Backbone v0.7](docs/REAL_DATA_BACKBONE_V07.md)
+- [GeoAI Data-Ready Demo RC v1.4 Release Note](docs/RELEASE_GEOAI_DATA_READY_DEMO_RC_V14.md)
 - [Persistence & Project Workspace v0.8](docs/PERSISTENCE_PROJECT_WORKSPACE_V08.md)
 - [Project-Scoped Persistence v13](docs/PROJECT_SCOPED_PERSISTENCE_V13.md)
 - [Pilot Readiness & Client Delivery Package v1.1](docs/PILOT_READINESS_CLIENT_PACKAGE_V11.md)
