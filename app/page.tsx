@@ -174,7 +174,7 @@ function LandingHeader() {
     ["Use cases", "#use-cases"],
     ["Workflow", "#workflow"],
     ["Data", "#data"],
-    ["Demo", "#demo"]
+    ["Demo narrative", "/demo"]
   ];
 
   return (
@@ -191,9 +191,15 @@ function LandingHeader() {
         </Link>
         <nav className="hidden items-center gap-5 lg:flex">
           {navItems.map(([label, href]) => (
-            <a key={href} href={href} className="text-sm font-semibold text-muted transition hover:text-ink">
-              {label}
-            </a>
+            href.startsWith("/") ? (
+              <Link key={href} href={href} className="text-sm font-semibold text-muted transition hover:text-ink">
+                {label}
+              </Link>
+            ) : (
+              <a key={href} href={href} className="text-sm font-semibold text-muted transition hover:text-ink">
+                {label}
+              </a>
+            )
           ))}
         </nav>
         <div className="flex items-center gap-2">
@@ -375,7 +381,7 @@ export default function HomePage() {
           </div>
           <div className="pt-7 lg:mt-auto">
             <div className="flex flex-col gap-3 sm:flex-row">
-              <Link href="/workspace?guidedDemo=dubai-marina-investment" className="inline-flex h-16 min-w-[230px] flex-col items-center justify-center rounded-md bg-brand px-6 text-center text-white shadow-soft transition hover:bg-[#113f50]">
+              <Link href="/demo" className="inline-flex h-16 min-w-[230px] flex-col items-center justify-center rounded-md bg-brand px-6 text-center text-white shadow-soft transition hover:bg-[#113f50]">
                 <span className="text-sm font-semibold leading-5">Launch guided demo</span>
                 <span className="text-[11px] font-medium leading-4 text-white/78">Prepared 5-minute walkthrough</span>
               </Link>

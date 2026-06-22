@@ -6,8 +6,10 @@ import externalDataManifestStatic from "@/data/external/normalized/external_data
 import dldMarketSnapshotStatic from "@/data/normalized/dld_market_snapshot.json";
 import openGeodataSnapshotStatic from "@/data/normalized/open_geodata_snapshot.json";
 import { dataSourceRegistry } from "@/src/data/data-source-registry";
+import { getDemoNarrativeByProjectKey } from "@/src/data/demo-narratives";
 import { seededDemoComparisonSummaries, seededDemoRecentAnalyses, seededDemoReportRecords } from "@/src/data/demo-report-seeds";
 import { demoProjects, getDemoProject } from "@/src/data/demo-projects";
+import { getClientPilotPackageForProject } from "@/src/data/pilot-packages";
 import { getSupabaseFallbackMessage } from "@/src/lib/data-readiness";
 import { deriveDecisionPosture } from "@/src/lib/decision-posture";
 import { getPilotDataRequirements } from "@/src/lib/pilot/data-requirements";
@@ -147,6 +149,13 @@ function formatTimestamp(value?: string) {
 
 function readActiveProjectKey() {
   try {
+    const params = new URLSearchParams(window.location.search);
+    const requestedProjectKey = params.get("projectKey") ?? params.get("projectId");
+    if (requestedProjectKey) {
+      const matchedProject = demoProjects.find((project) => project.projectKey === requestedProjectKey || project.id === requestedProjectKey);
+      return matchedProject?.projectKey ?? requestedProjectKey;
+    }
+
     return window.localStorage.getItem(activeProjectStorageKey) || demoProjects[0].projectKey;
   } catch {
     return demoProjects[0].projectKey;
@@ -715,6 +724,8 @@ export function ProjectDashboard() {
   const persistenceMode = dbHealth?.status === "connected" ? "Supabase/PostGIS connected" : "Local fallback";
   const nextActions = getNextActions(activeProject, dldRecordCount);
   const pilotPackage = getPilotPackageForProject(activeProject.projectKey, activeProject.clientType);
+  const clientPilotPackage = getClientPilotPackageForProject(activeProject.projectKey, activeProject.clientType);
+  const activeNarrative = getDemoNarrativeByProjectKey(activeProject.projectKey);
   const pilotDataRequirements = getPilotDataRequirements(pilotPackage.clientType);
   const pilotReadiness = calculatePilotReadiness({
     targetSitesProvided: scopedProjectDatasets.length > 0 || recentRows.length > 0 || activeProject.status === "demo",
@@ -961,6 +972,51 @@ export function ProjectDashboard() {
                     {getProjectMetadataText(activeProject, "recommendedNextAction", "Agree pilot data sources and validation path before operational use.")}
                   </p>
                 </div>
+              </div>
+            </Panel>
+
+            <Panel title="Client Pilot Package" subtitle="Pilot bridge for the active demo project.">
+              <div className="grid gap-3">
+                <div className="rounded-md border border-line bg-surface p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-ink">{clientPilotPackage.title}</p>
+                      <p className="mt-1 text-xs leading-5 text-muted">{clientPilotPackage.objective}</p>
+                    </div>
+                    <span className="shrink-0 rounded-full bg-white px-2 py-1 text-xs font-semibold text-brand">
+                      {clientPilotPackage.duration}
+                    </span>
+                  </div>
+                </div>
+                {activeNarrative ? (
+                  <div className="rounded-md bg-surface p-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Decision question</p>
+                    <p className="mt-1 text-sm leading-6 text-ink">{activeNarrative.decisionQuestion}</p>
+                  </div>
+                ) : null}
+                <div className="grid gap-2 text-sm">
+                  <div className="rounded-md bg-surface p-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Pilot deliverables</p>
+                    <ul className="mt-2 grid gap-1.5 text-xs leading-5 text-ink">
+                      {clientPilotPackage.geoaiDeliverables.slice(0, 4).map((item, index) => (
+                        <li key={`client-pilot-deliverable-${index}-${item.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 36)}`}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div className="rounded-md bg-surface p-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Validation requirements</p>
+                    <ul className="mt-2 grid gap-1.5 text-xs leading-5 text-ink">
+                      {clientPilotPackage.validationRequirements.slice(0, 3).map((item, index) => (
+                        <li key={`client-pilot-validation-${index}-${item.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 36)}`}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+                <div className="rounded-md border border-line bg-white p-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Commercial pilot framing</p>
+                  <p className="mt-1 text-sm leading-6 text-ink">{clientPilotPackage.commercialPilotFraming}</p>
+                </div>
+                <p className="text-xs leading-5 text-muted">{clientPilotPackage.caveat}</p>
               </div>
             </Panel>
 

@@ -5,6 +5,7 @@ import Link from "next/link";
 import ingestionReport from "@/data/normalized/ingestion_report.json";
 import { DataReadinessCard } from "@/components/data-readiness";
 import { getScenarioDataSources } from "@/src/data/data-source-registry";
+import type { DemoNarrative } from "@/src/data/demo-narratives";
 import { getPilotPackageForProject } from "@/src/lib/pilot/pilot-packages";
 import type { GeoAIProject } from "@/src/lib/db/types";
 import type { MarketMetricsMatch } from "@/src/lib/market-metrics/types";
@@ -51,6 +52,7 @@ type AnalysisPanelProps = {
   uploadedDataMessage: string | null;
   guidedDemoPresets: GuidedDemoPreset[];
   activeGuidedDemoId: string | null;
+  activeDemoNarrative: DemoNarrative | null;
   onProjectChange: (projectKey: string) => void;
   onScenarioChange: (scenario: AnalysisScenarioId) => void;
   onCustomQueryChange: (query: string) => void;
@@ -184,6 +186,7 @@ export function AnalysisPanel({
   uploadedDataMessage,
   guidedDemoPresets,
   activeGuidedDemoId,
+  activeDemoNarrative,
   onProjectChange,
   onScenarioChange,
   onCustomQueryChange,
@@ -490,6 +493,39 @@ export function AnalysisPanel({
             ) : null}
           </div>
           </section>
+
+          {activeDemoNarrative ? (
+            <details className="min-w-0 max-w-full overflow-hidden rounded-lg border border-line bg-white px-3">
+              <summary className="flex min-h-[48px] cursor-pointer list-none items-center justify-between gap-3 py-3">
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Demo Script</p>
+                  <p className="mt-1 truncate text-sm font-semibold text-ink">{activeDemoNarrative.title}</p>
+                </div>
+                <span className="shrink-0 rounded-full bg-surface px-2 py-1 text-[11px] font-semibold text-brand">
+                  v1.5
+                </span>
+              </summary>
+              <div className="border-t border-line py-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Decision question</p>
+                <p className="mt-1 text-xs leading-5 text-ink">{activeDemoNarrative.decisionQuestion}</p>
+                <ol className="mt-3 grid gap-2">
+                  {activeDemoNarrative.steps.slice(0, 5).map((step) => (
+                    <li key={`demo-script-${activeDemoNarrative.id}-${step.number}`} className="rounded-md bg-surface p-2">
+                      <p className="text-xs font-semibold text-ink">
+                        {step.number}. {step.userAction}
+                      </p>
+                      <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted">{step.whatToSay}</p>
+                    </li>
+                  ))}
+                </ol>
+                <div className="mt-3 rounded-md border border-line bg-white p-2">
+                  <p className="text-xs font-semibold text-ink">What to say next</p>
+                  <p className="mt-1 text-[11px] leading-4 text-muted">{activeDemoNarrative.openingMessage}</p>
+                </div>
+                <p className="mt-3 text-[11px] leading-4 text-muted">{activeDemoNarrative.caveat}</p>
+              </div>
+            </details>
+          ) : null}
 
           <section className="min-w-0 max-w-full overflow-hidden rounded-lg border border-line bg-white p-3">
             <div className="flex items-start justify-between gap-3">

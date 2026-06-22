@@ -7,6 +7,8 @@ import {
   ReportHeader,
   SourceLineagePrintSection
 } from "@/components/reports/report-print-primitives";
+import { getDemoNarrativeByProjectKey } from "@/src/data/demo-narratives";
+import { getClientPilotPackageForProject } from "@/src/data/pilot-packages";
 import { scoreSummaryRows, type AnalysisReportDeliverable } from "@/src/lib/report-deliverables";
 
 function formatDate(value: string) {
@@ -27,6 +29,8 @@ function formatCoordinate(point: AnalysisReportDeliverable["coordinates"]) {
 export function AnalysisReportPrint({ report }: { report: AnalysisReportDeliverable }) {
   const scoreRows = scoreSummaryRows(report.scoreSummary);
   const spatialContext = report.selectedObject?.spatialContext;
+  const demoNarrative = getDemoNarrativeByProjectKey(report.projectKey);
+  const clientPilotPackage = getClientPilotPackageForProject(report.projectKey);
 
   return (
     <article className="geoai-print-report">
@@ -65,6 +69,18 @@ export function AnalysisReportPrint({ report }: { report: AnalysisReportDelivera
             </div>
           </PrintSection>
         </div>
+
+        {demoNarrative ? (
+          <div className="geoai-print-two-col">
+            <PrintSection title="Decision Question">
+              <p>{demoNarrative.decisionQuestion}</p>
+            </PrintSection>
+            <PrintSection title="Pilot Next Action">
+              <p>{clientPilotPackage.validationRequirements[0]}</p>
+              <p className="geoai-print-note">{demoNarrative.caveat}</p>
+            </PrintSection>
+          </div>
+        ) : null}
 
       </PrintPage>
 

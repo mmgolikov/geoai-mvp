@@ -7,6 +7,8 @@ import {
   ReportHeader,
   SourceLineagePrintSection
 } from "@/components/reports/report-print-primitives";
+import { getDemoNarrativeByProjectKey } from "@/src/data/demo-narratives";
+import { getClientPilotPackageForProject } from "@/src/data/pilot-packages";
 import type { ComparisonReportDeliverable } from "@/src/lib/report-deliverables";
 import type { ScoreKey } from "@/src/types/geo";
 
@@ -49,6 +51,8 @@ function readScore(item: NonNullable<ComparisonReportDeliverable["comparison"]>[
 
 export function ComparisonReportPrint({ report }: { report: ComparisonReportDeliverable }) {
   const comparison = report.comparison;
+  const demoNarrative = getDemoNarrativeByProjectKey(report.projectKey);
+  const clientPilotPackage = getClientPilotPackageForProject(report.projectKey);
 
   return (
     <article className="geoai-print-report">
@@ -84,6 +88,18 @@ export function ComparisonReportPrint({ report }: { report: ComparisonReportDeli
             <p>{report.alternativeInterpretation}</p>
           </PrintSection>
         </div>
+
+        {demoNarrative ? (
+          <div className="geoai-print-two-col">
+            <PrintSection title="Decision Question">
+              <p>{demoNarrative.decisionQuestion}</p>
+            </PrintSection>
+            <PrintSection title="Pilot Next Action">
+              <p>{clientPilotPackage.validationRequirements[0]}</p>
+              <p className="geoai-print-note">{demoNarrative.caveat}</p>
+            </PrintSection>
+          </div>
+        ) : null}
 
         <PrintSection title="Summary Cards">
           <div className="geoai-print-score-grid">
