@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-06-22T22:09:37.860Z",
+  "generatedAt": "2026-06-22T22:26:22.934Z",
   "version": "1.6",
-  "status": "sample-fallback",
+  "status": "sample_fallback",
   "inputFile": "data/external/samples/worldpop_uae_sample.geojson",
   "featureCount": 2,
   "caveat": "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."

@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-06-22T22:09:37.854Z",
+  "generatedAt": "2026-06-22T22:26:22.926Z",
   "version": "1.6",
   "sourceId": "dld-dubai-pulse-public-building",
-  "status": "sample-fallback",
+  "status": "sample_fallback",
   "category": "building",
   "recordCount": 3,
   "records": [

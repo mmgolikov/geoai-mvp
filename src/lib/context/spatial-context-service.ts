@@ -111,7 +111,7 @@ export function getDemographicContext(point: SelectedPoint) {
   const nearest = candidates[0];
 
   return {
-    status: nearest ? "sample_fallback" : "planned",
+    status: "sample_fallback",
     point,
     demographicContext: nearest
       ? {
@@ -124,7 +124,7 @@ export function getDemographicContext(point: SelectedPoint) {
           areaName: "No WorldPop sample match",
           populationDensityProxy: "unavailable"
         },
-    sourceLineage: buildContextLineage(["worldpop-demographics"], nearest ? "sample_fallback" : "planned"),
+    sourceLineage: buildContextLineage(["worldpop-demographics"], "sample_fallback"),
     dataConfidenceSummary: "WorldPop context is a screening/catchment proxy and not official census validation.",
     validationRequired: validationRequiredNote()
   };

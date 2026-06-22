@@ -8,6 +8,7 @@ import type {
   PublicSourceCategory,
   PublicSourceConnectionStatus
 } from "@/src/lib/external-data/public-source-types";
+import type { SourceStatus } from "@/src/lib/external-data/source-status";
 
 export type ExternalDataSource = {
   id: string;
@@ -15,7 +16,7 @@ export type ExternalDataSource = {
   provider: string;
   geography: string;
   category: PublicSourceCategory;
-  status: PublicSourceConnectionStatus | "connected-snapshot" | "connected-api" | "manual-import" | "planned-access" | "not-configured";
+  status: PublicSourceConnectionStatus;
   sourceType:
     | "official-open-data"
     | "open-data"
@@ -23,7 +24,7 @@ export type ExternalDataSource = {
     | "satellite-catalog"
     | "customer-uploaded"
     | "planned-official";
-  accessMode: PublicSourceAccessMode | "snapshot" | "sample-fallback" | "customer-upload";
+  accessMode: PublicSourceAccessMode | "snapshot" | "sample_fallback" | "customer-upload";
   updateMode: "manual" | "scripted" | "api-on-demand" | "planned";
   freshness: "static-snapshot" | "on-demand-context" | "sample" | "planned" | "unknown";
   lastUpdated?: string;
@@ -41,7 +42,7 @@ export type ExternalDataSource = {
   dataQualityTier: PublicSourceCatalogItem["dataQualityTier"];
 };
 
-export type DataReadinessStatus = "connected" | "snapshot_available" | "sample_fallback" | "planned" | "missing";
+export type DataReadinessStatus = SourceStatus;
 
 export type DataReadinessResult = {
   sourceId: string;
@@ -97,15 +98,15 @@ function updateModeFromAccess(accessMode: PublicSourceAccessMode): ExternalDataS
 
 function freshnessFromStatus(status: PublicSourceConnectionStatus): ExternalDataSource["freshness"] {
   if (status === "connected") return "on-demand-context";
-  if (status === "snapshot-available" || status === "manual-import-ready") return "static-snapshot";
-  if (status === "sample-fallback") return "sample";
-  if (status === "planned" || status === "permission-required" || status === "token-required") return "planned";
+  if (status === "snapshot_available" || status === "manual_import_ready") return "static-snapshot";
+  if (status === "sample_fallback") return "sample";
+  if (status === "planned" || status === "permission_required" || status === "token_required") return "planned";
   return "unknown";
 }
 
 function validationStatusFromSource(source: PublicSourceCatalogItem): ExternalDataSource["validationStatus"] {
-  if (source.connectionStatus === "sample-fallback") return "sample-only";
-  if (source.category === "official-validation" || source.connectionStatus === "permission-required" || source.connectionStatus === "planned") {
+  if (source.connectionStatus === "sample_fallback") return "sample-only";
+  if (source.category === "official-validation" || source.connectionStatus === "permission_required" || source.connectionStatus === "planned") {
     return "planned-validation";
   }
   if (source.accessMode === "open-api" || source.accessMode === "api-context") return "open-context";
@@ -131,7 +132,7 @@ function toExternalSource(source: PublicSourceCatalogItem): ExternalDataSource {
     accessMode: source.accessMode,
     updateMode: updateModeFromAccess(source.accessMode),
     freshness: freshnessFromStatus(source.connectionStatus),
-    usedInAnalysis: source.connectionStatus === "connected" || source.connectionStatus === "snapshot-available",
+    usedInAnalysis: source.connectionStatus === "connected" || source.connectionStatus === "snapshot_available",
     confidence: confidenceFromTier(source.dataQualityTier),
     licenseNote: source.licenseNote,
     validationStatus: validationStatusFromSource(source),

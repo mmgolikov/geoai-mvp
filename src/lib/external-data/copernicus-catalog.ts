@@ -8,7 +8,7 @@ export function getCopernicusAvailabilityStatus() {
   if (!hasCopernicusCredentials && !hasSentinelHubCredentials) {
     return {
       source: source?.name ?? "Copernicus / Sentinel imagery availability",
-      status: "not-configured",
+      status: "token_required",
       message: "Copernicus/Sentinel credentials are not configured; imagery availability is shown as a planned connector.",
       disclaimer: source?.disclaimer ?? "Satellite imagery availability check only; analytics pipeline planned."
     };
@@ -16,7 +16,7 @@ export function getCopernicusAvailabilityStatus() {
 
   return {
     source: source?.name ?? "Copernicus / Sentinel imagery availability",
-    status: "configured-placeholder",
+    status: "token_required",
     message: "Credentials are present, but the imagery availability query pipeline is not enabled in v0.7.",
     disclaimer: source?.disclaimer ?? "Satellite imagery availability check only; analytics pipeline planned."
   };

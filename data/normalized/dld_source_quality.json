@@ -1,12 +1,12 @@
 {
-  "generatedAt": "2026-06-22T22:09:37.854Z",
+  "generatedAt": "2026-06-22T22:26:22.926Z",
   "version": "1.6",
   "status": "ok",
   "totalRecords": 18,
   "categories": {
     "transactions": {
       "sourceId": "dld-dubai-pulse-public-transactions",
-      "status": "sample-fallback",
+      "status": "sample_fallback",
       "inputFile": "data/external/samples/dld_transactions_sample.csv",
       "outputFile": "data/normalized/dld_transactions_snapshot.json",
       "recordCount": 3,
@@ -14,7 +14,7 @@
     },
     "rents": {
       "sourceId": "dld-dubai-pulse-public-rents",
-      "status": "sample-fallback",
+      "status": "sample_fallback",
       "inputFile": "data/external/samples/dld_rents_sample.csv",
       "outputFile": "data/normalized/dld_rents_snapshot.json",
       "recordCount": 3,
@@ -22,7 +22,7 @@
     },
     "projects": {
       "sourceId": "dld-dubai-pulse-public-projects",
-      "status": "sample-fallback",
+      "status": "sample_fallback",
       "inputFile": "data/external/samples/dld_projects_sample.csv",
       "outputFile": "data/normalized/dld_projects_snapshot.json",
       "recordCount": 3,
@@ -30,7 +30,7 @@
     },
     "land": {
       "sourceId": "dld-dubai-pulse-public-land",
-      "status": "sample-fallback",
+      "status": "sample_fallback",
       "inputFile": "data/external/samples/dld_land_sample.csv",
       "outputFile": "data/normalized/dld_land_snapshot.json",
       "recordCount": 3,
@@ -38,7 +38,7 @@
     },
     "building": {
       "sourceId": "dld-dubai-pulse-public-building",
-      "status": "sample-fallback",
+      "status": "sample_fallback",
       "inputFile": "data/external/samples/dld_building_sample.csv",
       "outputFile": "data/normalized/dld_building_snapshot.json",
       "recordCount": 3,
@@ -46,7 +46,7 @@
     },
     "unit": {
       "sourceId": "dld-dubai-pulse-public-unit",
-      "status": "sample-fallback",
+      "status": "sample_fallback",
       "inputFile": "data/external/samples/dld_unit_sample.csv",
       "outputFile": "data/normalized/dld_unit_snapshot.json",
       "recordCount": 3,

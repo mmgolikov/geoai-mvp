@@ -9,7 +9,7 @@ const generatedAt = new Date().toISOString();
 const source = {
   id: "osm-geofabrik-baseline",
   name: "OSM / Geofabrik open geospatial baseline",
-  status: "connected-snapshot",
+  status: "snapshot_available",
   sourceType: "open-data",
   updateMode: "manual",
   disclaimer: "Open geospatial baseline; not official municipal GIS, zoning or parcel boundary data."
@@ -17,7 +17,7 @@ const source = {
 const defaultManifestSources = [
   {
     id: "dld-dubai-pulse-transactions",
-    status: "manual-import",
+    status: "manual_import_ready",
     lastUpdated: null,
     availableFiles: [],
     rowCount: 0,
@@ -26,7 +26,7 @@ const defaultManifestSources = [
   },
   {
     id: "osm-geofabrik-baseline",
-    status: "manual-import",
+    status: "manual_import_ready",
     lastUpdated: null,
     availableFiles: [],
     featureCount: 0,
@@ -35,7 +35,7 @@ const defaultManifestSources = [
   },
   {
     id: "open-meteo-climate",
-    status: "connected-api",
+    status: "connected",
     lastUpdated: null,
     availableFiles: [],
     usedInAnalysis: false,
@@ -43,7 +43,7 @@ const defaultManifestSources = [
   },
   {
     id: "copernicus-sentinel-catalog",
-    status: "not-configured",
+    status: "token_required",
     lastUpdated: null,
     availableFiles: [],
     usedInAnalysis: false,
@@ -51,7 +51,7 @@ const defaultManifestSources = [
   },
   {
     id: "geodubai-municipality-validation",
-    status: "planned-access",
+    status: "planned",
     lastUpdated: null,
     availableFiles: [],
     usedInAnalysis: false,
@@ -59,7 +59,7 @@ const defaultManifestSources = [
   },
   {
     id: "dld-api-gateway-validation",
-    status: "planned-access",
+    status: "permission_required",
     lastUpdated: null,
     availableFiles: [],
     usedInAnalysis: false,
@@ -108,7 +108,7 @@ function updateManifest(featureCount) {
 
   const nextSource = {
     id: source.id,
-    status: featureCount > 0 ? source.status : "manual-import",
+    status: featureCount > 0 ? source.status : "manual_import_ready",
     lastUpdated: generatedAt,
     availableFiles: featureCount > 0 ? [outputPath, reportPath] : [reportPath],
     featureCount,
@@ -130,7 +130,7 @@ if (!existsSync(inputPath)) {
   const report = {
     generatedAt,
     source,
-    status: "missing-input",
+    status: "unavailable",
     inputPath,
     message: "OSM / Geofabrik prepared baseline not found. Existing demo open-geodata sample remains available.",
     featuresRead: 0,

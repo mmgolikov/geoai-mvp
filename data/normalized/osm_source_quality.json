@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-06-22T22:09:37.858Z",
+  "generatedAt": "2026-06-22T22:26:22.931Z",
   "version": "1.6",
-  "status": "sample-fallback",
+  "status": "sample_fallback",
   "inputFile": "data/external/osm/dubai_osm_baseline_sample.geojson",
   "totalFeatures": 3,
   "categories": {

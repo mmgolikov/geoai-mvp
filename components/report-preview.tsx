@@ -8,6 +8,7 @@ import { PrintableReport } from "@/components/printable-report";
 import { getDemoNarrativeByProjectKey } from "@/src/data/demo-narratives";
 import { getClientPilotPackageForProject } from "@/src/data/pilot-packages";
 import { externalDataSources } from "@/src/lib/external-data/source-registry";
+import { sourceStatusToLabel } from "@/src/lib/external-data/source-status";
 import { deriveDecisionPosture, deriveDecisionRationale } from "@/src/lib/decision-posture";
 import { createSourceLineageSnapshot } from "@/src/lib/source-lineage-snapshot";
 import type { ComparisonResult, ExpressAnalysis, ScoreKey } from "@/src/types/geo";
@@ -169,7 +170,7 @@ function ExternalDataLineageSection({
               <p className="mt-1 text-xs uppercase tracking-[0.12em] text-muted">{source.provider}</p>
             </div>
             <span className="rounded-full bg-surface px-2 py-1 text-xs font-semibold text-brand">
-              {source.status.replace(/-/g, " ")}
+              {sourceStatusToLabel(source.status)}
             </span>
           </div>
           <p className="mt-3 text-sm leading-6 text-muted">{note}</p>

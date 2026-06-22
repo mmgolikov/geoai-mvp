@@ -1,12 +1,12 @@
 {
-  "generatedAt": "2026-06-22T22:09:37.861Z",
+  "generatedAt": "2026-06-22T22:26:22.934Z",
   "version": "1.6",
   "summary": "GeoAI public data connectors v1.6. Public/open sources use snapshots, API context, manual imports and safe sample fallbacks.",
   "sources": [
     {
       "id": "overture-divisions-admin-context",
-      "status": "snapshot_available",
-      "lastUpdated": "2026-06-22T22:09:37.861Z",
+      "status": "sample_fallback",
+      "lastUpdated": "2026-06-22T22:26:22.934Z",
       "availableFiles": [
         "data/external/samples/overture_divisions_sample.geojson",
         "data/normalized/admin_boundaries_context.json"
@@ -21,8 +21,8 @@
     },
     {
       "id": "worldpop-demographics",
-      "status": "snapshot_available",
-      "lastUpdated": "2026-06-22T22:09:37.860Z",
+      "status": "sample_fallback",
+      "lastUpdated": "2026-06-22T22:26:22.934Z",
       "availableFiles": [
         "data/external/samples/worldpop_uae_sample.geojson",
         "data/normalized/worldpop_population_context.json"
@@ -37,8 +37,8 @@
     },
     {
       "id": "overture-maps-open-buildings",
-      "status": "snapshot_available",
-      "lastUpdated": "2026-06-22T22:09:37.859Z",
+      "status": "sample_fallback",
+      "lastUpdated": "2026-06-22T22:26:22.933Z",
       "availableFiles": [
         "data/external/samples/overture_buildings_sample.geojson",
         "data/normalized/overture_buildings_snapshot.json"
@@ -53,8 +53,8 @@
     },
     {
       "id": "overture-maps-open-places",
-      "status": "snapshot_available",
-      "lastUpdated": "2026-06-22T22:09:37.859Z",
+      "status": "sample_fallback",
+      "lastUpdated": "2026-06-22T22:26:22.933Z",
       "availableFiles": [
         "data/external/samples/overture_places_sample.geojson",
         "data/normalized/overture_places_snapshot.json"
@@ -69,8 +69,8 @@
     },
     {
       "id": "overture-maps-open-transportation",
-      "status": "snapshot_available",
-      "lastUpdated": "2026-06-22T22:09:37.859Z",
+      "status": "sample_fallback",
+      "lastUpdated": "2026-06-22T22:26:22.933Z",
       "availableFiles": [
         "data/external/samples/overture_transportation_sample.geojson",
         "data/normalized/overture_transportation_snapshot.json"
@@ -85,8 +85,8 @@
     },
     {
       "id": "osm-geofabrik-baseline",
-      "status": "snapshot_available",
-      "lastUpdated": "2026-06-22T22:09:37.858Z",
+      "status": "sample_fallback",
+      "lastUpdated": "2026-06-22T22:26:22.931Z",
       "availableFiles": [
         "data/external/osm/dubai_osm_baseline_sample.geojson",
         "data/normalized/osm_roads_snapshot.json",
@@ -106,8 +106,8 @@
     },
     {
       "id": "dld-dubai-pulse-public-transactions",
-      "status": "snapshot_available",
-      "lastUpdated": "2026-06-22T22:09:37.854Z",
+      "status": "sample_fallback",
+      "lastUpdated": "2026-06-22T22:26:22.926Z",
       "availableFiles": [
         "data/external/samples/dld_transactions_sample.csv",
         "data/normalized/dld_transactions_snapshot.json"
@@ -121,8 +121,8 @@
     },
     {
       "id": "dld-dubai-pulse-public-rents",
-      "status": "snapshot_available",
-      "lastUpdated": "2026-06-22T22:09:37.854Z",
+      "status": "sample_fallback",
+      "lastUpdated": "2026-06-22T22:26:22.926Z",
       "availableFiles": [
         "data/external/samples/dld_rents_sample.csv",
         "data/normalized/dld_rents_snapshot.json"
@@ -136,8 +136,8 @@
     },
     {
       "id": "dld-dubai-pulse-public-projects",
-      "status": "snapshot_available",
-      "lastUpdated": "2026-06-22T22:09:37.854Z",
+      "status": "sample_fallback",
+      "lastUpdated": "2026-06-22T22:26:22.926Z",
       "availableFiles": [
         "data/external/samples/dld_projects_sample.csv",
         "data/normalized/dld_projects_snapshot.json"
@@ -151,8 +151,8 @@
     },
     {
       "id": "dld-dubai-pulse-public-land",
-      "status": "snapshot_available",
-      "lastUpdated": "2026-06-22T22:09:37.854Z",
+      "status": "sample_fallback",
+      "lastUpdated": "2026-06-22T22:26:22.926Z",
       "availableFiles": [
         "data/external/samples/dld_land_sample.csv",
         "data/normalized/dld_land_snapshot.json"
@@ -166,8 +166,8 @@
     },
     {
       "id": "dld-dubai-pulse-public-building",
-      "status": "snapshot_available",
-      "lastUpdated": "2026-06-22T22:09:37.854Z",
+      "status": "sample_fallback",
+      "lastUpdated": "2026-06-22T22:26:22.926Z",
       "availableFiles": [
         "data/external/samples/dld_building_sample.csv",
         "data/normalized/dld_building_snapshot.json"
@@ -181,8 +181,8 @@
     },
     {
       "id": "dld-dubai-pulse-public-unit",
-      "status": "snapshot_available",
-      "lastUpdated": "2026-06-22T22:09:37.854Z",
+      "status": "sample_fallback",
+      "lastUpdated": "2026-06-22T22:26:22.926Z",
       "availableFiles": [
         "data/external/samples/dld_unit_sample.csv",
         "data/normalized/dld_unit_snapshot.json"
@@ -196,8 +196,8 @@
     },
     {
       "id": "dld-dubai-pulse-transactions",
-      "status": "snapshot_available",
-      "lastUpdated": "2026-06-22T22:09:21.673Z",
+      "status": "sample_fallback",
+      "lastUpdated": "2026-06-22T22:26:13.716Z",
       "availableFiles": [
         "data/external/dld/dld_market_snapshot_sample.csv",
         "data/normalized/dld_market_snapshot.json",
@@ -206,9 +206,9 @@
       "rowCount": 5,
       "recordCount": 5,
       "coverageArea": "Dubai market areas",
-      "confidence": "medium",
+      "confidence": "low",
       "usedInAnalysis": true,
-      "caveat": "DLD / Dubai Pulse snapshot available; screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.",
+      "caveat": "DLD / Dubai Pulse sample fallback; screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.",
       "disclaimer": "DLD / Dubai Pulse snapshot context; not a live official transactional feed."
     }
   ]

@@ -26,11 +26,11 @@ export type PublicSourceAccessMode =
 
 export type PublicSourceConnectionStatus =
   | "connected"
-  | "snapshot-available"
-  | "sample-fallback"
-  | "manual-import-ready"
-  | "token-required"
-  | "permission-required"
+  | "snapshot_available"
+  | "sample_fallback"
+  | "manual_import_ready"
+  | "token_required"
+  | "permission_required"
   | "planned"
   | "unavailable";
 

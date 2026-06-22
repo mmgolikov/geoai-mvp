@@ -3,6 +3,30 @@ import { dirname } from "node:path";
 
 const caveat = "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.";
 const mode = process.argv[2];
+const unavailable = "unavailable";
+
+function normalizeStatus(value) {
+  const key = String(value ?? unavailable).trim().toLowerCase();
+  const aliases = {
+    connected: "connected",
+    "snapshot-available": "snapshot_available",
+    snapshot_available: "snapshot_available",
+    "sample-fallback": "sample_fallback",
+    sample_fallback: "sample_fallback",
+    "manual-import-ready": "manual_import_ready",
+    manual_import_ready: "manual_import_ready",
+    "token-required": "token_required",
+    token_required: "token_required",
+    "permission-required": "permission_required",
+    permission_required: "permission_required",
+    planned: "planned",
+    missing: unavailable,
+    "missing-input": unavailable,
+    unavailable
+  };
+
+  return aliases[key] ?? unavailable;
+}
 
 function ensureDir(path) {
   mkdirSync(dirname(path), { recursive: true });
@@ -48,18 +72,18 @@ function parseCsv(text) {
 
 function readCsvWithFallback(primary, fallback) {
   const selected = existsSync(primary) ? primary : fallback;
-  if (!existsSync(selected)) return { file: selected, rows: [], status: "missing" };
-  return { file: selected, rows: parseCsv(readFileSync(selected, "utf8")), status: selected === primary ? "snapshot-available" : "sample-fallback" };
+  if (!existsSync(selected)) return { file: selected, rows: [], status: unavailable };
+  return { file: selected, rows: parseCsv(readFileSync(selected, "utf8")), status: selected === primary ? "snapshot_available" : "sample_fallback" };
 }
 
 function readGeojsonWithFallback(primary, fallback) {
   const selected = existsSync(primary) ? primary : fallback;
-  if (!existsSync(selected)) return { file: selected, features: [], status: "missing" };
+  if (!existsSync(selected)) return { file: selected, features: [], status: unavailable };
   const parsed = JSON.parse(readFileSync(selected, "utf8"));
   return {
     file: selected,
     features: Array.isArray(parsed.features) ? parsed.features : [],
-    status: selected === primary ? "snapshot-available" : "sample-fallback"
+    status: selected === primary ? "snapshot_available" : "sample_fallback"
   };
 }
 
@@ -141,7 +165,7 @@ function ingestDldPublic() {
       generatedAt,
       version: "1.6",
       sourceId,
-      status: rows.length > 0 ? status : "missing",
+      status: rows.length > 0 ? normalizeStatus(status) : unavailable,
       category,
       recordCount: normalizedRows.length,
       records: normalizedRows,
@@ -149,7 +173,7 @@ function ingestDldPublic() {
     });
     categoryReports[category] = {
       sourceId,
-      status: rows.length > 0 ? status : "missing",
+      status: rows.length > 0 ? normalizeStatus(status) : unavailable,
       inputFile: file,
       outputFile: output,
       recordCount: normalizedRows.length,
@@ -157,12 +181,12 @@ function ingestDldPublic() {
     };
     manifestSources.push({
       id: sourceId,
-      status: rows.length > 0 ? "snapshot_available" : "sample_fallback",
+      status: rows.length > 0 ? normalizeStatus(status) : "sample_fallback",
       lastUpdated: generatedAt,
       availableFiles: [file, output],
       recordCount: normalizedRows.length,
       coverageArea: "Dubai public real-estate categories",
-      confidence: status === "snapshot-available" ? "medium" : "low",
+      confidence: normalizeStatus(status) === "snapshot_available" ? "medium" : "low",
       usedInAnalysis: true,
       caveat,
       disclaimer: "DLD / Dubai Pulse public snapshot; not a live DLD API or ownership/title validation."
@@ -256,13 +280,13 @@ function ingestOsmPublic() {
   updateManifest([
     {
       id: "osm-geofabrik-baseline",
-      status: totalFeatures > 0 ? "snapshot_available" : "sample_fallback",
+      status: totalFeatures > 0 ? normalizeStatus(status) : "sample_fallback",
       lastUpdated: generatedAt,
       availableFiles: [file, ...outputs.map((item) => item.output), "data/normalized/osm_source_quality.json"],
       featureCount: totalFeatures,
       recordCount: totalFeatures,
       coverageArea: "Dubai open geospatial baseline",
-      confidence: status === "snapshot-available" ? "medium" : "low",
+      confidence: normalizeStatus(status) === "snapshot_available" ? "medium" : "low",
       usedInAnalysis: true,
       caveat,
       disclaimer: "OSM / Geofabrik open snapshot; not official municipal GIS."
@@ -288,20 +312,26 @@ function ingestOverturePublic() {
     writeJson(output, { generatedAt, version: "1.6", sourceId, status, featureCount: features.length, features, caveat });
     manifestSources.push({
       id: sourceId,
-      status: features.length > 0 ? "snapshot_available" : "manual-import-ready",
+      status: features.length > 0 ? normalizeStatus(status) : "manual_import_ready",
       lastUpdated: generatedAt,
       availableFiles: [file, output],
       featureCount: features.length,
       recordCount: features.length,
       coverageArea: "Dubai open Overture snapshot",
-      confidence: status === "snapshot-available" ? "medium" : "low",
+      confidence: normalizeStatus(status) === "snapshot_available" ? "medium" : "low",
       usedInAnalysis: features.length > 0,
       caveat,
       disclaimer: "Overture Maps open snapshot; not official Dubai GIS."
     });
   }
 
-  writeJson("data/normalized/overture_source_quality.json", { generatedAt, version: "1.6", totalFeatures, status: "ok", caveat });
+  writeJson("data/normalized/overture_source_quality.json", {
+    generatedAt,
+    version: "1.6",
+    totalFeatures,
+    status: manifestSources.some((source) => source.status === "snapshot_available") ? "snapshot_available" : totalFeatures > 0 ? "sample_fallback" : "manual_import_ready",
+    caveat
+  });
   updateManifest(manifestSources, generatedAt);
   console.log(`Overture public snapshots normalized: ${totalFeatures} features.`);
 }
@@ -321,7 +351,7 @@ function ingestWorldPopPublic() {
   writeJson("data/normalized/worldpop_source_quality.json", { generatedAt, version: "1.6", status, inputFile: file, featureCount: features.length, caveat });
   updateManifest([{
     id: "worldpop-demographics",
-    status: features.length > 0 ? "snapshot_available" : "sample_fallback",
+    status: features.length > 0 ? normalizeStatus(status) : "sample_fallback",
     lastUpdated: generatedAt,
     availableFiles: [file, "data/normalized/worldpop_population_context.json"],
     featureCount: features.length,
@@ -349,7 +379,7 @@ function ingestAdminPublic() {
   });
   updateManifest([{
     id: "overture-divisions-admin-context",
-    status: features.length > 0 ? "snapshot_available" : "manual-import-ready",
+    status: features.length > 0 ? normalizeStatus(status) : "manual_import_ready",
     lastUpdated: generatedAt,
     availableFiles: [file, "data/normalized/admin_boundaries_context.json"],
     featureCount: features.length,

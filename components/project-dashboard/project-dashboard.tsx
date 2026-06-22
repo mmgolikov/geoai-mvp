@@ -12,6 +12,7 @@ import { demoProjects, getDemoProject } from "@/src/data/demo-projects";
 import { getClientPilotPackageForProject } from "@/src/data/pilot-packages";
 import { getSupabaseFallbackMessage } from "@/src/lib/data-readiness";
 import { deriveDecisionPosture } from "@/src/lib/decision-posture";
+import { normalizeSourceStatus, sourceStatusToLabel } from "@/src/lib/external-data/source-status";
 import { getPilotDataRequirements } from "@/src/lib/pilot/data-requirements";
 import { getPilotPackageForProject } from "@/src/lib/pilot/pilot-packages";
 import { calculatePilotReadiness } from "@/src/lib/pilot/pilot-readiness";
@@ -171,12 +172,7 @@ function writeActiveProjectKey(projectKey: string) {
 }
 
 function compactReadinessStatus(status?: string) {
-  if (status === "snapshot_available") return "snapshot";
-  if (status === "connected") return "API context";
-  if (status === "planned") return "planned validation";
-  if (status === "sample_fallback") return "sample fallback";
-  if (status === "missing") return "missing";
-  return "planned";
+  return sourceStatusToLabel(status ?? "planned");
 }
 
 function manifestSourceToReadiness(source?: ManifestSource): ReadinessItem | undefined {
@@ -198,11 +194,15 @@ function createInitialMarketMetrics(): MarketMetricsSummary {
     : [];
 
   if (areas.length > 0) {
+    const sourceStatus = normalizeSourceStatus((dldMarketSnapshotStatic as { source?: { status?: string } }).source?.status);
+
     return {
-      sourceMode: "real_snapshot",
+      sourceMode: sourceStatus === "snapshot_available" ? "real_snapshot" : "sample_fallback",
       count: areas.length,
       availableAreaNames: areas.map((area) => area.areaName ?? "Unknown area"),
-      fallbackStatus: "Sample metrics available - manual/offline import; not live official data."
+      fallbackStatus: sourceStatus === "snapshot_available"
+        ? "Manual/offline snapshot available - not live official data."
+        : "Sample metrics available - manual/offline import; not live official data."
     };
   }
 
@@ -690,7 +690,7 @@ export function ProjectDashboard() {
       source: "DLD / Dubai Pulse snapshot",
       currentStatus: dldSnapshotAvailable ? "snapshot" : compactReadinessStatus(dldReadiness?.status),
       caveat: dldSnapshotAvailable
-        ? `Snapshot available: ${dldRecordCount} sample market-area records. Official validation required before decisions.`
+        ? `Snapshot available: ${dldRecordCount} market-area records. Official validation required before decisions.`
         : dldReadiness?.caveat ?? "Sample fallback remains active until a DLD / Dubai Pulse snapshot is available."
     },
     {
@@ -745,10 +745,10 @@ export function ProjectDashboard() {
     }
   ];
   const demoMarketAreas = Math.max(marketMetrics?.availableAreaNames?.length ?? 0, 6);
-  const dataConfidence = dldSnapshotAvailable ? "Snapshot + fallback" : "Seed fallback";
+  const dataConfidence = dldSnapshotAvailable ? "Snapshot + fallback" : "Sample fallback";
   const dataConfidenceNote = dldSnapshotAvailable
     ? "DLD/Dubai Pulse and OSM snapshots are available for screening context; official validation required."
-    : "Demo fallback; official validation required before decisions.";
+    : "Sample/open fallbacks are active; official validation required before decisions.";
   const persistenceMode = dbHealth?.status === "connected" ? "Supabase/PostGIS connected" : "Local fallback";
   const nextActions = getNextActions(activeProject, dldRecordCount);
   const pilotPackage = getPilotPackageForProject(activeProject.projectKey, activeProject.clientType);

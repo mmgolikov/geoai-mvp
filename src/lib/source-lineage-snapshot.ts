@@ -36,7 +36,7 @@ export function createSourceLineageSnapshot(input: SnapshotInput = {}): SourceLi
         disclaimer: source.disclaimer
       })),
     plannedValidationSources: externalDataSources
-      .filter((source) => source.status === "planned-access")
+      .filter((source) => source.status === "planned" || source.status === "permission_required")
       .map((source) => ({
         id: source.id,
         name: source.name,

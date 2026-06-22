@@ -1,10 +1,10 @@
 {
-  "generatedAt": "2026-06-22T21:04:33.655Z",
+  "generatedAt": "2026-06-22T22:26:13.716Z",
   "version": "1.4",
   "source": {
     "id": "osm-geofabrik-baseline",
     "name": "OSM / Geofabrik open geospatial baseline",
-    "status": "snapshot_available",
+    "status": "sample_fallback",
     "sourceType": "open-data",
     "accessMode": "snapshot",
     "disclaimer": "Open geospatial baseline; not official municipal GIS, zoning or parcel boundary data."

@@ -3,13 +3,13 @@
   "source": {
     "id": "dld-dubai-pulse-transactions",
     "name": "DLD / Dubai Pulse transactions",
-    "status": "connected-snapshot",
+    "status": "snapshot_available",
     "sourceType": "official-open-data",
     "updateMode": "manual",
     "notLiveFeed": true,
     "disclaimer": "Open official dataset snapshot; not a live official transactional feed."
   },
-  "status": "missing-input",
+  "status": "unavailable",
   "message": "DLD/Dubai Pulse connector is configured for manual CSV snapshot. Live API/resource fetch is not enabled.",
   "rowsRead": 0,
   "areasWritten": 0,

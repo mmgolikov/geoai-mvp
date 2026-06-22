@@ -6,6 +6,7 @@ import ingestionReport from "@/data/normalized/ingestion_report.json";
 import { DataReadinessCard } from "@/components/data-readiness";
 import { getScenarioDataSources } from "@/src/data/data-source-registry";
 import type { DemoNarrative } from "@/src/data/demo-narratives";
+import { sourceStatusToLabel } from "@/src/lib/external-data/source-status";
 import { getPilotPackageForProject } from "@/src/lib/pilot/pilot-packages";
 import type { GeoAIProject } from "@/src/lib/db/types";
 import type { MarketMetricsMatch } from "@/src/lib/market-metrics/types";
@@ -292,48 +293,47 @@ export function AnalysisPanel({
   const externalSourceStatus = (id: string) => externalSources.find((source) => source.id === id);
   const externalReadinessStatus = (id: string) => externalReadiness.find((source) => source.sourceId === id);
   const externalManifestSource = (id: string) => externalDataStatus?.manifest?.sources?.find((source) => source.id === id);
+  const formatSourceStatus = (status?: string, fallback = "planned") => sourceStatusToLabel(status ?? fallback);
   const externalStatusRows = [
     {
       label: "DLD / Dubai Pulse",
-      value: externalReadinessStatus("dld-dubai-pulse-transactions")?.status?.replace(/_/g, " ") ??
-        (externalDataStatus?.availableFiles?.dldMarketMetrics ? "snapshot available" : "sample fallback"),
+      value: formatSourceStatus(externalReadinessStatus("dld-dubai-pulse-transactions")?.status, "sample_fallback"),
       detail: externalReadinessStatus("dld-dubai-pulse-transactions")?.caveat ??
         externalSourceStatus("dld-dubai-pulse-transactions")?.disclaimer
     },
     {
       label: "OSM / Geofabrik",
-      value: externalReadinessStatus("osm-geofabrik-baseline")?.status?.replace(/_/g, " ") ??
-        (externalDataStatus?.availableFiles?.osmBaseline ? "snapshot available" : "sample fallback"),
+      value: formatSourceStatus(externalReadinessStatus("osm-geofabrik-baseline")?.status, "sample_fallback"),
       detail: externalReadinessStatus("osm-geofabrik-baseline")?.caveat ??
         externalSourceStatus("osm-geofabrik-baseline")?.disclaimer
     },
     {
       label: "Overture Maps",
-      value: externalReadinessStatus("overture-maps-open-buildings")?.status?.replace(/_/g, " ") ?? "manual import ready",
+      value: formatSourceStatus(externalReadinessStatus("overture-maps-open-buildings")?.status, "manual_import_ready"),
       detail: externalReadinessStatus("overture-maps-open-buildings")?.caveat ??
         externalSourceStatus("overture-maps-open-buildings")?.disclaimer
     },
     {
       label: "Open-Meteo",
-      value: externalReadinessStatus("open-meteo-climate")?.status?.replace(/_/g, " ") ?? "API context / reanalysis",
+      value: formatSourceStatus(externalReadinessStatus("open-meteo-climate")?.status, "connected"),
       detail: externalReadinessStatus("open-meteo-climate")?.caveat ??
         externalSourceStatus("open-meteo-climate")?.disclaimer
     },
     {
       label: "NASA POWER / OpenAQ",
-      value: `${externalReadinessStatus("nasa-power-solar-energy")?.status?.replace(/_/g, " ") ?? "API context"} / ${externalReadinessStatus("openaq-air-quality")?.status?.replace(/_/g, " ") ?? "sample fallback"}`,
+      value: `${formatSourceStatus(externalReadinessStatus("nasa-power-solar-energy")?.status, "connected")} / ${formatSourceStatus(externalReadinessStatus("openaq-air-quality")?.status, "sample_fallback")}`,
       detail: externalReadinessStatus("nasa-power-solar-energy")?.caveat ??
         externalSourceStatus("nasa-power-solar-energy")?.disclaimer
     },
     {
       label: "WorldPop",
-      value: externalReadinessStatus("worldpop-demographics")?.status?.replace(/_/g, " ") ?? "sample fallback",
+      value: formatSourceStatus(externalReadinessStatus("worldpop-demographics")?.status, "sample_fallback"),
       detail: externalReadinessStatus("worldpop-demographics")?.caveat ??
         externalSourceStatus("worldpop-demographics")?.disclaimer
     },
     {
       label: "Copernicus / Sentinel",
-      value: externalReadinessStatus("copernicus-sentinel-metadata")?.status?.replace(/_/g, " ") ?? "token required",
+      value: formatSourceStatus(externalReadinessStatus("copernicus-sentinel-metadata")?.status, "token_required"),
       detail: externalReadinessStatus("copernicus-sentinel-metadata")?.caveat ??
         externalSourceStatus("copernicus-sentinel-metadata")?.disclaimer
     },
