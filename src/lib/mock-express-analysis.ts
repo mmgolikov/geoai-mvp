@@ -1,4 +1,6 @@
 import { createEvidenceItem } from "@/src/data/data-source-registry";
+import { createCustomQueryAnswer } from "@/src/lib/custom-query/query-answer";
+import { detectCustomQueryIntent, normalizeCustomQueryText } from "@/src/lib/custom-query/query-intent";
 import type {
   AnalysisScenario,
   AnalysisScenarioId,
@@ -75,6 +77,52 @@ function scoreNear(value: number, target: number, spread: number) {
 
 function formatCoordinate(point: SelectedPoint) {
   return `${point.latitude.toFixed(6)}, ${point.longitude.toFixed(6)}`;
+}
+
+export function normalizeCustomQuery(query: string) {
+  return normalizeCustomQueryText(query);
+}
+
+function createQuerySlug(query: string) {
+  const normalized = normalizeCustomQuery(query).toLowerCase();
+  let hash = 0;
+
+  for (let index = 0; index < normalized.length; index += 1) {
+    hash = (hash * 31 + normalized.charCodeAt(index)) >>> 0;
+  }
+
+  return hash.toString(36).slice(0, 6) || "query";
+}
+
+export function classifyCustomQueryIntent(query: string) {
+  return detectCustomQueryIntent(query).intent;
+}
+
+function createCustomQueryOverlay(
+  query: string,
+  scenarioId: AnalysisScenarioId,
+  selectedObject: SelectedDemoObject | null | undefined,
+  point: SelectedPoint
+) {
+  const normalizedQuery = normalizeCustomQuery(query);
+  const answer = createCustomQueryAnswer({
+    query: normalizedQuery,
+    scenarioId,
+    point,
+    selectedObject
+  });
+
+  return {
+    intent: answer?.intent ?? "custom",
+    summary: answer?.shortAnswer ?? `The custom query adds a user-defined decision lens: "${normalizedQuery}".`,
+    keyFactors: answer ? [`Custom query response: ${answer.shortAnswer}`, ...answer.reasoning] : [`Custom query lens: ${normalizedQuery}`],
+    opportunities: answer ? [answer.recommendation] : ["Use the query to turn a broad spatial question into a repeatable screening checklist."],
+    risks: answer?.keyRisks ?? ["The custom question may require official, customer-approved or live data that is not connected in this MVP."],
+    nextActions: answer?.nextActions ?? ["List the official or customer-approved evidence required before decisions."],
+    limitations: answer ? [answer.confidenceNote] : ["This custom query is answered as demo screening intelligence only; official validation is required before decisions."],
+    evidenceNote: `Custom query "${normalizedQuery}" applied as a ${answer?.intent ?? "custom"} lens. This is demo screening context and requires official validation.`,
+    answer
+  };
 }
 
 function getBaseSignals(point: SelectedPoint) {
@@ -216,9 +264,13 @@ export function createMockExpressAnalysis(
   selectedObject?: SelectedDemoObject | null
 ): ExpressAnalysis {
   const scenario = analysisScenarios.find((item) => item.id === scenarioId) ?? analysisScenarios[0];
+  const normalizedCustomQuery = normalizeCustomQuery(customQuery);
+  const queryOverlay = normalizedCustomQuery
+    ? createCustomQueryOverlay(normalizedCustomQuery, scenario.id, selectedObject, point)
+    : null;
   const signals = getBaseSignals(point);
   const scores = createScores(point, scenario.id);
-  const id = `express-${scenario.id}-${point.latitude.toFixed(5)}-${point.longitude.toFixed(5)}`;
+  const id = `express-${scenario.id}-${point.latitude.toFixed(5)}-${point.longitude.toFixed(5)}${normalizedCustomQuery ? `-q-${createQuerySlug(normalizedCustomQuery)}` : ""}`;
   const objectContext = selectedObject
     ? `The selected demo object is ${selectedObject.name}, a synthetic ${selectedObject.type.toLowerCase()} from the ${selectedObject.layerName} layer. `
     : "";
@@ -496,6 +548,18 @@ export function createMockExpressAnalysis(
     }
   };
   const scenarioAnalysis = scenarios[scenario.id];
+  const evidence = queryOverlay
+    ? [
+        ...scenarioAnalysis.evidence,
+        createEvidenceItem(
+          "custom-query-lens",
+          "customer-uploaded-documents",
+          "Custom query lens",
+          queryOverlay.evidenceNote,
+          "low"
+        )
+      ]
+    : scenarioAnalysis.evidence;
 
   return {
     id,
@@ -505,12 +569,27 @@ export function createMockExpressAnalysis(
     point,
     selectedObject: selectedObject ?? undefined,
     scores,
-    summary: scenarioAnalysis.summary,
+    summary: queryOverlay
+      ? `${scenarioAnalysis.summary} ${queryOverlay.summary}`
+      : scenarioAnalysis.summary,
     scoreLabels: scenarioAnalysis.scoreLabels,
-    keyFactors: scenarioAnalysis.keyFactors,
-    opportunities: scenarioAnalysis.opportunities,
-    risks: scenarioAnalysis.risks,
-    nextActions: scenarioAnalysis.nextActions,
-    evidence: scenarioAnalysis.evidence
+    keyFactors: queryOverlay
+      ? [...queryOverlay.keyFactors, ...scenarioAnalysis.keyFactors]
+      : scenarioAnalysis.keyFactors,
+    opportunities: queryOverlay
+      ? [...queryOverlay.opportunities, ...scenarioAnalysis.opportunities]
+      : scenarioAnalysis.opportunities,
+    risks: queryOverlay
+      ? [...queryOverlay.risks, ...scenarioAnalysis.risks]
+      : scenarioAnalysis.risks,
+    nextActions: queryOverlay
+      ? [...queryOverlay.nextActions, ...scenarioAnalysis.nextActions]
+      : scenarioAnalysis.nextActions,
+    evidence,
+    limitations: queryOverlay?.limitations,
+    customQuery: normalizedCustomQuery || undefined,
+    customQueryIntent: queryOverlay?.intent,
+    customQuerySummary: queryOverlay?.summary,
+    customQueryAnswer: queryOverlay?.answer ?? undefined
   };
 }

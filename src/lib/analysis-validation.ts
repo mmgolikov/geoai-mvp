@@ -1,4 +1,5 @@
 import { createMockExpressAnalysis } from "@/src/lib/mock-express-analysis";
+import type { CustomQueryAnswer } from "@/src/lib/custom-query/query-answer";
 import type {
   AnalysisImpact,
   AnalysisPriority,
@@ -36,6 +37,36 @@ function normalizeStringArray(value: unknown, fallback: string[]) {
     .slice(0, 6);
 
   return normalized.length > 0 ? normalized : fallback;
+}
+
+function normalizeCustomQueryAnswer(value: unknown): CustomQueryAnswer | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const question = asString(value.question);
+  const shortAnswer = asString(value.shortAnswer);
+  const recommendation = asString(value.recommendation);
+
+  if (!question || !shortAnswer || !recommendation) {
+    return undefined;
+  }
+
+  return {
+    question,
+    intent: asString(value.intent, "custom") as CustomQueryAnswer["intent"],
+    shortAnswer,
+    recommendation,
+    reasoning: normalizeStringArray(value.reasoning, []),
+    keyRisks: normalizeStringArray(value.keyRisks, []),
+    validationNeeded: normalizeStringArray(value.validationNeeded, []),
+    nextActions: normalizeStringArray(value.nextActions, []),
+    sourceBasis: normalizeStringArray(value.sourceBasis, []),
+    confidenceNote: asString(
+      value.confidenceNote,
+      "Screening-only response based on available context; official validation required."
+    )
+  };
 }
 
 export function createFallbackStructuredAnalysis(
@@ -80,6 +111,7 @@ export function createFallbackStructuredAnalysis(
       "Narrative content is generated from deterministic demo context.",
       "Official parcel, planning, transaction, imagery, and risk data are not connected yet."
     ],
+    custom_query_answer: mock.customQueryAnswer,
     notice
   };
 }
@@ -172,6 +204,7 @@ export function validateStructuredAnalysis(value: unknown): Omit<StructuredAnaly
     limitations: normalizeStringArray(value.limitations, [
       "Analysis is limited by the currently connected demo and planned data sources."
     ]),
+    custom_query_answer: normalizeCustomQueryAnswer(value.custom_query_answer),
     notice: asString(value.notice) || undefined
   };
 }

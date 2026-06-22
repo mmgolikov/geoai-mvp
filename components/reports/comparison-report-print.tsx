@@ -85,6 +85,17 @@ export function ComparisonReportPrint({ report }: { report: ComparisonReportDeli
           </PrintSection>
         </div>
 
+        {report.customQueryAnswer ? (
+          <PrintSection title="Custom Comparison Response">
+            <p><strong>{report.customQueryAnswer.question}</strong></p>
+            <p>{report.customQueryAnswer.shortAnswer}</p>
+            <div className="geoai-print-mini-grid">
+              <PrintCard label="Recommended direction" value={report.customQueryAnswer.recommendation} />
+              <PrintCard label="Confidence note" value={report.customQueryAnswer.confidenceNote} />
+            </div>
+          </PrintSection>
+        ) : null}
+
         <PrintSection title="Summary Cards">
           <div className="geoai-print-score-grid">
             {report.comparedItems.map((item, index) => (

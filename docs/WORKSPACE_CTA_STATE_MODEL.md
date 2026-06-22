@@ -30,6 +30,10 @@ The CTA model uses:
 | Comparison exists and query/scenario/comparison set are unchanged | Export Comparison | Prepare saved/session comparison and navigate same tab to printable route |
 | Comparison exists and query/scenario/comparison set changed | Continue Comparison | Regenerate comparison with current comparison set, scenario and Custom Query |
 
+Continue Analysis must update the current report content with a query-specific `Custom Query Response`, not only refresh the CTA label.
+
+Continue Comparison must update the comparison dashboard and report payload with a query-specific `Custom Comparison Response`, not only refresh the CTA label.
+
 ## Freshness Rules
 
 - Custom Query is normalized with `trim()`.

@@ -16,6 +16,7 @@ import type { AnalysisHistoryItem, AnalysisScenarioId, ExpressAnalysis } from "@
 
 const activeProjectStorageKey = "geoai-active-project-key-v1";
 const analysisHistoryStorageKey = "geoai-analysis-history-v1";
+const openAnalysisRequestStorageKey = "geoai-open-analysis-request-v1";
 
 type DbHealth = {
   configured: boolean;
@@ -41,7 +42,12 @@ type PersistedAnalysisRun = {
   confidence_level?: ExpressAnalysis["confidenceLevel"];
   data_confidence_level?: string | null;
   analysis_mode?: ExpressAnalysis["analysisMode"];
+  result_json?: ExpressAnalysis;
+  result_payload?: ExpressAnalysis;
+  payload?: ExpressAnalysis;
   created_at?: string;
+  createdAt?: string;
+  projectKey?: string | null;
   project_key?: string | null;
   project_name?: string | null;
 };
@@ -56,6 +62,11 @@ type RecentAnalysisRow = {
   dataConfidence: string;
   source: "local" | "DB";
   reportId?: string;
+  analysis?: ExpressAnalysis;
+  projectKey?: string;
+  scenarioId?: AnalysisScenarioId;
+  customQuery?: string;
+  canOpenAnalysis?: boolean;
 };
 
 type SavedObjectSummary = {
@@ -103,6 +114,22 @@ function writeActiveProjectKey(projectKey: string) {
   }
 }
 
+function writeOpenAnalysisRequest(row: RecentAnalysisRow) {
+  if (!row.analysis) return;
+
+  try {
+    window.localStorage.setItem(openAnalysisRequestStorageKey, JSON.stringify({
+      analysisId: row.analysis.id,
+      projectKey: row.projectKey,
+      scenarioId: row.scenarioId,
+      customQuery: row.customQuery ?? row.analysis.customQuery ?? "",
+      analysis: row.analysis
+    }));
+  } catch {
+    // Dashboard remains usable even if the restore handoff cannot be written.
+  }
+}
+
 function readLocalHistory() {
   try {
     const raw = window.localStorage.getItem(analysisHistoryStorageKey);
@@ -128,22 +155,36 @@ function localHistoryToRows(items: AnalysisHistoryItem[], projectKey: string): R
     confidence: item.confidenceLevel ?? item.analysis.confidenceLevel ?? "medium",
     dataConfidence: item.dataConfidenceLevel ?? "Demo-normalized",
     source: item.source ?? "local",
-    reportId: undefined
+    reportId: undefined,
+    analysis: item.analysis,
+    projectKey: item.projectKey ?? item.project?.projectKey,
+    scenarioId: item.scenarioId,
+    customQuery: item.analysis.customQuery,
+    canOpenAnalysis: true
   }));
 }
 
 function persistedRowsToRecent(items: PersistedAnalysisRun[]): RecentAnalysisRow[] {
-  return items.slice(0, 6).map((item) => ({
-    id: item.id ?? item.run_key ?? `${item.selected_name}-${item.created_at}`,
-    title: item.selected_name ?? "Saved analysis run",
-    scenarioLabel: item.scenario_id ? formatLabel(item.scenario_id) : "Scenario analysis",
-    timestamp: item.created_at ?? new Date().toISOString(),
-    decisionPosture: item.decision_posture ?? "Requires official validation",
-    confidence: item.confidence_level ?? "medium",
-    dataConfidence: item.data_confidence_level ?? "Demo-normalized",
-    source: "DB",
-    reportId: undefined
-  }));
+  return items.slice(0, 6).map((item) => {
+    const analysis = item.result_json ?? item.result_payload ?? item.payload;
+
+    return {
+      id: item.id ?? item.run_key ?? analysis?.id ?? `${item.selected_name}-${item.created_at ?? item.createdAt}`,
+      title: item.selected_name ?? analysis?.selectedObject?.name ?? analysis?.title ?? "Saved analysis run",
+      scenarioLabel: item.scenario_id ? formatLabel(item.scenario_id) : analysis?.scenarioId ? formatLabel(analysis.scenarioId) : "Scenario analysis",
+      timestamp: item.created_at ?? item.createdAt ?? analysis?.generatedAt ?? new Date().toISOString(),
+      decisionPosture: item.decision_posture ?? (analysis ? deriveDecisionPosture(analysis) : "Requires official validation"),
+      confidence: item.confidence_level ?? analysis?.confidenceLevel ?? "medium",
+      dataConfidence: item.data_confidence_level ?? analysis?.marketContext?.confidenceLevel ?? "Demo-normalized",
+      source: "DB" as const,
+      reportId: undefined,
+      analysis,
+      projectKey: item.project_key ?? item.projectKey ?? analysis?.project?.projectKey ?? undefined,
+      scenarioId: item.scenario_id ?? analysis?.scenarioId,
+      customQuery: analysis?.customQuery,
+      canOpenAnalysis: Boolean(analysis)
+    };
+  });
 }
 
 function ProjectBadge({ children }: { children: React.ReactNode }) {
@@ -154,11 +195,11 @@ function ProjectBadge({ children }: { children: React.ReactNode }) {
   );
 }
 
-function KpiCard({ label, value, note }: { label: string; value: string | number; note: string }) {
+function KpiCard({ label, value, note, valueKind = "numeric" }: { label: string; value: string | number; note: string; valueKind?: "numeric" | "text" }) {
   return (
-    <div className="rounded-lg border border-line bg-white p-4 shadow-sm">
+    <div className="flex h-full min-h-[136px] flex-col rounded-lg border border-line bg-white p-4 shadow-sm">
       <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">{label}</p>
-      <p className="mt-3 text-3xl font-semibold leading-none text-ink">{value}</p>
+      <p className={`mt-3 break-words font-semibold text-ink ${valueKind === "text" ? "text-xl leading-6" : "text-3xl leading-none"}`}>{value}</p>
       <p className="mt-2 text-sm leading-5 text-muted">{note}</p>
     </div>
   );
@@ -375,7 +416,12 @@ export function ProjectDashboard() {
       confidence: item.confidence,
       dataConfidence: item.dataConfidence,
       source: item.source,
-      reportId: item.id === "seeded-recent-analysis-marina" ? "seeded-analysis-dubai-marina-report" : undefined
+      reportId: item.id === "seeded-recent-analysis-marina" ? "seeded-analysis-dubai-marina-report" : undefined,
+      analysis: item.analysis,
+      projectKey: item.analysis.project?.projectKey,
+      scenarioId: item.analysis.scenarioId,
+      customQuery: item.analysis.customQuery,
+      canOpenAnalysis: true
     }));
   const recentRows = dbHistory.length > 0 ? dbHistory : localRows.length > 0 ? localRows : seededRows;
   const reportRows = savedReports.length > 0
@@ -396,7 +442,10 @@ export function ProjectDashboard() {
     : seededDemoComparisonSummaries;
   const importedAreas = marketMetrics?.count ?? 0;
   const demoMarketAreas = marketMetrics?.availableAreaNames?.length ?? 6;
-  const dataConfidence = importedAreas > 0 ? "Sample/offline import" : "Seed fallback";
+  const dataConfidence = importedAreas > 0 ? "Sample/offline" : "Seed fallback";
+  const dataConfidenceNote = importedAreas > 0
+    ? "Import; official validation required before pilot decisions."
+    : "Demo fallback; official validation required before pilot decisions.";
   const persistenceMode = dbHealth?.status === "connected" ? "Supabase/PostGIS connected" : "Local fallback";
   const nextActions = getNextActions(activeProject, importedAreas);
   const pilotPackage = getPilotPackageForProject(activeProject.projectKey, activeProject.clientType);
@@ -488,7 +537,7 @@ export function ProjectDashboard() {
           <KpiCard label="Comparisons" value={comparisonRows.length} note={savedComparisons.length > 0 ? "Saved comparison sets available." : "Demo example comparison available."} />
           <KpiCard label="Data sources" value={dataSourceRegistry.length + projectDatasets.length} note={`${projectDatasets.length} project upload metadata records.`} />
           <KpiCard label="Market areas" value={importedAreas > 0 ? importedAreas : `0 official / ${demoMarketAreas} demo`} note={marketMetrics?.sourceMode ?? "seed_static fallback"} />
-          <KpiCard label="Data confidence" value={dataConfidence} note="Official validation required before pilot decisions." />
+          <KpiCard label="Data confidence" value={dataConfidence} valueKind="text" note={dataConfidenceNote} />
         </section>
 
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.65fr)]">
@@ -508,12 +557,22 @@ export function ProjectDashboard() {
                             {item.source}
                           </span>
                           <Link
-                            href={item.reportId ? `/reports/${encodeURIComponent(item.reportId)}/print` : openWorkspaceHref}
-                            onClick={() => writeActiveProjectKey(activeProject.projectKey)}
+                            href={item.canOpenAnalysis && item.analysis
+                              ? `/workspace?openAnalysis=${encodeURIComponent(item.analysis.id)}&projectKey=${encodeURIComponent(item.projectKey ?? activeProject.projectKey)}`
+                              : openWorkspaceHref}
+                            onClick={() => {
+                              writeActiveProjectKey(item.projectKey ?? activeProject.projectKey);
+                              writeOpenAnalysisRequest(item);
+                            }}
                             className="inline-flex h-8 items-center rounded-md border border-line bg-white px-3 text-xs font-semibold text-ink transition hover:border-brand"
                           >
-                            {item.reportId ? "Open memo" : "Open analysis"}
+                            {item.canOpenAnalysis ? "Open analysis" : "Open workspace"}
                           </Link>
+                          {item.customQuery ? (
+                            <span className="w-fit rounded-full bg-[#fff9e8] px-2 py-1 text-[11px] font-semibold text-[#6f5817]">
+                              Custom query analysis
+                            </span>
+                          ) : null}
                         </div>
                       </div>
                       <div className="mt-3 grid gap-2 text-sm md:grid-cols-3">

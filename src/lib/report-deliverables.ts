@@ -1,4 +1,5 @@
 import type { SourceLineageSnapshot } from "@/src/lib/project-workspace-types";
+import type { CustomQueryAnswer } from "@/src/lib/custom-query/query-answer";
 import type { AnalysisTarget, ComparisonResult, ExpressAnalysis, ScoreKey, SelectedDemoObject, SelectedPoint } from "@/src/types/geo";
 
 export type ReportType = "analysis" | "comparison";
@@ -35,6 +36,7 @@ export type AnalysisReportDeliverable = ReportDeliverable & {
   executiveMemo: string;
   opportunities: string[];
   limitations: string[];
+  customQueryAnswer: CustomQueryAnswer | null;
 };
 
 export type ComparisonReportDeliverable = ReportDeliverable & {
@@ -53,6 +55,7 @@ export type ComparisonReportDeliverable = ReportDeliverable & {
   alternativeInterpretation: string;
   sharedOpportunities: string[];
   differentiatedRisks: string[];
+  customQueryAnswer: CustomQueryAnswer | null;
 };
 
 type ReportRecord = {
@@ -188,6 +191,28 @@ function asPoint(value: unknown): SelectedPoint | null {
   return typeof latitude === "number" && typeof longitude === "number" ? { latitude, longitude } : null;
 }
 
+function asCustomQueryAnswer(value: unknown): CustomQueryAnswer | null {
+  if (!isObject(value)) return null;
+  const question = asString(value.question, "");
+  const shortAnswer = asString(value.shortAnswer, "");
+  const recommendation = asString(value.recommendation, "");
+
+  if (!question || !shortAnswer || !recommendation) return null;
+
+  return {
+    question,
+    intent: asString(value.intent, "custom") as CustomQueryAnswer["intent"],
+    shortAnswer,
+    recommendation,
+    reasoning: asArrayOfStrings(value.reasoning),
+    keyRisks: asArrayOfStrings(value.keyRisks),
+    validationNeeded: asArrayOfStrings(value.validationNeeded),
+    nextActions: asArrayOfStrings(value.nextActions),
+    sourceBasis: asArrayOfStrings(value.sourceBasis),
+    confidenceNote: asString(value.confidenceNote, "Screening-only response; official validation required.")
+  };
+}
+
 function readPayload(record: ReportRecord) {
   return record.reportPayload ?? record.report_json ?? {};
 }
@@ -288,6 +313,7 @@ export function normalizeReportDeliverable(record: unknown): AnalysisReportDeliv
     const sharedOpportunities = comparison?.sharedOpportunities ?? (isObject(payload) ? asArrayOfStrings(payload.keyValueDrivers) : []);
     const differentiatedRisks = comparison?.differentiatedRisks ?? (isObject(payload) ? asArrayOfStrings(payload.criticalConstraints) : []);
     const nextActions = comparison?.nextActions ?? (isObject(payload) ? asArrayOfStrings(payload.dueDiligenceChecklist) : []);
+    const customQueryAnswer = comparison?.customQueryAnswer ?? (isObject(payload) ? asCustomQueryAnswer(payload.customQueryAnswer) : null);
 
     return {
       id,
@@ -315,7 +341,8 @@ export function normalizeReportDeliverable(record: unknown): AnalysisReportDeliv
       winnerLabel,
       alternativeInterpretation: comparison?.whenAnotherMayBeBetter ?? "Another option may be preferred if official validation, capital plan, ownership, or customer-specific constraints change the decision basis.",
       sharedOpportunities,
-      differentiatedRisks
+      differentiatedRisks,
+      customQueryAnswer
     };
   }
 
@@ -327,6 +354,7 @@ export function normalizeReportDeliverable(record: unknown): AnalysisReportDeliv
   const keyFindings = analysis?.keyFactors ?? (isObject(payload) ? asArrayOfStrings(payload.keyValueDrivers) : []);
   const risks = analysis?.risks ?? (isObject(payload) ? asArrayOfStrings(payload.criticalConstraints) : []);
   const nextActions = analysis?.nextActions ?? (isObject(payload) ? asArrayOfStrings(payload.dueDiligenceChecklist) : []);
+  const customQueryAnswer = analysis?.customQueryAnswer ?? (isObject(payload) ? asCustomQueryAnswer(payload.customQueryAnswer) : null);
 
   return {
     id,
@@ -355,7 +383,8 @@ export function normalizeReportDeliverable(record: unknown): AnalysisReportDeliv
     analysisTarget: analysis?.analysisTarget ?? selectedObject?.analysisTarget ?? null,
     executiveMemo: analysis?.summary ?? "This saved report contains a GeoAI MVP screening memo. Generate a fresh analysis for richer narrative detail and source-specific scoring context.",
     opportunities: analysis?.opportunities ?? [],
-    limitations: analysis?.limitations ?? (isObject(payload) ? asArrayOfStrings(payload.limitations) : [])
+    limitations: analysis?.limitations ?? (isObject(payload) ? asArrayOfStrings(payload.limitations) : []),
+    customQueryAnswer
   };
 }
 

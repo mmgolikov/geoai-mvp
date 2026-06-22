@@ -65,6 +65,17 @@ export function AnalysisReportPrint({ report }: { report: AnalysisReportDelivera
             </div>
           </PrintSection>
         </div>
+
+        {report.customQueryAnswer ? (
+          <PrintSection title="Custom Query Response">
+            <p><strong>{report.customQueryAnswer.question}</strong></p>
+            <p>{report.customQueryAnswer.shortAnswer}</p>
+            <div className="geoai-print-mini-grid">
+              <PrintCard label="Recommended direction" value={report.customQueryAnswer.recommendation} />
+              <PrintCard label="Confidence note" value={report.customQueryAnswer.confidenceNote} />
+            </div>
+          </PrintSection>
+        ) : null}
       </PrintPage>
 
       <PrintPage>
