@@ -1,0 +1,9 @@
+{
+  "generatedAt": "2026-06-22T22:09:37.858Z",
+  "version": "1.6",
+  "sourceId": "osm-geofabrik-open-buildings",
+  "status": "sample-fallback",
+  "featureCount": 0,
+  "features": [],
+  "caveat": "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
+}

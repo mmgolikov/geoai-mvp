@@ -1,0 +1,41 @@
+{
+  "generatedAt": "2026-06-22T22:09:37.858Z",
+  "version": "1.6",
+  "sourceId": "osm-geofabrik-open-roads",
+  "status": "sample-fallback",
+  "featureCount": 1,
+  "features": [
+    {
+      "id": "osm-public-1",
+      "sourceFile": "data/external/osm/dubai_osm_baseline_sample.geojson",
+      "type": "Feature",
+      "properties": {
+        "name": "Sheikh Zayed Road sample corridor",
+        "highway": "primary"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            55.118,
+            25.065
+          ],
+          [
+            55.16,
+            25.092
+          ],
+          [
+            55.205,
+            25.126
+          ],
+          [
+            55.268,
+            25.188
+          ]
+        ]
+      },
+      "caveat": "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
+    }
+  ],
+  "caveat": "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
+}

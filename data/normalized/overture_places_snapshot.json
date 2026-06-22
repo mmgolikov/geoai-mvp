@@ -1,0 +1,40 @@
+{
+  "generatedAt": "2026-06-22T22:09:37.859Z",
+  "version": "1.6",
+  "sourceId": "overture-maps-open-places",
+  "status": "sample-fallback",
+  "featureCount": 2,
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "overture-place-marina-mall",
+        "name": "Dubai Marina retail sample",
+        "category": "retail"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          55.14,
+          25.077
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "overture-place-business-bay-metro",
+        "name": "Business Bay mobility sample",
+        "category": "transport"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          55.26,
+          25.192
+        ]
+      }
+    }
+  ],
+  "caveat": "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
+}

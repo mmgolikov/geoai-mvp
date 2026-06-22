@@ -1,0 +1,56 @@
+{
+  "generatedAt": "2026-06-22T22:09:37.854Z",
+  "version": "1.6",
+  "sourceId": "dld-dubai-pulse-public-unit",
+  "status": "sample-fallback",
+  "category": "unit",
+  "recordCount": 3,
+  "records": [
+    {
+      "id": "unit-dubai-marina-1",
+      "category": "unit",
+      "sourceId": "dld-dubai-pulse-public-unit",
+      "areaName": "Dubai Marina",
+      "sourceFile": "data/external/samples/dld_unit_sample.csv",
+      "fields": {
+        "area_name": "Dubai Marina",
+        "unit_type": "apartment",
+        "unit_count": "1260",
+        "median_price_per_sqm": "31200",
+        "source_date": "2026-06-01"
+      },
+      "caveat": "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
+    },
+    {
+      "id": "unit-business-bay-2",
+      "category": "unit",
+      "sourceId": "dld-dubai-pulse-public-unit",
+      "areaName": "Business Bay",
+      "sourceFile": "data/external/samples/dld_unit_sample.csv",
+      "fields": {
+        "area_name": "Business Bay",
+        "unit_type": "apartment",
+        "unit_count": "1180",
+        "median_price_per_sqm": "28400",
+        "source_date": "2026-06-01"
+      },
+      "caveat": "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
+    },
+    {
+      "id": "unit-dubai-south-3",
+      "category": "unit",
+      "sourceId": "dld-dubai-pulse-public-unit",
+      "areaName": "Dubai South",
+      "sourceFile": "data/external/samples/dld_unit_sample.csv",
+      "fields": {
+        "area_name": "Dubai South",
+        "unit_type": "mixed_use",
+        "unit_count": "420",
+        "median_price_per_sqm": "14600",
+        "source_date": "2026-06-01"
+      },
+      "caveat": "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
+    }
+  ],
+  "caveat": "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
+}

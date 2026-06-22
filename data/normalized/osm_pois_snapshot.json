@@ -1,0 +1,27 @@
+{
+  "generatedAt": "2026-06-22T22:09:37.858Z",
+  "version": "1.6",
+  "sourceId": "osm-geofabrik-open-pois",
+  "status": "sample-fallback",
+  "featureCount": 1,
+  "features": [
+    {
+      "id": "osm-public-2",
+      "sourceFile": "data/external/osm/dubai_osm_baseline_sample.geojson",
+      "type": "Feature",
+      "properties": {
+        "name": "Dubai Marina Mall sample anchor",
+        "amenity": "retail"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          55.14,
+          25.077
+        ]
+      },
+      "caveat": "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
+    }
+  ],
+  "caveat": "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
+}

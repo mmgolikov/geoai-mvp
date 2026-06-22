@@ -1,0 +1,357 @@
+import type { PublicSourceCatalogItem } from "@/src/lib/external-data/public-source-types";
+
+export const publicDataCaveat =
+  "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.";
+
+const commonForbiddenClaims = [
+  "live DLD integration",
+  "live Dubai Pulse integration",
+  "live GeoDubai GIS",
+  "official parcel boundary",
+  "official zoning boundary",
+  "cadastral validation",
+  "ownership verification",
+  "certified valuation",
+  "certified flood risk",
+  "engineering-grade climate assessment",
+  "insurance-grade hazard model",
+  "officially suitable",
+  "approved",
+  "guaranteed best use"
+];
+
+function source(item: Omit<PublicSourceCatalogItem, "caveat" | "forbiddenClaims"> & {
+  forbiddenClaims?: string[];
+}): PublicSourceCatalogItem {
+  return {
+    ...item,
+    caveat: publicDataCaveat,
+    forbiddenClaims: item.forbiddenClaims ?? commonForbiddenClaims
+  };
+}
+
+export const publicSourceCatalog: PublicSourceCatalogItem[] = [
+  source({
+    id: "dld-dubai-pulse-public-transactions",
+    name: "DLD / Dubai Pulse public transactions snapshot",
+    provider: "Dubai Land Department / Dubai Pulse",
+    geography: "Dubai",
+    category: "real-estate",
+    accessMode: "manual-snapshot",
+    connectionStatus: "sample-fallback",
+    licenseNote: "Public/open-data terms, attribution and redistribution limits must be reviewed per downloaded file.",
+    updateCadence: "Manual snapshot / public web CSV where available",
+    dataQualityTier: "requires-validation",
+    officialClaimAllowed: false,
+    allowedUse: ["market activity proxy", "investment screening context", "source lineage"],
+    limitations: ["Manual/public snapshot only; no live official DLD API is connected."]
+  }),
+  source({
+    id: "dld-dubai-pulse-public-rents",
+    name: "DLD / Dubai Pulse public rents snapshot",
+    provider: "Dubai Land Department / Dubai Pulse",
+    geography: "Dubai",
+    category: "real-estate",
+    accessMode: "manual-snapshot",
+    connectionStatus: "sample-fallback",
+    licenseNote: "Public/open-data terms, attribution and redistribution limits must be reviewed per downloaded file.",
+    updateCadence: "Manual snapshot / public web CSV where available",
+    dataQualityTier: "requires-validation",
+    officialClaimAllowed: false,
+    allowedUse: ["rental demand proxy", "market context", "source lineage"],
+    limitations: ["Snapshot context only; not a live rent index or valuation source."]
+  }),
+  source({
+    id: "dld-dubai-pulse-public-projects",
+    name: "DLD / Dubai Pulse public projects snapshot",
+    provider: "Dubai Land Department / Dubai Pulse",
+    geography: "Dubai",
+    category: "real-estate",
+    accessMode: "manual-snapshot",
+    connectionStatus: "sample-fallback",
+    licenseNote: "Public/open-data terms, attribution and redistribution limits must be reviewed per downloaded file.",
+    updateCadence: "Manual snapshot / public web CSV where available",
+    dataQualityTier: "requires-validation",
+    officialClaimAllowed: false,
+    allowedUse: ["pipeline proxy", "development context", "source lineage"],
+    limitations: ["Project snapshot does not validate permits, completion status or official planning approval."]
+  }),
+  source({
+    id: "dld-dubai-pulse-public-land",
+    name: "DLD / Dubai Pulse public land snapshot",
+    provider: "Dubai Land Department / Dubai Pulse",
+    geography: "Dubai",
+    category: "real-estate",
+    accessMode: "manual-snapshot",
+    connectionStatus: "sample-fallback",
+    licenseNote: "Public/open-data terms, attribution and redistribution limits must be reviewed per downloaded file.",
+    updateCadence: "Manual snapshot / public web CSV where available",
+    dataQualityTier: "requires-validation",
+    officialClaimAllowed: false,
+    allowedUse: ["land-market screening context", "data readiness display"],
+    limitations: ["Does not provide official parcel boundary, ownership verification or cadastral validation."]
+  }),
+  source({
+    id: "dld-dubai-pulse-public-building",
+    name: "DLD / Dubai Pulse public building snapshot",
+    provider: "Dubai Land Department / Dubai Pulse",
+    geography: "Dubai",
+    category: "buildings",
+    accessMode: "manual-snapshot",
+    connectionStatus: "sample-fallback",
+    licenseNote: "Public/open-data terms, attribution and redistribution limits must be reviewed per downloaded file.",
+    updateCadence: "Manual snapshot / public web CSV where available",
+    dataQualityTier: "requires-validation",
+    officialClaimAllowed: false,
+    allowedUse: ["building context proxy", "asset screening support"],
+    limitations: ["Does not validate building title, ownership, condition or official approvals."]
+  }),
+  source({
+    id: "dld-dubai-pulse-public-unit",
+    name: "DLD / Dubai Pulse public unit snapshot",
+    provider: "Dubai Land Department / Dubai Pulse",
+    geography: "Dubai",
+    category: "real-estate",
+    accessMode: "manual-snapshot",
+    connectionStatus: "sample-fallback",
+    licenseNote: "Public/open-data terms, attribution and redistribution limits must be reviewed per downloaded file.",
+    updateCadence: "Manual snapshot / public web CSV where available",
+    dataQualityTier: "requires-validation",
+    officialClaimAllowed: false,
+    allowedUse: ["unit-level market screening where provided", "source lineage"],
+    limitations: ["Not a title, ownership or valuation verification source."]
+  }),
+  source({
+    id: "dld-api-gateway-permissioned",
+    name: "DLD API Gateway permissioned validation path",
+    provider: "Dubai Land Department",
+    geography: "Dubai",
+    category: "official-validation",
+    accessMode: "permissioned",
+    connectionStatus: "permission-required",
+    licenseNote: "Requires authorization, contract, API credentials and use-case approval.",
+    updateCadence: "Permissioned official API path",
+    dataQualityTier: "requires-validation",
+    officialClaimAllowed: false,
+    allowedUse: ["planned official validation roadmap"],
+    limitations: ["Rental Index, Brokers, Ejari, Trakheesi and Mollak APIs are not connected in this MVP."]
+  }),
+  source({
+    id: "osm-geofabrik-open-roads",
+    name: "OSM / Geofabrik open roads snapshot",
+    provider: "OpenStreetMap / Geofabrik",
+    geography: "Dubai / UAE",
+    category: "transport",
+    accessMode: "open-snapshot",
+    connectionStatus: "sample-fallback",
+    licenseNote: "ODbL attribution and compliance required for production use.",
+    updateCadence: "Manual open snapshot",
+    dataQualityTier: "open-context",
+    officialClaimAllowed: false,
+    allowedUse: ["accessibility proxy", "road proximity context"],
+    limitations: ["Open context only; not official municipal transport GIS."]
+  }),
+  source({
+    id: "osm-geofabrik-open-pois",
+    name: "OSM / Geofabrik open POI snapshot",
+    provider: "OpenStreetMap / Geofabrik",
+    geography: "Dubai / UAE",
+    category: "poi",
+    accessMode: "open-snapshot",
+    connectionStatus: "sample-fallback",
+    licenseNote: "ODbL attribution and compliance required for production use.",
+    updateCadence: "Manual open snapshot",
+    dataQualityTier: "open-context",
+    officialClaimAllowed: false,
+    allowedUse: ["amenity and demand-anchor context"],
+    limitations: ["Open context completeness varies by extract and contributor coverage."]
+  }),
+  source({
+    id: "osm-geofabrik-open-buildings",
+    name: "OSM / Geofabrik open buildings snapshot",
+    provider: "OpenStreetMap / Geofabrik",
+    geography: "Dubai / UAE",
+    category: "buildings",
+    accessMode: "open-snapshot",
+    connectionStatus: "sample-fallback",
+    licenseNote: "ODbL attribution and compliance required for production use.",
+    updateCadence: "Manual open snapshot",
+    dataQualityTier: "open-context",
+    officialClaimAllowed: false,
+    allowedUse: ["building-density proxy", "surrounding context"],
+    limitations: ["Not official building registry, cadastral, ownership or permit data."]
+  }),
+  source({
+    id: "overture-maps-open-buildings",
+    name: "Overture Maps buildings snapshot",
+    provider: "Overture Maps Foundation",
+    geography: "Global / Dubai",
+    category: "buildings",
+    accessMode: "public-download",
+    connectionStatus: "manual-import-ready",
+    licenseNote: "Overture dataset license and attribution terms apply.",
+    updateCadence: "Manual downloaded extract",
+    dataQualityTier: "open-context",
+    officialClaimAllowed: false,
+    allowedUse: ["open building context", "density proxy"],
+    limitations: ["Manual GeoJSON import path only; not an official Dubai building register."]
+  }),
+  source({
+    id: "overture-maps-open-places",
+    name: "Overture Maps places snapshot",
+    provider: "Overture Maps Foundation",
+    geography: "Global / Dubai",
+    category: "poi",
+    accessMode: "public-download",
+    connectionStatus: "manual-import-ready",
+    licenseNote: "Overture dataset license and attribution terms apply.",
+    updateCadence: "Manual downloaded extract",
+    dataQualityTier: "open-context",
+    officialClaimAllowed: false,
+    allowedUse: ["places and demand-anchor context"],
+    limitations: ["Completeness and classification require validation for client use."]
+  }),
+  source({
+    id: "overture-maps-open-transportation",
+    name: "Overture Maps transportation snapshot",
+    provider: "Overture Maps Foundation",
+    geography: "Global / Dubai",
+    category: "transport",
+    accessMode: "public-download",
+    connectionStatus: "manual-import-ready",
+    licenseNote: "Overture dataset license and attribution terms apply.",
+    updateCadence: "Manual downloaded extract",
+    dataQualityTier: "open-context",
+    officialClaimAllowed: false,
+    allowedUse: ["transport network context"],
+    limitations: ["Open transport context only; not official traffic or authority data."]
+  }),
+  source({
+    id: "open-meteo-climate",
+    name: "Open-Meteo climate context",
+    provider: "Open-Meteo",
+    geography: "Global / Dubai",
+    category: "climate",
+    accessMode: "api-context",
+    connectionStatus: "connected",
+    licenseNote: "Open-Meteo terms and attribution apply.",
+    updateCadence: "On-demand open API context",
+    dataQualityTier: "screening",
+    officialClaimAllowed: false,
+    allowedUse: ["heat and rainfall screening proxy"],
+    limitations: ["Not certified flood, engineering-grade climate or insurance-grade hazard assessment."]
+  }),
+  source({
+    id: "nasa-power-solar-energy",
+    name: "NASA POWER solar / energy context",
+    provider: "NASA POWER",
+    geography: "Global / Dubai",
+    category: "energy",
+    accessMode: "open-api",
+    connectionStatus: "connected",
+    licenseNote: "NASA POWER data and citation guidance apply.",
+    updateCadence: "On-demand open API context",
+    dataQualityTier: "screening",
+    officialClaimAllowed: false,
+    allowedUse: ["solar radiation, wind and energy screening context"],
+    limitations: ["Not an energy-yield certification or engineering design assessment."]
+  }),
+  source({
+    id: "openaq-air-quality",
+    name: "OpenAQ air-quality context",
+    provider: "OpenAQ",
+    geography: "Global / Dubai",
+    category: "air-quality",
+    accessMode: "open-api",
+    connectionStatus: "sample-fallback",
+    licenseNote: "OpenAQ API terms and source attribution apply.",
+    updateCadence: "On-demand API context with sample fallback",
+    dataQualityTier: "screening",
+    officialClaimAllowed: false,
+    allowedUse: ["screening-level air quality context"],
+    limitations: ["Not health-grade, regulatory-compliance or site-specific exposure assessment."]
+  }),
+  source({
+    id: "worldpop-demographics",
+    name: "WorldPop demographic context",
+    provider: "WorldPop",
+    geography: "UAE / Dubai",
+    category: "demographics",
+    accessMode: "public-download",
+    connectionStatus: "sample-fallback",
+    licenseNote: "WorldPop license, citation and redistribution terms apply by dataset.",
+    updateCadence: "Manual snapshot",
+    dataQualityTier: "screening",
+    officialClaimAllowed: false,
+    allowedUse: ["population density proxy", "catchment context"],
+    limitations: ["Not census-grade official demographic validation."]
+  }),
+  source({
+    id: "copernicus-sentinel-metadata",
+    name: "Copernicus / Sentinel metadata availability",
+    provider: "Copernicus Data Space / Sentinel",
+    geography: "Global / Dubai",
+    category: "satellite-metadata",
+    accessMode: "token-optional",
+    connectionStatus: "token-required",
+    licenseNote: "Mission/product-specific terms and API access rules apply.",
+    updateCadence: "Metadata query path planned/token optional",
+    dataQualityTier: "requires-validation",
+    officialClaimAllowed: false,
+    allowedUse: ["satellite availability planning", "future remote-sensing lineage"],
+    limitations: ["No imagery download, raster analytics or construction monitoring inference is connected."]
+  }),
+  source({
+    id: "overture-divisions-admin-context",
+    name: "Overture Maps divisions administrative context",
+    provider: "Overture Maps Foundation",
+    geography: "Global / UAE",
+    category: "administrative-boundaries",
+    accessMode: "public-download",
+    connectionStatus: "manual-import-ready",
+    licenseNote: "Overture dataset license and attribution terms apply.",
+    updateCadence: "Manual downloaded extract",
+    dataQualityTier: "open-context",
+    officialClaimAllowed: false,
+    allowedUse: ["non-official administrative context"],
+    limitations: ["Not official Dubai municipal boundary, zoning, cadastral or planning geometry."]
+  }),
+  source({
+    id: "gadm-uae-admin-context",
+    name: "GADM UAE administrative boundaries optional context",
+    provider: "GADM",
+    geography: "UAE",
+    category: "administrative-boundaries",
+    accessMode: "public-download",
+    connectionStatus: "manual-import-ready",
+    licenseNote: "GADM has license restrictions including non-commercial/permission caveats; do not use as default commercial source.",
+    updateCadence: "Manual optional snapshot",
+    dataQualityTier: "requires-validation",
+    officialClaimAllowed: false,
+    allowedUse: ["optional demo administrative context only"],
+    limitations: ["License caveat and non-official boundary status must remain visible."]
+  }),
+  source({
+    id: "geodubai-municipality-validation",
+    name: "GeoDubai / Dubai Municipality planned validation",
+    provider: "GeoDubai / Dubai Municipality",
+    geography: "Dubai",
+    category: "official-validation",
+    accessMode: "planned-validation",
+    connectionStatus: "planned",
+    licenseNote: "Requires official access, permissions and use-case-specific validation.",
+    updateCadence: "Planned official validation",
+    dataQualityTier: "requires-validation",
+    officialClaimAllowed: false,
+    allowedUse: ["validation roadmap", "source gap disclosure"],
+    limitations: ["Planned official validation only; not connected in this demo."]
+  })
+];
+
+export function getPublicSourceById(id: string) {
+  return publicSourceCatalog.find((source) => source.id === id) ?? null;
+}
+
+export function getPublicSourcesByCategory(category: PublicSourceCatalogItem["category"]) {
+  return publicSourceCatalog.filter((source) => source.category === category);
+}

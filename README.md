@@ -196,6 +196,25 @@ npm run ingest:osm:real
 
 If raw external files are missing, the scripts exit gracefully and keep existing sample/demo fallback data available. This does not connect live official DLD, Dubai Pulse, GeoDubai, parcel, zoning, cadastral or ownership systems. See [Real Data Backbone v0.7](docs/REAL_DATA_BACKBONE_V07.md).
 
+## Public Data Connectors v1.6
+
+GeoAI now includes a public/open data connector layer for DLD / Dubai Pulse public snapshots, OSM / Geofabrik, Overture Maps, Open-Meteo, NASA POWER, OpenAQ, WorldPop, Copernicus/Sentinel metadata and non-official administrative context. These connectors use manual snapshots, public/open API context, sample fallbacks and source-lineage metadata.
+
+Run:
+
+```bash
+npm run ingest:dld:public
+npm run ingest:osm:public
+npm run ingest:overture:public
+npm run ingest:worldpop:public
+npm run ingest:admin-boundaries:public
+npm run ingest:public-data:all
+```
+
+This is not a live official integration layer. Outputs remain a screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.
+
+See [Public Data Connectors v1.6](docs/PUBLIC_DATA_CONNECTORS_V16.md), [Public Data Source Register v1.6](docs/PUBLIC_DATA_SOURCE_REGISTER_V16.md), and [Data License and Caveats v1.6](docs/DATA_LICENSE_AND_CAVEATS_V16.md).
+
 ## Investor Demo Narrative & Client Pilot Package v1.5
 
 GeoAI now includes a guided investor/client narrative launcher at `/demo`. It frames the existing workspace around three buyer stories: fund/family office investment screening, developer land pipeline, and bank/lender asset review. Each narrative links to the prepared workspace, active project dashboard and client pilot package framing.

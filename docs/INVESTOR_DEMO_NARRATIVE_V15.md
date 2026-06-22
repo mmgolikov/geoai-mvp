@@ -60,6 +60,7 @@ Story: GeoAI helps a lender review location, market confidence, risk posture and
 - DLD / Dubai Pulse: snapshot available, 5 sample market-area records.
 - OSM / Geofabrik: open snapshot available, 3 sample features.
 - Open-Meteo: screening-level climate context with fallback.
+- v1.6 public connectors add category-aware public snapshots for DLD / Dubai Pulse, OSM / Geofabrik, Overture Maps, WorldPop, NASA POWER, OpenAQ and administrative context with sample/manual fallback.
 - Copernicus / Sentinel: planned metadata path only.
 - GeoDubai / Dubai Municipality: planned validation only.
 - DLD API Gateway: planned validation only.

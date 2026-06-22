@@ -1,0 +1,15 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": { "id": "worldpop-marina-sample", "areaName": "Dubai Marina", "populationDensityProxy": 78, "confidence": "sample" },
+      "geometry": { "type": "Point", "coordinates": [55.1431,25.0822] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "id": "worldpop-dubai-south-sample", "areaName": "Dubai South", "populationDensityProxy": 42, "confidence": "sample" },
+      "geometry": { "type": "Point", "coordinates": [55.1542,24.8887] }
+    }
+  ]
+}

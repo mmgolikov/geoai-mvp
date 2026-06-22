@@ -1,0 +1,80 @@
+{
+  "generatedAt": "2026-06-22T22:09:37.859Z",
+  "version": "1.6",
+  "sourceId": "overture-maps-open-buildings",
+  "status": "sample-fallback",
+  "featureCount": 2,
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "overture-building-marina-1",
+        "name": "Dubai Marina sample building cluster",
+        "source": "Overture Maps sample"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              55.136,
+              25.08
+            ],
+            [
+              55.139,
+              25.08
+            ],
+            [
+              55.139,
+              25.083
+            ],
+            [
+              55.136,
+              25.083
+            ],
+            [
+              55.136,
+              25.08
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "overture-building-business-bay-1",
+        "name": "Business Bay sample building cluster",
+        "source": "Overture Maps sample"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              55.266,
+              25.184
+            ],
+            [
+              55.27,
+              25.184
+            ],
+            [
+              55.27,
+              25.188
+            ],
+            [
+              55.266,
+              25.188
+            ],
+            [
+              55.266,
+              25.184
+            ]
+          ]
+        ]
+      }
+    }
+  ],
+  "caveat": "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
+}

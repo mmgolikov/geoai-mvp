@@ -308,15 +308,34 @@ export function AnalysisPanel({
         externalSourceStatus("osm-geofabrik-baseline")?.disclaimer
     },
     {
+      label: "Overture Maps",
+      value: externalReadinessStatus("overture-maps-open-buildings")?.status?.replace(/_/g, " ") ?? "manual import ready",
+      detail: externalReadinessStatus("overture-maps-open-buildings")?.caveat ??
+        externalSourceStatus("overture-maps-open-buildings")?.disclaimer
+    },
+    {
       label: "Open-Meteo",
       value: externalReadinessStatus("open-meteo-climate")?.status?.replace(/_/g, " ") ?? "API context / reanalysis",
       detail: externalReadinessStatus("open-meteo-climate")?.caveat ??
         externalSourceStatus("open-meteo-climate")?.disclaimer
     },
     {
+      label: "NASA POWER / OpenAQ",
+      value: `${externalReadinessStatus("nasa-power-solar-energy")?.status?.replace(/_/g, " ") ?? "API context"} / ${externalReadinessStatus("openaq-air-quality")?.status?.replace(/_/g, " ") ?? "sample fallback"}`,
+      detail: externalReadinessStatus("nasa-power-solar-energy")?.caveat ??
+        externalSourceStatus("nasa-power-solar-energy")?.disclaimer
+    },
+    {
+      label: "WorldPop",
+      value: externalReadinessStatus("worldpop-demographics")?.status?.replace(/_/g, " ") ?? "sample fallback",
+      detail: externalReadinessStatus("worldpop-demographics")?.caveat ??
+        externalSourceStatus("worldpop-demographics")?.disclaimer
+    },
+    {
       label: "Copernicus / Sentinel",
-      value: "Optional / token required",
-      detail: externalSourceStatus("copernicus-sentinel-catalog")?.disclaimer
+      value: externalReadinessStatus("copernicus-sentinel-metadata")?.status?.replace(/_/g, " ") ?? "token required",
+      detail: externalReadinessStatus("copernicus-sentinel-metadata")?.caveat ??
+        externalSourceStatus("copernicus-sentinel-metadata")?.disclaimer
     },
     {
       label: "GeoDubai / Municipality",
@@ -674,7 +693,7 @@ export function AnalysisPanel({
             ) : null}
           </CollapsedSection>
 
-          <CollapsedSection title="External Data Status" badge="v1.4">
+          <CollapsedSection title="External Data Status" badge="v1.6">
             <div className="grid gap-2">
               {externalStatusRows.map((row) => (
                 <div key={row.label} className="rounded-md border border-line bg-surface p-2.5">

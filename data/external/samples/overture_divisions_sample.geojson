@@ -1,0 +1,10 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": { "id": "admin-dubai-demo", "name": "Dubai demo administrative context", "source": "Overture divisions sample", "officialStatus": "non-official-context" },
+      "geometry": { "type": "Polygon", "coordinates": [[[54.90,24.75],[55.60,24.75],[55.60,25.35],[54.90,25.35],[54.90,24.75]]] }
+    }
+  ]
+}

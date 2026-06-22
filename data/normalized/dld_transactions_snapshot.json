@@ -1,0 +1,56 @@
+{
+  "generatedAt": "2026-06-22T22:09:37.854Z",
+  "version": "1.6",
+  "sourceId": "dld-dubai-pulse-public-transactions",
+  "status": "sample-fallback",
+  "category": "transactions",
+  "recordCount": 3,
+  "records": [
+    {
+      "id": "transactions-dubai-marina-1",
+      "category": "transactions",
+      "sourceId": "dld-dubai-pulse-public-transactions",
+      "areaName": "Dubai Marina",
+      "sourceFile": "data/external/samples/dld_transactions_sample.csv",
+      "fields": {
+        "area_name": "Dubai Marina",
+        "transaction_count": "128",
+        "value_aed": "2450000000",
+        "median_price_per_sqm": "31200",
+        "source_date": "2026-06-01"
+      },
+      "caveat": "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
+    },
+    {
+      "id": "transactions-business-bay-2",
+      "category": "transactions",
+      "sourceId": "dld-dubai-pulse-public-transactions",
+      "areaName": "Business Bay",
+      "sourceFile": "data/external/samples/dld_transactions_sample.csv",
+      "fields": {
+        "area_name": "Business Bay",
+        "transaction_count": "164",
+        "value_aed": "2180000000",
+        "median_price_per_sqm": "28400",
+        "source_date": "2026-06-01"
+      },
+      "caveat": "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
+    },
+    {
+      "id": "transactions-dubai-south-3",
+      "category": "transactions",
+      "sourceId": "dld-dubai-pulse-public-transactions",
+      "areaName": "Dubai South",
+      "sourceFile": "data/external/samples/dld_transactions_sample.csv",
+      "fields": {
+        "area_name": "Dubai South",
+        "transaction_count": "72",
+        "value_aed": "840000000",
+        "median_price_per_sqm": "14600",
+        "source_date": "2026-06-01"
+      },
+      "caveat": "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
+    }
+  ],
+  "caveat": "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
+}

@@ -671,8 +671,12 @@ export function ProjectDashboard() {
   const getReadiness = (sourceId: string) => externalReadinessById.get(sourceId) ?? manifestReadinessById.get(sourceId);
   const dldReadiness = getReadiness("dld-dubai-pulse-transactions");
   const osmReadiness = getReadiness("osm-geofabrik-baseline");
+  const overtureReadiness = getReadiness("overture-maps-open-buildings");
   const climateReadiness = getReadiness("open-meteo-climate");
-  const copernicusReadiness = getReadiness("copernicus-sentinel-catalog");
+  const solarReadiness = getReadiness("nasa-power-solar-energy");
+  const airReadiness = getReadiness("openaq-air-quality");
+  const worldpopReadiness = getReadiness("worldpop-demographics");
+  const copernicusReadiness = getReadiness("copernicus-sentinel-metadata") ?? getReadiness("copernicus-sentinel-catalog");
   const geodubaiReadiness = getReadiness("geodubai-municipality-validation");
   const marketSnapshotAvailable = marketMetrics?.sourceMode === "real_snapshot" && importedAreas > 0;
   const dldSnapshotAvailable = (
@@ -698,10 +702,34 @@ export function ProjectDashboard() {
         : osmReadiness?.caveat ?? "Open geospatial sample fallback remains active."
     },
     {
+      sourceId: "overture-maps-open-buildings",
+      source: "Overture Maps open snapshot",
+      currentStatus: compactReadinessStatus(overtureReadiness?.status),
+      caveat: overtureReadiness?.caveat ?? "Manual import ready for buildings, places and transportation open snapshots."
+    },
+    {
       sourceId: "open-meteo-climate",
       source: "Open-Meteo climate context",
       currentStatus: compactReadinessStatus(climateReadiness?.status),
       caveat: climateReadiness?.caveat ?? "Screening-level heat/rainfall proxy only."
+    },
+    {
+      sourceId: "nasa-power-solar-energy",
+      source: "NASA POWER solar / energy",
+      currentStatus: compactReadinessStatus(solarReadiness?.status),
+      caveat: solarReadiness?.caveat ?? "Screening-level solar and wind proxy only."
+    },
+    {
+      sourceId: "openaq-air-quality",
+      source: "OpenAQ air quality",
+      currentStatus: compactReadinessStatus(airReadiness?.status),
+      caveat: airReadiness?.caveat ?? "Screening-level air quality context with fallback."
+    },
+    {
+      sourceId: "worldpop-demographics",
+      source: "WorldPop demographics",
+      currentStatus: compactReadinessStatus(worldpopReadiness?.status),
+      caveat: worldpopReadiness?.caveat ?? "Population density proxy; not official census validation."
     },
     {
       sourceId: "copernicus-sentinel-catalog",

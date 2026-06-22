@@ -1,0 +1,50 @@
+{
+  "generatedAt": "2026-06-22T22:09:37.854Z",
+  "version": "1.6",
+  "source": "DLD / Dubai Pulse public snapshot",
+  "areas": [
+    {
+      "areaName": "Dubai Marina",
+      "categoryCoverage": [
+        "transactions",
+        "rents",
+        "projects",
+        "land",
+        "building",
+        "unit"
+      ],
+      "recordCount": 2276,
+      "valueProxy": 7270149200,
+      "caveat": "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
+    },
+    {
+      "areaName": "Business Bay",
+      "categoryCoverage": [
+        "transactions",
+        "rents",
+        "projects",
+        "land",
+        "building",
+        "unit"
+      ],
+      "recordCount": 2178,
+      "valueProxy": 8000134400,
+      "caveat": "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
+    },
+    {
+      "areaName": "Dubai South",
+      "categoryCoverage": [
+        "transactions",
+        "rents",
+        "projects",
+        "land",
+        "building",
+        "unit"
+      ],
+      "recordCount": 869,
+      "valueProxy": 6800086600,
+      "caveat": "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
+    }
+  ],
+  "caveat": "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
+}

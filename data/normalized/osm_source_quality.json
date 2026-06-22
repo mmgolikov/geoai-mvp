@@ -1,0 +1,30 @@
+{
+  "generatedAt": "2026-06-22T22:09:37.858Z",
+  "version": "1.6",
+  "status": "sample-fallback",
+  "inputFile": "data/external/osm/dubai_osm_baseline_sample.geojson",
+  "totalFeatures": 3,
+  "categories": {
+    "roads": {
+      "outputFile": "data/normalized/osm_roads_snapshot.json",
+      "featureCount": 1
+    },
+    "buildings": {
+      "outputFile": "data/normalized/osm_buildings_snapshot.json",
+      "featureCount": 0
+    },
+    "pois": {
+      "outputFile": "data/normalized/osm_pois_snapshot.json",
+      "featureCount": 1
+    },
+    "landuse": {
+      "outputFile": "data/normalized/osm_landuse_snapshot.json",
+      "featureCount": 1
+    },
+    "transport": {
+      "outputFile": "data/normalized/osm_transport_snapshot.json",
+      "featureCount": 0
+    }
+  },
+  "caveat": "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
+}

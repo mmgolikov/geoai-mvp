@@ -117,6 +117,24 @@ Use this checklist before demos, Vercel deployments, and milestone checkpoints.
 - [ ] UI says snapshot/sample fallback, not live official integration.
 - [ ] Evidence and reports retain official-validation-required caveats.
 
+## Public Data Connectors v1.6
+
+- [ ] `npm run ingest:dld:public` exits successfully.
+- [ ] `npm run ingest:osm:public` exits successfully.
+- [ ] `npm run ingest:overture:public` exits successfully.
+- [ ] `npm run ingest:worldpop:public` exits successfully.
+- [ ] `npm run ingest:admin-boundaries:public` exits successfully.
+- [ ] `npm run ingest:public-data:all` exits successfully.
+- [ ] `GET /api/context/spatial?lat=25.0822&lng=55.1431` returns source lineage and caveat.
+- [ ] `GET /api/context/accessibility?lat=25.0822&lng=55.1431` returns accessibility proxy.
+- [ ] `GET /api/context/demographics?lat=25.0822&lng=55.1431` returns WorldPop fallback/context.
+- [ ] `GET /api/context/air-quality?lat=25.0822&lng=55.1431` returns connected or sample fallback state.
+- [ ] `GET /api/context/solar-energy?lat=25.0822&lng=55.1431` returns connected or sample fallback state.
+- [ ] `GET /api/context/satellite-availability?bbox=55.10,25.05,55.20,25.12&from=2026-01-01&to=2026-06-01` returns metadata sample/planned state.
+- [ ] External Data Status remains compact in the workspace command panel.
+- [ ] Project Dashboard Data Readiness groups DLD/Dubai Pulse, open spatial, climate/energy, environment, demographics, satellite and official validation without overflow.
+- [ ] No live official DLD, Dubai Pulse, GeoDubai, parcel, zoning, cadastral, ownership or valuation claims appear.
+
 ## Investor Demo Narrative v1.5
 
 - [ ] `/demo` renders with three narrative cards.
