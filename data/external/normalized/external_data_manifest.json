@@ -1,61 +1,41 @@
 {
-  "generatedAt": "2026-06-21T17:40:00.450Z",
-  "version": "0.7",
-  "summary": "GeoAI Real Data Backbone v0.7 manifest.",
+  "generatedAt": "2026-06-22T20:51:14.529Z",
+  "version": "1.4",
+  "summary": "GeoAI external data manifest v1.4. Snapshot connectors are optional and fall back safely to demo/sample context.",
   "sources": [
     {
       "id": "osm-geofabrik-baseline",
-      "status": "manual-import",
-      "lastUpdated": "2026-06-21T17:40:00.450Z",
+      "status": "snapshot_available",
+      "lastUpdated": "2026-06-22T20:51:14.529Z",
       "availableFiles": [
-        "data/external/normalized/osm_ingestion_report.real.json"
+        "data/external/osm/dubai_osm_baseline_sample.geojson",
+        "data/normalized/open_geodata_snapshot.json",
+        "data/normalized/open_geodata_snapshot_quality.json"
       ],
-      "featureCount": 0,
-      "usedInAnalysis": false,
+      "featureCount": 3,
+      "recordCount": 3,
+      "coverageArea": "Dubai open geospatial baseline",
+      "confidence": "medium",
+      "usedInAnalysis": true,
+      "caveat": "OSM / Geofabrik snapshot context available; screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.",
       "disclaimer": "Open geospatial baseline; not official municipal GIS, zoning or parcel boundary data."
     },
     {
       "id": "dld-dubai-pulse-transactions",
-      "status": "manual-import",
-      "lastUpdated": "2026-06-21T17:39:56.074Z",
+      "status": "snapshot_available",
+      "lastUpdated": "2026-06-22T20:46:19.694Z",
       "availableFiles": [
-        "data/external/normalized/dld_ingestion_report.real.json"
+        "data/external/dld/dld_market_snapshot_sample.csv",
+        "data/normalized/dld_market_snapshot.json",
+        "data/normalized/dld_market_snapshot_quality.json"
       ],
-      "rowCount": 0,
-      "usedInAnalysis": false,
-      "disclaimer": "Open official dataset snapshot; not a live official transactional feed."
-    },
-    {
-      "id": "open-meteo-climate",
-      "status": "connected-api",
-      "lastUpdated": null,
-      "availableFiles": [],
-      "usedInAnalysis": false,
-      "disclaimer": "Climate context from reanalysis/model data; not a site-specific engineering or insurance assessment."
-    },
-    {
-      "id": "copernicus-sentinel-catalog",
-      "status": "not-configured",
-      "lastUpdated": null,
-      "availableFiles": [],
-      "usedInAnalysis": false,
-      "disclaimer": "Satellite imagery availability check only; analytics pipeline planned."
-    },
-    {
-      "id": "geodubai-municipality-validation",
-      "status": "planned-access",
-      "lastUpdated": null,
-      "availableFiles": [],
-      "usedInAnalysis": false,
-      "disclaimer": "Planned official validation source; not connected in this demo."
-    },
-    {
-      "id": "dld-api-gateway-validation",
-      "status": "planned-access",
-      "lastUpdated": null,
-      "availableFiles": [],
-      "usedInAnalysis": false,
-      "disclaimer": "Enterprise validation/integration path; not connected in this demo."
+      "rowCount": 5,
+      "recordCount": 5,
+      "coverageArea": "Dubai market areas",
+      "confidence": "medium",
+      "usedInAnalysis": true,
+      "caveat": "DLD / Dubai Pulse snapshot available; screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.",
+      "disclaimer": "DLD / Dubai Pulse snapshot context; not a live official transactional feed."
     }
   ]
 }

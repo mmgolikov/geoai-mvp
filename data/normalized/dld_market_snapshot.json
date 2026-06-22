@@ -1,0 +1,129 @@
+{
+  "generatedAt": "2026-06-22T20:51:14.528Z",
+  "version": "1.4",
+  "source": {
+    "id": "dld-dubai-pulse-transactions",
+    "name": "DLD / Dubai Pulse market snapshot",
+    "status": "snapshot_available",
+    "sourceType": "official-open-data",
+    "accessMode": "snapshot",
+    "disclaimer": "DLD / Dubai Pulse snapshot context; not a live official transactional feed."
+  },
+  "quality": {
+    "status": "ok",
+    "notes": [],
+    "caveat": "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
+  },
+  "areas": [
+    {
+      "id": "dubai-marina",
+      "areaName": "Dubai Marina",
+      "sourceAreaName": "Dubai Marina",
+      "transactionCount": 100,
+      "medianPriceIndex": 82,
+      "priceIndex": 82,
+      "rentalDemandIndex": 84,
+      "liquidityIndex": 79,
+      "developmentPipelineIndex": 62,
+      "riskIndex": 56,
+      "trend": "stable",
+      "confidence": "medium",
+      "sourceDate": "2026-06-01",
+      "sourceFile": "data/external/dld/dld_market_snapshot_sample.csv",
+      "sourceId": "dld-dubai-pulse-transactions",
+      "sourceMode": "dld_dubai_pulse_snapshot",
+      "limitations": [
+        "Snapshot/manual import only; no live official DLD feed is connected.",
+        "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
+      ]
+    },
+    {
+      "id": "business-bay",
+      "areaName": "Business Bay",
+      "sourceAreaName": "Business Bay",
+      "transactionCount": 100,
+      "medianPriceIndex": 78,
+      "priceIndex": 78,
+      "rentalDemandIndex": 81,
+      "liquidityIndex": 83,
+      "developmentPipelineIndex": 76,
+      "riskIndex": 59,
+      "trend": "rising",
+      "confidence": "medium",
+      "sourceDate": "2026-06-01",
+      "sourceFile": "data/external/dld/dld_market_snapshot_sample.csv",
+      "sourceId": "dld-dubai-pulse-transactions",
+      "sourceMode": "dld_dubai_pulse_snapshot",
+      "limitations": [
+        "Snapshot/manual import only; no live official DLD feed is connected.",
+        "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
+      ]
+    },
+    {
+      "id": "downtown-dubai",
+      "areaName": "Downtown Dubai",
+      "sourceAreaName": "Downtown Dubai",
+      "transactionCount": 100,
+      "medianPriceIndex": 91,
+      "priceIndex": 91,
+      "rentalDemandIndex": 87,
+      "liquidityIndex": 80,
+      "developmentPipelineIndex": 58,
+      "riskIndex": 54,
+      "trend": "stable",
+      "confidence": "medium",
+      "sourceDate": "2026-06-01",
+      "sourceFile": "data/external/dld/dld_market_snapshot_sample.csv",
+      "sourceId": "dld-dubai-pulse-transactions",
+      "sourceMode": "dld_dubai_pulse_snapshot",
+      "limitations": [
+        "Snapshot/manual import only; no live official DLD feed is connected.",
+        "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
+      ]
+    },
+    {
+      "id": "dubai-south",
+      "areaName": "Dubai South",
+      "sourceAreaName": "Dubai South",
+      "transactionCount": 96,
+      "medianPriceIndex": 64,
+      "priceIndex": 64,
+      "rentalDemandIndex": 61,
+      "liquidityIndex": 67,
+      "developmentPipelineIndex": 84,
+      "riskIndex": 63,
+      "trend": "rising",
+      "confidence": "medium",
+      "sourceDate": "2026-06-01",
+      "sourceFile": "data/external/dld/dld_market_snapshot_sample.csv",
+      "sourceId": "dld-dubai-pulse-transactions",
+      "sourceMode": "dld_dubai_pulse_snapshot",
+      "limitations": [
+        "Snapshot/manual import only; no live official DLD feed is connected.",
+        "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
+      ]
+    },
+    {
+      "id": "jumeirah-village-circle",
+      "areaName": "Jumeirah Village Circle",
+      "sourceAreaName": "Jumeirah Village Circle",
+      "transactionCount": 100,
+      "medianPriceIndex": 69,
+      "priceIndex": 69,
+      "rentalDemandIndex": 76,
+      "liquidityIndex": 86,
+      "developmentPipelineIndex": 72,
+      "riskIndex": 58,
+      "trend": "rising",
+      "confidence": "medium",
+      "sourceDate": "2026-06-01",
+      "sourceFile": "data/external/dld/dld_market_snapshot_sample.csv",
+      "sourceId": "dld-dubai-pulse-transactions",
+      "sourceMode": "dld_dubai_pulse_snapshot",
+      "limitations": [
+        "Snapshot/manual import only; no live official DLD feed is connected.",
+        "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
+      ]
+    }
+  ]
+}

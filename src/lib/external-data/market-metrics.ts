@@ -30,8 +30,37 @@ export type ExternalMarketMetricsResponse = {
 };
 
 const realMetricsPath = join(process.cwd(), "data/external/normalized/market_area_metrics.real.json");
+const dldSnapshotPath = join(process.cwd(), "data/normalized/dld_market_snapshot.json");
 
 export function readExternalMarketMetrics(): ExternalMarketMetricsResponse {
+  if (existsSync(dldSnapshotPath)) {
+    try {
+      const parsed = JSON.parse(readFileSync(dldSnapshotPath, "utf8")) as {
+        source?: ExternalMarketMetricsResponse["source"];
+        areas?: unknown[];
+      };
+      const areas = Array.isArray(parsed.areas) ? parsed.areas : [];
+
+      return {
+        sourceMode: "real_snapshot",
+        source: parsed.source ?? {
+          id: "dld-dubai-pulse-transactions",
+          name: "DLD / Dubai Pulse market snapshot",
+          status: "snapshot_available",
+          sourceType: "official-open-data",
+          disclaimer: "DLD / Dubai Pulse snapshot context; not a live official transactional feed."
+        },
+        count: areas.length,
+        areas,
+        availableAreaNames: areas.map((area) => typeof area === "object" && area !== null && "areaName" in area ? String(area.areaName) : "Unknown area"),
+        fallbackUsed: false,
+        message: "Using DLD / Dubai Pulse market snapshot. This is not a live official transactional feed."
+      };
+    } catch {
+      // Fall through to legacy real snapshot or sample fallback if the v1.4 snapshot is malformed.
+    }
+  }
+
   if (existsSync(realMetricsPath)) {
     try {
       const parsed = JSON.parse(readFileSync(realMetricsPath, "utf8")) as {

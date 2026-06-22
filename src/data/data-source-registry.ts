@@ -72,6 +72,38 @@ const baseDataSourceRegistry: DataSource[] = [
     ]
   },
   {
+    id: "dld-dubai-pulse-transactions",
+    name: "DLD / Dubai Pulse Market Snapshot",
+    category: "real_estate",
+    geography: "Dubai",
+    description: "Manual CSV/JSON snapshot connector for screening-level Dubai market context. Not a live official feed.",
+    provider: "Dubai Land Department / Dubai Pulse",
+    sourceType: "official",
+    status: "connected",
+    integrationStatus: "official_ready",
+    updateFrequency: "Manual snapshot refresh",
+    coverage: {
+      geography: "Dubai market areas where snapshot rows are available",
+      spatialResolution: "Area-level market snapshot",
+      temporalCoverage: "Snapshot-date dependent"
+    },
+    licenseNote: {
+      type: "official",
+      note: "Use depends on dataset-specific Dubai Pulse/DLD terms, attribution and redistribution limits."
+    },
+    accessNote: "Loaded from local snapshot files only; no live official API is connected.",
+    usageInGeoAI: "Used as source lineage and, when area-matched, screening-level market context.",
+    limitations: "Snapshot/manual import only; screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.",
+    recommendedNextStep: "Validate against official DLD/Dubai Pulse access path and licensed transaction semantics before client decisions.",
+    maturityLevel: "official_ready",
+    usedInCurrentPrototype: true,
+    plannedForPilot: true,
+    decisionGrade: false,
+    reliabilityLevel: "medium",
+    lastUpdated: "Snapshot-dependent",
+    usedInScenarios: ["realEstateDevelopment", "investmentSiteSelection", "customQuery"]
+  },
+  {
     id: "dubai-land-department-real-estate",
     name: "Dubai Land Department Real Estate Data",
     category: "real_estate",
@@ -208,6 +240,38 @@ const baseDataSourceRegistry: DataSource[] = [
     reliabilityLevel: "medium",
     lastUpdated: "Not connected",
     usedInScenarios: ["realEstateDevelopment", "investmentSiteSelection", "infrastructureUrbanPlanning"]
+  },
+  {
+    id: "osm-geofabrik-baseline",
+    name: "OSM / Geofabrik Snapshot Baseline",
+    category: "infrastructure",
+    geography: "Dubai / UAE",
+    description: "Local open geospatial snapshot connector for roads, POIs and land-use context. Not official municipal GIS.",
+    provider: "OpenStreetMap contributors / Geofabrik-compatible extract",
+    sourceType: "open_geospatial",
+    status: "connected",
+    integrationStatus: "official_ready",
+    updateFrequency: "Manual snapshot refresh",
+    coverage: {
+      geography: "Dubai-focused open geospatial baseline",
+      spatialResolution: "Feature-level open geometries where snapshot rows are available",
+      temporalCoverage: "Snapshot-date dependent"
+    },
+    licenseNote: {
+      type: "open",
+      note: "Requires ODbL attribution and compliance handling for production use."
+    },
+    accessNote: "Loaded from local GeoJSON snapshots only; no live OSM/Overpass call is made at runtime.",
+    usageInGeoAI: "Used for indicative road, POI, anchor and accessibility context in maps, prompts and reports.",
+    limitations: "Open geospatial context only; not official municipal GIS, zoning, cadastral, planning or parcel boundary data.",
+    recommendedNextStep: "Replace fixtures with dated OSM/Geofabrik extracts and add attribution/QA metadata.",
+    maturityLevel: "open_ready",
+    usedInCurrentPrototype: true,
+    plannedForPilot: true,
+    decisionGrade: false,
+    reliabilityLevel: "medium",
+    lastUpdated: "Snapshot-dependent",
+    usedInScenarios: ["realEstateDevelopment", "investmentSiteSelection", "infrastructureUrbanPlanning", "constructionMonitoring", "climateRisk", "customQuery"]
   },
   {
     id: "open-geodata-baseline-sample",

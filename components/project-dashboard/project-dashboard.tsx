@@ -32,6 +32,17 @@ type MarketMetricsSummary = {
   fallbackStatus: string;
 };
 
+type ExternalDataStatus = {
+  readiness?: Array<{
+    sourceId: string;
+    status: string;
+    recordCount?: number;
+    coverageArea: string;
+    confidence: string;
+    caveat: string;
+  }>;
+};
+
 type PersistedAnalysisRun = {
   id?: string;
   run_key?: string;
@@ -352,6 +363,7 @@ export function ProjectDashboard() {
   const [dbHistory, setDbHistory] = useState<RecentAnalysisRow[]>([]);
   const [dbHealth, setDbHealth] = useState<DbHealth | null>(null);
   const [marketMetrics, setMarketMetrics] = useState<MarketMetricsSummary | null>(null);
+  const [externalDataStatus, setExternalDataStatus] = useState<ExternalDataStatus | null>(null);
   const [savedReports, setSavedReports] = useState<SavedObjectSummary[]>([]);
   const [savedComparisons, setSavedComparisons] = useState<SavedObjectSummary[]>([]);
   const [projectDatasets, setProjectDatasets] = useState<SavedObjectSummary[]>([]);
@@ -368,7 +380,8 @@ export function ProjectDashboard() {
       const results = await Promise.allSettled([
         fetch("/api/projects").then((response) => response.json()),
         fetch("/api/db/health").then((response) => response.json()),
-        fetch("/api/market-metrics").then((response) => response.json())
+        fetch("/api/market-metrics").then((response) => response.json()),
+        fetch("/api/external-data/status").then((response) => response.json())
       ]);
 
       if (cancelled) return;
@@ -387,6 +400,11 @@ export function ProjectDashboard() {
       const marketResult = results[2];
       if (marketResult.status === "fulfilled") {
         setMarketMetrics(marketResult.value as MarketMetricsSummary);
+      }
+
+      const externalStatusResult = results[3];
+      if (externalStatusResult.status === "fulfilled") {
+        setExternalDataStatus(externalStatusResult.value as ExternalDataStatus);
       }
     }
 
@@ -543,6 +561,18 @@ export function ProjectDashboard() {
     ? scopedSavedComparisons
     : seededDemoComparisonSummaries.filter((comparison) => comparison.projectKey === activeProject.projectKey);
   const importedAreas = marketMetrics?.count ?? 0;
+  const externalReadinessById = new Map(
+    (externalDataStatus?.readiness ?? []).map((item) => [item.sourceId, item])
+  );
+  const projectReadinessRows = sourceReadinessMatrix.slice(0, 5).map((source) => {
+    const mappedSourceId = source.sourceId === "osm-geofabrik" ? "osm-geofabrik-baseline" : source.sourceId;
+    const readiness = externalReadinessById.get(mappedSourceId);
+
+    return {
+      ...source,
+      currentStatus: readiness?.status?.replace(/_/g, " ") ?? source.currentStatus
+    };
+  });
   const demoMarketAreas = marketMetrics?.availableAreaNames?.length ?? 6;
   const dataConfidence = importedAreas > 0 ? "Sample/offline" : "Seed fallback";
   const dataConfidenceNote = importedAreas > 0
@@ -853,7 +883,7 @@ export function ProjectDashboard() {
                       </p>
                     </div>
                     <span className="shrink-0 rounded-full bg-white px-2 py-1 text-xs font-semibold text-brand">
-                      sample
+                      {marketMetrics?.sourceMode === "real_snapshot" ? "snapshot" : "fallback"}
                     </span>
                   </div>
                 </div>
@@ -864,7 +894,7 @@ export function ProjectDashboard() {
                   </p>
                 </div>
                 <div className="grid gap-2">
-                  {sourceReadinessMatrix.slice(0, 5).map((source) => (
+                  {projectReadinessRows.map((source) => (
                     <div key={source.sourceId} className="flex items-center justify-between gap-3 rounded-md bg-surface px-3 py-2 text-sm">
                       <span className="min-w-0 truncate font-medium text-ink">{source.source}</span>
                       <span className="shrink-0 text-xs font-semibold text-muted">{source.currentStatus}</span>

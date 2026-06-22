@@ -1,0 +1,39 @@
+{
+  "type": "FeatureCollection",
+  "name": "GeoAI Dubai OSM-style baseline sample",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Sheikh Zayed Road sample corridor",
+        "highway": "primary"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [[55.118, 25.065], [55.16, 25.092], [55.205, 25.126], [55.268, 25.188]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Dubai Marina Mall sample anchor",
+        "amenity": "retail"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [55.14, 25.077]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Dubai Marina mixed-use sample context",
+        "landuse": "mixed_use"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[55.13, 25.068], [55.157, 25.07], [55.159, 25.091], [55.134, 25.092], [55.13, 25.068]]]
+      }
+    }
+  ]
+}

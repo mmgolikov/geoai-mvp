@@ -103,6 +103,8 @@ Do not commit real tokens. `.env`, `.env.local`, and `.env*.local` are ignored.
 npm run dev
 npm run dev:turbo
 npm run build
+npm run ingest:dld:snapshot
+npm run ingest:osm:snapshot
 npm run start
 ```
 
@@ -176,6 +178,14 @@ See [Data Credibility v0.5](docs/DATA_CREDIBILITY_V05.md) for the upload schema,
 ## Real Data Backbone v0.7
 
 GeoAI now includes the first Real Data Backbone layer for external source metadata, graceful snapshot ingestion and source-lineage visibility. It supports manual DLD / Dubai Pulse CSV snapshot normalization, prepared OSM / Geofabrik GeoJSON baseline normalization, Open-Meteo climate context routing, Copernicus/Sentinel connector status, and planned official validation paths for GeoDubai / Dubai Municipality and DLD API Gateway.
+
+## Real External Data Integration v1.4
+
+GeoAI now includes snapshot connector commands and a stricter external Source Registry foundation for DLD / Dubai Pulse market snapshots, OSM / Geofabrik-style open geospatial snapshots, Open-Meteo climate context, Copernicus/Sentinel metadata availability, and planned official validation paths.
+
+This is not a live official integration. Snapshot outputs remain screening context only: official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.
+
+See [Real External Data Integration v1.4](docs/REAL_EXTERNAL_DATA_INTEGRATION_V14.md).
 
 Run:
 

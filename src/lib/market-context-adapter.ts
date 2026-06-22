@@ -1,4 +1,5 @@
 import { dubaiMarketAreas } from "@/src/data/dubai-market-areas";
+import { findDldMarketSnapshotForArea } from "@/src/lib/external-data/dld-snapshot";
 import { getMarketAggregateForArea } from "@/src/lib/market-data-ingestion";
 import type {
   AreaMatchResult,
@@ -128,14 +129,18 @@ function createGeneralDubaiContext(match: AreaMatchResult): MarketContext {
 }
 
 function createAreaContext(area: MarketArea, match: AreaMatchResult): MarketContext {
-  const aggregate = getMarketAggregateForArea(area.name);
+  const snapshotAggregate = findDldMarketSnapshotForArea(area.name);
+  const aggregate = snapshotAggregate ?? getMarketAggregateForArea(area.name);
+  const sourceLabel = aggregate?.sourceMode === "dld_dubai_pulse_snapshot"
+    ? "DLD / Dubai Pulse snapshot"
+    : "Seed_static";
   const marketActivityLevel = aggregate
     ? metric(
         "Market activity",
         aggregate.activityIndex >= 75 ? "high" : aggregate.activityIndex >= 55 ? "medium" : "low",
         aggregate.activityIndex,
         aggregate.trend,
-        `Seed_static activity index for ${area.name}; not official market evidence.`
+        `${sourceLabel} activity index for ${area.name}; official validation is still required.`
       )
     : area.marketActivityLevel;
   const rentContext = aggregate
@@ -144,7 +149,7 @@ function createAreaContext(area: MarketArea, match: AreaMatchResult): MarketCont
         aggregate.rentalDemandIndex >= 75 ? "high" : aggregate.rentalDemandIndex >= 55 ? "medium" : "low",
         aggregate.rentalDemandIndex,
         aggregate.trend,
-        `Seed_static rental demand index for ${area.name}; requires official and licensed validation.`
+        `${sourceLabel} rental demand index for ${area.name}; requires official and licensed validation.`
       )
     : area.rentContext;
   const transactionContext = aggregate
@@ -153,7 +158,7 @@ function createAreaContext(area: MarketArea, match: AreaMatchResult): MarketCont
         aggregate.liquidityIndex >= 75 ? "high" : aggregate.liquidityIndex >= 55 ? "medium" : "low",
         aggregate.liquidityIndex,
         aggregate.trend,
-        `Seed_static liquidity index for ${area.name}; no exact transaction values are included.`
+        `${sourceLabel} liquidity index for ${area.name}; no legal, valuation or transaction conclusion is made.`
       )
     : area.transactionContext;
   const developmentPipelineContext = aggregate
@@ -162,7 +167,7 @@ function createAreaContext(area: MarketArea, match: AreaMatchResult): MarketCont
         aggregate.developmentPipelineIndex >= 75 ? "high" : aggregate.developmentPipelineIndex >= 55 ? "medium" : "low",
         aggregate.developmentPipelineIndex,
         aggregate.trend,
-        `Seed_static development pipeline index for ${area.name}; phasing must be validated.`
+        `${sourceLabel} development pipeline index for ${area.name}; phasing must be validated.`
       )
     : area.developmentPipelineContext;
   const riskContext = aggregate
@@ -171,7 +176,7 @@ function createAreaContext(area: MarketArea, match: AreaMatchResult): MarketCont
         aggregate.riskIndex >= 70 ? "high" : aggregate.riskIndex >= 50 ? "medium" : "low",
         aggregate.riskIndex,
         aggregate.trend,
-        `Seed_static risk index for ${area.name}; due diligence is still required.`
+        `${sourceLabel} risk index for ${area.name}; due diligence is still required.`
       )
     : area.riskContext;
 
