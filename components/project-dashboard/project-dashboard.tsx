@@ -548,14 +548,21 @@ export function ProjectDashboard() {
                   {recentRows.map((item) => (
                     <article key={item.id} className="rounded-md border border-line bg-surface p-4">
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                        <div>
-                          <h3 className="font-semibold text-ink">{item.title}</h3>
-                          <p className="mt-1 text-sm leading-5 text-muted">{item.scenarioLabel} / {formatTimestamp(item.timestamp)}</p>
+                        <div className="min-w-0">
+                          <h3 className="safe-line-1 font-semibold text-ink">{item.title}</h3>
+                          <p className="safe-line-1 mt-1 text-sm leading-5 text-muted">{item.scenarioLabel} / {formatTimestamp(item.timestamp)}</p>
                         </div>
-                        <div className="flex shrink-0 flex-wrap items-center gap-2">
-                          <span className="w-fit rounded-full bg-white px-3 py-1 text-xs font-semibold text-brand">
-                            {item.source}
-                          </span>
+                        <div className="flex shrink-0 items-center justify-end gap-2">
+                          <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
+                            {item.customQuery ? (
+                              <span className="safe-line-1 max-w-[150px] rounded-full bg-[#fff9e8] px-2 py-1 text-[11px] font-semibold text-[#6f5817]">
+                                Custom query analysis
+                              </span>
+                            ) : null}
+                            <span className="safe-line-1 max-w-[92px] rounded-full bg-white px-3 py-1 text-xs font-semibold text-brand">
+                              {item.source}
+                            </span>
+                          </div>
                           <Link
                             href={item.canOpenAnalysis && item.analysis
                               ? `/workspace?openAnalysis=${encodeURIComponent(item.analysis.id)}&projectKey=${encodeURIComponent(item.projectKey ?? activeProject.projectKey)}`
@@ -564,15 +571,10 @@ export function ProjectDashboard() {
                               writeActiveProjectKey(item.projectKey ?? activeProject.projectKey);
                               writeOpenAnalysisRequest(item);
                             }}
-                            className="inline-flex h-8 items-center rounded-md border border-line bg-white px-3 text-xs font-semibold text-ink transition hover:border-brand"
+                            className="inline-flex h-8 shrink-0 items-center rounded-md border border-line bg-white px-3 text-xs font-semibold text-ink transition hover:border-brand"
                           >
                             {item.canOpenAnalysis ? "Open analysis" : "Open workspace"}
                           </Link>
-                          {item.customQuery ? (
-                            <span className="w-fit rounded-full bg-[#fff9e8] px-2 py-1 text-[11px] font-semibold text-[#6f5817]">
-                              Custom query analysis
-                            </span>
-                          ) : null}
                         </div>
                       </div>
                       <div className="mt-3 grid gap-2 text-sm md:grid-cols-3">
