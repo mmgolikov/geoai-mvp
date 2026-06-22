@@ -213,7 +213,7 @@ npm run ingest:public-data:all
 
 This is not a live official integration layer. Outputs remain a screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.
 
-See [Public Data Connectors v1.6](docs/PUBLIC_DATA_CONNECTORS_V16.md), [Public Data Source Register v1.6](docs/PUBLIC_DATA_SOURCE_REGISTER_V16.md), and [Data License and Caveats v1.6](docs/DATA_LICENSE_AND_CAVEATS_V16.md).
+See [GeoAI Public Data Ready Demo v1.6 Release Note](docs/RELEASE_GEOAI_PUBLIC_DATA_READY_DEMO_V16.md), [Public Data Connectors v1.6](docs/PUBLIC_DATA_CONNECTORS_V16.md), [Public Data Source Register v1.6](docs/PUBLIC_DATA_SOURCE_REGISTER_V16.md), and [Data License and Caveats v1.6](docs/DATA_LICENSE_AND_CAVEATS_V16.md).
 
 ## Investor Demo Narrative & Client Pilot Package v1.5
 
@@ -282,6 +282,7 @@ Current export remains browser print/save as PDF. GeoAI does not generate server
 - [Data Credibility v0.5](docs/DATA_CREDIBILITY_V05.md)
 - [Real Data Backbone v0.7](docs/REAL_DATA_BACKBONE_V07.md)
 - [GeoAI Data-Ready Demo RC v1.4 Release Note](docs/RELEASE_GEOAI_DATA_READY_DEMO_RC_V14.md)
+- [GeoAI Public Data Ready Demo v1.6 Release Note](docs/RELEASE_GEOAI_PUBLIC_DATA_READY_DEMO_V16.md)
 - [Persistence & Project Workspace v0.8](docs/PERSISTENCE_PROJECT_WORKSPACE_V08.md)
 - [Project-Scoped Persistence v13](docs/PROJECT_SCOPED_PERSISTENCE_V13.md)
 - [Pilot Readiness & Client Delivery Package v1.1](docs/PILOT_READINESS_CLIENT_PACKAGE_V11.md)
