@@ -14,6 +14,8 @@ The pilot readiness package helps a client and GeoAI agree:
 - which evidence sources are demo/open/customer-provided;
 - which official or customer-approved validation steps remain before decisions.
 
+The current stabilized release is investor/client demo-ready, not pilot-ready by itself. Pilot use still requires customer-approved data, validation sources, security review, and agreed operating scope.
+
 ## Pilot Packages
 
 ### Developer / Master Developer Site Screening Pilot

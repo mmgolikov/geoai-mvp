@@ -70,11 +70,11 @@ export async function POST(request: Request) {
 
   return NextResponse.json({
     ok: result.ok,
-    mode: result.mode === "db" ? "supabase" : "local-fallback",
-    persisted: result.ok,
+    mode: result.mode === "db" ? "supabase" : "local_fallback",
+    persisted: result.mode === "db" && result.ok,
     item: result.data,
     error: result.error,
-    message: result.mode === "db" ? "Comparison set persisted." : "Comparison set saved to local fallback."
+    message: result.mode === "db" ? "Comparison set persisted." : "Comparison set kept in local fallback; server-side demo storage is not durable."
   });
 }
 

@@ -7,7 +7,7 @@ export function PrintButton() {
       className="inline-flex h-10 items-center rounded-md bg-brand px-4 text-sm font-semibold text-white transition hover:bg-[#113f50]"
       onClick={() => window.print()}
     >
-      Print / Save PDF
+      Print / Save as PDF
     </button>
   );
 }

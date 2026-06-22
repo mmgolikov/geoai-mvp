@@ -98,7 +98,12 @@ export function detectCustomQueryIntent(query: string): CustomQueryIntent {
       "what to build",
       "best use",
       "build here",
-      "develop here"
+      "develop here",
+      "logistics or residential",
+      "residential or logistics",
+      "logistics vs residential",
+      "residential vs logistics",
+      "use class"
     ])
   ) {
     intent = "what_to_build";
@@ -144,6 +149,9 @@ export function detectCustomQueryIntent(query: string): CustomQueryIntent {
       "what should we validate",
       "what should a bank validate",
       "bank validate",
+      "bank financing",
+      "bank finance",
+      "financing",
       "lender"
     ])
   ) {
@@ -197,6 +205,21 @@ export function detectCustomQueryIntent(query: string): CustomQueryIntent {
     confidence = "medium";
   } else if (
     includesAny(normalized, [
+      "best elite options",
+      "elite options",
+      "premium option",
+      "premium options",
+      "premium positioning",
+      "luxury",
+      "branded residence",
+      "branded residences",
+      "waterfront luxury",
+      "элит",
+      "премиум",
+      "люкс",
+      "люксов",
+      "брендирован",
+      "vip",
       "подходит",
       "suitable",
       "suitability",

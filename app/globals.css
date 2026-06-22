@@ -100,6 +100,46 @@ body {
   -webkit-line-clamp: 4;
 }
 
+.safe-line-1,
+.safe-line-2,
+.safe-line-3,
+.safe-line-4 {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  min-width: 0;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.safe-line-1 {
+  -webkit-line-clamp: 1;
+}
+
+.safe-line-2 {
+  -webkit-line-clamp: 2;
+}
+
+.safe-line-3 {
+  -webkit-line-clamp: 3;
+}
+
+.safe-line-4 {
+  -webkit-line-clamp: 4;
+}
+
+.safe-card-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
+.safe-card-value {
+  min-width: 0;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
 @media screen {
   .print-only {
     display: none !important;

@@ -188,9 +188,11 @@ If raw external files are missing, the scripts exit gracefully and keep existing
 
 ## Persistence & Project Workspace v0.8
 
-GeoAI now has a local-first MVP persistence foundation. Analysis runs, report payloads, comparison sets and uploaded dataset metadata can be saved through API routes and associated with the active project. Supabase/PostGIS remains optional; when it is not configured, GeoAI uses a lightweight local fallback for demo/MVP continuity.
+GeoAI now has a local-first MVP persistence foundation. Analysis runs, report payloads, comparison sets and uploaded dataset metadata can be saved through API routes and associated with the active project. Supabase/PostGIS remains optional; when it is not configured, GeoAI returns non-blocking local fallback responses and relies on browser/local demo state for continuity. Vercel serverless fallback storage is non-durable and must not be treated as production persistence.
 
 This is not production-ready persistence. There is no auth, multi-tenant security, production file storage or validated official source governance yet. See [Persistence & Project Workspace v0.8](docs/PERSISTENCE_PROJECT_WORKSPACE_V08.md).
+
+Project dashboard records are scoped by active project. See [Project-Scoped Persistence v13](docs/PROJECT_SCOPED_PERSISTENCE_V13.md).
 
 ## Pilot Readiness & Client Delivery Package v1.1
 
@@ -243,9 +245,12 @@ Current export remains browser print/save as PDF. GeoAI does not generate server
 - [Data Credibility v0.5](docs/DATA_CREDIBILITY_V05.md)
 - [Real Data Backbone v0.7](docs/REAL_DATA_BACKBONE_V07.md)
 - [Persistence & Project Workspace v0.8](docs/PERSISTENCE_PROJECT_WORKSPACE_V08.md)
+- [Project-Scoped Persistence v13](docs/PROJECT_SCOPED_PERSISTENCE_V13.md)
 - [Pilot Readiness & Client Delivery Package v1.1](docs/PILOT_READINESS_CLIENT_PACKAGE_V11.md)
 - [Report Export & Client Deliverables v0.9](docs/REPORT_EXPORT_DELIVERABLES_V09.md)
 - [UI Layout Guardrails](docs/UI_LAYOUT_GUARDRAILS.md)
+- [UI Release Freeze v1.0](docs/UI_RELEASE_FREEZE_V10.md)
+- [Custom Query Intelligence v1.2](docs/CUSTOM_QUERY_INTELLIGENCE_V12.md)
 - [MVP UI System Hardening v1.0.1](docs/MVP_UI_HARDENING_V101.md)
 - [Demo Release Candidate v0.6.1](docs/DEMO_RC_V061.md)
 - [Audit QA — 2026-06-18](docs/AUDIT_QA_2026-06-18.md)

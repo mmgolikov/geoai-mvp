@@ -4,6 +4,8 @@ Date: 2026-06-22
 
 GeoAI Custom Query Intelligence v1.2 makes the Custom Query field a real analysis modifier for single-site analysis, comparison, report preview and printable reports. It remains deterministic and useful without OpenAI.
 
+Important UX rule: Custom Query does not create a standalone dashboard report block. It acts as an analysis lens that updates the existing Executive Summary, Screening Signals, Key Factors, Opportunities, Risks, Next Actions, Evidence and limitations.
+
 ## Intent Model
 
 The intent detector lives in `src/lib/custom-query/query-intent.ts`.
@@ -39,6 +41,7 @@ English examples:
 - `Should we invest?` -> `investment_decision`
 - `What are the risks?` -> `risk_review`
 - `What should a bank validate before financing this asset?` -> `due_diligence`
+- `best elite options` -> `site_suitability`
 - `Which site is better?` -> `comparison_preference`
 
 ## Deterministic Fallback
@@ -73,7 +76,7 @@ If OpenAI is missing, unavailable or returns invalid JSON, the deterministic ans
 
 ## Report Integration
 
-Single-object analysis now includes a `Custom Query Response` block when a custom query exists. The block appears in:
+Single-object analysis stores the structured custom-query answer as metadata and merges its content into existing memo sections. The effect appears in:
 
 - Express Analysis dashboard
 - report preview
@@ -83,7 +86,7 @@ Single-object analysis now includes a `Custom Query Response` block when a custo
 
 ## Comparison Integration
 
-Comparison now includes a `Custom Comparison Response` block when a custom query exists. It does not replace the winner/recommendation; it adds a query-specific layer explaining:
+Comparison stores the structured custom-query answer as metadata and merges its content into existing comparison sections. It does not replace the winner/recommendation; it strengthens:
 
 - recommended option
 - why it wins
@@ -100,6 +103,7 @@ Custom Query Intelligence must use screening language only:
 - subject to validation
 - based on available demo/sample/uploaded/open context
 - not a legal, cadastral, zoning, title, valuation or approval conclusion
+- exact release caveat: "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
 
 It must not claim:
 
@@ -117,8 +121,8 @@ It must not claim:
 - Risk query produces risk-focused answer.
 - Comparison preference query produces query-specific comparison response.
 - Comparison what-to-build query differentiates development concepts across sites.
-- Report preview includes Custom Query Response / Custom Comparison Response.
-- Printable report includes the query response after export/reload.
+- Report preview updates existing memo content with the query lens and does not show a standalone custom-query block.
+- Printable report includes query-refined memo content after export/reload.
 - CTA returns to Export Report or Export Comparison after Continue.
 - Editing the query makes the visible result stale and changes CTA back to Continue.
 - `npm run build` passes.

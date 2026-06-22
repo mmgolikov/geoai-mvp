@@ -78,7 +78,7 @@ export async function POST(request: Request) {
   return NextResponse.json({
     ok: result.ok,
     persisted: result.mode === "db" && result.ok,
-    mode: result.mode,
+    mode: result.mode === "db" ? "supabase" : "local_fallback",
     runKey: body.runKey,
     project: project?.data ?? null,
     data: result.data,

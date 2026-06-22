@@ -11,7 +11,7 @@ export async function listUploadedDatasetRecords(filters: { projectId?: string |
 
 export async function saveUploadedDatasetRecord(input: UploadedDatasetRecordInput): Promise<DbRepositoryResult<UploadedDatasetRecord>> {
   const result = localCreate<UploadedDatasetRecord>("uploaded-datasets", input);
-  return { ok: true, mode: "local_only", data: result.data, error: null };
+  return { ok: true, mode: "local_only", data: result.data, error: result.error };
 }
 
 export async function deleteUploadedDatasetRecord(id: string): Promise<DbRepositoryResult<boolean>> {

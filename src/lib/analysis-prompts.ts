@@ -202,10 +202,11 @@ Return JSON matching exactly this shape:
     "validationNeeded": ["2-4 official/customer-approved validation needs"],
     "nextActions": ["2-4 concrete next actions"],
     "sourceBasis": ["2-4 source/data basis notes"],
-    "confidenceNote": "screening-only caveat; not legal, cadastral, zoning, valuation or approval conclusion"
+    "confidenceNote": "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
   }
 }
 
 Use 4-6 key_factors, 3-4 opportunities, 3-4 risks, 3-5 recommended_actions, and 3-5 evidence_notes. Include custom_query_answer only when a custom query is provided.
+Every report/custom-query answer must preserve this caveat: screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.
 `.trim();
 }

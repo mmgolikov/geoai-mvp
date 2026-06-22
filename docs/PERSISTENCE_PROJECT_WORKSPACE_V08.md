@@ -19,7 +19,7 @@ Each saved analysis, report and comparison carries a source-lineage snapshot. Th
 
 ## Local Fallback Behavior
 
-When Supabase is not configured, API routes use a lightweight JSON-backed local fallback under `data/local-fallback/*.json`. These runtime files are ignored by Git. The app remains usable without Supabase:
+When Supabase is not configured, API routes return a graceful `local_fallback` / `local-fallback` response and echo enough payload for the client/browser flow to continue. In local Node development, a lightweight JSON-backed fallback may write under `data/local-fallback/*.json`; in Vercel serverless runtime it uses a defensive temporary runtime path and must be treated as non-durable. These runtime files are ignored by Git. The app remains usable without Supabase:
 
 - Analysis runs can be saved/listed through `/api/analysis-runs`.
 - Reports can be saved/listed through `/api/reports`.
@@ -53,7 +53,7 @@ If Supabase is not configured, `/api/db/health` should continue to state that Su
 - `POST /api/uploaded-datasets`
 - `DELETE /api/uploaded-datasets?id=<id>`
 
-All routes return local fallback responses when Supabase is not available.
+All routes return local fallback responses when Supabase is not available. POST routes must not fail with `ENOENT`; if server-side fallback storage is unavailable, they return a successful non-blocking response with `persisted: false`, local fallback mode, and the echoed payload.
 
 ## Workspace Behavior
 
@@ -81,7 +81,7 @@ Saved objects remain demo/local unless externally validated. v0.8 does not add l
 - No authentication or multi-tenant security.
 - No production file/blob storage.
 - No server-generated PDF library.
-- Local JSON fallback is for MVP/demo continuity, not production data governance.
+- Local JSON/runtime fallback is for MVP/demo continuity, not production data governance. Vercel fallback storage is non-durable and browser/local state remains the canonical demo safety net when Supabase is absent.
 - Comparison/report reopening is API-supported, but a full in-app report library is still future work.
 - Supabase schema alignment is prepared, but production use requires deployment, RLS/security review and QA.
 

@@ -12,7 +12,7 @@
     "ingest:open-geodata": "node scripts/ingest-open-geodata-sample.mjs",
     "ingest:osm:real": "node scripts/ingest-osm-geofabrik.mjs",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "tsc --noEmit --pretty false"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.50.0",

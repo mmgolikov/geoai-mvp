@@ -102,6 +102,7 @@ type PersistedAnalysisRun = {
 
 type OpenAnalysisRequest = {
   analysisId?: string;
+  projectId?: string | null;
   projectKey?: string;
   scenarioId?: AnalysisScenarioId;
   customQuery?: string;
@@ -332,6 +333,22 @@ function readActiveProjectKey() {
   }
 }
 
+function readProjectKeyFromUrl(projects: GeoAIProject[]) {
+  const params = new URLSearchParams(window.location.search);
+  const projectKey = params.get("projectKey");
+  const projectId = params.get("projectId");
+
+  if (projectKey) {
+    return projectKey;
+  }
+
+  if (!projectId) {
+    return null;
+  }
+
+  return projects.find((project) => project.id === projectId || project.projectKey === projectId)?.projectKey ?? null;
+}
+
 function writeActiveProjectKey(projectKey: string) {
   try {
     window.localStorage.setItem(activeProjectStorageKey, projectKey);
@@ -372,6 +389,14 @@ function createTargetSignature(point: SelectedPoint | null, object: SelectedDemo
 
 function createComparisonSignature(items: ComparisonItem[]) {
   return items.map((item) => item.id).sort().join("|");
+}
+
+function hasPendingQueryChange(currentQuery: string, lastQuery: string) {
+  if (!currentQuery) {
+    return false;
+  }
+
+  return currentQuery !== lastQuery;
 }
 
 function readUploadedDatasets() {
@@ -589,7 +614,7 @@ export function WorkspaceShell() {
       return;
     }
 
-    const projectKey = params.get("projectKey");
+    const projectKey = params.get("projectKey") ?? readProjectKeyFromUrl(demoProjects);
     const restoreRequest = readOpenAnalysisRequest();
     const requestedAnalysis = restoreRequest?.analysis;
     const scenario = analysisScenarios.find((item) => item.id === requestedAnalysis?.scenarioId);
@@ -636,7 +661,8 @@ export function WorkspaceShell() {
   }, []);
 
   useEffect(() => {
-    const storedProjectKey = readActiveProjectKey();
+    const requestedProjectKey = readProjectKeyFromUrl(demoProjects);
+    const storedProjectKey = requestedProjectKey ?? readActiveProjectKey();
     const localProject = getDemoProject(storedProjectKey);
     let isMounted = true;
 
@@ -650,8 +676,9 @@ export function WorkspaceShell() {
         }
 
         const nextProjects = payload.items;
+        const urlProjectKey = readProjectKeyFromUrl(nextProjects);
         const nextActiveProject =
-          nextProjects.find((project) => project.projectKey === storedProjectKey) ?? nextProjects[0];
+          nextProjects.find((project) => project.projectKey === (urlProjectKey ?? storedProjectKey)) ?? nextProjects[0];
 
         setProjects(nextProjects);
         setProjectsMode(payload.mode);
@@ -1426,53 +1453,53 @@ export function WorkspaceShell() {
   const isAnalysisUpToDate = Boolean(
     analysis &&
       lastAnalyzedState &&
-      lastAnalyzedState.query === currentQuery &&
+      !hasPendingQueryChange(currentQuery, lastAnalyzedState.query) &&
       lastAnalyzedState.scenarioId === selectedScenario &&
       lastAnalyzedState.targetSignature === currentTargetSignature
   );
   const isComparisonUpToDate = Boolean(
     comparison &&
       lastComparedState &&
-      lastComparedState.query === currentQuery &&
+      !hasPendingQueryChange(currentQuery, lastComparedState.query) &&
       lastComparedState.scenarioId === selectedScenario &&
       lastComparedState.comparisonSignature === currentComparisonSignature
   );
   const primaryCtaState = comparison
     ? isComparisonUpToDate
       ? {
-          label: isExporting ? "Exporting..." : "Export",
+          label: isExporting ? "Exporting..." : "Export Comparison",
           disabled: isExporting || isAnalyzing,
           action: () => {
             void exportPrintableReport("comparison");
           }
         }
       : {
-          label: isAnalyzing ? "Continuing..." : "Continue",
+          label: isAnalyzing ? "Continuing..." : "Continue Comparison",
           disabled: isAnalyzing || comparisonItems.length < 2,
           action: runComparison
         }
     : comparisonItems.length >= 2
       ? {
-          label: "Compare",
+          label: "Compare Selected",
           disabled: isAnalyzing,
           action: runComparison
         }
       : analysis
         ? isAnalysisUpToDate
           ? {
-              label: isExporting ? "Exporting..." : "Export",
+              label: isExporting ? "Exporting..." : "Export Report",
               disabled: isExporting || isAnalyzing,
               action: () => {
                 void exportPrintableReport("analysis");
               }
             }
           : {
-              label: isAnalyzing ? "Continuing..." : "Continue",
+              label: isAnalyzing ? "Continuing..." : "Continue Analysis",
               disabled: !selectedPoint || isAnalyzing,
               action: runExpressAnalysis
             }
         : {
-            label: isAnalyzing ? "Analyzing..." : "Analyze",
+            label: isAnalyzing ? "Analyzing..." : "Run Express Analysis",
             disabled: !selectedPoint || isAnalyzing,
             action: runExpressAnalysis
           };

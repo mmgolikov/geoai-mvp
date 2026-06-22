@@ -2,46 +2,164 @@ import { createMockComparison, createComparisonItem } from "@/src/lib/mock-compa
 import { createMockExpressAnalysis, analysisScenarios } from "@/src/lib/mock-express-analysis";
 import { createSourceLineageSnapshot } from "@/src/lib/source-lineage-snapshot";
 import { demoProjects } from "@/src/data/demo-projects";
-import type { ComparisonResult, ExpressAnalysis } from "@/src/types/geo";
+import type { AnalysisScenarioId, ComparisonResult, ExpressAnalysis, SelectedDemoObject, SelectedPoint } from "@/src/types/geo";
 
 const createdAt = "2026-06-21T10:00:00.000Z";
-const project = demoProjects[0];
-const marinaPoint = { latitude: 25.0822, longitude: 55.1431 };
-const businessBayPoint = { latitude: 25.1853, longitude: 55.2685 };
-const dubaiSouthPoint = { latitude: 24.8887, longitude: 55.1542 };
+
+const investmentProject = demoProjects.find((project) => project.projectKey === "dubai-investment-screening-demo") ?? demoProjects[0];
+const developerProject = demoProjects.find((project) => project.projectKey === "developer-land-pipeline-demo") ?? demoProjects[0];
+const bankProject = demoProjects.find((project) => project.projectKey === "bank-asset-review-demo") ?? demoProjects[0];
+
+const points = {
+  marina: { latitude: 25.0822, longitude: 55.1431 },
+  businessBay: { latitude: 25.1853, longitude: 55.2685 },
+  dubaiSouth: { latitude: 24.8887, longitude: 55.1542 },
+  jvcJvt: { latitude: 25.0618, longitude: 55.2035 },
+  mbrCity: { latitude: 25.1646, longitude: 55.3156 },
+  meydan: { latitude: 25.1569, longitude: 55.3008 }
+} satisfies Record<string, SelectedPoint>;
 
 function scenarioLabel(id: ExpressAnalysis["scenarioId"]) {
-  return analysisScenarios.find((scenario) => scenario.id === id)?.label ?? "Investment Site Selection";
+  return analysisScenarios.find((scenario) => scenario.id === id)?.label ?? "Scenario analysis";
 }
 
-export const seededDemoAnalysis: ExpressAnalysis = {
-  ...createMockExpressAnalysis(marinaPoint, "investmentSiteSelection", "Prepared investor walkthrough for Dubai Marina screening.", undefined),
-  id: "seeded-analysis-dubai-marina",
-  project,
-  generatedAt: createdAt,
-  analysisMode: "mock_fallback",
-  confidenceLevel: "medium"
-};
+function demoObject(id: string, name: string, layerName: string, layerId: SelectedDemoObject["layerId"], center: SelectedPoint): SelectedDemoObject {
+  return {
+    id,
+    name,
+    type: "Demo project asset",
+    layerId,
+    layerName,
+    geometryType: "polygon",
+    center
+  };
+}
 
-const comparisonItems = [
-  createComparisonItem(marinaPoint, null, "investmentSiteSelection"),
-  createComparisonItem(businessBayPoint, null, "investmentSiteSelection"),
-  createComparisonItem(dubaiSouthPoint, null, "investmentSiteSelection")
+function makeAnalysis(input: {
+  id: string;
+  title: string;
+  point: SelectedPoint;
+  scenarioId: AnalysisScenarioId;
+  project: typeof demoProjects[number];
+  customQuery?: string;
+  selectedObject?: SelectedDemoObject;
+}) {
+  return {
+    ...createMockExpressAnalysis(input.point, input.scenarioId, input.customQuery ?? "", input.selectedObject),
+    id: input.id,
+    title: input.title,
+    project: input.project,
+    generatedAt: createdAt,
+    analysisMode: "mock_fallback" as const,
+    confidenceLevel: "medium" as const
+  };
+}
+
+const marinaObject = demoObject("seed-marina-jbr", "Dubai Marina / JBR Market Signal", "Premium Real Estate Areas", "premiumRealEstateAreas", points.marina);
+const businessBayObject = demoObject("seed-business-bay", "Business Bay Infill Opportunity", "Premium Real Estate Areas", "premiumRealEstateAreas", points.businessBay);
+const dubaiSouthObject = demoObject("seed-dubai-south-growth", "Dubai South Growth Node", "Development Zones", "developmentZones", points.dubaiSouth);
+const jvcJvtObject = demoObject("seed-jvc-jvt", "JVC / JVT Residential Pipeline Signal", "Development Zones", "developmentZones", points.jvcJvt);
+const mbrCityObject = demoObject("seed-mbr-city", "Meydan / MBR City Collateral Review", "Asset Parcel Objects", "assetParcelObjects", points.mbrCity);
+
+export const seededDemoAnalysis: ExpressAnalysis = makeAnalysis({
+  id: "seeded-analysis-dubai-marina",
+  title: "Dubai Marina / JBR Market Signal",
+  point: points.marina,
+  scenarioId: "investmentSiteSelection",
+  project: investmentProject,
+  customQuery: "Prepared investor walkthrough for Dubai Marina screening.",
+  selectedObject: marinaObject
+});
+
+const investmentBusinessBayAnalysis = makeAnalysis({
+  id: "seeded-analysis-business-bay-infill",
+  title: "Business Bay Infill Opportunity",
+  point: points.businessBay,
+  scenarioId: "investmentSiteSelection",
+  project: investmentProject,
+  selectedObject: businessBayObject
+});
+
+const developerDubaiSouthAnalysis = makeAnalysis({
+  id: "seeded-analysis-dubai-south-growth",
+  title: "Dubai South Growth Node",
+  point: points.dubaiSouth,
+  scenarioId: "realEstateDevelopment",
+  project: developerProject,
+  selectedObject: dubaiSouthObject
+});
+
+const developerJvcAnalysis = makeAnalysis({
+  id: "seeded-analysis-jvc-jvt-pipeline",
+  title: "JVC / JVT Residential Pipeline Signal",
+  point: points.jvcJvt,
+  scenarioId: "realEstateDevelopment",
+  project: developerProject,
+  selectedObject: jvcJvtObject
+});
+
+const bankMbrAnalysis = makeAnalysis({
+  id: "seeded-analysis-mbr-collateral",
+  title: "Meydan / MBR City Collateral Review",
+  point: points.mbrCity,
+  scenarioId: "customQuery",
+  project: bankProject,
+  customQuery: "Review collateral context, evidence confidence and lender-facing gaps.",
+  selectedObject: mbrCityObject
+});
+
+const bankBusinessBayAnalysis = makeAnalysis({
+  id: "seeded-analysis-business-bay-asset-gap",
+  title: "Business Bay Asset Evidence Gap",
+  point: points.businessBay,
+  scenarioId: "customQuery",
+  project: bankProject,
+  customQuery: "Identify source gaps before using this asset context in a credit memo.",
+  selectedObject: businessBayObject
+});
+
+const investmentComparisonItems = [
+  createComparisonItem(points.marina, marinaObject, "investmentSiteSelection"),
+  createComparisonItem(points.businessBay, businessBayObject, "investmentSiteSelection"),
+  createComparisonItem(points.dubaiSouth, dubaiSouthObject, "investmentSiteSelection")
+];
+
+const developerComparisonItems = [
+  createComparisonItem(points.dubaiSouth, dubaiSouthObject, "realEstateDevelopment"),
+  createComparisonItem(points.jvcJvt, jvcJvtObject, "realEstateDevelopment"),
+  createComparisonItem(points.mbrCity, mbrCityObject, "realEstateDevelopment")
+];
+
+const bankComparisonItems = [
+  createComparisonItem(points.mbrCity, mbrCityObject, "customQuery"),
+  createComparisonItem(points.businessBay, businessBayObject, "customQuery")
 ];
 
 export const seededDemoComparison: ComparisonResult = {
-  ...createMockComparison(comparisonItems, "Rank investor-ready Dubai alternatives for a controlled demo."),
+  ...createMockComparison(investmentComparisonItems, "Dubai Marina vs Business Bay vs Dubai South investor shortlist."),
   id: "seeded-comparison-dubai-shortlist",
-  project
+  project: investmentProject
 };
 
-function analysisReportPayload(analysis: ExpressAnalysis) {
+const developerComparison: ComparisonResult = {
+  ...createMockComparison(developerComparisonItems, "Dubai South vs JVC/JVT vs MBR City development pipeline."),
+  id: "seeded-comparison-developer-pipeline",
+  project: developerProject
+};
+
+const bankComparison: ComparisonResult = {
+  ...createMockComparison(bankComparisonItems, "MBR City vs Business Bay collateral evidence context."),
+  id: "seeded-comparison-bank-collateral",
+  project: bankProject
+};
+
+function analysisReportPayload(analysis: ExpressAnalysis, title: string) {
   return {
     analysisRunId: analysis.id,
     runKey: analysis.id,
-    project,
-    title: "Express Analysis / Investment Memo",
-    selectedSite: analysis.selectedObject?.name ?? "Dubai Marina Demo Site",
+    project: analysis.project,
+    title,
+    selectedSite: analysis.selectedObject?.name ?? "Demo selected site",
     selectedObject: analysis.selectedObject ?? null,
     coordinates: analysis.point,
     scenario: analysis.title,
@@ -59,10 +177,10 @@ function analysisReportPayload(analysis: ExpressAnalysis) {
   };
 }
 
-function comparisonReportPayload(comparison: ComparisonResult) {
+function comparisonReportPayload(comparison: ComparisonResult, title: string) {
   return {
-    title: "Site Comparison Investment Memo",
-    project,
+    title,
+    project: comparison.project,
     comparedItems: comparison.items.map((item) => ({
       name: item.item.name,
       type: item.item.itemType,
@@ -95,39 +213,81 @@ function comparisonReportPayload(comparison: ComparisonResult) {
   };
 }
 
-export const seededDemoReportRecords = [
-  {
-    id: "seeded-analysis-dubai-marina-report",
-    projectId: null,
-    projectKey: project.projectKey,
+function analysisReportRecord(id: string, analysis: ExpressAnalysis, title: string, sourceSummary: string) {
+  return {
+    id,
+    projectId: analysis.project?.id ?? null,
+    projectKey: analysis.project?.projectKey ?? null,
     reportType: "analysis" as const,
-    title: "Dubai Marina Investment Screening Memo",
-    scenario: seededDemoAnalysis.title,
-    targetLabel: "Dubai Marina Demo Site",
-    reportPayload: analysisReportPayload(seededDemoAnalysis),
+    title,
+    scenario: analysis.title,
+    targetLabel: analysis.selectedObject?.name ?? analysis.title,
+    reportPayload: analysisReportPayload(analysis, title),
     sourceLineage: createSourceLineageSnapshot({
-      evidence: seededDemoAnalysis.evidence,
+      evidence: analysis.evidence,
       uploadedDatasets: []
     }),
     createdAt,
-    sourceSummary: "Demo example / sample-offline evidence; official validation required."
-  },
-  {
-    id: "seeded-comparison-dubai-shortlist-report",
-    projectId: null,
-    projectKey: project.projectKey,
+    sourceSummary
+  };
+}
+
+function comparisonReportRecord(id: string, comparison: ComparisonResult, title: string, sourceSummary: string) {
+  return {
+    id,
+    projectId: comparison.project?.id ?? null,
+    projectKey: comparison.project?.projectKey ?? null,
     reportType: "comparison" as const,
-    title: "Dubai Shortlist Comparison Memo",
+    title,
     scenario: "Comparison",
-    targetLabel: seededDemoComparison.items.map((item) => item.item.name).join(", "),
-    reportPayload: comparisonReportPayload(seededDemoComparison),
+    targetLabel: comparison.items.map((item) => item.item.name).join(", "),
+    reportPayload: comparisonReportPayload(comparison, title),
     sourceLineage: createSourceLineageSnapshot({
-      evidence: seededDemoComparison.evidence,
+      evidence: comparison.evidence,
       uploadedDatasets: []
     }),
     createdAt,
-    sourceSummary: "Demo comparison example / sample-offline evidence; official validation required."
-  }
+    sourceSummary
+  };
+}
+
+export const seededDemoReportRecords = [
+  analysisReportRecord(
+    "seeded-analysis-dubai-marina-report",
+    seededDemoAnalysis,
+    "Investment Screening Memo",
+    "Dubai Investment Screening Demo / sample-offline evidence; official validation required."
+  ),
+  comparisonReportRecord(
+    "seeded-comparison-dubai-shortlist-report",
+    seededDemoComparison,
+    "Dubai Marina vs Business Bay vs Dubai South Comparison Memo",
+    "Investment shortlist comparison / sample-offline evidence; official validation required."
+  ),
+  analysisReportRecord(
+    "seeded-analysis-dubai-south-development-report",
+    developerDubaiSouthAnalysis,
+    "Development Screening Memo",
+    "Developer Land Pipeline Demo / demo-normalized planning context; official validation required."
+  ),
+  comparisonReportRecord(
+    "seeded-comparison-developer-pipeline-report",
+    developerComparison,
+    "Dubai South vs JVC/JVT vs MBR City Development Memo",
+    "Developer pipeline comparison / demo-normalized evidence; official validation required."
+  ),
+  analysisReportRecord(
+    "seeded-analysis-mbr-collateral-report",
+    bankMbrAnalysis,
+    "Collateral Context Memo",
+    "Bank Asset Review Demo / evidence confidence review; official validation required."
+  ),
+  comparisonReportRecord(
+    "seeded-comparison-bank-collateral-report",
+    bankComparison,
+    "MBR City vs Business Bay Collateral Context Memo",
+    "Bank collateral context comparison / source confidence review; official validation required."
+  )
 ];
 
 export function getSeededDemoReportRecord(reportId: string) {
@@ -135,42 +295,54 @@ export function getSeededDemoReportRecord(reportId: string) {
 }
 
 export const seededDemoRecentAnalyses = [
-  {
-    id: "seeded-recent-analysis-marina",
-    title: "Dubai Marina Demo Site",
-    scenarioLabel: scenarioLabel(seededDemoAnalysis.scenarioId),
-    timestamp: createdAt,
-    decisionPosture: "Proceed with conditions",
-    confidence: "medium",
-    dataConfidence: "Demo example / sample-offline",
-    source: "local" as const,
-    analysis: seededDemoAnalysis
-  },
-  {
-    id: "seeded-recent-analysis-dubai-south",
-    title: "Dubai South Growth Node",
-    scenarioLabel: "Real Estate Development",
-    timestamp: createdAt,
-    decisionPosture: "Validation required before decisions",
-    confidence: "medium",
-    dataConfidence: "Demo example / sample-offline",
-    source: "local" as const,
-    analysis: {
-      ...createMockExpressAnalysis(dubaiSouthPoint, "realEstateDevelopment", "Demo development pipeline screening.", undefined),
-      id: "seeded-analysis-dubai-south",
-      project,
-      generatedAt: createdAt,
-      analysisMode: "mock_fallback" as const,
-      confidenceLevel: "medium" as const
-    }
-  }
-];
+  seededDemoAnalysis,
+  investmentBusinessBayAnalysis,
+  developerDubaiSouthAnalysis,
+  developerJvcAnalysis,
+  bankMbrAnalysis,
+  bankBusinessBayAnalysis
+].map((analysis) => ({
+  id: `seeded-recent-${analysis.id}`,
+  title: analysis.title,
+  scenarioLabel: analysis.scenarioId === "customQuery" && analysis.project?.projectKey === bankProject.projectKey
+    ? "Asset Portfolio Intelligence"
+    : scenarioLabel(analysis.scenarioId),
+  timestamp: createdAt,
+  decisionPosture: analysis.project?.projectKey === bankProject.projectKey
+    ? "Evidence validation required"
+    : "Proceed with conditions",
+  confidence: "medium" as const,
+  dataConfidence: "Demo example / sample-offline",
+  source: "local" as const,
+  analysis
+}));
 
 export const seededDemoComparisonSummaries = [
   {
-    id: "seeded-comparison-dubai-shortlist",
-    title: "Dubai Shortlist Comparison",
+    id: seededDemoComparison.id,
+    reportId: "seeded-comparison-dubai-shortlist-report",
+    projectId: seededDemoComparison.project?.id ?? null,
+    projectKey: seededDemoComparison.project?.projectKey ?? null,
+    title: "Dubai Marina vs Business Bay vs Dubai South",
     createdAt,
     sourceSummary: `Best option: ${seededDemoComparison.winner.item.name}. Demo example / official validation required.`
+  },
+  {
+    id: developerComparison.id,
+    reportId: "seeded-comparison-developer-pipeline-report",
+    projectId: developerComparison.project?.id ?? null,
+    projectKey: developerComparison.project?.projectKey ?? null,
+    title: "Dubai South vs JVC/JVT vs MBR City",
+    createdAt,
+    sourceSummary: `Best option: ${developerComparison.winner.item.name}. Demo example / official validation required.`
+  },
+  {
+    id: bankComparison.id,
+    reportId: "seeded-comparison-bank-collateral-report",
+    projectId: bankComparison.project?.id ?? null,
+    projectKey: bankComparison.project?.projectKey ?? null,
+    title: "MBR City vs Business Bay Collateral Context",
+    createdAt,
+    sourceSummary: `Best option: ${bankComparison.winner.item.name}. Demo example / official validation required.`
   }
 ];

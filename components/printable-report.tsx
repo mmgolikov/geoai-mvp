@@ -150,39 +150,6 @@ function UploadedDataPrintBlock({ analysis }: { analysis: ExpressAnalysis }) {
   );
 }
 
-function CustomQueryPrintBlock({
-  title,
-  answer
-}: {
-  title: string;
-  answer: NonNullable<ExpressAnalysis["customQueryAnswer"]>;
-}) {
-  return (
-    <PrintSection title={title}>
-      <PrintCard>
-        <strong>{answer.question}</strong>
-        <p>{answer.shortAnswer}</p>
-        <small>{answer.recommendation}</small>
-        <small>{answer.confidenceNote}</small>
-      </PrintCard>
-      <div className="print-score-grid">
-        <PrintCard>
-          <strong>Why this makes sense</strong>
-          <small>{answer.reasoning.slice(0, 3).join(" ")}</small>
-        </PrintCard>
-        <PrintCard>
-          <strong>Validation needed</strong>
-          <small>{answer.validationNeeded.slice(0, 4).join(" ")}</small>
-        </PrintCard>
-        <PrintCard>
-          <strong>Next actions</strong>
-          <small>{answer.nextActions.slice(0, 4).join(" ")}</small>
-        </PrintCard>
-      </div>
-    </PrintSection>
-  );
-}
-
 function AnalysisPrintable({ analysis }: { analysis: ExpressAnalysis }) {
   const analysisMode = analysis.analysisMode === "openai" ? "AI-generated" : "Demo fallback";
   const siteName = analysis.selectedObject?.name ?? "Custom map point";
@@ -229,10 +196,6 @@ function AnalysisPrintable({ analysis }: { analysis: ExpressAnalysis }) {
       <PrintSection title="Executive Summary">
         <p>{analysis.summary}</p>
       </PrintSection>
-
-      {analysis.customQueryAnswer ? (
-        <CustomQueryPrintBlock title="Custom Query Response" answer={analysis.customQueryAnswer} />
-      ) : null}
 
       <PrintSection title="Score Overview">
         <div className="print-score-grid">
@@ -363,10 +326,6 @@ function ComparisonPrintable({ comparison }: { comparison: ComparisonResult }) {
           <p>{comparison.whenAnotherMayBeBetter}</p>
         </PrintCard>
       </PrintSection>
-
-      {comparison.customQueryAnswer ? (
-        <CustomQueryPrintBlock title="Custom Comparison Response" answer={comparison.customQueryAnswer} />
-      ) : null}
 
       <PrintSection title="Score Overview">
         <table className="print-table">

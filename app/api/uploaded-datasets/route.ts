@@ -49,7 +49,14 @@ export async function POST(request: Request) {
   }
 
   const result = await saveUploadedDatasetRecord(body);
-  return NextResponse.json({ ok: true, mode: "local-fallback", item: result.data, message: "Uploaded dataset metadata saved to local fallback." });
+  return NextResponse.json({
+    ok: true,
+    persisted: false,
+    mode: "local_fallback",
+    item: result.data,
+    error: result.error,
+    message: "Uploaded dataset metadata kept in local fallback; official validation and durable storage are not connected."
+  });
 }
 
 export async function DELETE(request: Request) {
