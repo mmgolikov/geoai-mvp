@@ -5,11 +5,12 @@ import { demoLayers, getDemoFeatureById } from "@/src/data/demo-layers";
 import { openGeodataBaseline } from "@/src/lib/open-geodata";
 import type { OpenLanduseFeature, OpenPoiFeature, OpenRoadFeature } from "@/src/lib/open-geodata";
 import type { Map as MapboxMap, Marker as MapboxMarker } from "mapbox-gl";
-import type { AnalysisTarget, ComparisonResult, SelectedDemoObject, SelectedPoint } from "@/src/types/geo";
+import type { AnalysisTarget, ComparisonResult, SelectedDemoObject, SelectedPoint, UserDrawnAoi } from "@/src/types/geo";
 
 type ReportMapPreviewProps = {
   selectedPoint?: SelectedPoint | null;
   selectedObject?: SelectedDemoObject | null;
+  selectedAoi?: UserDrawnAoi | null;
   analysisTarget?: AnalysisTarget | null;
   comparison?: ComparisonResult;
   compact?: boolean;
@@ -81,6 +82,7 @@ function formatFallbackLabel(label: string) {
 function getMarkers({
   selectedPoint,
   selectedObject,
+  selectedAoi,
   comparison
 }: ReportMapPreviewProps): MapMarker[] {
   if (comparison) {
@@ -90,14 +92,36 @@ function getMarkers({
     }));
   }
 
-  const point = selectedObject?.center ?? selectedPoint;
-  return point ? [{ label: selectedObject?.name ?? "Selected point", point }] : [];
+  const point = selectedAoi?.centroid ?? selectedObject?.center ?? selectedPoint;
+  return point ? [{ label: selectedAoi?.name ?? selectedObject?.name ?? "Selected point", point }] : [];
 }
 
-function getSelectedFeatures(selectedObject?: SelectedDemoObject | null, comparison?: ComparisonResult) {
+function aoiToFeature(aoi: UserDrawnAoi): GeoJSON.Feature {
+  return {
+    type: "Feature",
+    id: aoi.id,
+    properties: {
+      id: aoi.id,
+      name: aoi.name,
+      fillColor: "#174f63",
+      strokeColor: "#0b5a6e"
+    },
+    geometry: aoi.geometry
+  };
+}
+
+function getSelectedFeatures(
+  selectedObject?: SelectedDemoObject | null,
+  comparison?: ComparisonResult,
+  selectedAoi?: UserDrawnAoi | null
+) {
   if (comparison) {
     return comparison.items
       .map((item) => {
+        if (item.item.selectedAoi) {
+          return aoiToFeature(item.item.selectedAoi);
+        }
+
         const target = item.item.selectedObject?.analysisTarget;
         if (target?.geometry) {
           return {
@@ -117,6 +141,10 @@ function getSelectedFeatures(selectedObject?: SelectedDemoObject | null, compari
         return demoId ? getDemoFeatureById(demoId) : null;
       })
       .filter(Boolean) as GeoJSON.Feature[];
+  }
+
+  if (selectedAoi) {
+    return [aoiToFeature(selectedAoi)];
   }
 
   const target = selectedObject?.analysisTarget;
@@ -272,6 +300,7 @@ function FallbackMap({
 export function ReportMapPreview({
   selectedPoint = null,
   selectedObject = null,
+  selectedAoi = null,
   analysisTarget = null,
   comparison,
   compact = false
@@ -283,8 +312,8 @@ export function ReportMapPreview({
   const mapboxToken = getMapboxToken();
   const canUseMapbox = hasUsableMapboxToken(mapboxToken);
   const markers = useMemo(
-    () => getMarkers({ selectedPoint, selectedObject, comparison }),
-    [comparison, selectedObject, selectedPoint]
+    () => getMarkers({ selectedPoint, selectedObject, selectedAoi, comparison }),
+    [comparison, selectedAoi, selectedObject, selectedPoint]
   );
   const selectedFeatures = useMemo(
     () => analysisTarget?.geometry
@@ -301,14 +330,14 @@ export function ReportMapPreview({
             geometry: analysisTarget.geometry
           } satisfies GeoJSON.Feature
         ]
-      : getSelectedFeatures(selectedObject, comparison),
-    [analysisTarget, comparison, selectedObject]
+      : getSelectedFeatures(selectedObject, comparison, selectedAoi),
+    [analysisTarget, comparison, selectedAoi, selectedObject]
   );
   const mapKey = [
-    selectedObject?.id ?? "point",
+    selectedAoi?.id ?? selectedObject?.id ?? "point",
     analysisTarget?.id ?? "no-target",
-    selectedPoint?.latitude ?? selectedObject?.center.latitude ?? "no-lat",
-    selectedPoint?.longitude ?? selectedObject?.center.longitude ?? "no-lng",
+    selectedPoint?.latitude ?? selectedAoi?.centroid.latitude ?? selectedObject?.center.latitude ?? "no-lat",
+    selectedPoint?.longitude ?? selectedAoi?.centroid.longitude ?? selectedObject?.center.longitude ?? "no-lng",
     comparison?.id ?? "single"
   ].join(":");
 
@@ -344,7 +373,7 @@ export function ReportMapPreview({
           container: containerRef.current,
           style: "mapbox://styles/mapbox/streets-v12",
           center,
-          zoom: comparison ? 9.65 : selectedObject ? 11.8 : 11.2,
+          zoom: comparison ? 9.65 : selectedAoi || selectedObject ? 11.8 : 11.2,
           interactive: true,
           attributionControl: false,
           preserveDrawingBuffer: true
@@ -496,7 +525,7 @@ export function ReportMapPreview({
             if (isPointLike) {
               map.easeTo({
                 center: [selectedBounds.minLng, selectedBounds.minLat],
-                zoom: comparison ? 9.8 : selectedObject ? 12.2 : 11.2,
+                zoom: comparison ? 9.8 : selectedAoi || selectedObject ? 12.2 : 11.2,
                 duration: 0
               });
             } else {
@@ -540,7 +569,7 @@ export function ReportMapPreview({
       mapRef.current?.remove();
       mapRef.current = null;
     };
-  }, [canUseMapbox, compact, comparison, mapKey, mapboxToken, markers, selectedFeatures, selectedObject]);
+  }, [canUseMapbox, compact, comparison, mapKey, mapboxToken, markers, selectedAoi, selectedFeatures, selectedObject]);
 
   if (!canUseMapbox) {
     return <FallbackMap markers={markers} selectedFeatures={selectedFeatures} message="Mapbox token not configured" />;

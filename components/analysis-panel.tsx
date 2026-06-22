@@ -7,6 +7,7 @@ import { DataReadinessCard } from "@/components/data-readiness";
 import { getScenarioDataSources } from "@/src/data/data-source-registry";
 import type { DemoNarrative } from "@/src/data/demo-narratives";
 import { sourceStatusToLabel } from "@/src/lib/external-data/source-status";
+import { formatArea, formatPerimeter } from "@/src/lib/polygon-aoi";
 import { getPilotPackageForProject } from "@/src/lib/pilot/pilot-packages";
 import type { GeoAIProject } from "@/src/lib/db/types";
 import type { MarketMetricsMatch } from "@/src/lib/market-metrics/types";
@@ -18,7 +19,8 @@ import type {
   ComparisonItem,
   ExpressAnalysis,
   SelectedDemoObject,
-  SelectedPoint
+  SelectedPoint,
+  UserDrawnAoi
 } from "@/src/types/geo";
 import type { GuidedDemoPreset } from "@/src/data/guided-demo";
 import type { UploadedDataset } from "@/src/types/uploaded-data";
@@ -26,6 +28,7 @@ import type { UploadedDataset } from "@/src/types/uploaded-data";
 type AnalysisPanelProps = {
   selectedPoint: SelectedPoint | null;
   selectedObject: SelectedDemoObject | null;
+  selectedAoi: UserDrawnAoi | null;
   projects: GeoAIProject[];
   projectsMode: "db" | "local_demo";
   activeProject: GeoAIProject;
@@ -165,6 +168,7 @@ function CollapsedSection({
 export function AnalysisPanel({
   selectedPoint,
   selectedObject,
+  selectedAoi,
   projects,
   projectsMode,
   activeProject,
@@ -210,6 +214,7 @@ export function AnalysisPanel({
   const [externalDataStatus, setExternalDataStatus] = useState<ExternalDataStatusResponse | null>(null);
   const hasSelectedPoint = selectedPoint !== null;
   const hasSelectedObject = selectedObject !== null;
+  const hasSelectedAoi = selectedAoi !== null;
   const scenario = scenarios.find((item) => item.id === selectedScenario) ?? scenarios[0];
   const isCustomQuery = selectedScenario === "customQuery";
   const availableSources = getScenarioDataSources(selectedScenario).slice(0, 3);
@@ -409,17 +414,21 @@ export function AnalysisPanel({
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">
-                  {hasSelectedObject ? "Selected object" : "Selected point"}
+                  {hasSelectedAoi ? "Selected AOI" : hasSelectedObject ? "Selected object" : "Selected point"}
                 </p>
                 <h2 className="mt-1 truncate text-base font-semibold text-ink">
-                  {hasSelectedObject
+                  {hasSelectedAoi
+                    ? selectedAoi.name
+                    : hasSelectedObject
                     ? selectedObject.name
                     : hasSelectedPoint
                       ? "Custom map selection"
                       : "No point selected"}
                 </h2>
                 <p className="mt-1 truncate text-xs leading-5 text-muted">
-                  {hasSelectedObject
+                  {hasSelectedAoi
+                    ? "User-drawn polygon / validation required"
+                    : hasSelectedObject
                     ? selectedObject.spatialContext?.datasetName ?? selectedObject.layerName
                     : hasSelectedPoint
                       ? "Map point / user selection"
@@ -427,7 +436,7 @@ export function AnalysisPanel({
                 </p>
               </div>
               <span className="shrink-0 rounded-full bg-white px-2 py-1 text-[11px] font-semibold text-brand">
-                {hasSelectedObject ? "Object" : "Point"}
+                {hasSelectedAoi ? "AOI" : hasSelectedObject ? "Object" : "Point"}
               </span>
             </div>
 
@@ -447,17 +456,47 @@ export function AnalysisPanel({
               <div className="min-w-0 rounded-md bg-white px-2 py-2">
                 <dt className="text-muted">Type</dt>
                 <dd className="mt-1 truncate font-semibold text-ink">
-                  {hasSelectedObject ? selectedObject.type : "Point"}
+                  {hasSelectedAoi ? "Polygon AOI" : hasSelectedObject ? selectedObject.type : "Point"}
                 </dd>
               </div>
               <div className="min-w-0 rounded-md bg-white px-2 py-2">
                 <dt className="text-muted">Confidence</dt>
                 <dd className="mt-1 truncate font-semibold text-ink">
-                  {selectedObject?.analysisTarget?.type === "uploaded-feature"
+                  {hasSelectedAoi
+                    ? "validation req."
+                    : selectedObject?.analysisTarget?.type === "uploaded-feature"
                     ? "validation req."
                     : selectedObject?.spatialContext?.confidenceLevel ?? (hasSelectedPoint ? "user" : "-")}
                 </dd>
               </div>
+              {hasSelectedAoi ? (
+                <>
+                  <div className="min-w-0 rounded-md bg-white px-2 py-2">
+                    <dt className="text-muted">Area</dt>
+                    <dd className="mt-1 truncate font-semibold text-ink">
+                      {formatArea(selectedAoi.measurements.areaSqM)}
+                    </dd>
+                  </div>
+                  <div className="min-w-0 rounded-md bg-white px-2 py-2">
+                    <dt className="text-muted">Perimeter</dt>
+                    <dd className="mt-1 truncate font-semibold text-ink">
+                      {formatPerimeter(selectedAoi.measurements.perimeterM)}
+                    </dd>
+                  </div>
+                  <div className="min-w-0 rounded-md bg-white px-2 py-2">
+                    <dt className="text-muted">Vertices</dt>
+                    <dd className="mt-1 truncate font-semibold text-ink">
+                      {selectedAoi.measurements.vertexCount}
+                    </dd>
+                  </div>
+                  <div className="min-w-0 rounded-md bg-white px-2 py-2">
+                    <dt className="text-muted">Source</dt>
+                    <dd className="mt-1 truncate font-semibold text-ink">
+                      user drawn
+                    </dd>
+                  </div>
+                </>
+              ) : null}
             </dl>
           </section>
 

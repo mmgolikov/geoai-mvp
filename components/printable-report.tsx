@@ -4,6 +4,7 @@ import { getDataSourceById } from "@/src/data/data-source-registry";
 import ingestionReport from "@/data/normalized/ingestion_report.json";
 import { deriveDataConfidenceLevel } from "@/src/data/data-maturity";
 import { deriveDecisionPosture, deriveDecisionRationale } from "@/src/lib/decision-posture";
+import { formatArea, formatPerimeter } from "@/src/lib/polygon-aoi";
 import type { ComparisonResult, ExpressAnalysis, ScoreKey } from "@/src/types/geo";
 
 type PrintableReportProps =
@@ -152,7 +153,7 @@ function UploadedDataPrintBlock({ analysis }: { analysis: ExpressAnalysis }) {
 
 function AnalysisPrintable({ analysis }: { analysis: ExpressAnalysis }) {
   const analysisMode = analysis.analysisMode === "openai" ? "AI-generated" : "Demo fallback";
-  const siteName = analysis.selectedObject?.name ?? "Custom map point";
+  const siteName = analysis.selectedAoi?.name ?? analysis.selectedObject?.name ?? "Custom map point";
   const coordinates = formatCoordinate(analysis.point.latitude, analysis.point.longitude);
   const constraints = analysis.risks.slice(0, 4);
   const valueDrivers = analysis.keyFactors.slice(0, 6);
@@ -251,6 +252,20 @@ function AnalysisPrintable({ analysis }: { analysis: ExpressAnalysis }) {
             <PrintCard><strong>Geometry</strong><span>{analysis.selectedObject.spatialContext.geometryType}</span></PrintCard>
             <PrintCard><strong>Source status</strong><span>{analysis.selectedObject.spatialContext.sourceStatus}</span></PrintCard>
           </div>
+        </PrintSection>
+      ) : null}
+
+      {analysis.selectedAoi ? (
+        <PrintSection title="User-Drawn AOI Details">
+          <div className="print-score-grid">
+            <PrintCard><strong>Geometry</strong><span>Polygon AOI</span></PrintCard>
+            <PrintCard><strong>Area</strong><span>{formatArea(analysis.selectedAoi.measurements.areaSqM)}</span></PrintCard>
+            <PrintCard><strong>Perimeter</strong><span>{formatPerimeter(analysis.selectedAoi.measurements.perimeterM)}</span></PrintCard>
+            <PrintCard><strong>Vertices</strong><span>{analysis.selectedAoi.measurements.vertexCount}</span></PrintCard>
+            <PrintCard><strong>Source</strong><span>user_drawn_polygon</span></PrintCard>
+            <PrintCard><strong>Status</strong><span>official validation required</span></PrintCard>
+          </div>
+          <p>{analysis.selectedAoi.limitations[0]}</p>
         </PrintSection>
       ) : null}
 

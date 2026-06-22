@@ -52,6 +52,22 @@ Use this checklist before demos, Vercel deployments, and milestone checkpoints.
 - [ ] Right panel shows object name, type, layer, and coordinates.
 - [ ] User can run Express Analysis for selected object.
 
+## Polygon AOI Drawing v1.7
+
+- [ ] `Add polygon` starts explicit drawing mode.
+- [ ] Clicking vertices draws a boundary line.
+- [ ] Moving the cursor shows a live preview segment.
+- [ ] Clicking near the first vertex closes the polygon.
+- [ ] Vertex handles are visible only during drawing.
+- [ ] `Undo vertex` removes the last vertex.
+- [ ] `Cancel` and `Esc` exit drawing mode.
+- [ ] Invalid/self-intersecting polygons are rejected with a clear message.
+- [ ] Accepted AOI shows area, perimeter, vertices, source and validation status in the command panel.
+- [ ] Express Analysis works for the user-drawn AOI.
+- [ ] Report preview and print route include AOI measurements and validation caveat.
+- [ ] Comparison supports adding a user-drawn AOI.
+- [ ] Point and demo object selection still work after deleting the AOI.
+
 ## Scenario Analysis
 
 - [ ] Scenario selector is visible.
