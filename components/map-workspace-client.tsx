@@ -1710,7 +1710,7 @@ export function MapWorkspaceClient({
       ) : null}
 
       {shouldShowMapboxControls && showEmptyOverlay && !selectedPoint && !mapResourceError ? (
-        <div className="absolute left-5 top-[198px] z-10 max-w-sm rounded-lg border border-white/75 bg-white/92 p-4 shadow-soft backdrop-blur">
+        <div className="absolute left-5 top-5 z-20 max-w-sm rounded-lg border border-white/75 bg-white/92 p-3.5 shadow-soft backdrop-blur">
           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-brand">
             Start here
           </p>
