@@ -15,6 +15,15 @@ Use this checklist before demos, Vercel deployments, and milestone checkpoints.
 - [ ] `npm run ingest:dld:snapshot` exits successfully.
 - [ ] `npm run ingest:osm:snapshot` exits successfully.
 
+## Repository Modes v2.0.2
+
+- [ ] `/api/db/health` separates connection `status` from `repositoryMode`.
+- [ ] `/api/db/health` returns `repositoryMode: "local_fallback"` when Supabase/PostGIS is not configured or unavailable.
+- [ ] Project-scoped fallback APIs include `storageCaveat` where practical.
+- [ ] UI labels show `Local/API fallback`, `Browser-local demo`, `Demo seed`, `Supabase/PostGIS`, or `Not configured`.
+- [ ] UI does not show raw legacy mode strings such as `local-fallback`, `local_only`, `local_demo`, or `local-only`.
+- [ ] The caveat remains visible where relevant: `Local/API fallback is not durable production storage.`
+
 ## Map Loading
 
 - [ ] `/workspace` opens without runtime errors.

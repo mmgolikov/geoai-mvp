@@ -106,6 +106,14 @@ Each deliverable remains tied to evidence readiness and validation caveats.
 
 All routes are local/API fallback only in v1.9. They should not be described as secure, durable, enterprise or production storage.
 
+## Repository Mode Alignment
+
+Repository mode naming is normalized in [Repository Mode & Fallback Consistency v2.0.2](REPOSITORY_MODE_FALLBACK_CONSISTENCY_V202.md).
+
+Client Data Room routes use `local_fallback` while durable Supabase/PostGIS storage is not configured. The user-facing label is "Local/API fallback" and the required storage caveat remains:
+
+> Local/API fallback is not durable production storage.
+
 ## UI Placement
 
 Projects dashboard:

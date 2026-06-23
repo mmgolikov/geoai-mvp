@@ -69,8 +69,8 @@ The schema includes indexes, geometry indexes, update triggers, and table commen
 
 When Supabase is not configured:
 
-- `/api/db/health` returns `local_only`.
-- `/api/analysis-runs` returns local-only responses.
+- `/api/db/health` returns `repositoryMode: "local_fallback"` with `status: "not_configured"`.
+- `/api/analysis-runs` returns Local/API fallback responses.
 - Express Analysis still works.
 - Local analysis history remains available through browser storage.
 - No database write is required for the UI to work.
@@ -80,7 +80,7 @@ When Supabase is configured:
 - Analysis runs are posted to `/api/analysis-runs` after local history is saved.
 - The save is best-effort and will not block the dashboard.
 - Report/export preview payloads are posted to `/api/reports`.
-- The Status section shows whether persistence is local-only or Supabase-backed.
+- The Status section shows whether persistence is local_fallback or Supabase-backed.
 
 See [Persistence v0.1](PERSISTENCE_V01.md) for the current analysis history and report persistence behavior.
 

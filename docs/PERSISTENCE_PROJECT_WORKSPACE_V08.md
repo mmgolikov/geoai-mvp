@@ -19,7 +19,7 @@ Each saved analysis, report and comparison carries a source-lineage snapshot. Th
 
 ## Local Fallback Behavior
 
-When Supabase is not configured, API routes return a graceful `local_fallback` / `local-fallback` response and echo enough payload for the client/browser flow to continue. In local Node development, a lightweight JSON-backed fallback may write under `data/local-fallback/*.json`; in Vercel serverless runtime it uses a defensive temporary runtime path and must be treated as non-durable. These runtime files are ignored by Git. The app remains usable without Supabase:
+When Supabase is not configured, API routes return a graceful `local_fallback` response and echo enough payload for the client/browser flow to continue. In local Node development, a lightweight JSON-backed fallback may write under `data/local_fallback/*.json`; in Vercel serverless runtime it uses a defensive temporary runtime path and must be treated as non-durable. These runtime files are ignored by Git. The app remains usable without Supabase:
 
 - Analysis runs can be saved/listed through `/api/analysis-runs`.
 - Reports can be saved/listed through `/api/reports`.

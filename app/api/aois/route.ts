@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAoi, listAois } from "@/src/lib/repositories/aoi-repository";
+import { repositoryModeFields } from "@/src/lib/repositories/repository-mode";
 import { aoiRequiredCaveat, type ProjectAoi } from "@/src/types/aoi";
 
 export const runtime = "nodejs";
@@ -31,7 +32,7 @@ export async function GET(request: Request) {
 
   return NextResponse.json({
     ok: result.ok,
-    mode: result.mode,
+    ...repositoryModeFields(result.mode),
     count: result.data.length,
     items: result.data,
     error: result.error,
@@ -45,11 +46,11 @@ export async function POST(request: Request) {
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ ok: false, mode: "local-fallback", message: "Invalid JSON body." }, { status: 400 });
+    return NextResponse.json({ ok: false, ...repositoryModeFields("local_fallback"), message: "Invalid JSON body." }, { status: 400 });
   }
 
   if (!isAoiInput(body)) {
-    return NextResponse.json({ ok: false, mode: "local-fallback", message: "Invalid AOI payload." }, { status: 400 });
+    return NextResponse.json({ ok: false, ...repositoryModeFields("local_fallback"), message: "Invalid AOI payload." }, { status: 400 });
   }
 
   const result = await createAoi({
@@ -59,7 +60,7 @@ export async function POST(request: Request) {
 
   return NextResponse.json({
     ok: result.ok,
-    mode: result.mode,
+    ...repositoryModeFields(result.mode),
     item: result.data,
     error: result.error,
     message: result.ok

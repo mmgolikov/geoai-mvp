@@ -101,6 +101,20 @@ Never expose the OpenAI key as a `NEXT_PUBLIC_*` variable. Only `NEXT_PUBLIC_MAP
 
 Do not commit real tokens. `.env`, `.env.local`, and `.env*.local` are ignored.
 
+## Repository Modes
+
+GeoAI uses canonical repository modes for API responses and UI labels:
+
+- `supabase` -> Supabase/PostGIS
+- `local_fallback` -> Local/API fallback
+- `browser_local` -> Browser-local demo
+- `demo_seed` -> Demo seed
+- `disabled` -> Not configured
+
+Local/API fallback is not durable production storage. Browser-local storage is for demo continuity only. Demo seed records are sample context and require validation.
+
+See [Repository Mode & Fallback Consistency v2.0.2](docs/REPOSITORY_MODE_FALLBACK_CONSISTENCY_V202.md).
+
 ## Useful Commands
 
 ```bash
@@ -120,8 +134,8 @@ The default `npm run dev` command uses stable Webpack mode with polling enabled 
 - `GET /api/db/health` returns optional Supabase/PostGIS readiness without exposing secrets.
 - `GET /api/demo-objects` returns mock spatial objects for demo use.
 - `POST /api/analyze` returns structured analysis narrative. It uses OpenAI when `OPENAI_API_KEY` is available and otherwise returns mock fallback content.
-- `GET /api/analysis-runs` returns persisted analysis runs when Supabase is configured, or local-only mode otherwise.
-- `POST /api/analysis-runs` saves analysis runs when Supabase is configured, or returns a non-blocking local-only response otherwise.
+- `GET /api/analysis-runs` returns persisted analysis runs when Supabase is configured, or `local_fallback` mode otherwise.
+- `POST /api/analysis-runs` saves analysis runs when Supabase is configured, or returns a non-blocking `local_fallback` response otherwise.
 - `POST /api/context/market` returns seed/demo-normalized Dubai market context for selected coordinates.
 - `GET /api/open-geodata` returns local open-geodata baseline availability and counts.
 - `GET /api/aois?projectKey=...` returns saved project AOIs from local/API fallback storage.

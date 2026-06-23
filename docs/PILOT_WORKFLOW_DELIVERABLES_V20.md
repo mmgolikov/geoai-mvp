@@ -129,6 +129,8 @@ Pilot Workflow v2.0 layers on top of Client Data Room v1.9. It reads:
 
 It does not duplicate Data Room storage logic and does not add durable production storage.
 
+Repository mode naming is normalized in [Repository Mode & Fallback Consistency v2.0.2](REPOSITORY_MODE_FALLBACK_CONSISTENCY_V202.md). Pilot Workflow routes use `local_fallback` until durable Supabase/PostGIS storage is configured and successfully used. The user-facing label is "Local/API fallback".
+
 ## UI Placement
 
 Projects dashboard:

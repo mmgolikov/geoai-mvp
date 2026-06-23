@@ -1,15 +1,17 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { localFallbackStorageCaveat, type RepositoryMode } from "@/src/lib/repositories/repository-mode";
 
 export type LocalRepositoryResult<T> = {
   ok: boolean;
-  mode: "local-fallback";
+  mode: RepositoryMode;
   data: T;
   error: string | null;
+  storageCaveat: string;
 };
 
 function storePath(name: string) {
-  const root = process.env.VERCEL ? "/tmp/geoai-local-fallback" : join(process.cwd(), "data/local-fallback");
+  const root = process.env.VERCEL ? "/tmp/geoai-local_fallback" : join(process.cwd(), "data/local_fallback");
   return join(root, `${name}.json`);
 }
 
@@ -45,11 +47,17 @@ export function localList<T extends { id: string; projectId?: string | null; pro
     .filter((item) => !filters.projectKey || item.projectKey === filters.projectKey)
     .slice(0, filters.limit ?? 50);
 
-  return { ok: true, mode: "local-fallback", data: items, error: null };
+  return { ok: true, mode: "local_fallback", data: items, error: null, storageCaveat: localFallbackStorageCaveat };
 }
 
 export function localGet<T extends { id: string }>(name: string, id: string): LocalRepositoryResult<T | null> {
-  return { ok: true, mode: "local-fallback", data: readStore<T>(name).find((item) => item.id === id) ?? null, error: null };
+  return {
+    ok: true,
+    mode: "local_fallback",
+    data: readStore<T>(name).find((item) => item.id === id) ?? null,
+    error: null,
+    storageCaveat: localFallbackStorageCaveat
+  };
 }
 
 export function localCreate<T extends { id: string; createdAt?: string; updatedAt?: string }>(
@@ -66,9 +74,10 @@ export function localCreate<T extends { id: string; createdAt?: string; updatedA
   const written = writeStore(name, [nextItem, ...items].slice(0, 200));
   return {
     ok: written,
-    mode: "local-fallback",
+    mode: "local_fallback",
     data: nextItem,
-    error: written ? null : "Runtime local fallback is non-durable; write storage is unavailable."
+    error: written ? null : "Runtime local fallback is non-durable; write storage is unavailable.",
+    storageCaveat: localFallbackStorageCaveat
   };
 }
 
@@ -79,16 +88,19 @@ export function localUpdate<T extends { id: string; updatedAt?: string }>(
 ): LocalRepositoryResult<T | null> {
   const items = readStore<T>(name);
   const index = items.findIndex((item) => item.id === id);
-  if (index === -1) return { ok: true, mode: "local-fallback", data: null, error: null };
+  if (index === -1) {
+    return { ok: true, mode: "local_fallback", data: null, error: null, storageCaveat: localFallbackStorageCaveat };
+  }
 
   const updated = { ...items[index], ...patch, updatedAt: new Date().toISOString() } as T;
   items[index] = updated;
   const written = writeStore(name, items);
   return {
     ok: written,
-    mode: "local-fallback",
+    mode: "local_fallback",
     data: updated,
-    error: written ? null : "Runtime local fallback is non-durable; write storage is unavailable."
+    error: written ? null : "Runtime local fallback is non-durable; write storage is unavailable.",
+    storageCaveat: localFallbackStorageCaveat
   };
 }
 
@@ -98,8 +110,9 @@ export function localDelete(name: string, id: string): LocalRepositoryResult<boo
   const written = writeStore(name, nextItems);
   return {
     ok: written,
-    mode: "local-fallback",
+    mode: "local_fallback",
     data: nextItems.length !== items.length,
-    error: written ? null : "Runtime local fallback is non-durable; write storage is unavailable."
+    error: written ? null : "Runtime local fallback is non-durable; write storage is unavailable.",
+    storageCaveat: localFallbackStorageCaveat
   };
 }

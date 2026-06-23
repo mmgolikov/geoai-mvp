@@ -4,6 +4,7 @@ import {
   saveAnalysisRun
 } from "@/src/lib/db/repositories/analysis-runs";
 import { getProjectByKey } from "@/src/lib/db/repositories/projects";
+import { repositoryModeFields } from "@/src/lib/repositories/repository-mode";
 import type { DbAnalysisRunInput } from "@/src/lib/db/types";
 
 export const runtime = "nodejs";
@@ -31,14 +32,15 @@ export async function GET(request: Request) {
   const projectKey = url.searchParams.get("projectKey");
   const project = projectKey ? await getProjectByKey(projectKey) : null;
 
-  const result = await listAnalysisRuns(limit, project?.mode === "db" ? project.data?.id ?? null : null);
-  const localProjectItems = result.mode === "local_only" && projectKey && Array.isArray(result.data)
+  const result = await listAnalysisRuns(limit, project?.mode === "supabase" ? project.data?.id ?? null : null);
+  const localProjectItems = result.mode === "local_fallback" && projectKey && Array.isArray(result.data)
     ? result.data.filter((item) => (item as { projectKey?: string | null }).projectKey === projectKey)
     : result.data ?? [];
 
+  const responseMode = result.mode === "supabase" ? "supabase" : "local_fallback";
   return NextResponse.json({
     ok: result.ok,
-    mode: result.mode === "db" ? "supabase" : "local-fallback",
+    ...repositoryModeFields(responseMode),
     projectMode: project?.mode ?? null,
     project: project?.data ?? null,
     count: Array.isArray(localProjectItems) ? localProjectItems.length : 0,
@@ -55,14 +57,14 @@ export async function POST(request: Request) {
     body = await request.json();
   } catch {
     return NextResponse.json(
-      { persisted: false, mode: "local_only", message: "Invalid JSON body." },
+      { persisted: false, ...repositoryModeFields("local_fallback"), message: "Invalid JSON body." },
       { status: 400 }
     );
   }
 
   if (!isAnalysisRunInput(body)) {
     return NextResponse.json(
-      { persisted: false, mode: "local_only", message: "Invalid analysis run payload." },
+      { persisted: false, ...repositoryModeFields("local_fallback"), message: "Invalid analysis run payload." },
       { status: 400 }
     );
   }
@@ -70,20 +72,21 @@ export async function POST(request: Request) {
   const project = body.projectKey ? await getProjectByKey(body.projectKey) : null;
   const result = await saveAnalysisRun({
     ...body,
-    projectId: body.projectId ?? (project?.mode === "db" ? project.data?.id ?? null : null),
+    projectId: body.projectId ?? (project?.mode === "supabase" ? project.data?.id ?? null : null),
     projectKey: body.projectKey ?? project?.data?.projectKey ?? null,
     projectName: body.projectName ?? project?.data?.name ?? null
   });
 
+  const responseMode = result.mode === "supabase" ? "supabase" : "local_fallback";
   return NextResponse.json({
     ok: result.ok,
-    persisted: result.mode === "db" && result.ok,
-    mode: result.mode === "db" ? "supabase" : "local_fallback",
+    persisted: result.mode === "supabase" && result.ok,
+    ...repositoryModeFields(responseMode),
     runKey: body.runKey,
     project: project?.data ?? null,
     data: result.data,
     error: result.error,
-    message: result.mode === "db" && result.ok
+    message: result.mode === "supabase" && result.ok
       ? "Analysis run persisted."
       : "Analysis run kept local only; Supabase is not configured or unavailable."
   });

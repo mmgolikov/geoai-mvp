@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { buildPilotWorkflowSummary } from "@/src/lib/pilot-workflow/pilot-workflow-summary";
 import { createPilotClientInput } from "@/src/lib/repositories/pilot-workflow-repository";
+import { repositoryModeFields } from "@/src/lib/repositories/repository-mode";
 import {
   pilotWorkflowCaveat,
   type ClientInputItem,
@@ -44,12 +45,12 @@ export async function PATCH(
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ ok: false, mode: "local_fallback", message: "Invalid JSON body." }, { status: 400 });
+    return NextResponse.json({ ok: false, ...repositoryModeFields("local_fallback"), message: "Invalid JSON body." }, { status: 400 });
   }
 
   const input = asRecord(body);
   if (!isClientInput(input)) {
-    return NextResponse.json({ ok: false, mode: "local_fallback", message: "Invalid pilot client input metadata." }, { status: 400 });
+    return NextResponse.json({ ok: false, ...repositoryModeFields("local_fallback"), message: "Invalid pilot client input metadata." }, { status: 400 });
   }
 
   const item = {
@@ -62,7 +63,7 @@ export async function PATCH(
 
   return NextResponse.json({
     ok: result.ok,
-    mode: "local_fallback",
+    ...repositoryModeFields("local_fallback"),
     item: result.data,
     workflow: summary,
     error: result.error,

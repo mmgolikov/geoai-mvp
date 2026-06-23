@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { buildClientDataRoom } from "@/src/lib/data-room/data-room-summary";
+import { repositoryModeFields } from "@/src/lib/repositories/repository-mode";
 
 export const runtime = "nodejs";
 
@@ -18,7 +19,7 @@ export async function POST(request: Request) {
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ ok: false, mode: "local_fallback", message: "Invalid JSON body." }, { status: 400 });
+    return NextResponse.json({ ok: false, ...repositoryModeFields("local_fallback"), message: "Invalid JSON body." }, { status: 400 });
   }
 
   const input = typeof body === "object" && body !== null && !Array.isArray(body)

@@ -12,4 +12,6 @@ yarn-error.log*
 *.tsbuildinfo
 .codex/
 data/external/raw/
+data/local_fallback/
+data/local-fallback/
 data/local-fallback/*.json

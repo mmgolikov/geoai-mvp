@@ -27,6 +27,7 @@ import { createComparisonItem, createMockComparison } from "@/src/lib/mock-compa
 import { analysisScenarios, createMockExpressAnalysis } from "@/src/lib/mock-express-analysis";
 import { deriveDecisionPosture } from "@/src/lib/decision-posture";
 import { createSourceLineageSnapshot } from "@/src/lib/source-lineage-snapshot";
+import type { RepositoryMode } from "@/src/lib/repositories/repository-mode";
 import {
   createAoiGeojsonFeature,
   parseGeojsonAoi,
@@ -77,21 +78,24 @@ const maxAnalysisHistoryItems = 8;
 
 type BackendStatus = {
   configured: boolean;
-  status: "connected" | "configured_unavailable" | "local_only";
+  status: "connected" | "configured_unavailable" | "not_configured";
+  repositoryMode: RepositoryMode;
+  mode: RepositoryMode;
+  caveat: string;
   message: string;
   sources_count: number | null;
 };
 
 type AnalysisRunsResponse = {
   ok: boolean;
-  mode: "db" | "local_only";
+  mode: "supabase" | "local_fallback";
   items: unknown[];
   error: string | null;
 };
 
 type ProjectsResponse = {
   ok: boolean;
-  mode: "db" | "local_demo";
+  mode: "supabase" | "demo_seed";
   items: GeoAIProject[];
   error: string | null;
 };
@@ -654,7 +658,7 @@ export function WorkspaceShell() {
   const [marketContext, setMarketContext] = useState<MarketContext | null>(null);
   const [isMarketContextLoading, setIsMarketContextLoading] = useState(false);
   const [projects, setProjects] = useState<GeoAIProject[]>(demoProjects);
-  const [projectsMode, setProjectsMode] = useState<"db" | "local_demo">("local_demo");
+  const [projectsMode, setProjectsMode] = useState<"supabase" | "demo_seed">("demo_seed");
   const [activeProject, setActiveProject] = useState<GeoAIProject>(demoProjects[0]);
   const [analysisHistory, setAnalysisHistory] = useState<AnalysisHistoryItem[]>([]);
   const [analysisHistorySource, setAnalysisHistorySource] = useState<"DB" | "local">("local");
@@ -870,7 +874,7 @@ export function WorkspaceShell() {
       .catch(() => {
         if (isMounted) {
           setProjects(demoProjects);
-          setProjectsMode("local_demo");
+          setProjectsMode("demo_seed");
           setActiveProject(localProject);
         }
       });
@@ -894,7 +898,7 @@ export function WorkspaceShell() {
           return;
         }
 
-        if (payload.mode !== "db") {
+        if (payload.mode !== "supabase") {
           setAnalysisHistorySource("local");
           return;
         }

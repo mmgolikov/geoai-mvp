@@ -152,6 +152,7 @@ export type DataRoomDataHonesty = {
 export type ClientDataRoom = {
   ok: boolean;
   mode: "local_fallback";
+  storageCaveat: string;
   projectId?: string | null;
   projectKey: string;
   project?: GeoAIProject | null;

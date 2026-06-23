@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { deleteDataRoomAsset, updateDataRoomAsset } from "@/src/lib/repositories/data-room-repository";
+import { repositoryModeFields } from "@/src/lib/repositories/repository-mode";
 import type { DataRoomAsset } from "@/src/types/data-room";
 
 export const runtime = "nodejs";
@@ -10,7 +11,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ ok: false, mode: "local_fallback", message: "Invalid JSON body." }, { status: 400 });
+    return NextResponse.json({ ok: false, ...repositoryModeFields("local_fallback"), message: "Invalid JSON body." }, { status: 400 });
   }
 
   const { id } = await context.params;
@@ -21,7 +22,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
 
   return NextResponse.json({
     ok: result.ok,
-    mode: "local_fallback",
+    ...repositoryModeFields("local_fallback"),
     item: result.data,
     error: result.error,
     dataHonesty: "Data room asset metadata remains local/demo fallback."
@@ -34,7 +35,7 @@ export async function DELETE(_request: Request, context: { params: Promise<{ id:
 
   return NextResponse.json({
     ok: result.ok,
-    mode: "local_fallback",
+    ...repositoryModeFields("local_fallback"),
     deleted: result.data,
     error: result.error
   });

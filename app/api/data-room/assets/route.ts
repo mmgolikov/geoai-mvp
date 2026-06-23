@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createDataRoomAsset } from "@/src/lib/repositories/data-room-repository";
+import { repositoryModeFields } from "@/src/lib/repositories/repository-mode";
 import {
   dataRoomRequiredCaveat,
   type DataRoomAsset,
@@ -58,11 +59,11 @@ export async function POST(request: Request) {
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ ok: false, mode: "local_fallback", message: "Invalid JSON body." }, { status: 400 });
+    return NextResponse.json({ ok: false, ...repositoryModeFields("local_fallback"), message: "Invalid JSON body." }, { status: 400 });
   }
 
   if (!isAssetInput(body)) {
-    return NextResponse.json({ ok: false, mode: "local_fallback", message: "Invalid data room asset metadata." }, { status: 400 });
+    return NextResponse.json({ ok: false, ...repositoryModeFields("local_fallback"), message: "Invalid data room asset metadata." }, { status: 400 });
   }
 
   const result = await createDataRoomAsset({
@@ -72,7 +73,7 @@ export async function POST(request: Request) {
 
   return NextResponse.json({
     ok: result.ok,
-    mode: "local_fallback",
+    ...repositoryModeFields("local_fallback"),
     item: result.data,
     error: result.error,
     dataHonesty: "Data room assets are local/demo metadata only; official validation and durable storage are not connected."

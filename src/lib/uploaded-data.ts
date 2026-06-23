@@ -363,7 +363,7 @@ export function withUploadedDataContext(analysis: ExpressAnalysis, context: Uplo
     ...context.appliedMetrics.map((match) => {
       const dataset = context.uploadedDatasets.find((item) => item.id === match.datasetId);
       return dataset
-        ? uploadedEvidenceItem(dataset, "metrics", `${match.note} User-provided data is local-only and requires validation.`, match.confidence === "high" ? "medium" : "low")
+        ? uploadedEvidenceItem(dataset, "metrics", `${match.note} User-provided data is Local/API fallback and requires validation.`, match.confidence === "high" ? "medium" : "low")
         : null;
     }),
     ...context.visibleGeojsonLayers.map((dataset) =>

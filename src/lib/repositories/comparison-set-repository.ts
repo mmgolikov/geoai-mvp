@@ -14,7 +14,7 @@ export async function listComparisonSets(filters: { projectId?: string | null; p
   const client = await getSupabaseServerClient();
   if (!client) {
     const result = localList<WorkspaceComparisonSet>("comparison-sets", filters);
-    return { ok: true, mode: "local_only", data: result.data, error: null };
+    return { ok: true, mode: "local_fallback", data: result.data, error: null };
   }
 
   try {
@@ -30,15 +30,15 @@ export async function listComparisonSets(filters: { projectId?: string | null; p
         ? baseQuery.eq("project_key", filters.projectKey)
         : baseQuery;
     const response = await query.order("created_at", { ascending: false }).limit(filters.limit ?? 50);
-    return { ok: !response.error, mode: "db", data: response.data ?? [], error: response.error ? "Unable to load comparison sets." : null };
+    return { ok: !response.error, mode: "supabase", data: response.data ?? [], error: response.error ? "Unable to load comparison sets." : null };
   } catch (error) {
-    return { ok: false, mode: "local_only", data: [], error: error instanceof Error ? error.message : "Unable to load comparison sets." };
+    return { ok: false, mode: "local_fallback", data: [], error: error instanceof Error ? error.message : "Unable to load comparison sets." };
   }
 }
 
 export async function getComparisonSet(id: string): Promise<DbRepositoryResult<WorkspaceComparisonSet | unknown | null>> {
   const result = localGet<WorkspaceComparisonSet>("comparison-sets", id);
-  return { ok: true, mode: "local_only", data: result.data, error: null };
+  return { ok: true, mode: "local_fallback", data: result.data, error: null };
 }
 
 export async function saveComparisonSet(input: ComparisonSetInput): Promise<DbRepositoryResult<WorkspaceComparisonSet | unknown>> {
@@ -52,7 +52,7 @@ export async function saveComparisonSet(input: ComparisonSetInput): Promise<DbRe
   const client = await getSupabaseServerClient();
   if (!client) {
     const result = localCreate<WorkspaceComparisonSet>("comparison-sets", localPayload);
-    return { ok: true, mode: "local_only", data: result.data, error: result.error };
+    return { ok: true, mode: "local_fallback", data: result.data, error: result.error };
   }
 
   try {
@@ -72,21 +72,21 @@ export async function saveComparisonSet(input: ComparisonSetInput): Promise<DbRe
     const response = await query;
     if (response.error) {
       const result = localCreate<WorkspaceComparisonSet>("comparison-sets", localPayload);
-      return { ok: true, mode: "local_only", data: result.data, error: result.error ?? "DB comparison persistence unavailable; local fallback used." };
+      return { ok: true, mode: "local_fallback", data: result.data, error: result.error ?? "DB comparison persistence unavailable; local fallback used." };
     }
-    return { ok: true, mode: "db", data: response.data ?? localPayload, error: null };
+    return { ok: true, mode: "supabase", data: response.data ?? localPayload, error: null };
   } catch {
     const result = localCreate<WorkspaceComparisonSet>("comparison-sets", localPayload);
-    return { ok: true, mode: "local_only", data: result.data, error: result.error ?? "DB comparison persistence unavailable; local fallback used." };
+    return { ok: true, mode: "local_fallback", data: result.data, error: result.error ?? "DB comparison persistence unavailable; local fallback used." };
   }
 }
 
 export async function updateComparisonSet(id: string, patch: Partial<WorkspaceComparisonSet>) {
   const result = localUpdate<WorkspaceComparisonSet>("comparison-sets", id, patch);
-  return { ok: true, mode: "local_only" as const, data: result.data, error: null };
+  return { ok: true, mode: "local_fallback" as const, data: result.data, error: null };
 }
 
 export async function deleteComparisonSet(id: string) {
   const result = localDelete("comparison-sets", id);
-  return { ok: true, mode: "local_only" as const, data: result.data, error: null };
+  return { ok: true, mode: "local_fallback" as const, data: result.data, error: null };
 }

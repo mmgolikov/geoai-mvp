@@ -462,6 +462,7 @@ export async function buildClientDataRoom(input: { projectKey?: string | null; p
   return {
     ok: true,
     mode: "local_fallback",
+    storageCaveat: dataRoomStorageCaveat,
     projectId: project.id,
     projectKey,
     project,

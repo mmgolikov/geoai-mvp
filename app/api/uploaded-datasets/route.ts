@@ -4,6 +4,7 @@ import {
   listUploadedDatasetRecords,
   saveUploadedDatasetRecord
 } from "@/src/lib/repositories/uploaded-dataset-repository";
+import { repositoryModeFields } from "@/src/lib/repositories/repository-mode";
 import type { UploadedDatasetRecord } from "@/src/lib/project-workspace-types";
 
 export const runtime = "nodejs";
@@ -28,7 +29,7 @@ export async function GET(request: Request) {
 
   return NextResponse.json({
     ok: true,
-    mode: "local-fallback",
+    ...repositoryModeFields("local_fallback"),
     count: items.length,
     items,
     dataHonesty: "Uploaded dataset metadata is local/project-scoped and requires official validation."
@@ -41,18 +42,18 @@ export async function POST(request: Request) {
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ ok: false, mode: "local-fallback", message: "Invalid JSON body." }, { status: 400 });
+    return NextResponse.json({ ok: false, ...repositoryModeFields("local_fallback"), message: "Invalid JSON body." }, { status: 400 });
   }
 
   if (!isUploadedDatasetRecord(body)) {
-    return NextResponse.json({ ok: false, mode: "local-fallback", message: "Invalid uploaded dataset metadata." }, { status: 400 });
+    return NextResponse.json({ ok: false, ...repositoryModeFields("local_fallback"), message: "Invalid uploaded dataset metadata." }, { status: 400 });
   }
 
   const result = await saveUploadedDatasetRecord(body);
   return NextResponse.json({
     ok: true,
     persisted: false,
-    mode: "local_fallback",
+    ...repositoryModeFields("local_fallback"),
     item: result.data,
     error: result.error,
     message: "Uploaded dataset metadata kept in local fallback; official validation and durable storage are not connected."
@@ -62,9 +63,9 @@ export async function POST(request: Request) {
 export async function DELETE(request: Request) {
   const id = new URL(request.url).searchParams.get("id");
   if (!id) {
-    return NextResponse.json({ ok: false, mode: "local-fallback", message: "id query parameter is required." }, { status: 400 });
+    return NextResponse.json({ ok: false, ...repositoryModeFields("local_fallback"), message: "id query parameter is required." }, { status: 400 });
   }
 
   const result = await deleteUploadedDatasetRecord(id);
-  return NextResponse.json({ ok: true, mode: "local-fallback", deleted: result.data });
+  return NextResponse.json({ ok: true, ...repositoryModeFields("local_fallback"), deleted: result.data });
 }
