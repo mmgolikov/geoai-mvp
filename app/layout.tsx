@@ -4,7 +4,11 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "GeoAI",
-  description: "AI decision intelligence for spatial assets."
+  description: "AI decision intelligence for spatial assets.",
+  icons: {
+    icon: "/favicon.svg",
+    shortcut: "/favicon.svg"
+  }
 };
 
 export default function RootLayout({
