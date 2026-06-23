@@ -2,6 +2,8 @@
 
 Release scope: workspace polygon drawing for user-defined screening areas of interest.
 
+Update note: AOI Library + GeoJSON Import/Export v1.8 extends this drawing workflow with project-scoped save, reopen, rename, delete, GeoJSON import, and GeoJSON export actions. See [AOI Library + GeoJSON Import/Export v1.8](AOI_LIBRARY_GEOJSON_IMPORT_EXPORT_V18.md).
+
 ## Purpose
 
 Polygon AOI Drawing v1.7 lets a user define a custom area directly on the Dubai map before running Express Analysis, adding an item to comparison, or preparing a report. It is intended for early investor, developer, lender and planning demo workflows where the user wants to screen an approximate site boundary instead of a single point.
@@ -27,6 +29,7 @@ After a polygon is accepted:
 
 - `Replace polygon` starts a new drawing.
 - `Delete polygon` clears the current AOI.
+- v1.8 adds project library actions to save, reopen, rename, delete, import, and export AOIs.
 
 ## Validation
 
@@ -98,9 +101,10 @@ User-drawn AOIs must never be described as:
 ## Known Limitations
 
 - Vertex editing after polygon completion is deferred.
-- Polygon holes and multipolygons are not supported in v1.7.
+- Polygon holes and multipolygons are not supported in v1.7 or v1.8.
 - Area/perimeter measurements are approximate client-side calculations.
-- AOIs are not persisted as durable server-side spatial records unless included inside saved analysis/report payloads.
+- AOIs can be saved to the v1.8 project AOI Library using browser-local/API fallback continuity, but durable production-grade spatial storage is still not complete.
+- GeoJSON import/export in v1.8 supports Polygon features only.
 - No official GIS, parcel, cadastral, zoning or ownership source is connected by this feature.
 
 ## QA Checklist

@@ -9,6 +9,7 @@ import {
 } from "@/components/reports/report-print-primitives";
 import { getDemoNarrativeByProjectKey } from "@/src/data/demo-narratives";
 import { getClientPilotPackageForProject } from "@/src/data/pilot-packages";
+import { userDrawnAoiSourceCode, userDrawnAoiSourceLabel } from "@/src/lib/aoi-library";
 import { scoreSummaryRows, type AnalysisReportDeliverable } from "@/src/lib/report-deliverables";
 
 function formatDate(value: string) {
@@ -113,20 +114,20 @@ export function AnalysisReportPrint({ report }: { report: AnalysisReportDelivera
             <div className="geoai-print-mini-grid">
               <PrintCard label="Market basis" value={report.analysis?.marketContext?.areaName ?? "Demo/sample context"} />
               <PrintCard label="Data mode" value={report.analysis?.project?.dataMode?.replace(/_/g, " ") ?? "demo normalized"} />
-              <PrintCard label="Object type" value={report.selectedAoi ? "User-drawn polygon AOI" : spatialContext?.subtype ?? report.selectedObject?.type ?? "point / site"} />
+              <PrintCard label="Object type" value={report.selectedAoi ? userDrawnAoiSourceLabel(report.selectedAoi) : spatialContext?.subtype ?? report.selectedObject?.type ?? "point / site"} />
               <PrintCard label="Geometry confidence" value={report.selectedAoi?.confidence ?? spatialContext?.confidenceLevel ?? "validation required"} />
             </div>
           </PrintSection>
         </div>
 
         {report.selectedAoi ? (
-          <PrintSection title="User-Drawn AOI Details">
+          <PrintSection title={`${userDrawnAoiSourceLabel(report.selectedAoi)} Details`}>
             <div className="geoai-print-mini-grid">
               <PrintCard label="Geometry" value="Polygon" />
               <PrintCard label="Area" value={formatArea(report.selectedAoi.measurements.areaSqM)} />
               <PrintCard label="Perimeter" value={formatPerimeter(report.selectedAoi.measurements.perimeterM)} />
               <PrintCard label="Vertices" value={String(report.selectedAoi.measurements.vertexCount)} />
-              <PrintCard label="Source" value="user_drawn_polygon" />
+              <PrintCard label="Source" value={userDrawnAoiSourceCode(report.selectedAoi)} />
               <PrintCard label="Status" value="official validation required" />
             </div>
             <p className="geoai-print-note">{report.selectedAoi.limitations[0]}</p>

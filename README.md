@@ -10,6 +10,7 @@ OpenAI is optional. If `OPENAI_API_KEY` is not configured, GeoAI automatically u
 - Dubai-centered Mapbox workspace
 - Point selection with marker and coordinates
 - Polygon AOI drawing workflow with vertex handles, preview edge, validation and approximate area/perimeter measurements
+- Project AOI Library with save, reopen, rename, delete, GeoJSON import and GeoJSON export for user-provided screening polygons
 - Synthetic demo geospatial layers:
   - Development Zones
   - Premium Real Estate Areas
@@ -121,6 +122,10 @@ The default `npm run dev` command uses stable Webpack mode with polling enabled 
 - `POST /api/analysis-runs` saves analysis runs when Supabase is configured, or returns a non-blocking local-only response otherwise.
 - `POST /api/context/market` returns seed/demo-normalized Dubai market context for selected coordinates.
 - `GET /api/open-geodata` returns local open-geodata baseline availability and counts.
+- `GET /api/aois?projectKey=...` returns saved project AOIs from local/API fallback storage.
+- `POST /api/aois` saves a project AOI in local/API fallback storage.
+- `PATCH /api/aois/[id]` updates saved AOI metadata.
+- `DELETE /api/aois/[id]` removes a saved AOI from local/API fallback storage.
 
 ## Market Context Adapter
 
@@ -172,6 +177,14 @@ GeoAI supports an explicit polygon AOI drawing workflow in the workspace. Users 
 Drawn AOIs include approximate area, perimeter, centroid, bounding box and vertex count. The app validates minimum vertex count, duplicate consecutive vertices, self-intersection, minimum area and maximum area before accepting the polygon.
 
 User-drawn AOIs are treated as user-provided screening context only. They are not official parcel, zoning, cadastral, planning, ownership or entitlement boundaries. See [Polygon AOI Drawing v1.7](docs/POLYGON_AOI_DRAWING_V17.md) and [GeoAI AOI-Ready Demo v1.7 Release Note](docs/RELEASE_GEOAI_AOI_READY_DEMO_V17.md).
+
+## AOI Library + GeoJSON Import/Export v1.8
+
+GeoAI now lets users save drawn AOIs into the active project AOI Library, reopen saved AOIs, rename/delete them, import a GeoJSON Polygon, export the current or saved AOI as GeoJSON, and run Express Analysis on saved or imported AOIs.
+
+Supported import formats are GeoJSON `Feature` with `Polygon` geometry and `FeatureCollection` with one Polygon. FeatureCollections with multiple Polygon features import the first Polygon with a warning. Points, LineStrings, MultiPolygons, Polygon holes, CRS transformations and shapefiles are not supported in v1.8.
+
+AOIs remain user-provided or uploaded screening geometry. They are not official parcel, zoning, cadastral, ownership, planning or valuation evidence. See [AOI Library + GeoJSON Import/Export v1.8](docs/AOI_LIBRARY_GEOJSON_IMPORT_EXPORT_V18.md).
 
 ## Data Credibility Sprint v0.5
 
@@ -270,6 +283,8 @@ Current export remains browser print/save as PDF. GeoAI does not generate server
 - Data ingestion currently uses local seed/static context and imported sample CSV fixtures only.
 - Spatial layers currently use local seed_geojson demo geometries only.
 - Uploaded CSV / GeoJSON files are browser-local, user-provided, validation-required context.
+- AOI Library v1.8 stores project AOIs through browser-local/API fallback continuity; durable multi-tenant spatial storage is not complete.
+- AOI GeoJSON import supports Polygon only. MultiPolygon, holes, CRS transformations and shapefiles are deferred.
 - Real Data Backbone v0.7 supports optional snapshots/API context, but live official validation sources are still not connected.
 - Persistence v0.8 supports local/API fallback saved objects, but auth, tenant security, production file storage and report libraries are not complete.
 - Supabase/PostGIS and persistence are optional prototype foundations, not production-grade user storage yet.
@@ -293,6 +308,7 @@ Current export remains browser print/save as PDF. GeoAI does not generate server
 - [GeoAI Data-Ready Demo RC v1.4 Release Note](docs/RELEASE_GEOAI_DATA_READY_DEMO_RC_V14.md)
 - [GeoAI Public Data Ready Demo v1.6 Release Note](docs/RELEASE_GEOAI_PUBLIC_DATA_READY_DEMO_V16.md)
 - [GeoAI AOI-Ready Demo v1.7 Release Note](docs/RELEASE_GEOAI_AOI_READY_DEMO_V17.md)
+- [AOI Library + GeoJSON Import/Export v1.8](docs/AOI_LIBRARY_GEOJSON_IMPORT_EXPORT_V18.md)
 - [Persistence & Project Workspace v0.8](docs/PERSISTENCE_PROJECT_WORKSPACE_V08.md)
 - [Project-Scoped Persistence v13](docs/PROJECT_SCOPED_PERSISTENCE_V13.md)
 - [Pilot Readiness & Client Delivery Package v1.1](docs/PILOT_READINESS_CLIENT_PACKAGE_V11.md)

@@ -68,6 +68,32 @@ Use this checklist before demos, Vercel deployments, and milestone checkpoints.
 - [ ] Comparison supports adding a user-drawn AOI.
 - [ ] Point and demo object selection still work after deleting the AOI.
 
+## AOI Library + GeoJSON Import/Export v1.8
+
+- [ ] Drawn AOI can be saved to the active project AOI Library.
+- [ ] Saved AOI appears in the compact Workspace AOI Library block.
+- [ ] Saved AOI appears in the Project Dashboard AOI Library summary.
+- [ ] Saved AOI can be reopened from Workspace.
+- [ ] Saved AOI can be reopened from `/projects` without leaking across projects.
+- [ ] Saved AOI can be renamed.
+- [ ] Saved AOI can be deleted.
+- [ ] Saved AOI can be exported as GeoJSON.
+- [ ] Current drawn AOI can be exported as GeoJSON.
+- [ ] Valid GeoJSON Feature with Polygon geometry imports successfully.
+- [ ] Valid GeoJSON FeatureCollection with one Polygon imports successfully.
+- [ ] FeatureCollection with multiple Polygons imports the first Polygon and shows a warning.
+- [ ] Point GeoJSON is rejected with a clear message.
+- [ ] LineString GeoJSON is rejected with a clear message.
+- [ ] MultiPolygon GeoJSON is rejected with `MultiPolygon support is planned.`
+- [ ] Polygon holes are rejected with `Polygon holes are not supported yet.`
+- [ ] Invalid coordinates are rejected with `Invalid coordinates. Expected [longitude, latitude].`
+- [ ] Imported AOI is selected, measurable, and labeled as Uploaded GeoJSON.
+- [ ] Imported AOI can be saved, reopened, analyzed, added to comparison, and exported.
+- [ ] Exported GeoJSON includes caveat, source type, validation status, centroid and measurements.
+- [ ] Exported GeoJSON can be re-imported.
+- [ ] Required caveat remains visible: screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.
+- [ ] No UI, report or docs copy describes uploaded AOIs as official parcel, zoning, cadastral, ownership, approval or valuation evidence.
+
 ## Scenario Analysis
 
 - [ ] Scenario selector is visible.

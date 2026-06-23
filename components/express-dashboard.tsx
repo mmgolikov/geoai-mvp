@@ -5,6 +5,7 @@ import { ValidationRequirementList } from "@/components/data-readiness";
 import { EvidenceSourceCards } from "@/components/evidence-source-cards";
 import { MapContextCard } from "@/components/map-context-card";
 import { deriveDecisionPosture, deriveDecisionRationale } from "@/src/lib/decision-posture";
+import { userDrawnAoiSourceCode, userDrawnAoiSourceLabel } from "@/src/lib/aoi-library";
 import { formatArea, formatPerimeter } from "@/src/lib/polygon-aoi";
 import type { ExpressAnalysis, ScoreKey } from "@/src/types/geo";
 
@@ -394,7 +395,9 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
             <MapContextCard
               title="Map Context"
               subtitle={
-                analysis.selectedAoi || analysis.analysisTarget?.type === "user-drawn-aoi"
+                analysis.selectedAoi
+                  ? `${userDrawnAoiSourceLabel(analysis.selectedAoi)} with surrounding Dubai context`
+                  : analysis.analysisTarget?.type === "user-drawn-aoi"
                   ? "User-drawn AOI with surrounding Dubai context"
                   : analysis.analysisTarget?.type === "uploaded-feature"
                   ? "Uploaded screening geometry with surrounding Dubai context"
@@ -615,7 +618,7 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
             <AnalysisCardHeader
               title="Spatial Object Details"
               subtitle={analysis.selectedAoi.name}
-              badge="user-drawn / validation required"
+              badge={`${userDrawnAoiSourceLabel(analysis.selectedAoi)} / validation required`}
             />
             <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
               <AnalysisMetricCard
@@ -635,7 +638,7 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
               />
               <AnalysisMetricCard
                 label="Source status"
-                value="user provided"
+                value={userDrawnAoiSourceCode(analysis.selectedAoi)}
                 detail="Official cadastral / zoning validation required."
               />
             </div>

@@ -7,6 +7,7 @@ import { DataReadinessCard } from "@/components/data-readiness";
 import { getScenarioDataSources } from "@/src/data/data-source-registry";
 import type { DemoNarrative } from "@/src/data/demo-narratives";
 import { sourceStatusToLabel } from "@/src/lib/external-data/source-status";
+import { sourceTypeLabel, validationStatusLabel } from "@/src/lib/aoi-library";
 import { formatArea, formatPerimeter } from "@/src/lib/polygon-aoi";
 import { getPilotPackageForProject } from "@/src/lib/pilot/pilot-packages";
 import type { GeoAIProject } from "@/src/lib/db/types";
@@ -24,6 +25,7 @@ import type {
 } from "@/src/types/geo";
 import type { GuidedDemoPreset } from "@/src/data/guided-demo";
 import type { UploadedDataset } from "@/src/types/uploaded-data";
+import type { ProjectAoi } from "@/src/types/aoi";
 
 type AnalysisPanelProps = {
   selectedPoint: SelectedPoint | null;
@@ -54,6 +56,9 @@ type AnalysisPanelProps = {
   isMarketContextLoading: boolean;
   uploadedDatasets: UploadedDataset[];
   uploadedDataMessage: string | null;
+  projectAois: ProjectAoi[];
+  aoiDraftName: string;
+  aoiMessage: string | null;
   guidedDemoPresets: GuidedDemoPreset[];
   activeGuidedDemoId: string | null;
   activeDemoNarrative: DemoNarrative | null;
@@ -71,6 +76,14 @@ type AnalysisPanelProps = {
   onOpenHistoryItem: (item: AnalysisHistoryItem) => void;
   onClearAnalysisHistory: () => void;
   onUploadDataset: (file: File) => Promise<void> | void;
+  onImportAoiGeojson: (file: File) => Promise<void> | void;
+  onAoiDraftNameChange: (name: string) => void;
+  onSaveSelectedAoi: () => void;
+  onOpenSavedAoi: (aoi: ProjectAoi) => void;
+  onRenameSavedAoi: (aoi: ProjectAoi, name: string) => void;
+  onDeleteSavedAoi: (aoiId: string) => void;
+  onExportSelectedAoi: () => void;
+  onExportSavedAoi: (aoi: ProjectAoi) => void;
   onRemoveUploadedDataset: (datasetId: string) => void;
   onClearUploadedDatasets: () => void;
   onToggleUploadedDataset: (datasetId: string) => void;
@@ -191,6 +204,9 @@ export function AnalysisPanel({
   isMarketContextLoading,
   uploadedDatasets,
   uploadedDataMessage,
+  projectAois,
+  aoiDraftName,
+  aoiMessage,
   guidedDemoPresets,
   activeGuidedDemoId,
   activeDemoNarrative,
@@ -208,11 +224,20 @@ export function AnalysisPanel({
   onOpenHistoryItem,
   onClearAnalysisHistory,
   onUploadDataset,
+  onImportAoiGeojson,
+  onAoiDraftNameChange,
+  onSaveSelectedAoi,
+  onOpenSavedAoi,
+  onRenameSavedAoi,
+  onDeleteSavedAoi,
+  onExportSelectedAoi,
+  onExportSavedAoi,
   onRemoveUploadedDataset,
   onClearUploadedDatasets,
   onToggleUploadedDataset
 }: AnalysisPanelProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const aoiFileInputRef = useRef<HTMLInputElement | null>(null);
   const [externalDataStatus, setExternalDataStatus] = useState<ExternalDataStatusResponse | null>(null);
   const hasSelectedPoint = selectedPoint !== null;
   const hasSelectedObject = selectedObject !== null;
@@ -364,6 +389,20 @@ export function AnalysisPanel({
     }
   }
 
+  async function handleAoiFileChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const input = event.currentTarget;
+    const file = input.files?.[0];
+
+    try {
+      if (file) {
+        await onImportAoiGeojson(file);
+      }
+    } finally {
+      input.value = "";
+      input.blur();
+    }
+  }
+
   return (
     <aside className="flex h-full max-w-full flex-col overflow-hidden border-l border-line bg-white lg:h-[calc(100vh-72px)] lg:w-[400px]">
       <section className="min-h-0 flex-1 min-w-0 max-w-full overflow-y-auto overflow-x-hidden p-4 pb-6 [scrollbar-width:thin]">
@@ -429,7 +468,7 @@ export function AnalysisPanel({
                 </h2>
                 <p className="mt-1 truncate text-xs leading-5 text-muted">
                   {hasSelectedAoi
-                    ? "User-drawn polygon / validation required"
+                    ? `${selectedAoi.sourceType === "uploaded_geojson" ? "Uploaded GeoJSON AOI" : "User-drawn AOI"} / validation required`
                     : hasSelectedObject
                     ? selectedObject.spatialContext?.datasetName ?? selectedObject.layerName
                     : hasSelectedPoint
@@ -471,7 +510,7 @@ export function AnalysisPanel({
                     : selectedObject?.spatialContext?.confidenceLevel ?? (hasSelectedPoint ? "user" : "-")}
                 </dd>
               </div>
-              {hasSelectedAoi ? (
+                  {hasSelectedAoi ? (
                 <>
                   <div className="min-w-0 rounded-md bg-white px-2 py-2">
                     <dt className="text-muted">Area</dt>
@@ -494,12 +533,149 @@ export function AnalysisPanel({
                   <div className="min-w-0 rounded-md bg-white px-2 py-2">
                     <dt className="text-muted">Source</dt>
                     <dd className="mt-1 truncate font-semibold text-ink">
-                      user drawn
+                      {selectedAoi.sourceType === "uploaded_geojson" ? "uploaded" : "drawn"}
                     </dd>
                   </div>
                 </>
               ) : null}
             </dl>
+          </section>
+
+          <section className="min-w-0 max-w-full overflow-hidden rounded-lg border border-line bg-white p-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">AOI Library</p>
+                <h2 className="mt-1 truncate text-sm font-semibold text-ink">
+                  {projectAois.length} saved for this project
+                </h2>
+                <p className="mt-1 text-xs leading-5 text-muted">Saved AOIs stay scoped to this project.</p>
+              </div>
+              <span className="shrink-0 rounded-full bg-surface px-2 py-1 text-[11px] font-semibold text-brand">
+                v1.8
+              </span>
+            </div>
+
+            {hasSelectedAoi ? (
+              <div className="mt-3 rounded-md border border-line bg-surface p-2">
+                <label htmlFor="aoi-name" className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
+                  AOI name
+                </label>
+                <input
+                  id="aoi-name"
+                  value={aoiDraftName}
+                  onChange={(event) => onAoiDraftNameChange(event.target.value)}
+                  className="mt-1 h-8 w-full rounded-md border border-line bg-white px-2 text-xs font-semibold text-ink outline-none transition focus:border-brand"
+                  placeholder="AOI name"
+                />
+                <div className="mt-2 grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={onSaveSelectedAoi}
+                    className="inline-flex h-8 items-center justify-center rounded-md bg-brand px-2 text-[11px] font-semibold text-white transition hover:bg-[#113f50]"
+                  >
+                    Save AOI
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onExportSelectedAoi}
+                    className="inline-flex h-8 items-center justify-center rounded-md border border-line bg-white px-2 text-[11px] font-semibold text-ink transition hover:border-brand"
+                  >
+                    Export
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => aoiFileInputRef.current?.click()}
+                    className="inline-flex h-8 items-center justify-center rounded-md border border-line bg-white px-2 text-[11px] font-semibold text-ink transition hover:border-brand"
+                  >
+                    Import
+                  </button>
+                </div>
+                <p className="mt-2 text-[11px] leading-4 text-muted">
+                  {selectedAoi.sourceType === "uploaded_geojson" ? "Uploaded GeoJSON AOI" : "User-drawn AOI"}; validation required.
+                </p>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => aoiFileInputRef.current?.click()}
+                className="mt-3 inline-flex h-8 w-full items-center justify-center rounded-md border border-line bg-surface px-3 text-xs font-semibold text-ink transition hover:border-brand"
+              >
+                Import GeoJSON
+              </button>
+            )}
+
+            <input
+              ref={aoiFileInputRef}
+              type="file"
+              accept=".geojson,.json,application/geo+json,application/json"
+              className="hidden"
+              onChange={(event) => {
+                void handleAoiFileChange(event);
+              }}
+            />
+
+            {aoiMessage ? (
+              <p className="mt-2 rounded-md bg-surface px-2 py-2 text-xs leading-5 text-muted">{aoiMessage}</p>
+            ) : null}
+
+            <details className="mt-3 rounded-md border border-line bg-surface px-2">
+              <summary className="flex min-h-9 cursor-pointer list-none items-center justify-between gap-2 py-2 text-xs font-semibold text-ink">
+                <span>Saved AOIs</span>
+                <span className="rounded-full bg-white px-2 py-1 text-[10px] text-brand">{projectAois.length}</span>
+              </summary>
+              <div className="grid max-h-48 gap-2 overflow-y-auto border-t border-line py-2 [scrollbar-width:thin]">
+                {projectAois.length === 0 ? (
+                  <p className="rounded-md bg-white p-2 text-xs leading-5 text-muted">No saved AOIs yet. Draw or import an AOI to start.</p>
+                ) : (
+                  projectAois.map((aoi) => (
+                    <div key={aoi.id} className="rounded-md bg-white p-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="truncate text-xs font-semibold text-ink">{aoi.name}</p>
+                          <p className="mt-1 text-[11px] text-muted">
+                            {sourceTypeLabel(aoi.sourceType)} / {formatArea(aoi.measurements.areaSqM)}
+                          </p>
+                          <p className="mt-1 text-[10px] text-muted">{validationStatusLabel(aoi.validationStatus)}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => onOpenSavedAoi(aoi)}
+                          className="shrink-0 rounded-md bg-surface px-2 py-1 text-[11px] font-semibold text-brand"
+                        >
+                          Open
+                        </button>
+                      </div>
+                      <div className="mt-2 grid grid-cols-3 gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const nextName = window.prompt("Rename AOI", aoi.name);
+                            if (nextName?.trim()) onRenameSavedAoi(aoi, nextName.trim());
+                          }}
+                          className="rounded-md border border-line bg-surface px-2 py-1 text-[10px] font-semibold text-muted"
+                        >
+                          Rename
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onExportSavedAoi(aoi)}
+                          className="rounded-md border border-line bg-surface px-2 py-1 text-[10px] font-semibold text-muted"
+                        >
+                          Export
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onDeleteSavedAoi(aoi.id)}
+                          className="rounded-md border border-line bg-surface px-2 py-1 text-[10px] font-semibold text-muted"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </details>
           </section>
 
           <section className="grid min-w-0 max-w-full gap-2 overflow-hidden">

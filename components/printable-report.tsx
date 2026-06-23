@@ -4,6 +4,7 @@ import { getDataSourceById } from "@/src/data/data-source-registry";
 import ingestionReport from "@/data/normalized/ingestion_report.json";
 import { deriveDataConfidenceLevel } from "@/src/data/data-maturity";
 import { deriveDecisionPosture, deriveDecisionRationale } from "@/src/lib/decision-posture";
+import { userDrawnAoiSourceCode, userDrawnAoiSourceLabel } from "@/src/lib/aoi-library";
 import { formatArea, formatPerimeter } from "@/src/lib/polygon-aoi";
 import type { ComparisonResult, ExpressAnalysis, ScoreKey } from "@/src/types/geo";
 
@@ -257,13 +258,13 @@ function AnalysisPrintable({ analysis }: { analysis: ExpressAnalysis }) {
       ) : null}
 
       {analysis.selectedAoi ? (
-        <PrintSection title="User-Drawn AOI Details">
+        <PrintSection title={`${userDrawnAoiSourceLabel(analysis.selectedAoi)} Details`}>
           <div className="print-score-grid">
             <PrintCard><strong>Geometry</strong><span>Polygon AOI</span></PrintCard>
             <PrintCard><strong>Area</strong><span>{formatArea(analysis.selectedAoi.measurements.areaSqM)}</span></PrintCard>
             <PrintCard><strong>Perimeter</strong><span>{formatPerimeter(analysis.selectedAoi.measurements.perimeterM)}</span></PrintCard>
             <PrintCard><strong>Vertices</strong><span>{analysis.selectedAoi.measurements.vertexCount}</span></PrintCard>
-            <PrintCard><strong>Source</strong><span>user_drawn_polygon</span></PrintCard>
+            <PrintCard><strong>Source</strong><span>{userDrawnAoiSourceCode(analysis.selectedAoi)}</span></PrintCard>
             <PrintCard><strong>Status</strong><span>official validation required</span></PrintCard>
           </div>
           <p>{analysis.selectedAoi.limitations[0]}</p>

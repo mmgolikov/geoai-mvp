@@ -10,6 +10,7 @@ import { getClientPilotPackageForProject } from "@/src/data/pilot-packages";
 import { externalDataSources } from "@/src/lib/external-data/source-registry";
 import { sourceStatusToLabel } from "@/src/lib/external-data/source-status";
 import { deriveDecisionPosture, deriveDecisionRationale } from "@/src/lib/decision-posture";
+import { userDrawnAoiSourceCode, userDrawnAoiSourceLabel } from "@/src/lib/aoi-library";
 import { formatArea, formatPerimeter } from "@/src/lib/polygon-aoi";
 import { createSourceLineageSnapshot } from "@/src/lib/source-lineage-snapshot";
 import type { ComparisonResult, ExpressAnalysis, ScoreKey } from "@/src/types/geo";
@@ -590,7 +591,9 @@ function AnalysisReport({ analysis, onBack }: { analysis: ExpressAnalysis; onBac
           <MapContextCard
             title={analysis.selectedAoi?.name ?? analysis.selectedObject?.name ?? "Custom map point"}
             subtitle={
-              analysis.selectedAoi || analysis.analysisTarget?.type === "user-drawn-aoi"
+              analysis.selectedAoi
+                ? `${userDrawnAoiSourceLabel(analysis.selectedAoi)} / ${analysis.subtitle}`
+                : analysis.analysisTarget?.type === "user-drawn-aoi"
                 ? `User-drawn AOI / ${analysis.subtitle}`
                 : analysis.analysisTarget?.type === "uploaded-feature"
                 ? `Uploaded screening geometry / ${analysis.subtitle}`
@@ -711,7 +714,7 @@ function AnalysisReport({ analysis, onBack }: { analysis: ExpressAnalysis; onBac
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <p className="text-lg font-semibold text-ink">{analysis.selectedAoi.name}</p>
-                  <p className="mt-1 text-sm text-muted">User-drawn polygon AOI / validation required</p>
+                  <p className="mt-1 text-sm text-muted">{userDrawnAoiSourceLabel(analysis.selectedAoi)} / validation required</p>
                 </div>
                 <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-muted">
                   user provided / not official
@@ -742,7 +745,7 @@ function AnalysisReport({ analysis, onBack }: { analysis: ExpressAnalysis; onBac
                 </div>
                 <div className="rounded-md bg-white p-4">
                   <dt className="font-semibold text-muted">Source status</dt>
-                  <dd className="mt-1 text-ink">User drawn / validation required</dd>
+                  <dd className="mt-1 text-ink">{userDrawnAoiSourceCode(analysis.selectedAoi)} / validation required</dd>
                 </div>
               </dl>
               <p className="mt-4 text-sm leading-6 text-muted">Note: {analysis.selectedAoi.limitations[0]}</p>

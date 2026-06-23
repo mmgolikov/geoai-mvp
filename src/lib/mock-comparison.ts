@@ -5,6 +5,7 @@ import {
   adjustScoresWithMarketMetrics,
   findBestMarketMetricMatch
 } from "@/src/lib/market-metrics";
+import { userDrawnAoiSourceLabel } from "@/src/lib/aoi-library";
 import { analysisScenarios, createMockExpressAnalysis } from "@/src/lib/mock-express-analysis";
 import type {
   AnalysisScenario,
@@ -40,7 +41,7 @@ function stablePointId(point: SelectedPoint) {
 }
 
 function recommendedUseForItem(item: ComparisonItem) {
-  if (item.selectedAoi) return "User-defined AOI screening and official validation workflow";
+  if (item.selectedAoi) return `${userDrawnAoiSourceLabel(item.selectedAoi)} screening and official validation workflow`;
   if (item.selectedObject?.layerId === "premiumRealEstateAreas") return "Premium mixed-use or residential investment";
   if (item.selectedObject?.layerId === "developmentZones") return "Master-planned development or land banking";
   if (item.selectedObject?.layerId === "infrastructureNodes") return "Logistics, access-led commercial, or public infrastructure support";
@@ -147,7 +148,7 @@ export function createComparisonItem(
   const scenario = analysisScenarios.find((item) => item.id === scenarioId) as AnalysisScenario;
   const itemType = selectedAoi ? "aoi" : selectedObject ? "object" : "point";
   const locationLabel = selectedAoi
-    ? `User-drawn AOI / ${selectedAoi.measurements.areaSqKm.toFixed(2)} sq km / ${formatCoordinate(selectedAoi.centroid)}`
+    ? `${userDrawnAoiSourceLabel(selectedAoi)} / ${selectedAoi.measurements.areaSqKm.toFixed(2)} sq km / ${formatCoordinate(selectedAoi.centroid)}`
     : selectedObject
     ? `${selectedObject.layerName} / ${formatCoordinate(selectedObject.center)}`
     : `Map point / ${formatCoordinate(point)}`;

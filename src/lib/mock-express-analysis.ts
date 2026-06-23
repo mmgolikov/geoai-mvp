@@ -261,14 +261,16 @@ function commonEvidence(
   }
 
   if (selectedAoi) {
+    const sourceLabel = selectedAoi.sourceType === "uploaded_geojson" ? "Uploaded GeoJSON AOI" : "User-drawn AOI";
+    const sourceValue = selectedAoi.sourceType === "uploaded_geojson" ? "uploaded_geojson_polygon" : "user_drawn_polygon";
     evidence.splice(
       2,
       0,
       createEvidenceItem(
-        "selected-user-drawn-aoi",
+        `selected-${selectedAoi.sourceType === "uploaded_geojson" ? "uploaded" : "user-drawn"}-aoi`,
         "customer-uploaded-documents",
-        `User-drawn AOI: ${selectedAoi.name}`,
-        `Client-side polygon AOI with ${selectedAoi.measurements.vertexCount} vertices, approximate area ${selectedAoi.measurements.areaSqKm.toFixed(2)} sq km and perimeter ${selectedAoi.measurements.perimeterKm.toFixed(2)} km. Source is user_drawn_polygon; official parcel, zoning, cadastral and planning validation required.`,
+        `${sourceLabel}: ${selectedAoi.name}`,
+        `Polygon AOI with ${selectedAoi.measurements.vertexCount} vertices, approximate area ${selectedAoi.measurements.areaSqKm.toFixed(2)} sq km and perimeter ${selectedAoi.measurements.perimeterKm.toFixed(2)} km. Source is ${sourceValue}; screening hypothesis and official validation required.`,
         "low"
       )
     );
@@ -296,11 +298,11 @@ export function createMockExpressAnalysis(
     ? `The selected demo object is ${selectedObject.name}, a synthetic ${selectedObject.type.toLowerCase()} from the ${selectedObject.layerName} layer. `
     : "";
   const aoiContext = selectedAoi
-    ? `The selected target is ${selectedAoi.name}, a user-drawn screening AOI with approximate area ${selectedAoi.measurements.areaSqKm.toFixed(2)} sq km and perimeter ${selectedAoi.measurements.perimeterKm.toFixed(2)} km. It is not an official parcel, zoning, cadastral, or planning boundary. `
+    ? `The selected target is ${selectedAoi.name}, a ${selectedAoi.sourceType === "uploaded_geojson" ? "uploaded GeoJSON" : "user-drawn"} screening AOI with approximate area ${selectedAoi.measurements.areaSqKm.toFixed(2)} sq km and perimeter ${selectedAoi.measurements.perimeterKm.toFixed(2)} km. It is not a legal, cadastral, zoning, planning or valuation conclusion. `
     : "";
   const targetContext = aoiContext || objectContext;
   const subtitle = selectedAoi
-    ? `User-drawn AOI · ${formatCoordinate(point)}`
+    ? `${selectedAoi.sourceType === "uploaded_geojson" ? "Uploaded GeoJSON AOI" : "User-drawn AOI"} · ${formatCoordinate(point)}`
     : selectedObject
     ? `${selectedObject.type} / ${selectedObject.layerName} · ${formatCoordinate(point)}`
     : formatCoordinate(point);
