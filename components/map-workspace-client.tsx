@@ -1643,40 +1643,11 @@ export function MapWorkspaceClient({
 
       {shouldShowMapboxControls ? (
         <div
-          className={`absolute z-30 flex max-w-[calc(100%-40px)] flex-col items-end gap-2 ${showLayerControls && layersExpanded ? "right-[318px] top-5" : "right-5 top-[72px]"}`}
+          className={`absolute z-30 flex max-w-[calc(100%-40px)] items-start justify-end gap-2 ${showLayerControls && layersExpanded ? "right-[318px] top-5" : "right-5 top-[72px]"}`}
           onClick={(event) => event.stopPropagation()}
         >
-          <button
-            type="button"
-            onClick={isDrawingPolygon ? undefined : startPolygonDrawing}
-            disabled={isDrawingPolygon}
-            aria-label={isDrawingPolygon ? "Drawing polygon" : selectedAoi ? "Replace polygon" : "Add polygon"}
-            title={isDrawingPolygon ? "Drawing polygon" : selectedAoi ? "Replace polygon" : "Add polygon"}
-            className={`inline-flex h-10 w-10 items-center justify-center rounded-lg border border-white/75 shadow-soft backdrop-blur transition focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 ${
-              isDrawingPolygon
-                ? "cursor-default bg-brand text-white"
-                : selectedAoi
-                  ? "bg-[#edf4f2]/95 text-brand hover:bg-white"
-                  : "bg-white/92 text-ink hover:border-brand hover:bg-white"
-            }`}
-          >
-            <PolygonControlIcon />
-          </button>
-
-          {selectedAoi && !isDrawingPolygon ? (
-            <button
-              type="button"
-              onClick={deletePolygonAoi}
-              aria-label="Delete polygon"
-              title="Delete polygon"
-              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/75 bg-white/92 text-sm font-semibold text-muted shadow-soft backdrop-blur transition hover:border-brand hover:bg-white hover:text-ink focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2"
-            >
-              x
-            </button>
-          ) : null}
-
           {isDrawingPolygon ? (
-            <div className="w-[min(224px,calc(100vw-112px))] rounded-lg border border-white/75 bg-white/95 p-2.5 text-xs shadow-soft backdrop-blur">
+            <div className="w-[min(226px,calc(100vw-112px))] rounded-lg border border-white/75 bg-white/95 p-2.5 text-xs shadow-soft backdrop-blur">
               <div className="flex items-center justify-between gap-2">
                 <div className="min-w-0">
                   <p className="truncate font-semibold text-ink">Drawing polygon</p>
@@ -1718,6 +1689,23 @@ export function MapWorkspaceClient({
               </div>
             </div>
           ) : null}
+
+          <button
+            type="button"
+            onClick={isDrawingPolygon ? undefined : startPolygonDrawing}
+            disabled={isDrawingPolygon}
+            aria-label={isDrawingPolygon ? "Drawing polygon" : selectedAoi ? "Replace polygon" : "Add polygon"}
+            title={isDrawingPolygon ? "Drawing polygon" : selectedAoi ? "Replace polygon" : "Add polygon"}
+            className={`inline-flex h-10 w-10 items-center justify-center rounded-lg border border-white/75 shadow-soft backdrop-blur transition focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 ${
+              isDrawingPolygon
+                ? "cursor-default bg-brand text-white"
+                : selectedAoi
+                  ? "bg-[#edf4f2]/95 text-brand hover:bg-white"
+                  : "bg-white/92 text-ink hover:border-brand hover:bg-white"
+            }`}
+          >
+            <PolygonControlIcon />
+          </button>
         </div>
       ) : null}
 
