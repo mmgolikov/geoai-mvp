@@ -77,6 +77,21 @@ export const publicSourceCatalog: PublicSourceCatalogItem[] = [
     limitations: ["Project snapshot does not validate permits, completion status or official planning approval."]
   }),
   source({
+    id: "dld-dubai-pulse-public-valuations",
+    name: "DLD / Dubai Pulse public valuations snapshot",
+    provider: "Dubai Land Department / Dubai Pulse",
+    geography: "Dubai",
+    category: "real-estate",
+    accessMode: "manual-snapshot",
+    connectionStatus: "sample_fallback",
+    licenseNote: "Public/open-data terms, attribution and redistribution limits must be reviewed per downloaded file.",
+    updateCadence: "Manual snapshot / public web CSV where available",
+    dataQualityTier: "requires-validation",
+    officialClaimAllowed: false,
+    allowedUse: ["valuation evidence inventory", "source lineage", "validation checklist"],
+    limitations: ["Not a certified valuation, underwriting conclusion or verified valuation source."]
+  }),
+  source({
     id: "dld-dubai-pulse-public-land",
     name: "DLD / Dubai Pulse public land snapshot",
     provider: "Dubai Land Department / Dubai Pulse",
@@ -120,6 +135,36 @@ export const publicSourceCatalog: PublicSourceCatalogItem[] = [
     officialClaimAllowed: false,
     allowedUse: ["unit-level market screening where provided", "source lineage"],
     limitations: ["Not a title, ownership or valuation verification source."]
+  }),
+  source({
+    id: "dld-dubai-pulse-public-brokers",
+    name: "DLD / Dubai Pulse public brokers snapshot",
+    provider: "Dubai Land Department / Dubai Pulse",
+    geography: "Dubai",
+    category: "real-estate",
+    accessMode: "manual-snapshot",
+    connectionStatus: "sample_fallback",
+    licenseNote: "Public/open-data terms, attribution and redistribution limits must be reviewed per downloaded file.",
+    updateCadence: "Manual snapshot / public web CSV where available",
+    dataQualityTier: "requires-validation",
+    officialClaimAllowed: false,
+    allowedUse: ["broker ecosystem context", "source lineage"],
+    limitations: ["Does not validate brokerage standing, licensing status or transaction authority."]
+  }),
+  source({
+    id: "dld-dubai-pulse-public-developers",
+    name: "DLD / Dubai Pulse public developers snapshot",
+    provider: "Dubai Land Department / Dubai Pulse",
+    geography: "Dubai",
+    category: "real-estate",
+    accessMode: "manual-snapshot",
+    connectionStatus: "sample_fallback",
+    licenseNote: "Public/open-data terms, attribution and redistribution limits must be reviewed per downloaded file.",
+    updateCadence: "Manual snapshot / public web CSV where available",
+    dataQualityTier: "requires-validation",
+    officialClaimAllowed: false,
+    allowedUse: ["developer ecosystem context", "source lineage"],
+    limitations: ["Does not validate developer licensing, project approvals or delivery commitments."]
   }),
   source({
     id: "dld-api-gateway-permissioned",

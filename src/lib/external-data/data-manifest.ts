@@ -13,6 +13,7 @@ import {
   sourceStatusToReadiness,
   type SourceStatus
 } from "@/src/lib/external-data/source-status";
+import { normalizeSourceDataMode, type SourceDataMode } from "@/src/lib/external-data/source-modes";
 
 export type ExternalDataManifestSource = {
   id: string;
@@ -25,6 +26,7 @@ export type ExternalDataManifestSource = {
   coverageArea?: string;
   confidence?: string;
   caveat?: string;
+  sourceMode?: SourceDataMode;
   usedInAnalysis?: boolean;
   disclaimer?: string;
 };
@@ -107,7 +109,12 @@ function enrichManifestWithSnapshots(manifest: ExternalDataManifest): ExternalDa
   const sourceById = new Map(manifest.sources.map((source) => [source.id, source]));
   const update = (id: string, patch: Partial<ExternalDataManifestSource>) => {
     const existing = sourceById.get(id) ?? { id, status: "sample_fallback" as SourceStatus };
-    sourceById.set(id, { ...existing, ...patch, status: normalizeSourceStatus(patch.status ?? existing.status) });
+    sourceById.set(id, {
+      ...existing,
+      ...patch,
+      status: normalizeSourceStatus(patch.status ?? existing.status),
+      sourceMode: normalizeSourceDataMode(patch.sourceMode ?? existing.sourceMode ?? patch.status ?? existing.status)
+    });
   };
 
   const dldCount = dldSnapshot?.areas?.length ?? dldLegacy?.areas?.length ?? 0;
@@ -115,19 +122,29 @@ function enrichManifestWithSnapshots(manifest: ExternalDataManifest): ExternalDa
     "data/normalized/dld_transactions_snapshot.json",
     "data/normalized/dld_rents_snapshot.json",
     "data/normalized/dld_projects_snapshot.json",
+    "data/normalized/dld_valuations_snapshot.json",
     "data/normalized/dld_land_snapshot.json",
     "data/normalized/dld_building_snapshot.json",
     "data/normalized/dld_unit_snapshot.json",
+    "data/normalized/dld_brokers_snapshot.json",
+    "data/normalized/dld_developers_snapshot.json",
     "data/normalized/dld_market_summary.json",
     "data/normalized/dld_source_quality.json"
   ].filter(normalizedExternalFileExists);
   const dldPublicQuality = readJsonFile<{ totalRecords?: number; categories?: Record<string, { recordCount?: number; status?: string }> }>("data/normalized/dld_source_quality.json");
   const dldPublicCount = dldPublicQuality?.totalRecords ?? dldCount;
-  const dldLegacyStatus: SourceStatus = normalizedExternalFileExists(dldLegacyPath) ? "snapshot_available" : "sample_fallback";
+  const dldMarketSnapshotFileExists = normalizedExternalFileExists(dldSnapshotPath);
+  const dldLegacyStatus: SourceStatus = normalizedExternalFileExists(dldLegacyPath) || dldMarketSnapshotFileExists ? "snapshot_available" : "sample_fallback";
   const dldPublicStatuses = Object.values(dldPublicQuality?.categories ?? {}).map((item) => normalizeSourceStatus(item.status));
   const dldPublicStatus: SourceStatus = dldPublicStatuses.some((status) => status === "snapshot_available") ? "snapshot_available" : "sample_fallback";
+  const dldSourceMode: SourceDataMode = normalizedExternalFileExists(dldLegacyPath)
+    ? "real_snapshot"
+    : dldMarketSnapshotFileExists
+      ? "sample_fallback"
+      : "manual_import_ready";
   const dldPatch: Partial<ExternalDataManifestSource> = {
     status: dldCount > 0 ? dldLegacyStatus : "sample_fallback",
+    sourceMode: dldCount > 0 ? dldSourceMode : "manual_import_ready",
     lastUpdated: dldSnapshot?.generatedAt ?? sourceById.get("dld-dubai-pulse-transactions")?.lastUpdated ?? null,
     rowCount: dldPublicCount,
     recordCount: dldPublicCount,
@@ -138,7 +155,7 @@ function enrichManifestWithSnapshots(manifest: ExternalDataManifest): ExternalDa
     coverageArea: "Dubai market areas",
     confidence: dldLegacyStatus === "snapshot_available" ? "medium" : "low",
     caveat: dldCount > 0
-      ? `DLD / Dubai Pulse public snapshot sample / sample fallback active. ${externalDataCaveat}`
+      ? `DLD / Dubai Pulse snapshot context available (${dldSourceMode.replace(/_/g, " ")}). Official validation required. ${externalDataCaveat}`
       : `DLD / Dubai Pulse public snapshot missing; sample fallback remains active. ${externalDataCaveat}`,
     usedInAnalysis: dldCount > 0
   };
@@ -147,12 +164,16 @@ function enrichManifestWithSnapshots(manifest: ExternalDataManifest): ExternalDa
     "dld-dubai-pulse-public-transactions",
     "dld-dubai-pulse-public-rents",
     "dld-dubai-pulse-public-projects",
+    "dld-dubai-pulse-public-valuations",
     "dld-dubai-pulse-public-land",
     "dld-dubai-pulse-public-building",
-    "dld-dubai-pulse-public-unit"
+    "dld-dubai-pulse-public-unit",
+    "dld-dubai-pulse-public-brokers",
+    "dld-dubai-pulse-public-developers"
   ].forEach((id) => update(id, {
     ...dldPatch,
     status: dldPublicFiles.length > 0 ? dldPublicStatus : "sample_fallback",
+    sourceMode: dldPublicStatus === "snapshot_available" ? "imported_snapshot" : "sample_fallback",
     coverageArea: "Dubai public real-estate categories"
   }));
 
@@ -182,6 +203,7 @@ function enrichManifestWithSnapshots(manifest: ExternalDataManifest): ExternalDa
     ].filter((file): file is string => Boolean(file)).concat(osmPublicFiles),
     coverageArea: "Dubai open geospatial baseline",
     confidence: osmLegacyStatus === "snapshot_available" ? "medium" : "low",
+    sourceMode: normalizedExternalFileExists(osmLegacyPath) ? "real_snapshot" : "sample_fallback",
     caveat: resolvedOsmCount > 0
       ? `OSM / Geofabrik sample/open snapshot context available. ${externalDataCaveat}`
       : `OSM / Geofabrik snapshot missing; sample fallback remains active. ${externalDataCaveat}`,
@@ -190,7 +212,8 @@ function enrichManifestWithSnapshots(manifest: ExternalDataManifest): ExternalDa
   update("osm-geofabrik-baseline", osmPatch);
   ["osm-geofabrik-open-roads", "osm-geofabrik-open-pois", "osm-geofabrik-open-buildings"].forEach((id) => update(id, {
     ...osmPatch,
-    status: osmPublicFiles.length > 0 ? osmPublicStatus : "sample_fallback"
+    status: osmPublicFiles.length > 0 ? osmPublicStatus : "sample_fallback",
+    sourceMode: osmPublicStatus === "snapshot_available" ? "imported_snapshot" : "sample_fallback"
   }));
 
   const overtureFiles = [
@@ -203,6 +226,7 @@ function enrichManifestWithSnapshots(manifest: ExternalDataManifest): ExternalDa
   const overtureStatus = normalizeSourceStatus(overtureQuality?.status ?? "manual_import_ready");
   ["overture-maps-open-buildings", "overture-maps-open-places", "overture-maps-open-transportation"].forEach((id) => update(id, {
     status: overtureFiles.length > 0 ? overtureStatus : "manual_import_ready",
+    sourceMode: overtureFiles.length > 0 ? normalizeSourceDataMode(overtureStatus) : "manual_import_ready",
     featureCount: overtureQuality?.totalFeatures,
     recordCount: overtureQuality?.totalFeatures,
     availableFiles: overtureFiles,
@@ -216,6 +240,7 @@ function enrichManifestWithSnapshots(manifest: ExternalDataManifest): ExternalDa
   const worldpopStatus = normalizeSourceStatus(worldpopQuality?.status ?? "sample_fallback");
   update("worldpop-demographics", {
     status: worldpopFiles.length > 0 ? worldpopStatus : "sample_fallback",
+    sourceMode: worldpopFiles.length > 0 ? normalizeSourceDataMode(worldpopStatus) : "sample_fallback",
     featureCount: worldpopQuality?.featureCount,
     recordCount: worldpopQuality?.featureCount,
     availableFiles: worldpopFiles,
@@ -229,6 +254,7 @@ function enrichManifestWithSnapshots(manifest: ExternalDataManifest): ExternalDa
   const adminStatus = normalizeSourceStatus(adminContext?.status ?? "manual_import_ready");
   ["overture-divisions-admin-context", "gadm-uae-admin-context"].forEach((id) => update(id, {
     status: adminFiles.length > 0 ? adminStatus : "manual_import_ready",
+    sourceMode: adminFiles.length > 0 ? normalizeSourceDataMode(adminStatus) : "manual_import_ready",
     availableFiles: adminFiles,
     coverageArea: "UAE / Dubai non-official administrative context",
     confidence: "low",
@@ -238,6 +264,7 @@ function enrichManifestWithSnapshots(manifest: ExternalDataManifest): ExternalDa
   const copernicusSample = normalizedExternalFileExists("data/external/samples/copernicus_sentinel_metadata_sample.json");
   update("copernicus-sentinel-metadata", {
     status: copernicusSample ? "sample_fallback" : "token_required",
+    sourceMode: copernicusSample ? "sample_fallback" : "planned_validation",
     availableFiles: copernicusSample ? ["data/external/samples/copernicus_sentinel_metadata_sample.json"] : [],
     coverageArea: "Dubai satellite metadata availability",
     confidence: "requires-validation",
@@ -246,6 +273,7 @@ function enrichManifestWithSnapshots(manifest: ExternalDataManifest): ExternalDa
 
   update("open-meteo-climate", {
     status: "connected",
+    sourceMode: "real_snapshot",
     coverageArea: "Coordinate-level open climate API context",
     confidence: "medium",
     caveat: `Screening-level heat/rainfall proxy only. ${externalDataCaveat}`
@@ -267,6 +295,7 @@ function enrichManifestWithSnapshots(manifest: ExternalDataManifest): ExternalDa
         coverageArea: existing?.coverageArea ?? source.geography,
         confidence: existing?.confidence ?? source.confidence,
         caveat: existing?.caveat ?? source.disclaimer,
+        sourceMode: normalizeSourceDataMode(existing?.sourceMode ?? existing?.status ?? source.status),
         usedInAnalysis: existing?.usedInAnalysis ?? Boolean(source.usedInAnalysis),
         disclaimer: existing?.disclaimer ?? source.disclaimer
       };
@@ -290,6 +319,7 @@ export function getExternalDataReadiness(): DataReadinessResult[] {
       recordCount,
       coverageArea: manifestSource?.coverageArea ?? source.geography,
       confidence: source.confidence,
+      sourceMode: manifestSource?.sourceMode,
       caveat: manifestSource?.caveat ?? source.disclaimer
     };
   });
@@ -305,7 +335,7 @@ export function createSourceLineageItems(usedIn: string): SourceLineageItem[] {
       sourceId: source.id,
       sourceName: source.name,
       category: source.category,
-      dataMode: readiness?.status ?? source.accessMode,
+      dataMode: readiness?.sourceMode ?? readiness?.status ?? source.accessMode,
       usedIn,
       confidence: source.confidence,
       limitation: readiness?.caveat ?? source.limitations[0] ?? source.disclaimer,

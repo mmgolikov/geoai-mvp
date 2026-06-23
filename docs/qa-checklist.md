@@ -213,6 +213,7 @@ Use this checklist before demos, Vercel deployments, and milestone checkpoints.
 ## Public Data Connectors v1.6
 
 - [ ] `npm run ingest:dld:public` exits successfully.
+- [ ] `npm run ingest:dld:snapshot` exits successfully.
 - [ ] `npm run ingest:osm:public` exits successfully.
 - [ ] `npm run ingest:overture:public` exits successfully.
 - [ ] `npm run ingest:worldpop:public` exits successfully.
@@ -227,6 +228,19 @@ Use this checklist before demos, Vercel deployments, and milestone checkpoints.
 - [ ] External Data Status remains compact in the workspace command panel.
 - [ ] Project Dashboard Data Readiness groups DLD/Dubai Pulse, open spatial, climate/energy, environment, demographics, satellite and official validation without overflow.
 - [ ] No live official DLD, Dubai Pulse, GeoDubai, parcel, zoning, cadastral, ownership or valuation claims appear.
+
+## Real Data + OpenAI Decision Scoring v2.1
+
+- [ ] `npm run data:status` prints source mode, count, last updated, warnings and caveat.
+- [ ] `npm run validate:external-data` exits successfully.
+- [ ] `/projects` market-area count agrees with `/api/market-metrics`.
+- [ ] `/api/ai/decision-score` returns route status with no API key exposed.
+- [ ] Decision score POST returns `deterministic_fallback` without `OPENAI_API_KEY`.
+- [ ] With `OPENAI_API_KEY`, decision score attempts OpenAI and falls back safely on invalid output/failure.
+- [ ] Express Analysis dashboard shows AI Decision Memo without replacing deterministic score cards.
+- [ ] Report preview and printable report include AI Decision Memo when present.
+- [ ] Russian query `что лучше построить на этой территории?` stays caveated and scenario-specific.
+- [ ] Forbidden claims appear only in caveats/guardrail lists, not as positive product claims.
 
 ## Investor Demo Narrative v1.5
 

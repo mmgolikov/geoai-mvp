@@ -24,14 +24,19 @@ Required caveat:
 
 ```bash
 npm run ingest:dld:public
+npm run ingest:dld:snapshot
 npm run ingest:osm:public
 npm run ingest:overture:public
 npm run ingest:worldpop:public
 npm run ingest:admin-boundaries:public
 npm run ingest:public-data:all
+npm run data:status
+npm run validate:external-data
 ```
 
 Each command uses a real external folder when files are present and bundled samples when files are missing. Missing categories do not fail the build.
+
+v2.1 extends DLD manual import readiness to transactions, rents, projects, valuations, land, building, unit, brokers and developers with dated CSV patterns such as `dld_transactions_YYYYMMDD.csv`. Missing categories are reported as `manual_import_ready`.
 
 ## API Routes
 

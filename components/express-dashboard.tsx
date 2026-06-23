@@ -327,6 +327,10 @@ function createDataConfidencePreview(value: string, importedMetricsUsed?: boolea
   return value;
 }
 
+function formatDecisionToken(value: string) {
+  return value.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
 function createMetadataDetail(label: string, analysis: ExpressAnalysis, marketMetricsImported?: boolean) {
   if (label === "Data confidence") {
     return marketMetricsImported ? "Validation required" : "Official validation required";
@@ -499,6 +503,67 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
             })}
           </div>
         </AnalysisCard>
+
+        {analysis.aiDecisionScore ? (
+          <AnalysisCard>
+            <AnalysisCardHeader
+              title="AI Decision Memo"
+              subtitle="Scenario-specific decision-support hypothesis layered on top of deterministic scores."
+              badge={analysis.aiDecisionScore.mode === "openai" ? "OpenAI scoring" : "Deterministic fallback"}
+            />
+            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <AnalysisMetricCard
+                label="Decision posture"
+                value={formatDecisionToken(analysis.aiDecisionScore.decisionPosture)}
+                detail="Decision-support posture only."
+              />
+              <AnalysisMetricCard
+                label="Recommended use"
+                value={formatDecisionToken(analysis.aiDecisionScore.recommendedUse)}
+                detail="Screening hypothesis; validation required."
+              />
+              <AnalysisMetricCard
+                label="Suitability"
+                value={`${analysis.aiDecisionScore.suitabilityScore}/100`}
+                detail={`${analysis.aiDecisionScore.confidence} confidence`}
+              />
+              <AnalysisMetricCard
+                label="Risk"
+                value={`${analysis.aiDecisionScore.riskScore}/100`}
+                detail="Higher score means higher screening risk."
+              />
+            </div>
+            <div className="mt-4 grid gap-3 lg:grid-cols-3">
+              <article className="rounded-md border border-line bg-surface p-4">
+                <h3 className="text-sm font-semibold text-ink">Key drivers</h3>
+                <ul className="mt-2 space-y-2 text-sm leading-6 text-muted">
+                  {analysis.aiDecisionScore.keyDrivers.slice(0, 3).map((item, index) => (
+                    <li key={createStableKey("ai-driver", item, index)}>{item}</li>
+                  ))}
+                </ul>
+              </article>
+              <article className="rounded-md border border-line bg-surface p-4">
+                <h3 className="text-sm font-semibold text-ink">Key risks</h3>
+                <ul className="mt-2 space-y-2 text-sm leading-6 text-muted">
+                  {analysis.aiDecisionScore.keyRisks.slice(0, 3).map((item, index) => (
+                    <li key={createStableKey("ai-risk", item, index)}>{item}</li>
+                  ))}
+                </ul>
+              </article>
+              <article className="rounded-md border border-line bg-surface p-4">
+                <h3 className="text-sm font-semibold text-ink">Validation required</h3>
+                <ul className="mt-2 space-y-2 text-sm leading-6 text-muted">
+                  {analysis.aiDecisionScore.validationRequired.slice(0, 3).map((item, index) => (
+                    <li key={createStableKey("ai-validation", item, index)}>{item}</li>
+                  ))}
+                </ul>
+              </article>
+            </div>
+            <p className="mt-4 rounded-md border border-line bg-white px-4 py-3 text-sm leading-6 text-muted">
+              {analysis.aiDecisionScore.caveat}
+            </p>
+          </AnalysisCard>
+        ) : null}
 
         <AnalysisCard>
           <AnalysisCardHeader title="Executive Narrative" />

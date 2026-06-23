@@ -86,6 +86,8 @@ If port `3000` is occupied, Next.js may start on another port. Use the exact URL
 ```bash
 NEXT_PUBLIC_MAPBOX_TOKEN=
 OPENAI_API_KEY=
+OPENAI_MODEL=
+OPENAI_MODEL_DECISION_SCORING=
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
@@ -93,7 +95,7 @@ SUPABASE_SERVICE_ROLE_KEY=
 
 `NEXT_PUBLIC_MAPBOX_TOKEN` is required for the live Mapbox basemap.
 
-`OPENAI_API_KEY` is optional and server-only. When it is set in local or Vercel server environment variables, `/api/analyze` can use OpenAI to generate dashboard-ready narrative analysis. When it is missing or the API request fails, GeoAI returns a mock fallback response.
+`OPENAI_API_KEY` is optional and server-only. When it is set in local or Vercel server environment variables, `/api/analyze` can use OpenAI to generate dashboard-ready narrative analysis and `/api/ai/decision-score` can generate structured decision-support scoring. When it is missing or an API request fails, GeoAI returns deterministic fallback responses.
 
 Supabase/PostGIS is optional in v0.1. When Supabase environment variables are not configured, GeoAI remains fully usable in local/demo mode and analysis history stays in browser storage.
 
@@ -123,6 +125,8 @@ npm run dev:turbo
 npm run build
 npm run ingest:dld:snapshot
 npm run ingest:osm:snapshot
+npm run data:status
+npm run validate:external-data
 npm run start
 ```
 
@@ -134,6 +138,7 @@ The default `npm run dev` command uses stable Webpack mode with polling enabled 
 - `GET /api/db/health` returns optional Supabase/PostGIS readiness without exposing secrets.
 - `GET /api/demo-objects` returns mock spatial objects for demo use.
 - `POST /api/analyze` returns structured analysis narrative. It uses OpenAI when `OPENAI_API_KEY` is available and otherwise returns mock fallback content.
+- `GET|POST /api/ai/decision-score` returns structured decision-support scoring. It uses server-side OpenAI when available and otherwise returns deterministic fallback.
 - `GET /api/analysis-runs` returns persisted analysis runs when Supabase is configured, or `local_fallback` mode otherwise.
 - `POST /api/analysis-runs` saves analysis runs when Supabase is configured, or returns a non-blocking `local_fallback` response otherwise.
 - `POST /api/context/market` returns seed/demo-normalized Dubai market context for selected coordinates.
@@ -261,6 +266,8 @@ npm run ingest:overture:public
 npm run ingest:worldpop:public
 npm run ingest:admin-boundaries:public
 npm run ingest:public-data:all
+npm run data:status
+npm run validate:external-data
 ```
 
 This is not a live official integration layer. Outputs remain a screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.
@@ -308,7 +315,7 @@ Current export remains browser print/save as PDF. GeoAI does not generate server
 
 - Uses synthetic/demo geospatial data only.
 - Uses deterministic mock scoring only.
-- OpenAI generates narrative interpretation only; scores remain deterministic mock values.
+- OpenAI narrative and decision scoring are optional, server-side and fallback-safe; deterministic scoring remains the baseline.
 - Market context is seed/demo-normalized and not official market evidence.
 - Data ingestion currently uses local seed/static context and imported sample CSV fixtures only.
 - Spatial layers currently use local seed_geojson demo geometries only.
@@ -345,6 +352,7 @@ Current export remains browser print/save as PDF. GeoAI does not generate server
 - [Pilot Workflow & Deliverables v2.0](docs/PILOT_WORKFLOW_DELIVERABLES_V20.md)
 - [GeoAI Pilot Workflow & Deliverables Foundation v2.0 Release Note](docs/RELEASE_GEOAI_PILOT_WORKFLOW_DELIVERABLES_V20.md)
 - [GeoAI Repository Mode & Fallback Consistency v2.0.2 Release Note](docs/RELEASE_GEOAI_REPOSITORY_MODE_CONSISTENCY_V202.md)
+- [Real Data + OpenAI Decision Scoring Foundation v2.1](docs/REAL_DATA_OPENAI_SCORING_FOUNDATION_V21.md)
 - [GeoAI AOI Library Demo v1.8 Release Note](docs/RELEASE_GEOAI_AOI_LIBRARY_DEMO_V18.md)
 - [Persistence & Project Workspace v0.8](docs/PERSISTENCE_PROJECT_WORKSPACE_V08.md)
 - [Project-Scoped Persistence v13](docs/PROJECT_SCOPED_PERSISTENCE_V13.md)

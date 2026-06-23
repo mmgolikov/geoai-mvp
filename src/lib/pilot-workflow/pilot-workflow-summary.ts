@@ -191,7 +191,7 @@ function defaultWorkflow(project: GeoAIProject, template = templateForProject(pr
   };
 }
 
-function defaultClientInputs(project: GeoAIProject, template = templateForProject(project), dataRoom = { aois: 0, uploads: 0 }): ClientInputItem[] {
+function defaultClientInputs(project: GeoAIProject, template = templateForProject(project), dataRoom = { aois: 0, uploads: 0, marketEvidence: 0 }): ClientInputItem[] {
   return template.inputs.map((item, index) => {
     const id = `pilot-input-${project.projectKey}-${slug(item.title)}`;
     let status: ClientInputStatus = "missing";
@@ -199,6 +199,7 @@ function defaultClientInputs(project: GeoAIProject, template = templateForProjec
     if (["market_comps", "planning_documents", "ownership_documents", "asset_list"].includes(item.inputType) && dataRoom.uploads > 0) {
       status = "provided_unvalidated";
     }
+    if (item.inputType === "market_comps" && dataRoom.marketEvidence > 0) status = "provided_unvalidated";
 
     return {
       id,
@@ -405,6 +406,11 @@ export async function buildPilotWorkflowSummary(input: { projectId?: string | nu
   const dataRoomCounts = {
     aois: dataRoom.summary.counts.aois,
     uploads: dataRoom.summary.counts.uploadedDatasets + dataRoom.summary.counts.uploadedDocuments,
+    marketEvidence: dataRoom.assets.filter((asset) =>
+      asset.assetType === "external_source" &&
+      asset.sourceType === "public_snapshot" &&
+      asset.validationStatus === "validation_required"
+    ).length,
     assets: dataRoom.assets.length,
     analyses: dataRoom.summary.counts.analyses,
     reports: dataRoom.summary.counts.reports,

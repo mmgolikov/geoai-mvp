@@ -199,3 +199,17 @@ Supported public/open source groups:
 The v1.6 strategy keeps source text centralized in the catalog so UI, manifest, readiness and reports can refer to source metadata instead of scattered hardcoded claims.
 
 Every v1.6 source remains screening-level unless separately validated by client-approved or authorized official sources.
+
+## Real Data + OpenAI Decision Scoring Foundation v2.1
+
+GeoAI v2.1 separates storage repository modes from source data modes.
+
+Repository modes describe persistence behavior: `supabase`, `local_fallback`, `browser_local`, `demo_seed`, and `disabled`.
+
+Source data modes describe evidence state: `real_snapshot`, `imported_snapshot`, `sample_fallback`, `manual_import_ready`, `permission_required`, `planned_validation`, and `demo_seed`.
+
+DLD / Dubai Pulse-style public CSV snapshots are supported as manual imports only. The app recognizes dated filenames such as `dld_transactions_YYYYMMDD.csv`, `dld_rents_YYYYMMDD.csv`, `dld_projects_YYYYMMDD.csv`, `dld_valuations_YYYYMMDD.csv`, `dld_land_YYYYMMDD.csv`, `dld_building_YYYYMMDD.csv`, `dld_unit_YYYYMMDD.csv`, `dld_brokers_YYYYMMDD.csv`, and `dld_developers_YYYYMMDD.csv`.
+
+No scraping, captcha bypass, protected endpoint automation, live DLD API Gateway access, live Dubai Pulse integration or GeoDubai connection is included.
+
+OpenAI decision scoring is optional and server-side. It produces a structured decision-support memo with guardrails and deterministic fallback. It does not replace source validation, official planning checks, cadastral validation, ownership verification or valuation due diligence.

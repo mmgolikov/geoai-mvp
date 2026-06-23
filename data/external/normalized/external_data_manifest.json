@@ -1,12 +1,12 @@
 {
-  "generatedAt": "2026-06-22T22:26:22.934Z",
+  "generatedAt": "2026-06-23T22:04:15.065Z",
   "version": "1.6",
   "summary": "GeoAI public data connectors v1.6. Public/open sources use snapshots, API context, manual imports and safe sample fallbacks.",
   "sources": [
     {
       "id": "overture-divisions-admin-context",
       "status": "sample_fallback",
-      "lastUpdated": "2026-06-22T22:26:22.934Z",
+      "lastUpdated": "2026-06-23T22:04:15.065Z",
       "availableFiles": [
         "data/external/samples/overture_divisions_sample.geojson",
         "data/normalized/admin_boundaries_context.json"
@@ -22,7 +22,7 @@
     {
       "id": "worldpop-demographics",
       "status": "sample_fallback",
-      "lastUpdated": "2026-06-22T22:26:22.934Z",
+      "lastUpdated": "2026-06-23T22:04:15.064Z",
       "availableFiles": [
         "data/external/samples/worldpop_uae_sample.geojson",
         "data/normalized/worldpop_population_context.json"
@@ -38,7 +38,7 @@
     {
       "id": "overture-maps-open-buildings",
       "status": "sample_fallback",
-      "lastUpdated": "2026-06-22T22:26:22.933Z",
+      "lastUpdated": "2026-06-23T22:04:15.062Z",
       "availableFiles": [
         "data/external/samples/overture_buildings_sample.geojson",
         "data/normalized/overture_buildings_snapshot.json"
@@ -54,7 +54,7 @@
     {
       "id": "overture-maps-open-places",
       "status": "sample_fallback",
-      "lastUpdated": "2026-06-22T22:26:22.933Z",
+      "lastUpdated": "2026-06-23T22:04:15.062Z",
       "availableFiles": [
         "data/external/samples/overture_places_sample.geojson",
         "data/normalized/overture_places_snapshot.json"
@@ -70,7 +70,7 @@
     {
       "id": "overture-maps-open-transportation",
       "status": "sample_fallback",
-      "lastUpdated": "2026-06-22T22:26:22.933Z",
+      "lastUpdated": "2026-06-23T22:04:15.062Z",
       "availableFiles": [
         "data/external/samples/overture_transportation_sample.geojson",
         "data/normalized/overture_transportation_snapshot.json"
@@ -86,7 +86,7 @@
     {
       "id": "osm-geofabrik-baseline",
       "status": "sample_fallback",
-      "lastUpdated": "2026-06-22T22:26:22.931Z",
+      "lastUpdated": "2026-06-23T22:04:15.060Z",
       "availableFiles": [
         "data/external/osm/dubai_osm_baseline_sample.geojson",
         "data/normalized/osm_roads_snapshot.json",
@@ -107,7 +107,7 @@
     {
       "id": "dld-dubai-pulse-public-transactions",
       "status": "sample_fallback",
-      "lastUpdated": "2026-06-22T22:26:22.926Z",
+      "lastUpdated": "2026-06-23T22:04:15.054Z",
       "availableFiles": [
         "data/external/samples/dld_transactions_sample.csv",
         "data/normalized/dld_transactions_snapshot.json"
@@ -122,7 +122,7 @@
     {
       "id": "dld-dubai-pulse-public-rents",
       "status": "sample_fallback",
-      "lastUpdated": "2026-06-22T22:26:22.926Z",
+      "lastUpdated": "2026-06-23T22:04:15.054Z",
       "availableFiles": [
         "data/external/samples/dld_rents_sample.csv",
         "data/normalized/dld_rents_snapshot.json"
@@ -137,7 +137,7 @@
     {
       "id": "dld-dubai-pulse-public-projects",
       "status": "sample_fallback",
-      "lastUpdated": "2026-06-22T22:26:22.926Z",
+      "lastUpdated": "2026-06-23T22:04:15.054Z",
       "availableFiles": [
         "data/external/samples/dld_projects_sample.csv",
         "data/normalized/dld_projects_snapshot.json"
@@ -150,9 +150,24 @@
       "disclaimer": "DLD / Dubai Pulse public snapshot; not a live DLD API or ownership/title validation."
     },
     {
+      "id": "dld-dubai-pulse-public-valuations",
+      "status": "manual_import_ready",
+      "lastUpdated": "2026-06-23T22:04:15.054Z",
+      "availableFiles": [
+        "data/external/dld/valuations.csv",
+        "data/normalized/dld_valuations_snapshot.json"
+      ],
+      "recordCount": 0,
+      "coverageArea": "Dubai public real-estate categories",
+      "confidence": "low",
+      "usedInAnalysis": true,
+      "caveat": "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.",
+      "disclaimer": "DLD / Dubai Pulse public snapshot; not a live DLD API or ownership/title validation."
+    },
+    {
       "id": "dld-dubai-pulse-public-land",
       "status": "sample_fallback",
-      "lastUpdated": "2026-06-22T22:26:22.926Z",
+      "lastUpdated": "2026-06-23T22:04:15.054Z",
       "availableFiles": [
         "data/external/samples/dld_land_sample.csv",
         "data/normalized/dld_land_snapshot.json"
@@ -167,7 +182,7 @@
     {
       "id": "dld-dubai-pulse-public-building",
       "status": "sample_fallback",
-      "lastUpdated": "2026-06-22T22:26:22.926Z",
+      "lastUpdated": "2026-06-23T22:04:15.054Z",
       "availableFiles": [
         "data/external/samples/dld_building_sample.csv",
         "data/normalized/dld_building_snapshot.json"
@@ -182,7 +197,7 @@
     {
       "id": "dld-dubai-pulse-public-unit",
       "status": "sample_fallback",
-      "lastUpdated": "2026-06-22T22:26:22.926Z",
+      "lastUpdated": "2026-06-23T22:04:15.054Z",
       "availableFiles": [
         "data/external/samples/dld_unit_sample.csv",
         "data/normalized/dld_unit_snapshot.json"
@@ -195,9 +210,39 @@
       "disclaimer": "DLD / Dubai Pulse public snapshot; not a live DLD API or ownership/title validation."
     },
     {
+      "id": "dld-dubai-pulse-public-brokers",
+      "status": "manual_import_ready",
+      "lastUpdated": "2026-06-23T22:04:15.054Z",
+      "availableFiles": [
+        "data/external/dld/brokers.csv",
+        "data/normalized/dld_brokers_snapshot.json"
+      ],
+      "recordCount": 0,
+      "coverageArea": "Dubai public real-estate categories",
+      "confidence": "low",
+      "usedInAnalysis": true,
+      "caveat": "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.",
+      "disclaimer": "DLD / Dubai Pulse public snapshot; not a live DLD API or ownership/title validation."
+    },
+    {
+      "id": "dld-dubai-pulse-public-developers",
+      "status": "manual_import_ready",
+      "lastUpdated": "2026-06-23T22:04:15.054Z",
+      "availableFiles": [
+        "data/external/dld/developers.csv",
+        "data/normalized/dld_developers_snapshot.json"
+      ],
+      "recordCount": 0,
+      "coverageArea": "Dubai public real-estate categories",
+      "confidence": "low",
+      "usedInAnalysis": true,
+      "caveat": "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.",
+      "disclaimer": "DLD / Dubai Pulse public snapshot; not a live DLD API or ownership/title validation."
+    },
+    {
       "id": "dld-dubai-pulse-transactions",
       "status": "sample_fallback",
-      "lastUpdated": "2026-06-22T22:26:13.716Z",
+      "lastUpdated": "2026-06-23T22:04:14.949Z",
       "availableFiles": [
         "data/external/dld/dld_market_snapshot_sample.csv",
         "data/normalized/dld_market_snapshot.json",

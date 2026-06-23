@@ -19,6 +19,8 @@
     "ingest:worldpop:public": "node scripts/ingest-public-data.mjs worldpop-public",
     "ingest:admin-boundaries:public": "node scripts/ingest-public-data.mjs admin-boundaries-public",
     "ingest:public-data:all": "node scripts/ingest-public-data.mjs all",
+    "data:status": "node scripts/data-status.mjs",
+    "validate:external-data": "node scripts/data-status.mjs --validate",
     "start": "next start",
     "lint": "tsc --noEmit --pretty false"
   },

@@ -56,6 +56,7 @@ import {
   withUploadedDataContext
 } from "@/src/lib/uploaded-data";
 import type { GeoAIProject } from "@/src/lib/db/types";
+import type { DecisionScoreResult } from "@/src/lib/ai/decision-scoring-schema";
 import type { StructuredAnalysisResult } from "@/src/types/analysis";
 import type {
   AnalysisScenarioId,
@@ -189,6 +190,18 @@ function mergeNarrativeAnalysis(
     customQueryIntent: narrative.custom_query_answer?.intent ?? deterministicAnalysis.customQueryIntent,
     customQuerySummary: narrative.custom_query_answer?.shortAnswer ?? deterministicAnalysis.customQuerySummary,
     generatedAt: new Date().toISOString()
+  };
+}
+
+function withDecisionScore(analysis: ExpressAnalysis, decisionScore: DecisionScoreResult | null): ExpressAnalysis {
+  if (!decisionScore) {
+    return analysis;
+  }
+
+  return {
+    ...analysis,
+    aiDecisionScore: decisionScore,
+    limitations: Array.from(new Set([...(analysis.limitations ?? []), decisionScore.caveat, ...decisionScore.unsupportedClaims]))
   };
 }
 
@@ -1882,7 +1895,41 @@ export function WorkspaceShell() {
       }
 
       const narrative = (await response.json()) as StructuredAnalysisResult;
-      const finalAnalysis = mergeNarrativeAnalysis(deterministicAnalysis, narrative);
+      const narrativeAnalysis = mergeNarrativeAnalysis(deterministicAnalysis, narrative);
+      let decisionScore: DecisionScoreResult | null = null;
+
+      try {
+        const scoreResponse = await fetch("/api/ai/decision-score", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            target: narrativeAnalysis.analysisTarget ?? narrativeAnalysis.selectedObject ?? narrativeAnalysis.selectedAoi ?? {
+              type: "point",
+              coordinates: narrativeAnalysis.point
+            },
+            scenarioId: selectedScenario,
+            scenarioLabel: scenario.label,
+            customQuery,
+            deterministicScores: narrativeAnalysis.scores,
+            marketMetricsContext: narrativeAnalysis.marketContext?.importedMarketMetrics ?? narrativeAnalysis.marketMetricsMatch ?? null,
+            externalDataLineage: narrativeAnalysis.evidence.map((item) => ({
+              id: item.id,
+              sourceId: item.sourceId,
+              title: item.label,
+              note: item.description
+            })),
+            evidence: narrativeAnalysis.evidence,
+            validationGaps: narrativeAnalysis.limitations ?? []
+          })
+        });
+        decisionScore = scoreResponse.ok ? await scoreResponse.json() as DecisionScoreResult : null;
+      } catch {
+        decisionScore = null;
+      }
+
+      const finalAnalysis = withDecisionScore(narrativeAnalysis, decisionScore);
       setAnalysis(finalAnalysis);
       setLastAnalyzedState({
         query: normalizeQuery(customQuery),
@@ -1905,14 +1952,42 @@ export function WorkspaceShell() {
         generatedAt: new Date().toISOString()
       };
 
-      setAnalysis(fallbackAnalysis);
+      let decisionScore: DecisionScoreResult | null = null;
+      try {
+        const scoreResponse = await fetch("/api/ai/decision-score", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            target: fallbackAnalysis.analysisTarget ?? fallbackAnalysis.selectedObject ?? fallbackAnalysis.selectedAoi ?? {
+              type: "point",
+              coordinates: fallbackAnalysis.point
+            },
+            scenarioId: selectedScenario,
+            scenarioLabel: scenario.label,
+            customQuery,
+            deterministicScores: fallbackAnalysis.scores,
+            marketMetricsContext: fallbackAnalysis.marketContext?.importedMarketMetrics ?? fallbackAnalysis.marketMetricsMatch ?? null,
+            externalDataLineage: fallbackAnalysis.evidence,
+            evidence: fallbackAnalysis.evidence,
+            validationGaps: fallbackAnalysis.limitations ?? []
+          })
+        });
+        decisionScore = scoreResponse.ok ? await scoreResponse.json() as DecisionScoreResult : null;
+      } catch {
+        decisionScore = null;
+      }
+
+      const finalFallbackAnalysis = withDecisionScore(fallbackAnalysis, decisionScore);
+      setAnalysis(finalFallbackAnalysis);
       setLastAnalyzedState({
         query: normalizeQuery(customQuery),
         scenarioId: selectedScenario,
         targetSignature: createTargetSignature(selectedPoint, selectedObject, selectedAoi)
       });
-      saveAnalysisHistory(fallbackAnalysis, scenario.label);
-      void persistAnalysisRun(fallbackAnalysis, scenario.label);
+      saveAnalysisHistory(finalFallbackAnalysis, scenario.label);
+      void persistAnalysisRun(finalFallbackAnalysis, scenario.label);
     } finally {
       setIsAnalyzing(false);
     }

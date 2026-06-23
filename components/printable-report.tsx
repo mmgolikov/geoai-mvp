@@ -75,6 +75,19 @@ function PrintCard({ children }: { children: React.ReactNode }) {
   return <div className="print-memo-card">{children}</div>;
 }
 
+function PrintList({ title, items }: { title: string; items: string[] }) {
+  return (
+    <div className="print-memo-card">
+      <strong>{title}</strong>
+      <ul>
+        {items.map((item, index) => (
+          <li key={createStableKey(title, item, index)}>{item}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function PrintMapBlock({
   title,
   coordinates,
@@ -210,6 +223,20 @@ function AnalysisPrintable({ analysis }: { analysis: ExpressAnalysis }) {
           ))}
         </div>
       </PrintSection>
+
+      {analysis.aiDecisionScore ? (
+        <PrintSection title="AI Decision Memo">
+          <div className="print-score-grid">
+            <PrintCard><strong>Mode</strong><span>{analysis.aiDecisionScore.mode === "openai" ? "OpenAI scoring" : "Deterministic fallback"}</span></PrintCard>
+            <PrintCard><strong>Decision posture</strong><span>{analysis.aiDecisionScore.decisionPosture.replace(/_/g, " ")}</span></PrintCard>
+            <PrintCard><strong>Recommended use</strong><span>{analysis.aiDecisionScore.recommendedUse.replace(/_/g, " ")}</span></PrintCard>
+            <PrintCard><strong>Suitability / risk</strong><span>{analysis.aiDecisionScore.suitabilityScore}/100 / {analysis.aiDecisionScore.riskScore}/100</span></PrintCard>
+          </div>
+          <PrintList title="Key drivers" items={analysis.aiDecisionScore.keyDrivers.slice(0, 3)} />
+          <PrintList title="Validation required" items={analysis.aiDecisionScore.validationRequired.slice(0, 3)} />
+          <p>{analysis.aiDecisionScore.caveat}</p>
+        </PrintSection>
+      ) : null}
 
       <PrintSection title="Map Context">
         <PrintMapBlock
