@@ -21,7 +21,20 @@ function compactJson(value: unknown) {
 }
 
 export function buildAnalyzePrompt(request: AnalyzeRequest) {
-  const selection = request.selectedObject
+  const selection = request.selectedAoi
+    ? {
+        selectionType: "user_drawn_aoi",
+        name: request.selectedAoi.name,
+        geometryType: request.selectedAoi.geometryType,
+        centroid: request.selectedAoi.centroid,
+        bbox: request.selectedAoi.bbox,
+        measurements: request.selectedAoi.measurements,
+        source: request.selectedAoi.source,
+        dataMode: request.selectedAoi.dataMode,
+        confidence: request.selectedAoi.confidence,
+        limitations: request.selectedAoi.limitations
+      }
+    : request.selectedObject
     ? {
         selectionType: "demo_object",
         name: request.selectedObject.name,
@@ -48,7 +61,7 @@ export function buildAnalyzePrompt(request: AnalyzeRequest) {
     licenseNote: source.licenseNote.note
   }));
   const coordinateText = `${request.point.latitude.toFixed(6)}, ${request.point.longitude.toFixed(6)}`;
-  const selectionName = request.selectedObject?.name ?? "custom map point";
+  const selectionName = request.selectedAoi?.name ?? request.selectedObject?.name ?? "custom map point";
   const customQuery = request.customQuery?.trim() ?? "";
   const unavailableSourceCount = dataSources.filter((source) => source.status !== "connected").length;
   const marketContext = request.marketContext
@@ -103,6 +116,7 @@ Critical rules:
 - If market context is provided, use the matched Dubai area name and its qualitative/index-style signals, but clearly treat seed/demo-normalized market context as non-official.
 - If enriched marketMetrics are provided, refer to them as seed_static demo-normalized indicators: activity, rental demand, liquidity, development pipeline, risk, and trend.
 - If spatialContext is provided, use its feature category, geometry type, centroid, estimated area, geometry confidence, source status and limitations. Never describe seed_geojson geometries as official parcel or planning boundaries.
+- If selectionType is user_drawn_aoi, use the AOI centroid, bbox, vertex count, area and perimeter as user-provided screening context only. Clearly state it is not an official parcel, zoning, cadastral, planning, ownership or entitlement boundary.
 - If uploadedDataContext is provided, reference uploaded CSV/GeoJSON only as user-provided local context. Do not treat it as official, live, verified, or decision-grade evidence unless validation is explicitly supplied.
 - If the custom query is non-empty, it is an additional decision lens and must materially affect the executive summary, key factors, risks and recommended actions.
 - Do not ignore the custom query even when the scenario is not Custom Query.

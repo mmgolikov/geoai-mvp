@@ -7,7 +7,8 @@ import type {
   ExpressAnalysis,
   ScoreKey,
   SelectedDemoObject,
-  SelectedPoint
+  SelectedPoint,
+  UserDrawnAoi
 } from "@/src/types/geo";
 
 export const analysisScenarios: AnalysisScenario[] = [
@@ -202,7 +203,12 @@ function createScores(point: SelectedPoint, scenarioId: AnalysisScenarioId): Rec
   }, {} as Record<ScoreKey, number>);
 }
 
-function commonEvidence(point: SelectedPoint, scenarioLabel: string, selectedObject?: SelectedDemoObject | null) {
+function commonEvidence(
+  point: SelectedPoint,
+  scenarioLabel: string,
+  selectedObject?: SelectedDemoObject | null,
+  selectedAoi?: UserDrawnAoi | null
+) {
   const evidence = [
     createEvidenceItem(
       "map-selection",
@@ -254,6 +260,20 @@ function commonEvidence(point: SelectedPoint, scenarioLabel: string, selectedObj
     );
   }
 
+  if (selectedAoi) {
+    evidence.splice(
+      2,
+      0,
+      createEvidenceItem(
+        "selected-user-drawn-aoi",
+        "customer-uploaded-documents",
+        `User-drawn AOI: ${selectedAoi.name}`,
+        `Client-side polygon AOI with ${selectedAoi.measurements.vertexCount} vertices, approximate area ${selectedAoi.measurements.areaSqKm.toFixed(2)} sq km and perimeter ${selectedAoi.measurements.perimeterKm.toFixed(2)} km. Source is user_drawn_polygon; official parcel, zoning, cadastral and planning validation required.`,
+        "low"
+      )
+    );
+  }
+
   return evidence;
 }
 
@@ -261,7 +281,8 @@ export function createMockExpressAnalysis(
   point: SelectedPoint,
   scenarioId: AnalysisScenarioId,
   customQuery = "",
-  selectedObject?: SelectedDemoObject | null
+  selectedObject?: SelectedDemoObject | null,
+  selectedAoi?: UserDrawnAoi | null
 ): ExpressAnalysis {
   const scenario = analysisScenarios.find((item) => item.id === scenarioId) ?? analysisScenarios[0];
   const normalizedCustomQuery = normalizeCustomQuery(customQuery);
@@ -274,18 +295,24 @@ export function createMockExpressAnalysis(
   const objectContext = selectedObject
     ? `The selected demo object is ${selectedObject.name}, a synthetic ${selectedObject.type.toLowerCase()} from the ${selectedObject.layerName} layer. `
     : "";
-  const subtitle = selectedObject
+  const aoiContext = selectedAoi
+    ? `The selected target is ${selectedAoi.name}, a user-drawn screening AOI with approximate area ${selectedAoi.measurements.areaSqKm.toFixed(2)} sq km and perimeter ${selectedAoi.measurements.perimeterKm.toFixed(2)} km. It is not an official parcel, zoning, cadastral, or planning boundary. `
+    : "";
+  const targetContext = aoiContext || objectContext;
+  const subtitle = selectedAoi
+    ? `User-drawn AOI · ${formatCoordinate(point)}`
+    : selectedObject
     ? `${selectedObject.type} / ${selectedObject.layerName} · ${formatCoordinate(point)}`
     : formatCoordinate(point);
 
   const scenarios: Record<
     AnalysisScenarioId,
-    Omit<ExpressAnalysis, "id" | "scenarioId" | "point" | "selectedObject" | "subtitle" | "scores">
+    Omit<ExpressAnalysis, "id" | "scenarioId" | "point" | "selectedObject" | "selectedAoi" | "subtitle" | "scores">
   > = {
     realEstateDevelopment: {
       title: "Real Estate Development Intelligence",
       summary:
-        `${objectContext}This demo development analysis treats the selected coordinate as a candidate Dubai site with ${signals.districtTone}. ` +
+        `${targetContext}This demo development analysis treats the selected coordinate as a candidate Dubai site with ${signals.districtTone}. ` +
         `The mock model emphasizes land-use assumptions, access, surrounding infrastructure, and commercial or residential potential. ` +
         `The location appears suitable for early-stage screening, but official zoning, ownership, utilities, density, and market absorption must be validated before any commitment. ` +
         `This is deterministic demo intelligence only, prepared to show the GeoAI workflow before official planning and parcel datasets are connected.`,
@@ -317,12 +344,12 @@ export function createMockExpressAnalysis(
         "Assess transport accessibility and infrastructure capacity with validated datasets.",
         "Prepare a concise development memo for investor or planning review."
       ],
-      evidence: commonEvidence(point, scenario.label, selectedObject)
+      evidence: commonEvidence(point, scenario.label, selectedObject, selectedAoi)
     },
     investmentSiteSelection: {
       title: "Investment Site Selection Intelligence",
       summary:
-        `${objectContext}This demo investment analysis frames the selected coordinate as a candidate asset or land position in Dubai. ` +
+        `${targetContext}This demo investment analysis frames the selected coordinate as a candidate asset or land position in Dubai. ` +
         `The mock result focuses on location quality, surrounding demand drivers, liquidity assumptions, and risk-adjusted upside. ` +
         `The site shows useful early signals for comparison, but the recommendation should be tested against alternative parcels, pricing, lease demand, exit liquidity, and legal status. ` +
         `This is deterministic demo intelligence only and does not represent live market advice.`,
@@ -361,12 +388,12 @@ export function createMockExpressAnalysis(
         "Model risk-adjusted returns under conservative, base, and upside scenarios.",
         "Prepare an investment committee snapshot with open diligence items."
       ],
-      evidence: commonEvidence(point, scenario.label, selectedObject)
+      evidence: commonEvidence(point, scenario.label, selectedObject, selectedAoi)
     },
     constructionMonitoring: {
       title: "Construction Monitoring Intelligence",
       summary:
-        `${objectContext}This demo monitoring analysis treats the selected coordinate as a construction or project-control location. ` +
+        `${targetContext}This demo monitoring analysis treats the selected coordinate as a construction or project-control location. ` +
         `The mock assessment emphasizes readiness for satellite or drone monitoring, visible progress evidence, site access, and deviation risks. ` +
         `The area appears suitable for a repeatable monitoring workflow once project boundaries, baseline schedule, and approved drawings are available. ` +
         `This is deterministic demo intelligence only and does not use live imagery or field data yet.`,
@@ -405,12 +432,12 @@ export function createMockExpressAnalysis(
         "Create deviation categories for progress, access, safety, and material staging.",
         "Prepare a sample lender or investor monitoring report."
       ],
-      evidence: commonEvidence(point, scenario.label, selectedObject)
+      evidence: commonEvidence(point, scenario.label, selectedObject, selectedAoi)
     },
     infrastructureUrbanPlanning: {
       title: "Infrastructure & Urban Planning Intelligence",
       summary:
-        `${objectContext}This demo planning analysis evaluates the selected coordinate through an urban integration lens. ` +
+        `${targetContext}This demo planning analysis evaluates the selected coordinate through an urban integration lens. ` +
         `The mock model focuses on transport context, utility dependency, public infrastructure requirements, and social or environmental constraints. ` +
         `The site can be used as an early planning-screening point, but authoritative mobility, utility, population, environmental, and land-use layers are required before recommendations become operational. ` +
         `This is deterministic demo intelligence only for prototype demonstration.`,
@@ -449,12 +476,12 @@ export function createMockExpressAnalysis(
         "Assess environmental and social constraints before concept planning.",
         "Prepare a planning note for agency or developer coordination."
       ],
-      evidence: commonEvidence(point, scenario.label, selectedObject)
+      evidence: commonEvidence(point, scenario.label, selectedObject, selectedAoi)
     },
     climateRisk: {
       title: "Climate & Risk Intelligence",
       summary:
-        `${objectContext}This demo climate analysis treats the selected coordinate as a spatial risk-screening location in Dubai. ` +
+        `${targetContext}This demo climate analysis treats the selected coordinate as a spatial risk-screening location in Dubai. ` +
         `The mock assessment emphasizes heat exposure, coastal or flood assumptions, urban heat island effects, resilience requirements, and financing or insurance implications. ` +
         `The result is useful for early risk framing, but live hazard, elevation, drainage, insurance, and climate-projection datasets are required before formal decisions. ` +
         `This is deterministic demo intelligence only and is not a certified climate-risk assessment.`,
@@ -493,12 +520,12 @@ export function createMockExpressAnalysis(
         "Request insurance and lender climate-risk requirements.",
         "Prepare a resilience memo with priority mitigations and data gaps."
       ],
-      evidence: commonEvidence(point, scenario.label, selectedObject)
+      evidence: commonEvidence(point, scenario.label, selectedObject, selectedAoi)
     },
     customQuery: {
       title: "Custom Spatial Intelligence",
       summary:
-        `${objectContext}This demo custom analysis responds to the user question: "${customQuery.trim()}". ` +
+        `${targetContext}This demo custom analysis responds to the user question: "${customQuery.trim()}". ` +
         `For the selected Dubai coordinate, the mock response frames the question through location quality, infrastructure context, risk exposure, and next diligence steps. ` +
         `Because this is deterministic demo intelligence, it does not call OpenAI, search live sources, or use official parcel, planning, market, or risk datasets. ` +
         `The output is intended to show how GeoAI can turn a user-defined spatial question into a structured decision workflow.`,
@@ -536,7 +563,7 @@ export function createMockExpressAnalysis(
         "Prepare a short memo with assumptions, evidence gaps, and next checks."
       ],
       evidence: [
-        ...commonEvidence(point, scenario.label, selectedObject),
+        ...commonEvidence(point, scenario.label, selectedObject, selectedAoi),
         createEvidenceItem(
           "user-custom-question",
           "customer-uploaded-documents",
@@ -564,10 +591,11 @@ export function createMockExpressAnalysis(
   return {
     id,
     scenarioId: scenario.id,
-    title: selectedObject ? selectedObject.name : scenarioAnalysis.title,
+    title: selectedAoi ? selectedAoi.name : selectedObject ? selectedObject.name : scenarioAnalysis.title,
     subtitle,
     point,
     selectedObject: selectedObject ?? undefined,
+    selectedAoi: selectedAoi ?? undefined,
     scores,
     summary: queryOverlay
       ? `${scenarioAnalysis.summary} ${queryOverlay.summary}`

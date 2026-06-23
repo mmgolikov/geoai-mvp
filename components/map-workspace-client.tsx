@@ -4,9 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import { demoLayers, getDemoFeatureById, getLayerSourceModeLabel, getSelectedDemoObject } from "@/src/data/demo-layers";
 import type { DemoLayer, DemoLayerFeature } from "@/src/data/demo-layers";
 import { openGeodataBaseline } from "@/src/lib/open-geodata";
+import { createUserDrawnAoi, formatArea, formatPerimeter, validatePolygonVertices } from "@/src/lib/polygon-aoi";
 import type { OpenLanduseFeature, OpenPoiFeature, OpenRoadFeature } from "@/src/lib/open-geodata";
 import type { GeoJSONSource, Map as MapboxMap, MapboxGeoJSONFeature, Marker as MapboxMarker, Popup as MapboxPopup } from "mapbox-gl";
-import type { DemoLayerId, DemoLayerType, SelectedDemoObject, SelectedPoint } from "@/src/types/geo";
+import type { DemoLayerId, DemoLayerType, SelectedDemoObject, SelectedPoint, UserDrawnAoi } from "@/src/types/geo";
 import type { UploadedDataset } from "@/src/types/uploaded-data";
 
 const defaultCenter: [number, number] = [55.235, 25.12];
@@ -30,12 +31,16 @@ function hasUsableMapboxToken(token: string) {
 type MapWorkspaceClientProps = {
   selectedPoint: SelectedPoint | null;
   selectedObject?: SelectedDemoObject | null;
+  selectedAoi?: UserDrawnAoi | null;
   onPointSelect: (point: SelectedPoint) => void;
   onObjectSelect?: (object: SelectedDemoObject) => void;
+  onAoiSelect?: (aoi: UserDrawnAoi) => void;
+  onAoiDelete?: () => void;
   className?: string;
   showEmptyOverlay?: boolean;
   showLayerControls?: boolean;
   uploadedDatasets?: UploadedDataset[];
+  projectId?: string;
 };
 
 const initialLayerVisibility = demoLayers.reduce<Record<DemoLayerId, boolean>>((visibility, layer) => {
@@ -49,12 +54,29 @@ const openGeodataSourceId = "geoai-open-geodata-baseline";
 const openGeodataLayerIds = ["geoai-open-landuse", "geoai-open-roads", "geoai-open-poi"];
 const uploadedDatasetSourceId = "geoai-uploaded-datasets";
 const uploadedDatasetLayerIds = ["geoai-uploaded-fill", "geoai-uploaded-line", "geoai-uploaded-circle"];
+const userAoiSourceId = "geoai-user-drawn-aoi";
 const plannedLayerRows = [
   "DLD / Dubai Pulse market data",
   "Dubai Municipality / GeoDubai GIS",
   "OSM / Geofabrik infrastructure",
   "Customer parcels / portfolio upload"
 ];
+
+type DrawMode = "idle" | "drawing_polygon" | "polygon_complete" | "invalid_polygon";
+
+type PolygonDrawState = {
+  mode: DrawMode;
+  vertices: [number, number][];
+  previewCursor: [number, number] | null;
+  validationMessage: string | null;
+};
+
+const initialDrawState: PolygonDrawState = {
+  mode: "idle",
+  vertices: [],
+  previewCursor: null,
+  validationMessage: null
+};
 
 function getSourceId(layer: DemoLayer) {
   return `geoai-${layer.id}`;
@@ -683,6 +705,73 @@ function addSelectedObjectLayer(map: MapboxMap) {
   }
 }
 
+function addUserAoiLayer(map: MapboxMap) {
+  if (!map.getSource(userAoiSourceId)) {
+    map.addSource(userAoiSourceId, {
+      type: "geojson",
+      data: toFeatureCollection([])
+    });
+  }
+
+  if (!map.getLayer("geoai-user-aoi-fill")) {
+    map.addLayer({
+      id: "geoai-user-aoi-fill",
+      type: "fill",
+      source: userAoiSourceId,
+      filter: ["==", ["get", "kind"], "polygon"],
+      paint: {
+        "fill-color": "#174f63",
+        "fill-opacity": 0.2
+      }
+    });
+  }
+
+  if (!map.getLayer("geoai-user-aoi-line-glow")) {
+    map.addLayer({
+      id: "geoai-user-aoi-line-glow",
+      type: "line",
+      source: userAoiSourceId,
+      filter: ["in", ["get", "kind"], ["literal", ["polygon", "line"]]],
+      paint: {
+        "line-color": "#ffffff",
+        "line-width": 6,
+        "line-opacity": 0.72,
+        "line-blur": 1.4
+      }
+    });
+  }
+
+  if (!map.getLayer("geoai-user-aoi-line")) {
+    map.addLayer({
+      id: "geoai-user-aoi-line",
+      type: "line",
+      source: userAoiSourceId,
+      filter: ["in", ["get", "kind"], ["literal", ["polygon", "line", "preview"]]],
+      paint: {
+        "line-color": ["case", ["==", ["get", "kind"], "preview"], "#5f7280", "#174f63"],
+        "line-width": ["case", ["==", ["get", "kind"], "preview"], 2, 3],
+        "line-opacity": ["case", ["==", ["get", "kind"], "preview"], 0.65, 0.95],
+        "line-dasharray": ["case", ["==", ["get", "kind"], "preview"], ["literal", [2, 2]], ["literal", [1, 0]]]
+      }
+    });
+  }
+
+  if (!map.getLayer("geoai-user-aoi-vertices")) {
+    map.addLayer({
+      id: "geoai-user-aoi-vertices",
+      type: "circle",
+      source: userAoiSourceId,
+      filter: ["==", ["get", "kind"], "vertex"],
+      paint: {
+        "circle-color": ["case", ["==", ["get", "isStart"], true], "#174f63", "#ffffff"],
+        "circle-radius": ["case", ["==", ["get", "isStart"], true], 7, 5],
+        "circle-stroke-color": "#174f63",
+        "circle-stroke-width": 2
+      }
+    });
+  }
+}
+
 function addHoverObjectLayer(map: MapboxMap) {
   if (!map.getSource(hoverObjectSourceId)) {
     map.addSource(hoverObjectSourceId, {
@@ -763,31 +852,108 @@ function syncSelectedObjectSource(map: MapboxMap, selectedObject: SelectedDemoOb
   source?.setData(toFeatureCollection(selectedFeature ? [selectedFeature] : analysisTargetFeature ? [analysisTargetFeature] : []));
 }
 
+function buildUserAoiFeatures(drawState: PolygonDrawState, selectedAoi: UserDrawnAoi | null): GeoJSON.Feature[] {
+  const features: GeoJSON.Feature[] = [];
+  const drawingVertices = drawState.vertices;
+
+  if (selectedAoi && drawState.mode !== "drawing_polygon") {
+    features.push({
+      type: "Feature",
+      properties: {
+        id: selectedAoi.id,
+        kind: "polygon",
+        name: selectedAoi.name
+      },
+      geometry: selectedAoi.geometry
+    });
+  }
+
+  if (drawingVertices.length > 1) {
+    features.push({
+      type: "Feature",
+      properties: {
+        id: "drawing-line",
+        kind: "line"
+      },
+      geometry: {
+        type: "LineString",
+        coordinates: drawingVertices
+      }
+    });
+  }
+
+  if (drawState.mode === "drawing_polygon" && drawingVertices.length > 0 && drawState.previewCursor) {
+    features.push({
+      type: "Feature",
+      properties: {
+        id: "drawing-preview",
+        kind: "preview"
+      },
+      geometry: {
+        type: "LineString",
+        coordinates: [drawingVertices[drawingVertices.length - 1], drawState.previewCursor]
+      }
+    });
+  }
+
+  if (drawState.mode === "drawing_polygon") {
+    drawingVertices.forEach((coordinate, index) => {
+      features.push({
+        type: "Feature",
+        properties: {
+          id: `vertex-${index}`,
+          kind: "vertex",
+          isStart: index === 0
+        },
+        geometry: {
+          type: "Point",
+          coordinates: coordinate
+        }
+      });
+    });
+  }
+
+  return features;
+}
+
+function syncUserAoiSource(map: MapboxMap, drawState: PolygonDrawState, selectedAoi: UserDrawnAoi | null) {
+  const source = map.getSource(userAoiSourceId) as GeoJSONSource | undefined;
+  source?.setData(toFeatureCollection(buildUserAoiFeatures(drawState, selectedAoi)));
+}
+
 function attachGeoAiMapLayers(
   map: MapboxMap,
   visibility: Record<DemoLayerId, boolean>,
   selectedObject: SelectedDemoObject | null,
-  uploadedDatasets: UploadedDataset[] = []
+  uploadedDatasets: UploadedDataset[] = [],
+  selectedAoi: UserDrawnAoi | null = null,
+  drawState: PolygonDrawState = initialDrawState
 ) {
   addOpenGeodataLayers(map);
   addUploadedDatasetLayers(map, uploadedDatasets);
   demoLayers.forEach((layer) => addDemoLayerToMap(map, layer));
   addSelectedObjectLayer(map);
+  addUserAoiLayer(map);
   addHoverObjectLayer(map);
   syncLayerVisibility(map, visibility);
   syncSelectedObjectSource(map, selectedObject);
+  syncUserAoiSource(map, drawState, selectedAoi);
   syncUploadedDatasetSource(map, uploadedDatasets);
 }
 
 export function MapWorkspaceClient({
   selectedPoint,
   selectedObject = null,
+  selectedAoi = null,
   onPointSelect,
   onObjectSelect,
+  onAoiSelect,
+  onAoiDelete,
   className = "relative min-h-[calc(100vh-72px)] overflow-hidden bg-[#dfe8ec]",
   showEmptyOverlay = true,
   showLayerControls = true,
-  uploadedDatasets = []
+  uploadedDatasets = [],
+  projectId
 }: MapWorkspaceClientProps) {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapboxMap | null>(null);
@@ -795,7 +961,11 @@ export function MapWorkspaceClient({
   const hoverPopupRef = useRef<MapboxPopup | null>(null);
   const onPointSelectRef = useRef(onPointSelect);
   const onObjectSelectRef = useRef(onObjectSelect);
+  const onAoiSelectRef = useRef(onAoiSelect);
+  const onAoiDeleteRef = useRef(onAoiDelete);
   const selectedObjectRef = useRef<SelectedDemoObject | null>(selectedObject);
+  const selectedAoiRef = useRef<UserDrawnAoi | null>(selectedAoi);
+  const drawStateRef = useRef<PolygonDrawState>(initialDrawState);
   const layerVisibilityRef = useRef(initialLayerVisibility);
   const uploadedDatasetsRef = useRef<UploadedDataset[]>(uploadedDatasets);
   const [layerVisibility, setLayerVisibility] = useState(initialLayerVisibility);
@@ -803,6 +973,7 @@ export function MapWorkspaceClient({
   const [basemapStyle, setBasemapStyle] = useState<BasemapStyleId>("streets");
   const [isMapReady, setIsMapReady] = useState(false);
   const [mapResourceError, setMapResourceError] = useState<string | null>(null);
+  const [drawState, setDrawState] = useState<PolygonDrawState>(initialDrawState);
   const mapboxToken = getMapboxToken();
   const canUseMapbox = hasUsableMapboxToken(mapboxToken);
 
@@ -815,8 +986,24 @@ export function MapWorkspaceClient({
   }, [onObjectSelect]);
 
   useEffect(() => {
+    onAoiSelectRef.current = onAoiSelect;
+  }, [onAoiSelect]);
+
+  useEffect(() => {
+    onAoiDeleteRef.current = onAoiDelete;
+  }, [onAoiDelete]);
+
+  useEffect(() => {
     selectedObjectRef.current = selectedObject;
   }, [selectedObject]);
+
+  useEffect(() => {
+    selectedAoiRef.current = selectedAoi;
+  }, [selectedAoi]);
+
+  useEffect(() => {
+    drawStateRef.current = drawState;
+  }, [drawState]);
 
   useEffect(() => {
     uploadedDatasetsRef.current = uploadedDatasets;
@@ -825,6 +1012,129 @@ export function MapWorkspaceClient({
   useEffect(() => {
     layerVisibilityRef.current = layerVisibility;
   }, [layerVisibility]);
+
+  useEffect(() => {
+    if (drawStateRef.current.mode === "drawing_polygon" || drawStateRef.current.mode === "invalid_polygon") {
+      updateDrawState(() => initialDrawState);
+    }
+    // Project changes must not carry a partial AOI into another workspace context.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId]);
+
+  function updateDrawState(updater: (current: PolygonDrawState) => PolygonDrawState) {
+    setDrawState((current) => {
+      const next = updater(current);
+      drawStateRef.current = next;
+      if (mapRef.current) {
+        syncUserAoiSource(mapRef.current, next, selectedAoiRef.current);
+      }
+      return next;
+    });
+  }
+
+  function startPolygonDrawing() {
+    markerRef.current?.remove();
+    markerRef.current = null;
+    updateDrawState(() => ({
+      mode: "drawing_polygon",
+      vertices: [],
+      previewCursor: null,
+      validationMessage: "Click to add vertices. Click the first vertex to close."
+    }));
+  }
+
+  function cancelPolygonDrawing() {
+    updateDrawState(() => initialDrawState);
+  }
+
+  function undoPolygonVertex() {
+    updateDrawState((current) => {
+      if (current.mode !== "drawing_polygon") {
+        return current;
+      }
+
+      return {
+        ...current,
+        vertices: current.vertices.slice(0, -1),
+        validationMessage: current.vertices.length <= 1
+          ? "Click to add vertices. Click the first vertex to close."
+          : "Last vertex removed."
+      };
+    });
+  }
+
+  function deletePolygonAoi() {
+    cancelPolygonDrawing();
+    onAoiDeleteRef.current?.();
+  }
+
+  function shouldClosePolygon(eventPoint: { x: number; y: number }, firstVertex: [number, number] | undefined) {
+    if (!mapRef.current || !firstVertex) {
+      return false;
+    }
+
+    const firstPoint = mapRef.current.project(firstVertex);
+    const distancePx = Math.hypot(eventPoint.x - firstPoint.x, eventPoint.y - firstPoint.y);
+    return distancePx <= 15;
+  }
+
+  function addPolygonVertex(lngLat: [number, number], eventPoint: { x: number; y: number }) {
+    const current = drawStateRef.current;
+    if (current.mode !== "drawing_polygon") {
+      return false;
+    }
+
+    if (current.vertices.length >= 3 && shouldClosePolygon(eventPoint, current.vertices[0])) {
+      const validation = validatePolygonVertices(current.vertices);
+      if (!validation.valid) {
+        updateDrawState((state) => ({ ...state, mode: "invalid_polygon", validationMessage: validation.message }));
+        window.setTimeout(() => {
+          updateDrawState((state) => state.mode === "invalid_polygon" ? { ...state, mode: "drawing_polygon" } : state);
+        }, 800);
+        return true;
+      }
+
+      try {
+        const aoi = createUserDrawnAoi(current.vertices, projectId);
+        onAoiSelectRef.current?.(aoi);
+        updateDrawState(() => ({
+          mode: "polygon_complete",
+          vertices: [],
+          previewCursor: null,
+          validationMessage: "AOI selected. Run Express Analysis from the command panel."
+        }));
+      } catch (error) {
+        updateDrawState((state) => ({
+          ...state,
+          mode: "invalid_polygon",
+          validationMessage: error instanceof Error ? error.message : "Polygon could not be accepted."
+        }));
+      }
+
+      return true;
+    }
+
+    const previous = current.vertices[current.vertices.length - 1];
+    if (previous && mapRef.current) {
+      const previousPoint = mapRef.current.project(previous);
+      const distancePx = Math.hypot(eventPoint.x - previousPoint.x, eventPoint.y - previousPoint.y);
+      if (distancePx <= 5) {
+        return true;
+      }
+    }
+
+    updateDrawState((state) => ({
+      ...state,
+      mode: "drawing_polygon",
+      vertices: [...state.vertices, lngLat],
+      previewCursor: null,
+      validationMessage: state.vertices.length + 1 >= 3
+        ? "Click the first vertex to close the polygon."
+        : "Add at least 3 vertices."
+    }));
+
+    return true;
+  }
 
   useEffect(() => {
     const originalConsoleError = console.error;
@@ -915,7 +1225,9 @@ export function MapWorkspaceClient({
             mapRef.current as MapboxMap,
             layerVisibilityRef.current,
             selectedObjectRef.current,
-            uploadedDatasetsRef.current
+            uploadedDatasetsRef.current,
+            selectedAoiRef.current,
+            drawStateRef.current
           );
           window.setTimeout(() => mapRef.current?.resize(), 0);
           setIsMapReady(true);
@@ -926,6 +1238,19 @@ export function MapWorkspaceClient({
       mapRef.current.on("style.load", handleStyleReady);
 
       mapRef.current.on("mousemove", (event) => {
+        const currentDrawState = drawStateRef.current;
+        if (currentDrawState.mode === "drawing_polygon") {
+          updateDrawState((state) => ({
+            ...state,
+            previewCursor: [event.lngLat.lng, event.lngLat.lat]
+          }));
+          if (mapRef.current) {
+            mapRef.current.getCanvas().style.cursor = "crosshair";
+          }
+          hoverPopupRef.current?.remove();
+          return;
+        }
+
         const interactiveLayers = getInteractiveLayerIds(layerVisibilityRef.current, uploadedDatasetsRef.current).filter((layerId) =>
           Boolean(mapRef.current?.getLayer(layerId))
         );
@@ -973,6 +1298,11 @@ export function MapWorkspaceClient({
       });
 
       mapRef.current.on("click", (event) => {
+        if (drawStateRef.current.mode === "drawing_polygon" || drawStateRef.current.mode === "invalid_polygon") {
+          addPolygonVertex([event.lngLat.lng, event.lngLat.lat], event.point);
+          return;
+        }
+
         const interactiveLayers = getInteractiveLayerIds(layerVisibilityRef.current, uploadedDatasetsRef.current).filter((layerId) =>
           Boolean(mapRef.current?.getLayer(layerId))
         );
@@ -1169,9 +1499,44 @@ export function MapWorkspaceClient({
       return;
     }
 
+    syncUserAoiSource(mapRef.current, drawState, selectedAoi);
+  }, [canUseMapbox, drawState, isMapReady, selectedAoi]);
+
+  useEffect(() => {
+    if (!canUseMapbox || !mapRef.current || !isMapReady) {
+      return;
+    }
+
     addUploadedDatasetLayers(mapRef.current, uploadedDatasets);
     syncUploadedDatasetSource(mapRef.current, uploadedDatasets);
   }, [canUseMapbox, isMapReady, uploadedDatasets]);
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      const target = event.target as HTMLElement | null;
+      const isTyping =
+        target?.tagName === "INPUT" ||
+        target?.tagName === "TEXTAREA" ||
+        target?.isContentEditable;
+
+      if (isTyping || drawStateRef.current.mode !== "drawing_polygon") {
+        return;
+      }
+
+      if (event.key === "Escape") {
+        event.preventDefault();
+        cancelPolygonDrawing();
+      }
+
+      if (event.key === "Backspace" || event.key === "Delete") {
+        event.preventDefault();
+        undoPolygonVertex();
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   const shouldShowFallbackMap = !canUseMapbox || Boolean(mapResourceError && !isMapReady);
   const shouldShowMapboxControls = canUseMapbox && !shouldShowFallbackMap;
@@ -1206,6 +1571,9 @@ export function MapWorkspaceClient({
   const activeLayerCount = Object.values(layerVisibility).filter(Boolean).length + visibleUploadedLayerCount;
   const demoOverlayLayers = demoLayers.filter((layer) => !["planned_official", "customer_future"].includes(layer.sourceMode));
   const uploadedGeojsonDatasets = uploadedDatasets.filter((dataset) => dataset.type === "geojson" && dataset.status === "parsed");
+  const isDrawingPolygon = drawState.mode === "drawing_polygon" || drawState.mode === "invalid_polygon";
+  const drawValidation = drawState.vertices.length >= 3 ? validatePolygonVertices(drawState.vertices) : null;
+  const drawMeasurements = drawValidation?.measurements;
 
   return (
     <section
@@ -1249,8 +1617,83 @@ export function MapWorkspaceClient({
         </div>
       ) : null}
 
+      {shouldShowMapboxControls ? (
+        <div
+          className="absolute left-5 top-5 z-20 w-[min(320px,calc(100%-40px))] rounded-lg border border-white/75 bg-white/92 p-3 shadow-soft backdrop-blur"
+          onClick={(event) => event.stopPropagation()}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">AOI drawing</p>
+              <h2 className="mt-0.5 truncate text-sm font-semibold text-ink">
+                {isDrawingPolygon ? "Drawing polygon" : selectedAoi ? "Polygon AOI selected" : "Add polygon"}
+              </h2>
+            </div>
+            <span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] ${
+              isDrawingPolygon ? "bg-[#fff4df] text-[#916205]" : selectedAoi ? "bg-[#edf4f2] text-brand" : "bg-surface text-muted"
+            }`}>
+              {isDrawingPolygon ? `${drawState.vertices.length} vertices` : selectedAoi ? "AOI" : "optional"}
+            </span>
+          </div>
+
+          <p className="mt-2 text-xs leading-5 text-muted">
+            {drawState.validationMessage ??
+              (selectedAoi
+                ? `${formatArea(selectedAoi.measurements.areaSqM)} / ${formatPerimeter(selectedAoi.measurements.perimeterM)}. Validation required.`
+                : "Draw a custom screening boundary for polygon-based analysis.")}
+          </p>
+
+          {drawMeasurements && isDrawingPolygon ? (
+            <p className="mt-1 text-[11px] font-semibold text-brand">
+              Preview: {formatArea(drawMeasurements.areaSqM)} / {formatPerimeter(drawMeasurements.perimeterM)}
+            </p>
+          ) : null}
+
+          <div className="mt-3 flex flex-wrap gap-2">
+            {isDrawingPolygon ? (
+              <>
+                <button
+                  type="button"
+                  onClick={undoPolygonVertex}
+                  disabled={drawState.vertices.length === 0}
+                  className="h-8 rounded-md border border-line bg-white px-3 text-xs font-semibold text-ink transition hover:border-brand disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Undo vertex
+                </button>
+                <button
+                  type="button"
+                  onClick={cancelPolygonDrawing}
+                  className="h-8 rounded-md border border-line bg-white px-3 text-xs font-semibold text-muted transition hover:border-brand hover:text-ink"
+                >
+                  Cancel
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={startPolygonDrawing}
+                  className="h-8 rounded-md bg-brand px-3 text-xs font-semibold text-white transition hover:bg-[#113f50]"
+                >
+                  {selectedAoi ? "Replace polygon" : "Add polygon"}
+                </button>
+                {selectedAoi ? (
+                  <button
+                    type="button"
+                    onClick={deletePolygonAoi}
+                    className="h-8 rounded-md border border-line bg-white px-3 text-xs font-semibold text-muted transition hover:border-brand hover:text-ink"
+                  >
+                    Delete polygon
+                  </button>
+                ) : null}
+              </>
+            )}
+          </div>
+        </div>
+      ) : null}
+
       {shouldShowMapboxControls && showEmptyOverlay && !selectedPoint && !mapResourceError ? (
-        <div className="absolute left-5 top-5 z-10 max-w-sm rounded-lg border border-white/75 bg-white/92 p-4 shadow-soft backdrop-blur">
+        <div className="absolute left-5 top-[198px] z-10 max-w-sm rounded-lg border border-white/75 bg-white/92 p-4 shadow-soft backdrop-blur">
           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-brand">
             Start here
           </p>
@@ -1445,6 +1888,12 @@ export function MapWorkspaceClient({
       {shouldShowMapboxControls && selectedObject ? (
         <div className={`pointer-events-none absolute left-5 z-10 max-w-sm rounded-lg border border-white/75 bg-white/92 px-3 py-2 text-sm font-semibold text-ink shadow-soft backdrop-blur ${layersExpanded ? "bottom-20" : "bottom-5"}`}>
           <span className="text-brand">Selected:</span> {selectedObject.name}
+        </div>
+      ) : null}
+
+      {shouldShowMapboxControls && !selectedObject && selectedAoi ? (
+        <div className={`pointer-events-none absolute left-5 z-10 max-w-sm rounded-lg border border-white/75 bg-white/92 px-3 py-2 text-sm font-semibold text-ink shadow-soft backdrop-blur ${layersExpanded ? "bottom-20" : "bottom-5"}`}>
+          <span className="text-brand">Selected AOI:</span> {formatArea(selectedAoi.measurements.areaSqM)}
         </div>
       ) : null}
 

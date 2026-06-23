@@ -9,6 +9,7 @@ OpenAI is optional. If `OPENAI_API_KEY` is not configured, GeoAI automatically u
 - Homepage and `/workspace` application shell
 - Dubai-centered Mapbox workspace
 - Point selection with marker and coordinates
+- Polygon AOI drawing workflow with vertex handles, preview edge, validation and approximate area/perimeter measurements
 - Synthetic demo geospatial layers:
   - Development Zones
   - Premium Real Estate Areas
@@ -33,7 +34,7 @@ OpenAI is optional. If `OPENAI_API_KEY` is not configured, GeoAI automatically u
 - Open Geospatial Baseline v0.1 for local OSM-style roads, POI anchors, landuse context and accessibility metrics
 - Spatial Data Adapter v0.1 for seed_geojson demo layers and structured feature selection
 - Data Credibility v0.5 local-first CSV / GeoJSON upload workflow with browser-local source lineage
-- Comparison mode for 2-3 selected points or demo objects
+- Comparison mode for 2-3 selected points, demo objects, or user-drawn AOIs
 - Comparison dashboard with scores, recommendation, risks, and next actions
 - Print-friendly report preview for single-site analysis and comparison
 - Dedicated printable report route for saved reports: `/reports/[id]/print`
@@ -163,6 +164,14 @@ GeoAI includes a spatial data adapter for demo geospatial layers. The current in
 The adapter validates geometry type, coordinate ranges, required properties, centroids, and simple polygon area estimates. Selected map features now carry structured spatial metadata into the command panel, Express Analysis, Evidence / Data Used, and report preview.
 
 Current geometries are synthetic/demo only. They are not official parcel, planning, cadastral, utility, infrastructure, or risk-zone boundaries. Future ingestion modes are prepared for `uploaded_geojson_planned`, `api_ready`, and `database_ready` workflows for official GIS, customer uploads, or database-backed spatial layers.
+
+## Polygon AOI Drawing v1.7
+
+GeoAI supports an explicit polygon AOI drawing workflow in the workspace. Users can choose `Add polygon`, click vertices on the Mapbox canvas, preview the next edge while moving the cursor, close the polygon by clicking near the first vertex, then run Express Analysis or add the AOI to comparison.
+
+Drawn AOIs include approximate area, perimeter, centroid, bounding box and vertex count. The app validates minimum vertex count, duplicate consecutive vertices, self-intersection, minimum area and maximum area before accepting the polygon.
+
+User-drawn AOIs are treated as user-provided screening context only. They are not official parcel, zoning, cadastral, planning, ownership or entitlement boundaries. See [Polygon AOI Drawing v1.7](docs/POLYGON_AOI_DRAWING_V17.md).
 
 ## Data Credibility Sprint v0.5
 

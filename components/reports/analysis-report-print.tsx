@@ -26,6 +26,20 @@ function formatCoordinate(point: AnalysisReportDeliverable["coordinates"]) {
   return `${point.latitude.toFixed(6)}, ${point.longitude.toFixed(6)}`;
 }
 
+function formatArea(areaSqM?: number) {
+  if (!areaSqM && areaSqM !== 0) return "Not available";
+  return areaSqM >= 1_000_000
+    ? `${(areaSqM / 1_000_000).toFixed(2)} sq km`
+    : `${Math.round(areaSqM).toLocaleString()} sq m`;
+}
+
+function formatPerimeter(perimeterM?: number) {
+  if (!perimeterM && perimeterM !== 0) return "Not available";
+  return perimeterM >= 1_000
+    ? `${(perimeterM / 1_000).toFixed(2)} km`
+    : `${Math.round(perimeterM).toLocaleString()} m`;
+}
+
 export function AnalysisReportPrint({ report }: { report: AnalysisReportDeliverable }) {
   const scoreRows = scoreSummaryRows(report.scoreSummary);
   const spatialContext = report.selectedObject?.spatialContext;
@@ -98,11 +112,25 @@ export function AnalysisReportPrint({ report }: { report: AnalysisReportDelivera
             <div className="geoai-print-mini-grid">
               <PrintCard label="Market basis" value={report.analysis?.marketContext?.areaName ?? "Demo/sample context"} />
               <PrintCard label="Data mode" value={report.analysis?.project?.dataMode?.replace(/_/g, " ") ?? "demo normalized"} />
-              <PrintCard label="Object type" value={spatialContext?.subtype ?? report.selectedObject?.type ?? "point / site"} />
-              <PrintCard label="Geometry confidence" value={spatialContext?.confidenceLevel ?? "validation required"} />
+              <PrintCard label="Object type" value={report.selectedAoi ? "User-drawn polygon AOI" : spatialContext?.subtype ?? report.selectedObject?.type ?? "point / site"} />
+              <PrintCard label="Geometry confidence" value={report.selectedAoi?.confidence ?? spatialContext?.confidenceLevel ?? "validation required"} />
             </div>
           </PrintSection>
         </div>
+
+        {report.selectedAoi ? (
+          <PrintSection title="User-Drawn AOI Details">
+            <div className="geoai-print-mini-grid">
+              <PrintCard label="Geometry" value="Polygon" />
+              <PrintCard label="Area" value={formatArea(report.selectedAoi.measurements.areaSqM)} />
+              <PrintCard label="Perimeter" value={formatPerimeter(report.selectedAoi.measurements.perimeterM)} />
+              <PrintCard label="Vertices" value={String(report.selectedAoi.measurements.vertexCount)} />
+              <PrintCard label="Source" value="user_drawn_polygon" />
+              <PrintCard label="Status" value="official validation required" />
+            </div>
+            <p className="geoai-print-note">{report.selectedAoi.limitations[0]}</p>
+          </PrintSection>
+        ) : null}
 
         <div className="geoai-print-two-col">
           <PrintSection title="Key Findings">

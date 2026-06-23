@@ -1,13 +1,14 @@
 "use client";
 
 import { ReportMapPreview } from "@/components/report-map-preview";
-import type { AnalysisTarget, ComparisonResult, SelectedDemoObject, SelectedPoint } from "@/src/types/geo";
+import type { AnalysisTarget, ComparisonResult, SelectedDemoObject, SelectedPoint, UserDrawnAoi } from "@/src/types/geo";
 
 type MapContextCardProps = {
   title: string;
   subtitle: string;
   selectedPoint?: SelectedPoint | null;
   selectedObject?: SelectedDemoObject | null;
+  selectedAoi?: UserDrawnAoi | null;
   analysisTarget?: AnalysisTarget | null;
   comparison?: ComparisonResult;
   compact?: boolean;
@@ -20,12 +21,15 @@ export function MapContextCard({
   subtitle,
   selectedPoint = null,
   selectedObject = null,
+  selectedAoi = null,
   analysisTarget = null,
   comparison,
   compact = false,
   reportMode = false
 }: MapContextCardProps) {
-  const contextNote = analysisTarget?.type === "uploaded-feature"
+  const contextNote = selectedAoi || analysisTarget?.type === "user-drawn-aoi"
+    ? "User-drawn AOI is screening context only; official parcel, zoning, cadastral, planning and ownership validation is required."
+    : analysisTarget?.type === "uploaded-feature"
     ? "Selected geometry is user-uploaded screening context; official validation is required before decisions."
     : analysisTarget?.type === "demo-feature"
       ? "Selected geometry is demo-normalized context; official validation is required before decisions."
@@ -51,6 +55,7 @@ export function MapContextCard({
         <ReportMapPreview
           selectedPoint={selectedPoint}
           selectedObject={selectedObject}
+          selectedAoi={selectedAoi}
           analysisTarget={analysisTarget}
           comparison={comparison}
           compact={compact || reportMode}

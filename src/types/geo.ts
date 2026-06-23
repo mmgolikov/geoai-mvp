@@ -11,18 +11,46 @@ export type SelectedPoint = {
   longitude: number;
 };
 
+export type PolygonMeasurements = {
+  areaSqM: number;
+  areaSqKm: number;
+  perimeterM: number;
+  perimeterKm: number;
+  centroid: SelectedPoint;
+  bbox: [number, number, number, number];
+  vertexCount: number;
+};
+
+export type UserDrawnAoi = {
+  id: string;
+  name: string;
+  geometryType: "Polygon";
+  geometry: GeoJSON.Polygon;
+  coordinates: [number, number][];
+  centroid: SelectedPoint;
+  bbox: [number, number, number, number];
+  measurements: PolygonMeasurements;
+  source: "user_drawn_polygon";
+  dataMode: "user_provided";
+  confidence: "validation_required";
+  projectId?: string;
+  limitations: string[];
+};
+
 export type DemoLayerType = "polygon" | "point" | "line";
 
 export type AnalysisTarget = {
   id: string;
-  type: "point" | "uploaded-feature" | "demo-feature";
+  type: "point" | "uploaded-feature" | "demo-feature" | "user-drawn-aoi";
   label: string;
   coordinates?: SelectedPoint;
   geometry?: GeoJSON.Geometry;
+  bbox?: [number, number, number, number];
+  measurements?: PolygonMeasurements;
   properties?: Record<string, unknown>;
   datasetId?: string;
   datasetName?: string;
-  sourceMode?: "user-uploaded" | "sample-fixture" | "manual-offline" | "demo";
+  sourceMode?: "user-uploaded" | "user-drawn" | "sample-fixture" | "manual-offline" | "demo";
   officialStatus?: "official-validation-required" | "not-official";
 };
 
@@ -79,6 +107,7 @@ export type ExpressAnalysis = {
   subtitle: string;
   point: SelectedPoint;
   selectedObject?: SelectedDemoObject;
+  selectedAoi?: UserDrawnAoi;
   analysisTarget?: AnalysisTarget;
   summary: string;
   scoreLabels: Record<ScoreKey, string>;
@@ -106,11 +135,12 @@ export type ExpressAnalysis = {
 export type ComparisonItem = {
   id: string;
   name: string;
-  itemType: "point" | "object";
+  itemType: "point" | "object" | "aoi";
   scenarioId: AnalysisScenarioId;
   scenarioLabel: string;
   point: SelectedPoint;
   selectedObject?: SelectedDemoObject;
+  selectedAoi?: UserDrawnAoi;
   locationLabel: string;
 };
 

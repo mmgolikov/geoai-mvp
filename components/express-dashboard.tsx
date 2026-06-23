@@ -5,6 +5,7 @@ import { ValidationRequirementList } from "@/components/data-readiness";
 import { EvidenceSourceCards } from "@/components/evidence-source-cards";
 import { MapContextCard } from "@/components/map-context-card";
 import { deriveDecisionPosture, deriveDecisionRationale } from "@/src/lib/decision-posture";
+import { formatArea, formatPerimeter } from "@/src/lib/polygon-aoi";
 import type { ExpressAnalysis, ScoreKey } from "@/src/types/geo";
 
 type ExpressDashboardProps = {
@@ -392,7 +393,9 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
             <MapContextCard
               title="Map Context"
               subtitle={
-                analysis.analysisTarget?.type === "uploaded-feature"
+                analysis.selectedAoi || analysis.analysisTarget?.type === "user-drawn-aoi"
+                  ? "User-drawn AOI with surrounding Dubai context"
+                  : analysis.analysisTarget?.type === "uploaded-feature"
                   ? "Uploaded screening geometry with surrounding Dubai context"
                   : analysis.analysisTarget?.type === "demo-feature"
                     ? "Demo-normalized screening geometry with surrounding Dubai context"
@@ -400,6 +403,7 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
               }
               selectedPoint={analysis.point}
               selectedObject={analysis.selectedObject ?? null}
+              selectedAoi={analysis.selectedAoi ?? null}
               analysisTarget={analysis.analysisTarget ?? null}
             />
 
@@ -601,6 +605,41 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
               {marketMetricsMatch?.importedMetricsUsed
                 ? "Imported sample metrics demonstrate the market-data workflow. Validate against official DLD / Dubai Pulse datasets before investment decisions."
                 : analysis.marketContext.dataQualityNotes?.[1] ?? analysis.marketContext.limitations[0]}
+            </p>
+          </AnalysisCard>
+        ) : null}
+
+        {analysis.selectedAoi ? (
+          <AnalysisCard>
+            <AnalysisCardHeader
+              title="Spatial Object Details"
+              subtitle={analysis.selectedAoi.name}
+              badge="user-drawn / validation required"
+            />
+            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              <AnalysisMetricCard
+                label="Geometry"
+                value="Polygon AOI"
+                detail={`${analysis.selectedAoi.measurements.vertexCount} vertices / user-provided boundary`}
+              />
+              <AnalysisMetricCard
+                label="Area"
+                value={formatArea(analysis.selectedAoi.measurements.areaSqM)}
+                detail={`Perimeter ${formatPerimeter(analysis.selectedAoi.measurements.perimeterM)}`}
+              />
+              <AnalysisMetricCard
+                label="Centroid"
+                value={`${analysis.selectedAoi.centroid.latitude.toFixed(5)}, ${analysis.selectedAoi.centroid.longitude.toFixed(5)}`}
+                detail="Used for context matching in this MVP."
+              />
+              <AnalysisMetricCard
+                label="Source status"
+                value="user provided"
+                detail="Official cadastral / zoning validation required."
+              />
+            </div>
+            <p className="mt-4 text-sm leading-6 text-muted">
+              Note: {analysis.selectedAoi.limitations[0]}
             </p>
           </AnalysisCard>
         ) : null}

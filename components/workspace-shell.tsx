@@ -54,7 +54,8 @@ import type {
   ComparisonResult,
   ExpressAnalysis,
   SelectedDemoObject,
-  SelectedPoint
+  SelectedPoint,
+  UserDrawnAoi
 } from "@/src/types/geo";
 import type { MarketContext } from "@/src/types/market-context";
 import type { UploadedDataset } from "@/src/types/uploaded-data";
@@ -343,7 +344,7 @@ function withClimateScreeningContext(
 }
 
 function formatLocationLabel(analysis: ExpressAnalysis) {
-  return analysis.selectedObject?.name ?? `${analysis.point.latitude.toFixed(5)}, ${analysis.point.longitude.toFixed(5)}`;
+  return analysis.selectedAoi?.name ?? analysis.selectedObject?.name ?? `${analysis.point.latitude.toFixed(5)}, ${analysis.point.longitude.toFixed(5)}`;
 }
 
 function createHistoryItem(
@@ -354,7 +355,7 @@ function createHistoryItem(
 ): AnalysisHistoryItem {
   return {
     id: `${analysis.id}-${analysis.generatedAt ?? Date.now()}`,
-    title: analysis.selectedObject?.name ?? analysis.title,
+    title: analysis.selectedAoi?.name ?? analysis.selectedObject?.name ?? analysis.title,
     scenarioId: analysis.scenarioId,
     scenarioLabel,
     timestamp: analysis.generatedAt ?? new Date().toISOString(),
@@ -454,8 +455,12 @@ function clearOpenAnalysisRequest() {
   }
 }
 
-function createTargetSignature(point: SelectedPoint | null, object: SelectedDemoObject | null) {
+function createTargetSignature(point: SelectedPoint | null, object: SelectedDemoObject | null, aoi: UserDrawnAoi | null = null) {
   if (!point) return "no-target";
+
+  if (aoi) {
+    return `aoi:${aoi.id}:${aoi.measurements.vertexCount}:${aoi.centroid.latitude.toFixed(6)}:${aoi.centroid.longitude.toFixed(6)}`;
+  }
 
   const objectKey = object?.analysisTarget?.id ?? object?.spatialContext?.featureId ?? object?.id ?? "point";
   return `${object ? "object" : "point"}:${objectKey}:${point.latitude.toFixed(6)}:${point.longitude.toFixed(6)}`;
@@ -597,6 +602,7 @@ function historyItemFromPersistedRun(value: unknown): AnalysisHistoryItem | null
 export function WorkspaceShell() {
   const [selectedPoint, setSelectedPoint] = useState<SelectedPoint | null>(null);
   const [selectedObject, setSelectedObject] = useState<SelectedDemoObject | null>(null);
+  const [selectedAoi, setSelectedAoi] = useState<UserDrawnAoi | null>(null);
   const [selectedScenario, setSelectedScenario] = useState<AnalysisScenarioId>("realEstateDevelopment");
   const [customQuery, setCustomQuery] = useState("");
   const [analysis, setAnalysis] = useState<ExpressAnalysis | null>(null);
@@ -642,6 +648,7 @@ export function WorkspaceShell() {
       ...items.filter((item) => !demoDatasets.some((dataset) => dataset.id === item.id))
     ].slice(0, 8));
     setSelectedObject(demoSelection);
+    setSelectedAoi(null);
     setSelectedPoint(demoSelection.center);
     setSelectedScenario(preset.scenarioId);
     setCustomQuery("");
@@ -899,6 +906,7 @@ export function WorkspaceShell() {
   function handlePointSelect(point: SelectedPoint) {
     setSelectedPoint(point);
     setSelectedObject(null);
+    setSelectedAoi(null);
     setAnalysis(null);
     setComparison(null);
     setLastAnalyzedState(null);
@@ -912,7 +920,37 @@ export function WorkspaceShell() {
 
   function handleObjectSelect(object: SelectedDemoObject) {
     setSelectedObject(object);
+    setSelectedAoi(null);
     setSelectedPoint(object.center);
+    setAnalysis(null);
+    setComparison(null);
+    setLastAnalyzedState(null);
+    setLastComparedState(null);
+    setReportPreview(null);
+    setComparisonMessage(null);
+    setAnalysisError(null);
+    setIsAnalyzing(false);
+    setMarketContext(null);
+  }
+
+  function handleAoiSelect(aoi: UserDrawnAoi) {
+    setSelectedAoi(aoi);
+    setSelectedObject(null);
+    setSelectedPoint(aoi.centroid);
+    setAnalysis(null);
+    setComparison(null);
+    setLastAnalyzedState(null);
+    setLastComparedState(null);
+    setReportPreview(null);
+    setComparisonMessage(null);
+    setAnalysisError(null);
+    setIsAnalyzing(false);
+    setMarketContext(null);
+  }
+
+  function handleAoiDelete() {
+    setSelectedAoi(null);
+    setSelectedPoint(null);
     setAnalysis(null);
     setComparison(null);
     setLastAnalyzedState(null);
@@ -932,7 +970,8 @@ export function WorkspaceShell() {
     const comparisonItem = createComparisonItem(
       selectedPoint,
       selectedObject,
-      selectedScenario
+      selectedScenario,
+      selectedAoi
     );
 
     if (comparisonItems.some((item) => item.id === comparisonItem.id)) {
@@ -1017,10 +1056,10 @@ export function WorkspaceShell() {
           projectName: activeProject.name,
           projectId: activeProject.id,
           scenarioId: analysisResult.scenarioId,
-          selectedName: analysisResult.selectedObject?.name ?? "Custom map selection",
-          selectedType: analysisResult.selectedObject ? "object" : "point",
+          selectedName: analysisResult.selectedAoi?.name ?? analysisResult.selectedObject?.name ?? "Custom map selection",
+          selectedType: analysisResult.selectedAoi ? "aoi" : analysisResult.selectedObject ? "object" : "point",
           selectedPoint: analysisResult.point,
-          selectedFeatureKey: analysisResult.selectedObject?.spatialContext?.featureId ?? analysisResult.selectedObject?.id ?? null,
+          selectedFeatureKey: analysisResult.selectedAoi?.id ?? analysisResult.selectedObject?.spatialContext?.featureId ?? analysisResult.selectedObject?.id ?? null,
           inputContext: {
             scenarioLabel,
             customQuery: analysisResult.customQuery ?? "",
@@ -1029,13 +1068,14 @@ export function WorkspaceShell() {
             customQueryAnswer: analysisResult.customQueryAnswer ?? null,
             selectedPoint: analysisResult.point,
             selectedObject: analysisResult.selectedObject ?? null,
+            selectedAoi: analysisResult.selectedAoi ?? null,
             marketContext: analysisResult.marketContext ?? null,
             marketMetrics: createMarketMetricsMetadata(analysisResult),
             uploadedDataContext: analysisResult.uploadedDataContext ?? null,
             evidence: analysisResult.evidence,
             project: activeProject
           },
-          selectedObject: analysisResult.selectedObject ?? null,
+          selectedObject: analysisResult.selectedObject ?? analysisResult.selectedAoi ?? null,
           resultJson: analysisResult,
           decisionPosture: deriveDecisionPosture(analysisResult),
           confidenceLevel: analysisResult.confidenceLevel ?? null,
@@ -1088,8 +1128,9 @@ export function WorkspaceShell() {
       project: activeProject,
       ...marketMetrics,
       title: "Express Analysis / Investment Memo",
-      selectedSite: analysisResult.selectedObject?.name ?? "Custom map selection",
+      selectedSite: analysisResult.selectedAoi?.name ?? analysisResult.selectedObject?.name ?? "Custom map selection",
       selectedObject: analysisResult.selectedObject ?? null,
+      selectedAoi: analysisResult.selectedAoi ?? null,
       coordinates: analysisResult.point,
       scenario: analysisResult.title,
       customQuery: analysisResult.customQuery ?? null,
@@ -1168,7 +1209,7 @@ export function WorkspaceShell() {
         reportType: "analysis",
         title: "Express Analysis / Investment Memo",
         scenario: analysis.title,
-        targetLabel: analysis.selectedObject?.name ?? "Custom map selection",
+        targetLabel: analysis.selectedAoi?.name ?? analysis.selectedObject?.name ?? "Custom map selection",
         reportPayload: createAnalysisReportPayload(analysis),
         createdAt: new Date().toISOString()
       };
@@ -1299,7 +1340,17 @@ export function WorkspaceShell() {
     const nextProject = projects.find((project) => project.projectKey === projectKey) ?? getDemoProject(projectKey);
     setActiveProject(nextProject);
     writeActiveProjectKey(nextProject.projectKey);
+    setSelectedPoint(null);
+    setSelectedObject(null);
+    setSelectedAoi(null);
+    setAnalysis(null);
+    setComparison(null);
+    setReportPreview(null);
+    setLastAnalyzedState(null);
+    setLastComparedState(null);
+    setAnalysisError(null);
     setComparisonMessage(null);
+    setMarketContext(null);
   }
 
   function restoreAnalysisDashboard(item: AnalysisHistoryItem) {
@@ -1312,13 +1363,14 @@ export function WorkspaceShell() {
 
     setSelectedPoint(restoredAnalysis.point);
     setSelectedObject(restoredAnalysis.selectedObject ?? null);
+    setSelectedAoi(restoredAnalysis.selectedAoi ?? null);
     setSelectedScenario(restoredAnalysis.scenarioId);
     setCustomQuery(restoredCustomQuery);
     setAnalysis(restoredAnalysis);
     setLastAnalyzedState({
       query: restoredCustomQuery,
       scenarioId: restoredAnalysis.scenarioId,
-      targetSignature: createTargetSignature(restoredAnalysis.point, restoredAnalysis.selectedObject ?? null)
+      targetSignature: createTargetSignature(restoredAnalysis.point, restoredAnalysis.selectedObject ?? null, restoredAnalysis.selectedAoi ?? null)
     });
     if (restoredProject) {
       setActiveProject(restoredProject);
@@ -1442,6 +1494,27 @@ export function WorkspaceShell() {
 
     const uploadedDataContext = buildUploadedDataContext(uploadedDatasets, selectedPoint, selectedObject);
     const climateContext = await fetchClimateScreeningContext(selectedPoint);
+    const selectedAoiTarget = selectedAoi
+      ? {
+          id: selectedAoi.id,
+          type: "user-drawn-aoi" as const,
+          label: selectedAoi.name,
+          coordinates: selectedAoi.centroid,
+          geometry: selectedAoi.geometry,
+          bbox: selectedAoi.bbox,
+          measurements: selectedAoi.measurements,
+          datasetId: "user-drawn-aoi",
+          datasetName: "User-drawn AOI",
+          sourceMode: "user-drawn" as const,
+          officialStatus: "official-validation-required" as const,
+          properties: {
+            source: selectedAoi.source,
+            dataMode: selectedAoi.dataMode,
+            confidence: selectedAoi.confidence,
+            limitations: selectedAoi.limitations
+          }
+        }
+      : null;
     const deterministicAnalysis = withClimateScreeningContext(
       withUploadedDataContext(
         withOpenGeodataContext(
@@ -1451,10 +1524,11 @@ export function WorkspaceShell() {
                 selectedPoint,
                 selectedScenario,
                 customQuery,
-                selectedObject
+                selectedObject,
+                selectedAoi
               ),
               project: activeProject,
-              analysisTarget: selectedObject?.analysisTarget ?? {
+              analysisTarget: selectedAoiTarget ?? selectedObject?.analysisTarget ?? {
                 id: `point-${selectedPoint.latitude.toFixed(6)}-${selectedPoint.longitude.toFixed(6)}`,
                 type: "point",
                 label: "Custom map selection",
@@ -1493,6 +1567,8 @@ export function WorkspaceShell() {
           deterministicScores: deterministicAnalysis.scores,
           evidence: deterministicAnalysis.evidence,
           dataSources: getScenarioDataSources(selectedScenario),
+          selectedAoi,
+          analysisTarget: deterministicAnalysis.analysisTarget,
           marketContext,
           climateContext,
           uploadedDataContext,
@@ -1514,7 +1590,7 @@ export function WorkspaceShell() {
       setLastAnalyzedState({
         query: normalizeQuery(customQuery),
         scenarioId: selectedScenario,
-        targetSignature: createTargetSignature(selectedPoint, selectedObject)
+        targetSignature: createTargetSignature(selectedPoint, selectedObject, selectedAoi)
       });
       saveAnalysisHistory(finalAnalysis, scenario.label);
       void persistAnalysisRun(finalAnalysis, scenario.label);
@@ -1536,7 +1612,7 @@ export function WorkspaceShell() {
       setLastAnalyzedState({
         query: normalizeQuery(customQuery),
         scenarioId: selectedScenario,
-        targetSignature: createTargetSignature(selectedPoint, selectedObject)
+        targetSignature: createTargetSignature(selectedPoint, selectedObject, selectedAoi)
       });
       saveAnalysisHistory(fallbackAnalysis, scenario.label);
       void persistAnalysisRun(fallbackAnalysis, scenario.label);
@@ -1546,7 +1622,7 @@ export function WorkspaceShell() {
   }
 
   const currentQuery = normalizeQuery(customQuery);
-  const currentTargetSignature = createTargetSignature(selectedPoint, selectedObject);
+  const currentTargetSignature = createTargetSignature(selectedPoint, selectedObject, selectedAoi);
   const currentComparisonSignature = createComparisonSignature(comparisonItems);
   const isAnalysisUpToDate = Boolean(
     analysis &&
@@ -1631,14 +1707,19 @@ export function WorkspaceShell() {
           key="map-workspace"
           selectedPoint={selectedPoint}
           selectedObject={selectedObject}
+          selectedAoi={selectedAoi}
           onPointSelect={handlePointSelect}
           onObjectSelect={handleObjectSelect}
+          onAoiSelect={handleAoiSelect}
+          onAoiDelete={handleAoiDelete}
           uploadedDatasets={uploadedDatasets}
+          projectId={activeProject.projectKey}
         />
       )}
       <AnalysisPanel
         selectedPoint={selectedPoint}
         selectedObject={selectedObject}
+        selectedAoi={selectedAoi}
         projects={projects}
         projectsMode={projectsMode}
         activeProject={activeProject}

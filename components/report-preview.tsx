@@ -10,6 +10,7 @@ import { getClientPilotPackageForProject } from "@/src/data/pilot-packages";
 import { externalDataSources } from "@/src/lib/external-data/source-registry";
 import { sourceStatusToLabel } from "@/src/lib/external-data/source-status";
 import { deriveDecisionPosture, deriveDecisionRationale } from "@/src/lib/decision-posture";
+import { formatArea, formatPerimeter } from "@/src/lib/polygon-aoi";
 import { createSourceLineageSnapshot } from "@/src/lib/source-lineage-snapshot";
 import type { ComparisonResult, ExpressAnalysis, ScoreKey } from "@/src/types/geo";
 
@@ -360,12 +361,13 @@ function createPrintableAnalysisRecord(analysis: ExpressAnalysis) {
     reportType: "analysis",
     title: "Express Analysis / Investment Memo",
     scenario: analysis.title,
-    targetLabel: analysis.selectedObject?.name ?? "Custom map selection",
+    targetLabel: analysis.selectedAoi?.name ?? analysis.selectedObject?.name ?? "Custom map selection",
     reportPayload: {
       title: "Express Analysis / Investment Memo",
       scenario: analysis.title,
-      selectedSite: analysis.selectedObject?.name ?? "Custom map selection",
+      selectedSite: analysis.selectedAoi?.name ?? analysis.selectedObject?.name ?? "Custom map selection",
       selectedObject: analysis.selectedObject ?? null,
+      selectedAoi: analysis.selectedAoi ?? null,
       coordinates: analysis.point,
       memoJson: analysis,
       customQuery: analysis.customQuery ?? null,
@@ -479,7 +481,7 @@ function AnalysisReport({ analysis, onBack }: { analysis: ExpressAnalysis; onBac
           <dl className="mt-6 grid gap-3 text-sm md:grid-cols-2">
             <div className="rounded-md bg-surface p-4">
               <dt className="font-semibold text-muted">Selected site</dt>
-              <dd className="mt-1 text-ink">{analysis.selectedObject?.name ?? "Custom map point"}</dd>
+              <dd className="mt-1 text-ink">{analysis.selectedAoi?.name ?? analysis.selectedObject?.name ?? "Custom map point"}</dd>
             </div>
             <div className="rounded-md bg-surface p-4">
               <dt className="font-semibold text-muted">Coordinates</dt>
@@ -584,14 +586,17 @@ function AnalysisReport({ analysis, onBack }: { analysis: ExpressAnalysis; onBac
 
         <Section title="Map Context">
           <MapContextCard
-            title={analysis.selectedObject?.name ?? "Custom map point"}
+            title={analysis.selectedAoi?.name ?? analysis.selectedObject?.name ?? "Custom map point"}
             subtitle={
-              analysis.analysisTarget?.type === "uploaded-feature"
+              analysis.selectedAoi || analysis.analysisTarget?.type === "user-drawn-aoi"
+                ? `User-drawn AOI / ${analysis.subtitle}`
+                : analysis.analysisTarget?.type === "uploaded-feature"
                 ? `Uploaded screening geometry / ${analysis.subtitle}`
                 : `${analysis.selectedObject?.type ?? "Point selection"} / ${analysis.subtitle}`
             }
             selectedPoint={analysis.point}
             selectedObject={analysis.selectedObject ?? null}
+            selectedAoi={analysis.selectedAoi ?? null}
             analysisTarget={analysis.analysisTarget ?? null}
             reportMode
           />
@@ -694,6 +699,51 @@ function AnalysisReport({ analysis, onBack }: { analysis: ExpressAnalysis; onBac
                   ? "Imported sample metrics are used to demonstrate the market-data workflow. Validate against official DLD / Dubai Pulse datasets before investment decisions."
                   : analysis.marketContext.dataQualityNotes?.[1] ?? analysis.marketContext.limitations[0]}
               </p>
+            </div>
+          </Section>
+        ) : null}
+
+        {analysis.selectedAoi ? (
+          <Section title="Spatial Object Details">
+            <div className="rounded-md border border-line bg-surface p-5">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-lg font-semibold text-ink">{analysis.selectedAoi.name}</p>
+                  <p className="mt-1 text-sm text-muted">User-drawn polygon AOI / validation required</p>
+                </div>
+                <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-muted">
+                  user provided / not official
+                </span>
+              </div>
+              <dl className="mt-4 grid gap-3 text-sm md:grid-cols-3">
+                <div className="rounded-md bg-white p-4">
+                  <dt className="font-semibold text-muted">Geometry type</dt>
+                  <dd className="mt-1 text-ink">Polygon</dd>
+                </div>
+                <div className="rounded-md bg-white p-4">
+                  <dt className="font-semibold text-muted">Approx. area</dt>
+                  <dd className="mt-1 text-ink">{formatArea(analysis.selectedAoi.measurements.areaSqM)}</dd>
+                </div>
+                <div className="rounded-md bg-white p-4">
+                  <dt className="font-semibold text-muted">Approx. perimeter</dt>
+                  <dd className="mt-1 text-ink">{formatPerimeter(analysis.selectedAoi.measurements.perimeterM)}</dd>
+                </div>
+                <div className="rounded-md bg-white p-4">
+                  <dt className="font-semibold text-muted">Vertices</dt>
+                  <dd className="mt-1 text-ink">{analysis.selectedAoi.measurements.vertexCount}</dd>
+                </div>
+                <div className="rounded-md bg-white p-4">
+                  <dt className="font-semibold text-muted">Centroid</dt>
+                  <dd className="mt-1 text-ink">
+                    {formatCoordinate(analysis.selectedAoi.centroid.latitude, analysis.selectedAoi.centroid.longitude)}
+                  </dd>
+                </div>
+                <div className="rounded-md bg-white p-4">
+                  <dt className="font-semibold text-muted">Source status</dt>
+                  <dd className="mt-1 text-ink">User drawn / validation required</dd>
+                </div>
+              </dl>
+              <p className="mt-4 text-sm leading-6 text-muted">Note: {analysis.selectedAoi.limitations[0]}</p>
             </div>
           </Section>
         ) : null}

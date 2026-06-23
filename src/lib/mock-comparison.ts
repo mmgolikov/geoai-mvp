@@ -14,7 +14,8 @@ import type {
   ComparisonScorecard,
   ScoreKey,
   SelectedDemoObject,
-  SelectedPoint
+  SelectedPoint,
+  UserDrawnAoi
 } from "@/src/types/geo";
 
 const scoreOrder: ScoreKey[] = [
@@ -39,6 +40,7 @@ function stablePointId(point: SelectedPoint) {
 }
 
 function recommendedUseForItem(item: ComparisonItem) {
+  if (item.selectedAoi) return "User-defined AOI screening and official validation workflow";
   if (item.selectedObject?.layerId === "premiumRealEstateAreas") return "Premium mixed-use or residential investment";
   if (item.selectedObject?.layerId === "developmentZones") return "Master-planned development or land banking";
   if (item.selectedObject?.layerId === "infrastructureNodes") return "Logistics, access-led commercial, or public infrastructure support";
@@ -82,6 +84,15 @@ function overallScore(scores: Record<ScoreKey, number>) {
 }
 
 function objectScoreAdjustments(item: ComparisonItem): Partial<Record<ScoreKey, number>> {
+  if (item.selectedAoi) {
+    const areaSqKm = item.selectedAoi.measurements.areaSqKm;
+    return {
+      developmentPotential: areaSqKm > 2 ? 4 : 2,
+      infrastructureReadiness: -1,
+      overallRisk: 4
+    };
+  }
+
   switch (item.selectedObject?.layerId) {
     case "premiumRealEstateAreas":
       return { investmentAttractiveness: 8, developmentPotential: 5, overallRisk: 3 };
@@ -103,7 +114,7 @@ function objectScoreAdjustments(item: ComparisonItem): Partial<Record<ScoreKey, 
 }
 
 function createScorecard(item: ComparisonItem): ComparisonScorecard {
-  const analysis = createMockExpressAnalysis(item.point, item.scenarioId, "", item.selectedObject);
+  const analysis = createMockExpressAnalysis(item.point, item.scenarioId, "", item.selectedObject, item.selectedAoi);
   const marketMetricsMatch = findBestMarketMetricMatch({
     point: item.point,
     selectedObject: item.selectedObject ?? null
@@ -130,22 +141,30 @@ function createScorecard(item: ComparisonItem): ComparisonScorecard {
 export function createComparisonItem(
   point: SelectedPoint,
   selectedObject: SelectedDemoObject | null,
-  scenarioId: AnalysisScenarioId
+  scenarioId: AnalysisScenarioId,
+  selectedAoi?: UserDrawnAoi | null
 ): ComparisonItem {
   const scenario = analysisScenarios.find((item) => item.id === scenarioId) as AnalysisScenario;
-  const itemType = selectedObject ? "object" : "point";
-  const locationLabel = selectedObject
+  const itemType = selectedAoi ? "aoi" : selectedObject ? "object" : "point";
+  const locationLabel = selectedAoi
+    ? `User-drawn AOI / ${selectedAoi.measurements.areaSqKm.toFixed(2)} sq km / ${formatCoordinate(selectedAoi.centroid)}`
+    : selectedObject
     ? `${selectedObject.layerName} / ${formatCoordinate(selectedObject.center)}`
     : `Map point / ${formatCoordinate(point)}`;
 
   return {
-    id: selectedObject ? `object-${selectedObject.id}-${scenarioId}` : `point-${stablePointId(point)}-${scenarioId}`,
-    name: selectedObject ? selectedObject.name : `Map point ${formatCoordinate(point)}`,
+    id: selectedAoi
+      ? `aoi-${selectedAoi.id}-${scenarioId}`
+      : selectedObject
+        ? `object-${selectedObject.id}-${scenarioId}`
+        : `point-${stablePointId(point)}-${scenarioId}`,
+    name: selectedAoi ? selectedAoi.name : selectedObject ? selectedObject.name : `Map point ${formatCoordinate(point)}`,
     itemType,
     scenarioId,
     scenarioLabel: scenario.label,
     point,
     selectedObject: selectedObject ?? undefined,
+    selectedAoi: selectedAoi ?? undefined,
     locationLabel
   };
 }

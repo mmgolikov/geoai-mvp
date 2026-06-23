@@ -4,9 +4,11 @@ import type { MarketContext } from "@/src/types/market-context";
 import type { UploadedDataContext } from "@/src/types/uploaded-data";
 import type {
   AnalysisScenarioId,
+  AnalysisTarget,
   ScoreKey,
   SelectedDemoObject,
-  SelectedPoint
+  SelectedPoint,
+  UserDrawnAoi
 } from "@/src/types/geo";
 
 export type AnalysisMode = "openai" | "mock_fallback";
@@ -60,6 +62,8 @@ export type StructuredAnalysisResult = {
 export type AnalyzeRequest = {
   point: SelectedPoint;
   selectedObject?: SelectedDemoObject | null;
+  selectedAoi?: UserDrawnAoi | null;
+  analysisTarget?: AnalysisTarget | null;
   scenarioId: AnalysisScenarioId;
   scenarioLabel: string;
   customQuery?: string;

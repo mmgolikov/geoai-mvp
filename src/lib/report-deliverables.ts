@@ -1,6 +1,6 @@
 import type { SourceLineageSnapshot } from "@/src/lib/project-workspace-types";
 import type { CustomQueryAnswer } from "@/src/lib/custom-query/query-answer";
-import type { AnalysisTarget, ComparisonResult, ExpressAnalysis, ScoreKey, SelectedDemoObject, SelectedPoint } from "@/src/types/geo";
+import type { AnalysisTarget, ComparisonResult, ExpressAnalysis, ScoreKey, SelectedDemoObject, SelectedPoint, UserDrawnAoi } from "@/src/types/geo";
 
 export type ReportType = "analysis" | "comparison";
 
@@ -32,6 +32,7 @@ export type AnalysisReportDeliverable = ReportDeliverable & {
   coordinates: SelectedPoint | null;
   analysis: ExpressAnalysis | null;
   selectedObject: SelectedDemoObject | null;
+  selectedAoi: UserDrawnAoi | null;
   analysisTarget: AnalysisTarget | null;
   executiveMemo: string;
   opportunities: string[];
@@ -360,12 +361,28 @@ export function normalizeReportDeliverable(record: unknown): AnalysisReportDeliv
   const analysis = readAnalysisPayload(payload);
   const coordinates = analysis?.point ?? (isObject(payload) ? asPoint(payload.coordinates) : null);
   const selectedObject = analysis?.selectedObject ?? (isObject(payload) && isObject(payload.selectedObject) ? payload.selectedObject as SelectedDemoObject : null);
-  const targetLabel = analysis?.selectedObject?.name ?? (isObject(payload) ? asString(payload.selectedSite, typedRecord.targetLabel ?? typedRecord.target_label ?? "Selected site") : typedRecord.targetLabel ?? typedRecord.target_label ?? "Selected site");
+  const selectedAoi = analysis?.selectedAoi ?? (isObject(payload) && isObject(payload.selectedAoi) ? payload.selectedAoi as UserDrawnAoi : null);
+  const targetLabel = selectedAoi?.name ?? analysis?.selectedObject?.name ?? (isObject(payload) ? asString(payload.selectedSite, typedRecord.targetLabel ?? typedRecord.target_label ?? "Selected site") : typedRecord.targetLabel ?? typedRecord.target_label ?? "Selected site");
   const scoreSummary = analysis?.scores ?? (isObject(payload) ? payload.scoreOverview ?? null : null);
   const keyFindings = analysis?.keyFactors ?? (isObject(payload) ? asArrayOfStrings(payload.keyValueDrivers) : []);
   const risks = analysis?.risks ?? (isObject(payload) ? asArrayOfStrings(payload.criticalConstraints) : []);
   const nextActions = analysis?.nextActions ?? (isObject(payload) ? asArrayOfStrings(payload.dueDiligenceChecklist) : []);
   const customQueryAnswer = analysis?.customQueryAnswer ?? (isObject(payload) ? asCustomQueryAnswer(payload.customQueryAnswer) : null);
+  const selectedAoiTarget: AnalysisTarget | null = selectedAoi
+    ? {
+        id: selectedAoi.id,
+        type: "user-drawn-aoi",
+        label: selectedAoi.name,
+        coordinates: selectedAoi.centroid,
+        geometry: selectedAoi.geometry,
+        bbox: selectedAoi.bbox,
+        measurements: selectedAoi.measurements,
+        datasetId: "user-drawn-aoi",
+        datasetName: "User-drawn AOI",
+        sourceMode: "user-drawn",
+        officialStatus: "official-validation-required"
+      }
+    : null;
 
   return {
     id,
@@ -376,7 +393,7 @@ export function normalizeReportDeliverable(record: unknown): AnalysisReportDeliv
     subtitle: analysis?.title ?? scenario,
     scenario,
     targetLabel,
-    targetGeometry: analysis?.analysisTarget?.geometry ?? selectedObject?.analysisTarget?.geometry ?? null,
+    targetGeometry: analysis?.analysisTarget?.geometry ?? selectedAoi?.geometry ?? selectedObject?.analysisTarget?.geometry ?? null,
     createdAt,
     generatedBy: "GeoAI Demo/MVP",
     decisionPosture,
@@ -391,7 +408,8 @@ export function normalizeReportDeliverable(record: unknown): AnalysisReportDeliv
     coordinates,
     analysis,
     selectedObject,
-    analysisTarget: analysis?.analysisTarget ?? selectedObject?.analysisTarget ?? null,
+    selectedAoi,
+    analysisTarget: analysis?.analysisTarget ?? selectedObject?.analysisTarget ?? selectedAoiTarget,
     executiveMemo: analysis?.summary ?? "This saved report contains a GeoAI MVP screening memo. Generate a fresh analysis for richer narrative detail and source-specific scoring context.",
     opportunities: analysis?.opportunities ?? [],
     limitations: analysis?.limitations ?? (isObject(payload) ? asArrayOfStrings(payload.limitations) : []),

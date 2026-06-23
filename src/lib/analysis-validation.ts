@@ -77,7 +77,8 @@ export function createFallbackStructuredAnalysis(
     request.point,
     request.scenarioId,
     request.customQuery ?? "",
-    request.selectedObject
+    request.selectedObject,
+    request.selectedAoi
   );
 
   return {
