@@ -96,6 +96,24 @@ Use this checklist before demos, Vercel deployments, and milestone checkpoints.
 - [ ] Required caveat remains visible: screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.
 - [ ] No UI, report or docs copy describes uploaded AOIs as official parcel, zoning, cadastral, ownership, approval or valuation evidence.
 
+## Client Data Room Foundation v1.9
+
+- [ ] `GET /api/data-room?projectKey=dubai-investment-screening-demo` returns 200.
+- [ ] `GET /api/data-room?projectKey=developer-land-pipeline-demo` returns 200.
+- [ ] `GET /api/data-room?projectKey=bank-asset-review-demo` returns 200.
+- [ ] `/projects` shows a compact Client Data Room section.
+- [ ] Client Data Room counts are scoped to the active project.
+- [ ] Latest assets show at most three records.
+- [ ] Add/upload data registers metadata only and does not claim durable file storage.
+- [ ] Validation checklist appears with compact status controls.
+- [ ] Updating a checklist item persists in local/API fallback for that project.
+- [ ] Workspace command panel shows Data Room / Pilot Evidence as a collapsed secondary block.
+- [ ] Scenario and Custom Query remain near the top of the command panel.
+- [ ] Adding current AOI/analysis to the data room does not duplicate AOI Library bloat.
+- [ ] Local/API fallback caveat remains visible.
+- [ ] Required official-validation caveat remains visible.
+- [ ] No secure/enterprise/production data room claim appears.
+
 ## Scenario Analysis
 
 - [ ] Scenario selector is visible.
