@@ -16,7 +16,10 @@ import { normalizeSourceStatus, sourceStatusToLabel } from "@/src/lib/external-d
 import { getPilotDataRequirements } from "@/src/lib/pilot/data-requirements";
 import { getPilotPackageForProject } from "@/src/lib/pilot/pilot-packages";
 import { calculatePilotReadiness } from "@/src/lib/pilot/pilot-readiness";
+import { readBrowserAois, sourceTypeLabel, validationStatusLabel } from "@/src/lib/aoi-library";
+import { formatArea } from "@/src/lib/polygon-aoi";
 import type { GeoAIProject } from "@/src/lib/db/types";
+import type { ProjectAoi } from "@/src/types/aoi";
 import type { AnalysisHistoryItem, AnalysisScenarioId, ExpressAnalysis } from "@/src/types/geo";
 
 const activeProjectStorageKey = "geoai-active-project-key-v1";
@@ -125,6 +128,10 @@ type SavedObjectSummary = {
   reportId?: string;
   projectId?: string | null;
   projectKey?: string | null;
+};
+
+type AoiLibraryResponse = {
+  items?: ProjectAoi[];
 };
 
 const defaultProjectKey = demoProjects[0].projectKey;
@@ -466,10 +473,12 @@ export function ProjectDashboard() {
   const [savedReports, setSavedReports] = useState<SavedObjectSummary[]>([]);
   const [savedComparisons, setSavedComparisons] = useState<SavedObjectSummary[]>([]);
   const [projectDatasets, setProjectDatasets] = useState<SavedObjectSummary[]>([]);
+  const [projectAois, setProjectAois] = useState<ProjectAoi[]>([]);
 
   useEffect(() => {
     setActiveProjectKey(readActiveProjectKey());
     setLocalHistory(readLocalHistory());
+    setProjectAois(readBrowserAois());
   }, []);
 
   useEffect(() => {
@@ -612,6 +621,29 @@ export function ProjectDashboard() {
     };
   }, [activeProjectKey]);
 
+  useEffect(() => {
+    setProjectAois(readBrowserAois());
+    let cancelled = false;
+
+    fetch(`/api/aois?projectKey=${encodeURIComponent(activeProjectKey)}`)
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload: AoiLibraryResponse | null) => {
+        if (cancelled || !Array.isArray(payload?.items)) return;
+
+        setProjectAois((current) => {
+          const byId = new Map<string, ProjectAoi>();
+          for (const item of current) byId.set(item.id, item);
+          for (const item of payload.items ?? []) byId.set(item.id, item);
+          return Array.from(byId.values());
+        });
+      })
+      .catch(() => undefined);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeProjectKey]);
+
   const activeProject = useMemo(
     () => projects.find((project) => project.projectKey === activeProjectKey) ?? getDemoProject(activeProjectKey),
     [activeProjectKey, projects]
@@ -621,6 +653,14 @@ export function ProjectDashboard() {
   const scopedSavedReports = savedReports.filter((item) => belongsToProject(item, activeProject.projectKey));
   const scopedSavedComparisons = savedComparisons.filter((item) => belongsToProject(item, activeProject.projectKey));
   const scopedProjectDatasets = projectDatasets.filter((item) => belongsToProject(item, activeProject.projectKey));
+  const scopedProjectAois = projectAois
+    .filter((item) => item.projectKey === activeProject.projectKey || item.projectId === activeProject.id)
+    .sort((a, b) => Date.parse(b.updatedAt ?? b.createdAt) - Date.parse(a.updatedAt ?? a.createdAt));
+  const aoiSourceCounts = scopedProjectAois.reduce<Record<string, number>>((counts, aoi) => {
+    const label = sourceTypeLabel(aoi.sourceType);
+    counts[label] = (counts[label] ?? 0) + 1;
+    return counts;
+  }, {});
   const seededRows = seededDemoRecentAnalyses
     .filter((item) => item.analysis.project?.projectKey === activeProject.projectKey)
     .map((item) => ({
@@ -767,6 +807,8 @@ export function ProjectDashboard() {
     officialCustomerValidationPending: true
   });
   const openWorkspaceHref = `/workspace?projectId=${encodeURIComponent(activeProject.id ?? activeProject.projectKey)}`;
+  const openWorkspaceForAoi = (aoi: ProjectAoi) =>
+    `/workspace?projectKey=${encodeURIComponent(activeProject.projectKey)}&projectId=${encodeURIComponent(activeProject.id ?? activeProject.projectKey)}&openAoi=${encodeURIComponent(aoi.id)}`;
 
   function changeProject(projectKey: string) {
     setActiveProjectKey(projectKey);
@@ -853,6 +895,64 @@ export function ProjectDashboard() {
 
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.65fr)]">
           <div className="grid gap-5">
+            <Panel title="AOI Library" subtitle="Reusable user-provided or uploaded screening geometries scoped to the active project.">
+              {scopedProjectAois.length > 0 ? (
+                <div className="grid gap-4">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="rounded-full bg-brand px-3 py-1 text-xs font-semibold text-white">
+                      {scopedProjectAois.length} saved AOI{scopedProjectAois.length === 1 ? "" : "s"}
+                    </span>
+                    {Object.entries(aoiSourceCounts).map(([label, count]) => (
+                      <span key={`aoi-source-${label}`} className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-brand">
+                        {label}: {count}
+                      </span>
+                    ))}
+                  </div>
+
+                  <div className="grid gap-3">
+                    {scopedProjectAois.slice(0, 4).map((aoi) => (
+                      <article key={aoi.id} className="rounded-md border border-line bg-surface p-4">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                          <div className="min-w-0">
+                            <h3 className="safe-line-1 font-semibold text-ink">{aoi.name}</h3>
+                            <p className="mt-1 text-sm leading-5 text-muted">
+                              {sourceTypeLabel(aoi.sourceType)} / {formatArea(aoi.measurements.areaSqM)} / {validationStatusLabel(aoi.validationStatus)}
+                            </p>
+                            <p className="mt-1 text-xs leading-5 text-muted">
+                              Screening geometry only; official validation required.
+                            </p>
+                          </div>
+                          <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+                            <Link
+                              href={openWorkspaceForAoi(aoi)}
+                              onClick={() => writeActiveProjectKey(activeProject.projectKey)}
+                              className="inline-flex h-8 items-center rounded-md border border-line bg-white px-3 text-xs font-semibold text-ink transition hover:border-brand"
+                            >
+                              Open AOI
+                            </Link>
+                            <Link
+                              href={openWorkspaceForAoi(aoi)}
+                              onClick={() => writeActiveProjectKey(activeProject.projectKey)}
+                              className="inline-flex h-8 items-center rounded-md bg-brand px-3 text-xs font-semibold text-white transition hover:bg-[#113f50]"
+                            >
+                              Run analysis
+                            </Link>
+                          </div>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <EmptyState
+                  title="No saved AOIs yet"
+                  text="Draw or import an AOI in the workspace to start a reusable project AOI library. Saved AOIs remain screening geometry until officially validated."
+                  href={openWorkspaceHref}
+                  action="Draw or import AOI"
+                />
+              )}
+            </Panel>
+
             <Panel title="Project Activity / Recent Analyses" subtitle="Analysis runs are scoped to the active project when project metadata is available.">
               {recentRows.length > 0 ? (
                 <div className="grid gap-3">

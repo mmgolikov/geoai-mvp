@@ -28,6 +28,15 @@ import { analysisScenarios, createMockExpressAnalysis } from "@/src/lib/mock-exp
 import { deriveDecisionPosture } from "@/src/lib/decision-posture";
 import { createSourceLineageSnapshot } from "@/src/lib/source-lineage-snapshot";
 import {
+  createAoiGeojsonFeature,
+  parseGeojsonAoi,
+  projectAoiToUserDrawnAoi,
+  readBrowserAois,
+  safeAoiFilename,
+  userDrawnAoiToProjectAoi,
+  writeBrowserAois
+} from "@/src/lib/aoi-library";
+import {
   enrichAnalysisWithMarketMetrics,
   findBestMarketMetricMatch
 } from "@/src/lib/market-metrics";
@@ -59,6 +68,7 @@ import type {
 } from "@/src/types/geo";
 import type { MarketContext } from "@/src/types/market-context";
 import type { UploadedDataset } from "@/src/types/uploaded-data";
+import type { ProjectAoi } from "@/src/types/aoi";
 
 const analysisHistoryStorageKey = "geoai-analysis-history-v1";
 const activeProjectStorageKey = "geoai-active-project-key-v1";
@@ -534,6 +544,24 @@ function writeUploadedDatasets(items: UploadedDataset[]) {
   }
 }
 
+function filterAoisByProject(items: ProjectAoi[], projectKey: string) {
+  return items
+    .filter((item) => item.projectKey === projectKey)
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+}
+
+function downloadJsonFile(fileName: string, data: unknown) {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/geo+json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
 function createMarketMetricsMetadata(analysis: ExpressAnalysis) {
   const match = analysis.marketMetricsMatch;
 
@@ -633,6 +661,9 @@ export function WorkspaceShell() {
   const [backendStatus, setBackendStatus] = useState<BackendStatus | null>(null);
   const [uploadedDatasets, setUploadedDatasets] = useState<UploadedDataset[]>([]);
   const [uploadedDataMessage, setUploadedDataMessage] = useState<string | null>(null);
+  const [projectAois, setProjectAois] = useState<ProjectAoi[]>([]);
+  const [aoiDraftName, setAoiDraftName] = useState("");
+  const [aoiMessage, setAoiMessage] = useState<string | null>(null);
   const [activeGuidedDemoId, setActiveGuidedDemoId] = useState<string | null>(null);
   const [activeDemoNarrativeId, setActiveDemoNarrativeId] = useState<string | null>(null);
 
@@ -665,6 +696,7 @@ export function WorkspaceShell() {
     setMarketContext(null);
     setActiveGuidedDemoId(preset.id);
     setActiveDemoNarrativeId(narrative?.id ?? null);
+    setAoiMessage(null);
 
     if (includeComparisonSites) {
       setComparisonItems(createGuidedDemoComparisonItems(preset));
@@ -688,6 +720,34 @@ export function WorkspaceShell() {
   useEffect(() => {
     setUploadedDatasets(readUploadedDatasets());
   }, []);
+
+  useEffect(() => {
+    setProjectAois(filterAoisByProject(readBrowserAois(), activeProject.projectKey));
+  }, [activeProject.projectKey]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const openAoiId = params.get("openAoi");
+    if (!openAoiId || projectAois.length === 0) return;
+
+    const requestedAoi = projectAois.find((item) => item.id === openAoiId);
+    if (!requestedAoi) return;
+
+    handleAoiSelect(projectAoiToUserDrawnAoi(requestedAoi));
+    setAoiMessage("Saved AOI opened from the project library. You can analyze, compare or export it.");
+    params.delete("openAoi");
+    const nextSearch = params.toString();
+    const nextUrl = `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ""}`;
+    window.history.replaceState(null, "", nextUrl);
+    // Run from the URL handoff only after AOIs are loaded for the active project.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeProject.projectKey, projectAois]);
+
+  useEffect(() => {
+    if (selectedAoi) {
+      setAoiDraftName(selectedAoi.name);
+    }
+  }, [selectedAoi]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -946,6 +1006,8 @@ export function WorkspaceShell() {
     setAnalysisError(null);
     setIsAnalyzing(false);
     setMarketContext(null);
+    setAoiDraftName(aoi.name);
+    setAoiMessage(null);
   }
 
   function handleAoiDelete() {
@@ -960,6 +1022,136 @@ export function WorkspaceShell() {
     setAnalysisError(null);
     setIsAnalyzing(false);
     setMarketContext(null);
+    setAoiDraftName("");
+    setAoiMessage(null);
+  }
+
+  function updateProjectAois(updater: (items: ProjectAoi[]) => ProjectAoi[]) {
+    const allAois = readBrowserAois();
+    const otherProjectAois = allAois.filter((item) => item.projectKey !== activeProject.projectKey);
+    const currentProjectAois = filterAoisByProject(allAois, activeProject.projectKey);
+    const nextProjectAois = filterAoisByProject(updater(currentProjectAois), activeProject.projectKey);
+    writeBrowserAois([...nextProjectAois, ...otherProjectAois]);
+    setProjectAois(nextProjectAois);
+    return nextProjectAois;
+  }
+
+  function syncAoiToApi(aoi: ProjectAoi) {
+    void fetch("/api/aois", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(aoi)
+    }).catch(() => undefined);
+  }
+
+  function saveSelectedAoi() {
+    if (!selectedAoi) {
+      setAoiMessage("Draw or import an AOI before saving.");
+      return;
+    }
+
+    const existing = projectAois.find((item) => item.id === selectedAoi.savedAoiId || item.id === selectedAoi.id);
+    const nextAoi = userDrawnAoiToProjectAoi(selectedAoi, {
+      projectId: activeProject.id ?? null,
+      projectKey: activeProject.projectKey,
+      name: aoiDraftName,
+      sourceType: selectedAoi.sourceType,
+      dataMode: selectedAoi.dataMode
+    });
+    const savedAoi = {
+      ...nextAoi,
+      id: existing?.id ?? nextAoi.id,
+      createdAt: existing?.createdAt ?? nextAoi.createdAt,
+      analysisCount: existing?.analysisCount ?? nextAoi.analysisCount,
+      reportCount: existing?.reportCount ?? nextAoi.reportCount
+    };
+
+    updateProjectAois((items) => [savedAoi, ...items.filter((item) => item.id !== savedAoi.id)]);
+    syncAoiToApi(savedAoi);
+    setSelectedAoi(projectAoiToUserDrawnAoi(savedAoi));
+    setAoiDraftName(savedAoi.name);
+    setAoiMessage("AOI saved to this project library. Official validation required.");
+  }
+
+  function openSavedAoi(aoi: ProjectAoi) {
+    handleAoiSelect(projectAoiToUserDrawnAoi(aoi));
+    setAoiMessage("Saved AOI opened. You can analyze, compare or export it.");
+  }
+
+  function renameSavedAoi(aoi: ProjectAoi, name: string) {
+    const trimmedName = name.trim();
+    if (!trimmedName) return;
+
+    let renamedAoi: ProjectAoi | null = null;
+    updateProjectAois((items) =>
+      items.map((item) => {
+        if (item.id !== aoi.id) return item;
+        renamedAoi = { ...item, name: trimmedName, updatedAt: new Date().toISOString() };
+        return renamedAoi;
+      })
+    );
+
+    if (!renamedAoi) return;
+
+    void fetch(`/api/aois/${encodeURIComponent(aoi.id)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: trimmedName })
+    }).catch(() => undefined);
+
+    if (selectedAoi?.savedAoiId === aoi.id || selectedAoi?.id === aoi.id) {
+      setSelectedAoi(projectAoiToUserDrawnAoi(renamedAoi));
+      setAoiDraftName(trimmedName);
+    }
+    setAoiMessage("AOI renamed in this project library.");
+  }
+
+  function deleteSavedAoi(aoiId: string) {
+    updateProjectAois((items) => items.filter((item) => item.id !== aoiId));
+    void fetch(`/api/aois/${encodeURIComponent(aoiId)}`, { method: "DELETE" }).catch(() => undefined);
+    if (selectedAoi?.savedAoiId === aoiId || selectedAoi?.id === aoiId) {
+      handleAoiDelete();
+    }
+    setAoiMessage("AOI removed from this project library.");
+  }
+
+  function exportSelectedAoi() {
+    if (!selectedAoi) {
+      setAoiMessage("Draw, import or open an AOI before exporting.");
+      return;
+    }
+
+    downloadJsonFile(safeAoiFilename(selectedAoi.name), createAoiGeojsonFeature(selectedAoi));
+    setAoiMessage("AOI exported as GeoJSON with validation caveat.");
+  }
+
+  function exportSavedAoi(aoi: ProjectAoi) {
+    downloadJsonFile(safeAoiFilename(aoi.name), createAoiGeojsonFeature(aoi));
+    setAoiMessage("Saved AOI exported as GeoJSON with validation caveat.");
+  }
+
+  async function importAoiGeojson(file: File) {
+    try {
+      const text = await file.text();
+      const parsed = parseGeojsonAoi(text, {
+        projectId: activeProject.id ?? null,
+        projectKey: activeProject.projectKey,
+        fileName: file.name
+      });
+
+      if (!parsed.ok) {
+        setAoiMessage(parsed.message);
+        return;
+      }
+
+      handleAoiSelect(parsed.aoi);
+      setAoiDraftName(parsed.aoi.name);
+      setAoiMessage(parsed.warning
+        ? `${parsed.warning} AOI is user-provided and requires official validation.`
+        : "Imported GeoJSON AOI selected. Save it to keep it in this project library.");
+    } catch {
+      setAoiMessage("Invalid GeoJSON file.");
+    }
   }
 
   function addSelectionToComparison() {
@@ -1351,6 +1543,7 @@ export function WorkspaceShell() {
     setAnalysisError(null);
     setComparisonMessage(null);
     setMarketContext(null);
+    setAoiMessage(null);
   }
 
   function restoreAnalysisDashboard(item: AnalysisHistoryItem) {
@@ -1503,13 +1696,15 @@ export function WorkspaceShell() {
           geometry: selectedAoi.geometry,
           bbox: selectedAoi.bbox,
           measurements: selectedAoi.measurements,
-          datasetId: "user-drawn-aoi",
-          datasetName: "User-drawn AOI",
-          sourceMode: "user-drawn" as const,
+          datasetId: selectedAoi.sourceType === "uploaded_geojson" ? "uploaded-geojson-aoi" : "user-drawn-aoi",
+          datasetName: selectedAoi.sourceType === "uploaded_geojson" ? "Uploaded GeoJSON AOI" : "User-drawn AOI",
+          sourceMode: selectedAoi.sourceType === "uploaded_geojson" ? "user-uploaded" as const : "user-drawn" as const,
           officialStatus: "official-validation-required" as const,
           properties: {
             source: selectedAoi.source,
+            sourceType: selectedAoi.sourceType,
             dataMode: selectedAoi.dataMode,
+            validationStatus: selectedAoi.validationStatus,
             confidence: selectedAoi.confidence,
             limitations: selectedAoi.limitations
           }
@@ -1740,6 +1935,9 @@ export function WorkspaceShell() {
         isMarketContextLoading={isMarketContextLoading}
         uploadedDatasets={uploadedDatasets}
         uploadedDataMessage={uploadedDataMessage}
+        projectAois={projectAois}
+        aoiDraftName={aoiDraftName}
+        aoiMessage={aoiMessage}
         guidedDemoPresets={guidedDemoPresets}
         activeGuidedDemoId={activeGuidedDemoId}
         activeDemoNarrative={getDemoNarrativeById(activeDemoNarrativeId)}
@@ -1762,6 +1960,14 @@ export function WorkspaceShell() {
         onOpenHistoryItem={openHistoryItem}
         onClearAnalysisHistory={clearAnalysisHistory}
         onUploadDataset={uploadDataset}
+        onImportAoiGeojson={importAoiGeojson}
+        onAoiDraftNameChange={setAoiDraftName}
+        onSaveSelectedAoi={saveSelectedAoi}
+        onOpenSavedAoi={openSavedAoi}
+        onRenameSavedAoi={renameSavedAoi}
+        onDeleteSavedAoi={deleteSavedAoi}
+        onExportSelectedAoi={exportSelectedAoi}
+        onExportSavedAoi={exportSavedAoi}
         onLoadGuidedDemo={(presetId) => loadGuidedDemo(presetId)}
         onLoadGuidedDemoComparison={(presetId) => loadGuidedDemo(presetId, true)}
         onRemoveUploadedDataset={removeUploadedDataset}

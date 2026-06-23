@@ -5,6 +5,7 @@ import type { CustomQueryAnswer } from "@/src/lib/custom-query/query-answer";
 import type { MarketContext } from "@/src/types/market-context";
 import type { SpatialSelectionContext } from "@/src/types/spatial-data";
 import type { UploadedDataContext } from "@/src/types/uploaded-data";
+import type { AoiDataMode, AoiSourceType, AoiValidationStatus } from "@/src/types/aoi";
 
 export type SelectedPoint = {
   latitude: number;
@@ -30,11 +31,14 @@ export type UserDrawnAoi = {
   centroid: SelectedPoint;
   bbox: [number, number, number, number];
   measurements: PolygonMeasurements;
-  source: "user_drawn_polygon";
-  dataMode: "user_provided";
+  source: "user_drawn_polygon" | "uploaded_geojson_polygon";
+  dataMode: AoiDataMode;
   confidence: "validation_required";
   projectId?: string;
   limitations: string[];
+  savedAoiId?: string;
+  sourceType?: AoiSourceType;
+  validationStatus?: AoiValidationStatus;
 };
 
 export type DemoLayerType = "polygon" | "point" | "line";

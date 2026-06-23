@@ -1,4 +1,5 @@
 import type { PolygonMeasurements, SelectedPoint, UserDrawnAoi } from "@/src/types/geo";
+import { aoiRequiredCaveat } from "@/src/types/aoi";
 
 export type PolygonValidation = {
   valid: boolean;
@@ -202,8 +203,11 @@ export function createUserDrawnAoi(vertices: [number, number][], projectId?: str
     dataMode: "user_provided",
     confidence: "validation_required",
     projectId,
+    sourceType: "user_drawn",
+    validationStatus: "validation_required",
     limitations: [
-      "User-drawn AOI is a screening boundary only and is not an official parcel, zoning, cadastral, planning, or ownership boundary.",
+      "User-drawn AOI is a screening boundary only and requires official validation.",
+      aoiRequiredCaveat,
       "Area and perimeter are approximate client-side measurements for demo screening."
     ]
   };
