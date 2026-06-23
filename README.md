@@ -199,7 +199,7 @@ GeoAI includes a lightweight project-level Client Data Room foundation that link
 
 This is local/API fallback only. It is not durable production storage, secure enterprise storage, official validation, legal/cadastral/zoning/planning evidence or a valuation conclusion. Client files are registered as metadata-only demo records unless future durable storage is configured.
 
-See [Client Data Room Foundation v1.9](docs/CLIENT_DATA_ROOM_FOUNDATION_V19.md).
+See [Client Data Room Foundation v1.9](docs/CLIENT_DATA_ROOM_FOUNDATION_V19.md) and the [GeoAI Client Data Room Foundation v1.9 Release Note](docs/RELEASE_GEOAI_CLIENT_DATA_ROOM_FOUNDATION_V19.md).
 
 ## Data Credibility Sprint v0.5
 
@@ -326,6 +326,7 @@ Current export remains browser print/save as PDF. GeoAI does not generate server
 - [GeoAI AOI-Ready Demo v1.7 Release Note](docs/RELEASE_GEOAI_AOI_READY_DEMO_V17.md)
 - [AOI Library + GeoJSON Import/Export v1.8](docs/AOI_LIBRARY_GEOJSON_IMPORT_EXPORT_V18.md)
 - [Client Data Room Foundation v1.9](docs/CLIENT_DATA_ROOM_FOUNDATION_V19.md)
+- [GeoAI Client Data Room Foundation v1.9 Release Note](docs/RELEASE_GEOAI_CLIENT_DATA_ROOM_FOUNDATION_V19.md)
 - [GeoAI AOI Library Demo v1.8 Release Note](docs/RELEASE_GEOAI_AOI_LIBRARY_DEMO_V18.md)
 - [Persistence & Project Workspace v0.8](docs/PERSISTENCE_PROJECT_WORKSPACE_V08.md)
 - [Project-Scoped Persistence v13](docs/PROJECT_SCOPED_PERSISTENCE_V13.md)
