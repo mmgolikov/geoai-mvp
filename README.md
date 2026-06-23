@@ -329,6 +329,7 @@ Current export remains browser print/save as PDF. GeoAI does not generate server
 - [Client Data Room Foundation v1.9](docs/CLIENT_DATA_ROOM_FOUNDATION_V19.md)
 - [GeoAI Client Data Room Foundation v1.9 Release Note](docs/RELEASE_GEOAI_CLIENT_DATA_ROOM_FOUNDATION_V19.md)
 - [Pilot Workflow & Deliverables v2.0](docs/PILOT_WORKFLOW_DELIVERABLES_V20.md)
+- [GeoAI Pilot Workflow & Deliverables Foundation v2.0 Release Note](docs/RELEASE_GEOAI_PILOT_WORKFLOW_DELIVERABLES_V20.md)
 - [GeoAI AOI Library Demo v1.8 Release Note](docs/RELEASE_GEOAI_AOI_LIBRARY_DEMO_V18.md)
 - [Persistence & Project Workspace v0.8](docs/PERSISTENCE_PROJECT_WORKSPACE_V08.md)
 - [Project-Scoped Persistence v13](docs/PROJECT_SCOPED_PERSISTENCE_V13.md)
