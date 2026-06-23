@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { buildPilotWorkflowSummary } from "@/src/lib/pilot-workflow/pilot-workflow-summary";
 import { createPilotWorkflow } from "@/src/lib/repositories/pilot-workflow-repository";
+import { repositoryModeFields } from "@/src/lib/repositories/repository-mode";
 import {
   pilotWorkflowCaveat,
   type PilotWorkflow
@@ -34,7 +35,7 @@ export async function POST(request: Request) {
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ ok: false, mode: "local_fallback", message: "Invalid JSON body." }, { status: 400 });
+    return NextResponse.json({ ok: false, ...repositoryModeFields("local_fallback"), message: "Invalid JSON body." }, { status: 400 });
   }
 
   const input = asRecord(body);

@@ -78,9 +78,10 @@ export type DbReportInput = {
 
 export type DbRepositoryResult<T> = {
   ok: boolean;
-  mode: "db" | "local_only" | "local_demo";
+  mode: Extract<RepositoryMode, "supabase" | "local_fallback" | "demo_seed">;
   data: T | null;
   error: string | null;
+  storageCaveat?: string;
 };
 
 export type ProjectClientType =
@@ -117,3 +118,4 @@ export type ProjectInput = {
   dataMode?: string;
   metadata?: Record<string, unknown>;
 };
+import type { RepositoryMode } from "@/src/lib/repositories/repository-mode";

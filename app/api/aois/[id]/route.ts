@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { deleteAoi, getAoi, updateAoi } from "@/src/lib/repositories/aoi-repository";
+import { repositoryModeFields } from "@/src/lib/repositories/repository-mode";
 import type { ProjectAoi } from "@/src/types/aoi";
 
 export const runtime = "nodejs";
@@ -14,7 +15,7 @@ export async function GET(_request: Request, context: RouteContext) {
 
   return NextResponse.json({
     ok: result.ok,
-    mode: result.mode,
+    ...repositoryModeFields(result.mode),
     item: result.data,
     error: result.error,
     dataHonesty: "AOIs are screening geometry; official validation required."
@@ -28,11 +29,11 @@ export async function PATCH(request: Request, context: RouteContext) {
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ ok: false, mode: "local-fallback", message: "Invalid JSON body." }, { status: 400 });
+    return NextResponse.json({ ok: false, ...repositoryModeFields("local_fallback"), message: "Invalid JSON body." }, { status: 400 });
   }
 
   if (typeof body !== "object" || body === null || Array.isArray(body)) {
-    return NextResponse.json({ ok: false, mode: "local-fallback", message: "Invalid AOI update." }, { status: 400 });
+    return NextResponse.json({ ok: false, ...repositoryModeFields("local_fallback"), message: "Invalid AOI update." }, { status: 400 });
   }
 
   const patch = body as Partial<ProjectAoi>;
@@ -47,7 +48,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 
   return NextResponse.json({
     ok: result.ok,
-    mode: result.mode,
+    ...repositoryModeFields(result.mode),
     item: result.data,
     error: result.error
   });
@@ -59,7 +60,7 @@ export async function DELETE(_request: Request, context: RouteContext) {
 
   return NextResponse.json({
     ok: result.ok,
-    mode: result.mode,
+    ...repositoryModeFields(result.mode),
     deleted: result.data,
     error: result.error
   });

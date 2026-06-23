@@ -173,7 +173,7 @@ const demoMetricRows: UploadedCsvRow[] = [
       rental_demand_index: 82,
       pipeline_status: "active pipeline",
       confidence: "sample",
-      notes: "Demo user-uploaded metric row for local-only screening."
+      notes: "Demo user-uploaded metric row for local fallback screening."
     },
     raw: {
       site_name: "Dubai Marina Waterfront Parcel",
@@ -185,7 +185,7 @@ const demoMetricRows: UploadedCsvRow[] = [
       rental_demand_index: "82",
       pipeline_status: "active pipeline",
       confidence: "sample",
-      notes: "Demo user-uploaded metric row for local-only screening."
+      notes: "Demo user-uploaded metric row for local fallback screening."
     }
   },
   {
@@ -199,7 +199,7 @@ const demoMetricRows: UploadedCsvRow[] = [
       rental_demand_index: 78,
       pipeline_status: "redevelopment watch",
       confidence: "sample",
-      notes: "Demo user-uploaded metric row for local-only screening."
+      notes: "Demo user-uploaded metric row for local fallback screening."
     },
     raw: {
       site_name: "Business Bay Infill Site",
@@ -211,7 +211,7 @@ const demoMetricRows: UploadedCsvRow[] = [
       rental_demand_index: "78",
       pipeline_status: "redevelopment watch",
       confidence: "sample",
-      notes: "Demo user-uploaded metric row for local-only screening."
+      notes: "Demo user-uploaded metric row for local fallback screening."
     }
   },
   {
@@ -225,7 +225,7 @@ const demoMetricRows: UploadedCsvRow[] = [
       rental_demand_index: 61,
       pipeline_status: "early growth",
       confidence: "sample",
-      notes: "Demo user-uploaded metric row for local-only screening."
+      notes: "Demo user-uploaded metric row for local fallback screening."
     },
     raw: {
       site_name: "Dubai South Growth Zone",
@@ -237,7 +237,7 @@ const demoMetricRows: UploadedCsvRow[] = [
       rental_demand_index: "61",
       pipeline_status: "early growth",
       confidence: "sample",
-      notes: "Demo user-uploaded metric row for local-only screening."
+      notes: "Demo user-uploaded metric row for local fallback screening."
     }
   }
 ];

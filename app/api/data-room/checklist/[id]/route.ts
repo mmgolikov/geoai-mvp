@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createDataRoomChecklistItem, updateDataRoomChecklistItem } from "@/src/lib/repositories/data-room-repository";
+import { repositoryModeFields } from "@/src/lib/repositories/repository-mode";
 import {
   dataRoomRequiredCaveat,
   type ValidationChecklistItem
@@ -13,7 +14,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ ok: false, mode: "local_fallback", message: "Invalid JSON body." }, { status: 400 });
+    return NextResponse.json({ ok: false, ...repositoryModeFields("local_fallback"), message: "Invalid JSON body." }, { status: 400 });
   }
 
   const { id } = await context.params;
@@ -39,7 +40,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
 
   return NextResponse.json({
     ok: result.ok,
-    mode: "local_fallback",
+    ...repositoryModeFields("local_fallback"),
     item: result.data,
     error: result.error,
     dataHonesty: "Checklist status is not an official validation claim."

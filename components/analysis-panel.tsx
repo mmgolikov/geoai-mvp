@@ -10,6 +10,7 @@ import { sourceStatusToLabel } from "@/src/lib/external-data/source-status";
 import { sourceTypeLabel, validationStatusLabel } from "@/src/lib/aoi-library";
 import { formatArea, formatPerimeter } from "@/src/lib/polygon-aoi";
 import { getPilotPackageForProject } from "@/src/lib/pilot/pilot-packages";
+import { repositoryModeToLabel, type RepositoryMode } from "@/src/lib/repositories/repository-mode";
 import type { GeoAIProject } from "@/src/lib/db/types";
 import type { MarketMetricsMatch } from "@/src/lib/market-metrics/types";
 import type { MarketContext } from "@/src/types/market-context";
@@ -40,7 +41,7 @@ type AnalysisPanelProps = {
   selectedObject: SelectedDemoObject | null;
   selectedAoi: UserDrawnAoi | null;
   projects: GeoAIProject[];
-  projectsMode: "db" | "local_demo";
+  projectsMode: "supabase" | "demo_seed";
   activeProject: GeoAIProject;
   scenarios: AnalysisScenario[];
   selectedScenario: AnalysisScenarioId;
@@ -57,7 +58,10 @@ type AnalysisPanelProps = {
   marketMetricsMatch?: MarketMetricsMatch;
   backendStatus: {
     configured: boolean;
-    status: "connected" | "configured_unavailable" | "local_only";
+    status: "connected" | "configured_unavailable" | "not_configured";
+    repositoryMode: RepositoryMode;
+    mode: RepositoryMode;
+    caveat: string;
     message: string;
     sources_count: number | null;
   } | null;
@@ -288,7 +292,7 @@ export function AnalysisPanel({
       : "real-ready";
   const analysisHistoryStatus =
     analysisHistorySource === "DB" ? "Supabase-backed" : "Local fallback";
-  const projectPersistenceStatus = projectsMode === "db" ? "DB enabled" : "local demo";
+  const projectPersistenceStatus = repositoryModeToLabel(projectsMode);
   const pilotWorkflowBadge = pilotWorkflow?.readiness ? formatDataRoomLabel(pilotWorkflow.readiness.label) : "workflow";
   const pilotInputsProvided = pilotWorkflow?.clientInputs.filter((item) =>
     ["provided_unvalidated", "in_review", "accepted_for_screening", "not_applicable"].includes(item.status)
@@ -1190,7 +1194,7 @@ export function AnalysisPanel({
                 </div>
               </div>
               <p className="text-xs leading-5 text-muted">
-                Persistence: {projectPersistenceStatus === "DB enabled" ? "DB-enabled persistence" : "local demo persistence"}.
+                Persistence: {projectPersistenceStatus}.
               </p>
             </div>
           </CollapsedSection>
@@ -1410,9 +1414,9 @@ export function AnalysisPanel({
                     <p className="mt-1 font-semibold text-ink">{ingestionReport.marketMetricCount} areas</p>
                   </div>
                   <div className="rounded-md bg-white p-2">
-                    <span className="text-muted">DB insert</span>
+                    <span className="text-muted">Repository</span>
                     <p className="mt-1 font-semibold text-ink">
-                      {backendStatus?.status === "connected" ? "enabled" : "local only"}
+                      {backendStatus?.repositoryMode ? repositoryModeToLabel(backendStatus.repositoryMode) : "Local/API fallback"}
                     </p>
                   </div>
                   <div className="rounded-md bg-white p-2">

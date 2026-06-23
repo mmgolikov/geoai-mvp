@@ -15,6 +15,7 @@ import { deriveDecisionPosture } from "@/src/lib/decision-posture";
 import { normalizeSourceStatus, sourceStatusToLabel } from "@/src/lib/external-data/source-status";
 import { getPilotPackageForProject } from "@/src/lib/pilot/pilot-packages";
 import { calculatePilotReadiness } from "@/src/lib/pilot/pilot-readiness";
+import { repositoryModeToLabel, type RepositoryMode } from "@/src/lib/repositories/repository-mode";
 import { readBrowserAois, sourceTypeLabel, validationStatusLabel } from "@/src/lib/aoi-library";
 import { formatArea } from "@/src/lib/polygon-aoi";
 import type { GeoAIProject } from "@/src/lib/db/types";
@@ -40,7 +41,10 @@ const openAnalysisRequestStorageKey = "geoai-open-analysis-request-v1";
 
 type DbHealth = {
   configured: boolean;
-  status: "connected" | "configured_unavailable" | "local_only";
+  status: "connected" | "configured_unavailable" | "not_configured";
+  repositoryMode: RepositoryMode;
+  mode: RepositoryMode;
+  caveat: string;
   message: string;
   sources_count: number | null;
 };
@@ -511,7 +515,7 @@ function getNextActions(project: GeoAIProject, importedMetricsCount: number) {
 export function ProjectDashboard() {
   const dataRoomFileInputRef = useRef<HTMLInputElement | null>(null);
   const [projects, setProjects] = useState<GeoAIProject[]>(demoProjects);
-  const [projectsMode, setProjectsMode] = useState<"db" | "local_demo">("local_demo");
+  const [projectsMode, setProjectsMode] = useState<"supabase" | "demo_seed">("demo_seed");
   const [activeProjectKey, setActiveProjectKey] = useState(demoProjects[0].projectKey);
   const [localHistory, setLocalHistory] = useState<AnalysisHistoryItem[]>([]);
   const [dbHistory, setDbHistory] = useState<RecentAnalysisRow[]>([]);
@@ -549,7 +553,7 @@ export function ProjectDashboard() {
       const projectsResult = results[0];
       if (projectsResult.status === "fulfilled" && Array.isArray(projectsResult.value.items) && projectsResult.value.items.length > 0) {
         setProjects(projectsResult.value.items);
-        setProjectsMode(projectsResult.value.mode === "db" ? "db" : "local_demo");
+        setProjectsMode(projectsResult.value.mode === "supabase" ? "supabase" : "demo_seed");
       }
 
       const dbResult = results[1];
@@ -890,7 +894,7 @@ export function ProjectDashboard() {
   const dataConfidenceNote = dldSnapshotAvailable
     ? "DLD/Dubai Pulse and OSM snapshots are available for screening context; official validation required."
     : "Sample/open fallbacks are active; official validation required before decisions.";
-  const persistenceMode = dbHealth?.status === "connected" ? "Supabase/PostGIS connected" : "Local fallback";
+  const persistenceMode = repositoryModeToLabel(dbHealth?.repositoryMode ?? projectsMode);
   const nextActions = getNextActions(activeProject, dldRecordCount);
   const pilotPackage = getPilotPackageForProject(activeProject.projectKey, activeProject.clientType);
   const clientPilotPackage = getClientPilotPackageForProject(activeProject.projectKey, activeProject.clientType);

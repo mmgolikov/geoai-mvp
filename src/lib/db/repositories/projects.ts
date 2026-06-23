@@ -66,7 +66,7 @@ export function getLocalDemoProject(projectKey?: string | null) {
 export async function listProjects(): Promise<DbRepositoryResult<GeoAIProject[]>> {
   const client = await getSupabaseServerClient();
   if (!client) {
-    return { ok: true, mode: "local_demo", data: demoProjects, error: null };
+    return { ok: true, mode: "demo_seed", data: demoProjects, error: null };
   }
 
   try {
@@ -76,15 +76,15 @@ export async function listProjects(): Promise<DbRepositoryResult<GeoAIProject[]>
     const response = await query.order("created_at", { ascending: true });
 
     if (response.error) {
-      return { ok: false, mode: "local_demo", data: demoProjects, error: "Unable to load DB projects." };
+      return { ok: false, mode: "demo_seed", data: demoProjects, error: "Unable to load DB projects." };
     }
 
     const projects = (response.data ?? []).map(toProject);
-    return { ok: true, mode: "db", data: projects.length > 0 ? projects : demoProjects, error: null };
+    return { ok: true, mode: "supabase", data: projects.length > 0 ? projects : demoProjects, error: null };
   } catch (error) {
     return {
       ok: false,
-      mode: "local_demo",
+      mode: "demo_seed",
       data: demoProjects,
       error: error instanceof Error ? error.message : "Unable to load projects."
     };
@@ -94,7 +94,7 @@ export async function listProjects(): Promise<DbRepositoryResult<GeoAIProject[]>
 export async function getProjectByKey(projectKey: string): Promise<DbRepositoryResult<GeoAIProject>> {
   const client = await getSupabaseServerClient();
   if (!client) {
-    return { ok: true, mode: "local_demo", data: getLocalDemoProject(projectKey), error: null };
+    return { ok: true, mode: "demo_seed", data: getLocalDemoProject(projectKey), error: null };
   }
 
   try {
@@ -106,14 +106,14 @@ export async function getProjectByKey(projectKey: string): Promise<DbRepositoryR
 
     return {
       ok: !response.error,
-      mode: response.data?.[0] ? "db" : "local_demo",
+      mode: response.data?.[0] ? "supabase" : "demo_seed",
       data: project,
       error: response.error ? "Unable to load project." : null
     };
   } catch (error) {
     return {
       ok: false,
-      mode: "local_demo",
+      mode: "demo_seed",
       data: getLocalDemoProject(projectKey),
       error: error instanceof Error ? error.message : "Unable to load project."
     };
@@ -140,7 +140,7 @@ export async function createProject(input: ProjectInput): Promise<DbRepositoryRe
   };
 
   if (!client) {
-    return { ok: true, mode: "local_demo", data: localProject, error: null };
+    return { ok: true, mode: "demo_seed", data: localProject, error: null };
   }
 
   try {
@@ -151,14 +151,14 @@ export async function createProject(input: ProjectInput): Promise<DbRepositoryRe
     const response = await query;
 
     if (response.error) {
-      return { ok: false, mode: "local_demo", data: localProject, error: "Unable to create project." };
+      return { ok: false, mode: "demo_seed", data: localProject, error: "Unable to create project." };
     }
 
-    return { ok: true, mode: "db", data: response.data?.[0] ? toProject(response.data[0]) : localProject, error: null };
+    return { ok: true, mode: "supabase", data: response.data?.[0] ? toProject(response.data[0]) : localProject, error: null };
   } catch (error) {
     return {
       ok: false,
-      mode: "local_demo",
+      mode: "demo_seed",
       data: localProject,
       error: error instanceof Error ? error.message : "Unable to create project."
     };
@@ -168,7 +168,7 @@ export async function createProject(input: ProjectInput): Promise<DbRepositoryRe
 export async function updateProject(projectId: string, input: Partial<ProjectInput>): Promise<DbRepositoryResult<GeoAIProject | null>> {
   const client = await getSupabaseServerClient();
   if (!client) {
-    return { ok: true, mode: "local_demo", data: null, error: null };
+    return { ok: true, mode: "demo_seed", data: null, error: null };
   }
 
   try {
@@ -178,14 +178,14 @@ export async function updateProject(projectId: string, input: Partial<ProjectInp
     const response = await query.eq("id", projectId);
 
     if (response.error) {
-      return { ok: false, mode: "local_demo", data: null, error: "Unable to update project." };
+      return { ok: false, mode: "demo_seed", data: null, error: "Unable to update project." };
     }
 
-    return { ok: true, mode: "db", data: response.data?.[0] ? toProject(response.data[0]) : null, error: null };
+    return { ok: true, mode: "supabase", data: response.data?.[0] ? toProject(response.data[0]) : null, error: null };
   } catch (error) {
     return {
       ok: false,
-      mode: "local_demo",
+      mode: "demo_seed",
       data: null,
       error: error instanceof Error ? error.message : "Unable to update project."
     };
@@ -195,7 +195,7 @@ export async function updateProject(projectId: string, input: Partial<ProjectInp
 export async function listProjectAnalysisRuns(projectId: string, limit = 10) {
   const client = await getSupabaseServerClient();
   if (!client) {
-    return { ok: true, mode: "local_demo" as const, data: [], error: null };
+    return { ok: true, mode: "demo_seed" as const, data: [], error: null };
   }
 
   try {
@@ -203,16 +203,16 @@ export async function listProjectAnalysisRuns(projectId: string, limit = 10) {
       eq: (column: string, value: string) => { order: (column: string, options?: unknown) => { limit: (count: number) => Promise<{ data: unknown[] | null; error?: unknown }> } };
     };
     const response = await query.eq("project_id", projectId).order("created_at", { ascending: false }).limit(limit);
-    return { ok: !response.error, mode: "db" as const, data: response.data ?? [], error: response.error ? "Unable to load project analyses." : null };
+    return { ok: !response.error, mode: "supabase" as const, data: response.data ?? [], error: response.error ? "Unable to load project analyses." : null };
   } catch (error) {
-    return { ok: false, mode: "local_demo" as const, data: [], error: error instanceof Error ? error.message : "Unable to load project analyses." };
+    return { ok: false, mode: "demo_seed" as const, data: [], error: error instanceof Error ? error.message : "Unable to load project analyses." };
   }
 }
 
 export async function listProjectReports(projectId: string, limit = 10) {
   const client = await getSupabaseServerClient();
   if (!client) {
-    return { ok: true, mode: "local_demo" as const, data: [], error: null };
+    return { ok: true, mode: "demo_seed" as const, data: [], error: null };
   }
 
   try {
@@ -220,8 +220,8 @@ export async function listProjectReports(projectId: string, limit = 10) {
       eq: (column: string, value: string) => { order: (column: string, options?: unknown) => { limit: (count: number) => Promise<{ data: unknown[] | null; error?: unknown }> } };
     };
     const response = await query.eq("project_id", projectId).order("created_at", { ascending: false }).limit(limit);
-    return { ok: !response.error, mode: "db" as const, data: response.data ?? [], error: response.error ? "Unable to load project reports." : null };
+    return { ok: !response.error, mode: "supabase" as const, data: response.data ?? [], error: response.error ? "Unable to load project reports." : null };
   } catch (error) {
-    return { ok: false, mode: "local_demo" as const, data: [], error: error instanceof Error ? error.message : "Unable to load project reports." };
+    return { ok: false, mode: "demo_seed" as const, data: [], error: error instanceof Error ? error.message : "Unable to load project reports." };
   }
 }

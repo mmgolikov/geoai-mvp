@@ -32,6 +32,8 @@ Saved AOIs include:
 
 The reusable type lives in `src/types/aoi.ts`.
 
+AOI repository mode naming is normalized in [Repository Mode & Fallback Consistency v2.0.2](REPOSITORY_MODE_FALLBACK_CONSISTENCY_V202.md). Server/API fallback AOI routes use `local_fallback` with the user-facing label "Local/API fallback"; browser continuity uses `browser_local` with the label "Browser-local demo".
+
 ## Workspace Workflow
 
 1. Open `/workspace`.

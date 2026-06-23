@@ -33,4 +33,4 @@ export type ProjectAoi = {
   caveat: string;
 };
 
-export type AoiRepositoryMode = "local-fallback" | "browser-local";
+export type AoiRepositoryMode = "local_fallback" | "browser_local";

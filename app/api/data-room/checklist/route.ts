@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createDataRoomChecklistItem } from "@/src/lib/repositories/data-room-repository";
+import { repositoryModeFields } from "@/src/lib/repositories/repository-mode";
 import {
   dataRoomRequiredCaveat,
   type ValidationChecklistCategory,
@@ -44,11 +45,11 @@ export async function POST(request: Request) {
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ ok: false, mode: "local_fallback", message: "Invalid JSON body." }, { status: 400 });
+    return NextResponse.json({ ok: false, ...repositoryModeFields("local_fallback"), message: "Invalid JSON body." }, { status: 400 });
   }
 
   if (!isChecklistInput(body)) {
-    return NextResponse.json({ ok: false, mode: "local_fallback", message: "Invalid validation checklist item." }, { status: 400 });
+    return NextResponse.json({ ok: false, ...repositoryModeFields("local_fallback"), message: "Invalid validation checklist item." }, { status: 400 });
   }
 
   const result = await createDataRoomChecklistItem({
@@ -58,7 +59,7 @@ export async function POST(request: Request) {
 
   return NextResponse.json({
     ok: result.ok,
-    mode: "local_fallback",
+    ...repositoryModeFields("local_fallback"),
     item: result.data,
     error: result.error,
     dataHonesty: "Checklist status is a local/demo workflow marker; it is not official validation."

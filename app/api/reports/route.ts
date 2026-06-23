@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getProjectByKey } from "@/src/lib/db/repositories/projects";
 import { getReport, listReports, saveReport } from "@/src/lib/db/repositories/reports";
+import { repositoryModeFields } from "@/src/lib/repositories/repository-mode";
 import type { DbReportInput } from "@/src/lib/db/types";
 
 export const runtime = "nodejs";
@@ -62,9 +63,10 @@ export async function GET(request: Request) {
 
   if (id) {
     const result = await getReport(id);
+    const responseMode = result.mode === "supabase" ? "supabase" : "local_fallback";
     return NextResponse.json({
       ok: result.ok,
-      mode: result.mode === "db" ? "supabase" : "local-fallback",
+      ...repositoryModeFields(responseMode),
       item: result.data,
       summary: result.data ? summarizeReport(result.data) : null,
       error: result.error,
@@ -75,9 +77,10 @@ export async function GET(request: Request) {
   const result = await listReports({ projectId, projectKey, limit: 50 });
   const items = Array.isArray(result.data) ? result.data : [];
 
+  const responseMode = result.mode === "supabase" ? "supabase" : "local_fallback";
   return NextResponse.json({
     ok: result.ok,
-    mode: result.mode === "db" ? "supabase" : "local-fallback",
+    ...repositoryModeFields(responseMode),
     count: items.length,
     items,
     summaries: items.map(summarizeReport),
@@ -93,14 +96,14 @@ export async function POST(request: Request) {
     body = await request.json();
   } catch {
     return NextResponse.json(
-      { ok: false, persisted: false, mode: "local_only", message: "Invalid JSON body." },
+      { ok: false, persisted: false, ...repositoryModeFields("local_fallback"), message: "Invalid JSON body." },
       { status: 400 }
     );
   }
 
   if (!isReportInput(body)) {
     return NextResponse.json(
-      { ok: false, persisted: false, mode: "local_only", message: "Invalid report payload." },
+      { ok: false, persisted: false, ...repositoryModeFields("local_fallback"), message: "Invalid report payload." },
       { status: 400 }
     );
   }
@@ -108,20 +111,21 @@ export async function POST(request: Request) {
   const project = body.projectKey ? await getProjectByKey(body.projectKey) : null;
   const result = await saveReport({
     ...body,
-    projectId: body.projectId ?? (project?.mode === "db" ? project.data?.id ?? null : null),
+    projectId: body.projectId ?? (project?.mode === "supabase" ? project.data?.id ?? null : null),
     projectKey: body.projectKey ?? project?.data?.projectKey ?? null,
     projectName: body.projectName ?? project?.data?.name ?? null
   });
 
+  const responseMode = result.mode === "supabase" ? "supabase" : "local_fallback";
   return NextResponse.json({
     ok: result.ok,
-    persisted: result.mode === "db" && result.ok,
-    mode: result.mode === "db" ? "supabase" : "local_fallback",
+    persisted: result.mode === "supabase" && result.ok,
+    ...repositoryModeFields(responseMode),
     reportKey: body.reportKey,
     project: project?.data ?? null,
     data: result.data,
     error: result.error,
-    message: result.mode === "db" && result.ok
+    message: result.mode === "supabase" && result.ok
       ? "Report persisted."
       : "Report kept as screen/print only; Supabase is not configured or unavailable."
   });

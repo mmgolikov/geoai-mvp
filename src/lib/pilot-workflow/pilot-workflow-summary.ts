@@ -388,6 +388,7 @@ export async function buildPilotWorkflowSummary(input: { projectId?: string | nu
     return {
       ok: false,
       mode: "local_fallback",
+      storageCaveat: pilotWorkflowStorageCaveat,
       projectId: input.projectId ?? null,
       projectKey: input.projectKey ?? "",
       workflow: null,
@@ -429,6 +430,7 @@ export async function buildPilotWorkflowSummary(input: { projectId?: string | nu
   return {
     ok: true,
     mode: "local_fallback",
+    storageCaveat: pilotWorkflowStorageCaveat,
     projectId: project.id,
     projectKey: project.projectKey,
     workflow,

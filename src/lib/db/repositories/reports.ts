@@ -9,7 +9,7 @@ export async function listReports(filters: { projectId?: string | null; projectK
   const client = await getSupabaseServerClient();
   if (!client) {
     const result = localList<WorkspaceReport>("reports", filters);
-    return { ok: true, mode: "local_only", data: result.data, error: result.error };
+    return { ok: true, mode: "local_fallback", data: result.data, error: result.error };
   }
 
   try {
@@ -22,9 +22,9 @@ export async function listReports(filters: { projectId?: string | null; projectK
     const byProjectId = filters.projectId ? baseQuery.eq("project_id", filters.projectId) : baseQuery;
     const byProjectKey = filters.projectKey && !filters.projectId ? baseQuery.eq("project_key", filters.projectKey) : byProjectId;
     const response = await byProjectKey.order("generated_at", { ascending: false }).limit(filters.limit ?? 50);
-    return { ok: !response.error, mode: "db", data: response.data ?? [], error: response.error ? "Unable to load reports." : null };
+    return { ok: !response.error, mode: "supabase", data: response.data ?? [], error: response.error ? "Unable to load reports." : null };
   } catch (error) {
-    return { ok: false, mode: "local_only", data: [], error: error instanceof Error ? error.message : "Unable to load reports." };
+    return { ok: false, mode: "local_fallback", data: [], error: error instanceof Error ? error.message : "Unable to load reports." };
   }
 }
 
@@ -32,7 +32,7 @@ export async function getReport(id: string): Promise<DbRepositoryResult<Workspac
   const client = await getSupabaseServerClient();
   if (!client) {
     const result = localGet<WorkspaceReport>("reports", id);
-    return { ok: true, mode: "local_only", data: result.data ?? getSeededDemoReportRecord(id), error: null };
+    return { ok: true, mode: "local_fallback", data: result.data ?? getSeededDemoReportRecord(id), error: null };
   }
 
   try {
@@ -40,9 +40,9 @@ export async function getReport(id: string): Promise<DbRepositoryResult<Workspac
       eq: (column: string, value: string) => { limit: (count: number) => Promise<{ data: unknown[] | null; error?: unknown }> };
     };
     const response = await query.eq("report_key", id).limit(1);
-    return { ok: !response.error, mode: "db", data: response.data?.[0] ?? getSeededDemoReportRecord(id), error: response.error ? "Unable to load report." : null };
+    return { ok: !response.error, mode: "supabase", data: response.data?.[0] ?? getSeededDemoReportRecord(id), error: response.error ? "Unable to load report." : null };
   } catch (error) {
-    return { ok: false, mode: "local_only", data: null, error: error instanceof Error ? error.message : "Unable to load report." };
+    return { ok: false, mode: "local_fallback", data: null, error: error instanceof Error ? error.message : "Unable to load report." };
   }
 }
 
@@ -72,7 +72,7 @@ export async function saveReport(input: DbReportInput): Promise<DbRepositoryResu
       createdAt: input.generatedAt ?? new Date().toISOString(),
       updatedAt: new Date().toISOString()
     });
-    return { ok: true, mode: "local_only", data: result.data, error: null };
+    return { ok: true, mode: "local_fallback", data: result.data, error: null };
   }
 
   try {
@@ -92,14 +92,14 @@ export async function saveReport(input: DbReportInput): Promise<DbRepositoryResu
     const response = await query;
 
     if (response.error) {
-      return { ok: false, mode: "local_only", data: null, error: "Unable to persist report." };
+      return { ok: false, mode: "local_fallback", data: null, error: "Unable to persist report." };
     }
 
-    return { ok: true, mode: "db", data: response.data ?? null, error: null };
+    return { ok: true, mode: "supabase", data: response.data ?? null, error: null };
   } catch (error) {
     return {
       ok: false,
-      mode: "local_only",
+      mode: "local_fallback",
       data: null,
       error: error instanceof Error ? error.message : "Unable to persist report."
     };

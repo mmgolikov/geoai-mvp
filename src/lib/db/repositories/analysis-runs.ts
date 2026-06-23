@@ -8,7 +8,7 @@ export async function listAnalysisRuns(limit = 10, projectId?: string | null): P
   const client = await getSupabaseServerClient();
   if (!client) {
     const result = localList<WorkspaceAnalysisRun>("analysis-runs", { projectId, limit });
-    return { ok: true, mode: "local_only", data: result.data, error: null };
+    return { ok: true, mode: "local_fallback", data: result.data, error: null };
   }
 
   try {
@@ -20,11 +20,11 @@ export async function listAnalysisRuns(limit = 10, projectId?: string | null): P
     };
     const orderedQuery = projectId ? baseQuery.eq("project_id", projectId) : baseQuery;
     const response = await orderedQuery.order("created_at", { ascending: false }).limit(limit);
-    return { ok: true, mode: "db", data: response.data ?? [], error: null };
+    return { ok: true, mode: "supabase", data: response.data ?? [], error: null };
   } catch (error) {
     return {
       ok: false,
-      mode: "local_only",
+      mode: "local_fallback",
       data: [],
       error: error instanceof Error ? error.message : "Unable to load analysis runs."
     };
@@ -52,7 +52,7 @@ export async function saveAnalysisRun(input: DbAnalysisRunInput): Promise<DbRepo
       payload: input.resultJson,
       createdAt: input.createdAt ?? new Date().toISOString()
     });
-    return { ok: true, mode: "local_only", data: result.data, error: result.error };
+    return { ok: true, mode: "local_fallback", data: result.data, error: result.error };
   }
 
   try {
@@ -78,14 +78,14 @@ export async function saveAnalysisRun(input: DbAnalysisRunInput): Promise<DbRepo
     const response = await query;
 
     if (response.error) {
-      return { ok: false, mode: "local_only", data: null, error: "Unable to persist analysis run." };
+      return { ok: false, mode: "local_fallback", data: null, error: "Unable to persist analysis run." };
     }
 
-    return { ok: true, mode: "db", data: response.data ?? null, error: null };
+    return { ok: true, mode: "supabase", data: response.data ?? null, error: null };
   } catch (error) {
     return {
       ok: false,
-      mode: "local_only",
+      mode: "local_fallback",
       data: null,
       error: error instanceof Error ? error.message : "Unable to persist analysis run."
     };

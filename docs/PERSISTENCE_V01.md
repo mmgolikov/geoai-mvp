@@ -59,8 +59,8 @@ Binary PDF storage is not implemented in v0.1. Reports remain screen/print-first
 If Supabase environment variables are missing, invalid, or unavailable:
 
 - `/api/db/health` returns local/demo status.
-- `/api/analysis-runs` returns `mode: "local_only"`.
-- `/api/reports` returns `mode: "local_only"`.
+- `/api/analysis-runs` returns `mode: "local_fallback"`.
+- `/api/reports` returns `mode: "local_fallback"`.
 - Analysis and report UI continue to work.
 - Local browser history remains available.
 
@@ -73,15 +73,15 @@ Persistence requests are best-effort. A failed save should never block the dashb
 
 - `GET /api/analysis-runs?limit=10`
   - Returns recent DB-backed analysis runs when configured.
-  - Returns `{ mode: "local_only", items: [] }` when not configured.
+  - Returns `{ mode: "local_fallback", items: [] }` when not configured.
 
 - `POST /api/analysis-runs`
   - Saves or upserts an analysis run when configured.
-  - Returns local-only success when not configured.
+  - Returns Local/API fallback success when not configured.
 
 - `POST /api/reports`
   - Saves or upserts report metadata and structured report JSON when configured.
-  - Returns local-only success when not configured.
+  - Returns Local/API fallback success when not configured.
 
 ## Test Without Supabase
 
@@ -91,7 +91,7 @@ Persistence requests are best-effort. A failed save should never block the dashb
 4. Select a point or demo object.
 5. Run Express Analysis.
 6. Confirm local Analysis History appears.
-7. Open `/api/analysis-runs` and confirm it returns local-only mode.
+7. Open `/api/analysis-runs` and confirm it returns `local_fallback` mode.
 8. Export a report and confirm the report preview opens normally.
 
 ## Test With Supabase
