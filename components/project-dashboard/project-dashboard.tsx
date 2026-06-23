@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import externalDataManifestStatic from "@/data/external/normalized/external_data_manifest.json";
 import dldMarketSnapshotStatic from "@/data/normalized/dld_market_snapshot.json";
 import openGeodataSnapshotStatic from "@/data/normalized/open_geodata_snapshot.json";
@@ -20,6 +20,12 @@ import { readBrowserAois, sourceTypeLabel, validationStatusLabel } from "@/src/l
 import { formatArea } from "@/src/lib/polygon-aoi";
 import type { GeoAIProject } from "@/src/lib/db/types";
 import type { ProjectAoi } from "@/src/types/aoi";
+import type {
+  ClientDataRoom,
+  DataRoomAssetType,
+  DataRoomValidationStatus,
+  ValidationChecklistStatus
+} from "@/src/types/data-room";
 import type { AnalysisHistoryItem, AnalysisScenarioId, ExpressAnalysis } from "@/src/types/geo";
 
 const activeProjectStorageKey = "geoai-active-project-key-v1";
@@ -134,6 +140,20 @@ type AoiLibraryResponse = {
   items?: ProjectAoi[];
 };
 
+type DataRoomAssetInput = {
+  id: string;
+  projectId?: string | null;
+  projectKey: string;
+  name: string;
+  description?: string;
+  assetType: DataRoomAssetType;
+  sourceType: "user_uploaded";
+  fileName?: string;
+  fileSizeBytes?: number;
+  mimeType?: string;
+  validationStatus: DataRoomValidationStatus;
+};
+
 const defaultProjectKey = demoProjects[0].projectKey;
 
 function formatLabel(value: string) {
@@ -181,6 +201,27 @@ function writeActiveProjectKey(projectKey: string) {
 
 function compactReadinessStatus(status?: string) {
   return sourceStatusToLabel(status ?? "planned");
+}
+
+function formatDataRoomLabel(value: string) {
+  return value.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function dataRoomAssetTypeForFile(file: File): DataRoomAssetType {
+  const name = file.name.toLowerCase();
+  if (name.endsWith(".geojson") || name.endsWith(".json") || file.type.includes("geo+json") || file.type.includes("json")) {
+    return "uploaded_geojson";
+  }
+  if (name.endsWith(".csv") || file.type.includes("csv")) {
+    return "uploaded_csv";
+  }
+  return "uploaded_document";
+}
+
+function dataRoomAssetName(assetType: DataRoomAssetType) {
+  if (assetType === "uploaded_geojson") return "Client AOI GeoJSON";
+  if (assetType === "uploaded_csv") return "Client CSV / market snapshot";
+  return "Client document metadata";
 }
 
 function manifestSourceToReadiness(source?: ManifestSource): ReadinessItem | undefined {
@@ -462,6 +503,7 @@ function getNextActions(project: GeoAIProject, importedMetricsCount: number) {
 }
 
 export function ProjectDashboard() {
+  const dataRoomFileInputRef = useRef<HTMLInputElement | null>(null);
   const [projects, setProjects] = useState<GeoAIProject[]>(demoProjects);
   const [projectsMode, setProjectsMode] = useState<"db" | "local_demo">("local_demo");
   const [activeProjectKey, setActiveProjectKey] = useState(demoProjects[0].projectKey);
@@ -474,6 +516,8 @@ export function ProjectDashboard() {
   const [savedComparisons, setSavedComparisons] = useState<SavedObjectSummary[]>([]);
   const [projectDatasets, setProjectDatasets] = useState<SavedObjectSummary[]>([]);
   const [projectAois, setProjectAois] = useState<ProjectAoi[]>([]);
+  const [dataRoom, setDataRoom] = useState<ClientDataRoom | null>(null);
+  const [dataRoomMessage, setDataRoomMessage] = useState<string | null>(null);
 
   useEffect(() => {
     setActiveProjectKey(readActiveProjectKey());
@@ -638,6 +682,30 @@ export function ProjectDashboard() {
         });
       })
       .catch(() => undefined);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeProjectKey]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadDataRoom() {
+      try {
+        const response = await fetch(`/api/data-room?projectKey=${encodeURIComponent(activeProjectKey)}`);
+        const payload = response.ok ? await response.json() as ClientDataRoom : null;
+        if (!cancelled) {
+          setDataRoom(payload);
+        }
+      } catch {
+        if (!cancelled) {
+          setDataRoom(null);
+        }
+      }
+    }
+
+    void loadDataRoom();
 
     return () => {
       cancelled = true;
@@ -810,9 +878,81 @@ export function ProjectDashboard() {
   const openWorkspaceForAoi = (aoi: ProjectAoi) =>
     `/workspace?projectKey=${encodeURIComponent(activeProject.projectKey)}&projectId=${encodeURIComponent(activeProject.id ?? activeProject.projectKey)}&openAoi=${encodeURIComponent(aoi.id)}`;
 
+  async function refreshDataRoom(projectKey = activeProject.projectKey) {
+    try {
+      const response = await fetch(`/api/data-room?projectKey=${encodeURIComponent(projectKey)}`);
+      if (!response.ok) return;
+      setDataRoom(await response.json() as ClientDataRoom);
+    } catch {
+      setDataRoomMessage("Data room summary is temporarily unavailable.");
+    }
+  }
+
+  async function registerDataRoomFile(file: File) {
+    if (file.size > 5 * 1024 * 1024) {
+      setDataRoomMessage("Keep client data room metadata uploads under 5 MB for this demo.");
+      return;
+    }
+
+    const assetType = dataRoomAssetTypeForFile(file);
+    const payload: DataRoomAssetInput = {
+      id: `client-asset-${activeProject.projectKey}-${Date.now()}`,
+      projectId: activeProject.id,
+      projectKey: activeProject.projectKey,
+      name: `${dataRoomAssetName(assetType)}: ${file.name}`,
+      description: "Uploaded metadata only; local demo storage; validation required.",
+      assetType,
+      sourceType: "user_uploaded",
+      fileName: file.name,
+      fileSizeBytes: file.size,
+      mimeType: file.type || "application/octet-stream",
+      validationStatus: "client_provided_unvalidated"
+    };
+
+    const response = await fetch("/api/data-room/assets", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    const result = await response.json() as { ok?: boolean; message?: string };
+    setDataRoomMessage(result.ok === false
+      ? result.message ?? "Unable to register metadata item."
+      : "Client file metadata added to this project data room. Validation required.");
+    await refreshDataRoom();
+  }
+
+  async function updateChecklistStatus(itemId: string, status: ValidationChecklistStatus) {
+    const response = await fetch(`/api/data-room/checklist/${encodeURIComponent(itemId)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status })
+    });
+
+    if (!response.ok) {
+      setDataRoomMessage("Checklist update could not be saved in local fallback.");
+      return;
+    }
+
+    setDataRoomMessage("Validation checklist updated locally. Official validation still required.");
+    await refreshDataRoom();
+  }
+
+  async function handleDataRoomFileChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const input = event.currentTarget;
+    const file = input.files?.[0];
+    try {
+      if (file) {
+        await registerDataRoomFile(file);
+      }
+    } finally {
+      input.value = "";
+    }
+  }
+
   function changeProject(projectKey: string) {
     setActiveProjectKey(projectKey);
     writeActiveProjectKey(projectKey);
+    setDataRoomMessage(null);
   }
 
   return (
@@ -951,6 +1091,155 @@ export function ProjectDashboard() {
                   action="Draw or import AOI"
                 />
               )}
+            </Panel>
+
+            <Panel title="Client Data Room" subtitle="Project-scoped pilot evidence package linking AOIs, uploads, analyses, reports, comparisons and validation tasks.">
+              <div className="grid gap-4">
+                <div className="flex flex-col gap-3 rounded-md border border-line bg-surface p-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="rounded-full bg-brand px-3 py-1 text-xs font-semibold text-white">
+                        {dataRoom?.summary.label ?? "Data room foundation active"}
+                      </span>
+                      <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-brand">
+                        local/demo fallback
+                      </span>
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-muted">
+                      {dataRoom?.summary.storageNote ?? "Local/demo fallback; durable storage not configured."}
+                    </p>
+                    <p className="mt-1 text-xs leading-5 text-muted">
+                      {dataRoom?.dataHonesty.caveat ?? "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 flex-wrap gap-2">
+                    <Link
+                      href={openWorkspaceHref}
+                      onClick={() => writeActiveProjectKey(activeProject.projectKey)}
+                      className="inline-flex h-9 items-center justify-center rounded-md bg-brand px-3 text-xs font-semibold text-white transition hover:bg-[#113f50]"
+                    >
+                      Open workspace
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => dataRoomFileInputRef.current?.click()}
+                      className="inline-flex h-9 items-center justify-center rounded-md border border-line bg-white px-3 text-xs font-semibold text-ink transition hover:border-brand"
+                    >
+                      Add/upload data
+                    </button>
+                    <a
+                      href="#validation-checklist"
+                      className="inline-flex h-9 items-center justify-center rounded-md border border-line bg-white px-3 text-xs font-semibold text-ink transition hover:border-brand"
+                    >
+                      Review checklist
+                    </a>
+                  </div>
+                </div>
+
+                <input
+                  ref={dataRoomFileInputRef}
+                  type="file"
+                  className="hidden"
+                  accept=".csv,.geojson,.json,.pdf,.doc,.docx,.txt,text/csv,application/json,application/pdf"
+                  onChange={(event) => {
+                    void handleDataRoomFileChange(event);
+                  }}
+                />
+
+                {dataRoomMessage ? (
+                  <p className="rounded-md border border-line bg-white px-3 py-2 text-xs leading-5 text-muted">
+                    {dataRoomMessage}
+                  </p>
+                ) : null}
+
+                <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
+                  {[
+                    ["AOIs", dataRoom?.summary.counts.aois ?? scopedProjectAois.length],
+                    ["Uploads", dataRoom?.summary.counts.uploadedDatasets ?? scopedProjectDatasets.length],
+                    ["Reports", dataRoom?.summary.counts.reports ?? reportRows.length],
+                    ["Analyses", dataRoom?.summary.counts.analyses ?? recentRows.length],
+                    ["Comparisons", dataRoom?.summary.counts.comparisons ?? comparisonRows.length],
+                    ["Validation", dataRoom?.summary.counts.validationItems ?? 0]
+                  ].map(([label, value]) => (
+                    <div key={`data-room-count-${label}`} className="rounded-md bg-surface p-3">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">{label}</p>
+                      <p className="mt-1 text-xl font-semibold text-ink">{value}</p>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="grid gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Latest assets</p>
+                    <div className="mt-2 grid gap-2">
+                      {(dataRoom?.summary.latestAssets ?? []).length > 0 ? (
+                        dataRoom?.summary.latestAssets.slice(0, 3).map((asset) => (
+                          <div key={asset.id} className="rounded-md border border-line bg-surface p-3">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="safe-line-1 text-sm font-semibold text-ink">{asset.name}</p>
+                                <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted">{asset.description ?? asset.caveat}</p>
+                              </div>
+                              <span className="shrink-0 rounded-full bg-white px-2 py-1 text-[10px] font-semibold text-brand">
+                                {formatDataRoomLabel(asset.assetType)}
+                              </span>
+                            </div>
+                            <p className="mt-2 text-[11px] font-semibold text-muted">{formatDataRoomLabel(asset.validationStatus)}</p>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="rounded-md border border-dashed border-line bg-surface p-3 text-sm leading-6 text-muted">
+                          Add AOIs, uploaded datasets or reports to build a client pilot data room.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div id="validation-checklist">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Validation checklist</p>
+                      <span className="rounded-full bg-surface px-2 py-1 text-[11px] font-semibold text-brand">
+                        {dataRoom?.summary.checklistStatus.completed ?? 0}/{dataRoom?.summary.checklistStatus.total ?? 0} completed
+                      </span>
+                    </div>
+                    <div className="mt-2 grid gap-2">
+                      {(dataRoom?.checklist ?? []).slice(0, 5).map((item) => (
+                        <div key={item.id} className="rounded-md border border-line bg-surface p-3">
+                          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold text-ink">{item.title}</p>
+                              <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted">{item.description}</p>
+                            </div>
+                            <div className="flex shrink-0 items-center gap-2">
+                              <span className={`rounded-full px-2 py-1 text-[10px] font-semibold ${
+                                item.priority === "high"
+                                  ? "bg-[#fff7ed] text-[#9f3412]"
+                                  : item.priority === "medium"
+                                    ? "bg-[#fff9e8] text-[#6f5817]"
+                                    : "bg-white text-muted"
+                              }`}>
+                                {item.priority}
+                              </span>
+                              <select
+                                value={item.status}
+                                onChange={(event) => {
+                                  void updateChecklistStatus(item.id, event.target.value as ValidationChecklistStatus);
+                                }}
+                                className="h-8 rounded-md border border-line bg-white px-2 text-xs font-semibold text-ink outline-none transition focus:border-brand"
+                                aria-label={`Validation status for ${item.title}`}
+                              >
+                                {["required", "in_review", "completed", "blocked", "not_applicable"].map((status) => (
+                                  <option key={status} value={status}>{formatDataRoomLabel(status)}</option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
             </Panel>
 
             <Panel title="Project Activity / Recent Analyses" subtitle="Analysis runs are scoped to the active project when project metadata is available.">

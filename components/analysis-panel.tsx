@@ -26,6 +26,7 @@ import type {
 import type { GuidedDemoPreset } from "@/src/data/guided-demo";
 import type { UploadedDataset } from "@/src/types/uploaded-data";
 import type { ProjectAoi } from "@/src/types/aoi";
+import type { ClientDataRoom, DataRoomAssetType } from "@/src/types/data-room";
 
 type AnalysisPanelProps = {
   selectedPoint: SelectedPoint | null;
@@ -44,6 +45,7 @@ type AnalysisPanelProps = {
   analysisHistory: AnalysisHistoryItem[];
   analysisHistorySource: "DB" | "local";
   hasResult: boolean;
+  currentAnalysis: ExpressAnalysis | null;
   analysisMode?: ExpressAnalysis["analysisMode"];
   marketMetricsMatch?: MarketMetricsMatch;
   backendStatus: {
@@ -154,6 +156,10 @@ function formatUploadedDatasetDetail(dataset: UploadedDataset) {
   return `${dataset.rowCount ?? 0} rows`;
 }
 
+function formatDataRoomLabel(value: string) {
+  return value.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
 function CollapsedSection({
   title,
   badge,
@@ -197,6 +203,7 @@ export function AnalysisPanel({
   analysisHistory,
   analysisHistorySource,
   hasResult,
+  currentAnalysis,
   analysisMode,
   marketMetricsMatch,
   backendStatus,
@@ -239,6 +246,8 @@ export function AnalysisPanel({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const aoiFileInputRef = useRef<HTMLInputElement | null>(null);
   const [externalDataStatus, setExternalDataStatus] = useState<ExternalDataStatusResponse | null>(null);
+  const [dataRoom, setDataRoom] = useState<ClientDataRoom | null>(null);
+  const [dataRoomMessage, setDataRoomMessage] = useState<string | null>(null);
   const hasSelectedPoint = selectedPoint !== null;
   const hasSelectedObject = selectedObject !== null;
   const hasSelectedAoi = selectedAoi !== null;
@@ -319,6 +328,93 @@ export function AnalysisPanel({
       isMounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    fetch(`/api/data-room?projectKey=${encodeURIComponent(activeProject.projectKey)}`)
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload: ClientDataRoom | null) => {
+        if (isMounted) {
+          setDataRoom(payload);
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setDataRoom(null);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [activeProject.projectKey, hasResult, projectAois.length, uploadedDatasets.length]);
+
+  async function refreshDataRoom() {
+    try {
+      const response = await fetch(`/api/data-room?projectKey=${encodeURIComponent(activeProject.projectKey)}`);
+      if (response.ok) {
+        setDataRoom(await response.json() as ClientDataRoom);
+      }
+    } catch {
+      setDataRoomMessage("Data room summary unavailable.");
+    }
+  }
+
+  async function addCurrentEvidenceToDataRoom() {
+    const selectedSavedAoi = selectedAoi
+      ? projectAois.find((aoi) => aoi.id === selectedAoi.savedAoiId || aoi.id === selectedAoi.id)
+      : null;
+    const assetType: DataRoomAssetType = currentAnalysis ? "analysis" : "aoi";
+
+    if (selectedAoi && !selectedSavedAoi && !currentAnalysis) {
+      setDataRoomMessage("Save AOI before adding it to the data room.");
+      return;
+    }
+
+    if (!selectedAoi && !currentAnalysis) {
+      setDataRoomMessage("Select an AOI or run analysis before adding evidence.");
+      return;
+    }
+
+    const payload = currentAnalysis
+      ? {
+          id: `analysis-evidence-${activeProject.projectKey}-${currentAnalysis.id}`,
+          projectId: activeProject.id,
+          projectKey: activeProject.projectKey,
+          name: currentAnalysis.selectedAoi?.name ?? currentAnalysis.selectedObject?.name ?? currentAnalysis.title,
+          description: "GeoAI generated screening analysis; official validation required.",
+          assetType,
+          sourceType: "generated_by_geoai",
+          linkedAoiIds: currentAnalysis.selectedAoi?.savedAoiId ? [currentAnalysis.selectedAoi.savedAoiId] : currentAnalysis.selectedAoi?.id ? [currentAnalysis.selectedAoi.id] : [],
+          linkedAnalysisIds: [currentAnalysis.id],
+          validationStatus: "ready_for_review"
+        }
+      : {
+          id: `aoi-evidence-${activeProject.projectKey}-${selectedSavedAoi?.id ?? selectedAoi?.id}`,
+          projectId: activeProject.id,
+          projectKey: activeProject.projectKey,
+          name: selectedSavedAoi?.name ?? selectedAoi?.name ?? "Selected AOI",
+          description: "User-provided AOI screening geometry; official validation required.",
+          assetType,
+          sourceType: selectedAoi?.sourceType === "uploaded_geojson" ? "user_uploaded" : "user_drawn",
+          linkedAoiIds: [selectedSavedAoi?.id ?? selectedAoi?.id ?? ""].filter(Boolean),
+          validationStatus: "validation_required"
+        };
+
+    const response = await fetch("/api/data-room/assets", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    const result = await response.json() as { ok?: boolean; message?: string };
+    setDataRoomMessage(result.ok === false
+      ? result.message ?? "Unable to add evidence item."
+      : currentAnalysis
+        ? "Analysis added as a data room evidence item."
+        : "AOI available in the data room.");
+    await refreshDataRoom();
+  }
 
   const externalSources = externalDataStatus?.sources ?? [];
   const externalReadiness = externalDataStatus?.readiness ?? [];
@@ -958,6 +1054,88 @@ export function AnalysisPanel({
               </div>
               <p className="text-xs leading-5 text-muted">
                 Persistence: {projectPersistenceStatus === "DB enabled" ? "DB-enabled persistence" : "local demo persistence"}.
+              </p>
+            </div>
+          </CollapsedSection>
+
+          <CollapsedSection
+            title="Data Room / Pilot Evidence"
+            badge={`${dataRoom?.assets.length ?? 0} assets`}
+          >
+            <div className="grid gap-2">
+              <div className="rounded-md border border-line bg-surface p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-ink">Client Data Room</p>
+                    <p className="mt-1 text-xs leading-5 text-muted">
+                      {dataRoom?.summary.storageNote ?? "Local/demo fallback; durable storage not configured."}
+                    </p>
+                  </div>
+                  <span className="shrink-0 rounded-full bg-white px-2 py-1 text-[11px] font-semibold text-brand">
+                    v1.9
+                  </span>
+                </div>
+                <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
+                  <div className="rounded-md bg-white p-2">
+                    <span className="text-muted">AOIs</span>
+                    <p className="mt-1 font-semibold text-ink">{dataRoom?.summary.counts.aois ?? projectAois.length}</p>
+                  </div>
+                  <div className="rounded-md bg-white p-2">
+                    <span className="text-muted">Uploads</span>
+                    <p className="mt-1 font-semibold text-ink">{dataRoom?.summary.counts.uploadedDatasets ?? parsedUploads.length}</p>
+                  </div>
+                  <div className="rounded-md bg-white p-2">
+                    <span className="text-muted">Reports</span>
+                    <p className="mt-1 font-semibold text-ink">{dataRoom?.summary.counts.reports ?? (hasResult ? 1 : 0)}</p>
+                  </div>
+                </div>
+                <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+                  <div className="rounded-md bg-white p-2">
+                    <span className="text-muted">Checklist</span>
+                    <p className="mt-1 font-semibold text-ink">
+                      {dataRoom?.summary.checklistStatus.completed ?? 0}/{dataRoom?.summary.checklistStatus.total ?? 0} complete
+                    </p>
+                  </div>
+                  <div className="rounded-md bg-white p-2">
+                    <span className="text-muted">Analyses</span>
+                    <p className="mt-1 font-semibold text-ink">{dataRoom?.summary.counts.analyses ?? analysisHistory.length}</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    void addCurrentEvidenceToDataRoom();
+                  }}
+                  className="mt-3 inline-flex h-8 w-full items-center justify-center rounded-md bg-brand px-3 text-xs font-semibold text-white transition hover:bg-[#113f50]"
+                >
+                  Add to data room
+                </button>
+                <p className="mt-2 text-[11px] leading-4 text-muted">
+                  {selectedAoi && !projectAois.some((aoi) => aoi.id === selectedAoi.savedAoiId || aoi.id === selectedAoi.id) && !currentAnalysis
+                    ? "Save AOI before adding to data room."
+                    : currentAnalysis
+                      ? "Analysis added as evidence item when saved here."
+                      : "AOIs, reports and uploaded metadata remain local/demo evidence."}
+                </p>
+                {dataRoomMessage ? (
+                  <p className="mt-2 rounded-md bg-white px-2 py-2 text-xs leading-5 text-muted">{dataRoomMessage}</p>
+                ) : null}
+              </div>
+              {(dataRoom?.summary.latestAssets ?? []).slice(0, 3).map((asset) => (
+                <div key={asset.id} className="rounded-md border border-line bg-white p-2.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="truncate text-xs font-semibold text-ink">{asset.name}</p>
+                      <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted">{asset.description ?? asset.caveat}</p>
+                    </div>
+                    <span className="shrink-0 rounded-full bg-surface px-1.5 py-0.5 text-[10px] font-semibold text-brand">
+                      {formatDataRoomLabel(asset.assetType)}
+                    </span>
+                  </div>
+                </div>
+              ))}
+              <p className="text-[11px] leading-4 text-muted">
+                {dataRoom?.dataHonesty.caveat ?? "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."}
               </p>
             </div>
           </CollapsedSection>

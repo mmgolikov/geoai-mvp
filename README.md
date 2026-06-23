@@ -41,6 +41,7 @@ OpenAI is optional. If `OPENAI_API_KEY` is not configured, GeoAI automatically u
 - Dedicated printable report route for saved reports: `/reports/[id]/print`
 - Lightweight project/workspace selector with local demo fallback
 - Project Dashboard v0.1 for active project summary, KPIs, recent analyses, data readiness and next actions
+- Client Data Room Foundation v1.9 for project-scoped AOIs, uploaded metadata, analyses, reports, comparisons, validation checklist and pilot deliverable summary
 - Pilot Readiness & Client Delivery Package v1.1 with client-specific pilot packages, readiness scoring, setup checklist and deliverable framing
 - Offline DLD / Dubai Pulse CSV ingestion prototype with normalized sample outputs
 - API routes for health, demo objects, and analysis
@@ -126,6 +127,12 @@ The default `npm run dev` command uses stable Webpack mode with polling enabled 
 - `POST /api/aois` saves a project AOI in local/API fallback storage.
 - `PATCH /api/aois/[id]` updates saved AOI metadata.
 - `DELETE /api/aois/[id]` removes a saved AOI from local/API fallback storage.
+- `GET /api/data-room?projectKey=...` returns the project-scoped Client Data Room summary.
+- `POST /api/data-room/assets` registers local/demo data room asset metadata.
+- `PATCH /api/data-room/assets/[id]` updates local/demo asset metadata.
+- `DELETE /api/data-room/assets/[id]` removes a local/demo asset metadata record.
+- `POST /api/data-room/checklist` creates a local/demo validation checklist item.
+- `PATCH /api/data-room/checklist/[id]` updates validation checklist status.
 
 ## Market Context Adapter
 
@@ -185,6 +192,14 @@ GeoAI now lets users save drawn AOIs into the active project AOI Library, reopen
 Supported import formats are GeoJSON `Feature` with `Polygon` geometry and `FeatureCollection` with one Polygon. FeatureCollections with multiple Polygon features import the first Polygon with a warning. Points, LineStrings, MultiPolygons, Polygon holes, CRS transformations and shapefiles are not supported in v1.8.
 
 AOIs remain user-provided or uploaded screening geometry. They are not official parcel, zoning, cadastral, ownership, planning or valuation evidence. See [AOI Library + GeoJSON Import/Export v1.8](docs/AOI_LIBRARY_GEOJSON_IMPORT_EXPORT_V18.md).
+
+## Client Data Room Foundation v1.9
+
+GeoAI includes a lightweight project-level Client Data Room foundation that links AOIs, uploaded client metadata, analyses, reports, comparisons, source readiness, validation checklist items and expected pilot deliverables.
+
+This is local/API fallback only. It is not durable production storage, secure enterprise storage, official validation, legal/cadastral/zoning/planning evidence or a valuation conclusion. Client files are registered as metadata-only demo records unless future durable storage is configured.
+
+See [Client Data Room Foundation v1.9](docs/CLIENT_DATA_ROOM_FOUNDATION_V19.md).
 
 ## Data Credibility Sprint v0.5
 
@@ -284,6 +299,7 @@ Current export remains browser print/save as PDF. GeoAI does not generate server
 - Spatial layers currently use local seed_geojson demo geometries only.
 - Uploaded CSV / GeoJSON files are browser-local, user-provided, validation-required context.
 - AOI Library v1.8 stores project AOIs through browser-local/API fallback continuity; durable multi-tenant spatial storage is not complete.
+- Client Data Room v1.9 registers project evidence metadata through local/API fallback only; durable production file storage, auth, audit trail and secure workspace controls are not connected.
 - AOI GeoJSON import supports Polygon only. MultiPolygon, holes, CRS transformations and shapefiles are deferred.
 - Real Data Backbone v0.7 supports optional snapshots/API context, but live official validation sources are still not connected.
 - Persistence v0.8 supports local/API fallback saved objects, but auth, tenant security, production file storage and report libraries are not complete.
@@ -309,6 +325,7 @@ Current export remains browser print/save as PDF. GeoAI does not generate server
 - [GeoAI Public Data Ready Demo v1.6 Release Note](docs/RELEASE_GEOAI_PUBLIC_DATA_READY_DEMO_V16.md)
 - [GeoAI AOI-Ready Demo v1.7 Release Note](docs/RELEASE_GEOAI_AOI_READY_DEMO_V17.md)
 - [AOI Library + GeoJSON Import/Export v1.8](docs/AOI_LIBRARY_GEOJSON_IMPORT_EXPORT_V18.md)
+- [Client Data Room Foundation v1.9](docs/CLIENT_DATA_ROOM_FOUNDATION_V19.md)
 - [GeoAI AOI Library Demo v1.8 Release Note](docs/RELEASE_GEOAI_AOI_LIBRARY_DEMO_V18.md)
 - [Persistence & Project Workspace v0.8](docs/PERSISTENCE_PROJECT_WORKSPACE_V08.md)
 - [Project-Scoped Persistence v13](docs/PROJECT_SCOPED_PERSISTENCE_V13.md)

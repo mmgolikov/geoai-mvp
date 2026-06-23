@@ -175,3 +175,9 @@ Do not describe user-provided or uploaded AOIs as:
 - Official/customer-approved boundary validation.
 - AOI-linked project data room.
 - Durable multi-tenant spatial storage with Supabase/PostGIS or equivalent.
+
+## v1.9 Data Room Link
+
+Client Data Room Foundation v1.9 can index saved AOIs as project-scoped data room assets and link AOI-derived analyses or reports into a lightweight pilot evidence package.
+
+This does not change AOI data honesty: AOIs remain user-provided or uploaded screening geometry until validated outside GeoAI. The data room is local/API fallback only and is not durable production storage.

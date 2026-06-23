@@ -99,6 +99,7 @@ Out of scope:
 
 - Use `/demo` to choose the relevant buyer narrative.
 - Use `/projects` to show the active project and client pilot package.
+- Use the Client Data Room section in `/projects` to show the project-scoped evidence package, validation checklist and deliverable status.
 - Use `/workspace` to run the guided analysis and comparison.
 - Use report preview or printable report routes to show memo output.
 - Public/open source context from v1.6 can be used as screening support only; client-approved and official validation sources remain required before pilot decisions.
@@ -106,5 +107,6 @@ Out of scope:
 ## Limitations
 
 - Current v1.5 packages are pilot framing, not production delivery commitments.
+- Client Data Room v1.9 is local/API fallback only and is not durable production storage or secure enterprise file storage.
 - Pilot readiness depends on client-provided data, validation rights, official/customer source access and security/governance requirements.
 - The current MVP remains a screening and demo workflow until those controls are defined.
