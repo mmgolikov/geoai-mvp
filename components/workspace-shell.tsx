@@ -1340,7 +1340,17 @@ export function WorkspaceShell() {
     const nextProject = projects.find((project) => project.projectKey === projectKey) ?? getDemoProject(projectKey);
     setActiveProject(nextProject);
     writeActiveProjectKey(nextProject.projectKey);
+    setSelectedPoint(null);
+    setSelectedObject(null);
+    setSelectedAoi(null);
+    setAnalysis(null);
+    setComparison(null);
+    setReportPreview(null);
+    setLastAnalyzedState(null);
+    setLastComparedState(null);
+    setAnalysisError(null);
     setComparisonMessage(null);
+    setMarketContext(null);
   }
 
   function restoreAnalysisDashboard(item: AnalysisHistoryItem) {
@@ -1703,7 +1713,7 @@ export function WorkspaceShell() {
           onAoiSelect={handleAoiSelect}
           onAoiDelete={handleAoiDelete}
           uploadedDatasets={uploadedDatasets}
-          projectId={activeProject.id ?? undefined}
+          projectId={activeProject.projectKey}
         />
       )}
       <AnalysisPanel

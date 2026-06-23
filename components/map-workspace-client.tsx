@@ -1013,6 +1013,14 @@ export function MapWorkspaceClient({
     layerVisibilityRef.current = layerVisibility;
   }, [layerVisibility]);
 
+  useEffect(() => {
+    if (drawStateRef.current.mode === "drawing_polygon" || drawStateRef.current.mode === "invalid_polygon") {
+      updateDrawState(() => initialDrawState);
+    }
+    // Project changes must not carry a partial AOI into another workspace context.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId]);
+
   function updateDrawState(updater: (current: PolygonDrawState) => PolygonDrawState) {
     setDrawState((current) => {
       const next = updater(current);
