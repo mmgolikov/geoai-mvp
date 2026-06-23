@@ -27,6 +27,13 @@ import type { GuidedDemoPreset } from "@/src/data/guided-demo";
 import type { UploadedDataset } from "@/src/types/uploaded-data";
 import type { ProjectAoi } from "@/src/types/aoi";
 import type { ClientDataRoom, DataRoomAssetType } from "@/src/types/data-room";
+import type {
+  ClientInputItem,
+  ClientInputStatus,
+  PilotDeliverableStatus,
+  PilotDeliverableWorkflowStatus,
+  PilotWorkflowSummary
+} from "@/src/types/pilot-workflow";
 
 type AnalysisPanelProps = {
   selectedPoint: SelectedPoint | null;
@@ -248,6 +255,8 @@ export function AnalysisPanel({
   const [externalDataStatus, setExternalDataStatus] = useState<ExternalDataStatusResponse | null>(null);
   const [dataRoom, setDataRoom] = useState<ClientDataRoom | null>(null);
   const [dataRoomMessage, setDataRoomMessage] = useState<string | null>(null);
+  const [pilotWorkflow, setPilotWorkflow] = useState<PilotWorkflowSummary | null>(null);
+  const [pilotWorkflowMessage, setPilotWorkflowMessage] = useState<string | null>(null);
   const [isAoiSaveOpen, setIsAoiSaveOpen] = useState(false);
   const hasSelectedPoint = selectedPoint !== null;
   const hasSelectedObject = selectedObject !== null;
@@ -280,6 +289,15 @@ export function AnalysisPanel({
   const analysisHistoryStatus =
     analysisHistorySource === "DB" ? "Supabase-backed" : "Local fallback";
   const projectPersistenceStatus = projectsMode === "db" ? "DB enabled" : "local demo";
+  const pilotWorkflowBadge = pilotWorkflow?.readiness ? formatDataRoomLabel(pilotWorkflow.readiness.label) : "workflow";
+  const pilotInputsProvided = pilotWorkflow?.clientInputs.filter((item) =>
+    ["provided_unvalidated", "in_review", "accepted_for_screening", "not_applicable"].includes(item.status)
+  ).length ?? 0;
+  const pilotInputsTotal = pilotWorkflow?.clientInputs.filter((item) => item.required).length ?? 0;
+  const pilotDeliverablesReady = pilotWorkflow?.deliverables.filter((item) =>
+    ["generated", "ready_for_review", "validation_required"].includes(item.status)
+  ).length ?? 0;
+  const pilotDeliverablesTotal = pilotWorkflow?.deliverables.length ?? 0;
   const isComparisonWorkflow = primaryCtaLabel === "Compare" || (hasComparisonReady && hasResult);
   const activeWorkflowLabel = isComparisonWorkflow
     ? "Comparison active"
@@ -352,6 +370,27 @@ export function AnalysisPanel({
   }, [activeProject.projectKey, hasResult, projectAois.length, uploadedDatasets.length]);
 
   useEffect(() => {
+    let isMounted = true;
+
+    fetch(`/api/pilot-workflow?projectKey=${encodeURIComponent(activeProject.projectKey)}`)
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload: PilotWorkflowSummary | null) => {
+        if (isMounted) {
+          setPilotWorkflow(payload);
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setPilotWorkflow(null);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [activeProject.projectKey, hasResult, projectAois.length, uploadedDatasets.length]);
+
+  useEffect(() => {
     setIsAoiSaveOpen(false);
   }, [selectedAoi?.id]);
 
@@ -363,6 +402,17 @@ export function AnalysisPanel({
       }
     } catch {
       setDataRoomMessage("Data room summary unavailable.");
+    }
+  }
+
+  async function refreshPilotWorkflow() {
+    try {
+      const response = await fetch(`/api/pilot-workflow?projectKey=${encodeURIComponent(activeProject.projectKey)}`);
+      if (response.ok) {
+        setPilotWorkflow(await response.json() as PilotWorkflowSummary);
+      }
+    } catch {
+      setPilotWorkflowMessage("Pilot workflow summary unavailable.");
     }
   }
 
@@ -419,6 +469,39 @@ export function AnalysisPanel({
         ? "Analysis added as a data room evidence item."
         : "AOI available in the data room.");
     await refreshDataRoom();
+    await refreshPilotWorkflow();
+  }
+
+  async function updatePilotInputStatus(item: ClientInputItem, status: ClientInputStatus) {
+    const response = await fetch(`/api/pilot-workflow/client-inputs/${encodeURIComponent(item.id)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...item, status })
+    });
+
+    if (!response.ok) {
+      setPilotWorkflowMessage("Client input status could not be saved locally.");
+      return;
+    }
+
+    setPilotWorkflowMessage("Client input status updated locally. Official validation remains required.");
+    await refreshPilotWorkflow();
+  }
+
+  async function updatePilotDeliverableStatus(item: PilotDeliverableStatus, status: PilotDeliverableWorkflowStatus) {
+    const response = await fetch(`/api/pilot-workflow/deliverables/${encodeURIComponent(item.id)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...item, status })
+    });
+
+    if (!response.ok) {
+      setPilotWorkflowMessage("Deliverable status could not be saved locally.");
+      return;
+    }
+
+    setPilotWorkflowMessage("Deliverable status updated locally. Review readiness remains caveated.");
+    await refreshPilotWorkflow();
   }
 
   const externalSources = externalDataStatus?.sources ?? [];
@@ -1190,6 +1273,119 @@ export function AnalysisPanel({
               <p className="text-[11px] leading-4 text-muted">
                 {dataRoom?.dataHonesty.caveat ?? "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."}
               </p>
+            </div>
+          </CollapsedSection>
+
+          <CollapsedSection title="Pilot Context" badge={pilotWorkflowBadge}>
+            <div className="grid gap-3">
+              {pilotWorkflow?.workflow && pilotWorkflow.readiness ? (
+                <>
+                  <div className="rounded-md border border-line bg-surface p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-ink">{pilotWorkflow.workflow.title}</p>
+                        <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted">{pilotWorkflow.workflow.decisionQuestion}</p>
+                      </div>
+                      <span className="shrink-0 rounded-full bg-white px-2 py-1 text-[11px] font-semibold text-brand">
+                        {pilotWorkflow.readiness.score}/100
+                      </span>
+                    </div>
+                    <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
+                      <div className="rounded-md bg-white p-2">
+                        <span className="text-muted">Stage</span>
+                        <p className="mt-1 truncate font-semibold text-ink">{formatDataRoomLabel(pilotWorkflow.workflow.pilotStage)}</p>
+                      </div>
+                      <div className="rounded-md bg-white p-2">
+                        <span className="text-muted">Inputs</span>
+                        <p className="mt-1 font-semibold text-ink">{pilotInputsProvided}/{pilotInputsTotal}</p>
+                      </div>
+                      <div className="rounded-md bg-white p-2">
+                        <span className="text-muted">Outputs</span>
+                        <p className="mt-1 font-semibold text-ink">{pilotDeliverablesReady}/{pilotDeliverablesTotal}</p>
+                      </div>
+                    </div>
+                    <p className="mt-2 text-[11px] leading-4 text-muted">{pilotWorkflow.readiness.caveat}</p>
+                  </div>
+
+                  <div className="rounded-md border border-line bg-surface p-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Next action</p>
+                    <p className="mt-1 text-xs leading-5 text-ink">
+                      {pilotWorkflow.readiness.nextActions[0] ?? "Review client input and validation gaps."}
+                    </p>
+                  </div>
+
+                  <details className="rounded-md border border-line bg-surface px-2">
+                    <summary className="flex min-h-9 cursor-pointer list-none items-center justify-between gap-2 py-2 text-xs font-semibold text-ink">
+                      <span>Required client inputs</span>
+                      <span className="rounded-full bg-white px-2 py-1 text-[10px] text-brand">{pilotInputsProvided}/{pilotInputsTotal}</span>
+                    </summary>
+                    <div className="grid max-h-44 gap-2 overflow-y-auto border-t border-line py-2 [scrollbar-width:thin]">
+                      {pilotWorkflow.clientInputs.slice(0, 6).map((item) => (
+                        <div key={item.id} className="rounded-md bg-white p-2">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="truncate text-xs font-semibold text-ink">{item.title}</p>
+                              <p className="mt-1 truncate text-[11px] text-muted">{formatDataRoomLabel(item.status)} / {item.priority}</p>
+                            </div>
+                            <select
+                              value={item.status}
+                              onChange={(event) => {
+                                void updatePilotInputStatus(item, event.target.value as ClientInputStatus);
+                              }}
+                              className="h-7 shrink-0 rounded-md border border-line bg-surface px-1.5 text-[10px] font-semibold text-ink outline-none transition focus:border-brand"
+                              aria-label={`Client input status for ${item.title}`}
+                            >
+                              {["missing", "requested", "provided_unvalidated", "in_review", "accepted_for_screening", "blocked", "not_applicable"].map((status) => (
+                                <option key={status} value={status}>{formatDataRoomLabel(status)}</option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+
+                  <details className="rounded-md border border-line bg-surface px-2">
+                    <summary className="flex min-h-9 cursor-pointer list-none items-center justify-between gap-2 py-2 text-xs font-semibold text-ink">
+                      <span>Deliverables</span>
+                      <span className="rounded-full bg-white px-2 py-1 text-[10px] text-brand">{pilotDeliverablesReady}/{pilotDeliverablesTotal}</span>
+                    </summary>
+                    <div className="grid max-h-44 gap-2 overflow-y-auto border-t border-line py-2 [scrollbar-width:thin]">
+                      {pilotWorkflow.deliverables.slice(0, 6).map((item) => (
+                        <div key={item.id} className="rounded-md bg-white p-2">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="truncate text-xs font-semibold text-ink">{item.title}</p>
+                              <p className="mt-1 truncate text-[11px] text-muted">{formatDataRoomLabel(item.deliverableType)}</p>
+                            </div>
+                            <select
+                              value={item.status}
+                              onChange={(event) => {
+                                void updatePilotDeliverableStatus(item, event.target.value as PilotDeliverableWorkflowStatus);
+                              }}
+                              className="h-7 shrink-0 rounded-md border border-line bg-surface px-1.5 text-[10px] font-semibold text-ink outline-none transition focus:border-brand"
+                              aria-label={`Deliverable status for ${item.title}`}
+                            >
+                              {["planned", "in_progress", "generated", "ready_for_review", "validation_required", "blocked"].map((status) => (
+                                <option key={status} value={status}>{formatDataRoomLabel(status)}</option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+
+                  {pilotWorkflowMessage ? (
+                    <p className="rounded-md bg-surface px-2 py-2 text-xs leading-5 text-muted">{pilotWorkflowMessage}</p>
+                  ) : null}
+                  <p className="text-[11px] leading-4 text-muted">{pilotWorkflow.dataHonesty.storageCaveat}</p>
+                </>
+              ) : (
+                <p className="rounded-md border border-line bg-surface p-3 text-xs leading-5 text-muted">
+                  Pilot workflow summary is unavailable. Workspace analysis and Data Room evidence remain usable.
+                </p>
+              )}
             </div>
           </CollapsedSection>
 

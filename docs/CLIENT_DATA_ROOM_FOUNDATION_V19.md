@@ -122,6 +122,12 @@ Workspace:
 - Shows evidence counts and checklist status.
 - Adds current AOI or analysis to the project data room as local/demo metadata.
 
+## Relationship To Pilot Workflow v2.0
+
+Pilot Workflow & Deliverables v2.0 reads the Client Data Room as its evidence foundation. The workflow layer summarizes AOIs, uploaded metadata, analyses, reports, comparisons and validation checklist progress into a client input checklist, deliverables workflow and caveated workflow-readiness score.
+
+Data Room v1.9 remains the evidence index. Pilot Workflow v2.0 does not make it durable production storage, secure enterprise storage or an official validation system.
+
 ## Data Honesty Constraints
 
 Do not claim:

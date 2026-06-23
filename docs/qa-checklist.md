@@ -114,6 +114,28 @@ Use this checklist before demos, Vercel deployments, and milestone checkpoints.
 - [ ] Required official-validation caveat remains visible.
 - [ ] No secure/enterprise/production data room claim appears.
 
+## Pilot Workflow & Deliverables v2.0
+
+- [ ] `GET /api/pilot-workflow?projectKey=dubai-investment-screening-demo` returns 200.
+- [ ] `GET /api/pilot-workflow?projectKey=developer-land-pipeline-demo` returns 200.
+- [ ] `GET /api/pilot-workflow?projectKey=bank-asset-review-demo` returns 200.
+- [ ] Missing/unknown project returns a controlled non-500 error.
+- [ ] `/projects` shows a compact Pilot Workflow section.
+- [ ] Project switching updates workflow title, decision question, client inputs and deliverables.
+- [ ] Workflow readiness score is labeled as workflow completeness only.
+- [ ] Top blockers and next actions show at most three items by default.
+- [ ] Client input checklist renders with compact status controls.
+- [ ] Updating a client input status persists in local/API fallback for that project.
+- [ ] Deliverables workflow renders with compact status controls.
+- [ ] Updating a deliverable status persists in local/API fallback for that project.
+- [ ] Report Package Status reflects existing reports/comparisons and remains caveated.
+- [ ] Workspace command panel shows Pilot Context as a collapsed secondary block.
+- [ ] Workspace Scenario and Custom Query remain near the top.
+- [ ] Workspace Run Express Analysis remains in the pinned action footer.
+- [ ] No project leakage occurs between the three demo projects.
+- [ ] No UI copy describes readiness as investment, legal, planning, valuation or commercial pilot readiness.
+- [ ] Local/API fallback storage caveat remains visible.
+
 ## Scenario Analysis
 
 - [ ] Scenario selector is visible.
