@@ -23,6 +23,7 @@ import {
   type ValidationChecklistStatus
 } from "@/src/types/data-room";
 import type { GeoAIProject, ProjectClientType } from "@/src/lib/db/types";
+import type { DataSource } from "@/src/types/data-source";
 import type { ProjectAoi } from "@/src/types/aoi";
 
 type UnknownRecord = Record<string, unknown>;
@@ -37,6 +38,22 @@ function asRecord(value: unknown): UnknownRecord {
 
 function readString(value: unknown, fallback = "") {
   return typeof value === "string" && value.trim().length > 0 ? value : fallback;
+}
+
+function toIsoDate(value: unknown, fallback = nowIso()) {
+  if (value instanceof Date && Number.isFinite(value.getTime())) {
+    return value.toISOString();
+  }
+
+  if (typeof value !== "string" || value.trim().length === 0) {
+    return fallback;
+  }
+
+  const raw = value.trim();
+  const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? `${raw}T00:00:00.000Z` : raw;
+  const parsed = new Date(dateOnly);
+
+  return Number.isFinite(parsed.getTime()) ? parsed.toISOString() : fallback;
 }
 
 function readProjectKey(value: unknown) {
@@ -69,17 +86,40 @@ function belongsToProject(value: unknown, project: GeoAIProject) {
   return false;
 }
 
-function assetSourceTypeFromDataSource(sourceType?: string): DataRoomSourceType {
-  if (sourceType === "official" || sourceType === "open_data") return "public_snapshot";
-  if (sourceType === "commercial") return "planned_validation";
-  if (sourceType === "customer") return "planned_validation";
-  if (sourceType === "mock") return "sample_fallback";
+function assetSourceTypeFromDataSource(source: DataSource): DataRoomSourceType {
+  if (source.integrationStatus === "requires_access" || source.integrationStatus === "requires_license") {
+    return "permission_required";
+  }
+
+  if (source.status === "planned" || source.status === "unavailable") {
+    return "planned_validation";
+  }
+
+  if (source.sourceType === "mock" || source.sourceType === "demo" || source.integrationStatus === "active_demo") {
+    return "sample_fallback";
+  }
+
+  if (source.sourceType === "open_data" || source.sourceType === "open_geospatial") {
+    return source.usedInCurrentPrototype ? "public_snapshot" : "planned_validation";
+  }
+
+  if (source.sourceType === "official") {
+    return source.usedInCurrentPrototype ? "public_snapshot" : "planned_validation";
+  }
+
+  if (source.sourceType === "commercial" || source.sourceType === "customer") {
+    return source.usedInCurrentPrototype ? "api_context" : "permission_required";
+  }
+
   return "planned_validation";
 }
 
-function validationStatusFromDataSource(status?: string): DataRoomValidationStatus {
-  if (status === "connected" || status === "mock") return "sample_fallback";
-  if (status === "planned") return "planned_official_validation";
+function validationStatusFromDataSource(source: DataSource): DataRoomValidationStatus {
+  if (source.status === "mock") return "sample_fallback";
+  if (source.status === "connected" && (source.sourceType === "mock" || source.sourceType === "demo")) return "sample_fallback";
+  if (source.status === "connected" && source.usedInCurrentPrototype) return "sample_fallback";
+  if (source.integrationStatus === "requires_access" || source.integrationStatus === "requires_license") return "planned_official_validation";
+  if (source.status === "planned" || source.status === "unavailable") return "planned_official_validation";
   return "validation_required";
 }
 
@@ -91,8 +131,8 @@ function dataRoomAsset(input: Omit<DataRoomAsset, "caveat" | "createdAt" | "upda
   const timestamp = nowIso();
   return {
     ...input,
-    createdAt: input.createdAt ?? timestamp,
-    updatedAt: input.updatedAt ?? input.createdAt ?? timestamp,
+    createdAt: toIsoDate(input.createdAt, timestamp),
+    updatedAt: toIsoDate(input.updatedAt ?? input.createdAt, timestamp),
     caveat: input.caveat ?? dataRoomRequiredCaveat
   };
 }
@@ -117,7 +157,7 @@ function uploadedDatasetAsset(value: unknown, project: GeoAIProject): DataRoomAs
   const item = asRecord(value);
   const id = readString(item.id, `uploaded-${readString(item.name, "dataset")}`);
   const type = readString(item.type, "csv");
-  const uploadedAt = readString(item.uploadedAt, nowIso());
+  const uploadedAt = toIsoDate(item.uploadedAt);
   const assetType: DataRoomAssetType = type === "geojson" ? "uploaded_geojson" : "uploaded_csv";
 
   return dataRoomAsset({
@@ -140,7 +180,7 @@ function analysisAsset(value: unknown, project: GeoAIProject): DataRoomAsset {
   const item = asRecord(value);
   const payload = asRecord(item.payload ?? item.result_json ?? item.result_payload);
   const id = readString(item.id) || readString(item.run_key) || readString(payload.id, `analysis-${project.projectKey}`);
-  const createdAt = readString(item.createdAt) || readString(item.created_at) || readString(payload.generatedAt) || nowIso();
+  const createdAt = toIsoDate(readString(item.createdAt) || readString(item.created_at) || readString(payload.generatedAt));
   const selectedName = readString(item.title) || readString(item.selected_name) || readString(payload.title, "Analysis run");
   const selectedType = readString(item.selected_type) || readString(item.targetType, "analysis");
 
@@ -162,7 +202,7 @@ function analysisAsset(value: unknown, project: GeoAIProject): DataRoomAsset {
 function reportAsset(value: unknown, project: GeoAIProject): DataRoomAsset {
   const item = asRecord(value);
   const id = readString(item.id) || readString(item.report_key) || `report-${project.projectKey}`;
-  const createdAt = readString(item.createdAt) || readString(item.created_at) || readString(item.generated_at) || nowIso();
+  const createdAt = toIsoDate(readString(item.createdAt) || readString(item.created_at) || readString(item.generated_at));
 
   return dataRoomAsset({
     id: `derived-report-${id}`,
@@ -182,7 +222,7 @@ function reportAsset(value: unknown, project: GeoAIProject): DataRoomAsset {
 function comparisonAsset(value: unknown, project: GeoAIProject): DataRoomAsset {
   const item = asRecord(value);
   const id = readString(item.id, `comparison-${project.projectKey}`);
-  const createdAt = readString(item.createdAt) || readString(item.created_at) || nowIso();
+  const createdAt = toIsoDate(readString(item.createdAt) || readString(item.created_at));
 
   return dataRoomAsset({
     id: `derived-comparison-${id}`,
@@ -202,19 +242,23 @@ function externalSourceAssets(project: GeoAIProject): DataRoomAsset[] {
   return dataSourceRegistry
     .filter((source) => source.usedInCurrentPrototype || source.plannedForPilot)
     .slice(0, 7)
-    .map((source) => dataRoomAsset({
-      id: `source-${project.projectKey}-${source.id}`,
-      projectId: project.id,
-      projectKey: project.projectKey,
-      name: source.name,
-      description: source.limitations ?? source.description,
-      assetType: "external_source",
-      sourceType: assetSourceTypeFromDataSource(source.sourceType),
-      validationStatus: validationStatusFromDataSource(source.status),
-      createdAt: source.lastUpdated === "Snapshot-dependent" ? nowIso() : `${source.lastUpdated}T00:00:00.000Z`,
-      updatedAt: nowIso(),
-      caveat: source.limitations ?? dataRoomRequiredCaveat
-    }));
+    .map((source) => {
+      const timestamp = toIsoDate(source.lastUpdated);
+
+      return dataRoomAsset({
+        id: `source-${project.projectKey}-${source.id}`,
+        projectId: project.id,
+        projectKey: project.projectKey,
+        name: source.name,
+        description: source.limitations ?? source.description,
+        assetType: "external_source",
+        sourceType: assetSourceTypeFromDataSource(source),
+        validationStatus: validationStatusFromDataSource(source),
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        caveat: source.limitations ?? dataRoomRequiredCaveat
+      });
+    });
 }
 
 function checklistTemplate(
@@ -335,7 +379,12 @@ function summarizeChecklist(checklist: ValidationChecklistItem[]) {
 function dedupeAssets(assets: DataRoomAsset[]) {
   const byId = new Map<string, DataRoomAsset>();
   for (const asset of assets) {
-    byId.set(asset.id, asset);
+    byId.set(asset.id, {
+      ...asset,
+      createdAt: toIsoDate(asset.createdAt),
+      updatedAt: toIsoDate(asset.updatedAt ?? asset.createdAt),
+      caveat: asset.caveat ?? dataRoomRequiredCaveat
+    });
   }
   return Array.from(byId.values()).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
@@ -440,7 +489,8 @@ export async function buildClientDataRoom(input: { projectKey?: string | null; p
         "validation required",
         "planned official validation",
         "screening evidence package",
-        "pilot data room foundation"
+        "pilot data room foundation",
+        "permission required"
       ],
       forbiddenClaims: [
         "verified ownership",

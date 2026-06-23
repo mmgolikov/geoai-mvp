@@ -54,7 +54,9 @@ Use this checklist before demos, Vercel deployments, and milestone checkpoints.
 
 ## Polygon AOI Drawing v1.7
 
-- [ ] `Add polygon` starts explicit drawing mode.
+- [ ] Compact map `Add polygon` control is visible on the right side of the map.
+- [ ] Compact map `Add polygon` control starts explicit drawing mode.
+- [ ] Drawing mode shows compact Undo / Cancel controls without a large map plaque.
 - [ ] Clicking vertices draws a boundary line.
 - [ ] Moving the cursor shows a live preview segment.
 - [ ] Clicking near the first vertex closes the polygon.

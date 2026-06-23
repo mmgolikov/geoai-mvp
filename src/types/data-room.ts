@@ -23,7 +23,8 @@ export type DataRoomSourceType =
   | "sample_fallback"
   | "public_snapshot"
   | "api_context"
-  | "planned_validation";
+  | "planned_validation"
+  | "permission_required";
 
 export type DataRoomValidationStatus =
   | "validation_required"

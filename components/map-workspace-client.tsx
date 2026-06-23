@@ -78,6 +78,30 @@ const initialDrawState: PolygonDrawState = {
   validationMessage: null
 };
 
+function PolygonControlIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="h-4 w-4"
+      fill="none"
+      viewBox="0 0 24 24"
+    >
+      <path
+        d="M7.5 4.75 17.4 7.2l1.85 9.15-8.55 3.05-6.45-6.65 3.25-8Z"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+      />
+      <circle cx="7.5" cy="4.75" r="1.65" fill="currentColor" />
+      <circle cx="17.4" cy="7.2" r="1.65" fill="currentColor" />
+      <circle cx="19.25" cy="16.35" r="1.65" fill="currentColor" />
+      <circle cx="10.7" cy="19.4" r="1.65" fill="currentColor" />
+      <circle cx="4.25" cy="12.75" r="1.65" fill="currentColor" />
+    </svg>
+  );
+}
+
 function getSourceId(layer: DemoLayer) {
   return `geoai-${layer.id}`;
 }
@@ -1619,76 +1643,69 @@ export function MapWorkspaceClient({
 
       {shouldShowMapboxControls ? (
         <div
-          className="absolute left-5 top-5 z-20 w-[min(320px,calc(100%-40px))] rounded-lg border border-white/75 bg-white/92 p-3 shadow-soft backdrop-blur"
+          className={`absolute z-30 flex max-w-[calc(100%-40px)] items-start justify-end gap-2 ${showLayerControls && layersExpanded ? "right-[318px] top-5" : "right-5 top-[72px]"}`}
           onClick={(event) => event.stopPropagation()}
         >
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">AOI drawing</p>
-              <h2 className="mt-0.5 truncate text-sm font-semibold text-ink">
-                {isDrawingPolygon ? "Drawing polygon" : selectedAoi ? "Polygon AOI selected" : "Add polygon"}
-              </h2>
-            </div>
-            <span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] ${
-              isDrawingPolygon ? "bg-[#fff4df] text-[#916205]" : selectedAoi ? "bg-[#edf4f2] text-brand" : "bg-surface text-muted"
-            }`}>
-              {isDrawingPolygon ? `${drawState.vertices.length} vertices` : selectedAoi ? "AOI" : "optional"}
-            </span>
-          </div>
+          {isDrawingPolygon ? (
+            <div className="w-[min(226px,calc(100vw-112px))] rounded-lg border border-white/75 bg-white/95 p-2.5 text-xs shadow-soft backdrop-blur">
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="truncate font-semibold text-ink">Drawing polygon</p>
+                  <p className="mt-0.5 text-[11px] font-semibold text-brand">
+                    {drawState.vertices.length} vertices
+                  </p>
+                </div>
+                <span className="shrink-0 rounded-full bg-[#fff4df] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#916205]">
+                  AOI
+                </span>
+              </div>
 
-          <p className="mt-2 text-xs leading-5 text-muted">
-            {drawState.validationMessage ??
-              (selectedAoi
-                ? `${formatArea(selectedAoi.measurements.areaSqM)} / ${formatPerimeter(selectedAoi.measurements.perimeterM)}. Validation required.`
-                : "Draw a custom screening boundary for polygon-based analysis.")}
-          </p>
+              <p className="mt-2 leading-4 text-muted">
+                {drawState.validationMessage ?? "Click first vertex to close."}
+              </p>
 
-          {drawMeasurements && isDrawingPolygon ? (
-            <p className="mt-1 text-[11px] font-semibold text-brand">
-              Preview: {formatArea(drawMeasurements.areaSqM)} / {formatPerimeter(drawMeasurements.perimeterM)}
-            </p>
-          ) : null}
+              {drawMeasurements ? (
+                <p className="mt-1 text-[11px] font-semibold text-brand">
+                  {formatArea(drawMeasurements.areaSqM)} / {formatPerimeter(drawMeasurements.perimeterM)}
+                </p>
+              ) : null}
 
-          <div className="mt-3 flex flex-wrap gap-2">
-            {isDrawingPolygon ? (
-              <>
+              <div className="mt-2 grid grid-cols-2 gap-1.5">
                 <button
                   type="button"
                   onClick={undoPolygonVertex}
                   disabled={drawState.vertices.length === 0}
-                  className="h-8 rounded-md border border-line bg-white px-3 text-xs font-semibold text-ink transition hover:border-brand disabled:cursor-not-allowed disabled:opacity-50"
+                  className="h-7 rounded-md border border-line bg-white px-2 text-[11px] font-semibold text-ink transition hover:border-brand disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  Undo vertex
+                  Undo
                 </button>
                 <button
                   type="button"
                   onClick={cancelPolygonDrawing}
-                  className="h-8 rounded-md border border-line bg-white px-3 text-xs font-semibold text-muted transition hover:border-brand hover:text-ink"
+                  className="h-7 rounded-md border border-line bg-white px-2 text-[11px] font-semibold text-muted transition hover:border-brand hover:text-ink"
                 >
                   Cancel
                 </button>
-              </>
-            ) : (
-              <>
-                <button
-                  type="button"
-                  onClick={startPolygonDrawing}
-                  className="h-8 rounded-md bg-brand px-3 text-xs font-semibold text-white transition hover:bg-[#113f50]"
-                >
-                  {selectedAoi ? "Replace polygon" : "Add polygon"}
-                </button>
-                {selectedAoi ? (
-                  <button
-                    type="button"
-                    onClick={deletePolygonAoi}
-                    className="h-8 rounded-md border border-line bg-white px-3 text-xs font-semibold text-muted transition hover:border-brand hover:text-ink"
-                  >
-                    Delete polygon
-                  </button>
-                ) : null}
-              </>
-            )}
-          </div>
+              </div>
+            </div>
+          ) : null}
+
+          <button
+            type="button"
+            onClick={isDrawingPolygon ? undefined : startPolygonDrawing}
+            disabled={isDrawingPolygon}
+            aria-label={isDrawingPolygon ? "Drawing polygon" : selectedAoi ? "Replace polygon" : "Add polygon"}
+            title={isDrawingPolygon ? "Drawing polygon" : selectedAoi ? "Replace polygon" : "Add polygon"}
+            className={`inline-flex h-10 w-10 items-center justify-center rounded-lg border border-white/75 shadow-soft backdrop-blur transition focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 ${
+              isDrawingPolygon
+                ? "cursor-default bg-brand text-white"
+                : selectedAoi
+                  ? "bg-[#edf4f2]/95 text-brand hover:bg-white"
+                  : "bg-white/92 text-ink hover:border-brand hover:bg-white"
+            }`}
+          >
+            <PolygonControlIcon />
+          </button>
         </div>
       ) : null}
 

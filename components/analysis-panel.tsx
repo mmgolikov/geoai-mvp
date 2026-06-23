@@ -248,6 +248,7 @@ export function AnalysisPanel({
   const [externalDataStatus, setExternalDataStatus] = useState<ExternalDataStatusResponse | null>(null);
   const [dataRoom, setDataRoom] = useState<ClientDataRoom | null>(null);
   const [dataRoomMessage, setDataRoomMessage] = useState<string | null>(null);
+  const [isAoiSaveOpen, setIsAoiSaveOpen] = useState(false);
   const hasSelectedPoint = selectedPoint !== null;
   const hasSelectedObject = selectedObject !== null;
   const hasSelectedAoi = selectedAoi !== null;
@@ -349,6 +350,10 @@ export function AnalysisPanel({
       isMounted = false;
     };
   }, [activeProject.projectKey, hasResult, projectAois.length, uploadedDatasets.length]);
+
+  useEffect(() => {
+    setIsAoiSaveOpen(false);
+  }, [selectedAoi?.id]);
 
   async function refreshDataRoom() {
     try {
@@ -577,64 +582,76 @@ export function AnalysisPanel({
               </span>
             </div>
 
-            <dl className="mt-3 grid grid-cols-2 gap-2 text-xs">
-              <div className="min-w-0 rounded-md bg-white px-2 py-2">
-                <dt className="text-muted">Lat</dt>
-                <dd className="mt-1 truncate font-semibold text-ink">
-                  {selectedPoint ? formatCoordinate(selectedPoint.latitude) : "-"}
-                </dd>
-              </div>
-              <div className="min-w-0 rounded-md bg-white px-2 py-2">
-                <dt className="text-muted">Lng</dt>
-                <dd className="mt-1 truncate font-semibold text-ink">
-                  {selectedPoint ? formatCoordinate(selectedPoint.longitude) : "-"}
-                </dd>
-              </div>
-              <div className="min-w-0 rounded-md bg-white px-2 py-2">
-                <dt className="text-muted">Type</dt>
-                <dd className="mt-1 truncate font-semibold text-ink">
-                  {hasSelectedAoi ? "Polygon AOI" : hasSelectedObject ? selectedObject.type : "Point"}
-                </dd>
-              </div>
-              <div className="min-w-0 rounded-md bg-white px-2 py-2">
-                <dt className="text-muted">Confidence</dt>
-                <dd className="mt-1 truncate font-semibold text-ink">
-                  {hasSelectedAoi
-                    ? "validation req."
-                    : selectedObject?.analysisTarget?.type === "uploaded-feature"
-                    ? "validation req."
-                    : selectedObject?.spatialContext?.confidenceLevel ?? (hasSelectedPoint ? "user" : "-")}
-                </dd>
-              </div>
-                  {hasSelectedAoi ? (
-                <>
-                  <div className="min-w-0 rounded-md bg-white px-2 py-2">
+            {hasSelectedAoi ? (
+              <>
+                <p className="mt-2 truncate text-xs leading-5 text-muted">
+                  Centroid {formatCoordinate(selectedAoi.centroid.latitude)}, {formatCoordinate(selectedAoi.centroid.longitude)} · validation required
+                </p>
+                <div className="mt-2 flex min-w-0 flex-wrap gap-1.5">
+                  <span className="rounded-full bg-white px-2 py-1 text-[10px] font-semibold text-muted">
+                    Polygon AOI
+                  </span>
+                  <span className="rounded-full bg-white px-2 py-1 text-[10px] font-semibold text-muted">
+                    {selectedAoi.sourceType === "uploaded_geojson" ? "Uploaded GeoJSON" : "User-drawn"}
+                  </span>
+                </div>
+                <dl className="mt-2 grid grid-cols-4 gap-1.5 text-[11px]">
+                  <div className="min-w-0 rounded-md bg-white px-2 py-1.5">
                     <dt className="text-muted">Area</dt>
-                    <dd className="mt-1 truncate font-semibold text-ink">
+                    <dd className="mt-0.5 truncate font-semibold text-ink">
                       {formatArea(selectedAoi.measurements.areaSqM)}
                     </dd>
                   </div>
-                  <div className="min-w-0 rounded-md bg-white px-2 py-2">
+                  <div className="min-w-0 rounded-md bg-white px-2 py-1.5">
                     <dt className="text-muted">Perimeter</dt>
-                    <dd className="mt-1 truncate font-semibold text-ink">
+                    <dd className="mt-0.5 truncate font-semibold text-ink">
                       {formatPerimeter(selectedAoi.measurements.perimeterM)}
                     </dd>
                   </div>
-                  <div className="min-w-0 rounded-md bg-white px-2 py-2">
+                  <div className="min-w-0 rounded-md bg-white px-2 py-1.5">
                     <dt className="text-muted">Vertices</dt>
-                    <dd className="mt-1 truncate font-semibold text-ink">
+                    <dd className="mt-0.5 truncate font-semibold text-ink">
                       {selectedAoi.measurements.vertexCount}
                     </dd>
                   </div>
-                  <div className="min-w-0 rounded-md bg-white px-2 py-2">
+                  <div className="min-w-0 rounded-md bg-white px-2 py-1.5">
                     <dt className="text-muted">Source</dt>
-                    <dd className="mt-1 truncate font-semibold text-ink">
+                    <dd className="mt-0.5 truncate font-semibold text-ink">
                       {selectedAoi.sourceType === "uploaded_geojson" ? "uploaded" : "drawn"}
                     </dd>
                   </div>
-                </>
-              ) : null}
-            </dl>
+                </dl>
+              </>
+            ) : (
+              <dl className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                <div className="min-w-0 rounded-md bg-white px-2 py-2">
+                  <dt className="text-muted">Lat</dt>
+                  <dd className="mt-1 truncate font-semibold text-ink">
+                    {selectedPoint ? formatCoordinate(selectedPoint.latitude) : "-"}
+                  </dd>
+                </div>
+                <div className="min-w-0 rounded-md bg-white px-2 py-2">
+                  <dt className="text-muted">Lng</dt>
+                  <dd className="mt-1 truncate font-semibold text-ink">
+                    {selectedPoint ? formatCoordinate(selectedPoint.longitude) : "-"}
+                  </dd>
+                </div>
+                <div className="min-w-0 rounded-md bg-white px-2 py-2">
+                  <dt className="text-muted">Type</dt>
+                  <dd className="mt-1 truncate font-semibold text-ink">
+                    {hasSelectedObject ? selectedObject.type : "Point"}
+                  </dd>
+                </div>
+                <div className="min-w-0 rounded-md bg-white px-2 py-2">
+                  <dt className="text-muted">Confidence</dt>
+                  <dd className="mt-1 truncate font-semibold text-ink">
+                    {selectedObject?.analysisTarget?.type === "uploaded-feature"
+                      ? "validation req."
+                      : selectedObject?.spatialContext?.confidenceLevel ?? (hasSelectedPoint ? "user" : "-")}
+                  </dd>
+                </div>
+              </dl>
+            )}
           </section>
 
           <section className="min-w-0 max-w-full overflow-hidden rounded-lg border border-line bg-white p-3">
@@ -642,9 +659,11 @@ export function AnalysisPanel({
               <div className="min-w-0">
                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">AOI Library</p>
                 <h2 className="mt-1 truncate text-sm font-semibold text-ink">
-                  {projectAois.length} saved for this project
+                  {projectAois.length > 0 ? `${projectAois.length} saved for this project` : "AOI quick actions"}
                 </h2>
-                <p className="mt-1 text-xs leading-5 text-muted">Saved AOIs stay scoped to this project.</p>
+                <p className="mt-1 truncate text-xs leading-5 text-muted">
+                  {hasSelectedAoi ? (selectedAoi.savedAoiId ? "Saved AOI selected" : "AOI not saved") : "Draw or import an AOI to start."}
+                </p>
               </div>
               <span className="shrink-0 rounded-full bg-surface px-2 py-1 text-[11px] font-semibold text-brand">
                 v1.8
@@ -652,52 +671,86 @@ export function AnalysisPanel({
             </div>
 
             {hasSelectedAoi ? (
-              <div className="mt-3 rounded-md border border-line bg-surface p-2">
-                <label htmlFor="aoi-name" className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
-                  AOI name
-                </label>
-                <input
-                  id="aoi-name"
-                  value={aoiDraftName}
-                  onChange={(event) => onAoiDraftNameChange(event.target.value)}
-                  className="mt-1 h-8 w-full rounded-md border border-line bg-white px-2 text-xs font-semibold text-ink outline-none transition focus:border-brand"
-                  placeholder="AOI name"
-                />
-                <div className="mt-2 grid grid-cols-3 gap-2">
-                  <button
-                    type="button"
-                    onClick={onSaveSelectedAoi}
-                    className="inline-flex h-8 items-center justify-center rounded-md bg-brand px-2 text-[11px] font-semibold text-white transition hover:bg-[#113f50]"
-                  >
-                    Save AOI
-                  </button>
-                  <button
-                    type="button"
-                    onClick={onExportSelectedAoi}
-                    className="inline-flex h-8 items-center justify-center rounded-md border border-line bg-white px-2 text-[11px] font-semibold text-ink transition hover:border-brand"
-                  >
-                    Export
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => aoiFileInputRef.current?.click()}
-                    className="inline-flex h-8 items-center justify-center rounded-md border border-line bg-white px-2 text-[11px] font-semibold text-ink transition hover:border-brand"
-                  >
-                    Import
-                  </button>
-                </div>
-                <p className="mt-2 text-[11px] leading-4 text-muted">
-                  {selectedAoi.sourceType === "uploaded_geojson" ? "Uploaded GeoJSON AOI" : "User-drawn AOI"}; validation required.
-                </p>
+              <div className="mt-2 rounded-md border border-line bg-surface p-2">
+                {isAoiSaveOpen ? (
+                  <div className="grid gap-2">
+                    <label htmlFor="aoi-name" className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
+                      AOI name
+                    </label>
+                    <input
+                      id="aoi-name"
+                      value={aoiDraftName}
+                      onChange={(event) => onAoiDraftNameChange(event.target.value)}
+                      className="h-8 w-full rounded-md border border-line bg-white px-2 text-xs font-semibold text-ink outline-none transition focus:border-brand"
+                      placeholder="AOI name"
+                    />
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onSaveSelectedAoi();
+                          setIsAoiSaveOpen(false);
+                        }}
+                        className="inline-flex h-8 items-center justify-center rounded-md bg-brand px-2 text-[11px] font-semibold text-white transition hover:bg-[#113f50]"
+                      >
+                        Confirm Save
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIsAoiSaveOpen(false)}
+                        className="inline-flex h-8 items-center justify-center rounded-md border border-line bg-white px-2 text-[11px] font-semibold text-muted transition hover:border-brand hover:text-ink"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+                    <div className="min-w-0">
+                      <p className="truncate text-xs font-semibold text-ink">
+                        {selectedAoi.savedAoiId ? "AOI saved" : "AOI not saved"}
+                      </p>
+                      <p className="mt-0.5 truncate text-[11px] text-muted">
+                        {selectedAoi.sourceType === "uploaded_geojson" ? "Uploaded GeoJSON AOI" : "User-drawn AOI"} / validation required
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setIsAoiSaveOpen(true)}
+                        className="inline-flex h-8 items-center justify-center rounded-md bg-brand px-2.5 text-[11px] font-semibold text-white transition hover:bg-[#113f50]"
+                      >
+                        Save
+                      </button>
+                      <button
+                        type="button"
+                        onClick={onExportSelectedAoi}
+                        className="inline-flex h-8 items-center justify-center rounded-md border border-line bg-white px-2.5 text-[11px] font-semibold text-ink transition hover:border-brand"
+                      >
+                        Export
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => aoiFileInputRef.current?.click()}
+                        className="inline-flex h-8 items-center justify-center rounded-md border border-line bg-white px-2.5 text-[11px] font-semibold text-ink transition hover:border-brand"
+                      >
+                        Import
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
-              <button
-                type="button"
-                onClick={() => aoiFileInputRef.current?.click()}
-                className="mt-3 inline-flex h-8 w-full items-center justify-center rounded-md border border-line bg-surface px-3 text-xs font-semibold text-ink transition hover:border-brand"
-              >
-                Import GeoJSON
-              </button>
+              <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-md border border-line bg-surface p-2">
+                <p className="min-w-0 truncate text-xs text-muted">Draw or import an AOI to start.</p>
+                <button
+                  type="button"
+                  onClick={() => aoiFileInputRef.current?.click()}
+                  className="inline-flex h-8 shrink-0 items-center justify-center rounded-md border border-line bg-white px-3 text-xs font-semibold text-ink transition hover:border-brand"
+                >
+                  Import
+                </button>
+              </div>
             )}
 
             <input
@@ -714,24 +767,24 @@ export function AnalysisPanel({
               <p className="mt-2 rounded-md bg-surface px-2 py-2 text-xs leading-5 text-muted">{aoiMessage}</p>
             ) : null}
 
-            <details className="mt-3 rounded-md border border-line bg-surface px-2">
-              <summary className="flex min-h-9 cursor-pointer list-none items-center justify-between gap-2 py-2 text-xs font-semibold text-ink">
+            <details className="mt-2 rounded-md border border-line bg-surface px-2">
+              <summary className="flex min-h-8 cursor-pointer list-none items-center justify-between gap-2 py-1.5 text-xs font-semibold text-ink">
                 <span>Saved AOIs</span>
                 <span className="rounded-full bg-white px-2 py-1 text-[10px] text-brand">{projectAois.length}</span>
               </summary>
-              <div className="grid max-h-48 gap-2 overflow-y-auto border-t border-line py-2 [scrollbar-width:thin]">
+              <div className="grid max-h-44 gap-2 overflow-y-auto border-t border-line py-2 [scrollbar-width:thin]">
                 {projectAois.length === 0 ? (
-                  <p className="rounded-md bg-white p-2 text-xs leading-5 text-muted">No saved AOIs yet. Draw or import an AOI to start.</p>
+                  <p className="rounded-md bg-white p-2 text-xs leading-5 text-muted">No saved AOIs yet.</p>
                 ) : (
                   projectAois.map((aoi) => (
                     <div key={aoi.id} className="rounded-md bg-white p-2">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
                           <p className="truncate text-xs font-semibold text-ink">{aoi.name}</p>
-                          <p className="mt-1 text-[11px] text-muted">
+                          <p className="mt-1 truncate text-[11px] text-muted">
                             {sourceTypeLabel(aoi.sourceType)} / {formatArea(aoi.measurements.areaSqM)}
                           </p>
-                          <p className="mt-1 text-[10px] text-muted">{validationStatusLabel(aoi.validationStatus)}</p>
+                          <p className="mt-1 truncate text-[10px] text-muted">{validationStatusLabel(aoi.validationStatus)}</p>
                         </div>
                         <button
                           type="button"

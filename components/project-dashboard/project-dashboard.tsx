@@ -921,11 +921,11 @@ export function ProjectDashboard() {
     await refreshDataRoom();
   }
 
-  async function updateChecklistStatus(itemId: string, status: ValidationChecklistStatus) {
-    const response = await fetch(`/api/data-room/checklist/${encodeURIComponent(itemId)}`, {
+  async function updateChecklistStatus(item: NonNullable<ClientDataRoom["checklist"]>[number], status: ValidationChecklistStatus) {
+    const response = await fetch(`/api/data-room/checklist/${encodeURIComponent(item.id)}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status })
+      body: JSON.stringify({ ...item, status })
     });
 
     if (!response.ok) {
@@ -1223,7 +1223,7 @@ export function ProjectDashboard() {
                               <select
                                 value={item.status}
                                 onChange={(event) => {
-                                  void updateChecklistStatus(item.id, event.target.value as ValidationChecklistStatus);
+                                  void updateChecklistStatus(item, event.target.value as ValidationChecklistStatus);
                                 }}
                                 className="h-8 rounded-md border border-line bg-white px-2 text-xs font-semibold text-ink outline-none transition focus:border-brand"
                                 aria-label={`Validation status for ${item.title}`}

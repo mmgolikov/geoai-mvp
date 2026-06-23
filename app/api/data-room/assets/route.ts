@@ -28,7 +28,8 @@ const sourceTypes: DataRoomSourceType[] = [
   "sample_fallback",
   "public_snapshot",
   "api_context",
-  "planned_validation"
+  "planned_validation",
+  "permission_required"
 ];
 const validationStatuses: DataRoomValidationStatus[] = [
   "validation_required",

@@ -35,13 +35,13 @@ The reusable type lives in `src/types/aoi.ts`.
 ## Workspace Workflow
 
 1. Open `/workspace`.
-2. Draw a polygon AOI or import a GeoJSON Polygon.
+2. Start polygon drawing from the compact map control or import a GeoJSON Polygon from the command panel.
 3. Review compact AOI metadata in the command panel.
 4. Optionally edit the AOI name.
 5. Save the AOI to the active project library.
 6. Reopen, rename, delete, export, analyze, or add the AOI to comparison.
 
-The command panel keeps the AOI Library compact so Scenario, Custom Query, and primary CTA actions remain accessible.
+The map control starts or replaces drawing. The command panel remains the place for AOI metadata, Save AOI, Import GeoJSON, Export GeoJSON, Scenario, Custom Query, and primary CTA actions.
 
 ## Project Dashboard Workflow
 

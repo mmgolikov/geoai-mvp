@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
-import { updateDataRoomChecklistItem } from "@/src/lib/repositories/data-room-repository";
-import type { ValidationChecklistItem } from "@/src/types/data-room";
+import { createDataRoomChecklistItem, updateDataRoomChecklistItem } from "@/src/lib/repositories/data-room-repository";
+import {
+  dataRoomRequiredCaveat,
+  type ValidationChecklistItem
+} from "@/src/types/data-room";
 
 export const runtime = "nodejs";
 
@@ -17,7 +20,22 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const patch = typeof body === "object" && body !== null && !Array.isArray(body)
     ? body as Partial<ValidationChecklistItem>
     : {};
-  const result = await updateDataRoomChecklistItem(id, patch);
+  let result = await updateDataRoomChecklistItem(id, patch);
+
+  if (!result.data && patch.projectKey && patch.title && patch.category && patch.priority && patch.description) {
+    result = await createDataRoomChecklistItem({
+      id,
+      projectId: patch.projectId ?? null,
+      projectKey: patch.projectKey,
+      title: patch.title,
+      category: patch.category,
+      status: patch.status ?? "required",
+      priority: patch.priority,
+      description: patch.description,
+      linkedAssetIds: patch.linkedAssetIds ?? [],
+      caveat: patch.caveat ?? dataRoomRequiredCaveat
+    });
+  }
 
   return NextResponse.json({
     ok: result.ok,

@@ -66,6 +66,7 @@ Allowed source labels include:
 - local/demo fallback
 - sample/public snapshot
 - planned official validation
+- permission required
 - screening evidence package
 
 ## Validation Checklist
