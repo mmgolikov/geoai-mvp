@@ -9,6 +9,7 @@ import type {
   PublicSourceConnectionStatus
 } from "@/src/lib/external-data/public-source-types";
 import type { SourceStatus } from "@/src/lib/external-data/source-status";
+import type { SourceDataMode } from "@/src/lib/external-data/source-modes";
 
 export type ExternalDataSource = {
   id: string;
@@ -48,6 +49,7 @@ export type DataReadinessResult = {
   sourceId: string;
   sourceName: string;
   status: DataReadinessStatus;
+  sourceMode?: SourceDataMode;
   lastUpdated: string | null;
   recordCount?: number;
   coverageArea: string;
@@ -59,7 +61,7 @@ export type SourceLineageItem = {
   sourceId: string;
   sourceName: string;
   category: ExternalDataSource["category"];
-  dataMode: DataReadinessStatus | ExternalDataSource["accessMode"];
+  dataMode: SourceDataMode | DataReadinessStatus | ExternalDataSource["accessMode"];
   usedIn: string;
   confidence: ExternalDataSource["confidence"];
   limitation: string;

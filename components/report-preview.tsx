@@ -587,6 +587,56 @@ function AnalysisReport({ analysis, onBack }: { analysis: ExpressAnalysis; onBac
           </div>
         </Section>
 
+        {analysis.aiDecisionScore ? (
+          <Section title="AI Decision Memo">
+            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-md border border-line bg-surface p-4">
+                <span className="font-semibold text-muted">Mode</span>
+                <p className="mt-1 text-ink">{analysis.aiDecisionScore.mode === "openai" ? "OpenAI scoring" : "Deterministic fallback"}</p>
+              </div>
+              <div className="rounded-md border border-line bg-surface p-4">
+                <span className="font-semibold text-muted">Decision posture</span>
+                <p className="mt-1 text-ink">{analysis.aiDecisionScore.decisionPosture.replace(/_/g, " ")}</p>
+              </div>
+              <div className="rounded-md border border-line bg-surface p-4">
+                <span className="font-semibold text-muted">Recommended use</span>
+                <p className="mt-1 text-ink">{analysis.aiDecisionScore.recommendedUse.replace(/_/g, " ")}</p>
+              </div>
+              <div className="rounded-md border border-line bg-surface p-4">
+                <span className="font-semibold text-muted">Suitability / risk</span>
+                <p className="mt-1 text-ink">{analysis.aiDecisionScore.suitabilityScore}/100 / {analysis.aiDecisionScore.riskScore}/100</p>
+              </div>
+            </div>
+            <div className="mt-4 grid gap-3 md:grid-cols-3">
+              <div className="rounded-md border border-line bg-white p-4">
+                <p className="font-semibold text-ink">Drivers</p>
+                <ul className="mt-2 space-y-2 text-sm leading-6 text-muted">
+                  {analysis.aiDecisionScore.keyDrivers.slice(0, 3).map((item, index) => (
+                    <li key={createStableKey("report-ai-driver", item, index)}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+              <div className="rounded-md border border-line bg-white p-4">
+                <p className="font-semibold text-ink">Risks</p>
+                <ul className="mt-2 space-y-2 text-sm leading-6 text-muted">
+                  {analysis.aiDecisionScore.keyRisks.slice(0, 3).map((item, index) => (
+                    <li key={createStableKey("report-ai-risk", item, index)}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+              <div className="rounded-md border border-line bg-white p-4">
+                <p className="font-semibold text-ink">Validation</p>
+                <ul className="mt-2 space-y-2 text-sm leading-6 text-muted">
+                  {analysis.aiDecisionScore.validationRequired.slice(0, 3).map((item, index) => (
+                    <li key={createStableKey("report-ai-validation", item, index)}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+            <p className="mt-4 text-sm leading-6 text-muted">{analysis.aiDecisionScore.caveat}</p>
+          </Section>
+        ) : null}
+
         <Section title="Map Context">
           <MapContextCard
             title={analysis.selectedAoi?.name ?? analysis.selectedObject?.name ?? "Custom map point"}

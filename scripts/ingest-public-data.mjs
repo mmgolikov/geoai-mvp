@@ -1,5 +1,5 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 
 const caveat = "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.";
 const mode = process.argv[2];
@@ -76,6 +76,35 @@ function readCsvWithFallback(primary, fallback) {
   return { file: selected, rows: parseCsv(readFileSync(selected, "utf8")), status: selected === primary ? "snapshot_available" : "sample_fallback" };
 }
 
+function latestDatedCsv(directory, prefix) {
+  if (!existsSync(directory)) return null;
+
+  const pattern = new RegExp(`^${prefix}_\\d{8}\\.csv$`, "i");
+  const files = readdirSync(directory)
+    .filter((file) => pattern.test(file))
+    .sort();
+
+  return files.at(-1) ? join(directory, files.at(-1)) : null;
+}
+
+function readDldCategoryCsv(category) {
+  const latest = latestDatedCsv("data/external/dld", category.expectedPrefix);
+  const simple = `data/external/dld/${category.key}.csv`;
+  const legacy = `data/external/dld/${category.expectedPrefix}.csv`;
+  const fallback = category.sampleFile ? `data/external/samples/${category.sampleFile}` : null;
+  const selected = latest ?? (existsSync(simple) ? simple : null) ?? (existsSync(legacy) ? legacy : null) ?? fallback;
+
+  if (!selected || !existsSync(selected)) {
+    return { file: latest ?? simple, rows: [], status: "manual_import_ready" };
+  }
+
+  return {
+    file: selected,
+    rows: parseCsv(readFileSync(selected, "utf8")),
+    status: selected.includes("/samples/") || selected.includes("_sample.") ? "sample_fallback" : "snapshot_available"
+  };
+}
+
 function readGeojsonWithFallback(primary, fallback) {
   const selected = existsSync(primary) ? primary : fallback;
   if (!existsSync(selected)) return { file: selected, features: [], status: unavailable };
@@ -127,21 +156,23 @@ function updateManifest(sourcePatches, generatedAt) {
 function ingestDldPublic() {
   const generatedAt = new Date().toISOString();
   const categories = [
-    ["transactions", "dld-dubai-pulse-public-transactions"],
-    ["rents", "dld-dubai-pulse-public-rents"],
-    ["projects", "dld-dubai-pulse-public-projects"],
-    ["land", "dld-dubai-pulse-public-land"],
-    ["building", "dld-dubai-pulse-public-building"],
-    ["unit", "dld-dubai-pulse-public-unit"]
+    { key: "transactions", expectedPrefix: "dld_transactions", sourceId: "dld-dubai-pulse-public-transactions", sampleFile: "dld_transactions_sample.csv" },
+    { key: "rents", expectedPrefix: "dld_rents", sourceId: "dld-dubai-pulse-public-rents", sampleFile: "dld_rents_sample.csv" },
+    { key: "projects", expectedPrefix: "dld_projects", sourceId: "dld-dubai-pulse-public-projects", sampleFile: "dld_projects_sample.csv" },
+    { key: "valuations", expectedPrefix: "dld_valuations", sourceId: "dld-dubai-pulse-public-valuations" },
+    { key: "land", expectedPrefix: "dld_land", sourceId: "dld-dubai-pulse-public-land", sampleFile: "dld_land_sample.csv" },
+    { key: "building", expectedPrefix: "dld_building", sourceId: "dld-dubai-pulse-public-building", sampleFile: "dld_building_sample.csv" },
+    { key: "unit", expectedPrefix: "dld_unit", sourceId: "dld-dubai-pulse-public-unit", sampleFile: "dld_unit_sample.csv" },
+    { key: "brokers", expectedPrefix: "dld_brokers", sourceId: "dld-dubai-pulse-public-brokers" },
+    { key: "developers", expectedPrefix: "dld_developers", sourceId: "dld-dubai-pulse-public-developers" }
   ];
   const categoryReports = {};
   const marketRows = [];
   const manifestSources = [];
 
-  for (const [category, sourceId] of categories) {
-    const input = `data/external/dld/${category}.csv`;
-    const fallback = `data/external/samples/dld_${category}_sample.csv`;
-    const { file, rows, status } = readCsvWithFallback(input, fallback);
+  for (const categoryConfig of categories) {
+    const { key: category, sourceId } = categoryConfig;
+    const { file, rows, status } = readDldCategoryCsv(categoryConfig);
     const normalizedRows = rows.map((row, index) => {
       const areaName = row.area_name || row.community || row.master_project || row.project_name || row.location || `Dubai sample area ${index + 1}`;
       marketRows.push({
@@ -165,7 +196,7 @@ function ingestDldPublic() {
       generatedAt,
       version: "1.6",
       sourceId,
-      status: rows.length > 0 ? normalizeStatus(status) : unavailable,
+      status: rows.length > 0 ? normalizeStatus(status) : "manual_import_ready",
       category,
       recordCount: normalizedRows.length,
       records: normalizedRows,
@@ -173,15 +204,17 @@ function ingestDldPublic() {
     });
     categoryReports[category] = {
       sourceId,
-      status: rows.length > 0 ? normalizeStatus(status) : unavailable,
+      status: rows.length > 0 ? normalizeStatus(status) : "manual_import_ready",
       inputFile: file,
       outputFile: output,
       recordCount: normalizedRows.length,
-      missingFields: rows.length === 0 ? ["all"] : []
+      qualityNotes: rows.length === 0
+        ? [`No ${categoryConfig.expectedPrefix}_YYYYMMDD.csv snapshot found. Manual import ready.`]
+        : [`Loaded ${rows.length} row(s) from ${file}.`]
     };
     manifestSources.push({
       id: sourceId,
-      status: rows.length > 0 ? normalizeStatus(status) : "sample_fallback",
+      status: rows.length > 0 ? normalizeStatus(status) : "manual_import_ready",
       lastUpdated: generatedAt,
       availableFiles: [file, output],
       recordCount: normalizedRows.length,

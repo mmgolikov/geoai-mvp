@@ -7,6 +7,7 @@ import { listComparisonSets } from "@/src/lib/repositories/comparison-set-reposi
 import { listAois } from "@/src/lib/repositories/aoi-repository";
 import { listDataRoomAssets, listDataRoomChecklist } from "@/src/lib/repositories/data-room-repository";
 import { listUploadedDatasetRecords } from "@/src/lib/repositories/uploaded-dataset-repository";
+import { getExternalDataReadiness } from "@/src/lib/external-data/data-manifest";
 import {
   dataRoomRequiredCaveat,
   dataRoomStorageCaveat,
@@ -239,24 +240,32 @@ function comparisonAsset(value: unknown, project: GeoAIProject): DataRoomAsset {
 }
 
 function externalSourceAssets(project: GeoAIProject): DataRoomAsset[] {
+  const readinessById = new Map(getExternalDataReadiness().map((item) => [item.sourceId, item]));
+
   return dataSourceRegistry
     .filter((source) => source.usedInCurrentPrototype || source.plannedForPilot)
     .slice(0, 7)
     .map((source) => {
+      const readiness = readinessById.get(source.id)
+        ?? (source.id === "dubai-pulse-dld-apis" ? readinessById.get("dld-dubai-pulse-transactions") : undefined)
+        ?? (source.id === "osm-geofabrik" ? readinessById.get("osm-geofabrik-baseline") : undefined);
       const timestamp = toIsoDate(source.lastUpdated);
+      const isSnapshotEvidence = readiness?.status === "snapshot_available" && Boolean(readiness.recordCount && readiness.recordCount > 0);
 
       return dataRoomAsset({
         id: `source-${project.projectKey}-${source.id}`,
         projectId: project.id,
         projectKey: project.projectKey,
         name: source.name,
-        description: source.limitations ?? source.description,
+        description: readiness
+          ? `${readiness.status.replace(/_/g, " ")} / ${readiness.recordCount ?? 0} record(s). ${readiness.caveat}`
+          : source.limitations ?? source.description,
         assetType: "external_source",
-        sourceType: assetSourceTypeFromDataSource(source),
-        validationStatus: validationStatusFromDataSource(source),
-        createdAt: timestamp,
-        updatedAt: timestamp,
-        caveat: source.limitations ?? dataRoomRequiredCaveat
+        sourceType: isSnapshotEvidence ? "public_snapshot" : assetSourceTypeFromDataSource(source),
+        validationStatus: isSnapshotEvidence ? "validation_required" : validationStatusFromDataSource(source),
+        createdAt: readiness?.lastUpdated ?? timestamp,
+        updatedAt: readiness?.lastUpdated ?? timestamp,
+        caveat: readiness?.caveat ?? source.limitations ?? dataRoomRequiredCaveat
       });
     });
 }

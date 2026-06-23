@@ -6,6 +6,7 @@ import type { MarketContext } from "@/src/types/market-context";
 import type { SpatialSelectionContext } from "@/src/types/spatial-data";
 import type { UploadedDataContext } from "@/src/types/uploaded-data";
 import type { AoiDataMode, AoiSourceType, AoiValidationStatus } from "@/src/types/aoi";
+import type { DecisionScoreResult } from "@/src/lib/ai/decision-scoring-schema";
 
 export type SelectedPoint = {
   latitude: number;
@@ -134,6 +135,7 @@ export type ExpressAnalysis = {
   customQueryIntent?: string;
   customQuerySummary?: string;
   customQueryAnswer?: CustomQueryAnswer;
+  aiDecisionScore?: DecisionScoreResult;
 };
 
 export type ComparisonItem = {

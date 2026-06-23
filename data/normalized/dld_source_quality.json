@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-22T22:26:22.926Z",
+  "generatedAt": "2026-06-23T22:04:15.054Z",
   "version": "1.6",
   "status": "ok",
   "totalRecords": 18,
@@ -10,7 +10,9 @@
       "inputFile": "data/external/samples/dld_transactions_sample.csv",
       "outputFile": "data/normalized/dld_transactions_snapshot.json",
       "recordCount": 3,
-      "missingFields": []
+      "qualityNotes": [
+        "Loaded 3 row(s) from data/external/samples/dld_transactions_sample.csv."
+      ]
     },
     "rents": {
       "sourceId": "dld-dubai-pulse-public-rents",
@@ -18,7 +20,9 @@
       "inputFile": "data/external/samples/dld_rents_sample.csv",
       "outputFile": "data/normalized/dld_rents_snapshot.json",
       "recordCount": 3,
-      "missingFields": []
+      "qualityNotes": [
+        "Loaded 3 row(s) from data/external/samples/dld_rents_sample.csv."
+      ]
     },
     "projects": {
       "sourceId": "dld-dubai-pulse-public-projects",
@@ -26,7 +30,19 @@
       "inputFile": "data/external/samples/dld_projects_sample.csv",
       "outputFile": "data/normalized/dld_projects_snapshot.json",
       "recordCount": 3,
-      "missingFields": []
+      "qualityNotes": [
+        "Loaded 3 row(s) from data/external/samples/dld_projects_sample.csv."
+      ]
+    },
+    "valuations": {
+      "sourceId": "dld-dubai-pulse-public-valuations",
+      "status": "manual_import_ready",
+      "inputFile": "data/external/dld/valuations.csv",
+      "outputFile": "data/normalized/dld_valuations_snapshot.json",
+      "recordCount": 0,
+      "qualityNotes": [
+        "No dld_valuations_YYYYMMDD.csv snapshot found. Manual import ready."
+      ]
     },
     "land": {
       "sourceId": "dld-dubai-pulse-public-land",
@@ -34,7 +50,9 @@
       "inputFile": "data/external/samples/dld_land_sample.csv",
       "outputFile": "data/normalized/dld_land_snapshot.json",
       "recordCount": 3,
-      "missingFields": []
+      "qualityNotes": [
+        "Loaded 3 row(s) from data/external/samples/dld_land_sample.csv."
+      ]
     },
     "building": {
       "sourceId": "dld-dubai-pulse-public-building",
@@ -42,7 +60,9 @@
       "inputFile": "data/external/samples/dld_building_sample.csv",
       "outputFile": "data/normalized/dld_building_snapshot.json",
       "recordCount": 3,
-      "missingFields": []
+      "qualityNotes": [
+        "Loaded 3 row(s) from data/external/samples/dld_building_sample.csv."
+      ]
     },
     "unit": {
       "sourceId": "dld-dubai-pulse-public-unit",
@@ -50,7 +70,29 @@
       "inputFile": "data/external/samples/dld_unit_sample.csv",
       "outputFile": "data/normalized/dld_unit_snapshot.json",
       "recordCount": 3,
-      "missingFields": []
+      "qualityNotes": [
+        "Loaded 3 row(s) from data/external/samples/dld_unit_sample.csv."
+      ]
+    },
+    "brokers": {
+      "sourceId": "dld-dubai-pulse-public-brokers",
+      "status": "manual_import_ready",
+      "inputFile": "data/external/dld/brokers.csv",
+      "outputFile": "data/normalized/dld_brokers_snapshot.json",
+      "recordCount": 0,
+      "qualityNotes": [
+        "No dld_brokers_YYYYMMDD.csv snapshot found. Manual import ready."
+      ]
+    },
+    "developers": {
+      "sourceId": "dld-dubai-pulse-public-developers",
+      "status": "manual_import_ready",
+      "inputFile": "data/external/dld/developers.csv",
+      "outputFile": "data/normalized/dld_developers_snapshot.json",
+      "recordCount": 0,
+      "qualityNotes": [
+        "No dld_developers_YYYYMMDD.csv snapshot found. Manual import ready."
+      ]
     }
   },
   "caveat": "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.",

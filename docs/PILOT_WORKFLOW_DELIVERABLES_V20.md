@@ -131,6 +131,8 @@ It does not duplicate Data Room storage logic and does not add durable productio
 
 Repository mode naming is normalized in [Repository Mode & Fallback Consistency v2.0.2](REPOSITORY_MODE_FALLBACK_CONSISTENCY_V202.md). Pilot Workflow routes use `local_fallback` until durable Supabase/PostGIS storage is configured and successfully used. The user-facing label is "Local/API fallback".
 
+In v2.1, Pilot Workflow can read current external data readiness from the Data Room summary. Imported/snapshot market evidence may mark the market comparable input as `provided_unvalidated`; sample fallback alone remains caveated and must not be treated as validated client evidence.
+
 ## UI Placement
 
 Projects dashboard:

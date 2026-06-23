@@ -54,12 +54,14 @@ type MarketMetricsSummary = {
   count: number;
   availableAreaNames: string[];
   fallbackStatus: string;
+  message?: string;
 };
 
 type ExternalDataStatus = {
   readiness?: Array<{
     sourceId: string;
     status: string;
+    sourceMode?: string;
     recordCount?: number;
     coverageArea: string;
     confidence: string;
@@ -74,6 +76,7 @@ type ExternalDataStatus = {
       featureCount?: number;
       coverageArea?: string;
       confidence?: string;
+      sourceMode?: string;
       caveat?: string;
       disclaimer?: string;
     }>;
@@ -253,15 +256,12 @@ function createInitialMarketMetrics(): MarketMetricsSummary {
     : [];
 
   if (areas.length > 0) {
-    const sourceStatus = normalizeSourceStatus((dldMarketSnapshotStatic as { source?: { status?: string } }).source?.status);
-
     return {
-      sourceMode: sourceStatus === "snapshot_available" ? "real_snapshot" : "sample_fallback",
+      sourceMode: "sample_fallback",
       count: areas.length,
       availableAreaNames: areas.map((area) => area.areaName ?? "Unknown area"),
-      fallbackStatus: sourceStatus === "snapshot_available"
-        ? "Manual/offline snapshot available - not live official data."
-        : "Sample metrics available - manual/offline import; not live official data."
+      fallbackStatus: "Snapshot sample records available - manual/offline import; not live official data.",
+      message: "Bundled snapshot sample records are available for screening context."
     };
   }
 
@@ -824,10 +824,11 @@ export function ProjectDashboard() {
   const copernicusReadiness = getReadiness("copernicus-sentinel-metadata") ?? getReadiness("copernicus-sentinel-catalog");
   const geodubaiReadiness = getReadiness("geodubai-municipality-validation");
   const marketSnapshotAvailable = marketMetrics?.sourceMode === "real_snapshot" && importedAreas > 0;
+  const marketSnapshotContextAvailable = importedAreas > 0 && ["real_snapshot", "imported_snapshot", "sample_fallback"].includes(marketMetrics?.sourceMode ?? "");
   const dldSnapshotAvailable = (
     dldReadiness?.status === "snapshot_available"
     && Boolean(dldReadiness.recordCount && dldReadiness.recordCount > 0)
-  ) || marketSnapshotAvailable;
+  ) || marketSnapshotAvailable || marketSnapshotContextAvailable;
   const dldRecordCount = dldReadiness?.recordCount ?? importedAreas;
   const projectReadinessRows: ProjectReadinessRow[] = [
     {
