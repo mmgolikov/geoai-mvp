@@ -737,7 +737,8 @@ export function AnalysisPanel({
             )}
           </section>
 
-          <section className="min-w-0 max-w-full overflow-hidden rounded-lg border border-line bg-white p-3">
+          {/* Secondary AOI tooling stays below Scenario/Custom Query so the command panel remains analysis-first. */}
+          <section className="order-[20] min-w-0 max-w-full overflow-hidden rounded-lg border border-line bg-white p-3">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">AOI Library</p>
@@ -1113,7 +1114,7 @@ export function AnalysisPanel({
           ) : null}
         </div>
 
-        <div className="mt-3 grid min-w-0 max-w-full gap-2 overflow-hidden">
+        <div className="order-[30] mt-3 grid min-w-0 max-w-full gap-2 overflow-hidden">
           <CollapsedSection
             title="Market Context"
             badge={isMarketContextLoading ? "loading" : contextStatus}
