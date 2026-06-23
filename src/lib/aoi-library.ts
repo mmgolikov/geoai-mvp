@@ -97,7 +97,7 @@ function extractPolygonFeature(parsed: unknown): { geometry: GeoJSON.Polygon; pr
       return {
         geometry: polygonFeatures[0].geometry as GeoJSON.Polygon,
         properties: polygonFeatures[0].properties,
-        warning: "Multiple Polygon features found. Imported the first Polygon for v1.8."
+        warning: "Multiple polygons detected. Imported the first polygon only. MultiPolygon / multiple AOI import is planned."
       };
     }
     return { geometry: polygonFeatures[0].geometry as GeoJSON.Polygon, properties: polygonFeatures[0].properties };
@@ -120,6 +120,14 @@ export function validationStatusLabel(status: AoiValidationStatus) {
   if (status === "official_validation_planned") return "Official validation planned";
   if (status === "user_provided_unvalidated") return "User-provided geometry";
   return "Validation required";
+}
+
+export function userDrawnAoiSourceLabel(aoi: UserDrawnAoi) {
+  return aoi.sourceType === "uploaded_geojson" ? "Uploaded GeoJSON AOI" : "User-drawn AOI";
+}
+
+export function userDrawnAoiSourceCode(aoi: UserDrawnAoi) {
+  return aoi.sourceType === "uploaded_geojson" ? "uploaded_geojson_polygon" : "user_drawn_polygon";
 }
 
 export function safeAoiFilename(name: string) {

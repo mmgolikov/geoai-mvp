@@ -1,6 +1,7 @@
 "use client";
 
 import { ReportMapPreview } from "@/components/report-map-preview";
+import { userDrawnAoiSourceLabel } from "@/src/lib/aoi-library";
 import type { AnalysisTarget, ComparisonResult, SelectedDemoObject, SelectedPoint, UserDrawnAoi } from "@/src/types/geo";
 
 type MapContextCardProps = {
@@ -27,7 +28,9 @@ export function MapContextCard({
   compact = false,
   reportMode = false
 }: MapContextCardProps) {
-  const contextNote = selectedAoi || analysisTarget?.type === "user-drawn-aoi"
+  const contextNote = selectedAoi
+    ? `${userDrawnAoiSourceLabel(selectedAoi)} is screening context only; official parcel, zoning, cadastral, planning and ownership validation is required.`
+    : analysisTarget?.type === "user-drawn-aoi"
     ? "User-drawn AOI is screening context only; official parcel, zoning, cadastral, planning and ownership validation is required."
     : analysisTarget?.type === "uploaded-feature"
     ? "Selected geometry is user-uploaded screening context; official validation is required before decisions."

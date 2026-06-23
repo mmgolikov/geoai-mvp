@@ -723,6 +723,28 @@ export function WorkspaceShell() {
 
   useEffect(() => {
     setProjectAois(filterAoisByProject(readBrowserAois(), activeProject.projectKey));
+    let isMounted = true;
+
+    fetch(`/api/aois?projectKey=${encodeURIComponent(activeProject.projectKey)}`)
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload: { items?: ProjectAoi[] } | null) => {
+        if (!isMounted || !Array.isArray(payload?.items)) return;
+
+        const browserAois = filterAoisByProject(readBrowserAois(), activeProject.projectKey);
+        const byId = new Map<string, ProjectAoi>();
+        for (const item of browserAois) byId.set(item.id, item);
+        for (const item of payload.items) byId.set(item.id, item);
+        const merged = filterAoisByProject(Array.from(byId.values()), activeProject.projectKey);
+        updateProjectAois(() => merged);
+      })
+      .catch(() => undefined);
+
+    return () => {
+      isMounted = false;
+    };
+    // `updateProjectAois` reads the current active project and intentionally
+    // mirrors server fallback AOIs into browser-local continuity.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeProject.projectKey]);
 
   useEffect(() => {
@@ -1131,6 +1153,11 @@ export function WorkspaceShell() {
   }
 
   async function importAoiGeojson(file: File) {
+    if (file.size > 5 * 1024 * 1024) {
+      setAoiMessage("GeoJSON file is too large for v1.8. Keep AOI imports under 5 MB.");
+      return;
+    }
+
     try {
       const text = await file.text();
       const parsed = parseGeojsonAoi(text, {
