@@ -47,6 +47,7 @@ OpenAI is optional. If `OPENAI_API_KEY` is not configured, GeoAI automatically u
 - Supabase/PostGIS Durable Persistence Foundation v2.3 with additive migration SQL, schema readiness checks, RLS draft and audit event foundation
 - Pilot Infrastructure Activation v2.4 with guarded migration/seed/verify scripts, activation status APIs, soft access metadata, audit integration, storage readiness and known limitations tracker
 - Validation Governance & Official Connector Readiness v2.5 for project validation evidence metadata, official connector readiness, report appendices and AI claim guardrails
+- Secure File Storage & Evidence Uploads v2.6 foundation with evidence file metadata, storage readiness, server-side upload/download APIs, report appendix file metadata and Supabase Storage policy draft
 - Pilot Readiness & Client Delivery Package v1.1 with client-specific pilot packages, readiness scoring, setup checklist and deliverable framing
 - Offline DLD / Dubai Pulse CSV ingestion prototype with normalized sample outputs
 - API routes for health, demo objects, and analysis
@@ -134,6 +135,7 @@ npm run supabase:migrate:check
 npm run supabase:migrate:apply
 npm run supabase:seed:pilot-foundation
 npm run supabase:verify:persistence
+npm run storage:check
 npm run ingest:dld:snapshot
 npm run ingest:osm:snapshot
 npm run data:status
@@ -244,6 +246,14 @@ GeoAI now includes a validation governance foundation for project-scoped evidenc
 This is not a live official DLD, Dubai Pulse, GeoDubai or Dubai Municipality integration. It does not certify ownership, zoning, cadastral status, planning approval, suitability or valuation. Outputs remain a screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.
 
 See [Validation Governance & Official Connector Readiness v2.5](docs/VALIDATION_GOVERNANCE_OFFICIAL_CONNECTOR_READINESS_V25.md) and the [v2.5 release note](docs/RELEASE_GEOAI_VALIDATION_GOVERNANCE_V25.md).
+
+## Secure File Storage & Evidence Uploads v2.6
+
+GeoAI now includes a storage-ready evidence file workflow for validation evidence and the Client Data Room. When Supabase Storage is not configured, uploads register metadata only and the UI/API clearly state that binary storage is unavailable.
+
+This is not secure enterprise storage until buckets, policies, signed URL flows and access enforcement are configured and verified. Uploaded evidence requires review; it is not a legal, cadastral, zoning, planning, ownership or valuation conclusion.
+
+See [Secure File Storage & Evidence Uploads v2.6](docs/SECURE_FILE_STORAGE_EVIDENCE_UPLOADS_V26.md).
 
 ## Data Credibility Sprint v0.5
 

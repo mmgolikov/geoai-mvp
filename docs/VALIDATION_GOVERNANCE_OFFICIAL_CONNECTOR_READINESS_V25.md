@@ -75,6 +75,12 @@ This release does not add live official DLD, Dubai Pulse, GeoDubai or Dubai Muni
 
 Evidence mutation routes use soft project access in the public demo and local/API fallback storage when durable Supabase persistence is not configured.
 
+## v2.6 Evidence File Upload Linkage
+
+Secure File Storage & Evidence Uploads v2.6 extends validation governance with `EvidenceFileAsset` metadata and `/api/storage/evidence-files` routes. Files can be linked to validation evidence, AOIs, reports and Data Room assets, but uploading a file never means official validation.
+
+If Supabase Storage is not configured, the workflow records metadata only and download remains unavailable. See [Secure File Storage & Evidence Uploads v2.6](SECURE_FILE_STORAGE_EVIDENCE_UPLOADS_V26.md).
+
 ## UI Behavior
 
 `/projects` shows a compact Validation Governance panel with:

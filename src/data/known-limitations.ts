@@ -55,12 +55,12 @@ export const knownLimitations: KnownLimitation[] = [
     id: "secure_file_storage",
     title: "Secure file storage",
     currentStatus: "foundation_ready",
-    whatExists: "Storage readiness endpoint and required bucket names.",
-    whatIsMissing: "Supabase Storage buckets, private policies, signed upload/download flows and access verification.",
-    nextAction: "Create private buckets and verify signed URL flows with project access enforcement.",
+    whatExists: "Storage health, bucket policy draft, evidence upload/download APIs, file metadata model and metadata-only fallback.",
+    whatIsMissing: "Configured Supabase Storage buckets, applied private policies, verified signed upload/download flows and hard access enforcement.",
+    nextAction: "Configure Supabase Storage, apply the v2.6 bucket policy draft and verify signed URL flows with project access enforcement.",
     caveat: "Storage readiness is not secure enterprise storage until buckets, policies, signed URL flows and access enforcement are configured and verified.",
-    relatedRoutes: ["/api/storage/health"],
-    relatedDocs: ["/docs/PILOT_INFRASTRUCTURE_ACTIVATION_V24.md"]
+    relatedRoutes: ["/api/storage/health", "/api/storage/evidence-files"],
+    relatedDocs: ["/docs/PILOT_INFRASTRUCTURE_ACTIVATION_V24.md", "/docs/SECURE_FILE_STORAGE_EVIDENCE_UPLOADS_V26.md"]
   },
   {
     id: "audit_trail",

@@ -20,7 +20,12 @@ export const auditEventTypeLabels = {
   validation_evidence_updated: "Validation evidence updated",
   validation_evidence_deleted: "Validation evidence deleted",
   validation_connector_reviewed: "Validation connector reviewed",
-  report_validation_appendix_viewed: "Report validation appendix viewed"
+  report_validation_appendix_viewed: "Report validation appendix viewed",
+  evidence_file_uploaded: "Evidence file uploaded",
+  evidence_file_metadata_created: "Evidence file metadata created",
+  evidence_file_download_requested: "Evidence file download requested",
+  evidence_file_deleted: "Evidence file deleted",
+  storage_health_checked: "Storage health checked"
 } as const;
 
 export type AuditEventType = keyof typeof auditEventTypeLabels;

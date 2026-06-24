@@ -257,6 +257,23 @@ Use this checklist before demos, Vercel deployments, and milestone checkpoints.
 - [ ] `/api/known-limitations` includes validation connector, DLD, GeoDubai, cadastral/zoning/ownership and valuation limitations.
 - [ ] No UI or docs claim live official integration, certified valuation, legal conclusion, cadastral validation, ownership verification or zoning approval.
 
+## Secure File Storage & Evidence Uploads v2.6
+
+- [ ] `npm run storage:check` reports provider mode, buckets, 5 MB limit and storage caveat without secrets.
+- [ ] `GET /api/storage/health` returns provider, repository mode, required buckets, missing buckets, signed URL readiness, blockers and next actions.
+- [ ] `GET /api/storage/evidence-files?projectKey=dubai-investment-screening-demo` returns metadata list safely.
+- [ ] `POST /api/storage/evidence-files` accepts a small allowed file and returns Supabase upload or metadata-only fallback.
+- [ ] Unsupported file type upload returns 400 with a friendly message.
+- [ ] Oversized file upload returns 400 with a friendly message.
+- [ ] `GET /api/storage/evidence-files/[id]/download` returns signed URL only when storage is configured; metadata-only fallback returns controlled unavailable response.
+- [ ] `DELETE /api/storage/evidence-files/[id]` marks/deletes metadata and does not crash if binary storage is absent.
+- [ ] `/projects` shows Evidence Files / Storage compactly with provider, bucket status, count, metadata-only count and caveat.
+- [ ] `/workspace` Validation Evidence block remains collapsed and includes Attach evidence file as secondary action.
+- [ ] Data Room latest assets include evidence file metadata.
+- [ ] Report Validation Appendix lists linked evidence file metadata and download availability.
+- [ ] Uploading evidence never changes validation status to official validated automatically.
+- [ ] No UI claims secure enterprise storage while storage is unconfigured or unverified.
+
 ## External Data v1.4
 
 - [ ] `GET /api/external-data/manifest` returns v1.4 manifest JSON.

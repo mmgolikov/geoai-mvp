@@ -101,12 +101,15 @@ Required caveat: This is not a certified audit trail.
 Required bucket names:
 
 - `geoai-data-room-assets`
+- `geoai-validation-evidence`
 - `geoai-report-exports`
 - `geoai-aoi-imports`
 
 `/api/storage/health` reports bucket reachability, allowed MIME types, max file-size guidance and signed URL readiness. v2.4 does not upload protected files.
 
 Required caveat: Storage readiness is not secure enterprise storage until buckets, policies, signed URL flows and access enforcement are configured and verified.
+
+v2.6 adds the evidence-file upload/download API foundation, metadata-only fallback and Supabase Storage bucket policy draft. See [Secure File Storage & Evidence Uploads v2.6](SECURE_FILE_STORAGE_EVIDENCE_UPLOADS_V26.md).
 
 ## UI Surface
 

@@ -29,6 +29,7 @@ import type { GuidedDemoPreset } from "@/src/data/guided-demo";
 import type { UploadedDataset } from "@/src/types/uploaded-data";
 import type { ProjectAoi } from "@/src/types/aoi";
 import type { ClientDataRoom, DataRoomAssetType } from "@/src/types/data-room";
+import type { EvidenceFileAsset } from "@/src/types/storage";
 import type {
   ClientInputItem,
   ClientInputStatus,
@@ -155,6 +156,18 @@ type ValidationGovernanceResponse = {
   };
 };
 
+type StorageHealthResponse = {
+  provider: "supabase_storage" | "local_metadata_only" | "disabled";
+  storageReady: boolean;
+  bucketReady: boolean;
+  maxFileSizeBytes: number;
+  caveat: string;
+};
+
+type EvidenceFilesResponse = {
+  items?: EvidenceFileAsset[];
+};
+
 function formatCoordinate(value: number) {
   return value.toFixed(6);
 }
@@ -277,6 +290,7 @@ export function AnalysisPanel({
   const { authStatus, roleLabel, isAuthenticated, user } = useAuth();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const aoiFileInputRef = useRef<HTMLInputElement | null>(null);
+  const evidenceFileInputRef = useRef<HTMLInputElement | null>(null);
   const [externalDataStatus, setExternalDataStatus] = useState<ExternalDataStatusResponse | null>(null);
   const [dataRoom, setDataRoom] = useState<ClientDataRoom | null>(null);
   const [dataRoomMessage, setDataRoomMessage] = useState<string | null>(null);
@@ -284,6 +298,8 @@ export function AnalysisPanel({
   const [pilotWorkflowMessage, setPilotWorkflowMessage] = useState<string | null>(null);
   const [validationGovernance, setValidationGovernance] = useState<ValidationGovernanceResponse | null>(null);
   const [validationMessage, setValidationMessage] = useState<string | null>(null);
+  const [storageHealth, setStorageHealth] = useState<StorageHealthResponse | null>(null);
+  const [evidenceFiles, setEvidenceFiles] = useState<EvidenceFileAsset[]>([]);
   const [isAoiSaveOpen, setIsAoiSaveOpen] = useState(false);
   const hasSelectedPoint = selectedPoint !== null;
   const hasSelectedObject = selectedObject !== null;
@@ -428,6 +444,31 @@ export function AnalysisPanel({
   useEffect(() => {
     let isMounted = true;
 
+    Promise.all([
+      fetch("/api/storage/health").then((response) => (response.ok ? response.json() : null)),
+      fetch(`/api/storage/evidence-files?projectKey=${encodeURIComponent(activeProject.projectKey)}`).then((response) => (response.ok ? response.json() : null))
+    ])
+      .then(([storagePayload, filesPayload]: [StorageHealthResponse | null, EvidenceFilesResponse | null]) => {
+        if (!isMounted) return;
+        setStorageHealth(storagePayload);
+        setEvidenceFiles(Array.isArray(filesPayload?.items) ? filesPayload.items : []);
+      })
+      .catch(() => {
+        if (!isMounted) {
+          return;
+        }
+        setStorageHealth(null);
+        setEvidenceFiles([]);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [activeProject.projectKey, selectedAoi?.id, hasResult]);
+
+  useEffect(() => {
+    let isMounted = true;
+
     fetch(`/api/pilot-workflow?projectKey=${encodeURIComponent(activeProject.projectKey)}`)
       .then((response) => (response.ok ? response.json() : null))
       .then((payload: PilotWorkflowSummary | null) => {
@@ -481,6 +522,50 @@ export function AnalysisPanel({
     } catch {
       setValidationMessage("Validation governance summary unavailable.");
     }
+  }
+
+  async function refreshEvidenceFiles() {
+    try {
+      const response = await fetch(`/api/storage/evidence-files?projectKey=${encodeURIComponent(activeProject.projectKey)}`);
+      if (!response.ok) return;
+      const payload = await response.json() as EvidenceFilesResponse;
+      setEvidenceFiles(Array.isArray(payload.items) ? payload.items : []);
+    } catch {
+      setValidationMessage("Evidence file summary unavailable.");
+    }
+  }
+
+  async function attachEvidenceFile(file: File) {
+    const maxFileSize = storageHealth?.maxFileSizeBytes ?? 5 * 1024 * 1024;
+    if (file.size > maxFileSize) {
+      setValidationMessage("Keep evidence uploads under the 5 MB MVP limit.");
+      return;
+    }
+
+    const linkedAoiId = selectedAoi?.savedAoiId ?? selectedAoi?.id;
+    const preferredEvidence = validationGovernance?.evidence?.find((item) =>
+      linkedAoiId ? item.linkedAoiIds?.includes(linkedAoiId) : true
+    );
+    const formData = new FormData();
+    formData.append("projectId", activeProject.id ?? "");
+    formData.append("projectKey", activeProject.projectKey);
+    formData.append("notes", linkedAoiId ? "Attached from Workspace selected AOI." : "Attached from Workspace validation evidence block.");
+    if (preferredEvidence?.id) formData.append("validationEvidenceId", preferredEvidence.id);
+    if (linkedAoiId) formData.append("aoiId", linkedAoiId);
+    if (currentAnalysis?.id) formData.append("reportId", currentAnalysis.id);
+    formData.append("file", file);
+
+    const response = await fetch("/api/storage/evidence-files", { method: "POST", body: formData });
+    const payload = await response.json() as { ok?: boolean; message?: string; dataHonesty?: string };
+    setValidationMessage(payload.ok === false
+      ? payload.message ?? "Evidence file could not be attached."
+      : storageHealth?.storageReady
+        ? "Evidence file attached. Review is required before changing validation posture."
+        : "Evidence file metadata attached. Binary storage is not configured.");
+    await refreshEvidenceFiles();
+    await refreshValidationGovernance();
+    await refreshDataRoom();
+    await refreshPilotWorkflow();
   }
 
   async function addValidationEvidenceForSelection() {
@@ -1353,10 +1438,49 @@ export function AnalysisPanel({
               >
                 {selectedAoi ? "Link evidence to selected AOI" : "Add validation evidence"}
               </button>
+              <button
+                type="button"
+                onClick={() => evidenceFileInputRef.current?.click()}
+                className="inline-flex h-8 w-full items-center justify-center rounded-md border border-line bg-white px-3 text-xs font-semibold text-ink transition hover:border-brand"
+              >
+                Attach evidence file
+              </button>
+              <input
+                ref={evidenceFileInputRef}
+                type="file"
+                className="hidden"
+                accept=".pdf,.csv,.json,.geojson,.png,.jpg,.jpeg,.xlsx,.docx,application/pdf,text/csv,application/json,application/geo+json,image/png,image/jpeg,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                onChange={(event) => {
+                  const file = event.currentTarget.files?.[0];
+                  if (file) void attachEvidenceFile(file);
+                  event.currentTarget.value = "";
+                }}
+              />
+              <div className="rounded-md border border-line bg-white p-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Evidence files</p>
+                <div className="mt-2 grid gap-1">
+                  {evidenceFiles.length > 0 ? (
+                    evidenceFiles.slice(0, 3).map((file) => (
+                      <div key={file.id} className="rounded-md bg-surface px-2 py-2">
+                        <p className="truncate text-xs font-semibold text-ink">{file.fileName}</p>
+                        <p className="mt-1 text-[11px] leading-4 text-muted">
+                          {formatDataRoomLabel(file.objectStatus)} / {formatDataRoomLabel(file.storageProvider)}
+                        </p>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-xs leading-5 text-muted">No evidence files attached yet.</p>
+                  )}
+                </div>
+              </div>
               {validationMessage ? (
                 <p className="rounded-md bg-surface px-2 py-2 text-xs leading-5 text-muted">{validationMessage}</p>
               ) : null}
               <p className="text-[11px] leading-4 text-muted">
+                {storageHealth?.storageReady
+                  ? "Uploaded evidence requires review before validation posture changes."
+                  : "Metadata-only fallback; binary file storage not configured."}
+                {" "}
                 {validationSummary?.caveat ?? "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."}
               </p>
             </div>

@@ -57,6 +57,7 @@ export type ValidationEvidence = {
   linkedAnalysisIds?: string[];
   linkedReportIds?: string[];
   linkedDataRoomAssetIds?: string[];
+  linkedEvidenceFileIds?: string[];
   sourceCategory: ValidationSourceCategory;
   sourceName: string;
   accessMode: ValidationAccessMode;

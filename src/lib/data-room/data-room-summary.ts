@@ -6,6 +6,7 @@ import { listReports } from "@/src/lib/db/repositories/reports";
 import { listComparisonSets } from "@/src/lib/repositories/comparison-set-repository";
 import { listAois } from "@/src/lib/repositories/aoi-repository";
 import { listDataRoomAssets, listDataRoomChecklist } from "@/src/lib/repositories/data-room-repository";
+import { listEvidenceFileAssets } from "@/src/lib/repositories/evidence-file-repository";
 import { listValidationEvidence } from "@/src/lib/repositories/validation-repository";
 import { listUploadedDatasetRecords } from "@/src/lib/repositories/uploaded-dataset-repository";
 import { getExternalDataReadiness } from "@/src/lib/external-data/data-manifest";
@@ -28,6 +29,7 @@ import type { GeoAIProject, ProjectClientType } from "@/src/lib/db/types";
 import type { DataSource } from "@/src/types/data-source";
 import type { ProjectAoi } from "@/src/types/aoi";
 import type { ValidationEvidence } from "@/src/types/validation";
+import type { EvidenceFileAsset } from "@/src/types/storage";
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -268,6 +270,33 @@ function validationEvidenceAsset(evidence: ValidationEvidence): DataRoomAsset {
   });
 }
 
+function evidenceFileAsset(file: EvidenceFileAsset): DataRoomAsset {
+  return dataRoomAsset({
+    id: `derived-evidence-file-${file.id}`,
+    projectId: file.projectId ?? null,
+    projectKey: file.projectKey,
+    name: file.fileName,
+    description: `${formatValidationStatus(file.validationStatus)} / ${formatValidationStatus(file.storageProvider)} / ${file.objectStatus}. ${file.notes ?? file.caveat}`,
+    assetType: "uploaded_document",
+    sourceType: "user_uploaded",
+    linkedAoiIds: file.linkedAoiIds,
+    linkedReportIds: file.linkedReportIds,
+    linkedValidationEvidenceIds: file.linkedValidationEvidenceIds,
+    fileName: file.fileName,
+    fileSizeBytes: file.fileSizeBytes,
+    mimeType: file.mimeType,
+    storageProvider: file.storageProvider,
+    objectStatus: file.objectStatus,
+    downloadAvailable: file.storageProvider === "supabase_storage" && file.objectStatus === "available",
+    validationStatus: ["client_validated", "official_validated", "in_review"].includes(file.validationStatus)
+      ? "ready_for_review"
+      : "client_provided_unvalidated",
+    createdAt: file.createdAt,
+    updatedAt: file.updatedAt,
+    caveat: file.caveat
+  });
+}
+
 function formatValidationStatus(value: string) {
   return value.replace(/_/g, " ");
 }
@@ -446,7 +475,8 @@ export async function buildClientDataRoom(input: { projectKey?: string | null; p
     analysisResult,
     reportResult,
     comparisonResult,
-    validationResult
+    validationResult,
+    evidenceFileResult
   ] = await Promise.all([
     listDataRoomAssets({ projectId: project.id, projectKey, limit: 80 }),
     listDataRoomChecklist({ projectId: project.id, projectKey, limit: 50 }),
@@ -455,7 +485,8 @@ export async function buildClientDataRoom(input: { projectKey?: string | null; p
     listAnalysisRuns(50, project.id),
     listReports({ projectId: project.id, projectKey, limit: 50 }),
     listComparisonSets({ projectId: project.id, projectKey, limit: 50 }),
-    listValidationEvidence({ projectId: project.id, projectKey, limit: 50 })
+    listValidationEvidence({ projectId: project.id, projectKey, limit: 50 }),
+    listEvidenceFileAssets({ projectId: project.id, projectKey, limit: 50 })
   ]);
 
   const localAnalyses = Array.isArray(analysisResult.data)
@@ -488,6 +519,7 @@ export async function buildClientDataRoom(input: { projectKey?: string | null; p
     ...(reports as unknown[]).map((item) => reportAsset(item, project)),
     ...(comparisons as unknown[]).map((item) => comparisonAsset(item, project)),
     ...(validationResult.data ?? []).map(validationEvidenceAsset),
+    ...(evidenceFileResult.data ?? []).filter((file) => file.objectStatus !== "deleted").map(evidenceFileAsset),
     ...externalSourceAssets(project)
   ];
   const assets = dedupeAssets([...(manualAssetsResult.data ?? []), ...derivedAssets]);
