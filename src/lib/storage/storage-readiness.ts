@@ -1,8 +1,11 @@
 import { isSupabaseConfigured } from "@/src/lib/supabase/config";
 import { getSupabaseServerClient } from "@/src/lib/supabase/server";
+import { repositoryModeFields, type RepositoryMode } from "@/src/lib/repositories/repository-mode";
+import type { StorageProvider } from "@/src/types/storage";
 
 export const requiredStorageBuckets = [
   "geoai-data-room-assets",
+  "geoai-validation-evidence",
   "geoai-report-exports",
   "geoai-aoi-imports"
 ] as const;
@@ -10,13 +13,16 @@ export const requiredStorageBuckets = [
 export type RequiredStorageBucket = (typeof requiredStorageBuckets)[number];
 
 export type StorageReadiness = {
+  ok: boolean;
   configured: boolean;
-  provider: "supabase_storage" | "disabled";
+  provider: StorageProvider;
+  repositoryMode: RepositoryMode;
   bucketReady: boolean;
   storageReady: boolean;
   requiredBuckets: RequiredStorageBucket[];
   missingBuckets: RequiredStorageBucket[];
   maxFileSize: string;
+  maxFileSizeBytes: number;
   allowedMimeTypes: string[];
   signedUploadReady: boolean;
   signedDownloadReady: boolean;
@@ -31,27 +37,39 @@ type SupabaseStorageClientLike = {
   };
 };
 
-const maxFileSize = "25 MB per metadata-only MVP file reference";
-const allowedMimeTypes = [
+export const maxEvidenceFileSizeBytes = 5 * 1024 * 1024;
+const maxFileSize = "5 MB per MVP evidence file";
+export const allowedEvidenceMimeTypes = [
   "application/pdf",
   "text/csv",
-  "application/geo+json",
   "application/json",
+  "application/geo+json",
   "image/png",
-  "image/jpeg"
+  "image/jpeg",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 ];
+
+function baseResponse(input: Omit<StorageReadiness, "ok" | "maxFileSize" | "maxFileSizeBytes" | "allowedMimeTypes">): StorageReadiness {
+  return {
+    ok: true,
+    maxFileSize,
+    maxFileSizeBytes: maxEvidenceFileSizeBytes,
+    allowedMimeTypes: [...allowedEvidenceMimeTypes],
+    ...input
+  };
+}
 
 export async function getStorageReadiness(): Promise<StorageReadiness> {
   if (!isSupabaseConfigured()) {
-    return {
+    return baseResponse({
       configured: false,
-      provider: "disabled",
+      provider: "local_metadata_only",
+      repositoryMode: "local_fallback",
       bucketReady: false,
       storageReady: false,
       requiredBuckets: [...requiredStorageBuckets],
       missingBuckets: [...requiredStorageBuckets],
-      maxFileSize,
-      allowedMimeTypes,
       signedUploadReady: false,
       signedDownloadReady: false,
       caveat: "Storage readiness is not secure enterprise storage until buckets, policies, signed URL flows and access enforcement are configured and verified.",
@@ -61,26 +79,25 @@ export async function getStorageReadiness(): Promise<StorageReadiness> {
         "Create required storage buckets with private access.",
         "Add and verify bucket policies plus signed upload/download flows."
       ]
-    };
+    });
   }
 
   const client = await getSupabaseServerClient() as SupabaseStorageClientLike | null;
   if (!client?.storage?.getBucket) {
-    return {
+    return baseResponse({
       configured: true,
       provider: "supabase_storage",
+      repositoryMode: "local_fallback",
       bucketReady: false,
       storageReady: false,
       requiredBuckets: [...requiredStorageBuckets],
       missingBuckets: [...requiredStorageBuckets],
-      maxFileSize,
-      allowedMimeTypes,
       signedUploadReady: false,
       signedDownloadReady: false,
       caveat: "Supabase is configured, but Storage API readiness could not be verified by this runtime.",
       blockers: ["Supabase Storage client is unavailable in the server runtime."],
       nextActions: ["Verify Supabase Storage support and bucket policies from a trusted server environment."]
-    };
+    });
   }
 
   const checks = await Promise.all(
@@ -96,15 +113,14 @@ export async function getStorageReadiness(): Promise<StorageReadiness> {
   const missingBuckets = checks.filter((item) => !item.ready).map((item) => item.bucket);
   const bucketReady = missingBuckets.length === 0;
 
-  return {
+  return baseResponse({
     configured: true,
     provider: "supabase_storage",
+    repositoryMode: bucketReady ? "supabase" : "local_fallback",
     bucketReady,
     storageReady: bucketReady,
     requiredBuckets: [...requiredStorageBuckets],
     missingBuckets,
-    maxFileSize,
-    allowedMimeTypes,
     signedUploadReady: bucketReady,
     signedDownloadReady: bucketReady,
     caveat: bucketReady
@@ -114,5 +130,9 @@ export async function getStorageReadiness(): Promise<StorageReadiness> {
     nextActions: bucketReady
       ? ["Verify signed upload/download flows with project access enforcement before storing protected client files."]
       : ["Create the missing private buckets in Supabase Storage.", "Verify bucket RLS/policies and signed URL flows."]
-  };
+  });
+}
+
+export function storageReadinessModeFields(readiness: StorageReadiness) {
+  return repositoryModeFields(readiness.repositoryMode);
 }

@@ -34,6 +34,7 @@ import type {
   PilotDeliverableWorkflowStatus,
   PilotWorkflowSummary
 } from "@/src/types/pilot-workflow";
+import type { EvidenceFileAsset } from "@/src/types/storage";
 import type { AnalysisHistoryItem, AnalysisScenarioId, ExpressAnalysis } from "@/src/types/geo";
 
 const activeProjectStorageKey = "geoai-active-project-key-v1";
@@ -92,6 +93,21 @@ type ValidationGovernanceResponse = {
     accessMode: string;
     nextStep: string;
   }>;
+};
+
+type StorageHealthResponse = {
+  provider: "supabase_storage" | "local_metadata_only" | "disabled";
+  bucketReady: boolean;
+  storageReady: boolean;
+  missingBuckets: string[];
+  maxFileSizeBytes: number;
+  blockers: string[];
+  nextActions: string[];
+  caveat: string;
+};
+
+type EvidenceFilesResponse = {
+  items?: EvidenceFileAsset[];
 };
 
 type MarketMetricsSummary = {
@@ -280,6 +296,13 @@ function dataRoomAssetName(assetType: DataRoomAssetType) {
   if (assetType === "uploaded_geojson") return "Client AOI GeoJSON";
   if (assetType === "uploaded_csv") return "Client CSV / market snapshot";
   return "Client document metadata";
+}
+
+function formatBytes(value?: number) {
+  if (!value && value !== 0) return "n/a";
+  if (value >= 1024 * 1024) return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+  if (value >= 1024) return `${(value / 1024).toFixed(1)} KB`;
+  return `${value} B`;
 }
 
 function manifestSourceToReadiness(source?: ManifestSource): ReadinessItem | undefined {
@@ -579,6 +602,8 @@ export function ProjectDashboard() {
   const [pilotWorkflowMessage, setPilotWorkflowMessage] = useState<string | null>(null);
   const [validationGovernance, setValidationGovernance] = useState<ValidationGovernanceResponse | null>(null);
   const [validationMessage, setValidationMessage] = useState<string | null>(null);
+  const [storageHealth, setStorageHealth] = useState<StorageHealthResponse | null>(null);
+  const [evidenceFiles, setEvidenceFiles] = useState<EvidenceFileAsset[]>([]);
 
   useEffect(() => {
     setActiveProjectKey(readActiveProjectKey());
@@ -726,6 +751,36 @@ export function ProjectDashboard() {
     }
 
     void loadDbHistory();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeProjectKey]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadStorageAndEvidenceFiles() {
+      try {
+        const [storageResponse, filesResponse] = await Promise.all([
+          fetch("/api/storage/health"),
+          fetch(`/api/storage/evidence-files?projectKey=${encodeURIComponent(activeProjectKey)}`)
+        ]);
+        const storagePayload = storageResponse.ok ? await storageResponse.json() as StorageHealthResponse : null;
+        const filesPayload = filesResponse.ok ? await filesResponse.json() as EvidenceFilesResponse : null;
+        if (!cancelled) {
+          setStorageHealth(storagePayload);
+          setEvidenceFiles(Array.isArray(filesPayload?.items) ? filesPayload.items : []);
+        }
+      } catch {
+        if (!cancelled) {
+          setStorageHealth(null);
+          setEvidenceFiles([]);
+        }
+      }
+    }
+
+    void loadStorageAndEvidenceFiles();
 
     return () => {
       cancelled = true;
@@ -1085,6 +1140,17 @@ export function ProjectDashboard() {
     }
   }
 
+  async function refreshEvidenceFiles(projectKey = activeProject.projectKey) {
+    try {
+      const response = await fetch(`/api/storage/evidence-files?projectKey=${encodeURIComponent(projectKey)}`);
+      if (!response.ok) return;
+      const payload = await response.json() as EvidenceFilesResponse;
+      setEvidenceFiles(Array.isArray(payload.items) ? payload.items : []);
+    } catch {
+      setDataRoomMessage("Evidence file summary is temporarily unavailable.");
+    }
+  }
+
   async function refreshPilotWorkflow(projectKey = activeProject.projectKey) {
     try {
       const response = await fetch(`/api/pilot-workflow?projectKey=${encodeURIComponent(projectKey)}`);
@@ -1096,35 +1162,29 @@ export function ProjectDashboard() {
   }
 
   async function registerDataRoomFile(file: File) {
-    if (file.size > 5 * 1024 * 1024) {
-      setDataRoomMessage("Keep client data room metadata uploads under 5 MB for this demo.");
+    const maxFileSize = storageHealth?.maxFileSizeBytes ?? 5 * 1024 * 1024;
+    if (file.size > maxFileSize) {
+      setDataRoomMessage("Keep evidence uploads under the 5 MB MVP limit.");
       return;
     }
 
-    const assetType = dataRoomAssetTypeForFile(file);
-    const payload: DataRoomAssetInput = {
-      id: `client-asset-${activeProject.projectKey}-${Date.now()}`,
-      projectId: activeProject.id,
-      projectKey: activeProject.projectKey,
-      name: `${dataRoomAssetName(assetType)}: ${file.name}`,
-      description: "Uploaded metadata only; local demo storage; validation required.",
-      assetType,
-      sourceType: "user_uploaded",
-      fileName: file.name,
-      fileSizeBytes: file.size,
-      mimeType: file.type || "application/octet-stream",
-      validationStatus: "client_provided_unvalidated"
-    };
+    const formData = new FormData();
+    formData.append("projectId", activeProject.id ?? "");
+    formData.append("projectKey", activeProject.projectKey);
+    formData.append("notes", "Uploaded from Project Dashboard evidence file entry point.");
+    formData.append("file", file);
 
-    const response = await fetch("/api/data-room/assets", {
+    const response = await fetch("/api/storage/evidence-files", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
+      body: formData
     });
     const result = await response.json() as { ok?: boolean; message?: string };
     setDataRoomMessage(result.ok === false
       ? result.message ?? "Unable to register metadata item."
-      : "Client file metadata added to this project data room. Validation required.");
+      : storageHealth?.storageReady
+        ? "Evidence file uploaded. Review is still required before claim escalation."
+        : "Evidence file metadata added. Binary storage is not configured, so this remains metadata-only.");
+    await refreshEvidenceFiles();
     await refreshDataRoom();
     await refreshPilotWorkflow();
   }
@@ -1385,7 +1445,7 @@ export function ProjectDashboard() {
                   ref={dataRoomFileInputRef}
                   type="file"
                   className="hidden"
-                  accept=".csv,.geojson,.json,.pdf,.doc,.docx,.txt,text/csv,application/json,application/pdf"
+                  accept=".pdf,.csv,.json,.geojson,.png,.jpg,.jpeg,.xlsx,.docx,application/pdf,text/csv,application/json,application/geo+json,image/png,image/jpeg,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                   onChange={(event) => {
                     void handleDataRoomFileChange(event);
                   }}
@@ -1970,6 +2030,70 @@ export function ProjectDashboard() {
                   </a>
                 </div>
                 <p className="text-xs leading-5 text-muted">{validationSummary?.caveat ?? "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."}</p>
+              </div>
+            </Panel>
+
+            <Panel title="Evidence Files / Storage" subtitle="Storage readiness and validation evidence file metadata for this project.">
+              <div className="grid gap-3">
+                <div className="rounded-md border border-line bg-surface p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-ink">{formatDataRoomLabel(storageHealth?.provider ?? "local_metadata_only")}</p>
+                      <p className="mt-1 text-xs leading-5 text-muted">
+                        Buckets: {storageHealth?.bucketReady ? "ready" : storageHealth?.missingBuckets?.length ? `${storageHealth.missingBuckets.length} missing` : "not configured"}.
+                        {" "}Files: {evidenceFiles.length}; metadata-only: {evidenceFiles.filter((file) => file.objectStatus === "metadata_only").length}.
+                      </p>
+                    </div>
+                    <span className="shrink-0 rounded-full bg-white px-2 py-1 text-xs font-semibold text-brand">
+                      v2.6
+                    </span>
+                  </div>
+                  <p className="mt-2 text-xs leading-5 text-muted">
+                    {storageHealth?.nextActions?.[0] ?? "Configure Supabase Storage, create private buckets and verify signed URL flows."}
+                  </p>
+                </div>
+
+                <div className="grid gap-2">
+                  {evidenceFiles.length > 0 ? (
+                    evidenceFiles.slice(0, 4).map((file) => (
+                      <div key={file.id} className="rounded-md bg-surface px-3 py-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="min-w-0 truncate text-sm font-semibold text-ink">{file.fileName}</p>
+                          <span className="shrink-0 rounded-full bg-white px-2 py-1 text-[10px] font-semibold text-brand">
+                            {formatDataRoomLabel(file.objectStatus)}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-xs leading-5 text-muted">
+                          {file.mimeType} / {formatBytes(file.fileSizeBytes)} / {formatDataRoomLabel(file.storageProvider)}
+                        </p>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="rounded-md bg-surface px-3 py-2 text-xs leading-5 text-muted">
+                      No evidence files registered yet. Add a file to create storage-ready metadata for this project.
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => dataRoomFileInputRef.current?.click()}
+                    className="inline-flex h-9 items-center justify-center rounded-md bg-brand px-3 text-sm font-semibold text-white transition hover:bg-[#113f50]"
+                  >
+                    Add evidence file
+                  </button>
+                  <Link
+                    href={openWorkspaceHref}
+                    onClick={() => writeActiveProjectKey(activeProject.projectKey)}
+                    className="inline-flex h-9 items-center justify-center rounded-md border border-line bg-white px-3 text-sm font-semibold text-ink transition hover:border-brand"
+                  >
+                    Attach in workspace
+                  </Link>
+                </div>
+                <p className="text-xs leading-5 text-muted">
+                  {storageHealth?.caveat ?? "Storage readiness is not secure enterprise storage until buckets, policies, signed URL flows and access enforcement are configured and verified."}
+                </p>
               </div>
             </Panel>
 

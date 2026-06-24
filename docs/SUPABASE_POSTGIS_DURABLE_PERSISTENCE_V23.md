@@ -24,7 +24,7 @@ This is a foundation sprint, not a production security sprint.
 
 - No production route enforcement.
 - No full RLS rollout with seeded production memberships.
-- No secure file storage.
+- No verified secure enterprise file storage. v2.6 adds a storage-ready upload/download foundation and policy draft, but buckets, policies, signed URLs and access enforcement must still be configured and verified.
 - No enterprise data room claim.
 - No certified audit trail.
 - No official validation connectors.
@@ -190,4 +190,4 @@ NEXT_PUBLIC_AUTH_MODE=demo_public
 
 ## Recommended Next Sprint
 
-Validation Governance & Official Connector Readiness v2.5.
+Secure File Storage & Evidence Uploads v2.6 is documented in [SECURE_FILE_STORAGE_EVIDENCE_UPLOADS_V26.md](SECURE_FILE_STORAGE_EVIDENCE_UPLOADS_V26.md). The next recommended sprint after v2.6 is Evidence Review Workflow & Signed URL Verification v2.7.

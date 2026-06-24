@@ -1,10 +1,12 @@
 import { officialConnectorReadiness } from "@/src/lib/validation/official-connector-readiness";
 import { buildValidationSummary } from "@/src/lib/validation/validation-summary";
 import { validationRequiredCaveat, type ValidationSummary } from "@/src/types/validation";
+import type { EvidenceFileAsset } from "@/src/types/storage";
 
 type ValidationGovernanceAppendixProps = {
   projectName?: string | null;
   summary?: ValidationSummary | null;
+  evidenceFiles?: EvidenceFileAsset[];
   compact?: boolean;
   printMode?: boolean;
 };
@@ -16,6 +18,7 @@ function claimLevelLabel(value: string) {
 export function ValidationGovernanceAppendix({
   projectName,
   summary,
+  evidenceFiles = [],
   compact = false,
   printMode = false
 }: ValidationGovernanceAppendixProps) {
@@ -80,6 +83,36 @@ export function ValidationGovernanceAppendix({
               </li>
             ))}
           </ul>
+        </div>
+      </div>
+
+      <div className="mt-4">
+        <p className="font-semibold text-ink">Linked evidence files</p>
+        <div className="mt-2 grid gap-2 md:grid-cols-2">
+          {evidenceFiles.length > 0 ? (
+            evidenceFiles.slice(0, compact ? 4 : 8).map((file) => (
+              <div key={file.id} className={cardClass}>
+                <div className="flex items-start justify-between gap-2">
+                  <p className="min-w-0 truncate font-semibold text-ink">{file.fileName}</p>
+                  <span className="shrink-0 rounded-full bg-surface px-2 py-1 text-[10px] font-semibold text-brand">
+                    {claimLevelLabel(file.objectStatus)}
+                  </span>
+                </div>
+                <p className="mt-1 text-xs leading-5 text-muted">
+                  {file.mimeType} / {claimLevelLabel(file.validationStatus)} / {claimLevelLabel(file.storageProvider)}
+                </p>
+                <p className="mt-1 text-xs leading-5 text-muted">
+                  Download: {file.storageProvider === "supabase_storage" && file.objectStatus === "available"
+                    ? "available via signed URL"
+                    : "unavailable in metadata-only fallback"}
+                </p>
+              </div>
+            ))
+          ) : (
+            <div className={cardClass}>
+              <p className="text-sm leading-6 text-muted">No linked evidence file metadata is attached to this report.</p>
+            </div>
+          )}
         </div>
       </div>
 

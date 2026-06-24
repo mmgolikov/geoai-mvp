@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type MouseEvent } from "react";
+import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { EvidenceSourceCards } from "@/components/evidence-source-cards";
 import ingestionReport from "@/data/normalized/ingestion_report.json";
 import { MapContextCard } from "@/components/map-context-card";
@@ -15,6 +15,7 @@ import { userDrawnAoiSourceCode, userDrawnAoiSourceLabel } from "@/src/lib/aoi-l
 import { formatArea, formatPerimeter } from "@/src/lib/polygon-aoi";
 import { createSourceLineageSnapshot } from "@/src/lib/source-lineage-snapshot";
 import type { ComparisonResult, ExpressAnalysis, ScoreKey } from "@/src/types/geo";
+import type { EvidenceFileAsset } from "@/src/types/storage";
 
 type ReportPreviewProps =
   | {
@@ -462,6 +463,24 @@ function AnalysisReport({ analysis, onBack }: { analysis: ExpressAnalysis; onBac
   const importedMetric = marketMetricsMatch?.metrics;
   const demoNarrative = getDemoNarrativeByProjectKey(analysis.project?.projectKey);
   const clientPilotPackage = getClientPilotPackageForProject(analysis.project?.projectKey, analysis.project?.clientType);
+  const [evidenceFiles, setEvidenceFiles] = useState<EvidenceFileAsset[]>([]);
+
+  useEffect(() => {
+    let mounted = true;
+    const projectKey = analysis.project?.projectKey;
+    if (!projectKey) return undefined;
+    fetch(`/api/storage/evidence-files?projectKey=${encodeURIComponent(projectKey)}`)
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload: { items?: EvidenceFileAsset[] } | null) => {
+        if (mounted) setEvidenceFiles(Array.isArray(payload?.items) ? payload.items : []);
+      })
+      .catch(() => {
+        if (mounted) setEvidenceFiles([]);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [analysis.project?.projectKey]);
 
   return (
     <>
@@ -873,7 +892,7 @@ function AnalysisReport({ analysis, onBack }: { analysis: ExpressAnalysis; onBac
         <UploadedDataReportSection analysis={analysis} />
 
         <Section title="Validation Governance Appendix">
-          <ValidationGovernanceAppendix projectName={analysis.project?.name} compact />
+          <ValidationGovernanceAppendix projectName={analysis.project?.name} evidenceFiles={evidenceFiles} compact />
         </Section>
 
         <div className="grid gap-6 md:grid-cols-2">
@@ -925,6 +944,24 @@ function ComparisonReport({ comparison, onBack }: { comparison: ComparisonResult
   const nextActions = dedupeTextList(comparison.nextActions);
   const demoNarrative = getDemoNarrativeByProjectKey(comparison.project?.projectKey);
   const clientPilotPackage = getClientPilotPackageForProject(comparison.project?.projectKey, comparison.project?.clientType);
+  const [evidenceFiles, setEvidenceFiles] = useState<EvidenceFileAsset[]>([]);
+
+  useEffect(() => {
+    let mounted = true;
+    const projectKey = comparison.project?.projectKey;
+    if (!projectKey) return undefined;
+    fetch(`/api/storage/evidence-files?projectKey=${encodeURIComponent(projectKey)}`)
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload: { items?: EvidenceFileAsset[] } | null) => {
+        if (mounted) setEvidenceFiles(Array.isArray(payload?.items) ? payload.items : []);
+      })
+      .catch(() => {
+        if (mounted) setEvidenceFiles([]);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [comparison.project?.projectKey]);
 
   return (
     <>
@@ -1071,7 +1108,7 @@ function ComparisonReport({ comparison, onBack }: { comparison: ComparisonResult
         <ExternalDataLineageSection comparison={comparison} />
 
         <Section title="Validation Governance Appendix">
-          <ValidationGovernanceAppendix projectName={comparison.project?.name} compact />
+          <ValidationGovernanceAppendix projectName={comparison.project?.name} evidenceFiles={evidenceFiles} compact />
         </Section>
 
         <div className="grid gap-6 md:grid-cols-2">

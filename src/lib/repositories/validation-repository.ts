@@ -1,4 +1,4 @@
-import { localCreate, localDelete, localList, localUpdate } from "@/src/lib/repositories/local-json-store";
+import { localCreate, localDelete, localGet, localList, localUpdate } from "@/src/lib/repositories/local-json-store";
 import {
   validationRequiredCaveat,
   type AllowedClaimLevel,
@@ -42,6 +42,7 @@ export function createDemoValidationEvidence(projectKey: string): ValidationEvid
     linkedAnalysisIds: [],
     linkedReportIds: [],
     linkedDataRoomAssetIds: [],
+    linkedEvidenceFileIds: [],
     sourceCategory: index === 2 ? "broker_comparable" : "client_uploaded_document",
     sourceName: "GeoAI sample validation placeholder",
     accessMode: "planned_validation",
@@ -82,6 +83,7 @@ export async function createValidationEvidence(input: Partial<ValidationEvidence
     linkedAnalysisIds: input.linkedAnalysisIds ?? [],
     linkedReportIds: input.linkedReportIds ?? [],
     linkedDataRoomAssetIds: input.linkedDataRoomAssetIds ?? [],
+    linkedEvidenceFileIds: input.linkedEvidenceFileIds ?? [],
     sourceCategory: input.sourceCategory,
     sourceName: input.sourceName ?? "Validation evidence metadata",
     accessMode: input.accessMode ?? "client_provided",
@@ -106,6 +108,10 @@ export async function createValidationEvidence(input: Partial<ValidationEvidence
     createdAt: input.createdAt ?? now,
     updatedAt: input.updatedAt ?? now
   });
+}
+
+export async function getValidationEvidence(id: string) {
+  return localGet<ValidationEvidence>(validationStore, id);
 }
 
 export async function updateValidationEvidence(id: string, patch: Partial<ValidationEvidence>) {

@@ -25,6 +25,7 @@
     "supabase:migrate:apply": "node scripts/apply-supabase-migration.mjs",
     "supabase:seed:pilot-foundation": "node scripts/seed-pilot-foundation.mjs",
     "supabase:verify:persistence": "node scripts/verify-durable-persistence.mjs",
+    "storage:check": "node scripts/storage-check.mjs",
     "start": "next start",
     "lint": "tsc --noEmit --pretty false"
   },

@@ -83,6 +83,10 @@ export type DataRoomAsset = {
   fileName?: string;
   fileSizeBytes?: number;
   mimeType?: string;
+  storageProvider?: "supabase_storage" | "local_metadata_only" | "disabled";
+  objectStatus?: string;
+  linkedValidationEvidenceIds?: string[];
+  downloadAvailable?: boolean;
   validationStatus: DataRoomValidationStatus;
   createdAt: string;
   updatedAt: string;
