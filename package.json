@@ -21,6 +21,10 @@
     "ingest:public-data:all": "node scripts/ingest-public-data.mjs all",
     "data:status": "node scripts/data-status.mjs",
     "validate:external-data": "node scripts/data-status.mjs --validate",
+    "supabase:migrate:check": "node scripts/check-supabase-migration.mjs",
+    "supabase:migrate:apply": "node scripts/apply-supabase-migration.mjs",
+    "supabase:seed:pilot-foundation": "node scripts/seed-pilot-foundation.mjs",
+    "supabase:verify:persistence": "node scripts/verify-durable-persistence.mjs",
     "start": "next start",
     "lint": "tsc --noEmit --pretty false"
   },

@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { recordAuditEvent } from "@/src/lib/audit/audit-event";
+import { requireProjectAccess } from "@/src/lib/auth/project-access";
 import { createDataRoomChecklistItem, updateDataRoomChecklistItem } from "@/src/lib/repositories/data-room-repository";
 import { repositoryModeFields } from "@/src/lib/repositories/repository-mode";
 import {
@@ -37,11 +39,21 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       caveat: patch.caveat ?? dataRoomRequiredCaveat
     });
   }
+  const access = requireProjectAccess({ projectKey: patch.projectKey ?? null, action: "write", mode: "soft" });
+  void recordAuditEvent({
+    projectKey: patch.projectKey ?? null,
+    eventType: "checklist_updated",
+    entityType: "validation_checklist_item",
+    entityId: id,
+    action: "Updated checklist item",
+    metadata: { status: patch.status, accessAllowed: access.allowed }
+  });
 
   return NextResponse.json({
     ok: result.ok,
     ...repositoryModeFields("local_fallback"),
     item: result.data,
+    access,
     error: result.error,
     dataHonesty: "Checklist status is not an official validation claim."
   });

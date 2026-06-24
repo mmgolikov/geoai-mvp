@@ -45,6 +45,7 @@ OpenAI is optional. If `OPENAI_API_KEY` is not configured, GeoAI automatically u
 - Pilot Workflow & Deliverables v2.0 for project-scoped client input checklist, deliverables workflow and caveated workflow-readiness scoring
 - Auth & Project Access Foundation v2.2 with public demo access mode, Supabase Auth readiness and compact access status indicators
 - Supabase/PostGIS Durable Persistence Foundation v2.3 with additive migration SQL, schema readiness checks, RLS draft and audit event foundation
+- Pilot Infrastructure Activation v2.4 with guarded migration/seed/verify scripts, activation status APIs, soft access metadata, audit integration, storage readiness and known limitations tracker
 - Pilot Readiness & Client Delivery Package v1.1 with client-specific pilot packages, readiness scoring, setup checklist and deliverable framing
 - Offline DLD / Dubai Pulse CSV ingestion prototype with normalized sample outputs
 - API routes for health, demo objects, and analysis
@@ -128,6 +129,10 @@ See [Repository Mode & Fallback Consistency v2.0.2](docs/REPOSITORY_MODE_FALLBAC
 npm run dev
 npm run dev:turbo
 npm run build
+npm run supabase:migrate:check
+npm run supabase:migrate:apply
+npm run supabase:seed:pilot-foundation
+npm run supabase:verify:persistence
 npm run ingest:dld:snapshot
 npm run ingest:osm:snapshot
 npm run data:status
@@ -137,10 +142,15 @@ npm run start
 
 The default `npm run dev` command uses stable Webpack mode with polling enabled for local reliability.
 
+`npm run supabase:migrate:apply` is guarded and will not apply SQL unless `SUPABASE_DB_URL` and `GEOAI_ALLOW_SUPABASE_MIGRATION_APPLY=true` are set in a trusted terminal. See [Pilot Infrastructure Activation v2.4](docs/PILOT_INFRASTRUCTURE_ACTIVATION_V24.md).
+
 ## API Routes
 
 - `GET /api/health` returns app status.
 - `GET /api/db/health` returns optional Supabase/PostGIS readiness without exposing secrets.
+- `GET /api/platform/activation-status` returns the v2.4 pilot infrastructure activation gate without exposing secrets.
+- `GET /api/storage/health` returns Supabase Storage readiness and bucket blockers.
+- `GET /api/known-limitations` returns the machine-readable limitations tracker.
 - `GET /api/demo-objects` returns mock spatial objects for demo use.
 - `POST /api/analyze` returns structured analysis narrative. It uses OpenAI when `OPENAI_API_KEY` is available and otherwise returns mock fallback content.
 - `GET|POST /api/ai/decision-score` returns structured decision-support scoring. It uses server-side OpenAI when available and otherwise returns deterministic fallback.
@@ -365,6 +375,7 @@ Current export remains browser print/save as PDF. GeoAI does not generate server
 - [GeoAI Auth & Project Access Foundation v2.2 Release Note](docs/RELEASE_GEOAI_AUTH_PROJECT_ACCESS_FOUNDATION_V22.md)
 - [Supabase/PostGIS Durable Persistence Foundation v2.3](docs/SUPABASE_POSTGIS_DURABLE_PERSISTENCE_V23.md)
 - [GeoAI Supabase/PostGIS Durable Persistence Foundation v2.3 Release Note](docs/RELEASE_GEOAI_SUPABASE_POSTGIS_DURABLE_PERSISTENCE_V23.md)
+- [Pilot Infrastructure Activation v2.4](docs/PILOT_INFRASTRUCTURE_ACTIVATION_V24.md)
 - [GeoAI AOI Library Demo v1.8 Release Note](docs/RELEASE_GEOAI_AOI_LIBRARY_DEMO_V18.md)
 - [Persistence & Project Workspace v0.8](docs/PERSISTENCE_PROJECT_WORKSPACE_V08.md)
 - [Project-Scoped Persistence v13](docs/PROJECT_SCOPED_PERSISTENCE_V13.md)

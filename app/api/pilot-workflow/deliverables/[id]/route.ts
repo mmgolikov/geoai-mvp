@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { recordAuditEvent } from "@/src/lib/audit/audit-event";
+import { requireProjectAccess } from "@/src/lib/auth/project-access";
 import { buildPilotWorkflowSummary } from "@/src/lib/pilot-workflow/pilot-workflow-summary";
 import { createPilotDeliverable } from "@/src/lib/repositories/pilot-workflow-repository";
 import { repositoryModeFields } from "@/src/lib/repositories/repository-mode";
@@ -58,12 +60,22 @@ export async function PATCH(
   };
   const result = await createPilotDeliverable(item);
   const summary = await buildPilotWorkflowSummary({ projectId: item.projectId, projectKey: item.projectKey });
+  const access = requireProjectAccess({ projectKey: item.projectKey, action: "write", mode: "soft" });
+  void recordAuditEvent({
+    projectKey: item.projectKey,
+    eventType: "pilot_deliverable_updated",
+    entityType: "pilot_deliverable",
+    entityId: id,
+    action: "Updated pilot deliverable",
+    metadata: { status: item.status, accessAllowed: access.allowed }
+  });
 
   return NextResponse.json({
     ok: result.ok,
     ...repositoryModeFields("local_fallback"),
     item: result.data,
     workflow: summary,
+    access,
     error: result.error,
     dataHonesty: summary.dataHonesty
   }, { status: result.ok ? 200 : 500 });

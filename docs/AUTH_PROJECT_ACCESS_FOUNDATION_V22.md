@@ -39,6 +39,28 @@ disabled
 - `/api/auth/session` safe session endpoint.
 - Server-safe project access helpers for future API enforcement.
 
+## v2.4 Soft Enforcement Update
+
+`requireProjectAccess({ projectKey, action, mode })` now supports:
+
+- `soft`: preserves the public demo and returns safe access metadata in project-scoped API responses.
+- `hard`: blocks demo access unless explicitly allowed for a controlled test environment.
+
+Core project-scoped APIs now include:
+
+```json
+{
+  "access": {
+    "allowed": true,
+    "role": "owner",
+    "mode": "soft",
+    "reason": "Demo project access allowed in soft mode."
+  }
+}
+```
+
+This is groundwork for hard enforcement only. Demo access is not production authentication.
+
 ## Data And Secrets Guardrails
 
 - `OPENAI_API_KEY` remains server-only.
@@ -48,7 +70,7 @@ disabled
 
 ## Limitations
 
-- No production route enforcement yet.
+- No production hard route enforcement yet.
 - Supabase/PostGIS v2.3 adds an RLS policy draft, but full enforcement still requires configured Supabase Auth, project memberships and deployment governance.
 - Supabase/PostGIS v2.3 adds durable user/organization/project membership table foundations, but production user access workflows are not complete.
 - No enterprise RBAC UI yet.
@@ -70,6 +92,6 @@ Required caveat:
 
 ## Next Sprint
 
-Recommended next sprint: Supabase/PostGIS Durable Persistence Foundation v2.3.
+Recommended next sprint: Validation Governance & Official Connector Readiness v2.5.
 
 See also: [Supabase/PostGIS Durable Persistence Foundation v2.3](SUPABASE_POSTGIS_DURABLE_PERSISTENCE_V23.md).

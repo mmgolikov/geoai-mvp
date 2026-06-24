@@ -42,12 +42,26 @@ const openAnalysisRequestStorageKey = "geoai-open-analysis-request-v1";
 
 type DbHealth = {
   configured: boolean;
-  status: "connected" | "configured_unavailable" | "not_configured";
+  status: "connected" | "configured_unavailable" | "configured_incomplete" | "not_configured";
   repositoryMode: RepositoryMode;
   mode: RepositoryMode;
   caveat: string;
   message: string;
   sources_count: number | null;
+};
+
+type PlatformActivationStatus = {
+  authMode: string;
+  repositoryMode: RepositoryMode;
+  activationStatus: string;
+  supabaseConfigured: boolean;
+  schemaReady: boolean;
+  postgisReady: boolean;
+  tablesReady: boolean;
+  storageReady: boolean;
+  migrationApplied: boolean;
+  blockers: string[];
+  nextActions: string[];
 };
 
 type MarketMetricsSummary = {
@@ -522,6 +536,7 @@ export function ProjectDashboard() {
   const [localHistory, setLocalHistory] = useState<AnalysisHistoryItem[]>([]);
   const [dbHistory, setDbHistory] = useState<RecentAnalysisRow[]>([]);
   const [dbHealth, setDbHealth] = useState<DbHealth | null>(null);
+  const [platformStatus, setPlatformStatus] = useState<PlatformActivationStatus | null>(null);
   const [marketMetrics, setMarketMetrics] = useState<MarketMetricsSummary | null>(() => createInitialMarketMetrics());
   const [externalDataStatus, setExternalDataStatus] = useState<ExternalDataStatus | null>(() => createInitialExternalDataStatus());
   const [savedReports, setSavedReports] = useState<SavedObjectSummary[]>([]);
@@ -547,7 +562,8 @@ export function ProjectDashboard() {
         fetch("/api/projects").then((response) => response.json()),
         fetch("/api/db/health").then((response) => response.json()),
         fetch("/api/market-metrics").then((response) => response.json()),
-        fetch("/api/external-data/status").then((response) => response.json())
+        fetch("/api/external-data/status").then((response) => response.json()),
+        fetch("/api/platform/activation-status").then((response) => response.json())
       ]);
 
       if (cancelled) return;
@@ -571,6 +587,11 @@ export function ProjectDashboard() {
       const externalStatusResult = results[3];
       if (externalStatusResult.status === "fulfilled") {
         setExternalDataStatus(externalStatusResult.value as ExternalDataStatus);
+      }
+
+      const platformResult = results[4];
+      if (platformResult.status === "fulfilled") {
+        setPlatformStatus(platformResult.value as PlatformActivationStatus);
       }
     }
 
@@ -928,6 +949,40 @@ export function ProjectDashboard() {
   const workflowDeliverablesTotal = pilotWorkflow?.deliverables.length ?? 0;
   const workflowValidationCompleted = dataRoom?.summary.checklistStatus.completed ?? 0;
   const workflowValidationTotal = dataRoom?.summary.checklistStatus.total ?? 0;
+  const platformRows = [
+    {
+      label: "Auth",
+      value: platformStatus?.authMode === "supabase_auth" ? "Supabase Auth" : "Demo access",
+      note: platformStatus?.authMode === "supabase_auth"
+        ? "Membership-backed access foundation"
+        : "Public demo access; not production authentication"
+    },
+    {
+      label: "DB",
+      value: repositoryModeToLabel(platformStatus?.repositoryMode ?? dbHealth?.repositoryMode ?? projectsMode),
+      note: dbHealth?.caveat ?? getSupabaseFallbackMessage(false)
+    },
+    {
+      label: "Schema",
+      value: platformStatus?.schemaReady ? "Ready" : "Incomplete",
+      note: platformStatus?.migrationApplied ? "v2.3 migration verified" : "Migration not applied or not reachable"
+    },
+    {
+      label: "Storage",
+      value: platformStatus?.storageReady ? "Ready" : "Disabled",
+      note: platformStatus?.storageReady ? "Buckets reachable; policies still require verification" : "Bucket readiness path is explicit"
+    },
+    {
+      label: "Audit",
+      value: dbHealth?.repositoryMode === "supabase" ? "Active foundation" : "No-op fallback",
+      note: "Audit events never block workflows; not a certified audit trail"
+    },
+    {
+      label: "Access",
+      value: "Soft",
+      note: "Project access metadata is returned; hard enforcement remains a future rollout"
+    }
+  ];
   const openWorkspaceHref = `/workspace?projectId=${encodeURIComponent(activeProject.id ?? activeProject.projectKey)}`;
   const openWorkspaceForAoi = (aoi: ProjectAoi) =>
     `/workspace?projectKey=${encodeURIComponent(activeProject.projectKey)}&projectId=${encodeURIComponent(activeProject.id ?? activeProject.projectKey)}&openAoi=${encodeURIComponent(aoi.id)}`;
@@ -1723,6 +1778,36 @@ export function ProjectDashboard() {
                     {pilotWorkflow?.readiness?.nextActions[0] ?? pilotReadiness.nextActions[0]}
                   </p>
                 </div>
+              </div>
+            </Panel>
+
+            <Panel title="Platform Readiness" subtitle="Pilot infrastructure activation status. Fallback remains available until every gate is verified.">
+              <div className="grid gap-3">
+                <div className="flex items-start justify-between gap-3 rounded-md border border-line bg-surface p-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-ink">{formatDataRoomLabel(platformStatus?.activationStatus ?? "local_fallback_only")}</p>
+                    <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted">
+                      {platformStatus?.blockers?.[0] ?? dbHealth?.message ?? "Platform readiness is reported by API health checks."}
+                    </p>
+                  </div>
+                  <span className="shrink-0 rounded-full bg-white px-2 py-1 text-xs font-semibold text-brand">
+                    v2.4
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {platformRows.map((row) => (
+                    <div key={row.label} className="rounded-md bg-surface px-3 py-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">{row.label}</p>
+                        <span className="truncate text-xs font-semibold text-ink">{row.value}</span>
+                      </div>
+                      <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted">{row.note}</p>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs leading-5 text-muted">
+                  {platformStatus?.nextActions?.[0] ?? "Run the v2.4 migration, seed and verification scripts from a trusted environment before claiming durable storage."}
+                </p>
               </div>
             </Panel>
 

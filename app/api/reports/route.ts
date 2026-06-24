@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { recordAuditEvent } from "@/src/lib/audit/audit-event";
+import { requireProjectAccess } from "@/src/lib/auth/project-access";
 import { getProjectByKey } from "@/src/lib/db/repositories/projects";
 import { getReport, listReports, saveReport } from "@/src/lib/db/repositories/reports";
 import { repositoryModeFields } from "@/src/lib/repositories/repository-mode";
@@ -60,6 +62,7 @@ export async function GET(request: Request) {
   const id = url.searchParams.get("id");
   const projectId = url.searchParams.get("projectId");
   const projectKey = url.searchParams.get("projectKey");
+  const access = requireProjectAccess({ projectKey, action: "read", mode: "soft" });
 
   if (id) {
     const result = await getReport(id);
@@ -69,6 +72,7 @@ export async function GET(request: Request) {
       ...repositoryModeFields(responseMode),
       item: result.data,
       summary: result.data ? summarizeReport(result.data) : null,
+      access,
       error: result.error,
       dataHonesty: "Saved reports use demo/sample/local source lineage unless externally validated."
     });
@@ -84,6 +88,7 @@ export async function GET(request: Request) {
     count: items.length,
     items,
     summaries: items.map(summarizeReport),
+    access,
     error: result.error,
     dataHonesty: "No live official DLD, Dubai Pulse, GeoDubai, parcel, zoning or cadastral validation is implied."
   });
@@ -109,6 +114,7 @@ export async function POST(request: Request) {
   }
 
   const project = body.projectKey ? await getProjectByKey(body.projectKey) : null;
+  const access = requireProjectAccess({ projectKey: body.projectKey ?? project?.data?.projectKey ?? null, action: "write", mode: "soft" });
   const result = await saveReport({
     ...body,
     projectId: body.projectId ?? (project?.mode === "supabase" ? project.data?.id ?? null : null),
@@ -117,12 +123,22 @@ export async function POST(request: Request) {
   });
 
   const responseMode = result.mode === "supabase" ? "supabase" : "local_fallback";
+  void recordAuditEvent({
+    projectId: body.projectId ?? (project?.mode === "supabase" ? project.data?.id ?? null : null),
+    projectKey: body.projectKey ?? project?.data?.projectKey ?? null,
+    eventType: "report_generated",
+    entityType: "report",
+    entityId: body.reportKey,
+    action: "Saved report",
+    metadata: { reportType: body.reportType, accessAllowed: access.allowed }
+  });
   return NextResponse.json({
     ok: result.ok,
     persisted: result.mode === "supabase" && result.ok,
     ...repositoryModeFields(responseMode),
     reportKey: body.reportKey,
     project: project?.data ?? null,
+    access,
     data: result.data,
     error: result.error,
     message: result.mode === "supabase" && result.ok

@@ -3,6 +3,7 @@ import { createDemoProjectMembership, demoOrganization, demoUser } from "@/src/l
 import type { GeoAIProjectMembership, GeoAIProjectRole, GeoAIUser } from "@/src/types/auth";
 
 export type ProjectAccessAction = "read" | "write" | "manage";
+export type ProjectAccessMode = "soft" | "hard";
 
 const ROLE_RANK: Record<GeoAIProjectRole, number> = {
   client_viewer: 1,
@@ -38,25 +39,46 @@ export function getDemoProjectMembership(projectKey: string): GeoAIProjectMember
 
 export function requireProjectAccess({
   projectKey,
-  action
+  action,
+  mode = "soft"
 }: {
-  projectKey: string;
+  projectKey?: string | null;
   action: ProjectAccessAction;
+  mode?: ProjectAccessMode;
 }) {
   const authStatus = getAuthModeStatus();
+  const effectiveProjectKey = projectKey ?? "unscoped-demo-project";
   const membership =
     authStatus.effectiveMode === "supabase_auth"
       ? null
-      : createDemoProjectMembership(projectKey);
-  const allowed = membership ? roleCan(membership.role, action) : action === "read";
+      : createDemoProjectMembership(effectiveProjectKey);
+  const demoHardAllowed = process.env.GEOAI_ALLOW_DEMO_HARD_ACCESS?.trim().toLowerCase() === "true";
+  const roleAllowed = membership ? roleCan(membership.role, action) : false;
+  const allowed = authStatus.effectiveMode === "demo_public"
+    ? mode === "soft"
+      ? roleAllowed
+      : demoHardAllowed && roleAllowed
+    : Boolean(membership && roleAllowed);
+  const reason = allowed
+    ? authStatus.effectiveMode === "demo_public"
+      ? "Demo project access allowed in soft mode."
+      : "Project membership allows this action."
+    : authStatus.effectiveMode === "supabase_auth"
+      ? "Supabase Auth is requested, but project membership is not available in this runtime."
+      : mode === "hard"
+        ? "Hard enforcement blocks demo access unless GEOAI_ALLOW_DEMO_HARD_ACCESS=true."
+        : "Project access was not granted.";
 
   return {
     allowed,
+    reason,
+    role: membership?.role ?? null,
+    mode,
     authMode: authStatus.effectiveMode,
     user: membership ? demoUser : null,
     organization: membership ? demoOrganization : null,
     membership,
-    projectKey,
+    projectKey: effectiveProjectKey,
     action,
     caveat: membership?.caveat ?? getProjectAccessCaveat()
   };
