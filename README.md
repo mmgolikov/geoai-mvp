@@ -331,7 +331,7 @@ Current export remains browser print/save as PDF. GeoAI does not generate server
 - Persistence v0.8 supports local/API fallback saved objects, but auth, tenant security, production file storage and report libraries are not complete.
 - Supabase/PostGIS and persistence are optional prototype foundations, not production-grade user storage yet.
 - Pilot readiness scoring is a delivery checklist, not an approval, compliance or production-readiness certification.
-- No authentication or user accounts.
+- Auth foundation exists in public-demo mode, but production route enforcement, RLS and durable user/organization access control are not complete.
 - No real parcel, zoning, transaction, satellite, or regulatory data adapters.
 - Report export is browser print/save as PDF, not a generated server-side PDF.
 - Comparison sets can be saved through the local/API fallback, but production report libraries still require auth, tenant security and validated persistence.
@@ -359,6 +359,7 @@ Current export remains browser print/save as PDF. GeoAI does not generate server
 - [Real Data + OpenAI Decision Scoring Foundation v2.1](docs/REAL_DATA_OPENAI_SCORING_FOUNDATION_V21.md)
 - [GeoAI Real Data + OpenAI Decision Scoring Foundation v2.1 Release Note](docs/RELEASE_GEOAI_REAL_DATA_OPENAI_SCORING_V21.md)
 - [Auth & Project Access Foundation v2.2](docs/AUTH_PROJECT_ACCESS_FOUNDATION_V22.md)
+- [GeoAI Auth & Project Access Foundation v2.2 Release Note](docs/RELEASE_GEOAI_AUTH_PROJECT_ACCESS_FOUNDATION_V22.md)
 - [GeoAI AOI Library Demo v1.8 Release Note](docs/RELEASE_GEOAI_AOI_LIBRARY_DEMO_V18.md)
 - [Persistence & Project Workspace v0.8](docs/PERSISTENCE_PROJECT_WORKSPACE_V08.md)
 - [Project-Scoped Persistence v13](docs/PROJECT_SCOPED_PERSISTENCE_V13.md)
