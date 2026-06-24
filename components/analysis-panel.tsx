@@ -170,6 +170,19 @@ type EvidenceFilesResponse = {
   items?: EvidenceFileAsset[];
 };
 
+type ReportPackageSummary = {
+  id: string;
+  packageKey: string;
+  projectKey: string;
+  title: string;
+  packageType: string;
+  status: string;
+  generatedAt: string;
+  printablePath: string;
+  jsonPath: string;
+  caveat: string;
+};
+
 function formatCoordinate(value: number) {
   return value.toFixed(6);
 }
@@ -298,6 +311,8 @@ export function AnalysisPanel({
   const [dataRoomMessage, setDataRoomMessage] = useState<string | null>(null);
   const [pilotWorkflow, setPilotWorkflow] = useState<PilotWorkflowSummary | null>(null);
   const [pilotWorkflowMessage, setPilotWorkflowMessage] = useState<string | null>(null);
+  const [reportPackages, setReportPackages] = useState<ReportPackageSummary[]>([]);
+  const [reportPackageMessage, setReportPackageMessage] = useState<string | null>(null);
   const [validationGovernance, setValidationGovernance] = useState<ValidationGovernanceResponse | null>(null);
   const [validationMessage, setValidationMessage] = useState<string | null>(null);
   const [storageHealth, setStorageHealth] = useState<StorageHealthResponse | null>(null);
@@ -494,6 +509,27 @@ export function AnalysisPanel({
   }, [activeProject.projectKey, hasResult, projectAois.length, uploadedDatasets.length]);
 
   useEffect(() => {
+    let isMounted = true;
+
+    fetch(`/api/report-packages?projectKey=${encodeURIComponent(activeProject.projectKey)}`)
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload: { summaries?: ReportPackageSummary[] } | null) => {
+        if (isMounted) {
+          setReportPackages(Array.isArray(payload?.summaries) ? payload.summaries : []);
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setReportPackages([]);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [activeProject.projectKey, hasResult]);
+
+  useEffect(() => {
     setIsAoiSaveOpen(false);
   }, [selectedAoi?.id]);
 
@@ -517,6 +553,56 @@ export function AnalysisPanel({
     } catch {
       setPilotWorkflowMessage("Pilot workflow summary unavailable.");
     }
+  }
+
+  async function refreshReportPackages() {
+    try {
+      const response = await fetch(`/api/report-packages?projectKey=${encodeURIComponent(activeProject.projectKey)}`);
+      const payload = response.ok ? await response.json() as { summaries?: ReportPackageSummary[] } : null;
+      setReportPackages(Array.isArray(payload?.summaries) ? payload.summaries : []);
+    } catch {
+      setReportPackageMessage("Report packages are temporarily unavailable.");
+    }
+  }
+
+  async function createWorkspaceReportPackage() {
+    if (!currentAnalysis) {
+      setReportPackageMessage("Run analysis before creating a report package.");
+      return;
+    }
+
+    setReportPackageMessage("Creating report package...");
+    const response = await fetch("/api/report-packages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        projectId: activeProject.id,
+        projectKey: activeProject.projectKey,
+        packageType: activeProject.clientType === "developer"
+          ? "development_feasibility"
+          : activeProject.clientType === "bank"
+            ? "bank_asset_review"
+            : "investment_screening",
+        analysisId: currentAnalysis.id,
+        reportId: currentAnalysis.id.endsWith("-report") ? currentAnalysis.id : `${currentAnalysis.id}-report`,
+        aoiId: selectedAoi?.savedAoiId ?? selectedAoi?.id ?? null,
+        includeDataRoom: true,
+        includeValidation: true,
+        includeEvidenceReview: true,
+        includePilotWorkflow: true
+      })
+    });
+    const payload = await response.json().catch(() => ({})) as { ok?: boolean; message?: string };
+
+    if (!response.ok || payload.ok === false) {
+      setReportPackageMessage(payload.message ?? "Report package could not be created.");
+      return;
+    }
+
+    setReportPackageMessage("Report package created. Browser Print / Save as PDF remains the PDF workflow.");
+    await refreshReportPackages();
+    await refreshDataRoom();
+    await refreshPilotWorkflow();
   }
 
   async function refreshValidationGovernance() {
@@ -1565,6 +1651,50 @@ export function AnalysisPanel({
             badge={`${dataRoom?.assets.length ?? 0} assets`}
           >
             <div className="grid gap-2">
+              <div className="rounded-md border border-line bg-surface p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-ink">Report / Deliverables</p>
+                    <p className="mt-1 text-xs leading-5 text-muted">
+                      Create a structured report package after analysis. Browser Print / Save as PDF remains the PDF workflow.
+                    </p>
+                  </div>
+                  <span className="shrink-0 rounded-full bg-white px-2 py-1 text-[11px] font-semibold text-brand">
+                    {reportPackages.length}
+                  </span>
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    disabled={!currentAnalysis}
+                    onClick={() => {
+                      void createWorkspaceReportPackage();
+                    }}
+                    className="inline-flex h-8 items-center justify-center rounded-md bg-brand px-2 text-[11px] font-semibold text-white transition hover:bg-[#113f50] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Create Report Package
+                  </button>
+                  {reportPackages[0] ? (
+                    <Link
+                      href={reportPackages[0].printablePath}
+                      className="inline-flex h-8 items-center justify-center rounded-md border border-line bg-white px-2 text-[11px] font-semibold text-ink transition hover:border-brand"
+                    >
+                      Open Latest Package
+                    </Link>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled
+                      className="inline-flex h-8 items-center justify-center rounded-md border border-line bg-white px-2 text-[11px] font-semibold text-muted opacity-60"
+                    >
+                      Open Latest Package
+                    </button>
+                  )}
+                </div>
+                {reportPackageMessage ? (
+                  <p className="mt-2 rounded-md bg-white px-2 py-2 text-xs leading-5 text-muted">{reportPackageMessage}</p>
+                ) : null}
+              </div>
               <div className="rounded-md border border-line bg-surface p-3">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">

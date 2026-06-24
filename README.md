@@ -49,6 +49,7 @@ OpenAI is optional. If `OPENAI_API_KEY` is not configured, GeoAI automatically u
 - Validation Governance & Official Connector Readiness v2.5 for project validation evidence metadata, official connector readiness, report appendices and AI claim guardrails
 - Secure File Storage & Evidence Uploads v2.6 foundation with evidence file metadata, storage readiness, server-side upload/download APIs, report appendix file metadata and Supabase Storage policy draft
 - Evidence Review Workflow & Signed URL Verification v2.7 with conservative review decisions, signed URL verification, upload intent and review-aware AI/report guardrails
+- Enterprise Report Pack v2.8 with structured package model, local/API fallback package repository, printable package route, safe JSON export, source lineage, validation governance, evidence review, Data Room and pilot workflow appendices
 - Pilot Readiness & Client Delivery Package v1.1 with client-specific pilot packages, readiness scoring, setup checklist and deliverable framing
 - Offline DLD / Dubai Pulse CSV ingestion prototype with normalized sample outputs
 - API routes for health, demo objects, and analysis
@@ -167,6 +168,11 @@ The default `npm run dev` command uses stable Webpack mode with polling enabled 
 - `PATCH /api/aois/[id]` updates saved AOI metadata.
 - `DELETE /api/aois/[id]` removes a saved AOI from local/API fallback storage.
 - `GET /api/data-room?projectKey=...` returns the project-scoped Client Data Room summary.
+- `GET /api/report-packages?projectKey=...` returns project-scoped report packages and seeded package summaries.
+- `POST /api/report-packages` creates a local/API fallback enterprise report package.
+- `GET /api/report-packages/[id]/json` exports safe report package metadata and section summaries.
+- `GET /api/report-packages/[id]/export` returns package export manifest metadata.
+- `/report-packages/[id]/print` renders a print-friendly enterprise report package. Browser print/save as PDF remains the current PDF workflow.
 - `POST /api/data-room/assets` registers local/demo data room asset metadata.
 - `PATCH /api/data-room/assets/[id]` updates local/demo asset metadata.
 - `DELETE /api/data-room/assets/[id]` removes a local/demo asset metadata record.

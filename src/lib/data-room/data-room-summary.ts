@@ -9,6 +9,7 @@ import { listDataRoomAssets, listDataRoomChecklist } from "@/src/lib/repositorie
 import { listEvidenceFileAssets } from "@/src/lib/repositories/evidence-file-repository";
 import { listValidationEvidence } from "@/src/lib/repositories/validation-repository";
 import { listUploadedDatasetRecords } from "@/src/lib/repositories/uploaded-dataset-repository";
+import { localList } from "@/src/lib/repositories/local-json-store";
 import { getExternalDataReadiness } from "@/src/lib/external-data/data-manifest";
 import {
   dataRoomRequiredCaveat,
@@ -30,6 +31,7 @@ import type { DataSource } from "@/src/types/data-source";
 import type { ProjectAoi } from "@/src/types/aoi";
 import type { ValidationEvidence } from "@/src/types/validation";
 import type { EvidenceFileAsset } from "@/src/types/storage";
+import type { ReportPackage } from "@/src/types/report-package";
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -240,6 +242,26 @@ function comparisonAsset(value: unknown, project: GeoAIProject): DataRoomAsset {
     validationStatus: "ready_for_review",
     createdAt,
     updatedAt: createdAt
+  });
+}
+
+function reportPackageAsset(value: ReportPackage, project: GeoAIProject): DataRoomAsset {
+  return dataRoomAsset({
+    id: `derived-report-package-${value.id}`,
+    projectId: value.projectId ?? project.id,
+    projectKey: value.projectKey,
+    name: value.title,
+    description: `${value.packageType.replace(/_/g, " ")} / ${value.status}. Browser print package and JSON metadata export; official validation required.`,
+    assetType: "report",
+    sourceType: "generated_by_geoai",
+    linkedReportIds: value.linkedReportIds,
+    linkedAnalysisIds: value.linkedAnalysisIds,
+    linkedAoiIds: value.linkedAoiIds,
+    linkedValidationEvidenceIds: value.linkedValidationEvidenceIds,
+    validationStatus: value.status === "ready_for_review" ? "ready_for_review" : "validation_required",
+    createdAt: value.createdAt,
+    updatedAt: value.updatedAt,
+    caveat: value.caveat
   });
 }
 
@@ -488,6 +510,7 @@ export async function buildClientDataRoom(input: { projectKey?: string | null; p
     listValidationEvidence({ projectId: project.id, projectKey, limit: 50 }),
     listEvidenceFileAssets({ projectId: project.id, projectKey, limit: 50 })
   ]);
+  const reportPackageResult = localList<ReportPackage>("report-packages", { projectId: project.id, projectKey, limit: 20 });
 
   const localAnalyses = Array.isArray(analysisResult.data)
     ? analysisResult.data.filter((item) => belongsToProject(item, project))
@@ -518,6 +541,7 @@ export async function buildClientDataRoom(input: { projectKey?: string | null; p
     ...analyses.map((item) => analysisAsset(item, project)),
     ...(reports as unknown[]).map((item) => reportAsset(item, project)),
     ...(comparisons as unknown[]).map((item) => comparisonAsset(item, project)),
+    ...(reportPackageResult.data ?? []).map((item) => reportPackageAsset(item, project)),
     ...(validationResult.data ?? []).map(validationEvidenceAsset),
     ...(evidenceFileResult.data ?? []).filter((file) => file.objectStatus !== "deleted").map(evidenceFileAsset),
     ...externalSourceAssets(project)

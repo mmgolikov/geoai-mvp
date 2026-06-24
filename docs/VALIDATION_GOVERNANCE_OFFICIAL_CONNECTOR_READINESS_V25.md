@@ -8,6 +8,12 @@ GeoAI v2.5 adds a validation governance foundation for tracking evidence posture
 
 This is not a live official integration and not official validation. It does not certify ownership, zoning, cadastral status, planning approval, suitability or valuation.
 
+## v2.8 Report Package Linkage
+
+Enterprise Report Pack v2.8 includes a Validation Governance Appendix. It summarizes validation posture, evidence status counts, highest allowed claim level, required validation gaps, connector readiness and caveats.
+
+The package keeps this required caveat visible: `screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.`
+
 Required caveat:
 
 ```text

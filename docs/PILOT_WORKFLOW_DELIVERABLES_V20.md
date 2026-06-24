@@ -6,6 +6,12 @@ GeoAI Pilot Workflow & Deliverables v2.0 turns the demo workspace into a structu
 
 This is not an auth system, secure file store, enterprise workflow engine, official validation connector or durable production storage layer.
 
+## v2.8 Report Package Linkage
+
+Enterprise Report Pack v2.8 adds report packages as a browser-print client deliverable. Packages summarize Data Room counts, pilot workflow stage, workflow readiness, client input progress, deliverables progress, blockers and next actions.
+
+Readiness remains workflow completeness only. It is not investment, legal, planning, zoning, cadastral, ownership or valuation readiness.
+
 Required caveat:
 
 > screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.
