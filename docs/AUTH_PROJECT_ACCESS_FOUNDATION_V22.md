@@ -49,8 +49,8 @@ disabled
 ## Limitations
 
 - No production route enforcement yet.
-- No Supabase RLS policy implementation yet.
-- No durable user/organization/project membership tables yet.
+- Supabase/PostGIS v2.3 adds an RLS policy draft, but full enforcement still requires configured Supabase Auth, project memberships and deployment governance.
+- Supabase/PostGIS v2.3 adds durable user/organization/project membership table foundations, but production user access workflows are not complete.
 - No enterprise RBAC UI yet.
 - No audit trail, billing, tenant administration or secure file-storage governance yet.
 
@@ -71,3 +71,5 @@ Required caveat:
 ## Next Sprint
 
 Recommended next sprint: Supabase/PostGIS Durable Persistence Foundation v2.3.
+
+See also: [Supabase/PostGIS Durable Persistence Foundation v2.3](SUPABASE_POSTGIS_DURABLE_PERSISTENCE_V23.md).

@@ -14,7 +14,7 @@ The canonical type lives in `src/lib/repositories/repository-mode.ts`.
 
 | Mode | User label | Meaning | Caveat |
 | --- | --- | --- | --- |
-| `supabase` | Supabase/PostGIS | Durable DB-backed repository mode only when Supabase/PostGIS is configured and a read/write succeeds. | Supabase/PostGIS is active only when configured and successfully used. |
+| `supabase` | Supabase/PostGIS | Durable DB-backed repository mode only when Supabase/PostGIS is configured and schema readiness checks pass. | Supabase/PostGIS durable persistence is active only when configured and schema readiness checks pass. |
 | `local_fallback` | Local/API fallback | Server/API fallback for demo continuity. It may use local runtime files or `/tmp` in serverless runtime. | Local/API fallback is not durable production storage. |
 | `browser_local` | Browser-local demo | Browser `localStorage` state used for demo continuity. | Browser-local storage is for demo continuity only. |
 | `demo_seed` | Demo seed | Static or generated demo seed records. | Demo seed records are sample context and require validation. |
@@ -37,6 +37,17 @@ Routes that expose repository state should use canonical mode strings and includ
 - `status`: `connected`, `configured_unavailable`, or `not_configured`
 - `repositoryMode`: `supabase` or `local_fallback`
 - `caveat`: repository caveat for the active mode
+
+v2.3 adds schema readiness fields:
+
+- `postgisReady`
+- `tablesReady`
+- `missingTables`
+- `requiredTables`
+- `migrationName`
+- `schemaVersion`
+
+RLS policies require configured Supabase Auth, project memberships and deployment governance.
 
 ## Compatibility
 

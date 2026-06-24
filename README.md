@@ -44,6 +44,7 @@ OpenAI is optional. If `OPENAI_API_KEY` is not configured, GeoAI automatically u
 - Client Data Room Foundation v1.9 for project-scoped AOIs, uploaded metadata, analyses, reports, comparisons, validation checklist and pilot deliverable summary
 - Pilot Workflow & Deliverables v2.0 for project-scoped client input checklist, deliverables workflow and caveated workflow-readiness scoring
 - Auth & Project Access Foundation v2.2 with public demo access mode, Supabase Auth readiness and compact access status indicators
+- Supabase/PostGIS Durable Persistence Foundation v2.3 with additive migration SQL, schema readiness checks, RLS draft and audit event foundation
 - Pilot Readiness & Client Delivery Package v1.1 with client-specific pilot packages, readiness scoring, setup checklist and deliverable framing
 - Offline DLD / Dubai Pulse CSV ingestion prototype with normalized sample outputs
 - API routes for health, demo objects, and analysis
@@ -329,6 +330,8 @@ Current export remains browser print/save as PDF. GeoAI does not generate server
 - AOI GeoJSON import supports Polygon only. MultiPolygon, holes, CRS transformations and shapefiles are deferred.
 - Real Data Backbone v0.7 supports optional snapshots/API context, but live official validation sources are still not connected.
 - Persistence v0.8 supports local/API fallback saved objects, but auth, tenant security, production file storage and report libraries are not complete.
+- Supabase/PostGIS durable persistence is active only when configured and schema readiness checks pass.
+- RLS policies require configured Supabase Auth, project memberships and deployment governance.
 - Supabase/PostGIS and persistence are optional prototype foundations, not production-grade user storage yet.
 - Pilot readiness scoring is a delivery checklist, not an approval, compliance or production-readiness certification.
 - Auth foundation exists in public-demo mode, but production route enforcement, RLS and durable user/organization access control are not complete.
@@ -360,6 +363,7 @@ Current export remains browser print/save as PDF. GeoAI does not generate server
 - [GeoAI Real Data + OpenAI Decision Scoring Foundation v2.1 Release Note](docs/RELEASE_GEOAI_REAL_DATA_OPENAI_SCORING_V21.md)
 - [Auth & Project Access Foundation v2.2](docs/AUTH_PROJECT_ACCESS_FOUNDATION_V22.md)
 - [GeoAI Auth & Project Access Foundation v2.2 Release Note](docs/RELEASE_GEOAI_AUTH_PROJECT_ACCESS_FOUNDATION_V22.md)
+- [Supabase/PostGIS Durable Persistence Foundation v2.3](docs/SUPABASE_POSTGIS_DURABLE_PERSISTENCE_V23.md)
 - [GeoAI AOI Library Demo v1.8 Release Note](docs/RELEASE_GEOAI_AOI_LIBRARY_DEMO_V18.md)
 - [Persistence & Project Workspace v0.8](docs/PERSISTENCE_PROJECT_WORKSPACE_V08.md)
 - [Project-Scoped Persistence v13](docs/PROJECT_SCOPED_PERSISTENCE_V13.md)

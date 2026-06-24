@@ -68,7 +68,12 @@ export async function saveAnalysisRun(input: DbAnalysisRunInput): Promise<DbRepo
       selected_feature_key: input.selectedFeatureKey ?? null,
       input_context: input.inputContext ?? null,
       selected_object: input.selectedObject ?? null,
+      deterministic_scores: (input.resultJson as { scores?: unknown })?.scores ?? null,
+      result_payload: input.resultJson,
       result_json: input.resultJson,
+      source_lineage: createSourceLineageSnapshot({
+        evidence: (input.inputContext as { evidence?: [] })?.evidence ?? []
+      }),
       decision_posture: input.decisionPosture ?? null,
       confidence_level: input.confidenceLevel ?? null,
       data_confidence_level: input.dataConfidenceLevel ?? null,
