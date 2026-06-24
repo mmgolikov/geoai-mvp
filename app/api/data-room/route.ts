@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireProjectAccess } from "@/src/lib/auth/project-access";
 import { buildClientDataRoom } from "@/src/lib/data-room/data-room-summary";
 import { repositoryModeFields } from "@/src/lib/repositories/repository-mode";
 
@@ -8,9 +9,10 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const projectId = url.searchParams.get("projectId");
   const projectKey = url.searchParams.get("projectKey");
+  const access = requireProjectAccess({ projectKey, action: "read", mode: "soft" });
   const dataRoom = await buildClientDataRoom({ projectId, projectKey });
 
-  return NextResponse.json(dataRoom);
+  return NextResponse.json({ ...dataRoom, access });
 }
 
 export async function POST(request: Request) {
@@ -30,5 +32,8 @@ export async function POST(request: Request) {
     projectKey: input.projectKey ?? null
   });
 
-  return NextResponse.json(dataRoom);
+  return NextResponse.json({
+    ...dataRoom,
+    access: requireProjectAccess({ projectKey: input.projectKey ?? null, action: "read", mode: "soft" })
+  });
 }

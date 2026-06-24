@@ -4,6 +4,8 @@ import {
   saveAnalysisRun
 } from "@/src/lib/db/repositories/analysis-runs";
 import { getProjectByKey } from "@/src/lib/db/repositories/projects";
+import { recordAuditEvent } from "@/src/lib/audit/audit-event";
+import { requireProjectAccess } from "@/src/lib/auth/project-access";
 import { repositoryModeFields } from "@/src/lib/repositories/repository-mode";
 import type { DbAnalysisRunInput } from "@/src/lib/db/types";
 
@@ -30,6 +32,7 @@ export async function GET(request: Request) {
   const limitParam = Number(url.searchParams.get("limit") ?? "10");
   const limit = Number.isFinite(limitParam) ? Math.min(Math.max(limitParam, 1), 50) : 10;
   const projectKey = url.searchParams.get("projectKey");
+  const access = requireProjectAccess({ projectKey, action: "read", mode: "soft" });
   const project = projectKey ? await getProjectByKey(projectKey) : null;
 
   const result = await listAnalysisRuns(limit, project?.mode === "supabase" ? project.data?.id ?? null : null);
@@ -43,6 +46,7 @@ export async function GET(request: Request) {
     ...repositoryModeFields(responseMode),
     projectMode: project?.mode ?? null,
     project: project?.data ?? null,
+    access,
     count: Array.isArray(localProjectItems) ? localProjectItems.length : 0,
     items: localProjectItems,
     error: result.error,
@@ -70,6 +74,7 @@ export async function POST(request: Request) {
   }
 
   const project = body.projectKey ? await getProjectByKey(body.projectKey) : null;
+  const access = requireProjectAccess({ projectKey: body.projectKey ?? project?.data?.projectKey ?? null, action: "write", mode: "soft" });
   const result = await saveAnalysisRun({
     ...body,
     projectId: body.projectId ?? (project?.mode === "supabase" ? project.data?.id ?? null : null),
@@ -78,12 +83,22 @@ export async function POST(request: Request) {
   });
 
   const responseMode = result.mode === "supabase" ? "supabase" : "local_fallback";
+  void recordAuditEvent({
+    projectId: body.projectId ?? (project?.mode === "supabase" ? project.data?.id ?? null : null),
+    projectKey: body.projectKey ?? project?.data?.projectKey ?? null,
+    eventType: "analysis_run",
+    entityType: "analysis_run",
+    entityId: body.runKey,
+    action: "Saved analysis run",
+    metadata: { scenarioId: body.scenarioId, selectedType: body.selectedType, accessAllowed: access.allowed }
+  });
   return NextResponse.json({
     ok: result.ok,
     persisted: result.mode === "supabase" && result.ok,
     ...repositoryModeFields(responseMode),
     runKey: body.runKey,
     project: project?.data ?? null,
+    access,
     data: result.data,
     error: result.error,
     message: result.mode === "supabase" && result.ok

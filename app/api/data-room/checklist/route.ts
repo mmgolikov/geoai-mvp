@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { recordAuditEvent } from "@/src/lib/audit/audit-event";
+import { requireProjectAccess } from "@/src/lib/auth/project-access";
 import { createDataRoomChecklistItem } from "@/src/lib/repositories/data-room-repository";
 import { repositoryModeFields } from "@/src/lib/repositories/repository-mode";
 import {
@@ -56,11 +58,21 @@ export async function POST(request: Request) {
     ...body,
     caveat: body.caveat ?? dataRoomRequiredCaveat
   });
+  const access = requireProjectAccess({ projectKey: body.projectKey, action: "write", mode: "soft" });
+  void recordAuditEvent({
+    projectKey: body.projectKey,
+    eventType: "checklist_updated",
+    entityType: "validation_checklist_item",
+    entityId: body.id,
+    action: "Created checklist item",
+    metadata: { status: body.status, priority: body.priority, accessAllowed: access.allowed }
+  });
 
   return NextResponse.json({
     ok: result.ok,
     ...repositoryModeFields("local_fallback"),
     item: result.data,
+    access,
     error: result.error,
     dataHonesty: "Checklist status is a local/demo workflow marker; it is not official validation."
   }, { status: result.ok ? 201 : 200 });

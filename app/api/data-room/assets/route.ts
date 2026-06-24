@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { recordAuditEvent } from "@/src/lib/audit/audit-event";
+import { requireProjectAccess } from "@/src/lib/auth/project-access";
 import { createDataRoomAsset } from "@/src/lib/repositories/data-room-repository";
 import { repositoryModeFields } from "@/src/lib/repositories/repository-mode";
 import {
@@ -70,11 +72,21 @@ export async function POST(request: Request) {
     ...body,
     caveat: body.caveat ?? dataRoomRequiredCaveat
   });
+  const access = requireProjectAccess({ projectKey: body.projectKey, action: "write", mode: "soft" });
+  void recordAuditEvent({
+    projectKey: body.projectKey,
+    eventType: "data_room_asset_added",
+    entityType: "data_room_asset",
+    entityId: body.id,
+    action: "Registered data room asset metadata",
+    metadata: { assetType: body.assetType, sourceType: body.sourceType, accessAllowed: access.allowed }
+  });
 
   return NextResponse.json({
     ok: result.ok,
     ...repositoryModeFields("local_fallback"),
     item: result.data,
+    access,
     error: result.error,
     dataHonesty: "Data room assets are local/demo metadata only; official validation and durable storage are not connected."
   }, { status: result.ok ? 201 : 200 });

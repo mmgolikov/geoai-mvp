@@ -113,8 +113,15 @@ Local/API fallback is not durable production storage.
 - `requiredTables`
 - `migrationName`
 - `schemaVersion`
+- `storageReady`
+- `migrationApplied`
+- `seedReady`
+- `canWrite`
+- `canRead`
 - `caveat`
 - `sources_count`
+- `blockers`
+- `nextActions`
 
 Expected modes:
 
@@ -147,6 +154,19 @@ This is not a certified audit trail.
 
 This migration was authored in the repository. It was not applied to a live Supabase database in this Codex task.
 
+## v2.4 Activation Runbook
+
+GeoAI v2.4 adds guarded operator scripts and readiness APIs:
+
+```bash
+npm run supabase:migrate:check
+npm run supabase:migrate:apply
+npm run supabase:seed:pilot-foundation
+npm run supabase:verify:persistence
+```
+
+`npm run supabase:migrate:apply` requires `SUPABASE_DB_URL` and `GEOAI_ALLOW_SUPABASE_MIGRATION_APPLY=true`. If those are missing, it exits safely with instructions. See [Pilot Infrastructure Activation v2.4](PILOT_INFRASTRUCTURE_ACTIVATION_V24.md).
+
 ## Environment Variables
 
 ```bash
@@ -170,4 +190,4 @@ NEXT_PUBLIC_AUTH_MODE=demo_public
 
 ## Recommended Next Sprint
 
-Validation Governance & Official Connector Readiness v2.4.
+Validation Governance & Official Connector Readiness v2.5.

@@ -229,6 +229,19 @@ Use this checklist before demos, Vercel deployments, and milestone checkpoints.
 - [ ] `supabase_auth` mode falls back to public demo access if public Supabase env values are missing.
 - [ ] Project/workspace access badges remain compact and do not push primary actions below the first viewport.
 
+## Pilot Infrastructure Activation v2.4
+
+- [ ] `GET /api/platform/activation-status` returns 200 and no secrets.
+- [ ] `GET /api/db/health` returns `migrationApplied`, `seedReady`, `canRead`, `canWrite`, `blockers` and `nextActions`.
+- [ ] `GET /api/storage/health` returns required bucket names and readiness blockers.
+- [ ] `GET /api/known-limitations` returns the limitations tracker.
+- [ ] `npm run supabase:migrate:check` exits safely and reports migration blockers.
+- [ ] `npm run supabase:verify:persistence` exits safely in local fallback when Supabase env is missing.
+- [ ] `npm run supabase:seed:pilot-foundation` writes nothing and reports blockers when schema is unavailable.
+- [ ] Core project APIs include `access` metadata without blocking public demo flows.
+- [ ] Audit calls do not break AOI, report, analysis, comparison, data room or pilot workflow operations.
+- [ ] `/projects` Platform Readiness panel is visible, compact and honest.
+
 ## External Data v1.4
 
 - [ ] `GET /api/external-data/manifest` returns v1.4 manifest JSON.

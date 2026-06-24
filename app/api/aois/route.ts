@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createAoi, listAois } from "@/src/lib/repositories/aoi-repository";
 import { repositoryModeFields } from "@/src/lib/repositories/repository-mode";
+import { requireProjectAccess } from "@/src/lib/auth/project-access";
+import { recordAuditEvent } from "@/src/lib/audit/audit-event";
 import { aoiRequiredCaveat, type ProjectAoi } from "@/src/types/aoi";
 
 export const runtime = "nodejs";
@@ -28,6 +30,7 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const projectId = url.searchParams.get("projectId");
   const projectKey = url.searchParams.get("projectKey");
+  const access = requireProjectAccess({ projectKey, action: "read", mode: "soft" });
   const result = await listAois({ projectId, projectKey, limit: 50 });
 
   return NextResponse.json({
@@ -35,6 +38,7 @@ export async function GET(request: Request) {
     ...repositoryModeFields(result.mode),
     count: result.data.length,
     items: result.data,
+    access,
     error: result.error,
     dataHonesty: "AOIs are user-provided or uploaded screening geometry; official validation required."
   });
@@ -57,11 +61,21 @@ export async function POST(request: Request) {
     ...body,
     caveat: body.caveat ?? aoiRequiredCaveat
   });
+  const access = requireProjectAccess({ projectKey: body.projectKey, action: "write", mode: "soft" });
+  void recordAuditEvent({
+    projectKey: body.projectKey,
+    eventType: "aoi_created",
+    entityType: "aoi",
+    entityId: body.id,
+    action: "Created AOI metadata",
+    metadata: { accessAllowed: access.allowed, accessMode: access.mode, sourceType: body.sourceType }
+  });
 
   return NextResponse.json({
     ok: result.ok,
     ...repositoryModeFields(result.mode),
     item: result.data,
+    access,
     error: result.error,
     message: result.ok
       ? "AOI saved to local project fallback."
