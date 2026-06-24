@@ -111,6 +111,8 @@ Required caveat: Storage readiness is not secure enterprise storage until bucket
 
 v2.6 adds the evidence-file upload/download API foundation, metadata-only fallback and Supabase Storage bucket policy draft. See [Secure File Storage & Evidence Uploads v2.6](SECURE_FILE_STORAGE_EVIDENCE_UPLOADS_V26.md).
 
+v2.7 adds evidence review decisions, upload intent and signed URL verification. Signed URL availability requires configured storage buckets and policies. See [Evidence Review Workflow & Signed URL Verification v2.7](EVIDENCE_REVIEW_SIGNED_URL_VERIFICATION_V27.md).
+
 ## UI Surface
 
 `/projects` now includes a compact Platform Readiness panel showing Auth, DB, Schema, Storage, Audit and Access enforcement status.

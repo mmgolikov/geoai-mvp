@@ -6,7 +6,7 @@ import {
   updateEvidenceFileAsset
 } from "@/src/lib/repositories/evidence-file-repository";
 import { repositoryModeFields } from "@/src/lib/repositories/repository-mode";
-import { createSignedDownloadUrl } from "@/src/lib/storage/storage-server";
+import { verifySignedDownloadUrl } from "@/src/lib/storage/signed-url-verification";
 
 export const runtime = "nodejs";
 
@@ -19,15 +19,15 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   }
 
   const access = requireProjectAccess({ projectKey: existing.data.projectKey, action: "read", mode: "soft" });
-  const signed = await createSignedDownloadUrl(existing.data);
+  const signed = await verifySignedDownloadUrl(existing.data);
 
   void recordAuditEvent({
     projectKey: existing.data.projectKey,
-    eventType: "evidence_file_download_requested",
+    eventType: "signed_url_requested",
     entityType: "evidence_file",
     entityId: id,
-    action: "Requested evidence file download",
-    metadata: { storageProvider: existing.data.storageProvider, available: signed.ok, accessAllowed: access.allowed }
+    action: "Requested signed evidence download URL",
+    metadata: { storageProvider: existing.data.storageProvider, available: signed.ok, reason: signed.reason, accessAllowed: access.allowed }
   });
 
   if (!signed.ok) {
@@ -35,11 +35,22 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       ok: false,
       ...repositoryModeFields(existing.mode),
       access,
-      message: signed.message
+      reason: signed.reason,
+      message: signed.message,
+      nextAction: signed.nextAction,
+      caveat: signed.caveat
     }, { status: signed.status });
   }
 
   void updateEvidenceFileAsset(id, { signedUrlExpiresAt: signed.expiresAt });
+  void recordAuditEvent({
+    projectKey: existing.data.projectKey,
+    eventType: "signed_url_verified",
+    entityType: "evidence_file",
+    entityId: id,
+    action: "Verified signed evidence download URL",
+    metadata: { expiresAt: signed.expiresAt, accessAllowed: access.allowed }
+  });
 
   return NextResponse.json({
     ok: true,

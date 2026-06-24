@@ -82,6 +82,7 @@ Rules:
 - Preserve deterministic scores as baseline context; do not invent facts.
 - Treat DLD/Dubai Pulse/GeoDubai as manual/imported/sample/planned unless explicit validated evidence is provided.
 - Respect validationSummary and claimPolicy. If claimPolicy.allowedClaimLevel is screening_only, confidence must be low and validationRequired must include official/client validation gaps.
+- Respect evidenceReviewSummaries. Uploaded/unreviewed, rejected, expired or needs-more-evidence items do not support claims. In-review evidence may only be described as under review.
 - If validation evidence is a placeholder, planned validation, evidence_requested, or permission_required, do not treat it as proof.
 - Keep output concise and client-ready.
 

@@ -35,6 +35,7 @@ import type {
   PilotWorkflowSummary
 } from "@/src/types/pilot-workflow";
 import type { EvidenceFileAsset } from "@/src/types/storage";
+import type { EvidenceReviewSummary } from "@/src/types/evidence-review";
 import type { AnalysisHistoryItem, AnalysisScenarioId, ExpressAnalysis } from "@/src/types/geo";
 
 const activeProjectStorageKey = "geoai-active-project-key-v1";
@@ -86,6 +87,7 @@ type ValidationGovernanceResponse = {
     nextActions: string[];
     caveat: string;
   };
+  reviewSummaries?: EvidenceReviewSummary[];
   connectorReadiness?: Array<{
     id: string;
     name: string;
@@ -1091,6 +1093,14 @@ export function ProjectDashboard() {
     }
   ];
   const validationSummary = validationGovernance?.summary;
+  const reviewSummaries = validationGovernance?.reviewSummaries ?? [];
+  const reviewStatusCounts = {
+    uploaded: reviewSummaries.filter((item) => item.latestStatus === "uploaded_unreviewed").length,
+    inReview: reviewSummaries.filter((item) => item.latestStatus === "in_review").length,
+    client: reviewSummaries.filter((item) => item.latestStatus === "client_validated").length,
+    official: reviewSummaries.filter((item) => item.latestStatus === "official_validated").length,
+    blocked: reviewSummaries.filter((item) => ["needs_more_evidence", "rejected", "expired"].includes(item.latestStatus)).length
+  };
   const validationConnectors = validationGovernance?.connectorReadiness ?? [];
   const validationConnectorRows = [
     validationConnectors.find((item) => item.id === "dld-public-real-estate-data"),
@@ -1125,6 +1135,40 @@ export function ProjectDashboard() {
     const reload = await fetch(`/api/validation?projectKey=${encodeURIComponent(activeProject.projectKey)}`);
     setValidationGovernance(await reload.json() as ValidationGovernanceResponse);
     setValidationMessage("Validation evidence metadata registered. Review status remains screening-only until evidence is checked.");
+  }
+
+  async function createReviewDecision(decision: string) {
+    const target = validationGovernance?.evidence?.[0];
+    if (!target) {
+      setValidationMessage("Create validation evidence before adding a review decision.");
+      return;
+    }
+
+    const linkedFile = evidenceFiles.find((file) => file.linkedValidationEvidenceIds?.includes(target.id));
+    const response = await fetch(`/api/validation/evidence/${encodeURIComponent(target.id)}/reviews`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        projectId: activeProject.id,
+        projectKey: activeProject.projectKey,
+        decision,
+        evidenceFileId: linkedFile?.id,
+        reviewerName: "GeoAI demo reviewer",
+        reviewerRole: "screening reviewer",
+        notes: decision === "reject"
+          ? "Evidence is insufficient for screening use; replacement evidence is required."
+          : "Reviewed for screening workflow only. Official validation remains required where applicable."
+      })
+    });
+    const payload = await response.json().catch(() => ({})) as { ok?: boolean; message?: string };
+    if (!response.ok || payload.ok === false) {
+      setValidationMessage(payload.message ?? "Review decision could not be recorded.");
+      return;
+    }
+
+    const reload = await fetch(`/api/validation?projectKey=${encodeURIComponent(activeProject.projectKey)}`);
+    setValidationGovernance(await reload.json() as ValidationGovernanceResponse);
+    setValidationMessage("Review decision recorded. Claim posture remains caveated.");
   }
   const openWorkspaceHref = `/workspace?projectId=${encodeURIComponent(activeProject.id ?? activeProject.projectKey)}`;
   const openWorkspaceForAoi = (aoi: ProjectAoi) =>
@@ -1973,6 +2017,48 @@ export function ProjectDashboard() {
                       <p className="mt-1 text-lg font-semibold text-ink">{value}</p>
                     </div>
                   ))}
+                </div>
+                <div className="rounded-md border border-line bg-surface p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-ink">Evidence review workflow</p>
+                      <p className="mt-1 text-xs leading-5 text-muted">
+                        Uploaded evidence stays screening-only until a reviewer records a decision.
+                      </p>
+                    </div>
+                    <span className="shrink-0 rounded-full bg-white px-2 py-1 text-xs font-semibold text-brand">v2.7</span>
+                  </div>
+                  <div className="mt-3 grid grid-cols-5 gap-2 text-xs">
+                    {[
+                      ["Unreviewed", reviewStatusCounts.uploaded],
+                      ["Review", reviewStatusCounts.inReview],
+                      ["Client", reviewStatusCounts.client],
+                      ["Official", reviewStatusCounts.official],
+                      ["Blocked", reviewStatusCounts.blocked]
+                    ].map(([label, value]) => (
+                      <div key={`review-count-${label}`} className="rounded-md bg-white p-2">
+                        <span className="text-muted">{label}</span>
+                        <p className="mt-1 font-semibold text-ink">{value}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {[
+                      ["accept_for_screening", "Mark in review"],
+                      ["mark_client_validated", "Client validated"],
+                      ["request_more_evidence", "Need more"],
+                      ["reject", "Reject"]
+                    ].map(([decision, label]) => (
+                      <button
+                        key={decision}
+                        type="button"
+                        onClick={() => void createReviewDecision(decision)}
+                        className="inline-flex h-8 items-center justify-center rounded-md border border-line bg-white px-3 text-xs font-semibold text-ink transition hover:border-brand"
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
                 <div className="rounded-md border border-line bg-surface p-3">
                   <div className="flex items-start justify-between gap-3">

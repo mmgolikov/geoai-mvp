@@ -30,6 +30,7 @@ import type { UploadedDataset } from "@/src/types/uploaded-data";
 import type { ProjectAoi } from "@/src/types/aoi";
 import type { ClientDataRoom, DataRoomAssetType } from "@/src/types/data-room";
 import type { EvidenceFileAsset } from "@/src/types/storage";
+import type { EvidenceReviewSummary } from "@/src/types/evidence-review";
 import type {
   ClientInputItem,
   ClientInputStatus,
@@ -154,6 +155,7 @@ type ValidationGovernanceResponse = {
     highestAllowedClaimLevel: string;
     caveat: string;
   };
+  reviewSummaries?: EvidenceReviewSummary[];
 };
 
 type StorageHealthResponse = {
@@ -348,6 +350,10 @@ export function AnalysisPanel({
   ).length ?? 0;
   const pilotDeliverablesTotal = pilotWorkflow?.deliverables.length ?? 0;
   const validationSummary = validationGovernance?.summary;
+  const reviewSummaries = validationGovernance?.reviewSummaries ?? [];
+  const reviewBlockedCount = reviewSummaries.filter((item) =>
+    ["needs_more_evidence", "rejected", "expired"].includes(item.latestStatus)
+  ).length;
   const validationBadge = validationSummary?.officialValidatedCount
     ? "official evidence"
     : validationSummary?.clientValidatedCount || validationSummary?.inReviewCount
@@ -596,6 +602,47 @@ export function AnalysisPanel({
 
     setValidationMessage(linkedAoiId ? "Validation evidence metadata linked to the selected AOI." : "Validation evidence metadata registered for this project.");
     await refreshValidationGovernance();
+    await refreshDataRoom();
+    await refreshPilotWorkflow();
+  }
+
+  async function createWorkspaceReviewDecision(decision: string) {
+    const linkedAoiId = selectedAoi?.savedAoiId ?? selectedAoi?.id;
+    const target = validationGovernance?.evidence?.find((item) =>
+      linkedAoiId ? item.linkedAoiIds?.includes(linkedAoiId) : false
+    ) ?? validationGovernance?.evidence?.[0];
+
+    if (!target) {
+      setValidationMessage("Create validation evidence before adding a review note.");
+      return;
+    }
+
+    const linkedFile = evidenceFiles.find((file) => file.linkedValidationEvidenceIds?.includes(target.id));
+    const response = await fetch(`/api/validation/evidence/${encodeURIComponent(target.id)}/reviews`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        projectId: activeProject.id,
+        projectKey: activeProject.projectKey,
+        decision,
+        evidenceFileId: linkedFile?.id,
+        reviewerName: user?.name ?? "GeoAI demo reviewer",
+        reviewerRole: "screening reviewer",
+        notes: decision === "request_more_evidence"
+          ? "Additional client or official evidence is required before this item can support a claim."
+          : "Evidence moved into review for screening workflow only. Official validation remains required."
+      })
+    });
+    const payload = await response.json().catch(() => ({})) as { ok?: boolean; message?: string };
+
+    if (!response.ok || payload.ok === false) {
+      setValidationMessage(payload.message ?? "Review note could not be recorded.");
+      return;
+    }
+
+    setValidationMessage("Review note recorded. Evidence remains caveated.");
+    await refreshValidationGovernance();
+    await refreshEvidenceFiles();
     await refreshDataRoom();
     await refreshPilotWorkflow();
   }
@@ -1456,6 +1503,33 @@ export function AnalysisPanel({
                   event.currentTarget.value = "";
                 }}
               />
+              <div className="rounded-md border border-line bg-white p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Review status</p>
+                    <p className="mt-1 text-xs leading-5 text-muted">
+                      {reviewSummaries.length} tracked item(s); {reviewBlockedCount} blocker(s). Uploaded evidence remains unvalidated until reviewed.
+                    </p>
+                  </div>
+                  <span className="shrink-0 rounded-full bg-surface px-2 py-1 text-[10px] font-semibold text-brand">v2.7</span>
+                </div>
+                <div className="mt-2 grid grid-cols-3 gap-2">
+                  {[
+                    ["accept_for_screening", "Add review note"],
+                    ["request_more_evidence", "Need more"],
+                    ["reset_to_review", "Mark review"]
+                  ].map(([decision, label]) => (
+                    <button
+                      key={`workspace-review-${decision}`}
+                      type="button"
+                      onClick={() => void createWorkspaceReviewDecision(decision)}
+                      className="inline-flex h-8 items-center justify-center rounded-md border border-line bg-surface px-2 text-[11px] font-semibold text-ink transition hover:border-brand"
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <div className="rounded-md border border-line bg-white p-3">
                 <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Evidence files</p>
                 <div className="mt-2 grid gap-1">

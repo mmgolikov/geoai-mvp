@@ -121,7 +121,8 @@ export async function POST(request: Request) {
       const currentIds = existing.data?.linkedEvidenceFileIds ?? [];
       return updateValidationEvidence(validationEvidenceId, {
         linkedEvidenceFileIds: Array.from(new Set([...currentIds, fileId])),
-        validationStatus: "evidence_uploaded"
+        validationStatus: "uploaded_unreviewed",
+        allowedClaimLevel: "screening_only"
       });
     });
   }

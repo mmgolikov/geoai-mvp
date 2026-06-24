@@ -25,7 +25,13 @@ export const auditEventTypeLabels = {
   evidence_file_metadata_created: "Evidence file metadata created",
   evidence_file_download_requested: "Evidence file download requested",
   evidence_file_deleted: "Evidence file deleted",
-  storage_health_checked: "Storage health checked"
+  storage_health_checked: "Storage health checked",
+  evidence_review_created: "Evidence review created",
+  evidence_review_updated: "Evidence review updated",
+  evidence_review_status_changed: "Evidence review status changed",
+  signed_url_requested: "Signed URL requested",
+  signed_url_verified: "Signed URL verified",
+  upload_intent_created: "Upload intent created"
 } as const;
 
 export type AuditEventType = keyof typeof auditEventTypeLabels;

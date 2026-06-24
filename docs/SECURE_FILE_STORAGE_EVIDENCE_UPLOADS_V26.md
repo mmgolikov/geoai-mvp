@@ -126,3 +126,7 @@ Smoke routes:
 ## Next Sprint
 
 Recommended next sprint: Evidence Review Workflow & Signed URL Verification v2.7.
+
+## v2.7 Follow-Up
+
+Evidence Review Workflow & Signed URL Verification v2.7 adds explicit review decisions, conservative status transitions, signed URL verification, upload intent and review-aware report/AI guardrails. Uploading a file still does not mean official validation. See [Evidence Review Workflow & Signed URL Verification v2.7](EVIDENCE_REVIEW_SIGNED_URL_VERIFICATION_V27.md).

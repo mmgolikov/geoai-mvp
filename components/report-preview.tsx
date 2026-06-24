@@ -16,6 +16,7 @@ import { formatArea, formatPerimeter } from "@/src/lib/polygon-aoi";
 import { createSourceLineageSnapshot } from "@/src/lib/source-lineage-snapshot";
 import type { ComparisonResult, ExpressAnalysis, ScoreKey } from "@/src/types/geo";
 import type { EvidenceFileAsset } from "@/src/types/storage";
+import type { EvidenceReviewSummary } from "@/src/types/evidence-review";
 
 type ReportPreviewProps =
   | {
@@ -464,18 +465,26 @@ function AnalysisReport({ analysis, onBack }: { analysis: ExpressAnalysis; onBac
   const demoNarrative = getDemoNarrativeByProjectKey(analysis.project?.projectKey);
   const clientPilotPackage = getClientPilotPackageForProject(analysis.project?.projectKey, analysis.project?.clientType);
   const [evidenceFiles, setEvidenceFiles] = useState<EvidenceFileAsset[]>([]);
+  const [reviewSummaries, setReviewSummaries] = useState<EvidenceReviewSummary[]>([]);
 
   useEffect(() => {
     let mounted = true;
     const projectKey = analysis.project?.projectKey;
     if (!projectKey) return undefined;
-    fetch(`/api/storage/evidence-files?projectKey=${encodeURIComponent(projectKey)}`)
-      .then((response) => (response.ok ? response.json() : null))
-      .then((payload: { items?: EvidenceFileAsset[] } | null) => {
-        if (mounted) setEvidenceFiles(Array.isArray(payload?.items) ? payload.items : []);
+    Promise.all([
+      fetch(`/api/storage/evidence-files?projectKey=${encodeURIComponent(projectKey)}`).then((response) => (response.ok ? response.json() : null)),
+      fetch(`/api/validation?projectKey=${encodeURIComponent(projectKey)}`).then((response) => (response.ok ? response.json() : null))
+    ])
+      .then(([filesPayload, validationPayload]: [{ items?: EvidenceFileAsset[] } | null, { reviewSummaries?: EvidenceReviewSummary[] } | null]) => {
+        if (!mounted) return;
+        setEvidenceFiles(Array.isArray(filesPayload?.items) ? filesPayload.items : []);
+        setReviewSummaries(Array.isArray(validationPayload?.reviewSummaries) ? validationPayload.reviewSummaries : []);
       })
       .catch(() => {
-        if (mounted) setEvidenceFiles([]);
+        if (mounted) {
+          setEvidenceFiles([]);
+          setReviewSummaries([]);
+        }
       });
     return () => {
       mounted = false;
@@ -892,7 +901,7 @@ function AnalysisReport({ analysis, onBack }: { analysis: ExpressAnalysis; onBac
         <UploadedDataReportSection analysis={analysis} />
 
         <Section title="Validation Governance Appendix">
-          <ValidationGovernanceAppendix projectName={analysis.project?.name} evidenceFiles={evidenceFiles} compact />
+          <ValidationGovernanceAppendix projectName={analysis.project?.name} evidenceFiles={evidenceFiles} reviewSummaries={reviewSummaries} compact />
         </Section>
 
         <div className="grid gap-6 md:grid-cols-2">
@@ -945,18 +954,26 @@ function ComparisonReport({ comparison, onBack }: { comparison: ComparisonResult
   const demoNarrative = getDemoNarrativeByProjectKey(comparison.project?.projectKey);
   const clientPilotPackage = getClientPilotPackageForProject(comparison.project?.projectKey, comparison.project?.clientType);
   const [evidenceFiles, setEvidenceFiles] = useState<EvidenceFileAsset[]>([]);
+  const [reviewSummaries, setReviewSummaries] = useState<EvidenceReviewSummary[]>([]);
 
   useEffect(() => {
     let mounted = true;
     const projectKey = comparison.project?.projectKey;
     if (!projectKey) return undefined;
-    fetch(`/api/storage/evidence-files?projectKey=${encodeURIComponent(projectKey)}`)
-      .then((response) => (response.ok ? response.json() : null))
-      .then((payload: { items?: EvidenceFileAsset[] } | null) => {
-        if (mounted) setEvidenceFiles(Array.isArray(payload?.items) ? payload.items : []);
+    Promise.all([
+      fetch(`/api/storage/evidence-files?projectKey=${encodeURIComponent(projectKey)}`).then((response) => (response.ok ? response.json() : null)),
+      fetch(`/api/validation?projectKey=${encodeURIComponent(projectKey)}`).then((response) => (response.ok ? response.json() : null))
+    ])
+      .then(([filesPayload, validationPayload]: [{ items?: EvidenceFileAsset[] } | null, { reviewSummaries?: EvidenceReviewSummary[] } | null]) => {
+        if (!mounted) return;
+        setEvidenceFiles(Array.isArray(filesPayload?.items) ? filesPayload.items : []);
+        setReviewSummaries(Array.isArray(validationPayload?.reviewSummaries) ? validationPayload.reviewSummaries : []);
       })
       .catch(() => {
-        if (mounted) setEvidenceFiles([]);
+        if (mounted) {
+          setEvidenceFiles([]);
+          setReviewSummaries([]);
+        }
       });
     return () => {
       mounted = false;
@@ -1108,7 +1125,7 @@ function ComparisonReport({ comparison, onBack }: { comparison: ComparisonResult
         <ExternalDataLineageSection comparison={comparison} />
 
         <Section title="Validation Governance Appendix">
-          <ValidationGovernanceAppendix projectName={comparison.project?.name} evidenceFiles={evidenceFiles} compact />
+          <ValidationGovernanceAppendix projectName={comparison.project?.name} evidenceFiles={evidenceFiles} reviewSummaries={reviewSummaries} compact />
         </Section>
 
         <div className="grid gap-6 md:grid-cols-2">

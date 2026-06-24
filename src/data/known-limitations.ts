@@ -55,12 +55,23 @@ export const knownLimitations: KnownLimitation[] = [
     id: "secure_file_storage",
     title: "Secure file storage",
     currentStatus: "foundation_ready",
-    whatExists: "Storage health, bucket policy draft, evidence upload/download APIs, file metadata model and metadata-only fallback.",
-    whatIsMissing: "Configured Supabase Storage buckets, applied private policies, verified signed upload/download flows and hard access enforcement.",
-    nextAction: "Configure Supabase Storage, apply the v2.6 bucket policy draft and verify signed URL flows with project access enforcement.",
+    whatExists: "Storage health, bucket policy draft, evidence upload/download APIs, upload intent, signed URL verification route, file metadata model and metadata-only fallback.",
+    whatIsMissing: "Configured Supabase Storage buckets, applied private policies, verified signed URL binary test and hard access enforcement.",
+    nextAction: "Configure Supabase Storage, apply the bucket policy draft and verify signed URL flows with project access enforcement.",
     caveat: "Storage readiness is not secure enterprise storage until buckets, policies, signed URL flows and access enforcement are configured and verified.",
-    relatedRoutes: ["/api/storage/health", "/api/storage/evidence-files"],
-    relatedDocs: ["/docs/PILOT_INFRASTRUCTURE_ACTIVATION_V24.md", "/docs/SECURE_FILE_STORAGE_EVIDENCE_UPLOADS_V26.md"]
+    relatedRoutes: ["/api/storage/health", "/api/storage/evidence-files", "/api/storage/evidence-files/upload-intent"],
+    relatedDocs: ["/docs/PILOT_INFRASTRUCTURE_ACTIVATION_V24.md", "/docs/SECURE_FILE_STORAGE_EVIDENCE_UPLOADS_V26.md", "/docs/EVIDENCE_REVIEW_SIGNED_URL_VERIFICATION_V27.md"]
+  },
+  {
+    id: "validation_evidence_review",
+    title: "Validation evidence review workflow",
+    currentStatus: "foundation_ready",
+    whatExists: "Review lifecycle, transition policy, review APIs, report appendix linkage and AI guardrail integration exist.",
+    whatIsMissing: "Durable reviewer identity if auth/RLS is not active, official connector automation and external reviewer workflow.",
+    nextAction: "Enable authenticated reviewer roles, verify durable review history and connect approved official/customer validation sources.",
+    caveat: "Uploaded evidence requires review; it is not a legal, cadastral, zoning, planning, ownership or valuation conclusion.",
+    relatedRoutes: ["/api/validation", "/api/validation/evidence/[id]/reviews", "/api/ai/decision-score"],
+    relatedDocs: ["/docs/EVIDENCE_REVIEW_SIGNED_URL_VERIFICATION_V27.md", "/docs/VALIDATION_GOVERNANCE_OFFICIAL_CONNECTOR_READINESS_V25.md"]
   },
   {
     id: "audit_trail",

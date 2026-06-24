@@ -104,6 +104,7 @@ type ProjectsResponse = {
 type ValidationGovernanceResponse = {
   evidence?: unknown[];
   summary?: unknown;
+  reviewSummaries?: unknown[];
   claimPolicy?: unknown;
   connectorReadiness?: unknown[];
 };
@@ -1942,6 +1943,7 @@ export function WorkspaceShell() {
             })),
             validationSummary: validationGovernance?.summary ?? null,
             validationEvidence: validationGovernance?.evidence ?? [],
+            evidenceReviewSummaries: validationGovernance?.reviewSummaries ?? [],
             claimPolicy: validationGovernance?.claimPolicy ?? null,
             evidence: narrativeAnalysis.evidence,
             validationGaps: [
@@ -1999,6 +2001,7 @@ export function WorkspaceShell() {
             externalDataLineage: fallbackAnalysis.evidence,
             validationSummary: validationGovernance?.summary ?? null,
             validationEvidence: validationGovernance?.evidence ?? [],
+            evidenceReviewSummaries: validationGovernance?.reviewSummaries ?? [],
             claimPolicy: validationGovernance?.claimPolicy ?? null,
             evidence: fallbackAnalysis.evidence,
             validationGaps: [
