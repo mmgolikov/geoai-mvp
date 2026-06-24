@@ -101,6 +101,12 @@ AI output must not claim official parcel boundary, zoning approval, cadastral va
 
 If unsupported language appears, confidence is downgraded and unsupported claims are listed.
 
+## v2.5 Validation Governance Update
+
+Validation Governance & Official Connector Readiness v2.5 extends these guardrails with project validation evidence metadata, claim policy and connector readiness. Decision scoring now treats screening-only, placeholder, planned or permission-required evidence as non-proof context and keeps confidence capped until client or official validation evidence is recorded.
+
+See [Validation Governance & Official Connector Readiness v2.5](VALIDATION_GOVERNANCE_OFFICIAL_CONNECTOR_READINESS_V25.md).
+
 ## Limitations
 
 - No live DLD, Dubai Pulse or GeoDubai integration.

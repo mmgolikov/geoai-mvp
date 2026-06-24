@@ -64,6 +64,36 @@ type PlatformActivationStatus = {
   nextActions: string[];
 };
 
+type ValidationGovernanceResponse = {
+  evidence?: Array<{
+    id: string;
+    title: string;
+    sourceName: string;
+    sourceCategory: string;
+    validationStatus: string;
+    allowedClaimLevel: string;
+    caveat: string;
+  }>;
+  summary?: {
+    totalEvidence: number;
+    officialValidatedCount: number;
+    clientValidatedCount: number;
+    inReviewCount: number;
+    requiredValidationGaps: string[];
+    highestAllowedClaimLevel: string;
+    blockers: string[];
+    nextActions: string[];
+    caveat: string;
+  };
+  connectorReadiness?: Array<{
+    id: string;
+    name: string;
+    currentStatus: string;
+    accessMode: string;
+    nextStep: string;
+  }>;
+};
+
 type MarketMetricsSummary = {
   sourceMode: string;
   count: number;
@@ -547,6 +577,8 @@ export function ProjectDashboard() {
   const [dataRoomMessage, setDataRoomMessage] = useState<string | null>(null);
   const [pilotWorkflow, setPilotWorkflow] = useState<PilotWorkflowSummary | null>(null);
   const [pilotWorkflowMessage, setPilotWorkflowMessage] = useState<string | null>(null);
+  const [validationGovernance, setValidationGovernance] = useState<ValidationGovernanceResponse | null>(null);
+  const [validationMessage, setValidationMessage] = useState<string | null>(null);
 
   useEffect(() => {
     setActiveProjectKey(readActiveProjectKey());
@@ -694,6 +726,26 @@ export function ProjectDashboard() {
     }
 
     void loadDbHistory();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeProjectKey]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadValidationGovernance() {
+      try {
+        const response = await fetch(`/api/validation?projectKey=${encodeURIComponent(activeProjectKey)}`);
+        const payload = response.ok ? await response.json() as ValidationGovernanceResponse : null;
+        if (!cancelled) setValidationGovernance(payload);
+      } catch {
+        if (!cancelled) setValidationGovernance(null);
+      }
+    }
+
+    void loadValidationGovernance();
 
     return () => {
       cancelled = true;
@@ -983,6 +1035,42 @@ export function ProjectDashboard() {
       note: "Project access metadata is returned; hard enforcement remains a future rollout"
     }
   ];
+  const validationSummary = validationGovernance?.summary;
+  const validationConnectors = validationGovernance?.connectorReadiness ?? [];
+  const validationConnectorRows = [
+    validationConnectors.find((item) => item.id === "dld-public-real-estate-data"),
+    validationConnectors.find((item) => item.id === "dld-api-gateway"),
+    validationConnectors.find((item) => item.id === "geodubai-municipality"),
+    validationConnectors.find((item) => item.id === "client-uploaded-official-document")
+  ].filter((item): item is NonNullable<typeof item> => Boolean(item));
+
+  async function addValidationEvidencePlaceholder() {
+    setValidationMessage(null);
+    const response = await fetch("/api/validation/evidence", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        projectId: activeProject.id,
+        projectKey: activeProject.projectKey,
+        title: `Client evidence metadata requested - ${new Date().toISOString().slice(0, 10)}`,
+        sourceCategory: "client_uploaded_document",
+        sourceName: "Client provided document placeholder",
+        accessMode: "client_provided",
+        validationStatus: "evidence_requested",
+        confidence: "unknown",
+        description: "Metadata placeholder for client or official evidence. No secure file storage is connected yet."
+      })
+    });
+
+    if (!response.ok) {
+      setValidationMessage("Validation evidence metadata could not be registered.");
+      return;
+    }
+
+    const reload = await fetch(`/api/validation?projectKey=${encodeURIComponent(activeProject.projectKey)}`);
+    setValidationGovernance(await reload.json() as ValidationGovernanceResponse);
+    setValidationMessage("Validation evidence metadata registered. Review status remains screening-only until evidence is checked.");
+  }
   const openWorkspaceHref = `/workspace?projectId=${encodeURIComponent(activeProject.id ?? activeProject.projectKey)}`;
   const openWorkspaceForAoi = (aoi: ProjectAoi) =>
     `/workspace?projectKey=${encodeURIComponent(activeProject.projectKey)}&projectId=${encodeURIComponent(activeProject.id ?? activeProject.projectKey)}&openAoi=${encodeURIComponent(aoi.id)}`;
@@ -1808,6 +1896,80 @@ export function ProjectDashboard() {
                 <p className="text-xs leading-5 text-muted">
                   {platformStatus?.nextActions?.[0] ?? "Run the v2.4 migration, seed and verification scripts from a trusted environment before claiming durable storage."}
                 </p>
+              </div>
+            </Panel>
+
+            <Panel title="Validation Governance" subtitle="Evidence posture and official connector readiness for this project.">
+              <div className="grid gap-3">
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    ["Evidence", validationSummary?.totalEvidence ?? 0],
+                    ["In review", validationSummary?.inReviewCount ?? 0],
+                    ["Client validated", validationSummary?.clientValidatedCount ?? 0],
+                    ["Official validated", validationSummary?.officialValidatedCount ?? 0]
+                  ].map(([label, value]) => (
+                    <div key={label} className="rounded-md bg-surface px-3 py-2">
+                      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">{label}</p>
+                      <p className="mt-1 text-lg font-semibold text-ink">{value}</p>
+                    </div>
+                  ))}
+                </div>
+                <div className="rounded-md border border-line bg-surface p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-ink">
+                        {formatDataRoomLabel(validationSummary?.highestAllowedClaimLevel ?? "screening_only")}
+                      </p>
+                      <p className="mt-1 text-xs leading-5 text-muted">
+                        Required gaps: {validationSummary?.requiredValidationGaps.length ?? 0}. Evidence tracking does not mean GeoAI certifies ownership, zoning, cadastral status, planning approval or valuation.
+                      </p>
+                    </div>
+                    <span className="shrink-0 rounded-full bg-white px-2 py-1 text-xs font-semibold text-brand">
+                      v2.5
+                    </span>
+                  </div>
+                  <ul className="mt-2 grid gap-1 text-xs leading-5 text-muted">
+                    {(validationSummary?.requiredValidationGaps ?? ["Official/client validation evidence required"]).slice(0, 3).map((gap, index) => (
+                      <li key={`validation-gap-${index}-${gap.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 32)}`}>{gap}</li>
+                    ))}
+                  </ul>
+                </div>
+                <div className="grid gap-2">
+                  {validationConnectorRows.map((connector) => (
+                    <div key={connector.id} className="rounded-md bg-surface px-3 py-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="min-w-0 truncate text-sm font-semibold text-ink">{connector.name}</p>
+                        <span className="shrink-0 text-xs font-semibold text-muted">{formatDataRoomLabel(connector.currentStatus)}</span>
+                      </div>
+                      <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted">{connector.nextStep}</p>
+                    </div>
+                  ))}
+                </div>
+                {validationMessage ? (
+                  <p className="rounded-md bg-surface px-3 py-2 text-xs leading-5 text-muted">{validationMessage}</p>
+                ) : null}
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void addValidationEvidencePlaceholder()}
+                    className="inline-flex h-9 items-center justify-center rounded-md bg-brand px-3 text-sm font-semibold text-white transition hover:bg-[#113f50]"
+                  >
+                    Add validation evidence
+                  </button>
+                  <a
+                    href="#data-readiness"
+                    className="inline-flex h-9 items-center justify-center rounded-md border border-line bg-white px-3 text-sm font-semibold text-ink transition hover:border-brand"
+                  >
+                    Review connectors
+                  </a>
+                  <a
+                    href="#client-data-room"
+                    className="inline-flex h-9 items-center justify-center rounded-md border border-line bg-white px-3 text-sm font-semibold text-ink transition hover:border-brand"
+                  >
+                    Open Data Room
+                  </a>
+                </div>
+                <p className="text-xs leading-5 text-muted">{validationSummary?.caveat ?? "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."}</p>
               </div>
             </Panel>
 

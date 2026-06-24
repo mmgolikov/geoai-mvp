@@ -76,13 +76,13 @@ export const knownLimitations: KnownLimitation[] = [
   {
     id: "official_validation_connectors",
     title: "Official validation connectors",
-    currentStatus: "blocked_external_dependency",
-    whatExists: "Data source registry and validation checklist model.",
-    whatIsMissing: "Approved customer/authority access to official parcel, zoning, ownership and planning validation sources.",
-    nextAction: "Prepare connector readiness requirements and client data-sharing checklist.",
+    currentStatus: "foundation_ready",
+    whatExists: "Validation evidence model, connector readiness matrix, project validation API and report appendix exist.",
+    whatIsMissing: "Approved customer/authority access to official parcel, zoning, ownership, planning and valuation validation sources.",
+    nextAction: "Use /api/validation and /api/validation/connectors to track readiness, then obtain official/client evidence before claim escalation.",
     caveat: "GeoAI outputs remain screening hypotheses; official validation required.",
-    relatedRoutes: ["/api/external-data/status", "/api/data-room"],
-    relatedDocs: ["/docs/data-strategy.md"]
+    relatedRoutes: ["/api/validation", "/api/validation/connectors", "/api/data-room"],
+    relatedDocs: ["/docs/data-strategy.md", "/docs/VALIDATION_GOVERNANCE_OFFICIAL_CONNECTOR_READINESS_V25.md"]
   },
   {
     id: "live_official_dld",
@@ -90,31 +90,42 @@ export const knownLimitations: KnownLimitation[] = [
     currentStatus: "blocked_external_dependency",
     whatExists: "DLD / Dubai Pulse sample snapshot ingestion and source lineage.",
     whatIsMissing: "Authorized live API credentials, SLA, licensing review and official validation workflow.",
-    nextAction: "Validate access route with DLD/Dubai Pulse stakeholders before claiming live integration.",
+    nextAction: "Secure DLD API Gateway permission or import reviewed manual snapshots before claiming official-source validation.",
     caveat: "Current DLD context is snapshot/sample/fallback only.",
-    relatedRoutes: ["/api/external-data/status", "/api/market-metrics"],
-    relatedDocs: ["/docs/REAL_EXTERNAL_DATA_INTEGRATION_V14.md"]
+    relatedRoutes: ["/api/external-data/status", "/api/market-metrics", "/api/validation/connectors"],
+    relatedDocs: ["/docs/REAL_EXTERNAL_DATA_INTEGRATION_V14.md", "/docs/VALIDATION_GOVERNANCE_OFFICIAL_CONNECTOR_READINESS_V25.md"]
   },
   {
     id: "live_geodubai",
     title: "Live GeoDubai / Municipality validation",
     currentStatus: "blocked_external_dependency",
-    whatExists: "Planned source registry entries and caveats.",
+    whatExists: "Planned source registry entries, connector readiness metadata and caveats.",
     whatIsMissing: "Official GeoDubai/Municipality data access, usage rights and validation workflow.",
-    nextAction: "Define official connector requirements and legal/data-use approvals.",
+    nextAction: "Obtain GeoDubai/Municipality access or client-provided official evidence before parcel, zoning, cadastral or planning claims.",
     caveat: "No official parcel, zoning, cadastral or planning validation is connected.",
-    relatedRoutes: ["/api/external-data/sources"],
-    relatedDocs: ["/docs/data-strategy.md"]
+    relatedRoutes: ["/api/external-data/sources", "/api/validation/connectors"],
+    relatedDocs: ["/docs/data-strategy.md", "/docs/VALIDATION_GOVERNANCE_OFFICIAL_CONNECTOR_READINESS_V25.md"]
   },
   {
     id: "valuation_conclusions",
     title: "Valuation conclusions",
-    currentStatus: "unresolved",
+    currentStatus: "blocked_external_dependency",
     whatExists: "Screening-level market metrics, scenario analysis and decision memo outputs.",
     whatIsMissing: "Certified valuation inputs, appraiser workflow, transaction validation and financial model governance.",
-    nextAction: "Keep investor-demo language limited to screening and due diligence recommendations.",
+    nextAction: "Add licensed valuation provider or client-approved comparable evidence before any valuation-grade claim.",
     caveat: "GeoAI does not produce legal, cadastral, zoning, planning or valuation conclusions.",
     relatedRoutes: ["/api/analyze", "/api/ai/decision-score"],
-    relatedDocs: ["/docs/qa-checklist.md"]
+    relatedDocs: ["/docs/qa-checklist.md", "/docs/VALIDATION_GOVERNANCE_OFFICIAL_CONNECTOR_READINESS_V25.md"]
+  },
+  {
+    id: "cadastral_zoning_ownership",
+    title: "Cadastral, zoning and ownership validation",
+    currentStatus: "blocked_external_dependency",
+    whatExists: "Validation governance can record evidence metadata, connector status and claim posture.",
+    whatIsMissing: "Official cadastral parcel, zoning/planning approval and ownership/title evidence from authorized sources.",
+    nextAction: "Collect client-provided official documents or authorized authority data before escalating beyond screening.",
+    caveat: "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.",
+    relatedRoutes: ["/api/validation", "/api/validation/connectors"],
+    relatedDocs: ["/docs/VALIDATION_GOVERNANCE_OFFICIAL_CONNECTOR_READINESS_V25.md"]
   }
 ];

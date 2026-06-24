@@ -136,6 +136,25 @@ type ExternalDataStatusResponse = {
   };
 };
 
+type ValidationGovernanceResponse = {
+  evidence?: Array<{
+    id: string;
+    title: string;
+    validationStatus: string;
+    allowedClaimLevel: string;
+    linkedAoiIds?: string[];
+  }>;
+  summary?: {
+    totalEvidence: number;
+    officialValidatedCount: number;
+    clientValidatedCount: number;
+    inReviewCount: number;
+    requiredValidationGaps: string[];
+    highestAllowedClaimLevel: string;
+    caveat: string;
+  };
+};
+
 function formatCoordinate(value: number) {
   return value.toFixed(6);
 }
@@ -263,6 +282,8 @@ export function AnalysisPanel({
   const [dataRoomMessage, setDataRoomMessage] = useState<string | null>(null);
   const [pilotWorkflow, setPilotWorkflow] = useState<PilotWorkflowSummary | null>(null);
   const [pilotWorkflowMessage, setPilotWorkflowMessage] = useState<string | null>(null);
+  const [validationGovernance, setValidationGovernance] = useState<ValidationGovernanceResponse | null>(null);
+  const [validationMessage, setValidationMessage] = useState<string | null>(null);
   const [isAoiSaveOpen, setIsAoiSaveOpen] = useState(false);
   const hasSelectedPoint = selectedPoint !== null;
   const hasSelectedObject = selectedObject !== null;
@@ -310,6 +331,12 @@ export function AnalysisPanel({
     ["generated", "ready_for_review", "validation_required"].includes(item.status)
   ).length ?? 0;
   const pilotDeliverablesTotal = pilotWorkflow?.deliverables.length ?? 0;
+  const validationSummary = validationGovernance?.summary;
+  const validationBadge = validationSummary?.officialValidatedCount
+    ? "official evidence"
+    : validationSummary?.clientValidatedCount || validationSummary?.inReviewCount
+      ? "client review"
+      : "screening only";
   const isComparisonWorkflow = primaryCtaLabel === "Compare" || (hasComparisonReady && hasResult);
   const activeWorkflowLabel = isComparisonWorkflow
     ? "Comparison active"
@@ -384,6 +411,23 @@ export function AnalysisPanel({
   useEffect(() => {
     let isMounted = true;
 
+    fetch(`/api/validation?projectKey=${encodeURIComponent(activeProject.projectKey)}`)
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload: ValidationGovernanceResponse | null) => {
+        if (isMounted) setValidationGovernance(payload);
+      })
+      .catch(() => {
+        if (isMounted) setValidationGovernance(null);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [activeProject.projectKey, selectedAoi?.id, hasResult]);
+
+  useEffect(() => {
+    let isMounted = true;
+
     fetch(`/api/pilot-workflow?projectKey=${encodeURIComponent(activeProject.projectKey)}`)
       .then((response) => (response.ok ? response.json() : null))
       .then((payload: PilotWorkflowSummary | null) => {
@@ -426,6 +470,49 @@ export function AnalysisPanel({
     } catch {
       setPilotWorkflowMessage("Pilot workflow summary unavailable.");
     }
+  }
+
+  async function refreshValidationGovernance() {
+    try {
+      const response = await fetch(`/api/validation?projectKey=${encodeURIComponent(activeProject.projectKey)}`);
+      if (response.ok) {
+        setValidationGovernance(await response.json() as ValidationGovernanceResponse);
+      }
+    } catch {
+      setValidationMessage("Validation governance summary unavailable.");
+    }
+  }
+
+  async function addValidationEvidenceForSelection() {
+    const linkedAoiId = selectedAoi?.savedAoiId ?? selectedAoi?.id;
+    setValidationMessage(null);
+    const response = await fetch("/api/validation/evidence", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        projectId: activeProject.id,
+        projectKey: activeProject.projectKey,
+        title: linkedAoiId ? `Validation evidence requested for ${selectedAoi?.name ?? "selected AOI"}` : "Validation evidence requested for selected site",
+        sourceCategory: "client_uploaded_document",
+        sourceName: "Client provided evidence placeholder",
+        accessMode: "client_provided",
+        validationStatus: "evidence_requested",
+        confidence: "unknown",
+        linkedAoiIds: linkedAoiId ? [linkedAoiId] : [],
+        linkedAnalysisIds: currentAnalysis?.id ? [currentAnalysis.id] : [],
+        description: "Metadata placeholder for client/official validation evidence. No secure file upload is connected yet."
+      })
+    });
+
+    if (!response.ok) {
+      setValidationMessage("Validation evidence metadata could not be created.");
+      return;
+    }
+
+    setValidationMessage(linkedAoiId ? "Validation evidence metadata linked to the selected AOI." : "Validation evidence metadata registered for this project.");
+    await refreshValidationGovernance();
+    await refreshDataRoom();
+    await refreshPilotWorkflow();
   }
 
   async function addCurrentEvidenceToDataRoom() {
@@ -1214,6 +1301,63 @@ export function AnalysisPanel({
               </div>
               <p className="text-xs leading-5 text-muted">
                 Persistence: {projectPersistenceStatus}.
+              </p>
+            </div>
+          </CollapsedSection>
+
+          <CollapsedSection title="Validation Evidence" badge={validationBadge}>
+            <div className="grid gap-2">
+              <div className="rounded-md border border-line bg-surface p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-ink">
+                      {formatDataRoomLabel(validationSummary?.highestAllowedClaimLevel ?? "screening_only")}
+                    </p>
+                    <p className="mt-1 text-xs leading-5 text-muted">
+                      {validationSummary?.totalEvidence ?? 0} evidence item(s). Official validation remains required before decision-grade use.
+                    </p>
+                  </div>
+                  <span className="shrink-0 rounded-full bg-white px-2 py-1 text-[11px] font-semibold text-brand">
+                    v2.5
+                  </span>
+                </div>
+                <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
+                  <div className="rounded-md bg-white p-2">
+                    <span className="text-muted">Review</span>
+                    <p className="mt-1 font-semibold text-ink">{validationSummary?.inReviewCount ?? 0}</p>
+                  </div>
+                  <div className="rounded-md bg-white p-2">
+                    <span className="text-muted">Client</span>
+                    <p className="mt-1 font-semibold text-ink">{validationSummary?.clientValidatedCount ?? 0}</p>
+                  </div>
+                  <div className="rounded-md bg-white p-2">
+                    <span className="text-muted">Official</span>
+                    <p className="mt-1 font-semibold text-ink">{validationSummary?.officialValidatedCount ?? 0}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="rounded-md border border-line bg-white p-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Top gaps</p>
+                <ul className="mt-2 grid gap-1 text-xs leading-5 text-muted">
+                  {(validationSummary?.requiredValidationGaps ?? ["Ownership/title", "Zoning/planning", "Cadastral/parcel", "Valuation/comps"]).slice(0, 4).map((gap, index) => (
+                    <li key={`workspace-validation-gap-${index}-${gap.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 32)}`}>{gap}</li>
+                  ))}
+                </ul>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  void addValidationEvidenceForSelection();
+                }}
+                className="inline-flex h-8 w-full items-center justify-center rounded-md bg-brand px-3 text-xs font-semibold text-white transition hover:bg-[#113f50]"
+              >
+                {selectedAoi ? "Link evidence to selected AOI" : "Add validation evidence"}
+              </button>
+              {validationMessage ? (
+                <p className="rounded-md bg-surface px-2 py-2 text-xs leading-5 text-muted">{validationMessage}</p>
+              ) : null}
+              <p className="text-[11px] leading-4 text-muted">
+                {validationSummary?.caveat ?? "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."}
               </p>
             </div>
           </CollapsedSection>

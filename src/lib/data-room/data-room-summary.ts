@@ -6,6 +6,7 @@ import { listReports } from "@/src/lib/db/repositories/reports";
 import { listComparisonSets } from "@/src/lib/repositories/comparison-set-repository";
 import { listAois } from "@/src/lib/repositories/aoi-repository";
 import { listDataRoomAssets, listDataRoomChecklist } from "@/src/lib/repositories/data-room-repository";
+import { listValidationEvidence } from "@/src/lib/repositories/validation-repository";
 import { listUploadedDatasetRecords } from "@/src/lib/repositories/uploaded-dataset-repository";
 import { getExternalDataReadiness } from "@/src/lib/external-data/data-manifest";
 import {
@@ -26,6 +27,7 @@ import {
 import type { GeoAIProject, ProjectClientType } from "@/src/lib/db/types";
 import type { DataSource } from "@/src/types/data-source";
 import type { ProjectAoi } from "@/src/types/aoi";
+import type { ValidationEvidence } from "@/src/types/validation";
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -239,6 +241,37 @@ function comparisonAsset(value: unknown, project: GeoAIProject): DataRoomAsset {
   });
 }
 
+function validationEvidenceAsset(evidence: ValidationEvidence): DataRoomAsset {
+  return dataRoomAsset({
+    id: `derived-validation-${evidence.id}`,
+    projectId: evidence.projectId ?? null,
+    projectKey: evidence.projectKey,
+    name: evidence.title,
+    description: `${formatValidationStatus(evidence.validationStatus)} / ${evidence.sourceName}. ${evidence.description}`,
+    assetType: "validation_note",
+    sourceType: evidence.validationStatus === "official_validated"
+      ? "public_snapshot"
+      : evidence.accessMode === "client_provided"
+        ? "user_uploaded"
+        : evidence.accessMode === "permission_required"
+          ? "permission_required"
+          : "planned_validation",
+    linkedAoiIds: evidence.linkedAoiIds,
+    linkedAnalysisIds: evidence.linkedAnalysisIds,
+    linkedReportIds: evidence.linkedReportIds,
+    validationStatus: ["client_validated", "official_validated", "in_review"].includes(evidence.validationStatus)
+      ? "ready_for_review"
+      : "validation_required",
+    createdAt: evidence.createdAt,
+    updatedAt: evidence.updatedAt,
+    caveat: evidence.caveat
+  });
+}
+
+function formatValidationStatus(value: string) {
+  return value.replace(/_/g, " ");
+}
+
 function externalSourceAssets(project: GeoAIProject): DataRoomAsset[] {
   const readinessById = new Map(getExternalDataReadiness().map((item) => [item.sourceId, item]));
 
@@ -412,7 +445,8 @@ export async function buildClientDataRoom(input: { projectKey?: string | null; p
     uploadResult,
     analysisResult,
     reportResult,
-    comparisonResult
+    comparisonResult,
+    validationResult
   ] = await Promise.all([
     listDataRoomAssets({ projectId: project.id, projectKey, limit: 80 }),
     listDataRoomChecklist({ projectId: project.id, projectKey, limit: 50 }),
@@ -420,7 +454,8 @@ export async function buildClientDataRoom(input: { projectKey?: string | null; p
     listUploadedDatasetRecords({ projectId: project.id, projectKey, limit: 50 }),
     listAnalysisRuns(50, project.id),
     listReports({ projectId: project.id, projectKey, limit: 50 }),
-    listComparisonSets({ projectId: project.id, projectKey, limit: 50 })
+    listComparisonSets({ projectId: project.id, projectKey, limit: 50 }),
+    listValidationEvidence({ projectId: project.id, projectKey, limit: 50 })
   ]);
 
   const localAnalyses = Array.isArray(analysisResult.data)
@@ -452,6 +487,7 @@ export async function buildClientDataRoom(input: { projectKey?: string | null; p
     ...analyses.map((item) => analysisAsset(item, project)),
     ...(reports as unknown[]).map((item) => reportAsset(item, project)),
     ...(comparisons as unknown[]).map((item) => comparisonAsset(item, project)),
+    ...(validationResult.data ?? []).map(validationEvidenceAsset),
     ...externalSourceAssets(project)
   ];
   const assets = dedupeAssets([...(manualAssetsResult.data ?? []), ...derivedAssets]);

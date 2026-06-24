@@ -29,7 +29,11 @@ function enumValue<T extends string>(value: unknown, allowed: T[], fallback: T):
   return allowed.includes(value as T) ? value as T : fallback;
 }
 
-export function validateDecisionScore(value: unknown, fallback: DecisionScoreResult["mode"]): DecisionScoreResult | null {
+export function validateDecisionScore(
+  value: unknown,
+  fallback: DecisionScoreResult["mode"],
+  request?: DecisionScoreRequest
+): DecisionScoreResult | null {
   if (!isRecord(value)) return null;
 
   const result: DecisionScoreResult = {
@@ -58,7 +62,7 @@ export function validateDecisionScore(value: unknown, fallback: DecisionScoreRes
     return null;
   }
 
-  return applyDecisionScoreGuardrails(result);
+  return applyDecisionScoreGuardrails(result, request);
 }
 
 function extractText(payload: Record<string, unknown>) {
@@ -77,6 +81,8 @@ Rules:
 - Do not claim official parcel boundaries, zoning approval, cadastral validation, ownership verification, certified valuation, approved site, guaranteed best use, official suitability, or legal conclusion.
 - Preserve deterministic scores as baseline context; do not invent facts.
 - Treat DLD/Dubai Pulse/GeoDubai as manual/imported/sample/planned unless explicit validated evidence is provided.
+- Respect validationSummary and claimPolicy. If claimPolicy.allowedClaimLevel is screening_only, confidence must be low and validationRequired must include official/client validation gaps.
+- If validation evidence is a placeholder, planned validation, evidence_requested, or permission_required, do not treat it as proof.
 - Keep output concise and client-ready.
 
 Input:
@@ -136,7 +142,7 @@ export async function createOpenAiDecisionScore(request: DecisionScoreRequest): 
     const payload = await response.json() as Record<string, unknown>;
     const text = extractText(payload);
     if (!text) return null;
-    return validateDecisionScore(JSON.parse(text), "openai");
+    return validateDecisionScore(JSON.parse(text), "openai", request);
   } catch {
     return null;
   } finally {

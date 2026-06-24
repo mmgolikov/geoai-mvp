@@ -1,4 +1,5 @@
 import { ReportPrintMap } from "@/components/reports/report-print-map";
+import { ValidationGovernanceAppendix } from "@/components/validation-governance-appendix";
 import {
   PrintCard,
   PrintList,
@@ -174,6 +175,10 @@ export function AnalysisReportPrint({ report }: { report: AnalysisReportDelivera
             <PrintList items={report.nextActions.slice(0, 6)} ordered />
           </PrintSection>
         </div>
+
+        <PrintSection title="Validation Governance Appendix">
+          <ValidationGovernanceAppendix projectName={report.analysis?.project?.name ?? report.title} compact printMode />
+        </PrintSection>
 
         <PrintSection title="Data Honesty Disclaimer">
           <p>{report.dataHonestyNote}</p>

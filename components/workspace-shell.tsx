@@ -101,6 +101,13 @@ type ProjectsResponse = {
   error: string | null;
 };
 
+type ValidationGovernanceResponse = {
+  evidence?: unknown[];
+  summary?: unknown;
+  claimPolicy?: unknown;
+  connectorReadiness?: unknown[];
+};
+
 type ClimateScreeningContext = {
   status: "connected" | "sample_fallback";
   sourceId: string;
@@ -456,6 +463,16 @@ function writeActiveProjectKey(projectKey: string) {
     window.localStorage.setItem(activeProjectStorageKey, projectKey);
   } catch {
     // Project selection still works in memory if localStorage is unavailable.
+  }
+}
+
+async function fetchValidationGovernance(projectKey: string): Promise<ValidationGovernanceResponse | null> {
+  try {
+    const response = await fetch(`/api/validation?projectKey=${encodeURIComponent(projectKey)}`);
+    if (!response.ok) return null;
+    return await response.json() as ValidationGovernanceResponse;
+  } catch {
+    return null;
   }
 }
 
@@ -1859,6 +1876,7 @@ export function WorkspaceShell() {
       climateContext
     );
     const scenario = analysisScenarios.find((item) => item.id === selectedScenario) ?? analysisScenarios[0];
+    const validationGovernance = await fetchValidationGovernance(activeProject.projectKey);
 
     try {
       const response = await fetch("/api/analyze", {
@@ -1882,6 +1900,7 @@ export function WorkspaceShell() {
           marketContext,
           climateContext,
           uploadedDataContext,
+          validationGovernance,
           openGeodataContext: {
             nearestAccessibility: getNearestAccessibilityMetric(selectedPoint),
             nearestRoad: getNearestOpenRoad(selectedPoint),
@@ -1905,6 +1924,7 @@ export function WorkspaceShell() {
             "Content-Type": "application/json"
           },
           body: JSON.stringify({
+            projectKey: activeProject.projectKey,
             target: narrativeAnalysis.analysisTarget ?? narrativeAnalysis.selectedObject ?? narrativeAnalysis.selectedAoi ?? {
               type: "point",
               coordinates: narrativeAnalysis.point
@@ -1920,8 +1940,14 @@ export function WorkspaceShell() {
               title: item.label,
               note: item.description
             })),
+            validationSummary: validationGovernance?.summary ?? null,
+            validationEvidence: validationGovernance?.evidence ?? [],
+            claimPolicy: validationGovernance?.claimPolicy ?? null,
             evidence: narrativeAnalysis.evidence,
-            validationGaps: narrativeAnalysis.limitations ?? []
+            validationGaps: [
+              ...((validationGovernance?.summary as { requiredValidationGaps?: string[] } | null)?.requiredValidationGaps ?? []),
+              ...(narrativeAnalysis.limitations ?? [])
+            ].slice(0, 8)
           })
         });
         decisionScore = scoreResponse.ok ? await scoreResponse.json() as DecisionScoreResult : null;
@@ -1960,6 +1986,7 @@ export function WorkspaceShell() {
             "Content-Type": "application/json"
           },
           body: JSON.stringify({
+            projectKey: activeProject.projectKey,
             target: fallbackAnalysis.analysisTarget ?? fallbackAnalysis.selectedObject ?? fallbackAnalysis.selectedAoi ?? {
               type: "point",
               coordinates: fallbackAnalysis.point
@@ -1970,8 +1997,14 @@ export function WorkspaceShell() {
             deterministicScores: fallbackAnalysis.scores,
             marketMetricsContext: fallbackAnalysis.marketContext?.importedMarketMetrics ?? fallbackAnalysis.marketMetricsMatch ?? null,
             externalDataLineage: fallbackAnalysis.evidence,
+            validationSummary: validationGovernance?.summary ?? null,
+            validationEvidence: validationGovernance?.evidence ?? [],
+            claimPolicy: validationGovernance?.claimPolicy ?? null,
             evidence: fallbackAnalysis.evidence,
-            validationGaps: fallbackAnalysis.limitations ?? []
+            validationGaps: [
+              ...((validationGovernance?.summary as { requiredValidationGaps?: string[] } | null)?.requiredValidationGaps ?? []),
+              ...(fallbackAnalysis.limitations ?? [])
+            ].slice(0, 8)
           })
         });
         decisionScore = scoreResponse.ok ? await scoreResponse.json() as DecisionScoreResult : null;
