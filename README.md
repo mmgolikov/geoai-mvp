@@ -364,6 +364,7 @@ Current export remains browser print/save as PDF. GeoAI does not generate server
 - [Auth & Project Access Foundation v2.2](docs/AUTH_PROJECT_ACCESS_FOUNDATION_V22.md)
 - [GeoAI Auth & Project Access Foundation v2.2 Release Note](docs/RELEASE_GEOAI_AUTH_PROJECT_ACCESS_FOUNDATION_V22.md)
 - [Supabase/PostGIS Durable Persistence Foundation v2.3](docs/SUPABASE_POSTGIS_DURABLE_PERSISTENCE_V23.md)
+- [GeoAI Supabase/PostGIS Durable Persistence Foundation v2.3 Release Note](docs/RELEASE_GEOAI_SUPABASE_POSTGIS_DURABLE_PERSISTENCE_V23.md)
 - [GeoAI AOI Library Demo v1.8 Release Note](docs/RELEASE_GEOAI_AOI_LIBRARY_DEMO_V18.md)
 - [Persistence & Project Workspace v0.8](docs/PERSISTENCE_PROJECT_WORKSPACE_V08.md)
 - [Project-Scoped Persistence v13](docs/PROJECT_SCOPED_PERSISTENCE_V13.md)
