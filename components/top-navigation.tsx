@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AccessStatusBadge } from "@/components/auth/access-status-badge";
 
 export function TopNavigation() {
   return (
@@ -29,9 +30,12 @@ export function TopNavigation() {
           </nav>
         </div>
         <div className="hidden items-center justify-end border-l border-line px-5 lg:flex">
-          <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">
-            Pilot workspace
-          </span>
+          <div className="flex items-center gap-3">
+            <AccessStatusBadge compact />
+            <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">
+              Pilot workspace
+            </span>
+          </div>
         </div>
       </div>
     </header>

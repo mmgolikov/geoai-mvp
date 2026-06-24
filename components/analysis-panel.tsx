@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useAuth } from "@/components/auth/auth-provider";
 import ingestionReport from "@/data/normalized/ingestion_report.json";
 import { DataReadinessCard } from "@/components/data-readiness";
 import { getScenarioDataSources } from "@/src/data/data-source-registry";
@@ -254,6 +255,7 @@ export function AnalysisPanel({
   onClearUploadedDatasets,
   onToggleUploadedDataset
 }: AnalysisPanelProps) {
+  const { authStatus, roleLabel, isAuthenticated, user } = useAuth();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const aoiFileInputRef = useRef<HTMLInputElement | null>(null);
   const [externalDataStatus, setExternalDataStatus] = useState<ExternalDataStatusResponse | null>(null);
@@ -293,6 +295,12 @@ export function AnalysisPanel({
   const analysisHistoryStatus =
     analysisHistorySource === "DB" ? "Supabase-backed" : "Local fallback";
   const projectPersistenceStatus = repositoryModeToLabel(projectsMode);
+  const projectAccessLabel =
+    authStatus.effectiveMode === "supabase_auth"
+      ? isAuthenticated
+        ? `Authenticated / ${roleLabel}`
+        : "Public preview / sign-in available"
+      : `${authStatus.label} / ${roleLabel}`;
   const pilotWorkflowBadge = pilotWorkflow?.readiness ? formatDataRoomLabel(pilotWorkflow.readiness.label) : "workflow";
   const pilotInputsProvided = pilotWorkflow?.clientInputs.filter((item) =>
     ["provided_unvalidated", "in_review", "accepted_for_screening", "not_applicable"].includes(item.status)
@@ -636,7 +644,18 @@ export function AnalysisPanel({
               <span className="rounded-full bg-white px-2 py-1 text-[11px] font-semibold text-muted">
                 {projectPersistenceStatus}
               </span>
+              <span
+                className="max-w-full truncate rounded-full bg-white px-2 py-1 text-[11px] font-semibold text-muted"
+                title={authStatus.caveat}
+              >
+                Access: {projectAccessLabel}
+              </span>
             </div>
+            <p className="mt-2 truncate text-[11px] leading-4 text-muted">
+              {authStatus.effectiveMode === "supabase_auth" && user
+                ? `Signed in as ${user.email}`
+                : authStatus.caveat}
+            </p>
           </section>
 
           <section className="min-w-0 max-w-full overflow-hidden rounded-lg border border-line bg-surface p-3">

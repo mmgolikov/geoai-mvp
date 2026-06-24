@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AccessStatusBadge } from "@/components/auth/access-status-badge";
 import { LandingHeroMap } from "@/components/landing-hero-map";
 import { SafeBadge } from "@/components/ui/safe-badge";
 
@@ -203,6 +204,9 @@ function LandingHeader() {
           ))}
         </nav>
         <div className="flex items-center gap-2">
+          <div className="hidden xl:block">
+            <AccessStatusBadge compact />
+          </div>
           <Link
             href="/projects"
             className="hidden h-10 items-center justify-center rounded-md border border-[#ded7c9] bg-white px-4 text-sm font-semibold text-ink transition hover:border-brand sm:inline-flex"
