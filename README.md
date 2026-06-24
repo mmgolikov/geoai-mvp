@@ -260,7 +260,7 @@ See [Secure File Storage & Evidence Uploads v2.6](docs/SECURE_FILE_STORAGE_EVIDE
 
 GeoAI now tracks evidence review decisions separately from file upload. Files enter `uploaded_unreviewed`, reviewers can move evidence through in-review, client-validated, official-validated, rejected, expired or superseded states, and AI/report guardrails stay conservative until review status supports stronger screening language.
 
-Signed download verification remains server-side. Without configured Supabase Storage buckets and private policies, the app returns metadata-only fallback and a controlled `409` for binary download. See [Evidence Review Workflow & Signed URL Verification v2.7](docs/EVIDENCE_REVIEW_SIGNED_URL_VERIFICATION_V27.md).
+Signed download verification remains server-side. Without configured Supabase Storage buckets and private policies, the app returns metadata-only fallback and a controlled `409` for binary download. See [Evidence Review Workflow & Signed URL Verification v2.7](docs/EVIDENCE_REVIEW_SIGNED_URL_VERIFICATION_V27.md) and the [v2.7 release note](docs/RELEASE_GEOAI_EVIDENCE_REVIEW_SIGNED_URL_V27.md).
 
 ## Data Credibility Sprint v0.5
 
