@@ -10,6 +10,8 @@ Use this checklist before demos, Vercel deployments, and milestone checkpoints.
 - [ ] `NEXT_PUBLIC_MAPBOX_TOKEN` is configured locally.
 - [ ] `NEXT_PUBLIC_MAPBOX_TOKEN` is configured in Vercel.
 - [ ] `OPENAI_API_KEY` is not required for current MVP behavior.
+- [ ] `NEXT_PUBLIC_AUTH_MODE` is optional and defaults to public demo access.
+- [ ] `SUPABASE_SERVICE_ROLE_KEY` is not exposed in browser/client code.
 - [ ] `npm run build` passes.
 - [ ] `npm run lint` passes.
 - [ ] `npm run ingest:dld:snapshot` exits successfully.
@@ -199,6 +201,16 @@ Use this checklist before demos, Vercel deployments, and milestone checkpoints.
 - [ ] `/workspace` renders.
 - [ ] Map loads in deployed environment.
 - [ ] Demo layers and analysis flows work after deployment.
+
+## Auth & Project Access Foundation v2.2
+
+- [ ] `/` loads without login when `NEXT_PUBLIC_AUTH_MODE` is unset.
+- [ ] `/workspace` loads without login when `NEXT_PUBLIC_AUTH_MODE` is unset.
+- [ ] `/projects` loads without login when `NEXT_PUBLIC_AUTH_MODE` is unset.
+- [ ] `/login` shows current auth mode and access caveat.
+- [ ] `/api/auth/session` returns safe JSON without secrets.
+- [ ] `supabase_auth` mode falls back to public demo access if public Supabase env values are missing.
+- [ ] Project/workspace access badges remain compact and do not push primary actions below the first viewport.
 
 ## External Data v1.4
 

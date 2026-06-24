@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useAuth } from "@/components/auth/auth-provider";
 import externalDataManifestStatic from "@/data/external/normalized/external_data_manifest.json";
 import dldMarketSnapshotStatic from "@/data/normalized/dld_market_snapshot.json";
 import openGeodataSnapshotStatic from "@/data/normalized/open_geodata_snapshot.json";
@@ -513,6 +514,7 @@ function getNextActions(project: GeoAIProject, importedMetricsCount: number) {
 }
 
 export function ProjectDashboard() {
+  const { authStatus, roleLabel, isAuthenticated } = useAuth();
   const dataRoomFileInputRef = useRef<HTMLInputElement | null>(null);
   const [projects, setProjects] = useState<GeoAIProject[]>(demoProjects);
   const [projectsMode, setProjectsMode] = useState<"supabase" | "demo_seed">("demo_seed");
@@ -896,6 +898,12 @@ export function ProjectDashboard() {
     ? "DLD/Dubai Pulse and OSM snapshots are available for screening context; official validation required."
     : "Sample/open fallbacks are active; official validation required before decisions.";
   const persistenceMode = repositoryModeToLabel(dbHealth?.repositoryMode ?? projectsMode);
+  const accessStatusLabel =
+    authStatus.effectiveMode === "supabase_auth"
+      ? isAuthenticated
+        ? `Authenticated / ${roleLabel}`
+        : "Public preview / sign-in available"
+      : `${authStatus.label} / ${roleLabel}`;
   const nextActions = getNextActions(activeProject, dldRecordCount);
   const pilotPackage = getPilotPackageForProject(activeProject.projectKey, activeProject.clientType);
   const clientPilotPackage = getClientPilotPackageForProject(activeProject.projectKey, activeProject.clientType);
@@ -1070,6 +1078,9 @@ export function ProjectDashboard() {
                 </span>
                 <span className="rounded-full bg-surface px-3 py-1 text-xs font-semibold text-muted">
                   Persistence: {persistenceMode}
+                </span>
+                <span className="rounded-full bg-surface px-3 py-1 text-xs font-semibold text-muted" title={authStatus.caveat}>
+                  Access: {accessStatusLabel}
                 </span>
               </div>
             </div>

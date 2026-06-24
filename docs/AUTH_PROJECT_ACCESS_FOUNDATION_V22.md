@@ -1,0 +1,73 @@
+# GeoAI Auth & Project Access Foundation v2.2
+
+Date: 2026-06-24
+
+## Scope
+
+GeoAI v2.2 adds a lightweight authentication and project-access foundation while preserving the public investor demo. It introduces auth mode detection, a client auth provider, demo project membership, project access helper types, a sign-in foundation page and a safe session API route.
+
+This is not production-grade security. It is a product and architecture baseline for a future Supabase Auth, RLS and governance sprint.
+
+## Current Auth Modes
+
+- `demo_public` is the default. GeoAI creates a demo user, demo organization and owner-style demo membership so all current public demo workflows remain accessible.
+- `supabase_auth` enables the Supabase Auth foundation when `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` are configured. If those public values are missing, GeoAI falls back to `demo_public`.
+- `disabled` hides authentication intent and leaves public demo workflows available.
+
+Set the mode with:
+
+```bash
+NEXT_PUBLIC_AUTH_MODE=demo_public
+```
+
+Valid values:
+
+```text
+demo_public
+supabase_auth
+disabled
+```
+
+## What Was Added
+
+- Shared auth/session/project membership TypeScript types.
+- Auth mode helpers that use only public-safe environment variables.
+- Demo user, organization and project membership fixtures.
+- Client-side `AuthProvider` and `useAuth` hook.
+- Compact access status indicators in navigation, workspace and project dashboard.
+- `/login` access foundation page.
+- `/api/auth/session` safe session endpoint.
+- Server-safe project access helpers for future API enforcement.
+
+## Data And Secrets Guardrails
+
+- `OPENAI_API_KEY` remains server-only.
+- `SUPABASE_SERVICE_ROLE_KEY` is not imported or exposed in client components.
+- The client provider uses only `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` and `NEXT_PUBLIC_AUTH_MODE`.
+- No route guard blocks the public demo in this version.
+
+## Limitations
+
+- No production route enforcement yet.
+- No Supabase RLS policy implementation yet.
+- No durable user/organization/project membership tables yet.
+- No enterprise RBAC UI yet.
+- No audit trail, billing, tenant administration or secure file-storage governance yet.
+
+Required caveat:
+
+> Authentication foundation only; production access control requires configured Supabase Auth, RLS and deployment governance.
+
+## QA Checklist
+
+- `/` loads without login in default mode.
+- `/workspace` loads without login in default mode.
+- `/projects` loads without login in default mode.
+- `/login` shows the current auth mode and caveat.
+- `/api/auth/session` returns safe JSON with no secrets.
+- Setting `NEXT_PUBLIC_AUTH_MODE=supabase_auth` without Supabase public env values falls back to demo access.
+- Build passes with no TypeScript errors.
+
+## Next Sprint
+
+Recommended next sprint: Supabase/PostGIS Durable Persistence Foundation v2.3.
