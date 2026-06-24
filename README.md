@@ -46,6 +46,7 @@ OpenAI is optional. If `OPENAI_API_KEY` is not configured, GeoAI automatically u
 - Auth & Project Access Foundation v2.2 with public demo access mode, Supabase Auth readiness and compact access status indicators
 - Supabase/PostGIS Durable Persistence Foundation v2.3 with additive migration SQL, schema readiness checks, RLS draft and audit event foundation
 - Pilot Infrastructure Activation v2.4 with guarded migration/seed/verify scripts, activation status APIs, soft access metadata, audit integration, storage readiness and known limitations tracker
+- Validation Governance & Official Connector Readiness v2.5 for project validation evidence metadata, official connector readiness, report appendices and AI claim guardrails
 - Pilot Readiness & Client Delivery Package v1.1 with client-specific pilot packages, readiness scoring, setup checklist and deliverable framing
 - Offline DLD / Dubai Pulse CSV ingestion prototype with normalized sample outputs
 - API routes for health, demo objects, and analysis
@@ -235,6 +236,14 @@ GeoAI includes a lightweight project-level Client Data Room foundation that link
 This is local/API fallback only. It is not durable production storage, secure enterprise storage, official validation, legal/cadastral/zoning/planning evidence or a valuation conclusion. Client files are registered as metadata-only demo records unless future durable storage is configured.
 
 See [Client Data Room Foundation v1.9](docs/CLIENT_DATA_ROOM_FOUNDATION_V19.md) and the [GeoAI Client Data Room Foundation v1.9 Release Note](docs/RELEASE_GEOAI_CLIENT_DATA_ROOM_FOUNDATION_V19.md).
+
+## Validation Governance & Official Connector Readiness v2.5
+
+GeoAI now includes a validation governance foundation for project-scoped evidence metadata, official connector readiness, conservative claim levels, report validation appendices and AI decision-scoring guardrails.
+
+This is not a live official DLD, Dubai Pulse, GeoDubai or Dubai Municipality integration. It does not certify ownership, zoning, cadastral status, planning approval, suitability or valuation. Outputs remain a screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.
+
+See [Validation Governance & Official Connector Readiness v2.5](docs/VALIDATION_GOVERNANCE_OFFICIAL_CONNECTOR_READINESS_V25.md).
 
 ## Data Credibility Sprint v0.5
 

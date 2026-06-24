@@ -42,6 +42,7 @@ export type DecisionScoreResult = {
 };
 
 export type DecisionScoreRequest = {
+  projectKey?: string | null;
   target?: unknown;
   scenarioId?: string;
   scenarioLabel?: string;
@@ -51,6 +52,9 @@ export type DecisionScoreRequest = {
   externalDataLineage?: unknown;
   dataRoomContext?: unknown;
   pilotContext?: unknown;
+  validationSummary?: unknown;
+  validationEvidence?: unknown;
+  claimPolicy?: unknown;
   validationGaps?: string[];
   evidence?: Array<{ id?: string; sourceId?: string; title?: string; description?: string }>;
 };

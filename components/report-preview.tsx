@@ -5,6 +5,7 @@ import { EvidenceSourceCards } from "@/components/evidence-source-cards";
 import ingestionReport from "@/data/normalized/ingestion_report.json";
 import { MapContextCard } from "@/components/map-context-card";
 import { PrintableReport } from "@/components/printable-report";
+import { ValidationGovernanceAppendix } from "@/components/validation-governance-appendix";
 import { getDemoNarrativeByProjectKey } from "@/src/data/demo-narratives";
 import { getClientPilotPackageForProject } from "@/src/data/pilot-packages";
 import { externalDataSources } from "@/src/lib/external-data/source-registry";
@@ -871,6 +872,10 @@ function AnalysisReport({ analysis, onBack }: { analysis: ExpressAnalysis; onBac
 
         <UploadedDataReportSection analysis={analysis} />
 
+        <Section title="Validation Governance Appendix">
+          <ValidationGovernanceAppendix projectName={analysis.project?.name} compact />
+        </Section>
+
         <div className="grid gap-6 md:grid-cols-2">
           <Section title="Opportunities">
             <ul className="space-y-3 text-sm leading-6 text-muted">
@@ -1064,6 +1069,10 @@ function ComparisonReport({ comparison, onBack }: { comparison: ComparisonResult
         </div>
 
         <ExternalDataLineageSection comparison={comparison} />
+
+        <Section title="Validation Governance Appendix">
+          <ValidationGovernanceAppendix projectName={comparison.project?.name} compact />
+        </Section>
 
         <div className="grid gap-6 md:grid-cols-2">
           <Section title="Shared Opportunities">

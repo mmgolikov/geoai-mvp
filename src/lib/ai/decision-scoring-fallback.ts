@@ -5,6 +5,7 @@ import {
   type DecisionScoreResult,
   type RecommendedUse
 } from "@/src/lib/ai/decision-scoring-schema";
+import { applyDecisionScoreGuardrails } from "@/src/lib/ai/decision-scoring-guardrails";
 
 function clamp(value: number) {
   return Math.max(0, Math.min(100, Math.round(value)));
@@ -60,7 +61,7 @@ export function createDeterministicDecisionScore(request: DecisionScoreRequest, 
     .filter((item): item is string => Boolean(item))
     .slice(0, 6);
 
-  return {
+  const result: DecisionScoreResult = {
     mode: "deterministic_fallback",
     decisionPosture: posture,
     recommendedUse: recommendedUseForScenario(request),
@@ -81,7 +82,8 @@ export function createDeterministicDecisionScore(request: DecisionScoreRequest, 
     validationRequired: [
       "Validate DLD / Dubai Pulse market evidence against official/customer-approved exports.",
       "Validate planning, zoning and parcel assumptions with official sources.",
-      "Confirm ownership/title and valuation outside GeoAI."
+      "Confirm ownership/title and valuation outside GeoAI.",
+      ...(request.validationGaps ?? []).slice(0, 2)
     ],
     nextActions: [
       "Prepare a validation checklist for this selected target.",
@@ -92,4 +94,6 @@ export function createDeterministicDecisionScore(request: DecisionScoreRequest, 
     forbiddenClaimsAvoided: true,
     unsupportedClaims: []
   };
+
+  return applyDecisionScoreGuardrails(result, request);
 }

@@ -15,7 +15,12 @@ export const auditEventTypeLabels = {
   checklist_updated: "Checklist updated",
   pilot_input_updated: "Pilot input updated",
   pilot_deliverable_updated: "Pilot deliverable updated",
-  ai_decision_score_generated: "AI decision score generated"
+  ai_decision_score_generated: "AI decision score generated",
+  validation_evidence_created: "Validation evidence created",
+  validation_evidence_updated: "Validation evidence updated",
+  validation_evidence_deleted: "Validation evidence deleted",
+  validation_connector_reviewed: "Validation connector reviewed",
+  report_validation_appendix_viewed: "Report validation appendix viewed"
 } as const;
 
 export type AuditEventType = keyof typeof auditEventTypeLabels;

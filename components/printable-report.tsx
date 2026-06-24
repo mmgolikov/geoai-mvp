@@ -2,6 +2,7 @@
 
 import { getDataSourceById } from "@/src/data/data-source-registry";
 import ingestionReport from "@/data/normalized/ingestion_report.json";
+import { ValidationGovernanceAppendix } from "@/components/validation-governance-appendix";
 import { deriveDataConfidenceLevel } from "@/src/data/data-maturity";
 import { deriveDecisionPosture, deriveDecisionRationale } from "@/src/lib/decision-posture";
 import { userDrawnAoiSourceCode, userDrawnAoiSourceLabel } from "@/src/lib/aoi-library";
@@ -332,6 +333,10 @@ function AnalysisPrintable({ analysis }: { analysis: ExpressAnalysis }) {
         <EvidenceTable evidence={analysis.evidence} />
       </PrintSection>
 
+      <PrintSection title="Validation Governance Appendix">
+        <ValidationGovernanceAppendix projectName={analysis.project?.name} compact printMode />
+      </PrintSection>
+
       <UploadedDataPrintBlock analysis={analysis} />
 
       <PrintSection title="Recommended Due Diligence Actions">
@@ -413,6 +418,10 @@ function ComparisonPrintable({ comparison }: { comparison: ComparisonResult }) {
 
       <PrintSection title="Evidence / Data Used">
         <EvidenceTable evidence={comparison.evidence} />
+      </PrintSection>
+
+      <PrintSection title="Validation Governance Appendix">
+        <ValidationGovernanceAppendix projectName={comparison.project?.name} compact printMode />
       </PrintSection>
 
       <PrintSection title="Recommended Due Diligence Actions">

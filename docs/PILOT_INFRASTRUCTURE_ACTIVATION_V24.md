@@ -112,6 +112,12 @@ Required caveat: Storage readiness is not secure enterprise storage until bucket
 
 `/projects` now includes a compact Platform Readiness panel showing Auth, DB, Schema, Storage, Audit and Access enforcement status.
 
+## v2.5 Validation Governance Link
+
+Validation Governance & Official Connector Readiness v2.5 builds on this activation baseline with project-scoped validation evidence metadata, connector readiness and report appendices. It remains metadata-only in local/API fallback mode and does not make official validation claims.
+
+See [Validation Governance & Official Connector Readiness v2.5](VALIDATION_GOVERNANCE_OFFICIAL_CONNECTOR_READINESS_V25.md).
+
 ## Remaining Limitations
 
 - Local/API fallback is not durable production storage.

@@ -133,6 +133,12 @@ Repository mode naming is normalized in [Repository Mode & Fallback Consistency 
 
 In v2.1, Pilot Workflow can read current external data readiness from the Data Room summary. Imported/snapshot market evidence may mark the market comparable input as `provided_unvalidated`; sample fallback alone remains caveated and must not be treated as validated client evidence.
 
+## Relationship To Validation Governance v2.5
+
+Validation Governance & Official Connector Readiness v2.5 adds project-scoped validation evidence metadata and official connector readiness. Pilot readiness can improve when reviewed validation evidence exists, but it still remains workflow readiness only. It is not legal, planning, cadastral, zoning, ownership, valuation or investment readiness.
+
+See [Validation Governance & Official Connector Readiness v2.5](VALIDATION_GOVERNANCE_OFFICIAL_CONNECTOR_READINESS_V25.md).
+
 ## UI Placement
 
 Projects dashboard:

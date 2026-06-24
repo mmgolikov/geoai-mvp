@@ -242,6 +242,21 @@ Use this checklist before demos, Vercel deployments, and milestone checkpoints.
 - [ ] Audit calls do not break AOI, report, analysis, comparison, data room or pilot workflow operations.
 - [ ] `/projects` Platform Readiness panel is visible, compact and honest.
 
+## Validation Governance & Official Connector Readiness v2.5
+
+- [ ] `GET /api/validation?projectKey=dubai-investment-screening-demo` returns evidence, summary, claim policy and connector readiness.
+- [ ] `GET /api/validation/connectors` returns DLD, Dubai Pulse, GeoDubai, client document and licensed valuation readiness records.
+- [ ] `POST /api/validation/evidence` creates metadata-only evidence in local/API fallback without claiming official validation.
+- [ ] `PATCH /api/validation/evidence/[id]` updates validation status conservatively.
+- [ ] `DELETE /api/validation/evidence/[id]` removes the test evidence metadata.
+- [ ] `/projects` shows Validation Governance compactly and keeps Data Room / Project Activity usable.
+- [ ] `/workspace` shows Validation Evidence collapsed or compact below the primary decision flow.
+- [ ] Express Analysis AI Decision Memo remains caveated when validation evidence is screening-only.
+- [ ] Analysis report preview and printable report include a Validation Governance Appendix.
+- [ ] Comparison report preview and printable report include a Validation Governance Appendix.
+- [ ] `/api/known-limitations` includes validation connector, DLD, GeoDubai, cadastral/zoning/ownership and valuation limitations.
+- [ ] No UI or docs claim live official integration, certified valuation, legal conclusion, cadastral validation, ownership verification or zoning approval.
+
 ## External Data v1.4
 
 - [ ] `GET /api/external-data/manifest` returns v1.4 manifest JSON.

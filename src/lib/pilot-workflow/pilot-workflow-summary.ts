@@ -8,6 +8,7 @@ import {
   listPilotDeliverables,
   listPilotWorkflows
 } from "@/src/lib/repositories/pilot-workflow-repository";
+import { listValidationEvidence } from "@/src/lib/repositories/validation-repository";
 import type { GeoAIProject, ProjectClientType } from "@/src/lib/db/types";
 import {
   pilotWorkflowCaveat,
@@ -279,6 +280,7 @@ function calculateReadiness(input: {
     validationTotal: number;
     validationCompleted: number;
     validationBlocked: number;
+    validationEvidenceProgress: number;
   };
 }): PilotReadinessSummary {
   const requiredInputs = input.clientInputs.filter((item) => item.required);
@@ -288,9 +290,12 @@ function calculateReadiness(input: {
   const outputProgress = progress(input.deliverables, (item) =>
     ["generated", "ready_for_review", "validation_required"].includes(item.status)
   );
-  const validationProgress = input.dataRoomCounts.validationTotal > 0
-    ? input.dataRoomCounts.validationCompleted / input.dataRoomCounts.validationTotal
-    : 0;
+  const validationProgress = Math.max(
+    input.dataRoomCounts.validationTotal > 0
+      ? input.dataRoomCounts.validationCompleted / input.dataRoomCounts.validationTotal
+      : 0,
+    input.dataRoomCounts.validationEvidenceProgress
+  );
   const drivers: PilotReadinessDriver[] = [
     {
       id: "configured-workflow",
@@ -332,7 +337,7 @@ function calculateReadiness(input: {
       label: "Validation checklist progress",
       maxScore: 20,
       score: Math.round(20 * validationProgress),
-      note: `${input.dataRoomCounts.validationCompleted}/${input.dataRoomCounts.validationTotal} validation items completed.`
+      note: `${input.dataRoomCounts.validationCompleted}/${input.dataRoomCounts.validationTotal} checklist items completed; reviewed evidence progress ${Math.round(input.dataRoomCounts.validationEvidenceProgress * 100)}%.`
     }
   ];
   let score = drivers.reduce((sum, item) => sum + item.score, 0);
@@ -403,6 +408,10 @@ export async function buildPilotWorkflowSummary(input: { projectId?: string | nu
 
   const project = requestedProject;
   const dataRoom = await buildClientDataRoom({ projectId: project.id, projectKey: project.projectKey });
+  const validationEvidence = await listValidationEvidence({ projectId: project.id, projectKey: project.projectKey, limit: 50 });
+  const evidenceThatCanImproveReadiness = validationEvidence.data.filter((item) =>
+    ["in_review", "client_validated", "official_validated"].includes(item.validationStatus)
+  );
   const dataRoomCounts = {
     aois: dataRoom.summary.counts.aois,
     uploads: dataRoom.summary.counts.uploadedDatasets + dataRoom.summary.counts.uploadedDocuments,
@@ -417,7 +426,8 @@ export async function buildPilotWorkflowSummary(input: { projectId?: string | nu
     comparisons: dataRoom.summary.counts.comparisons,
     validationTotal: dataRoom.summary.checklistStatus.total,
     validationCompleted: dataRoom.summary.checklistStatus.completed,
-    validationBlocked: dataRoom.summary.checklistStatus.blocked
+    validationBlocked: dataRoom.summary.checklistStatus.blocked,
+    validationEvidenceProgress: Math.min(1, evidenceThatCanImproveReadiness.length / 4)
   };
   const template = templateForProject(project);
   const workflowDefaults = defaultWorkflow(project, template);
