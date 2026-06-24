@@ -178,6 +178,24 @@ The v0.9.1 hardening pass adds:
 - a session fallback for `/reports/[id]/print` so current analysis/comparison reports can open even when server persistence is unavailable;
 - reusable UI guardrails in [UI Layout Guardrails](UI_LAYOUT_GUARDRAILS.md).
 
+## v2.8 Enterprise Report Packages
+
+GeoAI v2.8 adds a structured report package layer on top of saved reports. Packages combine executive memo, AOI factsheet, AI decision memo, deterministic scoring, market/source context, validation governance, evidence review, Data Room, pilot workflow, known limitations and export manifest.
+
+Routes:
+
+- `/api/report-packages?projectKey=...`
+- `POST /api/report-packages`
+- `/api/report-packages/[id]/json`
+- `/api/report-packages/[id]/export`
+- `/report-packages/[id]/print`
+
+Required caveats remain:
+
+- screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.
+- Report packages are decision-support deliverables, not certified valuation, legal, zoning, planning, cadastral or ownership conclusions.
+- Browser print/save as PDF remains the current PDF workflow.
+
 Printable routing rule:
 
 1. Save the report through `/api/reports` where possible.

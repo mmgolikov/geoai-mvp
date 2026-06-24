@@ -18,6 +18,21 @@ Use this checklist before demos, Vercel deployments, and milestone checkpoints.
 - [ ] `npm run ingest:dld:snapshot` exits successfully.
 - [ ] `npm run ingest:osm:snapshot` exits successfully.
 
+## Enterprise Report Pack v2.8
+
+- [ ] `GET /api/report-packages?projectKey=dubai-investment-screening-demo` returns 200.
+- [ ] `POST /api/report-packages` creates a package with local/API fallback caveat.
+- [ ] `GET /api/report-packages/[id]` returns package metadata and sections.
+- [ ] `GET /api/report-packages/[id]/json` returns safe metadata without secrets, signed URLs or private file contents.
+- [ ] `GET /api/report-packages/[id]/export` returns export manifest metadata.
+- [ ] `/report-packages/[id]/print` renders a client-ready printable package.
+- [ ] Printable package shows Back and Print / Save as PDF only.
+- [ ] Project Dashboard shows compact Enterprise Report Packages section.
+- [ ] Workspace report package actions remain inside collapsed Data Room / Pilot Evidence section.
+- [ ] Primary Run Express Analysis CTA remains pinned and visible.
+- [ ] Source lineage, validation governance, evidence review, Data Room and pilot workflow appendices render.
+- [ ] Caveats remain visible: `screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.`
+
 ## Repository Modes v2.0.2
 
 - [ ] `/api/db/health` separates connection `status` from `repositoryMode`.

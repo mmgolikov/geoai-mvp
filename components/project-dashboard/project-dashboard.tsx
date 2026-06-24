@@ -212,6 +212,22 @@ type SavedObjectSummary = {
   projectKey?: string | null;
 };
 
+type ReportPackageSummary = {
+  id: string;
+  packageKey: string;
+  projectId?: string | null;
+  projectKey: string;
+  title: string;
+  packageType: string;
+  status: string;
+  version: string;
+  generatedAt: string;
+  validationStatus: string;
+  printablePath: string;
+  jsonPath: string;
+  caveat: string;
+};
+
 type AoiLibraryResponse = {
   items?: ProjectAoi[];
 };
@@ -597,6 +613,8 @@ export function ProjectDashboard() {
   const [savedReports, setSavedReports] = useState<SavedObjectSummary[]>([]);
   const [savedComparisons, setSavedComparisons] = useState<SavedObjectSummary[]>([]);
   const [projectDatasets, setProjectDatasets] = useState<SavedObjectSummary[]>([]);
+  const [reportPackages, setReportPackages] = useState<ReportPackageSummary[]>([]);
+  const [reportPackageMessage, setReportPackageMessage] = useState<string | null>(null);
   const [projectAois, setProjectAois] = useState<ProjectAoi[]>([]);
   const [dataRoom, setDataRoom] = useState<ClientDataRoom | null>(null);
   const [dataRoomMessage, setDataRoomMessage] = useState<string | null>(null);
@@ -666,17 +684,19 @@ export function ProjectDashboard() {
 
     async function loadDbHistory() {
       try {
-        const [analysisResponse, reportsResponse, comparisonsResponse, datasetsResponse] = await Promise.all([
+        const [analysisResponse, reportsResponse, comparisonsResponse, datasetsResponse, reportPackagesResponse] = await Promise.all([
           fetch(`/api/analysis-runs?limit=8&projectKey=${encodeURIComponent(activeProjectKey)}`),
           fetch(`/api/reports?projectKey=${encodeURIComponent(activeProjectKey)}`),
           fetch(`/api/comparison-sets?projectKey=${encodeURIComponent(activeProjectKey)}`),
-          fetch(`/api/uploaded-datasets?projectKey=${encodeURIComponent(activeProjectKey)}`)
+          fetch(`/api/uploaded-datasets?projectKey=${encodeURIComponent(activeProjectKey)}`),
+          fetch(`/api/report-packages?projectKey=${encodeURIComponent(activeProjectKey)}`)
         ]);
-        const [analysisPayload, reportsPayload, comparisonsPayload, datasetsPayload] = await Promise.all([
+        const [analysisPayload, reportsPayload, comparisonsPayload, datasetsPayload, reportPackagesPayload] = await Promise.all([
           analysisResponse.json(),
           reportsResponse.json(),
           comparisonsResponse.json(),
-          datasetsResponse.json()
+          datasetsResponse.json(),
+          reportPackagesResponse.json()
         ]);
         if (!cancelled) {
           setDbHistory(Array.isArray(analysisPayload.items) ? persistedRowsToRecent(analysisPayload.items) : []);
@@ -741,6 +761,7 @@ export function ProjectDashboard() {
                 projectKey: item.projectKey ?? null
               }))
             : []);
+          setReportPackages(Array.isArray(reportPackagesPayload.summaries) ? reportPackagesPayload.summaries : []);
         }
       } catch {
         if (!cancelled) {
@@ -748,6 +769,7 @@ export function ProjectDashboard() {
           setSavedReports([]);
           setSavedComparisons([]);
           setProjectDatasets([]);
+          setReportPackages([]);
         }
       }
     }
@@ -889,6 +911,7 @@ export function ProjectDashboard() {
   const scopedSavedReports = savedReports.filter((item) => belongsToProject(item, activeProject.projectKey));
   const scopedSavedComparisons = savedComparisons.filter((item) => belongsToProject(item, activeProject.projectKey));
   const scopedProjectDatasets = projectDatasets.filter((item) => belongsToProject(item, activeProject.projectKey));
+  const scopedReportPackages = reportPackages.filter((item) => belongsToProject(item, activeProject.projectKey));
   const scopedProjectAois = projectAois
     .filter((item) => item.projectKey === activeProject.projectKey || item.projectId === activeProject.id)
     .sort((a, b) => Date.parse(b.updatedAt ?? b.createdAt) - Date.parse(a.updatedAt ?? a.createdAt));
@@ -935,6 +958,7 @@ export function ProjectDashboard() {
   const comparisonRows = scopedSavedComparisons.length > 0
     ? scopedSavedComparisons
     : seededDemoComparisonSummaries.filter((comparison) => comparison.projectKey === activeProject.projectKey);
+  const packageRows = scopedReportPackages;
   const importedAreas = marketMetrics?.count ?? 0;
   const externalReadinessById = new Map(
     (externalDataStatus?.readiness ?? []).map((item) => [item.sourceId, item])
@@ -1205,6 +1229,49 @@ export function ProjectDashboard() {
     }
   }
 
+  async function refreshReportPackages(projectKey = activeProject.projectKey) {
+    try {
+      const response = await fetch(`/api/report-packages?projectKey=${encodeURIComponent(projectKey)}`);
+      const payload = response.ok ? await response.json() as { summaries?: ReportPackageSummary[] } : null;
+      setReportPackages(Array.isArray(payload?.summaries) ? payload.summaries : []);
+    } catch {
+      setReportPackageMessage("Report packages are temporarily unavailable.");
+    }
+  }
+
+  async function createProjectReportPackage() {
+    setReportPackageMessage("Creating report package...");
+    const response = await fetch("/api/report-packages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        projectId: activeProject.id,
+        projectKey: activeProject.projectKey,
+        packageType: activeProject.clientType === "developer"
+          ? "development_feasibility"
+          : activeProject.clientType === "bank"
+            ? "bank_asset_review"
+            : "investment_screening",
+        reportId: reportRows[0]?.id,
+        includeDataRoom: true,
+        includeValidation: true,
+        includeEvidenceReview: true,
+        includePilotWorkflow: true
+      })
+    });
+    const payload = await response.json().catch(() => ({})) as { ok?: boolean; summary?: ReportPackageSummary; message?: string };
+
+    if (!response.ok || payload.ok === false) {
+      setReportPackageMessage(payload.message ?? "Report package could not be created.");
+      return;
+    }
+
+    setReportPackageMessage("Report package created. It remains a browser-print decision-support deliverable.");
+    await refreshReportPackages();
+    await refreshDataRoom();
+    await refreshPilotWorkflow();
+  }
+
   async function registerDataRoomFile(file: File) {
     const maxFileSize = storageHealth?.maxFileSizeBytes ?? 5 * 1024 * 1024;
     if (file.size > maxFileSize) {
@@ -1368,10 +1435,11 @@ export function ProjectDashboard() {
           </div>
         </section>
 
-        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-7">
           <KpiCard label="Analyses" value={recentRows.length} note={recentRows.length > 0 ? "Recent runs available for this project context." : "Run an analysis from the workspace."} />
           <KpiCard label="Reports" value={reportRows.length} note={scopedSavedReports.length > 0 ? "Saved reports available for this project." : "Demo example memo available for this project."} />
           <KpiCard label="Comparisons" value={comparisonRows.length} note={scopedSavedComparisons.length > 0 ? "Saved comparison sets available for this project." : "Demo example comparison available for this project."} />
+          <KpiCard label="Packages" value={packageRows.length} note={packageRows.length > 0 ? "Enterprise package metadata available." : "Create a package from project evidence."} />
           <KpiCard label="Data sources" value={dataSourceRegistry.length + scopedProjectDatasets.length} note={`${scopedProjectDatasets.length} project upload metadata records.`} />
           <KpiCard
             label="Market areas"
@@ -1842,27 +1910,79 @@ export function ProjectDashboard() {
               )}
             </Panel>
 
-            <Panel title="Report Package Status" subtitle="Current memo and evidence package status for this project. Generated does not mean officially validated.">
-              <div className="grid gap-3 md:grid-cols-2">
-                {(pilotWorkflow?.deliverables ?? []).filter((deliverable) =>
-                  ["investment_memo", "development_memo", "comparison_dashboard", "source_lineage_pack", "client_data_room_summary", "validation_checklist", "executive_summary"].includes(deliverable.deliverableType)
-                ).slice(0, 6).map((deliverable) => (
-                  <div key={deliverable.id} className="rounded-md border border-line bg-surface p-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-ink">{deliverable.title}</p>
-                        <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted">{deliverable.nextAction}</p>
-                      </div>
-                      <span className="shrink-0 rounded-full bg-white px-2 py-1 text-[11px] font-semibold text-brand">
-                        {formatDataRoomLabel(deliverable.status)}
+            <Panel title="Enterprise Report Packages" subtitle="Structured browser-print packages for client/investor review. Generated does not mean officially validated.">
+              <div className="grid gap-3">
+                <div className="flex flex-col gap-3 rounded-md border border-line bg-surface p-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="rounded-full bg-brand px-3 py-1 text-xs font-semibold text-white">
+                        {packageRows.length} package{packageRows.length === 1 ? "" : "s"}
+                      </span>
+                      <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-brand">
+                        browser print / JSON
                       </span>
                     </div>
+                    <p className="mt-2 text-sm leading-6 text-muted">
+                      Combines memo, AOI factsheet, source lineage, validation governance, evidence review, Data Room and pilot workflow summaries.
+                    </p>
+                    <p className="mt-1 text-xs leading-5 text-muted">
+                      Report packages are decision-support deliverables, not certified valuation, legal, zoning, planning, cadastral or ownership conclusions.
+                    </p>
                   </div>
-                ))}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void createProjectReportPackage();
+                    }}
+                    className="inline-flex h-9 shrink-0 items-center justify-center rounded-md bg-brand px-3 text-xs font-semibold text-white transition hover:bg-[#113f50]"
+                  >
+                    Create package
+                  </button>
+                </div>
+
+                {reportPackageMessage ? (
+                  <p className="rounded-md border border-line bg-white px-3 py-2 text-xs leading-5 text-muted">{reportPackageMessage}</p>
+                ) : null}
+
+                <div className="grid gap-3 md:grid-cols-2">
+                  {packageRows.slice(0, 4).map((pkg) => (
+                    <article key={pkg.id} className="rounded-md border border-line bg-surface p-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="safe-line-1 text-sm font-semibold text-ink">{pkg.title}</p>
+                          <p className="mt-1 text-xs leading-5 text-muted">
+                            {formatDataRoomLabel(pkg.packageType)} / {formatDataRoomLabel(pkg.status)} / {formatTimestamp(pkg.generatedAt)}
+                          </p>
+                          <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted">{pkg.caveat}</p>
+                        </div>
+                        <span className="shrink-0 rounded-full bg-white px-2 py-1 text-[10px] font-semibold text-brand">
+                          {pkg.version}
+                        </span>
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <Link
+                          href={`/api/report-packages/${encodeURIComponent(pkg.packageKey)}`}
+                          className="inline-flex h-8 items-center rounded-md border border-line bg-white px-2 text-xs font-semibold text-ink transition hover:border-brand"
+                        >
+                          Open package
+                        </Link>
+                        <Link
+                          href={pkg.printablePath}
+                          className="inline-flex h-8 items-center rounded-md bg-brand px-2 text-xs font-semibold text-white transition hover:bg-[#113f50]"
+                        >
+                          Print package
+                        </Link>
+                        <Link
+                          href={pkg.jsonPath}
+                          className="inline-flex h-8 items-center rounded-md border border-line bg-white px-2 text-xs font-semibold text-ink transition hover:border-brand"
+                        >
+                          Export JSON
+                        </Link>
+                      </div>
+                    </article>
+                  ))}
+                </div>
               </div>
-              <p className="mt-3 text-xs leading-5 text-muted">
-                {pilotWorkflow?.dataHonesty.caveat ?? pilotPackage.dataHonestyNote}
-              </p>
             </Panel>
           </div>
 

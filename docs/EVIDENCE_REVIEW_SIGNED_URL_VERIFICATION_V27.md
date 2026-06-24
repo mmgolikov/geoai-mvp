@@ -4,6 +4,12 @@ Date: 2026-06-24
 
 GeoAI v2.7 moves evidence uploads from file metadata into a conservative evidence review workflow. It does not create a certified audit trail, official validation connector, enterprise DMS or production-ready secure storage claim.
 
+## v2.8 Report Package Linkage
+
+Enterprise Report Pack v2.8 includes an Evidence Review Appendix. The appendix summarizes linked evidence files and review records, including storage provider, metadata-only/binary availability, signed URL availability status, latest review decision and required next action.
+
+Report package print and JSON exports do not expose raw signed URLs or private file contents. Metadata-only evidence is shown with the caveat that binary file storage is unavailable in the current mode.
+
 ## What Exists
 
 - Evidence review lifecycle: `not_started`, `uploaded_unreviewed`, `in_review`, `needs_more_evidence`, `client_validated`, `official_validated`, `rejected`, `expired`, `superseded`.

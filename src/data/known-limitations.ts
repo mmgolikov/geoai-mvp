@@ -19,6 +19,28 @@ export type KnownLimitation = {
 
 export const knownLimitations: KnownLimitation[] = [
   {
+    id: "report_packaging",
+    title: "Enterprise report package generation",
+    currentStatus: "foundation_ready",
+    whatExists: "Report package builder, local/API fallback repository, package APIs, printable package route, JSON export and appendices for source lineage, validation governance, evidence review, Data Room and pilot workflow.",
+    whatIsMissing: "Server-side PDF generation, formal e-sign/offline package assembly, enterprise document storage and certified report governance.",
+    nextAction: "Use browser Print / Save as PDF for demos, then add server-side rendering and durable document storage if required by a client pilot.",
+    caveat: "Report packages are decision-support deliverables, not certified valuation, legal, zoning, planning, cadastral or ownership conclusions.",
+    relatedRoutes: ["/api/report-packages", "/report-packages/[id]/print", "/api/report-packages/[id]/json"],
+    relatedDocs: ["/docs/ENTERPRISE_REPORT_PACK_V28.md"]
+  },
+  {
+    id: "server_side_pdf",
+    title: "Server-side PDF rendering",
+    currentStatus: "unresolved",
+    whatExists: "Print-friendly report and report package routes with browser Print / Save as PDF workflow.",
+    whatIsMissing: "A server-side PDF renderer, hosted PDF storage, background generation workflow and enterprise distribution controls.",
+    nextAction: "Add server-side PDF renderer later if required by client pilots or procurement workflows.",
+    caveat: "Browser print/save as PDF remains the current PDF workflow.",
+    relatedRoutes: ["/reports/[id]/print", "/report-packages/[id]/print"],
+    relatedDocs: ["/docs/REPORT_EXPORT_DELIVERABLES_V09.md", "/docs/ENTERPRISE_REPORT_PACK_V28.md"]
+  },
+  {
     id: "durable_storage",
     title: "Durable Supabase/PostGIS persistence",
     currentStatus: "foundation_ready",
