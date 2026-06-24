@@ -127,6 +127,11 @@ Local/API fallback is not durable production storage. Browser-local storage is f
 
 See [Repository Mode & Fallback Consistency v2.0.2](docs/REPOSITORY_MODE_FALLBACK_CONSISTENCY_V202.md).
 
+## Latest Release Notes
+
+- [GeoAI Enterprise Report Pack v2.8](docs/RELEASE_GEOAI_ENTERPRISE_REPORT_PACK_V28.md)
+- [Enterprise Report Pack v2.8 architecture note](docs/ENTERPRISE_REPORT_PACK_V28.md)
+
 ## Useful Commands
 
 ```bash
