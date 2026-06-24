@@ -284,6 +284,19 @@ Use this checklist before demos, Vercel deployments, and milestone checkpoints.
 - [ ] UI says snapshot/sample fallback, not live official integration.
 - [ ] Evidence and reports retain official-validation-required caveats.
 
+## Evidence Review Workflow & Signed URL Verification v2.7
+
+- [ ] `/projects` shows compact evidence review counts and review actions.
+- [ ] `/workspace` Validation Evidence block stays collapsed/secondary and includes review note actions.
+- [ ] `POST /api/validation/evidence/[id]/reviews` records valid review decisions.
+- [ ] Invalid review transitions return controlled errors, not 500s.
+- [ ] Uploading a file sets validation evidence to uploaded/unreviewed and does not improve claim posture.
+- [ ] `POST /api/storage/evidence-files/upload-intent` returns metadata-only when storage is unconfigured.
+- [ ] `POST /api/storage/evidence-files/[id]/signed-url-test` returns controlled 409 for metadata-only files.
+- [ ] Report appendix shows review status, linked files and metadata-only download posture.
+- [ ] AI decision scoring treats unreviewed/rejected/expired evidence as unsupported.
+- [ ] Required caveats remain visible: uploaded evidence requires review; local/API fallback is not durable production storage.
+
 ## Public Data Connectors v1.6
 
 - [ ] `npm run ingest:dld:public` exits successfully.

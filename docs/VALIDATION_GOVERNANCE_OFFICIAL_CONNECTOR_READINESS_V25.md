@@ -81,6 +81,12 @@ Secure File Storage & Evidence Uploads v2.6 extends validation governance with `
 
 If Supabase Storage is not configured, the workflow records metadata only and download remains unavailable. See [Secure File Storage & Evidence Uploads v2.6](SECURE_FILE_STORAGE_EVIDENCE_UPLOADS_V26.md).
 
+## v2.7 Evidence Review Linkage
+
+Evidence Review Workflow & Signed URL Verification v2.7 adds explicit review decisions on top of validation evidence metadata. Uploaded files remain `uploaded_unreviewed` until a reviewer marks evidence in review, requests more evidence, records client validation, records linked official validation, rejects, expires or supersedes the item.
+
+Client-validated evidence supports screening review only unless official validation is also recorded. See [Evidence Review Workflow & Signed URL Verification v2.7](EVIDENCE_REVIEW_SIGNED_URL_VERIFICATION_V27.md).
+
 ## UI Behavior
 
 `/projects` shows a compact Validation Governance panel with:

@@ -31,6 +31,7 @@ export type ValidationAccessMode =
 export type ValidationStatus =
   | "not_started"
   | "evidence_requested"
+  | "uploaded_unreviewed"
   | "evidence_uploaded"
   | "in_review"
   | "client_validated"

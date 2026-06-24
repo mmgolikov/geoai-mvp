@@ -5,6 +5,7 @@ import {
 } from "@/src/lib/ai/decision-scoring-schema";
 import { buildClaimPolicy, findForbiddenClaimText } from "@/src/lib/validation/claim-policy";
 import { validationRequiredCaveat, type ClaimPolicy, type ValidationSummary } from "@/src/types/validation";
+import type { EvidenceReviewSummary } from "@/src/types/evidence-review";
 
 const forbiddenClaimPatterns = [
   /official parcel boundary/i,
@@ -57,6 +58,20 @@ function isValidationSummary(value: unknown): value is ValidationSummary {
   );
 }
 
+function isEvidenceReviewSummary(value: unknown): value is EvidenceReviewSummary {
+  return Boolean(
+    typeof value === "object" &&
+      value !== null &&
+      "validationEvidenceId" in value &&
+      "latestStatus" in value &&
+      "allowedClaimLevel" in value
+  );
+}
+
+function reviewSummaries(value: unknown): EvidenceReviewSummary[] {
+  return Array.isArray(value) ? value.filter(isEvidenceReviewSummary) : [];
+}
+
 function confidenceRank(value: DecisionScoreResult["confidence"]) {
   return value === "high" ? 3 : value === "medium" ? 2 : 1;
 }
@@ -83,6 +98,15 @@ export function applyDecisionScoreGuardrails(
   request?: DecisionScoreRequest
 ): DecisionScoreResult {
   const policy = createPolicy(request);
+  const reviews = reviewSummaries(request?.evidenceReviewSummaries);
+  const blockedReviewCount = reviews.filter((item) =>
+    item.latestStatus === "uploaded_unreviewed" ||
+    item.latestStatus === "needs_more_evidence" ||
+    item.latestStatus === "rejected" ||
+    item.latestStatus === "expired" ||
+    item.isExpired
+  ).length;
+  const inReviewCount = reviews.filter((item) => item.latestStatus === "in_review").length;
   const unsupported = [
     ...findUnsupportedDecisionClaims(result),
     ...findForbiddenClaimText(resultText(result), policy)
@@ -91,6 +115,10 @@ export function applyDecisionScoreGuardrails(
   const validationRequired = Array.from(new Set([
     ...result.validationRequired,
     ...(Array.isArray(request?.validationGaps) ? request.validationGaps : []),
+    blockedReviewCount > 0
+      ? `${blockedReviewCount} evidence review item(s) are unreviewed, rejected, expired or need more evidence.`
+      : null,
+    inReviewCount > 0 ? "Evidence is under review and must not be described as validated." : null,
     policy.allowedClaimLevel === "screening_only"
       ? "Official/client validation evidence is required before decision-grade claims."
       : null
@@ -99,7 +127,7 @@ export function applyDecisionScoreGuardrails(
   return {
     ...result,
     caveat: policy.requiredCaveats[0] ?? validationRequiredCaveat ?? decisionScoreCaveat,
-    confidence: unsupportedClaims.length > 0 ? "low" : capConfidence(result.confidence, policy.confidenceCap),
+    confidence: unsupportedClaims.length > 0 || blockedReviewCount > 0 ? "low" : capConfidence(result.confidence, policy.confidenceCap),
     validationRequired: validationRequired.slice(0, 5),
     forbiddenClaimsAvoided: unsupportedClaims.length === 0 && result.forbiddenClaimsAvoided,
     unsupportedClaims

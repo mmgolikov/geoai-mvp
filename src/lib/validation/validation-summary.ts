@@ -10,6 +10,7 @@ import {
 export const validationStatuses: ValidationStatus[] = [
   "not_started",
   "evidence_requested",
+  "uploaded_unreviewed",
   "evidence_uploaded",
   "in_review",
   "client_validated",
@@ -46,7 +47,7 @@ export function buildValidationSummary(evidence: ValidationEvidence[]): Validati
 
   const officialValidatedCount = evidenceByStatus.official_validated;
   const clientValidatedCount = evidenceByStatus.client_validated;
-  const inReviewCount = evidenceByStatus.in_review + evidenceByStatus.evidence_uploaded;
+  const inReviewCount = evidenceByStatus.in_review + evidenceByStatus.uploaded_unreviewed + evidenceByStatus.evidence_uploaded;
   const expiredCount = evidenceByStatus.expired;
   const rejectedCount = evidenceByStatus.rejected;
   const requiredValidationGaps = [

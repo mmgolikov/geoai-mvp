@@ -48,6 +48,7 @@ OpenAI is optional. If `OPENAI_API_KEY` is not configured, GeoAI automatically u
 - Pilot Infrastructure Activation v2.4 with guarded migration/seed/verify scripts, activation status APIs, soft access metadata, audit integration, storage readiness and known limitations tracker
 - Validation Governance & Official Connector Readiness v2.5 for project validation evidence metadata, official connector readiness, report appendices and AI claim guardrails
 - Secure File Storage & Evidence Uploads v2.6 foundation with evidence file metadata, storage readiness, server-side upload/download APIs, report appendix file metadata and Supabase Storage policy draft
+- Evidence Review Workflow & Signed URL Verification v2.7 with conservative review decisions, signed URL verification, upload intent and review-aware AI/report guardrails
 - Pilot Readiness & Client Delivery Package v1.1 with client-specific pilot packages, readiness scoring, setup checklist and deliverable framing
 - Offline DLD / Dubai Pulse CSV ingestion prototype with normalized sample outputs
 - API routes for health, demo objects, and analysis
@@ -254,6 +255,12 @@ GeoAI now includes a storage-ready evidence file workflow for validation evidenc
 This is not secure enterprise storage until buckets, policies, signed URL flows and access enforcement are configured and verified. Uploaded evidence requires review; it is not a legal, cadastral, zoning, planning, ownership or valuation conclusion.
 
 See [Secure File Storage & Evidence Uploads v2.6](docs/SECURE_FILE_STORAGE_EVIDENCE_UPLOADS_V26.md).
+
+## Evidence Review Workflow & Signed URL Verification v2.7
+
+GeoAI now tracks evidence review decisions separately from file upload. Files enter `uploaded_unreviewed`, reviewers can move evidence through in-review, client-validated, official-validated, rejected, expired or superseded states, and AI/report guardrails stay conservative until review status supports stronger screening language.
+
+Signed download verification remains server-side. Without configured Supabase Storage buckets and private policies, the app returns metadata-only fallback and a controlled `409` for binary download. See [Evidence Review Workflow & Signed URL Verification v2.7](docs/EVIDENCE_REVIEW_SIGNED_URL_VERIFICATION_V27.md).
 
 ## Data Credibility Sprint v0.5
 

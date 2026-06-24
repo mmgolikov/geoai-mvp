@@ -54,6 +54,7 @@ export type DecisionScoreRequest = {
   pilotContext?: unknown;
   validationSummary?: unknown;
   validationEvidence?: unknown;
+  evidenceReviewSummaries?: unknown;
   claimPolicy?: unknown;
   validationGaps?: string[];
   evidence?: Array<{ id?: string; sourceId?: string; title?: string; description?: string }>;
