@@ -65,6 +65,7 @@ export async function saveComparisonSet(input: ComparisonSetInput): Promise<DbRe
       items: input.items,
       recommendation: input.recommendation,
       source_lineage: localPayload.sourceLineage,
+      result_payload: input.payload,
       payload: input.payload,
       created_at: localPayload.createdAt,
       updated_at: localPayload.updatedAt

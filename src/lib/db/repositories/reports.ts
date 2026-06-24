@@ -85,7 +85,17 @@ export async function saveReport(input: DbReportInput): Promise<DbRepositoryResu
       run_key: input.runKey ?? null,
       report_type: input.reportType,
       title: input.title,
+      summary: typeof (input.reportJson as { executiveSummary?: unknown })?.executiveSummary === "string"
+        ? (input.reportJson as { executiveSummary: string }).executiveSummary
+        : null,
+      payload: input.reportJson,
       report_json: input.reportJson,
+      linked_analysis_ids: input.runKey ? [input.runKey] : [],
+      linked_comparison_id: input.reportType === "comparison" ? input.runKey ?? null : null,
+      source_lineage: createSourceLineageSnapshot({
+        evidence: (input.reportJson as { evidenceSourceReadiness?: [] })?.evidenceSourceReadiness ?? [],
+        uploadedDatasets: (input.reportJson as { uploadedDataContext?: { datasets?: [] } })?.uploadedDataContext?.datasets ?? []
+      }),
       decision_posture: input.decisionPosture ?? null,
       generated_at: input.generatedAt ?? new Date().toISOString()
     }, { onConflict: "report_key" }) as Promise<{ data?: unknown; error?: unknown }>;

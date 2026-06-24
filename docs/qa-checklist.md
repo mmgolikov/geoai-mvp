@@ -12,6 +12,7 @@ Use this checklist before demos, Vercel deployments, and milestone checkpoints.
 - [ ] `OPENAI_API_KEY` is not required for current MVP behavior.
 - [ ] `NEXT_PUBLIC_AUTH_MODE` is optional and defaults to public demo access.
 - [ ] `SUPABASE_SERVICE_ROLE_KEY` is not exposed in browser/client code.
+- [ ] If Supabase is configured, `/api/db/health` does not print any secret values.
 - [ ] `npm run build` passes.
 - [ ] `npm run lint` passes.
 - [ ] `npm run ingest:dld:snapshot` exits successfully.
@@ -21,10 +22,26 @@ Use this checklist before demos, Vercel deployments, and milestone checkpoints.
 
 - [ ] `/api/db/health` separates connection `status` from `repositoryMode`.
 - [ ] `/api/db/health` returns `repositoryMode: "local_fallback"` when Supabase/PostGIS is not configured or unavailable.
+- [ ] `/api/db/health` returns `postgisReady`, `tablesReady`, `missingTables`, `requiredTables`, `migrationName`, and `schemaVersion`.
+- [ ] If Supabase is configured but the v2.3 schema is missing, `/api/db/health` returns `status: "configured_incomplete"` or `configured_unavailable` without a 500.
+- [ ] If Supabase/PostGIS is ready, `/api/db/health` returns `repositoryMode: "supabase"` only after schema readiness checks pass.
 - [ ] Project-scoped fallback APIs include `storageCaveat` where practical.
 - [ ] UI labels show `Local/API fallback`, `Browser-local demo`, `Demo seed`, `Supabase/PostGIS`, or `Not configured`.
 - [ ] UI does not show raw legacy mode strings such as `local-fallback`, `local_only`, `local_demo`, or `local-only`.
 - [ ] The caveat remains visible where relevant: `Local/API fallback is not durable production storage.`
+- [ ] The caveat remains documented where relevant: `Supabase/PostGIS durable persistence is active only when configured and schema readiness checks pass.`
+- [ ] The caveat remains documented where relevant: `RLS policies require configured Supabase Auth, project memberships and deployment governance.`
+
+## Supabase/PostGIS Durable Persistence v2.3
+
+- [ ] Migration file exists at `supabase/migrations/20260624_geoai_pilot_persistence_foundation.sql`.
+- [ ] Migration is additive and does not contain destructive data operations.
+- [ ] Migration includes organizations, profiles, memberships, projects, AOIs, analysis runs, reports, comparisons, Data Room, Pilot Workflow, source snapshot, AI score and audit event tables.
+- [ ] AOI table uses PostGIS polygon and centroid columns.
+- [ ] RLS is enabled for core tables.
+- [ ] No broad anonymous write policy exists.
+- [ ] Audit event helper is non-blocking and does not claim certified audit/compliance logging.
+- [ ] Supabase migration has been applied only in an intended Supabase environment, not against production without review.
 
 ## Map Loading
 

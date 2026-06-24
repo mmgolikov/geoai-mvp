@@ -27,7 +27,7 @@ export function repositoryModeToLabel(mode: RepositoryMode): string {
 export function repositoryModeToCaveat(mode: RepositoryMode): string {
   switch (mode) {
     case "supabase":
-      return "Supabase/PostGIS is active only when configured and successfully used.";
+      return "Supabase/PostGIS durable persistence is active only when configured and schema readiness checks pass.";
     case "local_fallback":
       return localFallbackCaveat;
     case "browser_local":
