@@ -243,7 +243,7 @@ GeoAI now includes a validation governance foundation for project-scoped evidenc
 
 This is not a live official DLD, Dubai Pulse, GeoDubai or Dubai Municipality integration. It does not certify ownership, zoning, cadastral status, planning approval, suitability or valuation. Outputs remain a screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.
 
-See [Validation Governance & Official Connector Readiness v2.5](docs/VALIDATION_GOVERNANCE_OFFICIAL_CONNECTOR_READINESS_V25.md).
+See [Validation Governance & Official Connector Readiness v2.5](docs/VALIDATION_GOVERNANCE_OFFICIAL_CONNECTOR_READINESS_V25.md) and the [v2.5 release note](docs/RELEASE_GEOAI_VALIDATION_GOVERNANCE_V25.md).
 
 ## Data Credibility Sprint v0.5
 
