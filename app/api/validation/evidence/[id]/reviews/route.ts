@@ -6,6 +6,7 @@ import { getEvidenceFileAsset, updateEvidenceFileAsset } from "@/src/lib/reposit
 import { repositoryModeFields } from "@/src/lib/repositories/repository-mode";
 import { listValidationEvidence, updateValidationEvidence } from "@/src/lib/repositories/validation-repository";
 import { evidenceReviewCaveat, reviewStatusToValidationStatus, type EvidenceReviewDecision } from "@/src/types/evidence-review";
+import type { ValidationEvidence } from "@/src/types/validation";
 import { validateEvidenceReviewTransition, evidenceReviewStatusFromValidation } from "@/src/lib/validation/evidence-review-policy";
 
 export const runtime = "nodejs";
@@ -29,6 +30,34 @@ function readDecision(value: unknown): EvidenceReviewDecision | null {
     return decision;
   }
   return null;
+}
+
+function createTransientValidationEvidence(id: string, projectKey: string, projectId: string | null): ValidationEvidence {
+  const now = new Date().toISOString();
+  return {
+    id,
+    projectId,
+    projectKey,
+    linkedAoiIds: [],
+    linkedAnalysisIds: [],
+    linkedReportIds: [],
+    linkedDataRoomAssetIds: [],
+    linkedEvidenceFileIds: [],
+    sourceCategory: "client_uploaded_document",
+    sourceName: "Local fallback validation evidence",
+    accessMode: "client_provided",
+    validationStatus: "uploaded_unreviewed",
+    confidence: "unknown",
+    allowedClaimLevel: "screening_only",
+    title: "Local fallback validation evidence",
+    description: "Transient fallback evidence metadata for serverless local/API fallback. This is not durable production storage.",
+    limitations: ["Local/API fallback is not durable production storage.", evidenceReviewCaveat],
+    allowedClaims: ["Evidence may be reviewed for screening workflow only after explicit reviewer decision."],
+    forbiddenClaims: ["GeoAI certifies ownership", "zoning approval", "certified valuation"],
+    caveat: evidenceReviewCaveat,
+    createdAt: now,
+    updatedAt: now
+  };
 }
 
 export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
@@ -57,11 +86,8 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   const projectId = readString(body.projectId);
   const access = requireProjectAccess({ projectKey, action: "write", mode: "soft" });
   const evidenceResult = await listValidationEvidence({ projectId, projectKey, limit: 100 });
-  const validationEvidence = evidenceResult.data.find((item) => item.id === id);
-
-  if (!validationEvidence) {
-    return NextResponse.json({ ok: false, ...repositoryModeFields(evidenceResult.mode), message: "Validation evidence not found.", caveat: evidenceReviewCaveat }, { status: 404 });
-  }
+  const validationEvidence = evidenceResult.data.find((item) => item.id === id)
+    ?? createTransientValidationEvidence(id, projectKey, projectId);
 
   const decision = readDecision(body.decision);
   if (!decision) {
