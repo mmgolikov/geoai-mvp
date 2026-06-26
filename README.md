@@ -136,6 +136,7 @@ See [Repository Mode & Fallback Consistency v2.0.2](docs/REPOSITORY_MODE_FALLBAC
 
 ## Latest Release Notes
 
+- [GeoAI Pilot Backend Activation & Hardening v2.9](docs/RELEASE_GEOAI_PILOT_BACKEND_ACTIVATION_HARDENING_V29.md)
 - [GeoAI Enterprise Report Pack v2.8](docs/RELEASE_GEOAI_ENTERPRISE_REPORT_PACK_V28.md)
 - [Enterprise Report Pack v2.8 architecture note](docs/ENTERPRISE_REPORT_PACK_V28.md)
 - [Pilot Backend Activation & Hardening v2.9](docs/PILOT_BACKEND_ACTIVATION_HARDENING_V29.md)
