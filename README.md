@@ -50,6 +50,7 @@ OpenAI is optional. If `OPENAI_API_KEY` is not configured, GeoAI automatically u
 - Secure File Storage & Evidence Uploads v2.6 foundation with evidence file metadata, storage readiness, server-side upload/download APIs, report appendix file metadata and Supabase Storage policy draft
 - Evidence Review Workflow & Signed URL Verification v2.7 with conservative review decisions, signed URL verification, upload intent and review-aware AI/report guardrails
 - Enterprise Report Pack v2.8 with structured package model, local/API fallback package repository, printable package route, safe JSON export, source lineage, validation governance, evidence review, Data Room and pilot workflow appendices
+- Pilot Backend Activation & Hardening v2.9 with canonical backend status, soft/hard access modes, membership/storage/audit verification scripts, dynamic known limitations and compact pilot readiness panel
 - Pilot Readiness & Client Delivery Package v1.1 with client-specific pilot packages, readiness scoring, setup checklist and deliverable framing
 - Offline DLD / Dubai Pulse CSV ingestion prototype with normalized sample outputs
 - API routes for health, demo objects, and analysis
@@ -99,6 +100,10 @@ NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
 NEXT_PUBLIC_AUTH_MODE=
+GEOAI_ACCESS_ENFORCEMENT_MODE=soft
+GEOAI_REQUIRE_SUPABASE_READY=false
+GEOAI_REQUIRE_STORAGE_READY=false
+GEOAI_ALLOW_DEMO_PUBLIC=true
 ```
 
 `NEXT_PUBLIC_MAPBOX_TOKEN` is required for the live Mapbox basemap.
@@ -108,6 +113,8 @@ NEXT_PUBLIC_AUTH_MODE=
 Supabase/PostGIS is optional in v0.1. When Supabase environment variables are not configured, GeoAI remains fully usable in local/demo mode and analysis history stays in browser storage.
 
 `NEXT_PUBLIC_AUTH_MODE` is optional and defaults to `demo_public`. Valid values are `demo_public`, `supabase_auth`, and `disabled`. In `supabase_auth`, GeoAI only uses public Supabase URL/anon values in the browser and falls back to public demo access if those values are missing. `SUPABASE_SERVICE_ROLE_KEY` must remain server-only.
+
+Pilot backend activation is controlled by server/runtime environment variables. `GEOAI_ACCESS_ENFORCEMENT_MODE=soft` preserves the public demo. `hard` enables the protected access path and should only be used after Supabase Auth, memberships, RLS, storage and audit checks are verified. `GEOAI_ALLOW_DEMO_PUBLIC=true` keeps seeded demo projects visible while hard mode is being tested.
 
 Never expose the OpenAI key as a `NEXT_PUBLIC_*` variable. Only `NEXT_PUBLIC_MAPBOX_TOKEN` is intended for browser use.
 
@@ -131,6 +138,7 @@ See [Repository Mode & Fallback Consistency v2.0.2](docs/REPOSITORY_MODE_FALLBAC
 
 - [GeoAI Enterprise Report Pack v2.8](docs/RELEASE_GEOAI_ENTERPRISE_REPORT_PACK_V28.md)
 - [Enterprise Report Pack v2.8 architecture note](docs/ENTERPRISE_REPORT_PACK_V28.md)
+- [Pilot Backend Activation & Hardening v2.9](docs/PILOT_BACKEND_ACTIVATION_HARDENING_V29.md)
 
 ## Useful Commands
 
@@ -142,7 +150,11 @@ npm run supabase:migrate:check
 npm run supabase:migrate:apply
 npm run supabase:seed:pilot-foundation
 npm run supabase:verify:persistence
+npm run supabase:verify:memberships
 npm run storage:check
+npm run storage:verify:signed-url
+npm run audit:verify
+npm run test:api-contract
 npm run ingest:dld:snapshot
 npm run ingest:osm:snapshot
 npm run data:status
@@ -154,11 +166,14 @@ The default `npm run dev` command uses stable Webpack mode with polling enabled 
 
 `npm run supabase:migrate:apply` is guarded and will not apply SQL unless `SUPABASE_DB_URL` and `GEOAI_ALLOW_SUPABASE_MIGRATION_APPLY=true` are set in a trusted terminal. See [Pilot Infrastructure Activation v2.4](docs/PILOT_INFRASTRUCTURE_ACTIVATION_V24.md).
 
+v2.9 adds a stricter guard: `GEOAI_ALLOW_SUPABASE_TARGET` must also identify the intended target (`pilot`, `preview`, or `production`) before migration apply can run.
+
 ## API Routes
 
 - `GET /api/health` returns app status.
 - `GET /api/db/health` returns optional Supabase/PostGIS readiness without exposing secrets.
 - `GET /api/platform/activation-status` returns the v2.4 pilot infrastructure activation gate without exposing secrets.
+- `GET /api/pilot-backend/status` returns the v2.9 canonical pilot backend activation summary, including demo/confidential pilot readiness, capabilities, blockers and caveats.
 - `GET /api/storage/health` returns Supabase Storage readiness and bucket blockers.
 - `GET /api/known-limitations` returns the machine-readable limitations tracker.
 - `GET /api/demo-objects` returns mock spatial objects for demo use.

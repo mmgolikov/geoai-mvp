@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireProjectAccess } from "@/src/lib/auth/project-access";
+import { projectAccessDeniedPayload, requireProjectAccess } from "@/src/lib/auth/project-access";
 import { repositoryModeFields } from "@/src/lib/repositories/repository-mode";
 import { buildEvidenceReviewSummaries, listEvidenceReviews } from "@/src/lib/repositories/evidence-review-repository";
 import { listValidationEvidence } from "@/src/lib/repositories/validation-repository";
@@ -14,6 +14,9 @@ export async function GET(request: Request) {
   const projectId = url.searchParams.get("projectId");
   const projectKey = url.searchParams.get("projectKey") ?? "dubai-investment-screening-demo";
   const access = requireProjectAccess({ projectKey, action: "read", mode: "soft" });
+  if (!access.allowed) {
+    return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
+  }
   const result = await listValidationEvidence({ projectId, projectKey, limit: 50 });
   const reviewResult = await listEvidenceReviews({ projectId, projectKey, limit: 120 });
   const summary = buildValidationSummary(result.data);

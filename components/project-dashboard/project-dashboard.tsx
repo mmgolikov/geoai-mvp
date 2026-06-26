@@ -56,6 +56,8 @@ type PlatformActivationStatus = {
   authMode: string;
   repositoryMode: RepositoryMode;
   activationStatus: string;
+  accessEnforcementMode?: "soft" | "hard";
+  allowDemoPublic?: boolean;
   supabaseConfigured: boolean;
   schemaReady: boolean;
   postgisReady: boolean;
@@ -64,6 +66,30 @@ type PlatformActivationStatus = {
   migrationApplied: boolean;
   blockers: string[];
   nextActions: string[];
+};
+
+type PilotBackendStatusResponse = {
+  status: string;
+  repositoryMode: RepositoryMode;
+  accessEnforcementMode: "soft" | "hard";
+  canRunDemoPilot: boolean;
+  canRunConfidentialPilot: boolean;
+  capabilities: Array<{
+    id: string;
+    label: string;
+    status: string;
+    evidence: string;
+    caveat?: string;
+  }>;
+  blockers: Array<{
+    id: string;
+    severity: "p0" | "p1" | "p2";
+    title: string;
+    description: string;
+    nextAction: string;
+  }>;
+  nextActions: string[];
+  caveats: string[];
 };
 
 type ValidationGovernanceResponse = {
@@ -103,6 +129,10 @@ type StorageHealthResponse = {
   storageReady: boolean;
   missingBuckets: string[];
   maxFileSizeBytes: number;
+  privateBucketPolicyReady?: boolean;
+  signedUrlVerified?: boolean;
+  writeTestAllowed?: boolean;
+  lastVerifiedAt?: string | null;
   blockers: string[];
   nextActions: string[];
   caveat: string;
@@ -623,6 +653,7 @@ export function ProjectDashboard() {
   const [validationGovernance, setValidationGovernance] = useState<ValidationGovernanceResponse | null>(null);
   const [validationMessage, setValidationMessage] = useState<string | null>(null);
   const [storageHealth, setStorageHealth] = useState<StorageHealthResponse | null>(null);
+  const [pilotBackendStatus, setPilotBackendStatus] = useState<PilotBackendStatusResponse | null>(null);
   const [evidenceFiles, setEvidenceFiles] = useState<EvidenceFileAsset[]>([]);
 
   useEffect(() => {
@@ -640,7 +671,8 @@ export function ProjectDashboard() {
         fetch("/api/db/health").then((response) => response.json()),
         fetch("/api/market-metrics").then((response) => response.json()),
         fetch("/api/external-data/status").then((response) => response.json()),
-        fetch("/api/platform/activation-status").then((response) => response.json())
+        fetch("/api/platform/activation-status").then((response) => response.json()),
+        fetch("/api/pilot-backend/status").then((response) => response.json())
       ]);
 
       if (cancelled) return;
@@ -669,6 +701,11 @@ export function ProjectDashboard() {
       const platformResult = results[4];
       if (platformResult.status === "fulfilled") {
         setPlatformStatus(platformResult.value as PlatformActivationStatus);
+      }
+
+      const pilotBackendResult = results[5];
+      if (pilotBackendResult.status === "fulfilled") {
+        setPilotBackendStatus(pilotBackendResult.value as PilotBackendStatusResponse);
       }
     }
 
@@ -1082,13 +1119,24 @@ export function ProjectDashboard() {
   const workflowDeliverablesTotal = pilotWorkflow?.deliverables.length ?? 0;
   const workflowValidationCompleted = dataRoom?.summary.checklistStatus.completed ?? 0;
   const workflowValidationTotal = dataRoom?.summary.checklistStatus.total ?? 0;
+  const pilotCapability = (id: string) => pilotBackendStatus?.capabilities.find((item) => item.id === id);
   const platformRows = [
+    {
+      label: "Demo pilot",
+      value: pilotBackendStatus?.canRunDemoPilot ? "Ready" : "Blocked",
+      note: pilotBackendStatus?.canRunDemoPilot ? "Public demo path remains available" : "Demo public access is disabled"
+    },
+    {
+      label: "Confidential",
+      value: pilotBackendStatus?.canRunConfidentialPilot ? "Ready" : "Blocked",
+      note: pilotBackendStatus?.canRunConfidentialPilot ? "Backend gates verified" : pilotBackendStatus?.blockers?.[0]?.title ?? "Backend gates not verified"
+    },
     {
       label: "Auth",
       value: platformStatus?.authMode === "supabase_auth" ? "Supabase Auth" : "Demo access",
-      note: platformStatus?.authMode === "supabase_auth"
+      note: pilotCapability("auth_sessions")?.evidence ?? (platformStatus?.authMode === "supabase_auth"
         ? "Membership-backed access foundation"
-        : "Public demo access; not production authentication"
+        : "Public demo access; not production authentication")
     },
     {
       label: "DB",
@@ -1102,18 +1150,25 @@ export function ProjectDashboard() {
     },
     {
       label: "Storage",
-      value: platformStatus?.storageReady ? "Ready" : "Disabled",
-      note: platformStatus?.storageReady ? "Buckets reachable; policies still require verification" : "Bucket readiness path is explicit"
+      value: pilotCapability("signed_upload_download")?.status === "verified_active"
+        ? "Signed URL verified"
+        : platformStatus?.storageReady ? "Buckets ready" : "Metadata only",
+      note: pilotCapability("storage_buckets")?.evidence ?? (platformStatus?.storageReady ? "Buckets reachable; policies still require verification" : "Bucket readiness path is explicit")
     },
     {
       label: "Audit",
-      value: dbHealth?.repositoryMode === "supabase" ? "Active foundation" : "No-op fallback",
-      note: "Audit events never block workflows; not a certified audit trail"
+      value: pilotCapability("audit_events")?.status === "verified_active" ? "Durable verified" : "Foundation",
+      note: pilotCapability("audit_events")?.evidence ?? "Audit events never block workflows; not a certified audit trail"
     },
     {
       label: "Access",
-      value: "Soft",
-      note: "Project access metadata is returned; hard enforcement remains a future rollout"
+      value: pilotBackendStatus?.accessEnforcementMode === "hard" ? "Hard" : "Soft",
+      note: pilotCapability("hard_access_enforcement")?.evidence ?? "Project access metadata is returned; hard enforcement remains opt-in"
+    },
+    {
+      label: "RLS",
+      value: pilotCapability("rls_policies")?.status === "configured_ready" ? "Ready to test" : "Draft",
+      note: pilotCapability("rls_policies")?.evidence ?? "RLS policy draft requires live verification"
     }
   ];
   const validationSummary = validationGovernance?.summary;
@@ -2093,17 +2148,17 @@ export function ProjectDashboard() {
               </div>
             </Panel>
 
-            <Panel title="Platform Readiness" subtitle="Pilot infrastructure activation status. Fallback remains available until every gate is verified.">
+            <Panel title="Platform Readiness" subtitle="Pilot backend activation status. Fallback remains available until every gate is verified.">
               <div className="grid gap-3">
                 <div className="flex items-start justify-between gap-3 rounded-md border border-line bg-surface p-3">
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold text-ink">{formatDataRoomLabel(platformStatus?.activationStatus ?? "local_fallback_only")}</p>
+                    <p className="text-sm font-semibold text-ink">{formatDataRoomLabel(pilotBackendStatus?.status ?? platformStatus?.activationStatus ?? "local_fallback_only")}</p>
                     <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted">
-                      {platformStatus?.blockers?.[0] ?? dbHealth?.message ?? "Platform readiness is reported by API health checks."}
+                      {pilotBackendStatus?.blockers?.[0]?.description ?? platformStatus?.blockers?.[0] ?? dbHealth?.message ?? "Platform readiness is reported by API health checks."}
                     </p>
                   </div>
                   <span className="shrink-0 rounded-full bg-white px-2 py-1 text-xs font-semibold text-brand">
-                    v2.4
+                    v2.9
                   </span>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
@@ -2117,8 +2172,20 @@ export function ProjectDashboard() {
                     </div>
                   ))}
                 </div>
+                {pilotBackendStatus?.blockers?.length ? (
+                  <div className="rounded-md border border-line bg-white px-3 py-2">
+                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Top blockers</p>
+                    <ul className="mt-2 grid gap-1 text-xs leading-5 text-muted">
+                      {pilotBackendStatus.blockers.slice(0, 2).map((item) => (
+                        <li key={item.id}>
+                          <span className="font-semibold text-ink">{item.severity.toUpperCase()}:</span> {item.title}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
                 <p className="text-xs leading-5 text-muted">
-                  {platformStatus?.nextActions?.[0] ?? "Run the v2.4 migration, seed and verification scripts from a trusted environment before claiming durable storage."}
+                  {pilotBackendStatus?.nextActions?.[0] ?? platformStatus?.nextActions?.[0] ?? "Run the migration, seed and verification scripts from a trusted environment before claiming durable storage."}
                 </p>
               </div>
             </Panel>

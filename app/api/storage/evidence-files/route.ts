@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { recordAuditEvent } from "@/src/lib/audit/audit-event";
-import { requireProjectAccess } from "@/src/lib/auth/project-access";
+import { projectAccessDeniedPayload, requireProjectAccess } from "@/src/lib/auth/project-access";
 import {
   createEvidenceFileAsset,
   listEvidenceFileAssets
@@ -30,6 +30,9 @@ export async function GET(request: Request) {
   const projectId = url.searchParams.get("projectId");
   const projectKey = url.searchParams.get("projectKey");
   const access = requireProjectAccess({ projectKey, action: "read", mode: "soft" });
+  if (!access.allowed) {
+    return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
+  }
   const result = await listEvidenceFileAssets({ projectId, projectKey, limit: 80 });
 
   return NextResponse.json({
@@ -60,7 +63,10 @@ export async function POST(request: Request) {
   const aoiId = readString(formData.get("aoiId"));
   const reportId = readString(formData.get("reportId"));
   const notes = readString(formData.get("notes"));
-  const access = requireProjectAccess({ projectKey, action: "write", mode: "soft" });
+  const access = requireProjectAccess({ projectKey, action: "upload", mode: "soft" });
+  if (!access.allowed) {
+    return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
+  }
 
   if (!(file instanceof File)) {
     return NextResponse.json({ ok: false, ...repositoryModeFields("local_fallback"), message: "Evidence file is required." }, { status: 400 });

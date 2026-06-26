@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { recordAuditEvent } from "@/src/lib/audit/audit-event";
-import { requireProjectAccess } from "@/src/lib/auth/project-access";
+import { projectAccessDeniedPayload, requireProjectAccess } from "@/src/lib/auth/project-access";
 import { deleteAoi, getAoi, updateAoi } from "@/src/lib/repositories/aoi-repository";
 import { repositoryModeFields } from "@/src/lib/repositories/repository-mode";
 import type { ProjectAoi } from "@/src/types/aoi";
@@ -19,6 +19,9 @@ export async function GET(_request: Request, context: RouteContext) {
     action: "read",
     mode: "soft"
   });
+  if (!access.allowed) {
+    return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
+  }
 
   return NextResponse.json({
     ok: result.ok,
@@ -46,6 +49,9 @@ export async function PATCH(request: Request, context: RouteContext) {
 
   const patch = body as Partial<ProjectAoi>;
   const access = requireProjectAccess({ projectKey: patch.projectKey ?? null, action: "write", mode: "soft" });
+  if (!access.allowed) {
+    return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
+  }
   const result = await updateAoi(id, {
     name: typeof patch.name === "string" ? patch.name : undefined,
     description: typeof patch.description === "string" ? patch.description : undefined,

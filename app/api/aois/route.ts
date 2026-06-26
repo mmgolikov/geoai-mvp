@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAoi, listAois } from "@/src/lib/repositories/aoi-repository";
 import { repositoryModeFields } from "@/src/lib/repositories/repository-mode";
-import { requireProjectAccess } from "@/src/lib/auth/project-access";
+import { projectAccessDeniedPayload, requireProjectAccess } from "@/src/lib/auth/project-access";
 import { recordAuditEvent } from "@/src/lib/audit/audit-event";
 import { aoiRequiredCaveat, type ProjectAoi } from "@/src/types/aoi";
 
@@ -31,6 +31,9 @@ export async function GET(request: Request) {
   const projectId = url.searchParams.get("projectId");
   const projectKey = url.searchParams.get("projectKey");
   const access = requireProjectAccess({ projectKey, action: "read", mode: "soft" });
+  if (!access.allowed) {
+    return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
+  }
   const result = await listAois({ projectId, projectKey, limit: 50 });
 
   return NextResponse.json({
@@ -57,11 +60,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, ...repositoryModeFields("local_fallback"), message: "Invalid AOI payload." }, { status: 400 });
   }
 
+  const access = requireProjectAccess({ projectKey: body.projectKey, action: "write", mode: "soft" });
+  if (!access.allowed) {
+    return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
+  }
   const result = await createAoi({
     ...body,
     caveat: body.caveat ?? aoiRequiredCaveat
   });
-  const access = requireProjectAccess({ projectKey: body.projectKey, action: "write", mode: "soft" });
   void recordAuditEvent({
     projectKey: body.projectKey,
     eventType: "aoi_created",

@@ -1,5 +1,6 @@
 import { getAuthModeStatus } from "@/src/lib/auth/auth-mode";
 import { getSchemaReadinessSummary } from "@/src/lib/db/schema-readiness";
+import { getEnforcementConfig } from "@/src/lib/platform/enforcement-config";
 import { repositoryModeToCaveat } from "@/src/lib/repositories/repository-mode";
 import { getStorageReadiness } from "@/src/lib/storage/storage-readiness";
 
@@ -17,6 +18,7 @@ function boolEnv(name: string) {
 
 export async function getPilotActivationGate() {
   const authStatus = getAuthModeStatus();
+  const enforcement = getEnforcementConfig();
   const [schema, storage] = await Promise.all([
     getSchemaReadinessSummary(),
     getStorageReadiness()
@@ -80,6 +82,10 @@ export async function getPilotActivationGate() {
     canApplyMigration,
     canVerifySchema: hasSupabaseServerEnv,
     canUseSupabaseStorage: storage.storageReady,
+    accessEnforcementMode: enforcement.accessEnforcementMode,
+    requireSupabaseReady: enforcement.requireSupabaseReady,
+    requireStorageReady: enforcement.requireStorageReady,
+    allowDemoPublic: enforcement.allowDemoPublic,
     authMode: authStatus.effectiveMode,
     repositoryMode: schema.repositoryMode,
     activationStatus,

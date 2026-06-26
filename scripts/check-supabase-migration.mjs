@@ -64,7 +64,8 @@ const supabaseCliAvailable = commandExists("supabase");
 const psqlAvailable = commandExists("psql");
 const migrationFileExists = existsSync(migrationPath);
 const canApplyMigration = Boolean(process.env.SUPABASE_DB_URL?.trim()) &&
-  process.env.GEOAI_ALLOW_SUPABASE_MIGRATION_APPLY?.trim().toLowerCase() === "true";
+  process.env.GEOAI_ALLOW_SUPABASE_MIGRATION_APPLY?.trim().toLowerCase() === "true" &&
+  ["pilot", "preview", "production"].includes(process.env.GEOAI_ALLOW_SUPABASE_TARGET?.trim().toLowerCase() ?? "");
 const probe = await probeSupabase();
 const schemaApplied = probe.configured && probe.missingTables.length === 0;
 
@@ -81,13 +82,13 @@ const output = {
   blockers: [
     ...(!migrationFileExists ? ["Migration SQL file is missing."] : []),
     ...(probe.blocker ? [probe.blocker] : []),
-    ...(!canApplyMigration && !schemaApplied ? ["Migration apply is disabled until SUPABASE_DB_URL and GEOAI_ALLOW_SUPABASE_MIGRATION_APPLY=true are set."] : [])
+    ...(!canApplyMigration && !schemaApplied ? ["Migration apply is disabled until SUPABASE_DB_URL, GEOAI_ALLOW_SUPABASE_MIGRATION_APPLY=true and GEOAI_ALLOW_SUPABASE_TARGET are set."] : [])
   ],
   nextActions: schemaApplied
     ? ["Run npm run supabase:verify:persistence to verify durable writes."]
     : [
         "Apply supabase/migrations/20260624_geoai_pilot_persistence_foundation.sql from a trusted environment.",
-        "Use npm run supabase:migrate:apply only after setting SUPABASE_DB_URL and GEOAI_ALLOW_SUPABASE_MIGRATION_APPLY=true.",
+        "Use npm run supabase:migrate:apply only after setting SUPABASE_DB_URL, GEOAI_ALLOW_SUPABASE_MIGRATION_APPLY=true and GEOAI_ALLOW_SUPABASE_TARGET.",
         "Alternatively paste the migration SQL into the Supabase SQL editor and re-run this check."
       ],
   caveat: "Supabase/PostGIS durable persistence is active only when configured and schema readiness checks pass."

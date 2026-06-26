@@ -5,7 +5,7 @@ import {
 } from "@/src/lib/db/repositories/analysis-runs";
 import { getProjectByKey } from "@/src/lib/db/repositories/projects";
 import { recordAuditEvent } from "@/src/lib/audit/audit-event";
-import { requireProjectAccess } from "@/src/lib/auth/project-access";
+import { projectAccessDeniedPayload, requireProjectAccess } from "@/src/lib/auth/project-access";
 import { repositoryModeFields } from "@/src/lib/repositories/repository-mode";
 import type { DbAnalysisRunInput } from "@/src/lib/db/types";
 
@@ -33,6 +33,9 @@ export async function GET(request: Request) {
   const limit = Number.isFinite(limitParam) ? Math.min(Math.max(limitParam, 1), 50) : 10;
   const projectKey = url.searchParams.get("projectKey");
   const access = requireProjectAccess({ projectKey, action: "read", mode: "soft" });
+  if (!access.allowed) {
+    return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
+  }
   const project = projectKey ? await getProjectByKey(projectKey) : null;
 
   const result = await listAnalysisRuns(limit, project?.mode === "supabase" ? project.data?.id ?? null : null);
@@ -75,6 +78,9 @@ export async function POST(request: Request) {
 
   const project = body.projectKey ? await getProjectByKey(body.projectKey) : null;
   const access = requireProjectAccess({ projectKey: body.projectKey ?? project?.data?.projectKey ?? null, action: "write", mode: "soft" });
+  if (!access.allowed) {
+    return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
+  }
   const result = await saveAnalysisRun({
     ...body,
     projectId: body.projectId ?? (project?.mode === "supabase" ? project.data?.id ?? null : null),

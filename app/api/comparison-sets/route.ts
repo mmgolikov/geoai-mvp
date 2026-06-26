@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { recordAuditEvent } from "@/src/lib/audit/audit-event";
-import { requireProjectAccess } from "@/src/lib/auth/project-access";
+import { projectAccessDeniedPayload, requireProjectAccess } from "@/src/lib/auth/project-access";
 import {
   deleteComparisonSet,
   getComparisonSet,
@@ -32,6 +32,9 @@ export async function GET(request: Request) {
   const projectId = url.searchParams.get("projectId");
   const projectKey = url.searchParams.get("projectKey");
   const access = requireProjectAccess({ projectKey, action: "read", mode: "soft" });
+  if (!access.allowed) {
+    return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
+  }
 
   if (id) {
     const result = await getComparisonSet(id);
@@ -74,9 +77,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, ...repositoryModeFields("local_fallback"), message: "Invalid comparison set payload." }, { status: 400 });
   }
 
-  const result = await saveComparisonSet(body);
   const projectKey = (body as { projectKey?: string | null }).projectKey ?? null;
   const access = requireProjectAccess({ projectKey, action: "write", mode: "soft" });
+  if (!access.allowed) {
+    return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
+  }
+  const result = await saveComparisonSet(body);
 
   const responseMode = result.mode === "supabase" ? "supabase" : "local_fallback";
   void recordAuditEvent({

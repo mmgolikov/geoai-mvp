@@ -26,6 +26,10 @@ export type StorageReadiness = {
   allowedMimeTypes: string[];
   signedUploadReady: boolean;
   signedDownloadReady: boolean;
+  privateBucketPolicyReady: boolean;
+  signedUrlVerified: boolean;
+  writeTestAllowed: boolean;
+  lastVerifiedAt: string | null;
   caveat: string;
   blockers: string[];
   nextActions: string[];
@@ -72,6 +76,10 @@ export async function getStorageReadiness(): Promise<StorageReadiness> {
       missingBuckets: [...requiredStorageBuckets],
       signedUploadReady: false,
       signedDownloadReady: false,
+      privateBucketPolicyReady: false,
+      signedUrlVerified: false,
+      writeTestAllowed: process.env.GEOAI_ALLOW_STORAGE_WRITE_TEST?.trim().toLowerCase() === "true",
+      lastVerifiedAt: null,
       caveat: "Storage readiness is not secure enterprise storage until buckets, policies, signed URL flows and access enforcement are configured and verified.",
       blockers: ["Supabase server environment is not configured."],
       nextActions: [
@@ -94,6 +102,10 @@ export async function getStorageReadiness(): Promise<StorageReadiness> {
       missingBuckets: [...requiredStorageBuckets],
       signedUploadReady: false,
       signedDownloadReady: false,
+      privateBucketPolicyReady: false,
+      signedUrlVerified: false,
+      writeTestAllowed: process.env.GEOAI_ALLOW_STORAGE_WRITE_TEST?.trim().toLowerCase() === "true",
+      lastVerifiedAt: null,
       caveat: "Supabase is configured, but Storage API readiness could not be verified by this runtime.",
       blockers: ["Supabase Storage client is unavailable in the server runtime."],
       nextActions: ["Verify Supabase Storage support and bucket policies from a trusted server environment."]
@@ -112,6 +124,7 @@ export async function getStorageReadiness(): Promise<StorageReadiness> {
   );
   const missingBuckets = checks.filter((item) => !item.ready).map((item) => item.bucket);
   const bucketReady = missingBuckets.length === 0;
+  const signedUrlVerified = process.env.GEOAI_STORAGE_SIGNED_URL_VERIFIED?.trim().toLowerCase() === "true";
 
   return baseResponse({
     configured: true,
@@ -123,6 +136,10 @@ export async function getStorageReadiness(): Promise<StorageReadiness> {
     missingBuckets,
     signedUploadReady: bucketReady,
     signedDownloadReady: bucketReady,
+    privateBucketPolicyReady: bucketReady && signedUrlVerified,
+    signedUrlVerified,
+    writeTestAllowed: process.env.GEOAI_ALLOW_STORAGE_WRITE_TEST?.trim().toLowerCase() === "true",
+    lastVerifiedAt: process.env.GEOAI_STORAGE_LAST_VERIFIED_AT?.trim() || null,
     caveat: bucketReady
       ? "Storage buckets are reachable, but signed URL flows and access policies still require project-level verification before protected client use."
       : "Storage readiness is not secure enterprise storage until buckets, policies, signed URL flows and access enforcement are configured and verified.",
