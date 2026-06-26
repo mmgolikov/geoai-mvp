@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireProjectAccess } from "@/src/lib/auth/project-access";
+import { projectAccessDeniedPayload, requireProjectAccess } from "@/src/lib/auth/project-access";
 import { getReportPackage, summarizeReportPackage, updateReportPackageStatus } from "@/src/lib/repositories/report-package-repository";
 import { repositoryModeFields } from "@/src/lib/repositories/repository-mode";
 import type { ReportPackageStatus } from "@/src/types/report-package";
@@ -20,6 +20,10 @@ export async function GET(_request: Request, { params }: Params) {
   if (!result.data) {
     return NextResponse.json({ ok: false, ...repositoryModeFields("local_fallback"), message: "Report package not found." }, { status: 404 });
   }
+  const access = requireProjectAccess({ projectKey: result.data.projectKey, action: "read", mode: "soft" });
+  if (!access.allowed) {
+    return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
+  }
 
   return NextResponse.json({
     ok: true,
@@ -27,7 +31,7 @@ export async function GET(_request: Request, { params }: Params) {
     storageCaveat: result.storageCaveat,
     package: result.data,
     summary: summarizeReportPackage(result.data),
-    access: requireProjectAccess({ projectKey: result.data.projectKey, action: "read", mode: "soft" }),
+    access,
     caveat: result.data.caveat
   });
 }
@@ -48,6 +52,15 @@ export async function PATCH(request: Request, { params }: Params) {
     return NextResponse.json({ ok: false, ...repositoryModeFields("local_fallback"), message: "Invalid report package status." }, { status: 400 });
   }
 
+  const existing = await getReportPackage(decodedId);
+  if (!existing.data) {
+    return NextResponse.json({ ok: false, ...repositoryModeFields("local_fallback"), message: "Report package not found." }, { status: 404 });
+  }
+  const access = requireProjectAccess({ projectKey: existing.data.projectKey, action: "write", mode: "soft" });
+  if (!access.allowed) {
+    return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
+  }
+
   const result = await updateReportPackageStatus(decodedId, status as ReportPackageStatus);
   if (!result.data) {
     return NextResponse.json({ ok: false, ...repositoryModeFields("local_fallback"), message: "Report package not found." }, { status: 404 });
@@ -59,7 +72,7 @@ export async function PATCH(request: Request, { params }: Params) {
     storageCaveat: result.storageCaveat,
     package: result.data,
     summary: summarizeReportPackage(result.data),
-    access: requireProjectAccess({ projectKey: result.data.projectKey, action: "write", mode: "soft" }),
+    access,
     error: result.error
   });
 }

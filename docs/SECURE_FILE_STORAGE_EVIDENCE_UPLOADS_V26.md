@@ -99,6 +99,17 @@ Report validation appendices show linked evidence file metadata, status and down
 
 ## Verification
 
+v2.9 separates bucket reachability from signed URL binary verification.
+
+Run:
+
+```bash
+npm run storage:check
+GEOAI_ALLOW_STORAGE_WRITE_TEST=true npm run storage:verify:signed-url
+```
+
+The signed URL verifier writes, signs, downloads and deletes a temporary object only when explicitly allowed. Storage readiness is not secure enterprise storage until buckets, policies, signed URL flows and access enforcement are configured and verified.
+
 Commands:
 
 ```bash

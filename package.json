@@ -25,7 +25,11 @@
     "supabase:migrate:apply": "node scripts/apply-supabase-migration.mjs",
     "supabase:seed:pilot-foundation": "node scripts/seed-pilot-foundation.mjs",
     "supabase:verify:persistence": "node scripts/verify-durable-persistence.mjs",
+    "supabase:verify:memberships": "node scripts/verify-memberships.mjs",
     "storage:check": "node scripts/storage-check.mjs",
+    "storage:verify:signed-url": "node scripts/verify-storage-signed-url.mjs",
+    "audit:verify": "node scripts/verify-audit.mjs",
+    "test:api-contract": "node scripts/api-contract-check.mjs",
     "start": "next start",
     "lint": "tsc --noEmit --pretty false"
   },

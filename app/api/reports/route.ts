@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { recordAuditEvent } from "@/src/lib/audit/audit-event";
-import { requireProjectAccess } from "@/src/lib/auth/project-access";
+import { projectAccessDeniedPayload, requireProjectAccess } from "@/src/lib/auth/project-access";
 import { getProjectByKey } from "@/src/lib/db/repositories/projects";
 import { getReport, listReports, saveReport } from "@/src/lib/db/repositories/reports";
 import { repositoryModeFields } from "@/src/lib/repositories/repository-mode";
@@ -63,6 +63,9 @@ export async function GET(request: Request) {
   const projectId = url.searchParams.get("projectId");
   const projectKey = url.searchParams.get("projectKey");
   const access = requireProjectAccess({ projectKey, action: "read", mode: "soft" });
+  if (!access.allowed) {
+    return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
+  }
 
   if (id) {
     const result = await getReport(id);
@@ -115,6 +118,9 @@ export async function POST(request: Request) {
 
   const project = body.projectKey ? await getProjectByKey(body.projectKey) : null;
   const access = requireProjectAccess({ projectKey: body.projectKey ?? project?.data?.projectKey ?? null, action: "write", mode: "soft" });
+  if (!access.allowed) {
+    return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
+  }
   const result = await saveReport({
     ...body,
     projectId: body.projectId ?? (project?.mode === "supabase" ? project.data?.id ?? null : null),

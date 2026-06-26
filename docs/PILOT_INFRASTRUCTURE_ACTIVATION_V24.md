@@ -113,6 +113,8 @@ v2.6 adds the evidence-file upload/download API foundation, metadata-only fallba
 
 v2.7 adds evidence review decisions, upload intent and signed URL verification. Signed URL availability requires configured storage buckets and policies. See [Evidence Review Workflow & Signed URL Verification v2.7](EVIDENCE_REVIEW_SIGNED_URL_VERIFICATION_V27.md).
 
+v2.9 adds the canonical pilot backend activation summary at `GET /api/pilot-backend/status`, environment-driven soft/hard enforcement, membership verification, storage signed URL binary verification, audit verification and dynamic known limitation statuses. See [Pilot Backend Activation & Hardening v2.9](PILOT_BACKEND_ACTIVATION_HARDENING_V29.md).
+
 ## UI Surface
 
 `/projects` now includes a compact Platform Readiness panel showing Auth, DB, Schema, Storage, Audit and Access enforcement status.

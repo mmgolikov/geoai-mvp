@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { recordAuditEvent } from "@/src/lib/audit/audit-event";
-import { requireProjectAccess } from "@/src/lib/auth/project-access";
+import { projectAccessDeniedPayload, requireProjectAccess } from "@/src/lib/auth/project-access";
 import { getEvidenceFileAsset, updateEvidenceFileAsset } from "@/src/lib/repositories/evidence-file-repository";
 import { repositoryModeFields } from "@/src/lib/repositories/repository-mode";
 import { verifySignedDownloadUrl } from "@/src/lib/storage/signed-url-verification";
@@ -16,6 +16,9 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
   }
 
   const access = requireProjectAccess({ projectKey: existing.data.projectKey, action: "read", mode: "soft" });
+  if (!access.allowed) {
+    return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
+  }
   const verification = await verifySignedDownloadUrl(existing.data);
 
   void recordAuditEvent({

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireProjectAccess } from "@/src/lib/auth/project-access";
+import { projectAccessDeniedPayload, requireProjectAccess } from "@/src/lib/auth/project-access";
 import { createReportPackage, listReportPackages, summarizeReportPackage } from "@/src/lib/repositories/report-package-repository";
 import { repositoryModeFields } from "@/src/lib/repositories/repository-mode";
 import type { ReportPackageBuildInput, ReportPackageType } from "@/src/types/report-package";
@@ -41,6 +41,10 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const projectId = url.searchParams.get("projectId");
   const projectKey = url.searchParams.get("projectKey");
+  const access = requireProjectAccess({ projectKey, action: "read", mode: "soft" });
+  if (!access.allowed) {
+    return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
+  }
   const result = await listReportPackages({ projectId, projectKey, limit: 50 });
 
   return NextResponse.json({
@@ -49,7 +53,7 @@ export async function GET(request: Request) {
     count: result.data.length,
     items: result.data,
     summaries: result.data.map(summarizeReportPackage),
-    access: requireProjectAccess({ projectKey, action: "read", mode: "soft" }),
+    access,
     error: result.error,
     caveat: "Report packages are decision-support deliverables; official validation required."
   });
@@ -70,6 +74,9 @@ export async function POST(request: Request) {
   }
 
   const access = requireProjectAccess({ projectKey: input.projectKey, action: "write", mode: "soft" });
+  if (!access.allowed) {
+    return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
+  }
   const result = await createReportPackage(input);
   const summary = summarizeReportPackage(result.data);
 

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { recordAuditEvent } from "@/src/lib/audit/audit-event";
-import { requireProjectAccess } from "@/src/lib/auth/project-access";
+import { projectAccessDeniedPayload, requireProjectAccess } from "@/src/lib/auth/project-access";
 import { repositoryModeFields } from "@/src/lib/repositories/repository-mode";
 import { allowedEvidenceMimeTypes, maxEvidenceFileSizeBytes } from "@/src/lib/storage/storage-readiness";
 import { buildStoragePath, sanitizeFileName, validateEvidenceFile, getStorageProviderStatus } from "@/src/lib/storage/storage-server";
@@ -23,7 +23,10 @@ export async function POST(request: Request) {
   const fileSizeBytes = typeof body.fileSizeBytes === "number" && Number.isFinite(body.fileSizeBytes)
     ? body.fileSizeBytes
     : 0;
-  const access = requireProjectAccess({ projectKey, action: "write", mode: "soft" });
+  const access = requireProjectAccess({ projectKey, action: "upload", mode: "soft" });
+  if (!access.allowed) {
+    return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
+  }
   const readiness = await getStorageProviderStatus();
   const validation = validateEvidenceFile({ fileName, mimeType, size: fileSizeBytes });
   const blockers = [

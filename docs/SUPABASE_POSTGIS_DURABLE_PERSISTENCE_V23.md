@@ -78,6 +78,8 @@ There is no broad anonymous write policy. Service-role usage remains server-side
 
 RLS policies require configured Supabase Auth, project memberships and deployment governance.
 
+v2.9 adds `npm run supabase:verify:memberships` and `GET /api/pilot-backend/status` to make membership and confidential-pilot readiness explicit. Migration apply remains guarded and now also requires `GEOAI_ALLOW_SUPABASE_TARGET` in addition to `SUPABASE_DB_URL` and `GEOAI_ALLOW_SUPABASE_MIGRATION_APPLY=true`.
+
 ## Repository Adapter Behavior
 
 GeoAI now has repository adapter status helpers in `src/lib/db/repository-adapter.ts`.

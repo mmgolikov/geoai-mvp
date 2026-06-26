@@ -58,3 +58,6 @@ Signed URL availability requires configured storage buckets and policies. Local/
 - No certified audit trail.
 - No public bucket is required or allowed for evidence storage.
 - No secure enterprise storage claim until buckets, private policies, signed URL flows and access enforcement are configured and verified.
+## v2.9 Backend Activation Link
+
+Pilot backend v2.9 adds `npm run storage:verify:signed-url` and surfaces signed URL verification in `/api/storage/health` and `/api/pilot-backend/status`. Signed URL verification is still technical readiness only; protected client evidence requires hard project access enforcement and configured private storage policies.

@@ -8,12 +8,15 @@ function commandExists(command) {
 }
 
 const allowApply = process.env.GEOAI_ALLOW_SUPABASE_MIGRATION_APPLY?.trim().toLowerCase() === "true";
+const allowTarget = process.env.GEOAI_ALLOW_SUPABASE_TARGET?.trim().toLowerCase() === "pilot" ||
+  process.env.GEOAI_ALLOW_SUPABASE_TARGET?.trim().toLowerCase() === "preview" ||
+  process.env.GEOAI_ALLOW_SUPABASE_TARGET?.trim().toLowerCase() === "production";
 const dbUrl = process.env.SUPABASE_DB_URL?.trim();
 const migrationFileExists = existsSync(migrationPath);
 const psqlAvailable = commandExists("psql");
 const supabaseCliAvailable = commandExists("supabase");
 
-if (!migrationFileExists || !allowApply || !dbUrl) {
+if (!migrationFileExists || !allowApply || !allowTarget || !dbUrl) {
   console.log(JSON.stringify({
     ok: true,
     applied: false,
@@ -22,11 +25,12 @@ if (!migrationFileExists || !allowApply || !dbUrl) {
     blockers: [
       ...(!migrationFileExists ? ["Migration SQL file is missing."] : []),
       ...(!dbUrl ? ["SUPABASE_DB_URL is not set."] : []),
-      ...(!allowApply ? ["GEOAI_ALLOW_SUPABASE_MIGRATION_APPLY=true is required before applying migration."] : [])
+      ...(!allowApply ? ["GEOAI_ALLOW_SUPABASE_MIGRATION_APPLY=true is required before applying migration."] : []),
+      ...(!allowTarget ? ["GEOAI_ALLOW_SUPABASE_TARGET must be one of: pilot, preview, production."] : [])
     ],
     nextActions: [
       "Review the migration SQL locally.",
-      "Set SUPABASE_DB_URL and GEOAI_ALLOW_SUPABASE_MIGRATION_APPLY=true only in a trusted terminal.",
+      "Set SUPABASE_DB_URL, GEOAI_ALLOW_SUPABASE_MIGRATION_APPLY=true and GEOAI_ALLOW_SUPABASE_TARGET only in a trusted terminal.",
       "Run npm run supabase:migrate:apply, or paste the migration SQL into Supabase SQL editor.",
       ...(supabaseCliAvailable ? ["If the Supabase project is linked, `supabase db push` is also available as an operator path."] : ["Install/link Supabase CLI if you prefer CLI-managed migrations."])
     ],
@@ -72,5 +76,6 @@ console.log(JSON.stringify({
   applied: true,
   status: "migration_applied",
   migrationPath,
+  target: process.env.GEOAI_ALLOW_SUPABASE_TARGET,
   nextActions: ["Run npm run supabase:migrate:check and npm run supabase:verify:persistence."]
 }, null, 2));
