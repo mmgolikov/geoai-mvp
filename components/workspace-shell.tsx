@@ -27,6 +27,27 @@ import { createComparisonItem, createMockComparison } from "@/src/lib/mock-compa
 import { analysisScenarios, createMockExpressAnalysis } from "@/src/lib/mock-express-analysis";
 import { deriveDecisionPosture } from "@/src/lib/decision-posture";
 import { createSourceLineageSnapshot } from "@/src/lib/source-lineage-snapshot";
+import { generateExploreCandidates } from "@/src/lib/explore/candidates";
+import {
+  getDefaultFilters,
+  getDefaultRoleForAudience,
+  getDefaultScenarioForAudience,
+  getExploreScenario
+} from "@/src/lib/explore/scenarios";
+import type {
+  ExploreAudience,
+  ExploreFilters,
+  ExploreRole,
+  ExploreScenarioId,
+  ExploreSelectedPointOrArea,
+  InteractionMode
+} from "@/src/lib/explore/types";
+import {
+  analysisScenarioToExploreScenario,
+  exploreCandidateToSelectedObject,
+  exploreCandidateToSelectedPoint,
+  exploreScenarioToAnalysisScenario
+} from "@/src/lib/explore/workspace-bridge";
 import type { RepositoryMode } from "@/src/lib/repositories/repository-mode";
 import {
   createAoiGeojsonFeature,
@@ -662,12 +683,22 @@ function historyItemFromPersistedRun(value: unknown): AnalysisHistoryItem | null
   };
 }
 
-export function WorkspaceShell() {
+type WorkspaceShellProps = {
+  initialExploreMode?: boolean;
+};
+
+export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellProps) {
   const [selectedPoint, setSelectedPoint] = useState<SelectedPoint | null>(null);
   const [selectedObject, setSelectedObject] = useState<SelectedDemoObject | null>(null);
   const [selectedAoi, setSelectedAoi] = useState<UserDrawnAoi | null>(null);
   const [selectedScenario, setSelectedScenario] = useState<AnalysisScenarioId>("realEstateDevelopment");
   const [customQuery, setCustomQuery] = useState("");
+  const [selectedExploreAudience, setSelectedExploreAudience] = useState<ExploreAudience>("b2b");
+  const [selectedExploreRole, setSelectedExploreRole] = useState<ExploreRole>(() => getDefaultRoleForAudience("b2b"));
+  const [selectedExploreScenario, setSelectedExploreScenario] = useState<ExploreScenarioId>(() => getDefaultScenarioForAudience("b2b"));
+  const [exploreInteractionMode, setExploreInteractionMode] = useState<InteractionMode>(() => getExploreScenario(getDefaultScenarioForAudience("b2b")).defaultInteractionMode);
+  const [exploreFilters, setExploreFilters] = useState<ExploreFilters>(() => getDefaultFilters(getExploreScenario(getDefaultScenarioForAudience("b2b")).inputSchema));
+  const [selectedExploreCandidateId, setSelectedExploreCandidateId] = useState<string | null>(null);
   const [analysis, setAnalysis] = useState<ExpressAnalysis | null>(null);
   const [comparisonItems, setComparisonItems] = useState<ComparisonItem[]>([]);
   const [comparison, setComparison] = useState<ComparisonResult | null>(null);
@@ -701,6 +732,38 @@ export function WorkspaceShell() {
   const [aoiMessage, setAoiMessage] = useState<string | null>(null);
   const [activeGuidedDemoId, setActiveGuidedDemoId] = useState<string | null>(null);
   const [activeDemoNarrativeId, setActiveDemoNarrativeId] = useState<string | null>(null);
+  const selectedExploreScenarioConfig = getExploreScenario(selectedExploreScenario);
+  const exploreSelectedPointOrArea: ExploreSelectedPointOrArea = selectedAoi
+    ? {
+        label: selectedAoi.name,
+        coordinates: [selectedAoi.centroid.longitude, selectedAoi.centroid.latitude],
+        areaHint: "Selected AOI"
+      }
+    : selectedObject
+      ? {
+          label: selectedObject.name,
+          coordinates: [selectedObject.center.longitude, selectedObject.center.latitude],
+          areaHint: selectedObject.layerName
+        }
+      : selectedPoint
+        ? {
+            label: "Selected map point",
+            coordinates: [selectedPoint.longitude, selectedPoint.latitude],
+            areaHint: "Map-first context"
+          }
+        : {
+            label: initialExploreMode ? "Explore criteria search" : "Workspace criteria search",
+            areaHint: "No map target selected"
+          };
+  const exploreCandidates = generateExploreCandidates({
+    audience: selectedExploreAudience,
+    role: selectedExploreRole,
+    scenarioId: selectedExploreScenario,
+    interactionMode: exploreInteractionMode,
+    naturalLanguageQuery: customQuery || selectedExploreScenarioConfig.sampleQueries[0],
+    filters: exploreFilters,
+    selectedPointOrArea: exploreSelectedPointOrArea
+  });
 
   function loadGuidedDemo(presetId: string, includeComparisonSites = false) {
     const preset = getGuidedDemoPreset(presetId);
@@ -717,6 +780,16 @@ export function WorkspaceShell() {
     setSelectedAoi(null);
     setSelectedPoint(demoSelection.center);
     setSelectedScenario(preset.scenarioId);
+    {
+      const nextExploreScenarioId = analysisScenarioToExploreScenario(preset.scenarioId);
+      const nextExploreScenario = getExploreScenario(nextExploreScenarioId);
+      setSelectedExploreAudience(nextExploreScenario.audience);
+      setSelectedExploreRole(nextExploreScenario.defaultRoleHints[0]);
+      setSelectedExploreScenario(nextExploreScenarioId);
+      setExploreInteractionMode(nextExploreScenario.defaultInteractionMode);
+      setExploreFilters(getDefaultFilters(nextExploreScenario.inputSchema));
+      setSelectedExploreCandidateId(null);
+    }
     setCustomQuery("");
     setActiveProject(nextProject);
     writeActiveProjectKey(nextProject.projectKey);
@@ -1024,6 +1097,7 @@ export function WorkspaceShell() {
     setSelectedPoint(point);
     setSelectedObject(null);
     setSelectedAoi(null);
+    setSelectedExploreCandidateId(null);
     setAnalysis(null);
     setComparison(null);
     setLastAnalyzedState(null);
@@ -1039,6 +1113,7 @@ export function WorkspaceShell() {
     setSelectedObject(object);
     setSelectedAoi(null);
     setSelectedPoint(object.center);
+    setSelectedExploreCandidateId(null);
     setAnalysis(null);
     setComparison(null);
     setLastAnalyzedState(null);
@@ -1054,6 +1129,7 @@ export function WorkspaceShell() {
     setSelectedAoi(aoi);
     setSelectedObject(null);
     setSelectedPoint(aoi.centroid);
+    setSelectedExploreCandidateId(null);
     setAnalysis(null);
     setComparison(null);
     setLastAnalyzedState(null);
@@ -1070,6 +1146,7 @@ export function WorkspaceShell() {
   function handleAoiDelete() {
     setSelectedAoi(null);
     setSelectedPoint(null);
+    setSelectedExploreCandidateId(null);
     setAnalysis(null);
     setComparison(null);
     setLastAnalyzedState(null);
@@ -1081,6 +1158,71 @@ export function WorkspaceShell() {
     setMarketContext(null);
     setAoiDraftName("");
     setAoiMessage(null);
+  }
+
+  function changeExploreAudience(audience: ExploreAudience) {
+    const nextRole = getDefaultRoleForAudience(audience);
+    const nextScenarioId = getDefaultScenarioForAudience(audience);
+    const nextScenario = getExploreScenario(nextScenarioId);
+    const nextAnalysisScenario = exploreScenarioToAnalysisScenario(nextScenarioId);
+
+    setSelectedExploreAudience(audience);
+    setSelectedExploreRole(nextRole);
+    setSelectedExploreScenario(nextScenarioId);
+    setExploreInteractionMode(nextScenario.defaultInteractionMode);
+    setExploreFilters(getDefaultFilters(nextScenario.inputSchema));
+    setSelectedExploreCandidateId(null);
+    setSelectedScenario(nextAnalysisScenario);
+    setAnalysisError(null);
+    setComparisonMessage(null);
+    if (nextAnalysisScenario === "customQuery" && customQuery.trim().length === 0) {
+      setCustomQuery(nextScenario.sampleQueries[0]);
+    }
+  }
+
+  function changeExploreScenario(scenarioId: ExploreScenarioId) {
+    const nextScenario = getExploreScenario(scenarioId);
+    const nextAnalysisScenario = exploreScenarioToAnalysisScenario(scenarioId);
+
+    setSelectedExploreScenario(scenarioId);
+    setExploreInteractionMode(nextScenario.defaultInteractionMode);
+    setExploreFilters(getDefaultFilters(nextScenario.inputSchema));
+    setSelectedExploreCandidateId(null);
+    setSelectedScenario(nextAnalysisScenario);
+    setAnalysisError(null);
+    setComparisonMessage(null);
+    if (nextAnalysisScenario === "customQuery" && customQuery.trim().length === 0) {
+      setCustomQuery(nextScenario.sampleQueries[0]);
+    }
+  }
+
+  function updateExploreFilter(id: string, value: ExploreFilters[string]) {
+    setExploreFilters((current) => ({
+      ...current,
+      [id]: value
+    }));
+  }
+
+  function selectExploreCandidate(candidateId: string) {
+    const candidate = exploreCandidates.find((item) => item.id === candidateId);
+    if (!candidate) {
+      return;
+    }
+
+    const point = exploreCandidateToSelectedPoint(candidate);
+    setSelectedExploreCandidateId(candidate.id);
+    setSelectedPoint(point);
+    setSelectedObject(exploreCandidateToSelectedObject(candidate));
+    setSelectedAoi(null);
+    setAnalysis(null);
+    setComparison(null);
+    setLastAnalyzedState(null);
+    setLastComparedState(null);
+    setReportPreview(null);
+    setComparisonMessage("Explore candidate selected as the analysis target.");
+    setAnalysisError(null);
+    setIsAnalyzing(false);
+    setMarketContext(null);
   }
 
   function updateProjectAois(updater: (items: ProjectAoi[]) => ProjectAoi[]) {
@@ -1691,6 +1833,16 @@ export function WorkspaceShell() {
     setSelectedObject(restoredAnalysis.selectedObject ?? null);
     setSelectedAoi(restoredAnalysis.selectedAoi ?? null);
     setSelectedScenario(restoredAnalysis.scenarioId);
+    {
+      const nextExploreScenarioId = analysisScenarioToExploreScenario(restoredAnalysis.scenarioId);
+      const nextExploreScenario = getExploreScenario(nextExploreScenarioId);
+      setSelectedExploreAudience(nextExploreScenario.audience);
+      setSelectedExploreRole(nextExploreScenario.defaultRoleHints[0]);
+      setSelectedExploreScenario(nextExploreScenarioId);
+      setExploreInteractionMode(nextExploreScenario.defaultInteractionMode);
+      setExploreFilters(getDefaultFilters(nextExploreScenario.inputSchema));
+      setSelectedExploreCandidateId(null);
+    }
     setCustomQuery(restoredCustomQuery);
     setAnalysis(restoredAnalysis);
     setLastAnalyzedState({
@@ -2122,6 +2274,9 @@ export function WorkspaceShell() {
           onAoiDelete={handleAoiDelete}
           uploadedDatasets={uploadedDatasets}
           projectId={activeProject.projectKey}
+          exploreCandidates={exploreCandidates}
+          selectedExploreCandidateId={selectedExploreCandidateId}
+          onExploreCandidateSelect={selectExploreCandidate}
         />
       )}
       <AnalysisPanel
@@ -2131,7 +2286,6 @@ export function WorkspaceShell() {
         projects={projects}
         projectsMode={projectsMode}
         activeProject={activeProject}
-        scenarios={analysisScenarios}
         selectedScenario={selectedScenario}
         customQuery={customQuery}
         isAnalyzing={isAnalyzing}
@@ -2155,11 +2309,20 @@ export function WorkspaceShell() {
         guidedDemoPresets={guidedDemoPresets}
         activeGuidedDemoId={activeGuidedDemoId}
         activeDemoNarrative={getDemoNarrativeById(activeDemoNarrativeId)}
-        onScenarioChange={(scenario) => {
-          setSelectedScenario(scenario);
-          setAnalysisError(null);
-          setComparisonMessage(null);
-        }}
+        exploreAudience={selectedExploreAudience}
+        exploreRole={selectedExploreRole}
+        exploreScenarioId={selectedExploreScenario}
+        exploreInteractionMode={exploreInteractionMode}
+        exploreFilters={exploreFilters}
+        exploreCandidates={exploreCandidates}
+        selectedExploreCandidateId={selectedExploreCandidateId}
+        exploreSetupDefaultOpen={initialExploreMode}
+        onExploreAudienceChange={changeExploreAudience}
+        onExploreRoleChange={setSelectedExploreRole}
+        onExploreScenarioChange={changeExploreScenario}
+        onExploreInteractionModeChange={setExploreInteractionMode}
+        onExploreFilterChange={updateExploreFilter}
+        onExploreCandidateSelect={selectExploreCandidate}
         onProjectChange={changeActiveProject}
         onCustomQueryChange={(query) => {
           setCustomQuery(query);

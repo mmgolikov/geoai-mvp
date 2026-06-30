@@ -3,6 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 import { demoLayers, getDemoFeatureById, getLayerSourceModeLabel, getSelectedDemoObject } from "@/src/data/demo-layers";
 import type { DemoLayer, DemoLayerFeature } from "@/src/data/demo-layers";
+import { getCandidateAnchor } from "@/src/lib/explore/candidates";
+import {
+  exploreCandidatesToFeatureCollection,
+  getExploreCandidateSourceLabel
+} from "@/src/lib/explore/workspace-bridge";
+import type { ExploreCandidate } from "@/src/lib/explore/types";
 import { openGeodataBaseline } from "@/src/lib/open-geodata";
 import { createUserDrawnAoi, formatArea, formatPerimeter, validatePolygonVertices } from "@/src/lib/polygon-aoi";
 import type { OpenLanduseFeature, OpenPoiFeature, OpenRoadFeature } from "@/src/lib/open-geodata";
@@ -41,6 +47,9 @@ type MapWorkspaceClientProps = {
   showLayerControls?: boolean;
   uploadedDatasets?: UploadedDataset[];
   projectId?: string;
+  exploreCandidates?: ExploreCandidate[];
+  selectedExploreCandidateId?: string | null;
+  onExploreCandidateSelect?: (candidateId: string) => void;
 };
 
 const initialLayerVisibility = demoLayers.reduce<Record<DemoLayerId, boolean>>((visibility, layer) => {
@@ -55,6 +64,13 @@ const openGeodataLayerIds = ["geoai-open-landuse", "geoai-open-roads", "geoai-op
 const uploadedDatasetSourceId = "geoai-uploaded-datasets";
 const uploadedDatasetLayerIds = ["geoai-uploaded-fill", "geoai-uploaded-line", "geoai-uploaded-circle"];
 const userAoiSourceId = "geoai-user-drawn-aoi";
+const exploreCandidatesSourceId = "geoai-explore-candidates";
+const exploreCandidateLayerIds = [
+  "geoai-explore-candidate-fill",
+  "geoai-explore-candidate-line",
+  "geoai-explore-candidate-route",
+  "geoai-explore-candidate-point"
+];
 const plannedLayerRows = [
   "DLD / Dubai Pulse market data",
   "Dubai Municipality / GeoDubai GIS",
@@ -118,14 +134,20 @@ function getLayerIds(layer: DemoLayer) {
   return [`${layer.id}-circle`];
 }
 
-function getInteractiveLayerIds(visibility: Record<DemoLayerId, boolean>, uploadedDatasets: UploadedDataset[] = []) {
+function getInteractiveLayerIds(
+  visibility: Record<DemoLayerId, boolean>,
+  uploadedDatasets: UploadedDataset[] = [],
+  exploreCandidates: ExploreCandidate[] = []
+) {
   const hasVisibleUploadedLayers = uploadedDatasets.some(
     (dataset) => dataset.type === "geojson" && dataset.status === "parsed" && dataset.visible !== false
   );
+  const hasExploreCandidates = exploreCandidates.length > 0;
 
   return [
     ...openGeodataLayerIds,
     ...(hasVisibleUploadedLayers ? uploadedDatasetLayerIds : []),
+    ...(hasExploreCandidates ? exploreCandidateLayerIds : []),
     ...demoLayers.flatMap((layer) => (visibility[layer.id] ? getLayerIds(layer) : []))
   ];
 }
@@ -438,6 +460,33 @@ function setUploadedDatasetTooltip(
     .addTo(map);
 }
 
+function setExploreCandidateTooltip(
+  popup: MapboxPopup | null,
+  lngLat: { lng: number; lat: number },
+  feature: MapboxGeoJSONFeature,
+  map: MapboxMap
+) {
+  if (!popup) {
+    return;
+  }
+
+  const title = String(feature.properties?.title ?? "Explore candidate");
+  const score = String(feature.properties?.score ?? "-");
+  const source = getExploreCandidateSourceLabel(String(feature.properties?.sourceType ?? "demo_seed") as ExploreCandidate["sourceType"]);
+
+  popup
+    .setLngLat(lngLat)
+    .setHTML(
+      `<div class="geoai-map-tooltip">
+        <div class="geoai-map-tooltip-title">${escapeHtml(title)}</div>
+        <div class="geoai-map-tooltip-detail">Score ${escapeHtml(score)} · ${escapeHtml(source)} context</div>
+        <div class="geoai-map-tooltip-source">Explore candidate</div>
+        <div class="geoai-map-tooltip-note">Screening hypothesis; official validation required.</div>
+      </div>`
+    )
+    .addTo(map);
+}
+
 function getFallbackPoint(clientX: number, clientY: number, rect: DOMRect): SelectedPoint {
   const xRatio = Math.min(Math.max((clientX - rect.left) / rect.width, 0), 1);
   const yRatio = Math.min(Math.max((clientY - rect.top) / rect.height, 0), 1);
@@ -456,6 +505,11 @@ function getFallbackMarkerStyle(selectedPoint: SelectedPoint) {
     left: `${Math.min(Math.max(left, 0), 100)}%`,
     top: `${Math.min(Math.max(top, 0), 100)}%`
   };
+}
+
+function getFallbackCandidateMarkerStyle(candidate: ExploreCandidate) {
+  const [longitude, latitude] = getCandidateAnchor(candidate);
+  return getFallbackMarkerStyle({ latitude, longitude });
 }
 
 function addDemoLayerToMap(map: MapboxMap, layer: DemoLayer) {
@@ -676,6 +730,91 @@ function addUploadedDatasetLayers(map: MapboxMap, uploadedDatasets: UploadedData
 function syncUploadedDatasetSource(map: MapboxMap, uploadedDatasets: UploadedDataset[] = []) {
   const source = map.getSource(uploadedDatasetSourceId) as GeoJSONSource | undefined;
   source?.setData(toFeatureCollection(getUploadedGeojsonFeatures(uploadedDatasets)));
+}
+
+function addExploreCandidateLayers(
+  map: MapboxMap,
+  exploreCandidates: ExploreCandidate[] = [],
+  selectedExploreCandidateId: string | null = null
+) {
+  if (!map.getSource(exploreCandidatesSourceId)) {
+    map.addSource(exploreCandidatesSourceId, {
+      type: "geojson",
+      data: exploreCandidatesToFeatureCollection(exploreCandidates, selectedExploreCandidateId)
+    });
+  } else {
+    const source = map.getSource(exploreCandidatesSourceId) as GeoJSONSource | undefined;
+    source?.setData(exploreCandidatesToFeatureCollection(exploreCandidates, selectedExploreCandidateId));
+  }
+
+  if (!map.getLayer("geoai-explore-candidate-fill")) {
+    map.addLayer({
+      id: "geoai-explore-candidate-fill",
+      type: "fill",
+      source: exploreCandidatesSourceId,
+      filter: ["==", ["geometry-type"], "Polygon"],
+      paint: {
+        "fill-color": ["case", ["boolean", ["get", "selected"], false], "#c5a76a", "#174f63"],
+        "fill-opacity": ["case", ["boolean", ["get", "selected"], false], 0.32, 0.15]
+      }
+    });
+  }
+
+  if (!map.getLayer("geoai-explore-candidate-line")) {
+    map.addLayer({
+      id: "geoai-explore-candidate-line",
+      type: "line",
+      source: exploreCandidatesSourceId,
+      filter: ["==", ["geometry-type"], "Polygon"],
+      paint: {
+        "line-color": ["case", ["boolean", ["get", "selected"], false], "#9a7b2f", "#174f63"],
+        "line-width": ["case", ["boolean", ["get", "selected"], false], 3.4, 1.8],
+        "line-opacity": 0.9
+      }
+    });
+  }
+
+  if (!map.getLayer("geoai-explore-candidate-route")) {
+    map.addLayer({
+      id: "geoai-explore-candidate-route",
+      type: "line",
+      source: exploreCandidatesSourceId,
+      filter: ["all", ["==", ["geometry-type"], "LineString"], ["==", ["get", "geometryKind"], "route"]],
+      layout: {
+        "line-cap": "round",
+        "line-join": "round"
+      },
+      paint: {
+        "line-color": ["case", ["boolean", ["get", "selected"], false], "#c5a76a", "#174f63"],
+        "line-width": ["case", ["boolean", ["get", "selected"], false], 5, 3],
+        "line-opacity": 0.86
+      }
+    });
+  }
+
+  if (!map.getLayer("geoai-explore-candidate-point")) {
+    map.addLayer({
+      id: "geoai-explore-candidate-point",
+      type: "circle",
+      source: exploreCandidatesSourceId,
+      filter: ["==", ["geometry-type"], "Point"],
+      paint: {
+        "circle-color": ["case", ["boolean", ["get", "selected"], false], "#c5a76a", "#174f63"],
+        "circle-radius": ["case", ["boolean", ["get", "selected"], false], 9, 6.2],
+        "circle-stroke-color": "#ffffff",
+        "circle-stroke-width": 2.2
+      }
+    });
+  }
+}
+
+function syncExploreCandidateSource(
+  map: MapboxMap,
+  exploreCandidates: ExploreCandidate[] = [],
+  selectedExploreCandidateId: string | null = null
+) {
+  const source = map.getSource(exploreCandidatesSourceId) as GeoJSONSource | undefined;
+  source?.setData(exploreCandidatesToFeatureCollection(exploreCandidates, selectedExploreCandidateId));
 }
 
 function addSelectedObjectLayer(map: MapboxMap) {
@@ -951,18 +1090,22 @@ function attachGeoAiMapLayers(
   selectedObject: SelectedDemoObject | null,
   uploadedDatasets: UploadedDataset[] = [],
   selectedAoi: UserDrawnAoi | null = null,
-  drawState: PolygonDrawState = initialDrawState
+  drawState: PolygonDrawState = initialDrawState,
+  exploreCandidates: ExploreCandidate[] = [],
+  selectedExploreCandidateId: string | null = null
 ) {
   addOpenGeodataLayers(map);
   addUploadedDatasetLayers(map, uploadedDatasets);
   demoLayers.forEach((layer) => addDemoLayerToMap(map, layer));
   addSelectedObjectLayer(map);
   addUserAoiLayer(map);
+  addExploreCandidateLayers(map, exploreCandidates, selectedExploreCandidateId);
   addHoverObjectLayer(map);
   syncLayerVisibility(map, visibility);
   syncSelectedObjectSource(map, selectedObject);
   syncUserAoiSource(map, drawState, selectedAoi);
   syncUploadedDatasetSource(map, uploadedDatasets);
+  syncExploreCandidateSource(map, exploreCandidates, selectedExploreCandidateId);
 }
 
 export function MapWorkspaceClient({
@@ -977,7 +1120,10 @@ export function MapWorkspaceClient({
   showEmptyOverlay = true,
   showLayerControls = true,
   uploadedDatasets = [],
-  projectId
+  projectId,
+  exploreCandidates = [],
+  selectedExploreCandidateId = null,
+  onExploreCandidateSelect
 }: MapWorkspaceClientProps) {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapboxMap | null>(null);
@@ -987,11 +1133,14 @@ export function MapWorkspaceClient({
   const onObjectSelectRef = useRef(onObjectSelect);
   const onAoiSelectRef = useRef(onAoiSelect);
   const onAoiDeleteRef = useRef(onAoiDelete);
+  const onExploreCandidateSelectRef = useRef(onExploreCandidateSelect);
   const selectedObjectRef = useRef<SelectedDemoObject | null>(selectedObject);
   const selectedAoiRef = useRef<UserDrawnAoi | null>(selectedAoi);
   const drawStateRef = useRef<PolygonDrawState>(initialDrawState);
   const layerVisibilityRef = useRef(initialLayerVisibility);
   const uploadedDatasetsRef = useRef<UploadedDataset[]>(uploadedDatasets);
+  const exploreCandidatesRef = useRef<ExploreCandidate[]>(exploreCandidates);
+  const selectedExploreCandidateIdRef = useRef<string | null>(selectedExploreCandidateId);
   const [layerVisibility, setLayerVisibility] = useState(initialLayerVisibility);
   const [layersExpanded, setLayersExpanded] = useState(false);
   const [basemapStyle, setBasemapStyle] = useState<BasemapStyleId>("streets");
@@ -1018,6 +1167,10 @@ export function MapWorkspaceClient({
   }, [onAoiDelete]);
 
   useEffect(() => {
+    onExploreCandidateSelectRef.current = onExploreCandidateSelect;
+  }, [onExploreCandidateSelect]);
+
+  useEffect(() => {
     selectedObjectRef.current = selectedObject;
   }, [selectedObject]);
 
@@ -1032,6 +1185,14 @@ export function MapWorkspaceClient({
   useEffect(() => {
     uploadedDatasetsRef.current = uploadedDatasets;
   }, [uploadedDatasets]);
+
+  useEffect(() => {
+    exploreCandidatesRef.current = exploreCandidates;
+  }, [exploreCandidates]);
+
+  useEffect(() => {
+    selectedExploreCandidateIdRef.current = selectedExploreCandidateId;
+  }, [selectedExploreCandidateId]);
 
   useEffect(() => {
     layerVisibilityRef.current = layerVisibility;
@@ -1251,7 +1412,9 @@ export function MapWorkspaceClient({
             selectedObjectRef.current,
             uploadedDatasetsRef.current,
             selectedAoiRef.current,
-            drawStateRef.current
+            drawStateRef.current,
+            exploreCandidatesRef.current,
+            selectedExploreCandidateIdRef.current
           );
           window.setTimeout(() => mapRef.current?.resize(), 0);
           setIsMapReady(true);
@@ -1275,9 +1438,11 @@ export function MapWorkspaceClient({
           return;
         }
 
-        const interactiveLayers = getInteractiveLayerIds(layerVisibilityRef.current, uploadedDatasetsRef.current).filter((layerId) =>
-          Boolean(mapRef.current?.getLayer(layerId))
-        );
+        const interactiveLayers = getInteractiveLayerIds(
+          layerVisibilityRef.current,
+          uploadedDatasetsRef.current,
+          exploreCandidatesRef.current
+        ).filter((layerId) => Boolean(mapRef.current?.getLayer(layerId)));
         const features = interactiveLayers.length > 0
           ? mapRef.current?.queryRenderedFeatures(event.point, { layers: interactiveLayers })
           : [];
@@ -1295,12 +1460,15 @@ export function MapWorkspaceClient({
         if (mapRef.current) {
           const isSelectableOpenPoi = hoveredFeature?.properties?.openFeatureKind === "poi";
           const isUploadedFeature = Boolean(hoveredFeature?.properties?.uploadedFeatureKind);
-          mapRef.current.getCanvas().style.cursor = demoFeature || isSelectableOpenPoi || isUploadedFeature ? "pointer" : "";
+          const isExploreCandidate = Boolean(hoveredFeature?.properties?.exploreCandidateKind);
+          mapRef.current.getCanvas().style.cursor = demoFeature || isSelectableOpenPoi || isUploadedFeature || isExploreCandidate ? "pointer" : "";
 
           if (demoFeature) {
             setHoverTooltip(hoverPopupRef.current, event.lngLat, demoFeature, mapRef.current);
           } else if (hoveredFeature?.properties?.uploadedFeatureKind) {
             setUploadedDatasetTooltip(hoverPopupRef.current, event.lngLat, hoveredFeature, mapRef.current);
+          } else if (hoveredFeature?.properties?.exploreCandidateKind) {
+            setExploreCandidateTooltip(hoverPopupRef.current, event.lngLat, hoveredFeature, mapRef.current);
           } else if (hoveredFeature?.properties?.openFeatureKind) {
             setOpenGeodataTooltip(hoverPopupRef.current, event.lngLat, hoveredFeature, mapRef.current);
           } else if (basemapFeature) {
@@ -1327,9 +1495,11 @@ export function MapWorkspaceClient({
           return;
         }
 
-        const interactiveLayers = getInteractiveLayerIds(layerVisibilityRef.current, uploadedDatasetsRef.current).filter((layerId) =>
-          Boolean(mapRef.current?.getLayer(layerId))
-        );
+        const interactiveLayers = getInteractiveLayerIds(
+          layerVisibilityRef.current,
+          uploadedDatasetsRef.current,
+          exploreCandidatesRef.current
+        ).filter((layerId) => Boolean(mapRef.current?.getLayer(layerId)));
         const features = interactiveLayers.length > 0
           ? mapRef.current?.queryRenderedFeatures(event.point, { layers: interactiveLayers })
           : [];
@@ -1337,6 +1507,14 @@ export function MapWorkspaceClient({
         const selectedRenderedFeature = orderedFeatures[0];
         const featureId = selectedRenderedFeature?.properties?.id as string | undefined;
         const demoFeature = featureId ? getDemoFeatureById(featureId) : null;
+
+        if (selectedRenderedFeature?.properties?.exploreCandidateKind && onExploreCandidateSelectRef.current) {
+          const candidateId = String(selectedRenderedFeature.properties.id ?? "");
+          if (candidateId) {
+            onExploreCandidateSelectRef.current(candidateId);
+            return;
+          }
+        }
 
         if (demoFeature && onObjectSelectRef.current) {
           onObjectSelectRef.current(getSelectedDemoObject(demoFeature));
@@ -1534,6 +1712,15 @@ export function MapWorkspaceClient({
     addUploadedDatasetLayers(mapRef.current, uploadedDatasets);
     syncUploadedDatasetSource(mapRef.current, uploadedDatasets);
   }, [canUseMapbox, isMapReady, uploadedDatasets]);
+
+  useEffect(() => {
+    if (!canUseMapbox || !mapRef.current || !isMapReady) {
+      return;
+    }
+
+    addExploreCandidateLayers(mapRef.current, exploreCandidates, selectedExploreCandidateId);
+    syncExploreCandidateSource(mapRef.current, exploreCandidates, selectedExploreCandidateId);
+  }, [canUseMapbox, exploreCandidates, isMapReady, selectedExploreCandidateId]);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -1928,9 +2115,35 @@ export function MapWorkspaceClient({
         </div>
       ) : null}
 
+      {shouldShowFallbackMap && exploreCandidates.length > 0 ? (
+        <div className="absolute inset-0 z-10 pointer-events-none">
+          {exploreCandidates.map((candidate, index) => {
+            const isSelected = candidate.id === selectedExploreCandidateId;
+
+            return (
+              <button
+                key={candidate.id}
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onExploreCandidateSelect?.(candidate.id);
+                }}
+                className={`pointer-events-auto absolute flex h-7 w-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 text-[10px] font-bold shadow-soft ${
+                  isSelected ? "border-[#9a7b2f] bg-accent text-white" : "border-white bg-brand text-white"
+                }`}
+                style={getFallbackCandidateMarkerStyle(candidate)}
+                title={candidate.title}
+              >
+                {index + 1}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+
       {shouldShowFallbackMap && selectedPoint ? (
         <div
-          className="pointer-events-none absolute z-10 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-4 border-white bg-brand shadow-soft"
+          className="pointer-events-none absolute z-20 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-4 border-white bg-brand shadow-soft"
           style={getFallbackMarkerStyle(selectedPoint)}
           aria-hidden="true"
         />

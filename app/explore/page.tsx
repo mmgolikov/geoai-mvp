@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import { ExploreShell } from "@/components/explore/explore-shell";
 import { TopNavigation } from "@/components/top-navigation";
+import { WorkspaceShell } from "@/components/workspace-shell";
 
 export const metadata: Metadata = {
   title: "GeoAI Explore",
@@ -9,9 +9,9 @@ export const metadata: Metadata = {
 
 export default function ExplorePage() {
   return (
-    <main className="min-h-screen bg-surface">
+    <main className="flex min-h-screen flex-col bg-surface">
       <TopNavigation />
-      <ExploreShell />
+      <WorkspaceShell initialExploreMode />
     </main>
   );
 }

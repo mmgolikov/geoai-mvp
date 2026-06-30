@@ -7,6 +7,27 @@ import ingestionReport from "@/data/normalized/ingestion_report.json";
 import { DataReadinessCard } from "@/components/data-readiness";
 import { getScenarioDataSources } from "@/src/data/data-source-registry";
 import type { DemoNarrative } from "@/src/data/demo-narratives";
+import {
+  getExploreRole,
+  getExploreRolesByAudience,
+  getExploreScenario,
+  getExploreScenariosByAudience
+} from "@/src/lib/explore/scenarios";
+import {
+  exploreRequiredCaveat,
+  type ExploreAudience,
+  type ExploreCandidate,
+  type ExploreFilterConfig,
+  type ExploreFilters,
+  type ExploreRole,
+  type ExploreScenarioId,
+  type InteractionMode
+} from "@/src/lib/explore/types";
+import {
+  getExploreCandidateSourceLabel,
+  getExploreModeLabel,
+  getExploreModeSummary
+} from "@/src/lib/explore/workspace-bridge";
 import { sourceStatusToLabel } from "@/src/lib/external-data/source-status";
 import { sourceTypeLabel, validationStatusLabel } from "@/src/lib/aoi-library";
 import { formatArea, formatPerimeter } from "@/src/lib/polygon-aoi";
@@ -16,7 +37,6 @@ import type { GeoAIProject } from "@/src/lib/db/types";
 import type { MarketMetricsMatch } from "@/src/lib/market-metrics/types";
 import type { MarketContext } from "@/src/types/market-context";
 import type {
-  AnalysisScenario,
   AnalysisScenarioId,
   AnalysisHistoryItem,
   ComparisonItem,
@@ -46,7 +66,6 @@ type AnalysisPanelProps = {
   projects: GeoAIProject[];
   projectsMode: "supabase" | "demo_seed";
   activeProject: GeoAIProject;
-  scenarios: AnalysisScenario[];
   selectedScenario: AnalysisScenarioId;
   customQuery: string;
   isAnalyzing: boolean;
@@ -78,9 +97,22 @@ type AnalysisPanelProps = {
   guidedDemoPresets: GuidedDemoPreset[];
   activeGuidedDemoId: string | null;
   activeDemoNarrative: DemoNarrative | null;
+  exploreAudience: ExploreAudience;
+  exploreRole: ExploreRole;
+  exploreScenarioId: ExploreScenarioId;
+  exploreInteractionMode: InteractionMode;
+  exploreFilters: ExploreFilters;
+  exploreCandidates: ExploreCandidate[];
+  selectedExploreCandidateId: string | null;
+  exploreSetupDefaultOpen?: boolean;
   onProjectChange: (projectKey: string) => void;
-  onScenarioChange: (scenario: AnalysisScenarioId) => void;
   onCustomQueryChange: (query: string) => void;
+  onExploreAudienceChange: (audience: ExploreAudience) => void;
+  onExploreRoleChange: (role: ExploreRole) => void;
+  onExploreScenarioChange: (scenarioId: ExploreScenarioId) => void;
+  onExploreInteractionModeChange: (mode: InteractionMode) => void;
+  onExploreFilterChange: (id: string, value: ExploreFilters[string]) => void;
+  onExploreCandidateSelect: (candidateId: string) => void;
   primaryCtaLabel: string;
   primaryCtaDisabled: boolean;
   onPrimaryCta: () => void;
@@ -245,6 +277,119 @@ function CollapsedSection({
   );
 }
 
+function ExploreSetupControl({
+  config,
+  value,
+  onChange
+}: {
+  config: ExploreFilterConfig;
+  value: ExploreFilters[string] | undefined;
+  onChange: (value: ExploreFilters[string]) => void;
+}) {
+  if (config.type === "select") {
+    return (
+      <div className="min-w-0">
+        <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
+          {config.label}
+        </label>
+        <select
+          value={typeof value === "string" ? value : String(config.defaultValue)}
+          onChange={(event) => onChange(event.target.value)}
+          className="mt-1 h-8 w-full rounded-md border border-line bg-white px-2 text-xs font-semibold text-ink outline-none transition focus:border-brand"
+        >
+          {config.options?.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </div>
+    );
+  }
+
+  if (config.type === "range") {
+    const numericValue = typeof value === "number" ? value : Number(config.defaultValue);
+
+    return (
+      <div className="min-w-0 rounded-md border border-line bg-white p-2">
+        <div className="flex items-center justify-between gap-2">
+          <label className="truncate text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
+            {config.label}
+          </label>
+          <span className="shrink-0 text-[11px] font-semibold text-brand">
+            {numericValue}{config.unit ? ` ${config.unit}` : ""}
+          </span>
+        </div>
+        <input
+          type="range"
+          value={numericValue}
+          min={config.min}
+          max={config.max}
+          step={config.step}
+          onChange={(event) => onChange(Number(event.target.value))}
+          className="mt-2 w-full accent-brand"
+        />
+      </div>
+    );
+  }
+
+  if (config.type === "toggle") {
+    const checked = typeof value === "boolean" ? value : Boolean(config.defaultValue);
+
+    return (
+      <label className="flex min-w-0 items-center gap-2 rounded-md border border-line bg-white px-2 py-2">
+        <input
+          type="checkbox"
+          checked={checked}
+          onChange={(event) => onChange(event.target.checked)}
+          className="h-4 w-4 accent-brand"
+        />
+        <span className="min-w-0 truncate text-xs font-semibold text-ink">{config.label}</span>
+      </label>
+    );
+  }
+
+  const selectedValues = Array.isArray(value)
+    ? value
+    : Array.isArray(config.defaultValue)
+      ? config.defaultValue
+      : [];
+
+  return (
+    <div className="min-w-0">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
+        {config.label}
+      </p>
+      <div className="mt-1 flex flex-wrap gap-1.5">
+        {config.options?.map((option) => {
+          const selected = selectedValues.includes(option.value);
+
+          return (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => {
+                onChange(
+                  selected
+                    ? selectedValues.filter((item) => item !== option.value)
+                    : [...selectedValues, option.value]
+                );
+              }}
+              className={`max-w-full rounded-full border px-2 py-1 text-[11px] font-semibold transition ${
+                selected
+                  ? "border-brand bg-[#eaf3f1] text-brand"
+                  : "border-line bg-white text-muted hover:border-brand hover:text-ink"
+              }`}
+            >
+              <span className="block max-w-[128px] truncate">{option.label}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function AnalysisPanel({
   selectedPoint,
   selectedObject,
@@ -252,7 +397,6 @@ export function AnalysisPanel({
   projects,
   projectsMode,
   activeProject,
-  scenarios,
   selectedScenario,
   customQuery,
   isAnalyzing,
@@ -276,9 +420,22 @@ export function AnalysisPanel({
   guidedDemoPresets,
   activeGuidedDemoId,
   activeDemoNarrative,
+  exploreAudience,
+  exploreRole,
+  exploreScenarioId,
+  exploreInteractionMode,
+  exploreFilters,
+  exploreCandidates,
+  selectedExploreCandidateId,
+  exploreSetupDefaultOpen = false,
   onProjectChange,
-  onScenarioChange,
   onCustomQueryChange,
+  onExploreAudienceChange,
+  onExploreRoleChange,
+  onExploreScenarioChange,
+  onExploreInteractionModeChange,
+  onExploreFilterChange,
+  onExploreCandidateSelect,
   primaryCtaLabel,
   primaryCtaDisabled,
   onPrimaryCta,
@@ -318,11 +475,16 @@ export function AnalysisPanel({
   const [storageHealth, setStorageHealth] = useState<StorageHealthResponse | null>(null);
   const [evidenceFiles, setEvidenceFiles] = useState<EvidenceFileAsset[]>([]);
   const [isAoiSaveOpen, setIsAoiSaveOpen] = useState(false);
+  const [isExploreSetupOpen, setIsExploreSetupOpen] = useState(() => exploreSetupDefaultOpen);
   const hasSelectedPoint = selectedPoint !== null;
   const hasSelectedObject = selectedObject !== null;
   const hasSelectedAoi = selectedAoi !== null;
-  const scenario = scenarios.find((item) => item.id === selectedScenario) ?? scenarios[0];
-  const isCustomQuery = selectedScenario === "customQuery";
+  const exploreScenario = getExploreScenario(exploreScenarioId);
+  const exploreScenarios = getExploreScenariosByAudience(exploreAudience);
+  const exploreRoles = getExploreRolesByAudience(exploreAudience);
+  const selectedExploreRole = getExploreRole(exploreRole);
+  const selectedExploreCandidate = exploreCandidates.find((candidate) => candidate.id === selectedExploreCandidateId) ?? null;
+  const topExploreCandidates = exploreCandidates.slice(0, 3);
   const availableSources = getScenarioDataSources(selectedScenario).slice(0, 3);
   const parsedUploads = uploadedDatasets.filter((dataset) => dataset.status === "parsed");
   const activeGuidedDemo = guidedDemoPresets.find((preset) => preset.id === activeGuidedDemoId) ?? guidedDemoPresets[0];
@@ -963,6 +1125,197 @@ export function AnalysisPanel({
             </p>
           </section>
 
+          <section className="min-w-0 max-w-full overflow-hidden rounded-lg border border-line bg-white p-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">
+                  Explore command
+                </p>
+                <h2 className="mt-1 truncate text-sm font-semibold text-ink">
+                  {exploreScenario.title}
+                </h2>
+              </div>
+              <span className="shrink-0 rounded-full bg-[#eaf3f1] px-2 py-1 text-[11px] font-semibold text-brand">
+                {getExploreModeSummary(exploreScenario.interactionModes)}
+              </span>
+            </div>
+
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              {(["b2b", "b2c"] as ExploreAudience[]).map((audience) => (
+                <button
+                  key={audience}
+                  type="button"
+                  onClick={() => onExploreAudienceChange(audience)}
+                  className={`h-8 rounded-md border px-2 text-xs font-semibold transition ${
+                    exploreAudience === audience
+                      ? "border-brand bg-brand text-white"
+                      : "border-line bg-surface text-muted hover:border-brand hover:text-ink"
+                  }`}
+                >
+                  {audience.toUpperCase()}
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-2 grid gap-2">
+              <label className="min-w-0">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
+                  Role
+                </span>
+                <select
+                  value={exploreRole}
+                  onChange={(event) => onExploreRoleChange(event.target.value as ExploreRole)}
+                  className="mt-1 h-8 w-full rounded-md border border-line bg-surface px-2 text-xs font-semibold text-ink outline-none transition focus:border-brand"
+                >
+                  {exploreRoles.map((role) => (
+                    <option key={role.id} value={role.id}>
+                      {role.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="min-w-0">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
+                  Scenario
+                </span>
+                <select
+                  value={exploreScenarioId}
+                  onChange={(event) => onExploreScenarioChange(event.target.value as ExploreScenarioId)}
+                  className="mt-1 h-8 w-full rounded-md border border-line bg-surface px-2 text-xs font-semibold text-ink outline-none transition focus:border-brand"
+                >
+                  {exploreScenarios.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.title}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            <div className="mt-3 rounded-md border border-line bg-surface p-2">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="truncate text-xs font-semibold text-ink">
+                    {exploreScenario.primaryCTA}
+                  </p>
+                  <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted">
+                    {exploreScenario.subtitle}
+                  </p>
+                </div>
+                <span className="shrink-0 rounded-full bg-white px-2 py-1 text-[10px] font-semibold text-brand">
+                  {selectedExploreRole.label}
+                </span>
+              </div>
+              <p className="mt-2 line-clamp-2 rounded-md bg-white px-2 py-1.5 text-[11px] leading-4 text-muted">
+                {exploreRequiredCaveat}
+              </p>
+            </div>
+
+            <details
+              className="mt-2 rounded-md border border-line bg-surface px-2"
+              open={isExploreSetupOpen}
+              onToggle={(event) => setIsExploreSetupOpen(event.currentTarget.open)}
+            >
+              <summary className="flex min-h-9 cursor-pointer list-none items-center justify-between gap-2 py-2 text-xs font-semibold text-ink">
+                <span>Scenario setup</span>
+                <span className="shrink-0 rounded-full bg-white px-2 py-1 text-[10px] font-semibold text-brand">
+                  {exploreScenario.inputSchema.length} controls
+                </span>
+              </summary>
+              <div className="grid max-h-64 gap-2 overflow-y-auto border-t border-line py-2 [scrollbar-width:thin]">
+                <div className="grid grid-cols-2 gap-2">
+                  {exploreScenario.interactionModes.map((mode) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => onExploreInteractionModeChange(mode)}
+                      className={`h-8 rounded-md border px-2 text-[11px] font-semibold transition ${
+                        exploreInteractionMode === mode
+                          ? "border-brand bg-brand text-white"
+                          : "border-line bg-white text-muted hover:border-brand hover:text-ink"
+                      }`}
+                    >
+                      {getExploreModeLabel(mode)}
+                    </button>
+                  ))}
+                </div>
+                {exploreScenario.inputSchema.map((config) => (
+                  <ExploreSetupControl
+                    key={config.id}
+                    config={config}
+                    value={exploreFilters[config.id]}
+                    onChange={(value) => onExploreFilterChange(config.id, value)}
+                  />
+                ))}
+              </div>
+            </details>
+
+            <div className="mt-2 min-w-0">
+              <label
+                htmlFor="custom-query"
+                className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted"
+              >
+                Custom query
+              </label>
+              <textarea
+                id="custom-query"
+                rows={2}
+                value={customQuery}
+                onChange={(event) => onCustomQueryChange(event.target.value)}
+                placeholder={
+                  hasComparisonReady
+                    ? "Add context to refine comparison rationale"
+                    : "Ask a scenario-specific question"
+                }
+                className="mt-1 w-full resize-none rounded-md border border-line bg-surface px-2 py-2 text-xs text-ink outline-none transition placeholder:text-muted/70 focus:border-brand"
+              />
+            </div>
+
+            <div className="mt-3 rounded-md border border-line bg-surface p-2">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
+                  Candidate preview
+                </p>
+                <span className="shrink-0 rounded-full bg-white px-2 py-1 text-[10px] font-semibold text-brand">
+                  {exploreCandidates.length}
+                </span>
+              </div>
+              <div className="mt-2 grid gap-2">
+                {topExploreCandidates.map((candidate, index) => {
+                  const selected = candidate.id === selectedExploreCandidate?.id;
+
+                  return (
+                    <button
+                      key={candidate.id}
+                      type="button"
+                      onClick={() => onExploreCandidateSelect(candidate.id)}
+                      className={`grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-2 rounded-md border bg-white p-2 text-left transition ${
+                        selected ? "border-brand ring-1 ring-[#b8d0cc]" : "border-line hover:border-brand"
+                      }`}
+                    >
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-surface text-[11px] font-bold text-brand">
+                        {index + 1}
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block truncate text-xs font-semibold text-ink">{candidate.title}</span>
+                        <span className="mt-0.5 block truncate text-[11px] text-muted">
+                          {candidate.locationLabel} / {getExploreCandidateSourceLabel(candidate.sourceType)}
+                        </span>
+                      </span>
+                      <span className="shrink-0 rounded-md bg-surface px-2 py-1 text-xs font-black text-brand">
+                        {candidate.score}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="mt-2 text-[11px] leading-4 text-muted">
+                Select a preview or map overlay to use it as the analysis target.
+              </p>
+            </div>
+          </section>
+
           <section className="min-w-0 max-w-full overflow-hidden rounded-lg border border-line bg-surface p-3">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
@@ -1237,58 +1590,6 @@ export function AnalysisPanel({
                 )}
               </div>
             </details>
-          </section>
-
-          <section className="grid min-w-0 max-w-full gap-2 overflow-hidden">
-            <div className="min-w-0 max-w-full overflow-hidden rounded-md border border-line bg-white px-3 py-2">
-            <label
-              htmlFor="analysis-scenario"
-              className="text-xs font-semibold uppercase tracking-[0.12em] text-muted"
-            >
-              Scenario
-            </label>
-            <select
-              id="analysis-scenario"
-              value={selectedScenario}
-              onChange={(event) => onScenarioChange(event.target.value as AnalysisScenarioId)}
-              className="mt-1 h-9 w-full rounded-md border border-line bg-surface px-3 text-sm font-semibold text-ink outline-none transition focus:border-brand"
-            >
-              {scenarios.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
-            <p className="mt-1 text-xs leading-5 text-muted">{scenario.description}</p>
-          </div>
-
-            <div className="min-w-0 max-w-full overflow-hidden rounded-md border border-line bg-white px-3 py-2">
-            <label
-              htmlFor="custom-query"
-              className="text-xs font-semibold uppercase tracking-[0.12em] text-muted"
-            >
-              Custom query
-            </label>
-            <textarea
-              id="custom-query"
-              rows={2}
-              value={customQuery}
-              onChange={(event) => onCustomQueryChange(event.target.value)}
-              placeholder={
-                isCustomQuery
-                  ? "Enter the spatial question"
-                  : hasComparisonReady
-                    ? "Add context to refine comparison rationale"
-                  : "Optional context"
-              }
-              className="mt-1 w-full resize-none rounded-md border border-line bg-surface px-3 py-2 text-sm text-ink outline-none transition placeholder:text-muted/70 focus:border-brand"
-            />
-            {isCustomQuery ? (
-              <p className="mt-1 text-xs leading-5 text-muted">
-                Custom Query requires a question.
-              </p>
-            ) : null}
-          </div>
           </section>
 
           {activeDemoNarrative ? (
@@ -2107,7 +2408,7 @@ export function AnalysisPanel({
       <section className="min-w-0 max-w-full flex-shrink-0 border-t border-line bg-white p-4">
         <p className="mb-2 text-xs leading-5 text-muted">
           {primaryCtaDisabled && !hasSelectedPoint
-            ? "Select a map point or load the guided demo to begin."
+            ? "Select a map point, AOI, object, or candidate preview to begin."
             : activeWorkflowNote}
         </p>
         <button
