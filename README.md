@@ -7,6 +7,7 @@ OpenAI is optional. If `OPENAI_API_KEY` is not configured, GeoAI automatically u
 ## Implemented Features
 
 - Homepage and `/workspace` application shell
+- GeoAI Explore v1 scenario-first shell at `/explore` with B2C/B2B roles, scenario cards, deterministic demo candidates, map/list results, local compare tray and safe Workspace handoff
 - Dubai-centered Mapbox workspace
 - Point selection with marker and coordinates
 - Polygon AOI drawing workflow with vertex handles, preview edge, validation and approximate area/perimeter measurements
@@ -136,6 +137,7 @@ See [Repository Mode & Fallback Consistency v2.0.2](docs/REPOSITORY_MODE_FALLBAC
 
 ## Latest Release Notes
 
+- [GeoAI Explore v1 - Scenario-first MVP Shell](docs/RELEASE_GEOAI_EXPLORE_V1_SCENARIO_SHELL.md)
 - [GeoAI Pilot Backend Activation & Hardening v2.9](docs/RELEASE_GEOAI_PILOT_BACKEND_ACTIVATION_HARDENING_V29.md)
 - [GeoAI Enterprise Report Pack v2.8](docs/RELEASE_GEOAI_ENTERPRISE_REPORT_PACK_V28.md)
 - [Enterprise Report Pack v2.8 architecture note](docs/ENTERPRISE_REPORT_PACK_V28.md)
@@ -199,6 +201,12 @@ v2.9 adds a stricter guard: `GEOAI_ALLOW_SUPABASE_TARGET` must also identify the
 - `DELETE /api/data-room/assets/[id]` removes a local/demo asset metadata record.
 - `POST /api/data-room/checklist` creates a local/demo validation checklist item.
 - `PATCH /api/data-room/checklist/[id]` updates validation checklist status.
+
+## GeoAI Explore v1
+
+`/explore` is the first scenario-first product layer for GeoAI. It supports B2C and B2B audience selection, role-based personalization state for future onboarding, 10 data-driven scenarios, deterministic Dubai sample candidates, candidate map/list views, a local compare tray, local save state, local analysis preview and safe handoff to `/workspace`.
+
+Explore v1 is an MVP shell. Candidate data is sample/demo/open-context only and does not connect live official Dubai sources. All outputs are screening hypotheses and require official/client validation before legal, cadastral, zoning, planning, ownership, valuation, title, entitlement, lending, purchase, rental or development decisions.
 
 ## Market Context Adapter
 

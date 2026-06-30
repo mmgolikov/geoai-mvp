@@ -175,6 +175,7 @@ function LandingHeader() {
     ["Use cases", "#use-cases"],
     ["Workflow", "#workflow"],
     ["Data", "#data"],
+    ["Explore", "/explore"],
     ["Demo narrative", "/demo"]
   ];
 

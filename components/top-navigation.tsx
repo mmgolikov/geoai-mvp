@@ -18,6 +18,9 @@ export function TopNavigation() {
             </div>
           </Link>
           <nav className="hidden items-center gap-2 sm:flex">
+            <Link href="/explore" className="rounded-md px-3 py-2 text-sm font-semibold text-muted transition hover:bg-surface hover:text-ink">
+              Explore
+            </Link>
             <Link href="/workspace" className="rounded-md bg-surface px-3 py-2 text-sm font-semibold text-ink transition hover:text-brand">
               Workspace
             </Link>
