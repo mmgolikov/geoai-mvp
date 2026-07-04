@@ -1,3 +1,5 @@
+import { TextSafeValue } from "@/components/dashboard/text-safe";
+
 export function DecisionSummaryBox({
   title = "Decision Summary",
   decision,
@@ -25,18 +27,26 @@ export function DecisionSummaryBox({
     <div className={`rounded-md border border-[#e7d49a] bg-[#fff9e8] p-4 ${className}`}>
       <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <h3 className="safe-line-1 text-sm font-semibold text-ink">{title}</h3>
-          <p className="safe-line-2 mt-1 text-sm leading-6 text-muted">{decision}</p>
+          <TextSafeValue as="h3" className="text-sm font-semibold text-ink">
+            {title}
+          </TextSafeValue>
+          <TextSafeValue className="mt-1 text-sm leading-6 text-muted">
+            {decision}
+          </TextSafeValue>
         </div>
-        <span className="max-w-[120px] shrink-0 truncate rounded-full bg-white px-2 py-1 text-xs font-semibold text-brand">
+        <TextSafeValue as="span" className="shrink-0 rounded-full bg-white px-2 py-1 text-xs font-semibold text-brand">
           {badge}
-        </span>
+        </TextSafeValue>
       </div>
       <dl className="mt-3 grid gap-2 text-sm md:grid-cols-3">
         {rows.map(([label, value]) => (
           <div key={label} className="min-w-0 rounded-md bg-white/76 p-3">
-            <dt className="safe-line-1 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted">{label}</dt>
-            <dd className="safe-line-2 mt-1 text-ink">{value}</dd>
+            <TextSafeValue as="dt" className="text-[11px] font-semibold uppercase tracking-[0.1em] text-muted">
+              {label}
+            </TextSafeValue>
+            <TextSafeValue as="dd" className="mt-1 text-ink">
+              {value}
+            </TextSafeValue>
           </div>
         ))}
       </dl>

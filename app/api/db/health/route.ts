@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { countSources } from "@/src/lib/db/repositories/sources";
 import { getSchemaReadinessSummary } from "@/src/lib/db/schema-readiness";
 import { getStorageReadiness } from "@/src/lib/storage/storage-readiness";
+import { getSupabaseActivationReadiness } from "@/src/lib/supabase/activation-check";
 
 export const runtime = "nodejs";
 
@@ -10,6 +11,7 @@ export async function GET() {
     getSchemaReadinessSummary(),
     getStorageReadiness()
   ]);
+  const activation = await getSupabaseActivationReadiness({ schema: readiness, storage });
   const sourcesCount = readiness.configured ? await countSources() : null;
   const migrationApplied = readiness.status === "connected" && readiness.postgisReady && readiness.tablesReady;
   const blockers: string[] = [];
@@ -40,6 +42,7 @@ export async function GET() {
     seedReady: migrationApplied,
     canWrite: readiness.repositoryMode === "supabase",
     canRead: readiness.repositoryMode === "supabase",
+    activation,
     blockers: Array.from(new Set(blockers)),
     nextActions: Array.from(new Set(nextActions))
   });

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { TextSafeValue } from "@/components/dashboard/text-safe";
 import { EvidenceSourceCards } from "@/components/evidence-source-cards";
 import { DecisionSummaryBox } from "@/components/ui/decision-summary-box";
 import type { ComparisonItem, ComparisonResult, ScoreKey } from "@/src/types/geo";
@@ -66,10 +67,12 @@ function ComparisonScoreBar({
   return (
     <div className={compact ? "grid gap-1" : "grid gap-1.5"}>
       <div className="flex items-center justify-between gap-3">
-        <span className="safe-line-1 text-xs font-semibold text-muted">{scoreLabels[scoreKey]}</span>
+        <TextSafeValue as="span" className="text-xs font-semibold text-muted">
+          {scoreLabels[scoreKey]}
+        </TextSafeValue>
         <span className="text-xs font-black text-ink">{value}</span>
       </div>
-      <div className="h-2 overflow-hidden rounded-full bg-surface">
+      <div className="h-2 rounded-full bg-surface">
         <div className={`h-full rounded-full ${scoreBarTone(scoreKey, value)}`} style={{ width: `${value}%` }} />
       </div>
     </div>
@@ -115,12 +118,16 @@ function ComparisonCard({
   const metric = marketMatch?.metrics;
 
   return (
-    <article className="flex h-full min-h-[440px] min-w-0 flex-col rounded-lg border border-line bg-white p-5 shadow-sm">
+    <article className="flex h-full min-w-0 flex-col rounded-lg border border-line bg-white p-5 shadow-sm">
       <div className="flex min-w-0 items-start justify-between gap-3 border-b border-line pb-4">
         <div className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Rank {rank}</p>
-          <h2 className="safe-line-2 text-lg font-semibold leading-6 text-ink">{scorecard.item.name}</h2>
-          <p className="mt-2 truncate text-sm text-muted">{scorecard.item.itemType} / {scorecard.item.scenarioLabel}</p>
+          <TextSafeValue as="h2" className="text-lg font-semibold leading-6 text-ink">
+            {scorecard.item.name}
+          </TextSafeValue>
+          <TextSafeValue className="mt-2 text-sm text-muted">
+            {scorecard.item.itemType} / {scorecard.item.scenarioLabel}
+          </TextSafeValue>
         </div>
         <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${riskTone(scorecard.riskLevel)}`}>
           {scorecard.riskLevel}
@@ -143,24 +150,31 @@ function ComparisonCard({
 
       <div className="border-b border-line py-4">
         <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Location</p>
-        <p className="safe-line-2 mt-2 text-sm font-semibold leading-5 text-ink">
+        <TextSafeValue className="mt-2 text-sm font-semibold leading-5 text-ink">
           {formatCoordinate(scorecard.item.point.latitude, scorecard.item.point.longitude)}
-        </p>
+        </TextSafeValue>
       </div>
 
       <div className="border-b border-line py-4">
         <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Market data basis</p>
-        <p className="safe-line-2 mt-2 text-sm font-semibold leading-5 text-ink">
+        <TextSafeValue className="mt-2 text-sm font-semibold leading-5 text-ink">
           {marketMatch?.matchedAreaName ?? "Sample/open context"} / {marketMatch?.sourceMode ?? "seed_static"}
-        </p>
-        <p className="safe-line-2 mt-1 text-xs leading-5 text-muted">
+        </TextSafeValue>
+        <TextSafeValue className="mt-1 text-xs leading-5 text-muted">
           {metric ? `Liquidity ${metric.liquidityIndex}, demand ${metric.rentalDemandProxy}, pipeline ${metric.pipelineProxy}` : "Imported metrics not matched."}
-        </p>
+        </TextSafeValue>
       </div>
 
       <div className="pt-4">
         <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Recommended use</p>
-        <p className="safe-line-3 mt-2 text-sm leading-6 text-ink">{scorecard.recommendedUse}</p>
+        <details className="mt-2 rounded-md border border-line bg-surface px-3 py-2">
+          <summary className="cursor-pointer list-none text-sm font-semibold leading-5 text-ink">
+            Recommended use
+          </summary>
+          <TextSafeValue className="mt-2 border-t border-line pt-2 text-sm leading-6 text-muted">
+            {scorecard.recommendedUse}
+          </TextSafeValue>
+        </details>
       </div>
       {onOpenDashboard ? (
         <button
@@ -235,9 +249,9 @@ export function ComparisonDashboard({
                 <h2 className="text-lg font-semibold text-ink">Ranked shortlist decision</h2>
                 <p className="mt-1 text-sm text-muted">Best option based on deterministic sample/open scoring</p>
               </div>
-              <span className="max-w-full shrink-0 truncate rounded-full bg-[#eaf3f1] px-3 py-1 text-sm font-semibold text-brand">
+              <TextSafeValue as="span" className="shrink-0 rounded-full bg-[#eaf3f1] px-3 py-1 text-sm font-semibold text-brand">
                 Best option: {comparison.winner.item.name}
-              </span>
+              </TextSafeValue>
             </div>
             <div className="mt-5 grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
               <div className="rounded-md border border-line bg-surface p-4">
@@ -251,10 +265,26 @@ export function ComparisonDashboard({
                 ))}
               </div>
             </div>
-            <p className="safe-line-4 mt-4 text-base leading-7 text-muted">{comparison.whyPreferred}</p>
+            <details className="mt-4 rounded-md border border-line bg-surface px-4 py-3" open>
+              <summary className="cursor-pointer list-none text-sm font-semibold uppercase tracking-[0.1em] text-muted">
+                Why this option leads
+              </summary>
+              <TextSafeValue className="mt-2 border-t border-line pt-3 text-base leading-7 text-muted">
+                {comparison.whyPreferred}
+              </TextSafeValue>
+            </details>
             <div className="mt-4 rounded-md border border-line bg-white p-4 shadow-sm">
-              <h3 className="safe-line-1 text-sm font-semibold text-ink">Trade-off lens</h3>
-              <p className="safe-line-3 mt-2 text-sm leading-6 text-muted">{comparison.whenAnotherMayBeBetter}</p>
+              <TextSafeValue as="h3" className="text-sm font-semibold text-ink">
+                Trade-off lens
+              </TextSafeValue>
+              <details className="mt-2 rounded-md border border-line bg-surface px-3 py-2">
+                <summary className="cursor-pointer list-none text-xs font-semibold uppercase tracking-[0.1em] text-muted">
+                  Details
+                </summary>
+                <TextSafeValue className="mt-2 border-t border-line pt-2 text-sm leading-6 text-muted">
+                  {comparison.whenAnotherMayBeBetter}
+                </TextSafeValue>
+              </details>
             </div>
             <DecisionSummaryBox
               className="mt-4"
@@ -266,7 +296,9 @@ export function ComparisonDashboard({
           </section>
 
           <section className="flex h-full min-w-0 flex-col rounded-lg border border-line bg-white p-5 shadow-sm">
-            <h2 className="safe-line-1 text-lg font-semibold text-ink">Shortlist Matrix</h2>
+            <TextSafeValue as="h2" className="text-lg font-semibold text-ink">
+              Shortlist Matrix
+            </TextSafeValue>
             <div className="mt-4 grid flex-1 content-start gap-3">
               {comparison.items.map((scorecard, index) => (
                 <div key={createStableKey("map-context-item", scorecard.item.id, index)} className="rounded-md border border-line bg-surface p-4">
@@ -275,18 +307,20 @@ export function ComparisonDashboard({
                       <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">
                         Option {index + 1}
                       </p>
-                      <h3 className="safe-line-1 mt-1 text-sm font-semibold text-ink">{scorecard.item.name}</h3>
+                      <TextSafeValue as="h3" className="mt-1 text-sm font-semibold text-ink">
+                        {scorecard.item.name}
+                      </TextSafeValue>
                     </div>
-                    <span className="max-w-[76px] shrink-0 truncate rounded-full bg-white px-2 py-1 text-xs font-semibold text-brand">
+                    <TextSafeValue as="span" className="shrink-0 rounded-full bg-white px-2 py-1 text-xs font-semibold text-brand">
                       {scorecard.item.itemType}
-                    </span>
+                    </TextSafeValue>
                   </div>
-                  <p className="safe-line-1 mt-2 text-sm leading-5 text-muted">
+                  <TextSafeValue className="mt-2 text-sm leading-5 text-muted">
                     {formatCoordinate(scorecard.item.point.latitude, scorecard.item.point.longitude)}
-                  </p>
-                  <p className="safe-line-2 mt-2 text-xs leading-5 text-muted">
+                  </TextSafeValue>
+                  <TextSafeValue className="mt-2 text-xs leading-5 text-muted">
                     Market basis: {scorecard.marketMetricsMatch?.matchedAreaName ?? "Sample/open context"} / {scorecard.marketMetricsMatch?.sourceMode ?? "seed_static"} / {scorecard.marketMetricsMatch?.confidence ?? "low"} confidence
-                  </p>
+                  </TextSafeValue>
                   <div className="mt-3">
                     <ComparisonScoreBar scoreKey="investmentAttractiveness" value={scorecard.scores.investmentAttractiveness} compact />
                   </div>
@@ -367,8 +401,10 @@ export function ComparisonDashboard({
             <h2 className="text-lg font-semibold text-ink">Shared Opportunities</h2>
             <ul className="mt-4 space-y-3">
               {sharedOpportunities.map((item, index) => (
-                <li key={createStableKey("shared-opportunity", item, index)} className="safe-line-4 rounded-md border border-line bg-surface px-4 py-3 text-sm leading-6 text-muted">
-                  {item}
+                <li key={createStableKey("shared-opportunity", item, index)} className="rounded-md border border-line bg-surface px-4 py-3">
+                  <TextSafeValue className="text-sm leading-6 text-muted">
+                    {item}
+                  </TextSafeValue>
                 </li>
               ))}
             </ul>
@@ -377,8 +413,10 @@ export function ComparisonDashboard({
             <h2 className="text-lg font-semibold text-ink">Differentiated Risks</h2>
             <ul className="mt-4 space-y-3">
               {differentiatedRisks.map((item, index) => (
-                <li key={createStableKey("differentiated-risk", item, index)} className="safe-line-4 rounded-md border border-line bg-surface px-4 py-3 text-sm leading-6 text-muted">
-                  {item}
+                <li key={createStableKey("differentiated-risk", item, index)} className="rounded-md border border-line bg-surface px-4 py-3">
+                  <TextSafeValue className="text-sm leading-6 text-muted">
+                    {item}
+                  </TextSafeValue>
                 </li>
               ))}
             </ul>
@@ -400,7 +438,9 @@ export function ComparisonDashboard({
                 <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white text-sm font-semibold text-brand">
                   {index + 1}
                 </span>
-                <span className="safe-line-4 text-sm leading-6 text-muted">{action}</span>
+                <TextSafeValue as="span" className="text-sm leading-6 text-muted">
+                  {action}
+                </TextSafeValue>
               </li>
             ))}
           </ol>

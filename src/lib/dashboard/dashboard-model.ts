@@ -53,10 +53,12 @@ export type DashboardModel = {
   targetLabel: string;
   decisionPosture: string;
   decisionSummary: string;
+  decisionDetail: string;
   primaryScore: number;
   confidenceLabel: string;
   riskLabel: string;
   recommendedNextAction: string;
+  recommendedNextActionDetail: string;
   kpis: DashboardKpi[];
   drivers: DashboardDriver[];
   risks: DashboardDriver[];
@@ -106,7 +108,112 @@ function shortLabel(value: string, fallback: string, maxLength = 52) {
   if (trimmed.length <= maxLength) return trimmed;
 
   const boundary = trimmed.slice(0, maxLength).lastIndexOf(" ");
-  return `${trimmed.slice(0, boundary > 24 ? boundary : maxLength).trim()}...`;
+  return trimmed.slice(0, boundary > 24 ? boundary : maxLength).trim();
+}
+
+function sentenceSummary(value: string, fallback: string) {
+  const trimmed = value.trim();
+  const firstSentence = trimmed.split(/(?<=[.!?])\s+/)[0]?.trim();
+
+  if (firstSentence && firstSentence.length <= 140) {
+    return firstSentence;
+  }
+
+  return fallback;
+}
+
+export function detailText(value: string | undefined, fallback: string) {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : fallback;
+}
+
+export function shortDecisionPosture(value: string) {
+  const normalized = value.toLowerCase();
+
+  if (normalized.includes("compare")) return "Compare before advancing";
+  if (normalized.includes("hold") || normalized.includes("reject") || normalized.includes("not proceed")) {
+    return "Hold for validation";
+  }
+  if (normalized.includes("proceed") && normalized.includes("valid")) return "Proceed with validation";
+  if (normalized.includes("proceed") || normalized.includes("advance")) return "Proceed conditionally";
+  if (normalized.includes("valid")) return "Validate first";
+
+  return shortLabel(value, "Review required", 36);
+}
+
+export function shortRiskLabel(score: number) {
+  if (score >= 70) return "Elevated";
+  if (score >= 50) return "Moderate";
+  return "Managed";
+}
+
+export function shortConfidenceLabel(value?: string) {
+  const normalized = value?.trim().toLowerCase();
+
+  if (normalized === "high") return "High";
+  if (normalized === "low") return "Low";
+  return "Medium";
+}
+
+export function shortValidationLabel(count: number) {
+  if (count === 0) return "No open gaps";
+  if (count === 1) return "1 gap";
+  return `${count} gaps`;
+}
+
+export function shortNextAction(actions: DashboardDriver[]) {
+  const action = actions[0]?.detail ?? actions[0]?.label ?? "";
+  const normalized = action.toLowerCase();
+
+  if (normalized.includes("compare")) return "Compare shortlist";
+  if (normalized.includes("memo") || normalized.includes("report")) return "Prepare memo";
+  if (normalized.includes("site visit") || normalized.includes("field")) return "Plan site visit";
+  if (normalized.includes("planning")) return "Check planning";
+  if (normalized.includes("market")) return "Validate market";
+  if (normalized.includes("source") || normalized.includes("official") || normalized.includes("valid")) return "Validate sources";
+  if (normalized.includes("due diligence") || normalized.includes("diligence")) return "Run diligence";
+
+  return shortLabel(action, "Validate sources", 34);
+}
+
+function shortSignalLabel(value: string, type: DashboardDriver["type"], index: number, prefix: string) {
+  const normalized = value.toLowerCase();
+
+  if (type === "action") {
+    if (normalized.includes("compare")) return "Compare alternatives";
+    if (normalized.includes("attach") || normalized.includes("evidence") || normalized.includes("official")) return "Attach evidence";
+    if (normalized.includes("checklist") || normalized.includes("valid")) return "Prepare validation";
+    if (normalized.includes("memo") || normalized.includes("report")) return "Prepare memo";
+    if (normalized.includes("market")) return "Validate market";
+    return shortLabel(value, `Action ${index + 1}`, 34);
+  }
+
+  if (type === "risk") {
+    if (normalized.includes("risk score")) return "Risk level";
+    if (normalized.includes("parcel") || normalized.includes("zoning") || normalized.includes("ownership")) return "Official planning gap";
+    if (normalized.includes("openai") || normalized.includes("fallback")) return "AI fallback";
+    if (normalized.includes("climate") || normalized.includes("heat")) return "Climate exposure";
+    if (normalized.includes("source") || normalized.includes("official") || normalized.includes("valid")) return "Source validation";
+    return shortLabel(value, `Risk ${index + 1}`, 34);
+  }
+
+  if (type === "validation") {
+    if (normalized.includes("parcel") || normalized.includes("zoning") || normalized.includes("ownership")) return "Official planning check";
+    if (normalized.includes("openai") || normalized.includes("fallback")) return "AI scoring check";
+    if (normalized.includes("market")) return "Market validation";
+    if (normalized.includes("source") || normalized.includes("official")) return "Source validation";
+    return shortLabel(value, `Validation ${index + 1}`, 34);
+  }
+
+  if (normalized.includes("real estate") || normalized.includes("development")) return "Development fit";
+  if (normalized.includes("suitability")) return "Suitability mix";
+  if (normalized.includes("snapshot") || normalized.includes("evidence")) return "Evidence quality";
+  if (normalized.includes("access")) return "Access signal";
+  if (normalized.includes("infrastructure")) return "Infrastructure readiness";
+  if (normalized.includes("market")) return "Market context";
+  if (normalized.includes("climate") || normalized.includes("heat")) return "Climate context";
+
+  return shortLabel(value, `${prefix} ${index + 1}`, 34);
 }
 
 function uniqueText(items: string[]) {
@@ -123,7 +230,7 @@ function uniqueText(items: string[]) {
 function driverItems(items: string[], type: DashboardDriver["type"], baseScore: number, prefix: string) {
   return uniqueText(items).slice(0, 3).map((item, index) => ({
     id: `${prefix}-${index}`,
-    label: shortLabel(item, `${prefix} ${index + 1}`, 42),
+    label: shortSignalLabel(item, type, index, prefix),
     detail: item,
     score: clampScore(baseScore - index * 6),
     type
@@ -218,13 +325,14 @@ function matrixItems(drivers: DashboardDriver[], risks: DashboardDriver[], valid
 }
 
 export function buildDashboardModel(analysis: ExpressAnalysis): DashboardModel {
-  const decisionPosture = deriveDecisionPosture(analysis);
+  const rawDecisionPosture = deriveDecisionPosture(analysis);
+  const decisionPosture = shortDecisionPosture(rawDecisionPosture);
   const decisionRationale = deriveDecisionRationale(analysis);
   const primaryScore = analysis.aiDecisionScore?.suitabilityScore ??
     clampScore((analysis.scores.developmentPotential + analysis.scores.investmentAttractiveness + analysis.scores.accessibility) / 3);
   const riskScore = analysis.aiDecisionScore?.riskScore ??
     Math.max(analysis.scores.overallRisk, analysis.scores.climateHeatRisk);
-  const riskLabel = riskScore >= 70 ? "Elevated" : riskScore >= 50 ? "Moderate" : "Managed";
+  const riskLabel = shortRiskLabel(riskScore);
   const drivers = driverItems(
     analysis.aiDecisionScore?.keyDrivers.length ? analysis.aiDecisionScore.keyDrivers : analysis.keyFactors,
     "driver",
@@ -241,9 +349,14 @@ export function buildDashboardModel(analysis: ExpressAnalysis): DashboardModel {
   const actions = actionItems(analysis);
   const hypothesis = scenarioHypothesis(analysis, decisionPosture);
   const scoreBreakdown = scoreDrivers(analysis);
-  const confidenceLabel = `${analysis.confidenceLevel ?? "medium"} confidence`;
-  const recommendedNextAction = actions[0]?.label ?? "Validate sources";
-  const decisionSummary = shortLabel(decisionRationale, "Screening result requires validation.", 120);
+  const confidenceLabel = shortConfidenceLabel(analysis.confidenceLevel);
+  const recommendedNextAction = shortNextAction(actions);
+  const recommendedNextActionDetail = detailText(actions[0]?.detail ?? actions[0]?.label, "Validate official sources before decision-grade use.");
+  const decisionSummary = sentenceSummary(
+    decisionRationale,
+    "Screening signals are mixed; validate official sources before advancing."
+  );
+  const decisionDetail = detailText(decisionRationale, "Screening result requires validation.");
   const targetLabel = analysis.selectedAoi?.name ?? analysis.selectedObject?.name ?? "Map selection";
 
   return {
@@ -252,10 +365,12 @@ export function buildDashboardModel(analysis: ExpressAnalysis): DashboardModel {
     targetLabel,
     decisionPosture,
     decisionSummary,
+    decisionDetail,
     primaryScore,
     confidenceLabel,
     riskLabel,
     recommendedNextAction,
+    recommendedNextActionDetail,
     kpis: [
       {
         id: "suitability",
@@ -277,15 +392,14 @@ export function buildDashboardModel(analysis: ExpressAnalysis): DashboardModel {
       {
         id: "confidence",
         label: "Confidence",
-        value: analysis.confidenceLevel ?? "medium",
+        value: confidenceLabel,
         tone: analysis.confidenceLevel === "high" ? "positive" : "neutral",
         explanation: "Screening confidence only."
       },
       {
         id: "validation",
         label: "Validation",
-        value: `${validationGaps.length}`,
-        unit: "gaps",
+        value: shortValidationLabel(validationGaps.length),
         numericValue: validationGaps.length,
         tone: validationGaps.length > 2 ? "warning" : "neutral",
         explanation: "Open evidence checks."
@@ -295,7 +409,7 @@ export function buildDashboardModel(analysis: ExpressAnalysis): DashboardModel {
         label: "Next action",
         value: recommendedNextAction,
         tone: "neutral",
-        explanation: actions[0]?.detail
+        explanation: recommendedNextActionDetail
       }
     ],
     drivers,
@@ -330,8 +444,7 @@ export function buildDashboardModel(analysis: ExpressAnalysis): DashboardModel {
         type: "score_bars",
         priority: 2,
         summary: "Scores are sample/open screening indicators, not validated underwriting metrics.",
-        items: scoreBreakdown,
-        defaultOpen: true
+        items: scoreBreakdown
       },
       {
         id: "risk-opportunity-matrix",

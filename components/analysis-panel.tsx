@@ -484,11 +484,17 @@ export function AnalysisPanel({
   const topExploreCandidates = exploreCandidates.slice(0, 3);
   const isCriteriaFirstMode = exploreInteractionMode === "criteria_first";
   const hasSearchedCandidates = isCriteriaFirstMode && candidateSearchStatus === "searched" && exploreCandidates.length > 0;
+  const candidateSearchStateLabel =
+    candidateSearchStatus === "searched"
+      ? "Results updated"
+      : candidateSearchStatus === "stale"
+        ? "Criteria changed — update search"
+        : "No search run yet";
   const candidateSearchEmptyMessage =
     candidateSearchStatus === "stale"
-      ? "Outdated results - update the search to refresh candidate zones."
+      ? "Criteria changed — update search"
       : isCriteriaFirstMode
-        ? "Set criteria and search candidate zones."
+        ? "No search run yet"
         : "Switch to Criteria-first to search candidate zones.";
   const availableSources = getScenarioDataSources(selectedScenario).slice(0, 3);
   const parsedUploads = uploadedDatasets.filter((dataset) => dataset.status === "parsed");
@@ -554,7 +560,7 @@ export function AnalysisPanel({
         ? "Analyze this candidate or return to the shortlist."
         : "Compare the searched candidates or select one."
       : candidateSearchStatus === "stale"
-        ? "Criteria changed. Update the search before comparing."
+        ? "Criteria changed — update search before comparing."
         : "Choose criteria, then find candidate zones."
     : isComparisonWorkflow
       ? hasComparisonReady
@@ -1351,11 +1357,16 @@ export function AnalysisPanel({
                 <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
                   {hasSearchedCandidates ? "Search results" : "Candidate search"}
                 </p>
-                {hasSearchedCandidates ? (
-                  <span className="shrink-0 rounded-full bg-white px-2 py-1 text-[10px] font-semibold text-brand">
-                    {exploreCandidates.length}
+                <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
+                  <span className="rounded-full bg-white px-2 py-1 text-[10px] font-semibold text-brand">
+                    {candidateSearchStateLabel}
                   </span>
-                ) : null}
+                  {hasSearchedCandidates ? (
+                    <span className="rounded-full bg-white px-2 py-1 text-[10px] font-semibold text-muted">
+                      {exploreCandidates.length}
+                    </span>
+                  ) : null}
+                </div>
               </div>
               {hasSearchedCandidates ? (
                 <>

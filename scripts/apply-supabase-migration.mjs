@@ -9,8 +9,7 @@ function commandExists(command) {
 
 const allowApply = process.env.GEOAI_ALLOW_SUPABASE_MIGRATION_APPLY?.trim().toLowerCase() === "true";
 const allowTarget = process.env.GEOAI_ALLOW_SUPABASE_TARGET?.trim().toLowerCase() === "pilot" ||
-  process.env.GEOAI_ALLOW_SUPABASE_TARGET?.trim().toLowerCase() === "preview" ||
-  process.env.GEOAI_ALLOW_SUPABASE_TARGET?.trim().toLowerCase() === "production";
+  process.env.GEOAI_ALLOW_SUPABASE_TARGET?.trim().toLowerCase() === "preview";
 const dbUrl = process.env.SUPABASE_DB_URL?.trim();
 const migrationFileExists = existsSync(migrationPath);
 const psqlAvailable = commandExists("psql");
@@ -26,11 +25,11 @@ if (!migrationFileExists || !allowApply || !allowTarget || !dbUrl) {
       ...(!migrationFileExists ? ["Migration SQL file is missing."] : []),
       ...(!dbUrl ? ["SUPABASE_DB_URL is not set."] : []),
       ...(!allowApply ? ["GEOAI_ALLOW_SUPABASE_MIGRATION_APPLY=true is required before applying migration."] : []),
-      ...(!allowTarget ? ["GEOAI_ALLOW_SUPABASE_TARGET must be one of: pilot, preview, production."] : [])
+      ...(!allowTarget ? ["GEOAI_ALLOW_SUPABASE_TARGET must be one of: pilot, preview."] : [])
     ],
     nextActions: [
       "Review the migration SQL locally.",
-      "Set SUPABASE_DB_URL, GEOAI_ALLOW_SUPABASE_MIGRATION_APPLY=true and GEOAI_ALLOW_SUPABASE_TARGET only in a trusted terminal.",
+      "Set SUPABASE_DB_URL, GEOAI_ALLOW_SUPABASE_MIGRATION_APPLY=true and GEOAI_ALLOW_SUPABASE_TARGET=preview or pilot only in a trusted terminal.",
       "Run npm run supabase:migrate:apply, or paste the migration SQL into Supabase SQL editor.",
       ...(supabaseCliAvailable ? ["If the Supabase project is linked, `supabase db push` is also available as an operator path."] : ["Install/link Supabase CLI if you prefer CLI-managed migrations."])
     ],
