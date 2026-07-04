@@ -735,6 +735,7 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
   const [analysis, setAnalysis] = useState<ExpressAnalysis | null>(null);
   const [comparisonItems, setComparisonItems] = useState<ComparisonItem[]>([]);
   const [comparison, setComparison] = useState<ComparisonResult | null>(null);
+  const [comparisonReturn, setComparisonReturn] = useState<ComparisonResult | null>(null);
   const [reportPreview, setReportPreview] = useState<"analysis" | "comparison" | null>(null);
   const [comparisonMessage, setComparisonMessage] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -830,6 +831,7 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
     writeActiveProjectKey(nextProject.projectKey);
     setAnalysis(null);
     setComparison(null);
+    setComparisonReturn(null);
     setLastAnalyzedState(null);
     setLastComparedState(null);
     setReportPreview(null);
@@ -1138,6 +1140,7 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
     setSelectedExploreCandidateId(null);
     setAnalysis(null);
     setComparison(null);
+    setComparisonReturn(null);
     setLastAnalyzedState(null);
     setLastComparedState(null);
     setReportPreview(null);
@@ -1154,6 +1157,7 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
     setSelectedExploreCandidateId(null);
     setAnalysis(null);
     setComparison(null);
+    setComparisonReturn(null);
     setLastAnalyzedState(null);
     setLastComparedState(null);
     setReportPreview(null);
@@ -1170,6 +1174,7 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
     setSelectedExploreCandidateId(null);
     setAnalysis(null);
     setComparison(null);
+    setComparisonReturn(null);
     setLastAnalyzedState(null);
     setLastComparedState(null);
     setReportPreview(null);
@@ -1187,6 +1192,7 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
     setSelectedExploreCandidateId(null);
     setAnalysis(null);
     setComparison(null);
+    setComparisonReturn(null);
     setLastAnalyzedState(null);
     setLastComparedState(null);
     setReportPreview(null);
@@ -1254,6 +1260,7 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
     setSelectedAoi(null);
     setAnalysis(null);
     setComparison(null);
+    setComparisonReturn(null);
     setLastAnalyzedState(null);
     setLastComparedState(null);
     setReportPreview(null);
@@ -1426,9 +1433,23 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
   function removeComparisonItem(itemId: string) {
     setComparisonItems((items) => items.filter((item) => item.id !== itemId));
     setComparison(null);
+    setComparisonReturn(null);
     setLastComparedState(null);
     setReportPreview(null);
     setComparisonMessage(null);
+  }
+
+  function createCandidateComparisonItems() {
+    const byId = new Map<string, ComparisonItem>();
+
+    for (const candidate of exploreCandidates.slice(0, 3)) {
+      const point = exploreCandidateToSelectedPoint(candidate);
+      const object = exploreCandidateToSelectedObject(candidate);
+      const item = createComparisonItem(point, object, selectedScenario);
+      byId.set(item.id, item);
+    }
+
+    return Array.from(byId.values());
   }
 
   function runComparison() {
@@ -1438,6 +1459,7 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
     }
 
     setAnalysis(null);
+    setComparisonReturn(null);
     setAnalysisError(null);
     setComparisonMessage(null);
     const comparisonResult = {
@@ -1460,9 +1482,136 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
     setReportPreview(null);
   }
 
+  function runCandidateComparison() {
+    const candidateItems = createCandidateComparisonItems();
+
+    if (candidateItems.length < 2) {
+      setComparisonMessage("Criteria search needs at least 2 candidates before comparing.");
+      return;
+    }
+
+    const comparisonResult = {
+      ...createMockComparison(candidateItems, customQuery),
+      project: activeProject
+    };
+
+    setComparisonItems(candidateItems);
+    setAnalysis(null);
+    setComparisonReturn(null);
+    setAnalysisError(null);
+    setComparisonMessage("Criteria-first shortlist ranked. Open any candidate for its dashboard.");
+    setComparison(comparisonResult);
+    setLastComparedState({
+      query: normalizeQuery(customQuery),
+      scenarioId: selectedScenario,
+      comparisonSignature: createComparisonSignature(candidateItems),
+      settingsSignature: createExploreSettingsSignature({
+        audience: selectedExploreAudience,
+        role: selectedExploreRole,
+        interactionMode: exploreInteractionMode,
+        filters: exploreFilters
+      })
+    });
+    void persistComparisonSet(comparisonResult);
+    setReportPreview(null);
+  }
+
+  function openComparisonItemDashboard(item: ComparisonItem) {
+    const itemSelectedObject = item.selectedObject ?? null;
+    const itemSelectedAoi = item.selectedAoi ?? null;
+    const scenario = analysisScenarios.find((scenarioItem) => scenarioItem.id === item.scenarioId) ?? analysisScenarios[0];
+    const uploadedDataContext = buildUploadedDataContext(uploadedDatasets, item.point, itemSelectedObject);
+    const candidateAnalysis = withUploadedDataContext(
+      withOpenGeodataContext({
+        ...createMockExpressAnalysis(
+          item.point,
+          item.scenarioId,
+          customQuery,
+          itemSelectedObject,
+          itemSelectedAoi
+        ),
+        project: activeProject,
+        analysisMode: "mock_fallback",
+        confidenceLevel: "medium",
+        analysisNotice: "Opened from the criteria-first shortlist. Uses deterministic screening context; official validation required.",
+        generatedAt: new Date().toISOString(),
+        analysisTarget: itemSelectedAoi
+          ? {
+              id: itemSelectedAoi.id,
+              type: "user-drawn-aoi" as const,
+              label: itemSelectedAoi.name,
+              coordinates: itemSelectedAoi.centroid,
+              geometry: itemSelectedAoi.geometry,
+              bbox: itemSelectedAoi.bbox,
+              measurements: itemSelectedAoi.measurements,
+              sourceMode: "user-drawn" as const,
+              officialStatus: "official-validation-required" as const
+            }
+          : itemSelectedObject?.analysisTarget ?? {
+              id: `point-${item.point.latitude.toFixed(6)}-${item.point.longitude.toFixed(6)}`,
+              type: "point" as const,
+              label: item.name,
+              coordinates: item.point,
+              geometry: {
+                type: "Point",
+                coordinates: [item.point.longitude, item.point.latitude]
+              },
+              sourceMode: "demo" as const,
+              officialStatus: "not-official" as const
+            }
+      }),
+      uploadedDataContext
+    );
+    const activeComparison = comparison ?? comparisonReturn;
+    const activeCandidateId = itemSelectedObject?.analysisTarget?.id ?? itemSelectedObject?.id.replace(/^explore-/, "") ?? null;
+
+    setSelectedPoint(item.point);
+    setSelectedObject(itemSelectedObject);
+    setSelectedAoi(itemSelectedAoi);
+    setSelectedScenario(item.scenarioId);
+    setSelectedExploreCandidateId(activeCandidateId);
+    setComparisonReturn(activeComparison);
+    setComparison(null);
+    setAnalysis(candidateAnalysis);
+    setLastAnalyzedState({
+      query: normalizeQuery(customQuery),
+      scenarioId: item.scenarioId,
+      targetSignature: createTargetSignature(item.point, itemSelectedObject, itemSelectedAoi),
+      settingsSignature: createExploreSettingsSignature({
+        audience: selectedExploreAudience,
+        role: selectedExploreRole,
+        interactionMode: exploreInteractionMode,
+        filters: exploreFilters
+      })
+    });
+    setLastComparedState(null);
+    setReportPreview(null);
+    setComparisonMessage(null);
+    setAnalysisError(null);
+    setIsAnalyzing(false);
+    setMarketContext(null);
+    saveAnalysisHistory(candidateAnalysis, scenario.label);
+    void persistAnalysisRun(candidateAnalysis, scenario.label);
+  }
+
+  function returnToCandidateComparison() {
+    if (!comparisonReturn) {
+      backToMap();
+      return;
+    }
+
+    setAnalysis(null);
+    setComparison(comparisonReturn);
+    setSelectedExploreCandidateId(null);
+    setComparisonReturn(null);
+    setReportPreview(null);
+    setAnalysisError(null);
+  }
+
   function backToMap() {
     setAnalysis(null);
     setComparison(null);
+    setComparisonReturn(null);
     setReportPreview(null);
     setLastAnalyzedState(null);
     setLastComparedState(null);
@@ -1856,6 +2005,7 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
     setSelectedAoi(null);
     setAnalysis(null);
     setComparison(null);
+    setComparisonReturn(null);
     setReportPreview(null);
     setLastAnalyzedState(null);
     setLastComparedState(null);
@@ -2050,7 +2200,16 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
   }
 
   async function runExpressAnalysis() {
-    if (!selectedPoint || isAnalyzing) {
+    if (isAnalyzing) {
+      return;
+    }
+
+    if (hasCriteriaFirstCandidateSet) {
+      runCandidateComparison();
+      return;
+    }
+
+    if (!selectedPoint) {
       return;
     }
 
@@ -2063,6 +2222,7 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
     setIsAnalyzing(true);
     setAnalysisError(null);
     setComparison(null);
+    setComparisonReturn(null);
     setReportPreview(null);
     setLastComparedState(null);
 
@@ -2298,6 +2458,14 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
     interactionMode: exploreInteractionMode,
     filters: exploreFilters
   });
+  const hasCriteriaFirstCandidateSet = Boolean(
+    exploreInteractionMode === "criteria_first" &&
+      !selectedExploreCandidateId &&
+      exploreCandidates.length >= 2
+  );
+  const activeComparisonNavigationItemId = comparisonReturn?.items.find((item) =>
+    createTargetSignature(item.item.point, item.item.selectedObject ?? null, item.item.selectedAoi ?? null) === currentTargetSignature
+  )?.item.id;
   const isAnalysisUpToDate = Boolean(
     analysis &&
       lastAnalyzedState &&
@@ -2327,13 +2495,19 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
           label: isAnalyzing ? "Continuing..." : "Continue Comparison",
           disabled: isAnalyzing || comparisonItems.length < 2,
           action: runComparison
-        }
-    : comparisonItems.length >= 2
-      ? {
-          label: "Compare Selected",
-          disabled: isAnalyzing,
-          action: runComparison
-        }
+      }
+    : hasCriteriaFirstCandidateSet
+        ? {
+            label: "Compare Candidates",
+            disabled: isAnalyzing,
+            action: runCandidateComparison
+          }
+      : comparisonItems.length >= 2
+        ? {
+            label: "Compare Selected",
+            disabled: isAnalyzing,
+            action: runComparison
+          }
       : analysis
         ? isAnalysisUpToDate
           ? {
@@ -2345,17 +2519,17 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
             }
           : {
               label: isAnalyzing ? "Continuing..." : "Continue Analysis",
-              disabled: !selectedPoint || isAnalyzing,
+              disabled: (!selectedPoint && !hasCriteriaFirstCandidateSet) || isAnalyzing,
               action: runExpressAnalysis
             }
         : {
             label: isAnalyzing ? "Analyzing..." : "Run Express Analysis",
-            disabled: !selectedPoint || isAnalyzing,
+            disabled: (!selectedPoint && !hasCriteriaFirstCandidateSet) || isAnalyzing,
             action: runExpressAnalysis
           };
 
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden lg:grid-cols-[minmax(0,1fr)_400px]">
+    <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden lg:grid-cols-[minmax(0,1fr)_380px]">
       {reportPreview === "analysis" && analysis ? (
         <ReportPreview key={`report-${analysis.id}`} mode="analysis" analysis={analysis} onBack={() => setReportPreview(null)} />
       ) : reportPreview === "comparison" && comparison ? (
@@ -2368,6 +2542,7 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
           onExportComparison={() => {
             void exportPrintableReport("comparison");
           }}
+          onOpenCandidateDashboard={openComparisonItemDashboard}
         />
       ) : analysis ? (
         <ExpressDashboard
@@ -2377,6 +2552,14 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
           onExportReport={() => {
             void exportPrintableReport("analysis");
           }}
+          candidateNavigation={comparisonReturn
+            ? {
+                items: comparisonReturn.items.map((item) => item.item),
+                activeItemId: activeComparisonNavigationItemId,
+                onOpenItem: openComparisonItemDashboard,
+                onBackToComparison: returnToCandidateComparison
+              }
+            : undefined}
         />
       ) : (
         <MapWorkspace

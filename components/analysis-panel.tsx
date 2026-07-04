@@ -1070,9 +1070,9 @@ export function AnalysisPanel({
   }
 
   return (
-    <aside className="flex h-full max-w-full flex-col overflow-hidden border-l border-line bg-white lg:h-[calc(100vh-72px)] lg:w-[400px]">
-      <section className="min-h-0 flex-1 min-w-0 max-w-full overflow-y-auto overflow-x-hidden p-4 pb-6 [scrollbar-width:thin]">
-        <div className="grid min-w-0 gap-3">
+    <aside className="flex h-full max-w-full flex-col overflow-hidden border-l border-line bg-white lg:h-[calc(100vh-72px)] lg:w-[380px]">
+      <section className="min-h-0 flex-1 min-w-0 max-w-full overflow-y-auto overflow-x-hidden p-3 pb-5 [scrollbar-width:thin]">
+        <div className="grid min-w-0 gap-2">
           <section className="min-w-0 max-w-full overflow-hidden rounded-lg border border-line bg-white p-2">
             <div className="grid grid-cols-2 gap-1 rounded-md bg-surface p-1">
               {(["b2b", "b2c"] as ExploreAudience[]).map((audience) => (
@@ -1092,7 +1092,7 @@ export function AnalysisPanel({
             </div>
           </section>
 
-          <section className="min-w-0 max-w-full overflow-hidden rounded-lg border border-line bg-surface p-3">
+          <section className="min-w-0 max-w-full overflow-hidden rounded-lg border border-line bg-surface p-2.5">
             <div className="flex items-center justify-between gap-3">
               <label
                 htmlFor="active-project"
@@ -1104,31 +1104,33 @@ export function AnalysisPanel({
                 Projects
               </Link>
             </div>
-            <select
-              id="active-project"
-              value={activeProject.projectKey}
-              onChange={(event) => onProjectChange(event.target.value)}
-              className="mt-1 h-9 w-full rounded-md border border-line bg-white px-3 text-sm font-semibold text-ink outline-none transition focus:border-brand"
-            >
-              {projects.map((project) => (
-                <option key={project.projectKey} value={project.projectKey}>
-                  {project.name}
-                </option>
-              ))}
-            </select>
-            <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+            <div className="mt-1 grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+              <select
+                id="active-project"
+                value={activeProject.projectKey}
+                onChange={(event) => onProjectChange(event.target.value)}
+                className="h-9 min-w-0 rounded-md border border-line bg-white px-2 text-xs font-semibold text-ink outline-none transition focus:border-brand"
+              >
+                {projects.map((project) => (
+                  <option key={project.projectKey} value={project.projectKey}>
+                    {project.name}
+                  </option>
+                ))}
+              </select>
               <button
                 type="button"
                 onClick={() => {
                   setProjectMarketDraft(activeProject.geography || "Dubai / UAE");
                   setIsProjectCreateOpen((value) => !value);
                 }}
-                className="inline-flex h-8 items-center justify-center rounded-md bg-brand px-3 text-xs font-semibold text-white transition hover:bg-[#113f50]"
+                className="inline-flex h-9 items-center justify-center rounded-md bg-brand px-3 text-xs font-semibold text-white transition hover:bg-[#113f50]"
               >
-                Create project
+                Create
               </button>
+            </div>
+            <div className="mt-1 flex justify-end">
               <details className="rounded-md border border-line bg-white px-2">
-                <summary className="flex h-8 cursor-pointer list-none items-center text-xs font-semibold text-muted">
+                <summary className="flex h-7 cursor-pointer list-none items-center text-[11px] font-semibold text-muted">
                   Details
                 </summary>
                 <div className="border-t border-line py-2 text-[11px] leading-5 text-muted">
@@ -1181,8 +1183,8 @@ export function AnalysisPanel({
             ) : null}
           </section>
 
-          <section className="min-w-0 max-w-full overflow-hidden rounded-lg border border-line bg-white p-3">
-            <div className="grid gap-2">
+          <section className="min-w-0 max-w-full overflow-hidden rounded-lg border border-line bg-white p-2.5">
+            <div className="grid grid-cols-2 gap-2">
               <label className="min-w-0">
                 <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
                   Role
@@ -1218,26 +1220,31 @@ export function AnalysisPanel({
               </label>
             </div>
 
-            <div className="mt-3 rounded-md border border-line bg-surface p-2">
+            <div className="mt-2 rounded-md border border-line bg-surface px-2 py-1.5">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <p className="truncate text-xs font-semibold text-ink">
                     {exploreScenario.primaryCTA}
                   </p>
-                  <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted">
+                  <p className="mt-0.5 line-clamp-1 text-[11px] leading-4 text-muted">
                     {exploreScenario.subtitle}
                   </p>
                 </div>
-                <span className="shrink-0 rounded-full bg-white px-2 py-1 text-[10px] font-semibold text-brand">
+                <span className="shrink-0 rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-brand">
                   {selectedExploreRole.label}
                 </span>
               </div>
-              <p className="mt-2 line-clamp-2 rounded-md bg-white px-2 py-1.5 text-[11px] leading-4 text-muted">
-                {exploreRequiredCaveat}
-              </p>
+              <details className="mt-1 rounded-md bg-white px-2">
+                <summary className="flex h-6 cursor-pointer list-none items-center text-[10px] font-semibold uppercase tracking-[0.1em] text-muted">
+                  Validation caveat
+                </summary>
+                <p className="border-t border-line py-1.5 text-[11px] leading-4 text-muted">
+                  {exploreRequiredCaveat}
+                </p>
+              </details>
             </div>
 
-            <div className="mt-3">
+            <div className="mt-2">
               <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
                 Interaction mode
               </p>
@@ -1264,13 +1271,13 @@ export function AnalysisPanel({
               open={isExploreSetupOpen}
               onToggle={(event) => setIsExploreSetupOpen(event.currentTarget.open)}
             >
-              <summary className="flex min-h-9 cursor-pointer list-none items-center justify-between gap-2 py-2 text-xs font-semibold text-ink">
+              <summary className="flex min-h-8 cursor-pointer list-none items-center justify-between gap-2 py-1.5 text-xs font-semibold text-ink">
                 <span>Scenario setup</span>
                 <span className="shrink-0 rounded-full bg-white px-2 py-1 text-[10px] font-semibold text-brand">
                   {exploreScenario.inputSchema.length} controls
                 </span>
               </summary>
-              <div className="grid max-h-64 gap-2 overflow-y-auto border-t border-line py-2 [scrollbar-width:thin]">
+              <div className="grid max-h-56 gap-2 overflow-y-auto border-t border-line py-2 [scrollbar-width:thin]">
                 {exploreScenario.inputSchema.map((config) => (
                   <ExploreSetupControl
                     key={config.id}
@@ -1291,7 +1298,7 @@ export function AnalysisPanel({
               </label>
               <textarea
                 id="custom-query"
-                rows={2}
+                rows={3}
                 value={customQuery}
                 onChange={(event) => onCustomQueryChange(event.target.value)}
                 placeholder={
@@ -1303,7 +1310,7 @@ export function AnalysisPanel({
               />
             </div>
 
-            <div className="mt-3 rounded-md border border-line bg-surface p-2">
+            <div className="mt-2 rounded-md border border-line bg-surface p-2">
               <div className="flex items-center justify-between gap-2">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
                   Candidate preview
@@ -1341,13 +1348,13 @@ export function AnalysisPanel({
                   );
                 })}
               </div>
-              <p className="mt-2 text-[11px] leading-4 text-muted">
+              <p className="mt-1 text-[11px] leading-4 text-muted">
                 Select a candidate or map overlay to use it as the analysis target.
               </p>
             </div>
           </section>
 
-          <section className="min-w-0 max-w-full overflow-hidden rounded-lg border border-line bg-surface p-3">
+          <section className="min-w-0 max-w-full overflow-hidden rounded-lg border border-line bg-surface p-2.5">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">
@@ -1685,17 +1692,17 @@ export function AnalysisPanel({
 
       </section>
 
-      <section className="min-w-0 max-w-full flex-shrink-0 border-t border-line bg-white p-4">
-        <p className="mb-2 text-xs leading-5 text-muted">
-          {primaryCtaDisabled && !hasSelectedPoint
-            ? "Select a map point, AOI, object, or candidate preview to begin."
-            : activeWorkflowNote}
-        </p>
+      <section className="min-w-0 max-w-full flex-shrink-0 border-t border-line bg-white p-3">
+        {primaryCtaDisabled && !hasSelectedPoint ? (
+          <p className="mb-2 text-xs leading-5 text-muted">
+            Select a map point, AOI, object, or candidate preview to begin.
+          </p>
+        ) : null}
         <button
           type="button"
           disabled={!hasSelectedPoint}
           onClick={onAddToComparison}
-          className="mb-2 inline-flex h-9 w-full max-w-full items-center justify-center rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink transition hover:border-brand disabled:cursor-not-allowed disabled:bg-surface disabled:text-muted"
+          className="mb-2 inline-flex h-8 w-full max-w-full items-center justify-center rounded-md border border-line bg-white px-4 text-xs font-semibold text-ink transition hover:border-brand disabled:cursor-not-allowed disabled:bg-surface disabled:text-muted"
         >
           Add to compare
         </button>
@@ -1703,7 +1710,7 @@ export function AnalysisPanel({
           type="button"
           disabled={primaryCtaDisabled}
           onClick={onPrimaryCta}
-          className="inline-flex h-11 w-full max-w-full items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white transition hover:bg-[#113f50] disabled:cursor-not-allowed disabled:bg-[#c9d2d7] disabled:text-white"
+          className="inline-flex h-10 w-full max-w-full items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white transition hover:bg-[#113f50] disabled:cursor-not-allowed disabled:bg-[#c9d2d7] disabled:text-white"
         >
           {primaryCtaLabel}
         </button>

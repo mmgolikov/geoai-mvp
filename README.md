@@ -2,14 +2,14 @@
 
 GeoAI is a Next.js spatial decision intelligence MVP for evaluating Dubai real estate, infrastructure, construction, and climate-risk scenarios. The current version is an investor demo prototype, not a production-ready or pilot-ready product: it uses Mapbox for the workspace, synthetic/demo geospatial layers, OSM-style sample baseline fixtures, deterministic mock scoring, optional OpenAI-powered narrative analysis, comparison dashboards, and print-friendly report previews.
 
-Pilot UX Simplification v3.0 makes the app workspace-first for pilot screening: landing now routes directly into `/workspace`, `/projects` is a cleaner Project Hub, and public guided-demo/readiness console framing is hidden from the primary UX. Outputs remain screening hypotheses requiring official/client validation.
+Pilot UX v3.1 keeps the app workspace-first and adds a more decision-intelligence-oriented flow: compact command panel controls, criteria-first candidate comparison, BI-style analysis dashboards, ranked shortlist actions, and a clearer landing narrative. Outputs remain screening hypotheses requiring official/client validation.
 
 OpenAI is optional. If `OPENAI_API_KEY` is not configured, GeoAI automatically uses the deterministic mock fallback so the product remains fully usable for demos.
 
 ## Implemented Features
 
 - Homepage and `/workspace` application shell
-- GeoAI Explore v1.1 embedded scenario command panel at `/workspace` and `/explore` with B2C/B2B roles, scenario setup, deterministic demo candidates, map overlays and direct Workspace analysis targeting
+- GeoAI Explore v1.1 embedded scenario command panel at `/workspace` and `/explore` with B2C/B2B roles, scenario setup, deterministic demo candidates, map overlays, criteria-first shortlist comparison and direct Workspace analysis targeting
 - Dubai-centered Mapbox workspace
 - Point selection with marker and coordinates
 - Polygon AOI drawing workflow with vertex handles, preview edge, validation and approximate area/perimeter measurements
@@ -139,6 +139,7 @@ See [Repository Mode & Fallback Consistency v2.0.2](docs/REPOSITORY_MODE_FALLBAC
 
 ## Latest Release Notes
 
+- [GeoAI Pilot UX v3.1 - BI Dashboard and Candidate Comparison Flow](docs/RELEASE_GEOAI_PILOT_UX_V31_BI_DASHBOARD.md)
 - [GeoAI Pilot UX Simplification v3.0](docs/RELEASE_GEOAI_PILOT_UX_SIMPLIFICATION_V30.md)
 - [GeoAI Explore v1.1 - Embedded Scenario Command Panel](docs/RELEASE_GEOAI_EXPLORE_V11_EMBEDDED_COMMAND_PANEL.md)
 - [GeoAI Explore v1 - Scenario-first MVP Shell](docs/RELEASE_GEOAI_EXPLORE_V1_SCENARIO_SHELL.md)
@@ -211,6 +212,12 @@ v2.9 adds a stricter guard: `GEOAI_ALLOW_SUPABASE_TARGET` must also identify the
 GeoAI Explore is now embedded in the workspace command panel. `/workspace` keeps the standard map-first flow, while `/explore` opens the same workspace layout with Explore setup expanded by default. The panel supports B2C and B2B audience selection, role-based personalization state for future onboarding, 10 data-driven scenarios, deterministic Dubai sample candidates, candidate map overlays and direct candidate selection as the current analysis target.
 
 Explore v1.1 remains an MVP screening layer. Candidate data is sample/demo/open-context only and does not connect live official Dubai sources. All outputs are screening hypotheses and require official/client validation before legal, cadastral, zoning, planning, ownership, valuation, title, entitlement, lending, purchase, rental or development decisions.
+
+## GeoAI Pilot UX v3.1
+
+GeoAI Pilot UX v3.1 upgrades the pilot surface for faster decision review. The right-side command panel is more compact, criteria-first searches can open a ranked candidate comparison before a specific target is selected, and each candidate can be opened as an individual BI-style dashboard with a path back to the shortlist. The dashboard now emphasizes gauges, score bars, matrices, scenario sections, validation gaps and next actions.
+
+The landing page remains lightweight and workspace-oriented, but now explains the product narrative, screening layers and outputs more clearly. `/explore` renders the workspace-style alias with Explore/scenario defaults.
 
 ## Market Context Adapter
 

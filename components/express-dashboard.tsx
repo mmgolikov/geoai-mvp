@@ -8,12 +8,20 @@ import { deriveDecisionPosture, deriveDecisionRationale } from "@/src/lib/decisi
 import { userDrawnAoiSourceCode, userDrawnAoiSourceLabel } from "@/src/lib/aoi-library";
 import { getDashboardSections, type DashboardSectionDefinition, type DashboardSectionId } from "@/src/lib/dashboard/section-registry";
 import { formatArea, formatPerimeter } from "@/src/lib/polygon-aoi";
-import type { ExpressAnalysis, ScoreKey } from "@/src/types/geo";
+import type { ComparisonItem, ExpressAnalysis, ScoreKey } from "@/src/types/geo";
 
 type ExpressDashboardProps = {
   analysis: ExpressAnalysis;
   onBackToMap: () => void;
   onExportReport: () => void;
+  candidateNavigation?: CandidateDashboardNavigation;
+};
+
+type CandidateDashboardNavigation = {
+  items: ComparisonItem[];
+  activeItemId?: string;
+  onOpenItem: (item: ComparisonItem) => void;
+  onBackToComparison: () => void;
 };
 
 const scoreOrder: ScoreKey[] = [
@@ -51,6 +59,151 @@ function scoreInterpretation(scoreKey: ScoreKey, value: number) {
   };
 
   return `${scoreBand} sample/open signal based on ${drivers[scoreKey]}. Requires official source validation before underwriting.`;
+}
+
+function scoreBarTone(scoreKey: ScoreKey, value: number) {
+  const riskMetric = scoreKey === "climateHeatRisk" || scoreKey === "overallRisk";
+
+  if (riskMetric) {
+    if (value >= 70) return "bg-[#c75f2d]";
+    if (value >= 50) return "bg-[#d7a928]";
+    return "bg-brand";
+  }
+
+  if (value >= 75) return "bg-brand";
+  if (value >= 55) return "bg-[#d7a928]";
+  return "bg-[#c75f2d]";
+}
+
+function ScoreGauge({
+  score,
+  label,
+  detail
+}: {
+  score: number;
+  label: string;
+  detail: string;
+}) {
+  const radius = 44;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference - (Math.max(0, Math.min(100, score)) / 100) * circumference;
+
+  return (
+    <div className="flex h-full min-h-[172px] items-center gap-4 rounded-md border border-line bg-white p-4 shadow-sm">
+      <div className="relative h-[112px] w-[112px] shrink-0">
+        <svg className="h-full w-full -rotate-90" viewBox="0 0 112 112" aria-hidden="true">
+          <circle cx="56" cy="56" r={radius} stroke="#eef2f1" strokeWidth="12" fill="none" />
+          <circle
+            cx="56"
+            cy="56"
+            r={radius}
+            stroke="#1f5b67"
+            strokeWidth="12"
+            strokeLinecap="round"
+            fill="none"
+            strokeDasharray={circumference}
+            strokeDashoffset={offset}
+          />
+        </svg>
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <span className="text-3xl font-semibold text-brand">{score}</span>
+          <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">/100</span>
+        </div>
+      </div>
+      <div className="min-w-0">
+        <p className="safe-line-1 text-xs font-semibold uppercase tracking-[0.12em] text-muted">{label}</p>
+        <p className="safe-line-3 mt-2 text-sm leading-6 text-ink">{detail}</p>
+      </div>
+    </div>
+  );
+}
+
+function SignalBar({
+  label,
+  value,
+  detail,
+  scoreKey
+}: {
+  label: string;
+  value: number;
+  detail?: string;
+  scoreKey: ScoreKey;
+}) {
+  return (
+    <div className="rounded-md border border-line bg-white p-3">
+      <div className="flex items-center justify-between gap-3">
+        <p className="safe-line-1 text-xs font-semibold text-ink">{label}</p>
+        <span className="text-xs font-black text-ink">{value}</span>
+      </div>
+      <div className="mt-2 h-2 overflow-hidden rounded-full bg-surface">
+        <div className={`h-full rounded-full ${scoreBarTone(scoreKey, value)}`} style={{ width: `${value}%` }} />
+      </div>
+      {detail ? <p className="safe-line-1 mt-2 text-[11px] leading-4 text-muted">{detail}</p> : null}
+    </div>
+  );
+}
+
+function DriverRiskMatrix({
+  opportunities,
+  risks
+}: {
+  opportunities: string[];
+  risks: string[];
+}) {
+  const matrixRows = [
+    ["Upside", opportunities[0] ?? "Opportunity signals available below"],
+    ["Constraint", risks[0] ?? "Risk signals available below"],
+    ["Validation", risks[1] ?? "Official source checks remain required"]
+  ];
+
+  return (
+    <div className="grid gap-2">
+      {matrixRows.map(([label, value]) => (
+        <div key={label} className="grid grid-cols-[92px_minmax(0,1fr)] gap-2 rounded-md border border-line bg-white p-3">
+          <span className="rounded-md bg-surface px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted">
+            {label}
+          </span>
+          <span className="safe-line-2 text-xs leading-5 text-ink">{value}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function CandidateDashboardSwitcher({ navigation }: { navigation: CandidateDashboardNavigation }) {
+  return (
+    <div className="flex flex-col gap-2 rounded-lg border border-line bg-white p-3 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+      <div className="min-w-0">
+        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Candidate dashboard</p>
+        <p className="safe-line-1 mt-1 text-sm font-semibold text-ink">Switch between ranked shortlist candidates</p>
+      </div>
+      <div className="flex min-w-0 flex-col gap-2 sm:flex-row">
+        <select
+          value={navigation.activeItemId ?? ""}
+          onChange={(event) => {
+            const nextItem = navigation.items.find((item) => item.id === event.target.value);
+            if (nextItem) {
+              navigation.onOpenItem(nextItem);
+            }
+          }}
+          className="h-10 min-w-0 rounded-md border border-line bg-surface px-3 text-sm font-semibold text-ink outline-none transition focus:border-brand sm:w-72"
+        >
+          {navigation.items.map((item) => (
+            <option key={item.id} value={item.id}>
+              {item.name}
+            </option>
+          ))}
+        </select>
+        <button
+          type="button"
+          onClick={navigation.onBackToComparison}
+          className="inline-flex h-10 items-center justify-center rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink transition hover:border-brand"
+        >
+          Ranked shortlist
+        </button>
+      </div>
+    </div>
+  );
 }
 
 function AnalysisCard({
@@ -438,28 +591,75 @@ function DashboardSectionBlock({
 }) {
   const items = createDashboardSectionItems(section.id, analysis, decisionPosture)
     .filter((item): item is string => typeof item === "string" && item.trim().length > 0);
+  const isRiskSection = section.id === "risks-constraints" || section.id === "validation-gaps";
+  const isNextActionSection = section.id === "next-actions";
+  const isEvidenceSection = section.id === "evidence-appendix";
 
   return (
     <AnalysisCard id={`section-${section.id}`}>
       <AnalysisCardHeader title={section.title} subtitle={section.summary} />
-      <div className="mt-4 grid gap-3 md:grid-cols-2">
-        {items.length > 0 ? (
-          items.map((item, index) => (
-            <div key={createStableKey(section.id, item, index)} className="rounded-md border border-line bg-surface p-4 text-sm leading-6 text-muted">
-              {item}
-            </div>
-          ))
-        ) : (
-          <div className="rounded-md border border-line bg-surface p-4 text-sm leading-6 text-muted">
-            No additional section detail is available for this screening run.
+      {isEvidenceSection ? (
+        <details className="mt-4 rounded-md border border-line bg-surface p-4" open>
+          <summary className="cursor-pointer list-none text-sm font-semibold text-ink">
+            Evidence sources and caveats
+          </summary>
+          <div className="mt-4">
+            <EvidenceSourceCards evidence={analysis.evidence.slice(0, 4)} />
           </div>
-        )}
-      </div>
+        </details>
+      ) : isNextActionSection ? (
+        <ol className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {items.length > 0 ? items.map((item, index) => (
+            <li key={createStableKey(section.id, item, index)} className="flex gap-3 rounded-md border border-line bg-white p-4 shadow-sm">
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand text-sm font-semibold text-white">
+                {index + 1}
+              </span>
+              <span className="safe-line-4 text-sm leading-6 text-muted">{item}</span>
+            </li>
+          )) : null}
+        </ol>
+      ) : isRiskSection ? (
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+          {items.length > 0 ? items.map((item, index) => (
+            <div key={createStableKey(section.id, item, index)} className="grid grid-cols-[80px_minmax(0,1fr)] gap-3 rounded-md border border-line bg-white p-4 shadow-sm">
+              <span className={`h-fit rounded-md px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.1em] ${
+                section.id === "risks-constraints" ? "bg-[#fff4ed] text-[#9f3412]" : "bg-[#fff8db] text-[#8a6a12]"
+              }`}>
+                {section.id === "risks-constraints" ? "Risk" : "Gap"}
+              </span>
+              <span className="safe-line-4 text-sm leading-6 text-muted">{item}</span>
+            </div>
+          )) : null}
+        </div>
+      ) : (
+        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {items.length > 0 ? (
+            items.map((item, index) => (
+              <div key={createStableKey(section.id, item, index)} className="rounded-md border border-line bg-white p-4 shadow-sm">
+                <div className="mb-3 flex items-center gap-2">
+                  <span className="h-2 w-8 rounded-full bg-brand" />
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">Signal {index + 1}</span>
+                </div>
+                <p className="safe-line-4 text-sm leading-6 text-muted">{item}</p>
+              </div>
+            ))
+          ) : (
+            <div className="rounded-md border border-line bg-white p-4 text-sm leading-6 text-muted shadow-sm">
+              No additional section detail is available for this screening run.
+            </div>
+          )}
+        </div>
+      )}
     </AnalysisCard>
   );
 }
 
-export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: ExpressDashboardProps) {
+export function ExpressDashboard({
+  analysis,
+  onBackToMap,
+  onExportReport,
+  candidateNavigation
+}: ExpressDashboardProps) {
   const dashboardRef = useRef<HTMLElement | null>(null);
   const analysisBadge = analysis.analysisMode === "openai" ? "AI analysis" : "Sample/open context";
   const modeLabel = analysis.analysisMode === "openai" ? "AI-powered" : "Sample/open context";
@@ -565,6 +765,8 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
             </div>
           </header>
 
+          {candidateNavigation ? <CandidateDashboardSwitcher navigation={candidateNavigation} /> : null}
+
           <div className="grid min-h-0 flex-1 items-stretch gap-3 xl:grid-cols-[minmax(0,1.05fr)_0.95fr]">
             <MapContextCard
               title="Map Context"
@@ -585,22 +787,60 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
               analysisTarget={analysis.analysisTarget ?? null}
             />
 
-            <section className="flex h-full min-h-[420px] min-w-0 flex-col overflow-hidden rounded-lg border border-line bg-white p-4 shadow-sm print:h-auto print:min-h-0 print:overflow-visible">
-              <div className="shrink-0 rounded-md border border-[#d6c391] bg-[#fff9e8] p-3">
-                <p className="safe-line-1 text-xs font-semibold uppercase tracking-[0.12em] text-[#6f5817]">Decision Posture</p>
-                <p className="safe-line-1 mt-2 text-base font-semibold leading-6 text-ink">{decisionPosture}</p>
-                <p className="safe-line-2 mt-1 text-sm leading-5 text-muted">
-                  {decisionRationalePreview}
-                </p>
+            <section className="flex h-full min-h-[420px] min-w-0 flex-col overflow-hidden rounded-lg border border-line bg-surface p-4 shadow-sm print:h-auto print:min-h-0 print:overflow-visible">
+              <div className="grid shrink-0 gap-3 lg:grid-cols-[minmax(0,1fr)_240px]">
+                <div className="rounded-md border border-[#d6c391] bg-[#fff9e8] p-4">
+                  <p className="safe-line-1 text-xs font-semibold uppercase tracking-[0.12em] text-[#6f5817]">Decision posture</p>
+                  <p className="safe-line-2 mt-2 text-lg font-semibold leading-6 text-ink">{decisionPosture}</p>
+                  <p className="safe-line-3 mt-2 text-sm leading-5 text-muted">
+                    {decisionRationalePreview}
+                  </p>
+                </div>
+                <ScoreGauge
+                  score={overallSuitability}
+                  label="Suitability"
+                  detail={`${analysis.confidenceLevel ?? "Medium"} confidence; validation required before decision-grade use.`}
+                />
               </div>
               <p className="safe-line-3 mt-3 text-sm leading-6 text-muted xl:text-[15px]">{summaryPreview}</p>
               {analysis.analysisNotice ? (
-                <p className="safe-line-2 mt-3 rounded-md border border-line bg-surface px-3 py-2 text-xs leading-5 text-muted">
+                <p className="safe-line-2 mt-3 rounded-md border border-line bg-white px-3 py-2 text-xs leading-5 text-muted">
                   {analysis.analysisNotice}
                 </p>
               ) : null}
-              <div className="mt-3 grid min-h-0 flex-1 gap-2 overflow-y-auto pr-1 [scrollbar-width:thin] sm:grid-cols-2">
-                {summaryCards.map((card) => (
+              <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                {screeningSignals.map(([label, value]) => (
+                  <div key={`${label}-${value}`} className="rounded-md border border-line bg-white px-3 py-2">
+                    <p className="safe-line-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">{label}</p>
+                    <p className="safe-line-2 mt-1 text-xs font-semibold leading-5 text-ink">{value}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-3 grid min-h-0 flex-1 gap-3 overflow-y-auto pr-1 [scrollbar-width:thin] lg:grid-cols-[minmax(0,1fr)_minmax(260px,0.8fr)]">
+                <div className="grid content-start gap-2">
+                  {(["developmentPotential", "investmentAttractiveness", "accessibility", "infrastructureReadiness"] as ScoreKey[]).map((scoreKey) => (
+                    <SignalBar
+                      key={scoreKey}
+                      scoreKey={scoreKey}
+                      label={analysis.scoreLabels[scoreKey]}
+                      value={analysis.scores[scoreKey]}
+                      detail={scoreInterpretation(scoreKey, analysis.scores[scoreKey])}
+                    />
+                  ))}
+                </div>
+                <DriverRiskMatrix opportunities={analysis.opportunities} risks={analysis.risks} />
+              </div>
+              <div className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+                <AnalysisMetricCard label="Analysis mode" value={modeLabel} className="min-h-[64px] bg-white" />
+                <AnalysisMetricCard
+                  label="Data confidence"
+                  value={limitationPreview}
+                  detail={createMetadataDetail("Data confidence", analysis, marketMetricsMatch?.importedMetricsUsed)}
+                  className="min-h-[64px] bg-white"
+                />
+              </div>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                {summaryCards.slice(0, 4).map((card) => (
                   <DashboardSummaryCard
                     key={`${card.label}-${card.targetId}`}
                     label={card.label}
@@ -609,15 +849,6 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
                     onClick={() => scrollToDashboardSection(card.targetId)}
                   />
                 ))}
-              </div>
-              <div className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
-                <AnalysisMetricCard label="Analysis mode" value={modeLabel} className="min-h-[64px]" />
-                <AnalysisMetricCard
-                  label="Data confidence"
-                  value={limitationPreview}
-                  detail={createMetadataDetail("Data confidence", analysis, marketMetricsMatch?.importedMetricsUsed)}
-                  className="min-h-[64px]"
-                />
               </div>
             </section>
           </div>

@@ -3,12 +3,13 @@
 import { useEffect, useRef } from "react";
 import { EvidenceSourceCards } from "@/components/evidence-source-cards";
 import { DecisionSummaryBox } from "@/components/ui/decision-summary-box";
-import type { ComparisonResult, ScoreKey } from "@/src/types/geo";
+import type { ComparisonItem, ComparisonResult, ScoreKey } from "@/src/types/geo";
 
 type ComparisonDashboardProps = {
   comparison: ComparisonResult;
   onBackToMap: () => void;
   onExportComparison: () => void;
+  onOpenCandidateDashboard?: (item: ComparisonItem) => void;
 };
 
 const scoreLabels: Record<ScoreKey, string> = {
@@ -39,6 +40,42 @@ function riskTone(riskLevel: string) {
   return "bg-[#eaf3f1] text-brand";
 }
 
+function scoreBarTone(scoreKey: ScoreKey, value: number) {
+  const riskMetric = scoreKey === "climateHeatRisk" || scoreKey === "overallRisk";
+
+  if (riskMetric) {
+    if (value >= 70) return "bg-[#c75f2d]";
+    if (value >= 50) return "bg-[#d7a928]";
+    return "bg-brand";
+  }
+
+  if (value >= 75) return "bg-brand";
+  if (value >= 55) return "bg-[#d7a928]";
+  return "bg-[#c75f2d]";
+}
+
+function ComparisonScoreBar({
+  scoreKey,
+  value,
+  compact = false
+}: {
+  scoreKey: ScoreKey;
+  value: number;
+  compact?: boolean;
+}) {
+  return (
+    <div className={compact ? "grid gap-1" : "grid gap-1.5"}>
+      <div className="flex items-center justify-between gap-3">
+        <span className="safe-line-1 text-xs font-semibold text-muted">{scoreLabels[scoreKey]}</span>
+        <span className="text-xs font-black text-ink">{value}</span>
+      </div>
+      <div className="h-2 overflow-hidden rounded-full bg-surface">
+        <div className={`h-full rounded-full ${scoreBarTone(scoreKey, value)}`} style={{ width: `${value}%` }} />
+      </div>
+    </div>
+  );
+}
+
 function normalizeKeyText(value: unknown) {
   return String(value ?? "item")
     .toLowerCase()
@@ -65,14 +102,23 @@ function dedupeTextList(items: string[]) {
   });
 }
 
-function ComparisonCard({ scorecard }: { scorecard: ComparisonResult["items"][number] }) {
+function ComparisonCard({
+  scorecard,
+  rank,
+  onOpenDashboard
+}: {
+  scorecard: ComparisonResult["items"][number];
+  rank: number;
+  onOpenDashboard?: (item: ComparisonItem) => void;
+}) {
   const marketMatch = scorecard.marketMetricsMatch;
   const metric = marketMatch?.metrics;
 
   return (
-    <article className="grid h-full min-h-[420px] grid-rows-[92px_92px_78px_96px_minmax(112px,1fr)] rounded-lg border border-line bg-white p-5 shadow-sm">
+    <article className="flex h-full min-h-[440px] min-w-0 flex-col rounded-lg border border-line bg-white p-5 shadow-sm">
       <div className="flex min-w-0 items-start justify-between gap-3 border-b border-line pb-4">
         <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Rank {rank}</p>
           <h2 className="safe-line-2 text-lg font-semibold leading-6 text-ink">{scorecard.item.name}</h2>
           <p className="mt-2 truncate text-sm text-muted">{scorecard.item.itemType} / {scorecard.item.scenarioLabel}</p>
         </div>
@@ -87,6 +133,12 @@ function ComparisonCard({ scorecard }: { scorecard: ComparisonResult["items"][nu
           <p className="mt-1 text-4xl font-semibold text-brand">{scorecard.overallScore}</p>
         </div>
         <span className="rounded-full bg-surface px-3 py-1 text-xs font-semibold text-muted">/100</span>
+      </div>
+
+      <div className="grid gap-2 border-b border-line py-4">
+        {(["investmentAttractiveness", "accessibility", "infrastructureReadiness"] as ScoreKey[]).map((scoreKey) => (
+          <ComparisonScoreBar key={scoreKey} scoreKey={scoreKey} value={scorecard.scores[scoreKey]} compact />
+        ))}
       </div>
 
       <div className="border-b border-line py-4">
@@ -110,11 +162,25 @@ function ComparisonCard({ scorecard }: { scorecard: ComparisonResult["items"][nu
         <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Recommended use</p>
         <p className="safe-line-3 mt-2 text-sm leading-6 text-ink">{scorecard.recommendedUse}</p>
       </div>
+      {onOpenDashboard ? (
+        <button
+          type="button"
+          onClick={() => onOpenDashboard(scorecard.item)}
+          className="mt-auto inline-flex h-10 items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white transition hover:bg-[#113f50]"
+        >
+          Open dashboard
+        </button>
+      ) : null}
     </article>
   );
 }
 
-export function ComparisonDashboard({ comparison, onBackToMap, onExportComparison }: ComparisonDashboardProps) {
+export function ComparisonDashboard({
+  comparison,
+  onBackToMap,
+  onExportComparison,
+  onOpenCandidateDashboard
+}: ComparisonDashboardProps) {
   const dashboardRef = useRef<HTMLElement | null>(null);
   const sharedOpportunities = dedupeTextList(comparison.sharedOpportunities);
   const differentiatedRisks = dedupeTextList(comparison.differentiatedRisks);
@@ -122,6 +188,8 @@ export function ComparisonDashboard({ comparison, onBackToMap, onExportCompariso
   const primaryTradeoff = comparison.whenAnotherMayBeBetter.split(".")[0] || "Alternative options may be better if the validation priority changes.";
   const primaryValidationNeed = differentiatedRisks[0] ?? "Official market, planning and customer-approved data validation required.";
   const primaryNextAction = nextActions[0] ?? "Prepare due diligence memo and validate top alternatives.";
+  const scenarioLabel = comparison.winner.item.scenarioLabel;
+  const averageScore = Math.round(comparison.items.reduce((total, item) => total + item.overallScore, 0) / comparison.items.length);
 
   useEffect(() => {
     dashboardRef.current?.scrollTo({ top: 0, left: 0 });
@@ -133,13 +201,13 @@ export function ComparisonDashboard({ comparison, onBackToMap, onExportCompariso
         <header className="flex flex-col justify-between gap-4 rounded-lg border border-line bg-white p-5 shadow-sm lg:flex-row lg:items-start">
           <div>
             <div className="flex flex-wrap items-center gap-3">
-              <h1 className="text-3xl font-semibold text-ink">Site Comparison Intelligence</h1>
+              <h1 className="text-3xl font-semibold text-ink">Candidate Comparison</h1>
               <span className="rounded-full bg-[#eaf3f1] px-3 py-1 text-xs font-semibold text-brand">
-                Screening comparison
+                {comparison.items.length} ranked candidates
               </span>
             </div>
             <p className="mt-2 text-sm font-medium text-muted">
-              Comparing selected locations / assets
+              {scenarioLabel} / average shortlist score {averageScore}/100 / official validation required
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
@@ -164,16 +232,28 @@ export function ComparisonDashboard({ comparison, onBackToMap, onExportCompariso
           <section className="flex h-full min-w-0 flex-col rounded-lg border border-line bg-white p-5 shadow-sm">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div className="min-w-0">
-                <h2 className="text-lg font-semibold text-ink">Winner / Recommendation</h2>
+                <h2 className="text-lg font-semibold text-ink">Ranked shortlist decision</h2>
                 <p className="mt-1 text-sm text-muted">Best option based on deterministic sample/open scoring</p>
               </div>
               <span className="max-w-full shrink-0 truncate rounded-full bg-[#eaf3f1] px-3 py-1 text-sm font-semibold text-brand">
                 Best option: {comparison.winner.item.name}
               </span>
             </div>
+            <div className="mt-5 grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
+              <div className="rounded-md border border-line bg-surface p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Winner score</p>
+                <p className="mt-2 text-5xl font-semibold text-brand">{comparison.winner.overallScore}</p>
+                <p className="mt-1 text-xs font-semibold text-muted">/100 screening score</p>
+              </div>
+              <div className="grid content-start gap-3">
+                {(["investmentAttractiveness", "accessibility", "infrastructureReadiness", "overallRisk"] as ScoreKey[]).map((scoreKey) => (
+                  <ComparisonScoreBar key={scoreKey} scoreKey={scoreKey} value={comparison.winner.scores[scoreKey]} />
+                ))}
+              </div>
+            </div>
             <p className="safe-line-4 mt-4 text-base leading-7 text-muted">{comparison.whyPreferred}</p>
-            <div className="mt-4 rounded-md border border-line bg-surface p-4">
-              <h3 className="safe-line-1 text-sm font-semibold text-ink">When another option may be better</h3>
+            <div className="mt-4 rounded-md border border-line bg-white p-4 shadow-sm">
+              <h3 className="safe-line-1 text-sm font-semibold text-ink">Trade-off lens</h3>
               <p className="safe-line-3 mt-2 text-sm leading-6 text-muted">{comparison.whenAnotherMayBeBetter}</p>
             </div>
             <DecisionSummaryBox
@@ -186,7 +266,7 @@ export function ComparisonDashboard({ comparison, onBackToMap, onExportCompariso
           </section>
 
           <section className="flex h-full min-w-0 flex-col rounded-lg border border-line bg-white p-5 shadow-sm">
-            <h2 className="safe-line-1 text-lg font-semibold text-ink">Map Context</h2>
+            <h2 className="safe-line-1 text-lg font-semibold text-ink">Shortlist Matrix</h2>
             <div className="mt-4 grid flex-1 content-start gap-3">
               {comparison.items.map((scorecard, index) => (
                 <div key={createStableKey("map-context-item", scorecard.item.id, index)} className="rounded-md border border-line bg-surface p-4">
@@ -207,6 +287,18 @@ export function ComparisonDashboard({ comparison, onBackToMap, onExportCompariso
                   <p className="safe-line-2 mt-2 text-xs leading-5 text-muted">
                     Market basis: {scorecard.marketMetricsMatch?.matchedAreaName ?? "Sample/open context"} / {scorecard.marketMetricsMatch?.sourceMode ?? "seed_static"} / {scorecard.marketMetricsMatch?.confidence ?? "low"} confidence
                   </p>
+                  <div className="mt-3">
+                    <ComparisonScoreBar scoreKey="investmentAttractiveness" value={scorecard.scores.investmentAttractiveness} compact />
+                  </div>
+                  {onOpenCandidateDashboard ? (
+                    <button
+                      type="button"
+                      onClick={() => onOpenCandidateDashboard(scorecard.item)}
+                      className="mt-3 inline-flex h-9 w-full items-center justify-center rounded-md border border-line bg-white px-3 text-xs font-semibold text-ink transition hover:border-brand"
+                    >
+                      Open dashboard
+                    </button>
+                  ) : null}
                 </div>
               ))}
             </div>
@@ -233,7 +325,7 @@ export function ComparisonDashboard({ comparison, onBackToMap, onExportCompariso
                     <td className="border-b border-line px-3 py-3 font-medium text-muted">{scoreLabels[scoreKey]}</td>
                     {comparison.items.map((scorecard, index) => (
                       <td key={createStableKey(`${scoreKey}-score`, scorecard.item.id, index)} className="border-b border-line px-3 py-3 font-semibold text-ink">
-                        {scorecard.scores[scoreKey]}
+                        <ComparisonScoreBar scoreKey={scoreKey} value={scorecard.scores[scoreKey]} compact />
                       </td>
                     ))}
                   </tr>
@@ -261,7 +353,12 @@ export function ComparisonDashboard({ comparison, onBackToMap, onExportCompariso
 
         <section className="grid items-stretch gap-4 lg:grid-cols-3">
           {comparison.items.map((scorecard, index) => (
-            <ComparisonCard key={createStableKey("comparison-card", scorecard.item.id, index)} scorecard={scorecard} />
+            <ComparisonCard
+              key={createStableKey("comparison-card", scorecard.item.id, index)}
+              scorecard={scorecard}
+              rank={index + 1}
+              onOpenDashboard={onOpenCandidateDashboard}
+            />
           ))}
         </section>
 
