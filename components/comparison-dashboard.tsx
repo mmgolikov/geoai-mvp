@@ -67,7 +67,7 @@ function ComparisonScoreBar({
   return (
     <div className={compact ? "grid gap-1" : "grid gap-1.5"}>
       <div className="flex items-center justify-between gap-3">
-        <TextSafeValue as="span" className="text-xs font-semibold text-muted">
+        <TextSafeValue as="span" wrap="normal" className="text-xs font-semibold text-muted">
           {scoreLabels[scoreKey]}
         </TextSafeValue>
         <span className="text-xs font-black text-ink">{value}</span>
@@ -121,7 +121,7 @@ function ComparisonCard({
     <article className="flex h-full min-w-0 flex-col rounded-lg border border-line bg-white p-5 shadow-sm">
       <div className="flex min-w-0 items-start justify-between gap-3 border-b border-line pb-4">
         <div className="min-w-0">
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Rank {rank}</p>
+          <p className="text-xs font-semibold uppercase leading-4 text-muted">Rank {rank}</p>
           <TextSafeValue as="h2" className="text-lg font-semibold leading-6 text-ink">
             {scorecard.item.name}
           </TextSafeValue>
@@ -136,7 +136,7 @@ function ComparisonCard({
 
       <div className="flex items-end justify-between gap-4 border-b border-line py-4">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Overall score</p>
+          <p className="text-xs font-semibold uppercase leading-4 text-muted">Overall score</p>
           <p className="mt-1 text-4xl font-semibold text-brand">{scorecard.overallScore}</p>
         </div>
         <span className="rounded-full bg-surface px-3 py-1 text-xs font-semibold text-muted">/100</span>
@@ -149,14 +149,14 @@ function ComparisonCard({
       </div>
 
       <div className="border-b border-line py-4">
-        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Location</p>
+        <p className="text-xs font-semibold uppercase leading-4 text-muted">Location</p>
         <TextSafeValue className="mt-2 text-sm font-semibold leading-5 text-ink">
           {formatCoordinate(scorecard.item.point.latitude, scorecard.item.point.longitude)}
         </TextSafeValue>
       </div>
 
       <div className="border-b border-line py-4">
-        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Market data basis</p>
+        <p className="text-xs font-semibold uppercase leading-4 text-muted">Market data basis</p>
         <TextSafeValue className="mt-2 text-sm font-semibold leading-5 text-ink">
           {marketMatch?.matchedAreaName ?? "Sample/open context"} / {marketMatch?.sourceMode ?? "seed_static"}
         </TextSafeValue>
@@ -166,7 +166,7 @@ function ComparisonCard({
       </div>
 
       <div className="pt-4">
-        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Recommended use</p>
+        <p className="text-xs font-semibold uppercase leading-4 text-muted">Recommended use</p>
         <details className="mt-2 rounded-md border border-line bg-surface px-3 py-2">
           <summary className="cursor-pointer list-none text-sm font-semibold leading-5 text-ink">
             Recommended use
@@ -211,10 +211,11 @@ export function ComparisonDashboard({
 
   return (
     <section ref={dashboardRef} className="h-full min-h-0 overflow-y-auto bg-surface [scrollbar-width:thin]">
-      <div className="mx-auto flex h-full max-w-7xl flex-col">
+      <div className="flex h-full w-full min-w-0 flex-col">
+        {/* Dashboard viewport contract: first overview must fit within workspace height and align with command panel footer; drill-down content starts below. */}
         <section className="flex h-full min-h-0 shrink-0 flex-col gap-3 p-3">
-        <header className="flex shrink-0 flex-col justify-between gap-3 rounded-lg border border-line bg-white p-3 shadow-sm lg:flex-row lg:items-start">
-          <div>
+          <header className="grid shrink-0 gap-3 rounded-lg border border-line bg-white p-3 shadow-sm lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
+          <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-3">
               <h1 className="text-2xl font-semibold leading-8 text-ink">Candidate Comparison</h1>
               <span className="rounded-full bg-[#eaf3f1] px-3 py-1 text-xs font-semibold text-brand">
@@ -225,28 +226,28 @@ export function ComparisonDashboard({
               {scenarioLabel} / average shortlist score {averageScore}/100 / official validation required
             </p>
           </div>
-          <div className="flex flex-wrap gap-3">
+          <div className="flex shrink-0 items-center justify-start gap-2 lg:justify-end">
             <button
               type="button"
               onClick={onExportComparison}
-              className="inline-flex h-10 items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white transition hover:bg-[#113f50]"
+              className="inline-flex h-9 items-center justify-center rounded-md bg-brand px-3 text-sm font-semibold text-white transition hover:bg-[#113f50]"
             >
               Export
             </button>
             <button
               type="button"
               onClick={onBackToMap}
-              className="inline-flex h-10 items-center justify-center rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink transition hover:border-brand"
+              className="inline-flex h-9 items-center justify-center rounded-md border border-line bg-white px-3 text-sm font-semibold text-ink transition hover:border-brand"
             >
               Back to map
             </button>
           </div>
         </header>
 
-        <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_minmax(0,1fr)] items-stretch gap-3 xl:grid-cols-[minmax(0,1fr)_420px] xl:grid-rows-none">
+        <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_minmax(0,1fr)] items-stretch gap-3 xl:grid-cols-[minmax(0,1.15fr)_minmax(440px,0.85fr)] xl:grid-rows-none">
           <section className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-line bg-white p-3 shadow-sm">
             <div className="min-h-0 flex-1 overflow-y-auto pr-1 [scrollbar-width:thin]">
-            <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0">
                 <h2 className="text-lg font-semibold text-ink">Ranked shortlist decision</h2>
                 <p className="mt-1 text-sm text-muted">Best option based on deterministic sample/open scoring</p>
@@ -257,7 +258,7 @@ export function ComparisonDashboard({
             </div>
             <div className="mt-3 grid gap-3 lg:grid-cols-[190px_minmax(0,1fr)]">
               <div className="rounded-md border border-line bg-surface p-3">
-                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Winner score</p>
+                <p className="text-xs font-semibold uppercase leading-4 text-muted">Winner score</p>
                 <p className="mt-2 text-4xl font-semibold text-brand">{comparison.winner.overallScore}</p>
                 <p className="mt-1 text-xs font-semibold text-muted">/100 screening score</p>
               </div>
@@ -268,7 +269,7 @@ export function ComparisonDashboard({
               </div>
             </div>
             <details className="mt-3 rounded-md border border-line bg-surface px-3 py-2" open>
-              <summary className="cursor-pointer list-none text-sm font-semibold uppercase tracking-[0.1em] text-muted">
+              <summary className="cursor-pointer list-none text-sm font-semibold uppercase leading-5 text-muted">
                 Why this option leads
               </summary>
               <TextSafeValue className="mt-2 border-t border-line pt-2 text-sm leading-6 text-muted">
@@ -280,7 +281,7 @@ export function ComparisonDashboard({
                 Trade-off lens
               </TextSafeValue>
               <details className="mt-2 rounded-md border border-line bg-surface px-3 py-2">
-                <summary className="cursor-pointer list-none text-xs font-semibold uppercase tracking-[0.1em] text-muted">
+                <summary className="cursor-pointer list-none text-xs font-semibold uppercase leading-4 text-muted">
                   Details
                 </summary>
                 <TextSafeValue className="mt-2 border-t border-line pt-2 text-sm leading-6 text-muted">
@@ -307,7 +308,7 @@ export function ComparisonDashboard({
                 <div key={createStableKey("map-context-item", scorecard.item.id, index)} className="rounded-md border border-line bg-surface p-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">
+                      <p className="text-xs font-semibold uppercase leading-4 text-muted">
                         Option {index + 1}
                       </p>
                       <TextSafeValue as="h3" className="mt-1 text-sm font-semibold text-ink">

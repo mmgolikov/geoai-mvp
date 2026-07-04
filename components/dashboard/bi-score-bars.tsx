@@ -24,7 +24,7 @@ export function BiScoreBar({ item, compact = false }: BiScoreBarProps) {
   return (
     <article className={`min-w-0 rounded-md border border-line bg-white ${compact ? "p-3" : "p-4"}`}>
       <div className="flex min-w-0 items-start justify-between gap-3">
-        <TextSafeValue className="text-xs font-semibold leading-5 text-ink">
+        <TextSafeValue wrap="normal" className="text-xs font-semibold leading-5 text-ink">
           {item.label}
         </TextSafeValue>
         <span className="shrink-0 text-xs font-black text-ink">{score}</span>
@@ -33,7 +33,7 @@ export function BiScoreBar({ item, compact = false }: BiScoreBarProps) {
         <div className={`h-full rounded-full ${barTone(item)}`} style={{ width: `${score}%` }} />
       </div>
       <details className="mt-2">
-        <summary className="cursor-pointer list-none text-[11px] font-semibold uppercase tracking-[0.1em] text-muted">
+        <summary className="cursor-pointer list-none text-[11px] font-semibold uppercase leading-4 text-muted">
           Details
         </summary>
         <TextSafeValue className="mt-1 text-xs leading-5 text-muted">
@@ -53,7 +53,7 @@ type BiScoreBarsProps = {
 export function BiScoreBars({ title, items, emptyLabel }: BiScoreBarsProps) {
   return (
     <section className="grid min-w-0 content-start gap-2">
-      <TextSafeValue className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">
+      <TextSafeValue wrap="normal" className="text-xs font-semibold uppercase leading-4 text-muted">
         {title}
       </TextSafeValue>
       {items.length > 0 ? (

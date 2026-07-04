@@ -5,18 +5,24 @@ type TextSafeValueProps = {
   children: ReactNode;
   className?: string;
   title?: string;
+  wrap?: "anywhere" | "normal";
 };
 
 export function TextSafeValue({
   as: Component = "p",
   children,
   className = "",
-  title
+  title,
+  wrap = "anywhere"
 }: TextSafeValueProps) {
+  const wrapClass = wrap === "normal"
+    ? "min-w-0 whitespace-normal break-normal [overflow-wrap:normal] [word-break:normal]"
+    : "min-w-0 whitespace-normal break-words [overflow-wrap:anywhere]";
+
   return (
     <Component
       title={title}
-      className={`min-w-0 whitespace-normal break-words [overflow-wrap:anywhere] ${className}`}
+      className={`${wrapClass} ${className}`}
     >
       {children}
     </Component>

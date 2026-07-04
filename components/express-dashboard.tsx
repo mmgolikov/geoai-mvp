@@ -29,7 +29,7 @@ function CandidateDashboardSwitcher({ navigation }: { navigation: CandidateDashb
   return (
     <div className="flex shrink-0 flex-col gap-2 rounded-lg border border-line bg-white p-2.5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
       <div className="min-w-0">
-        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Candidate dashboard</p>
+        <p className="text-xs font-semibold uppercase leading-4 text-muted">Candidate dashboard</p>
         <TextSafeValue className="mt-1 text-sm font-semibold text-ink">
           Switch between ranked shortlist candidates
         </TextSafeValue>
@@ -123,9 +123,10 @@ export function ExpressDashboard({
 
   return (
     <section ref={dashboardRef} className="h-full min-h-0 overflow-y-auto bg-surface [scrollbar-width:thin]">
-      <div className="mx-auto flex h-full max-w-7xl flex-col">
+      <div className="flex h-full w-full min-w-0 flex-col">
+        {/* Dashboard viewport contract: first overview must fit within workspace height and align with command panel footer; drill-down content starts below. */}
         <section className="flex h-full min-h-0 shrink-0 flex-col gap-2 p-3">
-          <header className="flex shrink-0 flex-col justify-between gap-2 rounded-lg border border-line bg-white p-2.5 shadow-sm lg:flex-row lg:items-start">
+          <header className="grid shrink-0 gap-2 rounded-lg border border-line bg-white p-2.5 shadow-sm lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-3">
                 <TextSafeValue as="h1" className="text-xl font-semibold leading-7 text-ink lg:text-2xl">
@@ -145,18 +146,18 @@ export function ExpressDashboard({
                 {analysisBadge} / {dataLimitation} Official validation required before decision-grade use.
               </TextSafeValue>
             </div>
-            <div className="flex flex-wrap gap-3">
+            <div className="flex shrink-0 items-center justify-start gap-2 lg:justify-end">
               <button
                 type="button"
                 onClick={onExportReport}
-                className="inline-flex h-10 items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white transition hover:bg-[#113f50]"
+                className="inline-flex h-9 items-center justify-center rounded-md bg-brand px-3 text-sm font-semibold text-white transition hover:bg-[#113f50]"
               >
                 Export
               </button>
               <button
                 type="button"
                 onClick={onBackToMap}
-                className="inline-flex h-10 items-center justify-center rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink transition hover:border-brand"
+                className="inline-flex h-9 items-center justify-center rounded-md border border-line bg-white px-3 text-sm font-semibold text-ink transition hover:border-brand"
               >
                 Back to setup
               </button>
@@ -165,7 +166,7 @@ export function ExpressDashboard({
 
           {candidateNavigation ? <CandidateDashboardSwitcher navigation={candidateNavigation} /> : null}
 
-          <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_minmax(0,1fr)] items-stretch gap-3 xl:grid-cols-[minmax(0,1.05fr)_0.95fr] xl:grid-rows-none">
+          <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_minmax(0,1fr)] items-stretch gap-3 xl:grid-cols-[minmax(0,1.15fr)_minmax(480px,0.85fr)] xl:grid-rows-none">
             <MapContextCard
               title="Map Context"
               subtitle={
@@ -188,33 +189,35 @@ export function ExpressDashboard({
 
             <section className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-line bg-surface p-3 shadow-sm">
               <div className="min-h-0 flex-1 overflow-y-auto pr-1 [scrollbar-width:thin]">
-                <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_minmax(240px,0.64fr)]">
+                <div className="grid items-start gap-2 lg:grid-cols-[minmax(0,1fr)_minmax(220px,280px)]">
                   <div className="rounded-md border border-[#d6c391] bg-[#fff9e8] p-3">
-                  <TextSafeValue className="text-xs font-semibold uppercase tracking-[0.12em] text-[#6f5817]">
-                    Decision posture
-                  </TextSafeValue>
-                  <TextSafeValue className="mt-2 text-xl font-semibold leading-7 text-ink">
-                    {dashboardModel.decisionPosture}
-                  </TextSafeValue>
-                  <TextSafeValue className="mt-2 text-sm leading-5 text-muted">
-                    {dashboardModel.decisionSummary}
-                  </TextSafeValue>
-                  {showDecisionDetail ? (
-                    <details className="mt-3 rounded-md border border-[#ead28a] bg-white px-3 py-2">
-                      <summary className="cursor-pointer list-none text-[11px] font-semibold uppercase tracking-[0.1em] text-[#6f5817]">
-                        Full rationale
-                      </summary>
-                      <TextSafeValue className="mt-2 border-t border-line pt-2 text-xs leading-5 text-muted">
-                        {dashboardModel.decisionDetail}
-                      </TextSafeValue>
-                    </details>
-                  ) : null}
+                    <TextSafeValue wrap="normal" className="text-xs font-semibold uppercase leading-4 text-[#6f5817]">
+                      Decision posture
+                    </TextSafeValue>
+                    <TextSafeValue wrap="normal" className="mt-2 text-xl font-semibold leading-7 text-ink">
+                      {dashboardModel.decisionPosture}
+                    </TextSafeValue>
+                    <TextSafeValue className="mt-2 text-sm leading-5 text-muted">
+                      {dashboardModel.decisionSummary}
+                    </TextSafeValue>
+                    {showDecisionDetail ? (
+                      <details className="mt-3 rounded-md border border-[#ead28a] bg-white px-3 py-2">
+                        <summary className="cursor-pointer list-none text-[11px] font-semibold uppercase leading-4 text-[#6f5817]">
+                          Full rationale
+                        </summary>
+                        <TextSafeValue className="mt-2 border-t border-line pt-2 text-xs leading-5 text-muted">
+                          {dashboardModel.decisionDetail}
+                        </TextSafeValue>
+                      </details>
+                    ) : null}
                   </div>
                   <BiScoreGauge
                     score={dashboardModel.primaryScore}
                     label="Suitability"
                     summary={`${dashboardModel.confidenceLabel} confidence; validation required before decision-grade use.`}
                     detail={dashboardModel.decisionDetail}
+                    confidenceLabel={dashboardModel.confidenceLabel}
+                    validationLabel="Validation required"
                   />
                 </div>
                 <TextSafeValue className="mt-2 text-xs leading-5 text-muted xl:text-sm">
@@ -225,7 +228,10 @@ export function ExpressDashboard({
                     {analysis.analysisNotice}
                   </TextSafeValue>
                 ) : null}
-                <div className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+                <div
+                  className="mt-2 grid gap-2"
+                  style={{ gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))" }}
+                >
                   {dashboardModel.kpis.map((kpi) => (
                     <BiKpiCard
                       key={kpi.id}
@@ -250,7 +256,7 @@ export function ExpressDashboard({
                   />
                 </div>
                 <div className="mt-2 rounded-md border border-line bg-white p-3">
-                  <TextSafeValue className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">
+                  <TextSafeValue wrap="normal" className="text-xs font-semibold uppercase leading-4 text-muted">
                     Recommended next action
                   </TextSafeValue>
                   <TextSafeValue className="mt-1 text-sm font-semibold leading-5 text-ink">
@@ -264,7 +270,7 @@ export function ExpressDashboard({
                     ))}
                   </div>
                   <details className="mt-2 rounded-md border border-line bg-surface px-3 py-2">
-                    <summary className="cursor-pointer list-none text-[11px] font-semibold uppercase tracking-[0.1em] text-muted">
+                    <summary className="cursor-pointer list-none text-[11px] font-semibold uppercase leading-4 text-muted">
                       Action details
                     </summary>
                     <TextSafeValue className="mt-2 border-t border-line pt-2 text-xs leading-5 text-muted">
