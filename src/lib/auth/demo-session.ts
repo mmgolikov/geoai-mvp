@@ -8,13 +8,13 @@ import type {
 export const demoUser: GeoAIUser = {
   id: "demo-user-geoai",
   email: "demo@geoai.local",
-  name: "GeoAI Demo User",
+  name: "GeoAI Pilot User",
   isDemoUser: true
 };
 
 export const demoOrganization: GeoAIOrganization = {
   id: "demo-org-geoai",
-  name: "GeoAI Demo Organization",
+  name: "GeoAI Pilot Organization",
   mode: "demo"
 };
 
@@ -29,6 +29,6 @@ export function createDemoProjectMembership(projectKey = "all-demo-projects"): G
     role: demoProjectRole,
     status: "active",
     source: "demo_seed",
-    caveat: "Demo membership only; production access control requires Supabase Auth, RLS and deployment governance."
+    caveat: "Pilot sample membership only; production access control requires Supabase Auth, RLS and deployment governance."
   };
 }

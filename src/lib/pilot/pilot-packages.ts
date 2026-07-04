@@ -66,7 +66,7 @@ export const pilotPackages: PilotPackage[] = [
       "Certified valuation",
       "Permitting decision or approval"
     ],
-    dataHonestyNote: "Pilot outputs combine uploaded/customer-approved data and open/demo context. Official planning and title validation remains required."
+    dataHonestyNote: "Pilot outputs combine uploaded/customer-approved data and sample/open context. Official planning and title validation remains required."
   },
   {
     id: "fund-investment-screening",
@@ -153,7 +153,7 @@ export const pilotPackages: PilotPackage[] = [
     ],
     successCriteria: [
       "Lender can review priority assets with consistent spatial evidence",
-      "Risk notes distinguish demo/open context from validated data",
+      "Risk notes distinguish sample/open context from validated data",
       "Outputs can support a credit review discussion without replacing valuation"
     ],
     validationSources: [
@@ -204,7 +204,7 @@ export const pilotPackages: PilotPackage[] = [
     ],
     successCriteria: [
       "Stakeholders can review selected land objects with transparent evidence status",
-      "Demo/open layers are clearly separated from official validation sources",
+      "Sample/open layers are clearly separated from official validation sources",
       "Monitoring workflow can be evaluated before production integration"
     ],
     validationSources: [

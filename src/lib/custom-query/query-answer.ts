@@ -121,7 +121,7 @@ function sourceBasisFor(target: string, scenarioId: AnalysisScenarioId) {
   return [
     `Selected target: ${target}.`,
     `Scenario lens: ${scenarioLabel(scenarioId)}.`,
-    "Basis: deterministic demo scores, selected geometry, source-lineage cards, market seed/import context where available, and open/sample spatial context.",
+    "Basis: deterministic sample scores, selected geometry, source-lineage cards, market seed/import context where available, and open/sample spatial context.",
     "Not included: official parcel, title, ownership, zoning, FAR, cadastral, valuation or live approval evidence."
   ];
 }
@@ -308,7 +308,7 @@ function buildFallbackAnswer(
       reasoning: [
         "Risk queries require evidence depth rather than higher-confidence narrative.",
         "Climate, access, title and planning risks can materially change feasibility.",
-        "Demo/source-lineage context can prioritize checks but cannot certify exposure."
+        "Sample/source-lineage context can prioritize checks but cannot certify exposure."
       ],
       keyRisks: [
         "Official planning, cadastral, title and ownership evidence is not connected.",
@@ -351,7 +351,7 @@ function buildFallbackAnswer(
       : `The query is answered as a screening hypothesis for ${target}; official/customer-approved validation sources are required before decisions.`,
     recommendation: ru ? "Рекомендация: использовать ответ как memo layer and validation checklist." : "Recommendation: use the answer as a memo layer and validation checklist.",
     reasoning: ["The custom query reframes the scenario around the user's decision question.", "Current evidence can prioritize next checks but not certify legal, zoning, title or valuation conclusions."],
-    keyRisks: ["The user question may require evidence not connected in this MVP.", "Demo/sample/open context should not be treated as official validation."],
+    keyRisks: ["The user question may require evidence not connected in this MVP.", "Sample/open context should not be treated as official validation."],
     validationNeeded,
     nextActions: ["Define measurable criteria for the query.", "Collect official/customer-approved evidence.", "Re-run the analysis when validation evidence is available."],
     sourceBasis: basis,

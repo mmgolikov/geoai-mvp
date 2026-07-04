@@ -27,7 +27,7 @@ function demoObject(id: string, name: string, layerName: string, layerId: Select
   return {
     id,
     name,
-    type: "Demo project asset",
+    type: "Sample project asset",
     layerId,
     layerName,
     geometryType: "polygon",
@@ -159,7 +159,7 @@ function analysisReportPayload(analysis: ExpressAnalysis, title: string) {
     runKey: analysis.id,
     project: analysis.project,
     title,
-    selectedSite: analysis.selectedObject?.name ?? "Demo selected site",
+    selectedSite: analysis.selectedObject?.name ?? "Sample selected site",
     selectedObject: analysis.selectedObject ?? null,
     coordinates: analysis.point,
     scenario: analysis.title,
@@ -207,7 +207,7 @@ function comparisonReportPayload(comparison: ComparisonResult, title: string) {
     dueDiligenceChecklist: comparison.nextActions,
     evidenceSourceReadiness: comparison.evidence,
     limitations: [
-      "Seeded comparison uses deterministic demo scoring and structured evidence readiness, not a validated underwriting model."
+      "Seeded comparison uses deterministic sample scoring and structured evidence readiness, not a validated underwriting model."
     ],
     generatedAt: createdAt
   };
@@ -256,7 +256,7 @@ export const seededDemoReportRecords = [
     "seeded-analysis-dubai-marina-report",
     seededDemoAnalysis,
     "Investment Screening Memo",
-    "Dubai Investment Screening Demo / sample-offline evidence; official validation required."
+    "Dubai Investment Screening / sample-offline evidence; official validation required."
   ),
   comparisonReportRecord(
     "seeded-comparison-dubai-shortlist-report",
@@ -268,19 +268,19 @@ export const seededDemoReportRecords = [
     "seeded-analysis-dubai-south-development-report",
     developerDubaiSouthAnalysis,
     "Development Screening Memo",
-    "Developer Land Pipeline Demo / demo-normalized planning context; official validation required."
+    "Developer Land Pipeline / sample planning context; official validation required."
   ),
   comparisonReportRecord(
     "seeded-comparison-developer-pipeline-report",
     developerComparison,
     "Dubai South vs JVC/JVT vs MBR City Development Memo",
-    "Developer pipeline comparison / demo-normalized evidence; official validation required."
+    "Developer pipeline comparison / sample evidence; official validation required."
   ),
   analysisReportRecord(
     "seeded-analysis-mbr-collateral-report",
     bankMbrAnalysis,
     "Collateral Context Memo",
-    "Bank Asset Review Demo / evidence confidence review; official validation required."
+    "Bank Asset Review / evidence confidence review; official validation required."
   ),
   comparisonReportRecord(
     "seeded-comparison-bank-collateral-report",
@@ -312,7 +312,7 @@ export const seededDemoRecentAnalyses = [
     ? "Evidence validation required"
     : "Proceed with conditions",
   confidence: "medium" as const,
-  dataConfidence: "Demo example / sample-offline",
+  dataConfidence: "Sample example / sample-offline",
   source: "local" as const,
   analysis
 }));
@@ -325,7 +325,7 @@ export const seededDemoComparisonSummaries = [
     projectKey: seededDemoComparison.project?.projectKey ?? null,
     title: "Dubai Marina vs Business Bay vs Dubai South",
     createdAt,
-    sourceSummary: `Best option: ${seededDemoComparison.winner.item.name}. Demo example / official validation required.`
+    sourceSummary: `Best option: ${seededDemoComparison.winner.item.name}. Sample example / official validation required.`
   },
   {
     id: developerComparison.id,
@@ -334,7 +334,7 @@ export const seededDemoComparisonSummaries = [
     projectKey: developerComparison.project?.projectKey ?? null,
     title: "Dubai South vs JVC/JVT vs MBR City",
     createdAt,
-    sourceSummary: `Best option: ${developerComparison.winner.item.name}. Demo example / official validation required.`
+    sourceSummary: `Best option: ${developerComparison.winner.item.name}. Sample example / official validation required.`
   },
   {
     id: bankComparison.id,
@@ -343,6 +343,6 @@ export const seededDemoComparisonSummaries = [
     projectKey: bankComparison.project?.projectKey ?? null,
     title: "MBR City vs Business Bay Collateral Context",
     createdAt,
-    sourceSummary: `Best option: ${bankComparison.winner.item.name}. Demo example / official validation required.`
+    sourceSummary: `Best option: ${bankComparison.winner.item.name}. Sample example / official validation required.`
   }
 ];

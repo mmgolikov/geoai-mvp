@@ -575,7 +575,7 @@ export async function buildClientDataRoom(input: { projectKey?: string | null; p
       counts,
       label: "Data room foundation active",
       storageMode: "local_fallback",
-      storageNote: "Local/demo fallback; durable storage not configured.",
+      storageNote: "Local/sample fallback; durable storage not configured.",
       validationNote: dataRoomRequiredCaveat,
       latestAssets: assets.slice(0, 3),
       checklistStatus: summarizeChecklist(checklist)
@@ -587,7 +587,7 @@ export async function buildClientDataRoom(input: { projectKey?: string | null; p
         "client-provided data",
         "uploaded metadata",
         "user-provided AOI",
-        "local/demo fallback",
+        "local/sample fallback",
         "validation required",
         "planned official validation",
         "screening evidence package",

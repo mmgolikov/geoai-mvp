@@ -19,7 +19,7 @@ export function createSourceLineageSnapshot(input: SnapshotInput = {}): SourceLi
       .map((item) => ({
         id: item.id,
         name: item.title ?? item.sourceId ?? item.id,
-        note: item.description ?? "Demo/sample evidence source."
+        note: item.description ?? "Sample/open evidence source."
       })),
     uploadedSources: uploadedDatasets.map((dataset) => ({
       id: dataset.id,

@@ -133,7 +133,7 @@ export function readExternalMarketMetrics(): ExternalMarketMetricsResponse {
       id: "sample-market-area-metrics",
       name: "GeoAI sample market metrics fallback",
       status: "sample_fallback",
-      sourceType: "demo-normalized",
+      sourceType: "sample-open",
       disclaimer: "Sample/manual offline imports only; no live official DLD or Dubai Pulse integration is connected."
     },
     count: sampleMetrics.length,

@@ -99,7 +99,7 @@ function ComparisonCard({ scorecard }: { scorecard: ComparisonResult["items"][nu
       <div className="border-b border-line py-4">
         <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Market data basis</p>
         <p className="safe-line-2 mt-2 text-sm font-semibold leading-5 text-ink">
-          {marketMatch?.matchedAreaName ?? "Seed fallback"} / {marketMatch?.sourceMode ?? "seed_static"}
+          {marketMatch?.matchedAreaName ?? "Sample/open context"} / {marketMatch?.sourceMode ?? "seed_static"}
         </p>
         <p className="safe-line-2 mt-1 text-xs leading-5 text-muted">
           {metric ? `Liquidity ${metric.liquidityIndex}, demand ${metric.rentalDemandProxy}, pipeline ${metric.pipelineProxy}` : "Imported metrics not matched."}
@@ -135,7 +135,7 @@ export function ComparisonDashboard({ comparison, onBackToMap, onExportCompariso
             <div className="flex flex-wrap items-center gap-3">
               <h1 className="text-3xl font-semibold text-ink">Site Comparison Intelligence</h1>
               <span className="rounded-full bg-[#eaf3f1] px-3 py-1 text-xs font-semibold text-brand">
-                Demo comparison
+                Screening comparison
               </span>
             </div>
             <p className="mt-2 text-sm font-medium text-muted">
@@ -165,7 +165,7 @@ export function ComparisonDashboard({ comparison, onBackToMap, onExportCompariso
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div className="min-w-0">
                 <h2 className="text-lg font-semibold text-ink">Winner / Recommendation</h2>
-                <p className="mt-1 text-sm text-muted">Best option based on deterministic demo scoring</p>
+                <p className="mt-1 text-sm text-muted">Best option based on deterministic sample/open scoring</p>
               </div>
               <span className="max-w-full shrink-0 truncate rounded-full bg-[#eaf3f1] px-3 py-1 text-sm font-semibold text-brand">
                 Best option: {comparison.winner.item.name}
@@ -178,8 +178,8 @@ export function ComparisonDashboard({ comparison, onBackToMap, onExportCompariso
             </div>
             <DecisionSummaryBox
               className="mt-4"
-              decision={`Proceed with ${comparison.winner.item.name} as the strongest demo-screened option, subject to official validation.`}
-              reason={`Strongest demo risk-adjusted score and readiness signal. Trade-off: ${primaryTradeoff}.`}
+              decision={`Proceed with ${comparison.winner.item.name} as the strongest screened option, subject to official validation.`}
+              reason={`Strongest sample/open risk-adjusted score and readiness signal. Trade-off: ${primaryTradeoff}.`}
               validationNeed={primaryValidationNeed}
               nextAction={primaryNextAction}
             />
@@ -205,7 +205,7 @@ export function ComparisonDashboard({ comparison, onBackToMap, onExportCompariso
                     {formatCoordinate(scorecard.item.point.latitude, scorecard.item.point.longitude)}
                   </p>
                   <p className="safe-line-2 mt-2 text-xs leading-5 text-muted">
-                    Market basis: {scorecard.marketMetricsMatch?.matchedAreaName ?? "Seed fallback"} / {scorecard.marketMetricsMatch?.sourceMode ?? "seed_static"} / {scorecard.marketMetricsMatch?.confidence ?? "low"} confidence
+                    Market basis: {scorecard.marketMetricsMatch?.matchedAreaName ?? "Sample/open context"} / {scorecard.marketMetricsMatch?.sourceMode ?? "seed_static"} / {scorecard.marketMetricsMatch?.confidence ?? "low"} confidence
                   </p>
                 </div>
               ))}

@@ -402,7 +402,7 @@ export async function buildPilotWorkflowSummary(input: { projectId?: string | nu
       deliverables: [],
       readiness: null,
       dataHonesty,
-      error: "Unknown project. Pilot workflow is scoped to known GeoAI demo projects."
+      error: "Unknown project. Pilot workflow is scoped to known GeoAI sample projects."
     };
   }
 

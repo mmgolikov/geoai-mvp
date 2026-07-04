@@ -41,7 +41,7 @@ export function PrintReportFallback({ reportId }: PrintReportFallbackProps) {
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">Printable deliverable</p>
             <h1 className="mt-1 text-xl font-semibold text-ink">{report.title}</h1>
-            <p className="mt-1 text-sm leading-6 text-muted">Loaded from saved browser/demo fallback; official validation required.</p>
+            <p className="mt-1 text-sm leading-6 text-muted">Loaded from saved browser/sample fallback; official validation required.</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <Link

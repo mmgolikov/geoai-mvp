@@ -60,10 +60,10 @@ export function SourceLineagePrintSection({ lineage }: { lineage: SourceLineageS
       }))
     },
     {
-      title: "Demo / sample fallback",
+      title: "Sample/open fallback",
       items: lineage.demoSources.map((source) => ({
         name: source.name,
-        meta: "demo/sample",
+        meta: "sample/open",
         note: source.note
       }))
     },

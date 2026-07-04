@@ -154,7 +154,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch {
       return {
         ok: false,
-        message: "Sign-in could not be started. Public demo access remains available."
+        message: "Sign-in could not be started. Public pilot access remains available."
       };
     }
   }

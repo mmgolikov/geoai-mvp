@@ -55,7 +55,7 @@ export function AnalysisReportPrint({ report }: { report: AnalysisReportDelivera
         <ReportHeader
           title="GeoAI Analysis Report"
           subtitle={report.subtitle}
-          badge="Demo/MVP report"
+          badge="Screening report"
         />
 
         <div className="geoai-print-meta-grid">
@@ -75,14 +75,14 @@ export function AnalysisReportPrint({ report }: { report: AnalysisReportDelivera
               coordinates={formatCoordinate(report.coordinates)}
               geometryLabel={report.analysisTarget?.geometry?.type ?? spatialContext?.geometryType ?? "Point selection"}
             />
-            <p className="geoai-print-note">Selected geometry is user-uploaded/demo/open-data context; official validation required.</p>
+            <p className="geoai-print-note">Selected geometry is user-provided/sample/open-data context; official validation required.</p>
           </PrintSection>
 
           <PrintSection title="Executive Memo">
             <p>{report.executiveMemo}</p>
             <div className="geoai-print-mini-grid">
               <PrintCard label="Confidence" value={report.analysis?.confidenceLevel ?? "medium"} />
-              <PrintCard label="Analysis mode" value={report.analysis?.analysisMode === "openai" ? "AI-generated" : "Demo fallback"} />
+              <PrintCard label="Analysis mode" value={report.analysis?.analysisMode === "openai" ? "AI-generated" : "Sample/open fallback"} />
             </div>
           </PrintSection>
         </div>
@@ -113,8 +113,8 @@ export function AnalysisReportPrint({ report }: { report: AnalysisReportDelivera
 
           <PrintSection title="Market / Spatial Context">
             <div className="geoai-print-mini-grid">
-              <PrintCard label="Market basis" value={report.analysis?.marketContext?.areaName ?? "Demo/sample context"} />
-              <PrintCard label="Data mode" value={report.analysis?.project?.dataMode?.replace(/_/g, " ") ?? "demo normalized"} />
+              <PrintCard label="Market basis" value={report.analysis?.marketContext?.areaName ?? "Sample/open context"} />
+              <PrintCard label="Data mode" value={report.analysis?.project?.dataMode?.replace(/_/g, " ") ?? "sample/open"} />
               <PrintCard label="Object type" value={report.selectedAoi ? userDrawnAoiSourceLabel(report.selectedAoi) : spatialContext?.subtype ?? report.selectedObject?.type ?? "point / site"} />
               <PrintCard label="Geometry confidence" value={report.selectedAoi?.confidence ?? spatialContext?.confidenceLevel ?? "validation required"} />
             </div>

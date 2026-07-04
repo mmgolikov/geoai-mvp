@@ -73,7 +73,7 @@ function getFallbackFeatureStyle(feature: GeoJSON.Feature) {
 
 function formatFallbackLabel(label: string) {
   if (label.toLowerCase().includes("dubai marina")) {
-    return "Dubai Marina Demo";
+    return "Dubai Marina sample";
   }
 
   return label.length > 24 ? "Selected site" : label;

@@ -66,6 +66,6 @@ export async function POST(request: Request) {
     item: result.data,
     access,
     error: result.error,
-    dataHonesty: "Validation evidence metadata is local/demo fallback unless durable storage and official review are configured."
+    dataHonesty: "Validation evidence metadata is local/sample fallback unless durable storage and official review are configured."
   }, { status: result.ok ? 201 : 200 });
 }

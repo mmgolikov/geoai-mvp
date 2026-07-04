@@ -57,6 +57,6 @@ export async function POST(request: Request) {
     error: result.error,
     message: result.mode === "supabase" && result.ok
       ? "Project saved."
-      : "Project available as local demo context; Supabase is not configured or unavailable."
+      : "Project available as local sample context; Supabase is not configured or unavailable."
   });
 }

@@ -11,8 +11,8 @@ type EvidenceSourceCardsProps = {
 
 function sourceTypeLabel(sourceType: EvidenceItem["sourceType"]) {
   const labels: Record<EvidenceItem["sourceType"], string> = {
-    mock: "Demo",
-    demo: "Demo",
+    mock: "Sample",
+    demo: "Sample",
     open_data: "Open data",
     open_geospatial: "Open geo",
     official: "Official",
@@ -30,6 +30,11 @@ function statusTone(status: EvidenceItem["sourceStatus"]) {
   return "bg-[#fff4ed] text-[#9f3412]";
 }
 
+function reliabilityLabel(value?: string) {
+  if (!value) return "validation required";
+  return value === "demo" ? "sample" : value;
+}
+
 export function EvidenceSourceCards({ evidence, compact = false }: EvidenceSourceCardsProps) {
   return (
     <div className={`grid gap-4 ${compact ? "" : "lg:grid-cols-2"}`}>
@@ -45,7 +50,7 @@ export function EvidenceSourceCards({ evidence, compact = false }: EvidenceSourc
               <DataMaturityBadge source={source} />
               <SourceStatusBadge source={source} />
               <span className="rounded-full bg-white px-2 py-1 text-[11px] font-semibold text-muted">
-                {source?.reliabilityLevel ?? item.confidence} reliability
+                {reliabilityLabel(source?.reliabilityLevel ?? item.confidence)} reliability
               </span>
             </div>
             <h3 className="mt-4 text-base font-semibold text-ink">{item.label}</h3>

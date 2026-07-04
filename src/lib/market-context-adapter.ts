@@ -89,7 +89,7 @@ export function matchNearestDubaiMarketArea(point: SelectedPoint): AreaMatchResu
 function createGeneralDubaiContext(match: AreaMatchResult): MarketContext {
   const limitations = [
     "Precise district matching is not yet validated for this coordinate.",
-    "General Dubai context is seed/demo-normalized and not official market evidence.",
+    "General Dubai context is seed/sample-open and not official market evidence.",
     "Future adapters should connect DLD, Dubai Pulse, Dubai Municipality, and licensed market datasets."
   ];
 
@@ -113,7 +113,7 @@ function createGeneralDubaiContext(match: AreaMatchResult): MarketContext {
     sourceMode: "seed_static",
     dataQualityNotes: [
       "No strong area match; general Dubai fallback uses deterministic seed defaults.",
-      "Current values are demo-normalized indices, not official market data."
+      "Current values are sample/open indices, not official market data."
     ],
     confidenceLevel: "low",
     sourceIds: [

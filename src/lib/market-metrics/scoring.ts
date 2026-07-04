@@ -74,7 +74,7 @@ export function enrichAnalysisWithMarketMetrics(analysis: ExpressAnalysis, match
   const signals = scoreSignalsFromMarketMetrics(match);
   const summarySuffix = match.importedMetricsUsed && match.metrics
     ? ` Imported market metrics for ${match.matchedAreaName} were available from the local DLD/Dubai Pulse-style ingestion prototype and used to support liquidity and demand proxy scoring. These metrics remain sample/manual-import derived and require official validation before underwriting.`
-    : ` No imported market metrics were matched to this selection; the memo uses seed_static demo context and should be validated against official DLD/Dubai Pulse datasets.`;
+    : ` No imported market metrics were matched to this selection; the memo uses seed_static sample context and should be validated against official DLD/Dubai Pulse datasets.`;
 
   return {
     ...analysis,

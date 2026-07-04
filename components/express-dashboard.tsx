@@ -6,6 +6,7 @@ import { EvidenceSourceCards } from "@/components/evidence-source-cards";
 import { MapContextCard } from "@/components/map-context-card";
 import { deriveDecisionPosture, deriveDecisionRationale } from "@/src/lib/decision-posture";
 import { userDrawnAoiSourceCode, userDrawnAoiSourceLabel } from "@/src/lib/aoi-library";
+import { getDashboardSections, type DashboardSectionDefinition, type DashboardSectionId } from "@/src/lib/dashboard/section-registry";
 import { formatArea, formatPerimeter } from "@/src/lib/polygon-aoi";
 import type { ExpressAnalysis, ScoreKey } from "@/src/types/geo";
 
@@ -49,18 +50,20 @@ function scoreInterpretation(scoreKey: ScoreKey, value: number) {
     overallRisk: "combined execution, market, planning, climate and evidence maturity signals"
   };
 
-  return `${scoreBand} demo-normalized signal based on ${drivers[scoreKey]}. Requires official source validation before underwriting.`;
+  return `${scoreBand} sample/open signal based on ${drivers[scoreKey]}. Requires official source validation before underwriting.`;
 }
 
 function AnalysisCard({
+  id,
   children,
   className = ""
 }: {
+  id?: string;
   children: React.ReactNode;
   className?: string;
 }) {
   return (
-    <section className={`rounded-lg border border-line bg-white p-5 shadow-sm ${className}`}>
+    <section id={id} className={`scroll-mt-4 rounded-lg border border-line bg-white p-5 shadow-sm ${className}`}>
       {children}
     </section>
   );
@@ -221,7 +224,7 @@ function createExecutivePreview(analysis: ExpressAnalysis) {
   const area = analysis.marketContext?.areaName;
   const scenario = formatScenarioLabel(analysis.scenarioId);
   const importedMetricsUsed = analysis.marketMetricsMatch?.importedMetricsUsed || analysis.marketContext?.importedMarketMetrics?.importedMetricsUsed;
-  const sourceBasis = importedMetricsUsed ? "imported sample metrics and spatial context" : "demo-normalized spatial and market context";
+  const sourceBasis = importedMetricsUsed ? "imported sample metrics and spatial context" : "sample/open spatial and market context";
   const place = area && !subject.toLowerCase().includes(area.toLowerCase())
     ? `${subject} in ${area}`
     : subject;
@@ -245,7 +248,7 @@ function createScreeningSignals(analysis: ExpressAnalysis, decisionPosture: stri
   const importedMetricsUsed =
     analysis.marketMetricsMatch?.importedMetricsUsed ||
     analysis.marketContext?.importedMarketMetrics?.importedMetricsUsed;
-  const marketBasis = importedMetricsUsed ? "Imported sample metrics" : analysis.marketContext ? "Seed/static area context" : "Demo fallback context";
+  const marketBasis = importedMetricsUsed ? "Imported sample metrics" : analysis.marketContext ? "Sample/static area context" : "Sample/open context";
   const customLens = analysis.customQueryAnswer
     ? analysis.customQueryAnswer.intent.replace(/_/g, " ")
     : null;
@@ -261,7 +264,7 @@ function createScreeningSignals(analysis: ExpressAnalysis, decisionPosture: stri
 
   if (analysis.scenarioId === "realEstateDevelopment") {
     return [
-      ["Market basis", importedMetricsUsed ? "Demand/development proxy" : "Demo demand proxy"],
+      ["Market basis", importedMetricsUsed ? "Demand/development proxy" : "Sample demand proxy"],
       ["Validation need", "Land-use, FAR and use checks"],
       ["Decision logic", "Conditional suitability"],
       ["Next step", "Planning and feasibility"]
@@ -317,11 +320,11 @@ function createDecisionRationalePreview(value: string) {
 
 function createDataConfidencePreview(value: string, importedMetricsUsed?: boolean) {
   if (importedMetricsUsed) {
-    return "Demo / imported";
+    return "Sample / imported";
   }
 
   if (value.length > 95) {
-    return "Demo evidence";
+    return "Sample evidence";
   }
 
   return value;
@@ -343,11 +346,124 @@ function createMetadataDetail(label: string, analysis: ExpressAnalysis, marketMe
   return undefined;
 }
 
+function DashboardSummaryCard({
+  label,
+  value,
+  detail,
+  onClick
+}: {
+  label: string;
+  value: string;
+  detail: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="rounded-md border border-line bg-surface p-3 text-left transition hover:border-brand hover:bg-white focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15"
+    >
+      <p className="safe-line-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">{label}</p>
+      <p className="safe-line-2 mt-1 text-sm font-semibold leading-5 text-ink">{value}</p>
+      <p className="safe-line-2 mt-1 text-xs leading-5 text-muted">{detail}</p>
+    </button>
+  );
+}
+
+function createDashboardSectionItems(sectionId: DashboardSectionId, analysis: ExpressAnalysis, decisionPosture: string) {
+  const aiScore = analysis.aiDecisionScore;
+  const marketName = analysis.marketContext?.areaName ?? analysis.marketMetricsMatch?.matchedAreaName;
+
+  switch (sectionId) {
+    case "redevelopment-hypothesis":
+    case "recommended-use":
+    case "commercial-format":
+    case "route-summary":
+    case "residential-context":
+      return [
+        aiScore?.recommendedUse ? `Recommended use: ${formatDecisionToken(aiScore.recommendedUse)}.` : decisionPosture,
+        analysis.opportunities[0],
+        analysis.customQuerySummary
+      ].filter(Boolean);
+    case "current-use":
+    case "monitoring-cadence":
+      return [
+        analysis.selectedObject?.name ? `Target: ${analysis.selectedObject.name}.` : analysis.selectedAoi?.name ? `AOI: ${analysis.selectedAoi.name}.` : "Map-selected target.",
+        ...analysis.keyFactors.slice(0, 2)
+      ];
+    case "infrastructure-access":
+    case "catchment-access":
+    case "planning-dependencies":
+      return [
+        ...analysis.keyFactors.slice(0, 3)
+      ];
+    case "market-context":
+    case "hotel-demand":
+    case "competition-proxy":
+    case "quality-of-life":
+      return [
+        marketName ? `Matched context: ${marketName}.` : "Market context is screening-only.",
+        analysis.marketContext?.dataQualityNotes?.[0],
+        ...analysis.opportunities.slice(0, 2)
+      ].filter(Boolean);
+    case "climate-exposure":
+      return [
+        "Climate exposure is a screening hypothesis and requires official/client validation.",
+        ...analysis.risks.slice(0, 2)
+      ];
+    case "risks-constraints":
+      return analysis.risks.slice(0, 4);
+    case "validation-gaps":
+      return [
+        ...(aiScore?.validationRequired ?? []),
+        ...(analysis.limitations ?? [])
+      ].slice(0, 4);
+    case "next-actions":
+      return analysis.nextActions.slice(0, 4);
+    case "evidence-appendix":
+      return analysis.evidence.slice(0, 4).map((item) => `${item.label}: ${item.sourceStatus}`);
+    default:
+      return analysis.keyFactors.slice(0, 4);
+  }
+}
+
+function DashboardSectionBlock({
+  section,
+  analysis,
+  decisionPosture
+}: {
+  section: DashboardSectionDefinition;
+  analysis: ExpressAnalysis;
+  decisionPosture: string;
+}) {
+  const items = createDashboardSectionItems(section.id, analysis, decisionPosture)
+    .filter((item): item is string => typeof item === "string" && item.trim().length > 0);
+
+  return (
+    <AnalysisCard id={`section-${section.id}`}>
+      <AnalysisCardHeader title={section.title} subtitle={section.summary} />
+      <div className="mt-4 grid gap-3 md:grid-cols-2">
+        {items.length > 0 ? (
+          items.map((item, index) => (
+            <div key={createStableKey(section.id, item, index)} className="rounded-md border border-line bg-surface p-4 text-sm leading-6 text-muted">
+              {item}
+            </div>
+          ))
+        ) : (
+          <div className="rounded-md border border-line bg-surface p-4 text-sm leading-6 text-muted">
+            No additional section detail is available for this screening run.
+          </div>
+        )}
+      </div>
+    </AnalysisCard>
+  );
+}
+
 export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: ExpressDashboardProps) {
   const dashboardRef = useRef<HTMLElement | null>(null);
-  const analysisBadge = analysis.analysisMode === "openai" ? "AI analysis" : "Demo fallback";
-  const modeLabel = analysis.analysisMode === "openai" ? "AI-powered" : "Demo fallback";
-  const dataLimitation = analysis.limitations?.[0] ?? "Structured evidence context with deterministic demo scoring.";
+  const analysisBadge = analysis.analysisMode === "openai" ? "AI analysis" : "Sample/open context";
+  const modeLabel = analysis.analysisMode === "openai" ? "AI-powered" : "Sample/open context";
+  const dataLimitation = analysis.limitations?.[0] ?? "Structured evidence context with deterministic sample scoring.";
   const decisionPosture = deriveDecisionPosture(analysis);
   const decisionRationale = deriveDecisionRationale(analysis);
   const marketMetricsMatch = analysis.marketContext?.importedMarketMetrics ?? analysis.marketMetricsMatch;
@@ -356,6 +472,60 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
   const screeningSignals = createScreeningSignals(analysis, decisionPosture);
   const decisionRationalePreview = createDecisionRationalePreview(decisionRationale);
   const limitationPreview = createDataConfidencePreview(dataLimitation, marketMetricsMatch?.importedMetricsUsed);
+  const dashboardSections = getDashboardSections(analysis.scenarioId);
+  const overallSuitability =
+    analysis.aiDecisionScore?.suitabilityScore ??
+    Math.round((analysis.scores.developmentPotential + analysis.scores.investmentAttractiveness + analysis.scores.accessibility) / 3);
+
+  function scrollToDashboardSection(sectionId: string) {
+    const target = dashboardRef.current?.querySelector<HTMLElement>(`#${sectionId}`);
+    target?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  const summaryCards = [
+    {
+      label: "Decision",
+      value: decisionPosture,
+      detail: decisionRationalePreview,
+      targetId: `section-${dashboardSections[0]?.id ?? "recommended-use"}`
+    },
+    {
+      label: "Suitability",
+      value: `${overallSuitability}/100`,
+      detail: `${analysis.confidenceLevel ?? "medium"} confidence; validation required.`,
+      targetId: "section-score-overview"
+    },
+    {
+      label: "Key drivers",
+      value: analysis.keyFactors[0] ?? "Drivers available below",
+      detail: `${analysis.keyFactors.length} driver signal(s) in this run.`,
+      targetId: "section-key-drivers"
+    },
+    {
+      label: "Key risks",
+      value: analysis.risks[0] ?? "Risks available below",
+      detail: `${analysis.risks.length} risk signal(s) in this run.`,
+      targetId: "section-risks-constraints"
+    },
+    {
+      label: "Validation gaps",
+      value: analysis.aiDecisionScore?.validationRequired[0] ?? analysis.limitations?.[0] ?? "Official validation required",
+      detail: "Screening output only; source checks remain required.",
+      targetId: "section-validation-gaps"
+    },
+    {
+      label: "Next actions",
+      value: analysis.nextActions[0] ?? "Review source gaps",
+      detail: `${analysis.nextActions.length} follow-up action(s).`,
+      targetId: "section-next-actions"
+    },
+    {
+      label: "Scenario section",
+      value: dashboardSections[0]?.title ?? "Scenario answer",
+      detail: dashboardSections[0]?.summary ?? "Scenario-specific detail below.",
+      targetId: `section-${dashboardSections[0]?.id ?? "recommended-use"}`
+    }
+  ];
 
   useEffect(() => {
     dashboardRef.current?.scrollTo({ top: 0, left: 0 });
@@ -390,7 +560,7 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
                 onClick={onBackToMap}
                 className="inline-flex h-10 items-center justify-center rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink transition hover:border-brand"
               >
-                Back to map
+                Back to setup
               </button>
             </div>
           </header>
@@ -406,7 +576,7 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
                   : analysis.analysisTarget?.type === "uploaded-feature"
                   ? "Uploaded screening geometry with surrounding Dubai context"
                   : analysis.analysisTarget?.type === "demo-feature"
-                    ? "Demo-normalized screening geometry with surrounding Dubai context"
+                    ? "Sample/open screening geometry with surrounding Dubai context"
                     : "Selected point with surrounding Dubai context"
               }
               selectedPoint={analysis.point}
@@ -423,57 +593,49 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
                   {decisionRationalePreview}
                 </p>
               </div>
-              <div className="flex min-h-0 flex-1 flex-col justify-between gap-3 pt-3">
-                <div className="grid gap-3">
-                  <div>
-                    <h2 className="text-lg font-semibold text-ink">Executive Summary</h2>
-                    <p className="safe-line-4 mt-2 text-sm leading-6 text-muted xl:text-[15px]">{summaryPreview}</p>
-                  </div>
-                  {analysis.analysisNotice ? (
-                    <p className="safe-line-2 rounded-md border border-line bg-surface px-3 py-2 text-xs leading-5 text-muted">
-                      {analysis.analysisNotice}
-                    </p>
-                  ) : null}
-                  <div>
-                    <p className="safe-line-1 text-xs font-semibold uppercase tracking-[0.12em] text-muted">Screening Signals</p>
-                    <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                      {screeningSignals.slice(0, 4).map(([label, value]) => (
-                        <div key={label} className="flex min-h-[58px] min-w-0 flex-col justify-between overflow-hidden rounded-md border border-line bg-surface px-3 py-2">
-                          <p className="safe-line-1 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted">{label}</p>
-                          <p className="safe-line-2 mt-1 text-sm font-semibold leading-5 text-ink">{value}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-                <div className="mt-auto">
-                  <p className="safe-line-1 text-xs font-semibold uppercase tracking-[0.12em] text-muted">Source / Run Metadata</p>
-                  <div className="mt-2 grid gap-2 text-sm sm:grid-cols-2">
-                    <AnalysisMetricCard label="Analysis mode" value={modeLabel} className="min-h-[64px]" />
-                    <AnalysisMetricCard label="Confidence level" value={analysis.confidenceLevel ?? "medium"} className="min-h-[64px]" />
-                    <AnalysisMetricCard
-                      label="Data confidence"
-                      value={limitationPreview}
-                      detail={createMetadataDetail("Data confidence", analysis, marketMetricsMatch?.importedMetricsUsed)}
-                      className="min-h-[64px]"
-                    />
-                    <AnalysisMetricCard
-                      label={analysis.customQueryIntent ? "Analysis lens" : "Generated"}
-                      value={analysis.customQueryIntent ? analysis.customQueryIntent.replace(/_/g, " ") : formatGeneratedAt(analysis.generatedAt)}
-                      detail={analysis.customQueryIntent ? "Query lens applied" : undefined}
-                      className="min-h-[64px]"
-                    />
-                  </div>
-                </div>
+              <p className="safe-line-3 mt-3 text-sm leading-6 text-muted xl:text-[15px]">{summaryPreview}</p>
+              {analysis.analysisNotice ? (
+                <p className="safe-line-2 mt-3 rounded-md border border-line bg-surface px-3 py-2 text-xs leading-5 text-muted">
+                  {analysis.analysisNotice}
+                </p>
+              ) : null}
+              <div className="mt-3 grid min-h-0 flex-1 gap-2 overflow-y-auto pr-1 [scrollbar-width:thin] sm:grid-cols-2">
+                {summaryCards.map((card) => (
+                  <DashboardSummaryCard
+                    key={`${card.label}-${card.targetId}`}
+                    label={card.label}
+                    value={card.value}
+                    detail={card.detail}
+                    onClick={() => scrollToDashboardSection(card.targetId)}
+                  />
+                ))}
+              </div>
+              <div className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+                <AnalysisMetricCard label="Analysis mode" value={modeLabel} className="min-h-[64px]" />
+                <AnalysisMetricCard
+                  label="Data confidence"
+                  value={limitationPreview}
+                  detail={createMetadataDetail("Data confidence", analysis, marketMetricsMatch?.importedMetricsUsed)}
+                  className="min-h-[64px]"
+                />
               </div>
             </section>
           </div>
         </section>
 
-        <AnalysisCard>
+        {dashboardSections.map((section) => (
+          <DashboardSectionBlock
+            key={section.id}
+            section={section}
+            analysis={analysis}
+            decisionPosture={decisionPosture}
+          />
+        ))}
+
+        <AnalysisCard id="section-score-overview">
           <AnalysisCardHeader
             title="Scenario-specific Score Overview"
-            subtitle="Demo-normalized scores for screening. Hover a score for interpretation and validation caveats."
+            subtitle="Sample/open scores for screening. Hover a score for interpretation and validation caveats."
           />
           <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {scoreOrder.map((scoreKey) => {
@@ -509,7 +671,7 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
             <AnalysisCardHeader
               title="AI Decision Memo"
               subtitle="Scenario-specific decision-support hypothesis layered on top of deterministic scores."
-              badge={analysis.aiDecisionScore.mode === "openai" ? "OpenAI scoring" : "Deterministic fallback"}
+              badge={analysis.aiDecisionScore.mode === "openai" ? "OpenAI scoring" : "Deterministic scoring"}
             />
             <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
               <AnalysisMetricCard
@@ -669,7 +831,7 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
               />
             </div>
             <p className="mt-4 text-sm leading-6 text-muted">
-              Note: {marketMetricsMatch?.note ?? analysis.marketContext.dataQualityNotes?.[0] ?? "Current values are demo-normalized indices and not official market data."}
+              Note: {marketMetricsMatch?.note ?? analysis.marketContext.dataQualityNotes?.[0] ?? "Current values are sample/open indices and not official market data."}
               {" "}
               {marketMetricsMatch?.importedMetricsUsed
                 ? "Imported sample metrics demonstrate the market-data workflow. Validate against official DLD / Dubai Pulse datasets before investment decisions."
@@ -748,7 +910,7 @@ export function ExpressDashboard({ analysis, onBackToMap, onExportReport }: Expr
           </AnalysisCard>
         ) : null}
 
-        <AnalysisCard>
+        <AnalysisCard id="section-key-drivers">
           <AnalysisCardHeader title="Key Value Drivers" />
           <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {analysis.keyFactors.map((factor, index) => (

@@ -1,5 +1,5 @@
 export type PilotReadinessLabel =
-  | "Demo-ready"
+  | "Screening-ready"
   | "Pilot setup in progress"
   | "Pilot data required"
   | "Validation required before decisions";
@@ -48,7 +48,7 @@ export function calculatePilotReadiness(input: PilotReadinessInput): PilotReadin
   if (input.officialCustomerValidationPending && score >= 70) {
     readinessLabel = "Validation required before decisions";
   } else if (score >= 75) {
-    readinessLabel = "Demo-ready";
+    readinessLabel = "Screening-ready";
   } else if (score >= 45) {
     readinessLabel = "Pilot setup in progress";
   }

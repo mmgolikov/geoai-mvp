@@ -26,13 +26,13 @@ export const guidedDemoPresets: GuidedDemoPreset[] = [
     title: "Dubai Marina investment screening",
     clientType: "Fund / family office",
     scenarioId: "investmentSiteSelection",
-    selectedAreaLabel: "Dubai Marina Demo Pipeline Area",
+    selectedAreaLabel: "Dubai Marina sample pipeline area",
     geometryType: "polygon",
     center: { latitude: 25.0822, longitude: 55.1431 },
-    featureName: "Dubai Marina Demo Pipeline Area",
+    featureName: "Dubai Marina sample pipeline area",
     recommendedDatasets: [
-      "Demo CSV metrics - local sample / not official",
-      "Demo GeoJSON screening sites - local sample / not official boundary"
+      "Sample CSV metrics - local sample / not official",
+      "Sample GeoJSON screening sites - local sample / not official boundary"
     ],
     scriptBullets: [
       "Show high-demand coastal asset screening.",
@@ -49,13 +49,13 @@ export const guidedDemoPresets: GuidedDemoPreset[] = [
     title: "Dubai South development pipeline",
     clientType: "Developer / master developer",
     scenarioId: "realEstateDevelopment",
-    selectedAreaLabel: "Dubai South Demo Growth Node",
+    selectedAreaLabel: "Dubai South sample growth node",
     geometryType: "polygon",
     center: { latitude: 24.8887, longitude: 55.1542 },
-    featureName: "Dubai South Demo Growth Node",
+    featureName: "Dubai South sample growth node",
     recommendedDatasets: [
-      "Demo CSV metrics - local sample / not official",
-      "Demo GeoJSON screening sites - local sample / not official boundary"
+      "Sample CSV metrics - local sample / not official",
+      "Sample GeoJSON screening sites - local sample / not official boundary"
     ],
     scriptBullets: [
       "Show early-stage development pipeline screening.",
@@ -72,13 +72,13 @@ export const guidedDemoPresets: GuidedDemoPreset[] = [
     title: "Bank asset review / collateral screening",
     clientType: "Bank / lender",
     scenarioId: "investmentSiteSelection",
-    selectedAreaLabel: "Business Bay Demo Infill Area",
+    selectedAreaLabel: "Business Bay sample infill area",
     geometryType: "polygon",
     center: { latitude: 25.1853, longitude: 55.2685 },
-    featureName: "Business Bay Demo Infill Area",
+    featureName: "Business Bay sample infill area",
     recommendedDatasets: [
-      "Demo CSV metrics - local sample / not official",
-      "Demo GeoJSON screening sites - local sample / not official boundary"
+      "Sample CSV metrics - local sample / not official",
+      "Sample GeoJSON screening sites - local sample / not official boundary"
     ],
     scriptBullets: [
       "Show lender-style collateral context.",
@@ -98,7 +98,7 @@ const pipelineSitesSample: GeoJSON.FeatureCollection = {
     {
       type: "Feature",
       properties: {
-        name: "Dubai Marina Demo Pipeline Area",
+        name: "Dubai Marina sample pipeline area",
         site_type: "mixed_use_pipeline",
         confidence: "sample",
         note: "Synthetic polygon for upload workflow testing."
@@ -119,7 +119,7 @@ const pipelineSitesSample: GeoJSON.FeatureCollection = {
     {
       type: "Feature",
       properties: {
-        name: "Business Bay Demo Infill Area",
+        name: "Business Bay sample infill area",
         site_type: "redevelopment_watch",
         confidence: "sample",
         note: "Synthetic polygon for upload workflow testing."
@@ -140,7 +140,7 @@ const pipelineSitesSample: GeoJSON.FeatureCollection = {
     {
       type: "Feature",
       properties: {
-        name: "Dubai South Demo Growth Node",
+        name: "Dubai South sample growth node",
         site_type: "growth_pipeline",
         confidence: "sample",
         note: "Synthetic polygon for upload workflow testing."
@@ -173,7 +173,7 @@ const demoMetricRows: UploadedCsvRow[] = [
       rental_demand_index: 82,
       pipeline_status: "active pipeline",
       confidence: "sample",
-      notes: "Demo user-uploaded metric row for local fallback screening."
+      notes: "Sample user-uploaded metric row for local fallback screening."
     },
     raw: {
       site_name: "Dubai Marina Waterfront Parcel",
@@ -185,7 +185,7 @@ const demoMetricRows: UploadedCsvRow[] = [
       rental_demand_index: "82",
       pipeline_status: "active pipeline",
       confidence: "sample",
-      notes: "Demo user-uploaded metric row for local fallback screening."
+      notes: "Sample user-uploaded metric row for local fallback screening."
     }
   },
   {
@@ -199,7 +199,7 @@ const demoMetricRows: UploadedCsvRow[] = [
       rental_demand_index: 78,
       pipeline_status: "redevelopment watch",
       confidence: "sample",
-      notes: "Demo user-uploaded metric row for local fallback screening."
+      notes: "Sample user-uploaded metric row for local fallback screening."
     },
     raw: {
       site_name: "Business Bay Infill Site",
@@ -211,7 +211,7 @@ const demoMetricRows: UploadedCsvRow[] = [
       rental_demand_index: "78",
       pipeline_status: "redevelopment watch",
       confidence: "sample",
-      notes: "Demo user-uploaded metric row for local fallback screening."
+      notes: "Sample user-uploaded metric row for local fallback screening."
     }
   },
   {
@@ -225,7 +225,7 @@ const demoMetricRows: UploadedCsvRow[] = [
       rental_demand_index: 61,
       pipeline_status: "early growth",
       confidence: "sample",
-      notes: "Demo user-uploaded metric row for local fallback screening."
+      notes: "Sample user-uploaded metric row for local fallback screening."
     },
     raw: {
       site_name: "Dubai South Growth Zone",
@@ -237,7 +237,7 @@ const demoMetricRows: UploadedCsvRow[] = [
       rental_demand_index: "61",
       pipeline_status: "early growth",
       confidence: "sample",
-      notes: "Demo user-uploaded metric row for local fallback screening."
+      notes: "Sample user-uploaded metric row for local fallback screening."
     }
   }
 ];
@@ -256,7 +256,7 @@ function createDemoGeojsonDataset(uploadedAt: string): UploadedDataset {
 
   return {
     id: "guided-demo-geojson-sites",
-    name: "Demo GeoJSON screening sites",
+    name: "Sample GeoJSON screening sites",
     type: "geojson",
     status: "parsed",
     sourceMode: "sample-fixture",
@@ -273,7 +273,7 @@ function createDemoGeojsonDataset(uploadedAt: string): UploadedDataset {
 function createDemoCsvDataset(uploadedAt: string): UploadedDataset {
   return {
     id: "guided-demo-csv-metrics",
-    name: "Demo CSV metrics",
+    name: "Sample CSV metrics",
     type: "csv",
     status: "parsed",
     sourceMode: "sample-fixture",
@@ -343,9 +343,9 @@ export function createGuidedDemoSelection(preset: GuidedDemoPreset): SelectedDem
   return {
     id: `guided-demo-${featureId}`,
     name: featureName,
-    type: "Demo screening geometry",
+    type: "Sample screening geometry",
     layerId: "futureCustomerAssets",
-    layerName: "Demo GeoJSON screening sites",
+    layerName: "Sample GeoJSON screening sites",
     geometryType: preset.geometryType === "point" ? "point" : "polygon",
     center,
     analysisTarget: {
@@ -361,7 +361,7 @@ export function createGuidedDemoSelection(preset: GuidedDemoPreset): SelectedDem
         officialStatus: "official-validation-required"
       },
       datasetId: "guided-demo-geojson-sites",
-      datasetName: "Demo GeoJSON screening sites",
+      datasetName: "Sample GeoJSON screening sites",
       sourceMode: "sample-fixture",
       officialStatus: "official-validation-required"
     }

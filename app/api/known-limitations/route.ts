@@ -61,6 +61,6 @@ export async function GET() {
     pilotBackendStatus: pilotBackend.status,
     canRunDemoPilot: pilotBackend.canRunDemoPilot,
     canRunConfidentialPilot: pilotBackend.canRunConfidentialPilot,
-    caveat: "Known limitations are explicit product guardrails, not hidden production readiness claims."
+    caveat: "Limitations are explicit product guardrails, not hidden production readiness claims."
   });
 }

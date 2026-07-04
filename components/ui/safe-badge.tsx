@@ -11,7 +11,7 @@ const variantClass: Record<SafeBadgeVariant, string> = {
 };
 
 const shortLabels: Record<string, string> = {
-  "demo prototype": "Demo",
+  "demo prototype": "Sample",
   "layers active": "Layers",
   "planned validation": "Planned",
   "official validation required": "Validation",

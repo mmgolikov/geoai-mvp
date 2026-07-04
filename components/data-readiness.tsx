@@ -18,6 +18,7 @@ export function DataMaturityBadge({ source }: { source: DataSource | null }) {
 
 export function SourceStatusBadge({ source }: { source: DataSource | null }) {
   const status = source?.integrationStatus ?? "planned";
+  const label = status === "active_demo" ? "sample active" : status.replace(/_/g, " ");
   const tone = status === "active_demo"
     ? "bg-[#eef2f5] text-muted"
     : status === "official_ready"
@@ -28,7 +29,7 @@ export function SourceStatusBadge({ source }: { source: DataSource | null }) {
 
   return (
     <span className={`rounded-full px-2 py-1 text-[11px] font-semibold ${tone}`}>
-      {status.replace(/_/g, " ")}
+      {label}
     </span>
   );
 }
@@ -92,10 +93,10 @@ export function ValidationRequirementList({ evidence }: { evidence: EvidenceItem
       </div>
       <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         {[
-          ["Used in this prototype", "Synthetic demo layers, seed_static market context and deterministic scoring."],
+          ["Used in this prototype", "Synthetic sample layers, seed_static market context and deterministic scoring."],
           ["Required for official validation", "DLD, Dubai Pulse, Dubai Municipality / GeoDubai and official planning evidence."],
           ["Pilot integration path", "Connect permitted official/open/customer sources through adapter interfaces and QA checks."],
-          ["Remaining limitations", "Current outputs are demo-normalized and require validation before underwriting or development decisions."]
+          ["Remaining limitations", "Current outputs are sample/open screening context and require validation before underwriting or development decisions."]
         ].map(([title, text]) => (
           <div key={title} className="rounded-md border border-line bg-surface p-4">
             <h3 className="text-sm font-semibold text-ink">{title}</h3>

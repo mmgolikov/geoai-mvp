@@ -41,6 +41,6 @@ export function sourceDataModeLabel(mode: unknown) {
     case "planned_validation":
       return "Planned validation";
     case "demo_seed":
-      return "Demo seed";
+      return "Sample seed";
   }
 }

@@ -40,7 +40,7 @@ export function getEffectiveAuthMode(): GeoAIAuthMode {
 export function authModeToLabel(mode: GeoAIAuthMode) {
   if (mode === "supabase_auth") return "Supabase Auth";
   if (mode === "disabled") return "Auth disabled";
-  return "Demo public";
+  return "Pilot public";
 }
 
 export function authModeToCaveat(mode: GeoAIAuthMode, requestedMode = mode) {
@@ -53,10 +53,10 @@ export function authModeToCaveat(mode: GeoAIAuthMode, requestedMode = mode) {
   }
 
   if (mode === "disabled") {
-    return "Authentication UI is disabled; public demo workflows remain available.";
+    return "Authentication UI is disabled; public pilot screening workflows remain available.";
   }
 
-  return "Public demo access is enabled; official validation and production access control are not configured.";
+  return "Public pilot access is enabled; official validation and production access control are not configured.";
 }
 
 export function getAuthModeStatus(): AuthModeStatus {

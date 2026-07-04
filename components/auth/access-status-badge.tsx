@@ -12,7 +12,7 @@ export function AccessStatusBadge({ compact = false }: { compact?: boolean }) {
         : "Sign in available"
       : authStatus.effectiveMode === "disabled"
         ? "Auth off"
-        : "Demo access";
+        : "Pilot access";
 
   return (
     <Link

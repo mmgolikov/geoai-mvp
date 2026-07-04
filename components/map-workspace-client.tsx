@@ -1354,7 +1354,7 @@ export function MapWorkspaceClient({
     const mapInitTimeout = window.setTimeout(() => {
       if (isMounted && !mapRef.current) {
         setMapResourceError(
-          "Map could not initialize in this browser. The demo fallback map remains available for point selection."
+          "Map could not initialize in this browser. The sample map remains available for point selection."
         );
       }
     }, 4000);
@@ -1380,7 +1380,7 @@ export function MapWorkspaceClient({
       } catch {
         if (isMounted) {
           setMapResourceError(
-            "Map could not initialize in this browser. The demo fallback map remains available for point selection."
+            "Map could not initialize in this browser. The sample map remains available for point selection."
           );
         }
         return;
@@ -1811,7 +1811,7 @@ export function MapWorkspaceClient({
                 </p>
               </div>
               <div className="absolute bottom-6 left-6 right-6 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-white/70 bg-white/85 px-4 py-3 text-sm text-muted shadow-soft backdrop-blur">
-                <span>Dubai / Abu Dhabi demo extent</span>
+                <span>Dubai / Abu Dhabi sample extent</span>
                 <span>Click the map to select a point for express analysis.</span>
               </div>
             </>
@@ -1986,7 +1986,7 @@ export function MapWorkspaceClient({
                 </div>
 
                 <p className="mt-1.5 px-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-muted">
-                  GeoAI Demo Analytical Overlays
+                  GeoAI Screening Overlays
                 </p>
                 {demoOverlayLayers.map((layer) => (
                   <label key={layer.id} className="flex cursor-pointer items-center justify-between gap-2 rounded-md border border-line bg-surface px-2.5 py-1.5">
@@ -2059,7 +2059,7 @@ export function MapWorkspaceClient({
               </div>
 
               <div className="mt-2 rounded-md bg-white px-2.5 py-2 text-[11px] leading-4 text-muted">
-                GeoAI overlays are demo-normalized screening layers, not official GIS, parcel, zoning, planning, or risk boundaries.
+                GeoAI overlays are sample/open screening layers, not official GIS, parcel, zoning, planning, or risk boundaries.
               </div>
             </div>
           ) : null}

@@ -111,7 +111,7 @@ export const exploreRoles = [...b2cRoles, ...b2bRoles] as ExploreRoleDefinition[
 
 const validationCaveats = [
   exploreRequiredCaveat,
-  "Sample/open/demo context only; customer-approved or authoritative source checks are required before decisions."
+  "Sample/open context only; customer-approved or authoritative source checks are required before decisions."
 ];
 
 const b2cPropertyCaveat =

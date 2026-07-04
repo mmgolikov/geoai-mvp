@@ -48,6 +48,13 @@ import {
   exploreCandidateToSelectedPoint,
   exploreScenarioToAnalysisScenario
 } from "@/src/lib/explore/workspace-bridge";
+import {
+  createLocalProject,
+  mergeProjectsWithLocal,
+  projectToInput,
+  saveLocalProject,
+  type LocalProjectInput
+} from "@/src/lib/project-local-store";
 import type { RepositoryMode } from "@/src/lib/repositories/repository-mode";
 import {
   createAoiGeojsonFeature,
@@ -120,6 +127,13 @@ type ProjectsResponse = {
   mode: "supabase" | "demo_seed";
   items: GeoAIProject[];
   error: string | null;
+};
+
+type CreateProjectResponse = {
+  ok: boolean;
+  mode: "supabase" | "demo_seed";
+  project?: GeoAIProject | null;
+  error?: string | null;
 };
 
 type ValidationGovernanceResponse = {
@@ -271,7 +285,7 @@ function withMarketContext(analysis: ExpressAnalysis, marketContext: MarketConte
         ? `Market context: ${marketContext.areaName}`
         : `Market validation source: ${source?.name ?? sourceId}`,
       index === 0
-        ? `${marketContext.sourceMode ?? "seed_static"} market context matched to ${marketContext.areaName}. ${marketContext.dataQualityNotes?.[0] ?? "Current values are demo-normalized indices, not official market data."}`
+        ? `${marketContext.sourceMode ?? "seed_static"} market context matched to ${marketContext.areaName}. ${marketContext.dataQualityNotes?.[0] ?? "Current values are sample/open indices, not official market data."}`
         : `Planned validation source for market, planning, infrastructure, or geospatial context related to ${marketContext.areaName}.`,
       index === 0 ? "demo" : "medium"
     );
@@ -536,6 +550,25 @@ function createComparisonSignature(items: ComparisonItem[]) {
   return items.map((item) => item.id).sort().join("|");
 }
 
+function createExploreSettingsSignature({
+  audience,
+  role,
+  interactionMode,
+  filters
+}: {
+  audience: ExploreAudience;
+  role: ExploreRole;
+  interactionMode: InteractionMode;
+  filters: ExploreFilters;
+}) {
+  const normalizedFilters = Object.entries(filters)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([key, value]) => `${key}:${String(value)}`)
+    .join("|");
+
+  return `${audience}:${role}:${interactionMode}:${normalizedFilters}`;
+}
+
 function hasPendingQueryChange(currentQuery: string, lastQuery: string) {
   if (!currentQuery) {
     return false;
@@ -710,11 +743,13 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
     query: string;
     scenarioId: AnalysisScenarioId;
     targetSignature: string;
+    settingsSignature: string;
   } | null>(null);
   const [lastComparedState, setLastComparedState] = useState<{
     query: string;
     scenarioId: AnalysisScenarioId;
     comparisonSignature: string;
+    settingsSignature: string;
   } | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [marketContext, setMarketContext] = useState<MarketContext | null>(null);
@@ -799,7 +834,7 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
     setLastComparedState(null);
     setReportPreview(null);
     setAnalysisError(null);
-    setComparisonMessage(includeComparisonSites ? "Demo comparison sites loaded. Click Compare when ready." : null);
+    setComparisonMessage(includeComparisonSites ? "Sample comparison sites loaded. Click Compare when ready." : null);
     setIsAnalyzing(false);
     setMarketContext(null);
     setActiveGuidedDemoId(preset.id);
@@ -953,9 +988,12 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
   useEffect(() => {
     const requestedProjectKey = readProjectKeyFromUrl(demoProjects);
     const storedProjectKey = requestedProjectKey ?? readActiveProjectKey();
-    const localProject = getDemoProject(storedProjectKey);
+    const localProjects = mergeProjectsWithLocal(demoProjects);
+    const localProject =
+      localProjects.find((project) => project.projectKey === storedProjectKey) ?? getDemoProject(storedProjectKey);
     let isMounted = true;
 
+    setProjects(localProjects);
     setActiveProject(localProject);
 
     fetch("/api/projects")
@@ -965,7 +1003,7 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
           return;
         }
 
-        const nextProjects = payload.items;
+        const nextProjects = mergeProjectsWithLocal(payload.items);
         const urlProjectKey = readProjectKeyFromUrl(nextProjects);
         const nextActiveProject =
           nextProjects.find((project) => project.projectKey === (urlProjectKey ?? storedProjectKey)) ?? nextProjects[0];
@@ -977,7 +1015,7 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
       })
       .catch(() => {
         if (isMounted) {
-          setProjects(demoProjects);
+          setProjects(localProjects);
           setProjectsMode("demo_seed");
           setActiveProject(localProject);
         }
@@ -1410,7 +1448,13 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
     setLastComparedState({
       query: normalizeQuery(customQuery),
       scenarioId: selectedScenario,
-      comparisonSignature: createComparisonSignature(comparisonItems)
+      comparisonSignature: createComparisonSignature(comparisonItems),
+      settingsSignature: createExploreSettingsSignature({
+        audience: selectedExploreAudience,
+        role: selectedExploreRole,
+        interactionMode: exploreInteractionMode,
+        filters: exploreFilters
+      })
     });
     void persistComparisonSet(comparisonResult);
     setReportPreview(null);
@@ -1624,7 +1668,7 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
       dueDiligenceChecklist: comparisonResult.nextActions,
       evidenceSourceReadiness: comparisonResult.evidence,
       limitations: [
-        "Comparison uses deterministic demo scoring and structured evidence readiness, not a validated underwriting model."
+        "Comparison uses deterministic sample scoring and structured evidence readiness, not a validated underwriting model."
       ],
       generatedAt: new Date().toISOString()
     };
@@ -1821,6 +1865,51 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
     setAoiMessage(null);
   }
 
+  function activateProject(project: GeoAIProject) {
+    setProjects((currentProjects) => {
+      const byKey = new Map(currentProjects.map((item) => [item.projectKey, item]));
+      byKey.set(project.projectKey, project);
+      return Array.from(byKey.values());
+    });
+    setActiveProject(project);
+    writeActiveProjectKey(project.projectKey);
+    setSelectedPoint(null);
+    setSelectedObject(null);
+    setSelectedAoi(null);
+    setSelectedExploreCandidateId(null);
+    setAnalysis(null);
+    setComparison(null);
+    setReportPreview(null);
+    setLastAnalyzedState(null);
+    setLastComparedState(null);
+    setAnalysisError(null);
+    setComparisonMessage(null);
+    setMarketContext(null);
+    setAoiMessage(null);
+  }
+
+  async function createProject(input: LocalProjectInput) {
+    const localProject = createLocalProject(input);
+
+    try {
+      const response = await fetch("/api/projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(projectToInput(localProject))
+      });
+      const payload = response.ok ? await response.json() as CreateProjectResponse : null;
+      const createdProject = payload?.project ?? localProject;
+
+      saveLocalProject(createdProject);
+      setProjectsMode(payload?.mode ?? "demo_seed");
+      activateProject(createdProject);
+    } catch {
+      saveLocalProject(localProject);
+      setProjectsMode("demo_seed");
+      activateProject(localProject);
+    }
+  }
+
   function restoreAnalysisDashboard(item: AnalysisHistoryItem) {
     const restoredCustomQuery = normalizeQuery(item.analysis.customQuery ?? "");
     const restoredProject = item.project ?? item.analysis.project ?? getDemoProject(item.projectKey);
@@ -1833,22 +1922,29 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
     setSelectedObject(restoredAnalysis.selectedObject ?? null);
     setSelectedAoi(restoredAnalysis.selectedAoi ?? null);
     setSelectedScenario(restoredAnalysis.scenarioId);
-    {
-      const nextExploreScenarioId = analysisScenarioToExploreScenario(restoredAnalysis.scenarioId);
-      const nextExploreScenario = getExploreScenario(nextExploreScenarioId);
-      setSelectedExploreAudience(nextExploreScenario.audience);
-      setSelectedExploreRole(nextExploreScenario.defaultRoleHints[0]);
-      setSelectedExploreScenario(nextExploreScenarioId);
-      setExploreInteractionMode(nextExploreScenario.defaultInteractionMode);
-      setExploreFilters(getDefaultFilters(nextExploreScenario.inputSchema));
-      setSelectedExploreCandidateId(null);
-    }
+    const nextExploreScenarioId = analysisScenarioToExploreScenario(restoredAnalysis.scenarioId);
+    const nextExploreScenario = getExploreScenario(nextExploreScenarioId);
+    const nextExploreRole = nextExploreScenario.defaultRoleHints[0];
+    const nextExploreFilters = getDefaultFilters(nextExploreScenario.inputSchema);
+
+    setSelectedExploreAudience(nextExploreScenario.audience);
+    setSelectedExploreRole(nextExploreRole);
+    setSelectedExploreScenario(nextExploreScenarioId);
+    setExploreInteractionMode(nextExploreScenario.defaultInteractionMode);
+    setExploreFilters(nextExploreFilters);
+    setSelectedExploreCandidateId(null);
     setCustomQuery(restoredCustomQuery);
     setAnalysis(restoredAnalysis);
     setLastAnalyzedState({
       query: restoredCustomQuery,
       scenarioId: restoredAnalysis.scenarioId,
-      targetSignature: createTargetSignature(restoredAnalysis.point, restoredAnalysis.selectedObject ?? null, restoredAnalysis.selectedAoi ?? null)
+      targetSignature: createTargetSignature(restoredAnalysis.point, restoredAnalysis.selectedObject ?? null, restoredAnalysis.selectedAoi ?? null),
+      settingsSignature: createExploreSettingsSignature({
+        audience: nextExploreScenario.audience,
+        role: nextExploreRole,
+        interactionMode: nextExploreScenario.defaultInteractionMode,
+        filters: nextExploreFilters
+      })
     });
     if (restoredProject) {
       setActiveProject(restoredProject);
@@ -2114,7 +2210,13 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
       setLastAnalyzedState({
         query: normalizeQuery(customQuery),
         scenarioId: selectedScenario,
-        targetSignature: createTargetSignature(selectedPoint, selectedObject, selectedAoi)
+        targetSignature: createTargetSignature(selectedPoint, selectedObject, selectedAoi),
+        settingsSignature: createExploreSettingsSignature({
+          audience: selectedExploreAudience,
+          role: selectedExploreRole,
+          interactionMode: exploreInteractionMode,
+          filters: exploreFilters
+        })
       });
       saveAnalysisHistory(finalAnalysis, scenario.label);
       void persistAnalysisRun(finalAnalysis, scenario.label);
@@ -2123,10 +2225,10 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
         ...deterministicAnalysis,
         analysisMode: "mock_fallback",
         confidenceLevel: "medium",
-        analysisNotice: "AI analysis is unavailable. Using deterministic demo fallback.",
+        analysisNotice: "AI analysis is unavailable. Using deterministic sample/open scoring.",
         limitations: [
           ...(deterministicAnalysis.limitations ?? []),
-          "Narrative content is generated from deterministic demo context.",
+          "Narrative content is generated from deterministic sample/open context.",
           "Official parcel, planning, transaction, imagery, and risk data are not connected yet."
         ],
         generatedAt: new Date().toISOString()
@@ -2172,7 +2274,13 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
       setLastAnalyzedState({
         query: normalizeQuery(customQuery),
         scenarioId: selectedScenario,
-        targetSignature: createTargetSignature(selectedPoint, selectedObject, selectedAoi)
+        targetSignature: createTargetSignature(selectedPoint, selectedObject, selectedAoi),
+        settingsSignature: createExploreSettingsSignature({
+          audience: selectedExploreAudience,
+          role: selectedExploreRole,
+          interactionMode: exploreInteractionMode,
+          filters: exploreFilters
+        })
       });
       saveAnalysisHistory(finalFallbackAnalysis, scenario.label);
       void persistAnalysisRun(finalFallbackAnalysis, scenario.label);
@@ -2184,19 +2292,27 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
   const currentQuery = normalizeQuery(customQuery);
   const currentTargetSignature = createTargetSignature(selectedPoint, selectedObject, selectedAoi);
   const currentComparisonSignature = createComparisonSignature(comparisonItems);
+  const currentExploreSettingsSignature = createExploreSettingsSignature({
+    audience: selectedExploreAudience,
+    role: selectedExploreRole,
+    interactionMode: exploreInteractionMode,
+    filters: exploreFilters
+  });
   const isAnalysisUpToDate = Boolean(
     analysis &&
       lastAnalyzedState &&
       !hasPendingQueryChange(currentQuery, lastAnalyzedState.query) &&
       lastAnalyzedState.scenarioId === selectedScenario &&
-      lastAnalyzedState.targetSignature === currentTargetSignature
+      lastAnalyzedState.targetSignature === currentTargetSignature &&
+      lastAnalyzedState.settingsSignature === currentExploreSettingsSignature
   );
   const isComparisonUpToDate = Boolean(
     comparison &&
       lastComparedState &&
       !hasPendingQueryChange(currentQuery, lastComparedState.query) &&
       lastComparedState.scenarioId === selectedScenario &&
-      lastComparedState.comparisonSignature === currentComparisonSignature
+      lastComparedState.comparisonSignature === currentComparisonSignature &&
+      lastComparedState.settingsSignature === currentExploreSettingsSignature
   );
   const primaryCtaState = comparison
     ? isComparisonUpToDate
@@ -2306,9 +2422,6 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
         projectAois={projectAois}
         aoiDraftName={aoiDraftName}
         aoiMessage={aoiMessage}
-        guidedDemoPresets={guidedDemoPresets}
-        activeGuidedDemoId={activeGuidedDemoId}
-        activeDemoNarrative={getDemoNarrativeById(activeDemoNarrativeId)}
         exploreAudience={selectedExploreAudience}
         exploreRole={selectedExploreRole}
         exploreScenarioId={selectedExploreScenario}
@@ -2323,6 +2436,7 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
         onExploreInteractionModeChange={setExploreInteractionMode}
         onExploreFilterChange={updateExploreFilter}
         onExploreCandidateSelect={selectExploreCandidate}
+        onCreateProject={createProject}
         onProjectChange={changeActiveProject}
         onCustomQueryChange={(query) => {
           setCustomQuery(query);
@@ -2345,8 +2459,6 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
         onDeleteSavedAoi={deleteSavedAoi}
         onExportSelectedAoi={exportSelectedAoi}
         onExportSavedAoi={exportSavedAoi}
-        onLoadGuidedDemo={(presetId) => loadGuidedDemo(presetId)}
-        onLoadGuidedDemoComparison={(presetId) => loadGuidedDemo(presetId, true)}
         onRemoveUploadedDataset={removeUploadedDataset}
         onClearUploadedDatasets={clearUploadedDatasets}
         onToggleUploadedDataset={toggleUploadedDataset}

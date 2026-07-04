@@ -65,7 +65,7 @@ function route(coordinates: ExploreCoordinate[]): ExploreCandidateGeometry {
 
 const sharedCaveats = [
   exploreRequiredCaveat,
-  "Demo seed and open-context placeholders are intended for workflow demonstration only."
+  "Sample seed and open-context placeholders are intended for workflow demonstration only."
 ];
 
 const propertyCaveats = [
@@ -93,11 +93,11 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
       baseConfidence: "medium",
       scoreBreakdown: [
         { label: "Access proxy", value: 86, note: "Metro/tram and arterial road proximity sample." },
-        { label: "Amenity proxy", value: 88, note: "Retail, waterfront and leisure anchors in open/demo context." },
+        { label: "Amenity proxy", value: 88, note: "Retail, waterfront and leisure anchors in open/sample context." },
         { label: "Validation burden", value: 58, note: "Amenity and building-level claims require current checks." }
       ],
       evidence: [
-        evidence("Demo point seed", "demo_seed", "Curated Dubai Marina sample point for Explore v1."),
+        evidence("Sample point seed", "demo_seed", "Curated Dubai Marina sample point for Explore v1."),
         evidence("Open context placeholder", "open_context", "Nearby POI and access context is illustrative, not live provider data.")
       ],
       caveats: propertyCaveats,
@@ -119,11 +119,11 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
       baseConfidence: "medium",
       scoreBreakdown: [
         { label: "Access proxy", value: 80, note: "Central road and metro-adjacent screening context." },
-        { label: "Amenity proxy", value: 91, note: "Dense mixed-use anchors in demo/open context." },
+        { label: "Amenity proxy", value: 91, note: "Dense mixed-use anchors in sample/open context." },
         { label: "Validation burden", value: 52, note: "Crowding, cost and exact services require field/current checks." }
       ],
       evidence: [
-        evidence("Demo point seed", "demo_seed", "Curated Downtown Dubai sample point."),
+        evidence("Sample point seed", "demo_seed", "Curated Downtown Dubai sample point."),
         evidence("Open context placeholder", "open_context", "Landmark and activity context is illustrative.")
       ],
       caveats: propertyCaveats,
@@ -149,7 +149,7 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
         { label: "Validation burden", value: 60, note: "School, traffic and building conditions need current checks." }
       ],
       evidence: [
-        evidence("Demo point seed", "demo_seed", "Curated residential sample point."),
+        evidence("Sample point seed", "demo_seed", "Curated residential sample point."),
         evidence("User criteria lens", "sample", "Family and resident filters adjust ranking deterministically.")
       ],
       caveats: propertyCaveats,
@@ -182,7 +182,7 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
         { label: "Validation burden", value: 55, note: "Opening hours and access require current checks." }
       ],
       evidence: [
-        evidence("Route demo seed", "demo_seed", "Curated route geometry for Explore v1."),
+        evidence("Route sample seed", "demo_seed", "Curated route geometry for Explore v1."),
         evidence("Open context placeholder", "open_context", "Cultural anchors are illustrative and need current provider checks.")
       ],
       caveats: [...sharedCaveats, "Opening hours, accessibility and ticketing are not live-verified."],
@@ -213,7 +213,7 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
         { label: "Validation burden", value: 57, note: "Timing and reservation checks remain external." }
       ],
       evidence: [
-        evidence("Route demo seed", "demo_seed", "Curated Downtown route geometry."),
+        evidence("Route sample seed", "demo_seed", "Curated Downtown route geometry."),
         evidence("Sample activity context", "sample", "Activity anchors are demonstration records.")
       ],
       caveats: [...sharedCaveats, "Provider availability, crowding and current access conditions require checks."],
@@ -239,7 +239,7 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
         { label: "Validation burden", value: 61, note: "Event calendars and opening hours change frequently." }
       ],
       evidence: [
-        evidence("POI demo seed", "demo_seed", "Curated point for tourist-object workflow."),
+        evidence("POI sample seed", "demo_seed", "Curated point for tourist-object workflow."),
         evidence("Open context placeholder", "open_context", "Event and gallery details are not live.")
       ],
       caveats: [...sharedCaveats, "Events, galleries and access details must be checked with current providers."],
@@ -273,7 +273,7 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
         { label: "Validation burden", value: 57, note: "School, pricing and inventory claims are not verified." }
       ],
       evidence: [
-        evidence("Residential demo seed", "demo_seed", "Curated sample cluster geometry."),
+        evidence("Residential sample seed", "demo_seed", "Curated sample cluster geometry."),
         evidence("User criteria lens", "sample", "Family and park filters adjust score.")
       ],
       caveats: propertyCaveats,
@@ -305,7 +305,7 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
         { label: "Validation burden", value: 56, note: "Project, service and completion facts require provider checks." }
       ],
       evidence: [
-        evidence("Residential demo seed", "demo_seed", "Curated waterfront cluster geometry."),
+        evidence("Residential sample seed", "demo_seed", "Curated waterfront cluster geometry."),
         evidence("Open context placeholder", "open_context", "Amenity context is sample/open, not provider-verified.")
       ],
       caveats: propertyCaveats,
@@ -337,7 +337,7 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
         { label: "Validation burden", value: 62, note: "Building-specific quality varies and needs checks." }
       ],
       evidence: [
-        evidence("Residential demo seed", "demo_seed", "Curated sample cluster geometry."),
+        evidence("Residential sample seed", "demo_seed", "Curated sample cluster geometry."),
         evidence("Sample criteria lens", "sample", "Commute and service filters adjust score deterministically.")
       ],
       caveats: propertyCaveats,
@@ -354,7 +354,7 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
       audience: "b2c",
       candidateType: "residential_project",
       title: "Creekside 2026 sample project",
-      subtitle: "Waterfront and gym/parking amenity match in demo project inventory.",
+      subtitle: "Waterfront and gym/parking amenity match in sample project inventory.",
       locationLabel: "Dubai Creek Harbour",
       geometry: point([55.3512, 25.2043]),
       baseScore: 83,
@@ -362,11 +362,11 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
       scoreBreakdown: [
         { label: "Filter fit", value: 88, note: "Matches waterfront, gym and parking sample filters." },
         { label: "Access proxy", value: 72, note: "Access timing needs independent validation." },
-        { label: "Validation burden", value: 48, note: "Project fields are sample/demo, not provider-confirmed." }
+        { label: "Validation burden", value: 48, note: "Project fields are sample/open, not provider-confirmed." }
       ],
       evidence: [
-        evidence("Demo project seed", "demo_seed", "Synthetic 2024+ project-style record."),
-        evidence("User criteria lens", "sample", "Amenity filters are matched against demo attributes.", "low")
+        evidence("Sample project seed", "demo_seed", "Synthetic 2024+ project-style record."),
+        evidence("User criteria lens", "sample", "Amenity filters are matched against sample attributes.", "low")
       ],
       caveats: propertyCaveats,
       validationRequired: ["Developer/provider confirmation", "Amenity evidence", "Delivery and service-charge checks"],
@@ -391,7 +391,7 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
         { label: "Validation burden", value: 46, note: "Inventory and amenity facts are not live-verified." }
       ],
       evidence: [
-        evidence("Demo project seed", "demo_seed", "Synthetic residential project-style record."),
+        evidence("Sample project seed", "demo_seed", "Synthetic residential project-style record."),
         evidence("Open context placeholder", "open_context", "Transit and urban-core context is illustrative.", "low")
       ],
       caveats: propertyCaveats,
@@ -417,7 +417,7 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
         { label: "Validation burden", value: 50, note: "Transport timing and project facts need validation." }
       ],
       evidence: [
-        evidence("Demo project seed", "demo_seed", "Synthetic townhouse-style project record."),
+        evidence("Sample project seed", "demo_seed", "Synthetic townhouse-style project record."),
         evidence("Sample corridor context", "sample", "Growth corridor assumptions are demonstrative.", "low")
       ],
       caveats: propertyCaveats,
@@ -450,7 +450,7 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
         { label: "Validation burden", value: 54, note: "Opening hours and crowding require current checks." }
       ],
       evidence: [
-        evidence("Route demo seed", "demo_seed", "Curated route for interest-based workflow."),
+        evidence("Route sample seed", "demo_seed", "Curated route for interest-based workflow."),
         evidence("Open context placeholder", "open_context", "POI and food-stop context requires current validation.")
       ],
       caveats: [...sharedCaveats, "Route timing, provider availability and access conditions are not live-verified."],
@@ -481,7 +481,7 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
         { label: "Validation burden", value: 57, note: "Weather, crowding and provider details need checks." }
       ],
       evidence: [
-        evidence("Route demo seed", "demo_seed", "Curated family waterfront route geometry."),
+        evidence("Route sample seed", "demo_seed", "Curated family waterfront route geometry."),
         evidence("Sample leisure context", "sample", "Leisure context is illustrative.")
       ],
       caveats: [...sharedCaveats, "Weather, crowding and current access conditions require validation."],
@@ -512,7 +512,7 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
         { label: "Validation burden", value: 55, note: "Access and crowding need current checks." }
       ],
       evidence: [
-        evidence("Route demo seed", "demo_seed", "Curated Downtown route geometry."),
+        evidence("Route sample seed", "demo_seed", "Curated Downtown route geometry."),
         evidence("Open context placeholder", "open_context", "Architecture and landmark context is illustrative.")
       ],
       caveats: [...sharedCaveats, "Route timing and access are sample assumptions."],
@@ -546,7 +546,7 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
         { label: "Validation burden", value: 42, note: "Ownership, legal, planning and utility evidence is not connected." }
       ],
       evidence: [
-        evidence("Demo zone seed", "demo_seed", "Curated polygon for redevelopment screening workflow."),
+        evidence("Sample zone seed", "demo_seed", "Curated polygon for redevelopment screening workflow."),
         evidence("Open context placeholder", "open_context", "Road/access context is illustrative.")
       ],
       caveats: developmentCaveats,
@@ -573,13 +573,13 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
       baseScore: 77,
       baseConfidence: "medium",
       scoreBreakdown: [
-        { label: "Growth adjacency", value: 81, note: "Nearby growth context represented as demo signal." },
+        { label: "Growth adjacency", value: 81, note: "Nearby growth context represented as sample signal." },
         { label: "Access proxy", value: 74, note: "Road-network context needs deeper validation." },
         { label: "Validation burden", value: 44, note: "Environmental, planning and control checks are required." }
       ],
       evidence: [
-        evidence("Demo zone seed", "demo_seed", "Curated polygon for transitional-zone screening."),
-        evidence("Sample growth context", "sample", "Growth adjacency is a demo proxy.")
+        evidence("Sample zone seed", "demo_seed", "Curated polygon for transitional-zone screening."),
+        evidence("Sample growth context", "sample", "Growth adjacency is a sample proxy.")
       ],
       caveats: developmentCaveats,
       validationRequired: ["Environmental constraints review", "Planning validation", "Land/control due diligence"],
@@ -605,12 +605,12 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
       baseScore: 74,
       baseConfidence: "medium",
       scoreBreakdown: [
-        { label: "Access proxy", value: 86, note: "Urban access and activity context are strong demo signals." },
+        { label: "Access proxy", value: 86, note: "Urban access and activity context are strong sample signals." },
         { label: "Assembly complexity", value: 48, note: "Fragmentation and control are unresolved validation tasks." },
         { label: "Validation burden", value: 39, note: "Legal/control evidence is not connected." }
       ],
       evidence: [
-        evidence("Demo zone seed", "demo_seed", "Curated infill polygon."),
+        evidence("Sample zone seed", "demo_seed", "Curated infill polygon."),
         evidence("Open context placeholder", "open_context", "Urban access context is illustrative.")
       ],
       caveats: developmentCaveats,
@@ -644,7 +644,7 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
         { label: "Validation burden", value: 45, note: "Control, planning and infrastructure timing are unresolved." }
       ],
       evidence: [
-        evidence("Demo large-zone seed", "demo_seed", "Curated large polygon for strategic screening."),
+        evidence("Sample large-zone seed", "demo_seed", "Curated large polygon for strategic screening."),
         evidence("Sample corridor context", "sample", "Corridor growth signal is illustrative.")
       ],
       caveats: developmentCaveats,
@@ -676,7 +676,7 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
         { label: "Validation burden", value: 43, note: "Timing, controls and constraints require deep validation." }
       ],
       evidence: [
-        evidence("Demo large-zone seed", "demo_seed", "Curated corridor polygon."),
+        evidence("Sample large-zone seed", "demo_seed", "Curated corridor polygon."),
         evidence("Sample anchor context", "sample", "Employment/logistics adjacency is illustrative.")
       ],
       caveats: developmentCaveats,
@@ -708,7 +708,7 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
         { label: "Validation burden", value: 44, note: "Infrastructure and constraints are not validated." }
       ],
       evidence: [
-        evidence("Demo large-zone seed", "demo_seed", "Curated large polygon."),
+        evidence("Sample large-zone seed", "demo_seed", "Curated large polygon."),
         evidence("Open context placeholder", "open_context", "Access and district context are illustrative.")
       ],
       caveats: developmentCaveats,
@@ -742,7 +742,7 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
         { label: "Validation burden", value: 46, note: "Permitted use and control are unresolved." }
       ],
       evidence: [
-        evidence("Demo premium-zone seed", "demo_seed", "Curated polygon for luxury residential screening."),
+        evidence("Sample premium-zone seed", "demo_seed", "Curated polygon for luxury residential screening."),
         evidence("Sample amenity context", "sample", "Amenity adjacency is illustrative.")
       ],
       caveats: developmentCaveats,
@@ -774,7 +774,7 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
         { label: "Validation burden", value: 44, note: "Control, constraints and exact land facts are not validated." }
       ],
       evidence: [
-        evidence("Demo premium-zone seed", "demo_seed", "Curated low-rise sample polygon."),
+        evidence("Sample premium-zone seed", "demo_seed", "Curated low-rise sample polygon."),
         evidence("Open context placeholder", "open_context", "Water/green context is illustrative.")
       ],
       caveats: developmentCaveats,
@@ -806,7 +806,7 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
         { label: "Validation burden", value: 45, note: "Entitlement and control evidence is not connected." }
       ],
       evidence: [
-        evidence("Demo premium-zone seed", "demo_seed", "Curated sample polygon."),
+        evidence("Sample premium-zone seed", "demo_seed", "Curated sample polygon."),
         evidence("Sample amenity context", "sample", "School/park context is a demo screening signal.")
       ],
       caveats: developmentCaveats,
@@ -840,7 +840,7 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
         { label: "Validation burden", value: 47, note: "Hospitality demand and approvals are not validated." }
       ],
       evidence: [
-        evidence("Demo hotel-zone seed", "demo_seed", "Curated polygon for hotel-format screening."),
+        evidence("Sample hotel-zone seed", "demo_seed", "Curated polygon for hotel-format screening."),
         evidence("Sample demand anchors", "sample", "Business and event anchors are demonstration signals.")
       ],
       caveats: developmentCaveats,
@@ -872,7 +872,7 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
         { label: "Validation burden", value: 43, note: "Land/control, permits and operator evidence are unresolved." }
       ],
       evidence: [
-        evidence("Demo hotel-zone seed", "demo_seed", "Curated resort-format polygon."),
+        evidence("Sample hotel-zone seed", "demo_seed", "Curated resort-format polygon."),
         evidence("Sample tourism context", "sample", "Tourist anchor context is illustrative.")
       ],
       caveats: developmentCaveats,
@@ -904,7 +904,7 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
         { label: "Validation burden", value: 45, note: "Competition and approvals require validation." }
       ],
       evidence: [
-        evidence("Demo hotel-zone seed", "demo_seed", "Curated airport-edge polygon."),
+        evidence("Sample hotel-zone seed", "demo_seed", "Curated airport-edge polygon."),
         evidence("Open context placeholder", "open_context", "Airport access context is illustrative.")
       ],
       caveats: developmentCaveats,
@@ -938,8 +938,8 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
         { label: "Validation burden", value: 52, note: "Footfall and lease evidence are not connected." }
       ],
       evidence: [
-        evidence("Demo commercial-zone seed", "demo_seed", "Curated neighborhood commercial polygon."),
-        evidence("Sample catchment proxy", "sample", "Residential catchment is a demo proxy.")
+        evidence("Sample commercial-zone seed", "demo_seed", "Curated neighborhood commercial polygon."),
+        evidence("Sample catchment proxy", "sample", "Residential catchment is a sample proxy.")
       ],
       caveats: developmentCaveats,
       validationRequired: ["Footfall evidence", "Lease/competition review", "Planning/permitted-use validation"],
@@ -970,7 +970,7 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
         { label: "Validation burden", value: 50, note: "Footfall and occupancy evidence are not connected." }
       ],
       evidence: [
-        evidence("Demo commercial-zone seed", "demo_seed", "Curated F&B/commercial polygon."),
+        evidence("Sample commercial-zone seed", "demo_seed", "Curated F&B/commercial polygon."),
         evidence("Sample activity proxy", "sample", "Office and tourist activity signals are illustrative.")
       ],
       caveats: developmentCaveats,
@@ -1002,7 +1002,7 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
         { label: "Validation burden", value: 48, note: "Competition and exact footfall are not connected." }
       ],
       evidence: [
-        evidence("Demo commercial-zone seed", "demo_seed", "Curated retail/services polygon."),
+        evidence("Sample commercial-zone seed", "demo_seed", "Curated retail/services polygon."),
         evidence("Open context placeholder", "open_context", "Tourist and resident activity context is illustrative.")
       ],
       caveats: developmentCaveats,
@@ -1161,8 +1161,8 @@ export function getSourceTypeLabel(sourceType: CandidateSourceType) {
     sample: "Sample",
     open_context: "Open context",
     user_provided: "User provided",
-    demo_seed: "Demo seed",
-    fallback: "Fallback"
+    demo_seed: "Sample/open context",
+    fallback: "Sample/open context"
   };
 
   return labels[sourceType];

@@ -168,7 +168,7 @@ function UploadedDataPrintBlock({ analysis }: { analysis: ExpressAnalysis }) {
 }
 
 function AnalysisPrintable({ analysis }: { analysis: ExpressAnalysis }) {
-  const analysisMode = analysis.analysisMode === "openai" ? "AI-generated" : "Demo fallback";
+  const analysisMode = analysis.analysisMode === "openai" ? "AI-generated" : "Sample/open fallback";
   const siteName = analysis.selectedAoi?.name ?? analysis.selectedObject?.name ?? "Custom map point";
   const coordinates = formatCoordinate(analysis.point.latitude, analysis.point.longitude);
   const constraints = analysis.risks.slice(0, 4);
@@ -194,9 +194,9 @@ function AnalysisPrintable({ analysis }: { analysis: ExpressAnalysis }) {
         <PrintCard><strong>Selected site</strong><span>{siteName}</span></PrintCard>
         <PrintCard><strong>Coordinates</strong><span>{coordinates}</span></PrintCard>
         <PrintCard><strong>Scenario</strong><span>{analysis.title}</span></PrintCard>
-        <PrintCard><strong>Project</strong><span>{analysis.project?.name ?? "Dubai Investment Screening Demo"}</span></PrintCard>
+        <PrintCard><strong>Project</strong><span>{analysis.project?.name ?? "Dubai Investment Screening"}</span></PrintCard>
         <PrintCard><strong>Client type</strong><span>{analysis.project?.clientType?.replace(/_/g, " ") ?? "fund"}</span></PrintCard>
-        <PrintCard><strong>Data mode</strong><span>{analysis.project?.dataMode?.replace(/_/g, " ") ?? "demo normalized"}</span></PrintCard>
+        <PrintCard><strong>Data mode</strong><span>{analysis.project?.dataMode?.replace(/_/g, " ") ?? "sample/open"}</span></PrintCard>
         <PrintCard><strong>Generated</strong><span>{formatDate(analysis.generatedAt)}</span></PrintCard>
         <PrintCard><strong>Confidence</strong><span>{analysis.confidenceLevel ?? "medium"}</span></PrintCard>
         <PrintCard><strong>Data confidence</strong><span>{dataConfidence}</span></PrintCard>
@@ -347,7 +347,7 @@ function AnalysisPrintable({ analysis }: { analysis: ExpressAnalysis }) {
 
       <PrintSection title="Limitations">
         <p>
-          Current prototype output demonstrates the decision workflow using demo-normalized indicators. Pilot deployments should validate conclusions against official DLD, Dubai Pulse, Dubai Municipality / GeoDubai, customer and/or licensed datasets.
+          Current prototype output demonstrates the decision workflow using sample/open indicators. Pilot deployments should validate conclusions against official DLD, Dubai Pulse, Dubai Municipality / GeoDubai, customer and/or licensed datasets.
         </p>
         {analysis.limitations?.map((item, index) => <p key={createStableKey("print-analysis-limitation", item, index)}>{item}</p>)}
       </PrintSection>
@@ -363,9 +363,9 @@ function ComparisonPrintable({ comparison }: { comparison: ComparisonResult }) {
           <p className="print-brand">GeoAI</p>
           <h1>Site Comparison Investment Memo</h1>
           <p>Comparing {comparison.items.length} selected locations / assets</p>
-          <p>Project: {comparison.project?.name ?? "Dubai Investment Screening Demo"}</p>
+          <p>Project: {comparison.project?.name ?? "Dubai Investment Screening"}</p>
         </div>
-        <div className="print-status">Demo comparison</div>
+        <div className="print-status">Screening comparison</div>
       </header>
 
       <PrintSection title="Best Option Recommendation">
@@ -432,7 +432,7 @@ function ComparisonPrintable({ comparison }: { comparison: ComparisonResult }) {
 
       <PrintSection title="Limitations">
         <p>
-          Current prototype output demonstrates the decision workflow using demo-normalized indicators. Pilot deployments should validate conclusions against official DLD, Dubai Pulse, Dubai Municipality / GeoDubai, customer and/or licensed datasets.
+          Current prototype output demonstrates the decision workflow using sample/open indicators. Pilot deployments should validate conclusions against official DLD, Dubai Pulse, Dubai Municipality / GeoDubai, customer and/or licensed datasets.
         </p>
       </PrintSection>
     </article>
