@@ -1112,7 +1112,7 @@ export function AnalysisPanel({
   }
 
   return (
-    <aside className="flex h-full max-w-full flex-col overflow-hidden border-l border-line bg-white lg:h-[calc(100vh-72px)] lg:w-[380px]">
+    <aside className="flex h-full max-w-full flex-col overflow-hidden border-l border-line bg-white lg:w-[380px]">
       <section className="min-h-0 flex-1 min-w-0 max-w-full overflow-y-auto overflow-x-hidden p-3 pb-5 [scrollbar-width:thin]">
         <div className="grid min-w-0 gap-2">
           <section className="min-w-0 max-w-full overflow-hidden rounded-lg border border-line bg-white p-2">

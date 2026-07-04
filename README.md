@@ -2,7 +2,7 @@
 
 GeoAI is a Next.js spatial decision intelligence MVP for evaluating Dubai real estate, infrastructure, construction, and climate-risk scenarios. The current version is an investor demo prototype, not a production-ready or pilot-ready product: it uses Mapbox for the workspace, synthetic/demo geospatial layers, OSM-style sample baseline fixtures, deterministic mock scoring, optional OpenAI-powered narrative analysis, comparison dashboards, and print-friendly report previews.
 
-Pilot UX v3.2 keeps the app workspace-first and fixes the criteria-first product flow: users set criteria, run an explicit candidate search, then compare or analyze searched candidates. The analysis dashboard now uses a curated BI model with KPIs, top drivers, top risks, validation gaps, actions and compact drill-down modules. Outputs remain screening hypotheses requiring official/client validation.
+Pilot UX v3.4 keeps the app workspace-first, preserves the criteria-first product flow, and aligns the first analysis/comparison dashboard viewport with the right command panel footer. The analysis dashboard uses a curated BI model with KPIs, top drivers, top risks, validation gaps, actions and compact drill-down modules. Outputs remain screening hypotheses requiring official/client validation.
 
 OpenAI is optional. If `OPENAI_API_KEY` is not configured, GeoAI automatically uses the deterministic mock fallback so the product remains fully usable for demos.
 
@@ -148,6 +148,7 @@ See [Repository Mode & Fallback Consistency v2.0.2](docs/REPOSITORY_MODE_FALLBAC
 
 ## Latest Release Notes
 
+- [GeoAI Pilot UX v3.4 - Dashboard Viewport Alignment](docs/RELEASE_GEOAI_PILOT_UX_V34_VIEWPORT_ALIGNMENT.md)
 - [GeoAI Pilot UX v3.3 - Text-Safe BI Dashboard and Supabase Activation Readiness](docs/RELEASE_GEOAI_PILOT_UX_V33_TEXT_SAFE_SUPABASE.md)
 - [GeoAI Pilot UX v3.2 - Criteria Search Flow and BI Dashboard](docs/RELEASE_GEOAI_PILOT_UX_V32_CRITERIA_BI.md)
 - [GeoAI Pilot UX v3.1 - BI Dashboard and Candidate Comparison Flow](docs/RELEASE_GEOAI_PILOT_UX_V31_BI_DASHBOARD.md)

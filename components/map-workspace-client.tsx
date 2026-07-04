@@ -1116,7 +1116,7 @@ export function MapWorkspaceClient({
   onObjectSelect,
   onAoiSelect,
   onAoiDelete,
-  className = "relative min-h-[calc(100vh-72px)] overflow-hidden bg-[#dfe8ec]",
+  className = "relative min-h-[calc(100vh-64px)] overflow-hidden bg-[#dfe8ec]",
   showEmptyOverlay = true,
   showLayerControls = true,
   uploadedDatasets = [],

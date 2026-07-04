@@ -27,7 +27,7 @@ type CandidateDashboardNavigation = {
 
 function CandidateDashboardSwitcher({ navigation }: { navigation: CandidateDashboardNavigation }) {
   return (
-    <div className="flex flex-col gap-2 rounded-lg border border-line bg-white p-3 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex shrink-0 flex-col gap-2 rounded-lg border border-line bg-white p-2.5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
       <div className="min-w-0">
         <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Candidate dashboard</p>
         <TextSafeValue className="mt-1 text-sm font-semibold text-ink">
@@ -43,7 +43,7 @@ function CandidateDashboardSwitcher({ navigation }: { navigation: CandidateDashb
               navigation.onOpenItem(nextItem);
             }
           }}
-          className="h-10 min-w-0 rounded-md border border-line bg-surface px-3 text-sm font-semibold text-ink outline-none transition focus:border-brand sm:w-72"
+          className="h-9 min-w-0 rounded-md border border-line bg-surface px-3 text-sm font-semibold text-ink outline-none transition focus:border-brand sm:w-72"
         >
           {navigation.items.map((item) => (
             <option key={item.id} value={item.id}>
@@ -54,7 +54,7 @@ function CandidateDashboardSwitcher({ navigation }: { navigation: CandidateDashb
         <button
           type="button"
           onClick={navigation.onBackToComparison}
-          className="inline-flex h-10 items-center justify-center rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink transition hover:border-brand"
+          className="inline-flex h-9 items-center justify-center rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink transition hover:border-brand"
         >
           Ranked shortlist
         </button>
@@ -122,13 +122,13 @@ export function ExpressDashboard({
   ];
 
   return (
-    <section ref={dashboardRef} className="h-[calc(100vh-72px)] overflow-y-auto bg-surface p-3 lg:p-4">
-      <div className="mx-auto flex max-w-7xl flex-col gap-3">
-        <section className="flex min-h-[calc(100vh-96px)] flex-col gap-3">
-          <header className="flex shrink-0 flex-col justify-between gap-3 rounded-lg border border-line bg-white p-3 shadow-sm lg:flex-row lg:items-start">
+    <section ref={dashboardRef} className="h-full min-h-0 overflow-y-auto bg-surface [scrollbar-width:thin]">
+      <div className="mx-auto flex h-full max-w-7xl flex-col">
+        <section className="flex h-full min-h-0 shrink-0 flex-col gap-2 p-3">
+          <header className="flex shrink-0 flex-col justify-between gap-2 rounded-lg border border-line bg-white p-2.5 shadow-sm lg:flex-row lg:items-start">
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-3">
-                <TextSafeValue as="h1" className="text-2xl font-semibold text-ink lg:text-[26px]">
+                <TextSafeValue as="h1" className="text-xl font-semibold leading-7 text-ink lg:text-2xl">
                   {analysis.title}
                 </TextSafeValue>
                 <span className="rounded-full bg-[#eaf3f1] px-3 py-1 text-xs font-semibold text-brand">
@@ -141,7 +141,7 @@ export function ExpressDashboard({
               <TextSafeValue className="mt-1 text-sm font-medium text-muted">
                 {analysis.subtitle}
               </TextSafeValue>
-              <TextSafeValue className="mt-1 text-xs leading-5 text-muted">
+              <TextSafeValue className="mt-0.5 text-xs leading-5 text-muted">
                 {analysisBadge} / {dataLimitation} Official validation required before decision-grade use.
               </TextSafeValue>
             </div>
@@ -165,7 +165,7 @@ export function ExpressDashboard({
 
           {candidateNavigation ? <CandidateDashboardSwitcher navigation={candidateNavigation} /> : null}
 
-          <div className="grid flex-1 items-stretch gap-3 xl:grid-cols-[minmax(0,1.05fr)_0.95fr]">
+          <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_minmax(0,1fr)] items-stretch gap-3 xl:grid-cols-[minmax(0,1.05fr)_0.95fr] xl:grid-rows-none">
             <MapContextCard
               title="Map Context"
               subtitle={
@@ -183,18 +183,20 @@ export function ExpressDashboard({
               selectedObject={analysis.selectedObject ?? null}
               selectedAoi={analysis.selectedAoi ?? null}
               analysisTarget={analysis.analysisTarget ?? null}
+              viewportLocked
             />
 
-            <section className="flex min-w-0 flex-col rounded-lg border border-line bg-surface p-4 shadow-sm">
-              <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(240px,0.64fr)]">
-                <div className="rounded-md border border-[#d6c391] bg-[#fff9e8] p-4">
+            <section className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-line bg-surface p-3 shadow-sm">
+              <div className="min-h-0 flex-1 overflow-y-auto pr-1 [scrollbar-width:thin]">
+                <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_minmax(240px,0.64fr)]">
+                  <div className="rounded-md border border-[#d6c391] bg-[#fff9e8] p-3">
                   <TextSafeValue className="text-xs font-semibold uppercase tracking-[0.12em] text-[#6f5817]">
                     Decision posture
                   </TextSafeValue>
-                  <TextSafeValue className="mt-2 text-2xl font-semibold leading-8 text-ink">
+                  <TextSafeValue className="mt-2 text-xl font-semibold leading-7 text-ink">
                     {dashboardModel.decisionPosture}
                   </TextSafeValue>
-                  <TextSafeValue className="mt-2 text-sm leading-6 text-muted">
+                  <TextSafeValue className="mt-2 text-sm leading-5 text-muted">
                     {dashboardModel.decisionSummary}
                   </TextSafeValue>
                   {showDecisionDetail ? (
@@ -207,74 +209,75 @@ export function ExpressDashboard({
                       </TextSafeValue>
                     </details>
                   ) : null}
-                </div>
-                <BiScoreGauge
-                  score={dashboardModel.primaryScore}
-                  label="Suitability"
-                  summary={`${dashboardModel.confidenceLabel} confidence; validation required before decision-grade use.`}
-                  detail={dashboardModel.decisionDetail}
-                />
-              </div>
-              <TextSafeValue className="mt-3 text-sm leading-6 text-muted xl:text-[15px]">
-                {summaryPreview}
-              </TextSafeValue>
-              {analysis.analysisNotice ? (
-                <TextSafeValue className="mt-3 rounded-md border border-line bg-white px-3 py-2 text-xs leading-5 text-muted">
-                  {analysis.analysisNotice}
-                </TextSafeValue>
-              ) : null}
-              <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
-                {dashboardModel.kpis.map((kpi) => (
-                  <BiKpiCard
-                    key={kpi.id}
-                    label={kpi.label}
-                    value={kpi.value}
-                    unit={kpi.unit}
-                    tone={kpi.tone}
-                    explanation={kpi.explanation}
+                  </div>
+                  <BiScoreGauge
+                    score={dashboardModel.primaryScore}
+                    label="Suitability"
+                    summary={`${dashboardModel.confidenceLabel} confidence; validation required before decision-grade use.`}
+                    detail={dashboardModel.decisionDetail}
                   />
-                ))}
-              </div>
-              <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(260px,0.8fr)]">
-                <BiScoreBars
-                  title="Top drivers"
-                  items={dashboardModel.drivers.slice(0, 3)}
-                  emptyLabel="No driver signals were generated for this screening run."
-                />
-                <BiScoreBars
-                  title="Top risks"
-                  items={dashboardModel.risks.slice(0, 3)}
-                  emptyLabel="No risk signals were generated for this screening run."
-                />
-              </div>
-              <div className="mt-3 rounded-md border border-line bg-white p-3">
-                <TextSafeValue className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">
-                  Recommended next action
+                </div>
+                <TextSafeValue className="mt-2 text-xs leading-5 text-muted xl:text-sm">
+                  {summaryPreview}
                 </TextSafeValue>
-                <TextSafeValue className="mt-1 text-sm font-semibold leading-5 text-ink">
-                  {dashboardModel.recommendedNextAction}
-                </TextSafeValue>
-                <div className="mt-2 grid gap-2 md:grid-cols-2">
-                  {secondaryActions.map((item) => (
-                    <TextSafeValue key={item.id} className="rounded-md bg-surface px-2 py-1.5 text-xs leading-5 text-muted">
-                      {item.label}
-                    </TextSafeValue>
+                {analysis.analysisNotice ? (
+                  <TextSafeValue className="mt-2 rounded-md border border-line bg-white px-3 py-2 text-xs leading-5 text-muted">
+                    {analysis.analysisNotice}
+                  </TextSafeValue>
+                ) : null}
+                <div className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+                  {dashboardModel.kpis.map((kpi) => (
+                    <BiKpiCard
+                      key={kpi.id}
+                      label={kpi.label}
+                      value={kpi.value}
+                      unit={kpi.unit}
+                      tone={kpi.tone}
+                      explanation={kpi.explanation}
+                    />
                   ))}
                 </div>
-                <details className="mt-2 rounded-md border border-line bg-surface px-3 py-2">
-                  <summary className="cursor-pointer list-none text-[11px] font-semibold uppercase tracking-[0.1em] text-muted">
-                    Action details
-                  </summary>
-                  <TextSafeValue className="mt-2 border-t border-line pt-2 text-xs leading-5 text-muted">
-                    {primaryAction?.detail ?? dashboardModel.recommendedNextActionDetail}
+                <div className="mt-2 grid gap-2 lg:grid-cols-[minmax(0,1fr)_minmax(260px,0.8fr)]">
+                  <BiScoreBars
+                    title="Top drivers"
+                    items={dashboardModel.drivers.slice(0, 3)}
+                    emptyLabel="No driver signals were generated for this screening run."
+                  />
+                  <BiScoreBars
+                    title="Top risks"
+                    items={dashboardModel.risks.slice(0, 3)}
+                    emptyLabel="No risk signals were generated for this screening run."
+                  />
+                </div>
+                <div className="mt-2 rounded-md border border-line bg-white p-3">
+                  <TextSafeValue className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">
+                    Recommended next action
                   </TextSafeValue>
-                </details>
+                  <TextSafeValue className="mt-1 text-sm font-semibold leading-5 text-ink">
+                    {dashboardModel.recommendedNextAction}
+                  </TextSafeValue>
+                  <div className="mt-2 grid gap-2 md:grid-cols-2">
+                    {secondaryActions.map((item) => (
+                      <TextSafeValue key={item.id} className="rounded-md bg-surface px-2 py-1.5 text-xs leading-5 text-muted">
+                        {item.label}
+                      </TextSafeValue>
+                    ))}
+                  </div>
+                  <details className="mt-2 rounded-md border border-line bg-surface px-3 py-2">
+                    <summary className="cursor-pointer list-none text-[11px] font-semibold uppercase tracking-[0.1em] text-muted">
+                      Action details
+                    </summary>
+                    <TextSafeValue className="mt-2 border-t border-line pt-2 text-xs leading-5 text-muted">
+                      {primaryAction?.detail ?? dashboardModel.recommendedNextActionDetail}
+                    </TextSafeValue>
+                  </details>
+                </div>
               </div>
             </section>
           </div>
         </section>
 
-        <section className="grid gap-3">
+        <section className="grid gap-3 p-3 pt-0">
           {dashboardModules.map((module) => (
             <BiDrilldownModule
               key={module.id}

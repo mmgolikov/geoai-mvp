@@ -2721,7 +2721,10 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
           };
 
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden lg:grid-cols-[minmax(0,1fr)_380px]">
+    <div
+      className="grid min-h-0 shrink-0 grid-cols-1 overflow-hidden lg:grid-cols-[minmax(0,1fr)_380px]"
+      style={{ height: "calc(100vh - 4rem)" }}
+    >
       {reportPreview === "analysis" && analysis ? (
         <ReportPreview key={`report-${analysis.id}`} mode="analysis" analysis={analysis} onBack={() => setReportPreview(null)} />
       ) : reportPreview === "comparison" && comparison ? (
@@ -2756,6 +2759,7 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
       ) : (
         <MapWorkspace
           key="map-workspace"
+          className="relative h-full min-h-0 overflow-hidden bg-[#dfe8ec]"
           selectedPoint={selectedPoint}
           selectedObject={selectedObject}
           selectedAoi={selectedAoi}

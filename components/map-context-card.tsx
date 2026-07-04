@@ -14,6 +14,7 @@ type MapContextCardProps = {
   comparison?: ComparisonResult;
   compact?: boolean;
   reportMode?: boolean;
+  viewportLocked?: boolean;
 };
 
 
@@ -26,7 +27,8 @@ export function MapContextCard({
   analysisTarget = null,
   comparison,
   compact = false,
-  reportMode = false
+  reportMode = false,
+  viewportLocked = false
 }: MapContextCardProps) {
   const contextNote = selectedAoi
     ? `${userDrawnAoiSourceLabel(selectedAoi)} is screening context only; official parcel, zoning, cadastral, planning and ownership validation is required.`
@@ -37,18 +39,23 @@ export function MapContextCard({
     : analysisTarget?.type === "demo-feature"
       ? "Selected geometry is sample/open context; official validation is required before decisions."
       : "Sample/open spatial context only. Synthetic geometries are not official GIS, parcel, planning, or risk boundaries.";
-  const mapHeightClass = compact
+  const mapHeightClass = viewportLocked
+    ? "min-h-0"
+    : compact
     ? "min-h-[220px]"
     : reportMode
       ? "min-h-[300px] print:h-[220px] print:min-h-[220px] print:flex-none"
       : "min-h-[280px]";
+  const sectionHeightClass = viewportLocked ? "min-h-0" : "min-h-[420px]";
+  const headerPaddingClass = viewportLocked ? "px-3 py-2" : "px-4 py-3";
+  const footerPaddingClass = viewportLocked ? "px-3 py-1.5" : "px-4 py-2";
 
   return (
-    <section className="flex h-full min-h-[420px] w-full flex-col overflow-hidden rounded-lg border border-line bg-white shadow-sm print:h-auto print:min-h-0 print:shadow-none">
-      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-line px-4 py-3">
+    <section className={`flex h-full ${sectionHeightClass} w-full flex-col overflow-hidden rounded-lg border border-line bg-white shadow-sm print:h-auto print:min-h-0 print:shadow-none`}>
+      <div className={`flex shrink-0 items-center justify-between gap-3 border-b border-line ${headerPaddingClass}`}>
         <div>
-          <h2 className="text-lg font-semibold text-ink">{title}</h2>
-          <p className="mt-1 text-sm leading-5 text-muted">{subtitle}</p>
+          <h2 className={`${viewportLocked ? "text-base" : "text-lg"} font-semibold text-ink`}>{title}</h2>
+          <p className={`${viewportLocked ? "mt-0.5 text-xs leading-5" : "mt-1 text-sm leading-5"} text-muted`}>{subtitle}</p>
         </div>
         <span className="rounded-full bg-surface px-3 py-1 text-xs font-semibold text-muted">
           Map context
@@ -64,7 +71,7 @@ export function MapContextCard({
           compact={compact || reportMode}
         />
       </div>
-      <div className="shrink-0 border-t border-line bg-white px-4 py-2 text-xs leading-5 text-muted">
+      <div className={`shrink-0 border-t border-line bg-white text-xs leading-5 text-muted ${footerPaddingClass}`}>
         {contextNote}
       </div>
     </section>
