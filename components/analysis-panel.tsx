@@ -14,6 +14,7 @@ import {
 } from "@/src/lib/explore/scenarios";
 import {
   exploreRequiredCaveat,
+  type CandidateSearchStatus,
   type ExploreAudience,
   type ExploreCandidate,
   type ExploreFilterConfig,
@@ -99,6 +100,7 @@ type AnalysisPanelProps = {
   exploreInteractionMode: InteractionMode;
   exploreFilters: ExploreFilters;
   exploreCandidates: ExploreCandidate[];
+  candidateSearchStatus: CandidateSearchStatus;
   selectedExploreCandidateId: string | null;
   exploreSetupDefaultOpen?: boolean;
   onProjectChange: (projectKey: string) => void;
@@ -418,6 +420,7 @@ export function AnalysisPanel({
   exploreInteractionMode,
   exploreFilters,
   exploreCandidates,
+  candidateSearchStatus,
   selectedExploreCandidateId,
   exploreSetupDefaultOpen = false,
   onProjectChange,
@@ -479,6 +482,14 @@ export function AnalysisPanel({
   const selectedExploreRole = getExploreRole(exploreRole);
   const selectedExploreCandidate = exploreCandidates.find((candidate) => candidate.id === selectedExploreCandidateId) ?? null;
   const topExploreCandidates = exploreCandidates.slice(0, 3);
+  const isCriteriaFirstMode = exploreInteractionMode === "criteria_first";
+  const hasSearchedCandidates = isCriteriaFirstMode && candidateSearchStatus === "searched" && exploreCandidates.length > 0;
+  const candidateSearchEmptyMessage =
+    candidateSearchStatus === "stale"
+      ? "Outdated results - update the search to refresh candidate zones."
+      : isCriteriaFirstMode
+        ? "Set criteria and search candidate zones."
+        : "Switch to Criteria-first to search candidate zones.";
   const availableSources = getScenarioDataSources(selectedScenario).slice(0, 3);
   const parsedUploads = uploadedDatasets.filter((dataset) => dataset.status === "parsed");
   const hasComparisonReady = comparisonItems.length >= 2;
@@ -522,22 +533,38 @@ export function AnalysisPanel({
       ? "client review"
       : "screening only";
   const isComparisonWorkflow = primaryCtaLabel === "Compare" || (hasComparisonReady && hasResult);
-  const activeWorkflowLabel = isComparisonWorkflow
-    ? "Comparison active"
-    : hasResult
-      ? "Analysis ready"
-      : hasSelectedPoint
-        ? "Ready to analyze"
-        : "Select a site";
-  const activeWorkflowNote = isComparisonWorkflow
-    ? hasComparisonReady
-      ? "Export the comparison or edit scenario/query to continue."
-      : "Add another site to refresh comparison."
-    : hasResult
-      ? "Export the memo or edit scenario/query to continue."
-      : hasSelectedPoint
-        ? "Run analysis from the pinned footer."
-        : "Use the map or candidate preview to start.";
+  const activeWorkflowLabel = isCriteriaFirstMode
+    ? candidateSearchStatus === "searched"
+      ? selectedExploreCandidate
+        ? "Candidate selected"
+        : "Candidates ready"
+      : candidateSearchStatus === "stale"
+        ? "Search outdated"
+        : "Set search criteria"
+    : isComparisonWorkflow
+      ? "Comparison active"
+      : hasResult
+        ? "Analysis ready"
+        : hasSelectedPoint
+          ? "Ready to analyze"
+          : "Select a site";
+  const activeWorkflowNote = isCriteriaFirstMode
+    ? candidateSearchStatus === "searched"
+      ? selectedExploreCandidate
+        ? "Analyze this candidate or return to the shortlist."
+        : "Compare the searched candidates or select one."
+      : candidateSearchStatus === "stale"
+        ? "Criteria changed. Update the search before comparing."
+        : "Choose criteria, then find candidate zones."
+    : isComparisonWorkflow
+      ? hasComparisonReady
+        ? "Export the comparison or edit scenario/query to continue."
+        : "Add another site to refresh comparison."
+      : hasResult
+        ? "Export the memo or edit scenario/query to continue."
+        : hasSelectedPoint
+          ? "Run analysis from the pinned footer."
+          : "Use the map to start.";
   const pilotPackage = getPilotPackageForProject(activeProject.projectKey, activeProject.clientType);
   const pilotChecklist = [
     { label: "Select client type", status: activeProject.clientType ? "Done" : "Needed" },
@@ -549,6 +576,15 @@ export function AnalysisPanel({
     { label: "Validate official sources", status: "Needed" },
     { label: "Export pilot deliverables", status: hasResult ? "Optional" : "Needed" }
   ];
+
+  useEffect(() => {
+    if (exploreInteractionMode === "map_first") {
+      setIsExploreSetupOpen(false);
+      return;
+    }
+
+    setIsExploreSetupOpen(candidateSearchStatus !== "searched");
+  }, [candidateSearchStatus, exploreInteractionMode, exploreScenarioId]);
 
   useEffect(() => {
     let isMounted = true;
@@ -1313,44 +1349,54 @@ export function AnalysisPanel({
             <div className="mt-2 rounded-md border border-line bg-surface p-2">
               <div className="flex items-center justify-between gap-2">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
-                  Candidate preview
+                  {hasSearchedCandidates ? "Search results" : "Candidate search"}
                 </p>
-                <span className="shrink-0 rounded-full bg-white px-2 py-1 text-[10px] font-semibold text-brand">
-                  {exploreCandidates.length}
-                </span>
+                {hasSearchedCandidates ? (
+                  <span className="shrink-0 rounded-full bg-white px-2 py-1 text-[10px] font-semibold text-brand">
+                    {exploreCandidates.length}
+                  </span>
+                ) : null}
               </div>
-              <div className="mt-2 grid gap-2">
-                {topExploreCandidates.map((candidate, index) => {
-                  const selected = candidate.id === selectedExploreCandidate?.id;
+              {hasSearchedCandidates ? (
+                <>
+                  <div className="mt-2 grid gap-2">
+                    {topExploreCandidates.map((candidate, index) => {
+                      const selected = candidate.id === selectedExploreCandidate?.id;
 
-                  return (
-                    <button
-                      key={candidate.id}
-                      type="button"
-                      onClick={() => onExploreCandidateSelect(candidate.id)}
-                      className={`grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-2 rounded-md border bg-white p-2 text-left transition ${
-                        selected ? "border-brand ring-1 ring-[#b8d0cc]" : "border-line hover:border-brand"
-                      }`}
-                    >
-                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-surface text-[11px] font-bold text-brand">
-                        {index + 1}
-                      </span>
-                      <span className="min-w-0">
-                        <span className="block truncate text-xs font-semibold text-ink">{candidate.title}</span>
-                        <span className="mt-0.5 block truncate text-[11px] text-muted">
-                          {getExploreCandidateSourceLabel(candidate.sourceType)} / validation required
-                        </span>
-                      </span>
-                      <span className="shrink-0 rounded-md bg-surface px-2 py-1 text-xs font-black text-brand">
-                        {candidate.score}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-              <p className="mt-1 text-[11px] leading-4 text-muted">
-                Select a candidate or map overlay to use it as the analysis target.
-              </p>
+                      return (
+                        <button
+                          key={candidate.id}
+                          type="button"
+                          onClick={() => onExploreCandidateSelect(candidate.id)}
+                          className={`grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-2 rounded-md border bg-white p-2 text-left transition ${
+                            selected ? "border-brand ring-1 ring-[#b8d0cc]" : "border-line hover:border-brand"
+                          }`}
+                        >
+                          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-surface text-[11px] font-bold text-brand">
+                            {index + 1}
+                          </span>
+                          <span className="min-w-0">
+                            <span className="block whitespace-normal text-xs font-semibold leading-4 text-ink">{candidate.title}</span>
+                            <span className="mt-0.5 block text-[11px] leading-4 text-muted">
+                              {getExploreCandidateSourceLabel(candidate.sourceType)} / validation required
+                            </span>
+                          </span>
+                          <span className="shrink-0 rounded-md bg-surface px-2 py-1 text-xs font-black text-brand">
+                            {candidate.score}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="mt-1 text-[11px] leading-4 text-muted">
+                    Select a result to analyze it, or compare the shortlist.
+                  </p>
+                </>
+              ) : (
+                <div className="mt-2 rounded-md border border-dashed border-line bg-white px-2 py-2 text-[11px] leading-4 text-muted">
+                  {candidateSearchEmptyMessage}
+                </div>
+              )}
             </div>
           </section>
 

@@ -26,6 +26,8 @@ export type ExploreRole = B2CRole | B2BRole;
 
 export type InteractionMode = "map_first" | "criteria_first";
 
+export type CandidateSearchStatus = "idle" | "ready" | "searched" | "stale";
+
 export type ExploreScenarioId =
   | "b2c_point_context"
   | "b2c_tourist_objects_route"

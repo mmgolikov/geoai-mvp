@@ -2,18 +2,17 @@ import Link from "next/link";
 import { LandingHeroMap } from "@/components/landing-hero-map";
 
 const productStrip = [
-  ["Site screening", "Map, object, AOI and criteria-first entry points."],
-  ["Decision score", "Suitability, risk and readiness in one view."],
-  ["Candidate search", "Ranked shortlists from scenario filters."],
-  ["Comparison", "Trade-offs across the top locations."],
-  ["Report package", "Printable decision memo for review."]
+  ["Select target or criteria", "Choose a map target, AOI or search criteria."],
+  ["Choose scenario", "Pick the screening question and role context."],
+  ["Compare candidates", "Rank searched zones and trade-offs."],
+  ["Open dashboard", "Review KPIs, risks and next actions."],
+  ["Export report", "Package the current result for review."]
 ];
 
 const workflow = [
-  ["Select", "Choose a point, object, AOI or candidate."],
-  ["Analyze", "Run scenario-first spatial screening."],
-  ["Compare", "Shortlist alternatives with clear trade-offs."],
-  ["Package", "Export the current result for review."]
+  ["Map-first site analysis", "Select a point, object or AOI and run scenario screening."],
+  ["Criteria-first candidate search", "Set filters, find candidate zones and compare the shortlist."],
+  ["BI decision dashboard", "Use KPIs, score bars, matrices and validation gaps to decide the next step."]
 ];
 
 const decisionLayers = [
@@ -24,10 +23,20 @@ const decisionLayers = [
 ];
 
 const outputs = [
-  "Ranked candidate shortlist",
-  "Scenario-specific BI dashboard",
-  "Validation gaps and source caveats",
-  "Printable investment or planning memo"
+  "Ranked shortlist",
+  "Decision dashboard",
+  "Validation gaps",
+  "Next actions",
+  "Report package"
+];
+
+const scenarioExamples = [
+  "Redevelopment potential",
+  "Hotel development zones",
+  "Commercial real estate zones",
+  "Residential context",
+  "Tourist routes",
+  "Portfolio comparison"
 ];
 
 function LandingHeader() {
@@ -70,13 +79,16 @@ export default function HomePage() {
         <div className="relative mx-auto flex min-h-[calc(100vh-64px)] max-w-7xl flex-col justify-center px-5 py-10 sm:px-6 lg:px-8">
           <div className="max-w-3xl">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">
-              Pilot workspace
+              Spatial decision intelligence
             </p>
             <h1 className="mt-4 text-4xl font-semibold leading-[1.04] text-ink md:text-6xl">
               GeoAI spatial decision intelligence
             </h1>
             <p className="mt-5 max-w-2xl text-base leading-7 text-muted md:text-lg">
-              A pilot workspace for turning map context, candidate criteria and validation gaps into decision-ready screening views for real estate, development, infrastructure and asset portfolios.
+              Scenario-first map intelligence for real estate, development, infrastructure and asset screening.
+            </p>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-muted">
+              Select a site or define criteria, compare candidate zones, run AI-assisted screening and generate decision-ready reports.
             </p>
             <div className="mt-7 flex flex-col gap-3 sm:flex-row">
               <Link
@@ -129,13 +141,31 @@ export default function HomePage() {
       </section>
 
       <section className="border-t border-line bg-surface">
-        <div className="mx-auto grid max-w-7xl gap-4 px-5 py-8 sm:px-6 md:grid-cols-4 lg:px-8">
+        <div className="mx-auto grid max-w-7xl gap-4 px-5 py-8 sm:px-6 md:grid-cols-3 lg:px-8">
           {workflow.map(([title, text]) => (
             <article key={title} className="rounded-md border border-line bg-white p-4">
               <h2 className="text-sm font-semibold text-ink">{title}</h2>
               <p className="mt-2 text-sm leading-6 text-muted">{text}</p>
             </article>
           ))}
+        </div>
+      </section>
+
+      <section className="border-t border-line bg-white">
+        <div className="mx-auto max-w-7xl px-5 py-10 sm:px-6 lg:px-8">
+          <div className="grid gap-5 md:grid-cols-[0.7fr_1.3fr] md:items-start">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">Scenarios</p>
+              <h2 className="mt-3 text-2xl font-semibold text-ink">Built around spatial screening decisions.</h2>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {scenarioExamples.map((item) => (
+                <div key={item} className="rounded-md border border-line bg-surface px-4 py-3 text-sm font-semibold text-ink">
+                  {item}
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </section>
 

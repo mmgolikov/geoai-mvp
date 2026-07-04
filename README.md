@@ -2,14 +2,14 @@
 
 GeoAI is a Next.js spatial decision intelligence MVP for evaluating Dubai real estate, infrastructure, construction, and climate-risk scenarios. The current version is an investor demo prototype, not a production-ready or pilot-ready product: it uses Mapbox for the workspace, synthetic/demo geospatial layers, OSM-style sample baseline fixtures, deterministic mock scoring, optional OpenAI-powered narrative analysis, comparison dashboards, and print-friendly report previews.
 
-Pilot UX v3.1 keeps the app workspace-first and adds a more decision-intelligence-oriented flow: compact command panel controls, criteria-first candidate comparison, BI-style analysis dashboards, ranked shortlist actions, and a clearer landing narrative. Outputs remain screening hypotheses requiring official/client validation.
+Pilot UX v3.2 keeps the app workspace-first and fixes the criteria-first product flow: users set criteria, run an explicit candidate search, then compare or analyze searched candidates. The analysis dashboard now uses a curated BI model with KPIs, top drivers, top risks, validation gaps, actions and compact drill-down modules. Outputs remain screening hypotheses requiring official/client validation.
 
 OpenAI is optional. If `OPENAI_API_KEY` is not configured, GeoAI automatically uses the deterministic mock fallback so the product remains fully usable for demos.
 
 ## Implemented Features
 
 - Homepage and `/workspace` application shell
-- GeoAI Explore v1.1 embedded scenario command panel at `/workspace` and `/explore` with B2C/B2B roles, scenario setup, deterministic demo candidates, map overlays, criteria-first shortlist comparison and direct Workspace analysis targeting
+- GeoAI Explore v1.1 embedded scenario command panel at `/workspace` and `/explore` with B2C/B2B roles, scenario setup, explicit criteria-first candidate search, searched candidate map overlays, shortlist comparison and direct Workspace analysis targeting
 - Dubai-centered Mapbox workspace
 - Point selection with marker and coordinates
 - Polygon AOI drawing workflow with vertex handles, preview edge, validation and approximate area/perimeter measurements
@@ -139,6 +139,7 @@ See [Repository Mode & Fallback Consistency v2.0.2](docs/REPOSITORY_MODE_FALLBAC
 
 ## Latest Release Notes
 
+- [GeoAI Pilot UX v3.2 - Criteria Search Flow and BI Dashboard](docs/RELEASE_GEOAI_PILOT_UX_V32_CRITERIA_BI.md)
 - [GeoAI Pilot UX v3.1 - BI Dashboard and Candidate Comparison Flow](docs/RELEASE_GEOAI_PILOT_UX_V31_BI_DASHBOARD.md)
 - [GeoAI Pilot UX Simplification v3.0](docs/RELEASE_GEOAI_PILOT_UX_SIMPLIFICATION_V30.md)
 - [GeoAI Explore v1.1 - Embedded Scenario Command Panel](docs/RELEASE_GEOAI_EXPLORE_V11_EMBEDDED_COMMAND_PANEL.md)
@@ -218,6 +219,12 @@ Explore v1.1 remains an MVP screening layer. Candidate data is sample/demo/open-
 GeoAI Pilot UX v3.1 upgrades the pilot surface for faster decision review. The right-side command panel is more compact, criteria-first searches can open a ranked candidate comparison before a specific target is selected, and each candidate can be opened as an individual BI-style dashboard with a path back to the shortlist. The dashboard now emphasizes gauges, score bars, matrices, scenario sections, validation gaps and next actions.
 
 The landing page remains lightweight and workspace-oriented, but now explains the product narrative, screening layers and outputs more clearly. `/explore` renders the workspace-style alias with Explore/scenario defaults.
+
+## GeoAI Pilot UX v3.2
+
+GeoAI Pilot UX v3.2 makes Criteria-first an explicit search flow. Candidate cards and map overlays appear only after the user runs the search. Changing role, scenario, filters, mode or custom query invalidates the searched set and prompts an updated search before comparison or analysis.
+
+The Express Analysis dashboard now uses a dashboard model that curates short KPIs, top drivers, top risks, validation gaps, next actions and scenario-specific drill-down modules. Evidence/source details are collapsed last. `/explore` continues to render the workspace-style alias with Explore/scenario defaults.
 
 ## Market Context Adapter
 
