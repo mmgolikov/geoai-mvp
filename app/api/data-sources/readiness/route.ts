@@ -8,8 +8,8 @@ export async function GET() {
 
   return NextResponse.json({
     ok: true,
-    manifest: readiness.manifest,
     readiness: readiness.readiness,
+    manifest: readiness.manifest,
     mode: readiness.mode,
     source: readiness.source,
     sourceRegistryCount: readiness.sourceRegistryCount,

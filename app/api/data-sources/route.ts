@@ -4,6 +4,10 @@ import { getSourceRegistryReadiness } from "@/src/lib/external-data/supabase-sou
 export const runtime = "nodejs";
 
 export async function GET() {
-  const data = await getSourceRegistryReadiness();
-  return NextResponse.json({ ok: true, ...data, sources: data.manifest.sources, lastUpdated: data.generatedAt });
+  const readiness = await getSourceRegistryReadiness();
+
+  return NextResponse.json({
+    ok: true,
+    ...readiness
+  });
 }

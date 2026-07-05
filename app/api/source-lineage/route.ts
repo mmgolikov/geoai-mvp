@@ -8,12 +8,19 @@ export async function GET() {
 
   return NextResponse.json({
     ok: true,
-    manifest: readiness.manifest,
-    readiness: readiness.readiness,
     mode: readiness.mode,
     source: readiness.source,
-    sourceRegistryCount: readiness.sourceRegistryCount,
-    externalSnapshotCount: readiness.externalSnapshotCount,
+    lineage: readiness.readiness.map((item) => ({
+      sourceId: item.sourceId,
+      sourceName: item.sourceName,
+      status: item.status,
+      sourceMode: item.sourceMode,
+      confidence: item.confidence,
+      recordCount: item.recordCount,
+      coverageArea: item.coverageArea,
+      caveat: item.caveat,
+      validationRequired: true
+    })),
     blockers: readiness.blockers,
     caveat: readiness.caveat,
     generatedAt: readiness.generatedAt
