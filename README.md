@@ -148,6 +148,7 @@ See [Repository Mode & Fallback Consistency v2.0.2](docs/REPOSITORY_MODE_FALLBAC
 
 ## Latest Release Notes
 
+- [GeoAI Data Foundation v1.3 - First Snapshot Ingestion Path](docs/RELEASE_GEOAI_DATA_FOUNDATION_V13.md)
 - [GeoAI Data Foundation v1.2 - Snapshot Ingestion and Data Readiness UI](docs/RELEASE_GEOAI_DATA_FOUNDATION_V12.md)
 - [GeoAI Pilot UX v3.6 - Release Candidate Hardening and Visual QA Freeze](docs/RELEASE_GEOAI_PILOT_UX_V36_RELEASE_CANDIDATE.md)
 - [GeoAI Pilot UX v3.5 - Final Dashboard Grid and KPI Fit Hardening](docs/RELEASE_GEOAI_PILOT_UX_V35_DASHBOARD_GRID_FIT.md)
