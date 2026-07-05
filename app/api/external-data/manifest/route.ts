@@ -8,13 +8,18 @@ export async function GET() {
 
   return NextResponse.json({
     ok: true,
+    version: readiness.version,
     manifest: readiness.manifest,
+    sourceGroups: readiness.sourceGroups,
+    summary: readiness.summary,
     readiness: readiness.readiness,
     mode: readiness.mode,
     source: readiness.source,
     sourceRegistryCount: readiness.sourceRegistryCount,
     externalSnapshotCount: readiness.externalSnapshotCount,
     blockers: readiness.blockers,
+    nextActions: readiness.nextActions,
+    sync: readiness.sync,
     caveat: readiness.caveat,
     generatedAt: readiness.generatedAt
   });

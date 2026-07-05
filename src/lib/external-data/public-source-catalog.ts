@@ -1,7 +1,7 @@
 import type { PublicSourceCatalogItem } from "@/src/lib/external-data/public-source-types";
 
 export const publicDataCaveat =
-  "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.";
+  "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.";
 
 const commonForbiddenClaims = [
   "live DLD integration",

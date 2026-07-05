@@ -8,6 +8,18 @@ export async function GET() {
 
   return NextResponse.json({
     ok: true,
-    ...readiness
+    version: readiness.version,
+    mode: readiness.mode,
+    source: readiness.source,
+    summary: readiness.summary,
+    sources: readiness.sourceGroups,
+    sourceGroups: readiness.sourceGroups,
+    sourceRegistryCount: readiness.sourceRegistryCount,
+    externalSnapshotCount: readiness.externalSnapshotCount,
+    blockers: readiness.blockers,
+    nextActions: readiness.nextActions,
+    sync: readiness.sync,
+    caveat: readiness.caveat,
+    generatedAt: readiness.generatedAt
   });
 }

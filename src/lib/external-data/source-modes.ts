@@ -1,4 +1,5 @@
 export const sourceDataModes = [
+  "api_context",
   "real_snapshot",
   "imported_snapshot",
   "sample_fallback",
@@ -19,15 +20,18 @@ export function normalizeSourceDataMode(value: unknown): SourceDataMode {
 
   if (key === "snapshot_available" || key === "snapshot") return "imported_snapshot";
   if (key === "sample" || key === "sample_snapshot") return "sample_fallback";
+  if (key === "api" || key === "api_context" || key === "open_api") return "api_context";
   if (key === "manual_import" || key === "manual_ready") return "manual_import_ready";
   if (key === "planned" || key === "planned_access") return "planned_validation";
-  if (key === "connected") return "real_snapshot";
+  if (key === "connected") return "api_context";
 
   return "demo_seed";
 }
 
 export function sourceDataModeLabel(mode: unknown) {
   switch (normalizeSourceDataMode(mode)) {
+    case "api_context":
+      return "API context";
     case "real_snapshot":
       return "Real snapshot";
     case "imported_snapshot":

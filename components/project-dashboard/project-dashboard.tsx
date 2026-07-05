@@ -14,6 +14,8 @@ import { getClientPilotPackageForProject } from "@/src/data/pilot-packages";
 import { getSupabaseFallbackMessage } from "@/src/lib/data-readiness";
 import { deriveDecisionPosture } from "@/src/lib/decision-posture";
 import { normalizeSourceStatus, sourceStatusToLabel } from "@/src/lib/external-data/source-status";
+import { buildSourceReadinessGroups, sourceReadinessSummary } from "@/src/lib/external-data/source-readiness-groups";
+import { sourceDataModeLabel } from "@/src/lib/external-data/source-modes";
 import { getPilotPackageForProject } from "@/src/lib/pilot/pilot-packages";
 import { calculatePilotReadiness } from "@/src/lib/pilot/pilot-readiness";
 import {
@@ -27,6 +29,7 @@ import { repositoryModeToLabel, type RepositoryMode } from "@/src/lib/repositori
 import { readBrowserAois, sourceTypeLabel, validationStatusLabel } from "@/src/lib/aoi-library";
 import { formatArea } from "@/src/lib/polygon-aoi";
 import type { GeoAIProject } from "@/src/lib/db/types";
+import type { ExternalDataManifestSource } from "@/src/lib/external-data/data-manifest";
 import type { ProjectAoi } from "@/src/types/aoi";
 import type {
   ClientDataRoom,
@@ -48,6 +51,7 @@ import type { AnalysisHistoryItem, AnalysisScenarioId, ExpressAnalysis } from "@
 const activeProjectStorageKey = "geoai-active-project-key-v1";
 const analysisHistoryStorageKey = "geoai-analysis-history-v1";
 const openAnalysisRequestStorageKey = "geoai-open-analysis-request-v1";
+const requiredDataCaveat = "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.";
 
 type DbHealth = {
   configured: boolean;
@@ -158,14 +162,36 @@ type MarketMetricsSummary = {
 };
 
 type ExternalDataStatus = {
+  sourceGroups?: Array<{
+    id: string;
+    name: string;
+    status: string;
+    dataMode: string;
+    recordCount?: number | null;
+    confidence: string;
+    caveat: string;
+    nextValidationStep: string;
+  }>;
+  summary?: {
+    totalGroups: number;
+    snapshotGroups: number;
+    apiContextGroups: number;
+    fallbackGroups: number;
+    manualImportGroups: number;
+    validationRequired: boolean;
+    caveat: string;
+  };
   readiness?: Array<{
     sourceId: string;
+    sourceName?: string;
     status: string;
     sourceMode?: string;
+    dataMode?: string;
     recordCount?: number;
     coverageArea: string;
     confidence: string;
     caveat: string;
+    nextValidationStep?: string;
   }>;
   manifest?: {
     sources?: Array<{
@@ -187,7 +213,11 @@ type ProjectReadinessRow = {
   sourceId: string;
   source: string;
   currentStatus: string;
+  dataMode?: string;
+  recordCount?: number | null;
+  confidence?: string;
   caveat: string;
+  nextValidationStep?: string;
 };
 
 type ReadinessItem = NonNullable<ExternalDataStatus["readiness"]>[number];
@@ -371,16 +401,24 @@ function formatBytes(value?: number) {
   return `${value} B`;
 }
 
+function formatRecordCount(value?: number | null) {
+  if (typeof value !== "number") return "n/a";
+  return new Intl.NumberFormat("en").format(value);
+}
+
 function manifestSourceToReadiness(source?: ManifestSource): ReadinessItem | undefined {
   if (!source) return undefined;
 
   return {
     sourceId: source.id,
+    sourceName: source.id,
     status: source.status ?? "planned",
+    sourceMode: source.sourceMode,
+    dataMode: source.sourceMode,
     recordCount: source.recordCount ?? source.rowCount ?? source.featureCount,
     coverageArea: source.coverageArea ?? "Dubai / UAE screening context",
     confidence: source.confidence ?? (source.status === "snapshot_available" ? "medium" : "low"),
-    caveat: source.caveat ?? source.disclaimer ?? "Screening context only; official validation required."
+    caveat: source.caveat ?? source.disclaimer ?? requiredDataCaveat
   };
 }
 
@@ -418,9 +456,17 @@ function createInitialExternalDataStatus(): ExternalDataStatus {
       ? { ...source, recordCount: osmFeatureCount, featureCount: osmFeatureCount }
       : source)
   };
+  const sourceGroups = buildSourceReadinessGroups({
+    generatedAt: null,
+    version: "1.2",
+    summary: "Static source readiness fallback.",
+    sources: (manifestWithCounts.sources ?? []) as ExternalDataManifestSource[]
+  });
 
   return {
     manifest: manifestWithCounts,
+    sourceGroups,
+    summary: sourceReadinessSummary(sourceGroups),
     readiness: (manifestWithCounts.sources ?? [])
       .map((source) => manifestSourceToReadiness(source))
       .filter((source): source is ReadinessItem => Boolean(source))
@@ -1036,61 +1082,105 @@ export function ProjectDashboard() {
       sourceId: "dld-dubai-pulse-transactions",
       source: "DLD / Dubai Pulse snapshot",
       currentStatus: dldSnapshotAvailable ? "snapshot" : compactReadinessStatus(dldReadiness?.status),
-      caveat: dldSnapshotAvailable
-        ? `Snapshot available: ${dldRecordCount} market-area records. Official validation required before decisions.`
-        : dldReadiness?.caveat ?? "Sample fallback remains active until a DLD / Dubai Pulse snapshot is available."
+      dataMode: dldReadiness?.dataMode ?? dldReadiness?.sourceMode,
+      recordCount: dldRecordCount,
+      confidence: dldReadiness?.confidence ?? "requires-validation",
+      caveat: dldReadiness?.caveat ?? requiredDataCaveat,
+      nextValidationStep: dldReadiness?.nextValidationStep ?? "Confirm permitted DLD / Dubai Pulse files, extraction date, license terms and official/client validation source."
     },
     {
       sourceId: "osm-geofabrik-baseline",
       source: "OSM / Geofabrik open snapshot",
       currentStatus: compactReadinessStatus(osmReadiness?.status),
-      caveat: osmReadiness?.status === "snapshot_available"
-        ? "Open geospatial context; not official municipal GIS, zoning or parcel boundary data."
-        : osmReadiness?.caveat ?? "Open geospatial sample fallback remains active."
+      dataMode: osmReadiness?.dataMode ?? osmReadiness?.sourceMode,
+      recordCount: osmReadiness?.recordCount,
+      confidence: osmReadiness?.confidence ?? "low",
+      caveat: osmReadiness?.caveat ?? requiredDataCaveat,
+      nextValidationStep: osmReadiness?.nextValidationStep ?? "Confirm extract date, ODbL attribution and compare against official/customer GIS before decisions."
     },
     {
       sourceId: "overture-maps-open-buildings",
       source: "Overture Maps open snapshot",
       currentStatus: compactReadinessStatus(overtureReadiness?.status),
-      caveat: overtureReadiness?.caveat ?? "Manual import ready for buildings, places and transportation open snapshots."
+      dataMode: overtureReadiness?.dataMode ?? overtureReadiness?.sourceMode,
+      recordCount: overtureReadiness?.recordCount,
+      confidence: overtureReadiness?.confidence ?? "low",
+      caveat: overtureReadiness?.caveat ?? requiredDataCaveat,
+      nextValidationStep: overtureReadiness?.nextValidationStep ?? "Confirm Overture extract scope/license and reconcile open data against client/official evidence."
     },
     {
       sourceId: "open-meteo-climate",
       source: "Open-Meteo climate context",
       currentStatus: compactReadinessStatus(climateReadiness?.status),
-      caveat: climateReadiness?.caveat ?? "Screening-level heat/rainfall proxy only."
+      dataMode: climateReadiness?.dataMode ?? climateReadiness?.sourceMode,
+      recordCount: climateReadiness?.recordCount,
+      confidence: climateReadiness?.confidence ?? "medium",
+      caveat: climateReadiness?.caveat ?? requiredDataCaveat,
+      nextValidationStep: climateReadiness?.nextValidationStep ?? "Validate climate assumptions with engineering/client-approved evidence before operational decisions."
     },
     {
       sourceId: "nasa-power-solar-energy",
       source: "NASA POWER solar / energy",
       currentStatus: compactReadinessStatus(solarReadiness?.status),
-      caveat: solarReadiness?.caveat ?? "Screening-level solar and wind proxy only."
+      dataMode: solarReadiness?.dataMode ?? solarReadiness?.sourceMode,
+      recordCount: solarReadiness?.recordCount,
+      confidence: solarReadiness?.confidence ?? "medium",
+      caveat: solarReadiness?.caveat ?? requiredDataCaveat,
+      nextValidationStep: solarReadiness?.nextValidationStep ?? "Validate energy assumptions with engineering/client-approved evidence before operational decisions."
     },
     {
       sourceId: "openaq-air-quality",
       source: "OpenAQ air quality",
       currentStatus: compactReadinessStatus(airReadiness?.status),
-      caveat: airReadiness?.caveat ?? "Screening-level air quality context with fallback."
+      dataMode: airReadiness?.dataMode ?? airReadiness?.sourceMode,
+      recordCount: airReadiness?.recordCount,
+      confidence: airReadiness?.confidence ?? "low",
+      caveat: airReadiness?.caveat ?? requiredDataCaveat,
+      nextValidationStep: airReadiness?.nextValidationStep ?? "Validate air-quality context against client-approved or regulatory evidence before decisions."
     },
     {
       sourceId: "worldpop-demographics",
       source: "WorldPop demographics",
       currentStatus: compactReadinessStatus(worldpopReadiness?.status),
-      caveat: worldpopReadiness?.caveat ?? "Population density proxy; not official census validation."
+      dataMode: worldpopReadiness?.dataMode ?? worldpopReadiness?.sourceMode,
+      recordCount: worldpopReadiness?.recordCount,
+      confidence: worldpopReadiness?.confidence ?? "low",
+      caveat: worldpopReadiness?.caveat ?? requiredDataCaveat,
+      nextValidationStep: worldpopReadiness?.nextValidationStep ?? "Validate catchment assumptions against official/client demographic evidence."
     },
     {
       sourceId: "copernicus-sentinel-catalog",
       source: "Copernicus / Sentinel",
       currentStatus: compactReadinessStatus(copernicusReadiness?.status),
-      caveat: copernicusReadiness?.caveat ?? "Metadata availability only; analytics pipeline planned."
+      dataMode: copernicusReadiness?.dataMode ?? copernicusReadiness?.sourceMode,
+      recordCount: copernicusReadiness?.recordCount,
+      confidence: copernicusReadiness?.confidence ?? "requires-validation",
+      caveat: copernicusReadiness?.caveat ?? requiredDataCaveat,
+      nextValidationStep: copernicusReadiness?.nextValidationStep ?? "Add approved token/query pipeline and verify metadata/imagery lineage before analytics."
     },
     {
       sourceId: "geodubai-municipality-validation",
       source: "GeoDubai / Dubai Municipality",
       currentStatus: compactReadinessStatus(geodubaiReadiness?.status),
-      caveat: geodubaiReadiness?.caveat ?? "Not connected in this demo."
+      dataMode: geodubaiReadiness?.dataMode ?? geodubaiReadiness?.sourceMode,
+      recordCount: geodubaiReadiness?.recordCount,
+      confidence: geodubaiReadiness?.confidence ?? "requires-validation",
+      caveat: geodubaiReadiness?.caveat ?? requiredDataCaveat,
+      nextValidationStep: geodubaiReadiness?.nextValidationStep ?? "Secure authorized official/customer validation access before relying on planning or GIS constraints."
     }
   ];
+  const sourceLineageRows: ProjectReadinessRow[] = externalDataStatus?.sourceGroups?.length
+    ? externalDataStatus.sourceGroups.map((group) => ({
+        sourceId: group.id,
+        source: group.name,
+        currentStatus: compactReadinessStatus(group.status),
+        dataMode: group.dataMode,
+        recordCount: group.recordCount,
+        confidence: group.confidence,
+        caveat: group.caveat || requiredDataCaveat,
+        nextValidationStep: group.nextValidationStep
+      }))
+    : projectReadinessRows;
   const demoMarketAreas = Math.max(marketMetrics?.availableAreaNames?.length ?? 0, 6);
   const dataConfidence = dldSnapshotAvailable ? "Snapshot + fallback" : "Sample fallback";
   const dataConfidenceNote = dldSnapshotAvailable
@@ -1602,6 +1692,57 @@ export function ProjectDashboard() {
           <KpiCard label="Saved AOIs" value={scopedProjectAois.length} note={scopedProjectAois.length > 0 ? "Reusable screening areas." : "No saved AOIs yet."} />
           <KpiCard label="Comparisons" value={comparisonRows.length} note={comparisonRows.length > 0 ? "Saved comparison sets." : "No comparisons yet."} />
           <KpiCard label="Reports" value={reportRows.length + packageRows.length} note={reportRows.length + packageRows.length > 0 ? "Reports available for review." : "No reports yet."} />
+        </section>
+
+        <section id="data-readiness">
+          <Panel title="Data Readiness / Source Lineage" subtitle="Source group readiness for screening workflows. Validation is required before decisions.">
+            <div className="grid gap-4">
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                <div className="rounded-md border border-line bg-surface p-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Groups</p>
+                  <p className="mt-2 text-2xl font-semibold text-ink">{externalDataStatus?.summary?.totalGroups ?? sourceLineageRows.length}</p>
+                </div>
+                <div className="rounded-md border border-line bg-surface p-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Snapshots</p>
+                  <p className="mt-2 text-2xl font-semibold text-ink">{externalDataStatus?.summary?.snapshotGroups ?? 0}</p>
+                </div>
+                <div className="rounded-md border border-line bg-surface p-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">API context</p>
+                  <p className="mt-2 text-2xl font-semibold text-ink">{externalDataStatus?.summary?.apiContextGroups ?? 0}</p>
+                </div>
+                <div className="rounded-md border border-line bg-surface p-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Fallbacks</p>
+                  <p className="mt-2 text-2xl font-semibold text-ink">{externalDataStatus?.summary?.fallbackGroups ?? 0}</p>
+                </div>
+              </div>
+              <div className="overflow-hidden rounded-md border border-line">
+                <div className="hidden grid-cols-[1.4fr_0.7fr_0.8fr_0.7fr_0.7fr_1.4fr] gap-3 bg-surface px-3 py-2 text-xs font-semibold uppercase tracking-[0.1em] text-muted xl:grid">
+                  <span>Source group</span>
+                  <span>Status</span>
+                  <span>Data mode</span>
+                  <span>Records</span>
+                  <span>Confidence</span>
+                  <span>Next validation step</span>
+                </div>
+                <div className="divide-y divide-line">
+                  {sourceLineageRows.slice(0, 5).map((source) => (
+                    <div key={`visible-${source.sourceId}`} className="grid gap-2 bg-white px-3 py-3 text-sm xl:grid-cols-[1.4fr_0.7fr_0.8fr_0.7fr_0.7fr_1.4fr] xl:items-start xl:gap-3">
+                      <div className="min-w-0">
+                        <p className="font-semibold text-ink">{source.source}</p>
+                        <p className="mt-1 text-xs leading-5 text-muted">{source.caveat || requiredDataCaveat}</p>
+                      </div>
+                      <span className="w-fit rounded-full bg-surface px-2 py-1 text-xs font-semibold text-brand">{source.currentStatus}</span>
+                      <span className="text-xs font-semibold text-muted">{source.dataMode ? sourceDataModeLabel(source.dataMode) : "n/a"}</span>
+                      <span className="text-xs font-semibold text-ink">{formatRecordCount(source.recordCount)}</span>
+                      <span className="text-xs font-semibold text-muted">{source.confidence ? formatLabel(source.confidence) : "n/a"}</span>
+                      <p className="text-xs leading-5 text-muted">{source.nextValidationStep ?? "Validate source lineage with official/client-approved evidence."}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <p className="text-xs leading-5 text-muted">{externalDataStatus?.summary?.caveat ?? requiredDataCaveat}</p>
+            </div>
+          </Panel>
         </section>
 
         <section className="grid gap-5 lg:grid-cols-2">
@@ -2606,21 +2747,49 @@ export function ProjectDashboard() {
               </div>
             </Panel>
 
-            <Panel title="Data Readiness" subtitle="Current source maturity and persistence posture for this project.">
+            <Panel title="Data Readiness / Source Lineage" subtitle="Source group readiness for screening workflows. Validation is still required before decisions.">
               <div className="grid gap-3">
-                <div className="rounded-md border border-line bg-surface p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="font-semibold text-ink">{dldSnapshotAvailable ? "DLD / Dubai Pulse snapshot" : "DLD / Dubai Pulse ingestion"}</p>
-                      <p className="mt-1 text-sm leading-5 text-muted">
-                        {dldSnapshotAvailable
-                          ? `Snapshot available: ${dldRecordCount} sample market-area records. Official validation required before decisions.`
-                          : dldReadiness?.caveat ?? "Sample fallback remains active until a DLD / Dubai Pulse snapshot is available."}
-                      </p>
-                    </div>
-                    <span className="shrink-0 rounded-full bg-white px-2 py-1 text-xs font-semibold text-brand">
-                      {dldSnapshotAvailable ? "snapshot" : "fallback"}
-                    </span>
+                <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                  <div className="rounded-md border border-line bg-surface p-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Groups</p>
+                    <p className="mt-2 text-2xl font-semibold text-ink">{externalDataStatus?.summary?.totalGroups ?? sourceLineageRows.length}</p>
+                  </div>
+                  <div className="rounded-md border border-line bg-surface p-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Snapshots</p>
+                    <p className="mt-2 text-2xl font-semibold text-ink">{externalDataStatus?.summary?.snapshotGroups ?? 0}</p>
+                  </div>
+                  <div className="rounded-md border border-line bg-surface p-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">API context</p>
+                    <p className="mt-2 text-2xl font-semibold text-ink">{externalDataStatus?.summary?.apiContextGroups ?? 0}</p>
+                  </div>
+                  <div className="rounded-md border border-line bg-surface p-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Fallbacks</p>
+                    <p className="mt-2 text-2xl font-semibold text-ink">{externalDataStatus?.summary?.fallbackGroups ?? 0}</p>
+                  </div>
+                </div>
+                <div className="overflow-hidden rounded-md border border-line">
+                  <div className="hidden grid-cols-[1.4fr_0.7fr_0.8fr_0.7fr_0.7fr_1.4fr] gap-3 bg-surface px-3 py-2 text-xs font-semibold uppercase tracking-[0.1em] text-muted xl:grid">
+                    <span>Source group</span>
+                    <span>Status</span>
+                    <span>Data mode</span>
+                    <span>Records</span>
+                    <span>Confidence</span>
+                    <span>Next validation step</span>
+                  </div>
+                  <div className="divide-y divide-line">
+                    {sourceLineageRows.slice(0, 5).map((source) => (
+                      <div key={source.sourceId} className="grid gap-2 bg-white px-3 py-3 text-sm xl:grid-cols-[1.4fr_0.7fr_0.8fr_0.7fr_0.7fr_1.4fr] xl:items-start xl:gap-3">
+                        <div className="min-w-0">
+                          <p className="font-semibold text-ink">{source.source}</p>
+                          <p className="mt-1 text-xs leading-5 text-muted">{source.caveat || requiredDataCaveat}</p>
+                        </div>
+                        <span className="w-fit rounded-full bg-surface px-2 py-1 text-xs font-semibold text-brand">{source.currentStatus}</span>
+                        <span className="text-xs font-semibold text-muted">{source.dataMode ? sourceDataModeLabel(source.dataMode) : "n/a"}</span>
+                        <span className="text-xs font-semibold text-ink">{formatRecordCount(source.recordCount)}</span>
+                        <span className="text-xs font-semibold text-muted">{source.confidence ? formatLabel(source.confidence) : "n/a"}</span>
+                        <p className="text-xs leading-5 text-muted">{source.nextValidationStep ?? "Validate source lineage with official/client-approved evidence."}</p>
+                      </div>
+                    ))}
                   </div>
                 </div>
                 <div className="rounded-md border border-line bg-surface p-4">
@@ -2629,19 +2798,8 @@ export function ProjectDashboard() {
                     {dbHealth?.message ?? getSupabaseFallbackMessage(false)}
                   </p>
                 </div>
-                <div className="grid gap-2">
-                  {projectReadinessRows.map((source) => (
-                    <div key={source.sourceId} className="rounded-md bg-surface px-3 py-2 text-sm">
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="min-w-0 truncate font-medium text-ink">{source.source}</span>
-                        <span className="shrink-0 text-xs font-semibold text-muted">{source.currentStatus}</span>
-                      </div>
-                      <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted">{source.caveat}</p>
-                    </div>
-                  ))}
-                </div>
                 <p className="text-xs leading-5 text-muted">
-                  Official validation is required before treating any dashboard output as decision-grade.
+                  {externalDataStatus?.summary?.caveat ?? requiredDataCaveat}
                 </p>
               </div>
             </Panel>
