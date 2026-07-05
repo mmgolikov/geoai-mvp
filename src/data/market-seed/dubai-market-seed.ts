@@ -1,6 +1,6 @@
 import type { MarketDataSource, RawMarketRecord } from "@/src/types/market-ingestion";
 
-// Demo-normalized seed records for Data Ingestion v0.1.
+// Sample-open seed records for Data Ingestion v0.1.
 // These records are not official market data and do not contain prices, rents,
 // transaction values, ownership, zoning, density, or approval claims.
 

@@ -4,22 +4,22 @@ import type { AnalysisScenarioId } from "@/src/types/geo";
 const baseDataSourceRegistry: DataSource[] = [
   {
     id: "synthetic-demo-layers",
-    name: "Synthetic Demo Layers",
+    name: "Synthetic sample layers",
     category: "demo",
-    geography: "Dubai demo extent",
-    description: "Hand-authored synthetic layers used for the public GeoAI MVP demo.",
-    provider: "GeoAI demo",
+    geography: "Dubai sample extent",
+    description: "Hand-authored synthetic layers used for GeoAI MVP screening workflows.",
+    provider: "GeoAI sample context",
     sourceType: "mock",
     status: "mock",
-    updateFrequency: "Static demo",
+    updateFrequency: "Static sample",
     coverage: {
       geography: "Dubai-focused synthetic geometries",
-      spatialResolution: "Simplified demo polygons, lines, and points",
+      spatialResolution: "Simplified sample polygons, lines, and points",
       temporalCoverage: "Prototype baseline"
     },
     licenseNote: {
       type: "synthetic",
-      note: "Synthetic internal demo data. Not official and not decision-grade."
+      note: "Synthetic internal sample data. Not official and not decision-grade."
     },
     reliabilityLevel: "demo",
     lastUpdated: "2026-06-17",
@@ -34,15 +34,15 @@ const baseDataSourceRegistry: DataSource[] = [
   },
   {
     id: "demo-market-context-seed",
-    name: "Demo Market Context / seed_static",
+    name: "Sample market context / seed_static",
     category: "demo",
-    geography: "Dubai demo market areas",
-    description: "Seed_static demo-normalized market context used for area matching, qualitative indices and data quality notes.",
-    provider: "GeoAI demo",
+    geography: "Dubai sample market areas",
+    description: "Seed_static sample/open market context used for area matching, qualitative indices and data quality notes.",
+    provider: "GeoAI sample context",
     sourceType: "mock",
     status: "mock",
     integrationStatus: "active_demo",
-    updateFrequency: "Static demo",
+    updateFrequency: "Static sample",
     coverage: {
       geography: "Dubai-focused seed areas",
       spatialResolution: "Area-level matching",
@@ -50,7 +50,7 @@ const baseDataSourceRegistry: DataSource[] = [
     },
     licenseNote: {
       type: "synthetic",
-      note: "Seed/demo-normalized market context. Not official market data and not decision-grade."
+      note: "Seed sample/open market context. Not official market data and not decision-grade."
     },
     accessNote: "No external access required for the public prototype.",
     usageInGeoAI: "Used to demonstrate how market context, confidence notes and validation paths appear in analysis.",

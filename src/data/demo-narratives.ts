@@ -37,7 +37,7 @@ export const demoNarratives: DemoNarrative[] = [
     id: "fund-investment-screening",
     title: "Fund / Family Office Investment Screening",
     projectKey: "dubai-investment-screening-demo",
-    projectName: "Dubai Investment Screening Demo",
+    projectName: "Dubai Investment Screening",
     guidedDemoPresetId: "dubai-marina-investment",
     targetPersona: "Investment principal, family office partner, or real estate fund analyst",
     buyerType: "Fund / family office",
@@ -61,7 +61,7 @@ export const demoNarratives: DemoNarrative[] = [
         route: "/workspace?demoNarrativeId=fund-investment-screening&projectId=dubai-investment-screening-demo",
         userAction: "Load the Dubai Marina guided demo and review the selected polygon.",
         whatToSay: "The first step is selecting an investable site or area and showing its evidence status.",
-        whatGeoAIProves: "Map selection, source confidence and demo-normalized spatial context flow into the command panel.",
+        whatGeoAIProves: "Map selection, source confidence and sample/open spatial context flow into the command panel.",
         expectedVisibleResult: "Dubai Marina site selected with scenario and command panel ready."
       },
       {
@@ -111,7 +111,7 @@ export const demoNarratives: DemoNarrative[] = [
     id: "developer-land-pipeline",
     title: "Developer Land Pipeline",
     projectKey: "developer-land-pipeline-demo",
-    projectName: "Developer Land Pipeline Demo",
+    projectName: "Developer Land Pipeline",
     guidedDemoPresetId: "dubai-south-development",
     targetPersona: "Developer strategy, land acquisition, master planning or feasibility team",
     buyerType: "Developer / master developer",
@@ -158,7 +158,7 @@ export const demoNarratives: DemoNarrative[] = [
       }
     ],
     dataStory: [
-      "Demo geometries are synthetic and show workflow readiness only.",
+      "Sample geometries are synthetic and show workflow readiness only.",
       "Open baseline context supports access and surrounding-area discussion.",
       "Official planning, utility and parcel evidence must be validated by authorized sources.",
       "Customer-uploaded GIS or feasibility files can become pilot inputs."
@@ -176,7 +176,7 @@ export const demoNarratives: DemoNarrative[] = [
     id: "bank-asset-review",
     title: "Bank / Lender Asset Review",
     projectKey: "bank-asset-review-demo",
-    projectName: "Bank Asset Review Demo",
+    projectName: "Bank Asset Review",
     guidedDemoPresetId: "bank-asset-review",
     targetPersona: "Credit risk, collateral review, portfolio monitoring or real estate finance team",
     buyerType: "Bank / lender",
@@ -226,7 +226,7 @@ export const demoNarratives: DemoNarrative[] = [
       "Sample/offline market and geospatial context supports only screening-level interpretation.",
       "Customer-approved asset metadata is expected for a real pilot.",
       "Legal title, ownership, valuation and regulatory review stay outside the MVP.",
-      "Source lineage distinguishes demo/open context from planned official validation."
+      "Source lineage distinguishes sample/open context from planned official validation."
     ],
     managementOutput: [
       "Collateral context memo",

@@ -62,7 +62,7 @@ export function ComparisonReportPrint({ report }: { report: ComparisonReportDeli
         <ReportHeader
           title="GeoAI Comparison Report"
           subtitle={report.subtitle}
-          badge="Demo comparison"
+          badge="Screening comparison"
         />
 
         <div className="geoai-print-meta-grid">

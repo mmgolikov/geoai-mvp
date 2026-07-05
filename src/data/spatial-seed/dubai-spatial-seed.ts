@@ -68,7 +68,7 @@ function feature(input: SeedFeatureInput): SpatialFeature {
 export const seedSpatialDatasets: SpatialDataset[] = [
   {
     id: "synthetic-development-zones",
-    name: "Demo Growth / Pipeline Signals",
+    name: "Sample Growth / Pipeline Signals",
     category: "development_zone",
     layerId: "developmentZones",
     layerName: "Growth / Pipeline Signals",
@@ -104,7 +104,7 @@ export const seedSpatialDatasets: SpatialDataset[] = [
   },
   {
     id: "synthetic-premium-real-estate",
-    name: "Demo Market Signal Areas",
+    name: "Sample Market Signal Areas",
     category: "premium_real_estate",
     layerId: "premiumRealEstateAreas",
     layerName: "Market Signal Areas",
@@ -140,7 +140,7 @@ export const seedSpatialDatasets: SpatialDataset[] = [
   },
   {
     id: "synthetic-infrastructure-nodes",
-    name: "Demo Spatial Anchors",
+    name: "Sample Spatial Anchors",
     category: "infrastructure_node",
     layerId: "infrastructureNodes",
     layerName: "Spatial Anchors",
@@ -229,8 +229,8 @@ export const seedSpatialDatasets: SpatialDataset[] = [
     color: "#6d5dfc",
     source: source(),
     features: [
-      feature({ id: "asset-business-bay-block", name: "Business Bay Demo AOI", category: "asset_boundary", subtype: "Demo area of interest", geometry: polygon([[55.2675, 25.1815], [55.2745, 25.1805], [55.2762, 25.1868], [55.2692, 25.1882], [55.2675, 25.1815]]), scenarioRelevance: ["realEstateDevelopment", "investmentSiteSelection"] }),
-      feature({ id: "asset-marina-waterfront", name: "Marina Waterfront Demo AOI", category: "asset_boundary", subtype: "Demo area of interest", geometry: polygon([[55.1375, 25.079], [55.1458, 25.0778], [55.148, 25.0848], [55.1396, 25.086], [55.1375, 25.079]]), scenarioRelevance: ["realEstateDevelopment", "investmentSiteSelection", "climateRisk"] })
+      feature({ id: "asset-business-bay-block", name: "Business Bay sample AOI", category: "asset_boundary", subtype: "Sample area of interest", geometry: polygon([[55.2675, 25.1815], [55.2745, 25.1805], [55.2762, 25.1868], [55.2692, 25.1882], [55.2675, 25.1815]]), scenarioRelevance: ["realEstateDevelopment", "investmentSiteSelection"] }),
+      feature({ id: "asset-marina-waterfront", name: "Marina Waterfront sample AOI", category: "asset_boundary", subtype: "Sample area of interest", geometry: polygon([[55.1375, 25.079], [55.1458, 25.0778], [55.148, 25.0848], [55.1396, 25.086], [55.1375, 25.079]]), scenarioRelevance: ["realEstateDevelopment", "investmentSiteSelection", "climateRisk"] })
     ]
   },
   {

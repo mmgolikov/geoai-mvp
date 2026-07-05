@@ -94,7 +94,7 @@ const demoLayerDesign: Record<DemoLayerId, Omit<DemoLayer, "id" | "name" | "type
     layerOrder: 10,
     clickPriority: 25,
     legendLabel: "Coastal exposure signals",
-    disclaimer: "Demo-normalized exposure band; not an official flood or coastal hazard boundary."
+    disclaimer: "Sample/open exposure band; not an official flood or coastal hazard boundary."
   },
   heatRiskZones: {
     description: "Subtle urban heat screening signals for climate resilience review.",
@@ -113,7 +113,7 @@ const demoLayerDesign: Record<DemoLayerId, Omit<DemoLayer, "id" | "name" | "type
     layerOrder: 20,
     clickPriority: 24,
     legendLabel: "Heat exposure signals",
-    disclaimer: "Demo-normalized screening zone; official hazard validation is required."
+    disclaimer: "Sample/open screening zone; official hazard validation is required."
   },
   developmentZones: {
     description: "Compact growth and pipeline signals for early site-screening workflows.",
@@ -132,7 +132,7 @@ const demoLayerDesign: Record<DemoLayerId, Omit<DemoLayer, "id" | "name" | "type
     layerOrder: 30,
     clickPriority: 55,
     legendLabel: "Growth / pipeline signals",
-    disclaimer: "Demo-normalized screening overlay; not a planning or zoning boundary."
+    disclaimer: "Sample/open screening overlay; not a planning or zoning boundary."
   },
   premiumRealEstateAreas: {
     description: "Compact market signal areas for investment and development screening.",
@@ -151,7 +151,7 @@ const demoLayerDesign: Record<DemoLayerId, Omit<DemoLayer, "id" | "name" | "type
     layerOrder: 40,
     clickPriority: 70,
     legendLabel: "Market signal areas",
-    disclaimer: "Demo-normalized market signal area; not an official market boundary."
+    disclaimer: "Sample/open market signal area; not an official market boundary."
   },
   assetParcelObjects: {
     description: "Small selected AOI examples used for investor memo and object-selection flows.",
@@ -170,7 +170,7 @@ const demoLayerDesign: Record<DemoLayerId, Omit<DemoLayer, "id" | "name" | "type
     layerOrder: 50,
     clickPriority: 82,
     legendLabel: "Selected AOI examples",
-    disclaimer: "Demo area of interest only; not an official parcel, title, ownership, or planning boundary."
+    disclaimer: "Sample area of interest only; not an official parcel, title, ownership, or planning boundary."
   },
   transportCorridors: {
     description: "Indicative access corridors representing major demo mobility relationships.",
@@ -193,7 +193,7 @@ const demoLayerDesign: Record<DemoLayerId, Omit<DemoLayer, "id" | "name" | "type
     disclaimer: "Indicative demo corridor; not an official transport alignment."
   },
   infrastructureNodes: {
-    description: "Demo airports, mobility hubs, business anchors and development anchors.",
+    description: "Sample airports, mobility hubs, business anchors and development anchors.",
     category: "Anchors / POI",
     sourceMode: "demo_normalized",
     style: {
@@ -210,10 +210,10 @@ const demoLayerDesign: Record<DemoLayerId, Omit<DemoLayer, "id" | "name" | "type
     layerOrder: 70,
     clickPriority: 95,
     legendLabel: "Spatial anchors",
-    disclaimer: "Demo-normalized anchor point; official source validation is required."
+    disclaimer: "Sample/open anchor point; official source validation is required."
   },
   constructionSites: {
-    description: "Demo construction monitoring targets for progress and lender-reporting workflows.",
+    description: "Sample construction monitoring targets for progress and lender-reporting workflows.",
     category: "Anchors / POI",
     sourceMode: "demo_normalized",
     style: {
@@ -230,7 +230,7 @@ const demoLayerDesign: Record<DemoLayerId, Omit<DemoLayer, "id" | "name" | "type
     layerOrder: 80,
     clickPriority: 92,
     legendLabel: "Pipeline watch points",
-    disclaimer: "Demo construction target; not a live project-control record."
+    disclaimer: "Sample construction target; not a live project-control record."
   },
   futureMunicipalityGis: {
     description: "Placeholder for future official GIS validation sources.",

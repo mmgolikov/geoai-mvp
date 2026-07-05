@@ -6,6 +6,6 @@ export function GET() {
     app: "GeoAI",
     milestone: "geoai-investor-demo-v0.4",
     mode: "investor_demo_prototype",
-    dataStatus: "Demo-normalized and sample/offline data only; live official integrations are not connected."
+    dataStatus: "Sample/open and offline data only; live official integrations are not connected."
   });
 }

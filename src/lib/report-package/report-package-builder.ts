@@ -77,7 +77,7 @@ function normalizeReport(record: unknown) {
     scenario: readString(item.scenario) || readString(payload.scenario, "Screening analysis"),
     targetLabel: readString(item.targetLabel) || readString(item.target_label) || readString(payload.selectedSite, "Selected area"),
     payload,
-    sourceSummary: readString(item.sourceSummary, "Saved with demo/local source lineage; official validation required."),
+    sourceSummary: readString(item.sourceSummary, "Saved with sample/local source lineage; official validation required."),
     createdAt: readString(item.createdAt) || readString(item.created_at) || readString(item.generated_at)
   };
 }
@@ -100,7 +100,7 @@ function extractScoreRows(report: ReturnType<typeof normalizeReport>) {
   return Object.entries(scores).slice(0, 8).map(([label, value]) => ({
     label,
     value: readNumber(value, 0),
-    note: "Deterministic demo score; official validation required."
+    note: "Deterministic sample score; official validation required."
   }));
 }
 

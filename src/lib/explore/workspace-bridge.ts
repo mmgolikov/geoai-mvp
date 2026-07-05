@@ -74,8 +74,8 @@ export function getExploreCandidateSourceLabel(sourceType: ExploreCandidate["sou
     sample: "Sample",
     open_context: "Open",
     user_provided: "User",
-    demo_seed: "Demo",
-    fallback: "Fallback"
+    demo_seed: "Sample/open",
+    fallback: "Sample/open"
   };
 
   return labels[sourceType];

@@ -12,7 +12,7 @@ import type {
 } from "@/src/types/pilot-backend";
 
 const fallbackCaveat = "Local/API fallback is not durable production storage.";
-const demoAccessCaveat = "Demo access is not production authentication.";
+const demoAccessCaveat = "Public pilot access is not production authentication.";
 const supabaseCaveat = "Supabase/PostGIS durable persistence is active only when configured and schema readiness checks pass.";
 const storageCaveat = "Storage readiness is not secure enterprise storage until buckets, policies, signed URL flows and access enforcement are configured and verified.";
 const auditCaveat = "Audit events are a foundation only, not a certified audit trail.";

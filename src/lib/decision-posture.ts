@@ -108,11 +108,11 @@ export function deriveDecisionRationale(analysis: ExpressAnalysis) {
   const dataConfidence = deriveDataConfidenceLevel(analysis.evidence);
 
   if (posture === "Proceed to due diligence") {
-    return "The site has a strong demo-normalized screening profile and manageable modeled risk, but pilot deployment should still validate conclusions against official sources before underwriting.";
+    return "The site has a strong sample/open screening profile and manageable modeled risk, but pilot deployment should still validate conclusions against official sources before underwriting.";
   }
 
   if (posture === "Proceed with conditions") {
-    return "The site shows useful screening potential, but current evidence remains demo-normalized or partially unvalidated, so next steps should be conditional on official planning, market and infrastructure checks.";
+    return "The site shows useful screening potential, but current evidence remains sample/open or partially unvalidated, so next steps should be conditional on official planning, market and infrastructure checks.";
   }
 
   if (posture === "Compare alternatives first") {

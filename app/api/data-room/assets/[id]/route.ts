@@ -37,7 +37,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     item: result.data,
     access,
     error: result.error,
-    dataHonesty: "Data room asset metadata remains local/demo fallback."
+    dataHonesty: "Data room asset metadata remains local/sample fallback."
   });
 }
 

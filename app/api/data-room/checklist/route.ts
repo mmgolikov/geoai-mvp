@@ -74,6 +74,6 @@ export async function POST(request: Request) {
     item: result.data,
     access,
     error: result.error,
-    dataHonesty: "Checklist status is a local/demo workflow marker; it is not official validation."
+    dataHonesty: "Checklist status is a local/sample workflow marker; it is not official validation."
   }, { status: result.ok ? 201 : 200 });
 }

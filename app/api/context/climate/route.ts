@@ -47,14 +47,14 @@ function toScreeningContext(result: Awaited<ReturnType<typeof getOpenMeteoClimat
     status: result.status === "ok" ? "connected" : "sample_fallback",
     sourceId: result.source.id,
     source: result.source.name,
-    climateDataMode: result.status === "ok" ? "external open climate API context" : "demo fallback",
+    climateDataMode: result.status === "ok" ? "external open climate API context" : "sample fallback",
     heatExposureProxy,
     rainfallProxy,
     metrics: result.metrics,
     confidence: result.status === "ok" ? "medium" : "low",
     caveat: result.status === "ok"
       ? `Screening-level heat/rainfall proxy from open climate context. ${externalDataCaveat}`
-      : `Open climate API context unavailable; deterministic demo fallback is active. ${externalDataCaveat}`,
+      : `Open climate API context unavailable; deterministic sample fallback is active. ${externalDataCaveat}`,
     limitation: "Not a certified flood, engineering-grade climate or insurance-grade hazard assessment.",
     note: maxTemp === null
       ? result.message ?? "Climate context unavailable; fallback returned."

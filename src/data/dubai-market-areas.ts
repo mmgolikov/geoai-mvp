@@ -1,6 +1,6 @@
 import type { MarketArea, MarketMetric } from "@/src/types/market-context";
 
-// Synthetic seed/demo-normalized market context for GeoAI MVP.
+// Synthetic seed/sample-open market context for GeoAI MVP.
 // These are qualitative indices for product demonstration only.
 // They are not official Dubai transaction, rent, zoning, parcel, or valuation data.
 
@@ -31,7 +31,7 @@ const commonSourceIds = [
 ];
 
 const commonLimitations = [
-  "Market context is seed/demo-normalized and not official market evidence.",
+  "Market context is seed/sample-open and not official market evidence.",
   "Exact transactions, rents, ownership, zoning, density, and approvals are not validated.",
   "Future adapters should connect DLD, Dubai Pulse, Dubai Municipality, and licensed market datasets."
 ];
@@ -59,7 +59,7 @@ export const dubaiMarketAreas: MarketArea[] = [
     emirate: "Dubai",
     centroid: { latitude: 25.1851, longitude: 55.2639 },
     source: "seed_demo",
-    marketActivityLevel: metric("Market activity", "high", 86, "rising", "Dense commercial and residential context with active demo investor interest."),
+    marketActivityLevel: metric("Market activity", "high", 86, "rising", "Dense commercial and residential context with active sample investor interest."),
     transactionContext: metric("Transaction context", "high", 82, "stable", "High turnover assumption requires DLD-backed validation."),
     rentContext: metric("Rent context", "high", 80, "stable", "Rental depth is treated as strong but qualitative."),
     developmentPipelineContext: metric("Development pipeline", "high", 78, "rising", "Continued infill and repositioning potential in seed context."),

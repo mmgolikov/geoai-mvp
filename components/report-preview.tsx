@@ -88,6 +88,13 @@ function formatCoordinate(latitude: number, longitude: number) {
   return `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
 }
 
+function formatDataModeLabel(value?: string | null, separator = " ") {
+  return (value ?? "sample_open")
+    .replace(/_/g, separator)
+    .replace(/\bdemo normalized\b/gi, "sample/open")
+    .replace(/\bdemo-normalized\b/gi, "sample/open");
+}
+
 function createStableKey(section: string, value: unknown, index: number): string {
   const raw = typeof value === "string" ? value : JSON.stringify(value ?? "item");
   const slug = raw
@@ -427,7 +434,7 @@ function createPrintableComparisonRecord(comparison: ComparisonResult) {
       dueDiligenceChecklist: comparison.nextActions,
       evidenceSourceReadiness: comparison.evidence,
       limitations: [
-        "Comparison uses deterministic demo scoring and structured evidence readiness, not a validated underwriting model."
+        "Comparison uses deterministic sample scoring and structured evidence readiness, not a validated underwriting model."
       ],
       generatedAt: new Date().toISOString()
     },
@@ -455,9 +462,9 @@ function Section({
 }
 
 function AnalysisReport({ analysis, onBack }: { analysis: ExpressAnalysis; onBack: () => void }) {
-  const analysisBadge = analysis.analysisMode === "openai" ? "AI analysis" : "Demo fallback";
-  const analysisModeLabel = analysis.analysisMode === "openai" ? "AI-generated" : "Demo fallback";
-  const dataLimitation = analysis.limitations?.[0] ?? "Structured evidence context with deterministic demo scoring.";
+  const analysisBadge = analysis.analysisMode === "openai" ? "AI analysis" : "Sample/open fallback";
+  const analysisModeLabel = analysis.analysisMode === "openai" ? "AI-generated" : "Sample/open fallback";
+  const dataLimitation = analysis.limitations?.[0] ?? "Structured evidence context with deterministic sample scoring.";
   const decisionPosture = deriveDecisionPosture(analysis);
   const decisionRationale = deriveDecisionRationale(analysis);
   const marketMetricsMatch = analysis.marketContext?.importedMarketMetrics ?? analysis.marketMetricsMatch;
@@ -529,12 +536,12 @@ function AnalysisReport({ analysis, onBack }: { analysis: ExpressAnalysis; onBac
             </div>
             <div className="rounded-md bg-surface p-4">
               <dt className="font-semibold text-muted">Project</dt>
-              <dd className="mt-1 text-ink">{analysis.project?.name ?? "Dubai Investment Screening Demo"}</dd>
+              <dd className="mt-1 text-ink">{analysis.project?.name ?? "Dubai Investment Screening"}</dd>
             </div>
             <div className="rounded-md bg-surface p-4">
               <dt className="font-semibold text-muted">Project data mode</dt>
               <dd className="mt-1 capitalize text-ink">
-                {(analysis.project?.dataMode ?? "demo_normalized").replace(/_/g, " ")}
+                {formatDataModeLabel(analysis.project?.dataMode)}
               </dd>
             </div>
             <div className="rounded-md bg-surface p-4">
@@ -557,7 +564,7 @@ function AnalysisReport({ analysis, onBack }: { analysis: ExpressAnalysis; onBac
                 Confidence: {analysis.confidenceLevel ?? "medium"}
               </span>
               <span className="rounded-full bg-white px-3 py-1 text-muted">
-                {(analysis.project?.dataMode ?? "demo_normalized").replace(/_/g, "-")}
+                {formatDataModeLabel(analysis.project?.dataMode, "-")}
               </span>
             </div>
           </div>
@@ -777,7 +784,7 @@ function AnalysisReport({ analysis, onBack }: { analysis: ExpressAnalysis; onBac
                 </div>
               </div>
               <p className="mt-4 text-sm leading-6 text-muted">
-                Note: {marketMetricsMatch?.note ?? analysis.marketContext.dataQualityNotes?.[0] ?? "Current values are demo-normalized indices and not official market data."}
+                Note: {marketMetricsMatch?.note ?? analysis.marketContext.dataQualityNotes?.[0] ?? "Current values are sample/open screening indices and not official market data."}
                 {" "}
                 {marketMetricsMatch?.importedMetricsUsed
                   ? "Imported sample metrics are used to demonstrate the market-data workflow. Validate against official DLD / Dubai Pulse datasets before investment decisions."
@@ -997,11 +1004,11 @@ function ComparisonReport({ comparison, onBack }: { comparison: ComparisonResult
                 Comparing {comparison.items.length} selected locations / assets
               </p>
               <p className="mt-2 text-sm font-semibold text-muted">
-                Project: {comparison.project?.name ?? "Dubai Investment Screening Demo"}
+                Project: {comparison.project?.name ?? "Dubai Investment Screening"}
               </p>
             </div>
             <span className="rounded-full bg-[#eaf3f1] px-3 py-1 text-xs font-semibold text-brand">
-              Demo comparison
+              Screening comparison
             </span>
           </div>
           <dl className="mt-6 grid gap-3 text-sm md:grid-cols-2">
@@ -1016,7 +1023,7 @@ function ComparisonReport({ comparison, onBack }: { comparison: ComparisonResult
             <div className="rounded-md bg-surface p-4">
               <dt className="font-semibold text-muted">Project data mode</dt>
               <dd className="mt-1 capitalize text-ink">
-                {(comparison.project?.dataMode ?? "demo_normalized").replace(/_/g, " ")}
+                {formatDataModeLabel(comparison.project?.dataMode)}
               </dd>
             </div>
           </dl>

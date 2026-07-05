@@ -6,7 +6,6 @@ import { useAuth } from "@/components/auth/auth-provider";
 import ingestionReport from "@/data/normalized/ingestion_report.json";
 import { DataReadinessCard } from "@/components/data-readiness";
 import { getScenarioDataSources } from "@/src/data/data-source-registry";
-import type { DemoNarrative } from "@/src/data/demo-narratives";
 import {
   getExploreRole,
   getExploreRolesByAudience,
@@ -15,6 +14,7 @@ import {
 } from "@/src/lib/explore/scenarios";
 import {
   exploreRequiredCaveat,
+  type CandidateSearchStatus,
   type ExploreAudience,
   type ExploreCandidate,
   type ExploreFilterConfig,
@@ -32,6 +32,7 @@ import { sourceStatusToLabel } from "@/src/lib/external-data/source-status";
 import { sourceTypeLabel, validationStatusLabel } from "@/src/lib/aoi-library";
 import { formatArea, formatPerimeter } from "@/src/lib/polygon-aoi";
 import { getPilotPackageForProject } from "@/src/lib/pilot/pilot-packages";
+import type { LocalProjectInput } from "@/src/lib/project-local-store";
 import { repositoryModeToLabel, type RepositoryMode } from "@/src/lib/repositories/repository-mode";
 import type { GeoAIProject } from "@/src/lib/db/types";
 import type { MarketMetricsMatch } from "@/src/lib/market-metrics/types";
@@ -45,7 +46,6 @@ import type {
   SelectedPoint,
   UserDrawnAoi
 } from "@/src/types/geo";
-import type { GuidedDemoPreset } from "@/src/data/guided-demo";
 import type { UploadedDataset } from "@/src/types/uploaded-data";
 import type { ProjectAoi } from "@/src/types/aoi";
 import type { ClientDataRoom, DataRoomAssetType } from "@/src/types/data-room";
@@ -94,15 +94,13 @@ type AnalysisPanelProps = {
   projectAois: ProjectAoi[];
   aoiDraftName: string;
   aoiMessage: string | null;
-  guidedDemoPresets: GuidedDemoPreset[];
-  activeGuidedDemoId: string | null;
-  activeDemoNarrative: DemoNarrative | null;
   exploreAudience: ExploreAudience;
   exploreRole: ExploreRole;
   exploreScenarioId: ExploreScenarioId;
   exploreInteractionMode: InteractionMode;
   exploreFilters: ExploreFilters;
   exploreCandidates: ExploreCandidate[];
+  candidateSearchStatus: CandidateSearchStatus;
   selectedExploreCandidateId: string | null;
   exploreSetupDefaultOpen?: boolean;
   onProjectChange: (projectKey: string) => void;
@@ -113,12 +111,11 @@ type AnalysisPanelProps = {
   onExploreInteractionModeChange: (mode: InteractionMode) => void;
   onExploreFilterChange: (id: string, value: ExploreFilters[string]) => void;
   onExploreCandidateSelect: (candidateId: string) => void;
+  onCreateProject: (input: LocalProjectInput) => Promise<void> | void;
   primaryCtaLabel: string;
   primaryCtaDisabled: boolean;
   onPrimaryCta: () => void;
   onAddToComparison: () => void;
-  onLoadGuidedDemo: (presetId: string) => void;
-  onLoadGuidedDemoComparison: (presetId: string) => void;
   onRemoveComparisonItem: (itemId: string) => void;
   onRunComparison: () => void;
   onOpenHistoryItem: (item: AnalysisHistoryItem) => void;
@@ -417,15 +414,13 @@ export function AnalysisPanel({
   projectAois,
   aoiDraftName,
   aoiMessage,
-  guidedDemoPresets,
-  activeGuidedDemoId,
-  activeDemoNarrative,
   exploreAudience,
   exploreRole,
   exploreScenarioId,
   exploreInteractionMode,
   exploreFilters,
   exploreCandidates,
+  candidateSearchStatus,
   selectedExploreCandidateId,
   exploreSetupDefaultOpen = false,
   onProjectChange,
@@ -436,12 +431,11 @@ export function AnalysisPanel({
   onExploreInteractionModeChange,
   onExploreFilterChange,
   onExploreCandidateSelect,
+  onCreateProject,
   primaryCtaLabel,
   primaryCtaDisabled,
   onPrimaryCta,
   onAddToComparison,
-  onLoadGuidedDemo,
-  onLoadGuidedDemoComparison,
   onRemoveComparisonItem,
   onRunComparison,
   onOpenHistoryItem,
@@ -476,6 +470,9 @@ export function AnalysisPanel({
   const [evidenceFiles, setEvidenceFiles] = useState<EvidenceFileAsset[]>([]);
   const [isAoiSaveOpen, setIsAoiSaveOpen] = useState(false);
   const [isExploreSetupOpen, setIsExploreSetupOpen] = useState(() => exploreSetupDefaultOpen);
+  const [isProjectCreateOpen, setIsProjectCreateOpen] = useState(false);
+  const [projectNameDraft, setProjectNameDraft] = useState("");
+  const [projectMarketDraft, setProjectMarketDraft] = useState(activeProject.geography || "Dubai / UAE");
   const hasSelectedPoint = selectedPoint !== null;
   const hasSelectedObject = selectedObject !== null;
   const hasSelectedAoi = selectedAoi !== null;
@@ -485,23 +482,28 @@ export function AnalysisPanel({
   const selectedExploreRole = getExploreRole(exploreRole);
   const selectedExploreCandidate = exploreCandidates.find((candidate) => candidate.id === selectedExploreCandidateId) ?? null;
   const topExploreCandidates = exploreCandidates.slice(0, 3);
+  const isCriteriaFirstMode = exploreInteractionMode === "criteria_first";
+  const hasSearchedCandidates = isCriteriaFirstMode && candidateSearchStatus === "searched" && exploreCandidates.length > 0;
+  const candidateSearchStateLabel =
+    candidateSearchStatus === "searched"
+      ? "Results updated"
+      : candidateSearchStatus === "stale"
+        ? "Criteria changed — update search"
+        : "No search run yet";
+  const candidateSearchEmptyMessage =
+    candidateSearchStatus === "stale"
+      ? "Criteria changed — update search"
+      : isCriteriaFirstMode
+        ? "No search run yet"
+        : "Switch to Criteria-first to search candidate zones.";
   const availableSources = getScenarioDataSources(selectedScenario).slice(0, 3);
   const parsedUploads = uploadedDatasets.filter((dataset) => dataset.status === "parsed");
-  const activeGuidedDemo = guidedDemoPresets.find((preset) => preset.id === activeGuidedDemoId) ?? guidedDemoPresets[0];
-  const demoGeojsonLoaded = uploadedDatasets.some((dataset) => dataset.id === "guided-demo-geojson-sites" && dataset.status === "parsed");
-  const demoCsvLoaded = uploadedDatasets.some((dataset) => dataset.id === "guided-demo-csv-metrics" && dataset.status === "parsed");
   const hasComparisonReady = comparisonItems.length >= 2;
-  const demoSteps = [
-    { label: "Site selected", complete: hasSelectedPoint },
-    { label: "Analysis ready", complete: hasResult },
-    { label: "Comparison ready", complete: hasComparisonReady },
-    { label: "Report ready", complete: hasResult }
-  ];
   const modeStatus =
     analysisMode === "openai"
       ? "AI-powered"
       : analysisMode === "mock_fallback"
-        ? "Demo fallback"
+        ? "Sample/open context"
         : "Not run yet";
   const contextStatus = marketContext?.isGeneralContext
     ? "demo"
@@ -537,22 +539,38 @@ export function AnalysisPanel({
       ? "client review"
       : "screening only";
   const isComparisonWorkflow = primaryCtaLabel === "Compare" || (hasComparisonReady && hasResult);
-  const activeWorkflowLabel = isComparisonWorkflow
-    ? "Comparison active"
-    : hasResult
-      ? "Analysis ready"
-      : hasSelectedPoint
-        ? "Ready to analyze"
-        : "Select a site";
-  const activeWorkflowNote = isComparisonWorkflow
-    ? hasComparisonReady
-      ? "Export the comparison or edit scenario/query to continue."
-      : "Add another site to refresh comparison."
-    : hasResult
-      ? "Export the memo or edit scenario/query to continue."
-      : hasSelectedPoint
-        ? "Run analysis from the pinned footer."
-        : "Use the map or guided demo to start.";
+  const activeWorkflowLabel = isCriteriaFirstMode
+    ? candidateSearchStatus === "searched"
+      ? selectedExploreCandidate
+        ? "Candidate selected"
+        : "Candidates ready"
+      : candidateSearchStatus === "stale"
+        ? "Search outdated"
+        : "Set search criteria"
+    : isComparisonWorkflow
+      ? "Comparison active"
+      : hasResult
+        ? "Analysis ready"
+        : hasSelectedPoint
+          ? "Ready to analyze"
+          : "Select a site";
+  const activeWorkflowNote = isCriteriaFirstMode
+    ? candidateSearchStatus === "searched"
+      ? selectedExploreCandidate
+        ? "Analyze this candidate or return to the shortlist."
+        : "Compare the searched candidates or select one."
+      : candidateSearchStatus === "stale"
+        ? "Criteria changed — update search before comparing."
+        : "Choose criteria, then find candidate zones."
+    : isComparisonWorkflow
+      ? hasComparisonReady
+        ? "Export the comparison or edit scenario/query to continue."
+        : "Add another site to refresh comparison."
+      : hasResult
+        ? "Export the memo or edit scenario/query to continue."
+        : hasSelectedPoint
+          ? "Run analysis from the pinned footer."
+          : "Use the map to start.";
   const pilotPackage = getPilotPackageForProject(activeProject.projectKey, activeProject.clientType);
   const pilotChecklist = [
     { label: "Select client type", status: activeProject.clientType ? "Done" : "Needed" },
@@ -564,6 +582,15 @@ export function AnalysisPanel({
     { label: "Validate official sources", status: "Needed" },
     { label: "Export pilot deliverables", status: hasResult ? "Optional" : "Needed" }
   ];
+
+  useEffect(() => {
+    if (exploreInteractionMode === "map_first") {
+      setIsExploreSetupOpen(false);
+      return;
+    }
+
+    setIsExploreSetupOpen(candidateSearchStatus !== "searched");
+  }, [candidateSearchStatus, exploreInteractionMode, exploreScenarioId]);
 
   useEffect(() => {
     let isMounted = true;
@@ -874,7 +901,7 @@ export function AnalysisPanel({
         projectKey: activeProject.projectKey,
         decision,
         evidenceFileId: linkedFile?.id,
-        reviewerName: user?.name ?? "GeoAI demo reviewer",
+        reviewerName: user?.name ?? "GeoAI reviewer",
         reviewerRole: "screening reviewer",
         notes: decision === "request_more_evidence"
           ? "Additional client or official evidence is required before this item can support a claim."
@@ -1066,98 +1093,140 @@ export function AnalysisPanel({
     }
   }
 
+  async function handleProjectCreate() {
+    const name = projectNameDraft.trim();
+    if (!name) {
+      return;
+    }
+
+    await onCreateProject({
+      name,
+      audience: exploreAudience,
+      role: exploreRole,
+      scenarioId: exploreScenarioId,
+      geography: projectMarketDraft.trim() || "Dubai / UAE"
+    });
+    setProjectNameDraft("");
+    setProjectMarketDraft("Dubai / UAE");
+    setIsProjectCreateOpen(false);
+  }
+
   return (
-    <aside className="flex h-full max-w-full flex-col overflow-hidden border-l border-line bg-white lg:h-[calc(100vh-72px)] lg:w-[400px]">
-      <section className="min-h-0 flex-1 min-w-0 max-w-full overflow-y-auto overflow-x-hidden p-4 pb-6 [scrollbar-width:thin]">
-        <div className="grid min-w-0 gap-3">
-          <section className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted">
-              Command panel
-            </p>
-            <h1 className="mt-1 text-xl font-semibold text-ink">GeoAI workspace</h1>
-          </section>
-
-          <section className="min-w-0 max-w-full overflow-hidden rounded-lg border border-line bg-surface p-3">
-            <div className="flex items-center justify-between gap-3">
-              <label
-                htmlFor="active-project"
-                className="text-xs font-semibold uppercase tracking-[0.14em] text-muted"
-              >
-                Project workspace
-              </label>
-              <Link href="/projects" className="text-xs font-semibold text-brand transition hover:text-[#113f50]">
-                Open dashboard
-              </Link>
-            </div>
-            <select
-              id="active-project"
-              value={activeProject.projectKey}
-              onChange={(event) => onProjectChange(event.target.value)}
-              className="mt-1 h-9 w-full rounded-md border border-line bg-white px-3 text-sm font-semibold text-ink outline-none transition focus:border-brand"
-            >
-              {projects.map((project) => (
-                <option key={project.projectKey} value={project.projectKey}>
-                  {project.name}
-                </option>
-              ))}
-            </select>
-            <div className="mt-2 flex min-w-0 flex-wrap items-center gap-2">
-              <span className="rounded-full bg-white px-2 py-1 text-[11px] font-semibold capitalize text-brand">
-                {activeProject.clientType.replace(/_/g, " ")}
-              </span>
-              <span className="rounded-full bg-white px-2 py-1 text-[11px] font-semibold text-muted">
-                {activeProject.dataMode.replace(/_/g, "-")}
-              </span>
-              <span className="rounded-full bg-white px-2 py-1 text-[11px] font-semibold text-muted">
-                {projectPersistenceStatus}
-              </span>
-              <span
-                className="max-w-full truncate rounded-full bg-white px-2 py-1 text-[11px] font-semibold text-muted"
-                title={authStatus.caveat}
-              >
-                Access: {projectAccessLabel}
-              </span>
-            </div>
-            <p className="mt-2 truncate text-[11px] leading-4 text-muted">
-              {authStatus.effectiveMode === "supabase_auth" && user
-                ? `Signed in as ${user.email}`
-                : authStatus.caveat}
-            </p>
-          </section>
-
-          <section className="min-w-0 max-w-full overflow-hidden rounded-lg border border-line bg-white p-3">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">
-                  Explore command
-                </p>
-                <h2 className="mt-1 truncate text-sm font-semibold text-ink">
-                  {exploreScenario.title}
-                </h2>
-              </div>
-              <span className="shrink-0 rounded-full bg-[#eaf3f1] px-2 py-1 text-[11px] font-semibold text-brand">
-                {getExploreModeSummary(exploreScenario.interactionModes)}
-              </span>
-            </div>
-
-            <div className="mt-3 grid grid-cols-2 gap-2">
+    <aside className="flex h-full max-w-full flex-col overflow-hidden border-l border-line bg-white lg:w-[380px]">
+      <section className="min-h-0 flex-1 min-w-0 max-w-full overflow-y-auto overflow-x-hidden p-3 pb-5 [scrollbar-width:thin]">
+        <div className="grid min-w-0 gap-2">
+          <section className="min-w-0 max-w-full overflow-hidden rounded-lg border border-line bg-white p-2">
+            <div className="grid grid-cols-2 gap-1 rounded-md bg-surface p-1">
               {(["b2b", "b2c"] as ExploreAudience[]).map((audience) => (
                 <button
                   key={audience}
                   type="button"
                   onClick={() => onExploreAudienceChange(audience)}
-                  className={`h-8 rounded-md border px-2 text-xs font-semibold transition ${
+                  className={`h-8 rounded-md px-2 text-xs font-semibold transition ${
                     exploreAudience === audience
-                      ? "border-brand bg-brand text-white"
-                      : "border-line bg-surface text-muted hover:border-brand hover:text-ink"
+                      ? "bg-brand text-white shadow-sm"
+                      : "text-muted hover:bg-white hover:text-ink"
                   }`}
                 >
                   {audience.toUpperCase()}
                 </button>
               ))}
             </div>
+          </section>
 
-            <div className="mt-2 grid gap-2">
+          <section className="min-w-0 max-w-full overflow-hidden rounded-lg border border-line bg-surface p-2.5">
+            <div className="flex items-center justify-between gap-3">
+              <label
+                htmlFor="active-project"
+                className="text-xs font-semibold uppercase tracking-[0.14em] text-muted"
+              >
+                Project
+              </label>
+              <Link href="/projects" className="text-xs font-semibold text-brand transition hover:text-[#113f50]">
+                Projects
+              </Link>
+            </div>
+            <div className="mt-1 grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+              <select
+                id="active-project"
+                value={activeProject.projectKey}
+                onChange={(event) => onProjectChange(event.target.value)}
+                className="h-9 min-w-0 rounded-md border border-line bg-white px-2 text-xs font-semibold text-ink outline-none transition focus:border-brand"
+              >
+                {projects.map((project) => (
+                  <option key={project.projectKey} value={project.projectKey}>
+                    {project.name}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={() => {
+                  setProjectMarketDraft(activeProject.geography || "Dubai / UAE");
+                  setIsProjectCreateOpen((value) => !value);
+                }}
+                className="inline-flex h-9 items-center justify-center rounded-md bg-brand px-3 text-xs font-semibold text-white transition hover:bg-[#113f50]"
+              >
+                Create
+              </button>
+            </div>
+            <div className="mt-1 flex justify-end">
+              <details className="rounded-md border border-line bg-white px-2">
+                <summary className="flex h-7 cursor-pointer list-none items-center text-[11px] font-semibold text-muted">
+                  Details
+                </summary>
+                <div className="border-t border-line py-2 text-[11px] leading-5 text-muted">
+                  <p>{activeProject.geography}</p>
+                  <p className="capitalize">{activeProject.clientType.replace(/_/g, " ")}</p>
+                  <p>{projectPersistenceStatus}</p>
+                </div>
+              </details>
+            </div>
+            {isProjectCreateOpen ? (
+              <div className="mt-3 grid gap-2 rounded-md border border-line bg-white p-2">
+                <label className="min-w-0">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
+                    Project name
+                  </span>
+                  <input
+                    value={projectNameDraft}
+                    onChange={(event) => setProjectNameDraft(event.target.value)}
+                    className="mt-1 h-8 w-full rounded-md border border-line bg-surface px-2 text-xs font-semibold text-ink outline-none transition focus:border-brand"
+                    placeholder="Pilot screening project"
+                  />
+                </label>
+                <label className="min-w-0">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
+                    Location / market
+                  </span>
+                  <input
+                    value={projectMarketDraft}
+                    onChange={(event) => setProjectMarketDraft(event.target.value)}
+                    className="mt-1 h-8 w-full rounded-md border border-line bg-surface px-2 text-xs font-semibold text-ink outline-none transition focus:border-brand"
+                    placeholder="Dubai / UAE"
+                  />
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="rounded-md bg-surface px-2 py-1.5 text-[11px] text-muted">
+                    <span className="font-semibold text-ink">{exploreAudience.toUpperCase()}</span> / {selectedExploreRole.label}
+                  </div>
+                  <button
+                    type="button"
+                    disabled={projectNameDraft.trim().length === 0}
+                    onClick={() => {
+                      void handleProjectCreate();
+                    }}
+                    className="inline-flex h-8 items-center justify-center rounded-md bg-brand px-3 text-xs font-semibold text-white transition hover:bg-[#113f50] disabled:cursor-not-allowed disabled:bg-[#c9d2d7]"
+                  >
+                    Create
+                  </button>
+                </div>
+              </div>
+            ) : null}
+          </section>
+
+          <section className="min-w-0 max-w-full overflow-hidden rounded-lg border border-line bg-white p-2.5">
+            <div className="grid grid-cols-2 gap-2">
               <label className="min-w-0">
                 <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
                   Role
@@ -1193,23 +1262,50 @@ export function AnalysisPanel({
               </label>
             </div>
 
-            <div className="mt-3 rounded-md border border-line bg-surface p-2">
+            <div className="mt-2 rounded-md border border-line bg-surface px-2 py-1.5">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <p className="truncate text-xs font-semibold text-ink">
                     {exploreScenario.primaryCTA}
                   </p>
-                  <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted">
+                  <p className="mt-0.5 line-clamp-1 text-[11px] leading-4 text-muted">
                     {exploreScenario.subtitle}
                   </p>
                 </div>
-                <span className="shrink-0 rounded-full bg-white px-2 py-1 text-[10px] font-semibold text-brand">
+                <span className="shrink-0 rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-brand">
                   {selectedExploreRole.label}
                 </span>
               </div>
-              <p className="mt-2 line-clamp-2 rounded-md bg-white px-2 py-1.5 text-[11px] leading-4 text-muted">
-                {exploreRequiredCaveat}
+              <details className="mt-1 rounded-md bg-white px-2">
+                <summary className="flex h-6 cursor-pointer list-none items-center text-[10px] font-semibold uppercase tracking-[0.1em] text-muted">
+                  Validation caveat
+                </summary>
+                <p className="border-t border-line py-1.5 text-[11px] leading-4 text-muted">
+                  {exploreRequiredCaveat}
+                </p>
+              </details>
+            </div>
+
+            <div className="mt-2">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
+                Interaction mode
               </p>
+              <div className="mt-1 grid grid-cols-2 gap-2">
+                {exploreScenario.interactionModes.map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => onExploreInteractionModeChange(mode)}
+                    className={`h-8 rounded-md border px-2 text-[11px] font-semibold transition ${
+                      exploreInteractionMode === mode
+                        ? "border-brand bg-brand text-white"
+                        : "border-line bg-surface text-muted hover:border-brand hover:text-ink"
+                    }`}
+                  >
+                    {getExploreModeLabel(mode)}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <details
@@ -1217,29 +1313,13 @@ export function AnalysisPanel({
               open={isExploreSetupOpen}
               onToggle={(event) => setIsExploreSetupOpen(event.currentTarget.open)}
             >
-              <summary className="flex min-h-9 cursor-pointer list-none items-center justify-between gap-2 py-2 text-xs font-semibold text-ink">
+              <summary className="flex min-h-8 cursor-pointer list-none items-center justify-between gap-2 py-1.5 text-xs font-semibold text-ink">
                 <span>Scenario setup</span>
                 <span className="shrink-0 rounded-full bg-white px-2 py-1 text-[10px] font-semibold text-brand">
                   {exploreScenario.inputSchema.length} controls
                 </span>
               </summary>
-              <div className="grid max-h-64 gap-2 overflow-y-auto border-t border-line py-2 [scrollbar-width:thin]">
-                <div className="grid grid-cols-2 gap-2">
-                  {exploreScenario.interactionModes.map((mode) => (
-                    <button
-                      key={mode}
-                      type="button"
-                      onClick={() => onExploreInteractionModeChange(mode)}
-                      className={`h-8 rounded-md border px-2 text-[11px] font-semibold transition ${
-                        exploreInteractionMode === mode
-                          ? "border-brand bg-brand text-white"
-                          : "border-line bg-white text-muted hover:border-brand hover:text-ink"
-                      }`}
-                    >
-                      {getExploreModeLabel(mode)}
-                    </button>
-                  ))}
-                </div>
+              <div className="grid max-h-56 gap-2 overflow-y-auto border-t border-line py-2 [scrollbar-width:thin]">
                 {exploreScenario.inputSchema.map((config) => (
                   <ExploreSetupControl
                     key={config.id}
@@ -1260,63 +1340,78 @@ export function AnalysisPanel({
               </label>
               <textarea
                 id="custom-query"
-                rows={2}
+                rows={3}
                 value={customQuery}
                 onChange={(event) => onCustomQueryChange(event.target.value)}
                 placeholder={
                   hasComparisonReady
-                    ? "Add context to refine comparison rationale"
-                    : "Ask a scenario-specific question"
+                    ? "Refine this comparison"
+                    : exploreScenario.sampleQueries[0] ?? "Ask a scenario-specific question"
                 }
                 className="mt-1 w-full resize-none rounded-md border border-line bg-surface px-2 py-2 text-xs text-ink outline-none transition placeholder:text-muted/70 focus:border-brand"
               />
             </div>
 
-            <div className="mt-3 rounded-md border border-line bg-surface p-2">
+            <div className="mt-2 rounded-md border border-line bg-surface p-2">
               <div className="flex items-center justify-between gap-2">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
-                  Candidate preview
+                  {hasSearchedCandidates ? "Search results" : "Candidate search"}
                 </p>
-                <span className="shrink-0 rounded-full bg-white px-2 py-1 text-[10px] font-semibold text-brand">
-                  {exploreCandidates.length}
-                </span>
+                <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
+                  <span className="rounded-full bg-white px-2 py-1 text-[10px] font-semibold text-brand">
+                    {candidateSearchStateLabel}
+                  </span>
+                  {hasSearchedCandidates ? (
+                    <span className="rounded-full bg-white px-2 py-1 text-[10px] font-semibold text-muted">
+                      {exploreCandidates.length}
+                    </span>
+                  ) : null}
+                </div>
               </div>
-              <div className="mt-2 grid gap-2">
-                {topExploreCandidates.map((candidate, index) => {
-                  const selected = candidate.id === selectedExploreCandidate?.id;
+              {hasSearchedCandidates ? (
+                <>
+                  <div className="mt-2 grid gap-2">
+                    {topExploreCandidates.map((candidate, index) => {
+                      const selected = candidate.id === selectedExploreCandidate?.id;
 
-                  return (
-                    <button
-                      key={candidate.id}
-                      type="button"
-                      onClick={() => onExploreCandidateSelect(candidate.id)}
-                      className={`grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-2 rounded-md border bg-white p-2 text-left transition ${
-                        selected ? "border-brand ring-1 ring-[#b8d0cc]" : "border-line hover:border-brand"
-                      }`}
-                    >
-                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-surface text-[11px] font-bold text-brand">
-                        {index + 1}
-                      </span>
-                      <span className="min-w-0">
-                        <span className="block truncate text-xs font-semibold text-ink">{candidate.title}</span>
-                        <span className="mt-0.5 block truncate text-[11px] text-muted">
-                          {candidate.locationLabel} / {getExploreCandidateSourceLabel(candidate.sourceType)}
-                        </span>
-                      </span>
-                      <span className="shrink-0 rounded-md bg-surface px-2 py-1 text-xs font-black text-brand">
-                        {candidate.score}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-              <p className="mt-2 text-[11px] leading-4 text-muted">
-                Select a preview or map overlay to use it as the analysis target.
-              </p>
+                      return (
+                        <button
+                          key={candidate.id}
+                          type="button"
+                          onClick={() => onExploreCandidateSelect(candidate.id)}
+                          className={`grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-2 rounded-md border bg-white p-2 text-left transition ${
+                            selected ? "border-brand ring-1 ring-[#b8d0cc]" : "border-line hover:border-brand"
+                          }`}
+                        >
+                          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-surface text-[11px] font-bold text-brand">
+                            {index + 1}
+                          </span>
+                          <span className="min-w-0">
+                            <span className="block whitespace-normal text-xs font-semibold leading-4 text-ink">{candidate.title}</span>
+                            <span className="mt-0.5 block text-[11px] leading-4 text-muted">
+                              {getExploreCandidateSourceLabel(candidate.sourceType)} / validation required
+                            </span>
+                          </span>
+                          <span className="shrink-0 rounded-md bg-surface px-2 py-1 text-xs font-black text-brand">
+                            {candidate.score}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="mt-1 text-[11px] leading-4 text-muted">
+                    Select a result to analyze it, or compare the shortlist.
+                  </p>
+                </>
+              ) : (
+                <div className="mt-2 rounded-md border border-dashed border-line bg-white px-2 py-2 text-[11px] leading-4 text-muted">
+                  {candidateSearchEmptyMessage}
+                </div>
+              )}
             </div>
           </section>
 
-          <section className="min-w-0 max-w-full overflow-hidden rounded-lg border border-line bg-surface p-3">
+          <section className="min-w-0 max-w-full overflow-hidden rounded-lg border border-line bg-surface p-2.5">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">
@@ -1338,7 +1433,7 @@ export function AnalysisPanel({
                     ? selectedObject.spatialContext?.datasetName ?? selectedObject.layerName
                     : hasSelectedPoint
                       ? "Map point / user selection"
-                      : "Select a point or demo object on the map"}
+                      : "Select a point, object, AOI or candidate"}
                 </p>
               </div>
               <span className="shrink-0 rounded-full bg-white px-2 py-1 text-[11px] font-semibold text-brand">
@@ -1418,11 +1513,10 @@ export function AnalysisPanel({
             )}
           </section>
 
-          {/* Secondary AOI tooling stays below Scenario/Custom Query so the command panel remains analysis-first. */}
-          <section className="order-[20] min-w-0 max-w-full overflow-hidden rounded-lg border border-line bg-white p-3">
-            <div className="flex items-start justify-between gap-3">
+          <details className="order-[20] min-w-0 max-w-full overflow-hidden rounded-lg border border-line bg-white px-3">
+            <summary className="flex min-h-[50px] cursor-pointer list-none items-center justify-between gap-3 py-3">
               <div className="min-w-0">
-                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">AOI Library</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">AOI tools</p>
                 <h2 className="mt-1 truncate text-sm font-semibold text-ink">
                   {projectAois.length > 0 ? `${projectAois.length} saved for this project` : "AOI quick actions"}
                 </h2>
@@ -1431,9 +1525,11 @@ export function AnalysisPanel({
                 </p>
               </div>
               <span className="shrink-0 rounded-full bg-surface px-2 py-1 text-[11px] font-semibold text-brand">
-                v1.8
+                Open
               </span>
-            </div>
+            </summary>
+
+            <div className="border-t border-line py-3">
 
             {hasSelectedAoi ? (
               <div className="mt-2 rounded-md border border-line bg-surface p-2">
@@ -1590,100 +1686,8 @@ export function AnalysisPanel({
                 )}
               </div>
             </details>
-          </section>
-
-          {activeDemoNarrative ? (
-            <details className="min-w-0 max-w-full overflow-hidden rounded-lg border border-line bg-white px-3">
-              <summary className="flex min-h-[48px] cursor-pointer list-none items-center justify-between gap-3 py-3">
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Demo Script</p>
-                  <p className="mt-1 truncate text-sm font-semibold text-ink">{activeDemoNarrative.title}</p>
-                </div>
-                <span className="shrink-0 rounded-full bg-surface px-2 py-1 text-[11px] font-semibold text-brand">
-                  v1.5
-                </span>
-              </summary>
-              <div className="border-t border-line py-3">
-                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Decision question</p>
-                <p className="mt-1 text-xs leading-5 text-ink">{activeDemoNarrative.decisionQuestion}</p>
-                <ol className="mt-3 grid gap-2">
-                  {activeDemoNarrative.steps.slice(0, 5).map((step) => (
-                    <li key={`demo-script-${activeDemoNarrative.id}-${step.number}`} className="rounded-md bg-surface p-2">
-                      <p className="text-xs font-semibold text-ink">
-                        {step.number}. {step.userAction}
-                      </p>
-                      <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted">{step.whatToSay}</p>
-                    </li>
-                  ))}
-                </ol>
-                <div className="mt-3 rounded-md border border-line bg-white p-2">
-                  <p className="text-xs font-semibold text-ink">What to say next</p>
-                  <p className="mt-1 text-[11px] leading-4 text-muted">{activeDemoNarrative.openingMessage}</p>
-                </div>
-                <p className="mt-3 text-[11px] leading-4 text-muted">{activeDemoNarrative.caveat}</p>
-              </div>
-            </details>
-          ) : null}
-
-          <section className="min-w-0 max-w-full overflow-hidden rounded-lg border border-line bg-white p-3">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">
-                  Guided demo
-                </p>
-                <h2 className="mt-1 truncate text-sm font-semibold text-ink">
-                  {activeGuidedDemo.title}
-                </h2>
-                <p className="mt-1 truncate text-xs leading-5 text-muted">
-                  {activeGuidedDemo.clientType} / local demo data
-                </p>
-              </div>
-              <span className="shrink-0 rounded-full bg-surface px-2 py-1 text-[11px] font-semibold text-brand">
-                v0.6
-              </span>
             </div>
-            <select
-              value={activeGuidedDemo.id}
-              onChange={(event) => onLoadGuidedDemo(event.target.value)}
-              className="mt-2 h-8 w-full rounded-md border border-line bg-surface px-2 text-xs font-semibold text-ink outline-none transition focus:border-brand"
-              aria-label="Guided demo scenario"
-            >
-              {guidedDemoPresets.map((preset) => (
-                <option key={preset.id} value={preset.id}>
-                  {preset.title}
-                </option>
-              ))}
-            </select>
-            <div className="mt-2 grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => onLoadGuidedDemo(activeGuidedDemo.id)}
-                className="inline-flex h-8 items-center justify-center rounded-md bg-brand px-3 text-xs font-semibold text-white transition hover:bg-[#113f50]"
-              >
-                Load demo data
-              </button>
-              <button
-                type="button"
-                onClick={() => onLoadGuidedDemoComparison(activeGuidedDemo.id)}
-                className="inline-flex h-8 items-center justify-center rounded-md border border-line bg-surface px-3 text-xs font-semibold text-ink transition hover:border-brand"
-              >
-                Add demo sites
-              </button>
-            </div>
-            <div className="mt-2 grid grid-cols-4 gap-1.5">
-              {demoSteps.map((step, index) => (
-                <div key={`guided-demo-step-${index}`} className="min-w-0 rounded-md bg-surface px-2 py-2 text-center">
-                  <span className={`mx-auto flex h-4 w-4 items-center justify-center rounded-full text-[9px] font-semibold ${step.complete ? "bg-brand text-white" : "bg-white text-muted"}`}>
-                    {step.complete ? "✓" : index + 1}
-                  </span>
-                  <p className="mt-1 line-clamp-2 text-[10px] font-semibold leading-3 text-muted">{step.label}</p>
-                </div>
-              ))}
-            </div>
-            <p className="mt-2 text-xs leading-5 text-muted">
-              {activeGuidedDemo.dataHonestyNote}
-            </p>
-          </section>
+          </details>
 
           <section className="min-w-0 max-w-full overflow-hidden rounded-lg border border-line bg-white p-3">
             <div className="flex items-start justify-between gap-3">
@@ -1743,679 +1747,19 @@ export function AnalysisPanel({
           ) : null}
         </div>
 
-        <div className="order-[30] mt-3 grid min-w-0 max-w-full gap-2 overflow-hidden">
-          <CollapsedSection
-            title="Market Context"
-            badge={isMarketContextLoading ? "loading" : contextStatus}
-          >
-            <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-3">
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-ink">
-                  {isMarketContextLoading
-                    ? "Matching Dubai area..."
-                    : marketContext?.areaName ?? "Select a point"}
-                </p>
-                <p className="mt-1 break-words text-xs leading-5 text-muted">
-                  {marketContext
-                    ? `Confidence: ${marketContext.confidenceLevel}`
-                    : "Market context appears after selection"}
-                </p>
-              </div>
-              {marketContext?.matchDistanceKm !== null && marketContext?.matchDistanceKm !== undefined ? (
-                <span className="shrink-0 rounded-full bg-surface px-2 py-1 text-[11px] font-semibold text-muted">
-                  {marketContext.matchDistanceKm.toFixed(1)} km
-                </span>
-              ) : null}
-            </div>
-            {marketContext ? (
-              <p className="mt-2 break-words text-xs leading-5 text-muted">{marketContext.limitations[0]}</p>
-            ) : null}
-          </CollapsedSection>
-
-          <CollapsedSection title="External Data Status" badge="v1.6">
-            <div className="grid gap-2">
-              {externalStatusRows.map((row) => (
-                <div key={row.label} className="rounded-md border border-line bg-surface p-2.5">
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="text-xs font-semibold text-ink">{row.label}</p>
-                    <span className="shrink-0 rounded-full bg-white px-2 py-1 text-[10px] font-semibold text-brand">
-                      {row.value}
-                    </span>
-                  </div>
-                  <p className="mt-1 text-[11px] leading-4 text-muted">{row.detail}</p>
-                </div>
-              ))}
-              <div className="rounded-md border border-line bg-white p-2.5 text-[11px] leading-4 text-muted">
-                Real snapshot files: DLD {externalDataStatus?.availableFiles?.dldMarketMetrics ? "available" : "not loaded"} / OSM {externalDataStatus?.availableFiles?.osmBaseline ? "available" : "not loaded"}.
-                {externalManifestSource("dld-dubai-pulse-transactions")?.rowCount
-                  ? ` DLD areas: ${externalManifestSource("dld-dubai-pulse-transactions")?.rowCount}.`
-                  : " Sample fallback remains active when snapshots are missing."}
-              </div>
-            </div>
-          </CollapsedSection>
-
-          <CollapsedSection title="Project Overview" badge={projectPersistenceStatus}>
-            <div className="grid gap-2 text-sm">
-              <div className="rounded-md border border-line bg-white p-3">
-                <p className="font-semibold text-ink">{activeProject.name}</p>
-                <p className="mt-1 text-xs leading-5 text-muted">{activeProject.description}</p>
-              </div>
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div className="rounded-md bg-white p-3">
-                  <span className="text-muted">Client type</span>
-                  <p className="mt-1 font-semibold capitalize text-ink">{activeProject.clientType.replace(/_/g, " ")}</p>
-                </div>
-                <div className="rounded-md bg-white p-3">
-                  <span className="text-muted">Primary scenario</span>
-                  <p className="mt-1 font-semibold text-ink">{activeProject.primaryScenario}</p>
-                </div>
-                <div className="rounded-md bg-white p-3">
-                  <span className="text-muted">Data mode</span>
-                  <p className="mt-1 font-semibold text-ink">{activeProject.dataMode.replace(/_/g, "-")}</p>
-                </div>
-                <div className="rounded-md bg-white p-3">
-                  <span className="text-muted">Recent analyses</span>
-                  <p className="mt-1 font-semibold text-ink">{analysisHistory.length}</p>
-                </div>
-              </div>
-              <p className="text-xs leading-5 text-muted">
-                Persistence: {projectPersistenceStatus}.
-              </p>
-            </div>
-          </CollapsedSection>
-
-          <CollapsedSection title="Validation Evidence" badge={validationBadge}>
-            <div className="grid gap-2">
-              <div className="rounded-md border border-line bg-surface p-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-ink">
-                      {formatDataRoomLabel(validationSummary?.highestAllowedClaimLevel ?? "screening_only")}
-                    </p>
-                    <p className="mt-1 text-xs leading-5 text-muted">
-                      {validationSummary?.totalEvidence ?? 0} evidence item(s). Official validation remains required before decision-grade use.
-                    </p>
-                  </div>
-                  <span className="shrink-0 rounded-full bg-white px-2 py-1 text-[11px] font-semibold text-brand">
-                    v2.5
-                  </span>
-                </div>
-                <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
-                  <div className="rounded-md bg-white p-2">
-                    <span className="text-muted">Review</span>
-                    <p className="mt-1 font-semibold text-ink">{validationSummary?.inReviewCount ?? 0}</p>
-                  </div>
-                  <div className="rounded-md bg-white p-2">
-                    <span className="text-muted">Client</span>
-                    <p className="mt-1 font-semibold text-ink">{validationSummary?.clientValidatedCount ?? 0}</p>
-                  </div>
-                  <div className="rounded-md bg-white p-2">
-                    <span className="text-muted">Official</span>
-                    <p className="mt-1 font-semibold text-ink">{validationSummary?.officialValidatedCount ?? 0}</p>
-                  </div>
-                </div>
-              </div>
-              <div className="rounded-md border border-line bg-white p-3">
-                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Top gaps</p>
-                <ul className="mt-2 grid gap-1 text-xs leading-5 text-muted">
-                  {(validationSummary?.requiredValidationGaps ?? ["Ownership/title", "Zoning/planning", "Cadastral/parcel", "Valuation/comps"]).slice(0, 4).map((gap, index) => (
-                    <li key={`workspace-validation-gap-${index}-${gap.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 32)}`}>{gap}</li>
-                  ))}
-                </ul>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  void addValidationEvidenceForSelection();
-                }}
-                className="inline-flex h-8 w-full items-center justify-center rounded-md bg-brand px-3 text-xs font-semibold text-white transition hover:bg-[#113f50]"
-              >
-                {selectedAoi ? "Link evidence to selected AOI" : "Add validation evidence"}
-              </button>
-              <button
-                type="button"
-                onClick={() => evidenceFileInputRef.current?.click()}
-                className="inline-flex h-8 w-full items-center justify-center rounded-md border border-line bg-white px-3 text-xs font-semibold text-ink transition hover:border-brand"
-              >
-                Attach evidence file
-              </button>
-              <input
-                ref={evidenceFileInputRef}
-                type="file"
-                className="hidden"
-                accept=".pdf,.csv,.json,.geojson,.png,.jpg,.jpeg,.xlsx,.docx,application/pdf,text/csv,application/json,application/geo+json,image/png,image/jpeg,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                onChange={(event) => {
-                  const file = event.currentTarget.files?.[0];
-                  if (file) void attachEvidenceFile(file);
-                  event.currentTarget.value = "";
-                }}
-              />
-              <div className="rounded-md border border-line bg-white p-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Review status</p>
-                    <p className="mt-1 text-xs leading-5 text-muted">
-                      {reviewSummaries.length} tracked item(s); {reviewBlockedCount} blocker(s). Uploaded evidence remains unvalidated until reviewed.
-                    </p>
-                  </div>
-                  <span className="shrink-0 rounded-full bg-surface px-2 py-1 text-[10px] font-semibold text-brand">v2.7</span>
-                </div>
-                <div className="mt-2 grid grid-cols-3 gap-2">
-                  {[
-                    ["accept_for_screening", "Add review note"],
-                    ["request_more_evidence", "Need more"],
-                    ["reset_to_review", "Mark review"]
-                  ].map(([decision, label]) => (
-                    <button
-                      key={`workspace-review-${decision}`}
-                      type="button"
-                      onClick={() => void createWorkspaceReviewDecision(decision)}
-                      className="inline-flex h-8 items-center justify-center rounded-md border border-line bg-surface px-2 text-[11px] font-semibold text-ink transition hover:border-brand"
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="rounded-md border border-line bg-white p-3">
-                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Evidence files</p>
-                <div className="mt-2 grid gap-1">
-                  {evidenceFiles.length > 0 ? (
-                    evidenceFiles.slice(0, 3).map((file) => (
-                      <div key={file.id} className="rounded-md bg-surface px-2 py-2">
-                        <p className="truncate text-xs font-semibold text-ink">{file.fileName}</p>
-                        <p className="mt-1 text-[11px] leading-4 text-muted">
-                          {formatDataRoomLabel(file.objectStatus)} / {formatDataRoomLabel(file.storageProvider)}
-                        </p>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-xs leading-5 text-muted">No evidence files attached yet.</p>
-                  )}
-                </div>
-              </div>
-              {validationMessage ? (
-                <p className="rounded-md bg-surface px-2 py-2 text-xs leading-5 text-muted">{validationMessage}</p>
-              ) : null}
-              <p className="text-[11px] leading-4 text-muted">
-                {storageHealth?.storageReady
-                  ? "Uploaded evidence requires review before validation posture changes."
-                  : "Metadata-only fallback; binary file storage not configured."}
-                {" "}
-                {validationSummary?.caveat ?? "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."}
-              </p>
-            </div>
-          </CollapsedSection>
-
-          <CollapsedSection
-            title="Data Room / Pilot Evidence"
-            badge={`${dataRoom?.assets.length ?? 0} assets`}
-          >
-            <div className="grid gap-2">
-              <div className="rounded-md border border-line bg-surface p-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-ink">Report / Deliverables</p>
-                    <p className="mt-1 text-xs leading-5 text-muted">
-                      Create a structured report package after analysis. Browser Print / Save as PDF remains the PDF workflow.
-                    </p>
-                  </div>
-                  <span className="shrink-0 rounded-full bg-white px-2 py-1 text-[11px] font-semibold text-brand">
-                    {reportPackages.length}
-                  </span>
-                </div>
-                <div className="mt-3 grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    disabled={!currentAnalysis}
-                    onClick={() => {
-                      void createWorkspaceReportPackage();
-                    }}
-                    className="inline-flex h-8 items-center justify-center rounded-md bg-brand px-2 text-[11px] font-semibold text-white transition hover:bg-[#113f50] disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    Create Report Package
-                  </button>
-                  {reportPackages[0] ? (
-                    <Link
-                      href={reportPackages[0].printablePath}
-                      className="inline-flex h-8 items-center justify-center rounded-md border border-line bg-white px-2 text-[11px] font-semibold text-ink transition hover:border-brand"
-                    >
-                      Open Latest Package
-                    </Link>
-                  ) : (
-                    <button
-                      type="button"
-                      disabled
-                      className="inline-flex h-8 items-center justify-center rounded-md border border-line bg-white px-2 text-[11px] font-semibold text-muted opacity-60"
-                    >
-                      Open Latest Package
-                    </button>
-                  )}
-                </div>
-                {reportPackageMessage ? (
-                  <p className="mt-2 rounded-md bg-white px-2 py-2 text-xs leading-5 text-muted">{reportPackageMessage}</p>
-                ) : null}
-              </div>
-              <div className="rounded-md border border-line bg-surface p-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-ink">Client Data Room</p>
-                    <p className="mt-1 text-xs leading-5 text-muted">
-                      {dataRoom?.summary.storageNote ?? "Local/demo fallback; durable storage not configured."}
-                    </p>
-                  </div>
-                  <span className="shrink-0 rounded-full bg-white px-2 py-1 text-[11px] font-semibold text-brand">
-                    v1.9
-                  </span>
-                </div>
-                <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
-                  <div className="rounded-md bg-white p-2">
-                    <span className="text-muted">AOIs</span>
-                    <p className="mt-1 font-semibold text-ink">{dataRoom?.summary.counts.aois ?? projectAois.length}</p>
-                  </div>
-                  <div className="rounded-md bg-white p-2">
-                    <span className="text-muted">Uploads</span>
-                    <p className="mt-1 font-semibold text-ink">{dataRoom?.summary.counts.uploadedDatasets ?? parsedUploads.length}</p>
-                  </div>
-                  <div className="rounded-md bg-white p-2">
-                    <span className="text-muted">Reports</span>
-                    <p className="mt-1 font-semibold text-ink">{dataRoom?.summary.counts.reports ?? (hasResult ? 1 : 0)}</p>
-                  </div>
-                </div>
-                <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
-                  <div className="rounded-md bg-white p-2">
-                    <span className="text-muted">Checklist</span>
-                    <p className="mt-1 font-semibold text-ink">
-                      {dataRoom?.summary.checklistStatus.completed ?? 0}/{dataRoom?.summary.checklistStatus.total ?? 0} complete
-                    </p>
-                  </div>
-                  <div className="rounded-md bg-white p-2">
-                    <span className="text-muted">Analyses</span>
-                    <p className="mt-1 font-semibold text-ink">{dataRoom?.summary.counts.analyses ?? analysisHistory.length}</p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    void addCurrentEvidenceToDataRoom();
-                  }}
-                  className="mt-3 inline-flex h-8 w-full items-center justify-center rounded-md bg-brand px-3 text-xs font-semibold text-white transition hover:bg-[#113f50]"
-                >
-                  Add to data room
-                </button>
-                <p className="mt-2 text-[11px] leading-4 text-muted">
-                  {selectedAoi && !projectAois.some((aoi) => aoi.id === selectedAoi.savedAoiId || aoi.id === selectedAoi.id) && !currentAnalysis
-                    ? "Save AOI before adding to data room."
-                    : currentAnalysis
-                      ? "Analysis added as evidence item when saved here."
-                      : "AOIs, reports and uploaded metadata remain local/demo evidence."}
-                </p>
-                {dataRoomMessage ? (
-                  <p className="mt-2 rounded-md bg-white px-2 py-2 text-xs leading-5 text-muted">{dataRoomMessage}</p>
-                ) : null}
-              </div>
-              {(dataRoom?.summary.latestAssets ?? []).slice(0, 3).map((asset) => (
-                <div key={asset.id} className="rounded-md border border-line bg-white p-2.5">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="truncate text-xs font-semibold text-ink">{asset.name}</p>
-                      <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted">{asset.description ?? asset.caveat}</p>
-                    </div>
-                    <span className="shrink-0 rounded-full bg-surface px-1.5 py-0.5 text-[10px] font-semibold text-brand">
-                      {formatDataRoomLabel(asset.assetType)}
-                    </span>
-                  </div>
-                </div>
-              ))}
-              <p className="text-[11px] leading-4 text-muted">
-                {dataRoom?.dataHonesty.caveat ?? "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."}
-              </p>
-            </div>
-          </CollapsedSection>
-
-          <CollapsedSection title="Pilot Context" badge={pilotWorkflowBadge}>
-            <div className="grid gap-3">
-              {pilotWorkflow?.workflow && pilotWorkflow.readiness ? (
-                <>
-                  <div className="rounded-md border border-line bg-surface p-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-ink">{pilotWorkflow.workflow.title}</p>
-                        <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted">{pilotWorkflow.workflow.decisionQuestion}</p>
-                      </div>
-                      <span className="shrink-0 rounded-full bg-white px-2 py-1 text-[11px] font-semibold text-brand">
-                        {pilotWorkflow.readiness.score}/100
-                      </span>
-                    </div>
-                    <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
-                      <div className="rounded-md bg-white p-2">
-                        <span className="text-muted">Stage</span>
-                        <p className="mt-1 truncate font-semibold text-ink">{formatDataRoomLabel(pilotWorkflow.workflow.pilotStage)}</p>
-                      </div>
-                      <div className="rounded-md bg-white p-2">
-                        <span className="text-muted">Inputs</span>
-                        <p className="mt-1 font-semibold text-ink">{pilotInputsProvided}/{pilotInputsTotal}</p>
-                      </div>
-                      <div className="rounded-md bg-white p-2">
-                        <span className="text-muted">Outputs</span>
-                        <p className="mt-1 font-semibold text-ink">{pilotDeliverablesReady}/{pilotDeliverablesTotal}</p>
-                      </div>
-                    </div>
-                    <p className="mt-2 text-[11px] leading-4 text-muted">{pilotWorkflow.readiness.caveat}</p>
-                  </div>
-
-                  <div className="rounded-md border border-line bg-surface p-3">
-                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Next action</p>
-                    <p className="mt-1 text-xs leading-5 text-ink">
-                      {pilotWorkflow.readiness.nextActions[0] ?? "Review client input and validation gaps."}
-                    </p>
-                  </div>
-
-                  <details className="rounded-md border border-line bg-surface px-2">
-                    <summary className="flex min-h-9 cursor-pointer list-none items-center justify-between gap-2 py-2 text-xs font-semibold text-ink">
-                      <span>Required client inputs</span>
-                      <span className="rounded-full bg-white px-2 py-1 text-[10px] text-brand">{pilotInputsProvided}/{pilotInputsTotal}</span>
-                    </summary>
-                    <div className="grid max-h-44 gap-2 overflow-y-auto border-t border-line py-2 [scrollbar-width:thin]">
-                      {pilotWorkflow.clientInputs.slice(0, 6).map((item) => (
-                        <div key={item.id} className="rounded-md bg-white p-2">
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="min-w-0">
-                              <p className="truncate text-xs font-semibold text-ink">{item.title}</p>
-                              <p className="mt-1 truncate text-[11px] text-muted">{formatDataRoomLabel(item.status)} / {item.priority}</p>
-                            </div>
-                            <select
-                              value={item.status}
-                              onChange={(event) => {
-                                void updatePilotInputStatus(item, event.target.value as ClientInputStatus);
-                              }}
-                              className="h-7 shrink-0 rounded-md border border-line bg-surface px-1.5 text-[10px] font-semibold text-ink outline-none transition focus:border-brand"
-                              aria-label={`Client input status for ${item.title}`}
-                            >
-                              {["missing", "requested", "provided_unvalidated", "in_review", "accepted_for_screening", "blocked", "not_applicable"].map((status) => (
-                                <option key={status} value={status}>{formatDataRoomLabel(status)}</option>
-                              ))}
-                            </select>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </details>
-
-                  <details className="rounded-md border border-line bg-surface px-2">
-                    <summary className="flex min-h-9 cursor-pointer list-none items-center justify-between gap-2 py-2 text-xs font-semibold text-ink">
-                      <span>Deliverables</span>
-                      <span className="rounded-full bg-white px-2 py-1 text-[10px] text-brand">{pilotDeliverablesReady}/{pilotDeliverablesTotal}</span>
-                    </summary>
-                    <div className="grid max-h-44 gap-2 overflow-y-auto border-t border-line py-2 [scrollbar-width:thin]">
-                      {pilotWorkflow.deliverables.slice(0, 6).map((item) => (
-                        <div key={item.id} className="rounded-md bg-white p-2">
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="min-w-0">
-                              <p className="truncate text-xs font-semibold text-ink">{item.title}</p>
-                              <p className="mt-1 truncate text-[11px] text-muted">{formatDataRoomLabel(item.deliverableType)}</p>
-                            </div>
-                            <select
-                              value={item.status}
-                              onChange={(event) => {
-                                void updatePilotDeliverableStatus(item, event.target.value as PilotDeliverableWorkflowStatus);
-                              }}
-                              className="h-7 shrink-0 rounded-md border border-line bg-surface px-1.5 text-[10px] font-semibold text-ink outline-none transition focus:border-brand"
-                              aria-label={`Deliverable status for ${item.title}`}
-                            >
-                              {["planned", "in_progress", "generated", "ready_for_review", "validation_required", "blocked"].map((status) => (
-                                <option key={status} value={status}>{formatDataRoomLabel(status)}</option>
-                              ))}
-                            </select>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </details>
-
-                  {pilotWorkflowMessage ? (
-                    <p className="rounded-md bg-surface px-2 py-2 text-xs leading-5 text-muted">{pilotWorkflowMessage}</p>
-                  ) : null}
-                  <p className="text-[11px] leading-4 text-muted">{pilotWorkflow.dataHonesty.storageCaveat}</p>
-                </>
-              ) : (
-                <p className="rounded-md border border-line bg-surface p-3 text-xs leading-5 text-muted">
-                  Pilot workflow summary is unavailable. Workspace analysis and Data Room evidence remain usable.
-                </p>
-              )}
-            </div>
-          </CollapsedSection>
-
-          <CollapsedSection title="Data Sources" badge={`${parsedUploads.length} local`}>
-            <div className="mt-2 grid gap-2">
-              <div className="rounded-md border border-line bg-surface p-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-ink">DLD / Dubai Pulse ingestion</p>
-                    <p className="mt-1 text-xs leading-5 text-muted">
-                      Prototype-ready / sample manual CSV. Live API not connected.
-                    </p>
-                  </div>
-                  <span className="shrink-0 rounded-full bg-white px-2 py-1 text-[11px] font-semibold text-brand">
-                    ready
-                  </span>
-                </div>
-                <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                  <div className="rounded-md bg-white p-2">
-                    <span className="text-muted">Metrics</span>
-                    <p className="mt-1 font-semibold text-ink">{ingestionReport.marketMetricCount} areas</p>
-                  </div>
-                  <div className="rounded-md bg-white p-2">
-                    <span className="text-muted">Repository</span>
-                    <p className="mt-1 font-semibold text-ink">
-                      {backendStatus?.repositoryMode ? repositoryModeToLabel(backendStatus.repositoryMode) : "Local/API fallback"}
-                    </p>
-                  </div>
-                  <div className="rounded-md bg-white p-2">
-                    <span className="text-muted">Matched area</span>
-                    <p className="mt-1 truncate font-semibold text-ink">
-                      {marketMetricsMatch?.matchedAreaName ?? "not run"}
-                    </p>
-                  </div>
-                  <div className="rounded-md bg-white p-2">
-                    <span className="text-muted">Market source</span>
-                    <p className="mt-1 font-semibold text-ink">
-                      {marketMetricsMatch?.sourceMode ?? "pending"}
-                    </p>
-                  </div>
-                </div>
-                <p className="mt-2 text-xs leading-5 text-muted">
-                  Latest local ingestion: {formatIngestionTimestamp(ingestionReport.generatedAt)}. Market comps, transaction activity, rental demand and pipeline validation support conservative scoring when matched.
-                </p>
-              </div>
-              <div className="rounded-md border border-line bg-surface p-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-ink">Local dataset upload</p>
-                    <p className="mt-1 text-xs leading-5 text-muted">
-                      Upload CSV metrics or GeoJSON layers. Files stay in this browser and require official validation.
-                    </p>
-                  </div>
-                  <span className="shrink-0 rounded-full bg-white px-2 py-1 text-[11px] font-semibold text-muted">
-                    local
-                  </span>
-                </div>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".csv,.geojson,.json,text/csv,application/geo+json,application/json"
-                    className="hidden"
-                    onChange={(event) => {
-                      void handleDatasetFileChange(event);
-                    }}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="inline-flex h-8 items-center justify-center rounded-md bg-brand px-3 text-xs font-semibold text-white transition hover:bg-[#113f50]"
-                  >
-                    Add file
-                  </button>
-                  <button
-                    type="button"
-                    disabled={uploadedDatasets.length === 0}
-                    onClick={onClearUploadedDatasets}
-                    className="inline-flex h-8 items-center justify-center rounded-md border border-line bg-white px-3 text-xs font-semibold text-muted transition hover:border-brand hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    Clear local uploads
-                  </button>
-                </div>
-                {uploadedDataMessage ? (
-                  <p className="mt-2 rounded-md border border-line bg-white px-2 py-2 text-xs leading-5 text-muted">
-                    {uploadedDataMessage}
-                  </p>
-                ) : null}
-                <div className="mt-3 grid gap-2">
-                  {uploadedDatasets.length === 0 ? (
-                    <div className="rounded-md border border-dashed border-line bg-white px-3 py-3 text-xs leading-5 text-muted">
-                      No local datasets uploaded. Try the sample CSV or GeoJSON in `data/upload-samples`.
-                    </div>
-                  ) : (
-                    uploadedDatasets.map((dataset) => (
-                      <div key={dataset.id} className="rounded-md border border-line bg-white p-2">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0">
-                            <p className="truncate text-xs font-semibold text-ink">{dataset.name}</p>
-                            <p className="mt-1 text-[11px] leading-4 text-muted">
-                              {dataset.type.toUpperCase()} / {dataset.status} / {formatUploadedDatasetDetail(dataset)}
-                            </p>
-                          </div>
-                          <span className="shrink-0 rounded-full bg-surface px-1.5 py-0.5 text-[10px] font-semibold text-muted">
-                            {dataset.officialStatus.replace(/-/g, " ")}
-                          </span>
-                        </div>
-                        <p className="mt-2 line-clamp-2 text-[11px] leading-4 text-muted">{dataset.notes}</p>
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          {dataset.type === "geojson" && dataset.status === "parsed" ? (
-                            <button
-                              type="button"
-                              onClick={() => onToggleUploadedDataset(dataset.id)}
-                              className="rounded-md border border-line px-2 py-1 text-[11px] font-semibold text-muted transition hover:border-brand hover:text-ink"
-                            >
-                              {dataset.visible === false ? "Show layer" : "Hide layer"}
-                            </button>
-                          ) : null}
-                          <button
-                            type="button"
-                            onClick={() => onRemoveUploadedDataset(dataset.id)}
-                            className="rounded-md border border-line px-2 py-1 text-[11px] font-semibold text-muted transition hover:border-brand hover:text-ink"
-                          >
-                            Remove
-                          </button>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-              {availableSources.map((source) => (
-                <DataReadinessCard key={source.id} source={source} compact />
-              ))}
-            </div>
-          </CollapsedSection>
-
-          <CollapsedSection title="Pilot Setup Checklist" badge="v1.1">
-            <div className="grid gap-2">
-              <div className="rounded-md border border-line bg-surface p-3">
-                <p className="text-sm font-semibold text-ink">{pilotPackage.title}</p>
-                <p className="mt-1 text-xs leading-5 text-muted">
-                  {pilotPackage.pilotDuration} / client data and official validation still required before decisions.
-                </p>
-              </div>
-              {pilotChecklist.map((item, index) => (
-                <div key={`pilot-checklist-${index}-${item.label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`} className="flex items-center justify-between gap-3 rounded-md bg-white px-3 py-2 text-xs">
-                  <span className="min-w-0 truncate font-medium text-ink">{item.label}</span>
-                  <span className={`shrink-0 rounded-full px-2 py-1 font-semibold ${
-                    item.status === "Done"
-                      ? "bg-[#eaf3f1] text-brand"
-                      : item.status === "Optional"
-                        ? "bg-surface text-muted"
-                        : "bg-[#fff7ed] text-[#9f3412]"
-                  }`}>
-                    {item.status}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </CollapsedSection>
-
-          <CollapsedSection title="Analysis History" badge={analysisHistoryStatus}>
-            <div className="grid min-w-0 gap-2">
-              {analysisHistory.length === 0 ? (
-                <div className="rounded-md border border-line bg-white px-3 py-3 text-sm leading-5 text-muted">
-                  Recent analysis runs will appear here after you run Express Analysis. Current mode: {analysisHistoryStatus}.
-                </div>
-              ) : (
-                <>
-                  <div className="flex min-w-0 items-center justify-between gap-3">
-                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">
-                      Recent analyses / {analysisHistoryStatus}
-                    </p>
-                    <button
-                      type="button"
-                      onClick={onClearAnalysisHistory}
-                      className="shrink-0 rounded-md border border-line px-2 py-1 text-xs font-semibold text-muted transition hover:border-brand hover:text-ink"
-                    >
-                      Clear
-                    </button>
-                  </div>
-                  {analysisHistory.map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => onOpenHistoryItem(item)}
-                      className="w-full max-w-full overflow-hidden rounded-md border border-line bg-white p-3 text-left transition hover:border-brand hover:bg-surface"
-                    >
-                      <div className="flex min-w-0 items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <h3 className="truncate text-sm font-semibold text-ink">{item.title}</h3>
-                          <p className="mt-1 break-words text-xs leading-5 text-muted">
-                            {item.scenarioLabel} / {formatHistoryTimestamp(item.timestamp)}
-                          </p>
-                          <p className="mt-1 truncate text-xs text-muted">{item.locationLabel}</p>
-                          <p className="mt-2 line-clamp-2 text-xs leading-5 text-muted">
-                            {item.recommendation}
-                          </p>
-                        </div>
-                        <div className="grid shrink-0 gap-1 text-right">
-                          <span className="rounded-full bg-surface px-2 py-1 text-[11px] font-semibold capitalize text-brand">
-                            {item.source ?? analysisHistorySource}
-                          </span>
-                          <span className="text-[11px] font-semibold text-muted">
-                            {item.analysis.scores.investmentAttractiveness}/100
-                          </span>
-                          <span className="text-[11px] font-semibold capitalize text-muted">
-                            {item.confidenceLevel ?? "medium"}
-                          </span>
-                        </div>
-                      </div>
-                    </button>
-                  ))}
-                </>
-              )}
-            </div>
-          </CollapsedSection>
-
-        </div>
       </section>
 
-      <section className="min-w-0 max-w-full flex-shrink-0 border-t border-line bg-white p-4">
-        <p className="mb-2 text-xs leading-5 text-muted">
-          {primaryCtaDisabled && !hasSelectedPoint
-            ? "Select a map point, AOI, object, or candidate preview to begin."
-            : activeWorkflowNote}
-        </p>
+      <section className="min-w-0 max-w-full flex-shrink-0 border-t border-line bg-white p-3">
+        {primaryCtaDisabled && !hasSelectedPoint ? (
+          <p className="mb-2 text-xs leading-5 text-muted">
+            Select a map point, AOI, object, or candidate preview to begin.
+          </p>
+        ) : null}
         <button
           type="button"
           disabled={!hasSelectedPoint}
           onClick={onAddToComparison}
-          className="mb-2 inline-flex h-9 w-full max-w-full items-center justify-center rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink transition hover:border-brand disabled:cursor-not-allowed disabled:bg-surface disabled:text-muted"
+          className="mb-2 inline-flex h-8 w-full max-w-full items-center justify-center rounded-md border border-line bg-white px-4 text-xs font-semibold text-ink transition hover:border-brand disabled:cursor-not-allowed disabled:bg-surface disabled:text-muted"
         >
           Add to compare
         </button>
@@ -2423,7 +1767,7 @@ export function AnalysisPanel({
           type="button"
           disabled={primaryCtaDisabled}
           onClick={onPrimaryCta}
-          className="inline-flex h-11 w-full max-w-full items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white transition hover:bg-[#113f50] disabled:cursor-not-allowed disabled:bg-[#c9d2d7] disabled:text-white"
+          className="inline-flex h-10 w-full max-w-full items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white transition hover:bg-[#113f50] disabled:cursor-not-allowed disabled:bg-[#c9d2d7] disabled:text-white"
         >
           {primaryCtaLabel}
         </button>

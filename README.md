@@ -2,12 +2,14 @@
 
 GeoAI is a Next.js spatial decision intelligence MVP for evaluating Dubai real estate, infrastructure, construction, and climate-risk scenarios. The current version is an investor demo prototype, not a production-ready or pilot-ready product: it uses Mapbox for the workspace, synthetic/demo geospatial layers, OSM-style sample baseline fixtures, deterministic mock scoring, optional OpenAI-powered narrative analysis, comparison dashboards, and print-friendly report previews.
 
+Pilot UX v3.6 keeps the app workspace-first, preserves the criteria-first product flow, and freezes the current pilot UX as a release candidate after dashboard cockpit alignment hardening, a balanced 6-KPI grid, and full client-pilot review. Outputs remain screening hypotheses requiring official/client validation.
+
 OpenAI is optional. If `OPENAI_API_KEY` is not configured, GeoAI automatically uses the deterministic mock fallback so the product remains fully usable for demos.
 
 ## Implemented Features
 
 - Homepage and `/workspace` application shell
-- GeoAI Explore v1.1 embedded scenario command panel at `/workspace` and `/explore` with B2C/B2B roles, scenario setup, deterministic demo candidates, map overlays and direct Workspace analysis targeting
+- GeoAI Explore v1.1 embedded scenario command panel at `/workspace` and `/explore` with B2C/B2B roles, scenario setup, explicit criteria-first candidate search, searched candidate map overlays, shortlist comparison and direct Workspace analysis targeting
 - Dubai-centered Mapbox workspace
 - Point selection with marker and coordinates
 - Polygon AOI drawing workflow with vertex handles, preview edge, validation and approximate area/perimeter measurements
@@ -100,6 +102,7 @@ OPENAI_MODEL_DECISION_SCORING=
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
+SUPABASE_DB_URL=
 NEXT_PUBLIC_AUTH_MODE=
 GEOAI_ACCESS_ENFORCEMENT_MODE=soft
 GEOAI_REQUIRE_SUPABASE_READY=false
@@ -116,6 +119,14 @@ Supabase/PostGIS is optional in v0.1. When Supabase environment variables are no
 `NEXT_PUBLIC_AUTH_MODE` is optional and defaults to `demo_public`. Valid values are `demo_public`, `supabase_auth`, and `disabled`. In `supabase_auth`, GeoAI only uses public Supabase URL/anon values in the browser and falls back to public demo access if those values are missing. `SUPABASE_SERVICE_ROLE_KEY` must remain server-only.
 
 Pilot backend activation is controlled by server/runtime environment variables. `GEOAI_ACCESS_ENFORCEMENT_MODE=soft` preserves the public demo. `hard` enables the protected access path and should only be used after Supabase Auth, memberships, RLS, storage and audit checks are verified. `GEOAI_ALLOW_DEMO_PUBLIC=true` keeps seeded demo projects visible while hard mode is being tested.
+
+### Supabase Activation For Pilot
+
+Use `npm run supabase:activation-status` to inspect the configured Supabase pilot target without printing secrets. The current pilot target is project `geoai-dev` (`pphdqkurxneyagvnnjdt`) in `eu-west-1`, with `geoai_healthcheck` as the public readiness table.
+
+Migration apply remains guarded and is limited to reviewed preview/pilot targets. Set `SUPABASE_DB_URL`, `GEOAI_ALLOW_SUPABASE_MIGRATION_APPLY=true` and `GEOAI_ALLOW_SUPABASE_TARGET=preview` or `pilot` only in a trusted terminal. Add Supabase env vars in Vercel for the intended Preview or pilot environment; do not expose `SUPABASE_SERVICE_ROLE_KEY` or `SUPABASE_DB_URL` as public/client variables.
+
+See [Supabase Pilot Activation](docs/SUPABASE_PILOT_ACTIVATION.md).
 
 Never expose the OpenAI key as a `NEXT_PUBLIC_*` variable. Only `NEXT_PUBLIC_MAPBOX_TOKEN` is intended for browser use.
 
@@ -137,6 +148,13 @@ See [Repository Mode & Fallback Consistency v2.0.2](docs/REPOSITORY_MODE_FALLBAC
 
 ## Latest Release Notes
 
+- [GeoAI Pilot UX v3.6 - Release Candidate Hardening and Visual QA Freeze](docs/RELEASE_GEOAI_PILOT_UX_V36_RELEASE_CANDIDATE.md)
+- [GeoAI Pilot UX v3.5 - Final Dashboard Grid and KPI Fit Hardening](docs/RELEASE_GEOAI_PILOT_UX_V35_DASHBOARD_GRID_FIT.md)
+- [GeoAI Pilot UX v3.4 - Dashboard Viewport Alignment](docs/RELEASE_GEOAI_PILOT_UX_V34_VIEWPORT_ALIGNMENT.md)
+- [GeoAI Pilot UX v3.3 - Text-Safe BI Dashboard and Supabase Activation Readiness](docs/RELEASE_GEOAI_PILOT_UX_V33_TEXT_SAFE_SUPABASE.md)
+- [GeoAI Pilot UX v3.2 - Criteria Search Flow and BI Dashboard](docs/RELEASE_GEOAI_PILOT_UX_V32_CRITERIA_BI.md)
+- [GeoAI Pilot UX v3.1 - BI Dashboard and Candidate Comparison Flow](docs/RELEASE_GEOAI_PILOT_UX_V31_BI_DASHBOARD.md)
+- [GeoAI Pilot UX Simplification v3.0](docs/RELEASE_GEOAI_PILOT_UX_SIMPLIFICATION_V30.md)
 - [GeoAI Explore v1.1 - Embedded Scenario Command Panel](docs/RELEASE_GEOAI_EXPLORE_V11_EMBEDDED_COMMAND_PANEL.md)
 - [GeoAI Explore v1 - Scenario-first MVP Shell](docs/RELEASE_GEOAI_EXPLORE_V1_SCENARIO_SHELL.md)
 - [GeoAI Pilot Backend Activation & Hardening v2.9](docs/RELEASE_GEOAI_PILOT_BACKEND_ACTIVATION_HARDENING_V29.md)
@@ -150,6 +168,7 @@ See [Repository Mode & Fallback Consistency v2.0.2](docs/REPOSITORY_MODE_FALLBAC
 npm run dev
 npm run dev:turbo
 npm run build
+npm run supabase:activation-status
 npm run supabase:migrate:check
 npm run supabase:migrate:apply
 npm run supabase:seed:pilot-foundation
@@ -168,16 +187,16 @@ npm run start
 
 The default `npm run dev` command uses stable Webpack mode with polling enabled for local reliability.
 
-`npm run supabase:migrate:apply` is guarded and will not apply SQL unless `SUPABASE_DB_URL` and `GEOAI_ALLOW_SUPABASE_MIGRATION_APPLY=true` are set in a trusted terminal. See [Pilot Infrastructure Activation v2.4](docs/PILOT_INFRASTRUCTURE_ACTIVATION_V24.md).
+`npm run supabase:migrate:apply` is guarded and will not apply SQL unless `SUPABASE_DB_URL`, `GEOAI_ALLOW_SUPABASE_MIGRATION_APPLY=true` and `GEOAI_ALLOW_SUPABASE_TARGET=preview` or `pilot` are set in a trusted terminal. See [Supabase Pilot Activation](docs/SUPABASE_PILOT_ACTIVATION.md).
 
-v2.9 adds a stricter guard: `GEOAI_ALLOW_SUPABASE_TARGET` must also identify the intended target (`pilot`, `preview`, or `production`) before migration apply can run.
+The activation guard does not apply live migrations automatically.
 
 ## API Routes
 
 - `GET /api/health` returns app status.
-- `GET /api/db/health` returns optional Supabase/PostGIS readiness without exposing secrets.
-- `GET /api/platform/activation-status` returns the v2.4 pilot infrastructure activation gate without exposing secrets.
-- `GET /api/pilot-backend/status` returns the v2.9 canonical pilot backend activation summary, including demo/confidential pilot readiness, capabilities, blockers and caveats.
+- `GET /api/db/health` returns optional Supabase/PostGIS readiness plus pilot activation blockers without exposing secrets.
+- `GET /api/platform/activation-status` returns the pilot infrastructure activation gate plus Supabase activation readiness without exposing secrets.
+- `GET /api/pilot-backend/status` returns the canonical pilot backend activation summary, including demo/confidential pilot readiness, Supabase activation readiness, capabilities, blockers and caveats.
 - `GET /api/storage/health` returns Supabase Storage readiness and bucket blockers.
 - `GET /api/known-limitations` returns the machine-readable limitations tracker.
 - `GET /api/demo-objects` returns mock spatial objects for demo use.
@@ -208,6 +227,18 @@ v2.9 adds a stricter guard: `GEOAI_ALLOW_SUPABASE_TARGET` must also identify the
 GeoAI Explore is now embedded in the workspace command panel. `/workspace` keeps the standard map-first flow, while `/explore` opens the same workspace layout with Explore setup expanded by default. The panel supports B2C and B2B audience selection, role-based personalization state for future onboarding, 10 data-driven scenarios, deterministic Dubai sample candidates, candidate map overlays and direct candidate selection as the current analysis target.
 
 Explore v1.1 remains an MVP screening layer. Candidate data is sample/demo/open-context only and does not connect live official Dubai sources. All outputs are screening hypotheses and require official/client validation before legal, cadastral, zoning, planning, ownership, valuation, title, entitlement, lending, purchase, rental or development decisions.
+
+## GeoAI Pilot UX v3.1
+
+GeoAI Pilot UX v3.1 upgrades the pilot surface for faster decision review. The right-side command panel is more compact, criteria-first searches can open a ranked candidate comparison before a specific target is selected, and each candidate can be opened as an individual BI-style dashboard with a path back to the shortlist. The dashboard now emphasizes gauges, score bars, matrices, scenario sections, validation gaps and next actions.
+
+The landing page remains lightweight and workspace-oriented, but now explains the product narrative, screening layers and outputs more clearly. `/explore` renders the workspace-style alias with Explore/scenario defaults.
+
+## GeoAI Pilot UX v3.2
+
+GeoAI Pilot UX v3.2 makes Criteria-first an explicit search flow. Candidate cards and map overlays appear only after the user runs the search. Changing role, scenario, filters, mode or custom query invalidates the searched set and prompts an updated search before comparison or analysis.
+
+The Express Analysis dashboard now uses a dashboard model that curates short KPIs, top drivers, top risks, validation gaps, next actions and scenario-specific drill-down modules. Evidence/source details are collapsed last. `/explore` continues to render the workspace-style alias with Explore/scenario defaults.
 
 ## Market Context Adapter
 
@@ -437,6 +468,8 @@ Current export remains browser print/save as PDF. GeoAI does not generate server
 - [GeoAI Auth & Project Access Foundation v2.2 Release Note](docs/RELEASE_GEOAI_AUTH_PROJECT_ACCESS_FOUNDATION_V22.md)
 - [Supabase/PostGIS Durable Persistence Foundation v2.3](docs/SUPABASE_POSTGIS_DURABLE_PERSISTENCE_V23.md)
 - [GeoAI Supabase/PostGIS Durable Persistence Foundation v2.3 Release Note](docs/RELEASE_GEOAI_SUPABASE_POSTGIS_DURABLE_PERSISTENCE_V23.md)
+- [Supabase Pilot Activation](docs/SUPABASE_PILOT_ACTIVATION.md)
+- [GeoAI Pilot UX v3.3 Release Note](docs/RELEASE_GEOAI_PILOT_UX_V33_TEXT_SAFE_SUPABASE.md)
 - [Pilot Infrastructure Activation v2.4](docs/PILOT_INFRASTRUCTURE_ACTIVATION_V24.md)
 - [GeoAI Pilot Infrastructure Activation v2.4 Release Note](docs/RELEASE_GEOAI_PILOT_INFRASTRUCTURE_ACTIVATION_V24.md)
 - [GeoAI AOI Library Demo v1.8 Release Note](docs/RELEASE_GEOAI_AOI_LIBRARY_DEMO_V18.md)

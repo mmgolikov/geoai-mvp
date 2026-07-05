@@ -3,7 +3,7 @@ import { repositoryModeFields } from "@/src/lib/repositories/repository-mode";
 
 export const auditEventTypeLabels = {
   auth_session_checked: "Auth session checked",
-  demo_login: "Demo login",
+  demo_login: "Pilot login",
   project_viewed: "Project viewed",
   project_updated: "Project updated",
   aoi_created: "AOI created",

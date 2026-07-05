@@ -91,7 +91,7 @@ export function normalizeMarketRecord(record: RawMarketRecord): {
     riskIndex: clampIndex(record.riskIndex, 50, issues, record, "riskIndex"),
     trend: record.trend ?? "stable",
     confidence: record.confidence ?? "demo",
-    note: record.note ?? "Seed/demo-normalized market context.",
+    note: record.note ?? "Seed sample/open market context.",
     updatedAt: record.updatedAt ?? "Not provided"
   };
 
@@ -149,7 +149,7 @@ export function aggregateMarketRecords(records: NormalizedMarketRecord[]) {
       sourceIds: Array.from(new Set(areaRecords.map((record) => record.sourceId))),
       dataQualityNotes: [
         `Aggregated from ${areaRecords.length} seed_static record(s).`,
-        "Current values are demo-normalized indices, not official market data."
+        "Current values are sample/open indices, not official market data."
       ]
     };
   });

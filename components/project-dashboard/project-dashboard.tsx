@@ -16,6 +16,13 @@ import { deriveDecisionPosture } from "@/src/lib/decision-posture";
 import { normalizeSourceStatus, sourceStatusToLabel } from "@/src/lib/external-data/source-status";
 import { getPilotPackageForProject } from "@/src/lib/pilot/pilot-packages";
 import { calculatePilotReadiness } from "@/src/lib/pilot/pilot-readiness";
+import {
+  createLocalProject,
+  mergeProjectsWithLocal,
+  projectToInput,
+  saveLocalProject,
+  type LocalProjectInput
+} from "@/src/lib/project-local-store";
 import { repositoryModeToLabel, type RepositoryMode } from "@/src/lib/repositories/repository-mode";
 import { readBrowserAois, sourceTypeLabel, validationStatusLabel } from "@/src/lib/aoi-library";
 import { formatArea } from "@/src/lib/polygon-aoi";
@@ -286,6 +293,17 @@ function formatLabel(value: string) {
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
+function pilotDisplayLabel(value: string) {
+  return value
+    .replace(/\bDubai Investment Screening Demo\b/g, "Dubai Investment Screening")
+    .replace(/\bDeveloper Land Pipeline Demo\b/g, "Developer Land Pipeline")
+    .replace(/\bBank Asset Review Demo\b/g, "Bank Asset Review")
+    .replace(/\bDemo Enterprise Report Pack\b/g, "Enterprise Report Pack")
+    .replace(/\bDemo example\b/g, "Sample example")
+    .replace(/\bdemo-normalized\b/gi, "sample/open")
+    .replace(/\bdemo\/local\b/gi, "sample/local");
+}
+
 function formatTimestamp(value?: string) {
   if (!value) return "Current session";
 
@@ -484,7 +502,7 @@ function belongsToProject(value: unknown, projectKey: string) {
   }
 
   // Legacy local fallback records without project metadata belong only to the
-  // original investment-screening demo, not every project dashboard.
+  // original investment-screening seed project, not every project dashboard.
   return projectKey === defaultProjectKey;
 }
 
@@ -498,7 +516,7 @@ function localHistoryToRows(items: AnalysisHistoryItem[], projectKey: string): R
     timestamp: item.timestamp,
     decisionPosture: item.recommendation || deriveDecisionPosture(item.analysis),
     confidence: item.confidenceLevel ?? item.analysis.confidenceLevel ?? "medium",
-    dataConfidence: item.dataConfidenceLevel ?? "Demo-normalized",
+    dataConfidence: item.dataConfidenceLevel ?? "Sample/open",
     source: item.source ?? "local",
     reportId: undefined,
     analysis: item.analysis,
@@ -527,7 +545,7 @@ function persistedRowsToRecent(items: PersistedAnalysisRun[]): RecentAnalysisRow
       timestamp: item.created_at ?? item.createdAt ?? analysis?.generatedAt ?? new Date().toISOString(),
       decisionPosture: item.decision_posture ?? item.decisionPosture ?? (analysis ? deriveDecisionPosture(analysis) : "Requires official validation"),
       confidence: item.confidence_level ?? analysis?.confidenceLevel ?? "medium",
-      dataConfidence: item.data_confidence_level ?? analysis?.marketContext?.confidenceLevel ?? "Demo-normalized",
+      dataConfidence: item.data_confidence_level ?? analysis?.marketContext?.confidenceLevel ?? "Sample/open",
       source: "DB" as const,
       reportId: undefined,
       analysis,
@@ -655,8 +673,14 @@ export function ProjectDashboard() {
   const [storageHealth, setStorageHealth] = useState<StorageHealthResponse | null>(null);
   const [pilotBackendStatus, setPilotBackendStatus] = useState<PilotBackendStatusResponse | null>(null);
   const [evidenceFiles, setEvidenceFiles] = useState<EvidenceFileAsset[]>([]);
+  const [isProjectCreateOpen, setIsProjectCreateOpen] = useState(false);
+  const [projectNameDraft, setProjectNameDraft] = useState("");
+  const [projectAudienceDraft, setProjectAudienceDraft] = useState<LocalProjectInput["audience"]>("b2b");
+  const [projectRoleDraft, setProjectRoleDraft] = useState<LocalProjectInput["role"]>("developer");
+  const [projectMarketDraft, setProjectMarketDraft] = useState("Dubai / UAE");
 
   useEffect(() => {
+    setProjects(mergeProjectsWithLocal(demoProjects));
     setActiveProjectKey(readActiveProjectKey());
     setLocalHistory(readLocalHistory());
     setProjectAois(readBrowserAois());
@@ -679,7 +703,7 @@ export function ProjectDashboard() {
 
       const projectsResult = results[0];
       if (projectsResult.status === "fulfilled" && Array.isArray(projectsResult.value.items) && projectsResult.value.items.length > 0) {
-        setProjects(projectsResult.value.items);
+        setProjects(mergeProjectsWithLocal(projectsResult.value.items));
         setProjectsMode(projectsResult.value.mode === "supabase" ? "supabase" : "demo_seed");
       }
 
@@ -976,25 +1000,9 @@ export function ProjectDashboard() {
       customQuery: item.analysis.customQuery,
       canOpenAnalysis: true
     }));
-  const recentRows = scopedDbHistory.length > 0 ? scopedDbHistory : localRows.length > 0 ? localRows : seededRows;
-  const reportRows = scopedSavedReports.length > 0
-    ? scopedSavedReports
-    : seededDemoReportRecords
-      .filter((report) => report.projectKey === activeProject.projectKey)
-      .map((report) => ({
-        id: report.id,
-        title: report.title,
-        createdAt: report.createdAt,
-        sourceSummary: report.sourceSummary,
-        reportType: report.reportType,
-        scenario: report.scenario,
-        targetLabel: report.targetLabel,
-        projectId: report.projectId,
-        projectKey: report.projectKey
-      }));
-  const comparisonRows = scopedSavedComparisons.length > 0
-    ? scopedSavedComparisons
-    : seededDemoComparisonSummaries.filter((comparison) => comparison.projectKey === activeProject.projectKey);
+  const recentRows = scopedDbHistory.length > 0 ? scopedDbHistory : localRows;
+  const reportRows = scopedSavedReports;
+  const comparisonRows = scopedSavedComparisons;
   const packageRows = scopedReportPackages;
   const importedAreas = marketMetrics?.count ?? 0;
   const externalReadinessById = new Map(
@@ -1122,9 +1130,9 @@ export function ProjectDashboard() {
   const pilotCapability = (id: string) => pilotBackendStatus?.capabilities.find((item) => item.id === id);
   const platformRows = [
     {
-      label: "Demo pilot",
+      label: "Sample pilot",
       value: pilotBackendStatus?.canRunDemoPilot ? "Ready" : "Blocked",
-      note: pilotBackendStatus?.canRunDemoPilot ? "Public demo path remains available" : "Demo public access is disabled"
+      note: pilotBackendStatus?.canRunDemoPilot ? "Sample/open path remains available" : "Public sample access is disabled"
     },
     {
       label: "Confidential",
@@ -1133,10 +1141,10 @@ export function ProjectDashboard() {
     },
     {
       label: "Auth",
-      value: platformStatus?.authMode === "supabase_auth" ? "Supabase Auth" : "Demo access",
+      value: platformStatus?.authMode === "supabase_auth" ? "Supabase Auth" : "Pilot access",
       note: pilotCapability("auth_sessions")?.evidence ?? (platformStatus?.authMode === "supabase_auth"
         ? "Membership-backed access foundation"
-        : "Public demo access; not production authentication")
+        : "Public pilot access; not production authentication")
     },
     {
       label: "DB",
@@ -1232,7 +1240,7 @@ export function ProjectDashboard() {
         projectKey: activeProject.projectKey,
         decision,
         evidenceFileId: linkedFile?.id,
-        reviewerName: "GeoAI demo reviewer",
+        reviewerName: "GeoAI sample reviewer",
         reviewerRole: "screening reviewer",
         notes: decision === "reject"
           ? "Evidence is insufficient for screening use; replacement evidence is required."
@@ -1423,33 +1431,64 @@ export function ProjectDashboard() {
     setPilotWorkflowMessage(null);
   }
 
+  async function createProjectFromHub() {
+    const name = projectNameDraft.trim();
+    if (!name) return;
+
+    const localProject = createLocalProject({
+      name,
+      audience: projectAudienceDraft,
+      role: projectRoleDraft,
+      geography: projectMarketDraft.trim() || "Dubai / UAE"
+    });
+
+    try {
+      const response = await fetch("/api/projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(projectToInput(localProject))
+      });
+      const payload = response.ok ? await response.json() as { project?: GeoAIProject | null; mode?: "supabase" | "demo_seed" } : null;
+      const createdProject = payload?.project ?? localProject;
+
+      saveLocalProject(createdProject);
+      setProjects((current) => mergeProjectsWithLocal([createdProject, ...current]));
+      setProjectsMode(payload?.mode ?? "demo_seed");
+      changeProject(createdProject.projectKey);
+      setProjectNameDraft("");
+      setProjectMarketDraft("Dubai / UAE");
+      setIsProjectCreateOpen(false);
+    } catch {
+      saveLocalProject(localProject);
+      setProjects((current) => mergeProjectsWithLocal([localProject, ...current]));
+      setProjectsMode("demo_seed");
+      changeProject(localProject.projectKey);
+      setProjectNameDraft("");
+      setProjectMarketDraft("Dubai / UAE");
+      setIsProjectCreateOpen(false);
+    }
+  }
+
   return (
     <main className="min-h-[calc(100vh-64px)] bg-surface px-4 py-5 sm:px-6 lg:px-8">
       <div className="mx-auto flex max-w-7xl flex-col gap-5">
         <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
             <div className="min-w-0">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">Project workspace</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">Projects</p>
               <div className="mt-3 flex flex-wrap items-center gap-3">
-                <h1 className="text-3xl font-semibold text-ink">{activeProject.name}</h1>
+                <h1 className="text-3xl font-semibold text-ink">Project Hub</h1>
                 <ProjectBadge>{activeProject.clientType.replace(/_/g, " ")}</ProjectBadge>
               </div>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-muted">{activeProject.description}</p>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-muted">
+                Choose a project, review recent work, and jump back into the workspace.
+              </p>
               <div className="mt-4 flex flex-wrap gap-2">
                 <span className="rounded-full bg-surface px-3 py-1 text-xs font-semibold text-muted">
                   {activeProject.geography}
                 </span>
                 <span className="rounded-full bg-surface px-3 py-1 text-xs font-semibold text-muted">
                   Scenario: {formatLabel(activeProject.primaryScenario)}
-                </span>
-                <span className="rounded-full bg-surface px-3 py-1 text-xs font-semibold text-muted">
-                  Data: {activeProject.dataMode.replace(/_/g, "-")}
-                </span>
-                <span className="rounded-full bg-surface px-3 py-1 text-xs font-semibold text-muted">
-                  Persistence: {persistenceMode}
-                </span>
-                <span className="rounded-full bg-surface px-3 py-1 text-xs font-semibold text-muted" title={authStatus.caveat}>
-                  Access: {accessStatusLabel}
                 </span>
               </div>
             </div>
@@ -1485,26 +1524,223 @@ export function ProjectDashboard() {
                 >
                   Run new analysis
                 </Link>
+                <button
+                  type="button"
+                  onClick={() => setIsProjectCreateOpen((value) => !value)}
+                  className="inline-flex h-10 items-center justify-center rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink transition hover:border-brand"
+                >
+                  Create project
+                </button>
               </div>
+              {isProjectCreateOpen ? (
+                <div className="grid gap-2 rounded-md border border-line bg-surface p-3">
+                  <input
+                    value={projectNameDraft}
+                    onChange={(event) => setProjectNameDraft(event.target.value)}
+                    className="h-9 rounded-md border border-line bg-white px-3 text-sm font-semibold text-ink outline-none transition focus:border-brand"
+                    placeholder="Project name"
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <select
+                      value={projectAudienceDraft}
+                      onChange={(event) => {
+                        const audience = event.target.value as LocalProjectInput["audience"];
+                        setProjectAudienceDraft(audience);
+                        setProjectRoleDraft(audience === "b2b" ? "developer" : "home_buyer");
+                      }}
+                      className="h-9 rounded-md border border-line bg-white px-2 text-xs font-semibold text-ink outline-none transition focus:border-brand"
+                    >
+                      <option value="b2b">B2B</option>
+                      <option value="b2c">B2C</option>
+                    </select>
+                    <select
+                      value={projectRoleDraft}
+                      onChange={(event) => setProjectRoleDraft(event.target.value as LocalProjectInput["role"])}
+                      className="h-9 rounded-md border border-line bg-white px-2 text-xs font-semibold text-ink outline-none transition focus:border-brand"
+                    >
+                      {projectAudienceDraft === "b2b" ? (
+                        <>
+                          <option value="developer">Developer</option>
+                          <option value="real_estate_fund">Real estate fund</option>
+                          <option value="bank_lender">Bank / lender</option>
+                          <option value="family_office">Family office</option>
+                        </>
+                      ) : (
+                        <>
+                          <option value="home_buyer">Home buyer</option>
+                          <option value="tourist">Tourist</option>
+                          <option value="resident_expat">Resident / expat</option>
+                          <option value="family_relocation">Family relocation</option>
+                        </>
+                      )}
+                    </select>
+                  </div>
+                  <input
+                    value={projectMarketDraft}
+                    onChange={(event) => setProjectMarketDraft(event.target.value)}
+                    className="h-9 rounded-md border border-line bg-white px-3 text-sm font-semibold text-ink outline-none transition focus:border-brand"
+                    placeholder="Dubai / UAE"
+                  />
+                  <button
+                    type="button"
+                    disabled={projectNameDraft.trim().length === 0}
+                    onClick={() => {
+                      void createProjectFromHub();
+                    }}
+                    className="inline-flex h-9 items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white transition hover:bg-[#113f50] disabled:cursor-not-allowed disabled:bg-[#c9d2d7]"
+                  >
+                    Create
+                  </button>
+                </div>
+              ) : null}
             </div>
           </div>
         </section>
 
-        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-7">
-          <KpiCard label="Analyses" value={recentRows.length} note={recentRows.length > 0 ? "Recent runs available for this project context." : "Run an analysis from the workspace."} />
-          <KpiCard label="Reports" value={reportRows.length} note={scopedSavedReports.length > 0 ? "Saved reports available for this project." : "Demo example memo available for this project."} />
-          <KpiCard label="Comparisons" value={comparisonRows.length} note={scopedSavedComparisons.length > 0 ? "Saved comparison sets available for this project." : "Demo example comparison available for this project."} />
-          <KpiCard label="Packages" value={packageRows.length} note={packageRows.length > 0 ? "Enterprise package metadata available." : "Create a package from project evidence."} />
-          <KpiCard label="Data sources" value={dataSourceRegistry.length + scopedProjectDatasets.length} note={`${scopedProjectDatasets.length} project upload metadata records.`} />
-          <KpiCard
-            label="Market areas"
-            value={dldSnapshotAvailable ? `${dldRecordCount} snapshot / ${demoMarketAreas} demo` : `0 snapshot / ${demoMarketAreas} demo`}
-            valueKind="text"
-            note={dldSnapshotAvailable ? "DLD / Dubai Pulse snapshot context." : "seed_static fallback"}
-          />
-          <KpiCard label="Data confidence" value={dataConfidence} valueKind="text" note={dataConfidenceNote} />
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <KpiCard label="Analyses" value={recentRows.length} note={recentRows.length > 0 ? "Recent runs for this project." : "No analyses yet."} />
+          <KpiCard label="Saved AOIs" value={scopedProjectAois.length} note={scopedProjectAois.length > 0 ? "Reusable screening areas." : "No saved AOIs yet."} />
+          <KpiCard label="Comparisons" value={comparisonRows.length} note={comparisonRows.length > 0 ? "Saved comparison sets." : "No comparisons yet."} />
+          <KpiCard label="Reports" value={reportRows.length + packageRows.length} note={reportRows.length + packageRows.length > 0 ? "Reports available for review." : "No reports yet."} />
         </section>
 
+        <section className="grid gap-5 lg:grid-cols-2">
+          <Panel title="Recent analyses">
+            {recentRows.length > 0 ? (
+              <div className="grid gap-3">
+                {recentRows.slice(0, 4).map((item) => (
+                  <Link
+                    key={item.id}
+                    href={item.canOpenAnalysis && item.analysis
+                      ? `/workspace?openAnalysis=${encodeURIComponent(item.analysis.id)}&projectId=${encodeURIComponent(item.projectId ?? activeProject.id ?? item.projectKey ?? activeProject.projectKey)}&projectKey=${encodeURIComponent(item.projectKey ?? activeProject.projectKey)}`
+                      : openWorkspaceHref}
+                    onClick={() => {
+                      writeActiveProjectKey(item.projectKey ?? activeProject.projectKey);
+                      writeOpenAnalysisRequest(item);
+                    }}
+                    className="rounded-md border border-line bg-surface p-4 transition hover:border-brand"
+                  >
+                    <p className="safe-line-1 font-semibold text-ink">{item.title}</p>
+                    <p className="mt-1 text-sm leading-5 text-muted">{item.scenarioLabel} / {formatTimestamp(item.timestamp)}</p>
+                    <p className="mt-2 text-xs font-semibold text-brand">{item.decisionPosture}</p>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <EmptyState title="No analyses yet" text="Open workspace to start the first screening run." href={openWorkspaceHref} action="Open workspace" />
+            )}
+          </Panel>
+
+          <Panel title="Saved candidates / AOIs">
+            {scopedProjectAois.length > 0 ? (
+              <div className="grid gap-3">
+                {scopedProjectAois.slice(0, 4).map((aoi) => (
+                  <Link
+                    key={aoi.id}
+                    href={openWorkspaceForAoi(aoi)}
+                    onClick={() => writeActiveProjectKey(activeProject.projectKey)}
+                    className="rounded-md border border-line bg-surface p-4 transition hover:border-brand"
+                  >
+                    <p className="safe-line-1 font-semibold text-ink">{aoi.name}</p>
+                    <p className="mt-1 text-sm leading-5 text-muted">
+                      {sourceTypeLabel(aoi.sourceType)} / {formatArea(aoi.measurements.areaSqM)}
+                    </p>
+                    <p className="mt-2 text-xs leading-5 text-muted">Validation required.</p>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <EmptyState title="No saved AOIs yet" text="Draw or import an AOI in the workspace to save project areas." href={openWorkspaceHref} action="Open workspace" />
+            )}
+          </Panel>
+
+          <Panel title="Comparisons">
+            {comparisonRows.length > 0 ? (
+              <div className="grid gap-3">
+                {comparisonRows.slice(0, 4).map((comparison) => (
+                  <Link
+                    key={comparison.id}
+                    href={openWorkspaceHref}
+                    onClick={() => writeActiveProjectKey(activeProject.projectKey)}
+                    className="rounded-md border border-line bg-surface p-4 transition hover:border-brand"
+                  >
+                    <p className="safe-line-1 font-semibold text-ink">{comparison.title}</p>
+                    <p className="mt-1 text-sm leading-5 text-muted">{formatTimestamp(comparison.createdAt ?? undefined)}</p>
+                    <p className="mt-2 line-clamp-2 text-xs leading-5 text-muted">{comparison.sourceSummary ?? "Saved comparison; validation required."}</p>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <EmptyState title="No comparisons yet" text="Add two or more targets in the workspace to compare options." href={openWorkspaceHref} action="Compare targets" />
+            )}
+          </Panel>
+
+          <Panel title="Reports">
+            {reportRows.length + packageRows.length > 0 ? (
+              <div className="grid gap-3">
+                {reportRows.slice(0, 3).map((report) => (
+                  <Link
+                    key={report.id}
+                    href={`/reports/${encodeURIComponent(report.id)}/print`}
+                    className="rounded-md border border-line bg-surface p-4 transition hover:border-brand"
+                  >
+                    <p className="safe-line-1 font-semibold text-ink">{pilotDisplayLabel(report.title)}</p>
+                    <p className="mt-1 text-sm leading-5 text-muted">{formatTimestamp(report.createdAt ?? undefined)}</p>
+                  </Link>
+                ))}
+                {packageRows.slice(0, 2).map((pkg) => (
+                  <Link
+                    key={pkg.id}
+                    href={pkg.printablePath}
+                    className="rounded-md border border-line bg-surface p-4 transition hover:border-brand"
+                  >
+                    <p className="safe-line-1 font-semibold text-ink">{pilotDisplayLabel(pkg.title)}</p>
+                    <p className="mt-1 text-sm leading-5 text-muted">{formatDataRoomLabel(pkg.packageType)} / {formatTimestamp(pkg.generatedAt)}</p>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <EmptyState title="No reports yet" text="Run an analysis and export a report to populate this project." href={openWorkspaceHref} action="Run analysis" />
+            )}
+          </Panel>
+
+          <Panel title="Project files / evidence">
+            <div className="grid gap-3">
+              {scopedProjectDatasets.length > 0 || evidenceFiles.length > 0 ? (
+                [...scopedProjectDatasets.slice(0, 3), ...evidenceFiles.slice(0, 2).map((file) => ({
+                  id: file.id,
+                  title: file.fileName,
+                  createdAt: file.createdAt,
+                  sourceSummary: "Evidence file metadata",
+                  projectKey: activeProject.projectKey
+                } as SavedObjectSummary))].map((item) => (
+                  <div key={item.id} className="rounded-md border border-line bg-surface p-4">
+                    <p className="safe-line-1 font-semibold text-ink">{item.title}</p>
+                    <p className="mt-1 text-sm leading-5 text-muted">{item.sourceSummary ?? "Project file"}</p>
+                  </div>
+                ))
+              ) : (
+                <p className="rounded-md border border-dashed border-line bg-surface p-4 text-sm leading-6 text-muted">
+                  No project files yet.
+                </p>
+              )}
+              <button
+                type="button"
+                onClick={() => dataRoomFileInputRef.current?.click()}
+                className="inline-flex h-10 items-center justify-center rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink transition hover:border-brand"
+              >
+                Add file
+              </button>
+            </div>
+          </Panel>
+        </section>
+
+        <details className="rounded-lg border border-line bg-white px-4 shadow-sm">
+          <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 py-4 text-sm font-semibold text-ink">
+            <span>Advanced project diagnostics</span>
+            <span className="rounded-full bg-surface px-3 py-1 text-xs font-semibold text-muted">Closed</span>
+          </summary>
+          <div className="border-t border-line py-5">
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.65fr)]">
           <div className="grid gap-5">
             <Panel title="AOI Library" subtitle="Reusable user-provided or uploaded screening geometries scoped to the active project.">
@@ -1574,11 +1810,11 @@ export function ProjectDashboard() {
                         {dataRoom?.summary.label ?? "Data room foundation active"}
                       </span>
                       <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-brand">
-                        local/demo fallback
+                        local/sample fallback
                       </span>
                     </div>
                     <p className="mt-2 text-sm leading-6 text-muted">
-                      {dataRoom?.summary.storageNote ?? "Local/demo fallback; durable storage not configured."}
+                      {dataRoom?.summary.storageNote ?? "Local/sample fallback; durable storage not configured."}
                     </p>
                     <p className="mt-1 text-xs leading-5 text-muted">
                       {dataRoom?.dataHonesty.caveat ?? "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."}
@@ -1928,7 +2164,7 @@ export function ProjectDashboard() {
                     <article key={report.id} className="rounded-md border border-line bg-surface p-4">
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div className="min-w-0">
-                          <h3 className="break-words font-semibold text-ink">{report.title}</h3>
+                          <h3 className="break-words font-semibold text-ink">{pilotDisplayLabel(report.title)}</h3>
                           <p className="mt-1 text-sm text-muted">
                             {formatTimestamp(report.createdAt ?? undefined)}
                             {report.reportType ? ` / ${formatLabel(report.reportType)}` : ""}
@@ -1940,7 +2176,7 @@ export function ProjectDashboard() {
                           ) : null}
                           {scopedSavedReports.length === 0 ? (
                             <span className="mt-2 inline-flex rounded-full bg-white px-2 py-1 text-[11px] font-semibold text-brand">
-                              Demo example
+                              Sample example
                             </span>
                           ) : null}
                         </div>
@@ -1951,7 +2187,7 @@ export function ProjectDashboard() {
                           Export report
                         </Link>
                       </div>
-                      <p className="mt-2 text-sm leading-5 text-muted">{report.sourceSummary ?? "Saved with demo/local source lineage; official validation required."}</p>
+                      <p className="mt-2 text-sm leading-5 text-muted">{pilotDisplayLabel(report.sourceSummary ?? "Saved with sample/local source lineage; official validation required.")}</p>
                     </article>
                   ))}
                 </div>
@@ -2004,7 +2240,7 @@ export function ProjectDashboard() {
                     <article key={pkg.id} className="rounded-md border border-line bg-surface p-3">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <p className="safe-line-1 text-sm font-semibold text-ink">{pkg.title}</p>
+                          <p className="safe-line-1 text-sm font-semibold text-ink">{pilotDisplayLabel(pkg.title)}</p>
                           <p className="mt-1 text-xs leading-5 text-muted">
                             {formatDataRoomLabel(pkg.packageType)} / {formatDataRoomLabel(pkg.status)} / {formatTimestamp(pkg.generatedAt)}
                           </p>
@@ -2042,18 +2278,18 @@ export function ProjectDashboard() {
           </div>
 
           <div className="grid content-start gap-5">
-            <Panel title="Guided Demo Brief" subtitle="Use this project as a controlled client-demo narrative, not as validated production evidence.">
+            <Panel title="Pilot Brief" subtitle="Use this project as a controlled screening narrative, not as validated production evidence.">
               <div className="grid gap-3">
                 <div className="rounded-md bg-surface p-3">
                   <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Purpose</p>
                   <p className="mt-1 text-sm leading-6 text-ink">
-                    {getProjectMetadataText(activeProject, "demoPurpose", "Demonstrate GeoAI screening, memo and comparison workflows.")}
+                    {getProjectMetadataText(activeProject, "demoPurpose", "Frame GeoAI screening, memo and comparison workflows.")}
                   </p>
                 </div>
                 <div className="rounded-md bg-surface p-3">
                   <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Data status</p>
                   <p className="mt-1 text-sm leading-6 text-ink">
-                    {getProjectMetadataText(activeProject, "dataStatus", "Demo-normalized and sample/offline data; official validation required.")}
+                    {getProjectMetadataText(activeProject, "dataStatus", "Sample/open and offline data; official validation required.")}
                   </p>
                 </div>
                 <div className="rounded-md bg-surface p-3">
@@ -2065,7 +2301,7 @@ export function ProjectDashboard() {
               </div>
             </Panel>
 
-            <Panel title="Client Pilot Package" subtitle="Pilot bridge for the active demo project.">
+            <Panel title="Client Pilot Package" subtitle="Pilot bridge for the active sample project.">
               <div className="grid gap-3">
                 <div className="rounded-md border border-line bg-surface p-3">
                   <div className="flex items-start justify-between gap-3">
@@ -2148,13 +2384,13 @@ export function ProjectDashboard() {
               </div>
             </Panel>
 
-            <Panel title="Platform Readiness" subtitle="Pilot backend activation status. Fallback remains available until every gate is verified.">
+            <Panel title="Activation Diagnostics" subtitle="Advanced gate status. Fallback remains available until every gate is verified.">
               <div className="grid gap-3">
                 <div className="flex items-start justify-between gap-3 rounded-md border border-line bg-surface p-3">
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-ink">{formatDataRoomLabel(pilotBackendStatus?.status ?? platformStatus?.activationStatus ?? "local_fallback_only")}</p>
                     <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted">
-                      {pilotBackendStatus?.blockers?.[0]?.description ?? platformStatus?.blockers?.[0] ?? dbHealth?.message ?? "Platform readiness is reported by API health checks."}
+                      {pilotBackendStatus?.blockers?.[0]?.description ?? platformStatus?.blockers?.[0] ?? dbHealth?.message ?? "Advanced activation status is reported by API health checks."}
                     </p>
                   </div>
                   <span className="shrink-0 rounded-full bg-white px-2 py-1 text-xs font-semibold text-brand">
@@ -2447,7 +2683,7 @@ export function ProjectDashboard() {
               ) : (
                 <EmptyState
                   title="No saved comparison sets yet"
-                  text="Open the workspace, select 2-3 points or demo objects, then compare selected sites."
+                  text="Open the workspace, select 2-3 points or screening objects, then compare selected sites."
                   href={openWorkspaceHref}
                   action="Compare sites"
                 />
@@ -2468,6 +2704,8 @@ export function ProjectDashboard() {
             </Panel>
           </div>
         </div>
+          </div>
+        </details>
       </div>
     </main>
   );

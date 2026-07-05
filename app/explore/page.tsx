@@ -3,8 +3,8 @@ import { TopNavigation } from "@/components/top-navigation";
 import { WorkspaceShell } from "@/components/workspace-shell";
 
 export const metadata: Metadata = {
-  title: "GeoAI Explore",
-  description: "Scenario-first spatial decision intelligence for Dubai."
+  title: "GeoAI Workspace",
+  description: "Scenario-first spatial decision intelligence workspace."
 };
 
 export default function ExplorePage() {

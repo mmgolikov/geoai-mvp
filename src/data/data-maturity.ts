@@ -12,10 +12,10 @@ export type DataMaturityDefinition = {
 export const dataMaturityModel: DataMaturityDefinition[] = [
   {
     id: "demo_normalized",
-    label: "Demo-normalized",
-    explanation: "Synthetic or seed data used to demonstrate workflow and product logic.",
+    label: "Sample/open",
+    explanation: "Synthetic or seed data used for screening workflow and product logic.",
     badgeClassName: "bg-[#eef2f5] text-muted",
-    decisionConfidence: "Suitable for demos only; not decision-grade."
+    decisionConfidence: "Suitable for screening only; not decision-grade."
   },
   {
     id: "open_ready",
@@ -74,8 +74,8 @@ export type SourceReadinessRow = {
 export const sourceReadinessMatrix: SourceReadinessRow[] = [
   {
     sourceId: "synthetic-demo-layers",
-    source: "Synthetic Demo Layers",
-    category: "Demo",
+    source: "Synthetic sample layers",
+    category: "Sample",
     currentStatus: "Active in prototype",
     usedNow: "Yes",
     pilotRelevance: "Demonstrates workflow",
@@ -83,8 +83,8 @@ export const sourceReadinessMatrix: SourceReadinessRow[] = [
   },
   {
     sourceId: "demo-market-context-seed",
-    source: "Demo Market Context / seed_static",
-    category: "Demo market context",
+    source: "Sample market context / seed_static",
+    category: "Sample market context",
     currentStatus: "Active in prototype",
     usedNow: "Yes",
     pilotRelevance: "Area-matching workflow",
@@ -153,7 +153,7 @@ export function getSourceMaturity(source: DataSource | null): DataSourceMaturity
 
 export function deriveDataConfidenceLevel(evidence: EvidenceItem[]) {
   const sources = evidence.map((item) => getDataSourceById(item.sourceId)).filter(Boolean) as DataSource[];
-  const usedDemo = sources.some((source) => source.usedInCurrentPrototype || source.status === "mock");
+  const usedSample = sources.some((source) => source.usedInCurrentPrototype || source.status === "mock");
   const hasOfficialPath = dataSourceRegistry.some((source) => source.plannedForPilot && source.sourceType === "official");
   const hasDecisionGrade = sources.some((source) => source.decisionGrade);
 
@@ -161,13 +161,13 @@ export function deriveDataConfidenceLevel(evidence: EvidenceItem[]) {
     return "Production-grade";
   }
 
-  if (usedDemo && hasOfficialPath) {
-    return "Demo with official validation path";
+  if (usedSample && hasOfficialPath) {
+    return "Sample/open with official validation path";
   }
 
   if (sources.some((source) => source.integrationStatus === "official_ready")) {
     return "Partial validation";
   }
 
-  return "Demo only";
+  return "Sample/open only";
 }

@@ -18,6 +18,5 @@ export function getImportedMetricsReadinessMessage({ count, hasProjectMatch }: I
 export function getSupabaseFallbackMessage(configured?: boolean) {
   return configured
     ? "Supabase/PostGIS configured; availability depends on project database access."
-    : "Local/demo fallback; Supabase/PostGIS not configured.";
+    : "Local/sample fallback; Supabase/PostGIS not configured.";
 }
-

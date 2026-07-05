@@ -35,7 +35,9 @@ import {
   getExploreScenario
 } from "@/src/lib/explore/scenarios";
 import type {
+  CandidateSearchStatus,
   ExploreAudience,
+  ExploreCandidate,
   ExploreFilters,
   ExploreRole,
   ExploreScenarioId,
@@ -48,6 +50,13 @@ import {
   exploreCandidateToSelectedPoint,
   exploreScenarioToAnalysisScenario
 } from "@/src/lib/explore/workspace-bridge";
+import {
+  createLocalProject,
+  mergeProjectsWithLocal,
+  projectToInput,
+  saveLocalProject,
+  type LocalProjectInput
+} from "@/src/lib/project-local-store";
 import type { RepositoryMode } from "@/src/lib/repositories/repository-mode";
 import {
   createAoiGeojsonFeature,
@@ -120,6 +129,13 @@ type ProjectsResponse = {
   mode: "supabase" | "demo_seed";
   items: GeoAIProject[];
   error: string | null;
+};
+
+type CreateProjectResponse = {
+  ok: boolean;
+  mode: "supabase" | "demo_seed";
+  project?: GeoAIProject | null;
+  error?: string | null;
 };
 
 type ValidationGovernanceResponse = {
@@ -271,7 +287,7 @@ function withMarketContext(analysis: ExpressAnalysis, marketContext: MarketConte
         ? `Market context: ${marketContext.areaName}`
         : `Market validation source: ${source?.name ?? sourceId}`,
       index === 0
-        ? `${marketContext.sourceMode ?? "seed_static"} market context matched to ${marketContext.areaName}. ${marketContext.dataQualityNotes?.[0] ?? "Current values are demo-normalized indices, not official market data."}`
+        ? `${marketContext.sourceMode ?? "seed_static"} market context matched to ${marketContext.areaName}. ${marketContext.dataQualityNotes?.[0] ?? "Current values are sample/open indices, not official market data."}`
         : `Planned validation source for market, planning, infrastructure, or geospatial context related to ${marketContext.areaName}.`,
       index === 0 ? "demo" : "medium"
     );
@@ -536,12 +552,62 @@ function createComparisonSignature(items: ComparisonItem[]) {
   return items.map((item) => item.id).sort().join("|");
 }
 
+function createExploreSettingsSignature({
+  audience,
+  role,
+  interactionMode,
+  filters
+}: {
+  audience: ExploreAudience;
+  role: ExploreRole;
+  interactionMode: InteractionMode;
+  filters: ExploreFilters;
+}) {
+  const normalizedFilters = Object.entries(filters)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([key, value]) => `${key}:${String(value)}`)
+    .join("|");
+
+  return `${audience}:${role}:${interactionMode}:${normalizedFilters}`;
+}
+
 function hasPendingQueryChange(currentQuery: string, lastQuery: string) {
   if (!currentQuery) {
     return false;
   }
 
   return currentQuery !== lastQuery;
+}
+
+function createCandidateSearchSignature({
+  scenarioId,
+  query,
+  settingsSignature
+}: {
+  scenarioId: ExploreScenarioId;
+  query: string;
+  settingsSignature: string;
+}) {
+  return `${scenarioId}:${query}:${settingsSignature}`;
+}
+
+function getCandidateSearchActionLabel(scenarioId: ExploreScenarioId, status: CandidateSearchStatus) {
+  if (status === "stale") {
+    return "Update search";
+  }
+
+  const labels: Partial<Record<ExploreScenarioId, string>> = {
+    b2b_redevelopment_selected_aoi: "Find redevelopment zones",
+    b2b_redevelopment_100ha: "Find redevelopment zones",
+    b2b_lowrise_luxury_residential: "Find residential projects",
+    b2b_hotel_development: "Find hotel zones",
+    b2b_commercial_real_estate: "Find commercial zones",
+    b2c_new_residential_projects: "Find residential projects",
+    b2c_tourist_objects_route: "Build route options",
+    b2c_interest_routes: "Build route options"
+  };
+
+  return labels[scenarioId] ?? "Find candidates";
 }
 
 function readUploadedDatasets() {
@@ -699,9 +765,15 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
   const [exploreInteractionMode, setExploreInteractionMode] = useState<InteractionMode>(() => getExploreScenario(getDefaultScenarioForAudience("b2b")).defaultInteractionMode);
   const [exploreFilters, setExploreFilters] = useState<ExploreFilters>(() => getDefaultFilters(getExploreScenario(getDefaultScenarioForAudience("b2b")).inputSchema));
   const [selectedExploreCandidateId, setSelectedExploreCandidateId] = useState<string | null>(null);
+  const [candidateSearchStatus, setCandidateSearchStatus] = useState<CandidateSearchStatus>(() =>
+    getExploreScenario(getDefaultScenarioForAudience("b2b")).defaultInteractionMode === "criteria_first" ? "ready" : "idle"
+  );
+  const [candidateCriteriaSignature, setCandidateCriteriaSignature] = useState<string | null>(null);
+  const [searchedExploreCandidates, setSearchedExploreCandidates] = useState<ExploreCandidate[]>([]);
   const [analysis, setAnalysis] = useState<ExpressAnalysis | null>(null);
   const [comparisonItems, setComparisonItems] = useState<ComparisonItem[]>([]);
   const [comparison, setComparison] = useState<ComparisonResult | null>(null);
+  const [comparisonReturn, setComparisonReturn] = useState<ComparisonResult | null>(null);
   const [reportPreview, setReportPreview] = useState<"analysis" | "comparison" | null>(null);
   const [comparisonMessage, setComparisonMessage] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -710,11 +782,13 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
     query: string;
     scenarioId: AnalysisScenarioId;
     targetSignature: string;
+    settingsSignature: string;
   } | null>(null);
   const [lastComparedState, setLastComparedState] = useState<{
     query: string;
     scenarioId: AnalysisScenarioId;
     comparisonSignature: string;
+    settingsSignature: string;
   } | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [marketContext, setMarketContext] = useState<MarketContext | null>(null);
@@ -733,6 +807,18 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
   const [activeGuidedDemoId, setActiveGuidedDemoId] = useState<string | null>(null);
   const [activeDemoNarrativeId, setActiveDemoNarrativeId] = useState<string | null>(null);
   const selectedExploreScenarioConfig = getExploreScenario(selectedExploreScenario);
+  const currentQuery = normalizeQuery(customQuery);
+  const currentExploreSettingsSignature = createExploreSettingsSignature({
+    audience: selectedExploreAudience,
+    role: selectedExploreRole,
+    interactionMode: exploreInteractionMode,
+    filters: exploreFilters
+  });
+  const currentCandidateCriteriaSignature = createCandidateSearchSignature({
+    scenarioId: selectedExploreScenario,
+    query: currentQuery,
+    settingsSignature: currentExploreSettingsSignature
+  });
   const exploreSelectedPointOrArea: ExploreSelectedPointOrArea = selectedAoi
     ? {
         label: selectedAoi.name,
@@ -755,7 +841,7 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
             label: initialExploreMode ? "Explore criteria search" : "Workspace criteria search",
             areaHint: "No map target selected"
           };
-  const exploreCandidates = generateExploreCandidates({
+  const generatedExploreCandidates = generateExploreCandidates({
     audience: selectedExploreAudience,
     role: selectedExploreRole,
     scenarioId: selectedExploreScenario,
@@ -764,6 +850,12 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
     filters: exploreFilters,
     selectedPointOrArea: exploreSelectedPointOrArea
   });
+  const isCandidateSearchCurrent = Boolean(
+    candidateSearchStatus === "searched" &&
+      candidateCriteriaSignature === currentCandidateCriteriaSignature &&
+      searchedExploreCandidates.length > 0
+  );
+  const visibleExploreCandidates = isCandidateSearchCurrent ? searchedExploreCandidates : [];
 
   function loadGuidedDemo(presetId: string, includeComparisonSites = false) {
     const preset = getGuidedDemoPreset(presetId);
@@ -795,11 +887,12 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
     writeActiveProjectKey(nextProject.projectKey);
     setAnalysis(null);
     setComparison(null);
+    setComparisonReturn(null);
     setLastAnalyzedState(null);
     setLastComparedState(null);
     setReportPreview(null);
     setAnalysisError(null);
-    setComparisonMessage(includeComparisonSites ? "Demo comparison sites loaded. Click Compare when ready." : null);
+    setComparisonMessage(includeComparisonSites ? "Sample comparison sites loaded. Click Compare when ready." : null);
     setIsAnalyzing(false);
     setMarketContext(null);
     setActiveGuidedDemoId(preset.id);
@@ -953,9 +1046,12 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
   useEffect(() => {
     const requestedProjectKey = readProjectKeyFromUrl(demoProjects);
     const storedProjectKey = requestedProjectKey ?? readActiveProjectKey();
-    const localProject = getDemoProject(storedProjectKey);
+    const localProjects = mergeProjectsWithLocal(demoProjects);
+    const localProject =
+      localProjects.find((project) => project.projectKey === storedProjectKey) ?? getDemoProject(storedProjectKey);
     let isMounted = true;
 
+    setProjects(localProjects);
     setActiveProject(localProject);
 
     fetch("/api/projects")
@@ -965,7 +1061,7 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
           return;
         }
 
-        const nextProjects = payload.items;
+        const nextProjects = mergeProjectsWithLocal(payload.items);
         const urlProjectKey = readProjectKeyFromUrl(nextProjects);
         const nextActiveProject =
           nextProjects.find((project) => project.projectKey === (urlProjectKey ?? storedProjectKey)) ?? nextProjects[0];
@@ -977,7 +1073,7 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
       })
       .catch(() => {
         if (isMounted) {
-          setProjects(demoProjects);
+          setProjects(localProjects);
           setProjectsMode("demo_seed");
           setActiveProject(localProject);
         }
@@ -1100,6 +1196,7 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
     setSelectedExploreCandidateId(null);
     setAnalysis(null);
     setComparison(null);
+    setComparisonReturn(null);
     setLastAnalyzedState(null);
     setLastComparedState(null);
     setReportPreview(null);
@@ -1116,6 +1213,7 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
     setSelectedExploreCandidateId(null);
     setAnalysis(null);
     setComparison(null);
+    setComparisonReturn(null);
     setLastAnalyzedState(null);
     setLastComparedState(null);
     setReportPreview(null);
@@ -1132,6 +1230,7 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
     setSelectedExploreCandidateId(null);
     setAnalysis(null);
     setComparison(null);
+    setComparisonReturn(null);
     setLastAnalyzedState(null);
     setLastComparedState(null);
     setReportPreview(null);
@@ -1149,6 +1248,7 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
     setSelectedExploreCandidateId(null);
     setAnalysis(null);
     setComparison(null);
+    setComparisonReturn(null);
     setLastAnalyzedState(null);
     setLastComparedState(null);
     setReportPreview(null);
@@ -1158,6 +1258,33 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
     setMarketContext(null);
     setAoiDraftName("");
     setAoiMessage(null);
+  }
+
+  function resetCandidateSearchForCriteriaChange(nextMode: InteractionMode = exploreInteractionMode) {
+    setCandidateCriteriaSignature(null);
+    setSearchedExploreCandidates([]);
+    setCandidateSearchStatus((currentStatus) => {
+      if (nextMode !== "criteria_first") {
+        return "idle";
+      }
+
+      return currentStatus === "searched" || currentStatus === "stale" ? "stale" : "ready";
+    });
+
+    if (selectedExploreCandidateId) {
+      setSelectedExploreCandidateId(null);
+      setSelectedPoint(null);
+      setSelectedObject(null);
+      setSelectedAoi(null);
+      setMarketContext(null);
+    }
+
+    setAnalysis(null);
+    setComparison(null);
+    setComparisonReturn(null);
+    setLastAnalyzedState(null);
+    setLastComparedState(null);
+    setReportPreview(null);
   }
 
   function changeExploreAudience(audience: ExploreAudience) {
@@ -1172,12 +1299,34 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
     setExploreInteractionMode(nextScenario.defaultInteractionMode);
     setExploreFilters(getDefaultFilters(nextScenario.inputSchema));
     setSelectedExploreCandidateId(null);
+    setSearchedExploreCandidates([]);
+    setCandidateCriteriaSignature(null);
+    setCandidateSearchStatus(nextScenario.defaultInteractionMode === "criteria_first" ? "ready" : "idle");
+    if (selectedExploreCandidateId) {
+      setSelectedPoint(null);
+      setSelectedObject(null);
+      setSelectedAoi(null);
+      setMarketContext(null);
+    }
+    setAnalysis(null);
+    setComparison(null);
+    setComparisonReturn(null);
+    setLastAnalyzedState(null);
+    setLastComparedState(null);
+    setReportPreview(null);
     setSelectedScenario(nextAnalysisScenario);
     setAnalysisError(null);
     setComparisonMessage(null);
     if (nextAnalysisScenario === "customQuery" && customQuery.trim().length === 0) {
       setCustomQuery(nextScenario.sampleQueries[0]);
     }
+  }
+
+  function changeExploreRole(role: ExploreRole) {
+    setSelectedExploreRole(role);
+    resetCandidateSearchForCriteriaChange();
+    setAnalysisError(null);
+    setComparisonMessage(null);
   }
 
   function changeExploreScenario(scenarioId: ExploreScenarioId) {
@@ -1188,6 +1337,21 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
     setExploreInteractionMode(nextScenario.defaultInteractionMode);
     setExploreFilters(getDefaultFilters(nextScenario.inputSchema));
     setSelectedExploreCandidateId(null);
+    setSearchedExploreCandidates([]);
+    setCandidateCriteriaSignature(null);
+    setCandidateSearchStatus(nextScenario.defaultInteractionMode === "criteria_first" ? "ready" : "idle");
+    if (selectedExploreCandidateId) {
+      setSelectedPoint(null);
+      setSelectedObject(null);
+      setSelectedAoi(null);
+      setMarketContext(null);
+    }
+    setAnalysis(null);
+    setComparison(null);
+    setComparisonReturn(null);
+    setLastAnalyzedState(null);
+    setLastComparedState(null);
+    setReportPreview(null);
     setSelectedScenario(nextAnalysisScenario);
     setAnalysisError(null);
     setComparisonMessage(null);
@@ -1196,15 +1360,25 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
     }
   }
 
+  function changeExploreInteractionMode(mode: InteractionMode) {
+    setExploreInteractionMode(mode);
+    resetCandidateSearchForCriteriaChange(mode);
+    setAnalysisError(null);
+    setComparisonMessage(null);
+  }
+
   function updateExploreFilter(id: string, value: ExploreFilters[string]) {
     setExploreFilters((current) => ({
       ...current,
       [id]: value
     }));
+    resetCandidateSearchForCriteriaChange();
+    setAnalysisError(null);
+    setComparisonMessage(null);
   }
 
   function selectExploreCandidate(candidateId: string) {
-    const candidate = exploreCandidates.find((item) => item.id === candidateId);
+    const candidate = visibleExploreCandidates.find((item) => item.id === candidateId);
     if (!candidate) {
       return;
     }
@@ -1216,6 +1390,7 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
     setSelectedAoi(null);
     setAnalysis(null);
     setComparison(null);
+    setComparisonReturn(null);
     setLastAnalyzedState(null);
     setLastComparedState(null);
     setReportPreview(null);
@@ -1388,9 +1563,56 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
   function removeComparisonItem(itemId: string) {
     setComparisonItems((items) => items.filter((item) => item.id !== itemId));
     setComparison(null);
+    setComparisonReturn(null);
     setLastComparedState(null);
     setReportPreview(null);
     setComparisonMessage(null);
+  }
+
+  function runCandidateSearch() {
+    if (exploreInteractionMode !== "criteria_first") {
+      return;
+    }
+
+    const nextCandidates = generatedExploreCandidates.slice(0, 6);
+
+    setSearchedExploreCandidates(nextCandidates);
+    setCandidateCriteriaSignature(currentCandidateCriteriaSignature);
+    setCandidateSearchStatus("searched");
+    setSelectedExploreCandidateId(null);
+    setComparisonItems([]);
+    setAnalysis(null);
+    setComparison(null);
+    setComparisonReturn(null);
+    setLastAnalyzedState(null);
+    setLastComparedState(null);
+    setReportPreview(null);
+    setAnalysisError(null);
+    setComparisonMessage(
+      nextCandidates.length > 0
+        ? `${nextCandidates.length} candidate result${nextCandidates.length === 1 ? "" : "s"} found.`
+        : "No candidate zones matched the current criteria."
+    );
+
+    if (selectedExploreCandidateId) {
+      setSelectedPoint(null);
+      setSelectedObject(null);
+      setSelectedAoi(null);
+      setMarketContext(null);
+    }
+  }
+
+  function createCandidateComparisonItems() {
+    const byId = new Map<string, ComparisonItem>();
+
+    for (const candidate of visibleExploreCandidates.slice(0, 3)) {
+      const point = exploreCandidateToSelectedPoint(candidate);
+      const object = exploreCandidateToSelectedObject(candidate);
+      const item = createComparisonItem(point, object, selectedScenario);
+      byId.set(item.id, item);
+    }
+
+    return Array.from(byId.values());
   }
 
   function runComparison() {
@@ -1400,6 +1622,7 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
     }
 
     setAnalysis(null);
+    setComparisonReturn(null);
     setAnalysisError(null);
     setComparisonMessage(null);
     const comparisonResult = {
@@ -1410,15 +1633,154 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
     setLastComparedState({
       query: normalizeQuery(customQuery),
       scenarioId: selectedScenario,
-      comparisonSignature: createComparisonSignature(comparisonItems)
+      comparisonSignature: createComparisonSignature(comparisonItems),
+      settingsSignature: createExploreSettingsSignature({
+        audience: selectedExploreAudience,
+        role: selectedExploreRole,
+        interactionMode: exploreInteractionMode,
+        filters: exploreFilters
+      })
     });
     void persistComparisonSet(comparisonResult);
     setReportPreview(null);
   }
 
+  function runCandidateComparison() {
+    if (!isCandidateSearchCurrent) {
+      setComparisonMessage("Search candidate zones again before comparing.");
+      setCandidateSearchStatus(candidateSearchStatus === "searched" ? "stale" : candidateSearchStatus);
+      return;
+    }
+
+    const candidateItems = createCandidateComparisonItems();
+
+    if (candidateItems.length < 2) {
+      setComparisonMessage("Criteria search needs at least 2 candidates before comparing.");
+      return;
+    }
+
+    const comparisonResult = {
+      ...createMockComparison(candidateItems, customQuery),
+      project: activeProject
+    };
+
+    setComparisonItems(candidateItems);
+    setAnalysis(null);
+    setComparisonReturn(null);
+    setAnalysisError(null);
+    setComparisonMessage("Criteria-first shortlist ranked. Open any candidate for its dashboard.");
+    setComparison(comparisonResult);
+    setLastComparedState({
+      query: normalizeQuery(customQuery),
+      scenarioId: selectedScenario,
+      comparisonSignature: createComparisonSignature(candidateItems),
+      settingsSignature: createExploreSettingsSignature({
+        audience: selectedExploreAudience,
+        role: selectedExploreRole,
+        interactionMode: exploreInteractionMode,
+        filters: exploreFilters
+      })
+    });
+    void persistComparisonSet(comparisonResult);
+    setReportPreview(null);
+  }
+
+  function openComparisonItemDashboard(item: ComparisonItem) {
+    const itemSelectedObject = item.selectedObject ?? null;
+    const itemSelectedAoi = item.selectedAoi ?? null;
+    const scenario = analysisScenarios.find((scenarioItem) => scenarioItem.id === item.scenarioId) ?? analysisScenarios[0];
+    const uploadedDataContext = buildUploadedDataContext(uploadedDatasets, item.point, itemSelectedObject);
+    const candidateAnalysis = withUploadedDataContext(
+      withOpenGeodataContext({
+        ...createMockExpressAnalysis(
+          item.point,
+          item.scenarioId,
+          customQuery,
+          itemSelectedObject,
+          itemSelectedAoi
+        ),
+        project: activeProject,
+        analysisMode: "mock_fallback",
+        confidenceLevel: "medium",
+        analysisNotice: "Opened from the criteria-first shortlist. Uses deterministic screening context; official validation required.",
+        generatedAt: new Date().toISOString(),
+        analysisTarget: itemSelectedAoi
+          ? {
+              id: itemSelectedAoi.id,
+              type: "user-drawn-aoi" as const,
+              label: itemSelectedAoi.name,
+              coordinates: itemSelectedAoi.centroid,
+              geometry: itemSelectedAoi.geometry,
+              bbox: itemSelectedAoi.bbox,
+              measurements: itemSelectedAoi.measurements,
+              sourceMode: "user-drawn" as const,
+              officialStatus: "official-validation-required" as const
+            }
+          : itemSelectedObject?.analysisTarget ?? {
+              id: `point-${item.point.latitude.toFixed(6)}-${item.point.longitude.toFixed(6)}`,
+              type: "point" as const,
+              label: item.name,
+              coordinates: item.point,
+              geometry: {
+                type: "Point",
+                coordinates: [item.point.longitude, item.point.latitude]
+              },
+              sourceMode: "demo" as const,
+              officialStatus: "not-official" as const
+            }
+      }),
+      uploadedDataContext
+    );
+    const activeComparison = comparison ?? comparisonReturn;
+    const activeCandidateId = itemSelectedObject?.analysisTarget?.id ?? itemSelectedObject?.id.replace(/^explore-/, "") ?? null;
+
+    setSelectedPoint(item.point);
+    setSelectedObject(itemSelectedObject);
+    setSelectedAoi(itemSelectedAoi);
+    setSelectedScenario(item.scenarioId);
+    setSelectedExploreCandidateId(activeCandidateId);
+    setComparisonReturn(activeComparison);
+    setComparison(null);
+    setAnalysis(candidateAnalysis);
+    setLastAnalyzedState({
+      query: normalizeQuery(customQuery),
+      scenarioId: item.scenarioId,
+      targetSignature: createTargetSignature(item.point, itemSelectedObject, itemSelectedAoi),
+      settingsSignature: createExploreSettingsSignature({
+        audience: selectedExploreAudience,
+        role: selectedExploreRole,
+        interactionMode: exploreInteractionMode,
+        filters: exploreFilters
+      })
+    });
+    setLastComparedState(null);
+    setReportPreview(null);
+    setComparisonMessage(null);
+    setAnalysisError(null);
+    setIsAnalyzing(false);
+    setMarketContext(null);
+    saveAnalysisHistory(candidateAnalysis, scenario.label);
+    void persistAnalysisRun(candidateAnalysis, scenario.label);
+  }
+
+  function returnToCandidateComparison() {
+    if (!comparisonReturn) {
+      backToMap();
+      return;
+    }
+
+    setAnalysis(null);
+    setComparison(comparisonReturn);
+    setSelectedExploreCandidateId(null);
+    setComparisonReturn(null);
+    setReportPreview(null);
+    setAnalysisError(null);
+  }
+
   function backToMap() {
     setAnalysis(null);
     setComparison(null);
+    setComparisonReturn(null);
     setReportPreview(null);
     setLastAnalyzedState(null);
     setLastComparedState(null);
@@ -1624,7 +1986,7 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
       dueDiligenceChecklist: comparisonResult.nextActions,
       evidenceSourceReadiness: comparisonResult.evidence,
       limitations: [
-        "Comparison uses deterministic demo scoring and structured evidence readiness, not a validated underwriting model."
+        "Comparison uses deterministic sample scoring and structured evidence readiness, not a validated underwriting model."
       ],
       generatedAt: new Date().toISOString()
     };
@@ -1812,6 +2174,7 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
     setSelectedAoi(null);
     setAnalysis(null);
     setComparison(null);
+    setComparisonReturn(null);
     setReportPreview(null);
     setLastAnalyzedState(null);
     setLastComparedState(null);
@@ -1819,6 +2182,51 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
     setComparisonMessage(null);
     setMarketContext(null);
     setAoiMessage(null);
+  }
+
+  function activateProject(project: GeoAIProject) {
+    setProjects((currentProjects) => {
+      const byKey = new Map(currentProjects.map((item) => [item.projectKey, item]));
+      byKey.set(project.projectKey, project);
+      return Array.from(byKey.values());
+    });
+    setActiveProject(project);
+    writeActiveProjectKey(project.projectKey);
+    setSelectedPoint(null);
+    setSelectedObject(null);
+    setSelectedAoi(null);
+    setSelectedExploreCandidateId(null);
+    setAnalysis(null);
+    setComparison(null);
+    setReportPreview(null);
+    setLastAnalyzedState(null);
+    setLastComparedState(null);
+    setAnalysisError(null);
+    setComparisonMessage(null);
+    setMarketContext(null);
+    setAoiMessage(null);
+  }
+
+  async function createProject(input: LocalProjectInput) {
+    const localProject = createLocalProject(input);
+
+    try {
+      const response = await fetch("/api/projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(projectToInput(localProject))
+      });
+      const payload = response.ok ? await response.json() as CreateProjectResponse : null;
+      const createdProject = payload?.project ?? localProject;
+
+      saveLocalProject(createdProject);
+      setProjectsMode(payload?.mode ?? "demo_seed");
+      activateProject(createdProject);
+    } catch {
+      saveLocalProject(localProject);
+      setProjectsMode("demo_seed");
+      activateProject(localProject);
+    }
   }
 
   function restoreAnalysisDashboard(item: AnalysisHistoryItem) {
@@ -1833,22 +2241,29 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
     setSelectedObject(restoredAnalysis.selectedObject ?? null);
     setSelectedAoi(restoredAnalysis.selectedAoi ?? null);
     setSelectedScenario(restoredAnalysis.scenarioId);
-    {
-      const nextExploreScenarioId = analysisScenarioToExploreScenario(restoredAnalysis.scenarioId);
-      const nextExploreScenario = getExploreScenario(nextExploreScenarioId);
-      setSelectedExploreAudience(nextExploreScenario.audience);
-      setSelectedExploreRole(nextExploreScenario.defaultRoleHints[0]);
-      setSelectedExploreScenario(nextExploreScenarioId);
-      setExploreInteractionMode(nextExploreScenario.defaultInteractionMode);
-      setExploreFilters(getDefaultFilters(nextExploreScenario.inputSchema));
-      setSelectedExploreCandidateId(null);
-    }
+    const nextExploreScenarioId = analysisScenarioToExploreScenario(restoredAnalysis.scenarioId);
+    const nextExploreScenario = getExploreScenario(nextExploreScenarioId);
+    const nextExploreRole = nextExploreScenario.defaultRoleHints[0];
+    const nextExploreFilters = getDefaultFilters(nextExploreScenario.inputSchema);
+
+    setSelectedExploreAudience(nextExploreScenario.audience);
+    setSelectedExploreRole(nextExploreRole);
+    setSelectedExploreScenario(nextExploreScenarioId);
+    setExploreInteractionMode(nextExploreScenario.defaultInteractionMode);
+    setExploreFilters(nextExploreFilters);
+    setSelectedExploreCandidateId(null);
     setCustomQuery(restoredCustomQuery);
     setAnalysis(restoredAnalysis);
     setLastAnalyzedState({
       query: restoredCustomQuery,
       scenarioId: restoredAnalysis.scenarioId,
-      targetSignature: createTargetSignature(restoredAnalysis.point, restoredAnalysis.selectedObject ?? null, restoredAnalysis.selectedAoi ?? null)
+      targetSignature: createTargetSignature(restoredAnalysis.point, restoredAnalysis.selectedObject ?? null, restoredAnalysis.selectedAoi ?? null),
+      settingsSignature: createExploreSettingsSignature({
+        audience: nextExploreScenario.audience,
+        role: nextExploreRole,
+        interactionMode: nextExploreScenario.defaultInteractionMode,
+        filters: nextExploreFilters
+      })
     });
     if (restoredProject) {
       setActiveProject(restoredProject);
@@ -1954,7 +2369,16 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
   }
 
   async function runExpressAnalysis() {
-    if (!selectedPoint || isAnalyzing) {
+    if (isAnalyzing) {
+      return;
+    }
+
+    if (hasCriteriaFirstCandidateSet) {
+      runCandidateComparison();
+      return;
+    }
+
+    if (!selectedPoint) {
       return;
     }
 
@@ -1967,6 +2391,7 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
     setIsAnalyzing(true);
     setAnalysisError(null);
     setComparison(null);
+    setComparisonReturn(null);
     setReportPreview(null);
     setLastComparedState(null);
 
@@ -2114,7 +2539,13 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
       setLastAnalyzedState({
         query: normalizeQuery(customQuery),
         scenarioId: selectedScenario,
-        targetSignature: createTargetSignature(selectedPoint, selectedObject, selectedAoi)
+        targetSignature: createTargetSignature(selectedPoint, selectedObject, selectedAoi),
+        settingsSignature: createExploreSettingsSignature({
+          audience: selectedExploreAudience,
+          role: selectedExploreRole,
+          interactionMode: exploreInteractionMode,
+          filters: exploreFilters
+        })
       });
       saveAnalysisHistory(finalAnalysis, scenario.label);
       void persistAnalysisRun(finalAnalysis, scenario.label);
@@ -2123,10 +2554,10 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
         ...deterministicAnalysis,
         analysisMode: "mock_fallback",
         confidenceLevel: "medium",
-        analysisNotice: "AI analysis is unavailable. Using deterministic demo fallback.",
+        analysisNotice: "AI analysis is unavailable. Using deterministic sample/open scoring.",
         limitations: [
           ...(deterministicAnalysis.limitations ?? []),
-          "Narrative content is generated from deterministic demo context.",
+          "Narrative content is generated from deterministic sample/open context.",
           "Official parcel, planning, transaction, imagery, and risk data are not connected yet."
         ],
         generatedAt: new Date().toISOString()
@@ -2172,7 +2603,13 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
       setLastAnalyzedState({
         query: normalizeQuery(customQuery),
         scenarioId: selectedScenario,
-        targetSignature: createTargetSignature(selectedPoint, selectedObject, selectedAoi)
+        targetSignature: createTargetSignature(selectedPoint, selectedObject, selectedAoi),
+        settingsSignature: createExploreSettingsSignature({
+          audience: selectedExploreAudience,
+          role: selectedExploreRole,
+          interactionMode: exploreInteractionMode,
+          filters: exploreFilters
+        })
       });
       saveAnalysisHistory(finalFallbackAnalysis, scenario.label);
       void persistAnalysisRun(finalFallbackAnalysis, scenario.label);
@@ -2181,22 +2618,41 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
     }
   }
 
-  const currentQuery = normalizeQuery(customQuery);
   const currentTargetSignature = createTargetSignature(selectedPoint, selectedObject, selectedAoi);
   const currentComparisonSignature = createComparisonSignature(comparisonItems);
+  const hasCriteriaFirstCandidateSet = Boolean(
+    exploreInteractionMode === "criteria_first" &&
+      !selectedExploreCandidateId &&
+      visibleExploreCandidates.length >= 2 &&
+      isCandidateSearchCurrent
+  );
+  const activeComparisonNavigationItemId = comparisonReturn?.items.find((item) =>
+    createTargetSignature(item.item.point, item.item.selectedObject ?? null, item.item.selectedAoi ?? null) === currentTargetSignature
+  )?.item.id;
+  const isCriteriaFirst = exploreInteractionMode === "criteria_first";
+  const hasSelectedCriteriaCandidate = Boolean(
+    isCriteriaFirst &&
+      isCandidateSearchCurrent &&
+      selectedExploreCandidateId &&
+      selectedPoint
+  );
+  const candidateSearchCtaStatus: CandidateSearchStatus =
+    candidateSearchStatus === "searched" && !isCandidateSearchCurrent ? "stale" : candidateSearchStatus;
   const isAnalysisUpToDate = Boolean(
     analysis &&
       lastAnalyzedState &&
       !hasPendingQueryChange(currentQuery, lastAnalyzedState.query) &&
       lastAnalyzedState.scenarioId === selectedScenario &&
-      lastAnalyzedState.targetSignature === currentTargetSignature
+      lastAnalyzedState.targetSignature === currentTargetSignature &&
+      lastAnalyzedState.settingsSignature === currentExploreSettingsSignature
   );
   const isComparisonUpToDate = Boolean(
     comparison &&
       lastComparedState &&
       !hasPendingQueryChange(currentQuery, lastComparedState.query) &&
       lastComparedState.scenarioId === selectedScenario &&
-      lastComparedState.comparisonSignature === currentComparisonSignature
+      lastComparedState.comparisonSignature === currentComparisonSignature &&
+      lastComparedState.settingsSignature === currentExploreSettingsSignature
   );
   const primaryCtaState = comparison
     ? isComparisonUpToDate
@@ -2211,13 +2667,39 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
           label: isAnalyzing ? "Continuing..." : "Continue Comparison",
           disabled: isAnalyzing || comparisonItems.length < 2,
           action: runComparison
-        }
-    : comparisonItems.length >= 2
+      }
+    : isCriteriaFirst && (!isCandidateSearchCurrent || candidateSearchStatus === "stale")
       ? {
-          label: "Compare Selected",
+          label: getCandidateSearchActionLabel(selectedExploreScenario, candidateSearchCtaStatus),
           disabled: isAnalyzing,
-          action: runComparison
+          action: runCandidateSearch
         }
+    : hasSelectedCriteriaCandidate
+      ? analysis && isAnalysisUpToDate
+        ? {
+            label: isExporting ? "Exporting..." : "Export Report",
+            disabled: isExporting || isAnalyzing,
+            action: () => {
+              void exportPrintableReport("analysis");
+            }
+          }
+        : {
+            label: isAnalyzing ? "Analyzing..." : "Analyze Selected",
+            disabled: isAnalyzing || !selectedPoint,
+            action: runExpressAnalysis
+          }
+    : hasCriteriaFirstCandidateSet
+        ? {
+            label: "Compare Candidates",
+            disabled: isAnalyzing,
+            action: runCandidateComparison
+          }
+      : comparisonItems.length >= 2
+        ? {
+            label: "Compare Selected",
+            disabled: isAnalyzing,
+            action: runComparison
+          }
       : analysis
         ? isAnalysisUpToDate
           ? {
@@ -2229,17 +2711,20 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
             }
           : {
               label: isAnalyzing ? "Continuing..." : "Continue Analysis",
-              disabled: !selectedPoint || isAnalyzing,
+              disabled: (!selectedPoint && !hasCriteriaFirstCandidateSet) || isAnalyzing,
               action: runExpressAnalysis
             }
         : {
             label: isAnalyzing ? "Analyzing..." : "Run Express Analysis",
-            disabled: !selectedPoint || isAnalyzing,
+            disabled: (!selectedPoint && !hasCriteriaFirstCandidateSet) || isAnalyzing,
             action: runExpressAnalysis
           };
 
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden lg:grid-cols-[minmax(0,1fr)_400px]">
+    <div
+      className="grid min-h-0 shrink-0 grid-cols-1 overflow-hidden lg:grid-cols-[minmax(0,1fr)_380px]"
+      style={{ height: "calc(100vh - 4rem)" }}
+    >
       {reportPreview === "analysis" && analysis ? (
         <ReportPreview key={`report-${analysis.id}`} mode="analysis" analysis={analysis} onBack={() => setReportPreview(null)} />
       ) : reportPreview === "comparison" && comparison ? (
@@ -2252,6 +2737,7 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
           onExportComparison={() => {
             void exportPrintableReport("comparison");
           }}
+          onOpenCandidateDashboard={openComparisonItemDashboard}
         />
       ) : analysis ? (
         <ExpressDashboard
@@ -2261,10 +2747,19 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
           onExportReport={() => {
             void exportPrintableReport("analysis");
           }}
+          candidateNavigation={comparisonReturn
+            ? {
+                items: comparisonReturn.items.map((item) => item.item),
+                activeItemId: activeComparisonNavigationItemId,
+                onOpenItem: openComparisonItemDashboard,
+                onBackToComparison: returnToCandidateComparison
+              }
+            : undefined}
         />
       ) : (
         <MapWorkspace
           key="map-workspace"
+          className="relative h-full min-h-0 overflow-hidden bg-[#dfe8ec]"
           selectedPoint={selectedPoint}
           selectedObject={selectedObject}
           selectedAoi={selectedAoi}
@@ -2274,7 +2769,7 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
           onAoiDelete={handleAoiDelete}
           uploadedDatasets={uploadedDatasets}
           projectId={activeProject.projectKey}
-          exploreCandidates={exploreCandidates}
+          exploreCandidates={visibleExploreCandidates}
           selectedExploreCandidateId={selectedExploreCandidateId}
           onExploreCandidateSelect={selectExploreCandidate}
         />
@@ -2306,26 +2801,26 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
         projectAois={projectAois}
         aoiDraftName={aoiDraftName}
         aoiMessage={aoiMessage}
-        guidedDemoPresets={guidedDemoPresets}
-        activeGuidedDemoId={activeGuidedDemoId}
-        activeDemoNarrative={getDemoNarrativeById(activeDemoNarrativeId)}
         exploreAudience={selectedExploreAudience}
         exploreRole={selectedExploreRole}
         exploreScenarioId={selectedExploreScenario}
         exploreInteractionMode={exploreInteractionMode}
         exploreFilters={exploreFilters}
-        exploreCandidates={exploreCandidates}
+        exploreCandidates={visibleExploreCandidates}
+        candidateSearchStatus={candidateSearchStatus}
         selectedExploreCandidateId={selectedExploreCandidateId}
         exploreSetupDefaultOpen={initialExploreMode}
         onExploreAudienceChange={changeExploreAudience}
-        onExploreRoleChange={setSelectedExploreRole}
+        onExploreRoleChange={changeExploreRole}
         onExploreScenarioChange={changeExploreScenario}
-        onExploreInteractionModeChange={setExploreInteractionMode}
+        onExploreInteractionModeChange={changeExploreInteractionMode}
         onExploreFilterChange={updateExploreFilter}
         onExploreCandidateSelect={selectExploreCandidate}
+        onCreateProject={createProject}
         onProjectChange={changeActiveProject}
         onCustomQueryChange={(query) => {
           setCustomQuery(query);
+          resetCandidateSearchForCriteriaChange();
           setAnalysisError(null);
         }}
         primaryCtaLabel={primaryCtaState.label}
@@ -2345,8 +2840,6 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
         onDeleteSavedAoi={deleteSavedAoi}
         onExportSelectedAoi={exportSelectedAoi}
         onExportSavedAoi={exportSavedAoi}
-        onLoadGuidedDemo={(presetId) => loadGuidedDemo(presetId)}
-        onLoadGuidedDemoComparison={(presetId) => loadGuidedDemo(presetId, true)}
         onRemoveUploadedDataset={removeUploadedDataset}
         onClearUploadedDatasets={clearUploadedDatasets}
         onToggleUploadedDataset={toggleUploadedDataset}
