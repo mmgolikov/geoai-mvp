@@ -1,0 +1,65 @@
+erDiagram
+  organizations ||--o{ users : has
+  organizations ||--o{ projects : owns
+  projects ||--o{ aois : contains
+  projects ||--o{ objects : contains
+  projects ||--o{ analyses : contains
+  datasets ||--o{ layers : provides
+  datasets ||--o{ objects : sources
+  analyses ||--o{ scores : has
+  analyses ||--o{ evidence_items : has
+  analyses ||--o{ reports : produces
+  users ||--o{ audit_events : creates
+
+  organizations {
+    uuid id PK
+    text name
+    text status
+  }
+  users {
+    uuid id PK
+    uuid organization_id FK
+    text email
+    text role
+  }
+  projects {
+    uuid id PK
+    uuid organization_id FK
+    text name
+    text status
+  }
+  aois {
+    uuid id PK
+    uuid project_id FK
+    geometry geometry
+    text label
+  }
+  objects {
+    uuid id PK
+    uuid project_id FK
+    uuid dataset_id FK
+    geometry geometry
+    text object_type
+  }
+  datasets {
+    uuid id PK
+    text name
+    text status
+    text confidence_level
+  }
+  analyses {
+    uuid id PK
+    uuid project_id FK
+    uuid aoi_id FK
+    text scenario_type
+    text status
+  }
+  reports {
+    uuid id PK
+    uuid project_id FK
+    uuid analysis_id FK
+    text report_type
+    text status
+  }
+
+%% ERD-001 v0.9 Review
