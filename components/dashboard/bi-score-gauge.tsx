@@ -24,7 +24,7 @@ export function BiScoreGauge({
   const showDetail = Boolean(detail && detail.trim() && detail.trim() !== summary.trim());
 
   return (
-    <article className="flex min-w-[220px] flex-col items-center rounded-md border border-line bg-white p-3 text-center shadow-sm">
+    <article className="flex h-full min-w-[220px] flex-col items-center rounded-md border border-line bg-white p-3 text-center shadow-sm">
       <div className="relative h-[104px] w-[104px] shrink-0">
         <svg className="h-full w-full -rotate-90" viewBox="0 0 104 104" aria-hidden="true">
           <circle cx="52" cy="52" r={radius} stroke="#eef2f1" strokeWidth="12" fill="none" />

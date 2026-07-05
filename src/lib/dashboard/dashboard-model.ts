@@ -168,12 +168,84 @@ export function shortNextAction(actions: DashboardDriver[]) {
   if (normalized.includes("compare")) return "Compare shortlist";
   if (normalized.includes("memo") || normalized.includes("report")) return "Prepare memo";
   if (normalized.includes("site visit") || normalized.includes("field")) return "Plan site visit";
+  if (normalized.includes("land-use") || normalized.includes("land use") || normalized.includes("zoning")) return "Check zoning";
   if (normalized.includes("planning")) return "Check planning";
   if (normalized.includes("market")) return "Validate market";
   if (normalized.includes("source") || normalized.includes("official") || normalized.includes("valid")) return "Validate sources";
   if (normalized.includes("due diligence") || normalized.includes("diligence")) return "Run diligence";
 
   return shortLabel(action, "Validate sources", 34);
+}
+
+function evidenceKpi(analysis: ExpressAnalysis): DashboardKpi {
+  const appliedUploadMetrics = analysis.uploadedDataContext?.appliedMetrics.length ?? 0;
+  const uploadedDatasets = analysis.uploadedDataContext?.uploadedDatasets.length ?? 0;
+  const userProvidedGeometry =
+    analysis.selectedAoi?.sourceType === "uploaded_geojson" ||
+    analysis.selectedAoi?.source === "uploaded_geojson_polygon" ||
+    analysis.analysisTarget?.type === "uploaded-feature" ||
+    analysis.analysisTarget?.sourceMode === "user-uploaded";
+  const userDrawnGeometry = Boolean(
+    analysis.selectedAoi?.sourceType === "user_drawn" ||
+      analysis.selectedAoi?.source === "user_drawn_polygon" ||
+      analysis.analysisTarget?.type === "user-drawn-aoi" ||
+      analysis.analysisTarget?.sourceMode === "user-drawn"
+  );
+  const importedMetrics =
+    appliedUploadMetrics > 0 ||
+    Boolean(analysis.marketMetricsMatch?.importedMetricsUsed) ||
+    Boolean(analysis.marketContext?.importedMarketMetrics?.importedMetricsUsed);
+  const hasOpenContext = analysis.evidence.some((item) =>
+    item.sourceType === "open_data" || item.sourceType === "open_geospatial"
+  );
+
+  if (userProvidedGeometry) {
+    return {
+      id: "evidence",
+      label: "Evidence",
+      value: "User data",
+      tone: "neutral",
+      explanation: "User-provided geometry or data; official/client validation required."
+    };
+  }
+
+  if (userDrawnGeometry) {
+    return {
+      id: "evidence",
+      label: "Evidence",
+      value: "User AOI",
+      tone: "neutral",
+      explanation: "User-defined screening geometry; official/client validation required."
+    };
+  }
+
+  if (importedMetrics) {
+    return {
+      id: "evidence",
+      label: "Evidence",
+      value: "Imported",
+      tone: "neutral",
+      explanation: "Manual/sample metrics support screening only; official validation required."
+    };
+  }
+
+  if (uploadedDatasets > 0) {
+    return {
+      id: "evidence",
+      label: "Evidence",
+      value: "User files",
+      tone: "neutral",
+      explanation: "Uploaded files are available for screening; official/client validation required."
+    };
+  }
+
+  return {
+    id: "evidence",
+    label: "Evidence",
+    value: hasOpenContext ? "Sample/open" : "Sample",
+    tone: "neutral",
+    explanation: "Source lineage is available; official/client validation required."
+  };
 }
 
 function shortSignalLabel(value: string, type: DashboardDriver["type"], index: number, prefix: string) {
@@ -410,7 +482,8 @@ export function buildDashboardModel(analysis: ExpressAnalysis): DashboardModel {
         value: recommendedNextAction,
         tone: "neutral",
         explanation: recommendedNextActionDetail
-      }
+      },
+      evidenceKpi(analysis)
     ],
     drivers,
     risks,

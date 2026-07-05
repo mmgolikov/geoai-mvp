@@ -2,7 +2,7 @@
 
 GeoAI is a Next.js spatial decision intelligence MVP for evaluating Dubai real estate, infrastructure, construction, and climate-risk scenarios. The current version is an investor demo prototype, not a production-ready or pilot-ready product: it uses Mapbox for the workspace, synthetic/demo geospatial layers, OSM-style sample baseline fixtures, deterministic mock scoring, optional OpenAI-powered narrative analysis, comparison dashboards, and print-friendly report previews.
 
-Pilot UX v3.5 keeps the app workspace-first, preserves the criteria-first product flow, and hardens the first analysis/comparison dashboard grid so the BI cockpit, gauge and KPI cards fit without wasted gutters or broken labels. The analysis dashboard uses a curated BI model with KPIs, top drivers, top risks, validation gaps, actions and compact drill-down modules. Outputs remain screening hypotheses requiring official/client validation.
+Pilot UX v3.6 keeps the app workspace-first, preserves the criteria-first product flow, and freezes the current pilot UX as a release candidate after dashboard cockpit alignment hardening, a balanced 6-KPI grid, and full client-pilot review. Outputs remain screening hypotheses requiring official/client validation.
 
 OpenAI is optional. If `OPENAI_API_KEY` is not configured, GeoAI automatically uses the deterministic mock fallback so the product remains fully usable for demos.
 
@@ -148,6 +148,7 @@ See [Repository Mode & Fallback Consistency v2.0.2](docs/REPOSITORY_MODE_FALLBAC
 
 ## Latest Release Notes
 
+- [GeoAI Pilot UX v3.6 - Release Candidate Hardening and Visual QA Freeze](docs/RELEASE_GEOAI_PILOT_UX_V36_RELEASE_CANDIDATE.md)
 - [GeoAI Pilot UX v3.5 - Final Dashboard Grid and KPI Fit Hardening](docs/RELEASE_GEOAI_PILOT_UX_V35_DASHBOARD_GRID_FIT.md)
 - [GeoAI Pilot UX v3.4 - Dashboard Viewport Alignment](docs/RELEASE_GEOAI_PILOT_UX_V34_VIEWPORT_ALIGNMENT.md)
 - [GeoAI Pilot UX v3.3 - Text-Safe BI Dashboard and Supabase Activation Readiness](docs/RELEASE_GEOAI_PILOT_UX_V33_TEXT_SAFE_SUPABASE.md)
