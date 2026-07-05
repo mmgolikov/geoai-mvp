@@ -8,20 +8,26 @@ export async function GET() {
 
   return NextResponse.json({
     ok: true,
+    version: readiness.version,
     mode: readiness.mode,
     source: readiness.source,
-    lineage: readiness.readiness.map((item) => ({
-      sourceId: item.sourceId,
-      sourceName: item.sourceName,
+    lineage: readiness.sourceGroups.map((item) => ({
+      sourceGroupId: item.id,
+      sourceGroupName: item.name,
+      sourceIds: item.sourceIds,
       status: item.status,
-      sourceMode: item.sourceMode,
+      dataMode: item.dataMode,
       confidence: item.confidence,
       recordCount: item.recordCount,
       coverageArea: item.coverageArea,
+      availableFiles: item.availableFiles,
       caveat: item.caveat,
-      validationRequired: true
+      nextValidationStep: item.nextValidationStep,
+      validationRequired: item.validationRequired
     })),
+    summary: readiness.summary,
     blockers: readiness.blockers,
+    nextActions: readiness.nextActions,
     caveat: readiness.caveat,
     generatedAt: readiness.generatedAt
   });

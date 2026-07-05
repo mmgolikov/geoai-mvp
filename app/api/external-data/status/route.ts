@@ -5,5 +5,12 @@ export const runtime = "nodejs";
 
 export async function GET() {
   const data = await getSourceRegistryReadiness();
-  return NextResponse.json({ ok: true, ...data, sources: data.manifest.sources, lastUpdated: data.generatedAt });
+  return NextResponse.json({
+    ok: true,
+    ...data,
+    sources: data.manifest.sources,
+    sourceGroups: data.sourceGroups,
+    summary: data.summary,
+    lastUpdated: data.generatedAt
+  });
 }

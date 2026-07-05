@@ -20,6 +20,7 @@
     "ingest:admin-boundaries:public": "node scripts/ingest-public-data.mjs admin-boundaries-public",
     "ingest:public-data:all": "node scripts/ingest-public-data.mjs all",
     "data:status": "node scripts/data-status.mjs",
+    "data:sync-source-readiness": "node scripts/sync-source-readiness-snapshots.mjs",
     "validate:external-data": "node scripts/data-status.mjs --validate",
     "supabase:activation-status": "node scripts/supabase-activation-status.mjs",
     "supabase:migrate:check": "node scripts/check-supabase-migration.mjs",

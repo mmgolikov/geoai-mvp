@@ -3,28 +3,97 @@ import { externalDataCaveat } from "@/src/lib/external-data/source-registry";
 import { readExternalDataManifest } from "@/src/lib/external-data/data-manifest";
 import { normalizeSourceStatus } from "@/src/lib/external-data/source-status";
 import { normalizeSourceDataMode } from "@/src/lib/external-data/source-modes";
+import {
+  buildSourceReadinessGroups,
+  sourceReadinessSummary,
+  type SourceReadinessGroup
+} from "@/src/lib/external-data/source-readiness-groups";
 
 type RegistryRow = {
   source_id?: string | null;
   source_name?: string | null;
   category?: string | null;
+  access_mode?: string | null;
   connection_status?: string | null;
   source_mode?: string | null;
+  data_quality_tier?: string | null;
   record_count?: number | null;
+  quality?: unknown;
+  lineage?: unknown;
   caveat?: string | null;
   updated_at?: string | null;
 };
 
 type SnapshotRow = {
   source_id?: string | null;
+  category?: string | null;
+  source_mode?: string | null;
+  raw_file_name?: string | null;
   normalized_path?: string | null;
   record_count?: number | null;
+  quality?: unknown;
+  manifest?: unknown;
   imported_at?: string | null;
 };
 
 function normalizeRegistryStatus(value: unknown) {
   if (String(value ?? "").trim().toLowerCase() === "connected_context_ready") return "connected" as const;
   return normalizeSourceStatus(value);
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+}
+
+function asStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
+}
+
+function rowMatchesGroup(sourceId: string | null | undefined, group: SourceReadinessGroup) {
+  return Boolean(sourceId && (sourceId === group.id || group.sourceIds.includes(sourceId)));
+}
+
+function overlaySupabaseRows(
+  groups: SourceReadinessGroup[],
+  rows: RegistryRow[],
+  snapshots: SnapshotRow[]
+): SourceReadinessGroup[] {
+  return groups.map((group) => {
+    const registryRow = rows.find((row) => rowMatchesGroup(row.source_id, group));
+    const snapshotRow = snapshots.find((row) => rowMatchesGroup(row.source_id, group));
+    const lineage = asRecord(registryRow?.lineage);
+    const manifest = asRecord(snapshotRow?.manifest);
+    const lineageFiles = asStringArray(lineage?.availableFiles);
+    const manifestFiles = asStringArray(manifest?.availableFiles);
+    const nextValidationStep = typeof lineage?.nextValidationStep === "string"
+      ? lineage.nextValidationStep
+      : group.nextValidationStep;
+    const status = normalizeRegistryStatus(registryRow?.connection_status ?? (snapshotRow?.normalized_path ? "snapshot_available" : group.status));
+    const dataMode = normalizeSourceDataMode(snapshotRow?.source_mode ?? registryRow?.source_mode ?? status);
+    const recordCount = snapshotRow?.record_count ?? registryRow?.record_count ?? group.recordCount;
+
+    return {
+      ...group,
+      status,
+      dataMode,
+      recordCount,
+      confidence: status === "connected" || status === "snapshot_available"
+        ? "medium"
+        : group.confidence,
+      category: registryRow?.category ?? snapshotRow?.category ?? group.category,
+      availableFiles: Array.from(new Set([
+        ...group.availableFiles,
+        ...lineageFiles,
+        ...manifestFiles,
+        ...(snapshotRow?.normalized_path ? [snapshotRow.normalized_path] : [])
+      ])),
+      lastUpdated: snapshotRow?.imported_at ?? registryRow?.updated_at ?? group.lastUpdated,
+      caveat: registryRow?.caveat ?? group.caveat,
+      nextValidationStep
+    };
+  });
 }
 
 async function readRows() {
@@ -49,28 +118,46 @@ async function readRows() {
 export async function getSourceRegistryReadiness() {
   const fallback = readExternalDataManifest();
   const { rows, snapshots, blocker } = await readRows();
+  const fallbackGroups = buildSourceReadinessGroups(fallback);
+  const sourceGroups = rows.length === 0
+    ? fallbackGroups
+    : overlaySupabaseRows(fallbackGroups, rows, snapshots);
+  const summary = sourceReadinessSummary(sourceGroups);
+  const generatedAt = new Date().toISOString();
 
   if (rows.length === 0) {
     return {
+      version: "1.2",
       mode: "local_fallback",
       source: "local_manifest_fallback",
       sourceRegistryCount: 0,
       externalSnapshotCount: snapshots.length,
       manifest: fallback,
-      readiness: fallback.sources.map((source) => ({
-        sourceId: source.id,
-        sourceName: source.id,
-        status: source.status,
-        sourceMode: source.sourceMode,
-        lastUpdated: source.lastUpdated ?? null,
-        recordCount: source.recordCount ?? source.rowCount ?? source.featureCount,
-        coverageArea: source.coverageArea ?? "Dubai / UAE screening context",
-        confidence: source.confidence ?? "requires-validation",
-        caveat: source.caveat ?? source.disclaimer ?? externalDataCaveat
+      sourceGroups,
+      summary,
+      readiness: sourceGroups.map((group) => ({
+        sourceId: group.id,
+        sourceName: group.name,
+        status: group.status,
+        sourceMode: group.dataMode,
+        dataMode: group.dataMode,
+        lastUpdated: group.lastUpdated,
+        recordCount: group.recordCount,
+        coverageArea: group.coverageArea,
+        confidence: group.confidence,
+        caveat: group.caveat,
+        nextValidationStep: group.nextValidationStep,
+        validationRequired: true
       })),
       blockers: [blocker].filter(Boolean),
+      nextActions: sourceGroups.map((group) => group.nextValidationStep),
+      sync: {
+        helper: "npm run data:sync-source-readiness",
+        status: "available",
+        writes: ["source_registry_snapshots", "external_data_snapshots"]
+      },
       caveat: externalDataCaveat,
-      generatedAt: new Date().toISOString()
+      generatedAt
     };
   }
 
@@ -95,29 +182,41 @@ export async function getSourceRegistryReadiness() {
   });
 
   return {
+    version: "1.2",
     mode: "supabase",
     source: "supabase_source_registry",
     sourceRegistryCount: rows.length,
     externalSnapshotCount: snapshots.length,
     manifest: {
       generatedAt: new Date().toISOString(),
-      version: "1.7",
-      summary: "GeoAI Data Foundation v1.1 source registry metadata.",
+      version: "1.2",
+      summary: "GeoAI Data Foundation v1.2 source registry and snapshot readiness metadata.",
       sources: manifestSources
     },
-    readiness: manifestSources.map((source) => ({
-      sourceId: source.id,
-      sourceName: rows.find((row) => row.source_id === source.id)?.source_name ?? source.id,
-      status: source.status,
-      sourceMode: source.sourceMode,
-      lastUpdated: source.lastUpdated,
-      recordCount: source.recordCount,
-      coverageArea: source.coverageArea,
-      confidence: source.confidence,
-      caveat: source.caveat
+    sourceGroups,
+    summary,
+    readiness: sourceGroups.map((group) => ({
+      sourceId: group.id,
+      sourceName: group.name,
+      status: group.status,
+      sourceMode: group.dataMode,
+      dataMode: group.dataMode,
+      lastUpdated: group.lastUpdated,
+      recordCount: group.recordCount,
+      coverageArea: group.coverageArea,
+      confidence: group.confidence,
+      caveat: group.caveat,
+      nextValidationStep: group.nextValidationStep,
+      validationRequired: true
     })),
     blockers: [],
+    nextActions: sourceGroups.map((group) => group.nextValidationStep),
+    sync: {
+      helper: "npm run data:sync-source-readiness",
+      status: "available",
+      writes: ["source_registry_snapshots", "external_data_snapshots"]
+    },
     caveat: externalDataCaveat,
-    generatedAt: new Date().toISOString()
+    generatedAt
   };
 }
