@@ -1,0 +1,28 @@
+sequenceDiagram
+  actor User
+  participant Web as Web App
+  participant Server as Server Layer
+  participant DB as Database
+  participant Data as Data Layer
+  participant Score as Scoring
+  participant Report as Report Service
+
+  User->>Web: select area or object
+  User->>Web: choose scenario or custom query
+  Web->>Server: submit analysis request
+  Server->>DB: validate project and context
+  Server->>DB: create analysis record
+  Server->>Data: request source context
+  Data-->>Server: return context package
+  Server->>Score: calculate scores
+  Score-->>Server: return score package
+  Server->>DB: save analysis result
+  Server-->>Web: return dashboard data
+  Web-->>User: render dashboard
+  User->>Web: request report export
+  Web->>Server: submit report request
+  Server->>Report: generate report
+  Report->>DB: save report metadata
+  Server-->>Web: return report status
+
+%% SEQ-001 v0.9 Review
