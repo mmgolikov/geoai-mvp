@@ -22,6 +22,11 @@ type SnapshotRow = {
   imported_at?: string | null;
 };
 
+function normalizeRegistryStatus(value: unknown) {
+  if (String(value ?? "").trim().toLowerCase() === "connected_context_ready") return "connected" as const;
+  return normalizeSourceStatus(value);
+}
+
 async function readRows() {
   const client = await getSupabaseServerClient();
   if (!client) return { rows: [] as RegistryRow[], snapshots: [] as SnapshotRow[], blocker: "Supabase server client is not configured." };
@@ -72,7 +77,7 @@ export async function getSourceRegistryReadiness() {
   const snapshotsBySource = new Map(snapshots.filter((item) => item.source_id).map((item) => [item.source_id as string, item]));
   const manifestSources = rows.filter((row) => row.source_id).map((row) => {
     const snapshot = snapshotsBySource.get(row.source_id as string);
-    const status = normalizeSourceStatus(row.connection_status ?? "manual_import_ready");
+    const status = normalizeRegistryStatus(row.connection_status ?? "manual_import_ready");
     const sourceMode = normalizeSourceDataMode(snapshot?.normalized_path ? "snapshot_available" : row.source_mode ?? status);
     return {
       id: row.source_id as string,
@@ -81,10 +86,10 @@ export async function getSourceRegistryReadiness() {
       availableFiles: snapshot?.normalized_path ? [snapshot.normalized_path] : [],
       recordCount: snapshot?.record_count ?? row.record_count ?? undefined,
       coverageArea: row.category ?? "Dubai / UAE screening context",
-      confidence: status === "snapshot_available" || status === "connected_context_ready" ? "medium" : "requires-validation",
+      confidence: status === "snapshot_available" || status === "connected" ? "medium" : "requires-validation",
       caveat: row.caveat ?? externalDataCaveat,
       sourceMode,
-      usedInAnalysis: status === "connected_context_ready" || status === "snapshot_available",
+      usedInAnalysis: status === "connected" || status === "snapshot_available",
       disclaimer: row.caveat ?? externalDataCaveat
     };
   });
