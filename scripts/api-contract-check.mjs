@@ -172,6 +172,7 @@ function assertBackendPayload(route, payload) {
     assertString(payload.repositoryMode, "pilot backend missing repositoryMode");
     assertString(payload.runtimeMode, "pilot backend missing runtimeMode");
     assert(typeof payload.canRunDemoPilot === "boolean", "canRunDemoPilot is missing");
+    assert(typeof payload.canRunDemoWorkflow === "boolean", "canRunDemoWorkflow is missing");
     assert(typeof payload.canRunConfidentialPilot === "boolean", "canRunConfidentialPilot is missing");
     assert(typeof payload.supabaseConfigured === "boolean", "pilot backend missing supabaseConfigured");
     assert(typeof payload.localApiFallbackActive === "boolean", "pilot backend missing localApiFallbackActive");

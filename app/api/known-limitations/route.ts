@@ -50,6 +50,7 @@ export async function GET() {
     liveReadiness: {
       pilotBackendStatus: pilotBackend.status,
       canRunDemoPilot: pilotBackend.canRunDemoPilot,
+      canRunDemoWorkflow: pilotBackend.canRunDemoWorkflow,
       canRunConfidentialPilot: pilotBackend.canRunConfidentialPilot
     }
   }));
@@ -60,6 +61,7 @@ export async function GET() {
     items,
     pilotBackendStatus: pilotBackend.status,
     canRunDemoPilot: pilotBackend.canRunDemoPilot,
+    canRunDemoWorkflow: pilotBackend.canRunDemoWorkflow,
     canRunConfidentialPilot: pilotBackend.canRunConfidentialPilot,
     caveat: "Limitations are explicit product guardrails, not hidden production readiness claims."
   });

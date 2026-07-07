@@ -15,7 +15,7 @@ Use this checklist before demos, Vercel deployments, and milestone checkpoints.
 - [ ] If Supabase is configured, `/api/db/health` does not print any secret values.
 - [ ] `npm run build` passes.
 - [ ] `npm run lint` passes.
-- [ ] `GET /api/pilot-backend/status` returns 200 and shows `canRunDemoPilot` / `canRunConfidentialPilot`.
+- [ ] `GET /api/pilot-backend/status` returns 200 and shows legacy `canRunDemoPilot`, clearer `canRunDemoWorkflow` and `canRunConfidentialPilot`.
 - [ ] `GET /api/known-limitations` dynamically reflects DB/storage/auth/audit readiness without overclaiming.
 - [ ] `npm run supabase:verify:memberships` exits safely with blockers when Supabase is unavailable.
 - [ ] `npm run audit:verify` exits safely with blockers when Supabase is unavailable.

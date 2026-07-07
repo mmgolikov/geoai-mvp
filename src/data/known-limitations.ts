@@ -55,10 +55,10 @@ export const knownLimitations: KnownLimitation[] = [
     id: "auth_enforcement",
     title: "Project access enforcement",
     currentStatus: "foundation_ready",
-    whatExists: "Public pilot access helper and soft project access metadata across core APIs.",
+    whatExists: "Public demo access helper and soft project access metadata across core APIs.",
     whatIsMissing: "Configured Supabase Auth sessions, membership-backed hard enforcement and production route policy rollout.",
     nextAction: "Enable Supabase Auth, seed project memberships and switch selected APIs from soft to hard enforcement after QA.",
-    caveat: "Public pilot access is not production authentication.",
+    caveat: "Public demo access is not production authentication.",
     relatedRoutes: ["/api/auth/session", "/api/aois", "/api/data-room", "/api/reports"],
     relatedDocs: ["/docs/AUTH_PROJECT_ACCESS_FOUNDATION_V22.md"]
   },

@@ -84,6 +84,7 @@ type PilotBackendStatusResponse = {
   repositoryMode: RepositoryMode;
   accessEnforcementMode: "soft" | "hard";
   canRunDemoPilot: boolean;
+  canRunDemoWorkflow?: boolean;
   canRunConfidentialPilot: boolean;
   capabilities: Array<{
     id: string;
@@ -1242,7 +1243,7 @@ export function ProjectDashboard() {
       value: platformStatus?.authMode === "supabase_auth" ? "Supabase Auth" : "Pilot access",
       note: pilotCapability("auth_sessions")?.evidence ?? (platformStatus?.authMode === "supabase_auth"
         ? "Membership-backed access foundation"
-        : "Public pilot access; not production authentication")
+        : "Public demo access; not production authentication")
     },
     {
       label: "DB",

@@ -12,7 +12,7 @@ import type {
 } from "@/src/types/pilot-backend";
 
 const fallbackCaveat = "Local/API fallback is not durable production storage.";
-const demoAccessCaveat = "Public pilot access is not production authentication.";
+const demoAccessCaveat = "Public demo access is not production authentication.";
 const supabaseCaveat = "Supabase/PostGIS durable persistence is active only when configured and schema readiness checks pass.";
 const storageCaveat = "Storage readiness is not secure enterprise storage until buckets, policies, signed URL flows and access enforcement are configured and verified.";
 const auditCaveat = "Audit events are a foundation only, not a certified audit trail.";
@@ -242,6 +242,7 @@ export async function getPilotBackendActivationSummary(): Promise<PilotBackendAc
   }
 
   const canRunDemoPilot = config.allowDemoPublic;
+  const canRunDemoWorkflow = canRunDemoPilot;
   const canRunConfidentialPilot = [
     "supabase_connection",
     "postgis_schema",
@@ -275,6 +276,7 @@ export async function getPilotBackendActivationSummary(): Promise<PilotBackendAc
     requireSupabaseReady: config.requireSupabaseReady,
     requireStorageReady: config.requireStorageReady,
     canRunDemoPilot,
+    canRunDemoWorkflow,
     canRunConfidentialPilot,
     capabilities,
     blockers,
