@@ -146,6 +146,10 @@ Local/API fallback is not durable production storage. Browser-local storage is f
 
 See [Repository Mode & Fallback Consistency v2.0.2](docs/REPOSITORY_MODE_FALLBACK_CONSISTENCY_V202.md).
 
+## Governance / Current Status
+
+- [Current Release State - 2026-07-07](docs/CURRENT_RELEASE_STATE_2026_07_07.md)
+
 ## Latest Release Notes
 
 - [GeoAI Data Foundation v1.2 - Snapshot Ingestion and Data Readiness UI](docs/RELEASE_GEOAI_DATA_FOUNDATION_V12.md)
