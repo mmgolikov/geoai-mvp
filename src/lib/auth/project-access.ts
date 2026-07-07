@@ -72,8 +72,8 @@ export function requireProjectAccess({
   const reason = allowed
     ? authStatus.effectiveMode === "demo_public"
       ? effectiveMode === "hard"
-        ? "Public pilot project access allowed by GEOAI_ALLOW_DEMO_PUBLIC for seeded demo project."
-        : "Public pilot project access allowed in soft mode."
+        ? "Public demo project access allowed by GEOAI_ALLOW_DEMO_PUBLIC for seeded demo project."
+        : "Public demo project access allowed in soft mode."
       : "Project membership allows this action."
     : authStatus.effectiveMode === "supabase_auth"
       ? "Supabase Auth is requested, but project membership is not available in this runtime."

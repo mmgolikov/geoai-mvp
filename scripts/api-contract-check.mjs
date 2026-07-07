@@ -47,6 +47,46 @@ function assertObject(value, message) {
   assert(typeof value === "object" && value !== null && !Array.isArray(value), message);
 }
 
+function assertCaveat(value, message) {
+  const values = Array.isArray(value) ? value : [value];
+  assert(values.some((item) => typeof item === "string" && item.trim().length > 0), message);
+}
+
+function assertNoPositiveReadinessClaim(route, text, payload) {
+  const normalized = text.toLowerCase();
+  const hasReadyPhrase = /production[-_]ready|pilot[-_]ready/.test(normalized);
+  if (!hasReadyPhrase) return;
+
+  const hasExplicitNegative = /not[-_ ]production[-_ ]ready|not[-_ ]pilot[-_ ]ready|not_production_ready_or_pilot_ready/.test(normalized);
+  const hardVerified = payload.runtimeReadiness?.hardAccessVerified === true &&
+    payload.runtimeReadiness?.schemaReady === true &&
+    payload.runtimeReadiness?.storageReady === true;
+  assert(hasExplicitNegative || hardVerified, `${route} appears to make a production-ready or pilot-ready claim without hard runtime verification`);
+}
+
+function assertRuntimeReadiness(route, runtimeReadiness) {
+  assertObject(runtimeReadiness, `${route} missing runtimeReadiness`);
+  assertString(runtimeReadiness.runtimeMode, `${route} runtimeReadiness missing runtimeMode`);
+  assertString(runtimeReadiness.repositoryMode, `${route} runtimeReadiness missing repositoryMode`);
+  assert(typeof runtimeReadiness.supabaseConfigured === "boolean", `${route} runtimeReadiness missing supabaseConfigured`);
+  assert(typeof runtimeReadiness.hasSupabasePublicEnv === "boolean", `${route} runtimeReadiness missing hasSupabasePublicEnv`);
+  assert(typeof runtimeReadiness.hasSupabaseServerEnv === "boolean", `${route} runtimeReadiness missing hasSupabaseServerEnv`);
+  assert(typeof runtimeReadiness.hasSupabaseServiceRoleEnv === "boolean", `${route} runtimeReadiness missing hasSupabaseServiceRoleEnv`);
+  assert(typeof runtimeReadiness.serviceRoleUsedForWrites === "boolean", `${route} runtimeReadiness missing serviceRoleUsedForWrites`);
+  assert(runtimeReadiness.serviceRoleUsedForWrites === false, `${route} runtimeReadiness must never report service-role writes`);
+  assert(typeof runtimeReadiness.canReadHealthcheck === "boolean", `${route} runtimeReadiness missing canReadHealthcheck`);
+  assert(typeof runtimeReadiness.canReadSourceRegistry === "boolean", `${route} runtimeReadiness missing canReadSourceRegistry`);
+  assert(typeof runtimeReadiness.canReadExternalSnapshots === "boolean", `${route} runtimeReadiness missing canReadExternalSnapshots`);
+  assert(typeof runtimeReadiness.schemaReady === "boolean", `${route} runtimeReadiness missing schemaReady`);
+  assert(typeof runtimeReadiness.postgisReady === "boolean", `${route} runtimeReadiness missing postgisReady`);
+  assert(typeof runtimeReadiness.storageReady === "boolean", `${route} runtimeReadiness missing storageReady`);
+  assert(typeof runtimeReadiness.localApiFallbackActive === "boolean", `${route} runtimeReadiness missing localApiFallbackActive`);
+  assertArray(runtimeReadiness.blockers, `${route} runtimeReadiness missing blockers`);
+  assertArray(runtimeReadiness.nextActions, `${route} runtimeReadiness missing nextActions`);
+  assertCaveat(runtimeReadiness.caveats ?? runtimeReadiness.caveat, `${route} runtimeReadiness missing caveats`);
+  assertString(runtimeReadiness.generatedAt, `${route} runtimeReadiness missing generatedAt`);
+}
+
 function assertDataFoundationPayload(route, payload) {
   assert(payload.ok === true, `${route} must return ok: true`);
   assertString(payload.version, `${route} missing version`);
@@ -100,27 +140,49 @@ function assertBackendPayload(route, payload) {
   if (route === "/api/db/health") {
     assertString(payload.status, "db health missing status");
     assertString(payload.repositoryMode, "db health missing repositoryMode");
+    assertString(payload.runtimeMode, "db health missing runtimeMode");
+    assert(typeof payload.supabaseConfigured === "boolean", "db health missing supabaseConfigured");
+    assert(typeof payload.healthcheckReachable === "boolean", "db health missing healthcheckReachable");
+    assert(typeof payload.schemaReady === "boolean", "db health missing schemaReady");
+    assert(typeof payload.postgisReady === "boolean", "db health missing postgisReady");
+    assert(typeof payload.sourceRegistryReady === "boolean", "db health missing sourceRegistryReady");
+    assert(typeof payload.externalSnapshotsReady === "boolean", "db health missing externalSnapshotsReady");
     assertString(payload.caveat, "db health missing caveat");
+    assertCaveat(payload.caveats ?? payload.caveat, "db health missing caveats");
     assertArray(payload.blockers, "db health missing blockers");
     assertArray(payload.nextActions, "db health missing nextActions");
+    assertRuntimeReadiness(route, payload.runtimeReadiness);
   }
 
   if (route === "/api/platform/activation-status") {
     assertString(payload.activationStatus, "platform activation missing activationStatus");
     assertString(payload.repositoryMode, "platform activation missing repositoryMode");
+    assertString(payload.runtimeMode, "platform activation missing runtimeMode");
+    assert(typeof payload.supabaseConfigured === "boolean", "platform activation missing supabaseConfigured");
+    assert(typeof payload.supabaseReachable === "boolean", "platform activation missing supabaseReachable");
+    assert(typeof payload.localApiFallbackActive === "boolean", "platform activation missing localApiFallbackActive");
     assertArray(payload.blockers, "platform activation missing blockers");
     assertArray(payload.nextActions, "platform activation missing nextActions");
+    assertCaveat(payload.caveats ?? payload.caveat, "platform activation missing caveats");
+    assertRuntimeReadiness(route, payload.runtimeReadiness);
   }
 
   if (route === "/api/pilot-backend/status") {
     assertString(payload.status, "pilot backend status is missing");
+    assertString(payload.repositoryMode, "pilot backend missing repositoryMode");
+    assertString(payload.runtimeMode, "pilot backend missing runtimeMode");
     assert(typeof payload.canRunDemoPilot === "boolean", "canRunDemoPilot is missing");
+    assert(typeof payload.canRunDemoWorkflow === "boolean", "canRunDemoWorkflow is missing");
     assert(typeof payload.canRunConfidentialPilot === "boolean", "canRunConfidentialPilot is missing");
+    assert(typeof payload.supabaseConfigured === "boolean", "pilot backend missing supabaseConfigured");
+    assert(typeof payload.localApiFallbackActive === "boolean", "pilot backend missing localApiFallbackActive");
     assertArray(payload.capabilities, "capabilities must be an array");
     assertArray(payload.blockers, "pilot backend blockers must be an array");
     assertArray(payload.nextActions, "pilot backend nextActions must be an array");
     assertArray(payload.caveats, "pilot backend caveats must be an array");
+    assertCaveat(payload.caveats, "pilot backend missing caveats");
     assertObject(payload.supabaseActivation, "pilot backend missing supabaseActivation");
+    assertRuntimeReadiness(route, payload.runtimeReadiness);
     if (payload.canRunConfidentialPilot) {
       const verified = payload.capabilities.filter((item) => item.status === "verified_active" || item.status === "configured_ready");
       assert(verified.length >= 8, "confidential pilot cannot be true without verified/configured capabilities");
@@ -137,6 +199,7 @@ for (const route of routes) {
   assert(!secretPatterns.some((pattern) => pattern.test(text)), `${route} appears to expose a secret-like value`);
   const payload = JSON.parse(text);
   assertObject(payload, `${route} did not return a JSON object`);
+  assertNoPositiveReadinessClaim(route, text, payload);
 
   if (dataFoundationRoutes.has(route)) {
     assertDataFoundationPayload(route, payload);

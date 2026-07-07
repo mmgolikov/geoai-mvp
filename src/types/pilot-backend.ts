@@ -60,6 +60,7 @@ export type PilotBackendActivationSummary = {
   requireSupabaseReady: boolean;
   requireStorageReady: boolean;
   canRunDemoPilot: boolean;
+  canRunDemoWorkflow: boolean;
   canRunConfidentialPilot: boolean;
   capabilities: PilotBackendCapabilitySummary[];
   blockers: ActivationBlocker[];

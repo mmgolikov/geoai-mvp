@@ -65,9 +65,9 @@ export function LoginPanel() {
           </form>
         ) : (
           <div className="mt-5 rounded-lg border border-line bg-surface p-4">
-            <p className="text-sm font-semibold text-ink">Public pilot access is active</p>
+            <p className="text-sm font-semibold text-ink">Public demo access is active</p>
             <p className="mt-2 text-sm leading-6 text-muted">
-              No sign-in is required for the current pilot screening flow. Client data protection still
+              No sign-in is required for the current demo screening flow. Client data protection still
               requires future auth, RLS and storage hardening before confidential use.
             </p>
           </div>

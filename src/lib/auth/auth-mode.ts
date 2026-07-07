@@ -53,10 +53,10 @@ export function authModeToCaveat(mode: GeoAIAuthMode, requestedMode = mode) {
   }
 
   if (mode === "disabled") {
-    return "Authentication UI is disabled; public pilot screening workflows remain available.";
+    return "Authentication UI is disabled; public demo screening workflows remain available.";
   }
 
-  return "Public pilot access is enabled; official validation and production access control are not configured.";
+  return "Public demo access is enabled; official validation and production access control are not configured.";
 }
 
 export function getAuthModeStatus(): AuthModeStatus {
