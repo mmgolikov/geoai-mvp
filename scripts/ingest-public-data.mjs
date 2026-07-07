@@ -5,6 +5,15 @@ const caveat = "screening hypothesis; official validation required; not a legal,
 const mode = process.argv[2];
 const unavailable = "unavailable";
 
+const requiredCaveat = "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.";
+const sourceQualityVersion = "1.3";
+const dldGroupId = "dld-dubai-pulse-public-real-estate";
+const osmGroupId = "osm-geofabrik-open-geospatial";
+const dldNextValidationStep = "Confirm permitted DLD / Dubai Pulse files, extraction date, license terms and official/client validation source.";
+const osmNextValidationStep = "Confirm extract date, ODbL attribution and compare against official/customer GIS before decisions.";
+const dldLicenseNote = "DLD / Dubai Pulse public/open snapshot terms, attribution and redistribution limits must be confirmed per file before external use.";
+const osmLicenseNote = "OSM / Geofabrik open geospatial context requires ODbL attribution, extract date tracking and compliance review.";
+
 function normalizeStatus(value) {
   const key = String(value ?? unavailable).trim().toLowerCase();
   const aliases = {
@@ -26,6 +35,39 @@ function normalizeStatus(value) {
   };
 
   return aliases[key] ?? unavailable;
+}
+
+function sourceModeFromStatus(status) {
+  const normalized = normalizeStatus(status);
+  if (normalized === "snapshot_available") return "imported_snapshot";
+  if (normalized === "sample_fallback") return "sample_fallback";
+  if (normalized === "manual_import_ready") return "manual_import_ready";
+  if (normalized === "permission_required" || normalized === "token_required") return "permission_required";
+  if (normalized === "connected") return "api_context";
+  return "planned_validation";
+}
+
+function confidenceFromStatus(status, count) {
+  const normalized = normalizeStatus(status);
+  if (normalized === "snapshot_available" || normalized === "connected") return "medium";
+  if (normalized === "sample_fallback" && count > 0) return "low";
+  return "requires-validation";
+}
+
+function validationStatusFromStatus(status) {
+  const normalized = normalizeStatus(status);
+  if (normalized === "snapshot_available") return "snapshot-not-live";
+  if (normalized === "sample_fallback") return "sample-only";
+  if (normalized === "manual_import_ready") return "manual-import-ready";
+  if (normalized === "connected") return "api-context";
+  if (normalized === "permission_required" || normalized === "token_required") return "token-or-permission-required";
+  return "planned-validation";
+}
+
+function extractDateFromPath(path) {
+  const match = String(path ?? "").match(/(?:^|_)(\d{4})(\d{2})(\d{2})(?:\.|_|$)/);
+  if (!match) return null;
+  return `${match[1]}-${match[2]}-${match[3]}`;
 }
 
 function ensureDir(path) {
@@ -173,6 +215,7 @@ function ingestDldPublic() {
   for (const categoryConfig of categories) {
     const { key: category, sourceId } = categoryConfig;
     const { file, rows, status } = readDldCategoryCsv(categoryConfig);
+    const normalizedStatus = rows.length > 0 ? normalizeStatus(status) : "manual_import_ready";
     const normalizedRows = rows.map((row, index) => {
       const areaName = row.area_name || row.community || row.master_project || row.project_name || row.location || `Dubai sample area ${index + 1}`;
       marketRows.push({
@@ -196,30 +239,41 @@ function ingestDldPublic() {
       generatedAt,
       version: "1.6",
       sourceId,
-      status: rows.length > 0 ? normalizeStatus(status) : "manual_import_ready",
+      status: normalizedStatus,
       category,
       recordCount: normalizedRows.length,
       records: normalizedRows,
       caveat
     });
     categoryReports[category] = {
+      sourceGroupId: dldGroupId,
       sourceId,
-      status: rows.length > 0 ? normalizeStatus(status) : "manual_import_ready",
+      sourceName: `DLD / Dubai Pulse public ${category} snapshot`,
+      status: normalizedStatus,
       inputFile: file,
+      filePath: output,
       outputFile: output,
       recordCount: normalizedRows.length,
+      generatedAt,
+      extractedAt: extractDateFromPath(file),
+      licenseNote: dldLicenseNote,
+      dataMode: sourceModeFromStatus(normalizedStatus),
+      confidence: confidenceFromStatus(normalizedStatus, normalizedRows.length),
+      validationStatus: validationStatusFromStatus(normalizedStatus),
+      caveat: requiredCaveat,
+      nextValidationStep: dldNextValidationStep,
       qualityNotes: rows.length === 0
         ? [`No ${categoryConfig.expectedPrefix}_YYYYMMDD.csv snapshot found. Manual import ready.`]
         : [`Loaded ${rows.length} row(s) from ${file}.`]
     };
     manifestSources.push({
       id: sourceId,
-      status: rows.length > 0 ? normalizeStatus(status) : "manual_import_ready",
+      status: normalizedStatus,
       lastUpdated: generatedAt,
       availableFiles: [file, output],
       recordCount: normalizedRows.length,
       coverageArea: "Dubai public real-estate categories",
-      confidence: normalizeStatus(status) === "snapshot_available" ? "medium" : "low",
+      confidence: normalizedStatus === "snapshot_available" ? "medium" : "low",
       usedInAnalysis: true,
       caveat,
       disclaimer: "DLD / Dubai Pulse public snapshot; not a live DLD API or ownership/title validation."
@@ -249,10 +303,18 @@ function ingestDldPublic() {
   writeJson("data/normalized/dld_source_quality.json", {
     generatedAt,
     version: "1.6",
+    sourceQualityVersion,
+    sourceGroupId: dldGroupId,
+    sourceName: "DLD / Dubai Pulse public real estate snapshots",
     status: "ok",
     totalRecords: Object.values(categoryReports).reduce((sum, item) => sum + item.recordCount, 0),
+    licenseNote: dldLicenseNote,
+    dataMode: Object.values(categoryReports).some((item) => item.status === "snapshot_available") ? "imported_snapshot" : "sample_fallback",
+    confidence: Object.values(categoryReports).some((item) => item.status === "snapshot_available") ? "medium" : "low",
+    validationStatus: Object.values(categoryReports).some((item) => item.status === "snapshot_available") ? "snapshot-not-live" : "sample-only",
+    caveat: requiredCaveat,
+    nextValidationStep: dldNextValidationStep,
     categories: categoryReports,
-    caveat,
     forbiddenClaims: ["ownership verification", "official parcel boundary", "certified valuation", "live DLD API"]
   });
   updateManifest(manifestSources, generatedAt);
@@ -301,25 +363,55 @@ function ingestOsmPublic() {
   });
 
   const totalFeatures = features.length;
+  const normalizedStatus = totalFeatures > 0 ? normalizeStatus(status) : "sample_fallback";
+  const categoryQuality = Object.fromEntries(outputs.map((item) => [item.category, {
+    sourceGroupId: osmGroupId,
+    sourceId: item.sourceId,
+    sourceName: `OSM / Geofabrik open ${item.category} snapshot`,
+    status: normalizedStatus,
+    inputFile: file,
+    filePath: item.output,
+    outputFile: item.output,
+    recordCount: item.count,
+    featureCount: item.count,
+    generatedAt,
+    extractedAt: extractDateFromPath(file),
+    licenseNote: osmLicenseNote,
+    dataMode: sourceModeFromStatus(normalizedStatus),
+    confidence: confidenceFromStatus(normalizedStatus, item.count),
+    validationStatus: validationStatusFromStatus(normalizedStatus),
+    caveat: requiredCaveat,
+    nextValidationStep: osmNextValidationStep,
+    qualityNotes: []
+  }]));
+
   writeJson("data/normalized/osm_source_quality.json", {
     generatedAt,
     version: "1.6",
-    status,
+    sourceQualityVersion,
+    sourceGroupId: osmGroupId,
+    sourceName: "OSM / Geofabrik open geospatial baseline",
+    status: normalizedStatus,
     inputFile: file,
     totalFeatures,
-    categories: Object.fromEntries(outputs.map((item) => [item.category, { outputFile: item.output, featureCount: item.count }])),
-    caveat
+    licenseNote: osmLicenseNote,
+    dataMode: sourceModeFromStatus(normalizedStatus),
+    confidence: confidenceFromStatus(normalizedStatus, totalFeatures),
+    validationStatus: validationStatusFromStatus(normalizedStatus),
+    caveat: requiredCaveat,
+    nextValidationStep: osmNextValidationStep,
+    categories: categoryQuality
   });
   updateManifest([
     {
       id: "osm-geofabrik-baseline",
-      status: totalFeatures > 0 ? normalizeStatus(status) : "sample_fallback",
+      status: normalizedStatus,
       lastUpdated: generatedAt,
       availableFiles: [file, ...outputs.map((item) => item.output), "data/normalized/osm_source_quality.json"],
       featureCount: totalFeatures,
       recordCount: totalFeatures,
       coverageArea: "Dubai open geospatial baseline",
-      confidence: normalizeStatus(status) === "snapshot_available" ? "medium" : "low",
+      confidence: normalizedStatus === "snapshot_available" ? "medium" : "low",
       usedInAnalysis: true,
       caveat,
       disclaimer: "OSM / Geofabrik open snapshot; not official municipal GIS."

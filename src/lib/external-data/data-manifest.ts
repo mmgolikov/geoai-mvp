@@ -14,6 +14,10 @@ import {
   type SourceStatus
 } from "@/src/lib/external-data/source-status";
 import { normalizeSourceDataMode, type SourceDataMode } from "@/src/lib/external-data/source-modes";
+import {
+  buildSourceQualityManifest,
+  type SourceQualityManifest
+} from "@/src/lib/external-data/source-quality-manifest";
 
 export type ExternalDataManifestSource = {
   id: string;
@@ -36,6 +40,7 @@ export type ExternalDataManifest = {
   version: string;
   summary: string;
   sources: ExternalDataManifestSource[];
+  sourceQuality?: SourceQualityManifest;
 };
 
 const manifestPath = join(process.cwd(), "data/external/normalized/external_data_manifest.json");
@@ -282,6 +287,7 @@ function enrichManifestWithSnapshots(manifest: ExternalDataManifest): ExternalDa
   return {
     ...manifest,
     version: "1.6",
+    sourceQuality: buildSourceQualityManifest(),
     sources: externalDataSources.map((source) => {
       const existing = sourceById.get(source.id);
       return {

@@ -8,6 +8,11 @@ import {
   sourceReadinessSummary,
   type SourceReadinessGroup
 } from "@/src/lib/external-data/source-readiness-groups";
+import {
+  buildSourceQualityManifest,
+  type SourceQualityGroup,
+  type SourceQualityManifest
+} from "@/src/lib/external-data/source-quality-manifest";
 
 type RegistryRow = {
   source_id?: string | null;
@@ -36,6 +41,10 @@ type SnapshotRow = {
   imported_at?: string | null;
 };
 
+type SourceReadinessGroupWithQuality = SourceReadinessGroup & {
+  sourceQuality?: SourceQualityGroup;
+};
+
 function normalizeRegistryStatus(value: unknown) {
   if (String(value ?? "").trim().toLowerCase() === "connected_context_ready") return "connected" as const;
   return normalizeSourceStatus(value);
@@ -53,6 +62,18 @@ function asStringArray(value: unknown): string[] {
 
 function rowMatchesGroup(sourceId: string | null | undefined, group: SourceReadinessGroup) {
   return Boolean(sourceId && (sourceId === group.id || group.sourceIds.includes(sourceId)));
+}
+
+function attachSourceQuality(
+  groups: SourceReadinessGroup[],
+  sourceQuality: SourceQualityManifest
+): SourceReadinessGroupWithQuality[] {
+  const qualityByGroup = new Map(sourceQuality.groups.map((group) => [group.sourceGroupId, group]));
+
+  return groups.map((group) => ({
+    ...group,
+    sourceQuality: qualityByGroup.get(group.id)
+  }));
 }
 
 function overlaySupabaseRows(
@@ -117,22 +138,30 @@ async function readRows() {
 
 export async function getSourceRegistryReadiness() {
   const fallback = readExternalDataManifest();
+  const sourceQuality = fallback.sourceQuality ?? buildSourceQualityManifest();
   const { rows, snapshots, blocker } = await readRows();
-  const fallbackGroups = buildSourceReadinessGroups(fallback);
+  const fallbackGroups = attachSourceQuality(buildSourceReadinessGroups(fallback), sourceQuality);
   const sourceGroups = rows.length === 0
     ? fallbackGroups
-    : overlaySupabaseRows(fallbackGroups, rows, snapshots);
-  const summary = sourceReadinessSummary(sourceGroups);
+    : attachSourceQuality(overlaySupabaseRows(fallbackGroups, rows, snapshots), sourceQuality);
+  const summary = {
+    ...sourceReadinessSummary(sourceGroups),
+    qualityGroups: sourceQuality.groups.length
+  };
   const generatedAt = new Date().toISOString();
 
   if (rows.length === 0) {
     return {
-      version: "1.2",
+      version: "1.3",
       mode: "local_fallback",
       source: "local_manifest_fallback",
       sourceRegistryCount: 0,
       externalSnapshotCount: snapshots.length,
-      manifest: fallback,
+      manifest: {
+        ...fallback,
+        sourceQuality
+      },
+      sourceQuality,
       sourceGroups,
       summary,
       readiness: sourceGroups.map((group) => ({
@@ -145,6 +174,7 @@ export async function getSourceRegistryReadiness() {
         recordCount: group.recordCount,
         coverageArea: group.coverageArea,
         confidence: group.confidence,
+        sourceQuality: group.sourceQuality,
         caveat: group.caveat,
         nextValidationStep: group.nextValidationStep,
         validationRequired: true
@@ -182,17 +212,19 @@ export async function getSourceRegistryReadiness() {
   });
 
   return {
-    version: "1.2",
+    version: "1.3",
     mode: "supabase",
     source: "supabase_source_registry",
     sourceRegistryCount: rows.length,
     externalSnapshotCount: snapshots.length,
     manifest: {
       generatedAt: new Date().toISOString(),
-      version: "1.2",
-      summary: "GeoAI Data Foundation v1.2 source registry and snapshot readiness metadata.",
-      sources: manifestSources
+      version: "1.3",
+      summary: "GeoAI Data Foundation v1.3 source registry, snapshot readiness and local source-quality metadata.",
+      sources: manifestSources,
+      sourceQuality
     },
+    sourceQuality,
     sourceGroups,
     summary,
     readiness: sourceGroups.map((group) => ({
@@ -205,6 +237,7 @@ export async function getSourceRegistryReadiness() {
       recordCount: group.recordCount,
       coverageArea: group.coverageArea,
       confidence: group.confidence,
+      sourceQuality: group.sourceQuality,
       caveat: group.caveat,
       nextValidationStep: group.nextValidationStep,
       validationRequired: true
