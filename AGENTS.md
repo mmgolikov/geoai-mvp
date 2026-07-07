@@ -4,15 +4,20 @@ You are Codex working on GeoAI, a B2B/B2G/B2B2G spatial decision intelligence pl
 
 ## Project context
 
-GeoAI helps users decide where to build, buy, invest, monitor, insure, reconstruct or optimize land, real estate, infrastructure and spatial assets. Priority market: UAE, especially Dubai/Abu Dhabi real estate and development intelligence. Current product is an investor/client demo and release-candidate MVP, not production-ready or pilot-ready.
+GeoAI helps users decide where to build, buy, invest, monitor, insure, reconstruct or optimize land, real estate, infrastructure and spatial assets. Priority market: UAE, especially Dubai/Abu Dhabi real estate and development intelligence. Current product is an investor/client demo and release-candidate MVP. Do not claim production-ready or pilot-ready status.
 
 Repo: https://github.com/mmgolikov/geoai-mvp
 Production: https://geoai-mvp.vercel.app
 Vercel team/project: geoaidev / geoai-mvp
-Current product PR: PR #27, branch `codex/pilot-ux-simplification-v30`, open, not merged.
-Docs/artifacts PR: PR #28, branch `geoai-docs-artifacts`, open, depends on PR #27.
-Supabase: `geoai-dev`, ref `pphdqkurxneyagvnnjdt`, eu-west-1. Data Foundation activated 2026-07-05: 18 GeoAI core tables, PostGIS/pgcrypto, RLS on GeoAI tables, 5 source registry rows and 5 external snapshot metadata rows. This is metadata/source-lineage foundation only.
-Figma: design/artifact board exists, but exact production design file/node registry must be confirmed before design-to-code.
+Main status: `main` is updated through Data Foundation v1.2.
+Merged PRs: PR #27, PR #28, PR #29, PR #30 and PR #33 are merged.
+Open design gate: PR #34 is open as a design QA gate and is docs/design-governance only.
+Older design gate: PR #32 remains open and should be compared with PR #34 before any cleanup decision.
+Legacy open PRs: PR #2, PR #3, PR #4 and PR #5 require superseded review before closure or archival.
+Open data branch: PR #37 is open for Data Foundation v1.3 and is not part of `main` until merged.
+Production status: production remains an investor/client demo and local fallback unless Supabase env is configured in the production runtime.
+Supabase: `geoai-dev`, ref `pphdqkurxneyagvnnjdt`, eu-west-1. Data Foundation v1.2 baseline includes 18 GeoAI core tables, PostGIS/pgcrypto, RLS on GeoAI tables, 5 source registry rows and 5 external snapshot metadata rows. Production runtime currently reports Supabase env as not configured and uses local/API fallback.
+Figma: PR #34 protects the current `/projects` Data Readiness / Source Lineage block. Design implementation remains blocked until manual Figma QA passes.
 Confluence Project Hub is the operational dashboard and single source of truth.
 
 ## Core product flow
@@ -56,6 +61,8 @@ Next.js App Router, React, TypeScript, Tailwind, Mapbox/MapLibre, Next API route
 ## Design implementation rules
 
 Premium, clean, international, light enterprise SaaS. No dark heavy style unless explicitly requested. Avoid text overlap, overflow, random colors, inconsistent spacing, empty/unbalanced zones, hidden critical controls. Every screen should have one main outcome. Respect product sections, screen states, components, breakpoints and data states. Long content must truncate, wrap safely or use disclosure; never break layout.
+
+New Figma/design work is not to be implemented in code until the manual QA gate passes. Future design implementation branches must start from fresh `main`, preserve `/projects` Data Readiness / Source Lineage unless an approved task explicitly changes it, and must not port Page 14 or any successor redesign by assumption.
 
 ## Files and areas to inspect when relevant
 
