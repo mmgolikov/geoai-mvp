@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AnalysisPanel } from "@/components/analysis-panel";
 import { ComparisonDashboard } from "@/components/comparison-dashboard";
 import { ExpressDashboard } from "@/components/express-dashboard";
@@ -754,6 +754,7 @@ type WorkspaceShellProps = {
 };
 
 export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellProps) {
+  const mapSectionRef = useRef<HTMLDivElement | null>(null);
   const [selectedPoint, setSelectedPoint] = useState<SelectedPoint | null>(null);
   const [selectedObject, setSelectedObject] = useState<SelectedDemoObject | null>(null);
   const [selectedAoi, setSelectedAoi] = useState<UserDrawnAoi | null>(null);
@@ -1786,6 +1787,13 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
     setLastComparedState(null);
   }
 
+  function openMapFromPanel() {
+    backToMap();
+    window.setTimeout(() => {
+      mapSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 0);
+  }
+
   function saveAnalysisHistory(analysisResult: ExpressAnalysis, scenarioLabel: string) {
     const historyItem = createHistoryItem(analysisResult, scenarioLabel, activeProject, analysisHistorySource);
 
@@ -2722,8 +2730,7 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
 
   return (
     <div
-      className="grid min-h-0 shrink-0 grid-cols-1 overflow-hidden lg:grid-cols-[minmax(0,1fr)_380px]"
-      style={{ height: "calc(100vh - 4rem)" }}
+      className="grid min-h-[calc(100svh-4rem)] shrink-0 grid-cols-1 lg:h-[calc(100vh-4rem)] lg:min-h-0 lg:grid-cols-[minmax(0,1fr)_380px] lg:overflow-hidden"
     >
       {reportPreview === "analysis" && analysis ? (
         <ReportPreview key={`report-${analysis.id}`} mode="analysis" analysis={analysis} onBack={() => setReportPreview(null)} />
@@ -2757,22 +2764,24 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
             : undefined}
         />
       ) : (
-        <MapWorkspace
-          key="map-workspace"
-          className="relative h-full min-h-0 overflow-hidden bg-[#dfe8ec]"
-          selectedPoint={selectedPoint}
-          selectedObject={selectedObject}
-          selectedAoi={selectedAoi}
-          onPointSelect={handlePointSelect}
-          onObjectSelect={handleObjectSelect}
-          onAoiSelect={handleAoiSelect}
-          onAoiDelete={handleAoiDelete}
-          uploadedDatasets={uploadedDatasets}
-          projectId={activeProject.projectKey}
-          exploreCandidates={visibleExploreCandidates}
-          selectedExploreCandidateId={selectedExploreCandidateId}
-          onExploreCandidateSelect={selectExploreCandidate}
-        />
+        <div ref={mapSectionRef} id="workspace-map" className="min-h-0 lg:h-full">
+          <MapWorkspace
+            key="map-workspace"
+            className="relative h-[68svh] min-h-[420px] overflow-hidden bg-[#dfe8ec] sm:h-[70svh] lg:h-full lg:min-h-0"
+            selectedPoint={selectedPoint}
+            selectedObject={selectedObject}
+            selectedAoi={selectedAoi}
+            onPointSelect={handlePointSelect}
+            onObjectSelect={handleObjectSelect}
+            onAoiSelect={handleAoiSelect}
+            onAoiDelete={handleAoiDelete}
+            uploadedDatasets={uploadedDatasets}
+            projectId={activeProject.projectKey}
+            exploreCandidates={visibleExploreCandidates}
+            selectedExploreCandidateId={selectedExploreCandidateId}
+            onExploreCandidateSelect={selectExploreCandidate}
+          />
+        </div>
       )}
       <AnalysisPanel
         selectedPoint={selectedPoint}
@@ -2843,6 +2852,7 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
         onRemoveUploadedDataset={removeUploadedDataset}
         onClearUploadedDatasets={clearUploadedDatasets}
         onToggleUploadedDataset={toggleUploadedDataset}
+        onOpenMap={openMapFromPanel}
       />
     </div>
   );

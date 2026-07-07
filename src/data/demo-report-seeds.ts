@@ -9,6 +9,8 @@ const createdAt = "2026-06-21T10:00:00.000Z";
 const investmentProject = demoProjects.find((project) => project.projectKey === "dubai-investment-screening-demo") ?? demoProjects[0];
 const developerProject = demoProjects.find((project) => project.projectKey === "developer-land-pipeline-demo") ?? demoProjects[0];
 const bankProject = demoProjects.find((project) => project.projectKey === "bank-asset-review-demo") ?? demoProjects[0];
+const homeBuyerProject = demoProjects.find((project) => project.projectKey === "home-buyer-neighborhood-demo") ?? demoProjects[0];
+const familyRelocationProject = demoProjects.find((project) => project.projectKey === "family-relocation-area-demo") ?? demoProjects[0];
 
 const points = {
   marina: { latitude: 25.0822, longitude: 55.1431 },
@@ -16,7 +18,10 @@ const points = {
   dubaiSouth: { latitude: 24.8887, longitude: 55.1542 },
   jvcJvt: { latitude: 25.0618, longitude: 55.2035 },
   mbrCity: { latitude: 25.1646, longitude: 55.3156 },
-  meydan: { latitude: 25.1569, longitude: 55.3008 }
+  meydan: { latitude: 25.1569, longitude: 55.3008 },
+  dubaiHills: { latitude: 25.1036, longitude: 55.2547 },
+  creekHarbour: { latitude: 25.1972, longitude: 55.3478 },
+  townSquare: { latitude: 25.0056, longitude: 55.2862 }
 } satisfies Record<string, SelectedPoint>;
 
 function scenarioLabel(id: ExpressAnalysis["scenarioId"]) {
@@ -60,6 +65,9 @@ const businessBayObject = demoObject("seed-business-bay", "Business Bay Infill O
 const dubaiSouthObject = demoObject("seed-dubai-south-growth", "Dubai South Growth Node", "Development Zones", "developmentZones", points.dubaiSouth);
 const jvcJvtObject = demoObject("seed-jvc-jvt", "JVC / JVT Residential Pipeline Signal", "Development Zones", "developmentZones", points.jvcJvt);
 const mbrCityObject = demoObject("seed-mbr-city", "Meydan / MBR City Collateral Review", "Asset Parcel Objects", "assetParcelObjects", points.mbrCity);
+const dubaiHillsObject = demoObject("seed-dubai-hills-family-fit", "Dubai Hills Family Fit Signal", "Premium Real Estate Areas", "premiumRealEstateAreas", points.dubaiHills);
+const creekHarbourObject = demoObject("seed-creek-harbour-waterfront-fit", "Creek Harbour Waterfront Fit Signal", "Premium Real Estate Areas", "premiumRealEstateAreas", points.creekHarbour);
+const townSquareObject = demoObject("seed-town-square-relocation-fit", "Town Square Relocation Context", "Development Zones", "developmentZones", points.townSquare);
 
 export const seededDemoAnalysis: ExpressAnalysis = makeAnalysis({
   id: "seeded-analysis-dubai-marina",
@@ -118,6 +126,46 @@ const bankBusinessBayAnalysis = makeAnalysis({
   selectedObject: businessBayObject
 });
 
+const homeBuyerDubaiHillsAnalysis = makeAnalysis({
+  id: "seeded-analysis-dubai-hills-home-fit",
+  title: "Dubai Hills Home Buyer Fit",
+  point: points.dubaiHills,
+  scenarioId: "customQuery",
+  project: homeBuyerProject,
+  customQuery: "Compare family lifestyle fit, access, heat context and validation gaps before shortlisting homes.",
+  selectedObject: dubaiHillsObject
+});
+
+const homeBuyerCreekHarbourAnalysis = makeAnalysis({
+  id: "seeded-analysis-creek-harbour-home-fit",
+  title: "Creek Harbour Waterfront Fit",
+  point: points.creekHarbour,
+  scenarioId: "investmentSiteSelection",
+  project: homeBuyerProject,
+  customQuery: "Review neighborhood fit and source limitations for a household shortlist.",
+  selectedObject: creekHarbourObject
+});
+
+const familyRelocationTownSquareAnalysis = makeAnalysis({
+  id: "seeded-analysis-town-square-relocation",
+  title: "Town Square Family Relocation Context",
+  point: points.townSquare,
+  scenarioId: "climateRisk",
+  project: familyRelocationProject,
+  customQuery: "Review commute, comfort, amenities and validation steps for a family relocation shortlist.",
+  selectedObject: townSquareObject
+});
+
+const familyRelocationDubaiHillsAnalysis = makeAnalysis({
+  id: "seeded-analysis-dubai-hills-relocation",
+  title: "Dubai Hills Relocation Context",
+  point: points.dubaiHills,
+  scenarioId: "customQuery",
+  project: familyRelocationProject,
+  customQuery: "Compare family relocation fit using sample/open context and explicit official-validation gaps.",
+  selectedObject: dubaiHillsObject
+});
+
 const investmentComparisonItems = [
   createComparisonItem(points.marina, marinaObject, "investmentSiteSelection"),
   createComparisonItem(points.businessBay, businessBayObject, "investmentSiteSelection"),
@@ -133,6 +181,18 @@ const developerComparisonItems = [
 const bankComparisonItems = [
   createComparisonItem(points.mbrCity, mbrCityObject, "customQuery"),
   createComparisonItem(points.businessBay, businessBayObject, "customQuery")
+];
+
+const homeBuyerComparisonItems = [
+  createComparisonItem(points.dubaiHills, dubaiHillsObject, "customQuery"),
+  createComparisonItem(points.creekHarbour, creekHarbourObject, "investmentSiteSelection"),
+  createComparisonItem(points.jvcJvt, jvcJvtObject, "customQuery")
+];
+
+const familyRelocationComparisonItems = [
+  createComparisonItem(points.townSquare, townSquareObject, "climateRisk"),
+  createComparisonItem(points.dubaiHills, dubaiHillsObject, "customQuery"),
+  createComparisonItem(points.creekHarbour, creekHarbourObject, "customQuery")
 ];
 
 export const seededDemoComparison: ComparisonResult = {
@@ -151,6 +211,18 @@ const bankComparison: ComparisonResult = {
   ...createMockComparison(bankComparisonItems, "MBR City vs Business Bay collateral evidence context."),
   id: "seeded-comparison-bank-collateral",
   project: bankProject
+};
+
+const homeBuyerComparison: ComparisonResult = {
+  ...createMockComparison(homeBuyerComparisonItems, "Dubai Hills vs Creek Harbour vs JVC/JVT home-buyer neighborhood fit."),
+  id: "seeded-comparison-home-buyer-neighborhoods",
+  project: homeBuyerProject
+};
+
+const familyRelocationComparison: ComparisonResult = {
+  ...createMockComparison(familyRelocationComparisonItems, "Town Square vs Dubai Hills vs Creek Harbour family relocation context."),
+  id: "seeded-comparison-family-relocation-areas",
+  project: familyRelocationProject
 };
 
 function analysisReportPayload(analysis: ExpressAnalysis, title: string) {
@@ -287,6 +359,30 @@ export const seededDemoReportRecords = [
     bankComparison,
     "MBR City vs Business Bay Collateral Context Memo",
     "Bank collateral context comparison / source confidence review; official validation required."
+  ),
+  analysisReportRecord(
+    "seeded-analysis-dubai-hills-home-fit-report",
+    homeBuyerDubaiHillsAnalysis,
+    "Home Buyer Neighborhood Fit Memo",
+    "Home Buyer Neighborhood Fit / sample-open context; official validation required."
+  ),
+  comparisonReportRecord(
+    "seeded-comparison-home-buyer-neighborhoods-report",
+    homeBuyerComparison,
+    "Dubai Hills vs Creek Harbour vs JVC/JVT Neighborhood Fit Memo",
+    "B2C home-buyer comparison / sample-open context; official validation required."
+  ),
+  analysisReportRecord(
+    "seeded-analysis-town-square-relocation-report",
+    familyRelocationTownSquareAnalysis,
+    "Family Relocation Area Review Memo",
+    "Family Relocation Area Review / sample-open context; official validation required."
+  ),
+  comparisonReportRecord(
+    "seeded-comparison-family-relocation-areas-report",
+    familyRelocationComparison,
+    "Town Square vs Dubai Hills vs Creek Harbour Relocation Memo",
+    "B2C relocation comparison / sample-open context; official validation required."
   )
 ];
 
@@ -300,16 +396,24 @@ export const seededDemoRecentAnalyses = [
   developerDubaiSouthAnalysis,
   developerJvcAnalysis,
   bankMbrAnalysis,
-  bankBusinessBayAnalysis
+  bankBusinessBayAnalysis,
+  homeBuyerDubaiHillsAnalysis,
+  homeBuyerCreekHarbourAnalysis,
+  familyRelocationTownSquareAnalysis,
+  familyRelocationDubaiHillsAnalysis
 ].map((analysis) => ({
   id: `seeded-recent-${analysis.id}`,
   title: analysis.title,
   scenarioLabel: analysis.scenarioId === "customQuery" && analysis.project?.projectKey === bankProject.projectKey
     ? "Asset Portfolio Intelligence"
+    : analysis.scenarioId === "customQuery" && analysis.project?.metadata?.segment === "b2c"
+      ? "Consumer Area Fit"
     : scenarioLabel(analysis.scenarioId),
   timestamp: createdAt,
   decisionPosture: analysis.project?.projectKey === bankProject.projectKey
     ? "Evidence validation required"
+    : analysis.project?.metadata?.segment === "b2c"
+      ? "Screening only; validate before decisions"
     : "Proceed with conditions",
   confidence: "medium" as const,
   dataConfidence: "Sample example / sample-offline",
@@ -344,5 +448,23 @@ export const seededDemoComparisonSummaries = [
     title: "MBR City vs Business Bay Collateral Context",
     createdAt,
     sourceSummary: `Best option: ${bankComparison.winner.item.name}. Sample example / official validation required.`
+  },
+  {
+    id: homeBuyerComparison.id,
+    reportId: "seeded-comparison-home-buyer-neighborhoods-report",
+    projectId: homeBuyerComparison.project?.id ?? null,
+    projectKey: homeBuyerComparison.project?.projectKey ?? null,
+    title: "Dubai Hills vs Creek Harbour vs JVC/JVT Neighborhood Fit",
+    createdAt,
+    sourceSummary: `Best option: ${homeBuyerComparison.winner.item.name}. Sample/open context only / official validation required.`
+  },
+  {
+    id: familyRelocationComparison.id,
+    reportId: "seeded-comparison-family-relocation-areas-report",
+    projectId: familyRelocationComparison.project?.id ?? null,
+    projectKey: familyRelocationComparison.project?.projectKey ?? null,
+    title: "Town Square vs Dubai Hills vs Creek Harbour Relocation Context",
+    createdAt,
+    sourceSummary: `Best option: ${familyRelocationComparison.winner.item.name}. Sample/open context only / official validation required.`
   }
 ];

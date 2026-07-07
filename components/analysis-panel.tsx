@@ -132,6 +132,7 @@ type AnalysisPanelProps = {
   onRemoveUploadedDataset: (datasetId: string) => void;
   onClearUploadedDatasets: () => void;
   onToggleUploadedDataset: (datasetId: string) => void;
+  onOpenMap: () => void;
 };
 
 type ExternalDataStatusResponse = {
@@ -451,7 +452,8 @@ export function AnalysisPanel({
   onExportSavedAoi,
   onRemoveUploadedDataset,
   onClearUploadedDatasets,
-  onToggleUploadedDataset
+  onToggleUploadedDataset,
+  onOpenMap
 }: AnalysisPanelProps) {
   const { authStatus, roleLabel, isAuthenticated, user } = useAuth();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -1112,8 +1114,8 @@ export function AnalysisPanel({
   }
 
   return (
-    <aside className="flex h-full max-w-full flex-col overflow-hidden border-l border-line bg-white lg:w-[380px]">
-      <section className="min-h-0 flex-1 min-w-0 max-w-full overflow-y-auto overflow-x-hidden p-3 pb-5 [scrollbar-width:thin]">
+    <aside className="flex max-w-full flex-col border-line bg-white max-lg:border-t lg:h-full lg:w-[380px] lg:overflow-hidden lg:border-l">
+      <section className="min-w-0 max-w-full overflow-x-hidden p-3 pb-5 [scrollbar-width:thin] lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
         <div className="grid min-w-0 gap-2">
           <section className="min-w-0 max-w-full overflow-hidden rounded-lg border border-line bg-white p-2">
             <div className="grid grid-cols-2 gap-1 rounded-md bg-surface p-1">
@@ -1436,9 +1438,18 @@ export function AnalysisPanel({
                       : "Select a point, object, AOI or candidate"}
                 </p>
               </div>
-              <span className="shrink-0 rounded-full bg-white px-2 py-1 text-[11px] font-semibold text-brand">
-                {hasSelectedAoi ? "AOI" : hasSelectedObject ? "Object" : "Point"}
-              </span>
+              <div className="flex shrink-0 flex-col items-end gap-2">
+                <span className="rounded-full bg-white px-2 py-1 text-[11px] font-semibold text-brand">
+                  {hasSelectedAoi ? "AOI" : hasSelectedObject ? "Object" : "Point"}
+                </span>
+                <button
+                  type="button"
+                  onClick={onOpenMap}
+                  className="inline-flex h-8 items-center justify-center rounded-md border border-line bg-white px-3 text-xs font-semibold text-ink transition hover:border-brand lg:hidden"
+                >
+                  Open map
+                </button>
+              </div>
             </div>
 
             {hasSelectedAoi ? (

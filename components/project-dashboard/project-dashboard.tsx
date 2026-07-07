@@ -49,9 +49,12 @@ import type { EvidenceReviewSummary } from "@/src/types/evidence-review";
 import type { AnalysisHistoryItem, AnalysisScenarioId, ExpressAnalysis } from "@/src/types/geo";
 
 const activeProjectStorageKey = "geoai-active-project-key-v1";
+const activeProjectSegmentStorageKey = "geoai-active-project-segment-v1";
 const analysisHistoryStorageKey = "geoai-analysis-history-v1";
 const openAnalysisRequestStorageKey = "geoai-open-analysis-request-v1";
 const requiredDataCaveat = "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.";
+
+type ProjectSegment = "b2b" | "b2c";
 
 type DbHealth = {
   configured: boolean;
@@ -323,6 +326,19 @@ type DataRoomAssetInput = {
 
 const defaultProjectKey = demoProjects[0].projectKey;
 
+function isProjectSegment(value: unknown): value is ProjectSegment {
+  return value === "b2b" || value === "b2c";
+}
+
+function getProjectSegment(project: GeoAIProject): ProjectSegment {
+  const segment = project.metadata?.segment ?? project.metadata?.audience;
+  return isProjectSegment(segment) ? segment : "b2b";
+}
+
+function getProjectSegmentLabel(segment: ProjectSegment) {
+  return segment === "b2b" ? "B2B" : "B2C";
+}
+
 function formatLabel(value: string) {
   return value
     .replace(/([A-Z])/g, " $1")
@@ -363,15 +379,48 @@ function readActiveProjectKey() {
       return matchedProject?.projectKey ?? requestedProjectKey;
     }
 
+    const requestedSegment = params.get("segment");
+    if (isProjectSegment(requestedSegment)) {
+      return demoProjects.find((project) => getProjectSegment(project) === requestedSegment)?.projectKey ?? demoProjects[0].projectKey;
+    }
+
     return window.localStorage.getItem(activeProjectStorageKey) || demoProjects[0].projectKey;
   } catch {
     return demoProjects[0].projectKey;
   }
 }
 
+function readActiveProjectSegment(projectKey?: string | null): ProjectSegment {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const requestedSegment = params.get("segment");
+    if (isProjectSegment(requestedSegment)) {
+      return requestedSegment;
+    }
+
+    const storedSegment = window.localStorage.getItem(activeProjectSegmentStorageKey);
+    if (isProjectSegment(storedSegment)) {
+      return storedSegment;
+    }
+
+    const project = demoProjects.find((item) => item.projectKey === projectKey || item.id === projectKey);
+    return project ? getProjectSegment(project) : "b2b";
+  } catch {
+    return "b2b";
+  }
+}
+
 function writeActiveProjectKey(projectKey: string) {
   try {
     window.localStorage.setItem(activeProjectStorageKey, projectKey);
+  } catch {
+    // Dashboard still works in-memory if localStorage is unavailable.
+  }
+}
+
+function writeActiveProjectSegment(segment: ProjectSegment) {
+  try {
+    window.localStorage.setItem(activeProjectSegmentStorageKey, segment);
   } catch {
     // Dashboard still works in-memory if localStorage is unavailable.
   }
@@ -560,6 +609,15 @@ function belongsToProject(value: unknown, projectKey: string) {
   return projectKey === defaultProjectKey;
 }
 
+function seededReportIdForAnalysis(analysisId: string) {
+  const record = seededDemoReportRecords.find((item) => {
+    const payload = item.reportPayload as { analysisRunId?: string };
+    return payload.analysisRunId === analysisId;
+  });
+
+  return record?.id;
+}
+
 function localHistoryToRows(items: AnalysisHistoryItem[], projectKey: string): RecentAnalysisRow[] {
   const scoped = items.filter((item) => belongsToProject(item, projectKey));
 
@@ -706,6 +764,7 @@ export function ProjectDashboard() {
   const [projects, setProjects] = useState<GeoAIProject[]>(demoProjects);
   const [projectsMode, setProjectsMode] = useState<"supabase" | "demo_seed">("demo_seed");
   const [activeProjectKey, setActiveProjectKey] = useState(demoProjects[0].projectKey);
+  const [activeProjectSegment, setActiveProjectSegment] = useState<ProjectSegment>("b2b");
   const [localHistory, setLocalHistory] = useState<AnalysisHistoryItem[]>([]);
   const [dbHistory, setDbHistory] = useState<RecentAnalysisRow[]>([]);
   const [dbHealth, setDbHealth] = useState<DbHealth | null>(null);
@@ -734,8 +793,10 @@ export function ProjectDashboard() {
   const [projectMarketDraft, setProjectMarketDraft] = useState("Dubai / UAE");
 
   useEffect(() => {
+    const nextActiveProjectKey = readActiveProjectKey();
     setProjects(mergeProjectsWithLocal(demoProjects));
-    setActiveProjectKey(readActiveProjectKey());
+    setActiveProjectKey(nextActiveProjectKey);
+    setActiveProjectSegment(readActiveProjectSegment(nextActiveProjectKey));
     setLocalHistory(readLocalHistory());
     setProjectAois(readBrowserAois());
   }, []);
@@ -1021,6 +1082,20 @@ export function ProjectDashboard() {
     () => projects.find((project) => project.projectKey === activeProjectKey) ?? getDemoProject(activeProjectKey),
     [activeProjectKey, projects]
   );
+  const visibleProjects = useMemo(
+    () => projects.filter((project) => getProjectSegment(project) === activeProjectSegment),
+    [activeProjectSegment, projects]
+  );
+  const projectOptions = useMemo(() => {
+    if (visibleProjects.some((project) => project.projectKey === activeProject.projectKey)) {
+      return visibleProjects;
+    }
+
+    return [
+      activeProject,
+      ...visibleProjects.filter((project) => project.projectKey !== activeProject.projectKey)
+    ];
+  }, [activeProject, visibleProjects]);
   const localRows = useMemo(() => localHistoryToRows(localHistory, activeProject.projectKey), [activeProject.projectKey, localHistory]);
   const scopedDbHistory = dbHistory.filter((item) => belongsToProject(item, activeProject.projectKey));
   const scopedSavedReports = savedReports.filter((item) => belongsToProject(item, activeProject.projectKey));
@@ -1046,7 +1121,7 @@ export function ProjectDashboard() {
       confidence: item.confidence,
       dataConfidence: item.dataConfidence,
       source: item.source,
-      reportId: item.analysis.id === "seeded-analysis-dubai-marina" ? "seeded-analysis-dubai-marina-report" : undefined,
+      reportId: seededReportIdForAnalysis(item.analysis.id),
       analysis: item.analysis,
       projectId: item.analysis.project?.id ?? null,
       projectKey: item.analysis.project?.projectKey,
@@ -1054,9 +1129,33 @@ export function ProjectDashboard() {
       customQuery: item.analysis.customQuery,
       canOpenAnalysis: true
     }));
-  const recentRows = scopedDbHistory.length > 0 ? scopedDbHistory : localRows;
-  const reportRows = scopedSavedReports;
-  const comparisonRows = scopedSavedComparisons;
+  const seededReportRows: SavedObjectSummary[] = seededDemoReportRecords
+    .filter((item) => item.projectKey === activeProject.projectKey)
+    .map((item) => ({
+      id: item.id,
+      title: item.title,
+      createdAt: item.createdAt,
+      sourceSummary: item.sourceSummary,
+      reportType: item.reportType,
+      scenario: item.scenario,
+      targetLabel: item.targetLabel,
+      projectId: item.projectId,
+      projectKey: item.projectKey
+    }));
+  const seededComparisonRows: SavedObjectSummary[] = seededDemoComparisonSummaries
+    .filter((item) => item.projectKey === activeProject.projectKey)
+    .map((item) => ({
+      id: item.id,
+      reportId: item.reportId,
+      title: item.title,
+      createdAt: item.createdAt,
+      sourceSummary: item.sourceSummary,
+      projectId: item.projectId,
+      projectKey: item.projectKey
+    }));
+  const recentRows = scopedDbHistory.length > 0 ? scopedDbHistory : localRows.length > 0 ? localRows : seededRows;
+  const reportRows = scopedSavedReports.length > 0 ? scopedSavedReports : seededReportRows;
+  const comparisonRows = scopedSavedComparisons.length > 0 ? scopedSavedComparisons : seededComparisonRows;
   const packageRows = scopedReportPackages;
   const importedAreas = marketMetrics?.count ?? 0;
   const externalReadinessById = new Map(
@@ -1523,11 +1622,29 @@ export function ProjectDashboard() {
     }
   }
 
-  function changeProject(projectKey: string) {
-    setActiveProjectKey(projectKey);
-    writeActiveProjectKey(projectKey);
+  function activateProject(project: GeoAIProject) {
+    const nextSegment = getProjectSegment(project);
+    setActiveProjectKey(project.projectKey);
+    writeActiveProjectKey(project.projectKey);
+    setActiveProjectSegment(nextSegment);
+    writeActiveProjectSegment(nextSegment);
     setDataRoomMessage(null);
     setPilotWorkflowMessage(null);
+  }
+
+  function changeProject(projectKey: string) {
+    const nextProject = projects.find((project) => project.projectKey === projectKey) ?? getDemoProject(projectKey);
+    activateProject(nextProject);
+  }
+
+  function changeProjectSegment(segment: ProjectSegment) {
+    setActiveProjectSegment(segment);
+    writeActiveProjectSegment(segment);
+
+    const nextProject = projects.find((project) => getProjectSegment(project) === segment)
+      ?? demoProjects.find((project) => getProjectSegment(project) === segment)
+      ?? demoProjects[0];
+    activateProject(nextProject);
   }
 
   async function createProjectFromHub() {
@@ -1553,7 +1670,7 @@ export function ProjectDashboard() {
       saveLocalProject(createdProject);
       setProjects((current) => mergeProjectsWithLocal([createdProject, ...current]));
       setProjectsMode(payload?.mode ?? "demo_seed");
-      changeProject(createdProject.projectKey);
+      activateProject(createdProject);
       setProjectNameDraft("");
       setProjectMarketDraft("Dubai / UAE");
       setIsProjectCreateOpen(false);
@@ -1561,7 +1678,7 @@ export function ProjectDashboard() {
       saveLocalProject(localProject);
       setProjects((current) => mergeProjectsWithLocal([localProject, ...current]));
       setProjectsMode("demo_seed");
-      changeProject(localProject.projectKey);
+      activateProject(localProject);
       setProjectNameDraft("");
       setProjectMarketDraft("Dubai / UAE");
       setIsProjectCreateOpen(false);
@@ -1587,14 +1704,33 @@ export function ProjectDashboard() {
                   {activeProject.geography}
                 </span>
                 <span className="rounded-full bg-surface px-3 py-1 text-xs font-semibold text-muted">
+                  Segment: {getProjectSegmentLabel(getProjectSegment(activeProject))}
+                </span>
+                <span className="rounded-full bg-surface px-3 py-1 text-xs font-semibold text-muted">
                   Scenario: {formatLabel(activeProject.primaryScenario)}
                 </span>
               </div>
             </div>
 
             <div className="grid min-w-[260px] gap-3">
+              <div className="grid grid-cols-2 gap-1 rounded-md bg-surface p-1">
+                {(["b2b", "b2c"] as ProjectSegment[]).map((segment) => (
+                  <button
+                    key={segment}
+                    type="button"
+                    onClick={() => changeProjectSegment(segment)}
+                    className={`h-9 rounded-md px-3 text-xs font-semibold transition ${
+                      activeProjectSegment === segment
+                        ? "bg-brand text-white shadow-sm"
+                        : "text-muted hover:bg-white hover:text-ink"
+                    }`}
+                  >
+                    {getProjectSegmentLabel(segment)}
+                  </button>
+                ))}
+              </div>
               <label htmlFor="project-dashboard-selector" className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">
-                Active project
+                Active {getProjectSegmentLabel(activeProjectSegment)} project
               </label>
               <select
                 id="project-dashboard-selector"
@@ -1602,7 +1738,7 @@ export function ProjectDashboard() {
                 onChange={(event) => changeProject(event.target.value)}
                 className="h-10 rounded-md border border-line bg-white px-3 text-sm font-semibold text-ink outline-none transition focus:border-brand"
               >
-                {projects.map((project) => (
+                {projectOptions.map((project) => (
                   <option key={project.projectKey} value={project.projectKey}>
                     {project.name}
                   </option>

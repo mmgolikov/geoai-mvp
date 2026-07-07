@@ -91,6 +91,20 @@ Use this checklist before demos, Vercel deployments, and milestone checkpoints.
 - [ ] `Run Express Analysis` becomes enabled.
 - [ ] Map zoom and center are preserved.
 
+## Mobile Workspace Map Access and Segment Data v1
+
+- [ ] `/workspace` at iPhone 15 Pro width shows a reachable map canvas before the command panel.
+- [ ] `/workspace` at iPhone Pro Max width can use the Selected Point / AOI / Object card `Open map` action.
+- [ ] `/workspace` at iPad 11 portrait and landscape keeps touch map interaction reachable.
+- [ ] `/workspace` at iPad 13 portrait and landscape keeps the command panel CTA from blocking map interaction.
+- [ ] Running analysis and using `Back to map` restores the mobile map without layout overlap.
+- [ ] `/projects?segment=b2b` shows B2B demo projects, analyses, reports and comparison summaries.
+- [ ] `/projects?segment=b2c` shows B2C demo projects, analyses, reports and comparison summaries.
+- [ ] Switching between B2B and B2C does not leak seeded reports or analyses across the active segment.
+- [ ] B2C seeded report print routes open without `Report not found`.
+- [ ] Required caveat remains visible where relevant: screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.
+- [ ] No UI or docs copy claims live official integration, official parcel/zoning/cadastral/ownership validation, certified valuation, production-ready status or pilot-ready status.
+
 ## Object Selection
 
 - [ ] Clicking a demo polygon selects the object.
