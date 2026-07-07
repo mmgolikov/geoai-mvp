@@ -15,7 +15,7 @@ function sourceTypeLabel(sourceType: EvidenceItem["sourceType"]) {
     demo: "Sample",
     open_data: "Open data",
     open_geospatial: "Open geo",
-    official: "Official",
+    official: "Validation source",
     commercial: "Commercial",
     customer: "Customer"
   };
@@ -59,6 +59,13 @@ export function EvidenceSourceCards({ evidence, compact = false }: EvidenceSourc
               <p className="font-semibold text-ink">{source?.name ?? item.sourceId}</p>
               <p>{source?.provider ?? "Source provider unavailable"}</p>
               <p className="mt-2">{source?.usageInGeoAI ?? "Evidence source context for current or planned validation."}</p>
+              <p className="mt-2">
+                Source quality: {source?.maturityLevel ? source.maturityLevel.replace(/_/g, " ") : "sample/open"} / confidence {reliabilityLabel(source?.reliabilityLevel ?? item.confidence)}.
+              </p>
+              <p className="mt-2">
+                Next validation: {source?.recommendedNextStep ?? "Validate source lineage with client-approved or authorized evidence before decisions."}
+              </p>
+              {source?.limitations ? <p className="mt-2">{source.limitations}</p> : null}
               <p className="mt-2">{source?.licenseNote.note ?? "No source note available."}</p>
             </div>
           </article>

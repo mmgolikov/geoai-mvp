@@ -171,6 +171,12 @@ type ExternalDataStatus = {
     confidence: string;
     caveat: string;
     nextValidationStep: string;
+    sourceQuality?: {
+      validationStatus?: string;
+      confidence?: string;
+      dataMode?: string;
+      nextValidationStep?: string;
+    };
   }>;
   summary?: {
     totalGroups: number;
@@ -218,6 +224,7 @@ type ProjectReadinessRow = {
   confidence?: string;
   caveat: string;
   nextValidationStep?: string;
+  validationStatus?: string;
 };
 
 type ReadinessItem = NonNullable<ExternalDataStatus["readiness"]>[number];
@@ -1177,6 +1184,7 @@ export function ProjectDashboard() {
         dataMode: group.dataMode,
         recordCount: group.recordCount,
         confidence: group.confidence,
+        validationStatus: group.sourceQuality?.validationStatus,
         caveat: group.caveat || requiredDataCaveat,
         nextValidationStep: group.nextValidationStep
       }))
@@ -1732,10 +1740,13 @@ export function ProjectDashboard() {
                         <p className="mt-1 text-xs leading-5 text-muted">{source.caveat || requiredDataCaveat}</p>
                       </div>
                       <span className="w-fit rounded-full bg-surface px-2 py-1 text-xs font-semibold text-brand">{source.currentStatus}</span>
-                      <span className="text-xs font-semibold text-muted">{source.dataMode ? sourceDataModeLabel(source.dataMode) : "n/a"}</span>
+                      <span className="text-xs font-semibold text-muted">
+                        {source.dataMode ? sourceDataModeLabel(source.dataMode) : "n/a"}
+                        {source.validationStatus ? <span className="mt-1 block font-normal leading-4">Quality: {source.validationStatus.replace(/-/g, " ")}</span> : null}
+                      </span>
                       <span className="text-xs font-semibold text-ink">{formatRecordCount(source.recordCount)}</span>
                       <span className="text-xs font-semibold text-muted">{source.confidence ? formatLabel(source.confidence) : "n/a"}</span>
-                      <p className="text-xs leading-5 text-muted">{source.nextValidationStep ?? "Validate source lineage with official/client-approved evidence."}</p>
+                      <p className="min-w-0 break-words text-xs leading-5 text-muted">{source.nextValidationStep ?? "Validate source lineage with official/client-approved evidence."}</p>
                     </div>
                   ))}
                 </div>
@@ -2442,7 +2453,7 @@ export function ProjectDashboard() {
               </div>
             </Panel>
 
-            <Panel title="Client Pilot Package" subtitle="Pilot bridge for the active sample project.">
+            <Panel title="Client Validation Package" subtitle="Future client work package framing for the active sample project.">
               <div className="grid gap-3">
                 <div className="rounded-md border border-line bg-surface p-3">
                   <div className="flex items-start justify-between gap-3">
@@ -2463,7 +2474,7 @@ export function ProjectDashboard() {
                 ) : null}
                 <div className="grid gap-2 text-sm">
                   <div className="rounded-md bg-surface p-3">
-                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Pilot deliverables</p>
+                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Delivery artifacts</p>
                     <ul className="mt-2 grid gap-1.5 text-xs leading-5 text-ink">
                       {clientPilotPackage.geoaiDeliverables.slice(0, 4).map((item, index) => (
                         <li key={`client-pilot-deliverable-${index}-${item.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 36)}`}>{item}</li>
@@ -2480,7 +2491,7 @@ export function ProjectDashboard() {
                   </div>
                 </div>
                 <div className="rounded-md border border-line bg-white p-3">
-                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Commercial pilot framing</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Controlled client framing</p>
                   <p className="mt-1 text-sm leading-6 text-ink">{clientPilotPackage.commercialPilotFraming}</p>
                 </div>
                 <p className="text-xs leading-5 text-muted">{clientPilotPackage.caveat}</p>
@@ -2784,10 +2795,13 @@ export function ProjectDashboard() {
                           <p className="mt-1 text-xs leading-5 text-muted">{source.caveat || requiredDataCaveat}</p>
                         </div>
                         <span className="w-fit rounded-full bg-surface px-2 py-1 text-xs font-semibold text-brand">{source.currentStatus}</span>
-                        <span className="text-xs font-semibold text-muted">{source.dataMode ? sourceDataModeLabel(source.dataMode) : "n/a"}</span>
+                        <span className="text-xs font-semibold text-muted">
+                          {source.dataMode ? sourceDataModeLabel(source.dataMode) : "n/a"}
+                          {source.validationStatus ? <span className="mt-1 block font-normal leading-4">Quality: {source.validationStatus.replace(/-/g, " ")}</span> : null}
+                        </span>
                         <span className="text-xs font-semibold text-ink">{formatRecordCount(source.recordCount)}</span>
                         <span className="text-xs font-semibold text-muted">{source.confidence ? formatLabel(source.confidence) : "n/a"}</span>
-                        <p className="text-xs leading-5 text-muted">{source.nextValidationStep ?? "Validate source lineage with official/client-approved evidence."}</p>
+                        <p className="min-w-0 break-words text-xs leading-5 text-muted">{source.nextValidationStep ?? "Validate source lineage with official/client-approved evidence."}</p>
                       </div>
                     ))}
                   </div>

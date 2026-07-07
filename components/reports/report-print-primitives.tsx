@@ -47,8 +47,12 @@ export function SourceLineagePrintSection({ lineage }: { lineage: SourceLineageS
       title: "External data used",
       items: lineage.externalSources.map((source) => ({
         name: source.name,
-        meta: source.status,
-        note: source.disclaimer
+        meta: [source.status, source.dataMode, source.confidence].filter(Boolean).join(" / "),
+        note: [
+          source.validationStatus ? `Source quality: ${source.validationStatus.replace(/-/g, " ")}.` : null,
+          source.nextValidationStep ? `Next validation: ${source.nextValidationStep}` : null,
+          source.disclaimer
+        ].filter(Boolean).join(" ")
       }))
     },
     {
@@ -71,8 +75,12 @@ export function SourceLineagePrintSection({ lineage }: { lineage: SourceLineageS
       title: "Planned validation sources",
       items: lineage.plannedValidationSources.map((source) => ({
         name: source.name,
-        meta: "planned validation",
-        note: source.disclaimer
+        meta: [source.status ?? "planned validation", source.dataMode, source.confidence].filter(Boolean).join(" / "),
+        note: [
+          source.validationStatus ? `Source quality: ${source.validationStatus.replace(/-/g, " ")}.` : null,
+          source.nextValidationStep ? `Next validation: ${source.nextValidationStep}` : null,
+          source.disclaimer
+        ].filter(Boolean).join(" ")
       }))
     }
   ];

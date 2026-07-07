@@ -316,7 +316,7 @@ export function normalizeReportDeliverable(record: unknown): AnalysisReportDeliv
   const decisionPosture = isObject(payload)
     ? asString(payload.decisionPosture, typedRecord.decisionPosture ?? typedRecord.decision_posture ?? "Requires official validation")
     : typedRecord.decisionPosture ?? typedRecord.decision_posture ?? "Requires official validation";
-  const dataHonestyNote = "Browser print/save as PDF deliverable based on MVP screening context. Official validation is required before legal, underwriting, cadastral, zoning, title or investment decisions.";
+  const dataHonestyNote = "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion. Browser print/save as PDF deliverable based on MVP screening context; this is not production-ready or pilot-ready evidence.";
 
   if (reportType === "comparison") {
     const comparison = readComparisonPayload(payload);

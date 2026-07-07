@@ -43,6 +43,8 @@ function formatPerimeter(perimeterM?: number) {
     : `${Math.round(perimeterM).toLocaleString()} m`;
 }
 
+const requiredDataCaveat = "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.";
+
 export function AnalysisReportPrint({ report }: { report: AnalysisReportDeliverable }) {
   const scoreRows = scoreSummaryRows(report.scoreSummary);
   const spatialContext = report.selectedObject?.spatialContext;
@@ -92,7 +94,7 @@ export function AnalysisReportPrint({ report }: { report: AnalysisReportDelivera
             <PrintSection title="Decision Question">
               <p>{demoNarrative.decisionQuestion}</p>
             </PrintSection>
-            <PrintSection title="Pilot Next Action">
+            <PrintSection title="Validation Next Action">
               <p>{clientPilotPackage.validationRequirements[0]}</p>
               <p className="geoai-print-note">{demoNarrative.caveat}</p>
             </PrintSection>
@@ -153,10 +155,10 @@ export function AnalysisReportPrint({ report }: { report: AnalysisReportDelivera
           <PrintSection title="Screening Signals / Source Basis">
             <PrintList
               items={[
-                "Screening output uses deterministic scores and structured source readiness.",
+                "Screening output uses deterministic scores and Data Foundation source-readiness fields.",
+                "Source basis should be reviewed by group, data mode, confidence and next validation step.",
                 "Market signals require validation against agreed market snapshots or customer-approved data.",
-                "Spatial and geometry context is screening-level unless validated by authorized sources.",
-                "Report is intended for decision preparation, not final legal or cadastral approval."
+                "Spatial and geometry context is screening-level unless validated by authorized sources."
               ]}
             />
           </PrintSection>
@@ -181,6 +183,7 @@ export function AnalysisReportPrint({ report }: { report: AnalysisReportDelivera
         </PrintSection>
 
         <PrintSection title="Data Honesty Disclaimer">
+          <p>{requiredDataCaveat}</p>
           <p>{report.dataHonestyNote}</p>
           {report.limitations.slice(0, 4).map((item, index) => (
             <p key={`analysis-print-limitation-${index}`}>{item}</p>

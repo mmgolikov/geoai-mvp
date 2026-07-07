@@ -37,6 +37,8 @@ const comparisonScoreLabels: Record<ScoreKey, string> = {
   overallRisk: "Overall Risk"
 };
 
+const requiredDataCaveat = "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.";
+
 function formatDate(value?: string) {
   return new Intl.DateTimeFormat("en", {
     year: "numeric",
@@ -325,7 +327,7 @@ function AnalysisPrintable({ analysis }: { analysis: ExpressAnalysis }) {
           <PrintCard><strong>Used in prototype</strong><span>Synthetic demo layers, seed_static context and deterministic scoring.</span></PrintCard>
           <PrintCard><strong>Official validation</strong><span>DLD, Dubai Pulse and Dubai Municipality / GeoDubai should validate conclusions.</span></PrintCard>
           <PrintCard><strong>DLD / Dubai Pulse ingestion</strong><span>{ingestionReport.marketMetricCount} sample market areas available for validation workflow and conservative matched scoring.</span></PrintCard>
-          <PrintCard><strong>Pilot integration</strong><span>Adapter stubs define the next path for permitted official, open, licensed and customer data.</span></PrintCard>
+          <PrintCard><strong>Validation integration path</strong><span>Adapter stubs define the next path for permitted official, open, licensed and customer data.</span></PrintCard>
         </div>
       </PrintSection>
 
@@ -347,7 +349,10 @@ function AnalysisPrintable({ analysis }: { analysis: ExpressAnalysis }) {
 
       <PrintSection title="Limitations">
         <p>
-          Current prototype output demonstrates the decision workflow using sample/open indicators. Pilot deployments should validate conclusions against official DLD, Dubai Pulse, Dubai Municipality / GeoDubai, customer and/or licensed datasets.
+          {requiredDataCaveat}
+        </p>
+        <p>
+          Current MVP output demonstrates the decision workflow using sample/open indicators. Any controlled client use should validate conclusions against agreed DLD, Dubai Pulse, Dubai Municipality / GeoDubai, customer and/or licensed datasets.
         </p>
         {analysis.limitations?.map((item, index) => <p key={createStableKey("print-analysis-limitation", item, index)}>{item}</p>)}
       </PrintSection>
@@ -432,7 +437,10 @@ function ComparisonPrintable({ comparison }: { comparison: ComparisonResult }) {
 
       <PrintSection title="Limitations">
         <p>
-          Current prototype output demonstrates the decision workflow using sample/open indicators. Pilot deployments should validate conclusions against official DLD, Dubai Pulse, Dubai Municipality / GeoDubai, customer and/or licensed datasets.
+          {requiredDataCaveat}
+        </p>
+        <p>
+          Current MVP output demonstrates the decision workflow using sample/open indicators. Any controlled client use should validate conclusions against agreed DLD, Dubai Pulse, Dubai Municipality / GeoDubai, customer and/or licensed datasets.
         </p>
       </PrintSection>
     </article>

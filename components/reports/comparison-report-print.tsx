@@ -51,6 +51,8 @@ function readScore(item: NonNullable<ComparisonReportDeliverable["comparison"]>[
   return item.scores[key];
 }
 
+const requiredDataCaveat = "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.";
+
 export function ComparisonReportPrint({ report }: { report: ComparisonReportDeliverable }) {
   const comparison = report.comparison;
   const demoNarrative = getDemoNarrativeByProjectKey(report.projectKey);
@@ -96,7 +98,7 @@ export function ComparisonReportPrint({ report }: { report: ComparisonReportDeli
             <PrintSection title="Decision Question">
               <p>{demoNarrative.decisionQuestion}</p>
             </PrintSection>
-            <PrintSection title="Pilot Next Action">
+            <PrintSection title="Validation Next Action">
               <p>{clientPilotPackage.validationRequirements[0]}</p>
               <p className="geoai-print-note">{demoNarrative.caveat}</p>
             </PrintSection>
@@ -190,6 +192,7 @@ export function ComparisonReportPrint({ report }: { report: ComparisonReportDeli
         </PrintSection>
 
         <PrintSection title="Data Honesty Disclaimer">
+          <p>{requiredDataCaveat}</p>
           <p>{report.dataHonestyNote}</p>
         </PrintSection>
       </PrintPage>

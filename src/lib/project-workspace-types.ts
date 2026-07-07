@@ -4,8 +4,26 @@ export type SourceLineageSnapshot = {
   capturedAt: string;
   demoSources: Array<{ id: string; name: string; note: string }>;
   uploadedSources: Array<{ id: string; name: string; type: string; note: string }>;
-  externalSources: Array<{ id: string; name: string; status: string; disclaimer: string }>;
-  plannedValidationSources: Array<{ id: string; name: string; disclaimer: string }>;
+  externalSources: Array<{
+    id: string;
+    name: string;
+    status: string;
+    dataMode?: string;
+    confidence?: string;
+    validationStatus?: string;
+    nextValidationStep?: string;
+    disclaimer: string;
+  }>;
+  plannedValidationSources: Array<{
+    id: string;
+    name: string;
+    status?: string;
+    dataMode?: string;
+    confidence?: string;
+    validationStatus?: string;
+    nextValidationStep?: string;
+    disclaimer: string;
+  }>;
   disclaimers: string[];
 };
 
