@@ -128,6 +128,8 @@ Migration apply remains guarded and is limited to reviewed preview/pilot targets
 
 See [Supabase Pilot Activation](docs/SUPABASE_PILOT_ACTIVATION.md).
 
+For fallback-safe runtime env setup and read-only probes, see [Supabase Runtime Readiness v1](docs/SUPABASE_RUNTIME_READINESS_V1.md).
+
 Never expose the OpenAI key as a `NEXT_PUBLIC_*` variable. Only `NEXT_PUBLIC_MAPBOX_TOKEN` is intended for browser use.
 
 Do not commit real tokens. `.env`, `.env.local`, and `.env*.local` are ignored.
@@ -152,6 +154,7 @@ See [Repository Mode & Fallback Consistency v2.0.2](docs/REPOSITORY_MODE_FALLBAC
 
 ## Latest Release Notes
 
+- [GeoAI Supabase Runtime Readiness v1](docs/RELEASE_GEOAI_SUPABASE_RUNTIME_READINESS_V1.md)
 - [GeoAI Product Audit Hardening v1](docs/RELEASE_GEOAI_PRODUCT_AUDIT_HARDENING_V1.md)
 - [GeoAI Data Foundation v1.3 - First Snapshot Ingestion Path](docs/RELEASE_GEOAI_DATA_FOUNDATION_V13.md)
 - [GeoAI Data Foundation v1.2 - Snapshot Ingestion and Data Readiness UI](docs/RELEASE_GEOAI_DATA_FOUNDATION_V12.md)
@@ -176,6 +179,7 @@ npm run dev
 npm run dev:turbo
 npm run build
 npm run supabase:activation-status
+npm run supabase:runtime-readiness
 npm run supabase:migrate:check
 npm run supabase:migrate:apply
 npm run supabase:seed:pilot-foundation

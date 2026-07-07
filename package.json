@@ -23,6 +23,7 @@
     "data:sync-source-readiness": "node scripts/sync-source-readiness-snapshots.mjs",
     "validate:external-data": "node scripts/data-status.mjs --validate",
     "supabase:activation-status": "node scripts/supabase-activation-status.mjs",
+    "supabase:runtime-readiness": "node scripts/supabase-runtime-readiness.mjs",
     "supabase:migrate:check": "node scripts/check-supabase-migration.mjs",
     "supabase:migrate:apply": "node scripts/apply-supabase-migration.mjs",
     "supabase:seed:pilot-foundation": "node scripts/seed-pilot-foundation.mjs",

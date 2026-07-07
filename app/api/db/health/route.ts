@@ -3,13 +3,15 @@ import { countSources } from "@/src/lib/db/repositories/sources";
 import { getSchemaReadinessSummary } from "@/src/lib/db/schema-readiness";
 import { getStorageReadiness } from "@/src/lib/storage/storage-readiness";
 import { getSupabaseActivationReadiness } from "@/src/lib/supabase/activation-check";
+import { getSupabaseRuntimeReadiness } from "@/src/lib/supabase/runtime-readiness";
 
 export const runtime = "nodejs";
 
 export async function GET() {
-  const [readiness, storage] = await Promise.all([
+  const [readiness, storage, runtimeReadiness] = await Promise.all([
     getSchemaReadinessSummary(),
-    getStorageReadiness()
+    getStorageReadiness(),
+    getSupabaseRuntimeReadiness()
   ]);
   const activation = await getSupabaseActivationReadiness({ schema: readiness, storage });
   const sourcesCount = readiness.configured ? await countSources() : null;
@@ -35,6 +37,16 @@ export async function GET() {
 
   return NextResponse.json({
     ...readiness,
+    runtimeMode: runtimeReadiness.runtimeMode,
+    supabaseConfigured: runtimeReadiness.supabaseConfigured,
+    healthcheckReachable: runtimeReadiness.healthcheckReachable,
+    schemaReady: runtimeReadiness.schemaReady,
+    sourceRegistryReady: runtimeReadiness.sourceRegistryReady,
+    externalSnapshotsReady: runtimeReadiness.externalSnapshotsReady,
+    localApiFallbackActive: runtimeReadiness.localApiFallbackActive,
+    canReadHealthcheck: runtimeReadiness.canReadHealthcheck,
+    canReadSourceRegistry: runtimeReadiness.canReadSourceRegistry,
+    canReadExternalSnapshots: runtimeReadiness.canReadExternalSnapshots,
     sources_count: sourcesCount,
     storageReady: storage.storageReady,
     storage,
@@ -43,7 +55,11 @@ export async function GET() {
     canWrite: readiness.repositoryMode === "supabase",
     canRead: readiness.repositoryMode === "supabase",
     activation,
-    blockers: Array.from(new Set(blockers)),
-    nextActions: Array.from(new Set(nextActions))
+    runtimeReadiness,
+    blockers: Array.from(new Set([...blockers, ...runtimeReadiness.blockers])),
+    nextActions: Array.from(new Set([...nextActions, ...runtimeReadiness.nextActions])),
+    caveat: runtimeReadiness.caveat,
+    caveats: runtimeReadiness.caveats,
+    generatedAt: runtimeReadiness.generatedAt
   });
 }
