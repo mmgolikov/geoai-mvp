@@ -223,10 +223,17 @@ function commonEvidence(
       "Scenario-specific sample/open context generated from deterministic screening assumptions."
     ),
     createEvidenceItem(
+      "market-snapshot-readiness",
+      "dld-dubai-pulse-transactions",
+      "Market snapshot readiness",
+      "DLD / Dubai Pulse public snapshot/manual import context is used only when matched and available; not a live official feed and not a valuation conclusion.",
+      "medium"
+    ),
+    createEvidenceItem(
       "infrastructure-context",
-      "osm-geofabrik",
+      "osm-geofabrik-baseline",
       "Infrastructure context",
-      "Planned future source for road, access, and infrastructure validation.",
+      "OSM / Geofabrik open baseline context for roads, access, and infrastructure screening; compare against authorized/customer GIS before decisions.",
       "medium"
     ),
     createEvidenceItem(

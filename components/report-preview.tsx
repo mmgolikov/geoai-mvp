@@ -48,6 +48,31 @@ const scoreOrder: ScoreKey[] = [
   "overallRisk"
 ];
 
+const requiredDataCaveat = "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.";
+
+type SourceLineageQualityRow = {
+  sourceGroupId: string;
+  sourceGroupName: string;
+  status: string;
+  dataMode?: string;
+  recordCount?: number | null;
+  confidence?: string;
+  sourceQuality?: {
+    validationStatus?: string;
+    confidence?: string;
+    dataMode?: string;
+    nextValidationStep?: string;
+  };
+  caveat?: string;
+  nextValidationStep?: string;
+};
+
+type SourceLineageQualityResponse = {
+  lineage?: SourceLineageQualityRow[];
+  caveat?: string;
+  generatedAt?: string;
+};
+
 type PrintableReportOpenResult =
   | {
       ok: true;
@@ -95,6 +120,10 @@ function formatDataModeLabel(value?: string | null, separator = " ") {
     .replace(/\bdemo-normalized\b/gi, "sample/open");
 }
 
+function formatSourceQualityLabel(value?: string | null) {
+  return (value ?? "validation required").replace(/[-_]/g, " ");
+}
+
 function createStableKey(section: string, value: unknown, index: number): string {
   const raw = typeof value === "string" ? value : JSON.stringify(value ?? "item");
   const slug = raw
@@ -131,6 +160,8 @@ function ExternalDataLineageSection({
   analysis?: ExpressAnalysis;
   comparison?: ComparisonResult;
 }) {
+  const [sourceQualityRows, setSourceQualityRows] = useState<SourceLineageQualityRow[]>([]);
+  const [sourceQualityCaveat, setSourceQualityCaveat] = useState(requiredDataCaveat);
   const isClimateScenario = analysis?.scenarioId === "climateRisk";
   const evidenceSourceIds = new Set([
     ...(analysis?.evidence.map((item) => item.sourceId) ?? []),
@@ -138,7 +169,7 @@ function ExternalDataLineageSection({
   ]);
   const marketBasis = analysis?.marketMetricsMatch?.importedMetricsUsed || analysis?.marketContext?.importedMarketMetrics?.importedMetricsUsed
     ? "sample/manual market metrics matched; validate against DLD / Dubai Pulse snapshot or official exports"
-    : "sample fallback unless real DLD / Dubai Pulse snapshot is loaded";
+    : "sample fallback unless a local/public DLD / Dubai Pulse snapshot is loaded";
   const usedRows = [
     {
       source: sourceById("dld-dubai-pulse-transactions"),
@@ -174,6 +205,27 @@ function ExternalDataLineageSection({
     }
   ].filter((item): item is { source: NonNullable<ReturnType<typeof sourceById>>; note: string } => Boolean(item.source));
 
+  useEffect(() => {
+    let mounted = true;
+
+    fetch("/api/source-lineage")
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload: SourceLineageQualityResponse | null) => {
+        if (!mounted) return;
+        setSourceQualityRows(Array.isArray(payload?.lineage) ? payload.lineage.slice(0, 5) : []);
+        setSourceQualityCaveat(payload?.caveat ?? requiredDataCaveat);
+      })
+      .catch(() => {
+        if (!mounted) return;
+        setSourceQualityRows([]);
+        setSourceQualityCaveat(requiredDataCaveat);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   const renderRows = (rows: Array<{ source: NonNullable<ReturnType<typeof sourceById>>; note: string }>) => (
     <div className="grid gap-3">
       {rows.map(({ source, note }) => (
@@ -188,6 +240,9 @@ function ExternalDataLineageSection({
             </span>
           </div>
           <p className="mt-3 text-sm leading-6 text-muted">{note}</p>
+          <p className="mt-2 text-xs leading-5 text-muted">
+            Source quality: {formatSourceQualityLabel(source.validationStatus)} / confidence {formatSourceQualityLabel(source.confidence)}.
+          </p>
           <p className="mt-2 text-xs leading-5 text-muted">{source.disclaimer}</p>
         </div>
       ))}
@@ -197,6 +252,28 @@ function ExternalDataLineageSection({
   return (
     <Section title="External Data Used In This Memo">
       <div className="grid gap-4">
+        <div>
+          <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-muted">Source quality / next validation</h3>
+          <div className="mt-3 grid gap-3 md:grid-cols-2">
+            {(sourceQualityRows.length > 0 ? sourceQualityRows : []).map((row) => (
+              <div key={row.sourceGroupId} className="rounded-md border border-line bg-white p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <p className="font-semibold text-ink">{row.sourceGroupName}</p>
+                  <span className="rounded-full bg-surface px-2 py-1 text-xs font-semibold text-brand">
+                    {sourceStatusToLabel(row.status)}
+                  </span>
+                </div>
+                <p className="mt-2 text-xs uppercase tracking-[0.1em] text-muted">
+                  {formatDataModeLabel(row.dataMode)} / {formatSourceQualityLabel(row.sourceQuality?.validationStatus)} / {formatSourceQualityLabel(row.confidence ?? row.sourceQuality?.confidence)}
+                </p>
+                <p className="mt-3 text-sm leading-6 text-muted">
+                  {row.nextValidationStep ?? row.sourceQuality?.nextValidationStep ?? "Validate source lineage with official/client-approved evidence."}
+                </p>
+              </div>
+            ))}
+          </div>
+          <p className="mt-3 text-xs leading-5 text-muted">{sourceQualityCaveat}</p>
+        </div>
         <div>
           <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-muted">Used / source basis</h3>
           <div className="mt-3">{renderRows(usedRows)}</div>
@@ -571,18 +648,18 @@ function AnalysisReport({ analysis, onBack }: { analysis: ExpressAnalysis; onBac
         </Section>
 
         {demoNarrative ? (
-          <Section title="Decision Question & Pilot Next Action">
+          <Section title="Decision Question & Validation Next Action">
             <div className="grid gap-3 text-sm md:grid-cols-2">
               <div className="rounded-md border border-line bg-surface p-4">
                 <span className="font-semibold text-muted">Decision question</span>
                 <p className="mt-2 leading-6 text-ink">{demoNarrative.decisionQuestion}</p>
               </div>
               <div className="rounded-md border border-line bg-surface p-4">
-                <span className="font-semibold text-muted">Pilot next action</span>
+                <span className="font-semibold text-muted">Validation next action</span>
                 <p className="mt-2 leading-6 text-ink">{clientPilotPackage.validationRequirements[0]}</p>
               </div>
               <div className="rounded-md border border-line bg-surface p-4 md:col-span-2">
-                <span className="font-semibold text-muted">Pilot bridge</span>
+                <span className="font-semibold text-muted">Workflow bridge</span>
                 <p className="mt-2 leading-6 text-ink">{demoNarrative.pilotBridge}</p>
                 <p className="mt-3 text-xs leading-5 text-muted">{demoNarrative.caveat}</p>
               </div>
@@ -947,6 +1024,13 @@ function AnalysisReport({ analysis, onBack }: { analysis: ExpressAnalysis; onBac
             </ul>
           </Section>
         ) : null}
+
+        <Section title="Data Honesty">
+          <p className="text-sm leading-6 text-muted">{requiredDataCaveat}</p>
+          <p className="mt-2 text-sm leading-6 text-muted">
+            This report is an MVP screening output using sample/open, local snapshot, uploaded or validation-required context. It does not claim live official integration, production readiness or pilot readiness.
+          </p>
+        </Section>
         </div>
       </ReportShell>
       <PrintableReport mode="analysis" analysis={analysis} />
@@ -1038,18 +1122,18 @@ function ComparisonReport({ comparison, onBack }: { comparison: ComparisonResult
         </Section>
 
         {demoNarrative ? (
-          <Section title="Decision Question & Pilot Next Action">
+          <Section title="Decision Question & Validation Next Action">
             <div className="grid gap-3 text-sm md:grid-cols-2">
               <div className="rounded-md border border-line bg-surface p-4">
                 <span className="font-semibold text-muted">Decision question</span>
                 <p className="mt-2 leading-6 text-ink">{demoNarrative.decisionQuestion}</p>
               </div>
               <div className="rounded-md border border-line bg-surface p-4">
-                <span className="font-semibold text-muted">Pilot next action</span>
+                <span className="font-semibold text-muted">Validation next action</span>
                 <p className="mt-2 leading-6 text-ink">{clientPilotPackage.validationRequirements[0]}</p>
               </div>
               <div className="rounded-md border border-line bg-surface p-4 md:col-span-2">
-                <span className="font-semibold text-muted">Pilot bridge</span>
+                <span className="font-semibold text-muted">Workflow bridge</span>
                 <p className="mt-2 leading-6 text-ink">{demoNarrative.pilotBridge}</p>
                 <p className="mt-3 text-xs leading-5 text-muted">{demoNarrative.caveat}</p>
               </div>
@@ -1160,6 +1244,13 @@ function ComparisonReport({ comparison, onBack }: { comparison: ComparisonResult
               </li>
             ))}
           </ol>
+        </Section>
+
+        <Section title="Data Honesty">
+          <p className="text-sm leading-6 text-muted">{requiredDataCaveat}</p>
+          <p className="mt-2 text-sm leading-6 text-muted">
+            This comparison is an MVP screening output using sample/open, local snapshot, uploaded or validation-required context. It does not claim live official integration, production readiness or pilot readiness.
+          </p>
         </Section>
         </div>
       </ReportShell>

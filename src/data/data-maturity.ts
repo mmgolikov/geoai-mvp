@@ -19,17 +19,17 @@ export const dataMaturityModel: DataMaturityDefinition[] = [
   },
   {
     id: "open_ready",
-    label: "Open-ready",
+    label: "Open prepared",
     explanation: "Prepared for open datasets after terms, attribution and endpoint checks.",
     badgeClassName: "bg-[#edf4f2] text-brand",
     decisionConfidence: "Useful for context once validated against source terms."
   },
   {
     id: "official_ready",
-    label: "Official-ready",
-    explanation: "Designed for official validation sources such as DLD or municipal GIS.",
+    label: "Validation path",
+    explanation: "Designed for validation sources such as DLD or municipal GIS after access and terms are approved.",
     badgeClassName: "bg-[#fff8db] text-[#8a6a12]",
-    decisionConfidence: "Can support stronger conclusions after official access is connected."
+    decisionConfidence: "Can support stronger evidence after authorized access is connected and validated."
   },
   {
     id: "licensed_commercial_ready",
@@ -47,14 +47,14 @@ export const dataMaturityModel: DataMaturityDefinition[] = [
   },
   {
     id: "pilot_validated",
-    label: "Pilot-validated",
-    explanation: "Validated in a controlled pilot workflow with known source coverage.",
+    label: "Controlled validation",
+    explanation: "Validated in a controlled workflow with known source coverage.",
     badgeClassName: "bg-[#eaf3f1] text-brand",
-    decisionConfidence: "Appropriate for pilot decisions within agreed limits."
+    decisionConfidence: "Appropriate for agreed limited-scope decisions only after validation."
   },
   {
     id: "production_grade",
-    label: "Production-grade",
+    label: "Production controls",
     explanation: "Governed, audited, connected and QA-tested data pipeline.",
     badgeClassName: "bg-[#eaf3f1] text-brand",
     decisionConfidence: "Decision-grade only after production controls are in place."
@@ -93,8 +93,8 @@ export const sourceReadinessMatrix: SourceReadinessRow[] = [
   {
     sourceId: "dubai-land-department-real-estate",
     source: "DLD Real Estate Data",
-    category: "Official",
-    currentStatus: "Official-ready / planned",
+    category: "Validation source",
+    currentStatus: "Validation path / planned",
     usedNow: "No",
     pilotRelevance: "Transactions, rents, comps",
     validationRole: "Requires access and usage review"
@@ -102,7 +102,7 @@ export const sourceReadinessMatrix: SourceReadinessRow[] = [
   {
     sourceId: "dubai-pulse-dld-apis",
     source: "Dubai Pulse / Data Dubai",
-    category: "Official/open data",
+    category: "Open validation data",
     currentStatus: "Planned",
     usedNow: "No",
     pilotRelevance: "Historical and public datasets",
@@ -111,7 +111,7 @@ export const sourceReadinessMatrix: SourceReadinessRow[] = [
   {
     sourceId: "dubai-municipality-gis-planning",
     source: "Dubai Municipality / GeoDubai",
-    category: "Official GIS",
+    category: "Validation GIS",
     currentStatus: "Requires access",
     usedNow: "No",
     pilotRelevance: "Planning, zoning, GIS validation",
@@ -158,7 +158,7 @@ export function deriveDataConfidenceLevel(evidence: EvidenceItem[]) {
   const hasDecisionGrade = sources.some((source) => source.decisionGrade);
 
   if (hasDecisionGrade) {
-    return "Production-grade";
+    return "Production controls verified";
   }
 
   if (usedSample && hasOfficialPath) {
@@ -166,7 +166,7 @@ export function deriveDataConfidenceLevel(evidence: EvidenceItem[]) {
   }
 
   if (sources.some((source) => source.integrationStatus === "official_ready")) {
-    return "Partial validation";
+    return "Validation path available";
   }
 
   return "Sample/open only";
