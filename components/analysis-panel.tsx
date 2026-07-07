@@ -1445,7 +1445,7 @@ export function AnalysisPanel({
                 <button
                   type="button"
                   onClick={onOpenMap}
-                  className="inline-flex h-8 items-center justify-center rounded-md border border-line bg-white px-3 text-xs font-semibold text-ink transition hover:border-brand lg:hidden"
+                  className="inline-flex h-8 items-center justify-center rounded-md border border-line bg-white px-3 text-xs font-semibold text-ink transition hover:border-brand min-[1367px]:hidden"
                 >
                   Open map
                 </button>

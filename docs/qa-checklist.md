@@ -93,14 +93,22 @@ Use this checklist before demos, Vercel deployments, and milestone checkpoints.
 
 ## Mobile Workspace Map Access and Segment Data v1
 
-- [ ] `/workspace` at iPhone 15 Pro width shows a reachable map canvas before the command panel.
-- [ ] `/workspace` at iPhone Pro Max width can use the Selected Point / AOI / Object card `Open map` action.
-- [ ] `/workspace` at iPad 11 portrait and landscape keeps touch map interaction reachable.
-- [ ] `/workspace` at iPad 13 portrait and landscape keeps the command panel CTA from blocking map interaction.
-- [ ] Running analysis and using `Back to map` restores the mobile map without layout overlap.
+- [ ] `/workspace` at iPhone 15 Pro width opens a full-screen map picker from the Selected Point / AOI / Object card `Open map` action.
+- [ ] `/workspace` at iPhone 15/16/17 Pro Max width opens the full-screen map picker and keeps touch map selection usable.
+- [ ] `/workspace` at iPad 11 portrait and landscape opens the full-screen map picker and keeps touch map selection usable.
+- [ ] `/workspace` at iPad 13 portrait and landscape opens the full-screen map picker and keeps touch map selection usable.
+- [ ] A valid mobile picker selection enables `Run Express Analysis` inside the picker.
+- [ ] Direct run from the full-screen map picker shows analysis progress and automatically opens the dashboard/result state.
+- [ ] `Back to workflow` closes the full-screen map picker without losing the selected point/object/AOI.
+- [ ] The result dashboard exposes evidence/source sections, project actions and report preview / print path on mobile.
+- [ ] B2B map-first flow completes end-to-end: select target, run analysis, open dashboard, open evidence/source sections, open project, open report preview / print path.
+- [ ] B2C map-first flow completes end-to-end: select target, run analysis, open dashboard, open evidence/source sections, open project, open report preview / print path.
+- [ ] Criteria-first flow completes where available without replacing the mobile map picker behavior.
+- [ ] Compare flow completes on mobile.
+- [ ] Restore/open existing analysis restores the correct segment-specific state.
 - [ ] `/projects?segment=b2b` shows B2B demo projects, analyses, reports and comparison summaries.
 - [ ] `/projects?segment=b2c` shows B2C demo projects, analyses, reports and comparison summaries.
-- [ ] Switching between B2B and B2C does not leak seeded reports or analyses across the active segment.
+- [ ] Switching between B2B and B2C changes content and does not leak seeded reports or analyses across the active segment.
 - [ ] B2C seeded report print routes open without `Report not found`.
 - [ ] Required caveat remains visible where relevant: screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.
 - [ ] No UI or docs copy claims live official integration, official parcel/zoning/cadastral/ownership validation, certified valuation, production-ready status or pilot-ready status.

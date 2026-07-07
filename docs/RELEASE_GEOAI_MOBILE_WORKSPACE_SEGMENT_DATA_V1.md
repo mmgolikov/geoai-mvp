@@ -2,7 +2,7 @@
 
 ## Summary
 
-Mobile Workspace Map Access and Segment Data v1 keeps the current GeoAI workspace and Project Hub design intact while improving iPhone/tablet usability and demo data separation.
+Mobile Workspace Map Access and Segment Data v1 keeps the current GeoAI workspace and Project Hub design intact while improving iPhone/tablet usability, full-screen mobile map selection, post-analysis handoff and demo data separation.
 
 Required caveat:
 
@@ -10,9 +10,13 @@ Required caveat:
 
 ## What Changed
 
-- Added mobile-safe workspace map access from the Selected Point / AOI / Object card.
+- Added a mobile full-screen map picker from the Selected Point / AOI / Object card.
+- Added direct mobile map-picker actions after a valid selection:
+  - `Run Express Analysis`;
+  - `Back to workflow`.
+- Updated the mobile analysis handoff so a completed run closes the map picker and opens the dashboard/result state automatically.
 - Changed the workspace shell so desktop keeps the fixed two-column app layout while mobile/tablet can scroll naturally to the map and command panel.
-- Preserved the existing command panel, dashboard, report preview and map-first workflow.
+- Preserved the existing command panel, dashboard, report preview and map-first workflow visual style.
 - Added B2C demo projects alongside the existing B2B demo projects:
   - Home Buyer Neighborhood Fit;
   - Family Relocation Area Review.
@@ -37,7 +41,13 @@ Required validation for this release:
 
 Required responsive smoke:
 
-- `/workspace` at iPhone 15 Pro, iPhone Pro Max, iPad 11 portrait/landscape and iPad 13 portrait/landscape.
+- `/workspace` at iPhone 15 Pro, iPhone 15/16/17 Pro Max, iPad 11 portrait/landscape and iPad 13 portrait/landscape.
+- Mobile full-screen map picker open, map selection, direct run from picker, return to workflow from picker, dashboard open after analysis, evidence/source section open, report preview / print path open.
+- B2B and B2C map-first flows.
+- Criteria-first flow where available.
+- Compare flow.
+- Restore/open existing analysis.
+- Segment switch with different B2B/B2C content.
 - `/projects?segment=b2b`
 - `/projects?segment=b2c`
 - seeded report preview / print routes for B2B and B2C reports.
