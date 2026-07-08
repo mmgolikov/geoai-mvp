@@ -10,7 +10,7 @@ import {
   getExploreRole,
   getExploreRolesByAudience,
   getExploreScenario,
-  getExploreScenariosByAudience
+  getExploreScenariosByRole
 } from "@/src/lib/explore/scenarios";
 import {
   exploreRequiredCaveat,
@@ -33,7 +33,7 @@ import { sourceTypeLabel, validationStatusLabel } from "@/src/lib/aoi-library";
 import { formatArea, formatPerimeter } from "@/src/lib/polygon-aoi";
 import { getPilotPackageForProject } from "@/src/lib/pilot/pilot-packages";
 import type { LocalProjectInput } from "@/src/lib/project-local-store";
-import { repositoryModeToLabel, type RepositoryMode } from "@/src/lib/repositories/repository-mode";
+import type { RepositoryMode } from "@/src/lib/repositories/repository-mode";
 import type { GeoAIProject } from "@/src/lib/db/types";
 import type { MarketMetricsMatch } from "@/src/lib/market-metrics/types";
 import type { MarketContext } from "@/src/types/market-context";
@@ -64,7 +64,6 @@ type AnalysisPanelProps = {
   selectedObject: SelectedDemoObject | null;
   selectedAoi: UserDrawnAoi | null;
   projects: GeoAIProject[];
-  projectsMode: "supabase" | "demo_seed";
   activeProject: GeoAIProject;
   selectedScenario: AnalysisScenarioId;
   customQuery: string;
@@ -393,7 +392,6 @@ export function AnalysisPanel({
   selectedObject,
   selectedAoi,
   projects,
-  projectsMode,
   activeProject,
   selectedScenario,
   customQuery,
@@ -479,7 +477,7 @@ export function AnalysisPanel({
   const hasSelectedObject = selectedObject !== null;
   const hasSelectedAoi = selectedAoi !== null;
   const exploreScenario = getExploreScenario(exploreScenarioId);
-  const exploreScenarios = getExploreScenariosByAudience(exploreAudience);
+  const exploreScenarios = getExploreScenariosByRole(exploreAudience, exploreRole);
   const exploreRoles = getExploreRolesByAudience(exploreAudience);
   const selectedExploreRole = getExploreRole(exploreRole);
   const selectedExploreCandidate = exploreCandidates.find((candidate) => candidate.id === selectedExploreCandidateId) ?? null;
@@ -515,7 +513,6 @@ export function AnalysisPanel({
       : "real-ready";
   const analysisHistoryStatus =
     analysisHistorySource === "DB" ? "Supabase-backed" : "Local fallback";
-  const projectPersistenceStatus = repositoryModeToLabel(projectsMode);
   const projectAccessLabel =
     authStatus.effectiveMode === "supabase_auth"
       ? isAuthenticated
@@ -1140,7 +1137,7 @@ export function AnalysisPanel({
             </div>
           </section>
 
-          <section className="min-w-0 max-w-full overflow-hidden rounded-lg border border-line bg-surface p-2.5">
+          <section className="min-w-0 max-w-full overflow-hidden rounded-lg border border-line bg-surface p-2">
             <div className="flex items-center justify-between gap-3">
               <label
                 htmlFor="active-project"
@@ -1175,18 +1172,6 @@ export function AnalysisPanel({
               >
                 Create
               </button>
-            </div>
-            <div className="mt-1 flex justify-end">
-              <details className="rounded-md border border-line bg-white px-2">
-                <summary className="flex h-7 cursor-pointer list-none items-center text-[11px] font-semibold text-muted">
-                  Details
-                </summary>
-                <div className="border-t border-line py-2 text-[11px] leading-5 text-muted">
-                  <p>{activeProject.geography}</p>
-                  <p className="capitalize">{activeProject.clientType.replace(/_/g, " ")}</p>
-                  <p>{projectPersistenceStatus}</p>
-                </div>
-              </details>
             </div>
             {isProjectCreateOpen ? (
               <div className="mt-3 grid gap-2 rounded-md border border-line bg-white p-2">
@@ -1294,7 +1279,7 @@ export function AnalysisPanel({
 
             <div className="mt-2">
               <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
-                Interaction mode
+                Interaction Mode
               </p>
               <div className="mt-1 grid grid-cols-2 gap-2">
                 {exploreScenario.interactionModes.map((mode) => (
@@ -1325,7 +1310,7 @@ export function AnalysisPanel({
                   {exploreScenario.inputSchema.length} controls
                 </span>
               </summary>
-              <div className="grid max-h-56 gap-2 overflow-y-auto border-t border-line py-2 [scrollbar-width:thin]">
+              <div className="grid max-h-32 gap-2 overflow-y-auto border-t border-line py-2 [scrollbar-width:thin] sm:max-h-40 lg:max-h-56">
                 {exploreScenario.inputSchema.map((config) => (
                   <ExploreSetupControl
                     key={config.id}
@@ -1337,31 +1322,10 @@ export function AnalysisPanel({
               </div>
             </details>
 
-            <div className="mt-2 min-w-0">
-              <label
-                htmlFor="custom-query"
-                className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted"
-              >
-                Custom query
-              </label>
-              <textarea
-                id="custom-query"
-                rows={3}
-                value={customQuery}
-                onChange={(event) => onCustomQueryChange(event.target.value)}
-                placeholder={
-                  hasComparisonReady
-                    ? "Refine this comparison"
-                    : exploreScenario.sampleQueries[0] ?? "Ask a scenario-specific question"
-                }
-                className="mt-1 w-full resize-none rounded-md border border-line bg-surface px-2 py-2 text-xs text-ink outline-none transition placeholder:text-muted/70 focus:border-brand"
-              />
-            </div>
-
             <div className="mt-2 rounded-md border border-line bg-surface p-2">
               <div className="flex items-center justify-between gap-2">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
-                  {hasSearchedCandidates ? "Search results" : "Candidate search"}
+                  Candidate Search
                 </p>
                 <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
                   <span className="rounded-full bg-white px-2 py-1 text-[10px] font-semibold text-brand">
@@ -1414,6 +1378,27 @@ export function AnalysisPanel({
                   {candidateSearchEmptyMessage}
                 </div>
               )}
+            </div>
+
+            <div className="mt-2 min-w-0">
+              <label
+                htmlFor="custom-query"
+                className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted"
+              >
+                Custom Query
+              </label>
+              <textarea
+                id="custom-query"
+                rows={3}
+                value={customQuery}
+                onChange={(event) => onCustomQueryChange(event.target.value)}
+                placeholder={
+                  hasComparisonReady
+                    ? "Refine this comparison"
+                    : exploreScenario.sampleQueries[0] ?? "Ask a scenario-specific question"
+                }
+                className="mt-1 w-full resize-none rounded-md border border-line bg-surface px-2 py-2 text-xs text-ink outline-none transition placeholder:text-muted/70 focus:border-brand"
+              />
             </div>
           </section>
 

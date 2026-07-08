@@ -109,6 +109,85 @@ export const b2bRoles: ExploreRoleDefinition<B2BRole>[] = [
 
 export const exploreRoles = [...b2cRoles, ...b2bRoles] as ExploreRoleDefinition[];
 
+const exploreRoleScenarioIds: Record<ExploreRole, ExploreScenarioId[]> = {
+  tourist: [
+    "b2c_point_context",
+    "b2c_tourist_objects_route",
+    "b2c_interest_routes"
+  ],
+  resident_expat: [
+    "b2c_point_context",
+    "b2c_residential_context",
+    "b2c_interest_routes"
+  ],
+  home_buyer: [
+    "b2c_residential_context",
+    "b2c_new_residential_projects",
+    "b2c_point_context"
+  ],
+  renter: [
+    "b2c_residential_context",
+    "b2c_point_context",
+    "b2c_new_residential_projects"
+  ],
+  investor_buyer: [
+    "b2c_new_residential_projects",
+    "b2c_residential_context",
+    "b2c_interest_routes"
+  ],
+  family_relocation: [
+    "b2c_residential_context",
+    "b2c_point_context",
+    "b2c_interest_routes"
+  ],
+  developer: [
+    "b2b_redevelopment_selected_aoi",
+    "b2b_redevelopment_100ha",
+    "b2b_lowrise_luxury_residential"
+  ],
+  real_estate_fund: [
+    "b2b_redevelopment_100ha",
+    "b2b_lowrise_luxury_residential",
+    "b2b_commercial_real_estate",
+    "b2b_hotel_development"
+  ],
+  bank_lender: [
+    "b2b_commercial_real_estate",
+    "b2b_redevelopment_selected_aoi",
+    "b2b_redevelopment_100ha"
+  ],
+  insurer: [
+    "b2b_redevelopment_selected_aoi",
+    "b2b_commercial_real_estate",
+    "b2b_hotel_development"
+  ],
+  government_urban_authority: [
+    "b2b_redevelopment_100ha",
+    "b2b_redevelopment_selected_aoi",
+    "b2b_commercial_real_estate"
+  ],
+  infrastructure_operator: [
+    "b2b_redevelopment_100ha",
+    "b2b_commercial_real_estate",
+    "b2b_redevelopment_selected_aoi"
+  ],
+  consultant_broker: [
+    "b2b_commercial_real_estate",
+    "b2b_hotel_development",
+    "b2b_redevelopment_selected_aoi"
+  ],
+  family_office: [
+    "b2b_lowrise_luxury_residential",
+    "b2b_commercial_real_estate",
+    "b2b_redevelopment_100ha"
+  ],
+  asset_manager: [
+    "b2b_commercial_real_estate",
+    "b2b_lowrise_luxury_residential",
+    "b2b_hotel_development"
+  ]
+};
+
 const validationCaveats = [
   exploreRequiredCaveat,
   "Sample/open context only; customer-approved or authoritative source checks are required before decisions."
@@ -531,12 +610,48 @@ export function getExploreRole(id: ExploreRole) {
   return exploreRoles.find((role) => role.id === id) ?? exploreRoles[0];
 }
 
+export function isExploreRoleForAudience(audience: ExploreAudience, role: unknown): role is ExploreRole {
+  return typeof role === "string" && exploreRoles.some((item) => item.id === role && item.audience === audience);
+}
+
+export function isExploreScenarioId(value: unknown): value is ExploreScenarioId {
+  return typeof value === "string" && exploreScenarios.some((scenario) => scenario.id === value);
+}
+
+export function getExploreScenariosByRole(audience: ExploreAudience, role: ExploreRole) {
+  const normalizedRole = isExploreRoleForAudience(audience, role)
+    ? role
+    : getDefaultRoleForAudience(audience);
+  const scenarioById = new Map(exploreScenarios.map((scenario) => [scenario.id, scenario]));
+  const mappedScenarios = (exploreRoleScenarioIds[normalizedRole] ?? [])
+    .map((scenarioId) => scenarioById.get(scenarioId))
+    .filter((scenario): scenario is ExploreScenario => Boolean(scenario && scenario.audience === audience));
+
+  return mappedScenarios.length > 0 ? mappedScenarios : getExploreScenariosByAudience(audience);
+}
+
+export function isExploreScenarioForRole(
+  audience: ExploreAudience,
+  role: ExploreRole,
+  scenarioId: unknown
+): scenarioId is ExploreScenarioId {
+  return isExploreScenarioId(scenarioId) &&
+    getExploreScenariosByRole(audience, role).some((scenario) => scenario.id === scenarioId);
+}
+
 export function getDefaultRoleForAudience(audience: ExploreAudience): ExploreRole {
   return audience === "b2c" ? b2cRoles[0].id : b2bRoles[0].id;
 }
 
 export function getDefaultScenarioForAudience(audience: ExploreAudience): ExploreScenarioId {
-  return getExploreScenariosByAudience(audience)[0].id;
+  return getDefaultScenarioForRole(audience, getDefaultRoleForAudience(audience));
+}
+
+export function getDefaultScenarioForRole(
+  audience: ExploreAudience,
+  role: ExploreRole
+): ExploreScenarioId {
+  return getExploreScenariosByRole(audience, role)[0].id;
 }
 
 export function getDefaultFilters(inputSchema: ExploreFilterConfig[]): ExploreFilters {

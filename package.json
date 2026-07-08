@@ -35,6 +35,7 @@
     "test:access-decision": "node scripts/access-decision-check.mjs",
     "test:rls-plan": "node scripts/rls-verification-plan-check.mjs",
     "test:api-contract": "node scripts/api-contract-check.mjs",
+    "test:workspace-panel": "node scripts/workspace-mobile-panel-check.mjs",
     "start": "next start",
     "lint": "tsc --noEmit --pretty false"
   },
