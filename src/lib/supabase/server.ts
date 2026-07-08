@@ -1,4 +1,3 @@
-import { createClient } from "@supabase/supabase-js";
 import {
   getSupabaseAnonKey,
   getSupabaseServiceRoleKey,
@@ -21,6 +20,18 @@ export type SupabaseServerClient = {
   };
 };
 
+type SupabaseModuleLike = {
+  createClient: (url: string, key: string, options?: unknown) => SupabaseServerClient;
+};
+
+async function loadSupabaseModule(): Promise<SupabaseModuleLike | null> {
+  try {
+    return (await import("@supabase/supabase-js")) as unknown as SupabaseModuleLike;
+  } catch {
+    return null;
+  }
+}
+
 export async function getSupabaseServerClient(): Promise<SupabaseServerClient | null> {
   if (!isSupabaseConfigured()) {
     return null;
@@ -33,7 +44,12 @@ export async function getSupabaseServerClient(): Promise<SupabaseServerClient | 
     return null;
   }
 
-  return createClient(url, key, {
+  const supabase = await loadSupabaseModule();
+  if (!supabase) {
+    return null;
+  }
+
+  return supabase.createClient(url, key, {
     auth: {
       persistSession: false,
       autoRefreshToken: false
@@ -43,5 +59,5 @@ export async function getSupabaseServerClient(): Promise<SupabaseServerClient | 
         "X-Client-Info": "geoai-mvp-server"
       }
     }
-  }) as unknown as SupabaseServerClient;
+  });
 }
