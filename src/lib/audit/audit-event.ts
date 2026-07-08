@@ -78,10 +78,7 @@ export async function recordAuditEvent(input: AuditEventInput) {
   }
 
   try {
-    const query = client.from("audit_events").insert(createAuditEventPayload(input)) as Promise<{
-      error?: unknown;
-    }>;
-    const response = await query;
+    const response = await client.from("audit_events").insert(createAuditEventPayload(input));
 
     if (response.error) {
       return {
