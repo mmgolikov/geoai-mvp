@@ -23,7 +23,7 @@ export async function GET() {
     ...readiness,
     audit: {
       recorded: audit.recorded,
-      repositoryMode: audit.repositoryMode,
+      mode: audit.mode,
       message: audit.message
     }
   });
