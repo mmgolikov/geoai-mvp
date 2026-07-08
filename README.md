@@ -154,6 +154,7 @@ See [Repository Mode & Fallback Consistency v2.0.2](docs/REPOSITORY_MODE_FALLBAC
 
 ## Latest Release Notes
 
+- [GeoAI Mobile Workspace Map Access and Segment Data v1](docs/RELEASE_GEOAI_MOBILE_WORKSPACE_SEGMENT_DATA_V1.md)
 - [GeoAI Supabase Runtime Readiness v1](docs/RELEASE_GEOAI_SUPABASE_RUNTIME_READINESS_V1.md)
 - [GeoAI Product Audit Hardening v1](docs/RELEASE_GEOAI_PRODUCT_AUDIT_HARDENING_V1.md)
 - [GeoAI Data Foundation v1.3 - First Snapshot Ingestion Path](docs/RELEASE_GEOAI_DATA_FOUNDATION_V13.md)

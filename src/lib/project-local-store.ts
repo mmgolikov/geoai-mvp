@@ -44,7 +44,7 @@ export function createLocalProject(input: LocalProjectInput): GeoAIProject {
     id: null,
     projectKey: `${baseKey}-${Date.now().toString(36)}`,
     name: input.name.trim(),
-    description: `${input.audience.toUpperCase()} pilot screening workspace for ${input.geography?.trim() || "Dubai / UAE"}.`,
+    description: `${input.audience.toUpperCase()} demo screening workspace for ${input.geography?.trim() || "Dubai / UAE"}.`,
     geography: input.geography?.trim() || "Dubai / UAE",
     clientType: projectClientTypeFromRole(input.role, input.audience),
     primaryScenario: input.scenarioId ?? "investmentSiteSelection",
@@ -54,7 +54,7 @@ export function createLocalProject(input: LocalProjectInput): GeoAIProject {
       audience: input.audience,
       role: input.role,
       createdLocally: true,
-      caveat: "Screening hypothesis; official validation required."
+      caveat: "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
     },
     createdAt: timestamp,
     updatedAt: timestamp

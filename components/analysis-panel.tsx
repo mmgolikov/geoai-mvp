@@ -132,6 +132,7 @@ type AnalysisPanelProps = {
   onRemoveUploadedDataset: (datasetId: string) => void;
   onClearUploadedDatasets: () => void;
   onToggleUploadedDataset: (datasetId: string) => void;
+  onOpenMap: () => void;
 };
 
 type ExternalDataStatusResponse = {
@@ -451,7 +452,8 @@ export function AnalysisPanel({
   onExportSavedAoi,
   onRemoveUploadedDataset,
   onClearUploadedDatasets,
-  onToggleUploadedDataset
+  onToggleUploadedDataset,
+  onOpenMap
 }: AnalysisPanelProps) {
   const { authStatus, roleLabel, isAuthenticated, user } = useAuth();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -481,6 +483,7 @@ export function AnalysisPanel({
   const exploreRoles = getExploreRolesByAudience(exploreAudience);
   const selectedExploreRole = getExploreRole(exploreRole);
   const selectedExploreCandidate = exploreCandidates.find((candidate) => candidate.id === selectedExploreCandidateId) ?? null;
+  const hasValidWorkflowTarget = hasSelectedPoint || hasSelectedObject || hasSelectedAoi || selectedExploreCandidate !== null;
   const topExploreCandidates = exploreCandidates.slice(0, 3);
   const isCriteriaFirstMode = exploreInteractionMode === "criteria_first";
   const hasSearchedCandidates = isCriteriaFirstMode && candidateSearchStatus === "searched" && exploreCandidates.length > 0;
@@ -571,6 +574,9 @@ export function AnalysisPanel({
         : hasSelectedPoint
           ? "Run analysis from the pinned footer."
           : "Use the map to start.";
+  const actionUnavailableMessage = "Select a map point, AOI, object, or candidate preview to begin.";
+  const visiblePrimaryCtaLabel = primaryCtaDisabled && !hasValidWorkflowTarget ? "Run Express Analysis" : primaryCtaLabel;
+  const visiblePrimaryCtaNote = primaryCtaDisabled && !hasValidWorkflowTarget ? actionUnavailableMessage : activeWorkflowNote;
   const pilotPackage = getPilotPackageForProject(activeProject.projectKey, activeProject.clientType);
   const pilotChecklist = [
     { label: "Select client type", status: activeProject.clientType ? "Done" : "Needed" },
@@ -1112,8 +1118,8 @@ export function AnalysisPanel({
   }
 
   return (
-    <aside className="flex h-full max-w-full flex-col overflow-hidden border-l border-line bg-white lg:w-[380px]">
-      <section className="min-h-0 flex-1 min-w-0 max-w-full overflow-y-auto overflow-x-hidden p-3 pb-5 [scrollbar-width:thin]">
+    <aside className="flex min-h-0 max-w-full flex-col border-line bg-white max-lg:border-t lg:h-full lg:w-[380px] lg:overflow-hidden lg:border-l">
+      <section className="min-w-0 max-w-full overflow-x-hidden p-3 pb-5 [scrollbar-width:thin] lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
         <div className="grid min-w-0 gap-2">
           <section className="min-w-0 max-w-full overflow-hidden rounded-lg border border-line bg-white p-2">
             <div className="grid grid-cols-2 gap-1 rounded-md bg-surface p-1">
@@ -1436,9 +1442,18 @@ export function AnalysisPanel({
                       : "Select a point, object, AOI or candidate"}
                 </p>
               </div>
-              <span className="shrink-0 rounded-full bg-white px-2 py-1 text-[11px] font-semibold text-brand">
-                {hasSelectedAoi ? "AOI" : hasSelectedObject ? "Object" : "Point"}
-              </span>
+              <div className="flex shrink-0 flex-col items-end gap-2">
+                <span className="rounded-full bg-white px-2 py-1 text-[11px] font-semibold text-brand">
+                  {hasSelectedAoi ? "AOI" : hasSelectedObject ? "Object" : "Point"}
+                </span>
+                <button
+                  type="button"
+                  onClick={onOpenMap}
+                  className="inline-flex h-8 items-center justify-center rounded-md border border-line bg-white px-3 text-xs font-semibold text-ink transition hover:border-brand min-[1367px]:hidden"
+                >
+                  Open map
+                </button>
+              </div>
             </div>
 
             {hasSelectedAoi ? (
@@ -1511,6 +1526,26 @@ export function AnalysisPanel({
                 </div>
               </dl>
             )}
+
+            <div className="mt-3 rounded-md border border-line bg-white p-2">
+              {primaryCtaDisabled && !hasValidWorkflowTarget ? (
+                <p className="mb-2 text-xs leading-5 text-muted">
+                  {actionUnavailableMessage}
+                </p>
+              ) : (
+                <p className="mb-2 line-clamp-2 text-xs leading-5 text-muted">
+                  {visiblePrimaryCtaNote}
+                </p>
+              )}
+              <button
+                type="button"
+                disabled={primaryCtaDisabled}
+                onClick={onPrimaryCta}
+                className="inline-flex h-9 w-full max-w-full items-center justify-center rounded-md bg-brand px-3 text-xs font-semibold text-white transition hover:bg-[#113f50] disabled:cursor-not-allowed disabled:bg-[#c9d2d7] disabled:text-white"
+              >
+                {visiblePrimaryCtaLabel}
+              </button>
+            </div>
           </section>
 
           <details className="order-[20] min-w-0 max-w-full overflow-hidden rounded-lg border border-line bg-white px-3">
@@ -1697,7 +1732,7 @@ export function AnalysisPanel({
                 <p className="mt-1 text-xs leading-5 text-muted">{activeWorkflowNote}</p>
               </div>
               <span className="shrink-0 rounded-full bg-surface px-2 py-1 text-[11px] font-semibold text-brand">
-                {primaryCtaLabel}
+                {visiblePrimaryCtaLabel}
               </span>
             </div>
             <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
@@ -1749,10 +1784,10 @@ export function AnalysisPanel({
 
       </section>
 
-      <section className="min-w-0 max-w-full flex-shrink-0 border-t border-line bg-white p-3">
-        {primaryCtaDisabled && !hasSelectedPoint ? (
+      <section className="sticky bottom-0 z-20 min-w-0 max-w-full flex-shrink-0 border-t border-line bg-white p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-8px_20px_rgba(15,23,42,0.06)] lg:static lg:pb-3 lg:shadow-none">
+        {primaryCtaDisabled && !hasValidWorkflowTarget ? (
           <p className="mb-2 text-xs leading-5 text-muted">
-            Select a map point, AOI, object, or candidate preview to begin.
+            {actionUnavailableMessage}
           </p>
         ) : null}
         <button
@@ -1769,7 +1804,7 @@ export function AnalysisPanel({
           onClick={onPrimaryCta}
           className="inline-flex h-10 w-full max-w-full items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white transition hover:bg-[#113f50] disabled:cursor-not-allowed disabled:bg-[#c9d2d7] disabled:text-white"
         >
-          {primaryCtaLabel}
+          {visiblePrimaryCtaLabel}
         </button>
 
         {analysisError ? (

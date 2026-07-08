@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AnalysisPanel } from "@/components/analysis-panel";
 import { ComparisonDashboard } from "@/components/comparison-dashboard";
 import { ExpressDashboard } from "@/components/express-dashboard";
@@ -186,6 +186,22 @@ type OpenAnalysisRequest = {
   customQuery?: string;
   analysis?: ExpressAnalysis;
 };
+
+function isProjectSegment(value: unknown): value is ExploreAudience {
+  return value === "b2b" || value === "b2c";
+}
+
+function getProjectSegment(project: GeoAIProject): ExploreAudience {
+  const segment = project.metadata?.segment ?? project.metadata?.audience;
+  return isProjectSegment(segment) ? segment : "b2b";
+}
+
+function getDefaultProjectForAudience(projects: GeoAIProject[], audience: ExploreAudience) {
+  return projects.find((project) => getProjectSegment(project) === audience)
+    ?? demoProjects.find((project) => getProjectSegment(project) === audience)
+    ?? projects[0]
+    ?? demoProjects[0];
+}
 
 function titledText(title: string, description: string) {
   return title ? `${title}: ${description}` : description;
@@ -754,6 +770,8 @@ type WorkspaceShellProps = {
 };
 
 export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellProps) {
+  const mapSectionRef = useRef<HTMLDivElement | null>(null);
+  const workflowPanelRef = useRef<HTMLDivElement | null>(null);
   const [selectedPoint, setSelectedPoint] = useState<SelectedPoint | null>(null);
   const [selectedObject, setSelectedObject] = useState<SelectedDemoObject | null>(null);
   const [selectedAoi, setSelectedAoi] = useState<UserDrawnAoi | null>(null);
@@ -778,6 +796,7 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
   const [comparisonMessage, setComparisonMessage] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [isMobileMapPickerOpen, setIsMobileMapPickerOpen] = useState(false);
   const [lastAnalyzedState, setLastAnalyzedState] = useState<{
     query: string;
     scenarioId: AnalysisScenarioId;
@@ -856,6 +875,46 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
       searchedExploreCandidates.length > 0
   );
   const visibleExploreCandidates = isCandidateSearchCurrent ? searchedExploreCandidates : [];
+  const visibleProjects = projects.filter((project) => getProjectSegment(project) === selectedExploreAudience);
+  const projectSelectorProjects = visibleProjects.length > 0 ? visibleProjects : [getDefaultProjectForAudience(projects, selectedExploreAudience)];
+
+  function applyExploreDefaultsForAudience(audience: ExploreAudience) {
+    const nextRole = getDefaultRoleForAudience(audience);
+    const nextScenarioId = getDefaultScenarioForAudience(audience);
+    const nextScenario = getExploreScenario(nextScenarioId);
+    const nextAnalysisScenario = exploreScenarioToAnalysisScenario(nextScenarioId);
+
+    setSelectedExploreAudience(audience);
+    setSelectedExploreRole(nextRole);
+    setSelectedExploreScenario(nextScenarioId);
+    setExploreInteractionMode(nextScenario.defaultInteractionMode);
+    setExploreFilters(getDefaultFilters(nextScenario.inputSchema));
+    setSelectedScenario(nextAnalysisScenario);
+    setCandidateSearchStatus(nextScenario.defaultInteractionMode === "criteria_first" ? "ready" : "idle");
+
+    if (nextAnalysisScenario === "customQuery" && customQuery.trim().length === 0) {
+      setCustomQuery(nextScenario.sampleQueries[0]);
+    }
+  }
+
+  function clearWorkspaceResultState() {
+    setSelectedPoint(null);
+    setSelectedObject(null);
+    setSelectedAoi(null);
+    setSelectedExploreCandidateId(null);
+    setSearchedExploreCandidates([]);
+    setCandidateCriteriaSignature(null);
+    setAnalysis(null);
+    setComparison(null);
+    setComparisonReturn(null);
+    setReportPreview(null);
+    setLastAnalyzedState(null);
+    setLastComparedState(null);
+    setAnalysisError(null);
+    setComparisonMessage(null);
+    setMarketContext(null);
+    setAoiMessage(null);
+  }
 
   function loadGuidedDemo(presetId: string, includeComparisonSites = false) {
     const preset = getGuidedDemoPreset(presetId);
@@ -1053,6 +1112,7 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
 
     setProjects(localProjects);
     setActiveProject(localProject);
+    applyExploreDefaultsForAudience(getProjectSegment(localProject));
 
     fetch("/api/projects")
       .then((response) => (response.ok ? response.json() : null))
@@ -1069,6 +1129,7 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
         setProjects(nextProjects);
         setProjectsMode(payload.mode);
         setActiveProject(nextActiveProject);
+        applyExploreDefaultsForAudience(getProjectSegment(nextActiveProject));
         writeActiveProjectKey(nextActiveProject.projectKey);
       })
       .catch(() => {
@@ -1076,6 +1137,7 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
           setProjects(localProjects);
           setProjectsMode("demo_seed");
           setActiveProject(localProject);
+          applyExploreDefaultsForAudience(getProjectSegment(localProject));
         }
       });
 
@@ -1142,6 +1204,19 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
       isMounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!isMobileMapPickerOpen) {
+      return undefined;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isMobileMapPickerOpen]);
 
   useEffect(() => {
     if (!selectedPoint) {
@@ -1288,38 +1363,15 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
   }
 
   function changeExploreAudience(audience: ExploreAudience) {
-    const nextRole = getDefaultRoleForAudience(audience);
-    const nextScenarioId = getDefaultScenarioForAudience(audience);
-    const nextScenario = getExploreScenario(nextScenarioId);
-    const nextAnalysisScenario = exploreScenarioToAnalysisScenario(nextScenarioId);
+    const currentProjectMatchesAudience = getProjectSegment(activeProject) === audience;
+    const nextProject = currentProjectMatchesAudience ? activeProject : getDefaultProjectForAudience(projects, audience);
 
-    setSelectedExploreAudience(audience);
-    setSelectedExploreRole(nextRole);
-    setSelectedExploreScenario(nextScenarioId);
-    setExploreInteractionMode(nextScenario.defaultInteractionMode);
-    setExploreFilters(getDefaultFilters(nextScenario.inputSchema));
-    setSelectedExploreCandidateId(null);
-    setSearchedExploreCandidates([]);
-    setCandidateCriteriaSignature(null);
-    setCandidateSearchStatus(nextScenario.defaultInteractionMode === "criteria_first" ? "ready" : "idle");
-    if (selectedExploreCandidateId) {
-      setSelectedPoint(null);
-      setSelectedObject(null);
-      setSelectedAoi(null);
-      setMarketContext(null);
+    applyExploreDefaultsForAudience(audience);
+    if (nextProject.projectKey !== activeProject.projectKey) {
+      setActiveProject(nextProject);
+      writeActiveProjectKey(nextProject.projectKey);
     }
-    setAnalysis(null);
-    setComparison(null);
-    setComparisonReturn(null);
-    setLastAnalyzedState(null);
-    setLastComparedState(null);
-    setReportPreview(null);
-    setSelectedScenario(nextAnalysisScenario);
-    setAnalysisError(null);
-    setComparisonMessage(null);
-    if (nextAnalysisScenario === "customQuery" && customQuery.trim().length === 0) {
-      setCustomQuery(nextScenario.sampleQueries[0]);
-    }
+    clearWorkspaceResultState();
   }
 
   function changeExploreRole(role: ExploreRole) {
@@ -1777,13 +1829,52 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
     setAnalysisError(null);
   }
 
+  function scrollPageToTop(behavior: ScrollBehavior = "smooth") {
+    window.setTimeout(() => {
+      window.scrollTo({ top: 0, behavior });
+    }, 0);
+  }
+
+  function scrollToWorkflowPanel() {
+    window.setTimeout(() => {
+      workflowPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 0);
+  }
+
+  function closeMobileMapPicker(returnToWorkflow = false) {
+    setIsMobileMapPickerOpen(false);
+
+    if (returnToWorkflow) {
+      scrollToWorkflowPanel();
+    }
+  }
+
+  function showAnalysisResult(nextAnalysis: ExpressAnalysis) {
+    setIsMobileMapPickerOpen(false);
+    setAnalysis(nextAnalysis);
+    scrollPageToTop();
+  }
+
   function backToMap() {
+    setIsMobileMapPickerOpen(false);
     setAnalysis(null);
     setComparison(null);
     setComparisonReturn(null);
     setReportPreview(null);
     setLastAnalyzedState(null);
     setLastComparedState(null);
+  }
+
+  function openMapFromPanel() {
+    backToMap();
+    if (window.matchMedia("(min-width: 1367px)").matches) {
+      window.setTimeout(() => {
+        mapSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 0);
+      return;
+    }
+
+    setIsMobileMapPickerOpen(true);
   }
 
   function saveAnalysisHistory(analysisResult: ExpressAnalysis, scenarioLabel: string) {
@@ -2167,24 +2258,17 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
 
   function changeActiveProject(projectKey: string) {
     const nextProject = projects.find((project) => project.projectKey === projectKey) ?? getDemoProject(projectKey);
+    const nextAudience = getProjectSegment(nextProject);
+
     setActiveProject(nextProject);
     writeActiveProjectKey(nextProject.projectKey);
-    setSelectedPoint(null);
-    setSelectedObject(null);
-    setSelectedAoi(null);
-    setAnalysis(null);
-    setComparison(null);
-    setComparisonReturn(null);
-    setReportPreview(null);
-    setLastAnalyzedState(null);
-    setLastComparedState(null);
-    setAnalysisError(null);
-    setComparisonMessage(null);
-    setMarketContext(null);
-    setAoiMessage(null);
+    applyExploreDefaultsForAudience(nextAudience);
+    clearWorkspaceResultState();
   }
 
   function activateProject(project: GeoAIProject) {
+    const nextAudience = getProjectSegment(project);
+
     setProjects((currentProjects) => {
       const byKey = new Map(currentProjects.map((item) => [item.projectKey, item]));
       byKey.set(project.projectKey, project);
@@ -2192,19 +2276,8 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
     });
     setActiveProject(project);
     writeActiveProjectKey(project.projectKey);
-    setSelectedPoint(null);
-    setSelectedObject(null);
-    setSelectedAoi(null);
-    setSelectedExploreCandidateId(null);
-    setAnalysis(null);
-    setComparison(null);
-    setReportPreview(null);
-    setLastAnalyzedState(null);
-    setLastComparedState(null);
-    setAnalysisError(null);
-    setComparisonMessage(null);
-    setMarketContext(null);
-    setAoiMessage(null);
+    applyExploreDefaultsForAudience(nextAudience);
+    clearWorkspaceResultState();
   }
 
   async function createProject(input: LocalProjectInput) {
@@ -2368,12 +2441,12 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
     }
   }
 
-  async function runExpressAnalysis() {
+  async function runExpressAnalysis(options: { forceSelectedTarget?: boolean } = {}) {
     if (isAnalyzing) {
       return;
     }
 
-    if (hasCriteriaFirstCandidateSet) {
+    if (hasCriteriaFirstCandidateSet && !options.forceSelectedTarget) {
       runCandidateComparison();
       return;
     }
@@ -2535,7 +2608,7 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
       }
 
       const finalAnalysis = withDecisionScore(narrativeAnalysis, decisionScore);
-      setAnalysis(finalAnalysis);
+      showAnalysisResult(finalAnalysis);
       setLastAnalyzedState({
         query: normalizeQuery(customQuery),
         scenarioId: selectedScenario,
@@ -2599,7 +2672,7 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
       }
 
       const finalFallbackAnalysis = withDecisionScore(fallbackAnalysis, decisionScore);
-      setAnalysis(finalFallbackAnalysis);
+      showAnalysisResult(finalFallbackAnalysis);
       setLastAnalyzedState({
         query: normalizeQuery(customQuery),
         scenarioId: selectedScenario,
@@ -2719,12 +2792,21 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
             disabled: (!selectedPoint && !hasCriteriaFirstCandidateSet) || isAnalyzing,
             action: runExpressAnalysis
           };
+  const mobileMapTargetLabel = selectedAoi?.name ?? selectedObject?.name ?? (selectedPoint ? "Custom map selection" : "No target selected");
+  const mobileMapTargetDetail = selectedAoi
+    ? "AOI selected. Validation required before official use."
+    : selectedObject
+      ? selectedObject.spatialContext?.datasetName ?? selectedObject.layerName
+      : selectedPoint
+        ? `${selectedPoint.latitude.toFixed(5)}, ${selectedPoint.longitude.toFixed(5)}`
+        : "Tap a map point, object, AOI, or candidate.";
+  const canRunMobileMapAnalysis = Boolean(selectedPoint) && !isAnalyzing;
 
   return (
-    <div
-      className="grid min-h-0 shrink-0 grid-cols-1 overflow-hidden lg:grid-cols-[minmax(0,1fr)_380px]"
-      style={{ height: "calc(100vh - 4rem)" }}
-    >
+    <>
+      <div
+        className="grid min-h-[calc(100svh-4rem)] shrink-0 grid-cols-1 lg:h-[calc(100vh-4rem)] lg:min-h-0 lg:grid-cols-[minmax(0,1fr)_380px] lg:overflow-hidden"
+      >
       {reportPreview === "analysis" && analysis ? (
         <ReportPreview key={`report-${analysis.id}`} mode="analysis" analysis={analysis} onBack={() => setReportPreview(null)} />
       ) : reportPreview === "comparison" && comparison ? (
@@ -2757,93 +2839,167 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
             : undefined}
         />
       ) : (
-        <MapWorkspace
-          key="map-workspace"
-          className="relative h-full min-h-0 overflow-hidden bg-[#dfe8ec]"
-          selectedPoint={selectedPoint}
-          selectedObject={selectedObject}
-          selectedAoi={selectedAoi}
-          onPointSelect={handlePointSelect}
-          onObjectSelect={handleObjectSelect}
-          onAoiSelect={handleAoiSelect}
-          onAoiDelete={handleAoiDelete}
-          uploadedDatasets={uploadedDatasets}
-          projectId={activeProject.projectKey}
-          exploreCandidates={visibleExploreCandidates}
-          selectedExploreCandidateId={selectedExploreCandidateId}
-          onExploreCandidateSelect={selectExploreCandidate}
-        />
+        <div ref={mapSectionRef} id="workspace-map" className="min-h-0 lg:h-full">
+          <MapWorkspace
+            key="map-workspace"
+            className="relative h-[68svh] min-h-[420px] overflow-hidden bg-[#dfe8ec] sm:h-[70svh] lg:h-full lg:min-h-0"
+            selectedPoint={selectedPoint}
+            selectedObject={selectedObject}
+            selectedAoi={selectedAoi}
+            onPointSelect={handlePointSelect}
+            onObjectSelect={handleObjectSelect}
+            onAoiSelect={handleAoiSelect}
+            onAoiDelete={handleAoiDelete}
+            uploadedDatasets={uploadedDatasets}
+            projectId={activeProject.projectKey}
+            exploreCandidates={visibleExploreCandidates}
+            selectedExploreCandidateId={selectedExploreCandidateId}
+            onExploreCandidateSelect={selectExploreCandidate}
+          />
+        </div>
       )}
-      <AnalysisPanel
-        selectedPoint={selectedPoint}
-        selectedObject={selectedObject}
-        selectedAoi={selectedAoi}
-        projects={projects}
-        projectsMode={projectsMode}
-        activeProject={activeProject}
-        selectedScenario={selectedScenario}
-        customQuery={customQuery}
-        isAnalyzing={isAnalyzing}
-        analysisError={analysisError}
-        comparisonItems={comparisonItems}
-        comparisonMessage={comparisonMessage}
-        analysisHistory={analysisHistory}
-        analysisHistorySource={analysisHistorySource}
-        hasResult={analysis !== null || comparison !== null}
-        currentAnalysis={analysis}
-        analysisMode={analysis?.analysisMode}
-        marketMetricsMatch={analysis?.marketMetricsMatch}
-        backendStatus={backendStatus}
-        marketContext={marketContext}
-        isMarketContextLoading={isMarketContextLoading}
-        uploadedDatasets={uploadedDatasets}
-        uploadedDataMessage={uploadedDataMessage}
-        projectAois={projectAois}
-        aoiDraftName={aoiDraftName}
-        aoiMessage={aoiMessage}
-        exploreAudience={selectedExploreAudience}
-        exploreRole={selectedExploreRole}
-        exploreScenarioId={selectedExploreScenario}
-        exploreInteractionMode={exploreInteractionMode}
-        exploreFilters={exploreFilters}
-        exploreCandidates={visibleExploreCandidates}
-        candidateSearchStatus={candidateSearchStatus}
-        selectedExploreCandidateId={selectedExploreCandidateId}
-        exploreSetupDefaultOpen={initialExploreMode}
-        onExploreAudienceChange={changeExploreAudience}
-        onExploreRoleChange={changeExploreRole}
-        onExploreScenarioChange={changeExploreScenario}
-        onExploreInteractionModeChange={changeExploreInteractionMode}
-        onExploreFilterChange={updateExploreFilter}
-        onExploreCandidateSelect={selectExploreCandidate}
-        onCreateProject={createProject}
-        onProjectChange={changeActiveProject}
-        onCustomQueryChange={(query) => {
-          setCustomQuery(query);
-          resetCandidateSearchForCriteriaChange();
-          setAnalysisError(null);
-        }}
-        primaryCtaLabel={primaryCtaState.label}
-        primaryCtaDisabled={primaryCtaState.disabled}
-        onPrimaryCta={primaryCtaState.action}
-        onAddToComparison={addSelectionToComparison}
-        onRemoveComparisonItem={removeComparisonItem}
-        onRunComparison={runComparison}
-        onOpenHistoryItem={openHistoryItem}
-        onClearAnalysisHistory={clearAnalysisHistory}
-        onUploadDataset={uploadDataset}
-        onImportAoiGeojson={importAoiGeojson}
-        onAoiDraftNameChange={setAoiDraftName}
-        onSaveSelectedAoi={saveSelectedAoi}
-        onOpenSavedAoi={openSavedAoi}
-        onRenameSavedAoi={renameSavedAoi}
-        onDeleteSavedAoi={deleteSavedAoi}
-        onExportSelectedAoi={exportSelectedAoi}
-        onExportSavedAoi={exportSavedAoi}
-        onRemoveUploadedDataset={removeUploadedDataset}
-        onClearUploadedDatasets={clearUploadedDatasets}
-        onToggleUploadedDataset={toggleUploadedDataset}
-      />
-    </div>
+        <div ref={workflowPanelRef} className="min-h-0 min-w-0 lg:h-full">
+          <AnalysisPanel
+            selectedPoint={selectedPoint}
+            selectedObject={selectedObject}
+            selectedAoi={selectedAoi}
+            projects={projectSelectorProjects}
+            projectsMode={projectsMode}
+            activeProject={activeProject}
+            selectedScenario={selectedScenario}
+            customQuery={customQuery}
+            isAnalyzing={isAnalyzing}
+            analysisError={analysisError}
+            comparisonItems={comparisonItems}
+            comparisonMessage={comparisonMessage}
+            analysisHistory={analysisHistory}
+            analysisHistorySource={analysisHistorySource}
+            hasResult={analysis !== null || comparison !== null}
+            currentAnalysis={analysis}
+            analysisMode={analysis?.analysisMode}
+            marketMetricsMatch={analysis?.marketMetricsMatch}
+            backendStatus={backendStatus}
+            marketContext={marketContext}
+            isMarketContextLoading={isMarketContextLoading}
+            uploadedDatasets={uploadedDatasets}
+            uploadedDataMessage={uploadedDataMessage}
+            projectAois={projectAois}
+            aoiDraftName={aoiDraftName}
+            aoiMessage={aoiMessage}
+            exploreAudience={selectedExploreAudience}
+            exploreRole={selectedExploreRole}
+            exploreScenarioId={selectedExploreScenario}
+            exploreInteractionMode={exploreInteractionMode}
+            exploreFilters={exploreFilters}
+            exploreCandidates={visibleExploreCandidates}
+            candidateSearchStatus={candidateSearchStatus}
+            selectedExploreCandidateId={selectedExploreCandidateId}
+            exploreSetupDefaultOpen={initialExploreMode}
+            onExploreAudienceChange={changeExploreAudience}
+            onExploreRoleChange={changeExploreRole}
+            onExploreScenarioChange={changeExploreScenario}
+            onExploreInteractionModeChange={changeExploreInteractionMode}
+            onExploreFilterChange={updateExploreFilter}
+            onExploreCandidateSelect={selectExploreCandidate}
+            onCreateProject={createProject}
+            onProjectChange={changeActiveProject}
+            onCustomQueryChange={(query) => {
+              setCustomQuery(query);
+              setAnalysisError(null);
+            }}
+            primaryCtaLabel={primaryCtaState.label}
+            primaryCtaDisabled={primaryCtaState.disabled}
+            onPrimaryCta={primaryCtaState.action}
+            onAddToComparison={addSelectionToComparison}
+            onRemoveComparisonItem={removeComparisonItem}
+            onRunComparison={runComparison}
+            onOpenHistoryItem={openHistoryItem}
+            onClearAnalysisHistory={clearAnalysisHistory}
+            onUploadDataset={uploadDataset}
+            onImportAoiGeojson={importAoiGeojson}
+            onAoiDraftNameChange={setAoiDraftName}
+            onSaveSelectedAoi={saveSelectedAoi}
+            onOpenSavedAoi={openSavedAoi}
+            onRenameSavedAoi={renameSavedAoi}
+            onDeleteSavedAoi={deleteSavedAoi}
+            onExportSelectedAoi={exportSelectedAoi}
+            onExportSavedAoi={exportSavedAoi}
+            onRemoveUploadedDataset={removeUploadedDataset}
+            onClearUploadedDatasets={clearUploadedDatasets}
+            onToggleUploadedDataset={toggleUploadedDataset}
+            onOpenMap={openMapFromPanel}
+          />
+        </div>
+      </div>
+      {isMobileMapPickerOpen ? (
+        <section
+          role="dialog"
+          aria-modal="true"
+          aria-label="Full-screen map picker"
+          className="fixed inset-0 z-50 flex flex-col bg-white min-[1367px]:hidden"
+        >
+          <div className="flex min-h-14 items-center justify-between gap-3 border-b border-line bg-white px-3 py-2">
+            <div className="min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">Map selection</p>
+              <h2 className="mt-0.5 truncate text-sm font-semibold text-ink">{mobileMapTargetLabel}</h2>
+              <p className="truncate text-[11px] leading-4 text-muted">{mobileMapTargetDetail}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => closeMobileMapPicker(true)}
+              className="inline-flex h-9 shrink-0 items-center justify-center rounded-md border border-line bg-white px-3 text-xs font-semibold text-ink transition hover:border-brand"
+            >
+              Back
+            </button>
+          </div>
+          <div className="relative z-0 min-h-0 flex-1 overflow-hidden">
+            <MapWorkspace
+              key="mobile-map-picker"
+              className="relative h-full min-h-0 overflow-hidden bg-[#dfe8ec]"
+              selectedPoint={selectedPoint}
+              selectedObject={selectedObject}
+              selectedAoi={selectedAoi}
+              onPointSelect={handlePointSelect}
+              onObjectSelect={handleObjectSelect}
+              onAoiSelect={handleAoiSelect}
+              onAoiDelete={handleAoiDelete}
+              showEmptyOverlay={false}
+              showLayerControls={false}
+              uploadedDatasets={uploadedDatasets}
+              projectId={activeProject.projectKey}
+              exploreCandidates={visibleExploreCandidates}
+              selectedExploreCandidateId={selectedExploreCandidateId}
+              onExploreCandidateSelect={selectExploreCandidate}
+            />
+          </div>
+          <div className="relative z-20 shrink-0 border-t border-line bg-white px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3">
+            <p className="text-xs leading-5 text-muted" aria-live="polite">
+              {selectedPoint
+                ? "Selection ready. Run analysis now or return to the workflow to review settings."
+                : "Tap the map to select a point, object, AOI, or candidate before running analysis."}
+            </p>
+            <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+              <button
+                type="button"
+                disabled={!canRunMobileMapAnalysis}
+                onClick={() => {
+                  void runExpressAnalysis({ forceSelectedTarget: true });
+                }}
+                className="inline-flex h-10 min-w-0 flex-1 items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white transition hover:bg-[#113f50] disabled:cursor-not-allowed disabled:bg-[#c9d2d7]"
+              >
+                {isAnalyzing ? "Analyzing..." : "Run Express Analysis"}
+              </button>
+              <button
+                type="button"
+                onClick={() => closeMobileMapPicker(true)}
+                className="inline-flex h-10 items-center justify-center rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink transition hover:border-brand"
+              >
+                Back to workflow
+              </button>
+            </div>
+          </div>
+        </section>
+      ) : null}
+    </>
   );
 }

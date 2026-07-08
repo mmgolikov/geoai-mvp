@@ -35,6 +35,13 @@ Use this checklist before demos, Vercel deployments, and milestone checkpoints.
 - [ ] Project Dashboard shows compact Enterprise Report Packages section.
 - [ ] Workspace report package actions remain inside collapsed Data Room / Pilot Evidence section.
 - [ ] Primary Run Express Analysis CTA remains pinned and visible.
+- [ ] After desktop/tablet map point selection, `Run Express Analysis` is visible inside or immediately below the Selected Point / AOI / Object card.
+- [ ] When no valid selection exists, the workflow shows disabled `Run Express Analysis` with `Select a map point, AOI, object, or candidate preview to begin.`
+- [ ] After analysis exists and custom query text is added, CTA changes to `Continue Analysis`; after clearing the query, CTA returns to the appropriate report/run state.
+- [ ] Workspace B2B mode project selector shows only B2B projects.
+- [ ] Workspace B2C mode project selector shows only B2C projects.
+- [ ] Switching Workspace B2B/B2C aligns the active project to the selected segment and clears stale analysis/report state.
+- [ ] Opening `/workspace` with a project URL parameter aligns the audience to that project segment.
 - [ ] Source lineage, validation governance, evidence review, Data Room and pilot workflow appendices render.
 - [ ] Caveats remain visible: `screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.`
 
@@ -90,6 +97,28 @@ Use this checklist before demos, Vercel deployments, and milestone checkpoints.
 - [ ] Coordinates update in the right command panel.
 - [ ] `Run Express Analysis` becomes enabled.
 - [ ] Map zoom and center are preserved.
+
+## Mobile Workspace Map Access and Segment Data v1
+
+- [ ] `/workspace` at iPhone 15 Pro width opens a full-screen map picker from the Selected Point / AOI / Object card `Open map` action.
+- [ ] `/workspace` at iPhone 15/16/17 Pro Max width opens the full-screen map picker and keeps touch map selection usable.
+- [ ] `/workspace` at iPad 11 portrait and landscape opens the full-screen map picker and keeps touch map selection usable.
+- [ ] `/workspace` at iPad 13 portrait and landscape opens the full-screen map picker and keeps touch map selection usable.
+- [ ] A valid mobile picker selection enables `Run Express Analysis` inside the picker.
+- [ ] Direct run from the full-screen map picker shows analysis progress and automatically opens the dashboard/result state.
+- [ ] `Back to workflow` closes the full-screen map picker without losing the selected point/object/AOI.
+- [ ] The result dashboard exposes evidence/source sections, project actions and report preview / print path on mobile.
+- [ ] B2B map-first flow completes end-to-end: select target, run analysis, open dashboard, open evidence/source sections, open project, open report preview / print path.
+- [ ] B2C map-first flow completes end-to-end: select target, run analysis, open dashboard, open evidence/source sections, open project, open report preview / print path.
+- [ ] Criteria-first flow completes where available without replacing the mobile map picker behavior.
+- [ ] Compare flow completes on mobile.
+- [ ] Restore/open existing analysis restores the correct segment-specific state.
+- [ ] `/projects?segment=b2b` shows B2B demo projects, analyses, reports and comparison summaries.
+- [ ] `/projects?segment=b2c` shows B2C demo projects, analyses, reports and comparison summaries.
+- [ ] Switching between B2B and B2C changes content and does not leak seeded reports or analyses across the active segment.
+- [ ] B2C seeded report print routes open without `Report not found`.
+- [ ] Required caveat remains visible where relevant: screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.
+- [ ] No UI or docs copy claims live official integration, official parcel/zoning/cadastral/ownership validation, certified valuation, production-ready status or pilot-ready status.
 
 ## Object Selection
 
