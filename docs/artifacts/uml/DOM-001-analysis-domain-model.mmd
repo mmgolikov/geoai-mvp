@@ -1,0 +1,64 @@
+classDiagram
+  class Project {
+    id
+    name
+    segment
+    status
+  }
+  class SpatialContext {
+    id
+    type
+    label
+    geometryRef
+  }
+  class AnalysisRun {
+    id
+    scenarioType
+    status
+    sourceMode
+    confidenceLevel
+  }
+  class Score {
+    scoreType
+    value
+    explanation
+    confidenceLevel
+  }
+  class Risk {
+    riskType
+    severity
+    description
+    nextAction
+  }
+  class EvidenceItem {
+    id
+    sourceName
+    sourceMode
+    confidenceLevel
+    content
+  }
+  class Recommendation {
+    action
+    priority
+    reason
+    validationNote
+  }
+  class ReportSnapshot {
+    id
+    reportType
+    generatedAt
+    sourceNotes
+  }
+
+  Project "1" --> "many" SpatialContext
+  Project "1" --> "many" AnalysisRun
+  SpatialContext "1" --> "many" AnalysisRun
+  AnalysisRun "1" --> "many" Score
+  AnalysisRun "1" --> "many" Risk
+  AnalysisRun "1" --> "many" EvidenceItem
+  AnalysisRun "1" --> "many" Recommendation
+  AnalysisRun "1" --> "many" ReportSnapshot
+
+%% Artifact ID: DOM-001
+%% Type: UML domain/class-style source
+%% Status: Draft source artifact
