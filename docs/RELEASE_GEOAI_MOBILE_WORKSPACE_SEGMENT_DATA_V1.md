@@ -27,6 +27,24 @@ Required caveat:
 - Added segment metadata to demo projects so `/projects` can switch between B2B and B2C demo data.
 - Added B2C seeded analyses, comparison summaries and printable report records.
 - Updated Project Hub seeded fallbacks so analyses, reports and comparisons are scoped to the active project instead of leaking across demo segments.
+- Aligned the Workspace project selector with the active B2B/B2C audience:
+  - project segment is derived from `metadata.segment ?? metadata.audience`;
+  - the selector only shows projects for the active audience;
+  - B2B/B2C switching selects a matching default project and clears stale results;
+  - URL project handoff aligns the Workspace audience to the selected project segment.
+- Kept full-screen mobile map picker controls above the map canvas so `Run Express Analysis` and `Back to workflow` remain tappable after a map selection.
+
+## Files Changed
+
+- `README.md`
+- `components/analysis-panel.tsx`
+- `components/project-dashboard/project-dashboard.tsx`
+- `components/workspace-shell.tsx`
+- `docs/RELEASE_GEOAI_MOBILE_WORKSPACE_SEGMENT_DATA_V1.md`
+- `docs/qa-checklist.md`
+- `src/data/demo-projects.ts`
+- `src/data/demo-report-seeds.ts`
+- `src/lib/project-local-store.ts`
 
 ## Source / Segment Groups
 
@@ -49,6 +67,8 @@ Required responsive smoke:
 - Mobile full-screen map picker open, map selection, direct run from picker, return to workflow from picker, dashboard open after analysis, evidence/source section open, report preview / print path open.
 - Desktop/tablet selected-point QA: after a valid map point/object/AOI/candidate selection, the primary action is visible inside the selected target card and in the pinned workflow footer.
 - Desktop custom-query QA: after an analysis run, entering a custom query changes the primary action to continue analysis; clearing the query returns the primary action to the current report/run state.
+- Workspace project selector QA: B2B mode shows only B2B projects, B2C mode shows only B2C projects, B2B/B2C switching aligns the active project and clears stale result state, and URL-selected projects align the Workspace audience to the selected project segment.
+- Fix-pass evidence: iPhone 15 Pro viewport completed B2B full-screen picker select, back-to-workflow retention, direct run, dashboard open, custom-query Continue/Export state, and B2C switch state clearing; iPad 13 landscape viewport completed B2C full-screen picker select, direct run, dashboard evidence/source visibility, and printable report path; desktop criteria-first search and compare flow completed.
 - B2B and B2C map-first flows.
 - Criteria-first flow where available.
 - Compare flow.

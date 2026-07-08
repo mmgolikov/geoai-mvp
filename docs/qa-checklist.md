@@ -38,6 +38,10 @@ Use this checklist before demos, Vercel deployments, and milestone checkpoints.
 - [ ] After desktop/tablet map point selection, `Run Express Analysis` is visible inside or immediately below the Selected Point / AOI / Object card.
 - [ ] When no valid selection exists, the workflow shows disabled `Run Express Analysis` with `Select a map point, AOI, object, or candidate preview to begin.`
 - [ ] After analysis exists and custom query text is added, CTA changes to `Continue Analysis`; after clearing the query, CTA returns to the appropriate report/run state.
+- [ ] Workspace B2B mode project selector shows only B2B projects.
+- [ ] Workspace B2C mode project selector shows only B2C projects.
+- [ ] Switching Workspace B2B/B2C aligns the active project to the selected segment and clears stale analysis/report state.
+- [ ] Opening `/workspace` with a project URL parameter aligns the audience to that project segment.
 - [ ] Source lineage, validation governance, evidence review, Data Room and pilot workflow appendices render.
 - [ ] Caveats remain visible: `screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.`
 
