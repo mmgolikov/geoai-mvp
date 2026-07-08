@@ -25,7 +25,10 @@ const config: Config = {
         "map-blue-gray": "#DFE8EC",
         "validation-gold": "#C5A76A",
         "validation-soft": "#FFF9E8",
+        "validation-text": "#6F5817",
+        "validation-strong": "#7A6324",
         "critical-red": "#9F3412",
+        "critical-border": "#F2C6BD",
         "critical-soft": "#FFF4ED",
         accent: "#c5a76a"
       },

@@ -1449,6 +1449,7 @@ export function ProjectDashboard() {
     setValidationMessage("Review decision recorded. Claim posture remains caveated.");
   }
   const openWorkspaceHref = `/workspace?projectId=${encodeURIComponent(activeProject.id ?? activeProject.projectKey)}`;
+  const newAnalysisHref = `${openWorkspaceHref}&intent=new-analysis`;
   const openWorkspaceForAoi = (aoi: ProjectAoi) =>
     `/workspace?projectKey=${encodeURIComponent(activeProject.projectKey)}&projectId=${encodeURIComponent(activeProject.id ?? activeProject.projectKey)}&openAoi=${encodeURIComponent(aoi.id)}`;
 
@@ -1702,6 +1703,12 @@ export function ProjectDashboard() {
                 <span className="rounded-full bg-surface px-3 py-1 text-xs font-semibold text-muted">
                   Scenario: {formatLabel(activeProject.primaryScenario)}
                 </span>
+                <Link
+                  href="/projects#data-readiness"
+                  className="rounded-full bg-ice px-3 py-1 text-xs font-semibold text-brand transition hover:text-brand-hover"
+                >
+                  Data Readiness / Source Lineage
+                </Link>
               </div>
             </div>
 
@@ -1713,98 +1720,102 @@ export function ProjectDashboard() {
                   onChange: (segment) => changeProjectSegment(segment as ProjectSegment)
                 }}
                 label={`Active ${getProjectSegmentLabel(activeProjectSegment)} project`}
-                value={pilotDisplayLabel(activeProject.name)}
+                value="Choose project"
               >
+                <div className="grid gap-1 sm:col-span-2">
+                  <label htmlFor="project-dashboard-selector" className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">
+                    Active project
+                  </label>
+                  <select
+                    id="project-dashboard-selector"
+                    value={activeProject.projectKey}
+                    onChange={(event) => changeProject(event.target.value)}
+                    className="h-10 w-full rounded-md border border-line bg-white px-3 text-sm font-semibold text-ink outline-none transition focus:border-brand"
+                  >
+                    {projectOptions.map((project) => (
+                      <option key={project.projectKey} value={project.projectKey}>
+                        {pilotDisplayLabel(project.name)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
                 <LinkButton href={openWorkspaceHref} onClick={() => writeActiveProjectKey(activeProject.projectKey)}>
                   Open workspace
                 </LinkButton>
-                <LinkButton href={openWorkspaceHref} variant="secondary" onClick={() => writeActiveProjectKey(activeProject.projectKey)}>
+                <LinkButton href={newAnalysisHref} variant="secondary" onClick={() => writeActiveProjectKey(activeProject.projectKey)}>
                   Run new analysis
                 </LinkButton>
+              </HeroControlCard>
+              <div className="mt-3 rounded-md border border-line bg-surface p-3">
                 <button
                   type="button"
                   onClick={() => setIsProjectCreateOpen((value) => !value)}
-                  className="inline-flex h-10 items-center justify-center rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink transition hover:border-brand sm:col-span-2"
+                  className="inline-flex h-9 w-full items-center justify-center rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink transition hover:border-brand"
                 >
-                  Create project
+                  {isProjectCreateOpen ? "Close project creation" : "Create project"}
                 </button>
-              </HeroControlCard>
-              <label htmlFor="project-dashboard-selector" className="sr-only">
-                Active project
-              </label>
-              <select
-                id="project-dashboard-selector"
-                value={activeProject.projectKey}
-                onChange={(event) => changeProject(event.target.value)}
-                className="mt-3 h-10 w-full rounded-md border border-line bg-white px-3 text-sm font-semibold text-ink outline-none transition focus:border-brand"
-              >
-                {projectOptions.map((project) => (
-                  <option key={project.projectKey} value={project.projectKey}>
-                    {pilotDisplayLabel(project.name)}
-                  </option>
-                ))}
-              </select>
-              {isProjectCreateOpen ? (
-                <div className="mt-3 grid gap-2 rounded-md border border-line bg-surface p-3">
-                  <input
-                    value={projectNameDraft}
-                    onChange={(event) => setProjectNameDraft(event.target.value)}
-                    className="h-9 rounded-md border border-line bg-white px-3 text-sm font-semibold text-ink outline-none transition focus:border-brand"
-                    placeholder="Project name"
-                  />
-                  <div className="grid grid-cols-2 gap-2">
-                    <select
-                      value={projectAudienceDraft}
-                      onChange={(event) => {
-                        const audience = event.target.value as LocalProjectInput["audience"];
-                        setProjectAudienceDraft(audience);
-                        setProjectRoleDraft(audience === "b2b" ? "developer" : "home_buyer");
+                {isProjectCreateOpen ? (
+                  <div className="mt-3 grid gap-2">
+                    <input
+                      value={projectNameDraft}
+                      onChange={(event) => setProjectNameDraft(event.target.value)}
+                      className="h-9 rounded-md border border-line bg-white px-3 text-sm font-semibold text-ink outline-none transition focus:border-brand"
+                      placeholder="Project name"
+                    />
+                    <div className="grid grid-cols-2 gap-2">
+                      <select
+                        value={projectAudienceDraft}
+                        onChange={(event) => {
+                          const audience = event.target.value as LocalProjectInput["audience"];
+                          setProjectAudienceDraft(audience);
+                          setProjectRoleDraft(audience === "b2b" ? "developer" : "home_buyer");
+                        }}
+                        className="h-9 rounded-md border border-line bg-white px-2 text-xs font-semibold text-ink outline-none transition focus:border-brand"
+                      >
+                        <option value="b2b">B2B</option>
+                        <option value="b2c">B2C</option>
+                      </select>
+                      <select
+                        value={projectRoleDraft}
+                        onChange={(event) => setProjectRoleDraft(event.target.value as LocalProjectInput["role"])}
+                        className="h-9 rounded-md border border-line bg-white px-2 text-xs font-semibold text-ink outline-none transition focus:border-brand"
+                      >
+                        {projectAudienceDraft === "b2b" ? (
+                          <>
+                            <option value="developer">Developer</option>
+                            <option value="real_estate_fund">Real estate fund</option>
+                            <option value="bank_lender">Bank / lender</option>
+                            <option value="family_office">Family office</option>
+                          </>
+                        ) : (
+                          <>
+                            <option value="home_buyer">Home buyer</option>
+                            <option value="tourist">Tourist</option>
+                            <option value="resident_expat">Resident / expat</option>
+                            <option value="family_relocation">Family relocation</option>
+                          </>
+                        )}
+                      </select>
+                    </div>
+                    <input
+                      value={projectMarketDraft}
+                      onChange={(event) => setProjectMarketDraft(event.target.value)}
+                      className="h-9 rounded-md border border-line bg-white px-3 text-sm font-semibold text-ink outline-none transition focus:border-brand"
+                      placeholder="Dubai / UAE"
+                    />
+                    <button
+                      type="button"
+                      disabled={projectNameDraft.trim().length === 0}
+                      onClick={() => {
+                        void createProjectFromHub();
                       }}
-                      className="h-9 rounded-md border border-line bg-white px-2 text-xs font-semibold text-ink outline-none transition focus:border-brand"
+                      className="inline-flex h-9 items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white transition hover:bg-brand-hover disabled:cursor-not-allowed disabled:bg-soft"
                     >
-                      <option value="b2b">B2B</option>
-                      <option value="b2c">B2C</option>
-                    </select>
-                    <select
-                      value={projectRoleDraft}
-                      onChange={(event) => setProjectRoleDraft(event.target.value as LocalProjectInput["role"])}
-                      className="h-9 rounded-md border border-line bg-white px-2 text-xs font-semibold text-ink outline-none transition focus:border-brand"
-                    >
-                      {projectAudienceDraft === "b2b" ? (
-                        <>
-                          <option value="developer">Developer</option>
-                          <option value="real_estate_fund">Real estate fund</option>
-                          <option value="bank_lender">Bank / lender</option>
-                          <option value="family_office">Family office</option>
-                        </>
-                      ) : (
-                        <>
-                          <option value="home_buyer">Home buyer</option>
-                          <option value="tourist">Tourist</option>
-                          <option value="resident_expat">Resident / expat</option>
-                          <option value="family_relocation">Family relocation</option>
-                        </>
-                      )}
-                    </select>
+                      Create
+                    </button>
                   </div>
-                  <input
-                    value={projectMarketDraft}
-                    onChange={(event) => setProjectMarketDraft(event.target.value)}
-                    className="h-9 rounded-md border border-line bg-white px-3 text-sm font-semibold text-ink outline-none transition focus:border-brand"
-                    placeholder="Dubai / UAE"
-                  />
-                  <button
-                    type="button"
-                    disabled={projectNameDraft.trim().length === 0}
-                    onClick={() => {
-                      void createProjectFromHub();
-                    }}
-                    className="inline-flex h-9 items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white transition hover:bg-brand-hover disabled:cursor-not-allowed disabled:bg-[#c9d2d7]"
-                  >
-                    Create
-                  </button>
-                </div>
-              ) : null}
+                ) : null}
+              </div>
             </div>
           </div>
         </section>
@@ -1816,7 +1827,7 @@ export function ProjectDashboard() {
           <KpiCard label="Reports" value={reportRows.length + packageRows.length} note={reportRows.length + packageRows.length > 0 ? "Reports available for review." : "No reports yet."} />
         </section>
 
-        <section id="data-readiness">
+        <section id="data-readiness" className="scroll-mt-20">
           <Panel title="Data Readiness / Source Lineage" subtitle="Source group readiness for screening workflows. Validation is required before decisions.">
             <div className="grid gap-4">
               <div className="grid gap-4 rounded-lg border border-line bg-ice-soft p-4 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
@@ -1840,7 +1851,7 @@ export function ProjectDashboard() {
                   <LinkButton href={openWorkspaceHref} onClick={() => writeActiveProjectKey(activeProject.projectKey)}>
                     Open workspace
                   </LinkButton>
-                  <LinkButton href={openWorkspaceHref} variant="secondary" onClick={() => writeActiveProjectKey(activeProject.projectKey)}>
+                  <LinkButton href={newAnalysisHref} variant="secondary" onClick={() => writeActiveProjectKey(activeProject.projectKey)}>
                     Run new analysis
                   </LinkButton>
                 </HeroControlCard>

@@ -7,8 +7,8 @@ type StatusChipTone = "blue" | "neutral" | "validation" | "critical";
 const statusChipToneClass: Record<StatusChipTone, string> = {
   blue: "border-ice bg-ice text-spatial-blue",
   neutral: "border-line bg-surface text-muted",
-  validation: "border-validation-gold/40 bg-validation-soft text-[#7A6324]",
-  critical: "border-[#f2c6bd] bg-critical-soft text-critical-red"
+  validation: "border-validation-gold/40 bg-validation-soft text-validation-strong",
+  critical: "border-critical-border bg-critical-soft text-critical-red"
 };
 
 export function StatusChip({
@@ -122,7 +122,7 @@ export function ValidationCaveat({
   compact?: boolean;
 }) {
   return (
-    <div className={`rounded-md border border-validation-gold/40 bg-validation-soft text-[#6F5817] ${compact ? "px-3 py-2 text-xs leading-5" : "px-4 py-3 text-sm leading-6"}`}>
+    <div className={`rounded-md border border-validation-gold/40 bg-validation-soft text-validation-text ${compact ? "px-3 py-2 text-xs leading-5" : "px-4 py-3 text-sm leading-6"}`}>
       {children}
     </div>
   );

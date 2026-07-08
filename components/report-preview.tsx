@@ -399,6 +399,15 @@ function ReportShell({
     }
   }
 
+  function handlePrintPdf(event: MouseEvent<HTMLButtonElement>) {
+    if (printableHref) {
+      void handleOpenPrintableReport(event);
+      return;
+    }
+
+    window.print();
+  }
+
   return (
     <section className="screen-only h-[calc(100vh-72px)] overflow-y-auto bg-surface p-4 sm:p-6">
       <div className="mx-auto max-w-5xl print:max-w-none">
@@ -415,24 +424,15 @@ function ReportShell({
               <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
                 Decision-support memo. Official validation required before decision-grade use.
               </p>
-              {printableHref ? (
-                <button
-                  type="button"
-                  disabled={isPreparingPrintableReport}
-                  onClick={handleOpenPrintableReport}
-                  className="mt-3 inline-flex h-8 items-center justify-center rounded-md border border-line bg-white px-3 text-xs font-semibold text-ink transition hover:border-brand disabled:cursor-not-allowed disabled:bg-surface disabled:text-muted"
-                >
-                  {isPreparingPrintableReport ? "Preparing report..." : "Open printable route"}
-                </button>
-              ) : null}
             </div>
             <div className="flex min-w-0 flex-wrap justify-start gap-2 md:justify-end">
               <button
                 type="button"
-                onClick={() => window.print()}
-                className="inline-flex h-10 min-w-[104px] items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white transition hover:bg-brand-hover"
+                disabled={isPreparingPrintableReport}
+                onClick={handlePrintPdf}
+                className="inline-flex h-10 min-w-[104px] items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white transition hover:bg-brand-hover disabled:cursor-not-allowed disabled:bg-soft"
               >
-                Print PDF
+                {isPreparingPrintableReport ? "Preparing..." : "Print PDF"}
               </button>
               <button
                 type="button"
@@ -445,7 +445,7 @@ function ReportShell({
           </div>
         </header>
         {printableReportError ? (
-          <div className="mb-4 rounded-md border border-[#f2c6bd] bg-[#fff7ed] px-4 py-3 text-sm font-semibold text-[#9f3412] print:hidden">
+          <div className="mb-4 rounded-md border border-critical-border bg-critical-soft px-4 py-3 text-sm font-semibold text-critical-red print:hidden">
             {printableReportError}
           </div>
         ) : null}
@@ -465,11 +465,11 @@ function createPrintableAnalysisRecord(analysis: ExpressAnalysis) {
     projectId: analysis.project?.id ?? null,
     projectKey: analysis.project?.projectKey ?? null,
     reportType: "analysis",
-    title: "Express Analysis / Investment Memo",
+    title: "Investment memo",
     scenario: analysis.title,
     targetLabel: analysis.selectedAoi?.name ?? analysis.selectedObject?.name ?? "Custom map selection",
     reportPayload: {
-      title: "Express Analysis / Investment Memo",
+      title: "Investment memo",
       scenario: analysis.title,
       selectedSite: analysis.selectedAoi?.name ?? analysis.selectedObject?.name ?? "Custom map selection",
       selectedObject: analysis.selectedObject ?? null,
@@ -732,7 +732,7 @@ function AnalysisReport({ analysis, onBack }: { analysis: ExpressAnalysis; onBac
                 <p className="mt-1 text-ink">{analysis.aiDecisionScore.recommendedUse.replace(/_/g, " ")}</p>
               </div>
               <div className="rounded-md border border-line bg-surface p-4">
-                <span className="font-semibold text-muted">Suitability / risk</span>
+                <span className="font-semibold text-muted">Screening / risk</span>
                 <p className="mt-1 text-ink">{analysis.aiDecisionScore.suitabilityScore}/100 / {analysis.aiDecisionScore.riskScore}/100</p>
               </div>
             </div>
