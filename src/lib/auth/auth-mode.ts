@@ -40,7 +40,7 @@ export function getEffectiveAuthMode(): GeoAIAuthMode {
 export function authModeToLabel(mode: GeoAIAuthMode) {
   if (mode === "supabase_auth") return "Supabase Auth";
   if (mode === "disabled") return "Auth disabled";
-  return "Pilot public";
+  return "Public demo";
 }
 
 export function authModeToCaveat(mode: GeoAIAuthMode, requestedMode = mode) {
