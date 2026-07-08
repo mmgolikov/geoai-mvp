@@ -138,13 +138,22 @@ export function LandingFeatureCard({
   text: string;
 }) {
   return (
-    <article className="grid min-h-[104px] grid-cols-[36px_minmax(0,1fr)] gap-3 rounded-md border border-line bg-white/90 p-4 shadow-sm backdrop-blur">
-      <span className="flex h-9 w-9 items-center justify-center rounded-md bg-ice text-xs font-black text-spatial-blue">
-        {String(index + 1).padStart(2, "0")}
+    <article className="grid min-h-[92px] grid-cols-[30px_minmax(0,1fr)] gap-3 rounded-md border border-line bg-white/90 p-4 shadow-sm backdrop-blur">
+      <span className="relative flex h-8 w-8 items-center justify-center rounded-md bg-ice">
+        {index === 4 ? (
+          <>
+            <span className="h-3 w-3 rounded-sm bg-cobalt-signal/20" />
+            <span className="absolute right-2 top-2 h-1.5 w-1.5 border-r-2 border-t-2 border-cobalt-signal" />
+          </>
+        ) : (
+          <span className={`h-3.5 w-3.5 rounded ${index === 1 ? "rotate-45 bg-cobalt-signal/20 ring-1 ring-cobalt-signal/40" : "bg-cobalt-signal/20"}`}>
+            {index === 1 ? <span className="mx-auto mt-1 block h-1.5 w-1.5 rounded-full bg-cobalt-signal" /> : null}
+          </span>
+        )}
       </span>
       <div className="min-w-0">
         <h3 className="text-sm font-semibold leading-5 text-ink">{title}</h3>
-        <p className="mt-2 text-xs leading-5 text-muted">{text}</p>
+        <p className="mt-2 text-[11px] leading-5 text-muted">{text}</p>
       </div>
     </article>
   );

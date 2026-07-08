@@ -34,61 +34,55 @@ const scenarioExamples = [
 ];
 
 const outputCards = [
-  ["Ranked shortlist", "Compare screened candidate zones without making official suitability claims."],
-  ["Decision dashboard", "Review score, posture, drivers, risks and next action in one workspace."],
-  ["Validation gaps", "Show which assumptions need official or client-approved validation."],
-  ["Next actions", "Turn screening results into a clear follow-up checklist."],
-  ["Source lineage", "Keep source readiness and evidence maturity adjacent to outputs."],
-  ["Report package", "Export decision-support memos with caveats and source lineage."]
-];
-
-const sourceLineageItems = [
-  ["Source registry", "DLD/Dubai Pulse snapshots, OSM/Overture, climate and satellite metadata stay labeled by readiness."],
-  ["Evidence maturity", "Sample/open context is separated from official or client validation requirements."],
-  ["Data readiness", "Project Hub exposes source lineage through /projects#data-readiness and the preview wrapper route."]
+  "Ranked shortlist",
+  "Decision dashboard",
+  "Validation gaps",
+  "Next actions",
+  "Report package"
 ];
 
 function ProductVisual() {
   return (
-    <div className="relative min-h-[640px] overflow-hidden rounded-lg border border-line bg-white/95 shadow-soft backdrop-blur sm:min-h-[460px]">
-      <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(35,93,140,0.10)_1px,transparent_1px),linear-gradient(rgba(35,93,140,0.10)_1px,transparent_1px)] bg-[size:36px_36px]" />
-      <div className="absolute left-[9%] top-[15%] h-[54%] w-[68%] rotate-[-4deg] rounded-[40%] border border-signal-blue/55 bg-signal-blue/10" />
-      <div className="absolute left-4 top-4 flex flex-wrap gap-2">
-        <StatusChip tone="blue">Map context</StatusChip>
-        <StatusChip tone="validation">Source lineage</StatusChip>
-      </div>
-      <div className="absolute right-[14%] top-[18%] h-16 w-16 rounded-full border-[10px] border-white bg-brand shadow-soft">
-        <span className="absolute left-1/2 top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-validation-gold" />
-      </div>
-      <div className="absolute left-4 top-[126px] w-[calc(100%-2rem)] rounded-md border border-line bg-white/95 p-4 shadow-soft sm:bottom-[28%] sm:left-[10%] sm:top-auto sm:w-auto sm:max-w-[250px]">
-        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">AOI selected</p>
-        <p className="mt-1 text-sm font-semibold text-ink">Business Bay waterfront</p>
-        <p className="mt-2 max-w-[220px] text-xs leading-5 text-muted">Public/open context; official validation required.</p>
-      </div>
-      <div className="absolute left-4 top-[278px] w-[calc(100%-2rem)] rounded-lg border border-line bg-white p-4 shadow-soft sm:left-auto sm:right-[8%] sm:top-[35%] sm:w-[min(270px,calc(100%-2rem))]">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Demo screening index</p>
-            <p className="mt-2 text-4xl font-semibold text-brand">78</p>
+    <div className="flex rounded-lg border border-line bg-white/95 p-5 shadow-soft backdrop-blur sm:p-6 lg:min-h-[430px] lg:flex-col">
+      <div className="grid gap-4 sm:grid-cols-[1.12fr_0.88fr] sm:items-stretch">
+        <div className="relative min-h-[220px] overflow-hidden rounded-md bg-map-blue-gray lg:min-h-[260px]">
+          <div className="absolute inset-0 bg-[linear-gradient(8deg,transparent_0,transparent_17px,rgba(35,93,140,0.17)_18px,transparent_19px)] bg-[size:100%_32px]" />
+          <div className="absolute left-[13%] top-[18%] h-[62%] w-[72%] rotate-[8deg] rounded-[42%] border border-white/70 bg-white/20" />
+          <div className="absolute left-1/2 top-1/2 flex h-16 w-24 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-md border border-cobalt-signal bg-cobalt-signal/10 shadow-sm">
+            <span className="h-4 w-4 rounded-full bg-cobalt-signal" />
           </div>
-          <StatusChip tone="validation">Conditional</StatusChip>
+          <div className="absolute left-4 top-4">
+            <StatusChip tone="blue">Map context</StatusChip>
+          </div>
         </div>
-        <div className="mt-4 grid gap-2">
-          {[
-            ["Access", "High"],
-            ["Market signal", "Medium"],
-            ["Validation gap", "Open"]
-          ].map(([label, value]) => (
-            <div key={label} className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 rounded-md bg-surface px-3 py-2 text-xs">
-              <span className="truncate text-muted">{label}</span>
-              <span className="font-semibold text-ink">{value}</span>
-            </div>
-          ))}
+
+        <div className="rounded-md border border-line bg-surface p-4">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-cobalt-signal">
+            Screening dashboard
+          </p>
+          <p className="mt-3 text-base font-semibold text-ink">Waterfront site</p>
+          <div className="mt-4 flex items-baseline gap-3">
+            <span className="text-4xl font-semibold leading-none text-cobalt-signal">78</span>
+            <span className="text-xs font-semibold text-muted">Medium confidence</span>
+          </div>
+          <div className="mt-5 grid gap-2">
+            {[
+              ["Access", "78%", "bg-cobalt-signal"],
+              ["Market", "66%", "bg-cobalt-signal"],
+              ["Validation", "42%", "bg-validation-gold"]
+            ].map(([label, width, color]) => (
+              <div key={label} className="grid grid-cols-[64px_minmax(0,1fr)] items-center gap-3">
+                <span className="truncate text-[10px] font-semibold text-muted">{label}</span>
+                <span className="h-2 overflow-hidden rounded-full border border-line bg-white">
+                  <span className={`block h-full rounded-full ${color}`} style={{ width }} />
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
-      <div className="absolute bottom-4 left-4 right-4 rounded-md border border-validation-gold/40 bg-validation-soft px-4 py-3 text-xs leading-5 text-validation-text sm:left-auto sm:right-[8%] sm:w-[min(320px,calc(100%-2rem))]">
-        <p className="font-semibold text-validation-strong">Decision posture</p>
-        <p className="mt-1">Sample/open evidence context · official validation required.</p>
+      <div className="mt-5 rounded-md border border-validation-gold/70 bg-validation-soft px-4 py-3 text-xs font-semibold leading-5 text-validation-text">
+        Source-backed screening hypothesis · official validation required
       </div>
     </div>
   );
@@ -105,21 +99,21 @@ export default function HomePage() {
         </div>
         <div className="absolute inset-0 bg-white/82" />
 
-        <div className="relative mx-auto grid min-h-[calc(100vh-64px)] max-w-7xl gap-8 px-5 py-10 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:items-center lg:px-8">
-          <div className="max-w-3xl">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-spatial-blue">
+        <div className="relative mx-auto grid max-w-7xl gap-7 px-5 py-12 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-start lg:px-0 lg:py-14">
+          <div className="rounded-lg border border-line bg-white/96 p-6 shadow-sm backdrop-blur sm:p-8">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-cobalt-signal">
               Spatial decision intelligence
             </p>
-            <h1 className="mt-4 text-4xl font-semibold leading-[1.04] text-ink md:text-6xl">
+            <h1 className="mt-4 text-4xl font-semibold leading-[1.03] text-ink md:text-5xl lg:text-[54px]">
               GeoAI spatial decision intelligence
             </h1>
-            <p className="mt-5 max-w-2xl text-base leading-7 text-muted md:text-lg">
+            <p className="mt-4 max-w-2xl text-base leading-7 text-muted md:text-lg">
               Scenario-first map intelligence for real estate, development, infrastructure and asset screening.
             </p>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-muted">
               Select a site or define criteria, compare candidate zones, run AI-assisted screening and generate decision-support reports.
             </p>
-            <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
               <Link
                 href="/workspace"
                 className="inline-flex h-12 items-center justify-center rounded-md bg-brand px-6 text-sm font-semibold text-white shadow-soft transition hover:bg-brand-hover"
@@ -136,11 +130,6 @@ export default function HomePage() {
             <div className="mt-4 max-w-2xl">
               <ValidationCaveat compact />
             </div>
-            <div className="mt-6 flex flex-wrap items-center gap-2 text-sm font-semibold text-muted">
-              <StatusChip tone="blue">Map-first</StatusChip>
-              <span>to dashboard</span>
-              <span>to report</span>
-            </div>
           </div>
 
           <ProductVisual />
@@ -148,65 +137,78 @@ export default function HomePage() {
       </section>
 
       <section className="border-t border-line bg-surface">
-        <div className="mx-auto grid max-w-7xl gap-3 px-5 py-8 sm:px-6 md:grid-cols-2 lg:grid-cols-5 lg:px-8">
+        <div className="mx-auto grid max-w-7xl gap-3 px-5 py-8 sm:px-6 md:grid-cols-2 lg:grid-cols-5 lg:px-0">
           {productStrip.map(([title, text], index) => (
             <LandingFeatureCard key={title} index={index} title={title} text={text} />
           ))}
         </div>
       </section>
 
-      <section className="border-t border-line bg-white">
-        <div className="mx-auto grid max-w-7xl gap-5 px-5 py-10 sm:px-6 lg:grid-cols-[0.7fr_1.3fr] lg:px-8">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-spatial-blue">Workflow</p>
-            <h2 className="mt-3 text-2xl font-semibold text-ink">Map-first, criteria-first, then dashboard.</h2>
-            <p className="mt-4 text-sm leading-7 text-muted">
-              Keep the first preview focused on the core production narrative: select, search, compare, review and package the result.
-            </p>
-          </div>
-          <div className="grid gap-3 md:grid-cols-3">
-            {workflowCards.map(([title, text], index) => (
-              <article key={title} className="min-h-[156px] rounded-md border border-line bg-surface p-4">
-                <span className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-ice text-xs font-black text-spatial-blue">
-                  {String(index + 1).padStart(2, "0")}
-                </span>
-                <h3 className="mt-4 text-sm font-semibold text-ink">{title}</h3>
-                <p className="mt-2 text-sm leading-6 text-muted">{text}</p>
-              </article>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="border-t border-line bg-white">
-        <div className="mx-auto grid max-w-7xl gap-8 px-5 py-10 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:px-8">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-spatial-blue">Decision intelligence</p>
-            <h2 className="mt-3 text-2xl font-semibold text-ink">From spatial context to a ranked recommendation.</h2>
-            <p className="mt-4 text-sm leading-7 text-muted">
-              GeoAI combines map selection, scenario criteria and screening evidence into compact dashboards that show what looks attractive, what needs validation and which next action should happen first.
-            </p>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {decisionLayers.map(([title, text]) => (
-              <article key={title} className="rounded-md border border-line bg-surface p-4">
-                <h3 className="text-sm font-semibold text-ink">{title}</h3>
-                <p className="mt-2 text-sm leading-6 text-muted">{text}</p>
-              </article>
-            ))}
-          </div>
-        </div>
-      </section>
-
       <section className="border-t border-line bg-surface">
-        <div className="mx-auto grid max-w-7xl gap-5 px-5 py-10 sm:px-6 lg:grid-cols-[0.65fr_1.35fr] lg:px-8">
+        <div className="mx-auto max-w-7xl px-5 py-12 sm:px-6 lg:px-0">
+          <div className="grid gap-8 lg:grid-cols-[0.88fr_1.12fr]">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cobalt-signal">Decision intelligence</p>
+              <h2 className="mt-3 text-3xl font-semibold leading-tight text-ink">From spatial context to a ranked recommendation.</h2>
+              <p className="mt-4 max-w-2xl text-sm leading-7 text-muted">
+                GeoAI combines map selection, scenario criteria and screening evidence into compact dashboards that show what looks attractive, what needs validation and which next action should happen first.
+              </p>
+              <article className="mt-8 rounded-md border border-line bg-white p-4">
+                <h3 className="text-sm font-semibold text-ink">Evidence coverage</h3>
+                <div className="mt-4 grid grid-cols-4 gap-3">
+                  {[
+                    ["DLD", "bg-validation-gold"],
+                    ["OSM", "bg-cobalt-signal"],
+                    ["Overture", "bg-cobalt-signal"],
+                    ["Climate", "bg-cobalt-signal"]
+                  ].map(([label, color]) => (
+                    <div key={label}>
+                      <p className="truncate text-[10px] font-semibold text-muted">{label}</p>
+                      <span className={`mt-2 block h-2 rounded-full ${color}`} />
+                    </div>
+                  ))}
+                </div>
+              </article>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              {decisionLayers.map(([title, text]) => (
+                <article key={title} className="rounded-md border border-line bg-white p-4">
+                  <h3 className="text-sm font-semibold text-ink">{title}</h3>
+                  <p className="mt-2 text-sm leading-6 text-muted">{text}</p>
+                </article>
+              ))}
+              <article className="rounded-md border border-line bg-white p-4">
+                <h3 className="text-sm font-semibold text-ink">Map-first to dashboard to report</h3>
+                <div className="mt-5 flex items-center gap-6">
+                  <span className="h-4 w-4 rounded-full bg-cobalt-signal" />
+                  <span className="h-4 w-4 rounded-full bg-cobalt-signal" />
+                  <span className="h-4 w-4 rounded-full bg-validation-gold" />
+                </div>
+              </article>
+            </div>
+          </div>
+
+          <div className="mt-9 grid gap-5 md:grid-cols-3">
+            {workflowCards.map(([title, text]) => (
+              <article key={title} className="min-h-[126px] rounded-md border border-line bg-white p-4">
+                <h3 className="text-sm font-semibold text-ink">{title}</h3>
+                <p className="mt-3 text-sm leading-6 text-muted">{text}</p>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="bg-surface">
+        <div className="mx-auto grid max-w-7xl gap-5 px-5 py-10 sm:px-6 lg:grid-cols-[0.65fr_1.35fr] lg:px-0">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-spatial-blue">Scenarios</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cobalt-signal">Scenarios</p>
             <h2 className="mt-3 text-2xl font-semibold text-ink">Built around spatial screening decisions.</h2>
           </div>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {scenarioExamples.map((item) => (
-              <div key={item} className="rounded-md border border-line bg-white px-4 py-3 text-sm font-semibold text-ink shadow-sm">
+              <div key={item} className="rounded-md border border-line bg-white px-4 py-3 text-sm font-semibold text-ink">
                 {item}
               </div>
             ))}
@@ -214,81 +216,20 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="border-t border-line bg-white">
-        <div className="mx-auto grid max-w-7xl gap-5 px-5 py-10 sm:px-6 lg:grid-cols-[0.65fr_1.35fr] lg:px-8">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-spatial-blue">Source basis</p>
-            <h2 className="mt-3 text-2xl font-semibold text-ink">Data readiness stays next to the decision.</h2>
-            <p className="mt-4 text-sm leading-7 text-muted">
-              The preview keeps source readiness visible without implying official validation.
-            </p>
-            <div className="mt-5 flex flex-col gap-2 sm:flex-row">
-              <Link
-                href="/projects#data-readiness"
-                className="inline-flex h-10 items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white transition hover:bg-brand-hover"
-              >
-                View source lineage
-              </Link>
-              <Link
-                href="/data-readiness"
-                className="inline-flex h-10 items-center justify-center rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink transition hover:border-brand"
-              >
-                Open data readiness
-              </Link>
-            </div>
-          </div>
-          <div className="grid gap-3 md:grid-cols-3">
-            {sourceLineageItems.map(([title, text]) => (
-              <article key={title} className="rounded-md border border-line bg-surface p-4">
-                <h3 className="text-sm font-semibold text-ink">{title}</h3>
-                <p className="mt-2 text-sm leading-6 text-muted">{text}</p>
-              </article>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="border-t border-line bg-white">
-        <div className="mx-auto max-w-7xl px-5 py-10 sm:px-6 lg:px-8">
-          <div className="grid gap-5 md:grid-cols-[0.7fr_1.3fr] md:items-start">
+      <section className="bg-surface">
+        <div className="mx-auto max-w-7xl px-5 pb-16 pt-8 sm:px-6 lg:px-0">
+          <div className="grid gap-5 md:grid-cols-[0.65fr_1.35fr] md:items-start">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-spatial-blue">Outputs</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cobalt-signal">Outputs</p>
               <h2 className="mt-3 text-2xl font-semibold text-ink">Built for screening decisions.</h2>
             </div>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {outputCards.map(([title, text]) => (
-                <article key={title} className="rounded-md border border-line bg-surface p-4">
+              {outputCards.map((title) => (
+                <article key={title} className="rounded-md border border-line bg-white px-4 py-3">
                   <h3 className="text-sm font-semibold text-ink">{title}</h3>
-                  <p className="mt-2 text-sm leading-6 text-muted">{text}</p>
                 </article>
               ))}
             </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="border-t border-line bg-brand text-white">
-        <div className="mx-auto grid max-w-7xl gap-5 px-5 py-10 sm:px-6 lg:grid-cols-[1fr_auto] lg:items-center lg:px-8">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/70">Demo workspace</p>
-            <h2 className="mt-3 text-2xl font-semibold">Open the workspace and run the preview flow.</h2>
-            <p className="mt-3 max-w-3xl text-sm leading-7 text-white/78">
-              Use the map-first or criteria-first workspace to test the current investor/client demo flow, then review the resulting dashboard, source basis and report package.
-            </p>
-          </div>
-          <div className="flex flex-col gap-2 sm:flex-row lg:justify-end">
-            <Link
-              href="/workspace"
-              className="inline-flex h-11 items-center justify-center rounded-md bg-white px-5 text-sm font-semibold text-brand transition hover:bg-ice"
-            >
-              Open workspace
-            </Link>
-            <Link
-              href="/projects#data-readiness"
-              className="inline-flex h-11 items-center justify-center rounded-md border border-white/30 px-5 text-sm font-semibold text-white transition hover:bg-white/10"
-            >
-              Review source lineage
-            </Link>
           </div>
         </div>
       </section>
