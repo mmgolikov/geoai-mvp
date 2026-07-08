@@ -1,16 +1,17 @@
-const geoaiPreviewSupabaseUrl = "https://pphdqkurxneyagvnnjdt.supabase.co";
-const geoaiPreviewPublishableKey = "sb_publishable_DW_uYi1s2vNMPSn6bsTgeg_vZevTDi4";
+export const geoaiSupabaseProjectRef = "pphdqkurxneyagvnnjdt";
+export const geoaiPreviewSupabaseUrl = `https://${geoaiSupabaseProjectRef}.supabase.co`;
+export const geoaiPreviewPublishableKey = "sb_publishable_DW_uYi1s2vNMPSn6bsTgeg_vZevTDi4";
 
-function isPreviewRuntime() {
+export function isPreviewRuntime() {
   return process.env.VERCEL_ENV?.trim().toLowerCase() === "preview";
 }
 
 export function getSupabaseUrl() {
-  return process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() || (isPreviewRuntime() ? geoaiPreviewSupabaseUrl : null);
+  return isPreviewRuntime() ? geoaiPreviewSupabaseUrl : process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() || null;
 }
 
 export function getSupabaseAnonKey() {
-  return process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim() || (isPreviewRuntime() ? geoaiPreviewPublishableKey : null);
+  return isPreviewRuntime() ? geoaiPreviewPublishableKey : process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim() || null;
 }
 
 export function getSupabaseServiceRoleKey() {
