@@ -149,7 +149,15 @@ export async function getSupabaseRuntimeReadiness() {
   const status = runtimeStatusFromMode(runtimeMode);
   const fallbackActive = schema.repositoryMode !== "supabase" || runtimeMode !== "supabase_read_only_ready";
   const hardAccessEnabled = enforcement.accessEnforcementMode === "hard";
-  const hardAccessVerified = hardAccessEnabled && auth.effectiveMode === "supabase_auth" && schemaReady;
+  const authSessionVerified = process.env.GEOAI_AUTH_SESSION_VERIFIED?.trim().toLowerCase() === "true";
+  const projectMembershipsVerified = process.env.GEOAI_PROJECT_MEMBERSHIP_TESTS_VERIFIED?.trim().toLowerCase() === "true";
+  const rlsPoliciesVerified = process.env.GEOAI_RLS_POLICY_TESTS_VERIFIED?.trim().toLowerCase() === "true";
+  const hardAccessVerified =
+    hardAccessEnabled &&
+    auth.effectiveMode === "supabase_auth" &&
+    authSessionVerified &&
+    projectMembershipsVerified &&
+    rlsPoliciesVerified;
   const blockers: string[] = [];
   const nextActions: string[] = [];
 
@@ -225,6 +233,9 @@ export async function getSupabaseRuntimeReadiness() {
     localApiFallbackActive: fallbackActive,
     authMode: auth.effectiveMode,
     requestedAuthMode: auth.requestedMode,
+    authSessionVerified,
+    projectMembershipsVerified,
+    rlsPoliciesVerified,
     hardAccessEnabled,
     hardAccessVerified,
     hardAccessDisabled: !hardAccessEnabled,

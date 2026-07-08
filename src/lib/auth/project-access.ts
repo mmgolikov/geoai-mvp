@@ -1,27 +1,11 @@
 import { getAuthModeStatus } from "@/src/lib/auth/auth-mode";
 import { createDemoProjectMembership, demoOrganization, demoUser } from "@/src/lib/auth/demo-session";
+import { getProjectAccessDecision, roleAllowsAction } from "@/src/lib/access/access-decision";
 import { getEnforcementConfig, type GeoAIAccessEnforcementMode } from "@/src/lib/platform/enforcement-config";
-import type { GeoAIProjectMembership, GeoAIProjectRole, GeoAIUser } from "@/src/types/auth";
+import type { GeoAIProjectMembership, GeoAIUser } from "@/src/types/auth";
 
 export type ProjectAccessAction = "read" | "write" | "manage" | "export" | "validate" | "upload" | "review";
 export type ProjectAccessMode = GeoAIAccessEnforcementMode;
-
-const ROLE_RANK: Record<GeoAIProjectRole, number> = {
-  client_viewer: 1,
-  viewer: 2,
-  analyst: 3,
-  admin: 4,
-  owner: 5
-};
-
-function roleCan(role: GeoAIProjectRole, action: ProjectAccessAction) {
-  if (action === "read") return ROLE_RANK[role] >= ROLE_RANK.client_viewer;
-  if (action === "export") return role === "client_viewer" || ROLE_RANK[role] >= ROLE_RANK.viewer;
-  if (action === "write" || action === "upload" || action === "review" || action === "validate") {
-    return ROLE_RANK[role] >= ROLE_RANK.analyst;
-  }
-  return ROLE_RANK[role] >= ROLE_RANK.admin;
-}
 
 function isDemoProjectKey(projectKey: string) {
   return projectKey === "unscoped-demo-project" || projectKey === "all-demo-projects" || projectKey.endsWith("-demo");
@@ -63,7 +47,26 @@ export function requireProjectAccess({
     authStatus.effectiveMode === "supabase_auth" && !demoPublicAllowed
       ? null
       : createDemoProjectMembership(effectiveProjectKey);
-  const roleAllowed = membership ? roleCan(membership.role, action) : false;
+  const roleAllowed = membership ? roleAllowsAction(membership.role, action) : false;
+  const accessDecision = getProjectAccessDecision({
+    mode: effectiveMode,
+    authMode: authStatus.effectiveMode,
+    action,
+    user: membership ? { id: demoUser.id, email: demoUser.email } : null,
+    profile: membership ? { id: demoUser.id, organizationId: demoOrganization.id, status: "active" } : null,
+    project: { projectKey: effectiveProjectKey, organizationId: demoOrganization.id },
+    membership: membership
+      ? {
+          id: membership.id,
+          userId: demoUser.id,
+          organizationId: membership.organizationId,
+          projectKey: membership.projectKey,
+          role: membership.role,
+          status: membership.status
+        }
+      : null,
+    allowDemoPublic: demoPublicAllowed
+  });
   const allowed = authStatus.effectiveMode === "demo_public"
     ? effectiveMode === "soft" || demoPublicAllowed
       ? roleAllowed
@@ -94,6 +97,8 @@ export function requireProjectAccess({
     user: membership ? demoUser : null,
     organization: membership ? demoOrganization : null,
     membership,
+    decisionStatus: accessDecision.status,
+    warnings: accessDecision.warnings,
     projectKey: effectiveProjectKey,
     action,
     caveat: membership?.caveat ?? getProjectAccessCaveat()

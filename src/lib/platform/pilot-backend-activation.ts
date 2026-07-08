@@ -57,6 +57,10 @@ function statusRank(status: CapabilityStatus) {
   return 0;
 }
 
+function boolEnv(name: string) {
+  return process.env[name]?.trim().toLowerCase() === "true";
+}
+
 function deriveOverallStatus(input: {
   supabaseConfigured: boolean;
   schemaReady: boolean;
@@ -117,11 +121,14 @@ export async function getPilotBackendActivationSummary(): Promise<PilotBackendAc
   const auth = getAuthModeStatus();
   const config = getEnforcementConfig();
   const schemaReady = schema.status === "connected" && schema.postgisReady && schema.tablesReady;
-  const authReady = auth.effectiveMode === "supabase_auth" && auth.supabasePublicConfigAvailable;
+  const authConfigured = auth.effectiveMode === "supabase_auth" && auth.supabasePublicConfigAvailable;
+  const authSessionVerified = authConfigured && boolEnv("GEOAI_AUTH_SESSION_VERIFIED");
   const hardAccessEnabled = config.accessEnforcementMode === "hard";
-  const hardAccessVerified = hardAccessEnabled && authReady && schemaReady;
-  const membershipsReady = schemaReady;
-  const rlsReady = schemaReady && hardAccessVerified;
+  const membershipsConfigured = schemaReady;
+  const membershipsVerified = membershipsConfigured && boolEnv("GEOAI_PROJECT_MEMBERSHIP_TESTS_VERIFIED");
+  const rlsConfigured = schemaReady;
+  const rlsVerified = rlsConfigured && boolEnv("GEOAI_RLS_POLICY_TESTS_VERIFIED");
+  const hardAccessVerified = hardAccessEnabled && authSessionVerified && membershipsVerified && rlsVerified;
   const signedUrlVerified = Boolean(storage.signedUrlVerified);
   const auditVerified = await isAuditDurabilityVerified(schemaReady);
 
@@ -143,22 +150,34 @@ export async function getPilotBackendActivationSummary(): Promise<PilotBackendAc
     capability(
       "auth_sessions",
       "Auth sessions",
-      authReady ? "configured_ready" : auth.effectiveMode === "demo_public" ? "not_configured" : "configured_unverified",
-      authReady ? "Supabase Auth mode is requested and public config is present." : auth.caveat,
+      authConfigured ? authSessionVerified ? "configured_ready" : "configured_unverified" : "not_configured",
+      authConfigured
+        ? authSessionVerified
+          ? "Supabase Auth session verification has been recorded for this runtime."
+          : "Supabase Auth config is present, but real Preview session verification is not recorded."
+        : auth.caveat,
       demoAccessCaveat
     ),
     capability(
       "project_memberships",
       "Project memberships",
-      membershipsReady ? "configured_ready" : "not_configured",
-      membershipsReady ? "Membership table exists; run membership verification before confidential pilot." : "Membership table is not verified.",
+      membershipsConfigured ? membershipsVerified ? "configured_ready" : "configured_unverified" : "not_configured",
+      membershipsConfigured
+        ? membershipsVerified
+          ? "Positive and negative project membership checks have been recorded for this runtime."
+          : "Membership table exists; real positive/negative membership tests are still required."
+        : "Membership table is not verified.",
       "Membership checks must be verified with seeded pilot users before hard access rollout."
     ),
     capability(
       "rls_policies",
       "RLS policies",
-      rlsReady ? "configured_ready" : schemaReady ? "configured_unverified" : "not_configured",
-      rlsReady ? "RLS policy path can be tested with hard access mode." : "RLS remains a migration/policy foundation until auth and memberships are verified.",
+      rlsConfigured ? rlsVerified ? "configured_ready" : "configured_unverified" : "not_configured",
+      rlsConfigured
+        ? rlsVerified
+          ? "RLS positive and negative hard-mode checks have been recorded for this runtime."
+          : "RLS remains a migration/policy foundation until auth, memberships and hard-mode tests are verified."
+        : "RLS policy foundation is not verified.",
       "RLS policies require configured Supabase Auth, project memberships and deployment governance."
     ),
     capability(
@@ -199,8 +218,10 @@ export async function getPilotBackendActivationSummary(): Promise<PilotBackendAc
     capability(
       "hard_access_enforcement",
       "Hard access enforcement",
-      hardAccessVerified ? "verified_active" : hardAccessEnabled ? "configured_unverified" : "not_configured",
-      hardAccessEnabled ? "Hard access mode is requested through environment config." : "Soft demo-safe mode is active.",
+      hardAccessVerified ? "verified_active" : "not_configured",
+      hardAccessVerified
+        ? "Hard access mode is enabled and backed by verified Auth, membership and RLS checks."
+        : "Hard access is disabled or unverified; soft demo-safe mode remains the supported runtime path.",
       demoAccessCaveat
     )
   ];
@@ -233,12 +254,14 @@ export async function getPilotBackendActivationSummary(): Promise<PilotBackendAc
     });
   }
 
-  if (!authReady) {
+  if (!authSessionVerified) {
     blockers.push({
       id: "auth_not_enforced",
       severity: "p0",
       title: "Production auth is not enforced",
-      description: auth.caveat,
+      description: authConfigured
+        ? "Supabase Auth config is present, but a real server-verified Preview session has not been recorded."
+        : auth.caveat,
       requiredEnv: ["NEXT_PUBLIC_AUTH_MODE=supabase_auth"],
       relatedRoute: "/api/auth/session",
       nextAction: "Configure Supabase Auth and project memberships before confidential client access."
@@ -317,7 +340,7 @@ export async function getPilotBackendActivationSummary(): Promise<PilotBackendAc
     supabaseConfigured: schema.configured,
     schemaReady,
     storageReady: storage.storageReady,
-    authReady,
+    authReady: authSessionVerified,
     accessEnforced: hardAccessVerified,
     confidentialReady: canRunConfidentialPilot,
     hasP0

@@ -1,8 +1,8 @@
 # Auth Hard Access v1 Plan
 
 Date: 2026-07-08
-Branch context: `supabase-storage-readiness-v1`
-Status: planning only
+Branch context: `supabase-storage-readiness-v1`, followed by `auth-hard-access-v1-preview`
+Status: baseline plan; implementation scope is tracked in `AUTH_HARD_ACCESS_V1_CHANGE_REQUEST.md` and Preview validation in `AUTH_HARD_ACCESS_V1_QA_CHECKLIST.md`.
 
 Required caveat: **Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.**
 
