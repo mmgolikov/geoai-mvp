@@ -36,6 +36,10 @@ export const auditEventTypeLabels = {
 
 export type AuditEventType = keyof typeof auditEventTypeLabels;
 
+type DbWriteResponse = {
+  error?: unknown;
+};
+
 export type AuditEventInput = {
   organizationId?: string | null;
   projectId?: string | null;
@@ -78,10 +82,7 @@ export async function recordAuditEvent(input: AuditEventInput) {
   }
 
   try {
-    const query = client.from("audit_events").insert(createAuditEventPayload(input)) as Promise<{
-      error?: unknown;
-    }>;
-    const response = await query;
+    const response = await client.from("audit_events").insert(createAuditEventPayload(input)) as DbWriteResponse;
 
     if (response.error) {
       return {
