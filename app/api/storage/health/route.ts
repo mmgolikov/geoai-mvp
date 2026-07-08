@@ -6,11 +6,25 @@ export const runtime = "nodejs";
 
 export async function GET() {
   const readiness = await getStorageReadiness();
-  void recordAuditEvent({
+  const audit = await recordAuditEvent({
     eventType: "storage_health_checked",
     entityType: "storage",
     action: "Checked storage readiness",
-    metadata: { provider: readiness.provider, bucketReady: readiness.bucketReady }
+    metadata: {
+      provider: readiness.provider,
+      bucketReady: readiness.bucketReady,
+      storageReady: readiness.storageReady,
+      signedUrlVerified: readiness.signedUrlVerified,
+      verification: readiness.signedUrlVerified ? "geoai-storage-readiness-v1" : "pending"
+    }
   });
-  return NextResponse.json(readiness);
+
+  return NextResponse.json({
+    ...readiness,
+    audit: {
+      recorded: audit.recorded,
+      mode: audit.mode,
+      message: audit.message
+    }
+  });
 }
