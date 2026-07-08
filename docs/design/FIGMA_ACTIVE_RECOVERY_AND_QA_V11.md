@@ -1,4 +1,4 @@
-# Figma Active Recovery and Design QA v1.1
+# Figma Active Recovery and Design QA v1.2
 
 Date: 2026-07-08  
 Branch: `design-audit-v1`  
@@ -7,9 +7,14 @@ Figma file key: `TAzDqOvRCw1mQGMU3Y4S9H`
 
 ## Executive Summary
 
-This document records the design-governance recovery pass for the active GeoAI Figma structure after the active working pages were found to be inconsistent / partially empty through the Figma connector.
+This document records the correction pass after founder feedback that the previous Figma visual layer did not match the current product UX reference closely enough.
 
-The pass rebuilt and verified the current product visual layer as a design-only artifact. It does not approve implementation, does not create a Codex handoff, does not modify runtime code, and does not change production.
+The design direction was changed from an interpreted visual layer to a **strict product-fidelity layer**. The current Figma frame is now:
+
+`Workspace Product Fidelity v1.2 / current`  
+Node ID: `108:2`
+
+The previous `Workspace Visual Layer v1.1 / current` was preserved and moved left as a previous version. No implementation approval is granted by this document.
 
 Current decision remains:
 
@@ -20,98 +25,106 @@ No implementation PR.
 No production deployment.  
 No changes to `main`.
 
-## Figma Frames Created / Verified
+## Product Reference Audit
 
-The following current frames were created or verified by direct Figma node screenshot checks:
+The v1.2 pass was based on the current product code reference:
+
+- `/workspace` renders `TopNavigation` and `WorkspaceShell`.
+- `WorkspaceShell` uses a two-column layout: `minmax(0,1fr)_380px`.
+- Workspace height is `calc(100vh - 4rem)`.
+- The right side is always the real `AnalysisPanel` contract.
+- Main canvas states are `MapWorkspace`, `ExpressDashboard`, `ComparisonDashboard` and `ReportPreview`.
+- Primary CTA is passed into `AnalysisPanel` and stays pinned in the panel footer.
+- Map controls are right-side controls: spatial layers, AOI polygon control, basemap/scale controls.
+
+## Current Figma Frames Created / Verified
 
 | Active page | Current frame | Node ID | Status |
 |---|---:|---:|---|
-| `01 — Product Design` | `Workspace Visual Layer v1.1 / current` | `94:26` | Created and screenshot-verified |
+| `01 — Product Design` | `Workspace Product Fidelity v1.2 / current` | `108:2` | Created and screenshot-verified |
+| `01 — Product Design` | `PREVIOUS — Workspace Visual Layer v1.1 / previous — superseded by product fidelity v1.2` | `94:26` | Preserved left of current |
 | `02 — Design System` | `Brand Foundation v1.1 / current` | `98:2` | Created and screenshot-verified |
 | `02 — Design System` | `Design System Components v1.1 / current` | `98:47` | Created and screenshot-verified |
 | `03 — Responsive QA` | `Responsive QA v0.1 / current` | `98:98` | Created, overflow-fixed and screenshot-verified |
 | `04 — Design QA & Handoff` | `Design QA & Handoff v1.1 / current` | `98:124` | Created and screenshot-verified |
 
-## Product Design Scope
+## What Changed in v1.2
 
-`Workspace Visual Layer v1.1 / current` contains the recovered / improved current product visual layer with the current application geometry preserved:
+### 1. Product geometry corrected
 
-- `TopNavigation` remains visible.
-- Main canvas remains separate from the right panel.
-- Right `AnalysisPanel` uses the current 380px-width pattern.
-- Primary CTA remains in the right panel footer.
-- Map-first flow is preserved.
-- Criteria-first treatment is represented in the flow and component language.
-- Analysis, readiness and report-adjacent states remain main-canvas states, not hidden navigation.
-- Source lineage and evidence are placed close to decision outputs.
-- Required caveat is visible near decision outputs.
+The previous v1.1 frame looked like a decorative product mock and did not follow the actual `/workspace` UX closely enough.
 
-Included screen states:
+v1.2 now follows the actual product structure:
 
-1. `Workspace / Map-first setup v1.1`
-2. `Workspace / Selected point v1.1`
-3. `Workspace / Analysis result v1.1`
-4. `Projects / Readiness visual layer v1.1`
-5. `Clickable prototype flow / QA reference`
+- `TopNavigation` uses the product reference pattern: logo mark, `GeoAI`, subtitle, `Workspace`, `Projects`.
+- `WorkspaceShell` uses main canvas + fixed 380px right panel.
+- The right panel is no longer a generic card column; it follows the command-panel structure and pinned footer CTA.
+- Screen states remain inside the main canvas.
 
-## Version Lane Correction
+### 2. Map controls corrected
 
-A conflict was detected on `01 — Product Design`: more than one product frame still used `/ current` naming and multiple previous frames were visually stacked at the same negative x-position.
+The earlier frame placed map controls incorrectly.
 
-Correction applied:
+v1.2 corrects this:
 
-- Only `Workspace Visual Layer v1.1 / current` remains the intended current frame at `x = 0`.
-- `Workspace Visual Layer v1.0` was renamed/moved as previous/reference.
-- Older product frames were moved left of the current frame without intentional overlap.
-- Previous frames are preserved, not deleted.
+- `Start here` overlay is left/top only for empty map state.
+- `Spatial layers` control is placed at top/right.
+- AOI polygon control is placed on the right side near the layers control.
+- Basemap and scale controls are placed at bottom/right.
+- Map visual style now uses blue/slate spatial accents rather than green/teal.
 
-Important caveat:
+### 3. AnalysisPanel corrected
 
-The Figma connector returned inconsistent page-child listings during the pass. Direct node lookup and screenshot calls confirmed the current frames, but a manual visual check in Figma is still required before declaring the active page navigator fully clean.
+The previous right panel did not match the current product reference.
 
-## Design System Scope
+v1.2 uses:
 
-`Brand Foundation v1.1 / current` records:
+- compact workspace command header;
+- B2B/B2C segmented control;
+- collapsible command sections: `Project`, `Role / Scenario`, `Scenario setup`, `Data sources`;
+- selection card;
+- custom query card;
+- evidence mode label;
+- pinned primary CTA footer.
 
-- Premium, calm, precise, evidence-led enterprise SaaS direction.
-- Neutral / Geo Teal / Signal Blue / validation amber color logic.
-- Inter typography and 8pt spacing logic.
-- Mandatory data honesty caveat.
+### 4. ExpressDashboard corrected
 
-`Design System Components v1.1 / current` records:
+The previous dashboard looked like an independent BI card layout and not like the current product.
 
-- Primary and secondary buttons.
-- Segmented controls.
-- Right `AnalysisPanel` block logic.
-- Decision output cards.
-- Caveat bar.
-- Source lineage / readiness table pattern.
+v1.2 follows the product dashboard contract more closely:
 
-## Responsive QA Scope
+- header with title, scenario badge, export/back actions;
+- map context card on the left;
+- decision posture + suitability / score gauge on the right;
+- KPI row;
+- top drivers / top risks modules;
+- recommended next action module.
 
-`Responsive QA v0.1 / current` is an initial QA page, not a complete responsive design package.
+### 5. Color direction corrected
 
-Current status:
+Founder feedback: green/teal looked agricultural and was not appropriate for GeoAI real estate / development intelligence.
 
-- Desktop 1440: visual smoke pass created.
-- Tablet 1024: pending dedicated behavior definition.
-- Mobile 390: pending dedicated staged workflow; desktop cockpit must not be squeezed into mobile.
+v1.2 replaces the green/teal feel with a **blue-spatial palette**:
 
-A visual overflow issue in the mobile mock was detected and corrected during the pass.
+- Deep navy / graphite foundation;
+- Signal blue as primary action and spatial highlight;
+- restrained cyan / sky-blue for map context;
+- amber only for validation gaps and caveats;
+- no agricultural green tone.
 
-## Design QA & Handoff Status
-
-`Design QA & Handoff v1.1 / current` records the following QA status:
+## QA Result After v1.2
 
 | QA item | Status | Notes |
 |---|---|---|
-| Active page structure | Pass with caveat | Current frames exist and were screenshot-verified; connector page-child listings were inconsistent. |
-| Version lane policy | Pass with caveat | Product current/previous lane was corrected; manual Figma navigator check required. |
-| Product geometry | Pass | Main canvas + 380px right panel preserved. |
-| Primary CTA visibility | Pass | CTA remains fixed in right `AnalysisPanel` footer. |
-| Data honesty language | Pass | Mandatory caveat is visible near decision/readiness outputs. |
-| Native Figma prototype links | Pending | Frame-level reactions were attempted; manual verification required. |
-| Pixel-perfect production match | Pending | Production workspace was not directly inspected through Figma during this pass. |
+| Product UX reference fidelity | Improved / still needs founder review | v1.2 follows the actual product geometry and control positions more closely. |
+| Version lane policy | Pass with caveat | v1.1 preserved left; manual Figma navigator check still required because connector listings were inconsistent. |
+| TopNavigation fidelity | Improved | Now follows product component structure. |
+| Map control placement | Improved | Controls moved to right-side product pattern. |
+| AnalysisPanel fidelity | Improved | Uses command-panel sections and pinned footer CTA. |
+| ExpressDashboard fidelity | Improved | Rebuilt around product dashboard structure, not decorative BI cards. |
+| Color direction | Improved | Green/teal removed from v1.2 product layer; blue-spatial palette applied. |
+| Native Figma prototype links | Pending | Not manually verified. |
+| Pixel-perfect production match | Pending | v1.2 is product-fidelity, not yet pixel-perfect production capture. |
 | Implementation handoff | Blocked | No Codex handoff until founder approval. |
 
 ## Data Honesty Guardrail
@@ -143,11 +156,12 @@ Use:
 
 ## Remaining Issues
 
-1. Manual Figma navigator QA is required because connector page-child listings were inconsistent.
-2. Native Figma clickable prototype links are not manually verified.
-3. Responsive tablet and mobile flows require a separate dedicated design pass.
-4. Pixel-perfect production capture was not completed in this pass.
-5. Design implementation remains blocked.
+1. Founder must visually review `Workspace Product Fidelity v1.2 / current`.
+2. Manual Figma navigator QA is required because connector page-child listings were inconsistent.
+3. Native Figma clickable prototype links are not manually verified.
+4. Responsive tablet and mobile flows require a separate dedicated design pass.
+5. Pixel-perfect production capture is still pending.
+6. Design implementation remains blocked.
 
 ## Handoff Decision
 
@@ -155,17 +169,17 @@ Do not prepare a Codex implementation prompt yet.
 
 Implementation can only be considered after:
 
-1. Founder visually accepts `Workspace Visual Layer v1.1 / current`.
-2. Native Figma prototype links are manually verified or explicitly waived.
-3. Product/design QA confirms no overlap, no clipped critical copy and no hidden primary actions.
-4. Data honesty labels are approved.
+1. Founder visually accepts `Workspace Product Fidelity v1.2 / current`.
+2. Product/design QA confirms reference fidelity, no overlap, no clipped critical copy and no hidden primary actions.
+3. Data honesty labels are approved.
+4. Native Figma prototype links are manually verified or explicitly waived.
 5. A separate engineering brief is prepared and approved.
 
 ## Next Actions
 
-1. Founder reviews the Figma current frames visually.
-2. Manually verify Figma page navigator and version lane ordering.
-3. Manually verify or reject native clickable prototype links.
-4. Update Confluence UX page with this status.
+1. Founder reviews `Workspace Product Fidelity v1.2 / current` in Figma.
+2. Manually verify the Figma version lane ordering.
+3. Continue product-fidelity refinement if founder still sees mismatches with the product reference.
+4. Update `04 — Design QA & Handoff` if additional QA issues are found.
 5. Keep PR #42 as design-governance only.
 6. Prepare Codex implementation brief only after explicit founder approval.
