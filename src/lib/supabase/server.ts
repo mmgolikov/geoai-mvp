@@ -24,6 +24,40 @@ type SupabaseModuleLike = {
   createClient: (url: string, key: string, options?: unknown) => SupabaseServerClient;
 };
 
+type JwtPayload = {
+  role?: string;
+};
+
+function decodeBase64Url(value: string) {
+  const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
+  return Buffer.from(padded, "base64").toString("utf8");
+}
+
+function isLegacyServiceRoleJwt(value: string | null) {
+  if (!value || !value.includes(".")) {
+    return false;
+  }
+
+  try {
+    const payload = JSON.parse(decodeBase64Url(value.split(".")[1] ?? "")) as JwtPayload;
+    return payload.role === "service_role";
+  } catch {
+    return false;
+  }
+}
+
+function getServerSupabaseKey() {
+  const serviceRoleKey = getSupabaseServiceRoleKey();
+  const anonKey = getSupabaseAnonKey();
+
+  if (isLegacyServiceRoleJwt(serviceRoleKey)) {
+    return serviceRoleKey;
+  }
+
+  return anonKey ?? serviceRoleKey;
+}
+
 async function loadSupabaseModule(): Promise<SupabaseModuleLike | null> {
   try {
     return (await import("@supabase/supabase-js")) as unknown as SupabaseModuleLike;
@@ -38,7 +72,7 @@ export async function getSupabaseServerClient(): Promise<SupabaseServerClient | 
   }
 
   const url = getSupabaseUrl();
-  const key = getSupabaseServiceRoleKey() ?? getSupabaseAnonKey();
+  const key = getServerSupabaseKey();
 
   if (!url || !key) {
     return null;
