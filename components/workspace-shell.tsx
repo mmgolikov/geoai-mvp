@@ -32,7 +32,11 @@ import {
   getDefaultFilters,
   getDefaultRoleForAudience,
   getDefaultScenarioForAudience,
-  getExploreScenario
+  getDefaultScenarioForRole,
+  getExploreScenario,
+  isExploreRoleForAudience,
+  isExploreScenarioForRole,
+  isExploreScenarioId
 } from "@/src/lib/explore/scenarios";
 import type {
   CandidateSearchStatus,
@@ -201,6 +205,49 @@ function getDefaultProjectForAudience(projects: GeoAIProject[], audience: Explor
     ?? demoProjects.find((project) => getProjectSegment(project) === audience)
     ?? projects[0]
     ?? demoProjects[0];
+}
+
+function isAnalysisScenarioId(value: unknown): value is AnalysisScenarioId {
+  return typeof value === "string" && analysisScenarios.some((scenario) => scenario.id === value);
+}
+
+function getProjectExploreRole(project: GeoAIProject, audience: ExploreAudience): ExploreRole {
+  const metadataRole = project.metadata?.role ?? project.metadata?.audienceRole;
+  if (isExploreRoleForAudience(audience, metadataRole)) {
+    return metadataRole;
+  }
+
+  if (audience === "b2b") {
+    if (project.clientType === "developer") return "developer";
+    if (project.clientType === "bank") return "bank_lender";
+    if (project.clientType === "government") return "government_urban_authority";
+    if (project.clientType === "family_office") return "family_office";
+    if (project.clientType === "fund") return "real_estate_fund";
+  }
+
+  return getDefaultRoleForAudience(audience);
+}
+
+function getProjectExploreScenario(
+  project: GeoAIProject,
+  audience: ExploreAudience,
+  role: ExploreRole
+): ExploreScenarioId {
+  const metadataScenario = project.metadata?.scenarioId ??
+    project.metadata?.exploreScenarioId ??
+    project.metadata?.scenario;
+  const candidates: unknown[] = [metadataScenario];
+
+  if (isExploreScenarioId(project.primaryScenario)) {
+    candidates.push(project.primaryScenario);
+  }
+
+  if (isAnalysisScenarioId(project.primaryScenario)) {
+    candidates.push(analysisScenarioToExploreScenario(project.primaryScenario));
+  }
+
+  const validScenario = candidates.find((scenarioId) => isExploreScenarioForRole(audience, role, scenarioId));
+  return validScenario ?? getDefaultScenarioForRole(audience, role);
 }
 
 function titledText(title: string, description: string) {
@@ -813,7 +860,7 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
   const [marketContext, setMarketContext] = useState<MarketContext | null>(null);
   const [isMarketContextLoading, setIsMarketContextLoading] = useState(false);
   const [projects, setProjects] = useState<GeoAIProject[]>(demoProjects);
-  const [projectsMode, setProjectsMode] = useState<"supabase" | "demo_seed">("demo_seed");
+  const [, setProjectsMode] = useState<"supabase" | "demo_seed">("demo_seed");
   const [activeProject, setActiveProject] = useState<GeoAIProject>(demoProjects[0]);
   const [analysisHistory, setAnalysisHistory] = useState<AnalysisHistoryItem[]>([]);
   const [analysisHistorySource, setAnalysisHistorySource] = useState<"DB" | "local">("local");
@@ -880,11 +927,31 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
 
   function applyExploreDefaultsForAudience(audience: ExploreAudience) {
     const nextRole = getDefaultRoleForAudience(audience);
-    const nextScenarioId = getDefaultScenarioForAudience(audience);
+    const nextScenarioId = getDefaultScenarioForRole(audience, nextRole);
     const nextScenario = getExploreScenario(nextScenarioId);
     const nextAnalysisScenario = exploreScenarioToAnalysisScenario(nextScenarioId);
 
     setSelectedExploreAudience(audience);
+    setSelectedExploreRole(nextRole);
+    setSelectedExploreScenario(nextScenarioId);
+    setExploreInteractionMode(nextScenario.defaultInteractionMode);
+    setExploreFilters(getDefaultFilters(nextScenario.inputSchema));
+    setSelectedScenario(nextAnalysisScenario);
+    setCandidateSearchStatus(nextScenario.defaultInteractionMode === "criteria_first" ? "ready" : "idle");
+
+    if (nextAnalysisScenario === "customQuery" && customQuery.trim().length === 0) {
+      setCustomQuery(nextScenario.sampleQueries[0]);
+    }
+  }
+
+  function applyExploreDefaultsForProject(project: GeoAIProject) {
+    const nextAudience = getProjectSegment(project);
+    const nextRole = getProjectExploreRole(project, nextAudience);
+    const nextScenarioId = getProjectExploreScenario(project, nextAudience, nextRole);
+    const nextScenario = getExploreScenario(nextScenarioId);
+    const nextAnalysisScenario = exploreScenarioToAnalysisScenario(nextScenarioId);
+
+    setSelectedExploreAudience(nextAudience);
     setSelectedExploreRole(nextRole);
     setSelectedExploreScenario(nextScenarioId);
     setExploreInteractionMode(nextScenario.defaultInteractionMode);
@@ -1112,7 +1179,7 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
 
     setProjects(localProjects);
     setActiveProject(localProject);
-    applyExploreDefaultsForAudience(getProjectSegment(localProject));
+    applyExploreDefaultsForProject(localProject);
 
     fetch("/api/projects")
       .then((response) => (response.ok ? response.json() : null))
@@ -1129,7 +1196,7 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
         setProjects(nextProjects);
         setProjectsMode(payload.mode);
         setActiveProject(nextActiveProject);
-        applyExploreDefaultsForAudience(getProjectSegment(nextActiveProject));
+        applyExploreDefaultsForProject(nextActiveProject);
         writeActiveProjectKey(nextActiveProject.projectKey);
       })
       .catch(() => {
@@ -1137,7 +1204,7 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
           setProjects(localProjects);
           setProjectsMode("demo_seed");
           setActiveProject(localProject);
-          applyExploreDefaultsForAudience(getProjectSegment(localProject));
+          applyExploreDefaultsForProject(localProject);
         }
       });
 
@@ -1375,17 +1442,49 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
   }
 
   function changeExploreRole(role: ExploreRole) {
-    setSelectedExploreRole(role);
-    resetCandidateSearchForCriteriaChange();
+    const nextRole = isExploreRoleForAudience(selectedExploreAudience, role)
+      ? role
+      : getDefaultRoleForAudience(selectedExploreAudience);
+    const nextScenarioId = getDefaultScenarioForRole(selectedExploreAudience, nextRole);
+    const nextScenario = getExploreScenario(nextScenarioId);
+    const nextAnalysisScenario = exploreScenarioToAnalysisScenario(nextScenarioId);
+
+    setSelectedExploreRole(nextRole);
+    setSelectedExploreScenario(nextScenarioId);
+    setExploreInteractionMode(nextScenario.defaultInteractionMode);
+    setExploreFilters(getDefaultFilters(nextScenario.inputSchema));
+    setSelectedExploreCandidateId(null);
+    setSearchedExploreCandidates([]);
+    setCandidateCriteriaSignature(null);
+    setCandidateSearchStatus(nextScenario.defaultInteractionMode === "criteria_first" ? "ready" : "idle");
+    if (selectedExploreCandidateId) {
+      setSelectedPoint(null);
+      setSelectedObject(null);
+      setSelectedAoi(null);
+      setMarketContext(null);
+    }
+    setAnalysis(null);
+    setComparison(null);
+    setComparisonReturn(null);
+    setLastAnalyzedState(null);
+    setLastComparedState(null);
+    setReportPreview(null);
+    setSelectedScenario(nextAnalysisScenario);
     setAnalysisError(null);
     setComparisonMessage(null);
+    if (nextAnalysisScenario === "customQuery" && customQuery.trim().length === 0) {
+      setCustomQuery(nextScenario.sampleQueries[0]);
+    }
   }
 
   function changeExploreScenario(scenarioId: ExploreScenarioId) {
-    const nextScenario = getExploreScenario(scenarioId);
-    const nextAnalysisScenario = exploreScenarioToAnalysisScenario(scenarioId);
+    const nextScenarioId = isExploreScenarioForRole(selectedExploreAudience, selectedExploreRole, scenarioId)
+      ? scenarioId
+      : getDefaultScenarioForRole(selectedExploreAudience, selectedExploreRole);
+    const nextScenario = getExploreScenario(nextScenarioId);
+    const nextAnalysisScenario = exploreScenarioToAnalysisScenario(nextScenarioId);
 
-    setSelectedExploreScenario(scenarioId);
+    setSelectedExploreScenario(nextScenarioId);
     setExploreInteractionMode(nextScenario.defaultInteractionMode);
     setExploreFilters(getDefaultFilters(nextScenario.inputSchema));
     setSelectedExploreCandidateId(null);
@@ -2258,17 +2357,14 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
 
   function changeActiveProject(projectKey: string) {
     const nextProject = projects.find((project) => project.projectKey === projectKey) ?? getDemoProject(projectKey);
-    const nextAudience = getProjectSegment(nextProject);
 
     setActiveProject(nextProject);
     writeActiveProjectKey(nextProject.projectKey);
-    applyExploreDefaultsForAudience(nextAudience);
+    applyExploreDefaultsForProject(nextProject);
     clearWorkspaceResultState();
   }
 
   function activateProject(project: GeoAIProject) {
-    const nextAudience = getProjectSegment(project);
-
     setProjects((currentProjects) => {
       const byKey = new Map(currentProjects.map((item) => [item.projectKey, item]));
       byKey.set(project.projectKey, project);
@@ -2276,7 +2372,7 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
     });
     setActiveProject(project);
     writeActiveProjectKey(project.projectKey);
-    applyExploreDefaultsForAudience(nextAudience);
+    applyExploreDefaultsForProject(project);
     clearWorkspaceResultState();
   }
 
@@ -2314,12 +2410,16 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
     setSelectedObject(restoredAnalysis.selectedObject ?? null);
     setSelectedAoi(restoredAnalysis.selectedAoi ?? null);
     setSelectedScenario(restoredAnalysis.scenarioId);
-    const nextExploreScenarioId = analysisScenarioToExploreScenario(restoredAnalysis.scenarioId);
+    const nextExploreAudience = getProjectSegment(restoredProject);
+    const nextExploreRole = getProjectExploreRole(restoredProject, nextExploreAudience);
+    const mappedExploreScenarioId = analysisScenarioToExploreScenario(restoredAnalysis.scenarioId);
+    const nextExploreScenarioId = isExploreScenarioForRole(nextExploreAudience, nextExploreRole, mappedExploreScenarioId)
+      ? mappedExploreScenarioId
+      : getProjectExploreScenario(restoredProject, nextExploreAudience, nextExploreRole);
     const nextExploreScenario = getExploreScenario(nextExploreScenarioId);
-    const nextExploreRole = nextExploreScenario.defaultRoleHints[0];
     const nextExploreFilters = getDefaultFilters(nextExploreScenario.inputSchema);
 
-    setSelectedExploreAudience(nextExploreScenario.audience);
+    setSelectedExploreAudience(nextExploreAudience);
     setSelectedExploreRole(nextExploreRole);
     setSelectedExploreScenario(nextExploreScenarioId);
     setExploreInteractionMode(nextExploreScenario.defaultInteractionMode);
@@ -2332,7 +2432,7 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
       scenarioId: restoredAnalysis.scenarioId,
       targetSignature: createTargetSignature(restoredAnalysis.point, restoredAnalysis.selectedObject ?? null, restoredAnalysis.selectedAoi ?? null),
       settingsSignature: createExploreSettingsSignature({
-        audience: nextExploreScenario.audience,
+        audience: nextExploreAudience,
         role: nextExploreRole,
         interactionMode: nextExploreScenario.defaultInteractionMode,
         filters: nextExploreFilters
@@ -2801,70 +2901,72 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
         ? `${selectedPoint.latitude.toFixed(5)}, ${selectedPoint.longitude.toFixed(5)}`
         : "Tap a map point, object, AOI, or candidate.";
   const canRunMobileMapAnalysis = Boolean(selectedPoint) && !isAnalyzing;
+  const hasResultSurface = Boolean(reportPreview || comparison || analysis);
 
   return (
     <>
       <div
         className="grid min-h-[calc(100svh-4rem)] shrink-0 grid-cols-1 lg:h-[calc(100vh-4rem)] lg:min-h-0 lg:grid-cols-[minmax(0,1fr)_380px] lg:overflow-hidden"
       >
-      {reportPreview === "analysis" && analysis ? (
-        <ReportPreview key={`report-${analysis.id}`} mode="analysis" analysis={analysis} onBack={() => setReportPreview(null)} />
-      ) : reportPreview === "comparison" && comparison ? (
-        <ReportPreview key={`report-${comparison.id}`} mode="comparison" comparison={comparison} onBack={() => setReportPreview(null)} />
-      ) : comparison ? (
-        <ComparisonDashboard
-          key={comparison.id}
-          comparison={comparison}
-          onBackToMap={backToMap}
-          onExportComparison={() => {
-            void exportPrintableReport("comparison");
-          }}
-          onOpenCandidateDashboard={openComparisonItemDashboard}
-        />
-      ) : analysis ? (
-        <ExpressDashboard
-          key={analysis.id}
-          analysis={analysis}
-          onBackToMap={backToMap}
-          onExportReport={() => {
-            void exportPrintableReport("analysis");
-          }}
-          candidateNavigation={comparisonReturn
-            ? {
-                items: comparisonReturn.items.map((item) => item.item),
-                activeItemId: activeComparisonNavigationItemId,
-                onOpenItem: openComparisonItemDashboard,
-                onBackToComparison: returnToCandidateComparison
-              }
-            : undefined}
-        />
-      ) : (
-        <div ref={mapSectionRef} id="workspace-map" className="min-h-0 lg:h-full">
-          <MapWorkspace
-            key="map-workspace"
-            className="relative h-[68svh] min-h-[420px] overflow-hidden bg-[#dfe8ec] sm:h-[70svh] lg:h-full lg:min-h-0"
-            selectedPoint={selectedPoint}
-            selectedObject={selectedObject}
-            selectedAoi={selectedAoi}
-            onPointSelect={handlePointSelect}
-            onObjectSelect={handleObjectSelect}
-            onAoiSelect={handleAoiSelect}
-            onAoiDelete={handleAoiDelete}
-            uploadedDatasets={uploadedDatasets}
-            projectId={activeProject.projectKey}
-            exploreCandidates={visibleExploreCandidates}
-            selectedExploreCandidateId={selectedExploreCandidateId}
-            onExploreCandidateSelect={selectExploreCandidate}
-          />
+        <div className={`${hasResultSurface ? "order-1" : "order-2 lg:order-1"} min-h-0 lg:h-full`}>
+          {reportPreview === "analysis" && analysis ? (
+            <ReportPreview key={`report-${analysis.id}`} mode="analysis" analysis={analysis} onBack={() => setReportPreview(null)} />
+          ) : reportPreview === "comparison" && comparison ? (
+            <ReportPreview key={`report-${comparison.id}`} mode="comparison" comparison={comparison} onBack={() => setReportPreview(null)} />
+          ) : comparison ? (
+            <ComparisonDashboard
+              key={comparison.id}
+              comparison={comparison}
+              onBackToMap={backToMap}
+              onExportComparison={() => {
+                void exportPrintableReport("comparison");
+              }}
+              onOpenCandidateDashboard={openComparisonItemDashboard}
+            />
+          ) : analysis ? (
+            <ExpressDashboard
+              key={analysis.id}
+              analysis={analysis}
+              onBackToMap={backToMap}
+              onExportReport={() => {
+                void exportPrintableReport("analysis");
+              }}
+              candidateNavigation={comparisonReturn
+                ? {
+                    items: comparisonReturn.items.map((item) => item.item),
+                    activeItemId: activeComparisonNavigationItemId,
+                    onOpenItem: openComparisonItemDashboard,
+                    onBackToComparison: returnToCandidateComparison
+                  }
+                : undefined}
+            />
+          ) : (
+            <div ref={mapSectionRef} id="workspace-map" className="min-h-0 lg:h-full">
+              <MapWorkspace
+                key="map-workspace"
+                className="relative h-[68svh] min-h-[420px] overflow-hidden bg-[#dfe8ec] sm:h-[70svh] lg:h-full lg:min-h-0"
+                selectedPoint={selectedPoint}
+                selectedObject={selectedObject}
+                selectedAoi={selectedAoi}
+                onPointSelect={handlePointSelect}
+                onObjectSelect={handleObjectSelect}
+                onAoiSelect={handleAoiSelect}
+                onAoiDelete={handleAoiDelete}
+                uploadedDatasets={uploadedDatasets}
+                projectId={activeProject.projectKey}
+                exploreCandidates={visibleExploreCandidates}
+                selectedExploreCandidateId={selectedExploreCandidateId}
+                onExploreCandidateSelect={selectExploreCandidate}
+              />
+            </div>
+          )}
         </div>
-      )}
-        <div ref={workflowPanelRef} className="min-h-0 min-w-0 lg:h-full">
+        <div ref={workflowPanelRef} className={`${hasResultSurface ? "order-2" : "order-1"} min-h-0 min-w-0 lg:order-2 lg:h-full`}>
           <AnalysisPanel
             selectedPoint={selectedPoint}
             selectedObject={selectedObject}
             selectedAoi={selectedAoi}
             projects={projectSelectorProjects}
-            projectsMode={projectsMode}
             activeProject={activeProject}
             selectedScenario={selectedScenario}
             customQuery={customQuery}
