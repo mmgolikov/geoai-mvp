@@ -1,8 +1,10 @@
 import {
+  geoaiSupabaseProjectRef,
   getSupabaseAnonKey,
   getSupabaseServiceRoleKey,
   getSupabaseUrl,
-  isSupabaseConfigured
+  isSupabaseConfigured,
+  isPreviewRuntime
 } from "@/src/lib/supabase/config";
 
 export type SupabaseServerClient = {
@@ -26,6 +28,7 @@ type SupabaseModuleLike = {
 
 type JwtPayload = {
   role?: string;
+  ref?: string;
 };
 
 function decodeBase64Url(value: string) {
@@ -41,7 +44,11 @@ function isLegacyServiceRoleJwt(value: string | null) {
 
   try {
     const payload = JSON.parse(decodeBase64Url(value.split(".")[1] ?? "")) as JwtPayload;
-    return payload.role === "service_role";
+    if (payload.role !== "service_role") {
+      return false;
+    }
+
+    return isPreviewRuntime() ? payload.ref === geoaiSupabaseProjectRef : true;
   } catch {
     return false;
   }
