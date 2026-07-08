@@ -33,6 +33,7 @@
     "storage:verify:signed-url": "node scripts/verify-storage-signed-url.mjs",
     "audit:verify": "node scripts/verify-audit.mjs",
     "test:access-decision": "node scripts/access-decision-check.mjs",
+    "test:rls-plan": "node scripts/rls-verification-plan-check.mjs",
     "test:api-contract": "node scripts/api-contract-check.mjs",
     "start": "next start",
     "lint": "tsc --noEmit --pretty false"
