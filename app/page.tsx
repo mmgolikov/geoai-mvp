@@ -50,7 +50,7 @@ const sourceLineageItems = [
 
 function ProductVisual() {
   return (
-    <div className="relative min-h-[460px] overflow-hidden rounded-lg border border-line bg-white/95 shadow-soft backdrop-blur">
+    <div className="relative min-h-[640px] overflow-hidden rounded-lg border border-line bg-white/95 shadow-soft backdrop-blur sm:min-h-[460px]">
       <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(35,93,140,0.10)_1px,transparent_1px),linear-gradient(rgba(35,93,140,0.10)_1px,transparent_1px)] bg-[size:36px_36px]" />
       <div className="absolute left-[9%] top-[15%] h-[54%] w-[68%] rotate-[-4deg] rounded-[40%] border border-signal-blue/55 bg-signal-blue/10" />
       <div className="absolute left-4 top-4 flex flex-wrap gap-2">
@@ -60,12 +60,12 @@ function ProductVisual() {
       <div className="absolute right-[14%] top-[18%] h-16 w-16 rounded-full border-[10px] border-white bg-brand shadow-soft">
         <span className="absolute left-1/2 top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-validation-gold" />
       </div>
-      <div className="absolute bottom-[28%] left-4 max-w-[250px] rounded-md border border-line bg-white/95 p-4 shadow-soft sm:left-[10%]">
+      <div className="absolute left-4 top-[126px] w-[calc(100%-2rem)] rounded-md border border-line bg-white/95 p-4 shadow-soft sm:bottom-[28%] sm:left-[10%] sm:top-auto sm:w-auto sm:max-w-[250px]">
         <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">AOI selected</p>
         <p className="mt-1 text-sm font-semibold text-ink">Business Bay waterfront</p>
         <p className="mt-2 max-w-[220px] text-xs leading-5 text-muted">Public/open context; official validation required.</p>
       </div>
-      <div className="absolute right-4 top-[35%] w-[min(270px,calc(100%-2rem))] rounded-lg border border-line bg-white p-4 shadow-soft sm:right-[8%]">
+      <div className="absolute left-4 top-[278px] w-[calc(100%-2rem)] rounded-lg border border-line bg-white p-4 shadow-soft sm:left-auto sm:right-[8%] sm:top-[35%] sm:w-[min(270px,calc(100%-2rem))]">
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Demo screening index</p>
@@ -86,9 +86,9 @@ function ProductVisual() {
           ))}
         </div>
       </div>
-      <div className="absolute bottom-4 right-4 w-[min(320px,calc(100%-2rem))] rounded-md border border-validation-gold/40 bg-validation-soft px-4 py-3 text-xs leading-5 text-validation-text sm:right-[8%]">
+      <div className="absolute bottom-4 left-4 right-4 rounded-md border border-validation-gold/40 bg-validation-soft px-4 py-3 text-xs leading-5 text-validation-text sm:left-auto sm:right-[8%] sm:w-[min(320px,calc(100%-2rem))]">
         <p className="font-semibold text-validation-strong">Decision posture</p>
-        <p className="mt-1">Sample/open evidence context - official validation required.</p>
+        <p className="mt-1">Sample/open evidence context · official validation required.</p>
       </div>
     </div>
   );
