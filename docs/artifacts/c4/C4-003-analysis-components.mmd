@@ -1,0 +1,21 @@
+flowchart TB
+  Workspace["Workspace UI"] --> AnalysisPanel["Analysis Panel"]
+  Workspace --> MapLayer["Map Layer"]
+  AnalysisPanel --> AnalysisAPI["Analysis API"]
+  AnalysisAPI --> Validation["Context Validation"]
+  AnalysisAPI --> SourceContext["Source Context Builder"]
+  AnalysisAPI --> Scoring["Scoring Module"]
+  AnalysisAPI --> Narrative["Narrative Module"]
+  AnalysisAPI --> Evidence["Evidence Builder"]
+  AnalysisAPI --> ResultModel["Result Model Adapter"]
+  ResultModel --> Dashboard["Dashboard Renderer"]
+  ResultModel --> Report["Report Snapshot Builder"]
+  SourceContext --> SourceRegistry["Source Registry"]
+  SourceContext --> SpatialData["Spatial Data Adapter"]
+  Evidence --> SourceRegistry
+  Report --> ExportRoutes["Report Export Routes"]
+
+%% Artifact ID: C4-003
+%% Type: C4 component diagram source
+%% Status: Draft source artifact
+%% Confluence target: 07.09 C4-003 Analysis Components
