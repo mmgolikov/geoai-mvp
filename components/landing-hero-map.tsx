@@ -13,12 +13,12 @@ function hasUsableMapboxToken(token: string) {
 
 function FallbackHeroMap() {
   return (
-    <div className="relative h-full min-h-0 overflow-hidden bg-[#e6e8df]">
-      <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(23,79,99,0.10)_1px,transparent_1px),linear-gradient(rgba(23,79,99,0.10)_1px,transparent_1px)] bg-[size:32px_32px]" />
+    <div className="relative h-full min-h-0 overflow-hidden bg-map-blue-gray">
+      <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(35,93,140,0.10)_1px,transparent_1px),linear-gradient(rgba(35,93,140,0.10)_1px,transparent_1px)] bg-[size:32px_32px]" />
       <div className="absolute left-[8%] top-[12%] h-[72%] w-[82%] rounded-[42%] border border-white/70 bg-white/24" />
       <div className="absolute left-[10%] top-[24%] h-24 w-[44%] rotate-[-8deg] rounded-[28px] border border-brand/45 bg-brand/12" />
-      <div className="absolute right-[10%] top-[18%] h-28 w-[36%] rounded-[30px] border border-[#c5a76a]/60 bg-[#c5a76a]/18" />
-      <div className="absolute bottom-[20%] left-[18%] h-28 w-[46%] rotate-[7deg] rounded-[30px] border border-[#2c7fb8]/50 bg-[#2c7fb8]/12" />
+      <div className="absolute right-[10%] top-[18%] h-28 w-[36%] rounded-[30px] border border-validation-gold/60 bg-validation-gold/20" />
+      <div className="absolute bottom-[20%] left-[18%] h-28 w-[46%] rotate-[7deg] rounded-[30px] border border-signal-blue/50 bg-signal-blue/12" />
     </div>
   );
 }
@@ -80,7 +80,7 @@ export function LandingHeroMap() {
   return (
     <div className="relative h-full min-h-0 overflow-hidden">
       <div ref={mapContainerRef} className="absolute inset-0" />
-      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(251,250,247,0.08),rgba(251,250,247,0.34))]" />
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(251,252,254,0.08),rgba(241,246,250,0.34))]" />
     </div>
   );
 }

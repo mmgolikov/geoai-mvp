@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useAuth } from "@/components/auth/auth-provider";
 import ingestionReport from "@/data/normalized/ingestion_report.json";
 import { DataReadinessCard } from "@/components/data-readiness";
+import { SegmentSwitch, StatusChip } from "@/components/ui-v22-primitives";
 import { getScenarioDataSources } from "@/src/data/data-source-registry";
 import {
   getExploreRole,
@@ -375,7 +376,7 @@ function ExploreSetupControl({
               }}
               className={`max-w-full rounded-full border px-2 py-1 text-[11px] font-semibold transition ${
                 selected
-                  ? "border-brand bg-[#eaf3f1] text-brand"
+                  ? "border-brand bg-ice text-brand"
                   : "border-line bg-white text-muted hover:border-brand hover:text-ink"
               }`}
             >
@@ -588,6 +589,27 @@ export function AnalysisPanel({
     { label: "Validate official sources", status: "Needed" },
     { label: "Export pilot deliverables", status: hasResult ? "Optional" : "Needed" }
   ];
+  // AnalysisPanel state map: setup-required, selected-AOI and report-ready are the design-to-code states documented for the v2.2 preview.
+  const analysisPanelState = hasResult
+    ? {
+        name: "report-ready",
+        title: "Analysis ready",
+        note: "Export memo or edit scenario/query.",
+        tone: "blue" as const
+      }
+    : hasValidWorkflowTarget
+      ? {
+          name: "selected-AOI",
+          title: "Target selected",
+          note: "Review scenario setup, then run screening.",
+          tone: "validation" as const
+        }
+      : {
+          name: "setup-required",
+          title: "Setup required",
+          note: "Select target, then run screening.",
+          tone: "neutral" as const
+        };
 
   useEffect(() => {
     if (exploreInteractionMode === "map_first") {
@@ -1121,23 +1143,27 @@ export function AnalysisPanel({
     <aside className="flex min-h-0 max-w-full flex-col border-line bg-white max-lg:border-t lg:h-full lg:w-[380px] lg:overflow-hidden lg:border-l">
       <section className="min-w-0 max-w-full overflow-x-hidden p-3 pb-5 [scrollbar-width:thin] lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
         <div className="grid min-w-0 gap-2">
-          <section className="min-w-0 max-w-full overflow-hidden rounded-lg border border-line bg-white p-2">
-            <div className="grid grid-cols-2 gap-1 rounded-md bg-surface p-1">
-              {(["b2b", "b2c"] as ExploreAudience[]).map((audience) => (
-                <button
-                  key={audience}
-                  type="button"
-                  onClick={() => onExploreAudienceChange(audience)}
-                  className={`h-8 rounded-md px-2 text-xs font-semibold transition ${
-                    exploreAudience === audience
-                      ? "bg-brand text-white shadow-sm"
-                      : "text-muted hover:bg-white hover:text-ink"
-                  }`}
-                >
-                  {audience.toUpperCase()}
-                </button>
-              ))}
+          <section className="min-w-0 max-w-full overflow-hidden rounded-lg border border-line bg-white p-3 shadow-sm">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Workspace command</p>
+                <h2 className="mt-1 text-lg font-semibold leading-6 text-ink">{analysisPanelState.title}</h2>
+                <p className="mt-1 text-xs leading-5 text-muted">{analysisPanelState.note}</p>
+              </div>
+              <StatusChip tone={analysisPanelState.tone}>{analysisPanelState.name}</StatusChip>
             </div>
+          </section>
+
+          <section className="min-w-0 max-w-full overflow-hidden rounded-lg border border-line bg-white p-2">
+            <SegmentSwitch
+              ariaLabel="Workspace audience"
+              active={exploreAudience}
+              onChange={(audience) => onExploreAudienceChange(audience as ExploreAudience)}
+              options={[
+                { id: "b2b", label: "B2B" },
+                { id: "b2c", label: "B2C" }
+              ]}
+            />
           </section>
 
           <section className="min-w-0 max-w-full overflow-hidden rounded-lg border border-line bg-surface p-2.5">
@@ -1148,7 +1174,7 @@ export function AnalysisPanel({
               >
                 Project
               </label>
-              <Link href="/projects" className="text-xs font-semibold text-brand transition hover:text-[#113f50]">
+              <Link href="/projects" className="text-xs font-semibold text-brand transition hover:text-brand-hover">
                 Projects
               </Link>
             </div>
@@ -1171,7 +1197,7 @@ export function AnalysisPanel({
                   setProjectMarketDraft(activeProject.geography || "Dubai / UAE");
                   setIsProjectCreateOpen((value) => !value);
                 }}
-                className="inline-flex h-9 items-center justify-center rounded-md bg-brand px-3 text-xs font-semibold text-white transition hover:bg-[#113f50]"
+                className="inline-flex h-9 items-center justify-center rounded-md bg-brand px-3 text-xs font-semibold text-white transition hover:bg-brand-hover"
               >
                 Create
               </button>
@@ -1222,7 +1248,7 @@ export function AnalysisPanel({
                     onClick={() => {
                       void handleProjectCreate();
                     }}
-                    className="inline-flex h-8 items-center justify-center rounded-md bg-brand px-3 text-xs font-semibold text-white transition hover:bg-[#113f50] disabled:cursor-not-allowed disabled:bg-[#c9d2d7]"
+                    className="inline-flex h-8 items-center justify-center rounded-md bg-brand px-3 text-xs font-semibold text-white transition hover:bg-brand-hover disabled:cursor-not-allowed disabled:bg-[#c9d2d7]"
                   >
                     Create
                   </button>
@@ -1541,7 +1567,7 @@ export function AnalysisPanel({
                 type="button"
                 disabled={primaryCtaDisabled}
                 onClick={onPrimaryCta}
-                className="inline-flex h-9 w-full max-w-full items-center justify-center rounded-md bg-brand px-3 text-xs font-semibold text-white transition hover:bg-[#113f50] disabled:cursor-not-allowed disabled:bg-[#c9d2d7] disabled:text-white"
+                className="inline-flex h-9 w-full max-w-full items-center justify-center rounded-md bg-brand px-3 text-xs font-semibold text-white transition hover:bg-brand-hover disabled:cursor-not-allowed disabled:bg-[#c9d2d7] disabled:text-white"
               >
                 {visiblePrimaryCtaLabel}
               </button>
@@ -1587,7 +1613,7 @@ export function AnalysisPanel({
                           onSaveSelectedAoi();
                           setIsAoiSaveOpen(false);
                         }}
-                        className="inline-flex h-8 items-center justify-center rounded-md bg-brand px-2 text-[11px] font-semibold text-white transition hover:bg-[#113f50]"
+                        className="inline-flex h-8 items-center justify-center rounded-md bg-brand px-2 text-[11px] font-semibold text-white transition hover:bg-brand-hover"
                       >
                         Confirm Save
                       </button>
@@ -1614,7 +1640,7 @@ export function AnalysisPanel({
                       <button
                         type="button"
                         onClick={() => setIsAoiSaveOpen(true)}
-                        className="inline-flex h-8 items-center justify-center rounded-md bg-brand px-2.5 text-[11px] font-semibold text-white transition hover:bg-[#113f50]"
+                        className="inline-flex h-8 items-center justify-center rounded-md bg-brand px-2.5 text-[11px] font-semibold text-white transition hover:bg-brand-hover"
                       >
                         Save
                       </button>
@@ -1754,7 +1780,7 @@ export function AnalysisPanel({
                   <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Comparison set</p>
                   <h2 className="mt-1 text-sm font-semibold text-ink">{comparisonItems.length}/3 selected</h2>
                 </div>
-                <span className={`shrink-0 rounded-full px-2 py-1 text-[11px] font-semibold ${hasComparisonReady ? "bg-[#edf4f2] text-brand" : "bg-surface text-muted"}`}>
+                <span className={`shrink-0 rounded-full px-2 py-1 text-[11px] font-semibold ${hasComparisonReady ? "bg-ice text-brand" : "bg-surface text-muted"}`}>
                   {hasComparisonReady ? "Ready" : "Add one"}
                 </span>
               </div>
@@ -1802,7 +1828,7 @@ export function AnalysisPanel({
           type="button"
           disabled={primaryCtaDisabled}
           onClick={onPrimaryCta}
-          className="inline-flex h-10 w-full max-w-full items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white transition hover:bg-[#113f50] disabled:cursor-not-allowed disabled:bg-[#c9d2d7] disabled:text-white"
+          className="inline-flex h-10 w-full max-w-full items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white transition hover:bg-brand-hover disabled:cursor-not-allowed disabled:bg-[#c9d2d7] disabled:text-white"
         >
           {visiblePrimaryCtaLabel}
         </button>

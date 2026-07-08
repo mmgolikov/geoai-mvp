@@ -15,9 +15,7 @@
 body {
   min-height: 100vh;
   margin: 0;
-  background:
-    radial-gradient(circle at 12% 0%, rgba(197, 167, 106, 0.10), transparent 30%),
-    linear-gradient(180deg, #fbfcfe 0%, #f3f6f9 100%);
+  background: linear-gradient(180deg, #fbfcfe 0%, #f3f6f9 100%);
   color: #172033;
 }
 
@@ -60,7 +58,7 @@ body {
 
 .geoai-map-tooltip-source {
   margin-top: 5px;
-  color: #174f63;
+  color: #235d8c;
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.04em;

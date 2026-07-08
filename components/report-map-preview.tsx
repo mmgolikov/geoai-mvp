@@ -103,8 +103,8 @@ function aoiToFeature(aoi: UserDrawnAoi): GeoJSON.Feature {
     properties: {
       id: aoi.id,
       name: aoi.name,
-      fillColor: "#174f63",
-      strokeColor: "#0b5a6e"
+      fillColor: "#183B5B",
+      strokeColor: "#102F49"
     },
     geometry: aoi.geometry
   };
@@ -130,8 +130,8 @@ function getSelectedFeatures(
             properties: {
               id: target.id,
               name: target.label,
-              fillColor: target.type === "uploaded-feature" ? "#6b7fd7" : "#174f63",
-              strokeColor: target.type === "uploaded-feature" ? "#3447a5" : "#0b5a6e"
+              fillColor: target.type === "uploaded-feature" ? "#405CFF" : "#183B5B",
+              strokeColor: target.type === "uploaded-feature" ? "#2F6DB5" : "#102F49"
             },
             geometry: target.geometry
           } satisfies GeoJSON.Feature;
@@ -156,8 +156,8 @@ function getSelectedFeatures(
         properties: {
           id: target.id,
           name: target.label,
-          fillColor: target.type === "uploaded-feature" ? "#6b7fd7" : "#174f63",
-          strokeColor: target.type === "uploaded-feature" ? "#3447a5" : "#0b5a6e"
+          fillColor: target.type === "uploaded-feature" ? "#405CFF" : "#183B5B",
+          strokeColor: target.type === "uploaded-feature" ? "#2F6DB5" : "#102F49"
         },
         geometry: target.geometry
       } satisfies GeoJSON.Feature
@@ -324,8 +324,8 @@ export function ReportMapPreview({
             properties: {
               id: analysisTarget.id,
               name: analysisTarget.label,
-              fillColor: analysisTarget.type === "uploaded-feature" ? "#6b7fd7" : "#174f63",
-              strokeColor: analysisTarget.type === "uploaded-feature" ? "#3447a5" : "#0b5a6e"
+              fillColor: analysisTarget.type === "uploaded-feature" ? "#405CFF" : "#183B5B",
+              strokeColor: analysisTarget.type === "uploaded-feature" ? "#2F6DB5" : "#102F49"
             },
             geometry: analysisTarget.geometry
           } satisfies GeoJSON.Feature
@@ -420,7 +420,7 @@ export function ReportMapPreview({
             source: "geoai-report-open-context",
             filter: ["==", ["get", "kind"], "open-landuse"],
             paint: {
-              "fill-color": "#9bb5a6",
+              "fill-color": "#B5C3CE",
               "fill-opacity": 0.04
             }
           });
@@ -445,7 +445,7 @@ export function ReportMapPreview({
             source: "geoai-report-open-context",
             filter: ["==", ["get", "kind"], "open-poi"],
             paint: {
-              "circle-color": "#1f6b83",
+              "circle-color": "#235D8C",
               "circle-opacity": 0.68,
               "circle-radius": compact ? 3.2 : 4.2,
               "circle-stroke-color": "#ffffff",
@@ -459,7 +459,7 @@ export function ReportMapPreview({
             source: "geoai-report-context",
             filter: ["==", ["geometry-type"], "Polygon"],
             paint: {
-              "fill-color": ["coalesce", ["get", "fillColor"], ["get", "color"], "#174f63"],
+              "fill-color": ["coalesce", ["get", "fillColor"], ["get", "color"], "#183B5B"],
               "fill-opacity": ["*", ["coalesce", ["get", "fillOpacity"], 0.08], 0.78]
             }
           });
@@ -472,7 +472,7 @@ export function ReportMapPreview({
               "line-join": "round"
             },
             paint: {
-              "line-color": ["coalesce", ["get", "strokeColor"], ["get", "color"], "#174f63"],
+              "line-color": ["coalesce", ["get", "strokeColor"], ["get", "color"], "#183B5B"],
               "line-opacity": ["*", ["coalesce", ["get", "strokeOpacity"], 0.42], 0.82],
               "line-width": ["coalesce", ["get", "strokeWidth"], 1.2]
             }
@@ -483,7 +483,7 @@ export function ReportMapPreview({
             source: "geoai-report-context",
             filter: ["==", ["geometry-type"], "Point"],
             paint: {
-              "circle-color": ["coalesce", ["get", "fillColor"], ["get", "color"], "#174f63"],
+              "circle-color": ["coalesce", ["get", "fillColor"], ["get", "color"], "#183B5B"],
               "circle-opacity": 0.82,
               "circle-radius": compact ? 3.8 : ["coalesce", ["get", "pointRadius"], 5],
               "circle-stroke-color": "#ffffff",
@@ -496,7 +496,7 @@ export function ReportMapPreview({
             source: "geoai-report-selected",
             filter: ["==", ["geometry-type"], "Polygon"],
             paint: {
-              "fill-color": ["coalesce", ["get", "fillColor"], "#174f63"],
+              "fill-color": ["coalesce", ["get", "fillColor"], "#183B5B"],
               "fill-opacity": 0.3
             }
           });
@@ -505,14 +505,14 @@ export function ReportMapPreview({
             type: "line",
             source: "geoai-report-selected",
             paint: {
-              "line-color": ["coalesce", ["get", "strokeColor"], "#0b5a6e"],
+              "line-color": ["coalesce", ["get", "strokeColor"], "#102F49"],
               "line-opacity": 0.94,
               "line-width": 3
             }
           });
 
           markersRef.current = markers.map((marker) =>
-            new mapboxgl.Marker({ color: "#174f63" })
+            new mapboxgl.Marker({ color: "#183B5B" })
               .setLngLat([marker.point.longitude, marker.point.latitude])
               .addTo(map)
           );

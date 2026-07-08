@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
+import { HeroControlCard, LinkButton, MetricCard, StatusChip, ValidationCaveat } from "@/components/ui-v22-primitives";
 import externalDataManifestStatic from "@/data/external/normalized/external_data_manifest.json";
 import dldMarketSnapshotStatic from "@/data/normalized/dld_market_snapshot.json";
 import openGeodataSnapshotStatic from "@/data/normalized/open_geodata_snapshot.json";
@@ -672,20 +673,12 @@ function persistedRowsToRecent(items: PersistedAnalysisRun[]): RecentAnalysisRow
 
 function ProjectBadge({ children }: { children: React.ReactNode }) {
   return (
-    <span className="rounded-full bg-[#eaf3f1] px-3 py-1 text-xs font-semibold capitalize text-brand">
-      {children}
-    </span>
+    <StatusChip tone="blue">{children}</StatusChip>
   );
 }
 
 function KpiCard({ label, value, note, valueKind = "numeric" }: { label: string; value: string | number; note: string; valueKind?: "numeric" | "text" }) {
-  return (
-    <div className="flex h-full min-h-[136px] flex-col rounded-lg border border-line bg-white p-4 shadow-sm">
-      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">{label}</p>
-      <p className={`mt-3 break-words font-semibold text-ink ${valueKind === "text" ? "text-xl leading-6" : "text-3xl leading-none"}`}>{value}</p>
-      <p className="mt-2 text-sm leading-5 text-muted">{note}</p>
-    </div>
-  );
+  return <MetricCard label={label} value={value} note={note} valueKind={valueKind} />;
 }
 
 function EmptyState({ title, text, href, action }: { title: string; text: string; href: string; action: string }) {
@@ -1689,7 +1682,7 @@ export function ProjectDashboard() {
     <main className="min-h-[calc(100vh-64px)] bg-surface px-4 py-5 sm:px-6 lg:px-8">
       <div className="mx-auto flex max-w-7xl flex-col gap-5">
         <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+          <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
             <div className="min-w-0">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">Projects</p>
               <div className="mt-3 flex flex-wrap items-center gap-3">
@@ -1712,63 +1705,47 @@ export function ProjectDashboard() {
               </div>
             </div>
 
-            <div className="grid min-w-[260px] gap-3">
-              <div className="grid grid-cols-2 gap-1 rounded-md bg-surface p-1">
-                {(["b2b", "b2c"] as ProjectSegment[]).map((segment) => (
-                  <button
-                    key={segment}
-                    type="button"
-                    onClick={() => changeProjectSegment(segment)}
-                    className={`h-9 rounded-md px-3 text-xs font-semibold transition ${
-                      activeProjectSegment === segment
-                        ? "bg-brand text-white shadow-sm"
-                        : "text-muted hover:bg-white hover:text-ink"
-                    }`}
-                  >
-                    {getProjectSegmentLabel(segment)}
-                  </button>
-                ))}
-              </div>
-              <label htmlFor="project-dashboard-selector" className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">
-                Active {getProjectSegmentLabel(activeProjectSegment)} project
+            <div className="min-w-0">
+              {/* ProjectHub / control-card: segment switcher, active project and actions remain nested in the hero card. */}
+              <HeroControlCard
+                segment={{
+                  active: activeProjectSegment,
+                  onChange: (segment) => changeProjectSegment(segment as ProjectSegment)
+                }}
+                label={`Active ${getProjectSegmentLabel(activeProjectSegment)} project`}
+                value={pilotDisplayLabel(activeProject.name)}
+              >
+                <LinkButton href={openWorkspaceHref} onClick={() => writeActiveProjectKey(activeProject.projectKey)}>
+                  Open workspace
+                </LinkButton>
+                <LinkButton href={openWorkspaceHref} variant="secondary" onClick={() => writeActiveProjectKey(activeProject.projectKey)}>
+                  Run new analysis
+                </LinkButton>
+                <button
+                  type="button"
+                  onClick={() => setIsProjectCreateOpen((value) => !value)}
+                  className="inline-flex h-10 items-center justify-center rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink transition hover:border-brand sm:col-span-2"
+                >
+                  Create project
+                </button>
+              </HeroControlCard>
+              <label htmlFor="project-dashboard-selector" className="sr-only">
+                Active project
               </label>
               <select
                 id="project-dashboard-selector"
                 value={activeProject.projectKey}
                 onChange={(event) => changeProject(event.target.value)}
-                className="h-10 rounded-md border border-line bg-white px-3 text-sm font-semibold text-ink outline-none transition focus:border-brand"
+                className="mt-3 h-10 w-full rounded-md border border-line bg-white px-3 text-sm font-semibold text-ink outline-none transition focus:border-brand"
               >
                 {projectOptions.map((project) => (
                   <option key={project.projectKey} value={project.projectKey}>
-                    {project.name}
+                    {pilotDisplayLabel(project.name)}
                   </option>
                 ))}
               </select>
-              <div className="flex flex-wrap gap-2">
-                <Link
-                  href={openWorkspaceHref}
-                  onClick={() => writeActiveProjectKey(activeProject.projectKey)}
-                  className="inline-flex h-10 items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white transition hover:bg-[#113f50]"
-                >
-                  Open workspace
-                </Link>
-                <Link
-                  href={openWorkspaceHref}
-                  onClick={() => writeActiveProjectKey(activeProject.projectKey)}
-                  className="inline-flex h-10 items-center justify-center rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink transition hover:border-brand"
-                >
-                  Run new analysis
-                </Link>
-                <button
-                  type="button"
-                  onClick={() => setIsProjectCreateOpen((value) => !value)}
-                  className="inline-flex h-10 items-center justify-center rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink transition hover:border-brand"
-                >
-                  Create project
-                </button>
-              </div>
               {isProjectCreateOpen ? (
-                <div className="grid gap-2 rounded-md border border-line bg-surface p-3">
+                <div className="mt-3 grid gap-2 rounded-md border border-line bg-surface p-3">
                   <input
                     value={projectNameDraft}
                     onChange={(event) => setProjectNameDraft(event.target.value)}
@@ -1822,7 +1799,7 @@ export function ProjectDashboard() {
                     onClick={() => {
                       void createProjectFromHub();
                     }}
-                    className="inline-flex h-9 items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white transition hover:bg-[#113f50] disabled:cursor-not-allowed disabled:bg-[#c9d2d7]"
+                    className="inline-flex h-9 items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white transition hover:bg-brand-hover disabled:cursor-not-allowed disabled:bg-[#c9d2d7]"
                   >
                     Create
                   </button>
@@ -1842,6 +1819,32 @@ export function ProjectDashboard() {
         <section id="data-readiness">
           <Panel title="Data Readiness / Source Lineage" subtitle="Source group readiness for screening workflows. Validation is required before decisions.">
             <div className="grid gap-4">
+              <div className="grid gap-4 rounded-lg border border-line bg-ice-soft p-4 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-spatial-blue">Projects</p>
+                  <h3 className="mt-2 text-2xl font-semibold text-ink">Data Readiness / Source Lineage</h3>
+                  <p className="mt-2 max-w-3xl text-sm leading-6 text-muted">
+                    Source group readiness for screening workflows. Validation is required before decisions.
+                  </p>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <StatusChip>{activeProject.geography}</StatusChip>
+                    <StatusChip>Segment: {getProjectSegmentLabel(getProjectSegment(activeProject))}</StatusChip>
+                    <StatusChip>Scenario: {formatLabel(activeProject.primaryScenario)}</StatusChip>
+                  </div>
+                </div>
+                {/* DataReadiness / control-card: reuse the ProjectHub hero-control pattern for active project actions. */}
+                <HeroControlCard
+                  label="Active project"
+                  value={pilotDisplayLabel(activeProject.name)}
+                >
+                  <LinkButton href={openWorkspaceHref} onClick={() => writeActiveProjectKey(activeProject.projectKey)}>
+                    Open workspace
+                  </LinkButton>
+                  <LinkButton href={openWorkspaceHref} variant="secondary" onClick={() => writeActiveProjectKey(activeProject.projectKey)}>
+                    Run new analysis
+                  </LinkButton>
+                </HeroControlCard>
+              </div>
               <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
                 <div className="rounded-md border border-line bg-surface p-3">
                   <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Groups</p>
@@ -1888,7 +1891,7 @@ export function ProjectDashboard() {
                   ))}
                 </div>
               </div>
-              <p className="text-xs leading-5 text-muted">{externalDataStatus?.summary?.caveat ?? requiredDataCaveat}</p>
+              <ValidationCaveat compact>{externalDataStatus?.summary?.caveat ?? requiredDataCaveat}</ValidationCaveat>
             </div>
           </Panel>
         </section>
@@ -2070,7 +2073,7 @@ export function ProjectDashboard() {
                             <Link
                               href={openWorkspaceForAoi(aoi)}
                               onClick={() => writeActiveProjectKey(activeProject.projectKey)}
-                              className="inline-flex h-8 items-center rounded-md bg-brand px-3 text-xs font-semibold text-white transition hover:bg-[#113f50]"
+                              className="inline-flex h-8 items-center rounded-md bg-brand px-3 text-xs font-semibold text-white transition hover:bg-brand-hover"
                             >
                               Run analysis
                             </Link>
@@ -2113,7 +2116,7 @@ export function ProjectDashboard() {
                     <Link
                       href={openWorkspaceHref}
                       onClick={() => writeActiveProjectKey(activeProject.projectKey)}
-                      className="inline-flex h-9 items-center justify-center rounded-md bg-brand px-3 text-xs font-semibold text-white transition hover:bg-[#113f50]"
+                      className="inline-flex h-9 items-center justify-center rounded-md bg-brand px-3 text-xs font-semibold text-white transition hover:bg-brand-hover"
                     >
                       Open workspace
                     </Link>
@@ -2503,10 +2506,10 @@ export function ProjectDashboard() {
                       </span>
                     </div>
                     <p className="mt-2 text-sm leading-6 text-muted">
-                      Combines memo, AOI factsheet, source lineage, validation governance, evidence review, Data Room and pilot workflow summaries.
+                      Combines memo, AOI factsheet, source lineage, validation governance, evidence review, Data Room and workflow summaries.
                     </p>
                     <p className="mt-1 text-xs leading-5 text-muted">
-                      Report packages are decision-support deliverables, not certified valuation, legal, zoning, planning, cadastral or ownership conclusions.
+                      Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.
                     </p>
                   </div>
                   <button
@@ -2514,7 +2517,7 @@ export function ProjectDashboard() {
                     onClick={() => {
                       void createProjectReportPackage();
                     }}
-                    className="inline-flex h-9 shrink-0 items-center justify-center rounded-md bg-brand px-3 text-xs font-semibold text-white transition hover:bg-[#113f50]"
+                    className="inline-flex h-9 shrink-0 items-center justify-center rounded-md bg-brand px-3 text-xs font-semibold text-white transition hover:bg-brand-hover"
                   >
                     Create package
                   </button>
@@ -2548,7 +2551,7 @@ export function ProjectDashboard() {
                         </Link>
                         <Link
                           href={pkg.printablePath}
-                          className="inline-flex h-8 items-center rounded-md bg-brand px-2 text-xs font-semibold text-white transition hover:bg-[#113f50]"
+                          className="inline-flex h-8 items-center rounded-md bg-brand px-2 text-xs font-semibold text-white transition hover:bg-brand-hover"
                         >
                           Print package
                         </Link>
@@ -2810,7 +2813,7 @@ export function ProjectDashboard() {
                   <button
                     type="button"
                     onClick={() => void addValidationEvidencePlaceholder()}
-                    className="inline-flex h-9 items-center justify-center rounded-md bg-brand px-3 text-sm font-semibold text-white transition hover:bg-[#113f50]"
+                    className="inline-flex h-9 items-center justify-center rounded-md bg-brand px-3 text-sm font-semibold text-white transition hover:bg-brand-hover"
                   >
                     Add validation evidence
                   </button>
@@ -2877,7 +2880,7 @@ export function ProjectDashboard() {
                   <button
                     type="button"
                     onClick={() => dataRoomFileInputRef.current?.click()}
-                    className="inline-flex h-9 items-center justify-center rounded-md bg-brand px-3 text-sm font-semibold text-white transition hover:bg-[#113f50]"
+                    className="inline-flex h-9 items-center justify-center rounded-md bg-brand px-3 text-sm font-semibold text-white transition hover:bg-brand-hover"
                   >
                     Add evidence file
                   </button>
@@ -2980,7 +2983,7 @@ export function ProjectDashboard() {
                         </Link>
                         <Link
                           href={`/reports/${encodeURIComponent(comparisonReportId)}/print`}
-                          className="inline-flex h-9 items-center justify-center rounded-md bg-brand px-3 text-sm font-semibold text-white transition hover:bg-[#113f50]"
+                          className="inline-flex h-9 items-center justify-center rounded-md bg-brand px-3 text-sm font-semibold text-white transition hover:bg-brand-hover"
                         >
                           Export memo
                         </Link>
