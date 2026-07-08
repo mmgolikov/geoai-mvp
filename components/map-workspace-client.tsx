@@ -610,12 +610,12 @@ function addOpenGeodataLayers(map: MapboxMap) {
           "match",
           ["get", "subtype"],
           "tourism waterfront",
-          "#7fb8c9",
+          "#8FB7D2",
           "mixed use",
-          "#8aa98c",
+          "#AEB7BF",
           "industrial logistics",
-          "#b99b70",
-          "#9bb5a6"
+          "#C5A76A",
+          "#B5C3CE"
         ],
         "fill-opacity": 0.055
       },
@@ -657,7 +657,7 @@ function addOpenGeodataLayers(map: MapboxMap) {
       source: openGeodataSourceId,
       filter: ["==", ["get", "openFeatureKind"], "poi"],
       paint: {
-        "circle-color": "#1f6b83",
+        "circle-color": "#235D8C",
         "circle-radius": ["interpolate", ["linear"], ["zoom"], 9, 3.3, 13, 5],
         "circle-opacity": 0.72,
         "circle-stroke-color": "#ffffff",
@@ -754,7 +754,7 @@ function addExploreCandidateLayers(
       source: exploreCandidatesSourceId,
       filter: ["==", ["geometry-type"], "Polygon"],
       paint: {
-        "fill-color": ["case", ["boolean", ["get", "selected"], false], "#c5a76a", "#174f63"],
+        "fill-color": ["case", ["boolean", ["get", "selected"], false], "#C5A76A", "#183B5B"],
         "fill-opacity": ["case", ["boolean", ["get", "selected"], false], 0.32, 0.15]
       }
     });
@@ -767,7 +767,7 @@ function addExploreCandidateLayers(
       source: exploreCandidatesSourceId,
       filter: ["==", ["geometry-type"], "Polygon"],
       paint: {
-        "line-color": ["case", ["boolean", ["get", "selected"], false], "#9a7b2f", "#174f63"],
+        "line-color": ["case", ["boolean", ["get", "selected"], false], "#9A7B2F", "#183B5B"],
         "line-width": ["case", ["boolean", ["get", "selected"], false], 3.4, 1.8],
         "line-opacity": 0.9
       }
@@ -785,7 +785,7 @@ function addExploreCandidateLayers(
         "line-join": "round"
       },
       paint: {
-        "line-color": ["case", ["boolean", ["get", "selected"], false], "#c5a76a", "#174f63"],
+        "line-color": ["case", ["boolean", ["get", "selected"], false], "#C5A76A", "#183B5B"],
         "line-width": ["case", ["boolean", ["get", "selected"], false], 5, 3],
         "line-opacity": 0.86
       }
@@ -799,7 +799,7 @@ function addExploreCandidateLayers(
       source: exploreCandidatesSourceId,
       filter: ["==", ["geometry-type"], "Point"],
       paint: {
-        "circle-color": ["case", ["boolean", ["get", "selected"], false], "#c5a76a", "#174f63"],
+        "circle-color": ["case", ["boolean", ["get", "selected"], false], "#C5A76A", "#183B5B"],
         "circle-radius": ["case", ["boolean", ["get", "selected"], false], 9, 6.2],
         "circle-stroke-color": "#ffffff",
         "circle-stroke-width": 2.2
@@ -832,7 +832,7 @@ function addSelectedObjectLayer(map: MapboxMap) {
       source: selectedObjectSourceId,
       filter: ["==", ["geometry-type"], "Polygon"],
       paint: {
-        "fill-color": ["coalesce", ["get", "fillColor"], "#174f63"],
+        "fill-color": ["coalesce", ["get", "fillColor"], "#183B5B"],
         "fill-opacity": 0.3
       }
     });
@@ -844,7 +844,7 @@ function addSelectedObjectLayer(map: MapboxMap) {
       type: "line",
       source: selectedObjectSourceId,
       paint: {
-        "line-color": ["coalesce", ["get", "strokeColor"], "#0b5a6e"],
+        "line-color": ["coalesce", ["get", "strokeColor"], "#102F49"],
         "line-width": 3,
         "line-opacity": 0.96,
         "line-blur": 0.2
@@ -859,7 +859,7 @@ function addSelectedObjectLayer(map: MapboxMap) {
       source: selectedObjectSourceId,
       filter: ["==", ["geometry-type"], "Point"],
       paint: {
-        "circle-color": ["coalesce", ["get", "fillColor"], "#0f5f76"],
+        "circle-color": ["coalesce", ["get", "fillColor"], "#235D8C"],
         "circle-radius": 8.5,
         "circle-stroke-color": "#ffffff",
         "circle-stroke-width": 3
@@ -883,7 +883,7 @@ function addUserAoiLayer(map: MapboxMap) {
       source: userAoiSourceId,
       filter: ["==", ["get", "kind"], "polygon"],
       paint: {
-        "fill-color": "#174f63",
+        "fill-color": "#183B5B",
         "fill-opacity": 0.2
       }
     });
@@ -911,7 +911,7 @@ function addUserAoiLayer(map: MapboxMap) {
       source: userAoiSourceId,
       filter: ["in", ["get", "kind"], ["literal", ["polygon", "line", "preview"]]],
       paint: {
-        "line-color": ["case", ["==", ["get", "kind"], "preview"], "#5f7280", "#174f63"],
+        "line-color": ["case", ["==", ["get", "kind"], "preview"], "#5f7280", "#183B5B"],
         "line-width": ["case", ["==", ["get", "kind"], "preview"], 2, 3],
         "line-opacity": ["case", ["==", ["get", "kind"], "preview"], 0.65, 0.95],
         "line-dasharray": ["case", ["==", ["get", "kind"], "preview"], ["literal", [2, 2]], ["literal", [1, 0]]]
@@ -926,9 +926,9 @@ function addUserAoiLayer(map: MapboxMap) {
       source: userAoiSourceId,
       filter: ["==", ["get", "kind"], "vertex"],
       paint: {
-        "circle-color": ["case", ["==", ["get", "isStart"], true], "#174f63", "#ffffff"],
+        "circle-color": ["case", ["==", ["get", "isStart"], true], "#183B5B", "#ffffff"],
         "circle-radius": ["case", ["==", ["get", "isStart"], true], 7, 5],
-        "circle-stroke-color": "#174f63",
+        "circle-stroke-color": "#183B5B",
         "circle-stroke-width": 2
       }
     });
@@ -950,7 +950,7 @@ function addHoverObjectLayer(map: MapboxMap) {
       source: hoverObjectSourceId,
       filter: ["==", ["geometry-type"], "Polygon"],
       paint: {
-        "fill-color": ["coalesce", ["get", "fillColor"], "#174f63"],
+        "fill-color": ["coalesce", ["get", "fillColor"], "#183B5B"],
         "fill-opacity": 0.19
       }
     });
@@ -962,7 +962,7 @@ function addHoverObjectLayer(map: MapboxMap) {
       type: "line",
       source: hoverObjectSourceId,
       paint: {
-        "line-color": ["coalesce", ["get", "strokeColor"], "#0f5f76"],
+        "line-color": ["coalesce", ["get", "strokeColor"], "#235D8C"],
         "line-width": 1.8,
         "line-opacity": 0.82
       }
@@ -976,7 +976,7 @@ function addHoverObjectLayer(map: MapboxMap) {
       source: hoverObjectSourceId,
       filter: ["==", ["geometry-type"], "Point"],
       paint: {
-        "circle-color": ["coalesce", ["get", "fillColor"], "#0f5f76"],
+        "circle-color": ["coalesce", ["get", "fillColor"], "#235D8C"],
         "circle-radius": 7.5,
         "circle-stroke-color": "#ffffff",
         "circle-stroke-width": 2
@@ -1006,8 +1006,8 @@ function syncSelectedObjectSource(map: MapboxMap, selectedObject: SelectedDemoOb
         properties: {
           id: selectedObject.analysisTarget.id,
           name: selectedObject.analysisTarget.label,
-          fillColor: selectedObject.analysisTarget.type === "uploaded-feature" ? "#6b7fd7" : "#174f63",
-          strokeColor: selectedObject.analysisTarget.type === "uploaded-feature" ? "#3447a5" : "#0b5a6e"
+          fillColor: selectedObject.analysisTarget.type === "uploaded-feature" ? "#405CFF" : "#183B5B",
+          strokeColor: selectedObject.analysisTarget.type === "uploaded-feature" ? "#2F6DB5" : "#102F49"
         },
         geometry: selectedObject.analysisTarget.geometry
       }
@@ -1635,7 +1635,7 @@ export function MapWorkspaceClient({
       const lngLat: [number, number] = [selectedPoint.longitude, selectedPoint.latitude];
 
       if (!markerRef.current) {
-        markerRef.current = new mapboxgl.Marker({ color: "#174f63" })
+        markerRef.current = new mapboxgl.Marker({ color: "#183B5B" })
           .setLngLat(lngLat)
           .addTo(mapRef.current);
         return;
@@ -1975,11 +1975,11 @@ export function MapWorkspaceClient({
                       <span className="shrink-0 rounded-full bg-surface px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.06em]">OSM</span>
                     </div>
                     <div className="flex min-w-0 items-center justify-between gap-2">
-                      <span className="flex min-w-0 items-center gap-2"><span className="h-2.5 w-2.5 shrink-0 rounded-full bg-[#1f6b83]" /><span className="truncate">POI / anchors</span></span>
+                      <span className="flex min-w-0 items-center gap-2"><span className="h-2.5 w-2.5 shrink-0 rounded-full bg-spatial-blue" /><span className="truncate">POI / anchors</span></span>
                       <span className="shrink-0 rounded-full bg-surface px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.06em]">open</span>
                     </div>
                     <div className="flex min-w-0 items-center justify-between gap-2">
-                      <span className="flex min-w-0 items-center gap-2"><span className="h-2.5 w-2.5 shrink-0 rounded-sm bg-[#9bb5a6]" /><span className="truncate">Landuse context</span></span>
+                      <span className="flex min-w-0 items-center gap-2"><span className="h-2.5 w-2.5 shrink-0 rounded-sm bg-map-blue-gray" /><span className="truncate">Landuse context</span></span>
                       <span className="shrink-0 rounded-full bg-surface px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.06em]">sample</span>
                     </div>
                   </div>
@@ -2003,7 +2003,7 @@ export function MapWorkspaceClient({
                       type="checkbox"
                       checked={layerVisibility[layer.id]}
                       onChange={() => toggleLayer(layer.id)}
-                      className="h-4 w-4 accent-[#174f63]"
+                      className="h-4 w-4 accent-brand"
                     />
                   </label>
                 ))}

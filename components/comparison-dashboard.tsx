@@ -38,7 +38,7 @@ function formatCoordinate(latitude: number, longitude: number) {
 function riskTone(riskLevel: string) {
   if (riskLevel === "Elevated") return "bg-[#fff4ed] text-[#9f3412]";
   if (riskLevel === "Moderate") return "bg-[#fff8db] text-[#8a6a12]";
-  return "bg-[#eaf3f1] text-brand";
+  return "bg-ice text-brand";
 }
 
 function scoreBarTone(scoreKey: ScoreKey, value: number) {
@@ -180,9 +180,9 @@ function ComparisonCard({
         <button
           type="button"
           onClick={() => onOpenDashboard(scorecard.item)}
-          className="mt-auto inline-flex h-10 items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white transition hover:bg-[#113f50]"
+          className="mt-auto inline-flex h-10 items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white transition hover:bg-brand-hover"
         >
-          Open dashboard
+          Open
         </button>
       ) : null}
     </article>
@@ -218,7 +218,7 @@ export function ComparisonDashboard({
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-3">
               <h1 className="text-2xl font-semibold leading-8 text-ink">Candidate Comparison</h1>
-              <span className="rounded-full bg-[#eaf3f1] px-3 py-1 text-xs font-semibold text-brand">
+              <span className="rounded-full bg-ice px-3 py-1 text-xs font-semibold text-brand">
                 {comparison.items.length} ranked candidates
               </span>
             </div>
@@ -230,7 +230,7 @@ export function ComparisonDashboard({
             <button
               type="button"
               onClick={onExportComparison}
-              className="inline-flex h-9 items-center justify-center rounded-md bg-brand px-3 text-sm font-semibold text-white transition hover:bg-[#113f50]"
+              className="inline-flex h-9 items-center justify-center rounded-md bg-brand px-3 text-sm font-semibold text-white transition hover:bg-brand-hover"
             >
               Export
             </button>
@@ -239,7 +239,7 @@ export function ComparisonDashboard({
               onClick={onBackToMap}
               className="inline-flex h-9 items-center justify-center rounded-md border border-line bg-white px-3 text-sm font-semibold text-ink transition hover:border-brand"
             >
-              Back to map
+              Back
             </button>
           </div>
         </header>
@@ -252,7 +252,7 @@ export function ComparisonDashboard({
                 <h2 className="text-lg font-semibold text-ink">Ranked shortlist decision</h2>
                 <p className="mt-1 text-sm text-muted">Best option based on deterministic sample/open scoring</p>
               </div>
-              <TextSafeValue as="span" className="shrink-0 rounded-full bg-[#eaf3f1] px-3 py-1 text-sm font-semibold text-brand">
+              <TextSafeValue as="span" className="shrink-0 rounded-full bg-ice px-3 py-1 text-sm font-semibold text-brand">
                 Best option: {comparison.winner.item.name}
               </TextSafeValue>
             </div>
@@ -334,7 +334,7 @@ export function ComparisonDashboard({
                       onClick={() => onOpenCandidateDashboard(scorecard.item)}
                       className="mt-3 inline-flex h-9 w-full items-center justify-center rounded-md border border-line bg-white px-3 text-xs font-semibold text-ink transition hover:border-brand"
                     >
-                      Open dashboard
+                      Open
                     </button>
                   ) : null}
                 </div>

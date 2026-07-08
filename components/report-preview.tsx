@@ -399,37 +399,53 @@ function ReportShell({
     }
   }
 
+  function handlePrintPdf(event: MouseEvent<HTMLButtonElement>) {
+    if (printableHref) {
+      void handleOpenPrintableReport(event);
+      return;
+    }
+
+    window.print();
+  }
+
   return (
-    <section className="screen-only h-[calc(100vh-72px)] overflow-y-auto bg-[#eef2f5] p-6">
+    <section className="screen-only h-[calc(100vh-72px)] overflow-y-auto bg-surface p-4 sm:p-6">
       <div className="mx-auto max-w-5xl print:max-w-none">
-        <div className="mb-4 flex flex-wrap justify-end gap-3 print:hidden">
-          <button
-            type="button"
-            onClick={onBack}
-            className="inline-flex h-10 items-center justify-center rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink transition hover:border-brand"
-          >
-            Back to dashboard
-          </button>
-          {printableHref ? (
-            <button
-              type="button"
-              disabled={isPreparingPrintableReport}
-              onClick={handleOpenPrintableReport}
-              className="inline-flex h-10 items-center justify-center rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink transition hover:border-brand disabled:cursor-not-allowed disabled:bg-surface disabled:text-muted"
-            >
-              {isPreparingPrintableReport ? "Preparing report..." : "Open printable report"}
-            </button>
-          ) : null}
-          <button
-            type="button"
-            onClick={() => window.print()}
-            className="inline-flex h-10 items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white transition hover:bg-[#113f50]"
-          >
-            Print / Save as PDF
-          </button>
-        </div>
+        {/* ReportPreview / action-row: keep Print PDF and Back inside header safe padding. */}
+        <header className="mb-5 rounded-lg border border-line bg-white p-4 shadow-sm print:hidden">
+          <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-3">
+                <h1 className="text-2xl font-semibold leading-8 text-ink">Investment memo</h1>
+                <span className="rounded-full bg-ice px-3 py-1 text-xs font-semibold text-brand">
+                  Analysis report
+                </span>
+              </div>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
+                Decision-support memo. Official validation required before decision-grade use.
+              </p>
+            </div>
+            <div className="flex min-w-0 flex-wrap justify-start gap-2 md:justify-end">
+              <button
+                type="button"
+                disabled={isPreparingPrintableReport}
+                onClick={handlePrintPdf}
+                className="inline-flex h-10 min-w-[104px] items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white transition hover:bg-brand-hover disabled:cursor-not-allowed disabled:bg-soft"
+              >
+                {isPreparingPrintableReport ? "Preparing..." : "Print PDF"}
+              </button>
+              <button
+                type="button"
+                onClick={onBack}
+                className="inline-flex h-10 min-w-[84px] items-center justify-center rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink transition hover:border-brand"
+              >
+                Back
+              </button>
+            </div>
+          </div>
+        </header>
         {printableReportError ? (
-          <div className="mb-4 rounded-md border border-[#f2c6bd] bg-[#fff7ed] px-4 py-3 text-sm font-semibold text-[#9f3412] print:hidden">
+          <div className="mb-4 rounded-md border border-critical-border bg-critical-soft px-4 py-3 text-sm font-semibold text-critical-red print:hidden">
             {printableReportError}
           </div>
         ) : null}
@@ -449,11 +465,11 @@ function createPrintableAnalysisRecord(analysis: ExpressAnalysis) {
     projectId: analysis.project?.id ?? null,
     projectKey: analysis.project?.projectKey ?? null,
     reportType: "analysis",
-    title: "Express Analysis / Investment Memo",
+    title: "Investment memo",
     scenario: analysis.title,
     targetLabel: analysis.selectedAoi?.name ?? analysis.selectedObject?.name ?? "Custom map selection",
     reportPayload: {
-      title: "Express Analysis / Investment Memo",
+      title: "Investment memo",
       scenario: analysis.title,
       selectedSite: analysis.selectedAoi?.name ?? analysis.selectedObject?.name ?? "Custom map selection",
       selectedObject: analysis.selectedObject ?? null,
@@ -590,7 +606,7 @@ function AnalysisReport({ analysis, onBack }: { analysis: ExpressAnalysis; onBac
               <h1 className="mt-3 text-4xl font-semibold text-ink">Express Analysis Report</h1>
               <p className="mt-3 text-base leading-7 text-muted">{analysis.title}</p>
             </div>
-            <span className="rounded-full bg-[#eaf3f1] px-3 py-1 text-xs font-semibold text-brand">
+            <span className="rounded-full bg-ice px-3 py-1 text-xs font-semibold text-brand">
               {analysisBadge}
             </span>
           </div>
@@ -716,7 +732,7 @@ function AnalysisReport({ analysis, onBack }: { analysis: ExpressAnalysis; onBac
                 <p className="mt-1 text-ink">{analysis.aiDecisionScore.recommendedUse.replace(/_/g, " ")}</p>
               </div>
               <div className="rounded-md border border-line bg-surface p-4">
-                <span className="font-semibold text-muted">Suitability / risk</span>
+                <span className="font-semibold text-muted">Screening / risk</span>
                 <p className="mt-1 text-ink">{analysis.aiDecisionScore.suitabilityScore}/100 / {analysis.aiDecisionScore.riskScore}/100</p>
               </div>
             </div>
@@ -1091,7 +1107,7 @@ function ComparisonReport({ comparison, onBack }: { comparison: ComparisonResult
                 Project: {comparison.project?.name ?? "Dubai Investment Screening"}
               </p>
             </div>
-            <span className="rounded-full bg-[#eaf3f1] px-3 py-1 text-xs font-semibold text-brand">
+            <span className="rounded-full bg-ice px-3 py-1 text-xs font-semibold text-brand">
               Screening comparison
             </span>
           </div>

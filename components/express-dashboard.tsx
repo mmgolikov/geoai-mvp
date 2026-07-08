@@ -132,7 +132,7 @@ export function ExpressDashboard({
                 <TextSafeValue as="h1" className="text-xl font-semibold leading-7 text-ink lg:text-2xl">
                   {analysis.title}
                 </TextSafeValue>
-                <span className="rounded-full bg-[#eaf3f1] px-3 py-1 text-xs font-semibold text-brand">
+                <span className="rounded-full bg-ice px-3 py-1 text-xs font-semibold text-brand">
                   {dashboardModel.scenarioLabel}
                 </span>
                 <TextSafeValue as="span" className="rounded-full bg-surface px-3 py-1 text-xs font-semibold text-muted">
@@ -150,7 +150,7 @@ export function ExpressDashboard({
               <button
                 type="button"
                 onClick={onExportReport}
-                className="inline-flex h-9 items-center justify-center rounded-md bg-brand px-3 text-sm font-semibold text-white transition hover:bg-[#113f50]"
+                className="inline-flex h-9 items-center justify-center rounded-md bg-brand px-3 text-sm font-semibold text-white transition hover:bg-brand-hover"
               >
                 Export
               </button>

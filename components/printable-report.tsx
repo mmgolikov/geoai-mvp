@@ -186,7 +186,7 @@ function AnalysisPrintable({ analysis }: { analysis: ExpressAnalysis }) {
       <header className="print-memo-header">
         <div>
           <p className="print-brand">GeoAI</p>
-          <h1>Express Analysis / Investment Memo</h1>
+          <h1>Investment memo</h1>
           <p>{analysis.title}</p>
         </div>
         <div className="print-status">{analysisMode}</div>
@@ -233,7 +233,7 @@ function AnalysisPrintable({ analysis }: { analysis: ExpressAnalysis }) {
             <PrintCard><strong>Mode</strong><span>{analysis.aiDecisionScore.mode === "openai" ? "OpenAI scoring" : "Deterministic fallback"}</span></PrintCard>
             <PrintCard><strong>Decision posture</strong><span>{analysis.aiDecisionScore.decisionPosture.replace(/_/g, " ")}</span></PrintCard>
             <PrintCard><strong>Recommended use</strong><span>{analysis.aiDecisionScore.recommendedUse.replace(/_/g, " ")}</span></PrintCard>
-            <PrintCard><strong>Suitability / risk</strong><span>{analysis.aiDecisionScore.suitabilityScore}/100 / {analysis.aiDecisionScore.riskScore}/100</span></PrintCard>
+            <PrintCard><strong>Screening / risk</strong><span>{analysis.aiDecisionScore.suitabilityScore}/100 / {analysis.aiDecisionScore.riskScore}/100</span></PrintCard>
           </div>
           <PrintList title="Key drivers" items={analysis.aiDecisionScore.keyDrivers.slice(0, 3)} />
           <PrintList title="Validation required" items={analysis.aiDecisionScore.validationRequired.slice(0, 3)} />

@@ -10,10 +10,26 @@ const config: Config = {
     extend: {
       colors: {
         ink: "#172033",
+        night: "#0B1220",
         muted: "#5f6b7a",
+        soft: "#98A2B3",
         line: "#dde3ea",
         surface: "#f6f8fb",
-        brand: "#174f63",
+        brand: "#183B5B",
+        "brand-hover": "#102F49",
+        "spatial-blue": "#235D8C",
+        "signal-blue": "#2F6DB5",
+        "cobalt-signal": "#405CFF",
+        ice: "#E6F1F7",
+        "ice-soft": "#F1F6FA",
+        "map-blue-gray": "#DFE8EC",
+        "validation-gold": "#C5A76A",
+        "validation-soft": "#FFF9E8",
+        "validation-text": "#6F5817",
+        "validation-strong": "#7A6324",
+        "critical-red": "#9F3412",
+        "critical-border": "#F2C6BD",
+        "critical-soft": "#FFF4ED",
         accent: "#c5a76a"
       },
       boxShadow: {
