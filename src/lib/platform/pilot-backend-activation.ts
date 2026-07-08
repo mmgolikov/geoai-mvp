@@ -2,6 +2,7 @@ import { getAuthModeStatus } from "@/src/lib/auth/auth-mode";
 import { getSchemaReadinessSummary } from "@/src/lib/db/schema-readiness";
 import { getEnforcementConfig } from "@/src/lib/platform/enforcement-config";
 import { getStorageReadiness } from "@/src/lib/storage/storage-readiness";
+import { getSupabaseServerClient } from "@/src/lib/supabase/server";
 import type {
   ActivationBlocker,
   BackendCapability,
@@ -17,6 +18,23 @@ const supabaseCaveat = "Supabase/PostGIS durable persistence is active only when
 const storageCaveat = "Storage readiness is not secure enterprise storage until buckets, policies, signed URL flows and access enforcement are configured and verified.";
 const auditCaveat = "Audit events are a foundation only, not a certified audit trail.";
 
+type AuditRow = {
+  event_type?: string | null;
+  metadata?: Record<string, unknown> | null;
+  created_at?: string | null;
+};
+
+type DbSelectResponse<T> = {
+  data?: T[] | null;
+  error?: unknown;
+};
+
+type DbClientLike = {
+  from: (table: string) => {
+    select: (columns?: string, options?: unknown) => unknown;
+  };
+};
+
 function capability(
   id: BackendCapability,
   label: string,
@@ -25,10 +43,6 @@ function capability(
   caveat?: string
 ): PilotBackendCapabilitySummary {
   return { id, label, status, evidence, caveat };
-}
-
-function blocker(input: ActivationBlocker): ActivationBlocker {
-  return input;
 }
 
 function unique(values: string[]) {
@@ -62,6 +76,39 @@ function deriveOverallStatus(input: {
   return "demo_only";
 }
 
+async function isAuditDurabilityVerified(schemaReady: boolean) {
+  if (!schemaReady) {
+    return false;
+  }
+
+  if (process.env.GEOAI_AUDIT_WRITE_READ_VERIFIED?.trim().toLowerCase() === "true") {
+    return true;
+  }
+
+  const client = await getSupabaseServerClient() as DbClientLike | null;
+  if (!client) {
+    return false;
+  }
+
+  try {
+    const response = await client
+      .from("audit_events")
+      .select("event_type,metadata,created_at") as DbSelectResponse<AuditRow>;
+
+    if (response.error || !Array.isArray(response.data)) {
+      return false;
+    }
+
+    return response.data.some((event) => (
+      event.event_type === "storage_health_checked" &&
+      event.metadata?.verification === "geoai-storage-readiness-v1" &&
+      event.metadata?.signedUrlVerified === true
+    ));
+  } catch {
+    return false;
+  }
+}
+
 export async function getPilotBackendActivationSummary(): Promise<PilotBackendActivationSummary> {
   const [schema, storage] = await Promise.all([
     getSchemaReadinessSummary(),
@@ -75,14 +122,14 @@ export async function getPilotBackendActivationSummary(): Promise<PilotBackendAc
   const hardAccessVerified = hardAccessEnabled && authReady && schemaReady;
   const membershipsReady = schemaReady;
   const rlsReady = schemaReady && hardAccessVerified;
-  const auditVerified = schemaReady && process.env.GEOAI_AUDIT_WRITE_READ_VERIFIED?.trim().toLowerCase() === "true";
   const signedUrlVerified = Boolean(storage.signedUrlVerified);
+  const auditVerified = await isAuditDurabilityVerified(schemaReady);
 
   const capabilities = [
     capability(
       "supabase_connection",
       "Supabase connection",
-      schema.configured ? (schema.status === "not_configured" ? "configured_unverified" : schema.status === "configured_unavailable" ? "blocked" : "configured_ready") : "not_configured",
+      schema.configured ? (schema.status === "connected" ? "configured_ready" : schema.status === "configured_unavailable" ? "blocked" : "configured_unverified") : "not_configured",
       schema.configured ? schema.message : "Supabase environment variables are not configured.",
       supabaseCaveat
     ),
@@ -125,14 +172,14 @@ export async function getPilotBackendActivationSummary(): Promise<PilotBackendAc
       "signed_upload_download",
       "Signed upload/download",
       signedUrlVerified ? "verified_active" : storage.bucketReady ? "configured_unverified" : "not_configured",
-      signedUrlVerified ? "Signed URL binary flow was verified." : "Signed URL binary verification has not been completed.",
+      signedUrlVerified ? "Signed URL marker flow was verified." : "Signed URL binary verification has not been completed.",
       storageCaveat
     ),
     capability(
       "audit_events",
       "Audit events",
       auditVerified ? "verified_active" : schemaReady ? "configured_unverified" : "not_configured",
-      auditVerified ? "Audit write/read verification flag is present." : "Audit helper exists, but durable write/read verification is not active.",
+      auditVerified ? "Audit write/read verification is backed by a persisted storage health audit event." : "Audit helper exists, but durable write/read verification is not active.",
       auditCaveat
     ),
     capability(
@@ -159,8 +206,9 @@ export async function getPilotBackendActivationSummary(): Promise<PilotBackendAc
   ];
 
   const blockers: ActivationBlocker[] = [];
+
   if (!schema.configured) {
-    blockers.push(blocker({
+    blockers.push({
       id: "supabase_env_missing",
       severity: "p0",
       title: "Supabase environment is not configured",
@@ -168,10 +216,11 @@ export async function getPilotBackendActivationSummary(): Promise<PilotBackendAc
       requiredEnv: ["NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY"],
       relatedRoute: "/api/db/health",
       nextAction: "Configure Supabase environment variables in Vercel/server runtime, then run migration readiness checks."
-    }));
+    });
   }
+
   if (schema.configured && !schemaReady) {
-    blockers.push(blocker({
+    blockers.push({
       id: "supabase_schema_incomplete",
       severity: "p0",
       title: "Supabase/PostGIS schema is not verified",
@@ -181,10 +230,11 @@ export async function getPilotBackendActivationSummary(): Promise<PilotBackendAc
       requiredCommand: "npm run supabase:migrate:check",
       relatedRoute: "/api/db/health",
       nextAction: "Review and apply the migration from a trusted environment, then verify persistence."
-    }));
+    });
   }
+
   if (!authReady) {
-    blockers.push(blocker({
+    blockers.push({
       id: "auth_not_enforced",
       severity: "p0",
       title: "Production auth is not enforced",
@@ -192,10 +242,11 @@ export async function getPilotBackendActivationSummary(): Promise<PilotBackendAc
       requiredEnv: ["NEXT_PUBLIC_AUTH_MODE=supabase_auth"],
       relatedRoute: "/api/auth/session",
       nextAction: "Configure Supabase Auth and project memberships before confidential client access."
-    }));
+    });
   }
+
   if (!storage.storageReady) {
-    blockers.push(blocker({
+    blockers.push({
       id: "storage_not_verified",
       severity: config.requireStorageReady ? "p0" : "p1",
       title: "Supabase Storage is not verified",
@@ -203,21 +254,23 @@ export async function getPilotBackendActivationSummary(): Promise<PilotBackendAc
       requiredCommand: "npm run storage:check",
       relatedRoute: "/api/storage/health",
       nextAction: storage.nextActions[0] ?? "Create private buckets and verify signed upload/download flows."
-    }));
+    });
   }
+
   if (!signedUrlVerified) {
-    blockers.push(blocker({
+    blockers.push({
       id: "signed_url_not_verified",
       severity: "p1",
       title: "Signed URL binary verification is pending",
       description: "Private bucket signed upload/download has not been tested with a temporary object.",
       requiredCommand: "npm run storage:verify:signed-url",
       relatedRoute: "/api/storage/health",
-      nextAction: "Enable GEOAI_ALLOW_STORAGE_WRITE_TEST=true only in a trusted environment and run signed URL verification."
-    }));
+      nextAction: "Run signed URL marker verification before storing protected client files."
+    });
   }
+
   if (!hardAccessVerified) {
-    blockers.push(blocker({
+    blockers.push({
       id: "hard_access_not_verified",
       severity: "p0",
       title: "Hard project access is not verified",
@@ -227,10 +280,11 @@ export async function getPilotBackendActivationSummary(): Promise<PilotBackendAc
       requiredEnv: ["GEOAI_ACCESS_ENFORCEMENT_MODE=hard"],
       relatedRoute: "/api/pilot-backend/status",
       nextAction: "Verify Supabase Auth, memberships and RLS before enabling hard enforcement for client projects."
-    }));
+    });
   }
+
   if (!auditVerified) {
-    blockers.push(blocker({
+    blockers.push({
       id: "audit_not_durable_verified",
       severity: "p1",
       title: "Audit durability is not verified",
@@ -238,7 +292,7 @@ export async function getPilotBackendActivationSummary(): Promise<PilotBackendAc
       requiredCommand: "npm run audit:verify",
       relatedRoute: "/api/pilot-backend/status",
       nextAction: "Run audit verification after Supabase schema readiness is confirmed."
-    }));
+    });
   }
 
   const canRunDemoPilot = config.allowDemoPublic;
@@ -254,7 +308,9 @@ export async function getPilotBackendActivationSummary(): Promise<PilotBackendAc
     "hard_access_enforcement"
   ].every((id) => {
     const found = capabilities.find((item) => item.id === id);
-    return found ? statusRank(found.status) >= statusRank(id === "audit_events" || id === "signed_upload_download" || id === "hard_access_enforcement" ? "verified_active" : "configured_ready") : false;
+    return found
+      ? statusRank(found.status) >= statusRank(id === "audit_events" || id === "signed_upload_download" || id === "hard_access_enforcement" ? "verified_active" : "configured_ready")
+      : false;
   });
   const hasP0 = blockers.some((item) => item.severity === "p0");
   const status = deriveOverallStatus({
