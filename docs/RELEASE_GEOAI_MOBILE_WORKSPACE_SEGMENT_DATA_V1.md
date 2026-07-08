@@ -15,6 +15,10 @@ Required caveat:
   - `Run Express Analysis`;
   - `Back to workflow`.
 - Updated the mobile analysis handoff so a completed run closes the map picker and opens the dashboard/result state automatically.
+- Restored always-visible workflow actions after desktop/tablet point selection:
+  - the Selected Point / AOI / Object card now includes the current primary action;
+  - the workflow footer remains pinned/sticky so `Run Express Analysis`, `Continue Analysis` or `Export Report` cannot be pushed out of reach by Project, Scenario, Custom Query, Candidate Search or Selected Point blocks.
+- Restored custom-query CTA state by keeping the current result available when the user types a follow-up query, allowing `Continue Analysis` to appear instead of resetting the workflow to a map-only/run state.
 - Changed the workspace shell so desktop keeps the fixed two-column app layout while mobile/tablet can scroll naturally to the map and command panel.
 - Preserved the existing command panel, dashboard, report preview and map-first workflow visual style.
 - Added B2C demo projects alongside the existing B2B demo projects:
@@ -43,6 +47,8 @@ Required responsive smoke:
 
 - `/workspace` at iPhone 15 Pro, iPhone 15/16/17 Pro Max, iPad 11 portrait/landscape and iPad 13 portrait/landscape.
 - Mobile full-screen map picker open, map selection, direct run from picker, return to workflow from picker, dashboard open after analysis, evidence/source section open, report preview / print path open.
+- Desktop/tablet selected-point QA: after a valid map point/object/AOI/candidate selection, the primary action is visible inside the selected target card and in the pinned workflow footer.
+- Desktop custom-query QA: after an analysis run, entering a custom query changes the primary action to continue analysis; clearing the query returns the primary action to the current report/run state.
 - B2B and B2C map-first flows.
 - Criteria-first flow where available.
 - Compare flow.

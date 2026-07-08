@@ -2840,7 +2840,7 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
           />
         </div>
       )}
-        <div ref={workflowPanelRef} className="min-w-0 lg:h-full">
+        <div ref={workflowPanelRef} className="min-h-0 min-w-0 lg:h-full">
           <AnalysisPanel
             selectedPoint={selectedPoint}
             selectedObject={selectedObject}
@@ -2887,7 +2887,6 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
             onProjectChange={changeActiveProject}
             onCustomQueryChange={(query) => {
               setCustomQuery(query);
-              resetCandidateSearchForCriteriaChange();
               setAnalysisError(null);
             }}
             primaryCtaLabel={primaryCtaState.label}
