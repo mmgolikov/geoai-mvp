@@ -12,6 +12,9 @@ export const requiredStorageBuckets = [
 
 export type RequiredStorageBucket = (typeof requiredStorageBuckets)[number];
 
+export const storageVerificationBucket: RequiredStorageBucket = "geoai-validation-evidence";
+export const storageVerificationMarkerPath = ".geoai/storage-readiness/signed-url-verified.json";
+
 export type StorageReadiness = {
   ok: boolean;
   configured: boolean;
@@ -35,9 +38,15 @@ export type StorageReadiness = {
   nextActions: string[];
 };
 
+type SupabaseStorageBucketLike = {
+  download?: (path: string) => Promise<{ data?: unknown; error?: unknown }>;
+  createSignedUrl?: (path: string, expiresIn: number) => Promise<{ data?: { signedUrl?: string } | null; error?: unknown }>;
+};
+
 type SupabaseStorageClientLike = {
   storage?: {
     getBucket: (bucket: string) => Promise<{ data?: unknown; error?: unknown }>;
+    from?: (bucket: string) => SupabaseStorageBucketLike;
   };
 };
 
@@ -64,7 +73,43 @@ function baseResponse(input: Omit<StorageReadiness, "ok" | "maxFileSize" | "maxF
   };
 }
 
+async function verifySignedStorageMarker(client: SupabaseStorageClientLike | null) {
+  const bucket = client?.storage?.from?.(storageVerificationBucket);
+  if (!bucket?.download || !bucket.createSignedUrl) {
+    return { verified: false, verifiedAt: null as string | null };
+  }
+
+  try {
+    const downloadResponse = await bucket.download(storageVerificationMarkerPath);
+    if (downloadResponse.error || !downloadResponse.data) {
+      return { verified: false, verifiedAt: null as string | null };
+    }
+
+    const signedUrlResponse = await bucket.createSignedUrl(storageVerificationMarkerPath, 60);
+    const signedUrl = signedUrlResponse.data?.signedUrl;
+    if (signedUrlResponse.error || !signedUrl) {
+      return { verified: false, verifiedAt: null as string | null };
+    }
+
+    const fetchResponse = await fetch(signedUrl, { cache: "no-store" });
+    if (!fetchResponse.ok) {
+      return { verified: false, verifiedAt: null as string | null };
+    }
+
+    const text = await fetchResponse.text();
+    const marker = JSON.parse(text) as { verifiedAt?: string; markerVersion?: string };
+    return {
+      verified: marker.markerVersion === "geoai-storage-readiness-v1",
+      verifiedAt: marker.verifiedAt ?? null
+    };
+  } catch {
+    return { verified: false, verifiedAt: null as string | null };
+  }
+}
+
 export async function getStorageReadiness(): Promise<StorageReadiness> {
+  const writeTestAllowed = process.env.GEOAI_ALLOW_STORAGE_WRITE_TEST?.trim().toLowerCase() === "true";
+
   if (!isSupabaseConfigured()) {
     return baseResponse({
       configured: false,
@@ -78,7 +123,7 @@ export async function getStorageReadiness(): Promise<StorageReadiness> {
       signedDownloadReady: false,
       privateBucketPolicyReady: false,
       signedUrlVerified: false,
-      writeTestAllowed: process.env.GEOAI_ALLOW_STORAGE_WRITE_TEST?.trim().toLowerCase() === "true",
+      writeTestAllowed,
       lastVerifiedAt: null,
       caveat: "Storage readiness is not secure enterprise storage until buckets, policies, signed URL flows and access enforcement are configured and verified.",
       blockers: ["Supabase server environment is not configured."],
@@ -104,7 +149,7 @@ export async function getStorageReadiness(): Promise<StorageReadiness> {
       signedDownloadReady: false,
       privateBucketPolicyReady: false,
       signedUrlVerified: false,
-      writeTestAllowed: process.env.GEOAI_ALLOW_STORAGE_WRITE_TEST?.trim().toLowerCase() === "true",
+      writeTestAllowed,
       lastVerifiedAt: null,
       caveat: "Supabase is configured, but Storage API readiness could not be verified by this runtime.",
       blockers: ["Supabase Storage client is unavailable in the server runtime."],
@@ -124,7 +169,10 @@ export async function getStorageReadiness(): Promise<StorageReadiness> {
   );
   const missingBuckets = checks.filter((item) => !item.ready).map((item) => item.bucket);
   const bucketReady = missingBuckets.length === 0;
-  const signedUrlVerified = process.env.GEOAI_STORAGE_SIGNED_URL_VERIFIED?.trim().toLowerCase() === "true";
+  const markerVerification = bucketReady
+    ? await verifySignedStorageMarker(client)
+    : { verified: false, verifiedAt: null as string | null };
+  const signedUrlVerified = process.env.GEOAI_STORAGE_SIGNED_URL_VERIFIED?.trim().toLowerCase() === "true" || markerVerification.verified;
 
   return baseResponse({
     configured: true,
@@ -138,14 +186,20 @@ export async function getStorageReadiness(): Promise<StorageReadiness> {
     signedDownloadReady: bucketReady,
     privateBucketPolicyReady: bucketReady && signedUrlVerified,
     signedUrlVerified,
-    writeTestAllowed: process.env.GEOAI_ALLOW_STORAGE_WRITE_TEST?.trim().toLowerCase() === "true",
-    lastVerifiedAt: process.env.GEOAI_STORAGE_LAST_VERIFIED_AT?.trim() || null,
-    caveat: bucketReady
-      ? "Storage buckets are reachable, but signed URL flows and access policies still require project-level verification before protected client use."
-      : "Storage readiness is not secure enterprise storage until buckets, policies, signed URL flows and access enforcement are configured and verified.",
-    blockers: bucketReady ? [] : missingBuckets.map((bucket) => `Missing or unreachable storage bucket: ${bucket}`),
+    writeTestAllowed,
+    lastVerifiedAt: markerVerification.verifiedAt ?? process.env.GEOAI_STORAGE_LAST_VERIFIED_AT?.trim() ?? null,
+    caveat: signedUrlVerified
+      ? "Storage buckets and signed URL marker are verified for Preview/demo readiness. Protected client file storage still requires Auth and hard access verification."
+      : bucketReady
+        ? "Storage buckets are reachable, but signed URL flows and access policies still require project-level verification before protected client use."
+        : "Storage readiness is not secure enterprise storage until buckets, policies, signed URL flows and access enforcement are configured and verified.",
+    blockers: bucketReady
+      ? signedUrlVerified ? [] : ["Signed URL marker verification is pending."]
+      : missingBuckets.map((bucket) => `Missing or unreachable storage bucket: ${bucket}`),
     nextActions: bucketReady
-      ? ["Verify signed upload/download flows with project access enforcement before storing protected client files."]
+      ? signedUrlVerified
+        ? ["Verify Auth, memberships and hard access before storing protected client files."]
+        : ["Run signed URL marker verification with project access enforcement before storing protected client files."]
       : ["Create the missing private buckets in Supabase Storage.", "Verify bucket RLS/policies and signed URL flows."]
   });
 }
