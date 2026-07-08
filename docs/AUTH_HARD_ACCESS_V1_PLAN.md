@@ -71,6 +71,19 @@ RLS verification must prove database behavior independently from API helper beha
 - Confirm service-role-only operations stay server-side and are not treated as client authorization.
 - Record results in docs before any Production configuration request.
 
+### RLS Verification Harness v1 Reference
+
+RLS Verification Harness v1 adds the Preview-only mock plan and checklist that must be completed before hard access can be enabled:
+
+- `docs/RLS_VERIFICATION_HARNESS_V1_CHANGE_REQUEST.md`
+- `docs/RLS_POSITIVE_NEGATIVE_TEST_PLAN_V1.md`
+- `docs/RLS_VERIFICATION_HARNESS_V1_QA_CHECKLIST.md`
+- `src/lib/access/rls-verification-plan.ts`
+- `/api/security/rls-readiness`
+- `npm run test:rls-plan`
+
+`mock_validated` means the plan model covers the required tables and cases. It does not mean Supabase policies were verified. Hard access cannot be enabled until real Preview Auth users, profile mapping, memberships and table-by-table positive/negative RLS evidence are recorded and explicitly approved.
+
 ## Hard Access Rollout Gates
 
 Do not enable hard access beyond Preview until all gates pass:
