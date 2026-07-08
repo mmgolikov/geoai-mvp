@@ -1,0 +1,16 @@
+flowchart TB
+  User["User"] --> Browser["Browser"]
+  Browser --> Vercel["Vercel-hosted Next.js app"]
+  Vercel --> API["Next.js API routes"]
+  API --> Supabase["Supabase PostgreSQL/PostGIS"]
+  API --> OpenAI["OpenAI API optional"]
+  API --> Reports["Report generation routes"]
+  API --> SourceFiles["Local/source snapshot files"]
+  Supabase --> Storage["Supabase Storage target"]
+
+  Vercel -. status .-> Health["Health and readiness APIs"]
+  Supabase -. gate .-> RLS["RLS/auth/storage verification required"]
+
+%% Artifact ID: DEP-001
+%% Type: Deployment diagram source
+%% Status: Draft source artifact
