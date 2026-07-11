@@ -1,0 +1,100 @@
+name: Project Hub Hydrated Status QA
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: project-hub-hydrated-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  hydrated-status:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CI: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript and source contracts
+        run: |
+          npm run lint
+          node scripts/runtime-status-contract-source-check.mjs
+
+      - name: Build
+        run: npm run build
+
+      - name: Hydrated Project Hub status evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/project-hub-hydrated
+          CHROME_BIN="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          if [ -z "$CHROME_BIN" ]; then
+            echo "Chrome/Chromium executable was not found." >&2
+            exit 1
+          fi
+
+          npm run start -- -H 127.0.0.1 -p 3000 > /tmp/geoai-hydrated-next.log 2>&1 &
+          APP_PID=$!
+          trap 'kill "$APP_PID" 2>/dev/null || true' EXIT
+
+          READY=0
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:3000/api/health > /dev/null; then READY=1; break; fi
+            if ! kill -0 "$APP_PID" 2>/dev/null; then cat /tmp/geoai-hydrated-next.log; exit 1; fi
+            sleep 1
+          done
+          test "$READY" -eq 1
+
+          curl --fail --silent http://127.0.0.1:3000/api/pilot-backend/status > artifacts/project-hub-hydrated/status.json
+
+          "$CHROME_BIN" \
+            --headless=new \
+            --no-sandbox \
+            --disable-dev-shm-usage \
+            --disable-gpu \
+            --virtual-time-budget=12000 \
+            --dump-dom \
+            http://127.0.0.1:3000/projects \
+            > artifacts/project-hub-hydrated/projects-hydrated.html
+
+          grep -q "Public demo workflow" artifacts/project-hub-hydrated/projects-hydrated.html
+          grep -q "Confidential pilot" artifacts/project-hub-hydrated/projects-hydrated.html
+          grep -q "Public demo access" artifacts/project-hub-hydrated/projects-hydrated.html
+          grep -q "Available" artifacts/project-hub-hydrated/projects-hydrated.html
+          grep -q "Blocked" artifacts/project-hub-hydrated/projects-hydrated.html
+          ! grep -q "Sample pilot" artifacts/project-hub-hydrated/projects-hydrated.html
+          ! grep -q "Pilot access" artifacts/project-hub-hydrated/projects-hydrated.html
+          ! grep -q "Public sample access is disabled" artifacts/project-hub-hydrated/projects-hydrated.html
+          ! grep -q "Client-ready memo generation" artifacts/project-hub-hydrated/projects-hydrated.html
+          ! grep -q "Local Fallback Only" artifacts/project-hub-hydrated/projects-hydrated.html
+          ! grep -q "Checking runtime status" artifacts/project-hub-hydrated/projects-hydrated.html
+
+          cp /tmp/geoai-hydrated-next.log artifacts/project-hub-hydrated/next-runtime.log
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: project-hub-hydrated-${{ github.run_id }}
+          path: artifacts/project-hub-hydrated/
+          if-no-files-found: warn
+          retention-days: 14
