@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import ts from "typescript";
 
 const ROOTS = ["app", "components", "src"];
 const EXTENSIONS = new Set([".ts", ".tsx", ".js", ".jsx", ".mjs"]);
@@ -20,7 +21,9 @@ const rules = [
   { id: "live_geodubai_integration", pattern: /live geodubai integration/gi }
 ];
 
-const safeContextPatterns = [
+const structuralSafePattern = /(forbidden|unsupported|prohibited|blocked|outofscope|notincluded|notrequired|whatitcannot|cannotsupport|disallowed)/i;
+
+const semanticSafePatterns = [
   /\bnot\b/i,
   /\bno\b/i,
   /\bnever\b/i,
@@ -34,12 +37,6 @@ const safeContextPatterns = [
   /\bunverified\b/i,
   /\bunsupported\b/i,
   /\bprohibited\b/i,
-  /\bforbiddenClaims\b/i,
-  /\bforbiddenOfficialClaims\b/i,
-  /\bunsupportedClaims\b/i,
-  /\bwhatItCannotSupport\b/i,
-  /\bnotIncluded\b/i,
-  /\bnotRequiredForDemo\b/i,
   /\bnot included\b/i,
   /\bnot required\b/i,
   /\bcannot support\b/i,
@@ -50,6 +47,7 @@ const safeContextPatterns = [
   /\bvalidation\b/i,
   /\bconfirm(?:ation|ed|ing)?\b/i,
   /\brequest(?:ed|ing)?\b/i,
+  /\brequir(?:e|es|ed|ing)\b/i,
   /\bplanned\b/i,
   /\bnot connected\b/i,
   /\bnot configured\b/i,
@@ -76,27 +74,39 @@ function walk(directory) {
   return files;
 }
 
-function lineNumberAt(source, index) {
-  return source.slice(0, index).split("\n").length;
+function scriptKind(filePath) {
+  if (filePath.endsWith(".tsx")) return ts.ScriptKind.TSX;
+  if (filePath.endsWith(".jsx")) return ts.ScriptKind.JSX;
+  if (filePath.endsWith(".js") || filePath.endsWith(".mjs")) return ts.ScriptKind.JS;
+  return ts.ScriptKind.TS;
 }
 
-function contextFor(source, start) {
-  const currentLineStart = source.lastIndexOf("\n", Math.max(0, start - 1)) + 1;
-  const previousLineStart = currentLineStart > 0
-    ? source.lastIndexOf("\n", Math.max(0, currentLineStart - 2)) + 1
-    : currentLineStart;
-  const currentLineEnd = source.indexOf("\n", start);
-  const nextLineEnd = currentLineEnd === -1
-    ? source.length
-    : (() => {
-        const end = source.indexOf("\n", currentLineEnd + 1);
-        return end === -1 ? source.length : end;
-      })();
-  return source
-    .slice(previousLineStart, nextLineEnd)
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 1200);
+function scannableText(node, sourceFile) {
+  if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) return node.text;
+  if (ts.isTemplateExpression(node) || ts.isRegularExpressionLiteral(node) || ts.isJsxText(node)) {
+    return node.getText(sourceFile);
+  }
+  return null;
+}
+
+function structuralLabels(node, sourceFile) {
+  const labels = [];
+  for (let current = node.parent; current && !ts.isSourceFile(current); current = current.parent) {
+    if (ts.isVariableDeclaration(current)) labels.push(current.name.getText(sourceFile));
+    if (ts.isPropertyAssignment(current) || ts.isPropertyDeclaration(current) || ts.isMethodDeclaration(current)) {
+      labels.push(current.name.getText(sourceFile));
+    }
+    if (ts.isFunctionDeclaration(current) && current.name) labels.push(current.name.getText(sourceFile));
+  }
+  return labels;
+}
+
+function isStructurallySafe(labels) {
+  return labels.some((label) => structuralSafePattern.test(label.replace(/[^a-z0-9]/gi, "")));
+}
+
+function isSemanticallySafe(text) {
+  return semanticSafePatterns.some((pattern) => pattern.test(text));
 }
 
 const findings = [];
@@ -106,29 +116,44 @@ const files = ROOTS.flatMap((root) => walk(path.join(process.cwd(), root)));
 for (const filePath of files) {
   const source = fs.readFileSync(filePath, "utf8");
   const relativePath = path.relative(process.cwd(), filePath);
+  const sourceFile = ts.createSourceFile(filePath, source, ts.ScriptTarget.Latest, true, scriptKind(filePath));
 
-  for (const rule of rules) {
-    rule.pattern.lastIndex = 0;
-    for (const match of source.matchAll(rule.pattern)) {
-      const start = match.index ?? 0;
-      const context = contextFor(source, start);
-      const safe = safeContextPatterns.some((pattern) => pattern.test(context));
-      const record = {
-        rule: rule.id,
-        file: relativePath,
-        line: lineNumberAt(source, start),
-        match: match[0],
-        context
-      };
-      if (safe) reviewedMatches.push(record);
-      else findings.push(record);
+  function visit(node) {
+    const text = scannableText(node, sourceFile);
+    if (text !== null) {
+      const labels = structuralLabels(node, sourceFile);
+      const structuralSafe = isStructurallySafe(labels);
+      const semanticSafe = isSemanticallySafe(text);
+
+      for (const rule of rules) {
+        rule.pattern.lastIndex = 0;
+        for (const match of text.matchAll(rule.pattern)) {
+          const position = node.getStart(sourceFile) + (match.index ?? 0);
+          const line = sourceFile.getLineAndCharacterOfPosition(Math.min(position, source.length)).line + 1;
+          const record = {
+            rule: rule.id,
+            file: relativePath,
+            line,
+            match: match[0],
+            structuralLabels: labels,
+            context: text.replace(/\s+/g, " ").trim().slice(0, 1200),
+            classification: structuralSafe ? "policy_or_blocked_claim_structure" : semanticSafe ? "negated_or_validation_context" : "unsupported_affirmative_claim"
+          };
+          if (structuralSafe || semanticSafe) reviewedMatches.push(record);
+          else findings.push(record);
+        }
+      }
     }
+    ts.forEachChild(node, visit);
   }
+
+  visit(sourceFile);
 }
 
 fs.mkdirSync(OUTPUT_DIR, { recursive: true });
 const result = {
   ok: findings.length === 0,
+  method: "typescript_ast_user_facing_literal_scan",
   scannedRoots: ROOTS,
   scannedFiles: files.length,
   prohibitedRules: rules.map((rule) => rule.id),
@@ -140,6 +165,7 @@ fs.writeFileSync(OUTPUT_FILE, `${JSON.stringify(result, null, 2)}\n`, "utf8");
 
 console.log(JSON.stringify({
   ok: result.ok,
+  method: result.method,
   scannedFiles: result.scannedFiles,
   findings: findings.length,
   reviewedContextMatches: reviewedMatches.length,
