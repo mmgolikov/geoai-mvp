@@ -42,16 +42,28 @@ jobs:
         run: npm run lint
 
       - name: Access-decision checks
-        run: npm run test:access-decision | tee artifacts/access-decision-check.txt
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:access-decision | tee artifacts/access-decision-check.txt
 
       - name: Static RLS-plan checks
-        run: npm run test:rls-plan | tee artifacts/rls-plan-check.txt
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:rls-plan | tee artifacts/rls-plan-check.txt
 
       - name: Workspace-panel source checks
-        run: npm run test:workspace-panel | tee artifacts/workspace-panel-check.txt
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:workspace-panel | tee artifacts/workspace-panel-check.txt
 
       - name: Data-honesty claim scan
-        run: npm run test:data-honesty | tee artifacts/data-honesty-check.txt
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:data-honesty | tee artifacts/data-honesty-check.txt
 
       - name: Build
         run: npm run build
