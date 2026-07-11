@@ -1,0 +1,36 @@
+/*
+ * GeoAI Workspace responsive corrections v1.1
+ *
+ * Scope: CR-DEV6-004 only.
+ * These rules preserve the PR #54 component hierarchy while correcting two
+ * verified responsive defects. No data, API, Auth, Supabase or report behavior
+ * is changed here.
+ */
+
+@media (max-width: 1023px) {
+  /*
+   * The initial mobile state has no selected point, so Add to compare is both
+   * unavailable and disabled. Hiding only that first disabled action reduces
+   * the sticky footer enough to keep the complete Custom Query control visible.
+   * Once a point is selected the enabled comparison action remains available.
+   */
+  aside > section.sticky.bottom-0 > button:first-of-type:disabled {
+    display: none;
+  }
+
+  /* Keep the focused query input above the sticky action and safe-area inset. */
+  #custom-query {
+    scroll-margin-bottom: calc(8.5rem + env(safe-area-inset-bottom));
+  }
+}
+
+@media (min-width: 1024px) {
+  /*
+   * The Workspace switches to its split map/panel layout at the lg breakpoint.
+   * The narrow-screen Open map action must therefore be hidden from 1024 px,
+   * including the controlled 1366×768 viewport.
+   */
+  [class~="min-[1367px]:hidden"] {
+    display: none !important;
+  }
+}
