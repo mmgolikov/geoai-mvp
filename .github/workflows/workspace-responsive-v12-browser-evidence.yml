@@ -1,0 +1,408 @@
+name: Temporary Workspace Responsive v1.2 Browser Evidence
+
+on:
+  push:
+    branches:
+      - dev6-workspace-responsive-fix-v12-current-main
+
+permissions:
+  contents: read
+  deployments: read
+  statuses: read
+
+concurrency:
+  group: workspace-responsive-v12-browser-evidence-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  browser-evidence:
+    name: Capture independent responsive evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CI: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
+      EVIDENCE_DIR: artifacts/workspace-responsive-v12-browser-evidence
+      LOCAL_BASE_URL: http://127.0.0.1:3000
+
+    steps:
+      - name: Checkout evidence head
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install application dependencies
+        run: npm ci
+
+      - name: Install bounded browser runtime
+        run: |
+          npm install --no-save --no-package-lock playwright@1.54.1
+          npx playwright install --with-deps chromium
+
+      - name: Build application
+        run: npm run build
+
+      - name: Resolve matching Vercel Preview metadata
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          for attempt in $(seq 1 40); do
+            deployment_json=$(curl --fail --silent --show-error \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer ${GH_TOKEN}" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/${GITHUB_REPOSITORY}/deployments?sha=${GITHUB_SHA}&environment=Preview&per_page=10")
+            github_deployment_id=$(jq -r '.[0].id // empty' <<<"${deployment_json}")
+
+            status_json=$(curl --fail --silent --show-error \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer ${GH_TOKEN}" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/status")
+            vercel_state=$(jq -r '.statuses[] | select(.context == "Vercel") | .state' <<<"${status_json}" | head -n 1)
+            vercel_dashboard_url=$(jq -r '.statuses[] | select(.context == "Vercel") | .target_url' <<<"${status_json}" | head -n 1)
+
+            if [ -n "${github_deployment_id}" ] && [ "${vercel_state}" = "success" ] && [ -n "${vercel_dashboard_url}" ]; then
+              deployment_statuses=$(curl --fail --silent --show-error \
+                -H "Accept: application/vnd.github+json" \
+                -H "Authorization: Bearer ${GH_TOKEN}" \
+                -H "X-GitHub-Api-Version: 2022-11-28" \
+                "https://api.github.com/repos/${GITHUB_REPOSITORY}/deployments/${github_deployment_id}/statuses")
+              preview_url=$(jq -r '.[0].environment_url // .[0].target_url // empty' <<<"${deployment_statuses}")
+              deployment_slug=${vercel_dashboard_url##*/}
+
+              if [ -n "${preview_url}" ] && [ -n "${deployment_slug}" ]; then
+                echo "PREVIEW_URL=${preview_url}" >> "${GITHUB_ENV}"
+                echo "VERCEL_DEPLOYMENT_ID=dpl_${deployment_slug}" >> "${GITHUB_ENV}"
+                echo "GITHUB_PREVIEW_DEPLOYMENT_ID=${github_deployment_id}" >> "${GITHUB_ENV}"
+                exit 0
+              fi
+            fi
+
+            sleep 10
+          done
+
+          echo "Matching READY Vercel Preview was not found within the bounded wait." >&2
+          exit 1
+
+      - name: Capture browser evidence
+        run: |
+          set -euo pipefail
+          mkdir -p "${EVIDENCE_DIR}"
+
+          npm run start -- -H 127.0.0.1 -p 3000 > "${EVIDENCE_DIR}/next-application.log" 2>&1 &
+          APP_PID=$!
+          trap 'kill "${APP_PID}" 2>/dev/null || true' EXIT
+
+          ready=0
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent --show-error "${LOCAL_BASE_URL}/api/health" > /dev/null; then
+              ready=1
+              break
+            fi
+            if ! kill -0 "${APP_PID}" 2>/dev/null; then
+              cat "${EVIDENCE_DIR}/next-application.log"
+              exit 1
+            fi
+            sleep 1
+          done
+
+          if [ "${ready}" -ne 1 ]; then
+            cat "${EVIDENCE_DIR}/next-application.log"
+            echo "Built application did not become ready within 60 seconds." >&2
+            exit 1
+          fi
+
+          cat > /tmp/workspace-responsive-v12-browser-evidence.mjs <<'NODE'
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          import path from "node:path";
+          import { chromium } from "playwright";
+
+          const evidenceDir = process.env.EVIDENCE_DIR;
+          const localBaseUrl = process.env.LOCAL_BASE_URL;
+          const viewports = [
+            { label: "390x844", width: 390, height: 844, mode: "narrow" },
+            { label: "430x932", width: 430, height: 932, mode: "narrow" },
+            { label: "768x1024", width: 768, height: 1024, mode: "tablet" },
+            { label: "1366x768", width: 1366, height: 768, mode: "desktop" },
+            { label: "1440x900", width: 1440, height: 900, mode: "desktop" }
+          ];
+
+          fs.mkdirSync(evidenceDir, { recursive: true });
+          const consoleEntries = [];
+          const results = [];
+          const browser = await chromium.launch({ headless: true });
+
+          try {
+            for (const viewport of viewports) {
+              const context = await browser.newContext({
+                viewport: { width: viewport.width, height: viewport.height }
+              });
+              const page = await context.newPage();
+              page.setDefaultTimeout(30_000);
+              page.on("console", (message) => {
+                consoleEntries.push(`[${viewport.label}] console.${message.type()}: ${message.text()}`);
+              });
+              page.on("pageerror", (error) => {
+                consoleEntries.push(`[${viewport.label}] pageerror: ${error.message}`);
+              });
+
+              await page.goto(`${localBaseUrl}/workspace`, {
+                waitUntil: "domcontentloaded",
+                timeout: 60_000
+              });
+              await page.locator("#custom-query").waitFor({ state: "visible" });
+              await page.waitForTimeout(1_000);
+
+              let metrics;
+              if (viewport.mode === "narrow") {
+                metrics = await page.evaluate(() => {
+                  const query = document.querySelector("#custom-query");
+                  const footer = document.querySelector("aside > section.sticky.bottom-0");
+                  const compare = footer?.querySelector("button:first-of-type");
+                  const primary = footer?.querySelector("button:last-of-type");
+                  const queryRect = query?.getBoundingClientRect();
+                  const footerRect = footer?.getBoundingClientRect();
+                  const compareRect = compare?.getBoundingClientRect();
+
+                  return {
+                    customQuery: {
+                      rendered: Boolean(query),
+                      visible: Boolean(queryRect && queryRect.width > 0 && queryRect.height > 0),
+                      fullyVisible: Boolean(queryRect && queryRect.top >= 0 && queryRect.bottom <= innerHeight),
+                      rect: queryRect && {
+                        top: queryRect.top,
+                        right: queryRect.right,
+                        bottom: queryRect.bottom,
+                        left: queryRect.left,
+                        width: queryRect.width,
+                        height: queryRect.height
+                      }
+                    },
+                    footer: {
+                      rect: footerRect && {
+                        top: footerRect.top,
+                        right: footerRect.right,
+                        bottom: footerRect.bottom,
+                        left: footerRect.left,
+                        width: footerRect.width,
+                        height: footerRect.height
+                      },
+                      position: footer ? getComputedStyle(footer).position : null
+                    },
+                    intersectionPx:
+                      queryRect && footerRect
+                        ? Math.max(0, Math.min(queryRect.bottom, footerRect.bottom) - Math.max(queryRect.top, footerRect.top))
+                        : null,
+                    horizontalOverflowPx: document.documentElement.scrollWidth - innerWidth,
+                    disabledComparison: {
+                      disabled: compare?.disabled ?? null,
+                      display: compare ? getComputedStyle(compare).display : null,
+                      rect: compareRect && {
+                        width: compareRect.width,
+                        height: compareRect.height
+                      },
+                      consumesSpace: Boolean(compareRect && (compareRect.width > 0 || compareRect.height > 0))
+                    },
+                    primaryAction: {
+                      rendered: Boolean(primary),
+                      display: primary ? getComputedStyle(primary).display : null,
+                      label: primary?.textContent?.trim() ?? null
+                    }
+                  };
+                });
+
+                assert.equal(metrics.customQuery.rendered, true, `${viewport.label}: Custom Query must render`);
+                assert.equal(metrics.customQuery.visible, true, `${viewport.label}: Custom Query must be visible`);
+                assert.equal(metrics.customQuery.fullyVisible, true, `${viewport.label}: Custom Query must be fully visible`);
+                assert.equal(metrics.intersectionPx, 0, `${viewport.label}: footer intersection must be 0 px`);
+                assert.equal(metrics.horizontalOverflowPx, 0, `${viewport.label}: horizontal overflow must be 0 px`);
+                assert.equal(metrics.disabledComparison.disabled, true, `${viewport.label}: comparison must be disabled initially`);
+                assert.equal(metrics.disabledComparison.display, "none", `${viewport.label}: disabled comparison must be hidden`);
+                assert.equal(metrics.disabledComparison.consumesSpace, false, `${viewport.label}: disabled comparison must not consume space`);
+                assert.equal(metrics.primaryAction.rendered, true, `${viewport.label}: primary action must render`);
+                assert.notEqual(metrics.primaryAction.display, "none", `${viewport.label}: primary action must remain available`);
+
+                await page.screenshot({
+                  path: path.join(evidenceDir, `${viewport.label}.png`),
+                  fullPage: false
+                });
+
+                const primary = page.locator("aside > section.sticky.bottom-0 > button:last-of-type");
+                await primary.scrollIntoViewIfNeeded();
+                const primaryAfterScroll = await primary.evaluate((element) => {
+                  const rect = element.getBoundingClientRect();
+                  return {
+                    top: rect.top,
+                    bottom: rect.bottom,
+                    visibleInViewport: rect.bottom > 0 && rect.top < innerHeight
+                  };
+                });
+                assert.equal(primaryAfterScroll.visibleInViewport, true, `${viewport.label}: primary action must be reachable by scroll`);
+                metrics.primaryAction.afterScroll = primaryAfterScroll;
+              } else if (viewport.mode === "tablet") {
+                const openMap = page.getByRole("button", { name: "Open map", exact: true });
+                assert.equal(await openMap.isVisible(), true, `${viewport.label}: Open map must be visible`);
+                await openMap.click();
+
+                const picker = page.getByRole("dialog", { name: "Full-screen map picker" });
+                const backToWorkflow = page.getByRole("button", { name: "Back to workflow", exact: true });
+                await picker.waitFor({ state: "visible" });
+                assert.equal(await backToWorkflow.isVisible(), true, `${viewport.label}: Back to workflow must be visible`);
+
+                metrics = await page.evaluate(() => {
+                  const picker = document.querySelector('[role="dialog"]');
+                  const openMap = [...document.querySelectorAll("button")].find(
+                    (button) => button.textContent?.trim() === "Open map"
+                  );
+                  const back = [...document.querySelectorAll("button")].find(
+                    (button) => button.textContent?.trim() === "Back to workflow"
+                  );
+                  return {
+                    openMapVisible: Boolean(openMap && openMap.getClientRects().length),
+                    pickerVisible: Boolean(picker && picker.getClientRects().length),
+                    backToWorkflowVisible: Boolean(back && back.getClientRects().length),
+                    horizontalOverflowPx: document.documentElement.scrollWidth - innerWidth
+                  };
+                });
+
+                assert.equal(metrics.openMapVisible, true, `${viewport.label}: Open map trigger must remain visible behind picker`);
+                assert.equal(metrics.pickerVisible, true, `${viewport.label}: map picker must open`);
+                assert.equal(metrics.backToWorkflowVisible, true, `${viewport.label}: Back to workflow must remain visible`);
+                assert.equal(metrics.horizontalOverflowPx, 0, `${viewport.label}: horizontal overflow must be 0 px`);
+
+                await page.screenshot({
+                  path: path.join(evidenceDir, `${viewport.label}.png`),
+                  fullPage: false
+                });
+              } else {
+                metrics = await page.evaluate(() => {
+                  const map = document.querySelector("#workspace-map");
+                  const openMap = [...document.querySelectorAll("button")].find(
+                    (button) => button.textContent?.trim() === "Open map"
+                  );
+                  const panel = document.querySelector("aside");
+                  const panelContent = document.querySelector("aside > section:first-child");
+                  const mapRect = map?.getBoundingClientRect();
+                  const panelRect = panel?.getBoundingClientRect();
+
+                  return {
+                    desktopMap: {
+                      visible: Boolean(map && map.getClientRects().length),
+                      rect: mapRect && { width: mapRect.width, height: mapRect.height }
+                    },
+                    mobileOpenMap: {
+                      display: openMap ? getComputedStyle(openMap).display : null,
+                      visible: Boolean(openMap && openMap.getClientRects().length)
+                    },
+                    rightPanel: {
+                      visible: Boolean(panel && panel.getClientRects().length),
+                      rect: panelRect && { width: panelRect.width, height: panelRect.height },
+                      overflowY: panelContent ? getComputedStyle(panelContent).overflowY : null,
+                      scrollHeight: panelContent?.scrollHeight ?? null,
+                      clientHeight: panelContent?.clientHeight ?? null,
+                      scrollable: Boolean(panelContent && panelContent.scrollHeight > panelContent.clientHeight)
+                    },
+                    horizontalOverflowPx: document.documentElement.scrollWidth - innerWidth
+                  };
+                });
+
+                assert.equal(metrics.desktopMap.visible, true, `${viewport.label}: desktop split map must be visible`);
+                assert.equal(metrics.mobileOpenMap.display, "none", `${viewport.label}: mobile Open map must be hidden`);
+                assert.equal(metrics.mobileOpenMap.visible, false, `${viewport.label}: mobile Open map must not consume space`);
+                assert.equal(metrics.rightPanel.visible, true, `${viewport.label}: right panel must be visible`);
+                assert.equal(metrics.rightPanel.overflowY, "auto", `${viewport.label}: right panel content must allow scrolling`);
+                assert.equal(metrics.rightPanel.scrollable, true, `${viewport.label}: right panel must be scrollable`);
+                assert.equal(metrics.horizontalOverflowPx, 0, `${viewport.label}: horizontal overflow must be 0 px`);
+
+                await page.screenshot({
+                  path: path.join(evidenceDir, `${viewport.label}.png`),
+                  fullPage: false
+                });
+              }
+
+              const record = {
+                viewport: { width: viewport.width, height: viewport.height },
+                mode: viewport.mode,
+                status: "passed",
+                metrics
+              };
+              results.push(record);
+              fs.writeFileSync(
+                path.join(evidenceDir, `${viewport.label}.json`),
+                `${JSON.stringify(record, null, 2)}\n`
+              );
+              await context.close();
+            }
+          } finally {
+            await browser.close();
+          }
+
+          const metadata = {
+            status: "passed",
+            testedCommitSha: process.env.GITHUB_SHA,
+            githubRunId: process.env.GITHUB_RUN_ID,
+            githubRunAttempt: process.env.GITHUB_RUN_ATTEMPT,
+            previewUrl: process.env.PREVIEW_URL,
+            vercelDeploymentId: process.env.VERCEL_DEPLOYMENT_ID,
+            githubPreviewDeploymentId: process.env.GITHUB_PREVIEW_DEPLOYMENT_ID,
+            generatedAt: new Date().toISOString(),
+            caveat: "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
+          };
+          fs.writeFileSync(path.join(evidenceDir, "metadata.json"), `${JSON.stringify(metadata, null, 2)}\n`);
+
+          const summary = [
+            "# Workspace Responsive v1.2 Browser Evidence",
+            "",
+            `- Status: passed`,
+            `- Tested commit: \`${metadata.testedCommitSha}\``,
+            `- GitHub run: \`${metadata.githubRunId}\``,
+            `- Preview URL: ${metadata.previewUrl}`,
+            `- Vercel deployment: \`${metadata.vercelDeploymentId}\``,
+            "",
+            "## Viewports",
+            "",
+            "| Viewport | Result | Key evidence |",
+            "| --- | --- | --- |",
+            ...results.map((result) => {
+              const label = `${result.viewport.width}x${result.viewport.height}`;
+              if (result.mode === "narrow") {
+                return `| ${label} | passed | Custom Query visible; intersection ${result.metrics.intersectionPx} px; overflow ${result.metrics.horizontalOverflowPx} px; disabled comparison hidden; primary action reachable |`;
+              }
+              if (result.mode === "tablet") {
+                return `| ${label} | passed | Open map visible; picker opened; Back to workflow visible; overflow ${result.metrics.horizontalOverflowPx} px |`;
+              }
+              return `| ${label} | passed | split map visible; mobile Open map hidden; panel scrollable; overflow ${result.metrics.horizontalOverflowPx} px |`;
+            }),
+            "",
+            "## Data honesty",
+            "",
+            metadata.caveat,
+            ""
+          ].join("\n");
+          fs.writeFileSync(path.join(evidenceDir, "SUMMARY.md"), summary);
+          fs.writeFileSync(
+            path.join(evidenceDir, "browser-console.log"),
+            consoleEntries.length > 0 ? `${consoleEntries.join("\n")}\n` : "No browser console messages captured.\n"
+          );
+
+          console.log(JSON.stringify({ ok: true, metadata, viewports: results.map((result) => result.viewport) }, null, 2));
+          NODE
+
+          node /tmp/workspace-responsive-v12-browser-evidence.mjs 2>&1 | tee "${EVIDENCE_DIR}/browser-qa-run.log"
+
+      - name: Upload short-lived browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: workspace-responsive-v12-browser-evidence-${{ github.run_id }}
+          path: artifacts/workspace-responsive-v12-browser-evidence/
+          if-no-files-found: error
+          retention-days: 7
