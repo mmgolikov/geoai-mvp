@@ -9,10 +9,14 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: workspace-responsive-fix-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   workspace-responsive-fix:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 15
     env:
       CI: "true"
       NEXT_TELEMETRY_DISABLED: "1"
@@ -54,8 +58,10 @@ jobs:
           APP_PID=$!
           trap 'kill "$APP_PID" 2>/dev/null || true' EXIT
 
+          READY=0
           for attempt in $(seq 1 60); do
             if curl --fail --silent http://127.0.0.1:3000/api/health > /dev/null; then
+              READY=1
               break
             fi
             if ! kill -0 "$APP_PID" 2>/dev/null; then
@@ -65,7 +71,12 @@ jobs:
             sleep 1
           done
 
-          GEOAI_TEST_BASE_URL=http://127.0.0.1:3000 node scripts/workspace-responsive-browser-check-v2.mjs
+          if [ "$READY" -ne 1 ]; then
+            cat /tmp/geoai-workspace-fix-next.log
+            exit 1
+          fi
+
+          GEOAI_TEST_BASE_URL=http://127.0.0.1:3000 timeout --signal=TERM --kill-after=10s 180s node scripts/workspace-responsive-browser-check-v2.mjs
           cp /tmp/geoai-workspace-fix-next.log artifacts/workspace-responsive-fix/next-runtime.log
 
       - name: Upload evidence
