@@ -40,8 +40,8 @@ jobs:
 
       - name: Install bounded browser runtime
         run: |
-          npm install --no-save --no-package-lock playwright@1.54.1
-          npx playwright install --with-deps chromium
+          npm install --prefix /tmp/geoai-playwright --no-save --no-package-lock playwright@1.54.1
+          /tmp/geoai-playwright/node_modules/.bin/playwright install --with-deps chromium
 
       - name: Build application
         run: npm run build
@@ -123,7 +123,7 @@ jobs:
           import assert from "node:assert/strict";
           import fs from "node:fs";
           import path from "node:path";
-          import { chromium } from "playwright";
+          import { chromium } from "/tmp/geoai-playwright/node_modules/playwright/index.mjs";
 
           const evidenceDir = process.env.EVIDENCE_DIR;
           const localBaseUrl = process.env.LOCAL_BASE_URL;
