@@ -65,7 +65,7 @@ jobs:
             sleep 1
           done
 
-          GEOAI_TEST_BASE_URL=http://127.0.0.1:3000 node scripts/workspace-responsive-browser-check.mjs
+          GEOAI_TEST_BASE_URL=http://127.0.0.1:3000 node scripts/workspace-responsive-browser-check-v2.mjs
           cp /tmp/geoai-workspace-fix-next.log artifacts/workspace-responsive-fix/next-runtime.log
 
       - name: Upload evidence
