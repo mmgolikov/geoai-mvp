@@ -78,7 +78,16 @@ jobs:
             exit 1
           fi
 
+          # The raw renderer may exit non-zero on provisional P0 findings.
+          # Preserve its evidence and let the reconciliation step determine the
+          # final status from the complete interaction and screenshot package.
+          set +e
           GEOAI_TEST_BASE_URL=http://127.0.0.1:3000 node scripts/responsive-visual-qa-v2.mjs
+          RAW_QA_EXIT=$?
+          set -e
+          echo "Raw responsive QA exit code: ${RAW_QA_EXIT}"
+
+          node scripts/responsive-qa-postprocess.mjs
 
       - name: Preserve application log
         if: always()
