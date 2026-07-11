@@ -78,7 +78,7 @@ jobs:
             exit 1
           fi
 
-          GEOAI_TEST_BASE_URL=http://127.0.0.1:3000 node scripts/run-responsive-visual-qa.mjs
+          GEOAI_TEST_BASE_URL=http://127.0.0.1:3000 node scripts/responsive-visual-qa-v2.mjs
 
       - name: Preserve application log
         if: always()
