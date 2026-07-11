@@ -34,18 +34,32 @@ const safeContextPatterns = [
   /\bunverified\b/i,
   /\bunsupported\b/i,
   /\bprohibited\b/i,
+  /\bforbiddenClaims\b/i,
+  /\bforbiddenOfficialClaims\b/i,
+  /\bunsupportedClaims\b/i,
+  /\bwhatItCannotSupport\b/i,
+  /\bnotIncluded\b/i,
+  /\bnotRequiredForDemo\b/i,
+  /\bnot included\b/i,
+  /\bnot required\b/i,
+  /\bcannot support\b/i,
   /\bvalidation required\b/i,
-  /\brequires validation\b/i,
-  /\bvalidate\b/i,
+  /\brequires? validation\b/i,
+  /\bmust be (?:validated|verified|confirmed)\b/i,
+  /\bvalidated\b/i,
   /\bvalidation\b/i,
-  /\bconfirm\b/i,
-  /\brequest\b/i,
+  /\bconfirm(?:ation|ed|ing)?\b/i,
+  /\brequest(?:ed|ing)?\b/i,
   /\bplanned\b/i,
-  /\bplanned validation\b/i,
   /\bnot connected\b/i,
   /\bnot configured\b/i,
   /\bdoesn't imply\b/i,
-  /\bdoes not imply\b/i
+  /\bdoes not imply\b/i,
+  /\bclient-approved\b/i,
+  /\bcustomer-approved\b/i,
+  /\bscreening context only\b/i,
+  /\bscreening hypothesis\b/i,
+  /\bdeterministic sample\/open\b/i
 ];
 
 function walk(directory) {
@@ -66,10 +80,23 @@ function lineNumberAt(source, index) {
   return source.slice(0, index).split("\n").length;
 }
 
-function contextFor(source, start, end) {
-  const left = Math.max(0, start - 180);
-  const right = Math.min(source.length, end + 180);
-  return source.slice(left, right).replace(/\s+/g, " ").trim();
+function contextFor(source, start) {
+  const currentLineStart = source.lastIndexOf("\n", Math.max(0, start - 1)) + 1;
+  const previousLineStart = currentLineStart > 0
+    ? source.lastIndexOf("\n", Math.max(0, currentLineStart - 2)) + 1
+    : currentLineStart;
+  const currentLineEnd = source.indexOf("\n", start);
+  const nextLineEnd = currentLineEnd === -1
+    ? source.length
+    : (() => {
+        const end = source.indexOf("\n", currentLineEnd + 1);
+        return end === -1 ? source.length : end;
+      })();
+  return source
+    .slice(previousLineStart, nextLineEnd)
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 1200);
 }
 
 const findings = [];
@@ -84,8 +111,7 @@ for (const filePath of files) {
     rule.pattern.lastIndex = 0;
     for (const match of source.matchAll(rule.pattern)) {
       const start = match.index ?? 0;
-      const end = start + match[0].length;
-      const context = contextFor(source, start, end);
+      const context = contextFor(source, start);
       const safe = safeContextPatterns.some((pattern) => pattern.test(context));
       const record = {
         rule: rule.id,
