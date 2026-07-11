@@ -1,0 +1,94 @@
+name: Project Hub Runtime Status QA
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: project-hub-status-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  runtime-status:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CI: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript check
+        run: npm run lint
+
+      - name: Runtime status source contract
+        run: node scripts/runtime-status-contract-source-check.mjs
+
+      - name: Build
+        run: npm run build
+
+      - name: API and Project Hub smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/project-hub-runtime-status
+          npm run start -- -H 127.0.0.1 -p 3000 > /tmp/geoai-status-next.log 2>&1 &
+          APP_PID=$!
+          trap 'kill "$APP_PID" 2>/dev/null || true' EXIT
+
+          READY=0
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:3000/api/health > /dev/null; then READY=1; break; fi
+            if ! kill -0 "$APP_PID" 2>/dev/null; then cat /tmp/geoai-status-next.log; exit 1; fi
+            sleep 1
+          done
+          test "$READY" -eq 1
+
+          curl --fail --silent --show-error http://127.0.0.1:3000/api/pilot-backend/status > artifacts/project-hub-runtime-status/pilot-status.json
+          curl --fail --silent --show-error http://127.0.0.1:3000/projects > artifacts/project-hub-runtime-status/projects.html
+
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          const payload = JSON.parse(fs.readFileSync("artifacts/project-hub-runtime-status/pilot-status.json", "utf8"));
+          const status = payload.executiveStatus;
+          if (!status) throw new Error("executiveStatus missing");
+          if (!Array.isArray(status.rows) || status.rows.length < 7) throw new Error("executive status rows incomplete");
+          const labels = new Set(status.rows.map((row) => row.label));
+          for (const label of ["Public demo workflow", "Confidential pilot", "Auth", "Repository", "Supabase schema", "Storage"]) {
+            if (!labels.has(label)) throw new Error(`missing status row: ${label}`);
+          }
+          if (status.accessMode !== "demo_public") throw new Error(`unexpected access mode: ${status.accessMode}`);
+          if (!status.demoWorkflow.startsWith("demo_workflow_")) throw new Error("demo workflow state missing");
+          if (status.confidentialPilot !== "confidential_pilot_blocked") throw new Error("confidential pilot should remain blocked");
+          const auth = status.rows.find((row) => row.label === "Auth");
+          if (auth?.value !== "Public demo access") throw new Error("Auth row must use Public demo access");
+          console.log(JSON.stringify({ ok: true, environment: status.environment, demoWorkflow: status.demoWorkflow, confidentialPilot: status.confidentialPilot, rowCount: status.rows.length }, null, 2));
+          NODE
+
+          grep -q "Project Hub" artifacts/project-hub-runtime-status/projects.html
+          ! grep -q "Client-ready memo generation" artifacts/project-hub-runtime-status/projects.html
+          cp /tmp/geoai-status-next.log artifacts/project-hub-runtime-status/next-runtime.log
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: project-hub-runtime-status-${{ github.run_id }}
+          path: artifacts/project-hub-runtime-status/
+          if-no-files-found: warn
+          retention-days: 14
