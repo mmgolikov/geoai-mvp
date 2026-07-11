@@ -2646,9 +2646,11 @@ export function ProjectDashboard() {
               <div className="grid gap-3">
                 <div className="flex items-start justify-between gap-3 rounded-md border border-line bg-surface p-3">
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold text-ink">{formatDataRoomLabel(pilotBackendStatus?.status ?? platformStatus?.activationStatus ?? "local_fallback_only")}</p>
+                    <p className="text-sm font-semibold text-ink">{pilotBackendStatus?.status || platformStatus?.activationStatus
+                        ? formatDataRoomLabel(pilotBackendStatus?.status ?? platformStatus?.activationStatus ?? "")
+                        : "Checking runtime status"}</p>
                     <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted">
-                      {pilotBackendStatus?.blockers?.[0]?.description ?? platformStatus?.blockers?.[0] ?? dbHealth?.message ?? "Advanced activation status is reported by API health checks."}
+                      {pilotBackendStatus?.blockers?.[0]?.description ?? platformStatus?.blockers?.[0] ?? dbHealth?.message ?? "Loading current runtime and security gate evidence."}
                     </p>
                   </div>
                   <span className="shrink-0 rounded-full bg-white px-2 py-1 text-xs font-semibold text-brand">
@@ -2679,7 +2681,7 @@ export function ProjectDashboard() {
                   </div>
                 ) : null}
                 <p className="text-xs leading-5 text-muted">
-                  {pilotBackendStatus?.nextActions?.[0] ?? platformStatus?.nextActions?.[0] ?? "Run the migration, seed and verification scripts from a trusted environment before claiming durable storage."}
+                  {pilotBackendStatus?.nextActions?.[0] ?? platformStatus?.nextActions?.[0] ?? "Runtime status will update when the current environment checks complete."}
                 </p>
               </div>
             </Panel>
