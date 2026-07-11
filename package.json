@@ -36,6 +36,7 @@
     "test:rls-plan": "node scripts/rls-verification-plan-check.mjs",
     "test:api-contract": "node scripts/api-contract-check.mjs",
     "test:workspace-panel": "node scripts/workspace-mobile-panel-check.mjs",
+    "test:data-honesty": "node scripts/data-honesty-claim-check.mjs",
     "start": "next start",
     "lint": "tsc --noEmit --pretty false"
   },
