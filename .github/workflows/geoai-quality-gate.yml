@@ -1,0 +1,128 @@
+name: GeoAI Quality Gate
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: geoai-quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality-gate:
+    name: Static, API and data-honesty checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      CI: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Prepare evidence directory
+        run: mkdir -p artifacts
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript check
+        run: npm run lint
+
+      - name: Access-decision checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:access-decision | tee artifacts/access-decision-check.txt
+
+      - name: Static RLS-plan checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:rls-plan | tee artifacts/rls-plan-check.txt
+
+      - name: Workspace-panel source checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:workspace-panel | tee artifacts/workspace-panel-check.txt
+
+      - name: Data-honesty claim scan
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:data-honesty | tee artifacts/data-honesty-check.txt
+
+      - name: Build
+        run: npm run build
+
+      - name: Start built app and run API/route smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run start -- -H 127.0.0.1 -p 3000 > /tmp/geoai-next.log 2>&1 &
+          APP_PID=$!
+          trap 'kill "$APP_PID" 2>/dev/null || true' EXIT
+
+          READY=0
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent --show-error http://127.0.0.1:3000/api/health > /dev/null; then
+              READY=1
+              break
+            fi
+            if ! kill -0 "$APP_PID" 2>/dev/null; then
+              cat /tmp/geoai-next.log
+              exit 1
+            fi
+            sleep 1
+          done
+
+          if [ "$READY" -ne 1 ]; then
+            cat /tmp/geoai-next.log
+            echo "Built app did not become ready within 60 seconds." >&2
+            exit 1
+          fi
+
+          GEOAI_TEST_BASE_URL=http://127.0.0.1:3000 npm run test:api-contract | tee artifacts/api-contract-check.txt
+
+          : > artifacts/route-smoke.txt
+          routes=(
+            "/"
+            "/workspace"
+            "/projects"
+            "/reports/seeded-analysis-dubai-marina-report/print"
+            "/reports/seeded-comparison-dubai-shortlist-report/print"
+          )
+          for route in "${routes[@]}"; do
+            curl --fail --silent --show-error --output /dev/null "http://127.0.0.1:3000${route}"
+            printf '%s\t%s\n' "200" "$route" | tee -a artifacts/route-smoke.txt
+          done
+
+      - name: Preserve application log
+        if: always()
+        shell: bash
+        run: |
+          if [ -f /tmp/geoai-next.log ]; then
+            cp /tmp/geoai-next.log artifacts/next-runtime.log
+          fi
+
+      - name: Upload release evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: geoai-quality-evidence-${{ github.run_id }}
+          path: artifacts/
+          if-no-files-found: warn
+          retention-days: 14
