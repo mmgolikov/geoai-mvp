@@ -31,8 +31,18 @@ export async function listReports(filters: { projectId?: string | null; projectK
 export async function getReport(id: string): Promise<DbRepositoryResult<WorkspaceReport | unknown | null>> {
   const client = await getSupabaseServerClient();
   if (!client) {
+    /*
+     * Fixed demo report IDs are controlled presentation fixtures. Prefer the
+     * canonical seed over an older partial local JSON record so Preview and
+     * Production fallback render the same complete screening evidence.
+     * User-created/local report IDs continue to use the local repository.
+     */
+    const seeded = getSeededDemoReportRecord(id);
+    if (seeded) {
+      return { ok: true, mode: "local_fallback", data: seeded, error: null };
+    }
     const result = localGet<WorkspaceReport>("reports", id);
-    return { ok: true, mode: "local_fallback", data: result.data ?? getSeededDemoReportRecord(id), error: null };
+    return { ok: true, mode: "local_fallback", data: result.data, error: null };
   }
 
   try {
