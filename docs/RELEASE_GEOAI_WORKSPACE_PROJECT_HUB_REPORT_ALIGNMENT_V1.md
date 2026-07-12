@@ -20,7 +20,7 @@
 - The dashboard evidence/limitation row is compact and limited to one visible desktop line while its full wording remains available through `title` and accessible text.
 - Decision Posture and Suitability use equal-width cards with matching top, middle and bottom zones and aligned controls.
 - Project Hub retains one canonical Data Readiness / Source Lineage section as the final substantive section after all project-work panels.
-- Known seeded report IDs use complete canonical fixtures only in local/demo fallback; configured Supabase records and user report IDs retain precedence in their own modes.
+- Reserved seeded report IDs use complete canonical fixtures when a local or configured legacy seed row is absent or incomplete. Complete configured records and arbitrary user report IDs retain precedence; no record is written or changed.
 - Optional report arrays and source-lineage collections are normalized before rendering, preventing the legacy partial-record `.map()` failure.
 - The analysis report contract carries an optional captured map snapshot from the existing rendered workspace map. The seeded Marina report includes a committed deterministic browser capture; reports without one use an explicitly labeled fallback.
 - Saved-report timestamps are labeled as saved timestamps rather than implying fresh generation.
@@ -32,7 +32,7 @@ The final v1.1 evidence is produced from the patched head. Required checks inclu
 ## Known Limitations
 
 - Captured map context is a browser-rendered screening snapshot, not an official geometry, parcel, survey, zoning or cadastral source.
-- Arbitrary legacy durable records without a complete payload remain limited to safely normalized stored fields; only fixed local/demo seed IDs receive canonical fixture precedence.
+- Arbitrary legacy durable records without a complete payload remain limited to safely normalized stored fields; only reserved demo IDs receive read-time canonical repair.
 - No physical-device certification, external integration or release-readiness claim is included.
 
 ## Data Honesty

@@ -5,6 +5,34 @@ import type { DbReportInput, DbRepositoryResult } from "@/src/lib/db/types";
 import type { WorkspaceReport } from "@/src/lib/project-workspace-types";
 import { localCreate, localGet, localList } from "@/src/lib/repositories/local-json-store";
 
+function isObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function hasCompleteReportPayload(record: unknown) {
+  if (!isObject(record)) return false;
+  const payload = record.reportPayload ?? record.report_json ?? record.payload;
+  if (!isObject(payload)) return false;
+
+  const comparison = payload.comparisonJson;
+  if (isObject(comparison)) {
+    return Array.isArray(comparison.items) && comparison.items.length > 0 &&
+      Array.isArray(comparison.sharedOpportunities) && Array.isArray(comparison.differentiatedRisks) &&
+      Array.isArray(comparison.nextActions);
+  }
+
+  const analysis = payload.memoJson;
+  return isObject(analysis) && isObject(analysis.scores) && isObject(analysis.point) &&
+    Array.isArray(analysis.keyFactors) && Array.isArray(analysis.risks) &&
+    Array.isArray(analysis.opportunities) && Array.isArray(analysis.nextActions);
+}
+
+function resolveReservedSeedRecord(id: string, stored: unknown | null) {
+  const seeded = getSeededDemoReportRecord(id);
+  if (!seeded || hasCompleteReportPayload(stored)) return stored;
+  return seeded;
+}
+
 export async function listReports(filters: { projectId?: string | null; projectKey?: string | null; limit?: number } = {}): Promise<DbRepositoryResult<WorkspaceReport[] | unknown[]>> {
   const client = await getSupabaseServerClient();
   if (!client) {
@@ -31,13 +59,8 @@ export async function listReports(filters: { projectId?: string | null; projectK
 export async function getReport(id: string): Promise<DbRepositoryResult<WorkspaceReport | unknown | null>> {
   const client = await getSupabaseServerClient();
   if (!client) {
-    // Fixed demo IDs must not be shadowed by stale partial local fallback records.
-    const seeded = getSeededDemoReportRecord(id);
-    if (seeded) {
-      return { ok: true, mode: "local_fallback", data: seeded, error: null };
-    }
     const result = localGet<WorkspaceReport>("reports", id);
-    return { ok: true, mode: "local_fallback", data: result.data, error: null };
+    return { ok: true, mode: "local_fallback", data: resolveReservedSeedRecord(id, result.data), error: null };
   }
 
   try {
@@ -45,7 +68,10 @@ export async function getReport(id: string): Promise<DbRepositoryResult<Workspac
       eq: (column: string, value: string) => { limit: (count: number) => Promise<{ data: unknown[] | null; error?: unknown }> };
     };
     const response = await query.eq("report_key", id).limit(1);
-    return { ok: !response.error, mode: "supabase", data: response.data?.[0] ?? null, error: response.error ? "Unable to load report." : null };
+    const stored = response.data?.[0] ?? null;
+    // Complete configured records retain precedence. Only reserved demo IDs with
+    // missing legacy payload fields use the canonical read-only fixture.
+    return { ok: !response.error, mode: "supabase", data: resolveReservedSeedRecord(id, stored), error: response.error ? "Unable to load report." : null };
   } catch (error) {
     return { ok: false, mode: "local_fallback", data: null, error: error instanceof Error ? error.message : "Unable to load report." };
   }

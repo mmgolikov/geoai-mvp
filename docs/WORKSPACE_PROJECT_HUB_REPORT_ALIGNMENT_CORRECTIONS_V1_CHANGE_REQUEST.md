@@ -33,7 +33,7 @@ The demo workflow should present one consistent screening story from setup throu
 - Keep one canonical Data Readiness / Source Lineage section after all project-work and diagnostics panels.
 - Derive printable analysis identity and decision fields from the same dashboard model.
 - Prefer an optional report-payload map capture from the existing rendered workspace map and use a labeled schematic only when no capture exists.
-- Resolve known seeded report IDs from canonical complete fixtures only in local/demo fallback, without overriding configured Supabase records or user report IDs.
+- Resolve reserved seeded report IDs from canonical complete fixtures when a local or configured legacy seed row is absent or incomplete. Complete configured records and arbitrary user report IDs retain precedence.
 - Normalize optional legacy report collections before rendering.
 
 ## Data And Design Impact
@@ -44,7 +44,7 @@ No API contract, Supabase, migration, Auth, Storage, environment, secret or Figm
 
 - A labeled schematic remains available only when a report has no captured map snapshot.
 - Browser viewport checks do not replace physical-device certification.
-- Canonical seed precedence is limited to fixed demo IDs in local/demo fallback; it does not repair arbitrary incomplete durable records.
+- Canonical read-time repair is limited to reserved demo IDs with absent/incomplete legacy payloads; it does not modify Supabase or repair arbitrary incomplete durable records.
 
 ## Acceptance Criteria
 
