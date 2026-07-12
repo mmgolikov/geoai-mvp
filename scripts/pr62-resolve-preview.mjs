@@ -23,17 +23,17 @@ async function github(path) {
 
 for (let attempt = 1; attempt <= 60; attempt += 1) {
   const deployments = await github(`/deployments?sha=${sha}&environment=Preview&per_page=10`);
-  const checks = await github(`/commits/${sha}/check-runs?per_page=100`);
-  const vercelCheck = checks.check_runs?.find((check) => (
-    check.name === "Vercel" && check.status === "completed" && check.conclusion === "success"
+  const commitStatus = await github(`/commits/${sha}/status`);
+  const vercelStatus = commitStatus.statuses?.find((status) => (
+    status.context === "Vercel" && status.state === "success"
   ));
 
   for (const deployment of deployments) {
     const statuses = await github(`/deployments/${deployment.id}/statuses?per_page=10`);
     const ready = statuses.find((status) => status.state === "success" && status.environment_url);
-    if (!ready || !vercelCheck?.details_url) continue;
+    if (!ready || !vercelStatus?.target_url) continue;
 
-    const providerId = new URL(vercelCheck.details_url).pathname.split("/").filter(Boolean).at(-1);
+    const providerId = new URL(vercelStatus.target_url).pathname.split("/").filter(Boolean).at(-1);
     if (!providerId) continue;
     await appendFile(output, [
       `preview_url=${ready.environment_url}`,
