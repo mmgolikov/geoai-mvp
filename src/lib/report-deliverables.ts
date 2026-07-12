@@ -1,4 +1,5 @@
 import type { SourceLineageSnapshot } from "@/src/lib/project-workspace-types";
+import { normalizeReportMapSnapshot, type ReportMapSnapshot } from "@/src/lib/report-map-snapshot";
 import type { CustomQueryAnswer } from "@/src/lib/custom-query/query-answer";
 import type { AnalysisTarget, ComparisonResult, ExpressAnalysis, ScoreKey, SelectedDemoObject, SelectedPoint, UserDrawnAoi } from "@/src/types/geo";
 
@@ -25,6 +26,7 @@ export type ReportDeliverable = {
   sourceLineage: SourceLineageSnapshot;
   dataHonestyNote: string;
   reportPayload: unknown;
+  mapSnapshot: ReportMapSnapshot | null;
 };
 
 export type AnalysisReportDeliverable = ReportDeliverable & {
@@ -221,6 +223,13 @@ function readPayload(record: ReportRecord) {
   return record.reportPayload ?? record.report_json ?? {};
 }
 
+function readMapSnapshot(record: ReportRecord, payload: unknown) {
+  const recordSnapshot = (record as ReportRecord & { mapSnapshot?: unknown; map_snapshot?: unknown }).mapSnapshot ??
+    (record as ReportRecord & { map_snapshot?: unknown }).map_snapshot;
+  const payloadSnapshot = isObject(payload) ? payload.mapSnapshot : null;
+  return normalizeReportMapSnapshot(payloadSnapshot ?? recordSnapshot);
+}
+
 function readReportId(record: ReportRecord) {
   return record.id ?? record.report_key ?? "unsaved-report";
 }
@@ -237,11 +246,15 @@ function readCreatedAt(record: ReportRecord, payload: unknown) {
 }
 
 function readSourceLineage(record: ReportRecord) {
-  const sourceLineage = record.sourceLineage ?? record.source_lineage ?? fallbackLineage;
-  const disclaimers = Array.isArray(sourceLineage.disclaimers) ? sourceLineage.disclaimers : [];
+  const sourceLineage = (record.sourceLineage ?? record.source_lineage) as Partial<SourceLineageSnapshot> | null | undefined;
+  const disclaimers = Array.isArray(sourceLineage?.disclaimers) ? sourceLineage.disclaimers : [];
 
   return {
-    ...sourceLineage,
+    capturedAt: typeof sourceLineage?.capturedAt === "string" ? sourceLineage.capturedAt : fallbackLineage.capturedAt,
+    demoSources: Array.isArray(sourceLineage?.demoSources) ? sourceLineage.demoSources : [],
+    uploadedSources: Array.isArray(sourceLineage?.uploadedSources) ? sourceLineage.uploadedSources : [],
+    externalSources: Array.isArray(sourceLineage?.externalSources) ? sourceLineage.externalSources : [],
+    plannedValidationSources: Array.isArray(sourceLineage?.plannedValidationSources) ? sourceLineage.plannedValidationSources : [],
     disclaimers: disclaimers.includes(releaseCaveat)
       ? disclaimers
       : [releaseCaveat, ...disclaimers]
@@ -251,13 +264,48 @@ function readSourceLineage(record: ReportRecord) {
 function readAnalysisPayload(payload: unknown): ExpressAnalysis | null {
   if (!isObject(payload)) return null;
   const candidate = payload.memoJson;
-  return isObject(candidate) && isObject(candidate.scores) && isObject(candidate.point) ? candidate as ExpressAnalysis : null;
+  if (!isObject(candidate) || !isObject(candidate.scores) || !isObject(candidate.point)) return null;
+
+  const analysis = candidate as unknown as ExpressAnalysis;
+  const aiDecisionScore = isObject(candidate.aiDecisionScore)
+    ? {
+        ...candidate.aiDecisionScore,
+        keyDrivers: asArrayOfStrings(candidate.aiDecisionScore.keyDrivers),
+        keyRisks: asArrayOfStrings(candidate.aiDecisionScore.keyRisks),
+        validationRequired: asArrayOfStrings(candidate.aiDecisionScore.validationRequired)
+      } as ExpressAnalysis["aiDecisionScore"]
+    : undefined;
+
+  return {
+    ...analysis,
+    keyFactors: asArrayOfStrings(candidate.keyFactors),
+    risks: asArrayOfStrings(candidate.risks),
+    opportunities: asArrayOfStrings(candidate.opportunities),
+    nextActions: asArrayOfStrings(candidate.nextActions),
+    limitations: asArrayOfStrings(candidate.limitations),
+    evidence: Array.isArray(candidate.evidence) ? analysis.evidence : [],
+    aiDecisionScore
+  };
 }
 
 function readComparisonPayload(payload: unknown): ComparisonResult | null {
   if (!isObject(payload)) return null;
   const candidate = payload.comparisonJson;
-  return isObject(candidate) && Array.isArray(candidate.items) ? candidate as ComparisonResult : null;
+  if (!isObject(candidate) || !Array.isArray(candidate.items)) return null;
+
+  const itemsAreRenderable = candidate.items.every((item) =>
+    isObject(item) && isObject(item.item) && isObject(item.scores)
+  );
+  if (!itemsAreRenderable) return null;
+
+  const comparison = candidate as unknown as ComparisonResult;
+  return {
+    ...comparison,
+    sharedOpportunities: asArrayOfStrings(candidate.sharedOpportunities),
+    differentiatedRisks: asArrayOfStrings(candidate.differentiatedRisks),
+    nextActions: asArrayOfStrings(candidate.nextActions),
+    evidence: Array.isArray(candidate.evidence) ? comparison.evidence : []
+  };
 }
 
 function normalizeComparedItems(payload: unknown, comparison: ComparisonResult | null): ComparisonReportDeliverable["comparedItems"] {
@@ -308,6 +356,7 @@ export function normalizeReportDeliverable(record: unknown): AnalysisReportDeliv
   const reportType = readReportType(typedRecord, payload);
   const id = readReportId(typedRecord);
   const sourceLineage = readSourceLineage(typedRecord);
+  const mapSnapshot = readMapSnapshot(typedRecord, payload);
   const createdAt = readCreatedAt(typedRecord, payload);
   const projectId = typedRecord.projectId ?? typedRecord.project_id ?? null;
   const projectKey = typedRecord.projectKey ?? typedRecord.project_key ?? null;
@@ -348,6 +397,7 @@ export function normalizeReportDeliverable(record: unknown): AnalysisReportDeliv
       sourceLineage,
       dataHonestyNote,
       reportPayload: payload,
+      mapSnapshot,
       comparison,
       comparedItems,
       winnerLabel,
@@ -405,6 +455,7 @@ export function normalizeReportDeliverable(record: unknown): AnalysisReportDeliv
     sourceLineage,
     dataHonestyNote,
     reportPayload: payload,
+    mapSnapshot,
     coordinates,
     analysis,
     selectedObject,

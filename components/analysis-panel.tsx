@@ -265,10 +265,8 @@ function CollapsedSection({
           {badge ?? "Open"}
         </span>
       </summary>
-      <div className="min-w-0 max-w-full overflow-y-auto overflow-x-hidden break-words border-t border-line py-3 [scrollbar-width:thin]">
-        <div className="max-h-[260px] min-w-0 max-w-full overflow-y-auto overflow-x-hidden pr-1">
-          {children}
-        </div>
+      <div className="min-w-0 max-w-full overflow-x-hidden break-words border-t border-line py-3">
+        <div className="min-w-0 max-w-full">{children}</div>
       </div>
     </details>
   );
@@ -403,7 +401,6 @@ export function AnalysisPanel({
   analysisHistorySource,
   hasResult,
   currentAnalysis,
-  analysisMode,
   marketMetricsMatch,
   backendStatus,
   marketContext,
@@ -500,12 +497,6 @@ export function AnalysisPanel({
   const availableSources = getScenarioDataSources(selectedScenario).slice(0, 3);
   const parsedUploads = uploadedDatasets.filter((dataset) => dataset.status === "parsed");
   const hasComparisonReady = comparisonItems.length >= 2;
-  const modeStatus =
-    analysisMode === "openai"
-      ? "AI-powered"
-      : analysisMode === "mock_fallback"
-        ? "Sample/open context"
-        : "Not run yet";
   const contextStatus = marketContext?.isGeneralContext
     ? "demo"
     : marketContext
@@ -539,21 +530,6 @@ export function AnalysisPanel({
       ? "client review"
       : "screening only";
   const isComparisonWorkflow = primaryCtaLabel === "Compare" || (hasComparisonReady && hasResult);
-  const activeWorkflowLabel = isCriteriaFirstMode
-    ? candidateSearchStatus === "searched"
-      ? selectedExploreCandidate
-        ? "Candidate selected"
-        : "Candidates ready"
-      : candidateSearchStatus === "stale"
-        ? "Search outdated"
-        : "Set search criteria"
-    : isComparisonWorkflow
-      ? "Comparison active"
-      : hasResult
-        ? "Analysis ready"
-        : hasSelectedPoint
-          ? "Ready to analyze"
-          : "Select a site";
   const activeWorkflowNote = isCriteriaFirstMode
     ? candidateSearchStatus === "searched"
       ? selectedExploreCandidate
@@ -1310,14 +1286,15 @@ export function AnalysisPanel({
                   {exploreScenario.inputSchema.length} controls
                 </span>
               </summary>
-              <div className="grid max-h-32 gap-2 overflow-y-auto border-t border-line py-2 [scrollbar-width:thin] sm:max-h-40 lg:max-h-56">
+              <div className="grid grid-cols-2 gap-2 border-t border-line py-2">
                 {exploreScenario.inputSchema.map((config) => (
-                  <ExploreSetupControl
-                    key={config.id}
-                    config={config}
-                    value={exploreFilters[config.id]}
-                    onChange={(value) => onExploreFilterChange(config.id, value)}
-                  />
+                  <div key={config.id} className={config.type === "multi_select" ? "order-last col-span-2" : "min-w-0"}>
+                    <ExploreSetupControl
+                      config={config}
+                      value={exploreFilters[config.id]}
+                      onChange={(value) => onExploreFilterChange(config.id, value)}
+                    />
+                  </div>
                 ))}
               </div>
             </details>
@@ -1653,7 +1630,7 @@ export function AnalysisPanel({
                 <span>Saved AOIs</span>
                 <span className="rounded-full bg-white px-2 py-1 text-[10px] text-brand">{projectAois.length}</span>
               </summary>
-              <div className="grid max-h-44 gap-2 overflow-y-auto border-t border-line py-2 [scrollbar-width:thin]">
+              <div className="grid gap-2 border-t border-line py-2">
                 {projectAois.length === 0 ? (
                   <p className="rounded-md bg-white p-2 text-xs leading-5 text-muted">No saved AOIs yet.</p>
                 ) : (
@@ -1709,29 +1686,6 @@ export function AnalysisPanel({
             </div>
           </details>
 
-          <section className="min-w-0 max-w-full overflow-hidden rounded-lg border border-line bg-white p-3">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Active workflow</p>
-                <h2 className="mt-1 text-sm font-semibold text-ink">{activeWorkflowLabel}</h2>
-                <p className="mt-1 text-xs leading-5 text-muted">{activeWorkflowNote}</p>
-              </div>
-              <span className="shrink-0 rounded-full bg-surface px-2 py-1 text-[11px] font-semibold text-brand">
-                {visiblePrimaryCtaLabel}
-              </span>
-            </div>
-            <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
-              <div className="rounded-md bg-surface p-2">
-                <span className="text-muted">Mode</span>
-                <p className="mt-1 font-semibold text-ink">{modeStatus}</p>
-              </div>
-              <div className="rounded-md bg-surface p-2">
-                <span className="text-muted">Comparison</span>
-                <p className="mt-1 font-semibold text-ink">{comparisonItems.length}/3 sites</p>
-              </div>
-            </div>
-          </section>
-
           {comparisonItems.length > 0 ? (
             <section className="min-w-0 max-w-full overflow-hidden rounded-lg border border-line bg-white p-3">
               <div className="flex items-start justify-between gap-3">
@@ -1769,7 +1723,7 @@ export function AnalysisPanel({
 
       </section>
 
-      <section className="sticky bottom-0 z-20 min-w-0 max-w-full flex-shrink-0 border-t border-line bg-white p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-8px_20px_rgba(15,23,42,0.06)] lg:static lg:pb-3 lg:shadow-none">
+      <section className="sticky bottom-0 z-20 min-w-0 max-w-full flex-shrink-0 border-t border-line bg-white p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-8px_20px_rgba(15,23,42,0.06)] max-[639px]:static max-[639px]:shadow-none lg:static lg:pb-3 lg:shadow-none">
         {primaryCtaDisabled && !hasValidWorkflowTarget ? (
           <p className="mb-2 text-xs leading-5 text-muted">
             {actionUnavailableMessage}

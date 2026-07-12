@@ -353,7 +353,7 @@ function buildFallbackAnswer(
     reasoning: ["The custom query reframes the scenario around the user's decision question.", "Current evidence can prioritize next checks but not certify legal, zoning, title or valuation conclusions."],
     keyRisks: ["The user question may require evidence not connected in this MVP.", "Sample/open context should not be treated as official validation."],
     validationNeeded,
-    nextActions: ["Define measurable criteria for the query.", "Collect official/customer-approved evidence.", "Re-run the analysis when validation evidence is available."],
+    nextActions: ["Define screening criteria.", "Collect official/customer-approved evidence.", "Re-run the analysis when validation evidence is available."],
     sourceBasis: basis,
     confidenceNote
   };

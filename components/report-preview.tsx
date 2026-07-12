@@ -17,11 +17,13 @@ import { createSourceLineageSnapshot } from "@/src/lib/source-lineage-snapshot";
 import type { ComparisonResult, ExpressAnalysis, ScoreKey } from "@/src/types/geo";
 import type { EvidenceFileAsset } from "@/src/types/storage";
 import type { EvidenceReviewSummary } from "@/src/types/evidence-review";
+import type { ReportMapSnapshot } from "@/src/lib/report-map-snapshot";
 
 type ReportPreviewProps =
   | {
       mode: "analysis";
       analysis: ExpressAnalysis;
+      mapSnapshot?: ReportMapSnapshot | null;
       onBack: () => void;
     }
   | {
@@ -538,7 +540,15 @@ function Section({
   );
 }
 
-function AnalysisReport({ analysis, onBack }: { analysis: ExpressAnalysis; onBack: () => void }) {
+function AnalysisReport({
+  analysis,
+  mapSnapshot,
+  onBack
+}: {
+  analysis: ExpressAnalysis;
+  mapSnapshot?: ReportMapSnapshot | null;
+  onBack: () => void;
+}) {
   const analysisBadge = analysis.analysisMode === "openai" ? "AI analysis" : "Sample/open fallback";
   const analysisModeLabel = analysis.analysisMode === "openai" ? "AI-generated" : "Sample/open fallback";
   const dataLimitation = analysis.limitations?.[0] ?? "Structured evidence context with deterministic sample scoring.";
@@ -766,6 +776,7 @@ function AnalysisReport({ analysis, onBack }: { analysis: ExpressAnalysis; onBac
             selectedObject={analysis.selectedObject ?? null}
             selectedAoi={analysis.selectedAoi ?? null}
             analysisTarget={analysis.analysisTarget ?? null}
+            mapSnapshot={mapSnapshot}
             reportMode
           />
         </Section>
@@ -1033,7 +1044,7 @@ function AnalysisReport({ analysis, onBack }: { analysis: ExpressAnalysis; onBac
         </Section>
         </div>
       </ReportShell>
-      <PrintableReport mode="analysis" analysis={analysis} />
+      <PrintableReport mode="analysis" analysis={analysis} mapSnapshot={mapSnapshot} />
     </>
   );
 }
@@ -1261,7 +1272,7 @@ function ComparisonReport({ comparison, onBack }: { comparison: ComparisonResult
 
 export function ReportPreview(props: ReportPreviewProps) {
   if (props.mode === "analysis") {
-    return <AnalysisReport analysis={props.analysis} onBack={props.onBack} />;
+    return <AnalysisReport analysis={props.analysis} mapSnapshot={props.mapSnapshot} onBack={props.onBack} />;
   }
 
   return <ComparisonReport comparison={props.comparison} onBack={props.onBack} />;

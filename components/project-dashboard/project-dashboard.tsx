@@ -680,10 +680,12 @@ function ProjectBadge({ children }: { children: React.ReactNode }) {
 
 function KpiCard({ label, value, note, valueKind = "numeric" }: { label: string; value: string | number; note: string; valueKind?: "numeric" | "text" }) {
   return (
-    <div className="flex h-full min-h-[136px] flex-col rounded-lg border border-line bg-white p-4 shadow-sm">
+    <div className="flex h-full min-h-[148px] flex-col rounded-lg border border-line bg-white p-4 shadow-sm">
       <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">{label}</p>
-      <p className={`mt-3 break-words font-semibold text-ink ${valueKind === "text" ? "text-xl leading-6" : "text-3xl leading-none"}`}>{value}</p>
-      <p className="mt-2 text-sm leading-5 text-muted">{note}</p>
+      <div className="flex flex-1 items-center py-3">
+        <p className={`break-words font-semibold text-ink ${valueKind === "text" ? "text-xl leading-6" : "text-3xl leading-none"}`}>{value}</p>
+      </div>
+      <p className="border-t border-line pt-3 text-sm leading-5 text-muted">{note}</p>
     </div>
   );
 }
@@ -1839,60 +1841,6 @@ export function ProjectDashboard() {
           <KpiCard label="Reports" value={reportRows.length + packageRows.length} note={reportRows.length + packageRows.length > 0 ? "Reports available for review." : "No reports yet."} />
         </section>
 
-        <section id="data-readiness">
-          <Panel title="Data Readiness / Source Lineage" subtitle="Source group readiness for screening workflows. Validation is required before decisions.">
-            <div className="grid gap-4">
-              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-                <div className="rounded-md border border-line bg-surface p-3">
-                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Groups</p>
-                  <p className="mt-2 text-2xl font-semibold text-ink">{externalDataStatus?.summary?.totalGroups ?? sourceLineageRows.length}</p>
-                </div>
-                <div className="rounded-md border border-line bg-surface p-3">
-                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Snapshots</p>
-                  <p className="mt-2 text-2xl font-semibold text-ink">{externalDataStatus?.summary?.snapshotGroups ?? 0}</p>
-                </div>
-                <div className="rounded-md border border-line bg-surface p-3">
-                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">API context</p>
-                  <p className="mt-2 text-2xl font-semibold text-ink">{externalDataStatus?.summary?.apiContextGroups ?? 0}</p>
-                </div>
-                <div className="rounded-md border border-line bg-surface p-3">
-                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Fallbacks</p>
-                  <p className="mt-2 text-2xl font-semibold text-ink">{externalDataStatus?.summary?.fallbackGroups ?? 0}</p>
-                </div>
-              </div>
-              <div className="overflow-hidden rounded-md border border-line">
-                <div className="hidden grid-cols-[1.4fr_0.7fr_0.8fr_0.7fr_0.7fr_1.4fr] gap-3 bg-surface px-3 py-2 text-xs font-semibold uppercase tracking-[0.1em] text-muted xl:grid">
-                  <span>Source group</span>
-                  <span>Status</span>
-                  <span>Data mode</span>
-                  <span>Records</span>
-                  <span>Confidence</span>
-                  <span>Next validation step</span>
-                </div>
-                <div className="divide-y divide-line">
-                  {sourceLineageRows.slice(0, 5).map((source) => (
-                    <div key={`visible-${source.sourceId}`} className="grid gap-2 bg-white px-3 py-3 text-sm xl:grid-cols-[1.4fr_0.7fr_0.8fr_0.7fr_0.7fr_1.4fr] xl:items-start xl:gap-3">
-                      <div className="min-w-0">
-                        <p className="font-semibold text-ink">{source.source}</p>
-                        <p className="mt-1 text-xs leading-5 text-muted">{source.caveat || requiredDataCaveat}</p>
-                      </div>
-                      <span className="w-fit rounded-full bg-surface px-2 py-1 text-xs font-semibold text-brand">{source.currentStatus}</span>
-                      <span className="text-xs font-semibold text-muted">
-                        {source.dataMode ? sourceDataModeLabel(source.dataMode) : "n/a"}
-                        {source.validationStatus ? <span className="mt-1 block font-normal leading-4">Quality: {source.validationStatus.replace(/-/g, " ")}</span> : null}
-                      </span>
-                      <span className="text-xs font-semibold text-ink">{formatRecordCount(source.recordCount)}</span>
-                      <span className="text-xs font-semibold text-muted">{source.confidence ? formatLabel(source.confidence) : "n/a"}</span>
-                      <p className="min-w-0 break-words text-xs leading-5 text-muted">{source.nextValidationStep ?? "Validate source lineage with official/client-approved evidence."}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <p className="text-xs leading-5 text-muted">{externalDataStatus?.summary?.caveat ?? requiredDataCaveat}</p>
-            </div>
-          </Panel>
-        </section>
-
         <section className="grid gap-5 lg:grid-cols-2">
           <Panel title="Recent analyses">
             {recentRows.length > 0 ? (
@@ -2895,66 +2843,6 @@ export function ProjectDashboard() {
               </div>
             </Panel>
 
-            <Panel title="Data Readiness / Source Lineage" subtitle="Source group readiness for screening workflows. Validation is still required before decisions.">
-              <div className="grid gap-3">
-                <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-                  <div className="rounded-md border border-line bg-surface p-3">
-                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Groups</p>
-                    <p className="mt-2 text-2xl font-semibold text-ink">{externalDataStatus?.summary?.totalGroups ?? sourceLineageRows.length}</p>
-                  </div>
-                  <div className="rounded-md border border-line bg-surface p-3">
-                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Snapshots</p>
-                    <p className="mt-2 text-2xl font-semibold text-ink">{externalDataStatus?.summary?.snapshotGroups ?? 0}</p>
-                  </div>
-                  <div className="rounded-md border border-line bg-surface p-3">
-                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">API context</p>
-                    <p className="mt-2 text-2xl font-semibold text-ink">{externalDataStatus?.summary?.apiContextGroups ?? 0}</p>
-                  </div>
-                  <div className="rounded-md border border-line bg-surface p-3">
-                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Fallbacks</p>
-                    <p className="mt-2 text-2xl font-semibold text-ink">{externalDataStatus?.summary?.fallbackGroups ?? 0}</p>
-                  </div>
-                </div>
-                <div className="overflow-hidden rounded-md border border-line">
-                  <div className="hidden grid-cols-[1.4fr_0.7fr_0.8fr_0.7fr_0.7fr_1.4fr] gap-3 bg-surface px-3 py-2 text-xs font-semibold uppercase tracking-[0.1em] text-muted xl:grid">
-                    <span>Source group</span>
-                    <span>Status</span>
-                    <span>Data mode</span>
-                    <span>Records</span>
-                    <span>Confidence</span>
-                    <span>Next validation step</span>
-                  </div>
-                  <div className="divide-y divide-line">
-                    {sourceLineageRows.slice(0, 5).map((source) => (
-                      <div key={source.sourceId} className="grid gap-2 bg-white px-3 py-3 text-sm xl:grid-cols-[1.4fr_0.7fr_0.8fr_0.7fr_0.7fr_1.4fr] xl:items-start xl:gap-3">
-                        <div className="min-w-0">
-                          <p className="font-semibold text-ink">{source.source}</p>
-                          <p className="mt-1 text-xs leading-5 text-muted">{source.caveat || requiredDataCaveat}</p>
-                        </div>
-                        <span className="w-fit rounded-full bg-surface px-2 py-1 text-xs font-semibold text-brand">{source.currentStatus}</span>
-                        <span className="text-xs font-semibold text-muted">
-                          {source.dataMode ? sourceDataModeLabel(source.dataMode) : "n/a"}
-                          {source.validationStatus ? <span className="mt-1 block font-normal leading-4">Quality: {source.validationStatus.replace(/-/g, " ")}</span> : null}
-                        </span>
-                        <span className="text-xs font-semibold text-ink">{formatRecordCount(source.recordCount)}</span>
-                        <span className="text-xs font-semibold text-muted">{source.confidence ? formatLabel(source.confidence) : "n/a"}</span>
-                        <p className="min-w-0 break-words text-xs leading-5 text-muted">{source.nextValidationStep ?? "Validate source lineage with official/client-approved evidence."}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <div className="rounded-md border border-line bg-surface p-4">
-                  <p className="font-semibold text-ink">Supabase / PostGIS</p>
-                  <p className="mt-1 text-sm leading-5 text-muted">
-                    {dbHealth?.message ?? getSupabaseFallbackMessage(false)}
-                  </p>
-                </div>
-                <p className="text-xs leading-5 text-muted">
-                  {externalDataStatus?.summary?.caveat ?? requiredDataCaveat}
-                </p>
-              </div>
-            </Panel>
-
             <Panel title="Comparison Shortlist" subtitle="Saved comparison sets from the map workspace.">
               {comparisonRows.length > 0 ? (
                 <div className="grid gap-3">
@@ -3015,6 +2903,66 @@ export function ProjectDashboard() {
         </div>
           </div>
         </details>
+
+        <section id="data-readiness">
+          <Panel title="Data Readiness / Source Lineage" subtitle="Source group readiness for screening workflows. Validation is required before decisions.">
+            <div className="grid gap-4">
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                <div className="rounded-md border border-line bg-surface p-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Groups</p>
+                  <p className="mt-2 text-2xl font-semibold text-ink">{externalDataStatus?.summary?.totalGroups ?? sourceLineageRows.length}</p>
+                </div>
+                <div className="rounded-md border border-line bg-surface p-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Snapshots</p>
+                  <p className="mt-2 text-2xl font-semibold text-ink">{externalDataStatus?.summary?.snapshotGroups ?? 0}</p>
+                </div>
+                <div className="rounded-md border border-line bg-surface p-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">API context</p>
+                  <p className="mt-2 text-2xl font-semibold text-ink">{externalDataStatus?.summary?.apiContextGroups ?? 0}</p>
+                </div>
+                <div className="rounded-md border border-line bg-surface p-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Fallbacks</p>
+                  <p className="mt-2 text-2xl font-semibold text-ink">{externalDataStatus?.summary?.fallbackGroups ?? 0}</p>
+                </div>
+              </div>
+              <div className="overflow-hidden rounded-md border border-line">
+                <div className="hidden grid-cols-[1.4fr_0.7fr_0.8fr_0.7fr_0.7fr_1.4fr] gap-3 bg-surface px-3 py-2 text-xs font-semibold uppercase tracking-[0.1em] text-muted xl:grid">
+                  <span>Source group</span>
+                  <span>Status</span>
+                  <span>Data mode</span>
+                  <span>Records</span>
+                  <span>Confidence</span>
+                  <span>Next validation step</span>
+                </div>
+                <div className="divide-y divide-line">
+                  {sourceLineageRows.slice(0, 5).map((source) => (
+                    <div key={`visible-${source.sourceId}`} className="grid gap-2 bg-white px-3 py-3 text-sm xl:grid-cols-[1.4fr_0.7fr_0.8fr_0.7fr_0.7fr_1.4fr] xl:items-start xl:gap-3">
+                      <div className="min-w-0">
+                        <p className="font-semibold text-ink">{source.source}</p>
+                        <p className="mt-1 text-xs leading-5 text-muted">{source.caveat || requiredDataCaveat}</p>
+                      </div>
+                      <span className="w-fit rounded-full bg-surface px-2 py-1 text-xs font-semibold text-brand">{source.currentStatus}</span>
+                      <span className="text-xs font-semibold text-muted">
+                        {source.dataMode ? sourceDataModeLabel(source.dataMode) : "n/a"}
+                        {source.validationStatus ? <span className="mt-1 block font-normal leading-4">Quality: {source.validationStatus.replace(/-/g, " ")}</span> : null}
+                      </span>
+                      <span className="text-xs font-semibold text-ink">{formatRecordCount(source.recordCount)}</span>
+                      <span className="text-xs font-semibold text-muted">{source.confidence ? formatLabel(source.confidence) : "n/a"}</span>
+                      <p className="min-w-0 break-words text-xs leading-5 text-muted">{source.nextValidationStep ?? "Validate source lineage with official/client-approved evidence."}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="rounded-md border border-line bg-surface p-4">
+                <p className="font-semibold text-ink">Supabase / PostGIS</p>
+                <p className="mt-1 text-sm leading-5 text-muted">
+                  {dbHealth?.message ?? getSupabaseFallbackMessage(false)}
+                </p>
+              </div>
+              <p className="text-xs leading-5 text-muted">{externalDataStatus?.summary?.caveat ?? requiredDataCaveat}</p>
+            </div>
+          </Panel>
+        </section>
       </div>
     </main>
   );

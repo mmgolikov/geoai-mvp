@@ -22,7 +22,7 @@ export function BiScoreBar({ item, compact = false }: BiScoreBarProps) {
   const score = boundedScore(item.score);
 
   return (
-    <article className={`min-w-0 rounded-md border border-line bg-white ${compact ? "p-3" : "p-4"}`}>
+    <article className={`min-w-0 rounded-md border border-line bg-white ${compact ? "p-3" : "p-4"}`} data-dashboard-item>
       <div className="flex min-w-0 items-start justify-between gap-3">
         <TextSafeValue wrap="normal" className="text-xs font-semibold leading-5 text-ink">
           {item.label}
@@ -36,7 +36,7 @@ export function BiScoreBar({ item, compact = false }: BiScoreBarProps) {
         <summary className="cursor-pointer list-none text-[11px] font-semibold uppercase leading-4 text-muted">
           Details
         </summary>
-        <TextSafeValue className="mt-1 text-xs leading-5 text-muted">
+        <TextSafeValue className="mt-1 text-xs leading-5 text-muted" data-dashboard-item-detail>
           {item.detail}
         </TextSafeValue>
       </details>
@@ -52,7 +52,7 @@ type BiScoreBarsProps = {
 
 export function BiScoreBars({ title, items, emptyLabel }: BiScoreBarsProps) {
   return (
-    <section className="grid min-w-0 content-start gap-2">
+    <section className="grid min-w-0 content-start gap-2" data-dashboard-list={title}>
       <TextSafeValue wrap="normal" className="text-xs font-semibold uppercase leading-4 text-muted">
         {title}
       </TextSafeValue>

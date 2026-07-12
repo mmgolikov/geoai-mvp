@@ -165,6 +165,7 @@ export function shortNextAction(actions: DashboardDriver[]) {
   const action = actions[0]?.detail ?? actions[0]?.label ?? "";
   const normalized = action.toLowerCase();
 
+  if (normalized.includes("define measurable criteria")) return "Define screening criteria";
   if (normalized.includes("compare")) return "Compare shortlist";
   if (normalized.includes("memo") || normalized.includes("report")) return "Prepare memo";
   if (normalized.includes("site visit") || normalized.includes("field")) return "Plan site visit";
