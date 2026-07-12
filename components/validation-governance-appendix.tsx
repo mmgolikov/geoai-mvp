@@ -1,6 +1,6 @@
 import { officialConnectorReadiness } from "@/src/lib/validation/official-connector-readiness";
 import { buildValidationSummary } from "@/src/lib/validation/validation-summary";
-import { validationRequiredCaveat, type ValidationSummary } from "@/src/types/validation";
+import { validationRequiredCaveat, type OfficialConnectorReadiness, type ValidationSummary } from "@/src/types/validation";
 import type { EvidenceFileAsset } from "@/src/types/storage";
 import type { EvidenceReviewSummary } from "@/src/types/evidence-review";
 
@@ -15,6 +15,13 @@ type ValidationGovernanceAppendixProps = {
 
 function claimLevelLabel(value: string) {
   return value.replace(/_/g, " ");
+}
+
+function connectorStatusLabel(connector: OfficialConnectorReadiness) {
+  if (connector.currentStatus === "manual_snapshot_ready") {
+    return "manual import path available; no verified snapshot attached";
+  }
+  return claimLevelLabel(connector.currentStatus);
 }
 
 export function ValidationGovernanceAppendix({
@@ -70,7 +77,7 @@ export function ValidationGovernanceAppendix({
           <ul className="mt-2 space-y-2 text-sm leading-6 text-muted">
             {(validationSummary.requiredValidationGaps.length > 0
               ? validationSummary.requiredValidationGaps
-              : ["No active official validation gaps recorded."]).slice(0, compact ? 3 : 5).map((item, index) => (
+              : ["No project-specific validation evidence is attached to this report."]).slice(0, compact ? 3 : 5).map((item, index) => (
               <li key={`validation-gap-${index}`}>{item}</li>
             ))}
           </ul>
@@ -82,7 +89,7 @@ export function ValidationGovernanceAppendix({
             {connectors.map((connector) => (
               <li key={connector.id}>
                 <span className="font-semibold text-ink">{connector.name}:</span>{" "}
-                {claimLevelLabel(connector.currentStatus)}
+                {connectorStatusLabel(connector)}
               </li>
             ))}
           </ul>

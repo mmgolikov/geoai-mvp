@@ -5,6 +5,7 @@ import { PrintButton } from "@/components/reports/print-button";
 import { PrintReportFallback } from "@/components/reports/print-report-fallback";
 import { getReport } from "@/src/lib/db/repositories/reports";
 import { normalizeReportDeliverable } from "@/src/lib/report-deliverables";
+import { normalizeReportForDisplay } from "@/src/lib/report-display-normalization";
 
 type PrintableReportPageProps = {
   params: Promise<{ id: string }>;
@@ -16,7 +17,8 @@ export default async function PrintableReportPage({ params }: PrintableReportPag
   const { id } = await params;
   const decodedId = decodeURIComponent(id);
   const result = await getReport(decodedId);
-  const report = result.data ? normalizeReportDeliverable(result.data) : null;
+  const normalized = result.data ? normalizeReportDeliverable(result.data) : null;
+  const report = normalized ? normalizeReportForDisplay(normalized) : null;
 
   if (!report) {
     return <PrintReportFallback reportId={decodedId} />;
@@ -28,6 +30,7 @@ export default async function PrintableReportPage({ params }: PrintableReportPag
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">Printable deliverable</p>
           <h1 className="mt-1 text-xl font-semibold text-ink">{report.title}</h1>
+          <p className="mt-1 text-xs leading-5 text-muted">Review-ready screening memo preview</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Link
