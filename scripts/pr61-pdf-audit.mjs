@@ -24,7 +24,7 @@ function command(name, args) {
 
 function parsePdfInfo(text) {
   const pages = Number(text.match(/^Pages:\s+(\d+)/m)?.[1] ?? 0);
-  const size = text.match(/^Page size:\s+([\d.]+) x ([\d.]+) pts/m);
+  const size = text.match(/^Page(?:\s+\d+)? size:\s+([\d.]+) x ([\d.]+) pts/m);
   return { pages, widthPt: Number(size?.[1] ?? 0), heightPt: Number(size?.[2] ?? 0) };
 }
 
@@ -105,6 +105,7 @@ async function auditReport(name) {
       overlappingLinePairs: overlaps.length,
       orphanHeading
     };
+    assert(result.widthPt > 0 && result.heightPt > 0, `${name} PDF page ${pageNumber} has invalid physical dimensions`);
     assert(result.wordCount >= 10, `${name} PDF page ${pageNumber} is blank or nearly blank`);
     assert(result.clippedWordCount === 0, `${name} PDF page ${pageNumber} has clipped text`);
     assert(result.overlappingLinePairs === 0, `${name} PDF page ${pageNumber} has overlapping text lines`);
