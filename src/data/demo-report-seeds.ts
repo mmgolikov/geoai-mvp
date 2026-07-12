@@ -1,10 +1,19 @@
 import { createMockComparison, createComparisonItem } from "@/src/lib/mock-comparison";
 import { createMockExpressAnalysis, analysisScenarios } from "@/src/lib/mock-express-analysis";
 import { createSourceLineageSnapshot } from "@/src/lib/source-lineage-snapshot";
+import type { ReportMapSnapshot } from "@/src/lib/report-map-snapshot";
 import { demoProjects } from "@/src/data/demo-projects";
 import type { AnalysisScenarioId, ComparisonResult, ExpressAnalysis, SelectedDemoObject, SelectedPoint } from "@/src/types/geo";
 
 const createdAt = "2026-06-21T10:00:00.000Z";
+const seededMarinaMapSnapshot: ReportMapSnapshot = {
+  src: "/report-map-snapshots/seeded-dubai-marina-dashboard.png",
+  width: 382,
+  height: 358,
+  capturedAt: createdAt,
+  targetLabel: "Dubai Marina / JBR Market Signal",
+  source: "seeded-dashboard-map"
+};
 
 const investmentProject = demoProjects.find((project) => project.projectKey === "dubai-investment-screening-demo") ?? demoProjects[0];
 const developerProject = demoProjects.find((project) => project.projectKey === "developer-land-pipeline-demo") ?? demoProjects[0];
@@ -245,6 +254,7 @@ function analysisReportPayload(analysis: ExpressAnalysis, title: string) {
     evidenceSourceReadiness: analysis.evidence,
     uploadedDataContext: analysis.uploadedDataContext ?? null,
     limitations: analysis.limitations ?? [],
+    mapSnapshot: analysis.id === seededDemoAnalysis.id ? seededMarinaMapSnapshot : null,
     generatedAt: createdAt
   };
 }

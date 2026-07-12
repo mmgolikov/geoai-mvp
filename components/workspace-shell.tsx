@@ -62,6 +62,7 @@ import {
   type LocalProjectInput
 } from "@/src/lib/project-local-store";
 import type { RepositoryMode } from "@/src/lib/repositories/repository-mode";
+import type { ReportMapSnapshot } from "@/src/lib/report-map-snapshot";
 import {
   createAoiGeojsonFeature,
   parseGeojsonAoi,
@@ -840,6 +841,7 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
   const [comparison, setComparison] = useState<ComparisonResult | null>(null);
   const [comparisonReturn, setComparisonReturn] = useState<ComparisonResult | null>(null);
   const [reportPreview, setReportPreview] = useState<"analysis" | "comparison" | null>(null);
+  const [mapSnapshot, setMapSnapshot] = useState<ReportMapSnapshot | null>(null);
   const [comparisonMessage, setComparisonMessage] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
@@ -968,6 +970,7 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
     setSelectedPoint(null);
     setSelectedObject(null);
     setSelectedAoi(null);
+    setMapSnapshot(null);
     setSelectedExploreCandidateId(null);
     setSearchedExploreCandidates([]);
     setCandidateCriteriaSignature(null);
@@ -1332,6 +1335,7 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
   }, [selectedPoint, selectedObject, selectedScenario]);
 
   function handlePointSelect(point: SelectedPoint) {
+    setMapSnapshot(null);
     setSelectedPoint(point);
     setSelectedObject(null);
     setSelectedAoi(null);
@@ -1349,6 +1353,7 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
   }
 
   function handleObjectSelect(object: SelectedDemoObject) {
+    setMapSnapshot(null);
     setSelectedObject(object);
     setSelectedAoi(null);
     setSelectedPoint(object.center);
@@ -1366,6 +1371,7 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
   }
 
   function handleAoiSelect(aoi: UserDrawnAoi) {
+    setMapSnapshot(null);
     setSelectedAoi(aoi);
     setSelectedObject(null);
     setSelectedPoint(aoi.centroid);
@@ -1385,6 +1391,7 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
   }
 
   function handleAoiDelete() {
+    setMapSnapshot(null);
     setSelectedAoi(null);
     setSelectedPoint(null);
     setSelectedExploreCandidateId(null);
@@ -2131,6 +2138,7 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
       evidenceSourceReadiness: analysisResult.evidence,
       uploadedDataContext: analysisResult.uploadedDataContext ?? null,
       limitations: analysisResult.limitations ?? [],
+      mapSnapshot,
       generatedAt: new Date().toISOString()
     };
   }
@@ -2910,7 +2918,7 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
       >
         <div className={`${hasResultSurface ? "order-1" : "order-2 lg:order-1"} min-h-0 lg:h-full`}>
           {reportPreview === "analysis" && analysis ? (
-            <ReportPreview key={`report-${analysis.id}`} mode="analysis" analysis={analysis} onBack={() => setReportPreview(null)} />
+            <ReportPreview key={`report-${analysis.id}`} mode="analysis" analysis={analysis} mapSnapshot={mapSnapshot} onBack={() => setReportPreview(null)} />
           ) : reportPreview === "comparison" && comparison ? (
             <ReportPreview key={`report-${comparison.id}`} mode="comparison" comparison={comparison} onBack={() => setReportPreview(null)} />
           ) : comparison ? (
@@ -2957,6 +2965,7 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
                 exploreCandidates={visibleExploreCandidates}
                 selectedExploreCandidateId={selectedExploreCandidateId}
                 onExploreCandidateSelect={selectExploreCandidate}
+                onMapSnapshotChange={setMapSnapshot}
               />
             </div>
           )}
@@ -3072,6 +3081,7 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
               exploreCandidates={visibleExploreCandidates}
               selectedExploreCandidateId={selectedExploreCandidateId}
               onExploreCandidateSelect={selectExploreCandidate}
+              onMapSnapshotChange={setMapSnapshot}
             />
           </div>
           <div className="relative z-20 shrink-0 border-t border-line bg-white px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3">

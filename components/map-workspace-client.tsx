@@ -10,6 +10,7 @@ import {
 } from "@/src/lib/explore/workspace-bridge";
 import type { ExploreCandidate } from "@/src/lib/explore/types";
 import { openGeodataBaseline } from "@/src/lib/open-geodata";
+import type { ReportMapSnapshot } from "@/src/lib/report-map-snapshot";
 import { createUserDrawnAoi, formatArea, formatPerimeter, validatePolygonVertices } from "@/src/lib/polygon-aoi";
 import type { OpenLanduseFeature, OpenPoiFeature, OpenRoadFeature } from "@/src/lib/open-geodata";
 import type { GeoJSONSource, Map as MapboxMap, MapboxGeoJSONFeature, Marker as MapboxMarker, Popup as MapboxPopup } from "mapbox-gl";
@@ -50,6 +51,7 @@ type MapWorkspaceClientProps = {
   exploreCandidates?: ExploreCandidate[];
   selectedExploreCandidateId?: string | null;
   onExploreCandidateSelect?: (candidateId: string) => void;
+  onMapSnapshotChange?: (snapshot: ReportMapSnapshot) => void;
 };
 
 const initialLayerVisibility = demoLayers.reduce<Record<DemoLayerId, boolean>>((visibility, layer) => {
@@ -206,6 +208,62 @@ function escapeHtml(value: string) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
+}
+
+function captureRenderedMapSnapshot(
+  map: MapboxMap,
+  targetPoint: SelectedPoint,
+  targetLabel: string
+): ReportMapSnapshot | null {
+  try {
+    const sourceCanvas = map.getCanvas();
+    if (!sourceCanvas.width || !sourceCanvas.height) return null;
+
+    const maxWidth = 960;
+    const maxHeight = 600;
+    const scale = Math.min(1, maxWidth / sourceCanvas.width, maxHeight / sourceCanvas.height);
+    const width = Math.max(1, Math.round(sourceCanvas.width * scale));
+    const height = Math.max(1, Math.round(sourceCanvas.height * scale));
+    const outputCanvas = document.createElement("canvas");
+    outputCanvas.width = width;
+    outputCanvas.height = height;
+    const context = outputCanvas.getContext("2d");
+    if (!context) return null;
+
+    context.drawImage(sourceCanvas, 0, 0, width, height);
+
+    const projected = map.project([targetPoint.longitude, targetPoint.latitude]);
+    const cssWidth = sourceCanvas.clientWidth || sourceCanvas.width;
+    const cssHeight = sourceCanvas.clientHeight || sourceCanvas.height;
+    const x = projected.x * (width / cssWidth);
+    const y = projected.y * (height / cssHeight);
+    const markerRadius = Math.max(7, Math.round(width / 96));
+
+    context.save();
+    context.beginPath();
+    context.arc(x, y, markerRadius + 3, 0, Math.PI * 2);
+    context.fillStyle = "rgba(255, 255, 255, 0.96)";
+    context.fill();
+    context.beginPath();
+    context.arc(x, y, markerRadius, 0, Math.PI * 2);
+    context.fillStyle = "#174f63";
+    context.fill();
+    context.lineWidth = Math.max(2, Math.round(markerRadius / 3));
+    context.strokeStyle = "#ffffff";
+    context.stroke();
+    context.restore();
+
+    return {
+      src: outputCanvas.toDataURL("image/jpeg", 0.86),
+      width,
+      height,
+      capturedAt: new Date().toISOString(),
+      targetLabel,
+      source: "workspace-map"
+    };
+  } catch {
+    return null;
+  }
 }
 
 function getFeatureLabel(feature: DemoLayerFeature) {
@@ -1123,7 +1181,8 @@ export function MapWorkspaceClient({
   projectId,
   exploreCandidates = [],
   selectedExploreCandidateId = null,
-  onExploreCandidateSelect
+  onExploreCandidateSelect,
+  onMapSnapshotChange
 }: MapWorkspaceClientProps) {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapboxMap | null>(null);
@@ -1134,6 +1193,7 @@ export function MapWorkspaceClient({
   const onAoiSelectRef = useRef(onAoiSelect);
   const onAoiDeleteRef = useRef(onAoiDelete);
   const onExploreCandidateSelectRef = useRef(onExploreCandidateSelect);
+  const onMapSnapshotChangeRef = useRef(onMapSnapshotChange);
   const selectedObjectRef = useRef<SelectedDemoObject | null>(selectedObject);
   const selectedAoiRef = useRef<UserDrawnAoi | null>(selectedAoi);
   const drawStateRef = useRef<PolygonDrawState>(initialDrawState);
@@ -1169,6 +1229,10 @@ export function MapWorkspaceClient({
   useEffect(() => {
     onExploreCandidateSelectRef.current = onExploreCandidateSelect;
   }, [onExploreCandidateSelect]);
+
+  useEffect(() => {
+    onMapSnapshotChangeRef.current = onMapSnapshotChange;
+  }, [onMapSnapshotChange]);
 
   useEffect(() => {
     selectedObjectRef.current = selectedObject;
@@ -1375,7 +1439,8 @@ export function MapWorkspaceClient({
           container: mapContainerRef.current,
           style: basemapOptions[0].styleUrl,
           center: defaultCenter,
-          zoom: defaultZoom
+          zoom: defaultZoom,
+          preserveDrawingBuffer: true
         });
       } catch {
         if (isMounted) {
@@ -1650,6 +1715,33 @@ export function MapWorkspaceClient({
       isMounted = false;
     };
   }, [canUseMapbox, selectedPoint]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    const targetPoint = selectedAoi?.centroid ?? selectedObject?.center ?? selectedPoint;
+    const targetLabel = selectedAoi?.name ?? selectedObject?.name ?? "Selected map point";
+    if (!canUseMapbox || !map || !isMapReady || !targetPoint || !onMapSnapshotChangeRef.current) {
+      return;
+    }
+
+    let cancelled = false;
+    let captured = false;
+    const capture = () => {
+      if (cancelled || captured) return;
+      const snapshot = captureRenderedMapSnapshot(map, targetPoint, targetLabel);
+      if (!snapshot) return;
+      captured = true;
+      onMapSnapshotChangeRef.current?.(snapshot);
+    };
+    const timeout = window.setTimeout(capture, 700);
+    map.once("idle", capture);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeout);
+      map.off("idle", capture);
+    };
+  }, [basemapStyle, canUseMapbox, isMapReady, selectedAoi, selectedObject, selectedPoint]);
 
   useEffect(() => {
     if (!canUseMapbox || !mapRef.current || !isMapReady) {

@@ -3,16 +3,19 @@
 import { getDataSourceById } from "@/src/data/data-source-registry";
 import ingestionReport from "@/data/normalized/ingestion_report.json";
 import { ValidationGovernanceAppendix } from "@/components/validation-governance-appendix";
+import { ReportMapSnapshot as ReportMapSnapshotImage } from "@/components/reports/report-map-snapshot";
 import { deriveDataConfidenceLevel } from "@/src/data/data-maturity";
 import { userDrawnAoiSourceCode, userDrawnAoiSourceLabel } from "@/src/lib/aoi-library";
 import { buildDashboardModel } from "@/src/lib/dashboard/dashboard-model";
 import { formatArea, formatPerimeter } from "@/src/lib/polygon-aoi";
+import type { ReportMapSnapshot } from "@/src/lib/report-map-snapshot";
 import type { ComparisonResult, ExpressAnalysis, ScoreKey } from "@/src/types/geo";
 
 type PrintableReportProps =
   | {
       mode: "analysis";
       analysis: ExpressAnalysis;
+      mapSnapshot?: ReportMapSnapshot | null;
     }
   | {
       mode: "comparison";
@@ -169,7 +172,13 @@ function UploadedDataPrintBlock({ analysis }: { analysis: ExpressAnalysis }) {
   );
 }
 
-function AnalysisPrintable({ analysis }: { analysis: ExpressAnalysis }) {
+function AnalysisPrintable({
+  analysis,
+  mapSnapshot
+}: {
+  analysis: ExpressAnalysis;
+  mapSnapshot?: ReportMapSnapshot | null;
+}) {
   const analysisMode = analysis.analysisMode === "openai" ? "AI-generated" : "Sample/open fallback";
   const dashboardModel = buildDashboardModel(analysis);
   const siteName = dashboardModel.targetLabel;
@@ -245,11 +254,15 @@ function AnalysisPrintable({ analysis }: { analysis: ExpressAnalysis }) {
       ) : null}
 
       <PrintSection title="Map Context">
-        <PrintMapBlock
-          title={siteName}
-          coordinates={coordinates}
-          note="Print-safe schematic context rendered from the current object/AOI and coordinates; official validation required."
-        />
+        {mapSnapshot ? (
+          <ReportMapSnapshotImage snapshot={mapSnapshot} />
+        ) : (
+          <PrintMapBlock
+            title={siteName}
+            coordinates={coordinates}
+            note="Fallback schematic only; no rendered map capture was saved with this report. Official validation required."
+          />
+        )}
       </PrintSection>
 
       {analysis.marketContext ? (
@@ -454,7 +467,7 @@ export function PrintableReport(props: PrintableReportProps) {
   return (
     <div className="print-only">
       {props.mode === "analysis" ? (
-        <AnalysisPrintable analysis={props.analysis} />
+        <AnalysisPrintable analysis={props.analysis} mapSnapshot={props.mapSnapshot} />
       ) : (
         <ComparisonPrintable comparison={props.comparison} />
       )}

@@ -1,7 +1,9 @@
 "use client";
 
 import { ReportMapPreview } from "@/components/report-map-preview";
+import { ReportMapSnapshot } from "@/components/reports/report-map-snapshot";
 import { userDrawnAoiSourceLabel } from "@/src/lib/aoi-library";
+import type { ReportMapSnapshot as ReportMapSnapshotValue } from "@/src/lib/report-map-snapshot";
 import type { AnalysisTarget, ComparisonResult, SelectedDemoObject, SelectedPoint, UserDrawnAoi } from "@/src/types/geo";
 
 type MapContextCardProps = {
@@ -15,6 +17,7 @@ type MapContextCardProps = {
   compact?: boolean;
   reportMode?: boolean;
   viewportLocked?: boolean;
+  mapSnapshot?: ReportMapSnapshotValue | null;
 };
 
 
@@ -28,7 +31,8 @@ export function MapContextCard({
   comparison,
   compact = false,
   reportMode = false,
-  viewportLocked = false
+  viewportLocked = false,
+  mapSnapshot = null
 }: MapContextCardProps) {
   const contextNote = selectedAoi
     ? `${userDrawnAoiSourceLabel(selectedAoi)} is screening context only; official parcel, zoning, cadastral, planning and ownership validation is required.`
@@ -62,14 +66,18 @@ export function MapContextCard({
         </span>
       </div>
       <div className={`relative h-full min-h-0 w-full flex-1 overflow-hidden bg-[#dfe8ec] ${mapHeightClass}`}>
-        <ReportMapPreview
-          selectedPoint={selectedPoint}
-          selectedObject={selectedObject}
-          selectedAoi={selectedAoi}
-          analysisTarget={analysisTarget}
-          comparison={comparison}
-          compact={compact || reportMode}
-        />
+        {mapSnapshot ? (
+          <ReportMapSnapshot snapshot={mapSnapshot} className="h-full rounded-none border-0" />
+        ) : (
+          <ReportMapPreview
+            selectedPoint={selectedPoint}
+            selectedObject={selectedObject}
+            selectedAoi={selectedAoi}
+            analysisTarget={analysisTarget}
+            comparison={comparison}
+            compact={compact || reportMode}
+          />
+        )}
       </div>
       <div className={`shrink-0 border-t border-line bg-white text-xs leading-5 text-muted ${footerPaddingClass}`}>
         {contextNote}

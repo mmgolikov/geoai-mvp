@@ -6,16 +6,16 @@ export function PrintPage({ children, className = "" }: { children: React.ReactN
 
 export function PrintSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="geoai-print-section avoid-break">
+    <section className="geoai-print-section avoid-break" data-report-section={title}>
       <h2>{title}</h2>
       {children}
     </section>
   );
 }
 
-export function PrintCard({ label, value, note }: { label: string; value: React.ReactNode; note?: React.ReactNode }) {
+export function PrintCard({ label, value, note, field }: { label: string; value: React.ReactNode; note?: React.ReactNode; field?: string }) {
   return (
-    <div className="geoai-print-card avoid-break">
+    <div className="geoai-print-card avoid-break" data-report-field={field}>
       <span>{label}</span>
       <strong>{value}</strong>
       {note ? <p>{note}</p> : null}
@@ -24,7 +24,7 @@ export function PrintCard({ label, value, note }: { label: string; value: React.
 }
 
 export function PrintList({
-  items,
+  items = [],
   ordered = false
 }: {
   items: string[];
@@ -42,10 +42,15 @@ export function PrintList({
 }
 
 export function SourceLineagePrintSection({ lineage }: { lineage: SourceLineageSnapshot }) {
+  const externalSources = Array.isArray(lineage?.externalSources) ? lineage.externalSources : [];
+  const uploadedSources = Array.isArray(lineage?.uploadedSources) ? lineage.uploadedSources : [];
+  const demoSources = Array.isArray(lineage?.demoSources) ? lineage.demoSources : [];
+  const plannedValidationSources = Array.isArray(lineage?.plannedValidationSources) ? lineage.plannedValidationSources : [];
+  const disclaimers = Array.isArray(lineage?.disclaimers) ? lineage.disclaimers : [];
   const groups = [
     {
       title: "External data used",
-      items: lineage.externalSources.map((source) => ({
+      items: externalSources.map((source) => ({
         name: source.name,
         meta: [source.status, source.dataMode, source.confidence].filter(Boolean).join(" / "),
         note: [
@@ -57,7 +62,7 @@ export function SourceLineagePrintSection({ lineage }: { lineage: SourceLineageS
     },
     {
       title: "Uploaded / client data",
-      items: lineage.uploadedSources.map((source) => ({
+      items: uploadedSources.map((source) => ({
         name: source.name,
         meta: source.type,
         note: source.note
@@ -65,7 +70,7 @@ export function SourceLineagePrintSection({ lineage }: { lineage: SourceLineageS
     },
     {
       title: "Sample/open fallback",
-      items: lineage.demoSources.map((source) => ({
+      items: demoSources.map((source) => ({
         name: source.name,
         meta: "sample/open",
         note: source.note
@@ -73,7 +78,7 @@ export function SourceLineagePrintSection({ lineage }: { lineage: SourceLineageS
     },
     {
       title: "Planned validation sources",
-      items: lineage.plannedValidationSources.map((source) => ({
+      items: plannedValidationSources.map((source) => ({
         name: source.name,
         meta: [source.status ?? "planned validation", source.dataMode, source.confidence].filter(Boolean).join(" / "),
         note: [
@@ -106,7 +111,7 @@ export function SourceLineagePrintSection({ lineage }: { lineage: SourceLineageS
         ))}
       </div>
       <div className="geoai-print-disclaimer">
-        {lineage.disclaimers.map((item, index) => (
+        {disclaimers.map((item, index) => (
           <p key={`lineage-disclaimer-${index}`}>{item}</p>
         ))}
       </div>

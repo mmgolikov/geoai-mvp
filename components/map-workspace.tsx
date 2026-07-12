@@ -4,6 +4,7 @@ import { MapWorkspaceClient } from "@/components/map-workspace-client";
 import type { ExploreCandidate } from "@/src/lib/explore/types";
 import type { SelectedDemoObject, SelectedPoint, UserDrawnAoi } from "@/src/types/geo";
 import type { UploadedDataset } from "@/src/types/uploaded-data";
+import type { ReportMapSnapshot } from "@/src/lib/report-map-snapshot";
 
 type MapWorkspaceProps = {
   selectedPoint: SelectedPoint | null;
@@ -21,6 +22,7 @@ type MapWorkspaceProps = {
   exploreCandidates?: ExploreCandidate[];
   selectedExploreCandidateId?: string | null;
   onExploreCandidateSelect?: (candidateId: string) => void;
+  onMapSnapshotChange?: (snapshot: ReportMapSnapshot) => void;
 };
 
 export function MapWorkspace(props: MapWorkspaceProps) {

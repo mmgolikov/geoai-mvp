@@ -31,8 +31,13 @@ export async function listReports(filters: { projectId?: string | null; projectK
 export async function getReport(id: string): Promise<DbRepositoryResult<WorkspaceReport | unknown | null>> {
   const client = await getSupabaseServerClient();
   if (!client) {
+    // Fixed demo IDs must not be shadowed by stale partial local fallback records.
+    const seeded = getSeededDemoReportRecord(id);
+    if (seeded) {
+      return { ok: true, mode: "local_fallback", data: seeded, error: null };
+    }
     const result = localGet<WorkspaceReport>("reports", id);
-    return { ok: true, mode: "local_fallback", data: result.data ?? getSeededDemoReportRecord(id), error: null };
+    return { ok: true, mode: "local_fallback", data: result.data, error: null };
   }
 
   try {
@@ -40,7 +45,7 @@ export async function getReport(id: string): Promise<DbRepositoryResult<Workspac
       eq: (column: string, value: string) => { limit: (count: number) => Promise<{ data: unknown[] | null; error?: unknown }> };
     };
     const response = await query.eq("report_key", id).limit(1);
-    return { ok: !response.error, mode: "supabase", data: response.data?.[0] ?? getSeededDemoReportRecord(id), error: response.error ? "Unable to load report." : null };
+    return { ok: !response.error, mode: "supabase", data: response.data?.[0] ?? null, error: response.error ? "Unable to load report." : null };
   } catch (error) {
     return { ok: false, mode: "local_fallback", data: null, error: error instanceof Error ? error.message : "Unable to load report." };
   }
