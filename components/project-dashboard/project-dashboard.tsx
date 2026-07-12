@@ -26,6 +26,7 @@ import {
   type LocalProjectInput
 } from "@/src/lib/project-local-store";
 import { repositoryModeToLabel, type RepositoryMode } from "@/src/lib/repositories/repository-mode";
+import { connectorRuntimeStatusLabel, storageRuntimeSummary, type RuntimeExecutiveStatus } from "@/src/lib/platform/runtime-status-contract";
 import { readBrowserAois, sourceTypeLabel, validationStatusLabel } from "@/src/lib/aoi-library";
 import { formatArea } from "@/src/lib/polygon-aoi";
 import type { GeoAIProject } from "@/src/lib/db/types";
@@ -105,6 +106,7 @@ type PilotBackendStatusResponse = {
   }>;
   nextActions: string[];
   caveats: string[];
+  executiveStatus?: RuntimeExecutiveStatus;
 };
 
 type ValidationGovernanceResponse = {
@@ -1300,7 +1302,7 @@ export function ProjectDashboard() {
       ? isAuthenticated
         ? `Authenticated / ${roleLabel}`
         : "Public preview / sign-in available"
-      : `${authStatus.label} / ${roleLabel}`;
+      : `Public demo access / ${roleLabel}`;
   const nextActions = getNextActions(activeProject, dldRecordCount);
   const pilotPackage = getPilotPackageForProject(activeProject.projectKey, activeProject.clientType);
   const clientPilotPackage = getClientPilotPackageForProject(activeProject.projectKey, activeProject.clientType);
@@ -1325,56 +1327,23 @@ export function ProjectDashboard() {
   const workflowDeliverablesTotal = pilotWorkflow?.deliverables.length ?? 0;
   const workflowValidationCompleted = dataRoom?.summary.checklistStatus.completed ?? 0;
   const workflowValidationTotal = dataRoom?.summary.checklistStatus.total ?? 0;
-  const pilotCapability = (id: string) => pilotBackendStatus?.capabilities.find((item) => item.id === id);
-  const platformRows = [
+  const platformRows = pilotBackendStatus?.executiveStatus?.rows ?? [
     {
-      label: "Sample pilot",
-      value: pilotBackendStatus?.canRunDemoPilot ? "Ready" : "Blocked",
-      note: pilotBackendStatus?.canRunDemoPilot ? "Sample/open path remains available" : "Public sample access is disabled"
+      label: "Public demo workflow",
+      value: "Checking",
+      note: "Loading current runtime status."
     },
     {
-      label: "Confidential",
-      value: pilotBackendStatus?.canRunConfidentialPilot ? "Ready" : "Blocked",
-      note: pilotBackendStatus?.canRunConfidentialPilot ? "Backend gates verified" : pilotBackendStatus?.blockers?.[0]?.title ?? "Backend gates not verified"
+      label: "Confidential pilot",
+      value: "Checking",
+      note: "Loading security and persistence gate status."
     },
     {
       label: "Auth",
-      value: platformStatus?.authMode === "supabase_auth" ? "Supabase Auth" : "Pilot access",
-      note: pilotCapability("auth_sessions")?.evidence ?? (platformStatus?.authMode === "supabase_auth"
-        ? "Membership-backed access foundation"
-        : "Public demo access; not production authentication")
-    },
-    {
-      label: "DB",
-      value: repositoryModeToLabel(platformStatus?.repositoryMode ?? dbHealth?.repositoryMode ?? projectsMode),
-      note: dbHealth?.caveat ?? getSupabaseFallbackMessage(false)
-    },
-    {
-      label: "Schema",
-      value: platformStatus?.schemaReady ? "Ready" : "Incomplete",
-      note: platformStatus?.migrationApplied ? "v2.3 migration verified" : "Migration not applied or not reachable"
-    },
-    {
-      label: "Storage",
-      value: pilotCapability("signed_upload_download")?.status === "verified_active"
-        ? "Signed URL verified"
-        : platformStatus?.storageReady ? "Buckets ready" : "Metadata only",
-      note: pilotCapability("storage_buckets")?.evidence ?? (platformStatus?.storageReady ? "Buckets reachable; policies still require verification" : "Bucket readiness path is explicit")
-    },
-    {
-      label: "Audit",
-      value: pilotCapability("audit_events")?.status === "verified_active" ? "Durable verified" : "Foundation",
-      note: pilotCapability("audit_events")?.evidence ?? "Audit events never block workflows; not a certified audit trail"
-    },
-    {
-      label: "Access",
-      value: pilotBackendStatus?.accessEnforcementMode === "hard" ? "Hard" : "Soft",
-      note: pilotCapability("hard_access_enforcement")?.evidence ?? "Project access metadata is returned; hard enforcement remains opt-in"
-    },
-    {
-      label: "RLS",
-      value: pilotCapability("rls_policies")?.status === "configured_ready" ? "Ready to test" : "Draft",
-      note: pilotCapability("rls_policies")?.evidence ?? "RLS policy draft requires live verification"
+      value: platformStatus?.authMode === "supabase_auth" ? "Preview authenticated access" : "Public demo access",
+      note: platformStatus?.authMode === "supabase_auth"
+        ? "Authentication mode is configured for this environment; membership evidence remains separately controlled."
+        : "Public demo access is not production authentication."
     }
   ];
   const validationSummary = validationGovernance?.summary;
@@ -2446,7 +2415,7 @@ export function ProjectDashboard() {
               )}
             </Panel>
 
-            <Panel title="Reports / Memos" subtitle="Client-ready memo generation remains connected to the workspace result and report preview flow.">
+            <Panel title="Reports / Memos" subtitle="Review-ready screening memo previews remain connected to the workspace result and report flow.">
               {reportRows.length > 0 ? (
                 <div className="grid gap-3">
                   {reportRows.slice(0, 5).map((report) => (
@@ -2677,9 +2646,11 @@ export function ProjectDashboard() {
               <div className="grid gap-3">
                 <div className="flex items-start justify-between gap-3 rounded-md border border-line bg-surface p-3">
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold text-ink">{formatDataRoomLabel(pilotBackendStatus?.status ?? platformStatus?.activationStatus ?? "local_fallback_only")}</p>
+                    <p className="text-sm font-semibold text-ink">{pilotBackendStatus?.status || platformStatus?.activationStatus
+                        ? formatDataRoomLabel(pilotBackendStatus?.status ?? platformStatus?.activationStatus ?? "")
+                        : "Checking runtime status"}</p>
                     <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted">
-                      {pilotBackendStatus?.blockers?.[0]?.description ?? platformStatus?.blockers?.[0] ?? dbHealth?.message ?? "Advanced activation status is reported by API health checks."}
+                      {pilotBackendStatus?.blockers?.[0]?.description ?? platformStatus?.blockers?.[0] ?? dbHealth?.message ?? "Loading current runtime and security gate evidence."}
                     </p>
                   </div>
                   <span className="shrink-0 rounded-full bg-white px-2 py-1 text-xs font-semibold text-brand">
@@ -2710,7 +2681,7 @@ export function ProjectDashboard() {
                   </div>
                 ) : null}
                 <p className="text-xs leading-5 text-muted">
-                  {pilotBackendStatus?.nextActions?.[0] ?? platformStatus?.nextActions?.[0] ?? "Run the migration, seed and verification scripts from a trusted environment before claiming durable storage."}
+                  {pilotBackendStatus?.nextActions?.[0] ?? platformStatus?.nextActions?.[0] ?? "Runtime status will update when the current environment checks complete."}
                 </p>
               </div>
             </Panel>
@@ -2797,7 +2768,7 @@ export function ProjectDashboard() {
                     <div key={connector.id} className="rounded-md bg-surface px-3 py-2">
                       <div className="flex items-center justify-between gap-2">
                         <p className="min-w-0 truncate text-sm font-semibold text-ink">{connector.name}</p>
-                        <span className="shrink-0 text-xs font-semibold text-muted">{formatDataRoomLabel(connector.currentStatus)}</span>
+                        <span className="shrink-0 text-xs font-semibold text-muted">{connectorRuntimeStatusLabel(connector.currentStatus)}</span>
                       </div>
                       <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted">{connector.nextStep}</p>
                     </div>
@@ -2838,8 +2809,12 @@ export function ProjectDashboard() {
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-ink">{formatDataRoomLabel(storageHealth?.provider ?? "local_metadata_only")}</p>
                       <p className="mt-1 text-xs leading-5 text-muted">
-                        Buckets: {storageHealth?.bucketReady ? "ready" : storageHealth?.missingBuckets?.length ? `${storageHealth.missingBuckets.length} missing` : "not configured"}.
-                        {" "}Files: {evidenceFiles.length}; metadata-only: {evidenceFiles.filter((file) => file.objectStatus === "metadata_only").length}.
+                        {storageRuntimeSummary({
+                          configured: storageHealth?.provider === "supabase_storage",
+                          bucketReady: storageHealth?.bucketReady,
+                          evidenceFileCount: evidenceFiles.length,
+                          metadataOnlyCount: evidenceFiles.filter((file) => file.objectStatus === "metadata_only").length
+                        })}
                       </p>
                     </div>
                     <span className="shrink-0 rounded-full bg-white px-2 py-1 text-xs font-semibold text-brand">

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getPilotBackendActivationSummary } from "@/src/lib/platform/pilot-backend-activation";
+import { buildRuntimeExecutiveStatus } from "@/src/lib/platform/runtime-status-contract";
 import { getSupabaseActivationReadiness } from "@/src/lib/supabase/activation-check";
 import { getSupabaseRuntimeReadiness } from "@/src/lib/supabase/runtime-readiness";
 
@@ -12,8 +13,28 @@ export async function GET() {
     getSupabaseRuntimeReadiness()
   ]);
 
+  const capability = (id: string) => summary.capabilities.find((item) => item.id === id);
+  const executiveStatus = buildRuntimeExecutiveStatus({
+    vercelEnvironment: process.env.VERCEL_ENV,
+    authMode: runtimeReadiness.authMode,
+    repositoryMode: runtimeReadiness.repositoryMode,
+    accessEnforcementMode: summary.accessEnforcementMode,
+    canRunDemoWorkflow: summary.canRunDemoWorkflow,
+    canRunConfidentialPilot: summary.canRunConfidentialPilot,
+    supabaseConfigured: runtimeReadiness.supabaseConfigured,
+    supabaseReachable: runtimeReadiness.canReadHealthcheck,
+    schemaReady: runtimeReadiness.schemaReady,
+    storageReady: runtimeReadiness.storageReady,
+    authEvidence: capability("auth_sessions")?.evidence,
+    storageEvidence: capability("storage_buckets")?.evidence,
+    auditEvidence: capability("audit_events")?.evidence,
+    rlsEvidence: capability("rls_policies")?.evidence,
+    hardAccessEvidence: capability("hard_access_enforcement")?.evidence
+  });
+
   return NextResponse.json({
     ...summary,
+    executiveStatus,
     runtimeMode: runtimeReadiness.runtimeMode,
     supabaseConfigured: runtimeReadiness.supabaseConfigured,
     supabaseReachable: runtimeReadiness.canReadHealthcheck,
