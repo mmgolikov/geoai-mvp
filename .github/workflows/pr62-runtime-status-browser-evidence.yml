@@ -1,0 +1,101 @@
+name: PR 62 Project Hub Runtime Evidence
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  checks: read
+  deployments: read
+
+concurrency:
+  group: pr62-runtime-evidence-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  runtime-browser-evidence:
+    name: Project Hub hydrated runtime evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CI: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
+      GEOAI_TESTED_SHA: ${{ github.event.pull_request.head.sha }}
+      GEOAI_BROWSER_OUTPUT_DIR: artifacts/pr62-runtime-status-browser-evidence
+
+    steps:
+      - name: Checkout exact evidence head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Resolve exact READY Preview
+        id: preview
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/pr62-resolve-preview.mjs
+
+      - name: Install application dependencies
+        run: npm ci
+
+      - name: Build application
+        run: npm run build
+
+      - name: Install isolated Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/geoai-pr62-browser
+          cd /tmp/geoai-pr62-browser
+          npm init -y >/dev/null
+          npm install --no-save playwright@1.55.0 >/dev/null
+          npx playwright install --with-deps chromium >/dev/null
+
+      - name: Capture and assert hydrated Project Hub
+        shell: bash
+        env:
+          GEOAI_PLAYWRIGHT_MODULE: /tmp/geoai-pr62-browser/node_modules/playwright/index.mjs
+          GEOAI_BROWSER_BASE_URL: http://127.0.0.1:3036
+          GEOAI_PREVIEW_URL: ${{ steps.preview.outputs.preview_url }}
+          GEOAI_PREVIEW_DEPLOYMENT_ID: ${{ steps.preview.outputs.preview_deployment_id }}
+          GEOAI_GITHUB_DEPLOYMENT_ID: ${{ steps.preview.outputs.github_deployment_id }}
+        run: |
+          set -euo pipefail
+          VERCEL_ENV=production npm run start -- -H 127.0.0.1 -p 3036 > /tmp/geoai-pr62-next.log 2>&1 &
+          APP_PID=$!
+          trap 'kill "$APP_PID" 2>/dev/null || true' EXIT
+          READY=0
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:3036/api/health >/dev/null; then
+              READY=1
+              break
+            fi
+            if ! kill -0 "$APP_PID" 2>/dev/null; then
+              cat /tmp/geoai-pr62-next.log
+              exit 1
+            fi
+            sleep 1
+          done
+          if [ "$READY" -ne 1 ]; then
+            cat /tmp/geoai-pr62-next.log
+            exit 1
+          fi
+          node scripts/pr62-runtime-browser-evidence.mjs
+          cp /tmp/geoai-pr62-next.log "$GEOAI_BROWSER_OUTPUT_DIR/next-application.log"
+
+      - name: Upload short-lived browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr62-runtime-status-browser-evidence-${{ github.run_id }}
+          path: artifacts/pr62-runtime-status-browser-evidence
+          if-no-files-found: error
+          retention-days: 7
