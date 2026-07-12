@@ -57,17 +57,18 @@ async function auditReport(name) {
   const textPath = path.join(outputDir, `${name}-report-text.txt`);
   command("pdftotext", ["-layout", pdfPath, textPath]);
   const extractedText = await readFile(textPath, "utf8");
+  const normalizedText = extractedText.replace(/\s+/g, " ").trim();
   assert(extractedText.trim().length > 100, `${name} PDF extracted text is unexpectedly empty`);
-  assert(!extractedText.includes(supersededAction), `${name} PDF contains the superseded action`);
-  if (name === "analysis") assert(extractedText.includes(requiredAction), "analysis PDF is missing the corrected action");
+  assert(!normalizedText.includes(supersededAction), `${name} PDF contains the superseded action`);
+  if (name === "analysis") assert(normalizedText.includes(requiredAction), "analysis PDF is missing the corrected action");
 
   const imageList = command("pdfimages", ["-list", pdfPath]);
   await writeFile(path.join(outputDir, `${name}-report-images.txt`), imageList);
   if (name === "analysis") {
     const imageRows = imageList.split("\n").filter((line) => /^\s*\d+\s+\d+\s+image\s+/.test(line));
     assert(imageRows.length > 0, "analysis PDF contains no embedded raster image for the Marina map");
-    assert(extractedText.includes("Captured Map Context"), "analysis PDF is missing the captured map heading");
-    assert(extractedText.includes("Captured rendered map context for Dubai Marina / JBR Market Signal"), "analysis PDF is missing the Marina map caption");
+    assert(normalizedText.includes("Captured Map Context"), "analysis PDF is missing the captured map heading");
+    assert(normalizedText.includes("Captured rendered map context for Dubai Marina / JBR Market Signal"), "analysis PDF is missing the Marina map caption");
   }
 
   const renderPrefix = path.join(outputDir, `${name}-report-page`);
