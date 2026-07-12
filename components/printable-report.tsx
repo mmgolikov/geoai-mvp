@@ -4,8 +4,8 @@ import { getDataSourceById } from "@/src/data/data-source-registry";
 import ingestionReport from "@/data/normalized/ingestion_report.json";
 import { ValidationGovernanceAppendix } from "@/components/validation-governance-appendix";
 import { deriveDataConfidenceLevel } from "@/src/data/data-maturity";
-import { deriveDecisionPosture, deriveDecisionRationale } from "@/src/lib/decision-posture";
 import { userDrawnAoiSourceCode, userDrawnAoiSourceLabel } from "@/src/lib/aoi-library";
+import { buildDashboardModel } from "@/src/lib/dashboard/dashboard-model";
 import { formatArea, formatPerimeter } from "@/src/lib/polygon-aoi";
 import type { ComparisonResult, ExpressAnalysis, ScoreKey } from "@/src/types/geo";
 
@@ -171,13 +171,14 @@ function UploadedDataPrintBlock({ analysis }: { analysis: ExpressAnalysis }) {
 
 function AnalysisPrintable({ analysis }: { analysis: ExpressAnalysis }) {
   const analysisMode = analysis.analysisMode === "openai" ? "AI-generated" : "Sample/open fallback";
-  const siteName = analysis.selectedAoi?.name ?? analysis.selectedObject?.name ?? "Custom map point";
+  const dashboardModel = buildDashboardModel(analysis);
+  const siteName = dashboardModel.targetLabel;
   const coordinates = formatCoordinate(analysis.point.latitude, analysis.point.longitude);
   const constraints = analysis.risks.slice(0, 4);
   const valueDrivers = analysis.keyFactors.slice(0, 6);
   const dataConfidence = deriveDataConfidenceLevel(analysis.evidence);
-  const decisionPosture = deriveDecisionPosture(analysis);
-  const decisionRationale = deriveDecisionRationale(analysis);
+  const decisionPosture = dashboardModel.decisionPosture;
+  const decisionRationale = dashboardModel.decisionDetail;
   const marketMetricsMatch = analysis.marketContext?.importedMarketMetrics ?? analysis.marketMetricsMatch;
   const importedMetric = marketMetricsMatch?.metrics;
 
@@ -200,7 +201,9 @@ function AnalysisPrintable({ analysis }: { analysis: ExpressAnalysis }) {
         <PrintCard><strong>Client type</strong><span>{analysis.project?.clientType?.replace(/_/g, " ") ?? "fund"}</span></PrintCard>
         <PrintCard><strong>Data mode</strong><span>{analysis.project?.dataMode?.replace(/_/g, " ") ?? "sample/open"}</span></PrintCard>
         <PrintCard><strong>Generated</strong><span>{formatDate(analysis.generatedAt)}</span></PrintCard>
-        <PrintCard><strong>Confidence</strong><span>{analysis.confidenceLevel ?? "medium"}</span></PrintCard>
+        <PrintCard><strong>Suitability</strong><span>{dashboardModel.primaryScore}/100</span></PrintCard>
+        <PrintCard><strong>Confidence</strong><span>{dashboardModel.confidenceLabel}</span></PrintCard>
+        <PrintCard><strong>Validation state</strong><span>Validation required</span></PrintCard>
         <PrintCard><strong>Data confidence</strong><span>{dataConfidence}</span></PrintCard>
         <PrintCard><strong>Decision posture</strong><span>{decisionPosture}</span></PrintCard>
       </section>
@@ -245,7 +248,7 @@ function AnalysisPrintable({ analysis }: { analysis: ExpressAnalysis }) {
         <PrintMapBlock
           title={siteName}
           coordinates={coordinates}
-          note="Print-safe synthetic map context. Live Mapbox controls are hidden in print."
+          note="Print-safe schematic context rendered from the current object/AOI and coordinates; official validation required."
         />
       </PrintSection>
 

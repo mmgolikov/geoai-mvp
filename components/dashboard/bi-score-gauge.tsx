@@ -24,7 +24,7 @@ export function BiScoreGauge({
   const showDetail = Boolean(detail && detail.trim() && detail.trim() !== summary.trim());
 
   return (
-    <article className="flex h-full min-w-[220px] flex-col items-center rounded-md border border-line bg-white p-3 text-center shadow-sm">
+    <article className="flex h-full min-w-0 flex-col items-center rounded-md border border-line bg-white p-3 text-center shadow-sm">
       <div className="relative h-[104px] w-[104px] shrink-0">
         <svg className="h-full w-full -rotate-90" viewBox="0 0 104 104" aria-hidden="true">
           <circle cx="52" cy="52" r={radius} stroke="#eef2f1" strokeWidth="12" fill="none" />
@@ -52,13 +52,13 @@ export function BiScoreGauge({
         <span className="text-xl font-semibold leading-6 text-ink">{boundedScore}</span>
         <span className="text-xs font-semibold text-muted">/100</span>
       </div>
-      <div className="mt-2 flex flex-wrap justify-center gap-1.5">
-        <TextSafeValue as="span" wrap="normal" className="rounded-full bg-surface px-2 py-1 text-[11px] font-semibold text-brand">
+      <div className="mt-2 flex flex-nowrap justify-center gap-1.5">
+        <span className="whitespace-nowrap rounded-full bg-surface px-2 py-1 text-[11px] font-semibold text-brand">
           {confidenceLabel}
-        </TextSafeValue>
-        <TextSafeValue as="span" wrap="normal" className="rounded-full bg-[#fff8db] px-2 py-1 text-[11px] font-semibold text-[#8a6a12]">
+        </span>
+        <span className="whitespace-nowrap rounded-full bg-[#fff8db] px-2 py-1 text-[11px] font-semibold text-[#8a6a12]">
           {validationLabel}
-        </TextSafeValue>
+        </span>
       </div>
       {showDetail ? (
         <details className="mt-2 w-full rounded-md border border-line bg-surface px-3 py-2 text-left">

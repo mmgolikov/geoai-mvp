@@ -189,7 +189,7 @@ export function ExpressDashboard({
 
             <section className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-line bg-surface p-3 shadow-sm">
               <div className="min-h-0 flex-1 overflow-y-auto pr-1 [scrollbar-width:thin]">
-                <div className="grid items-stretch gap-2 lg:grid-cols-[minmax(0,1fr)_minmax(220px,280px)]">
+                <div className="grid items-stretch gap-2 lg:grid-cols-[minmax(0,1fr)_224px]">
                   <div className="flex h-full flex-col rounded-md border border-[#d6c391] bg-[#fff9e8] p-3">
                     <TextSafeValue wrap="normal" className="text-xs font-semibold uppercase leading-4 text-[#6f5817]">
                       Decision posture
