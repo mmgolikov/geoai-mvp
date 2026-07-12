@@ -1,19 +1,17 @@
 name: PR 61 Browser Evidence v1.1
 
 on:
-  workflow_dispatch:
-    inputs:
-      preview_url:
-        description: Exact READY Vercel Preview URL for this evidence commit
-        required: true
-        type: string
-      preview_deployment_id:
-        description: Exact Vercel deployment ID for the Preview URL
-        required: true
-        type: string
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - reopened
+      - synchronize
 
 permissions:
   contents: read
+  deployments: read
 
 jobs:
   browser-evidence:
@@ -25,13 +23,44 @@ jobs:
       NEXT_TELEMETRY_DISABLED: "1"
       GEOAI_EVIDENCE_BASE_URL: http://127.0.0.1:3034
       GEOAI_EVIDENCE_DIR: artifacts/pr61-browser-evidence
-      GEOAI_PREVIEW_URL: ${{ inputs.preview_url }}
-      GEOAI_PREVIEW_DEPLOYMENT_ID: ${{ inputs.preview_deployment_id }}
       GEOAI_PLAYWRIGHT_MODULE: /tmp/geoai-browser-runtime/node_modules/playwright/index.mjs
+      GEOAI_TESTED_SHA: ${{ github.event.pull_request.head.sha }}
+      GH_TOKEN: ${{ github.token }}
 
     steps:
       - name: Checkout evidence commit
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Resolve exact READY Preview
+        shell: bash
+        run: |
+          set -euo pipefail
+          HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          PREVIEW_URL=""
+          DEPLOYMENT_ID=""
+
+          for attempt in $(seq 1 60); do
+            GH_DEPLOYMENT_ID=$(gh api "repos/${GITHUB_REPOSITORY}/deployments?sha=${HEAD_SHA}&per_page=10" --jq '[.[] | select(.environment == "Preview")][0].id // empty')
+            if [ -n "$GH_DEPLOYMENT_ID" ]; then
+              PREVIEW_URL=$(gh api "repos/${GITHUB_REPOSITORY}/deployments/${GH_DEPLOYMENT_ID}/statuses" --jq '[.[] | select(.state == "success")][0].environment_url // empty')
+            fi
+            INSPECTOR_URL=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${HEAD_SHA}/status" --jq '[.statuses[] | select(.context == "Vercel" and .state == "success")][0].target_url // empty')
+            if [ -n "$PREVIEW_URL" ] && [ -n "$INSPECTOR_URL" ]; then
+              DEPLOYMENT_ID="dpl_${INSPECTOR_URL##*/}"
+              break
+            fi
+            sleep 5
+          done
+
+          if [ -z "$PREVIEW_URL" ] || [ -z "$DEPLOYMENT_ID" ]; then
+            echo "A READY Preview was not resolved for ${HEAD_SHA}." >&2
+            exit 1
+          fi
+
+          echo "GEOAI_PREVIEW_URL=${PREVIEW_URL}" >> "$GITHUB_ENV"
+          echo "GEOAI_PREVIEW_DEPLOYMENT_ID=${DEPLOYMENT_ID}" >> "$GITHUB_ENV"
 
       - name: Set up Node.js
         uses: actions/setup-node@v4

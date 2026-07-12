@@ -7,7 +7,7 @@ const baseUrl = process.env.GEOAI_EVIDENCE_BASE_URL ?? "http://127.0.0.1:3034";
 const previewUrl = (process.env.GEOAI_PREVIEW_URL ?? "").replace(/\/$/, "");
 const previewDeploymentId = process.env.GEOAI_PREVIEW_DEPLOYMENT_ID ?? "not-provided";
 const evidenceDir = path.resolve(process.env.GEOAI_EVIDENCE_DIR ?? "artifacts/pr61-browser-evidence");
-const testedSha = process.env.GITHUB_SHA ?? process.env.GEOAI_TESTED_SHA ?? "local-working-tree";
+const testedSha = process.env.GEOAI_TESTED_SHA ?? process.env.GITHUB_SHA ?? "local-working-tree";
 const requiredCaveat = "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.";
 const browserConsole = [];
 
