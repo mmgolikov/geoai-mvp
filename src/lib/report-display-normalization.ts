@@ -24,6 +24,46 @@ const projectScenarioLabels: Record<string, string> = {
   "family-relocation-area-demo": "Climate Risk Screening"
 };
 
+export type CompactReportMetadataInput = {
+  scenario?: string | null;
+  targetLabel?: string | null;
+  reportType?: "analysis" | "comparison";
+  projectKey?: string | null;
+};
+
+function comparableMetadataValue(value: string) {
+  return value
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+export function normalizeCompactReportMetadata(input: CompactReportMetadataInput) {
+  const targetLabel = input.targetLabel?.trim() ?? "";
+  const currentScenario = input.scenario?.trim() ?? "";
+  const scenarioFromProject = input.projectKey ? projectScenarioLabels[input.projectKey] : undefined;
+  let scenario = scenarioLabels[currentScenario] ?? currentScenario;
+
+  if (!scenario || ["analysis", "report", "unknown"].includes(scenario.toLowerCase())) {
+    scenario = scenarioFromProject ?? (input.reportType === "comparison" ? "Screening Comparison" : "Screening Analysis");
+  } else if (input.reportType === "comparison" && scenario.toLowerCase() === "comparison") {
+    scenario = "Screening Comparison";
+  }
+
+  if (targetLabel && comparableMetadataValue(scenario) === comparableMetadataValue(targetLabel)) {
+    scenario = scenarioFromProject ?? (input.reportType === "comparison" ? "Screening Comparison" : "Screening Analysis");
+  }
+
+  const seen = new Set<string>();
+  return [scenario, targetLabel].filter((value) => {
+    const key = comparableMetadataValue(value);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 function strings(value: unknown) {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0) : [];
 }
