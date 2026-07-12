@@ -151,11 +151,7 @@ try {
   const overflow1366 = await page.evaluate(() => Math.max(0, document.documentElement.scrollWidth - document.documentElement.clientWidth));
   assert(overflow1366 === 0, "1366 Project Hub has horizontal overflow");
   await page.screenshot({ path: path.join(outputDir, "project-hub-1366x768-full.png"), fullPage: true });
-  const appHeader = page.locator("header").first();
-  const previousHeaderVisibility = await appHeader.evaluate((element) => element.style.visibility);
-  await appHeader.evaluate((element) => { element.style.visibility = "hidden"; });
-  await activationPanel.screenshot({ path: path.join(outputDir, "project-hub-advanced-diagnostics-expanded.png") });
-  await appHeader.evaluate((element, visibility) => { element.style.visibility = visibility; }, previousHeaderVisibility);
+  await page.screenshot({ path: path.join(outputDir, "project-hub-advanced-diagnostics-expanded.png"), fullPage: true });
 
   await page.setViewportSize({ width: 1440, height: 900 });
   const overflow1440 = await page.evaluate(() => Math.max(0, document.documentElement.scrollWidth - document.documentElement.clientWidth));
