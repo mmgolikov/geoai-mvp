@@ -2600,9 +2600,9 @@ export function ProjectDashboard() {
                 <div className="grid grid-cols-2 gap-2">
                   {platformRows.map((row) => (
                     <div key={row.label} className="rounded-md bg-surface px-3 py-2">
-                      <div className="flex items-center justify-between gap-2">
+                      <div className="grid gap-1">
                         <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">{row.label}</p>
-                        <span className="truncate text-xs font-semibold text-ink">{row.value}</span>
+                        <span className="break-words text-xs font-semibold text-ink">{row.value}</span>
                       </div>
                       <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted">{row.note}</p>
                     </div>
