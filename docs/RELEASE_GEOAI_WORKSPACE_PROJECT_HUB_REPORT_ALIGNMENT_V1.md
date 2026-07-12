@@ -27,7 +27,15 @@
 
 ## Validation Evidence
 
-The final v1.1 evidence is produced from the patched head. Required checks include lint, build, workspace/data-honesty/API contracts, route smoke, a bounded browser artifact, the permanent GeoAI Quality Gate and a READY Vercel Preview. Run, job, artifact and deployment identifiers are recorded in PR #61 after those checks complete.
+- Local `npm run lint` and `npm run build`: passed.
+- Local Workspace panel, data-honesty and 12-route API contract checks: passed; both seeded print routes returned HTTP 200.
+- Temporary browser evidence head: `21eab52fa8e87dc3c326c1ea62c8cceb8ba6dcba`.
+- Browser workflow run/job: `29204135949` / `86680527136`.
+- Short-lived artifact: `pr61-v11-browser-evidence-29204135949` (`8263257853`, seven-day retention).
+- Evidence Preview: `dpl_FmApMdofigNhh8yTBXug5q76apn7` at `https://geoai-4e1rberhb-geoaidev.vercel.app`, READY.
+- Browser assertions: dashboard 1366x768 and 1440x900 passed; Project Hub heading count/order passed; analysis and comparison reports each returned 200 and rendered three captured print pages; exact dashboard/report values all matched; five Workspace viewports preserved the accepted correction.
+- Evidence-head GeoAI Quality Gate: run `29204136130`, passed.
+- Deployment-scoped Vercel `error`/`fatal` query returned no logs after route smoke.
 
 ## Known Limitations
 
