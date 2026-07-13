@@ -1,4 +1,7 @@
-import { officialConnectorReadiness } from "@/src/lib/validation/official-connector-readiness";
+import {
+  connectorReadinessDisplayLabel,
+  officialConnectorReadiness
+} from "@/src/lib/validation/official-connector-readiness";
 import { buildValidationSummary } from "@/src/lib/validation/validation-summary";
 import { validationRequiredCaveat, type ValidationSummary } from "@/src/types/validation";
 import type { EvidenceFileAsset } from "@/src/types/storage";
@@ -82,7 +85,7 @@ export function ValidationGovernanceAppendix({
             {connectors.map((connector) => (
               <li key={connector.id}>
                 <span className="font-semibold text-ink">{connector.name}:</span>{" "}
-                {claimLevelLabel(connector.currentStatus)}
+                {connectorReadinessDisplayLabel(connector.currentStatus)}
               </li>
             ))}
           </ul>
