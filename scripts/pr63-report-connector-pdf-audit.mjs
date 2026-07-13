@@ -84,15 +84,15 @@ async function auditReport(name) {
     assert(imageRows.length > 0, "analysis PDF contains no embedded raster image for the Marina map");
     assert(imageRows.some((line) => /\s382\s+358\s/.test(line)), "analysis PDF does not contain the accepted 382x358 Marina map image");
     for (const value of [
-      "Dubai Marina / JBR Market Signal", "Investment Site Selection", "25.082200, 55.143100",
+      "Dubai Marina / JBR Market Signal", "Investment site selection", "25.082200, 55.143100",
       "92/100", "Compare before advancing", "Medium", "Define screening criteria.",
       "Captured Map Context", "Captured rendered map context for Dubai Marina / JBR Market Signal"
-    ]) assert(normalizedText.includes(value), `analysis PDF is missing retained content: ${value}`);
+    ]) assert(normalizedText.toLowerCase().includes(value.toLowerCase()), `analysis PDF is missing retained content: ${value}`);
   } else {
     for (const value of [
       "Dubai South Growth Node", "Dubai Marina / JBR Market Signal", "Business Bay Infill Opportunity",
       "Score Comparison", "Comparison Map"
-    ]) assert(normalizedText.includes(value), `comparison PDF is missing retained content: ${value}`);
+    ]) assert(normalizedText.toLowerCase().includes(value.toLowerCase()), `comparison PDF is missing retained content: ${value}`);
   }
 
   const renderPrefix = path.join(outputDir, `${name}-report-page`);

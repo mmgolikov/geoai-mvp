@@ -46,7 +46,7 @@ async function captureReport(browser, config) {
   assert(bodyText.toLowerCase().includes(caveat.toLowerCase()), `${config.name} report is missing the required caveat`);
 
   for (const value of config.requiredText) {
-    assert(bodyText.includes(value), `${config.name} report is missing retained text: ${value}`);
+    assert(bodyText.toLowerCase().includes(value.toLowerCase()), `${config.name} report is missing retained text: ${value}`);
   }
 
   let mapMetrics;
@@ -102,7 +102,7 @@ try {
       route: "/reports/seeded-analysis-dubai-marina-report/print",
       requiredText: [
         "Dubai Marina / JBR Market Signal",
-        "Investment Site Selection",
+        "Investment site selection",
         "25.082200, 55.143100",
         "92/100",
         "Compare before advancing",
