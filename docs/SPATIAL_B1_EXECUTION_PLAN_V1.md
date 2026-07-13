@@ -69,7 +69,7 @@ Environmental derived zones, market metrics, DLD/Dubai Pulse data and official G
 - classify OSM records from each feature's own tags and geometry, then reject referenced-member leakage and cross-layer duplicates;
 - clip to the approved non-official processing envelope and seeded target-anchor extraction areas;
 - use pinned Shapely and pyproj operations in EPSG:32640 for validity, repair, area, length, topology, point-on-surface and distance, then reproject accepted output to EPSG:4326;
-- select one AOI per seeded target from non-overlapping 1,000 metre inner areas, using the nearest plausible point-on-surface within a 750 metre maximum target distance;
+- rank candidates separately for each seeded target using documented category, name, area, distance and freshness rules inside non-overlapping 1,000 metre metric selection areas and a maximum 750 metre anchor distance;
 - normalize transport, anchors, buildings, land use, water, construction and selected AOIs;
 - record every transformation and output checksum;
 - produce deterministic manifests and quality reports.
@@ -101,6 +101,9 @@ Environmental derived zones, market metrics, DLD/Dubai Pulse data and official G
 - source download manifest;
 - attribution and licence manifest;
 - stable feature-key registry;
+- provider-versioned alias/crosswalk history and Python/TypeScript canonical-key parity evidence;
+- target-specific top-10 candidate tables and feature-level freshness evidence;
+- attribution and distribution specification with repository publication approval held false;
 - normalized dataset manifests;
 - geometry-quality report;
 - deterministic rebuild report;

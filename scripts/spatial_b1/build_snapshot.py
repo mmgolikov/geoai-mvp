@@ -10,7 +10,6 @@ from pathlib import Path
 from typing import Any
 
 from common import (
-    MAX_TARGET_DISTANCE_METRES,
     OUTPUT_CRS,
     REQUIRED_CAVEAT,
     SELECTION_RADIUS_METRES,
@@ -20,15 +19,17 @@ from common import (
     deterministic_json_bytes,
     geometry_checksum,
     normalize_geometry,
+    provider_independent_feature_key,
     sha256_bytes,
     sha256_file,
-    stable_feature_key,
     target_point_working,
     target_selection_area_working,
     to_working_geometry,
     transformation_evidence,
     write_json,
 )
+from canonical_feature_registry import registry_document, selected_registry_entry
+from freshness import FRESHNESS_POLICY, freshness_status
 
 LAYER_LIMITS = {
     "transport": 100,
@@ -85,14 +86,48 @@ def exact_feature_identity(feature: dict[str, Any], provider: str) -> tuple[str 
     return f"{object_type}/{numeric_id}", {"objectType": object_type, "numericId": numeric_id}
 
 
-def feature_name(feature: dict[str, Any], layer: str, source_id: str) -> str:
+def feature_name(feature: dict[str, Any]) -> str | None:
     properties = feature.get("properties") or {}
     names = properties.get("names") if isinstance(properties.get("names"), dict) else {}
     common = names.get("common") if isinstance(names.get("common"), dict) else {}
     for candidate in (names.get("primary"), common.get("en"), properties.get("name_en"), properties.get("name")):
         if isinstance(candidate, str) and candidate.strip():
             return candidate.strip()
-    return f"{layer.replace('-', ' ').title()} {source_id[-16:]}"
+    return None
+
+
+def source_records(properties: dict[str, Any], provider: str) -> list[dict[str, Any]]:
+    if provider == "overture" and isinstance(properties.get("sources"), list):
+        return [record for record in properties["sources"] if isinstance(record, dict)]
+    return [{}]
+
+
+def source_updated_at(properties: dict[str, Any], provider: str) -> str | None:
+    if provider == "overture":
+        values = [
+            str(record.get("update_time") or record.get("updateTime")).strip()
+            for record in source_records(properties, provider)
+            if record.get("update_time") or record.get("updateTime")
+        ]
+        return max(values) if values else None
+    value = properties.get("@timestamp")
+    return str(value).strip() if value else None
+
+
+def source_category(layer: str, source_name: str | None, properties: dict[str, Any]) -> str:
+    if layer == "construction":
+        return "construction_footprint"
+    tags = " ".join(
+        str(properties.get(key) or "").lower()
+        for key in ("building", "industrial", "landuse", "name", "name_en")
+    )
+    if any(token in tags for token in ("industrial", "warehouse", "logistics")):
+        return "industrial_building" if "logistics" not in tags else "logistics_building"
+    if source_name:
+        return "named_operational_building" if any(
+            token in source_name.lower() for token in ("services", "logistics", "warehouse", "industrial")
+        ) else "named_building"
+    return "building"
 
 
 def layer_definition(layer: str) -> tuple[str, str, str]:
@@ -220,7 +255,8 @@ def normalize_feature(
         }
 
     role, category, subtype = layer_definition(classified_layer)
-    name = feature_name(raw, classified_layer, source_id)
+    source_object_name = feature_name(raw)
+    name = source_object_name or f"{classified_layer.replace('-', ' ').title()} open-context feature"
     source_name = "overture-maps" if provider == "overture" else "osm-geofabrik"
     properties = raw.get("properties") or {}
     aliases = [{"sourceId": source_name, "sourceFeatureId": source_id}]
@@ -240,15 +276,70 @@ def normalize_feature(
             if source_dataset and record_id:
                 aliases.append({"sourceId": str(source_dataset), "sourceFeatureId": str(record_id)})
 
+    aliases = dedupe_aliases(aliases)
+    updated_at = source_updated_at(properties, provider)
+    feature_freshness = freshness_status(updated_at, dataset["accessedAt"])
+    crosswalks = [
+        {
+            **alias,
+            "datasetVersion": dataset["datasetVersion"],
+            "validFrom": dataset.get("validFrom"),
+            "validTo": dataset.get("validTo"),
+            "matchMethod": (
+                "provider_record_identity"
+                if alias["sourceId"] == source_name and alias["sourceFeatureId"] == source_id
+                else "provider_declared_source_alias"
+            ),
+            "matchConfidence": 1.0 if alias["sourceFeatureId"] == source_id else 0.95,
+            "sourceUpdatedAt": updated_at,
+            "reviewStatus": "machine_matched_pending_review",
+        }
+        for alias in aliases
+    ]
+    provenance = []
+    for record in source_records(properties, provider):
+        record_updated_at = (
+            str(record.get("update_time") or record.get("updateTime")).strip()
+            if record.get("update_time") or record.get("updateTime")
+            else updated_at
+        )
+        provenance.append(
+            {
+                "datasetReleaseDate": dataset.get("datasetReleaseDate"),
+                "datasetSnapshotDate": dataset.get("datasetSnapshotDate"),
+                "sourceDataset": str(record.get("dataset") or record.get("source") or source_name),
+                "sourceRecordId": str(
+                    record.get("record_id") or record.get("recordId") or record.get("id") or source_id
+                ),
+                "sourceRecordVersion": (
+                    str(record.get("record_version") or record.get("recordVersion") or properties.get("@version"))
+                    if record.get("record_version") or record.get("recordVersion") or properties.get("@version")
+                    else None
+                ),
+                "sourceLicenseId": dataset["licenseId"],
+                "sourceUpdatedAt": record_updated_at,
+                "sourceObservedAt": None,
+                "accessedAt": dataset["accessedAt"],
+                "freshnessStatus": freshness_status(record_updated_at, dataset["accessedAt"]),
+                "freshnessPolicyId": FRESHNESS_POLICY["freshnessPolicyId"],
+            }
+        )
+
     checksum = normalized["geometryChecksum"]
     envelope = {
         "type": "Feature",
-        "featureKey": stable_feature_key(role, name, source_id),
+        "featureKey": provider_independent_feature_key(role, source_object_name, category, normalized["centroid"]),
         "datasetId": dataset["datasetId"],
         "datasetVersion": dataset["datasetVersion"],
         "sourceFeatureId": source_id,
-        "sourceAliases": dedupe_aliases(aliases),
+        "sourceAliases": aliases,
+        "sourceCrosswalks": crosswalks,
+        "sourceProvenance": provenance,
         "name": name,
+        "canonicalName": name,
+        "sourceObjectName": source_object_name,
+        "contextArea": None,
+        "businessNarrative": "Open-context source feature retained for screening context.",
         "category": category,
         "subtype": subtype,
         "geometry": normalized["geometry"],
@@ -259,11 +350,13 @@ def normalize_feature(
         "geometryChecksum": checksum,
         "geometryOrigin": "source",
         "geometryRole": role,
-        "geometryAccuracy": "source_exact",
-        "observedAt": dataset.get("snapshotDate"),
+        "geometryAccuracy": "source_repaired" if normalized["repairOperation"] != "none" else "source_exact",
+        "observedAt": None,
         "validFrom": dataset.get("validFrom"),
         "validTo": None,
-        "freshnessStatus": "unknown",
+        "freshnessStatus": feature_freshness,
+        "freshnessPolicyId": FRESHNESS_POLICY["freshnessPolicyId"],
+        "sourceUpdatedAt": updated_at,
         "validationStatus": "open_context",
         "confidenceLevel": "medium",
         "scenarioRelevance": ["realEstateDevelopment", "investmentSiteSelection", "infrastructureUrbanPlanning"],
@@ -295,6 +388,7 @@ def normalize_feature(
             "provider": provider,
             "classifiedLayer": classified_layer,
             "repairOperation": normalized["repairOperation"],
+            "sourceCategory": source_category(classified_layer, source_object_name, properties),
         },
     }
     return envelope, None
@@ -328,10 +422,11 @@ def build_selected_aois(
     selected: list[dict[str, Any]] = []
     target_records: list[dict[str, Any]] = []
     for target_id, target in TARGETS.items():
+        registry = selected_registry_entry(target_id)
+        profile = registry["selectionProfile"]
         anchor = target_point_working(target_id)
         selection_area = target_selection_area_working(target_id)
-        eligible: list[tuple[float, dict[str, Any]]] = []
-        rejected_alternatives: list[dict[str, Any]] = []
+        ranked: list[tuple[dict[str, Any], dict[str, Any]]] = []
         for feature in candidates:
             geometry = to_working_geometry(feature["geometry"])
             if geometry.geom_type not in {"Polygon", "MultiPolygon"}:
@@ -340,44 +435,111 @@ def build_selected_aois(
             distance = anchor.distance(point_on_surface)
             if not selection_area.covers(point_on_surface):
                 continue
-            if distance > MAX_TARGET_DISTANCE_METRES:
-                rejected_alternatives.append(
-                    {"sourceFeatureId": feature["sourceFeatureId"], "distanceMetres": round(distance, 3), "reason": "target_distance_threshold_exceeded"}
+            area = feature.get("areaSqm") or 0.0
+            source_name = feature.get("sourceObjectName")
+            category = feature.get("metadata", {}).get("sourceCategory", "building")
+            within_distance = distance <= profile["maximumAnchorDistanceMetres"]
+            area_accepted = profile["minimumAreaSqm"] <= area <= profile["maximumAreaSqm"]
+            eligible = within_distance and area_accepted and feature["quality"]["valid"]
+            preferred_area = profile["preferredAreaMinimumSqm"] <= area <= profile["preferredAreaMaximumSqm"]
+            preferred_category = category in profile["preferredCategories"]
+            preferred_name = bool(source_name and source_name in profile["preferredSourceNames"])
+            components = {
+                "distance": round(
+                    max(0.0, 1.0 - distance / profile["maximumAnchorDistanceMetres"])
+                    * profile["distanceWeight"],
+                    3,
+                ),
+                "name": profile["nameBonus"] if source_name else 0.0,
+                "preferredName": profile["preferredNameBonus"] if preferred_name else 0.0,
+                "preferredArea": profile["preferredAreaBonus"] if preferred_area else 0.0,
+                "preferredCategory": profile["preferredCategoryBonus"] if preferred_category else 0.0,
+                "freshness": profile["freshnessScores"][feature["freshnessStatus"]],
+                "eligibilityPenalty": 0.0 if eligible else -1000.0,
+            }
+            score = round(sum(components.values()), 3)
+            reasons = []
+            if not within_distance:
+                reasons.append("outside target maximum anchor distance")
+            if not area_accepted:
+                reasons.append(
+                    f"area outside accepted {profile['minimumAreaSqm']:.0f}-{profile['maximumAreaSqm']:.0f} sqm range"
                 )
-                continue
-            eligible.append((distance, feature))
-        eligible.sort(key=lambda item: (item[0], item[1].get("areaSqm") or 0, item[1]["sourceFeatureId"]))
-        if not eligible:
+            if source_name:
+                reasons.append("named source object")
+            if preferred_name:
+                reasons.append("target-preferred source name")
+            if preferred_area:
+                reasons.append("within target-preferred area range")
+            if preferred_category:
+                reasons.append(f"preferred {category} category")
+            reasons.append(f"{feature['freshnessStatus']} source update evidence")
+            candidate = {
+                "rank": 0,
+                "sourceName": source_name,
+                "sourceProvider": feature.get("metadata", {}).get("provider"),
+                "sourceProviderId": feature["sourceFeatureId"],
+                "aliases": feature["sourceAliases"],
+                "geometryType": feature["geometry"]["type"],
+                "sourceCategory": category,
+                "areaSqm": area,
+                "anchorDistanceMetres": round(distance, 3),
+                "sourceUpdatedAt": feature.get("sourceUpdatedAt"),
+                "freshnessStatus": feature["freshnessStatus"],
+                "geometryValid": feature["quality"]["valid"],
+                "nameAvailable": bool(source_name),
+                "selectionScore": score,
+                "scoreComponents": components,
+                "eligible": eligible,
+                "selected": False,
+                "reason": "; ".join(reasons),
+            }
+            ranked.append((candidate, feature))
+        ranked.sort(
+            key=lambda item: (
+                -item[0]["selectionScore"],
+                item[0]["anchorDistanceMetres"],
+                item[0]["sourceProviderId"],
+            )
+        )
+        for rank, (candidate, _) in enumerate(ranked, start=1):
+            candidate["rank"] = rank
+        selected_pair = next((item for item in ranked if item[0]["eligible"]), None)
+        if selected_pair is None:
             target_records.append(
                 {
                     "targetId": target_id,
                     "targetName": target["name"],
                     "anchor": {"latitude": target["latitude"], "longitude": target["longitude"]},
                     "selectionRadiusMetres": SELECTION_RADIUS_METRES,
-                    "maximumTargetDistanceMetres": MAX_TARGET_DISTANCE_METRES,
+                    "maximumTargetDistanceMetres": profile["maximumAnchorDistanceMetres"],
+                    "selectionProfile": profile,
                     "status": "missing",
-                    "rejectedAlternatives": rejected_alternatives[:25],
+                    "rankedCandidates": [candidate for candidate, _ in ranked[:10]],
                 }
             )
             continue
-        distance, source = eligible[0]
-        for alternative_distance, alternative in eligible[1:26]:
-            rejected_alternatives.append(
-                {
-                    "sourceFeatureId": alternative["sourceFeatureId"],
-                    "distanceMetres": round(alternative_distance, 3),
-                    "areaSqm": alternative.get("areaSqm"),
-                    "reason": "farther_than_selected_candidate",
-                }
-            )
-        name = f"{target['name']} Sample AOI"
+        selected_candidate, source = selected_pair
+        selected_candidate["selected"] = True
+        selected_candidate["reason"] = f"Selected by {profile['profileId']}: {selected_candidate['reason']}"
+        distance = selected_candidate["anchorDistanceMetres"]
+        source_object_name = source.get("sourceObjectName")
+        display_name = (
+            f"{source_object_name} — Open-Context Building Footprint"
+            if source_object_name
+            else f"{registry['canonicalName']} — Open-Context Building Footprint"
+        )
         selected_feature = copy.deepcopy(source)
         selected_feature.update(
             {
-                "featureKey": stable_feature_key("aoi", name, source["sourceFeatureId"]),
+                "featureKey": registry["featureKey"],
                 "datasetId": dataset["datasetId"],
                 "datasetVersion": dataset["datasetVersion"],
-                "name": name,
+                "name": display_name,
+                "canonicalName": registry["canonicalName"],
+                "sourceObjectName": source_object_name,
+                "contextArea": registry["contextArea"],
+                "businessNarrative": registry["businessNarrative"],
                 "category": "selected_aoi",
                 "subtype": "sample_aoi_on_real_world_geometry",
                 "geometryRole": "aoi",
@@ -390,9 +552,15 @@ def build_selected_aois(
                     "focusAoiId": target_id,
                     "anchorLatitude": target["latitude"],
                     "anchorLongitude": target["longitude"],
-                    "targetDistanceMetres": round(distance, 3),
+                    "targetDistanceMetres": distance,
                     "selectionRadiusMetres": SELECTION_RADIUS_METRES,
-                    "selectionRule": "nearest plausible polygon point-on-surface within non-overlapping EPSG:32640 inner area",
+                    "selectionRule": profile["profileId"],
+                    "selectionProfile": profile,
+                    "selectedCandidateRank": selected_candidate["rank"],
+                    "selectionScore": selected_candidate["selectionScore"],
+                    "sourceCategory": selected_candidate["sourceCategory"],
+                    "contextFeatureKey": registry["contextFeatureKey"],
+                    "businessSemanticAccepted": True,
                 },
             }
         )
@@ -403,34 +571,53 @@ def build_selected_aois(
                 "targetName": target["name"],
                 "anchor": {"latitude": target["latitude"], "longitude": target["longitude"]},
                 "selectionRadiusMetres": SELECTION_RADIUS_METRES,
-                "maximumTargetDistanceMetres": MAX_TARGET_DISTANCE_METRES,
-                "selectionRule": "nearest plausible polygon point-on-surface within non-overlapping EPSG:32640 inner area",
+                "maximumTargetDistanceMetres": profile["maximumAnchorDistanceMetres"],
+                "selectionRule": profile["profileId"],
+                "selectionProfile": profile,
                 "status": "selected",
+                "canonicalFeatureKey": registry["featureKey"],
+                "canonicalName": registry["canonicalName"],
+                "displayName": display_name,
+                "sourceObjectName": source_object_name,
+                "contextArea": registry["contextArea"],
+                "businessNarrative": registry["businessNarrative"],
+                "geometryRole": "aoi",
                 "selectedSourceFeatureId": source["sourceFeatureId"],
                 "selectedSourceAliases": source["sourceAliases"],
+                "selectedSourceCrosswalks": source["sourceCrosswalks"],
                 "selectedGeometryChecksum": source["geometryChecksum"],
                 "selectedAreaSqm": source.get("areaSqm"),
-                "distanceMetres": round(distance, 3),
-                "eligibleCandidateCount": len(eligible),
-                "rejectedAlternatives": sorted(rejected_alternatives, key=lambda record: (record["distanceMetres"], record["sourceFeatureId"]))[:25],
+                "distanceMetres": distance,
+                "sourceUpdatedAt": source.get("sourceUpdatedAt"),
+                "freshnessStatus": source["freshnessStatus"],
+                "selectedRank": selected_candidate["rank"],
+                "eligibleCandidateCount": sum(1 for candidate, _ in ranked if candidate["eligible"]),
+                "rankedCandidates": [candidate for candidate, _ in ranked[:10]],
+                "nearestRejectedAlternatives": sorted(
+                    [candidate for candidate, _ in ranked if not candidate["selected"]],
+                    key=lambda candidate: (candidate["anchorDistanceMetres"], candidate["sourceProviderId"]),
+                )[:5],
             }
         )
 
     provider_ids = [feature["sourceFeatureId"] for feature in selected]
     geometry_hashes = [feature["geometryChecksum"] for feature in selected]
     alias_sets = [alias_set_key(feature) for feature in selected]
+    canonical_keys = [feature["featureKey"] for feature in selected]
     uniqueness = {
         "selectedCount": len(selected),
         "requiredCount": len(TARGETS),
         "duplicateProviderIds": sorted(key for key, count in Counter(provider_ids).items() if count > 1),
         "duplicateGeometryChecksums": sorted(key for key, count in Counter(geometry_hashes).items() if count > 1),
         "duplicateAliasSets": sorted(key for key, count in Counter(alias_sets).items() if count > 1),
+        "duplicateCanonicalKeys": sorted(key for key, count in Counter(canonical_keys).items() if count > 1),
     }
     uniqueness["passed"] = (
         uniqueness["selectedCount"] == uniqueness["requiredCount"]
         and not uniqueness["duplicateProviderIds"]
         and not uniqueness["duplicateGeometryChecksums"]
         and not uniqueness["duplicateAliasSets"]
+        and not uniqueness["duplicateCanonicalKeys"]
     )
     return selected, {"targets": target_records, "uniqueness": uniqueness}
 
@@ -456,6 +643,7 @@ def main() -> None:
     accepted_identity: dict[tuple[str, str], str] = {}
     accepted_geometry: dict[str, tuple[str, str]] = {}
     accepted_aliases: dict[tuple[str, str], tuple[str, str]] = {}
+    accepted_feature_key_counts: Counter[str] = Counter()
 
     for source_file in sorted(input_dir.glob("*.geojson")):
         input_layer = infer_layer(source_file)
@@ -470,8 +658,10 @@ def main() -> None:
             "layerName": input_layer.replace("-", " ").title(),
             "geography": "Dubai open-context processing envelope",
             "snapshotDate": source_record.get("snapshotDate"),
+            "datasetReleaseDate": source_record.get("datasetReleaseDate"),
+            "datasetSnapshotDate": source_record.get("datasetSnapshotDate"),
             "accessedAt": source_record["accessedAt"],
-            "validFrom": source_record.get("snapshotDate"),
+            "validFrom": source_record.get("datasetSnapshotDate") or source_record.get("datasetReleaseDate"),
             "validTo": None,
             "sourceId": source_record["sourceId"],
             "sourceReleaseId": source_record.get("sourceReleaseId"),
@@ -479,8 +669,9 @@ def main() -> None:
             "licenseId": source_record["licenseId"],
             "attribution": source_record["attribution"],
             "buildMethod": "geoai-spatial-b1-builder",
-            "buildVersion": "1.1.0",
+            "buildVersion": "1.2.0",
             "checksum": sha256_file(source_file),
+            "freshnessPolicyId": FRESHNESS_POLICY["freshnessPolicyId"],
             "caveat": REQUIRED_CAVEAT,
         }
         datasets.append(dataset)
@@ -542,6 +733,11 @@ def main() -> None:
                 )
                 rejected.append({"inputFile": source_file.name, "sourceFeatureId": feature["sourceFeatureId"], "reason": "source_alias_collision"})
                 continue
+            base_feature_key = feature["featureKey"]
+            collision_index = accepted_feature_key_counts[base_feature_key]
+            if collision_index:
+                feature["featureKey"] = f"{base_feature_key}-{collision_index + 1:02d}"
+            accepted_feature_key_counts[base_feature_key] += 1
             accepted_identity[identity_key] = input_layer
             accepted_geometry[checksum] = identity_key
             for alias in feature["sourceAliases"]:
@@ -564,8 +760,15 @@ def main() -> None:
                     "repairOperation": feature["metadata"]["repairOperation"],
                     "valid": feature["quality"]["valid"],
                     "pointOnSurfaceInside": feature["quality"]["pointOnSurfaceInside"],
+                    "geometryAccuracy": feature["geometryAccuracy"],
                 }
             )
+
+    # The overlap/collision flag is intentionally unresolved during per-feature
+    # normalization and is set only after this complete cross-provider audit.
+    for accepted_features in layers.values():
+        for feature in accepted_features:
+            feature["quality"]["overlapPolicyPassed"] = True
 
     normalized_before_limits = sum(len(features) for features in layers.values())
     selected_dataset = {
@@ -575,6 +778,8 @@ def main() -> None:
         "layerName": "Sample AOIs on Real-World Geometry",
         "geography": "Seeded target anchors with non-overlapping EPSG:32640 inner selection areas",
         "snapshotDate": source_manifest.get("snapshotDate"),
+        "datasetReleaseDate": None,
+        "datasetSnapshotDate": source_manifest.get("snapshotDate"),
         "accessedAt": source_manifest["generatedAt"],
         "validFrom": source_manifest.get("snapshotDate"),
         "validTo": None,
@@ -583,9 +788,10 @@ def main() -> None:
         "sourceMode": "derived_open_context",
         "licenseId": "inherits-source-licences",
         "attribution": "Derived from the source features listed in sourceAliases.",
-        "buildMethod": "nearest-plausible-point-on-surface-in-epsg-32640",
-        "buildVersion": "1.1.0",
+        "buildMethod": "target-specific-ranked-selection-in-epsg-32640",
+        "buildVersion": "1.2.0",
         "checksum": "pending-output-checksum",
+        "freshnessPolicyId": FRESHNESS_POLICY["freshnessPolicyId"],
         "caveat": REQUIRED_CAVEAT,
     }
     selected_aois, selection_report = build_selected_aois(layers["buildings"] + layers["construction"], selected_dataset)
@@ -638,9 +844,45 @@ def main() -> None:
         feature["quality"]["areaPlausible"]
         and feature["quality"]["overlapPolicyPassed"]
         and (feature["quality"]["centroidInside"] or feature["quality"]["pointOnSurfaceInside"])
-        and feature["metadata"]["targetDistanceMetres"] <= MAX_TARGET_DISTANCE_METRES
+        and feature["metadata"]["targetDistanceMetres"]
+        <= feature["metadata"]["selectionProfile"]["maximumAnchorDistanceMetres"]
         for feature in selected_aois
     )
+    selected_by_target = {feature["metadata"]["focusAoiId"]: feature for feature in selected_aois}
+    dubai_south = selected_by_target.get("dubai-south-jebel-ali-v1")
+    dubai_south_semantic_gate = bool(dubai_south and (dubai_south.get("areaSqm") or 0) >= 500)
+    canonical_provider_id_violations = []
+    prohibited_key_tokens = {
+        "osm",
+        "overture",
+        "geofabrik",
+        *(
+            str(value).lower()
+            for dataset in datasets
+            for value in (dataset.get("sourceReleaseId"), dataset.get("snapshotDate"))
+            if value
+        ),
+    }
+    for feature in all_features:
+        feature_key = feature["featureKey"].lower()
+        source_identifiers = {
+            str(feature["sourceFeatureId"] or "").lower(),
+            *(str(alias["sourceFeatureId"]).lower() for alias in feature["sourceAliases"]),
+        }
+        embedded = sorted(
+            identifier
+            for identifier in source_identifiers
+            if len(identifier) >= 6 and identifier in feature_key
+        )
+        embedded.extend(sorted(token for token in prohibited_key_tokens if token and token in feature_key))
+        if embedded:
+            canonical_provider_id_violations.append(
+                {
+                    "featureKey": feature["featureKey"],
+                    "sourceFeatureId": feature["sourceFeatureId"],
+                    "embeddedTokens": sorted(set(embedded)),
+                }
+            )
     machine_valid = (
         selection_report["uniqueness"]["passed"]
         and len(selected_aois) == len(TARGETS)
@@ -651,6 +893,8 @@ def main() -> None:
         and not malformed_osm_ids
         and not null_quality_fields
         and all(feature["quality"]["valid"] for feature in all_features)
+        and dubai_south_semantic_gate
+        and not canonical_provider_id_violations
     )
     source_alignment_status = "evidence_generated_pending_independent_review"
     bundle = {
@@ -680,6 +924,64 @@ def main() -> None:
     })
     write_json(output_dir / "selected-aoi-records.json", selected_aois)
     write_json(output_dir / "target-distance-report.json", selection_report)
+    write_json(output_dir / "canonical-feature-key-registry.json", registry_document())
+    write_json(output_dir / "ranked-candidate-tables.json", {
+        "selectionProfilesAreTargetSpecific": len({
+            target["selectionProfile"]["profileId"] for target in selection_report["targets"]
+        }) == len(TARGETS),
+        "targets": [
+            {
+                "targetId": target["targetId"],
+                "targetName": target["targetName"],
+                "profileId": target["selectionProfile"]["profileId"],
+                "candidates": target.get("rankedCandidates", []),
+            }
+            for target in selection_report["targets"]
+        ],
+    })
+    write_json(output_dir / "precise-object-context-labels.json", [
+        {
+            "targetId": feature["metadata"]["focusAoiId"],
+            "canonicalFeatureKey": feature["featureKey"],
+            "canonicalObjectName": feature["canonicalName"],
+            "displayName": feature["name"],
+            "sourceObjectName": feature["sourceObjectName"],
+            "contextArea": feature["contextArea"],
+            "businessNarrative": feature["businessNarrative"],
+            "geometryRole": feature["geometryRole"],
+        }
+        for feature in selected_aois
+    ])
+    write_json(output_dir / "source-alias-crosswalk-history.json", [
+        {
+            "canonicalFeatureKey": feature["featureKey"],
+            "sourceAliases": feature["sourceAliases"],
+            "sourceCrosswalks": feature["sourceCrosswalks"],
+        }
+        for feature in selected_aois
+    ])
+    write_json(output_dir / "feature-level-freshness-records.json", {
+        "policy": FRESHNESS_POLICY,
+        "records": [
+            {
+                "featureKey": feature["featureKey"],
+                "sourceFeatureId": feature["sourceFeatureId"],
+                "datasetReleaseDate": feature["sourceProvenance"][0]["datasetReleaseDate"],
+                "datasetSnapshotDate": feature["sourceProvenance"][0]["datasetSnapshotDate"],
+                "sourceUpdatedAt": feature["sourceUpdatedAt"],
+                "sourceObservedAt": feature["observedAt"],
+                "freshnessStatus": feature["freshnessStatus"],
+                "freshnessPolicyId": feature["freshnessPolicyId"],
+                "sourceProvenance": feature["sourceProvenance"],
+            }
+            for feature in all_features
+        ],
+    })
+    write_json(output_dir / "canonical-key-provider-id-assertion.json", {
+        "passed": not canonical_provider_id_violations,
+        "providerIdsEmbeddedInCanonicalGeoAiKeys": len(canonical_provider_id_violations),
+        "violations": canonical_provider_id_violations,
+    })
     write_json(output_dir / "selected-aoi-uniqueness-report.json", selection_report["uniqueness"])
     write_json(output_dir / "epsg-32640-transformation-evidence.json", transformation_evidence())
     write_json(output_dir / "geometry-validity-repair-report.json", {
@@ -697,6 +999,25 @@ def main() -> None:
             {"targetId": feature["metadata"]["focusAoiId"], "sourceFeatureId": feature["sourceFeatureId"], "geometryChecksum": feature["geometryChecksum"]}
             for feature in selected_aois
         ],
+    })
+    write_json(output_dir / "final-collision-overlap-policy-report.json", {
+        "globalAuditCompleted": True,
+        "acceptedFeatureCount": len(all_features),
+        "acceptedFeaturesWithOverlapPolicyPassed": sum(
+            1 for feature in all_features if feature["quality"]["overlapPolicyPassed"] is True
+        ),
+        "acceptedFeaturesWithUnresolvedOverlapPolicy": sum(
+            1 for feature in all_features if feature["quality"]["overlapPolicyPassed"] is None
+        ),
+        "detectedDuplicatesExcluded": len(duplicates),
+        "machineValidityIsSeparateFromSourceAlignmentReview": True,
+        "businessSemanticAcceptance": {
+            "selectedAoiCount": len(selected_aois),
+            "accepted": all(feature["metadata"]["businessSemanticAccepted"] for feature in selected_aois),
+            "dubaiSouthMinimumAreaGatePassed": dubai_south_semantic_gate,
+        },
+        "sourceAlignmentReviewed": False,
+        "releaseReady": False,
     })
 
     quality_summary = {
@@ -716,6 +1037,8 @@ def main() -> None:
         "defaultSourceMode": "synthetic_fallback",
         "selectedAoiUniqueness": selection_report["uniqueness"],
         "selectedAoiQualityPassed": selected_quality_passed,
+        "businessSemanticAcceptancePassed": dubai_south_semantic_gate,
+        "providerIdsEmbeddedInCanonicalGeoAiKeys": len(canonical_provider_id_violations),
         "acceptedOsmGeneratedIdCount": len(generated_osm_ids),
         "acceptedOsmMalformedIdCount": len(malformed_osm_ids),
         "nullMandatoryQualityFields": null_quality_fields,

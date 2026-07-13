@@ -31,7 +31,7 @@ filter_export() {
   osmium export \
     --overwrite \
     --output-format geojson \
-    --attributes=type,id \
+    --attributes=type,id,version,timestamp \
     --add-unique-id=type_id \
     "$WORK_DIR/${name}.osm.pbf" \
     -o "$OUTPUT_DIR/osm-${name}.geojson"

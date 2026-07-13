@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import textwrap
 from pathlib import Path
 from typing import Any
 
@@ -58,6 +59,8 @@ def main() -> None:
     output_dir = Path(arguments.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     selected = {feature["metadata"]["focusAoiId"]: feature for feature in read_features(bundle_dir, "selected-aoi")}
+    selection_report = json.loads((bundle_dir / "target-distance-report.json").read_text("utf-8"))
+    target_records = {record["targetId"]: record for record in selection_report["targets"]}
     buildings = read_features(bundle_dir, "buildings")
     transport = read_features(bundle_dir, "transport")
     water = read_features(bundle_dir, "water")
@@ -70,7 +73,8 @@ def main() -> None:
         selected_geometry = working_geometry(feature)
         context_window = anchor.buffer(1_100)
 
-        figure, axis = plt.subplots(figsize=(9.6, 7.2), dpi=150)
+        record = target_records[target_id]
+        figure, axis = plt.subplots(figsize=(10.8, 8.4), dpi=150)
         figure.patch.set_facecolor("white")
         axis.set_facecolor("#f7f8fa")
         for context_feature in landuse:
@@ -109,14 +113,34 @@ def main() -> None:
         distance = feature["metadata"]["targetDistanceMetres"]
         provider_id = feature["sourceFeatureId"]
         checksum = feature["geometryChecksum"]
-        detail = (
-            f"Selected: {feature['name']}\n"
-            f"Provider ID: {provider_id}\n"
-            f"Anchor distance: {distance:.3f} m\n"
-            f"Geometry SHA-256: {checksum}\n"
-            "Open-context geometry; not an official parcel, cadastral or planning boundary."
+        alternatives = record.get("nearestRejectedAlternatives", [])[:3]
+        alternative_lines = [
+            f"  #{candidate['rank']} {candidate.get('sourceName') or 'Unnamed open-context footprint'} | "
+            f"{candidate['areaSqm']:.3f} sqm | {candidate['anchorDistanceMetres']:.3f} m | "
+            f"{candidate['reason'].split(';', 1)[0]}"
+            for candidate in alternatives
+        ] or ["  None recorded"]
+        detail_lines = [
+                f"Anchor: {target['latitude']:.6f}, {target['longitude']:.6f}",
+                f"Selected object: {feature['name']}",
+                f"Source object name: {feature.get('sourceObjectName') or 'Unnamed'}",
+                f"Canonical GeoAI key: {feature['featureKey']}",
+                f"Source: {feature['metadata']['provider']} | Provider ID: {provider_id}",
+                f"Area: {feature['areaSqm']:.3f} sqm | Anchor distance: {distance:.3f} m",
+                f"sourceUpdatedAt: {feature.get('sourceUpdatedAt') or 'unknown'} | Freshness: {feature['freshnessStatus']}",
+                f"Context area: {feature['contextArea']} | Geometry role: {feature['geometryRole']}",
+                f"Selected candidate rank: {feature['metadata']['selectedCandidateRank']}",
+                "Nearest rejected alternatives:",
+                *alternative_lines,
+                f"Geometry SHA-256: {checksum}",
+                "Open-context caveat: Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.",
+            ]
+        detail = "\n".join(
+            wrapped
+            for line in detail_lines
+            for wrapped in (textwrap.wrap(line, width=138, subsequent_indent="    ") or [""])
         )
-        figure.text(0.075, 0.015, detail, ha="left", va="bottom", fontsize=8.1, family="monospace", color="#26323c")
+        figure.text(0.075, 0.012, detail, ha="left", va="bottom", fontsize=7.4, family="monospace", color="#26323c")
         legend_items = [
             Line2D([0], [0], color="#3f6d91", linewidth=1.5, label="1,000 m focus boundary"),
             Line2D([0], [0], marker="x", color="#9c1e1e", linestyle="none", markersize=8, markeredgewidth=2, label="Seeded target anchor"),
@@ -127,9 +151,15 @@ def main() -> None:
             Patch(facecolor="#e8efe4", edgecolor="#a5b79c", label="Open land-use context"),
         ]
         axis.legend(handles=legend_items, loc="upper right", frameon=True, framealpha=0.95, fontsize=7.2)
-        figure.subplots_adjust(left=0.08, right=0.98, top=0.90, bottom=0.19)
+        figure.subplots_adjust(left=0.08, right=0.98, top=0.90, bottom=0.34)
         output_path = output_dir / f"source-alignment-{target_id}.png"
-        figure.savefig(output_path, metadata={"Software": "GeoAI B1 alignment evidence"})
+        figure.savefig(
+            output_path,
+            facecolor="white",
+            edgecolor="white",
+            transparent=False,
+            metadata={"Software": "GeoAI B1 alignment evidence"},
+        )
         plt.close(figure)
         print(output_path)
 

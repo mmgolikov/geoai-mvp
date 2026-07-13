@@ -15,7 +15,12 @@ date -u +%Y-%m-%dT%H:%M:%SZ > output/spatial-b1/evidence/generated-at.txt
 printf '%s\n' "${GITHUB_SHA:-local}" > output/spatial-b1/evidence/tested-sha.txt
 
 npm run lint
-node scripts/spatial-b1-contract-check.mjs
+python scripts/spatial_b1/canonical_feature_registry.py \
+  --output output/spatial-b1/evidence/canonical-feature-key-registry-python.json
+SPATIAL_B1_PYTHON_REGISTRY=output/spatial-b1/evidence/canonical-feature-key-registry-python.json \
+SPATIAL_B1_CONTRACT_EVIDENCE_DIR=output/spatial-b1/evidence \
+  node scripts/spatial-b1-contract-check.mjs \
+  | tee output/spatial-b1/evidence/spatial-b1-contract-check.json
 
 curl --fail --location --retry 4 --retry-delay 5 \
   --dump-header output/spatial-b1/evidence/geofabrik-response-headers.txt \
@@ -114,6 +119,13 @@ bundle = json.loads(Path('output/spatial-b1/bundle-a/bundle.json').read_text())
 osm_identity = json.loads(Path('output/spatial-b1/bundle-a/osm-exact-identity-assertion.json').read_text())
 selection = json.loads(Path('output/spatial-b1/bundle-a/target-distance-report.json').read_text())
 uniqueness = selection['uniqueness']
+parity = json.loads(Path('output/spatial-b1/evidence/python-typescript-key-parity-report.json').read_text())
+refresh = json.loads(Path('output/spatial-b1/evidence/provider-id-refresh-stability-report.json').read_text())
+precedence = json.loads(Path('output/spatial-b1/evidence/source-precedence-resolver-matrix.json').read_text())
+provider_key_assertion = json.loads(Path('output/spatial-b1/bundle-a/canonical-key-provider-id-assertion.json').read_text())
+freshness = json.loads(Path('output/spatial-b1/bundle-a/feature-level-freshness-records.json').read_text())
+selected = json.loads(Path('output/spatial-b1/bundle-a/selected-aoi-records.json').read_text())
+selected_by_target = {feature['metadata']['focusAoiId']: feature for feature in selected}
 
 assert manifest['legalDisposition']['publicRepositoryGeometryApproved'] is False
 assert bundle['defaultSourceMode'] == 'synthetic_fallback'
@@ -137,9 +149,24 @@ assert uniqueness['selectedCount'] == 3
 assert uniqueness['duplicateProviderIds'] == []
 assert uniqueness['duplicateGeometryChecksums'] == []
 assert uniqueness['duplicateAliasSets'] == []
+assert uniqueness['duplicateCanonicalKeys'] == []
 assert len(selection['targets']) == 3
 assert all(target['status'] == 'selected' for target in selection['targets'])
 assert all(target['distanceMetres'] <= target['maximumTargetDistanceMetres'] for target in selection['targets'])
+assert provider_key_assertion['providerIdsEmbeddedInCanonicalGeoAiKeys'] == 0
+assert parity['failureCount'] == 0
+assert refresh['businessKeyChanged'] is False
+assert precedence['passed'] is True
+assert len({feature['featureKey'] for feature in selected}) == 3
+assert len({feature['sourceFeatureId'] for feature in selected}) == 3
+assert len({feature['geometryChecksum'] for feature in selected}) == 3
+assert selected_by_target['dubai-south-jebel-ali-v1']['areaSqm'] >= 500
+assert all(feature['name'] != feature['contextArea'] for feature in selected)
+assert all(feature['canonicalName'] != feature['contextArea'] for feature in selected)
+assert all(feature['sourceUpdatedAt'] for feature in selected if feature['metadata']['provider'] == 'overture')
+assert all(feature['observedAt'] is None for feature in selected)
+assert all(record['sourceObservedAt'] is None for record in freshness['records'])
+assert len({target['selectionProfile']['profileId'] for target in selection['targets']}) == 3
 
 Path('output/spatial-b1/evidence/hard-assertions.json').write_text(
     json.dumps({
@@ -154,6 +181,12 @@ Path('output/spatial-b1/evidence/hard-assertions.json').write_text(
         'rejectedFeatureCount': quality['rejectedFeatureCount'],
         'focusAois': quality['mandatoryFocusAoisRepresented'],
         'selectedAoiUniqueness': uniqueness,
+        'providerIdsEmbeddedInCanonicalGeoAiKeys': provider_key_assertion['providerIdsEmbeddedInCanonicalGeoAiKeys'],
+        'canonicalKeyParityFailures': parity['failureCount'],
+        'providerRefreshBusinessKeyChanges': int(refresh['businessKeyChanged']),
+        'sourcePrecedencePassed': precedence['passed'],
+        'selectedDubaiSouthAreaSqm': selected_by_target['dubai-south-jebel-ali-v1']['areaSqm'],
+        'datasetReleaseSubstitutedForObservedAt': any(feature['observedAt'] is not None for feature in selected),
     }, indent=2) + '\n'
 )
 Path('output/spatial-b1/evidence/no-default-activation-assertion.json').write_text(
@@ -188,14 +221,21 @@ PY
 
 for evidence_file in \
   provider-id-inventory.json \
+  canonical-feature-key-registry.json \
+  canonical-key-provider-id-assertion.json \
   osm-exact-identity-assertion.json \
   selected-aoi-records.json \
   target-distance-report.json \
+  ranked-candidate-tables.json \
+  precise-object-context-labels.json \
+  source-alias-crosswalk-history.json \
+  feature-level-freshness-records.json \
   selected-aoi-uniqueness-report.json \
   epsg-32640-transformation-evidence.json \
   geometry-validity-repair-report.json \
   rejected-features.json \
   duplicate-collision-report.json \
+  final-collision-overlap-policy-report.json \
   quality-report.json; do
   cp "output/spatial-b1/bundle-a/$evidence_file" "output/spatial-b1/evidence/$evidence_file"
 done
@@ -209,4 +249,5 @@ find output/spatial-b1/bundle-a -type f -print0 \
   > output/spatial-b1/evidence/bundle-file-sha256.txt
 cp docs/SPATIAL_B1_EXECUTION_PLAN_V1.md output/spatial-b1/evidence/
 cp docs/SPATIAL_B1_RELEASE_CONTROL_V1.md output/spatial-b1/evidence/
+cp docs/SPATIAL_B1_ATTRIBUTION_AND_DISTRIBUTION_SPEC_V1.md output/spatial-b1/evidence/
 rm -rf output/spatial-b1/raw output/spatial-b1/bundle-b

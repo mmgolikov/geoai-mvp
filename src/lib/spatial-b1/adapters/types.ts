@@ -13,6 +13,10 @@ export type SpatialAdapterBuildContextV1 = {
   processingBbox: [number, number, number, number];
   observedAt: string | null;
   scenarioRelevance: string[];
+  canonicalFeatureKey?: string;
+  canonicalName?: string;
+  contextArea?: string;
+  businessNarrative?: string;
 };
 
 export type ProviderGeoJsonFeatureV1 = {

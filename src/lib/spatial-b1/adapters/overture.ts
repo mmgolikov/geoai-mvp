@@ -1,4 +1,5 @@
-import { buildStableFeatureKeyV1, dedupeSpatialSourceAliasesV1 } from "@/src/lib/spatial-b1/feature-key";
+import { buildProviderIndependentFeatureKeyV1, dedupeSpatialSourceAliasesV1 } from "@/src/lib/spatial-b1/feature-key";
+import { classifySpatialFreshnessV1, spatialFreshnessPolicyV1 } from "@/src/lib/spatial-b1/freshness";
 import { calculateSpatialGeometryCentroidV1, validateSpatialGeometryV1 } from "@/src/lib/spatial-b1/quality";
 import type {
   ProviderGeoJsonFeatureV1,
@@ -41,6 +42,10 @@ function overtureSourceAliases(properties: Record<string, unknown>, overtureId: 
     if (dataset && recordId) aliases.push({ sourceId: dataset, sourceFeatureId: recordId });
   }
   return dedupeSpatialSourceAliasesV1(aliases);
+}
+
+function overtureSourceRecords(properties: Record<string, unknown>) {
+  return (Array.isArray(properties.sources) ? properties.sources : []).map(recordValue);
 }
 
 function classifyOvertureFeature(rawFeature: ProviderGeoJsonFeatureV1) {
@@ -94,21 +99,64 @@ function normalizeOvertureFeature(
   if (!quality.valid) return null;
   const centroid = calculateSpatialGeometryCentroidV1(rawFeature.geometry);
   if (!centroid) return null;
-  const name = primaryName(properties) || `${classification.subtype.replace(/_/g, " ")} ${overtureId.slice(0, 12)}`;
+  const sourceObjectName = primaryName(properties) || null;
+  const name = sourceObjectName || `${classification.subtype.replace(/_/g, " ")} open-context feature`;
+  const sourceRecords = overtureSourceRecords(properties);
+  const sourceUpdatedAt = sourceRecords
+    .map((source) => stringValue(source.update_time ?? source.updateTime) || null)
+    .filter((value): value is string => Boolean(value))
+    .sort()
+    .at(-1) ?? null;
+  const freshnessStatus = classifySpatialFreshnessV1(sourceUpdatedAt, context.dataset.accessedAt);
+  const sourceAliases = overtureSourceAliases(properties, overtureId);
 
   return {
     type: "Feature",
-    featureKey: buildStableFeatureKeyV1({
-      role: classification.role,
-      slug: `${name}-${overtureId}`,
-      countryCode: context.countryCode,
-      regionCode: context.regionCode
-    }),
+    featureKey:
+      context.canonicalFeatureKey ??
+      buildProviderIndependentFeatureKeyV1({
+        role: classification.role,
+        semanticName: sourceObjectName,
+        category: classification.category,
+        centroid,
+        countryCode: context.countryCode,
+        regionCode: context.regionCode
+      }),
     datasetId: context.dataset.datasetId,
     datasetVersion: context.dataset.datasetVersion,
     sourceFeatureId: overtureId,
-    sourceAliases: overtureSourceAliases(properties, overtureId),
+    sourceAliases,
+    sourceCrosswalks: sourceAliases.map((alias) => ({
+      ...alias,
+      datasetVersion: context.dataset.datasetVersion,
+      validFrom: context.dataset.validFrom,
+      validTo: context.dataset.validTo,
+      matchMethod: alias.sourceFeatureId === overtureId ? "provider_record_identity" : "provider_declared_source_alias",
+      matchConfidence: alias.sourceFeatureId === overtureId ? 1 : 0.95,
+      sourceUpdatedAt,
+      reviewStatus: "machine_matched_pending_review" as const
+    })),
+    sourceProvenance: (sourceRecords.length > 0 ? sourceRecords : [{}]).map((source) => {
+      const recordUpdatedAt = stringValue(source.update_time ?? source.updateTime) || null;
+      return {
+        datasetReleaseDate: context.dataset.datasetReleaseDate,
+        datasetSnapshotDate: context.dataset.datasetSnapshotDate,
+        sourceDataset: stringValue(source.dataset ?? source.source) || context.dataset.sourceId,
+        sourceRecordId: stringValue(source.record_id ?? source.recordId ?? source.id) || null,
+        sourceRecordVersion: stringValue(source.record_version ?? source.recordVersion) || null,
+        sourceLicenseId: context.dataset.licenseId,
+        sourceUpdatedAt: recordUpdatedAt,
+        sourceObservedAt: null,
+        accessedAt: context.dataset.accessedAt,
+        freshnessStatus: classifySpatialFreshnessV1(recordUpdatedAt, context.dataset.accessedAt),
+        freshnessPolicyId: spatialFreshnessPolicyV1.freshnessPolicyId
+      };
+    }),
     name,
+    canonicalName: context.canonicalName ?? name,
+    sourceObjectName,
+    contextArea: context.contextArea ?? null,
+    businessNarrative: context.businessNarrative ?? "Open-context feature retained for screening context.",
     category: classification.category,
     subtype: classification.subtype,
     geometry: rawFeature.geometry,
@@ -117,10 +165,12 @@ function normalizeOvertureFeature(
     geometryOrigin: "source",
     geometryRole: classification.role,
     geometryAccuracy: "source_exact",
-    observedAt: context.observedAt,
+    observedAt: null,
     validFrom: context.dataset.validFrom,
     validTo: context.dataset.validTo,
-    freshnessStatus: "unknown",
+    freshnessStatus,
+    freshnessPolicyId: spatialFreshnessPolicyV1.freshnessPolicyId,
+    sourceUpdatedAt,
     validationStatus: "open_context",
     confidenceLevel: "medium",
     scenarioRelevance: context.scenarioRelevance,

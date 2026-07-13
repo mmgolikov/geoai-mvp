@@ -1,4 +1,5 @@
-import { buildStableFeatureKeyV1, dedupeSpatialSourceAliasesV1 } from "@/src/lib/spatial-b1/feature-key";
+import { buildProviderIndependentFeatureKeyV1, dedupeSpatialSourceAliasesV1 } from "@/src/lib/spatial-b1/feature-key";
+import { classifySpatialFreshnessV1, spatialFreshnessPolicyV1 } from "@/src/lib/spatial-b1/freshness";
 import { calculateSpatialGeometryCentroidV1, validateSpatialGeometryV1 } from "@/src/lib/spatial-b1/quality";
 import type {
   ProviderGeoJsonFeatureV1,
@@ -107,30 +108,64 @@ function normalizeOsmFeature(
   if (!quality.valid) return null;
   const centroid = calculateSpatialGeometryCentroidV1(rawFeature.geometry);
   if (!centroid) return null;
-  const name =
-    stringValue(properties.name_en) ||
-    stringValue(properties.name) ||
-    `${classification.subtype.replace(/_/g, " ")} ${providerId}`;
+  const sourceObjectName = stringValue(properties.name_en) || stringValue(properties.name) || null;
+  const name = sourceObjectName || `${classification.subtype.replace(/_/g, " ")} open-context feature`;
+  const sourceUpdatedAt = stringValue(properties["@timestamp"]) || null;
+  const freshnessStatus = classifySpatialFreshnessV1(sourceUpdatedAt, context.dataset.accessedAt);
+  const sourceAliases = dedupeSpatialSourceAliasesV1([
+    { sourceId: context.dataset.sourceId, sourceFeatureId: providerId },
+    {
+      sourceId: `OpenStreetMap/${providerId.split("/")[0]}`,
+      sourceFeatureId: providerId.split("/")[1]
+    }
+  ]);
 
   return {
     type: "Feature",
-    featureKey: buildStableFeatureKeyV1({
-      role: classification.role,
-      slug: `${name}-${providerId}`,
-      countryCode: context.countryCode,
-      regionCode: context.regionCode
-    }),
+    featureKey:
+      context.canonicalFeatureKey ??
+      buildProviderIndependentFeatureKeyV1({
+        role: classification.role,
+        semanticName: sourceObjectName,
+        category: classification.category,
+        centroid,
+        countryCode: context.countryCode,
+        regionCode: context.regionCode
+      }),
     datasetId: context.dataset.datasetId,
     datasetVersion: context.dataset.datasetVersion,
     sourceFeatureId: providerId,
-    sourceAliases: dedupeSpatialSourceAliasesV1([
-      { sourceId: context.dataset.sourceId, sourceFeatureId: providerId },
+    sourceAliases,
+    sourceCrosswalks: sourceAliases.map((alias) => ({
+      ...alias,
+      datasetVersion: context.dataset.datasetVersion,
+      validFrom: context.dataset.validFrom,
+      validTo: context.dataset.validTo,
+      matchMethod: alias.sourceFeatureId === providerId ? "provider_record_identity" : "normalized_osm_object_alias",
+      matchConfidence: 1,
+      sourceUpdatedAt,
+      reviewStatus: "machine_matched_pending_review" as const
+    })),
+    sourceProvenance: [
       {
-        sourceId: `OpenStreetMap/${providerId.split("/")[0]}`,
-        sourceFeatureId: providerId.split("/")[1]
+        datasetReleaseDate: context.dataset.datasetReleaseDate,
+        datasetSnapshotDate: context.dataset.datasetSnapshotDate,
+        sourceDataset: "OpenStreetMap",
+        sourceRecordId: providerId,
+        sourceRecordVersion: stringValue(properties["@version"]) || null,
+        sourceLicenseId: context.dataset.licenseId,
+        sourceUpdatedAt,
+        sourceObservedAt: null,
+        accessedAt: context.dataset.accessedAt,
+        freshnessStatus,
+        freshnessPolicyId: spatialFreshnessPolicyV1.freshnessPolicyId
       }
-    ]),
+    ],
     name,
+    canonicalName: context.canonicalName ?? name,
+    sourceObjectName,
+    contextArea: context.contextArea ?? null,
+    businessNarrative: context.businessNarrative ?? "Open-context feature retained for screening context.",
     category: classification.category,
     subtype: classification.subtype,
     geometry: rawFeature.geometry,
@@ -139,10 +174,12 @@ function normalizeOsmFeature(
     geometryOrigin: "source",
     geometryRole: classification.role,
     geometryAccuracy: "source_exact",
-    observedAt: context.observedAt,
+    observedAt: null,
     validFrom: context.dataset.validFrom,
     validTo: context.dataset.validTo,
-    freshnessStatus: "unknown",
+    freshnessStatus,
+    freshnessPolicyId: spatialFreshnessPolicyV1.freshnessPolicyId,
+    sourceUpdatedAt,
     validationStatus: "open_context",
     confidenceLevel: "medium",
     scenarioRelevance: context.scenarioRelevance,

@@ -35,6 +35,25 @@ export function buildStableFeatureKeyV1(input: {
   return `geoai:${roleTokens[input.role]}:${country}-${region}:${slug}`;
 }
 
+export function buildProviderIndependentFeatureKeyV1(input: {
+  role: SpatialGeometryRoleV1;
+  semanticName: string | null;
+  category: string;
+  centroid: { longitude: number; latitude: number };
+  countryCode?: string;
+  regionCode?: string;
+}) {
+  const semanticSlug = input.semanticName?.trim()
+    ? input.semanticName
+    : `${input.category}-${input.centroid.longitude.toFixed(5)}-${input.centroid.latitude.toFixed(5)}`;
+  return buildStableFeatureKeyV1({
+    role: input.role,
+    slug: semanticSlug,
+    countryCode: input.countryCode,
+    regionCode: input.regionCode
+  });
+}
+
 export function isStableFeatureKeyV1(value: string) {
   return /^geoai:(area|zone|asset|aoi|corridor|anchor|observation):[a-z0-9-]+:[a-z0-9-]+$/.test(value);
 }
@@ -53,8 +72,7 @@ export function dedupeSpatialSourceAliasesV1(aliases: SpatialSourceAliasV1[]) {
   });
 }
 
-export function withStableKeyCollisionSuffixV1(featureKey: string, sourceFeatureId: string, collisionIndex: number) {
+export function withStableKeyCollisionSuffixV1(featureKey: string, collisionIndex: number) {
   if (collisionIndex <= 0) return featureKey;
-  const sourceToken = normalizeSpatialKeyTokenV1(sourceFeatureId).slice(-24);
-  return `${featureKey}-${sourceToken || collisionIndex}-${collisionIndex}`;
+  return `${featureKey}-${String(collisionIndex + 1).padStart(2, "0")}`;
 }

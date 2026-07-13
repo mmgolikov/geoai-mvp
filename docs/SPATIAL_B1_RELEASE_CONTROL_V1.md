@@ -12,7 +12,9 @@ B1 is an implementation and evidence workstream on a separate clean branch from 
 
 ## Blocking corrective gate
 
-The B1 evidence build must use the seeded Marina, Business Bay and Dubai South coordinates as explicit anchors. It must select three distinct nearby provider features using non-overlapping metric selection areas in EPSG:32640, preserve exact OSM object identities, populate every mandatory geometry-quality field, and fail on duplicate provider IDs, geometry checksums or alias sets.
+The B1 evidence build must use the seeded Marina, Business Bay and Dubai South coordinates as explicit anchors. It must resolve three distinct canonical GeoAI AOI keys, keep provider IDs in versioned crosswalks, apply target-specific candidate profiles in EPSG:32640, preserve exact OSM object identities, preserve source-level freshness, populate every mandatory geometry-quality field, and fail on identity, geometry, alias, semantic or parity violations.
+
+Machine geometry validity, completed collision audit, business-semantic acceptance, independent source-alignment review and release readiness are separate states. A repaired source geometry is `source_repaired`, not `source_exact`; `releaseReady` remains `false` in B1.
 
 Real geometry remains confined to the short-lived GitHub Actions artifact. `publicRepositoryGeometryApproved` remains `false`; the open bundle is not activated in Product and synthetic fallback remains the default.
 

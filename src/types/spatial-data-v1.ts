@@ -36,6 +36,7 @@ export type SpatialGeometryRoleV1 =
 
 export type SpatialGeometryAccuracyV1 =
   | "source_exact"
+  | "source_repaired"
   | "source_generalized"
   | "derived"
   | "approximate";
@@ -47,6 +48,32 @@ export type SpatialJsonScalarV1 = string | number | boolean | null;
 export type SpatialSourceAliasV1 = {
   sourceId: string;
   sourceFeatureId: string;
+};
+
+export type SpatialSourceCrosswalkV1 = {
+  sourceId: string;
+  sourceFeatureId: string;
+  datasetVersion: string;
+  validFrom: string | null;
+  validTo: string | null;
+  matchMethod: string;
+  matchConfidence: number;
+  sourceUpdatedAt: string | null;
+  reviewStatus: "machine_matched_pending_review" | "reviewed" | "superseded";
+};
+
+export type SpatialFeatureSourceProvenanceV1 = {
+  datasetReleaseDate: string | null;
+  datasetSnapshotDate: string | null;
+  sourceDataset: string;
+  sourceRecordId: string | null;
+  sourceRecordVersion: string | null;
+  sourceLicenseId: string;
+  sourceUpdatedAt: string | null;
+  sourceObservedAt: string | null;
+  accessedAt: string;
+  freshnessStatus: SpatialFreshnessStatusV1;
+  freshnessPolicyId: string;
 };
 
 export type SpatialQualityIssueV1 = {
@@ -88,6 +115,8 @@ export type SpatialDatasetVersionV1 = {
   layerName: string;
   geography: string;
   snapshotDate: string | null;
+  datasetReleaseDate: string | null;
+  datasetSnapshotDate: string | null;
   accessedAt: string;
   validFrom: string | null;
   validTo: string | null;
@@ -99,6 +128,7 @@ export type SpatialDatasetVersionV1 = {
   buildMethod: string;
   buildVersion: string;
   checksum: string;
+  freshnessPolicyId: string;
   caveat: string;
 };
 
@@ -109,7 +139,13 @@ export type SpatialFeatureEnvelopeV1 = {
   datasetVersion: string;
   sourceFeatureId: string | null;
   sourceAliases: SpatialSourceAliasV1[];
+  sourceCrosswalks: SpatialSourceCrosswalkV1[];
+  sourceProvenance: SpatialFeatureSourceProvenanceV1[];
   name: string;
+  canonicalName: string;
+  sourceObjectName: string | null;
+  contextArea: string | null;
+  businessNarrative: string;
   category: string;
   subtype: string;
   geometry: SpatialGeometryV1;
@@ -125,6 +161,8 @@ export type SpatialFeatureEnvelopeV1 = {
   validFrom: string | null;
   validTo: string | null;
   freshnessStatus: SpatialFreshnessStatusV1;
+  freshnessPolicyId: string;
+  sourceUpdatedAt: string | null;
   validationStatus: SpatialValidationStatusV1;
   confidenceLevel: SpatialConfidenceV1;
   scenarioRelevance: string[];

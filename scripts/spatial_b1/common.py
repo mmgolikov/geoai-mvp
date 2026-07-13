@@ -84,7 +84,7 @@ def slugify(value: str) -> str:
     return re.sub(r"-{2,}", "-", normalized) or "unnamed"
 
 
-def stable_feature_key(role: str, name: str, source_feature_id: str) -> str:
+def stable_feature_key(role: str, name: str) -> str:
     role_token = {
         "context_boundary": "area",
         "screening_zone": "zone",
@@ -94,7 +94,19 @@ def stable_feature_key(role: str, name: str, source_feature_id: str) -> str:
         "anchor": "anchor",
         "observation_footprint": "observation",
     }[role]
-    return f"geoai:{role_token}:ae-du:{slugify(name)}-{slugify(source_feature_id)[-24:]}"
+    return f"geoai:{role_token}:ae-du:{slugify(name)}"
+
+
+def provider_independent_feature_key(
+    role: str,
+    semantic_name: str | None,
+    category: str,
+    centroid: dict[str, float],
+) -> str:
+    semantic_identity = semantic_name or (
+        f"{category}-{centroid['longitude']:.5f}-{centroid['latitude']:.5f}"
+    )
+    return stable_feature_key(role, semantic_identity)
 
 
 def iter_positions(coordinates: Any) -> Iterable[tuple[float, float]]:
@@ -203,7 +215,7 @@ def normalize_geometry(geometry: dict[str, Any], layer: str) -> dict[str, Any]:
                 "coordinateRangeValid": coordinate_range_valid,
                 "areaPlausible": False,
                 "lengthPlausible": False,
-                "overlapPolicyPassed": False,
+                "overlapPolicyPassed": None,
                 "sourceAlignmentReviewed": False,
                 "sourceAlignmentStatus": "pending_independent_review",
                 "issues": issues
@@ -286,7 +298,7 @@ def normalize_geometry(geometry: dict[str, Any], layer: str) -> dict[str, Any]:
             "coordinateRangeValid": coordinate_range_valid,
             "areaPlausible": area_plausible,
             "lengthPlausible": length_plausible,
-            "overlapPolicyPassed": True,
+            "overlapPolicyPassed": None,
             "sourceAlignmentReviewed": False,
             "sourceAlignmentStatus": "pending_independent_review",
             "issues": issues,
