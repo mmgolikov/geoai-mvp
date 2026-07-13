@@ -61,10 +61,13 @@ export type SpatialGeometryQualityV1 = {
   selfIntersectionCount: number;
   emptyPartCount: number;
   centroidInside: boolean | null;
+  pointOnSurfaceInside: boolean | null;
   coordinateRangeValid: boolean;
   areaPlausible: boolean | null;
+  lengthPlausible: boolean | null;
   overlapPolicyPassed: boolean | null;
   sourceAlignmentReviewed: boolean;
+  sourceAlignmentStatus: "pending_independent_review" | "reviewed";
   issues: SpatialQualityIssueV1[];
 };
 
@@ -111,7 +114,10 @@ export type SpatialFeatureEnvelopeV1 = {
   subtype: string;
   geometry: SpatialGeometryV1;
   centroid: { longitude: number; latitude: number };
+  pointOnSurface?: { longitude: number; latitude: number };
   areaSqm: number | null;
+  lengthMetres?: number | null;
+  geometryChecksum?: string;
   geometryOrigin: SpatialGeometryOriginV1;
   geometryRole: SpatialGeometryRoleV1;
   geometryAccuracy: SpatialGeometryAccuracyV1;

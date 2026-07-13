@@ -85,7 +85,8 @@ assert(repo.defaultSourceMode === "synthetic_fallback", "default source changed"
 assert(repo.resolveFeature(featureKey)?.datasetId === "open", "source precedence failed");
 
 const context = { dataset: openDataset, countryCode: "ae", regionCode: "du", processingBbox: bbox, observedAt: "2026-07-12", scenarioRelevance: [] };
-assert(osm.osmSnapshotAdapterV1.normalizeFeature({ type: "Feature", geometry: polygon, properties: { osm_type: "way", osm_id: "1", building: "yes" } }, context)?.validationStatus === "open_context", "OSM semantics failed");
+assert(osm.osmSnapshotAdapterV1.normalizeFeature({ type: "Feature", geometry: polygon, properties: { "@type": "way", "@id": 1, building: "yes" } }, context)?.validationStatus === "open_context", "OSM semantics failed");
+assert(osm.osmSnapshotAdapterV1.normalizeFeature({ type: "Feature", id: "generated/1", geometry: polygon, properties: { building: "yes" } }, context) === null, "OSM generated identity was accepted");
 assert(overture.overtureSnapshotAdapterV1.normalizeFeature({ type: "Feature", id: "building-1", geometry: polygon, properties: { id: "building-1", type: "building" } }, context)?.validationStatus === "open_context", "Overture semantics failed");
 
 const productSources = fs.readFileSync("src/data/demo-layers.ts", "utf8") + fs.readFileSync("src/lib/spatial-data-adapter.ts", "utf8");

@@ -20,9 +20,11 @@ function stringValue(value: unknown) {
 
 function sourceFeatureId(rawFeature: ProviderGeoJsonFeatureV1) {
   const properties = rawFeature.properties ?? {};
-  const osmId = stringValue(properties.osm_id ?? properties.osmId ?? rawFeature.id);
-  const osmType = stringValue(properties.osm_type ?? properties.osmType ?? "feature");
-  return osmId ? `${osmType}/${osmId}` : null;
+  const osmId = stringValue(properties["@id"]);
+  const osmType = stringValue(properties["@type"]).toLowerCase();
+  return /^(node|way|relation)$/.test(osmType) && /^[0-9]+$/.test(osmId)
+    ? `${osmType}/${osmId}`
+    : null;
 }
 
 function classifyOsmFeature(rawFeature: ProviderGeoJsonFeatureV1) {
@@ -122,7 +124,11 @@ function normalizeOsmFeature(
     datasetVersion: context.dataset.datasetVersion,
     sourceFeatureId: providerId,
     sourceAliases: dedupeSpatialSourceAliasesV1([
-      { sourceId: context.dataset.sourceId, sourceFeatureId: providerId }
+      { sourceId: context.dataset.sourceId, sourceFeatureId: providerId },
+      {
+        sourceId: `OpenStreetMap/${providerId.split("/")[0]}`,
+        sourceFeatureId: providerId.split("/")[1]
+      }
     ]),
     name,
     category: classification.category,

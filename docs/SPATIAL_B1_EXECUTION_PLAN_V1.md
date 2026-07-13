@@ -65,8 +65,11 @@ Environmental derived zones, market metrics, DLD/Dubai Pulse data and official G
 ### B1-C — Deterministic spatial builder
 
 - implement OSM and Overture extraction adapters;
-- clip to the approved non-official processing envelope and focus AOIs;
-- use EPSG:32640 for metric/topology operations and EPSG:4326 output;
+- retain exact OSM `node/<id>`, `way/<id>` and `relation/<id>` identities during export and reject missing or generated identities;
+- classify OSM records from each feature's own tags and geometry, then reject referenced-member leakage and cross-layer duplicates;
+- clip to the approved non-official processing envelope and seeded target-anchor extraction areas;
+- use pinned Shapely and pyproj operations in EPSG:32640 for validity, repair, area, length, topology, point-on-surface and distance, then reproject accepted output to EPSG:4326;
+- select one AOI per seeded target from non-overlapping 1,000 metre inner areas, using the nearest plausible point-on-surface within a 750 metre maximum target distance;
 - normalize transport, anchors, buildings, land use, water, construction and selected AOIs;
 - record every transformation and output checksum;
 - produce deterministic manifests and quality reports.
@@ -75,7 +78,9 @@ Environmental derived zones, market metrics, DLD/Dubai Pulse data and official G
 
 - validate geometry type, coordinate range, closure, emptiness and self-intersection;
 - verify area/length plausibility and simplification displacement;
-- verify stable-key uniqueness and alias collisions;
+- verify stable-key, provider-ID, geometry-checksum and alias-set uniqueness, including within-layer and cross-layer collision reports;
+- keep machine validity separate from independent source-alignment review status and prevent a fully valid/release-ready state while that review remains pending;
+- generate one neutral-grid source-alignment PNG per required target without protected map imagery;
 - verify source, release, licence, attribution, freshness and lineage fields;
 - reject official, parcel, zoning, cadastral, planning or hazard claims for open data.
 

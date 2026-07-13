@@ -51,7 +51,7 @@ jobs:
           npm ci
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends osmium-tool
-          python -m pip install --disable-pip-version-check duckdb==1.3.2
+          python -m pip install --disable-pip-version-check -r scripts/spatial_b1/requirements.txt
 
       - name: Build pinned source and open geometry evidence
         run: scripts/spatial_b1/run_source_build_ci.sh

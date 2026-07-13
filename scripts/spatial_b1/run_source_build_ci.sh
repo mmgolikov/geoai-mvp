@@ -42,7 +42,7 @@ find output/spatial-b1/inputs -maxdepth 1 -name 'osm-*.geojson' -print0 \
 
 python scripts/spatial_b1/extract_overture.py \
   --release "$OVERTURE_RELEASE" \
-  --per-aoi-limit 1500 \
+  --per-aoi-limit 5000 \
   --output output/spatial-b1/inputs/overture-buildings.geojson \
   | tee output/spatial-b1/evidence/overture-extraction-summary.json
 sha256sum output/spatial-b1/inputs/overture-buildings.geojson \
@@ -91,32 +91,116 @@ diff -u \
   output/spatial-b1/evidence/bundle-a-geometry-sha256.txt \
   output/spatial-b1/evidence/bundle-b-geometry-sha256.txt \
   | tee output/spatial-b1/evidence/determinism-diff.txt
+cmp output/spatial-b1/bundle-a/selected-aoi-records.json output/spatial-b1/bundle-b/selected-aoi-records.json
+
+python scripts/spatial_b1/render_alignment.py \
+  --bundle-dir output/spatial-b1/bundle-a \
+  --output-dir output/spatial-b1/evidence/alignment
 
 python - <<'PY'
 import json
+import platform
+import subprocess
 from pathlib import Path
+
+import duckdb
+import matplotlib
+import pyproj
+import shapely
 
 manifest = json.loads(Path('output/spatial-b1/evidence/source-manifest.json').read_text())
 quality = json.loads(Path('output/spatial-b1/bundle-a/quality-report.json').read_text())
 bundle = json.loads(Path('output/spatial-b1/bundle-a/bundle.json').read_text())
+osm_identity = json.loads(Path('output/spatial-b1/bundle-a/osm-exact-identity-assertion.json').read_text())
+selection = json.loads(Path('output/spatial-b1/bundle-a/target-distance-report.json').read_text())
+uniqueness = selection['uniqueness']
+
 assert manifest['legalDisposition']['publicRepositoryGeometryApproved'] is False
 assert bundle['defaultSourceMode'] == 'synthetic_fallback'
+assert bundle['machineValid'] is True
+assert bundle['releaseReady'] is False
+assert quality['valid'] is False
+assert quality['machineValid'] is True
+assert quality['sourceAlignmentReviewed'] is False
+assert quality['sourceAlignmentStatus'] == 'evidence_generated_pending_independent_review'
 assert quality['focusAoiGatePassed'] is True
+assert quality['selectedAoiQualityPassed'] is True
 assert quality['acceptedFeatureCount'] > 0
+assert quality['acceptedOsmFeatureCount'] > 0
+assert quality['acceptedOsmGeneratedIdCount'] == 0
+assert quality['acceptedOsmMalformedIdCount'] == 0
+assert quality['nullMandatoryQualityFields'] == []
 assert quality['requiredFocusAois'] == quality['mandatoryFocusAoisRepresented']
+assert osm_identity['passed'] is True
+assert uniqueness['passed'] is True
+assert uniqueness['selectedCount'] == 3
+assert uniqueness['duplicateProviderIds'] == []
+assert uniqueness['duplicateGeometryChecksums'] == []
+assert uniqueness['duplicateAliasSets'] == []
+assert len(selection['targets']) == 3
+assert all(target['status'] == 'selected' for target in selection['targets'])
+assert all(target['distanceMetres'] <= target['maximumTargetDistanceMetres'] for target in selection['targets'])
+
 Path('output/spatial-b1/evidence/hard-assertions.json').write_text(
     json.dumps({
         'ok': True,
         'publicRepositoryGeometryApproved': False,
         'defaultSourceMode': bundle['defaultSourceMode'],
+        'releaseReady': bundle['releaseReady'],
+        'machineValid': quality['machineValid'],
+        'sourceAlignmentStatus': quality['sourceAlignmentStatus'],
         'acceptedFeatureCount': quality['acceptedFeatureCount'],
+        'acceptedOsmFeatureCount': quality['acceptedOsmFeatureCount'],
         'rejectedFeatureCount': quality['rejectedFeatureCount'],
         'focusAois': quality['mandatoryFocusAoisRepresented'],
+        'selectedAoiUniqueness': uniqueness,
+    }, indent=2) + '\n'
+)
+Path('output/spatial-b1/evidence/no-default-activation-assertion.json').write_text(
+    json.dumps({
+        'ok': bundle['defaultSourceMode'] == 'synthetic_fallback' and bundle['releaseReady'] is False,
+        'defaultSourceMode': bundle['defaultSourceMode'],
+        'openGeometryActivated': False,
+        'publicRepositoryGeometryApproved': manifest['legalDisposition']['publicRepositoryGeometryApproved'],
+    }, indent=2) + '\n'
+)
+Path('output/spatial-b1/evidence/determinism-report.json').write_text(
+    json.dumps({
+        'passed': True,
+        'geometryChecksumsMatch': True,
+        'selectedAoiRecordsMatch': True,
+        'buildsCompared': ['bundle-a', 'bundle-b'],
+    }, indent=2) + '\n'
+)
+Path('output/spatial-b1/evidence/tool-versions.json').write_text(
+    json.dumps({
+        'python': platform.python_version(),
+        'shapely': shapely.__version__,
+        'geos': shapely.geos_version_string,
+        'pyproj': pyproj.__version__,
+        'proj': pyproj.proj_version_str,
+        'matplotlib': matplotlib.__version__,
+        'duckdb': duckdb.__version__,
+        'osmium': subprocess.run(['osmium', '--version'], check=True, capture_output=True, text=True).stdout.strip(),
     }, indent=2) + '\n'
 )
 PY
 
-du -ah output/spatial-b1/inputs output/spatial-b1/bundle-a \
+for evidence_file in \
+  provider-id-inventory.json \
+  osm-exact-identity-assertion.json \
+  selected-aoi-records.json \
+  target-distance-report.json \
+  selected-aoi-uniqueness-report.json \
+  epsg-32640-transformation-evidence.json \
+  geometry-validity-repair-report.json \
+  rejected-features.json \
+  duplicate-collision-report.json \
+  quality-report.json; do
+  cp "output/spatial-b1/bundle-a/$evidence_file" "output/spatial-b1/evidence/$evidence_file"
+done
+
+du -ah output/spatial-b1/inputs output/spatial-b1/bundle-a output/spatial-b1/evidence/alignment \
   | sort -h \
   > output/spatial-b1/evidence/asset-size-inventory.txt
 find output/spatial-b1/bundle-a -type f -print0 \

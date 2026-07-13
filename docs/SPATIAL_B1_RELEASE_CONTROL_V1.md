@@ -8,6 +8,13 @@ B1 is an implementation and evidence workstream on a separate clean branch from 
 - Current synthetic geometry remains the default and rollback source.
 - PR #69 remains an unmerged research record.
 - Production remains unchanged.
+- Machine geometry evidence and independent source-alignment review are separate gates. A successful machine build remains `releaseReady: false` until the visual/source evidence is reviewed.
+
+## Blocking corrective gate
+
+The B1 evidence build must use the seeded Marina, Business Bay and Dubai South coordinates as explicit anchors. It must select three distinct nearby provider features using non-overlapping metric selection areas in EPSG:32640, preserve exact OSM object identities, populate every mandatory geometry-quality field, and fail on duplicate provider IDs, geometry checksums or alias sets.
+
+Real geometry remains confined to the short-lived GitHub Actions artifact. `publicRepositoryGeometryApproved` remains `false`; the open bundle is not activated in Product and synthetic fallback remains the default.
 
 ## Required gates before B1 merge review
 

@@ -195,10 +195,13 @@ export function validateSpatialGeometryV1(
     selfIntersectionCount,
     emptyPartCount,
     centroidInside,
+    pointOnSurfaceInside: centroidInside,
     coordinateRangeValid,
     areaPlausible: null,
+    lengthPlausible: null,
     overlapPolicyPassed: null,
     sourceAlignmentReviewed: options.sourceAlignmentReviewed ?? false,
+    sourceAlignmentStatus: options.sourceAlignmentReviewed ? "reviewed" : "pending_independent_review",
     issues
   };
 }

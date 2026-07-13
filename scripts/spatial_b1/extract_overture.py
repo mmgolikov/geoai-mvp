@@ -7,11 +7,12 @@ from typing import Any
 
 import duckdb
 
-FOCUS_AOIS = {
-    "dubai-marina-jbr-palm-v1": (55.08, 25.04, 55.19, 25.16),
-    "downtown-business-bay-meydan-v1": (55.22, 25.13, 55.37, 25.23),
-    "dubai-south-jebel-ali-v1": (54.98, 24.82, 55.28, 25.06),
+TARGETS = {
+    "dubai-marina-jbr-palm-v1": (55.143100, 25.082200),
+    "downtown-business-bay-meydan-v1": (55.268500, 25.185300),
+    "dubai-south-jebel-ali-v1": (55.154200, 24.888700),
 }
+EXTRACTION_HALF_SPAN_DEGREES = 0.025
 
 
 def safe_json(value: Any, fallback: Any) -> Any:
@@ -48,7 +49,11 @@ def main() -> None:
     )
     features_by_id: dict[str, dict[str, Any]] = {}
 
-    for aoi_id, (minimum_longitude, minimum_latitude, maximum_longitude, maximum_latitude) in FOCUS_AOIS.items():
+    for aoi_id, (anchor_longitude, anchor_latitude) in TARGETS.items():
+        minimum_longitude = anchor_longitude - EXTRACTION_HALF_SPAN_DEGREES
+        maximum_longitude = anchor_longitude + EXTRACTION_HALF_SPAN_DEGREES
+        minimum_latitude = anchor_latitude - EXTRACTION_HALF_SPAN_DEGREES
+        maximum_latitude = anchor_latitude + EXTRACTION_HALF_SPAN_DEGREES
         query = f"""
             SELECT
               id,
@@ -108,7 +113,12 @@ def main() -> None:
             {
                 "release": arguments.release,
                 "featureCount": len(feature_collection["features"]),
-                "focusAois": sorted(FOCUS_AOIS),
+                "focusAois": sorted(TARGETS),
+                "selectionAnchors": {
+                    target_id: {"longitude": coordinates[0], "latitude": coordinates[1]}
+                    for target_id, coordinates in TARGETS.items()
+                },
+                "extractionHalfSpanDegrees": EXTRACTION_HALF_SPAN_DEGREES,
                 "output": str(output_path),
             },
             indent=2,
