@@ -116,6 +116,19 @@ export const officialConnectorReadiness: OfficialConnectorReadiness[] = [
   }
 ];
 
+export function connectorReadinessDisplayLabel(
+  status: string,
+  options: { verifiedSnapshotAttached?: boolean } = {}
+) {
+  if (status === "manual_snapshot_ready") {
+    return options.verifiedSnapshotAttached === true
+      ? "verified snapshot attached"
+      : "manual import path available; no verified snapshot attached";
+  }
+
+  return status.replace(/_/g, " ");
+}
+
 export function getConnectorReadinessSummary() {
   return {
     total: officialConnectorReadiness.length,
