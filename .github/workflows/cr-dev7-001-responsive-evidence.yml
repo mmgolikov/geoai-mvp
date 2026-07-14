@@ -1,6 +1,9 @@
 name: Temporary CR-DEV7-001 Responsive Evidence
 
 on:
+  push:
+    branches:
+      - dev6-spatial-b2a-integration-foundation-v1
   workflow_dispatch:
 
 permissions:
