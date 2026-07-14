@@ -1,0 +1,91 @@
+name: Temporary Spatial B2A Browser Evidence
+
+on:
+  push:
+    branches:
+      - dev6-spatial-b2a-integration-foundation-v1
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: spatial-b2a-browser-evidence-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  browser-evidence:
+    name: Five-viewport source, attribution and lineage evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      CI: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
+      SPATIAL_B2_EVIDENCE_DIR: artifacts
+      SPATIAL_B2_TESTED_COMMIT_SHA: a8c6365e22e47d2908f1a0f52728d97bec2a8067
+      SPATIAL_B2_PREVIEW_DEPLOYMENT_ID: "5444209680"
+      SPATIAL_B2_PREVIEW_URL: https://geoai-8d27gnyop-geoaidev.vercel.app
+      SPATIAL_B2_PRODUCTION_URL: http://127.0.0.1:3000
+
+    steps:
+      - name: Checkout evidence harness
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install application and browser dependencies
+        run: |
+          npm ci
+          npm install --no-save --ignore-scripts playwright@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Prepare source-level evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          node scripts/spatial-b1-contract-check.mjs | tee artifacts/spatial-b1-contract-check.txt
+          node scripts/spatial-b2-integration-check.mjs | tee artifacts/spatial-b2-integration-check.txt
+
+      - name: Build and start local production-mode application
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run build
+          npm run start -- -H 127.0.0.1 -p 3000 > /tmp/geoai-next.log 2>&1 &
+          echo $! > /tmp/geoai-next.pid
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:3000/api/health > /dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/geoai-next.log
+          exit 1
+
+      - name: Capture browser evidence
+        run: node scripts/spatial-b2a-browser-evidence.mjs
+
+      - name: Preserve application log
+        if: always()
+        shell: bash
+        run: |
+          if [ -f /tmp/geoai-next.log ]; then
+            cp /tmp/geoai-next.log artifacts/next-application.log
+          fi
+          if [ -f /tmp/geoai-next.pid ]; then
+            kill "$(cat /tmp/geoai-next.pid)" 2>/dev/null || true
+          fi
+
+      - name: Upload short-lived evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: spatial-b2a-browser-evidence-${{ github.run_id }}
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 14
