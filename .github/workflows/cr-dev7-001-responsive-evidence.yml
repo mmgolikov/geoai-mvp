@@ -57,7 +57,10 @@ jobs:
               find . -type f -print0 | LC_ALL=C sort -z | xargs -0 zip -X ../package/cr-dev7-001-responsive-evidence.zip
             )
             cp artifacts/cr-dev7-001/cr-dev7-001-evidence-manifest.json artifacts/package/
-            sha256sum artifacts/package/cr-dev7-001-responsive-evidence.zip > artifacts/package/cr-dev7-001-responsive-evidence.zip.sha256
+            (
+              cd artifacts/package
+              sha256sum cr-dev7-001-responsive-evidence.zip > cr-dev7-001-responsive-evidence.zip.sha256
+            )
           fi
 
       - name: Upload short-lived immutable evidence
