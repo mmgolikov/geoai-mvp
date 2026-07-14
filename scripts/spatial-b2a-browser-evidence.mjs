@@ -256,8 +256,8 @@ async function runViewport(browser, viewport) {
   const previewDetails = await page.locator("[data-spatial-attribution-details]").innerText();
   record(`${viewport.name} OSM and Overture attribution separate`, previewDetails.includes("OpenStreetMap contributors") && previewDetails.includes("Overture Maps Foundation"), previewDetails);
   const mapboxAttribution = page.locator(".mapboxgl-ctrl-attrib").last();
-  record(`${viewport.name} Mapbox native attribution remains`, await mapboxAttribution.isVisible().catch(() => false), "native Mapbox attribution must remain visible");
   await closeAttribution(page);
+  record(`${viewport.name} Mapbox native attribution remains`, await mapboxAttribution.isVisible().catch(() => false), "native Mapbox attribution must remain visible after the details overlay closes");
   const chipBox = await page.locator("[data-spatial-attribution-chip]").last().boundingBox();
   const mapboxBox = await mapboxAttribution.boundingBox().catch(() => null);
   record(`${viewport.name} attribution controls do not overlap`, intersects(chipBox, mapboxBox) === 0, `intersection=${intersects(chipBox, mapboxBox)}`);
