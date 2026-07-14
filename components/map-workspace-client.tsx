@@ -1377,7 +1377,10 @@ function attachGeoAiMapLayers(
   );
   return {
     sourceCount: Object.keys(style.sources ?? {}).filter((sourceId) => sourceId.startsWith("geoai-")).length,
-    layerCount: (style.layers ?? []).filter((layer) => layer.id.startsWith("geoai-") || activeDemoMapLayerIds.has(layer.id)).length
+    layerCount: (style.layers ?? []).filter((layer) => layer.id.startsWith("geoai-") || activeDemoMapLayerIds.has(layer.id)).length,
+    openGeodataLayerCount: openGeodataLayerIds.filter((layerId) => Boolean(map.getLayer(layerId))).length,
+    openGeodataFeatureCount: getOpenGeodataFeatures().length,
+    openGeodataSelectableFeatureCount: openGeodataBaseline.poi.length
   };
 }
 
@@ -1442,6 +1445,9 @@ export function MapWorkspaceClient({
   const [mapObservability, setMapObservability] = useState({
     sourceCount: 0,
     layerCount: 0,
+    openGeodataLayerCount: 0,
+    openGeodataFeatureCount: 0,
+    openGeodataSelectableFeatureCount: 0,
     mapReadyMs: 0,
     layerRegistrationMs: 0
   });
@@ -1571,6 +1577,9 @@ export function MapWorkspaceClient({
       rollbackResult: activation.rollbackResult,
       mapSourceCount: mapObservability.sourceCount,
       mapLayerCount: mapObservability.layerCount,
+      openGeodataLayerCount: mapObservability.openGeodataLayerCount,
+      openGeodataFeatureCount: mapObservability.openGeodataFeatureCount,
+      openGeodataSelectableFeatureCount: mapObservability.openGeodataSelectableFeatureCount,
       mapReadyMs: mapObservability.mapReadyMs,
       layerRegistrationMs: mapObservability.layerRegistrationMs
     };
@@ -2242,6 +2251,9 @@ export function MapWorkspaceClient({
       data-spatial-open-real-feature-count={activation.openRealGeometryFeatureCount}
       data-spatial-map-source-count={mapObservability.sourceCount}
       data-spatial-map-layer-count={mapObservability.layerCount}
+      data-spatial-open-geodata-layer-count={mapObservability.openGeodataLayerCount}
+      data-spatial-open-geodata-feature-count={mapObservability.openGeodataFeatureCount}
+      data-spatial-open-geodata-selectable-count={mapObservability.openGeodataSelectableFeatureCount}
       data-spatial-map-ready-ms={mapObservability.mapReadyMs}
       data-spatial-layer-registration-ms={mapObservability.layerRegistrationMs}
     >

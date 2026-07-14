@@ -160,6 +160,8 @@ const mapClient = fs.readFileSync(path.join(process.cwd(), "components/map-works
 assert(workspacePage.includes("createSpatialSourceRequest"), "Workspace source request must be resolved on the server");
 assert(!/localStorage[^\n]*spatial/i.test(mapClient), "No localStorage spatial source-mode bypass may exist");
 assert(!/[?&]spatialMode=.*open_context_preview/.test(mapClient), "Map client must not construct an open-mode URL bypass");
+assert(mapClient.includes("addOpenGeodataLayers(map)"), "Current open-geodata fixture registration must remain in the map path");
+assert(mapClient.includes("openGeodataSelectableFeatureCount"), "Current open-geodata selectable feature count must remain observable");
 
 const requiredCaveat = "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.";
 const b2SourceFiles = [
