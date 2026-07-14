@@ -2296,6 +2296,7 @@ export function MapWorkspaceClient({
 
       <SpatialDataAttribution
         payload={attribution}
+        fallbackReason={activation.fallbackReason}
         hasSelectedLineage={Boolean(selectedLineage)}
         onOpenLineage={() => setIsLineageDrawerOpen(true)}
       />

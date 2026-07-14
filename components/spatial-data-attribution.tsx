@@ -5,12 +5,14 @@ import type { SpatialAttributionPayload } from "@/src/lib/spatial-b2/attribution
 
 type SpatialDataAttributionProps = {
   payload: SpatialAttributionPayload;
+  fallbackReason?: string | null;
   hasSelectedLineage: boolean;
   onOpenLineage: () => void;
 };
 
 export function SpatialDataAttribution({
   payload,
+  fallbackReason = null,
   hasSelectedLineage,
   onOpenLineage
 }: SpatialDataAttributionProps) {
@@ -27,10 +29,15 @@ export function SpatialDataAttribution({
 
   return (
     <div
-      className="absolute bottom-[72px] left-5 right-5 z-30 flex justify-center"
+      className="absolute bottom-[72px] left-5 right-5 z-30 flex flex-col items-center justify-center gap-1.5"
       onClick={(event) => event.stopPropagation()}
       data-spatial-attribution
     >
+      {fallbackReason ? (
+        <p className="max-w-[calc(100vw-40px)] truncate rounded-md border border-[#f0d7a4] bg-[#fff9ec]/95 px-2.5 py-1 text-[10px] font-semibold text-[#775611] shadow-soft" data-spatial-fallback-chip title={fallbackReason}>
+          Synthetic fallback active
+        </p>
+      ) : null}
       <button
         type="button"
         onClick={() => setIsExpanded(true)}
