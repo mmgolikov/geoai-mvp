@@ -22,9 +22,9 @@ jobs:
       CI: "true"
       NEXT_TELEMETRY_DISABLED: "1"
       SPATIAL_B2_EVIDENCE_DIR: artifacts
-      SPATIAL_B2_TESTED_COMMIT_SHA: a8c6365e22e47d2908f1a0f52728d97bec2a8067
-      SPATIAL_B2_PREVIEW_DEPLOYMENT_ID: "5444209680"
-      SPATIAL_B2_PREVIEW_URL: https://geoai-8d27gnyop-geoaidev.vercel.app
+      SPATIAL_B2_TESTED_COMMIT_SHA: 3f6b06c6608ec444cd73c41816f0bb14ef9cf01e
+      SPATIAL_B2_PREVIEW_DEPLOYMENT_ID: "5444403099"
+      SPATIAL_B2_PREVIEW_URL: https://geoai-rjbxb8n77-geoaidev.vercel.app
       SPATIAL_B2_PRODUCTION_URL: http://127.0.0.1:3000
 
     steps:
