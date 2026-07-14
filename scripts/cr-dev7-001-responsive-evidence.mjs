@@ -157,9 +157,12 @@ async function inspectState(page, viewport, state) {
     const stickySection = [...document.querySelectorAll("section")].find((node) =>
       node.classList.contains("sticky") && node.classList.contains("bottom-0")
     );
-    const primaryButtons = stickySection
-      ? [...stickySection.querySelectorAll("button")].filter((node) => /Run Express Analysis|Search Candidates|Continue Analysis|Export Report|Run Comparison/i.test(node.textContent ?? ""))
-      : [];
+    const stickyButtons = stickySection ? [...stickySection.querySelectorAll("button")] : [];
+    const primaryButton = stickyButtons.at(-1) ?? null;
+    const primaryActionLabel = primaryButton?.textContent?.trim() ?? null;
+    const primaryActionDomCount = primaryActionLabel
+      ? [...document.querySelectorAll("button")].filter((node) => node.textContent?.trim() === primaryActionLabel).length
+      : 0;
     const exactTextCount = (text) => [...document.querySelectorAll("body *")]
       .filter((node) => node.children.length === 0 && node.textContent?.trim() === text).length;
     const redundantTileLabels = ["Lat", "Lng", "Type", "Confidence"];
@@ -177,7 +180,9 @@ async function inspectState(page, viewport, state) {
         selectedAoi: exactTextCount("Selected AOI"),
         latLngTypeConfidenceTileGroup: tileGroupCount
       },
-      stickyCtaCount: primaryButtons.length,
+      stickyCtaCount: primaryButton ? 1 : 0,
+      primaryActionLabel,
+      primaryActionDomCount,
       stickySectionCount: stickySection ? 1 : 0,
       horizontalOverflowPx: Math.max(0, document.documentElement.scrollWidth - window.innerWidth),
       caveatPresent: document.body.textContent?.includes(requiredCaveat) ?? false,
@@ -208,7 +213,11 @@ async function inspectState(page, viewport, state) {
   record(`${prefix} visual interaction order`, layout.criteriaBeforeMap, JSON.stringify(layout));
   record(`${prefix} scenario default active`, metrics.activeMode === state.expectedDefault, `active=${metrics.activeMode}; expected=${state.expectedDefault}`);
   record(`${prefix} redundant selection card absent`, Object.values(metrics.redundantCardCounts).every((count) => count === 0), JSON.stringify(metrics.redundantCardCounts));
-  record(`${prefix} one sticky primary CTA`, metrics.stickySectionCount === 1 && metrics.stickyCtaCount === 1, `section=${metrics.stickySectionCount}; cta=${metrics.stickyCtaCount}`);
+  record(
+    `${prefix} one sticky primary CTA`,
+    metrics.stickySectionCount === 1 && metrics.stickyCtaCount === 1 && metrics.primaryActionDomCount === 1,
+    `section=${metrics.stickySectionCount}; cta=${metrics.stickyCtaCount}; label=${metrics.primaryActionLabel}; dom=${metrics.primaryActionDomCount}`
+  );
   record(`${prefix} interaction controls do not overlap`, layout.modeOverlapPx === 0, `overlap=${layout.modeOverlapPx}`);
   record(`${prefix} sticky CTA does not overlap panel content`, layout.stickyPanelOverlapPx === 0, `overlap=${layout.stickyPanelOverlapPx}`);
   record(`${prefix} horizontal overflow zero`, metrics.horizontalOverflowPx === 0, `overflow=${metrics.horizontalOverflowPx}`);
@@ -244,6 +253,8 @@ async function captureState(page, viewport, state) {
     redundantCardDomCount: Object.values(metrics.redundantCardCounts).reduce((sum, count) => sum + count, 0),
     redundantCardCounts: metrics.redundantCardCounts,
     stickyCtaCount: metrics.stickyCtaCount,
+    stickyCtaLabel: metrics.primaryActionLabel,
+    primaryActionDomCount: metrics.primaryActionDomCount,
     horizontalOverflowPx: metrics.horizontalOverflowPx,
     javascriptErrorCount: errors.length,
     warningInventory: warnings.map((item) => item.text),
