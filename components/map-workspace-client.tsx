@@ -2577,7 +2577,7 @@ export function MapWorkspaceClient({
 
       {shouldShowMapboxControls ? (
         <div
-          className="absolute bottom-5 right-5 z-20 flex max-w-[calc(100%-40px)] gap-1 rounded-lg border border-white/75 bg-white/92 p-1 shadow-soft backdrop-blur"
+          className="absolute bottom-8 right-5 z-20 flex max-w-[calc(100%-40px)] gap-1 rounded-lg border border-white/75 bg-white/92 p-1 shadow-soft backdrop-blur"
           onClick={(event) => event.stopPropagation()}
           aria-label="Basemap style switcher"
         >
@@ -2599,20 +2599,20 @@ export function MapWorkspaceClient({
       ) : null}
 
       {shouldShowMapboxControls && selectedObject ? (
-        <div className={`pointer-events-none absolute left-5 z-10 max-w-sm rounded-lg border border-white/75 bg-white/92 px-3 py-2 text-sm font-semibold text-ink shadow-soft backdrop-blur ${layersExpanded ? "bottom-20" : "bottom-5"}`}>
+        <div className={`pointer-events-none absolute left-5 z-10 max-w-sm rounded-lg border border-white/75 bg-white/92 px-3 py-2 text-sm font-semibold text-ink shadow-soft backdrop-blur ${layersExpanded ? "bottom-20" : "bottom-8"}`}>
           <span className="text-brand">Selected:</span> {selectedObject.name}
         </div>
       ) : null}
 
       {shouldShowMapboxControls && !selectedObject && selectedAoi ? (
-        <div className={`pointer-events-none absolute left-5 z-10 max-w-sm rounded-lg border border-white/75 bg-white/92 px-3 py-2 text-sm font-semibold text-ink shadow-soft backdrop-blur ${layersExpanded ? "bottom-20" : "bottom-5"}`}>
+        <div className={`pointer-events-none absolute left-5 z-10 max-w-sm rounded-lg border border-white/75 bg-white/92 px-3 py-2 text-sm font-semibold text-ink shadow-soft backdrop-blur ${layersExpanded ? "bottom-20" : "bottom-8"}`}>
           <span className="text-brand">Selected AOI:</span> {formatArea(selectedAoi.measurements.areaSqM)}
         </div>
       ) : null}
 
       {shouldShowMapboxControls && showLayerControls && layersExpanded ? (
         <div
-          className="absolute bottom-5 left-5 z-10 flex max-w-[720px] flex-wrap gap-2 rounded-lg border border-white/75 bg-white/90 px-3 py-2 shadow-soft backdrop-blur"
+          className="absolute bottom-8 left-5 z-10 flex max-w-[720px] flex-wrap gap-2 rounded-lg border border-white/75 bg-white/90 px-3 py-2 shadow-soft backdrop-blur"
           onClick={(event) => event.stopPropagation()}
         >
           {demoOverlayLayers.map((layer) => (
