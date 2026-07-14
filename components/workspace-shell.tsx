@@ -3075,7 +3075,7 @@ export function WorkspaceShell({
               Back
             </button>
           </div>
-          <div className="relative z-0 min-h-0 flex-1 overflow-hidden">
+          <div className="relative min-h-0 flex-1 overflow-hidden">
             <MapWorkspace
               key="mobile-map-picker"
               className="relative h-full min-h-0 overflow-hidden bg-[#dfe8ec]"
