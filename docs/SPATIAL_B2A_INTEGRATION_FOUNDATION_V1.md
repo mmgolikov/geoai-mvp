@@ -95,6 +95,16 @@ Required local checks:
 
 The temporary browser evidence workflow records Landing at 390x844 and 1440x900 plus the five approved Workspace viewports. It captures visible/hidden attribution, fallback mode, no-reload source transitions, source/layer inventories, exact identity, keyboard/backdrop/Escape behavior, report regression, logs, tested SHA and Preview deployment.
 
+Corrective browser evidence:
+
+- Tested Product SHA: `7de61b6c8bd584099ef0a5bded5180bd2c7d6a0c`.
+- Temporary evidence head: `bb3fda24e0608e6d8b0901e4a3b4dc86283a1332`.
+- Workflow run/job: `29361996332` / `87184148820`.
+- Artifact: `8322582900`, `spatial-b2a-corrective-evidence-29361996332`, 14-day retention.
+- Preview: `dpl_A2PiY96g3bMWnYZMX3iDNYtMx1vq`, `https://geoai-75nembsyc-geoaidev.vercel.app`.
+- Result: 47 screenshots and 191/191 hard browser assertions passed across Landing and all five Workspace viewports.
+- Browser inventory: 0 JavaScript errors, 16 expected allowlisted WebGL warnings and 0 unexpected warnings.
+
 Browser logging separates JavaScript errors, expected allowlisted headless WebGL warnings and unexpected warnings. The allowlist is restricted to software WebGL fallback deprecation and GPU stall/readback messages. Unexpected warnings fail evidence. The map retains `preserveDrawingBuffer` for the existing report snapshot path; headless `ReadPixels` warnings are a non-blocking performance limitation, not a fully clear console.
 
 ## Limitations
