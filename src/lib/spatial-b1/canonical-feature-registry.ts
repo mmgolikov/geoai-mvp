@@ -1,4 +1,4 @@
-import type { SpatialGeometryRoleV1, SpatialSourceModeV1 } from "@/src/types/spatial-data-v1";
+import type { SpatialGeometryRoleV1, SpatialIdentityScopeV1, SpatialSourceModeV1 } from "@/src/types/spatial-data-v1";
 
 export const spatialCanonicalRegistryVersionV1 = "geoai-spatial-b1-canonical-registry-v1";
 
@@ -52,6 +52,7 @@ export type SpatialSelectedAoiRegistryEntryV1 = {
   contextArea: string;
   businessNarrative: string;
   geometryRole: "aoi";
+  identityScope: "canonical_registry";
   allowedGeometrySources: SpatialSourceModeV1[];
   selectionProfile: SpatialSelectionProfileV1;
 };
@@ -66,7 +67,8 @@ export const spatialSelectedAoiRegistryV1: Record<string, SpatialSelectedAoiRegi
     contextArea: "Dubai Marina / JBR / Palm",
     businessNarrative: "Named open-context building footprint near the seeded Marina screening anchor.",
     geometryRole: "aoi",
-    allowedGeometrySources: ["synthetic_fallback", "open_snapshot", "user_provided", "official_validated"],
+    identityScope: "canonical_registry",
+    allowedGeometrySources: ["synthetic_fallback", "open_snapshot", "licensed", "user_provided", "official_validated"],
     selectionProfile: {
       profileId: "marina-named-anchor-v1",
       minimumAreaSqm: 200,
@@ -74,7 +76,7 @@ export const spatialSelectedAoiRegistryV1: Record<string, SpatialSelectedAoiRegi
       preferredAreaMaximumSqm: 5000,
       maximumAreaSqm: 20000,
       maximumAnchorDistanceMetres: 750,
-      preferredCategories: ["named_building", "building"],
+      preferredCategories: ["named_building_footprint", "building_footprint"],
       preferredSourceNames: ["Bonaire Tower"],
       distanceWeight: 50,
       nameBonus: 20,
@@ -93,7 +95,8 @@ export const spatialSelectedAoiRegistryV1: Record<string, SpatialSelectedAoiRegi
     contextArea: "Business Bay / Downtown / Meydan",
     businessNarrative: "Named open-context building footprint near the seeded Business Bay screening anchor.",
     geometryRole: "aoi",
-    allowedGeometrySources: ["synthetic_fallback", "open_snapshot", "user_provided", "official_validated"],
+    identityScope: "canonical_registry",
+    allowedGeometrySources: ["synthetic_fallback", "open_snapshot", "licensed", "user_provided", "official_validated"],
     selectionProfile: {
       profileId: "business-bay-named-building-v1",
       minimumAreaSqm: 500,
@@ -101,7 +104,7 @@ export const spatialSelectedAoiRegistryV1: Record<string, SpatialSelectedAoiRegi
       preferredAreaMaximumSqm: 10000,
       maximumAreaSqm: 50000,
       maximumAnchorDistanceMetres: 750,
-      preferredCategories: ["named_building", "building"],
+      preferredCategories: ["named_building_footprint", "building_footprint"],
       preferredSourceNames: [],
       distanceWeight: 35,
       nameBonus: 30,
@@ -120,7 +123,8 @@ export const spatialSelectedAoiRegistryV1: Record<string, SpatialSelectedAoiRegi
     contextArea: "Dubai South / Jebel Ali",
     businessNarrative: "Named operational open-context building footprint near the seeded Dubai South screening anchor.",
     geometryRole: "aoi",
-    allowedGeometrySources: ["synthetic_fallback", "open_snapshot", "user_provided", "official_validated"],
+    identityScope: "canonical_registry",
+    allowedGeometrySources: ["synthetic_fallback", "open_snapshot", "licensed", "user_provided", "official_validated"],
     selectionProfile: {
       profileId: "dubai-south-operational-footprint-v1",
       minimumAreaSqm: 500,
@@ -129,12 +133,11 @@ export const spatialSelectedAoiRegistryV1: Record<string, SpatialSelectedAoiRegi
       maximumAreaSqm: 100000,
       maximumAnchorDistanceMetres: 750,
       preferredCategories: [
-        "industrial_building",
-        "logistics_building",
+        "named_operational_building_footprint",
         "construction_footprint",
-        "named_operational_building",
         "derived_industrial_block",
-        "building"
+        "named_building_footprint",
+        "building_footprint"
       ],
       preferredSourceNames: [],
       distanceWeight: 25,
@@ -152,24 +155,28 @@ export const spatialContextRegistryV1: Array<{
   featureKey: string;
   canonicalName: string;
   geometryRole: SpatialGeometryRoleV1;
+  identityScope: SpatialIdentityScopeV1;
 }> = [
   {
     registryId: "dubai-marina-jbr-context",
     featureKey: "geoai:area:ae-du:dubai-marina-jbr-context",
     canonicalName: "Dubai Marina / JBR Open Context",
-    geometryRole: "context_boundary"
+    geometryRole: "context_boundary",
+    identityScope: "canonical_registry"
   },
   {
     registryId: "downtown-business-bay-context",
     featureKey: "geoai:area:ae-du:downtown-business-bay-context",
     canonicalName: "Downtown / Business Bay Open Context",
-    geometryRole: "context_boundary"
+    geometryRole: "context_boundary",
+    identityScope: "canonical_registry"
   },
   {
     registryId: "dubai-south-development-context",
     featureKey: "geoai:area:ae-du:dubai-south-development-context",
     canonicalName: "Dubai South Development Open Context",
-    geometryRole: "context_boundary"
+    geometryRole: "context_boundary",
+    identityScope: "canonical_registry"
   }
 ];
 

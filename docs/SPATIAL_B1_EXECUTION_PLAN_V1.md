@@ -82,6 +82,10 @@ Environmental derived zones, market metrics, DLD/Dubai Pulse data and official G
 - keep machine validity separate from independent source-alignment review status and prevent a fully valid/release-ready state while that review remains pending;
 - generate one neutral-grid source-alignment PNG per required target without protected map imagery;
 - verify source, release, licence, attribution, freshness and lineage fields;
+- normalize OSM epoch seconds/milliseconds to canonical UTC while preserving raw and epoch values, without populating observation time;
+- classify transport, anchor, land-use, water, construction and building records with layer-specific conservative source categories;
+- preserve multilingual display, source, local, English and alternate names with explicit canonical, source-stable, snapshot-provisional or derived identity scope;
+- preserve Overture theme licence and each declared source-record licence as separate provenance layers;
 - reject official, parcel, zoning, cadastral, planning or hazard claims for open data.
 
 ### B1-E — Packaging and no-activation evidence
@@ -104,6 +108,8 @@ Environmental derived zones, market metrics, DLD/Dubai Pulse data and official G
 - provider-versioned alias/crosswalk history and Python/TypeScript canonical-key parity evidence;
 - target-specific top-10 candidate tables and feature-level freshness evidence;
 - attribution and distribution specification with repository publication approval held false;
+- machine-readable attribution URLs and artifact `LICENSES/NOTICE.md`;
+- exact independent-review record for the three selected AOIs, bound to reviewed provider IDs and geometry hashes;
 - normalized dataset manifests;
 - geometry-quality report;
 - deterministic rebuild report;
@@ -128,6 +134,8 @@ B1 is complete only when:
 10. new open layers remain inactive by default;
 11. existing Workspace, Project Hub, dashboard, comparison and report flows show no regression;
 12. the PR remains draft and unmerged pending founder review.
+
+The selected AOIs may carry `reviewed_with_conditions` only when their provider IDs and geometry hashes exactly match the independent audit artifact. All other source features remain pending review. This source-alignment decision is not official validation.
 
 ## Release safety
 

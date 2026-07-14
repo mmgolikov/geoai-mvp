@@ -54,6 +54,48 @@ export function buildProviderIndependentFeatureKeyV1(input: {
   });
 }
 
+export function buildSourceStableFeatureKeyV1(input: {
+  role: SpatialGeometryRoleV1;
+  englishName: string;
+  centroid: { longitude: number; latitude: number };
+  countryCode?: string;
+  regionCode?: string;
+}) {
+  return buildStableFeatureKeyV1({
+    role: input.role,
+    slug: `${input.englishName}-${input.centroid.longitude.toFixed(5)}-${input.centroid.latitude.toFixed(5)}`,
+    countryCode: input.countryCode,
+    regionCode: input.regionCode
+  });
+}
+
+function provisionalIdentityDigest(value: string) {
+  let left = 0x811c9dc5;
+  let right = 0x9e3779b9;
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    left = Math.imul(left ^ code, 0x01000193);
+    right = Math.imul(right ^ code, 0x85ebca6b);
+  }
+  return `${(left >>> 0).toString(16).padStart(8, "0")}${(right >>> 0).toString(16).padStart(8, "0")}`;
+}
+
+export function buildSnapshotProvisionalFeatureKeyV1(input: {
+  role: SpatialGeometryRoleV1;
+  category: string;
+  provider: string;
+  providerId: string;
+  countryCode?: string;
+  regionCode?: string;
+}) {
+  return buildStableFeatureKeyV1({
+    role: input.role,
+    slug: `provisional-${input.category}-${provisionalIdentityDigest(`${input.provider}:${input.providerId}`)}`,
+    countryCode: input.countryCode,
+    regionCode: input.regionCode
+  });
+}
+
 export function isStableFeatureKeyV1(value: string) {
   return /^geoai:(area|zone|asset|aoi|corridor|anchor|observation):[a-z0-9-]+:[a-z0-9-]+$/.test(value);
 }

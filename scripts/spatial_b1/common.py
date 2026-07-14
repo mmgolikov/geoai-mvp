@@ -109,6 +109,22 @@ def provider_independent_feature_key(
     return stable_feature_key(role, semantic_identity)
 
 
+def source_stable_feature_key(
+    role: str,
+    english_name: str,
+    centroid: dict[str, float],
+) -> str:
+    return stable_feature_key(
+        role,
+        f"{english_name}-{centroid['longitude']:.5f}-{centroid['latitude']:.5f}",
+    )
+
+
+def snapshot_provisional_feature_key(role: str, category: str, provider: str, provider_id: str) -> str:
+    identity_digest = hashlib.sha256(f"{provider}:{provider_id}".encode("utf-8")).hexdigest()[:16]
+    return stable_feature_key(role, f"provisional-{category}-{identity_digest}")
+
+
 def iter_positions(coordinates: Any) -> Iterable[tuple[float, float]]:
     if not isinstance(coordinates, (list, tuple)):
         return

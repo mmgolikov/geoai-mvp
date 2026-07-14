@@ -1,5 +1,14 @@
-import { buildProviderIndependentFeatureKeyV1, dedupeSpatialSourceAliasesV1 } from "@/src/lib/spatial-b1/feature-key";
-import { classifySpatialFreshnessV1, spatialFreshnessPolicyV1 } from "@/src/lib/spatial-b1/freshness";
+import {
+  buildSnapshotProvisionalFeatureKeyV1,
+  buildSourceStableFeatureKeyV1,
+  dedupeSpatialSourceAliasesV1
+} from "@/src/lib/spatial-b1/feature-key";
+import {
+  classifySpatialFreshnessV1,
+  normalizeSpatialSourceTimestampV1,
+  spatialFreshnessPolicyV1
+} from "@/src/lib/spatial-b1/freshness";
+import { normalizeSpatialNamesV1 } from "@/src/lib/spatial-b1/naming";
 import { calculateSpatialGeometryCentroidV1, validateSpatialGeometryV1 } from "@/src/lib/spatial-b1/quality";
 import type {
   ProviderGeoJsonFeatureV1,
@@ -41,27 +50,69 @@ function classifyOsmFeature(rawFeature: ProviderGeoJsonFeatureV1) {
   const aeroway = stringValue(properties.aeroway).toLowerCase();
   const tourism = stringValue(properties.tourism).toLowerCase();
   const place = stringValue(properties.place).toLowerCase();
+  const waterway = stringValue(properties.waterway).toLowerCase();
+  const publicTransport = stringValue(properties.public_transport).toLowerCase();
+  const harbour = stringValue(properties.harbour).toLowerCase();
+  const sourceName = stringValue(properties["name:en"] ?? properties.name_en ?? properties.name);
 
   if (building === "construction" || landuse === "construction" || construction) {
-    return { role: "observation_footprint" as SpatialGeometryRoleV1, category: "construction", subtype: building || landuse || construction || "construction" };
+    return { role: "observation_footprint" as SpatialGeometryRoleV1, category: "construction_footprint", subtype: building || landuse || construction || "construction" };
   }
   if (highway || railway) {
-    return { role: "corridor" as SpatialGeometryRoleV1, category: "transport", subtype: highway || railway };
+    const category = highway
+      ? `${highway}_corridor`
+      : railway === "subway"
+        ? "metro_corridor"
+        : railway === "tram" || railway === "light_rail"
+          ? "tram_corridor"
+          : "rail_corridor";
+    return { role: "corridor" as SpatialGeometryRoleV1, category, subtype: highway || railway };
   }
   if (building) {
-    return { role: "asset_footprint" as SpatialGeometryRoleV1, category: "building", subtype: building };
+    const category = sourceName
+      ? /services|logistics|warehouse|industrial/i.test(sourceName)
+        ? "named_operational_building_footprint"
+        : "named_building_footprint"
+      : "building_footprint";
+    return { role: "asset_footprint" as SpatialGeometryRoleV1, category, subtype: building };
   }
-  if (landuse || natural || water) {
+  if (landuse || natural || water || waterway) {
+    const category =
+      natural === "coastline"
+        ? "coastline_context"
+        : waterway
+          ? "waterway_context"
+          : natural === "water" || water
+            ? "water_context"
+            : landuse === "commercial" || landuse === "retail"
+              ? "commercial_landuse_context"
+              : landuse === "industrial"
+                ? "industrial_landuse_context"
+                : landuse === "residential"
+                  ? "residential_landuse_context"
+                  : "park_landuse_context";
     return {
       role: "context_boundary" as SpatialGeometryRoleV1,
-      category: natural === "water" || natural === "coastline" || water ? "water_context" : "landuse_context",
-      subtype: landuse || natural || water || "context"
+      category,
+      subtype: landuse || natural || water || waterway || "context"
     };
   }
   if (amenity || aeroway || tourism || place || rawFeature.geometry.type === "Point") {
+    const category =
+      aeroway === "aerodrome" || aeroway === "terminal"
+        ? "airport_anchor"
+        : harbour || amenity === "ferry_terminal"
+          ? "port_anchor"
+          : publicTransport || ["station", "halt", "subway_entrance"].includes(railway) || amenity === "bus_station"
+            ? "transport_station_anchor"
+            : amenity
+              ? "amenity_anchor"
+              : tourism
+                ? "tourism_anchor"
+                : "activity_anchor";
     return {
       role: "anchor" as SpatialGeometryRoleV1,
-      category: "spatial_anchor",
+      category,
       subtype: amenity || aeroway || tourism || place || "point"
     };
   }
@@ -71,6 +122,7 @@ function classifyOsmFeature(rawFeature: ProviderGeoJsonFeatureV1) {
 function selectedMetadata(properties: Record<string, unknown>) {
   const keys = [
     "name",
+    "name:en",
     "name_en",
     "highway",
     "railway",
@@ -108,9 +160,14 @@ function normalizeOsmFeature(
   if (!quality.valid) return null;
   const centroid = calculateSpatialGeometryCentroidV1(rawFeature.geometry);
   if (!centroid) return null;
-  const sourceObjectName = stringValue(properties.name_en) || stringValue(properties.name) || null;
-  const name = sourceObjectName || `${classification.subtype.replace(/_/g, " ")} open-context feature`;
-  const sourceUpdatedAt = stringValue(properties["@timestamp"]) || null;
+  const names = normalizeSpatialNamesV1({ properties, provider: "osm", category: classification.category, providerId });
+  const sourceObjectName = names.sourceObjectName;
+  const normalizedTimestamp = normalizeSpatialSourceTimestampV1(
+    typeof properties["@timestamp"] === "number" || typeof properties["@timestamp"] === "string"
+      ? properties["@timestamp"]
+      : null
+  );
+  const sourceUpdatedAt = normalizedTimestamp.sourceUpdatedAt;
   const freshnessStatus = classifySpatialFreshnessV1(sourceUpdatedAt, context.dataset.accessedAt);
   const sourceAliases = dedupeSpatialSourceAliasesV1([
     { sourceId: context.dataset.sourceId, sourceFeatureId: providerId },
@@ -124,14 +181,22 @@ function normalizeOsmFeature(
     type: "Feature",
     featureKey:
       context.canonicalFeatureKey ??
-      buildProviderIndependentFeatureKeyV1({
-        role: classification.role,
-        semanticName: sourceObjectName,
-        category: classification.category,
-        centroid,
-        countryCode: context.countryCode,
-        regionCode: context.regionCode
-      }),
+      (names.englishName
+        ? buildSourceStableFeatureKeyV1({
+            role: classification.role,
+            englishName: names.englishName,
+            centroid,
+            countryCode: context.countryCode,
+            regionCode: context.regionCode
+          })
+        : buildSnapshotProvisionalFeatureKeyV1({
+            role: classification.role,
+            category: classification.category,
+            provider: "osm",
+            providerId,
+            countryCode: context.countryCode,
+            regionCode: context.regionCode
+          })),
     datasetId: context.dataset.datasetId,
     datasetVersion: context.dataset.datasetVersion,
     sourceFeatureId: providerId,
@@ -153,7 +218,15 @@ function normalizeOsmFeature(
         sourceDataset: "OpenStreetMap",
         sourceRecordId: providerId,
         sourceRecordVersion: stringValue(properties["@version"]) || null,
+        themeLicenseId: context.dataset.licenseId,
+        themeLicenseUrl: context.dataset.licenseUrl,
+        sourceRecordLicenseId: context.dataset.licenseId,
+        sourceRecordLicenseUrl: context.dataset.licenseUrl,
         sourceLicenseId: context.dataset.licenseId,
+        sourceAttribution: "© OpenStreetMap contributors; extract by Geofabrik GmbH.",
+        attributionUrl: context.dataset.attributionUrl,
+        sourceUpdatedAtRaw: normalizedTimestamp.sourceUpdatedAtRaw,
+        sourceUpdatedAtEpoch: normalizedTimestamp.sourceUpdatedAtEpoch,
         sourceUpdatedAt,
         sourceObservedAt: null,
         accessedAt: context.dataset.accessedAt,
@@ -161,9 +234,19 @@ function normalizeOsmFeature(
         freshnessPolicyId: spatialFreshnessPolicyV1.freshnessPolicyId
       }
     ],
-    name,
-    canonicalName: context.canonicalName ?? name,
+    name: names.displayName,
+    displayName: names.displayName,
+    canonicalName: context.canonicalName ?? names.displayName,
     sourceObjectName,
+    localName: names.localName,
+    englishName: names.englishName,
+    alternateNames: names.alternateNames,
+    identityScope: context.canonicalFeatureKey ? "canonical_registry" : names.englishName ? "source_stable" : "snapshot_provisional",
+    identityCrosswalkPolicy: context.canonicalFeatureKey
+      ? "canonical_registry_provider_version_crosswalk_v1"
+      : names.englishName
+        ? "english_name_plus_rounded_centroid_provider_crosswalk_v1"
+        : null,
     contextArea: context.contextArea ?? null,
     businessNarrative: context.businessNarrative ?? "Open-context feature retained for screening context.",
     category: classification.category,
@@ -179,6 +262,8 @@ function normalizeOsmFeature(
     validTo: context.dataset.validTo,
     freshnessStatus,
     freshnessPolicyId: spatialFreshnessPolicyV1.freshnessPolicyId,
+    sourceUpdatedAtRaw: normalizedTimestamp.sourceUpdatedAtRaw,
+    sourceUpdatedAtEpoch: normalizedTimestamp.sourceUpdatedAtEpoch,
     sourceUpdatedAt,
     validationStatus: "open_context",
     confidenceLevel: "medium",
@@ -198,7 +283,7 @@ function normalizeOsmFeature(
       }
     ],
     quality,
-    metadata: selectedMetadata(properties)
+    metadata: { ...selectedMetadata(properties), sourceCategory: classification.category, displayNameSource: names.displayNameSource }
   };
 }
 

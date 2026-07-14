@@ -17,9 +17,9 @@ from common import (
     TARGETS,
     WORKING_CRS,
     deterministic_json_bytes,
-    geometry_checksum,
     normalize_geometry,
-    provider_independent_feature_key,
+    snapshot_provisional_feature_key,
+    source_stable_feature_key,
     sha256_bytes,
     sha256_file,
     target_point_working,
@@ -29,7 +29,9 @@ from common import (
     write_json,
 )
 from canonical_feature_registry import registry_document, selected_registry_entry
-from freshness import FRESHNESS_POLICY, freshness_status
+from freshness import FRESHNESS_POLICY, freshness_status, normalize_source_timestamp
+from naming import normalized_names
+from source_alignment_review import review_record, reviewed_with_conditions
 
 LAYER_LIMITS = {
     "transport": 100,
@@ -86,48 +88,72 @@ def exact_feature_identity(feature: dict[str, Any], provider: str) -> tuple[str 
     return f"{object_type}/{numeric_id}", {"objectType": object_type, "numericId": numeric_id}
 
 
-def feature_name(feature: dict[str, Any]) -> str | None:
-    properties = feature.get("properties") or {}
-    names = properties.get("names") if isinstance(properties.get("names"), dict) else {}
-    common = names.get("common") if isinstance(names.get("common"), dict) else {}
-    for candidate in (names.get("primary"), common.get("en"), properties.get("name_en"), properties.get("name")):
-        if isinstance(candidate, str) and candidate.strip():
-            return candidate.strip()
-    return None
-
-
 def source_records(properties: dict[str, Any], provider: str) -> list[dict[str, Any]]:
     if provider == "overture" and isinstance(properties.get("sources"), list):
         return [record for record in properties["sources"] if isinstance(record, dict)]
     return [{}]
 
 
-def source_updated_at(properties: dict[str, Any], provider: str) -> str | None:
+def source_updated_timestamp(properties: dict[str, Any], provider: str) -> dict[str, str | int | float | None]:
     if provider == "overture":
         values = [
-            str(record.get("update_time") or record.get("updateTime")).strip()
+            normalize_source_timestamp(record.get("update_time") or record.get("updateTime"))
             for record in source_records(properties, provider)
-            if record.get("update_time") or record.get("updateTime")
         ]
-        return max(values) if values else None
-    value = properties.get("@timestamp")
-    return str(value).strip() if value else None
+        valid = [value for value in values if value["sourceUpdatedAtEpoch"] is not None]
+        return max(valid, key=lambda value: float(value["sourceUpdatedAtEpoch"] or 0)) if valid else normalize_source_timestamp(None)
+    return normalize_source_timestamp(properties.get("@timestamp"))
 
 
 def source_category(layer: str, source_name: str | None, properties: dict[str, Any]) -> str:
+    if layer == "transport":
+        highway = normalized_tag(properties, "highway")
+        railway = normalized_tag(properties, "railway")
+        if highway in APPROVED_HIGHWAYS:
+            return f"{highway}_corridor"
+        return {
+            "subway": "metro_corridor",
+            "light_rail": "tram_corridor",
+            "tram": "tram_corridor",
+        }.get(railway, "rail_corridor")
+    if layer == "anchors":
+        if normalized_tag(properties, "aeroway") in {"aerodrome", "terminal"}:
+            return "airport_anchor"
+        if normalized_tag(properties, "harbour") or normalized_tag(properties, "amenity") == "ferry_terminal":
+            return "port_anchor"
+        if (
+            normalized_tag(properties, "public_transport") in {"station", "platform", "stop_position"}
+            or normalized_tag(properties, "railway") in {"station", "halt", "subway_entrance"}
+            or normalized_tag(properties, "amenity") == "bus_station"
+        ):
+            return "transport_station_anchor"
+        if normalized_tag(properties, "amenity"):
+            return "amenity_anchor"
+        if normalized_tag(properties, "tourism"):
+            return "tourism_anchor"
+        return "activity_anchor"
+    if layer == "landuse":
+        landuse = normalized_tag(properties, "landuse")
+        if landuse in {"commercial", "retail"}:
+            return "commercial_landuse_context"
+        if landuse == "industrial":
+            return "industrial_landuse_context"
+        if normalized_tag(properties, "leisure") in {"park", "garden"} or landuse in {"greenfield", "brownfield"}:
+            return "park_landuse_context"
+        return "residential_landuse_context"
+    if layer == "water":
+        if normalized_tag(properties, "natural") == "coastline":
+            return "coastline_context"
+        if normalized_tag(properties, "waterway"):
+            return "waterway_context"
+        return "water_context"
     if layer == "construction":
         return "construction_footprint"
-    tags = " ".join(
-        str(properties.get(key) or "").lower()
-        for key in ("building", "industrial", "landuse", "name", "name_en")
-    )
-    if any(token in tags for token in ("industrial", "warehouse", "logistics")):
-        return "industrial_building" if "logistics" not in tags else "logistics_building"
     if source_name:
-        return "named_operational_building" if any(
+        return "named_operational_building_footprint" if any(
             token in source_name.lower() for token in ("services", "logistics", "warehouse", "industrial")
-        ) else "named_building"
-    return "building"
+        ) else "named_building_footprint"
+    return "building_footprint"
 
 
 def layer_definition(layer: str) -> tuple[str, str, str]:
@@ -140,6 +166,49 @@ def layer_definition(layer: str) -> tuple[str, str, str]:
         "construction": ("observation_footprint", "construction", "open_construction_target"),
         "selected-aoi": ("aoi", "selected_aoi", "sample_aoi_on_real_world_geometry"),
     }[layer]
+
+
+def attribution_notice(source_manifest: dict[str, Any]) -> str:
+    urls = source_manifest["attribution"]["urls"]
+    providers = source_manifest["attribution"].get("sourceProviders", [])
+    provider_lines = [
+        (
+            f"- {provider['sourceDataset']}: {provider['sourceAttribution']}; "
+            f"source-record licence {provider['sourceRecordLicenseId']} "
+            f"({provider.get('sourceRecordLicenseUrl') or 'URL not declared'}); "
+            f"attribution {provider.get('attributionUrl') or 'URL not declared'}."
+        )
+        for provider in providers
+    ]
+    return "\n".join(
+        [
+            "# Spatial B1 Attribution Notice",
+            "",
+            "This notice accompanies a short-lived, read-only evidence artifact. It does not approve public repository geometry distribution or activate open geometry in Product.",
+            "",
+            "## OpenStreetMap / Geofabrik",
+            "",
+            "- © OpenStreetMap contributors.",
+            f"- Copyright and attribution: {urls['openStreetMapCopyright']}",
+            f"- Open Database License 1.0 legal code: {urls['odblLegalCode']}",
+            f"- Geofabrik extract reference: {urls['geofabrikExtractReference']}",
+            "",
+            "## Overture Maps and source providers",
+            "",
+            "- Overture Maps Foundation.",
+            f"- Attribution documentation: {urls['overtureAttributionDocumentation']}",
+            f"- Foundation reference: {urls['overtureMapsFoundation']}",
+            *provider_lines,
+            "",
+            "## Data honesty and distribution control",
+            "",
+            "- Open-context and source-provider records do not imply official municipal, parcel, zoning, cadastral, ownership, planning, valuation, title or approval evidence.",
+            "- publicRepositoryGeometryApproved = false",
+            "- openGeometryActivated = false",
+            f"- {REQUIRED_CAVEAT}",
+            "",
+        ]
+    )
 
 
 def infer_provider(path: Path) -> str:
@@ -255,10 +324,19 @@ def normalize_feature(
         }
 
     role, category, subtype = layer_definition(classified_layer)
-    source_object_name = feature_name(raw)
-    name = source_object_name or f"{classified_layer.replace('-', ' ').title()} open-context feature"
     source_name = "overture-maps" if provider == "overture" else "osm-geofabrik"
     properties = raw.get("properties") or {}
+    detailed_category = source_category(classified_layer, None, properties)
+    names = normalized_names(properties, provider, detailed_category, source_id)
+    source_object_name = names["sourceObjectName"]
+    detailed_category = source_category(classified_layer, source_object_name, properties)
+    if detailed_category != source_category(classified_layer, None, properties):
+        names = normalized_names(properties, provider, detailed_category, source_id)
+        source_object_name = names["sourceObjectName"]
+    identity_scope = "source_stable" if names["englishName"] else "snapshot_provisional"
+    identity_crosswalk_policy = (
+        "english_name_plus_rounded_centroid_provider_crosswalk_v1" if identity_scope == "source_stable" else None
+    )
     aliases = [{"sourceId": source_name, "sourceFeatureId": source_id}]
     if osm_identity:
         aliases.append(
@@ -277,7 +355,8 @@ def normalize_feature(
                 aliases.append({"sourceId": str(source_dataset), "sourceFeatureId": str(record_id)})
 
     aliases = dedupe_aliases(aliases)
-    updated_at = source_updated_at(properties, provider)
+    updated = source_updated_timestamp(properties, provider)
+    updated_at = updated["sourceUpdatedAt"]
     feature_freshness = freshness_status(updated_at, dataset["accessedAt"])
     crosswalks = [
         {
@@ -298,16 +377,39 @@ def normalize_feature(
     ]
     provenance = []
     for record in source_records(properties, provider):
-        record_updated_at = (
-            str(record.get("update_time") or record.get("updateTime")).strip()
-            if record.get("update_time") or record.get("updateTime")
-            else updated_at
+        record_updated = normalize_source_timestamp(
+            record.get("update_time") or record.get("updateTime") if provider == "overture" else properties.get("@timestamp")
         )
+        if record_updated["sourceUpdatedAt"] is None:
+            record_updated = updated
+        source_dataset = str(record.get("dataset") or record.get("source") or source_name)
+        record_license_id = str(record.get("license") or dataset["licenseId"])
+        provider_manifest = next(
+            (
+                item
+                for item in dataset.get("sourceProviders", [])
+                if item.get("sourceDataset") == source_dataset
+                and item.get("sourceRecordLicenseId") == record_license_id
+            ),
+            {},
+        )
+        record_license_url = str(
+            provider_manifest.get("sourceRecordLicenseUrl")
+            or (dataset.get("licenseUrl") if record_license_id in {"ODbL-1.0", dataset["licenseId"]} else "")
+        )
+        source_attribution = str(record.get("attribution") or provider_manifest.get("sourceAttribution") or source_dataset)
+        attribution_url = str(
+            record.get("attribution_url")
+            or record.get("attributionUrl")
+            or provider_manifest.get("attributionUrl")
+            or dataset.get("attributionUrl")
+            or ""
+        ) or None
         provenance.append(
             {
                 "datasetReleaseDate": dataset.get("datasetReleaseDate"),
                 "datasetSnapshotDate": dataset.get("datasetSnapshotDate"),
-                "sourceDataset": str(record.get("dataset") or record.get("source") or source_name),
+                "sourceDataset": source_dataset,
                 "sourceRecordId": str(
                     record.get("record_id") or record.get("recordId") or record.get("id") or source_id
                 ),
@@ -316,11 +418,17 @@ def normalize_feature(
                     if record.get("record_version") or record.get("recordVersion") or properties.get("@version")
                     else None
                 ),
-                "sourceLicenseId": dataset["licenseId"],
-                "sourceUpdatedAt": record_updated_at,
+                "themeLicenseId": dataset["licenseId"],
+                "themeLicenseUrl": dataset["licenseUrl"],
+                "sourceRecordLicenseId": record_license_id,
+                "sourceRecordLicenseUrl": record_license_url,
+                "sourceLicenseId": record_license_id,
+                "sourceAttribution": source_attribution,
+                "attributionUrl": attribution_url,
+                **record_updated,
                 "sourceObservedAt": None,
                 "accessedAt": dataset["accessedAt"],
-                "freshnessStatus": freshness_status(record_updated_at, dataset["accessedAt"]),
+                "freshnessStatus": freshness_status(record_updated["sourceUpdatedAt"], dataset["accessedAt"]),
                 "freshnessPolicyId": FRESHNESS_POLICY["freshnessPolicyId"],
             }
         )
@@ -328,16 +436,26 @@ def normalize_feature(
     checksum = normalized["geometryChecksum"]
     envelope = {
         "type": "Feature",
-        "featureKey": provider_independent_feature_key(role, source_object_name, category, normalized["centroid"]),
+        "featureKey": (
+            source_stable_feature_key(role, names["englishName"], normalized["centroid"])
+            if identity_scope == "source_stable"
+            else snapshot_provisional_feature_key(role, detailed_category, provider, source_id)
+        ),
         "datasetId": dataset["datasetId"],
         "datasetVersion": dataset["datasetVersion"],
         "sourceFeatureId": source_id,
         "sourceAliases": aliases,
         "sourceCrosswalks": crosswalks,
         "sourceProvenance": provenance,
-        "name": name,
-        "canonicalName": name,
+        "name": names["displayName"],
+        "displayName": names["displayName"],
+        "canonicalName": names["displayName"],
         "sourceObjectName": source_object_name,
+        "localName": names["localName"],
+        "englishName": names["englishName"],
+        "alternateNames": names["alternateNames"],
+        "identityScope": identity_scope,
+        "identityCrosswalkPolicy": identity_crosswalk_policy,
         "contextArea": None,
         "businessNarrative": "Open-context source feature retained for screening context.",
         "category": category,
@@ -356,6 +474,8 @@ def normalize_feature(
         "validTo": None,
         "freshnessStatus": feature_freshness,
         "freshnessPolicyId": FRESHNESS_POLICY["freshnessPolicyId"],
+        "sourceUpdatedAtRaw": updated["sourceUpdatedAtRaw"],
+        "sourceUpdatedAtEpoch": updated["sourceUpdatedAtEpoch"],
         "sourceUpdatedAt": updated_at,
         "validationStatus": "open_context",
         "confidenceLevel": "medium",
@@ -388,7 +508,8 @@ def normalize_feature(
             "provider": provider,
             "classifiedLayer": classified_layer,
             "repairOperation": normalized["repairOperation"],
-            "sourceCategory": source_category(classified_layer, source_object_name, properties),
+            "sourceCategory": detailed_category,
+            "displayNameSource": names["displayNameSource"],
         },
     }
     return envelope, None
@@ -530,14 +651,20 @@ def build_selected_aois(
             else f"{registry['canonicalName']} — Open-Context Building Footprint"
         )
         selected_feature = copy.deepcopy(source)
+        source_alignment_reviewed = reviewed_with_conditions(
+            registry["featureKey"], source["sourceFeatureId"], source["geometryChecksum"]
+        )
         selected_feature.update(
             {
                 "featureKey": registry["featureKey"],
                 "datasetId": dataset["datasetId"],
                 "datasetVersion": dataset["datasetVersion"],
                 "name": display_name,
+                "displayName": display_name,
                 "canonicalName": registry["canonicalName"],
                 "sourceObjectName": source_object_name,
+                "identityScope": "canonical_registry",
+                "identityCrosswalkPolicy": "canonical_registry_provider_version_crosswalk_v1",
                 "contextArea": registry["contextArea"],
                 "businessNarrative": registry["businessNarrative"],
                 "category": "selected_aoi",
@@ -564,6 +691,19 @@ def build_selected_aois(
                 },
             }
         )
+        selected_feature["quality"]["sourceAlignmentReviewed"] = source_alignment_reviewed
+        selected_feature["quality"]["sourceAlignmentStatus"] = (
+            "reviewed_with_conditions" if source_alignment_reviewed else "pending_independent_review"
+        )
+        selected_feature["sourceCrosswalks"] = [
+            {
+                **crosswalk,
+                "reviewStatus": (
+                    "reviewed_with_conditions" if source_alignment_reviewed else crosswalk["reviewStatus"]
+                ),
+            }
+            for crosswalk in selected_feature["sourceCrosswalks"]
+        ]
         selected.append(selected_feature)
         target_records.append(
             {
@@ -584,12 +724,16 @@ def build_selected_aois(
                 "geometryRole": "aoi",
                 "selectedSourceFeatureId": source["sourceFeatureId"],
                 "selectedSourceAliases": source["sourceAliases"],
-                "selectedSourceCrosswalks": source["sourceCrosswalks"],
+                "selectedSourceCrosswalks": selected_feature["sourceCrosswalks"],
                 "selectedGeometryChecksum": source["geometryChecksum"],
                 "selectedAreaSqm": source.get("areaSqm"),
                 "distanceMetres": distance,
                 "sourceUpdatedAt": source.get("sourceUpdatedAt"),
                 "freshnessStatus": source["freshnessStatus"],
+                "sourceAlignmentReviewed": source_alignment_reviewed,
+                "sourceAlignmentStatus": (
+                    "reviewed_with_conditions" if source_alignment_reviewed else "pending_independent_review"
+                ),
                 "selectedRank": selected_candidate["rank"],
                 "eligibleCandidateCount": sum(1 for candidate, _ in ranked if candidate["eligible"]),
                 "rankedCandidates": [candidate for candidate, _ in ranked[:10]],
@@ -667,7 +811,10 @@ def main() -> None:
             "sourceReleaseId": source_record.get("sourceReleaseId"),
             "sourceMode": "open_snapshot",
             "licenseId": source_record["licenseId"],
+            "licenseUrl": source_record["licenseUrl"],
+            "attributionUrl": source_record["attributionUrl"],
             "attribution": source_record["attribution"],
+            "sourceProviders": source_record.get("featureSourceProviders", []),
             "buildMethod": "geoai-spatial-b1-builder",
             "buildVersion": "1.2.0",
             "checksum": sha256_file(source_file),
@@ -736,7 +883,23 @@ def main() -> None:
             base_feature_key = feature["featureKey"]
             collision_index = accepted_feature_key_counts[base_feature_key]
             if collision_index:
-                feature["featureKey"] = f"{base_feature_key}-{collision_index + 1:02d}"
+                duplicates.append(
+                    {
+                        "type": "feature_key",
+                        "featureKey": base_feature_key,
+                        "provider": provider,
+                        "sourceFeatureId": feature["sourceFeatureId"],
+                        "duplicateLayer": input_layer,
+                    }
+                )
+                rejected.append(
+                    {
+                        "inputFile": source_file.name,
+                        "sourceFeatureId": feature["sourceFeatureId"],
+                        "reason": "source_stable_or_provisional_feature_key_collision",
+                    }
+                )
+                continue
             accepted_feature_key_counts[base_feature_key] += 1
             accepted_identity[identity_key] = input_layer
             accepted_geometry[checksum] = identity_key
@@ -787,7 +950,10 @@ def main() -> None:
         "sourceReleaseId": arguments.dataset_version,
         "sourceMode": "derived_open_context",
         "licenseId": "inherits-source-licences",
+        "licenseUrl": "https://docs.overturemaps.org/attribution/",
+        "attributionUrl": "https://docs.overturemaps.org/attribution/",
         "attribution": "Derived from the source features listed in sourceAliases.",
+        "sourceProviders": source_manifest.get("attribution", {}).get("sourceProviders", []),
         "buildMethod": "target-specific-ranked-selection-in-epsg-32640",
         "buildVersion": "1.2.0",
         "checksum": "pending-output-checksum",
@@ -883,6 +1049,38 @@ def main() -> None:
                     "embeddedTokens": sorted(set(embedded)),
                 }
             )
+    source_category_records = [
+        {
+            "featureKey": feature["featureKey"],
+            "classifiedLayer": feature["metadata"]["classifiedLayer"],
+            "sourceCategory": feature["metadata"]["sourceCategory"],
+        }
+        for feature in all_features
+    ]
+    wrong_layer_building_categories = [
+        record
+        for record in source_category_records
+        if record["classifiedLayer"] != "buildings" and "building" in record["sourceCategory"]
+    ]
+    category_assertions_passed = (
+        not wrong_layer_building_categories
+        and all(
+            record["sourceCategory"] == "construction_footprint"
+            for record in source_category_records
+            if record["classifiedLayer"] == "construction"
+        )
+        and all(
+            record["sourceCategory"]
+            in {"building_footprint", "named_building_footprint", "named_operational_building_footprint"}
+            for record in source_category_records
+            if record["classifiedLayer"] == "buildings"
+        )
+    )
+    selected_alignment_reviewed = all(
+        feature["quality"]["sourceAlignmentReviewed"]
+        and feature["quality"]["sourceAlignmentStatus"] == "reviewed_with_conditions"
+        for feature in selected_aois
+    )
     machine_valid = (
         selection_report["uniqueness"]["passed"]
         and len(selected_aois) == len(TARGETS)
@@ -895,8 +1093,14 @@ def main() -> None:
         and all(feature["quality"]["valid"] for feature in all_features)
         and dubai_south_semantic_gate
         and not canonical_provider_id_violations
+        and category_assertions_passed
+        and selected_alignment_reviewed
     )
-    source_alignment_status = "evidence_generated_pending_independent_review"
+    source_alignment_status = (
+        "selected_aois_reviewed_with_conditions_other_features_pending"
+        if selected_alignment_reviewed
+        else "independent_review_record_present_exact_match_pending"
+    )
     bundle = {
         "bundleId": "dubai-open-context-b1",
         "bundleVersion": arguments.dataset_version,
@@ -968,6 +1172,8 @@ def main() -> None:
                 "sourceFeatureId": feature["sourceFeatureId"],
                 "datasetReleaseDate": feature["sourceProvenance"][0]["datasetReleaseDate"],
                 "datasetSnapshotDate": feature["sourceProvenance"][0]["datasetSnapshotDate"],
+                "sourceUpdatedAtRaw": feature["sourceUpdatedAtRaw"],
+                "sourceUpdatedAtEpoch": feature["sourceUpdatedAtEpoch"],
                 "sourceUpdatedAt": feature["sourceUpdatedAt"],
                 "sourceObservedAt": feature["observedAt"],
                 "freshnessStatus": feature["freshnessStatus"],
@@ -1017,13 +1223,156 @@ def main() -> None:
             "dubaiSouthMinimumAreaGatePassed": dubai_south_semantic_gate,
         },
         "sourceAlignmentReviewed": False,
+        "selectedAoiSourceAlignmentReviewed": selected_alignment_reviewed,
+        "selectedAoiSourceAlignmentStatus": "reviewed_with_conditions" if selected_alignment_reviewed else "pending_independent_review",
+        "otherFeatureSourceAlignmentStatus": "pending_independent_review",
         "releaseReady": False,
     })
+
+    osm_features = [feature for feature in all_features if feature["metadata"]["provider"] == "osm"]
+    osm_freshness_counts = Counter(feature["freshnessStatus"] for feature in osm_features)
+    valid_osm_timestamp_count = sum(1 for feature in osm_features if feature["sourceUpdatedAt"] is not None)
+    write_json(output_dir / "osm-timestamp-normalization-report.json", {
+        "normalizationPolicyId": "geoai-source-timestamp-normalization-v1",
+        "datasetSnapshotDateIsSeparate": True,
+        "observedAtPopulated": any(feature["observedAt"] is not None for feature in osm_features),
+        "records": [
+            {
+                "featureKey": feature["featureKey"],
+                "sourceFeatureId": feature["sourceFeatureId"],
+                "sourceUpdatedAtRaw": feature["sourceUpdatedAtRaw"],
+                "sourceUpdatedAtEpoch": feature["sourceUpdatedAtEpoch"],
+                "sourceUpdatedAt": feature["sourceUpdatedAt"],
+                "datasetSnapshotDate": feature["sourceProvenance"][0]["datasetSnapshotDate"],
+                "observedAt": feature["observedAt"],
+                "freshnessStatus": feature["freshnessStatus"],
+            }
+            for feature in osm_features
+        ],
+    })
+    write_json(output_dir / "osm-freshness-state-counts.json", {
+        "osmFeatureCount": len(osm_features),
+        "validSourceTimestampCount": valid_osm_timestamp_count,
+        "states": {state: osm_freshness_counts.get(state, 0) for state in FRESHNESS_POLICY["states"]},
+        "validTimestampsClassifiedUnknown": sum(
+            1 for feature in osm_features if feature["sourceUpdatedAt"] and feature["freshnessStatus"] == "unknown"
+        ),
+        "passed": valid_osm_timestamp_count > 0
+        and not any(feature["sourceUpdatedAt"] and feature["freshnessStatus"] == "unknown" for feature in osm_features),
+    })
+    write_json(output_dir / "layer-specific-source-category-matrix.json", {
+        "categoriesByLayer": {
+            layer: sorted({record["sourceCategory"] for record in source_category_records if record["classifiedLayer"] == layer})
+            for layer in sorted({record["classifiedLayer"] for record in source_category_records})
+        },
+        "records": source_category_records,
+    })
+    write_json(output_dir / "zero-wrong-layer-building-categories-assertion.json", {
+        "passed": category_assertions_passed,
+        "transportFeaturesClassifiedAsBuilding": sum(1 for record in wrong_layer_building_categories if record["classifiedLayer"] == "transport"),
+        "anchorFeaturesClassifiedAsBuilding": sum(1 for record in wrong_layer_building_categories if record["classifiedLayer"] == "anchors"),
+        "landUseFeaturesClassifiedAsBuilding": sum(1 for record in wrong_layer_building_categories if record["classifiedLayer"] == "landuse"),
+        "waterFeaturesClassifiedAsBuilding": sum(1 for record in wrong_layer_building_categories if record["classifiedLayer"] == "water"),
+        "violations": wrong_layer_building_categories,
+    })
+    write_json(output_dir / "multilingual-naming-audit.json", {
+        "preferredOrder": [
+            "structured_provider_primary_english",
+            "structured_provider_common_english",
+            "osm_name_en",
+            "name_en",
+            "local_name",
+            "neutral_category_provider_identity",
+        ],
+        "records": [
+            {
+                "featureKey": feature["featureKey"],
+                "sourceFeatureId": feature["sourceFeatureId"],
+                "displayName": feature["displayName"],
+                "sourceObjectName": feature["sourceObjectName"],
+                "localName": feature["localName"],
+                "englishName": feature["englishName"],
+                "alternateNames": feature["alternateNames"],
+                "displayNameSource": feature["metadata"]["displayNameSource"],
+            }
+            for feature in all_features
+        ],
+    })
+    name_en_examples = [
+        {
+            "featureKey": feature["featureKey"],
+            "sourceFeatureId": feature["sourceFeatureId"],
+            "localName": feature["localName"],
+            "englishName": feature["englishName"],
+            "displayName": feature["displayName"],
+            "displayNameSource": feature["metadata"]["displayNameSource"],
+        }
+        for feature in osm_features
+        if feature["metadata"]["displayNameSource"] == "osm_name_en"
+    ]
+    write_json(output_dir / "osm-name-en-regression-examples.json", {
+        "passed": bool(name_en_examples)
+        and all(record["displayName"] == record["englishName"] for record in name_en_examples),
+        "examples": name_en_examples[:25],
+    })
+    write_json(output_dir / "identity-scope-inventory.json", {
+        "allowedScopes": ["canonical_registry", "source_stable", "snapshot_provisional", "derived"],
+        "counts": dict(sorted(Counter(feature["identityScope"] for feature in all_features).items())),
+        "registeredContexts": registry_document()["contexts"],
+        "records": [
+            {
+                "featureKey": feature["featureKey"],
+                "sourceFeatureId": feature["sourceFeatureId"],
+                "identityScope": feature["identityScope"],
+                "identityCrosswalkPolicy": feature["identityCrosswalkPolicy"],
+            }
+            for feature in all_features
+        ],
+    })
+    write_json(output_dir / "source-record-theme-licence-matrix.json", {
+        "records": [
+            {
+                "featureKey": feature["featureKey"],
+                **provenance,
+            }
+            for feature in all_features
+            for provenance in feature["sourceProvenance"]
+        ],
+    })
+    manifest_urls = source_manifest.get("attribution", {}).get("urls", {})
+    source_provider_urls = [
+        value
+        for provider in source_manifest.get("attribution", {}).get("sourceProviders", [])
+        for value in (provider.get("sourceRecordLicenseUrl"), provider.get("attributionUrl"))
+        if value
+    ]
+    required_urls = [*manifest_urls.values(), *source_provider_urls]
+    write_json(output_dir / "licence-attribution-url-validation.json", {
+        "passed": bool(required_urls) and all(str(value).startswith("https://") for value in required_urls),
+        "validationMethod": "machine-readable HTTPS URL presence and syntax",
+        "urls": sorted(set(required_urls)),
+    })
+    independent_review = review_record()
+    independent_review["matchedCurrentRecords"] = [
+        {
+            "featureKey": feature["featureKey"],
+            "sourceProviderId": feature["sourceFeatureId"],
+            "geometryChecksum": feature["geometryChecksum"],
+            "matched": feature["quality"]["sourceAlignmentReviewed"],
+        }
+        for feature in selected_aois
+    ]
+    independent_review["allReviewedRecordsMatched"] = selected_alignment_reviewed
+    write_json(output_dir / "independent-source-alignment-review-record.json", independent_review)
+    notice_path = output_dir / "LICENSES" / "NOTICE.md"
+    notice_path.parent.mkdir(parents=True, exist_ok=True)
+    notice_path.write_text(attribution_notice(source_manifest), encoding="utf-8")
 
     quality_summary = {
         "valid": False,
         "machineValid": machine_valid,
         "sourceAlignmentReviewed": False,
+        "selectedAoiSourceAlignmentReviewed": selected_alignment_reviewed,
         "sourceAlignmentStatus": source_alignment_status,
         "releaseReady": False,
         "acceptedFeatureCount": len(all_features),

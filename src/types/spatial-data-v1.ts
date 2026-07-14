@@ -44,6 +44,7 @@ export type SpatialGeometryAccuracyV1 =
 export type SpatialFreshnessStatusV1 = "current" | "aging" | "stale" | "unknown";
 export type SpatialConfidenceV1 = "demo" | "low" | "medium" | "high";
 export type SpatialJsonScalarV1 = string | number | boolean | null;
+export type SpatialIdentityScopeV1 = "canonical_registry" | "source_stable" | "snapshot_provisional" | "derived";
 
 export type SpatialSourceAliasV1 = {
   sourceId: string;
@@ -59,7 +60,7 @@ export type SpatialSourceCrosswalkV1 = {
   matchMethod: string;
   matchConfidence: number;
   sourceUpdatedAt: string | null;
-  reviewStatus: "machine_matched_pending_review" | "reviewed" | "superseded";
+  reviewStatus: "machine_matched_pending_review" | "reviewed_with_conditions" | "reviewed" | "superseded";
 };
 
 export type SpatialFeatureSourceProvenanceV1 = {
@@ -68,7 +69,15 @@ export type SpatialFeatureSourceProvenanceV1 = {
   sourceDataset: string;
   sourceRecordId: string | null;
   sourceRecordVersion: string | null;
+  themeLicenseId: string;
+  themeLicenseUrl: string;
+  sourceRecordLicenseId: string;
+  sourceRecordLicenseUrl: string;
   sourceLicenseId: string;
+  sourceAttribution: string;
+  attributionUrl: string | null;
+  sourceUpdatedAtRaw: string | number | null;
+  sourceUpdatedAtEpoch: number | null;
   sourceUpdatedAt: string | null;
   sourceObservedAt: string | null;
   accessedAt: string;
@@ -94,7 +103,7 @@ export type SpatialGeometryQualityV1 = {
   lengthPlausible: boolean | null;
   overlapPolicyPassed: boolean | null;
   sourceAlignmentReviewed: boolean;
-  sourceAlignmentStatus: "pending_independent_review" | "reviewed";
+  sourceAlignmentStatus: "pending_independent_review" | "reviewed_with_conditions" | "reviewed";
   issues: SpatialQualityIssueV1[];
 };
 
@@ -124,7 +133,16 @@ export type SpatialDatasetVersionV1 = {
   sourceReleaseId: string | null;
   sourceMode: SpatialSourceModeV1;
   licenseId: string;
+  licenseUrl: string;
+  attributionUrl: string;
   attribution: string;
+  sourceProviders?: Array<{
+    sourceDataset: string;
+    sourceRecordLicenseId: string;
+    sourceRecordLicenseUrl: string | null;
+    sourceAttribution: string;
+    attributionUrl: string | null;
+  }>;
   buildMethod: string;
   buildVersion: string;
   checksum: string;
@@ -142,8 +160,14 @@ export type SpatialFeatureEnvelopeV1 = {
   sourceCrosswalks: SpatialSourceCrosswalkV1[];
   sourceProvenance: SpatialFeatureSourceProvenanceV1[];
   name: string;
+  displayName: string;
   canonicalName: string;
   sourceObjectName: string | null;
+  localName: string | null;
+  englishName: string | null;
+  alternateNames: string[];
+  identityScope: SpatialIdentityScopeV1;
+  identityCrosswalkPolicy: string | null;
   contextArea: string | null;
   businessNarrative: string;
   category: string;
@@ -162,6 +186,8 @@ export type SpatialFeatureEnvelopeV1 = {
   validTo: string | null;
   freshnessStatus: SpatialFreshnessStatusV1;
   freshnessPolicyId: string;
+  sourceUpdatedAtRaw: string | number | null;
+  sourceUpdatedAtEpoch: number | null;
   sourceUpdatedAt: string | null;
   validationStatus: SpatialValidationStatusV1;
   confidenceLevel: SpatialConfidenceV1;

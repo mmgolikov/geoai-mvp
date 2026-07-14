@@ -17,7 +17,10 @@ printf '%s\n' "${GITHUB_SHA:-local}" > output/spatial-b1/evidence/tested-sha.txt
 npm run lint
 python scripts/spatial_b1/canonical_feature_registry.py \
   --output output/spatial-b1/evidence/canonical-feature-key-registry-python.json
+python scripts/spatial_b1/freshness.py \
+  --output output/spatial-b1/evidence/osm-timestamp-normalization-python.json
 SPATIAL_B1_PYTHON_REGISTRY=output/spatial-b1/evidence/canonical-feature-key-registry-python.json \
+SPATIAL_B1_PYTHON_TIMESTAMP_REPORT=output/spatial-b1/evidence/osm-timestamp-normalization-python.json \
 SPATIAL_B1_CONTRACT_EVIDENCE_DIR=output/spatial-b1/evidence \
   node scripts/spatial-b1-contract-check.mjs \
   | tee output/spatial-b1/evidence/spatial-b1-contract-check.json
@@ -122,8 +125,15 @@ uniqueness = selection['uniqueness']
 parity = json.loads(Path('output/spatial-b1/evidence/python-typescript-key-parity-report.json').read_text())
 refresh = json.loads(Path('output/spatial-b1/evidence/provider-id-refresh-stability-report.json').read_text())
 precedence = json.loads(Path('output/spatial-b1/evidence/source-precedence-resolver-matrix.json').read_text())
+freshness_parity = json.loads(Path('output/spatial-b1/evidence/python-typescript-freshness-parity-report.json').read_text())
 provider_key_assertion = json.loads(Path('output/spatial-b1/bundle-a/canonical-key-provider-id-assertion.json').read_text())
 freshness = json.loads(Path('output/spatial-b1/bundle-a/feature-level-freshness-records.json').read_text())
+osm_freshness = json.loads(Path('output/spatial-b1/bundle-a/osm-freshness-state-counts.json').read_text())
+categories = json.loads(Path('output/spatial-b1/bundle-a/zero-wrong-layer-building-categories-assertion.json').read_text())
+name_en = json.loads(Path('output/spatial-b1/bundle-a/osm-name-en-regression-examples.json').read_text())
+identity_scopes = json.loads(Path('output/spatial-b1/bundle-a/identity-scope-inventory.json').read_text())
+licence_urls = json.loads(Path('output/spatial-b1/bundle-a/licence-attribution-url-validation.json').read_text())
+review = json.loads(Path('output/spatial-b1/bundle-a/independent-source-alignment-review-record.json').read_text())
 selected = json.loads(Path('output/spatial-b1/bundle-a/selected-aoi-records.json').read_text())
 selected_by_target = {feature['metadata']['focusAoiId']: feature for feature in selected}
 
@@ -134,7 +144,8 @@ assert bundle['releaseReady'] is False
 assert quality['valid'] is False
 assert quality['machineValid'] is True
 assert quality['sourceAlignmentReviewed'] is False
-assert quality['sourceAlignmentStatus'] == 'evidence_generated_pending_independent_review'
+assert quality['selectedAoiSourceAlignmentReviewed'] is True
+assert quality['sourceAlignmentStatus'] == 'selected_aois_reviewed_with_conditions_other_features_pending'
 assert quality['focusAoiGatePassed'] is True
 assert quality['selectedAoiQualityPassed'] is True
 assert quality['acceptedFeatureCount'] > 0
@@ -157,6 +168,22 @@ assert provider_key_assertion['providerIdsEmbeddedInCanonicalGeoAiKeys'] == 0
 assert parity['failureCount'] == 0
 assert refresh['businessKeyChanged'] is False
 assert precedence['passed'] is True
+assert [row['resolvedSource'] for row in precedence['matrix']] == ['synthetic', 'open', 'licensed', 'client', 'official']
+assert freshness_parity['failureCount'] == 0
+assert osm_freshness['passed'] is True
+assert osm_freshness['validTimestampsClassifiedUnknown'] == 0
+assert categories['passed'] is True
+assert categories['transportFeaturesClassifiedAsBuilding'] == 0
+assert categories['anchorFeaturesClassifiedAsBuilding'] == 0
+assert categories['landUseFeaturesClassifiedAsBuilding'] == 0
+assert categories['waterFeaturesClassifiedAsBuilding'] == 0
+assert name_en['passed'] is True
+assert identity_scopes['counts']['canonical_registry'] == 3
+assert all(record['identityScope'] == 'canonical_registry' for record in identity_scopes['registeredContexts'])
+assert licence_urls['passed'] is True
+assert review['allReviewedRecordsMatched'] is True
+assert review['decision'] == 'reviewed_with_conditions'
+assert review['officialValidation'] is False
 assert len({feature['featureKey'] for feature in selected}) == 3
 assert len({feature['sourceFeatureId'] for feature in selected}) == 3
 assert len({feature['geometryChecksum'] for feature in selected}) == 3
@@ -166,6 +193,15 @@ assert all(feature['canonicalName'] != feature['contextArea'] for feature in sel
 assert all(feature['sourceUpdatedAt'] for feature in selected if feature['metadata']['provider'] == 'overture')
 assert all(feature['observedAt'] is None for feature in selected)
 assert all(record['sourceObservedAt'] is None for record in freshness['records'])
+assert all(feature['quality']['sourceAlignmentStatus'] == 'reviewed_with_conditions' for feature in selected)
+assert all(feature['identityScope'] == 'canonical_registry' for feature in selected)
+assert all(
+    provenance['themeLicenseId'] and provenance['themeLicenseUrl']
+    and provenance['sourceRecordLicenseId'] and provenance['sourceRecordLicenseUrl']
+    and provenance['sourceDataset'] and provenance['sourceRecordId']
+    and provenance['sourceAttribution'] and provenance['attributionUrl']
+    for feature in selected for provenance in feature['sourceProvenance']
+)
 assert len({target['selectionProfile']['profileId'] for target in selection['targets']}) == 3
 
 Path('output/spatial-b1/evidence/hard-assertions.json').write_text(
@@ -185,6 +221,11 @@ Path('output/spatial-b1/evidence/hard-assertions.json').write_text(
         'canonicalKeyParityFailures': parity['failureCount'],
         'providerRefreshBusinessKeyChanges': int(refresh['businessKeyChanged']),
         'sourcePrecedencePassed': precedence['passed'],
+        'freshnessParityFailures': freshness_parity['failureCount'],
+        'validOsmTimestampsClassifiedUnknown': osm_freshness['validTimestampsClassifiedUnknown'],
+        'wrongLayerBuildingCategoryCount': len(categories['violations']),
+        'nameEnRegressionPassed': name_en['passed'],
+        'selectedAoiSourceAlignmentReviewed': review['allReviewedRecordsMatched'],
         'selectedDubaiSouthAreaSqm': selected_by_target['dubai-south-jebel-ali-v1']['areaSqm'],
         'datasetReleaseSubstitutedForObservedAt': any(feature['observedAt'] is not None for feature in selected),
     }, indent=2) + '\n'
@@ -230,6 +271,16 @@ for evidence_file in \
   precise-object-context-labels.json \
   source-alias-crosswalk-history.json \
   feature-level-freshness-records.json \
+  osm-timestamp-normalization-report.json \
+  osm-freshness-state-counts.json \
+  layer-specific-source-category-matrix.json \
+  zero-wrong-layer-building-categories-assertion.json \
+  multilingual-naming-audit.json \
+  osm-name-en-regression-examples.json \
+  identity-scope-inventory.json \
+  source-record-theme-licence-matrix.json \
+  licence-attribution-url-validation.json \
+  independent-source-alignment-review-record.json \
   selected-aoi-uniqueness-report.json \
   epsg-32640-transformation-evidence.json \
   geometry-validity-repair-report.json \
@@ -239,6 +290,53 @@ for evidence_file in \
   quality-report.json; do
   cp "output/spatial-b1/bundle-a/$evidence_file" "output/spatial-b1/evidence/$evidence_file"
 done
+
+mkdir -p output/spatial-b1/LICENSES
+cp output/spatial-b1/bundle-a/LICENSES/NOTICE.md output/spatial-b1/LICENSES/NOTICE.md
+
+python - <<'PY'
+import json
+from pathlib import Path
+
+geofabrik = Path('output/spatial-b1/evidence/geofabrik-sha256.txt').read_text().split()[0]
+overture = Path('output/spatial-b1/evidence/overture-extract-sha256.txt').read_text().split()[0]
+Path('output/spatial-b1/evidence/source-checksums.json').write_text(
+    json.dumps({
+        'geofabrikPbfSha256': geofabrik,
+        'overtureExtractSha256': overture,
+        'osmNormalizedExtractChecksumsFile': 'osm-extract-sha256.txt',
+        'bundleChecksumsFile': 'bundle-file-sha256.txt',
+    }, indent=2) + '\n'
+)
+items = [
+    'evidence/osm-timestamp-normalization-report.json',
+    'evidence/python-typescript-freshness-parity-report.json',
+    'evidence/osm-freshness-state-counts.json',
+    'evidence/layer-specific-source-category-matrix.json',
+    'evidence/zero-wrong-layer-building-categories-assertion.json',
+    'evidence/multilingual-naming-audit.json',
+    'evidence/osm-name-en-regression-examples.json',
+    'evidence/identity-scope-inventory.json',
+    'evidence/source-record-theme-licence-matrix.json',
+    'evidence/licence-attribution-url-validation.json',
+    'LICENSES/NOTICE.md',
+    'evidence/independent-source-alignment-review-record.json',
+    'evidence/canonical-feature-key-registry.json',
+    'evidence/selected-aoi-records.json',
+    'evidence/alignment',
+    'evidence/source-checksums.json',
+    'evidence/determinism-report.json',
+    'evidence/no-default-activation-assertion.json',
+    'evidence/tested-sha.txt',
+    'evidence/tool-versions.json',
+]
+missing = [item for item in items if not Path('output/spatial-b1', item).exists()]
+if missing:
+    raise SystemExit(f'Missing required evidence: {missing}')
+Path('output/spatial-b1/evidence/artifact-evidence-index.json').write_text(
+    json.dumps({'passed': True, 'requiredItemCount': 20, 'items': items}, indent=2) + '\n'
+)
+PY
 
 du -ah output/spatial-b1/inputs output/spatial-b1/bundle-a output/spatial-b1/evidence/alignment \
   | sort -h \

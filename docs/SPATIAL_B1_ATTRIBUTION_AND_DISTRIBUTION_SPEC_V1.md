@@ -6,12 +6,14 @@ This specification governs attribution and distribution evidence for the read-on
 
 `publicRepositoryGeometryApproved = false`
 
+`openGeometryActivated = false`
+
 The open bundle remains inactive in Product. Synthetic fallback remains the default.
 
 ## Source notices
 
-- **OpenStreetMap / Geofabrik:** show `© OpenStreetMap contributors`, identify the Geofabrik extract, and include the Open Database License 1.0 notice or link in the accompanying attribution record.
-- **Overture Maps:** identify Overture Maps Foundation, the release, and the applicable theme licence. Preserve and expose the source-level provider datasets declared in each Overture feature's metadata.
+- **OpenStreetMap / Geofabrik:** show `© OpenStreetMap contributors`, identify the Geofabrik extract, and include `https://www.openstreetmap.org/copyright` and the ODbL 1.0 legal code at `https://opendatacommons.org/licenses/odbl/1-0/` in the accompanying attribution record.
+- **Overture Maps:** identify Overture Maps Foundation, the release, the theme licence and `https://docs.overturemaps.org/attribution/`. Preserve and expose the source-level provider, record ID, record licence ID/URL, attribution and attribution URL declared for each Overture feature.
 - **Derived outputs:** state that geometry is derived, name the operation and working CRS, and retain every member provider ID, source alias, input geometry hash, and output geometry hash.
 - **No official implication:** open or derived geometry must never be presented as official parcel, zoning, cadastral, ownership, planning, valuation, title, or approval evidence.
 
@@ -37,6 +39,7 @@ The open bundle remains inactive in Product. Synthetic fallback remains the defa
 5. A future client or official geometry version may share the same canonical GeoAI key, but its source mode, validation status, crosswalk, and evidence must remain distinct.
 6. Any export or artifact that omits required attribution or lineage must fail its release gate.
 7. Product activation and Production deployment require explicit later approval and are outside this PR.
+8. Every short-lived evidence package must include `LICENSES/NOTICE.md`, machine-readable licence/attribution URLs, all extracted Overture source providers, and the required caveat.
 
 ## Required caveat
 

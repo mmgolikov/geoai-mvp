@@ -14,7 +14,7 @@ B1 is an implementation and evidence workstream on a separate clean branch from 
 
 The B1 evidence build must use the seeded Marina, Business Bay and Dubai South coordinates as explicit anchors. It must resolve three distinct canonical GeoAI AOI keys, keep provider IDs in versioned crosswalks, apply target-specific candidate profiles in EPSG:32640, preserve exact OSM object identities, preserve source-level freshness, populate every mandatory geometry-quality field, and fail on identity, geometry, alias, semantic or parity violations.
 
-Machine geometry validity, completed collision audit, business-semantic acceptance, independent source-alignment review and release readiness are separate states. A repaired source geometry is `source_repaired`, not `source_exact`; `releaseReady` remains `false` in B1.
+Machine geometry validity, completed collision audit, business-semantic acceptance, independent source-alignment review and release readiness are separate states. The three selected AOIs were independently reviewed with conditions in Confluence page `8388618`; that status applies only when exact provider IDs and geometry hashes match artifact `8291680044`. Other source features remain pending review. A repaired source geometry is `source_repaired`, not `source_exact`; `releaseReady` remains `false` in B1.
 
 Real geometry remains confined to the short-lived GitHub Actions artifact. `publicRepositoryGeometryApproved` remains `false`; the open bundle is not activated in Product and synthetic fallback remains the default.
 
@@ -31,6 +31,8 @@ Real geometry remains confined to the short-lived GitHub Actions artifact. `publ
 9. Permanent Quality Gate.
 10. Vercel Preview and runtime log review.
 11. Founder approval.
+
+Canonical AOI source precedence is `synthetic_fallback` -> `open_snapshot` -> `licensed` -> client-validated `user_provided` -> `official_validated`. Adding `licensed` to the contract does not activate or configure a licensed source.
 
 ## Prohibited claims
 

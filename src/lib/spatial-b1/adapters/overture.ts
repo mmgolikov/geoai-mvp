@@ -1,5 +1,14 @@
-import { buildProviderIndependentFeatureKeyV1, dedupeSpatialSourceAliasesV1 } from "@/src/lib/spatial-b1/feature-key";
-import { classifySpatialFreshnessV1, spatialFreshnessPolicyV1 } from "@/src/lib/spatial-b1/freshness";
+import {
+  buildSnapshotProvisionalFeatureKeyV1,
+  buildSourceStableFeatureKeyV1,
+  dedupeSpatialSourceAliasesV1
+} from "@/src/lib/spatial-b1/feature-key";
+import {
+  classifySpatialFreshnessV1,
+  normalizeSpatialSourceTimestampV1,
+  spatialFreshnessPolicyV1
+} from "@/src/lib/spatial-b1/freshness";
+import { normalizeSpatialNamesV1 } from "@/src/lib/spatial-b1/naming";
 import { calculateSpatialGeometryCentroidV1, validateSpatialGeometryV1 } from "@/src/lib/spatial-b1/quality";
 import type {
   ProviderGeoJsonFeatureV1,
@@ -24,14 +33,6 @@ function stringValue(value: unknown) {
   return "";
 }
 
-function primaryName(properties: Record<string, unknown>) {
-  const names = recordValue(properties.names);
-  const primary = stringValue(names.primary);
-  if (primary) return primary;
-  const common = recordValue(names.common);
-  return stringValue(common.en) || stringValue(properties.name);
-}
-
 function overtureSourceAliases(properties: Record<string, unknown>, overtureId: string) {
   const aliases: SpatialSourceAliasV1[] = [{ sourceId: "overture", sourceFeatureId: overtureId }];
   const sources = Array.isArray(properties.sources) ? properties.sources : [];
@@ -53,11 +54,19 @@ function classifyOvertureFeature(rawFeature: ProviderGeoJsonFeatureV1) {
   const featureType = stringValue(properties.type ?? properties.theme_type ?? properties.overture_type).toLowerCase();
   const className = stringValue(properties.class).toLowerCase();
   const subtype = stringValue(properties.subtype).toLowerCase();
+  const names = recordValue(properties.names);
+  const common = recordValue(names.common);
+  const sourceName = stringValue(names.primary) || stringValue(common.en) || stringValue(properties.name);
 
   if (featureType.includes("building") || rawFeature.geometry.type === "Polygon" || rawFeature.geometry.type === "MultiPolygon") {
+    const category = sourceName
+      ? /services|logistics|warehouse|industrial/i.test(sourceName)
+        ? "named_operational_building_footprint"
+        : "named_building_footprint"
+      : "building_footprint";
     return {
       role: "asset_footprint" as SpatialGeometryRoleV1,
-      category: "building",
+      category,
       subtype: subtype || className || "building"
     };
   }
@@ -99,14 +108,22 @@ function normalizeOvertureFeature(
   if (!quality.valid) return null;
   const centroid = calculateSpatialGeometryCentroidV1(rawFeature.geometry);
   if (!centroid) return null;
-  const sourceObjectName = primaryName(properties) || null;
-  const name = sourceObjectName || `${classification.subtype.replace(/_/g, " ")} open-context feature`;
+  const names = normalizeSpatialNamesV1({
+    properties,
+    provider: "overture",
+    category: classification.category,
+    providerId: overtureId
+  });
+  const sourceObjectName = names.sourceObjectName;
   const sourceRecords = overtureSourceRecords(properties);
-  const sourceUpdatedAt = sourceRecords
-    .map((source) => stringValue(source.update_time ?? source.updateTime) || null)
-    .filter((value): value is string => Boolean(value))
-    .sort()
-    .at(-1) ?? null;
+  const normalizedSourceTimestamps = sourceRecords.map((source) =>
+    normalizeSpatialSourceTimestampV1(stringValue(source.update_time ?? source.updateTime) || null)
+  );
+  const normalizedTimestamp = normalizedSourceTimestamps
+    .filter((value) => value.sourceUpdatedAtEpoch !== null)
+    .sort((left, right) => (left.sourceUpdatedAtEpoch ?? 0) - (right.sourceUpdatedAtEpoch ?? 0))
+    .at(-1) ?? normalizeSpatialSourceTimestampV1(null);
+  const sourceUpdatedAt = normalizedTimestamp.sourceUpdatedAt;
   const freshnessStatus = classifySpatialFreshnessV1(sourceUpdatedAt, context.dataset.accessedAt);
   const sourceAliases = overtureSourceAliases(properties, overtureId);
 
@@ -114,14 +131,22 @@ function normalizeOvertureFeature(
     type: "Feature",
     featureKey:
       context.canonicalFeatureKey ??
-      buildProviderIndependentFeatureKeyV1({
-        role: classification.role,
-        semanticName: sourceObjectName,
-        category: classification.category,
-        centroid,
-        countryCode: context.countryCode,
-        regionCode: context.regionCode
-      }),
+      (names.englishName
+        ? buildSourceStableFeatureKeyV1({
+            role: classification.role,
+            englishName: names.englishName,
+            centroid,
+            countryCode: context.countryCode,
+            regionCode: context.regionCode
+          })
+        : buildSnapshotProvisionalFeatureKeyV1({
+            role: classification.role,
+            category: classification.category,
+            provider: "overture",
+            providerId: overtureId,
+            countryCode: context.countryCode,
+            regionCode: context.regionCode
+          })),
     datasetId: context.dataset.datasetId,
     datasetVersion: context.dataset.datasetVersion,
     sourceFeatureId: overtureId,
@@ -137,24 +162,51 @@ function normalizeOvertureFeature(
       reviewStatus: "machine_matched_pending_review" as const
     })),
     sourceProvenance: (sourceRecords.length > 0 ? sourceRecords : [{}]).map((source) => {
-      const recordUpdatedAt = stringValue(source.update_time ?? source.updateTime) || null;
+      const recordUpdated = normalizeSpatialSourceTimestampV1(stringValue(source.update_time ?? source.updateTime) || null);
+      const sourceDataset = stringValue(source.dataset ?? source.source) || context.dataset.sourceId;
+      const sourceRecordLicenseId = stringValue(source.license) || context.dataset.licenseId;
+      const providerManifest = context.dataset.sourceProviders?.find(
+        (provider) =>
+          provider.sourceDataset === sourceDataset && provider.sourceRecordLicenseId === sourceRecordLicenseId
+      );
       return {
         datasetReleaseDate: context.dataset.datasetReleaseDate,
         datasetSnapshotDate: context.dataset.datasetSnapshotDate,
-        sourceDataset: stringValue(source.dataset ?? source.source) || context.dataset.sourceId,
+        sourceDataset,
         sourceRecordId: stringValue(source.record_id ?? source.recordId ?? source.id) || null,
         sourceRecordVersion: stringValue(source.record_version ?? source.recordVersion) || null,
-        sourceLicenseId: context.dataset.licenseId,
-        sourceUpdatedAt: recordUpdatedAt,
+        themeLicenseId: context.dataset.licenseId,
+        themeLicenseUrl: context.dataset.licenseUrl,
+        sourceRecordLicenseId,
+        sourceRecordLicenseUrl:
+          providerManifest?.sourceRecordLicenseUrl ??
+          (sourceRecordLicenseId === "ODbL-1.0" ? "https://opendatacommons.org/licenses/odbl/1-0/" : context.dataset.licenseUrl),
+        sourceLicenseId: sourceRecordLicenseId,
+        sourceAttribution: stringValue(source.attribution) || providerManifest?.sourceAttribution || sourceDataset,
+        attributionUrl:
+          stringValue(source.attribution_url ?? source.attributionUrl) || providerManifest?.attributionUrl || context.dataset.attributionUrl,
+        sourceUpdatedAtRaw: recordUpdated.sourceUpdatedAtRaw,
+        sourceUpdatedAtEpoch: recordUpdated.sourceUpdatedAtEpoch,
+        sourceUpdatedAt: recordUpdated.sourceUpdatedAt,
         sourceObservedAt: null,
         accessedAt: context.dataset.accessedAt,
-        freshnessStatus: classifySpatialFreshnessV1(recordUpdatedAt, context.dataset.accessedAt),
+        freshnessStatus: classifySpatialFreshnessV1(recordUpdated.sourceUpdatedAt, context.dataset.accessedAt),
         freshnessPolicyId: spatialFreshnessPolicyV1.freshnessPolicyId
       };
     }),
-    name,
-    canonicalName: context.canonicalName ?? name,
+    name: names.displayName,
+    displayName: names.displayName,
+    canonicalName: context.canonicalName ?? names.displayName,
     sourceObjectName,
+    localName: names.localName,
+    englishName: names.englishName,
+    alternateNames: names.alternateNames,
+    identityScope: context.canonicalFeatureKey ? "canonical_registry" : names.englishName ? "source_stable" : "snapshot_provisional",
+    identityCrosswalkPolicy: context.canonicalFeatureKey
+      ? "canonical_registry_provider_version_crosswalk_v1"
+      : names.englishName
+        ? "english_name_plus_rounded_centroid_provider_crosswalk_v1"
+        : null,
     contextArea: context.contextArea ?? null,
     businessNarrative: context.businessNarrative ?? "Open-context feature retained for screening context.",
     category: classification.category,
@@ -170,6 +222,8 @@ function normalizeOvertureFeature(
     validTo: context.dataset.validTo,
     freshnessStatus,
     freshnessPolicyId: spatialFreshnessPolicyV1.freshnessPolicyId,
+    sourceUpdatedAtRaw: normalizedTimestamp.sourceUpdatedAtRaw,
+    sourceUpdatedAtEpoch: normalizedTimestamp.sourceUpdatedAtEpoch,
     sourceUpdatedAt,
     validationStatus: "open_context",
     confidenceLevel: "medium",
@@ -189,7 +243,7 @@ function normalizeOvertureFeature(
       }
     ],
     quality,
-    metadata: selectedMetadata(properties)
+    metadata: { ...selectedMetadata(properties), sourceCategory: classification.category, displayNameSource: names.displayNameSource }
   };
 }
 
