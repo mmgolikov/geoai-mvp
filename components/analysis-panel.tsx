@@ -30,7 +30,7 @@ import {
 } from "@/src/lib/explore/workspace-bridge";
 import { sourceStatusToLabel } from "@/src/lib/external-data/source-status";
 import { sourceTypeLabel, validationStatusLabel } from "@/src/lib/aoi-library";
-import { formatArea, formatPerimeter } from "@/src/lib/polygon-aoi";
+import { formatArea } from "@/src/lib/polygon-aoi";
 import { getPilotPackageForProject } from "@/src/lib/pilot/pilot-packages";
 import type { LocalProjectInput } from "@/src/lib/project-local-store";
 import type { RepositoryMode } from "@/src/lib/repositories/repository-mode";
@@ -212,9 +212,7 @@ type ReportPackageSummary = {
   caveat: string;
 };
 
-function formatCoordinate(value: number) {
-  return value.toFixed(6);
-}
+const canonicalInteractionModeOrder: InteractionMode[] = ["criteria_first", "map_first"];
 
 function formatHistoryTimestamp(value: string) {
   return new Intl.DateTimeFormat("en", {
@@ -474,6 +472,9 @@ export function AnalysisPanel({
   const hasSelectedObject = selectedObject !== null;
   const hasSelectedAoi = selectedAoi !== null;
   const exploreScenario = getExploreScenario(exploreScenarioId);
+  const orderedInteractionModes = canonicalInteractionModeOrder.filter((mode) =>
+    exploreScenario.interactionModes.includes(mode)
+  );
   const exploreScenarios = getExploreScenariosByRole(exploreAudience, exploreRole);
   const exploreRoles = getExploreRolesByAudience(exploreAudience);
   const selectedExploreRole = getExploreRole(exploreRole);
@@ -529,27 +530,8 @@ export function AnalysisPanel({
     : validationSummary?.clientValidatedCount || validationSummary?.inReviewCount
       ? "client review"
       : "screening only";
-  const isComparisonWorkflow = primaryCtaLabel === "Compare" || (hasComparisonReady && hasResult);
-  const activeWorkflowNote = isCriteriaFirstMode
-    ? candidateSearchStatus === "searched"
-      ? selectedExploreCandidate
-        ? "Analyze this candidate or return to the shortlist."
-        : "Compare the searched candidates or select one."
-      : candidateSearchStatus === "stale"
-        ? "Criteria changed — update search before comparing."
-        : "Choose criteria, then find candidate zones."
-    : isComparisonWorkflow
-      ? hasComparisonReady
-        ? "Export the comparison or edit scenario/query to continue."
-        : "Add another site to refresh comparison."
-      : hasResult
-        ? "Export the memo or edit scenario/query to continue."
-        : hasSelectedPoint
-          ? "Run analysis from the pinned footer."
-          : "Use the map to start.";
   const actionUnavailableMessage = "Select a map point, AOI, object, or candidate preview to begin.";
   const visiblePrimaryCtaLabel = primaryCtaDisabled && !hasValidWorkflowTarget ? "Run Express Analysis" : primaryCtaLabel;
-  const visiblePrimaryCtaNote = primaryCtaDisabled && !hasValidWorkflowTarget ? actionUnavailableMessage : activeWorkflowNote;
   const pilotPackage = getPilotPackageForProject(activeProject.projectKey, activeProject.clientType);
   const pilotChecklist = [
     { label: "Select client type", status: activeProject.clientType ? "Done" : "Needed" },
@@ -1254,14 +1236,25 @@ export function AnalysisPanel({
             </div>
 
             <div className="mt-2">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
-                Interaction Mode
-              </p>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
+                  Interaction Mode
+                </p>
+                <button
+                  type="button"
+                  onClick={onOpenMap}
+                  className="inline-flex h-7 items-center justify-center rounded-md border border-line bg-white px-2 text-[10px] font-semibold text-ink transition hover:border-brand min-[1367px]:hidden"
+                >
+                  Open map
+                </button>
+              </div>
               <div className="mt-1 grid grid-cols-2 gap-2">
-                {exploreScenario.interactionModes.map((mode) => (
+                {orderedInteractionModes.map((mode) => (
                   <button
                     key={mode}
                     type="button"
+                    data-interaction-mode={mode}
+                    aria-pressed={exploreInteractionMode === mode}
                     onClick={() => onExploreInteractionModeChange(mode)}
                     className={`h-8 rounded-md border px-2 text-[11px] font-semibold transition ${
                       exploreInteractionMode === mode
@@ -1376,137 +1369,6 @@ export function AnalysisPanel({
                 }
                 className="mt-1 w-full resize-none rounded-md border border-line bg-surface px-2 py-2 text-xs text-ink outline-none transition placeholder:text-muted/70 focus:border-brand"
               />
-            </div>
-          </section>
-
-          <section className="min-w-0 max-w-full overflow-hidden rounded-lg border border-line bg-surface p-2.5">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">
-                  {hasSelectedAoi ? "Selected AOI" : hasSelectedObject ? "Selected object" : "Selected point"}
-                </p>
-                <h2 className="mt-1 truncate text-base font-semibold text-ink">
-                  {hasSelectedAoi
-                    ? selectedAoi.name
-                    : hasSelectedObject
-                    ? selectedObject.name
-                    : hasSelectedPoint
-                      ? "Custom map selection"
-                      : "No point selected"}
-                </h2>
-                <p className="mt-1 truncate text-xs leading-5 text-muted">
-                  {hasSelectedAoi
-                    ? `${selectedAoi.sourceType === "uploaded_geojson" ? "Uploaded GeoJSON AOI" : "User-drawn AOI"} / validation required`
-                    : hasSelectedObject
-                    ? selectedObject.spatialContext?.datasetName ?? selectedObject.layerName
-                    : hasSelectedPoint
-                      ? "Map point / user selection"
-                      : "Select a point, object, AOI or candidate"}
-                </p>
-              </div>
-              <div className="flex shrink-0 flex-col items-end gap-2">
-                <span className="rounded-full bg-white px-2 py-1 text-[11px] font-semibold text-brand">
-                  {hasSelectedAoi ? "AOI" : hasSelectedObject ? "Object" : "Point"}
-                </span>
-                <button
-                  type="button"
-                  onClick={onOpenMap}
-                  className="inline-flex h-8 items-center justify-center rounded-md border border-line bg-white px-3 text-xs font-semibold text-ink transition hover:border-brand min-[1367px]:hidden"
-                >
-                  Open map
-                </button>
-              </div>
-            </div>
-
-            {hasSelectedAoi ? (
-              <>
-                <p className="mt-2 truncate text-xs leading-5 text-muted">
-                  Centroid {formatCoordinate(selectedAoi.centroid.latitude)}, {formatCoordinate(selectedAoi.centroid.longitude)} · validation required
-                </p>
-                <div className="mt-2 flex min-w-0 flex-wrap gap-1.5">
-                  <span className="rounded-full bg-white px-2 py-1 text-[10px] font-semibold text-muted">
-                    Polygon AOI
-                  </span>
-                  <span className="rounded-full bg-white px-2 py-1 text-[10px] font-semibold text-muted">
-                    {selectedAoi.sourceType === "uploaded_geojson" ? "Uploaded GeoJSON" : "User-drawn"}
-                  </span>
-                </div>
-                <dl className="mt-2 grid grid-cols-4 gap-1.5 text-[11px]">
-                  <div className="min-w-0 rounded-md bg-white px-2 py-1.5">
-                    <dt className="text-muted">Area</dt>
-                    <dd className="mt-0.5 truncate font-semibold text-ink">
-                      {formatArea(selectedAoi.measurements.areaSqM)}
-                    </dd>
-                  </div>
-                  <div className="min-w-0 rounded-md bg-white px-2 py-1.5">
-                    <dt className="text-muted">Perimeter</dt>
-                    <dd className="mt-0.5 truncate font-semibold text-ink">
-                      {formatPerimeter(selectedAoi.measurements.perimeterM)}
-                    </dd>
-                  </div>
-                  <div className="min-w-0 rounded-md bg-white px-2 py-1.5">
-                    <dt className="text-muted">Vertices</dt>
-                    <dd className="mt-0.5 truncate font-semibold text-ink">
-                      {selectedAoi.measurements.vertexCount}
-                    </dd>
-                  </div>
-                  <div className="min-w-0 rounded-md bg-white px-2 py-1.5">
-                    <dt className="text-muted">Source</dt>
-                    <dd className="mt-0.5 truncate font-semibold text-ink">
-                      {selectedAoi.sourceType === "uploaded_geojson" ? "uploaded" : "drawn"}
-                    </dd>
-                  </div>
-                </dl>
-              </>
-            ) : (
-              <dl className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                <div className="min-w-0 rounded-md bg-white px-2 py-2">
-                  <dt className="text-muted">Lat</dt>
-                  <dd className="mt-1 truncate font-semibold text-ink">
-                    {selectedPoint ? formatCoordinate(selectedPoint.latitude) : "-"}
-                  </dd>
-                </div>
-                <div className="min-w-0 rounded-md bg-white px-2 py-2">
-                  <dt className="text-muted">Lng</dt>
-                  <dd className="mt-1 truncate font-semibold text-ink">
-                    {selectedPoint ? formatCoordinate(selectedPoint.longitude) : "-"}
-                  </dd>
-                </div>
-                <div className="min-w-0 rounded-md bg-white px-2 py-2">
-                  <dt className="text-muted">Type</dt>
-                  <dd className="mt-1 truncate font-semibold text-ink">
-                    {hasSelectedObject ? selectedObject.type : "Point"}
-                  </dd>
-                </div>
-                <div className="min-w-0 rounded-md bg-white px-2 py-2">
-                  <dt className="text-muted">Confidence</dt>
-                  <dd className="mt-1 truncate font-semibold text-ink">
-                    {selectedObject?.analysisTarget?.type === "uploaded-feature"
-                      ? "validation req."
-                      : selectedObject?.spatialContext?.confidenceLevel ?? (hasSelectedPoint ? "user" : "-")}
-                  </dd>
-                </div>
-              </dl>
-            )}
-
-            <div className="mt-3 rounded-md border border-line bg-white p-2">
-              {primaryCtaDisabled && !hasValidWorkflowTarget ? (
-                <p className="mb-2 text-xs leading-5 text-muted">
-                  {actionUnavailableMessage}
-                </p>
-              ) : (
-                <p className="mb-2 line-clamp-2 text-xs leading-5 text-muted">
-                  {visiblePrimaryCtaNote}
-                </p>
-              )}
-              <button
-                type="button"
-                disabled={primaryCtaDisabled}
-                onClick={onPrimaryCta}
-                className="inline-flex h-9 w-full max-w-full items-center justify-center rounded-md bg-brand px-3 text-xs font-semibold text-white transition hover:bg-[#113f50] disabled:cursor-not-allowed disabled:bg-[#c9d2d7] disabled:text-white"
-              >
-                {visiblePrimaryCtaLabel}
-              </button>
             </div>
           </section>
 

@@ -21,11 +21,6 @@ body {
   color: #172033;
 }
 
-.mapboxgl-ctrl-bottom-left,
-.mapboxgl-ctrl-bottom-right {
-  display: none;
-}
-
 .geoai-hover-popup .mapboxgl-popup-content {
   border: 1px solid rgba(222, 215, 201, 0.95);
   border-radius: 8px;

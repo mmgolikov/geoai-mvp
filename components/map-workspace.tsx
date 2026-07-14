@@ -5,6 +5,7 @@ import type { ExploreCandidate } from "@/src/lib/explore/types";
 import type { SelectedDemoObject, SelectedPoint, UserDrawnAoi } from "@/src/types/geo";
 import type { UploadedDataset } from "@/src/types/uploaded-data";
 import type { ReportMapSnapshot } from "@/src/lib/report-map-snapshot";
+import type { SpatialSourceRequest } from "@/src/lib/spatial-b2/source-mode";
 
 type MapWorkspaceProps = {
   selectedPoint: SelectedPoint | null;
@@ -12,6 +13,7 @@ type MapWorkspaceProps = {
   selectedAoi?: UserDrawnAoi | null;
   onPointSelect: (point: SelectedPoint) => void;
   onObjectSelect?: (object: SelectedDemoObject) => void;
+  onObjectClear?: () => void;
   onAoiSelect?: (aoi: UserDrawnAoi) => void;
   onAoiDelete?: () => void;
   className?: string;
@@ -23,6 +25,7 @@ type MapWorkspaceProps = {
   selectedExploreCandidateId?: string | null;
   onExploreCandidateSelect?: (candidateId: string) => void;
   onMapSnapshotChange?: (snapshot: ReportMapSnapshot) => void;
+  spatialSourceRequest?: SpatialSourceRequest;
 };
 
 export function MapWorkspace(props: MapWorkspaceProps) {

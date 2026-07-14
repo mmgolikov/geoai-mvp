@@ -63,6 +63,7 @@ import {
 } from "@/src/lib/project-local-store";
 import type { RepositoryMode } from "@/src/lib/repositories/repository-mode";
 import type { ReportMapSnapshot } from "@/src/lib/report-map-snapshot";
+import type { SpatialSourceRequest } from "@/src/lib/spatial-b2/source-mode";
 import {
   createAoiGeojsonFeature,
   parseGeojsonAoi,
@@ -815,9 +816,19 @@ function historyItemFromPersistedRun(value: unknown): AnalysisHistoryItem | null
 
 type WorkspaceShellProps = {
   initialExploreMode?: boolean;
+  spatialSourceRequest?: SpatialSourceRequest;
 };
 
-export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellProps) {
+const defaultSpatialSourceRequest: SpatialSourceRequest = {
+  runtimeEnvironment: "development",
+  requestedSourceMode: "synthetic_fallback",
+  approvedSourceMode: "synthetic_fallback"
+};
+
+export function WorkspaceShell({
+  initialExploreMode = false,
+  spatialSourceRequest = defaultSpatialSourceRequest
+}: WorkspaceShellProps) {
   const mapSectionRef = useRef<HTMLDivElement | null>(null);
   const workflowPanelRef = useRef<HTMLDivElement | null>(null);
   const [selectedPoint, setSelectedPoint] = useState<SelectedPoint | null>(null);
@@ -1358,6 +1369,21 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
     setSelectedAoi(null);
     setSelectedPoint(object.center);
     setSelectedExploreCandidateId(null);
+    setAnalysis(null);
+    setComparison(null);
+    setComparisonReturn(null);
+    setLastAnalyzedState(null);
+    setLastComparedState(null);
+    setReportPreview(null);
+    setComparisonMessage(null);
+    setAnalysisError(null);
+    setIsAnalyzing(false);
+    setMarketContext(null);
+  }
+
+  function handleObjectClearAfterSourceRollback() {
+    setMapSnapshot(null);
+    setSelectedObject(null);
     setAnalysis(null);
     setComparison(null);
     setComparisonReturn(null);
@@ -2958,6 +2984,7 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
                 selectedAoi={selectedAoi}
                 onPointSelect={handlePointSelect}
                 onObjectSelect={handleObjectSelect}
+                onObjectClear={handleObjectClearAfterSourceRollback}
                 onAoiSelect={handleAoiSelect}
                 onAoiDelete={handleAoiDelete}
                 uploadedDatasets={uploadedDatasets}
@@ -2966,6 +2993,7 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
                 selectedExploreCandidateId={selectedExploreCandidateId}
                 onExploreCandidateSelect={selectExploreCandidate}
                 onMapSnapshotChange={setMapSnapshot}
+                spatialSourceRequest={spatialSourceRequest}
               />
             </div>
           )}
@@ -3063,7 +3091,7 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
               Back
             </button>
           </div>
-          <div className="relative z-0 min-h-0 flex-1 overflow-hidden">
+          <div className="relative min-h-0 flex-1 overflow-hidden">
             <MapWorkspace
               key="mobile-map-picker"
               className="relative h-full min-h-0 overflow-hidden bg-[#dfe8ec]"
@@ -3072,6 +3100,7 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
               selectedAoi={selectedAoi}
               onPointSelect={handlePointSelect}
               onObjectSelect={handleObjectSelect}
+              onObjectClear={handleObjectClearAfterSourceRollback}
               onAoiSelect={handleAoiSelect}
               onAoiDelete={handleAoiDelete}
               showEmptyOverlay={false}
@@ -3082,6 +3111,7 @@ export function WorkspaceShell({ initialExploreMode = false }: WorkspaceShellPro
               selectedExploreCandidateId={selectedExploreCandidateId}
               onExploreCandidateSelect={selectExploreCandidate}
               onMapSnapshotChange={setMapSnapshot}
+              spatialSourceRequest={spatialSourceRequest}
             />
           </div>
           <div className="relative z-20 shrink-0 border-t border-line bg-white px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3">

@@ -13,7 +13,7 @@ function hasUsableMapboxToken(token: string) {
 
 function FallbackHeroMap() {
   return (
-    <div className="relative h-full min-h-0 overflow-hidden bg-[#e6e8df]">
+    <div className="relative h-full min-h-0 overflow-hidden bg-[#e6e8df]" data-landing-basemap-mode="fallback_grid">
       <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(23,79,99,0.10)_1px,transparent_1px),linear-gradient(rgba(23,79,99,0.10)_1px,transparent_1px)] bg-[size:32px_32px]" />
       <div className="absolute left-[8%] top-[12%] h-[72%] w-[82%] rounded-[42%] border border-white/70 bg-white/24" />
       <div className="absolute left-[10%] top-[24%] h-24 w-[44%] rotate-[-8deg] rounded-[28px] border border-brand/45 bg-brand/12" />
@@ -54,7 +54,7 @@ export function LandingHeroMap() {
           pitch: 28,
           bearing: -12,
           interactive: false,
-          attributionControl: false
+          attributionControl: true
         });
 
         mapRef.current = map;
@@ -78,7 +78,7 @@ export function LandingHeroMap() {
   }
 
   return (
-    <div className="relative h-full min-h-0 overflow-hidden">
+    <div className="relative h-full min-h-0 overflow-hidden" data-landing-basemap-mode="mapbox">
       <div ref={mapContainerRef} className="absolute inset-0" />
       <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(251,250,247,0.08),rgba(251,250,247,0.34))]" />
     </div>
