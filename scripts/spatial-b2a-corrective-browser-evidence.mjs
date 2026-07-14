@@ -153,6 +153,13 @@ async function openLayerPanel(page) {
   await page.getByText("Basemap + GeoAI signals").waitFor({ state: "visible", timeout: 15_000 });
 }
 
+async function closeLayerPanel(page) {
+  const heading = page.getByText("Basemap + GeoAI signals");
+  if (!(await heading.isVisible().catch(() => false))) return;
+  await page.getByRole("button").filter({ hasText: "Spatial layers" }).first().click();
+  await heading.waitFor({ state: "hidden", timeout: 10_000 });
+}
+
 async function openAttribution(page) {
   const chip = page.locator("[data-spatial-attribution-chip]").first();
   await chip.waitFor({ state: "visible", timeout: 15_000 });
@@ -297,6 +304,7 @@ async function runWorkspace(browser, viewport) {
   const fixtureActiveMetrics = await readMetrics(page);
   record(`${viewport.name} synthetic to fixture without reload`, await page.evaluate(() => performance.getEntriesByType("navigation").length) === navigationCount, `navigationEntries=${navigationCount}`);
   record(`${viewport.name} controlled fixture remains non-real`, fixtureActiveMetrics.openFixtureFeatureCount === 2 && fixtureActiveMetrics.openRealFeatureCount === 0, JSON.stringify(fixtureActiveMetrics));
+  await closeLayerPanel(page);
 
   stateRef.current = workspaceStates[5];
   await selectControlledFixture(page);
