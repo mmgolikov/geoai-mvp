@@ -1,3 +1,6 @@
+import { normalizeSpatialAttributionPayload, type SpatialAttributionPayload } from "@/src/lib/spatial-b2/attribution";
+import type { SpatialSelectionLineage } from "@/src/lib/spatial-b2/selection-lineage";
+
 export type ReportMapSnapshot = {
   src: string;
   width: number;
@@ -5,6 +8,8 @@ export type ReportMapSnapshot = {
   capturedAt: string;
   targetLabel: string;
   source: "workspace-map" | "seeded-dashboard-map";
+  attribution?: SpatialAttributionPayload;
+  selectedFeatureLineage?: SpatialSelectionLineage;
 };
 
 function isAllowedSnapshotSource(value: string) {
@@ -30,5 +35,36 @@ export function normalizeReportMapSnapshot(value: unknown): ReportMapSnapshot | 
     return null;
   }
 
-  return snapshot as ReportMapSnapshot;
+  const attribution = normalizeSpatialAttributionPayload(snapshot.attribution);
+  const selectedFeatureLineage = normalizeSelectedFeatureLineage(snapshot.selectedFeatureLineage);
+  const {
+    attribution: _unsafeAttribution,
+    selectedFeatureLineage: _unsafeSelectedFeatureLineage,
+    ...baseSnapshot
+  } = snapshot;
+
+  return {
+    ...(baseSnapshot as ReportMapSnapshot),
+    ...(attribution ? { attribution } : {}),
+    ...(selectedFeatureLineage ? { selectedFeatureLineage } : {})
+  };
+}
+
+function normalizeSelectedFeatureLineage(value: unknown): SpatialSelectionLineage | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const lineage = value as Partial<SpatialSelectionLineage>;
+  if (
+    typeof lineage.canonicalFeatureKey !== "string" ||
+    typeof lineage.layerKey !== "string" ||
+    typeof lineage.datasetId !== "string" ||
+    typeof lineage.datasetVersion !== "string" ||
+    typeof lineage.bundleChecksum !== "string" ||
+    !Array.isArray(lineage.attributionIds) ||
+    !Array.isArray(lineage.limitations) ||
+    typeof lineage.caveat !== "string"
+  ) {
+    return null;
+  }
+
+  return lineage as SpatialSelectionLineage;
 }

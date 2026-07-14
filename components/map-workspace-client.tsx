@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { demoLayers, getDemoFeatureById, getLayerSourceModeLabel, getSelectedDemoObject } from "@/src/data/demo-layers";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { SpatialDataAttribution } from "@/components/spatial-data-attribution";
+import { SpatialSourceLineageDrawer } from "@/components/spatial-source-lineage-drawer";
+import { demoLayers, getDemoFeatureById, getSelectedDemoObject } from "@/src/data/demo-layers";
 import type { DemoLayer, DemoLayerFeature } from "@/src/data/demo-layers";
 import { getCandidateAnchor } from "@/src/lib/explore/candidates";
 import {
@@ -11,6 +13,19 @@ import {
 import type { ExploreCandidate } from "@/src/lib/explore/types";
 import { openGeodataBaseline } from "@/src/lib/open-geodata";
 import type { ReportMapSnapshot } from "@/src/lib/report-map-snapshot";
+import { resolveSpatialActivation, type SpatialActivationResult } from "@/src/lib/spatial-b2/activation-resolver";
+import { aggregateSpatialAttribution } from "@/src/lib/spatial-b2/attribution";
+import { loadSpatialBundle } from "@/src/lib/spatial-b2/bundle-loader";
+import { getCatalogueEntryForDemoLayer, type SpatialLayerCatalogueEntry } from "@/src/lib/spatial-b2/layer-catalogue";
+import {
+  adaptSpatialFeatureToMapFeature,
+  createSelectedObjectFromSpatialFeature,
+  type SpatialB2MapFeature,
+  type SpatialB2MapStyle
+} from "@/src/lib/spatial-b2/map-layer-adapter";
+import type { SpatialSourceRequest } from "@/src/lib/spatial-b2/source-mode";
+import type { SpatialSelectionLineage } from "@/src/lib/spatial-b2/selection-lineage";
+import type { SpatialDatasetVersionV1, SpatialFeatureEnvelopeV1 } from "@/src/types/spatial-data-v1";
 import { createUserDrawnAoi, formatArea, formatPerimeter, validatePolygonVertices } from "@/src/lib/polygon-aoi";
 import type { OpenLanduseFeature, OpenPoiFeature, OpenRoadFeature } from "@/src/lib/open-geodata";
 import type { GeoJSONSource, Map as MapboxMap, MapboxGeoJSONFeature, Marker as MapboxMarker, Popup as MapboxPopup } from "mapbox-gl";
@@ -52,12 +67,76 @@ type MapWorkspaceClientProps = {
   selectedExploreCandidateId?: string | null;
   onExploreCandidateSelect?: (candidateId: string) => void;
   onMapSnapshotChange?: (snapshot: ReportMapSnapshot) => void;
+  spatialSourceRequest?: SpatialSourceRequest;
 };
 
 const initialLayerVisibility = demoLayers.reduce<Record<DemoLayerId, boolean>>((visibility, layer) => {
   visibility[layer.id] = layer.visibleByDefault;
   return visibility;
 }, {} as Record<DemoLayerId, boolean>);
+
+const controlledFixtureBundle = loadSpatialBundle("static_test_fixture");
+const defaultSpatialSourceRequest: SpatialSourceRequest = {
+  runtimeEnvironment: "development",
+  requestedSourceMode: "synthetic_fallback",
+  approvedSourceMode: "synthetic_fallback"
+};
+
+type ControlledFixtureRecord = {
+  catalogueEntry: SpatialLayerCatalogueEntry;
+  dataset: SpatialDatasetVersionV1;
+  feature: SpatialFeatureEnvelopeV1;
+  mapFeature: SpatialB2MapFeature;
+};
+
+const controlledFixtureStyles: Record<string, SpatialB2MapStyle> = {
+  "fixture:controlled-osm-anchor": {
+    fillColor: "#174f63",
+    strokeColor: "#ffffff",
+    strokeWidth: 1.5,
+    fillOpacity: 0.88,
+    strokeOpacity: 1,
+    pointRadius: 6,
+    layerOrder: 110,
+    clickPriority: 110
+  },
+  "fixture:controlled-overture-area": {
+    fillColor: "#8aa98c",
+    strokeColor: "#365f45",
+    strokeWidth: 1.2,
+    fillOpacity: 0.16,
+    strokeOpacity: 0.82,
+    pointRadius: 5,
+    layerOrder: 105,
+    clickPriority: 105
+  }
+};
+
+function getControlledFixtureRecords(activation: SpatialActivationResult): ControlledFixtureRecord[] {
+  const bundle = controlledFixtureBundle.bundle;
+  if (!bundle || activation.effectiveSourceMode !== "open_context_preview") return [];
+
+  return activation.activeLayers.flatMap((catalogueEntry) => {
+    if (!catalogueEntry.fixtureLayerId) return [];
+    const dataset = bundle.datasets.find((item) => item.datasetId === catalogueEntry.datasetId);
+    const feature = bundle.features.find((item) => item.datasetId === catalogueEntry.datasetId);
+    const style = controlledFixtureStyles[catalogueEntry.layerKey];
+    if (!dataset || !feature || !style) return [];
+
+    return [{
+      catalogueEntry,
+      dataset,
+      feature,
+      mapFeature: adaptSpatialFeatureToMapFeature({ feature, dataset, catalogueEntry, style })
+    }];
+  });
+}
+
+function getControlledFixtureRecord(records: ControlledFixtureRecord[], featureId: string | undefined) {
+  return featureId
+    ? records.find((record) => record.feature.featureKey === featureId) ?? null
+    : null;
+}
 
 const selectedObjectSourceId = "geoai-selected-object";
 const hoverObjectSourceId = "geoai-hover-object";
@@ -136,10 +215,26 @@ function getLayerIds(layer: DemoLayer) {
   return [`${layer.id}-circle`];
 }
 
+function getControlledFixtureSourceId(record: ControlledFixtureRecord) {
+  return `geoai-b2-${record.catalogueEntry.fixtureLayerId}`;
+}
+
+function getControlledFixtureLayerIds(record: ControlledFixtureRecord) {
+  const baseId = getControlledFixtureSourceId(record);
+  if (record.mapFeature.geometry.type === "Point" || record.mapFeature.geometry.type === "MultiPoint") {
+    return [`${baseId}-circle`];
+  }
+  if (record.mapFeature.geometry.type === "LineString" || record.mapFeature.geometry.type === "MultiLineString") {
+    return [`${baseId}-line`];
+  }
+  return [`${baseId}-fill`, `${baseId}-outline`];
+}
+
 function getInteractiveLayerIds(
   visibility: Record<DemoLayerId, boolean>,
   uploadedDatasets: UploadedDataset[] = [],
-  exploreCandidates: ExploreCandidate[] = []
+  exploreCandidates: ExploreCandidate[] = [],
+  controlledFixtures: ControlledFixtureRecord[] = []
 ) {
   const hasVisibleUploadedLayers = uploadedDatasets.some(
     (dataset) => dataset.type === "geojson" && dataset.status === "parsed" && dataset.visible !== false
@@ -150,6 +245,7 @@ function getInteractiveLayerIds(
     ...openGeodataLayerIds,
     ...(hasVisibleUploadedLayers ? uploadedDatasetLayerIds : []),
     ...(hasExploreCandidates ? exploreCandidateLayerIds : []),
+    ...controlledFixtures.flatMap(getControlledFixtureLayerIds),
     ...demoLayers.flatMap((layer) => (visibility[layer.id] ? getLayerIds(layer) : []))
   ];
 }
@@ -213,7 +309,9 @@ function escapeHtml(value: string) {
 function captureRenderedMapSnapshot(
   map: MapboxMap,
   targetPoint: SelectedPoint,
-  targetLabel: string
+  targetLabel: string,
+  attribution: ReturnType<typeof aggregateSpatialAttribution>,
+  selectedFeatureLineage: SpatialSelectionLineage | null
 ): ReportMapSnapshot | null {
   try {
     const sourceCanvas = map.getCanvas();
@@ -259,7 +357,9 @@ function captureRenderedMapSnapshot(
       height,
       capturedAt: new Date().toISOString(),
       targetLabel,
-      source: "workspace-map"
+      source: "workspace-map",
+      attribution,
+      ...(selectedFeatureLineage ? { selectedFeatureLineage } : {})
     };
   } catch {
     return null;
@@ -490,6 +590,30 @@ function setOpenGeodataTooltip(
     .addTo(map);
 }
 
+function setControlledFixtureTooltip(
+  popup: MapboxPopup | null,
+  lngLat: { lng: number; lat: number },
+  feature: MapboxGeoJSONFeature,
+  map: MapboxMap
+) {
+  if (!popup) return;
+  const title = String(feature.properties?.name ?? "Controlled contract fixture");
+  const source = String(feature.properties?.sourceMode ?? "open_context_preview").replace(/_/g, " ");
+  const note = String(feature.properties?.relevance ?? "Non-real geometry for contract testing only.");
+
+  popup
+    .setLngLat(lngLat)
+    .setHTML(
+      `<div class="geoai-map-tooltip">
+        <div class="geoai-map-tooltip-title">${escapeHtml(title)}</div>
+        <div class="geoai-map-tooltip-detail">Controlled non-real fixture</div>
+        <div class="geoai-map-tooltip-source">${escapeHtml(source)}</div>
+        <div class="geoai-map-tooltip-note">${escapeHtml(note)}</div>
+      </div>`
+    )
+    .addTo(map);
+}
+
 function setUploadedDatasetTooltip(
   popup: MapboxPopup | null,
   lngLat: { lng: number; lat: number },
@@ -645,6 +769,82 @@ function addDemoLayerToMap(map: MapboxMap, layer: DemoLayer) {
       },
       minzoom: layer.minZoom,
       maxzoom: layer.maxZoom
+    });
+  }
+}
+
+function addControlledFixtureLayerToMap(map: MapboxMap, record: ControlledFixtureRecord) {
+  const sourceId = getControlledFixtureSourceId(record);
+  const [primaryLayerId, outlineLayerId] = getControlledFixtureLayerIds(record);
+  const { catalogueEntry, mapFeature } = record;
+
+  if (!map.getSource(sourceId)) {
+    map.addSource(sourceId, {
+      type: "geojson",
+      data: toFeatureCollection([mapFeature])
+    });
+  }
+
+  if ((mapFeature.geometry.type === "Point" || mapFeature.geometry.type === "MultiPoint") && !map.getLayer(primaryLayerId)) {
+    map.addLayer({
+      id: primaryLayerId,
+      type: "circle",
+      source: sourceId,
+      paint: {
+        "circle-color": ["get", "fillColor"],
+        "circle-radius": ["get", "pointRadius"],
+        "circle-opacity": ["get", "fillOpacity"],
+        "circle-stroke-color": ["get", "strokeColor"],
+        "circle-stroke-width": ["get", "strokeWidth"]
+      },
+      minzoom: catalogueEntry.minimumZoom,
+      maxzoom: catalogueEntry.maximumZoom
+    });
+    return;
+  }
+
+  if ((mapFeature.geometry.type === "LineString" || mapFeature.geometry.type === "MultiLineString") && !map.getLayer(primaryLayerId)) {
+    map.addLayer({
+      id: primaryLayerId,
+      type: "line",
+      source: sourceId,
+      paint: {
+        "line-color": ["get", "strokeColor"],
+        "line-width": ["get", "strokeWidth"],
+        "line-opacity": ["get", "strokeOpacity"]
+      },
+      minzoom: catalogueEntry.minimumZoom,
+      maxzoom: catalogueEntry.maximumZoom
+    });
+    return;
+  }
+
+  if (!map.getLayer(primaryLayerId)) {
+    map.addLayer({
+      id: primaryLayerId,
+      type: "fill",
+      source: sourceId,
+      paint: {
+        "fill-color": ["get", "fillColor"],
+        "fill-opacity": ["get", "fillOpacity"]
+      },
+      minzoom: catalogueEntry.minimumZoom,
+      maxzoom: catalogueEntry.maximumZoom
+    });
+  }
+
+  if (outlineLayerId && !map.getLayer(outlineLayerId)) {
+    map.addLayer({
+      id: outlineLayerId,
+      type: "line",
+      source: sourceId,
+      paint: {
+        "line-color": ["get", "strokeColor"],
+        "line-width": ["get", "strokeWidth"],
+        "line-opacity": ["get", "strokeOpacity"]
+      },
+      minzoom: catalogueEntry.minimumZoom,
+      maxzoom: catalogueEntry.maximumZoom
     });
   }
 }
@@ -1144,6 +1344,8 @@ function syncUserAoiSource(map: MapboxMap, drawState: PolygonDrawState, selected
 
 function attachGeoAiMapLayers(
   map: MapboxMap,
+  activation: SpatialActivationResult,
+  controlledFixtures: ControlledFixtureRecord[],
   visibility: Record<DemoLayerId, boolean>,
   selectedObject: SelectedDemoObject | null,
   uploadedDatasets: UploadedDataset[] = [],
@@ -1152,9 +1354,13 @@ function attachGeoAiMapLayers(
   exploreCandidates: ExploreCandidate[] = [],
   selectedExploreCandidateId: string | null = null
 ) {
+  const activeDemoLayerIds = new Set(
+    activation.activeLayers.flatMap((entry) => entry.demoLayerId ? [entry.demoLayerId] : [])
+  );
   addOpenGeodataLayers(map);
   addUploadedDatasetLayers(map, uploadedDatasets);
-  demoLayers.forEach((layer) => addDemoLayerToMap(map, layer));
+  demoLayers.filter((layer) => activeDemoLayerIds.has(layer.id)).forEach((layer) => addDemoLayerToMap(map, layer));
+  controlledFixtures.forEach((record) => addControlledFixtureLayerToMap(map, record));
   addSelectedObjectLayer(map);
   addUserAoiLayer(map);
   addExploreCandidateLayers(map, exploreCandidates, selectedExploreCandidateId);
@@ -1164,6 +1370,15 @@ function attachGeoAiMapLayers(
   syncUserAoiSource(map, drawState, selectedAoi);
   syncUploadedDatasetSource(map, uploadedDatasets);
   syncExploreCandidateSource(map, exploreCandidates, selectedExploreCandidateId);
+
+  const style = map.getStyle();
+  const activeDemoMapLayerIds = new Set(
+    demoLayers.filter((layer) => activeDemoLayerIds.has(layer.id)).flatMap(getLayerIds)
+  );
+  return {
+    sourceCount: Object.keys(style.sources ?? {}).filter((sourceId) => sourceId.startsWith("geoai-")).length,
+    layerCount: (style.layers ?? []).filter((layer) => layer.id.startsWith("geoai-") || activeDemoMapLayerIds.has(layer.id)).length
+  };
 }
 
 export function MapWorkspaceClient({
@@ -1182,8 +1397,21 @@ export function MapWorkspaceClient({
   exploreCandidates = [],
   selectedExploreCandidateId = null,
   onExploreCandidateSelect,
-  onMapSnapshotChange
+  onMapSnapshotChange,
+  spatialSourceRequest = defaultSpatialSourceRequest
 }: MapWorkspaceClientProps) {
+  const activation = useMemo(
+    () => resolveSpatialActivation({ ...spatialSourceRequest, bundle: controlledFixtureBundle }),
+    [spatialSourceRequest]
+  );
+  const controlledFixtures = useMemo(() => getControlledFixtureRecords(activation), [activation]);
+  const attribution = useMemo(
+    () => aggregateSpatialAttribution({
+      sourceMode: activation.effectiveSourceMode,
+      activeAttributionIds: activation.activeAttributionIds
+    }),
+    [activation]
+  );
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapboxMap | null>(null);
   const markerRef = useRef<MapboxMarker | null>(null);
@@ -1201,14 +1429,69 @@ export function MapWorkspaceClient({
   const uploadedDatasetsRef = useRef<UploadedDataset[]>(uploadedDatasets);
   const exploreCandidatesRef = useRef<ExploreCandidate[]>(exploreCandidates);
   const selectedExploreCandidateIdRef = useRef<string | null>(selectedExploreCandidateId);
+  const controlledFixturesRef = useRef<ControlledFixtureRecord[]>(controlledFixtures);
+  const activationRef = useRef(activation);
+  const mapInitializationStartedAtRef = useRef<number | null>(null);
   const [layerVisibility, setLayerVisibility] = useState(initialLayerVisibility);
   const [layersExpanded, setLayersExpanded] = useState(false);
   const [basemapStyle, setBasemapStyle] = useState<BasemapStyleId>("streets");
   const [isMapReady, setIsMapReady] = useState(false);
   const [mapResourceError, setMapResourceError] = useState<string | null>(null);
   const [drawState, setDrawState] = useState<PolygonDrawState>(initialDrawState);
+  const [isLineageDrawerOpen, setIsLineageDrawerOpen] = useState(false);
+  const [mapObservability, setMapObservability] = useState({
+    sourceCount: 0,
+    layerCount: 0,
+    mapReadyMs: 0,
+    layerRegistrationMs: 0
+  });
   const mapboxToken = getMapboxToken();
   const canUseMapbox = hasUsableMapboxToken(mapboxToken);
+
+  const selectedLineage = useMemo(() => {
+    const context = selectedObject?.spatialContext;
+    if (
+      !context?.canonicalFeatureKey ||
+      !context.layerKey ||
+      !context.sourceMode ||
+      !context.datasetVersion ||
+      !context.bundleChecksum ||
+      !context.providerId ||
+      !context.freshnessStatus ||
+      !context.reviewStatus ||
+      !context.geometryOrigin ||
+      !context.geometryAccuracy ||
+      !context.qualitySummary ||
+      !context.attributionIds ||
+      !context.sourceAttributions ||
+      !context.caveat ||
+      !context.fallbackLayerKey ||
+      !context.fallbackState
+    ) return null;
+
+    return {
+      canonicalFeatureKey: context.canonicalFeatureKey,
+      layerKey: context.layerKey,
+      sourceMode: context.sourceMode,
+      datasetId: context.datasetId,
+      datasetVersion: context.datasetVersion,
+      bundleChecksum: context.bundleChecksum,
+      providerId: context.providerId,
+      sourceAliases: context.sourceAliases ?? [],
+      sourceUpdatedAt: context.sourceUpdatedAt ?? null,
+      freshnessStatus: context.freshnessStatus,
+      reviewStatus: context.reviewStatus,
+      geometryOrigin: context.geometryOrigin,
+      geometryAccuracy: context.geometryAccuracy,
+      qualitySummary: context.qualitySummary,
+      attributionIds: context.attributionIds,
+      sourceAttributions: context.sourceAttributions,
+      limitations: context.limitations,
+      caveat: context.caveat,
+      fallbackLayerKey: context.fallbackLayerKey,
+      fallbackState: context.fallbackState
+    } satisfies SpatialSelectionLineage;
+  }, [selectedObject]);
 
   useEffect(() => {
     onPointSelectRef.current = onPointSelect;
@@ -1261,6 +1544,37 @@ export function MapWorkspaceClient({
   useEffect(() => {
     layerVisibilityRef.current = layerVisibility;
   }, [layerVisibility]);
+
+  useEffect(() => {
+    controlledFixturesRef.current = controlledFixtures;
+    activationRef.current = activation;
+  }, [activation, controlledFixtures]);
+
+  useEffect(() => {
+    if (!selectedLineage) setIsLineageDrawerOpen(false);
+  }, [selectedLineage]);
+
+  useEffect(() => {
+    const evidenceWindow = window as Window & { __GEOAI_SPATIAL_B2_EVIDENCE__?: Record<string, unknown> };
+    evidenceWindow.__GEOAI_SPATIAL_B2_EVIDENCE__ = {
+      ...evidenceWindow.__GEOAI_SPATIAL_B2_EVIDENCE__,
+      runtimeEnvironment: activation.runtimeEnvironment,
+      requestedSourceMode: activation.requestedSourceMode,
+      effectiveSourceMode: activation.effectiveSourceMode,
+      fallbackReason: activation.fallbackReason,
+      syntheticLayerCount: activation.syntheticLayerCount,
+      defaultVisibleSyntheticLayerCount: activation.defaultVisibleSyntheticLayerCount,
+      openFixtureFeatureCount: activation.openFixtureFeatureCount,
+      openRealGeometryFeatureCount: activation.openRealGeometryFeatureCount,
+      activeAttributionIds: activation.activeAttributionIds,
+      bundleChecksum: activation.bundleChecksum,
+      rollbackResult: activation.rollbackResult,
+      mapSourceCount: mapObservability.sourceCount,
+      mapLayerCount: mapObservability.layerCount,
+      mapReadyMs: mapObservability.mapReadyMs,
+      layerRegistrationMs: mapObservability.layerRegistrationMs
+    };
+  }, [activation, mapObservability]);
 
   useEffect(() => {
     if (drawStateRef.current.mode === "drawing_polygon" || drawStateRef.current.mode === "invalid_polygon") {
@@ -1434,6 +1748,7 @@ export function MapWorkspaceClient({
         }
 
         setMapResourceError(null);
+        mapInitializationStartedAtRef.current = performance.now();
         mapboxgl.accessToken = mapboxToken;
         mapRef.current = new mapboxgl.Map({
           container: mapContainerRef.current,
@@ -1471,8 +1786,11 @@ export function MapWorkspaceClient({
       const handleStyleReady = () => {
         if (isMounted) {
           setMapResourceError(null);
-          attachGeoAiMapLayers(
+          const registrationStartedAt = performance.now();
+          const registration = attachGeoAiMapLayers(
             mapRef.current as MapboxMap,
+            activationRef.current,
+            controlledFixturesRef.current,
             layerVisibilityRef.current,
             selectedObjectRef.current,
             uploadedDatasetsRef.current,
@@ -1481,6 +1799,12 @@ export function MapWorkspaceClient({
             exploreCandidatesRef.current,
             selectedExploreCandidateIdRef.current
           );
+          const registrationFinishedAt = performance.now();
+          setMapObservability({
+            ...registration,
+            mapReadyMs: Math.round(registrationFinishedAt - (mapInitializationStartedAtRef.current ?? registrationStartedAt)),
+            layerRegistrationMs: Math.round(registrationFinishedAt - registrationStartedAt)
+          });
           window.setTimeout(() => mapRef.current?.resize(), 0);
           setIsMapReady(true);
         }
@@ -1506,7 +1830,8 @@ export function MapWorkspaceClient({
         const interactiveLayers = getInteractiveLayerIds(
           layerVisibilityRef.current,
           uploadedDatasetsRef.current,
-          exploreCandidatesRef.current
+          exploreCandidatesRef.current,
+          controlledFixturesRef.current
         ).filter((layerId) => Boolean(mapRef.current?.getLayer(layerId)));
         const features = interactiveLayers.length > 0
           ? mapRef.current?.queryRenderedFeatures(event.point, { layers: interactiveLayers })
@@ -1515,21 +1840,32 @@ export function MapWorkspaceClient({
         const hoveredFeature = orderedFeatures[0];
         const featureId = hoveredFeature?.properties?.id as string | undefined;
         const demoFeature = featureId ? getDemoFeatureById(featureId) : null;
+        const controlledFixture = getControlledFixtureRecord(controlledFixturesRef.current, featureId);
         const basemapFeature = demoFeature ? null : getBasemapContextFeature(mapRef.current?.queryRenderedFeatures(event.point) ?? []);
         const source = mapRef.current?.getSource(hoverObjectSourceId) as GeoJSONSource | undefined;
 
         if (source) {
-          source.setData(toFeatureCollection(demoFeature ? [demoFeature] : (hoveredFeature?.properties?.openFeatureKind || hoveredFeature?.properties?.uploadedFeatureKind) ? [hoveredFeature] : []));
+          source.setData(toFeatureCollection(
+            demoFeature
+              ? [demoFeature]
+              : controlledFixture
+                ? [controlledFixture.mapFeature]
+                : (hoveredFeature?.properties?.openFeatureKind || hoveredFeature?.properties?.uploadedFeatureKind)
+                  ? [hoveredFeature]
+                  : []
+          ));
         }
 
         if (mapRef.current) {
           const isSelectableOpenPoi = hoveredFeature?.properties?.openFeatureKind === "poi";
           const isUploadedFeature = Boolean(hoveredFeature?.properties?.uploadedFeatureKind);
           const isExploreCandidate = Boolean(hoveredFeature?.properties?.exploreCandidateKind);
-          mapRef.current.getCanvas().style.cursor = demoFeature || isSelectableOpenPoi || isUploadedFeature || isExploreCandidate ? "pointer" : "";
+          mapRef.current.getCanvas().style.cursor = demoFeature || controlledFixture || isSelectableOpenPoi || isUploadedFeature || isExploreCandidate ? "pointer" : "";
 
           if (demoFeature) {
             setHoverTooltip(hoverPopupRef.current, event.lngLat, demoFeature, mapRef.current);
+          } else if (controlledFixture) {
+            setControlledFixtureTooltip(hoverPopupRef.current, event.lngLat, hoveredFeature, mapRef.current);
           } else if (hoveredFeature?.properties?.uploadedFeatureKind) {
             setUploadedDatasetTooltip(hoverPopupRef.current, event.lngLat, hoveredFeature, mapRef.current);
           } else if (hoveredFeature?.properties?.exploreCandidateKind) {
@@ -1563,7 +1899,8 @@ export function MapWorkspaceClient({
         const interactiveLayers = getInteractiveLayerIds(
           layerVisibilityRef.current,
           uploadedDatasetsRef.current,
-          exploreCandidatesRef.current
+          exploreCandidatesRef.current,
+          controlledFixturesRef.current
         ).filter((layerId) => Boolean(mapRef.current?.getLayer(layerId)));
         const features = interactiveLayers.length > 0
           ? mapRef.current?.queryRenderedFeatures(event.point, { layers: interactiveLayers })
@@ -1572,6 +1909,7 @@ export function MapWorkspaceClient({
         const selectedRenderedFeature = orderedFeatures[0];
         const featureId = selectedRenderedFeature?.properties?.id as string | undefined;
         const demoFeature = featureId ? getDemoFeatureById(featureId) : null;
+        const controlledFixture = getControlledFixtureRecord(controlledFixturesRef.current, featureId);
 
         if (selectedRenderedFeature?.properties?.exploreCandidateKind && onExploreCandidateSelectRef.current) {
           const candidateId = String(selectedRenderedFeature.properties.id ?? "");
@@ -1583,6 +1921,11 @@ export function MapWorkspaceClient({
 
         if (demoFeature && onObjectSelectRef.current) {
           onObjectSelectRef.current(getSelectedDemoObject(demoFeature));
+          return;
+        }
+
+        if (controlledFixture && onObjectSelectRef.current) {
+          onObjectSelectRef.current(createSelectedObjectFromSpatialFeature(controlledFixture));
           return;
         }
 
@@ -1728,9 +2071,16 @@ export function MapWorkspaceClient({
     let captured = false;
     const capture = () => {
       if (cancelled || captured) return;
-      const snapshot = captureRenderedMapSnapshot(map, targetPoint, targetLabel);
+      const snapshot = captureRenderedMapSnapshot(map, targetPoint, targetLabel, attribution, selectedLineage);
       if (!snapshot) return;
       captured = true;
+      const evidenceWindow = window as Window & { __GEOAI_SPATIAL_B2_EVIDENCE__?: Record<string, unknown> };
+      evidenceWindow.__GEOAI_SPATIAL_B2_EVIDENCE__ = {
+        ...evidenceWindow.__GEOAI_SPATIAL_B2_EVIDENCE__,
+        mapSnapshotCaptured: true,
+        mapSnapshotWidth: snapshot.width,
+        mapSnapshotHeight: snapshot.height
+      };
       onMapSnapshotChangeRef.current?.(snapshot);
     };
     const timeout = window.setTimeout(capture, 700);
@@ -1741,7 +2091,7 @@ export function MapWorkspaceClient({
       window.clearTimeout(timeout);
       map.off("idle", capture);
     };
-  }, [basemapStyle, canUseMapbox, isMapReady, selectedAoi, selectedObject, selectedPoint]);
+  }, [attribution, basemapStyle, canUseMapbox, isMapReady, selectedAoi, selectedLineage, selectedObject, selectedPoint]);
 
   useEffect(() => {
     if (!canUseMapbox || !mapRef.current || !isMapReady) {
@@ -1871,7 +2221,7 @@ export function MapWorkspaceClient({
   const visibleUploadedLayerCount = uploadedDatasets.filter(
     (dataset) => dataset.type === "geojson" && dataset.status === "parsed" && dataset.visible !== false
   ).length;
-  const activeLayerCount = Object.values(layerVisibility).filter(Boolean).length + visibleUploadedLayerCount;
+  const activeLayerCount = Object.values(layerVisibility).filter(Boolean).length + visibleUploadedLayerCount + controlledFixtures.length;
   const demoOverlayLayers = demoLayers.filter((layer) => !["planned_official", "customer_future"].includes(layer.sourceMode));
   const uploadedGeojsonDatasets = uploadedDatasets.filter((dataset) => dataset.type === "geojson" && dataset.status === "parsed");
   const isDrawingPolygon = drawState.mode === "drawing_polygon" || drawState.mode === "invalid_polygon";
@@ -1882,6 +2232,18 @@ export function MapWorkspaceClient({
     <section
       className={className}
       onClick={handleFallbackClick}
+      data-spatial-runtime-environment={activation.runtimeEnvironment}
+      data-spatial-requested-source-mode={activation.requestedSourceMode}
+      data-spatial-effective-source-mode={activation.effectiveSourceMode}
+      data-spatial-fallback-reason={activation.fallbackReason ?? ""}
+      data-spatial-synthetic-layer-count={activation.syntheticLayerCount}
+      data-spatial-default-visible-count={activation.defaultVisibleSyntheticLayerCount}
+      data-spatial-open-fixture-feature-count={activation.openFixtureFeatureCount}
+      data-spatial-open-real-feature-count={activation.openRealGeometryFeatureCount}
+      data-spatial-map-source-count={mapObservability.sourceCount}
+      data-spatial-map-layer-count={mapObservability.layerCount}
+      data-spatial-map-ready-ms={mapObservability.mapReadyMs}
+      data-spatial-layer-registration-ms={mapObservability.layerRegistrationMs}
     >
       <div ref={mapContainerRef} className="absolute inset-0" aria-label="GeoAI map workspace" />
 
@@ -1918,6 +2280,20 @@ export function MapWorkspaceClient({
           </p>
           <p className="mt-2 text-sm leading-6 text-muted">{mapResourceError}</p>
         </div>
+      ) : null}
+
+      <SpatialDataAttribution
+        payload={attribution}
+        hasSelectedLineage={Boolean(selectedLineage)}
+        onOpenLineage={() => setIsLineageDrawerOpen(true)}
+      />
+
+      {isLineageDrawerOpen && selectedLineage && selectedObject ? (
+        <SpatialSourceLineageDrawer
+          objectName={selectedObject.name}
+          lineage={selectedLineage}
+          onClose={() => setIsLineageDrawerOpen(false)}
+        />
       ) : null}
 
       {shouldShowMapboxControls ? (
@@ -2044,6 +2420,16 @@ export function MapWorkspaceClient({
                 </button>
               </div>
 
+              {activation.fallbackReason ? (
+                <div className="mb-2 rounded-md border border-[#f0d7a4] bg-[#fff9ec] px-2.5 py-2 text-[10px] leading-4 text-[#775611]" data-spatial-fallback-notice>
+                  Synthetic fallback active. {activation.fallbackReason}
+                </div>
+              ) : activation.effectiveSourceMode === "open_context_preview" ? (
+                <div className="mb-2 rounded-md border border-[#b8d3c6] bg-[#f3f8f5] px-2.5 py-2 text-[10px] leading-4 text-[#276749]" data-spatial-preview-fixture-notice>
+                  Controlled non-real Preview fixture active. No provider geometry is included.
+                </div>
+              ) : null}
+
               <div className="rounded-md border border-line bg-white px-2.5 py-2">
                 <div className="flex items-center justify-between gap-2">
                   <div>
@@ -2087,7 +2473,7 @@ export function MapWorkspaceClient({
                       <span className="min-w-0">
                         <span className="block truncate text-[11px] font-semibold text-ink">{layer.legendLabel}</span>
                         <span className="block truncate text-[9px] font-semibold uppercase tracking-[0.06em] text-muted">
-                          {getLayerSourceModeLabel(layer)}
+                          {getCatalogueEntryForDemoLayer(layer.id)?.dataHonestyLabel ?? "Sample/demo"}
                         </span>
                       </span>
                     </span>
@@ -2098,6 +2484,24 @@ export function MapWorkspaceClient({
                       className="h-4 w-4 accent-[#174f63]"
                     />
                   </label>
+                ))}
+                {controlledFixtures.map((record) => (
+                  <div
+                    key={record.catalogueEntry.layerKey}
+                    className="flex items-center justify-between gap-2 rounded-md border border-[#b8d3c6] bg-[#f3f8f5] px-2.5 py-1.5"
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate text-[11px] font-semibold text-ink">
+                        {record.catalogueEntry.displayName}
+                      </span>
+                      <span className="block truncate text-[9px] font-semibold uppercase tracking-[0.06em] text-muted">
+                        {record.catalogueEntry.dataHonestyLabel}
+                      </span>
+                    </span>
+                    <span className="shrink-0 rounded-full bg-white px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.06em] text-[#276749]">
+                      test
+                    </span>
+                  </div>
                 ))}
               </div>
 
@@ -2204,6 +2608,36 @@ export function MapWorkspaceClient({
               <span>{layer.legendLabel}</span>
             </div>
           ))}
+        </div>
+      ) : null}
+
+      {shouldShowFallbackMap && controlledFixtures.length > 0 ? (
+        <div className="pointer-events-none absolute inset-0 z-10" data-controlled-spatial-fixtures>
+          {controlledFixtures.map((record) => {
+            const position = getFallbackMarkerStyle({
+              latitude: record.feature.centroid.latitude,
+              longitude: record.feature.centroid.longitude
+            });
+            return (
+              <button
+                key={record.feature.featureKey}
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onObjectSelect?.(createSelectedObjectFromSpatialFeature(record));
+                }}
+                aria-label={`Select ${record.feature.displayName}`}
+                title={record.feature.displayName}
+                className={`pointer-events-auto absolute -translate-x-1/2 -translate-y-1/2 border-2 border-white bg-brand shadow-soft focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 ${
+                  record.mapFeature.properties.geometryType === "point" ? "h-7 w-7 rounded-full" : "h-8 w-8 rounded-md"
+                }`}
+                style={position}
+                data-controlled-fixture-key={record.feature.featureKey}
+              >
+                <span className="sr-only">Controlled non-real fixture</span>
+              </button>
+            );
+          })}
         </div>
       ) : null}
 
