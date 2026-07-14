@@ -8,6 +8,7 @@ import type {
 
 export type SpatialBundleDeliveryMethod =
   | "static_test_fixture"
+  | "repository_fixture"
   | "release_asset"
   | "object_storage"
   | "vector_tiles";
@@ -22,6 +23,7 @@ export type SpatialBundleDescriptor = {
   controlledFixture: boolean;
   containsRealGeometry: boolean;
   releaseReady: boolean;
+  deliveryApproved: boolean;
   distributionApproved: boolean;
   publicRepositoryGeometryApproved: boolean;
   reason: string | null;
@@ -45,10 +47,10 @@ const controlledDatasets: SpatialDatasetVersionV1[] = [
     sourceId: "controlled-osm-attribution-fixture",
     sourceReleaseId: "fixture-v1",
     sourceMode: "derived_open_context",
-    licenseId: "ODbL-1.0-attribution-contract-test",
-    licenseUrl: "https://www.openstreetmap.org/copyright",
-    attributionUrl: "https://www.openstreetmap.org/copyright",
-    attribution: "© OpenStreetMap contributors (attribution contract test only)",
+    licenseId: "controlled-fixture-only",
+    licenseUrl: "",
+    attributionUrl: "",
+    attribution: "Controlled open-context point fixture; invented geometry with no provider geometry.",
     buildMethod: "static non-real contract fixture",
     buildVersion: "spatial-b2a-v1",
     checksum: "sha256:controlled-osm-feature-v1",
@@ -214,8 +216,8 @@ const controlledFeatures: SpatialFeatureEnvelopeV1[] = [
     geometry: { type: "Point", coordinates: [55.235, 25.12] },
     centroid: { longitude: 55.235, latitude: 25.12 },
     geometryRole: "anchor",
-    sourceAttribution: "© OpenStreetMap contributors (attribution contract test only)",
-    attributionUrl: "https://www.openstreetmap.org/copyright"
+    sourceAttribution: "Controlled open-context point fixture; invented geometry with no provider geometry.",
+    attributionUrl: ""
   }),
   feature({
     featureKey: "geoai:controlled-fixture:overture-area-v1",
@@ -264,6 +266,7 @@ export function loadSpatialBundle(deliveryMethod: SpatialBundleDeliveryMethod): 
       controlledFixture: false,
       containsRealGeometry: false,
       releaseReady: false,
+      deliveryApproved: false,
       distributionApproved: false,
       publicRepositoryGeometryApproved: false,
       reason: `${deliveryMethod} is declared for future delivery but is not implemented in B2A.`
@@ -280,6 +283,7 @@ export function loadSpatialBundle(deliveryMethod: SpatialBundleDeliveryMethod): 
     controlledFixture: true,
     containsRealGeometry: false,
     releaseReady: true,
+    deliveryApproved: true,
     distributionApproved: false,
     publicRepositoryGeometryApproved: false,
     reason: null

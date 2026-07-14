@@ -13,6 +13,7 @@ type MapWorkspaceProps = {
   selectedAoi?: UserDrawnAoi | null;
   onPointSelect: (point: SelectedPoint) => void;
   onObjectSelect?: (object: SelectedDemoObject) => void;
+  onObjectClear?: () => void;
   onAoiSelect?: (aoi: UserDrawnAoi) => void;
   onAoiDelete?: () => void;
   className?: string;

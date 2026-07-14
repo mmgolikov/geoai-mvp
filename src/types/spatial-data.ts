@@ -109,7 +109,8 @@ export type SpatialSelectionContext = {
   sourceMode?: "synthetic_fallback" | "open_context_preview" | "licensed_provider" | "client_validated" | "official_validated";
   datasetVersion?: string;
   bundleChecksum?: string;
-  providerId?: string;
+  providerFeatureId?: string | null;
+  sourceRecordId?: string | null;
   sourceAliases?: Array<{ sourceId: string; sourceFeatureId: string }>;
   sourceUpdatedAt?: string | null;
   freshnessStatus?: "current" | "aging" | "stale" | "unknown";

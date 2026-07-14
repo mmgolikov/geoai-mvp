@@ -14,11 +14,16 @@ import type { ExploreCandidate } from "@/src/lib/explore/types";
 import { openGeodataBaseline } from "@/src/lib/open-geodata";
 import type { ReportMapSnapshot } from "@/src/lib/report-map-snapshot";
 import { resolveSpatialActivation, type SpatialActivationResult } from "@/src/lib/spatial-b2/activation-resolver";
-import { aggregateSpatialAttribution } from "@/src/lib/spatial-b2/attribution";
+import {
+  aggregateSpatialAttribution,
+  deriveVisibleSpatialAttributionIds,
+  findSpatialAttributionCoverageMismatch,
+  type SpatialBasemapMode
+} from "@/src/lib/spatial-b2/attribution";
 import { loadSpatialBundle } from "@/src/lib/spatial-b2/bundle-loader";
 import { getCatalogueEntryForDemoLayer, type SpatialLayerCatalogueEntry } from "@/src/lib/spatial-b2/layer-catalogue";
 import {
-  adaptSpatialFeatureToMapFeature,
+  adaptControlledFixtureToMapFeature,
   createSelectedObjectFromSpatialFeature,
   type SpatialB2MapFeature,
   type SpatialB2MapStyle
@@ -56,6 +61,7 @@ type MapWorkspaceClientProps = {
   selectedAoi?: UserDrawnAoi | null;
   onPointSelect: (point: SelectedPoint) => void;
   onObjectSelect?: (object: SelectedDemoObject) => void;
+  onObjectClear?: () => void;
   onAoiSelect?: (aoi: UserDrawnAoi) => void;
   onAoiDelete?: () => void;
   className?: string;
@@ -127,7 +133,7 @@ function getControlledFixtureRecords(activation: SpatialActivationResult): Contr
       catalogueEntry,
       dataset,
       feature,
-      mapFeature: adaptSpatialFeatureToMapFeature({ feature, dataset, catalogueEntry, style })
+      mapFeature: adaptControlledFixtureToMapFeature({ feature, dataset, catalogueEntry, style })
     }];
   });
 }
@@ -141,7 +147,14 @@ function getControlledFixtureRecord(records: ControlledFixtureRecord[], featureI
 const selectedObjectSourceId = "geoai-selected-object";
 const hoverObjectSourceId = "geoai-hover-object";
 const openGeodataSourceId = "geoai-open-geodata-baseline";
-const openGeodataLayerIds = ["geoai-open-landuse", "geoai-open-roads", "geoai-open-poi"];
+const openGeodataLayerIds = ["geoai-open-landuse", "geoai-open-roads", "geoai-open-poi"] as const;
+type OpenGeodataLayerId = (typeof openGeodataLayerIds)[number];
+type OpenGeodataVisibility = Record<OpenGeodataLayerId, boolean>;
+const initialOpenGeodataVisibility: OpenGeodataVisibility = {
+  "geoai-open-landuse": true,
+  "geoai-open-roads": true,
+  "geoai-open-poi": true
+};
 const uploadedDatasetSourceId = "geoai-uploaded-datasets";
 const uploadedDatasetLayerIds = ["geoai-uploaded-fill", "geoai-uploaded-line", "geoai-uploaded-circle"];
 const userAoiSourceId = "geoai-user-drawn-aoi";
@@ -232,6 +245,7 @@ function getControlledFixtureLayerIds(record: ControlledFixtureRecord) {
 
 function getInteractiveLayerIds(
   visibility: Record<DemoLayerId, boolean>,
+  openVisibility: OpenGeodataVisibility,
   uploadedDatasets: UploadedDataset[] = [],
   exploreCandidates: ExploreCandidate[] = [],
   controlledFixtures: ControlledFixtureRecord[] = []
@@ -242,7 +256,7 @@ function getInteractiveLayerIds(
   const hasExploreCandidates = exploreCandidates.length > 0;
 
   return [
-    ...openGeodataLayerIds,
+    ...openGeodataLayerIds.filter((layerId) => openVisibility[layerId]),
     ...(hasVisibleUploadedLayers ? uploadedDatasetLayerIds : []),
     ...(hasExploreCandidates ? exploreCandidateLayerIds : []),
     ...controlledFixtures.flatMap(getControlledFixtureLayerIds),
@@ -849,6 +863,14 @@ function addControlledFixtureLayerToMap(map: MapboxMap, record: ControlledFixtur
   }
 }
 
+function removeControlledFixtureLayerFromMap(map: MapboxMap, record: ControlledFixtureRecord) {
+  getControlledFixtureLayerIds(record).forEach((layerId) => {
+    if (map.getLayer(layerId)) map.removeLayer(layerId);
+  });
+  const sourceId = getControlledFixtureSourceId(record);
+  if (map.getSource(sourceId)) map.removeSource(sourceId);
+}
+
 function addOpenGeodataLayers(map: MapboxMap) {
   if (!map.getSource(openGeodataSourceId)) {
     map.addSource(openGeodataSourceId, {
@@ -1254,6 +1276,14 @@ function syncLayerVisibility(map: MapboxMap, visibility: Record<DemoLayerId, boo
   });
 }
 
+function syncOpenGeodataVisibility(map: MapboxMap, visibility: OpenGeodataVisibility) {
+  openGeodataLayerIds.forEach((layerId) => {
+    if (map.getLayer(layerId)) {
+      map.setLayoutProperty(layerId, "visibility", visibility[layerId] ? "visible" : "none");
+    }
+  });
+}
+
 function syncSelectedObjectSource(map: MapboxMap, selectedObject: SelectedDemoObject | null) {
   const source = map.getSource(selectedObjectSourceId) as GeoJSONSource | undefined;
   const selectedFeature = selectedObject ? getDemoFeatureById(selectedObject.id) : null;
@@ -1347,6 +1377,7 @@ function attachGeoAiMapLayers(
   activation: SpatialActivationResult,
   controlledFixtures: ControlledFixtureRecord[],
   visibility: Record<DemoLayerId, boolean>,
+  openVisibility: OpenGeodataVisibility,
   selectedObject: SelectedDemoObject | null,
   uploadedDatasets: UploadedDataset[] = [],
   selectedAoi: UserDrawnAoi | null = null,
@@ -1366,6 +1397,7 @@ function attachGeoAiMapLayers(
   addExploreCandidateLayers(map, exploreCandidates, selectedExploreCandidateId);
   addHoverObjectLayer(map);
   syncLayerVisibility(map, visibility);
+  syncOpenGeodataVisibility(map, openVisibility);
   syncSelectedObjectSource(map, selectedObject);
   syncUserAoiSource(map, drawState, selectedAoi);
   syncUploadedDatasetSource(map, uploadedDatasets);
@@ -1380,7 +1412,14 @@ function attachGeoAiMapLayers(
     layerCount: (style.layers ?? []).filter((layer) => layer.id.startsWith("geoai-") || activeDemoMapLayerIds.has(layer.id)).length,
     openGeodataLayerCount: openGeodataLayerIds.filter((layerId) => Boolean(map.getLayer(layerId))).length,
     openGeodataFeatureCount: getOpenGeodataFeatures().length,
-    openGeodataSelectableFeatureCount: openGeodataBaseline.poi.length
+    openGeodataSelectableFeatureCount: openGeodataBaseline.poi.length,
+    controlledFixtureSourceIds: controlledFixtures
+      .map(getControlledFixtureSourceId)
+      .filter((sourceId) => Boolean(map.getSource(sourceId))),
+    controlledFixtureLayerIds: controlledFixtures
+      .flatMap(getControlledFixtureLayerIds)
+      .filter((layerId) => Boolean(map.getLayer(layerId))),
+    obsoleteControlledFixtureSourceCount: 0
   };
 }
 
@@ -1390,6 +1429,7 @@ export function MapWorkspaceClient({
   selectedAoi = null,
   onPointSelect,
   onObjectSelect,
+  onObjectClear,
   onAoiSelect,
   onAoiDelete,
   className = "relative min-h-[calc(100vh-64px)] overflow-hidden bg-[#dfe8ec]",
@@ -1403,24 +1443,21 @@ export function MapWorkspaceClient({
   onMapSnapshotChange,
   spatialSourceRequest = defaultSpatialSourceRequest
 }: MapWorkspaceClientProps) {
+  const mapboxToken = getMapboxToken();
+  const canUseMapbox = hasUsableMapboxToken(mapboxToken);
+  const [activeSpatialSourceRequest, setActiveSpatialSourceRequest] = useState(spatialSourceRequest);
   const activation = useMemo(
-    () => resolveSpatialActivation({ ...spatialSourceRequest, bundle: controlledFixtureBundle }),
-    [spatialSourceRequest]
+    () => resolveSpatialActivation({ ...activeSpatialSourceRequest, bundle: controlledFixtureBundle }),
+    [activeSpatialSourceRequest]
   );
   const controlledFixtures = useMemo(() => getControlledFixtureRecords(activation), [activation]);
-  const attribution = useMemo(
-    () => aggregateSpatialAttribution({
-      sourceMode: activation.effectiveSourceMode,
-      activeAttributionIds: activation.activeAttributionIds
-    }),
-    [activation]
-  );
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapboxMap | null>(null);
   const markerRef = useRef<MapboxMarker | null>(null);
   const hoverPopupRef = useRef<MapboxPopup | null>(null);
   const onPointSelectRef = useRef(onPointSelect);
   const onObjectSelectRef = useRef(onObjectSelect);
+  const onObjectClearRef = useRef(onObjectClear);
   const onAoiSelectRef = useRef(onAoiSelect);
   const onAoiDeleteRef = useRef(onAoiDelete);
   const onExploreCandidateSelectRef = useRef(onExploreCandidateSelect);
@@ -1429,6 +1466,7 @@ export function MapWorkspaceClient({
   const selectedAoiRef = useRef<UserDrawnAoi | null>(selectedAoi);
   const drawStateRef = useRef<PolygonDrawState>(initialDrawState);
   const layerVisibilityRef = useRef(initialLayerVisibility);
+  const openGeodataVisibilityRef = useRef(initialOpenGeodataVisibility);
   const uploadedDatasetsRef = useRef<UploadedDataset[]>(uploadedDatasets);
   const exploreCandidatesRef = useRef<ExploreCandidate[]>(exploreCandidates);
   const selectedExploreCandidateIdRef = useRef<string | null>(selectedExploreCandidateId);
@@ -1436,23 +1474,69 @@ export function MapWorkspaceClient({
   const activationRef = useRef(activation);
   const mapInitializationStartedAtRef = useRef<number | null>(null);
   const [layerVisibility, setLayerVisibility] = useState(initialLayerVisibility);
+  const [openGeodataVisibility, setOpenGeodataVisibility] = useState(initialOpenGeodataVisibility);
   const [layersExpanded, setLayersExpanded] = useState(false);
   const [basemapStyle, setBasemapStyle] = useState<BasemapStyleId>("streets");
   const [isMapReady, setIsMapReady] = useState(false);
   const [mapResourceError, setMapResourceError] = useState<string | null>(null);
   const [drawState, setDrawState] = useState<PolygonDrawState>(initialDrawState);
   const [isLineageDrawerOpen, setIsLineageDrawerOpen] = useState(false);
+  const [lineageReturnFocusTo, setLineageReturnFocusTo] = useState<HTMLElement | null>(null);
+  const [selectionRollbackReason, setSelectionRollbackReason] = useState<string | null>(null);
   const [mapObservability, setMapObservability] = useState({
     sourceCount: 0,
     layerCount: 0,
     openGeodataLayerCount: 0,
     openGeodataFeatureCount: 0,
     openGeodataSelectableFeatureCount: 0,
+    controlledFixtureSourceIds: [] as string[],
+    controlledFixtureLayerIds: [] as string[],
+    obsoleteControlledFixtureSourceCount: 0,
     mapReadyMs: 0,
     layerRegistrationMs: 0
   });
-  const mapboxToken = getMapboxToken();
-  const canUseMapbox = hasUsableMapboxToken(mapboxToken);
+  const basemapMode: SpatialBasemapMode = canUseMapbox && !(mapResourceError && !isMapReady)
+    ? "mapbox"
+    : "fallback_grid";
+  const visibleCatalogueLayers = useMemo(
+    () => activation.activeLayers.map((entry) => ({
+      visible: entry.fixtureLayerId
+        ? controlledFixtures.some((record) => record.catalogueEntry.layerKey === entry.layerKey)
+        : entry.demoLayerId
+          ? layerVisibility[entry.demoLayerId]
+          : false,
+      attributionIds: entry.attributionIds
+    })),
+    [activation.activeLayers, controlledFixtures, layerVisibility]
+  );
+  const localOpenGeodataVisible = openGeodataLayerIds.some((layerId) => openGeodataVisibility[layerId]);
+  const userUploadedDataVisible = uploadedDatasets.some(
+    (dataset) => dataset.type === "geojson" && dataset.status === "parsed" && dataset.visible !== false
+  );
+  const visibleAttributionIds = useMemo(
+    () => deriveVisibleSpatialAttributionIds({
+      catalogueLayers: visibleCatalogueLayers,
+      localOpenGeodataVisible,
+      userUploadedDataVisible
+    }),
+    [localOpenGeodataVisible, userUploadedDataVisible, visibleCatalogueLayers]
+  );
+  const attributionCoverage = useMemo(
+    () => findSpatialAttributionCoverageMismatch({
+      catalogueLayers: visibleCatalogueLayers,
+      localOpenGeodataVisible,
+      userUploadedDataVisible
+    }, visibleAttributionIds),
+    [localOpenGeodataVisible, userUploadedDataVisible, visibleAttributionIds, visibleCatalogueLayers]
+  );
+  const attribution = useMemo(
+    () => aggregateSpatialAttribution({
+      sourceMode: activation.effectiveSourceMode,
+      basemapMode,
+      activeAttributionIds: visibleAttributionIds
+    }),
+    [activation.effectiveSourceMode, basemapMode, visibleAttributionIds]
+  );
 
   const selectedLineage = useMemo(() => {
     const context = selectedObject?.spatialContext;
@@ -1462,7 +1546,7 @@ export function MapWorkspaceClient({
       !context.sourceMode ||
       !context.datasetVersion ||
       !context.bundleChecksum ||
-      !context.providerId ||
+      !context.sourceId ||
       !context.freshnessStatus ||
       !context.reviewStatus ||
       !context.geometryOrigin ||
@@ -1482,7 +1566,9 @@ export function MapWorkspaceClient({
       datasetId: context.datasetId,
       datasetVersion: context.datasetVersion,
       bundleChecksum: context.bundleChecksum,
-      providerId: context.providerId,
+      sourceId: context.sourceId,
+      providerFeatureId: context.providerFeatureId ?? null,
+      sourceRecordId: context.sourceRecordId ?? null,
       sourceAliases: context.sourceAliases ?? [],
       sourceUpdatedAt: context.sourceUpdatedAt ?? null,
       freshnessStatus: context.freshnessStatus,
@@ -1506,6 +1592,14 @@ export function MapWorkspaceClient({
   useEffect(() => {
     onObjectSelectRef.current = onObjectSelect;
   }, [onObjectSelect]);
+
+  useEffect(() => {
+    onObjectClearRef.current = onObjectClear;
+  }, [onObjectClear]);
+
+  useEffect(() => {
+    setActiveSpatialSourceRequest(spatialSourceRequest);
+  }, [spatialSourceRequest]);
 
   useEffect(() => {
     onAoiSelectRef.current = onAoiSelect;
@@ -1552,9 +1646,8 @@ export function MapWorkspaceClient({
   }, [layerVisibility]);
 
   useEffect(() => {
-    controlledFixturesRef.current = controlledFixtures;
-    activationRef.current = activation;
-  }, [activation, controlledFixtures]);
+    openGeodataVisibilityRef.current = openGeodataVisibility;
+  }, [openGeodataVisibility]);
 
   useEffect(() => {
     if (!selectedLineage) setIsLineageDrawerOpen(false);
@@ -1573,17 +1666,25 @@ export function MapWorkspaceClient({
       openFixtureFeatureCount: activation.openFixtureFeatureCount,
       openRealGeometryFeatureCount: activation.openRealGeometryFeatureCount,
       activeAttributionIds: activation.activeAttributionIds,
+      visibleAttributionIds,
+      attributionCoverageMissing: attributionCoverage.missing,
+      attributionCoverageUnexpected: attributionCoverage.unexpected,
+      basemapMode,
       bundleChecksum: activation.bundleChecksum,
       rollbackResult: activation.rollbackResult,
+      selectionRollbackReason,
       mapSourceCount: mapObservability.sourceCount,
       mapLayerCount: mapObservability.layerCount,
       openGeodataLayerCount: mapObservability.openGeodataLayerCount,
       openGeodataFeatureCount: mapObservability.openGeodataFeatureCount,
       openGeodataSelectableFeatureCount: mapObservability.openGeodataSelectableFeatureCount,
+      controlledFixtureSourceIds: mapObservability.controlledFixtureSourceIds,
+      controlledFixtureLayerIds: mapObservability.controlledFixtureLayerIds,
+      obsoleteControlledFixtureSourceCount: mapObservability.obsoleteControlledFixtureSourceCount,
       mapReadyMs: mapObservability.mapReadyMs,
       layerRegistrationMs: mapObservability.layerRegistrationMs
     };
-  }, [activation, mapObservability]);
+  }, [activation, attributionCoverage, basemapMode, mapObservability, selectionRollbackReason, visibleAttributionIds]);
 
   useEffect(() => {
     if (drawStateRef.current.mode === "drawing_polygon" || drawStateRef.current.mode === "invalid_polygon") {
@@ -1801,6 +1902,7 @@ export function MapWorkspaceClient({
             activationRef.current,
             controlledFixturesRef.current,
             layerVisibilityRef.current,
+            openGeodataVisibilityRef.current,
             selectedObjectRef.current,
             uploadedDatasetsRef.current,
             selectedAoiRef.current,
@@ -1838,6 +1940,7 @@ export function MapWorkspaceClient({
 
         const interactiveLayers = getInteractiveLayerIds(
           layerVisibilityRef.current,
+          openGeodataVisibilityRef.current,
           uploadedDatasetsRef.current,
           exploreCandidatesRef.current,
           controlledFixturesRef.current
@@ -1907,6 +2010,7 @@ export function MapWorkspaceClient({
 
         const interactiveLayers = getInteractiveLayerIds(
           layerVisibilityRef.current,
+          openGeodataVisibilityRef.current,
           uploadedDatasetsRef.current,
           exploreCandidatesRef.current,
           controlledFixturesRef.current
@@ -2012,6 +2116,62 @@ export function MapWorkspaceClient({
       mapRef.current = null;
     };
   }, [canUseMapbox, mapboxToken]);
+
+  useEffect(() => {
+    const previousFixtures = controlledFixturesRef.current;
+    activationRef.current = activation;
+
+    const map = mapRef.current;
+    if (!canUseMapbox || !map || !isMapReady) {
+      controlledFixturesRef.current = controlledFixtures;
+      return;
+    }
+
+    const nextSourceIds = new Set(controlledFixtures.map(getControlledFixtureSourceId));
+    previousFixtures
+      .filter((record) => !nextSourceIds.has(getControlledFixtureSourceId(record)))
+      .forEach((record) => removeControlledFixtureLayerFromMap(map, record));
+    controlledFixtures.forEach((record) => addControlledFixtureLayerToMap(map, record));
+    controlledFixturesRef.current = controlledFixtures;
+
+    const controlledFixtureSourceIds = controlledFixtures
+      .map(getControlledFixtureSourceId)
+      .filter((sourceId) => Boolean(map.getSource(sourceId)));
+    const controlledFixtureLayerIds = controlledFixtures
+      .flatMap(getControlledFixtureLayerIds)
+      .filter((layerId) => Boolean(map.getLayer(layerId)));
+    const knownFixtureSourceIds = previousFixtures.map(getControlledFixtureSourceId);
+    const obsoleteControlledFixtureSourceCount = knownFixtureSourceIds.filter(
+      (sourceId) => !nextSourceIds.has(sourceId) && Boolean(map.getSource(sourceId))
+    ).length;
+    const style = map.getStyle();
+
+    setMapObservability((current) => ({
+      ...current,
+      sourceCount: Object.keys(style.sources ?? {}).filter((sourceId) => sourceId.startsWith("geoai-")).length,
+      layerCount: (style.layers ?? []).filter((layer) => layer.id.startsWith("geoai-")).length,
+      controlledFixtureSourceIds,
+      controlledFixtureLayerIds,
+      obsoleteControlledFixtureSourceCount
+    }));
+  }, [activation, canUseMapbox, controlledFixtures, isMapReady]);
+
+  useEffect(() => {
+    const context = selectedObject?.spatialContext;
+    if (!context || context.sourceMode !== "open_context_preview") return;
+    const remainsActive = controlledFixtures.some(
+      (record) => record.feature.featureKey === context.canonicalFeatureKey
+    );
+    if (remainsActive) {
+      setSelectionRollbackReason(null);
+      return;
+    }
+
+    const reason = "Selected controlled fixture became inactive after source rollback; point and AOI state were preserved.";
+    setSelectionRollbackReason(reason);
+    setIsLineageDrawerOpen(false);
+    onObjectClearRef.current?.();
+  }, [controlledFixtures, selectedObject]);
 
   useEffect(() => {
     if (!canUseMapbox || !mapRef.current || !isMapReady) {
@@ -2140,6 +2300,13 @@ export function MapWorkspaceClient({
   }, [canUseMapbox, isMapReady, layerVisibility]);
 
   useEffect(() => {
+    if (!canUseMapbox || !mapRef.current || !isMapReady) return;
+    syncOpenGeodataVisibility(mapRef.current, openGeodataVisibility);
+    const hoverSource = mapRef.current.getSource(hoverObjectSourceId) as GeoJSONSource | undefined;
+    hoverSource?.setData(toFeatureCollection([]));
+  }, [canUseMapbox, isMapReady, openGeodataVisibility]);
+
+  useEffect(() => {
     if (!canUseMapbox || !mapRef.current || !isMapReady) {
       return;
     }
@@ -2218,6 +2385,22 @@ export function MapWorkspaceClient({
     }));
   }
 
+  function toggleOpenGeodataLayer(layerId: OpenGeodataLayerId) {
+    setOpenGeodataVisibility((current) => ({
+      ...current,
+      [layerId]: !current[layerId]
+    }));
+  }
+
+  function selectEvidenceSourceMode(sourceMode: "synthetic_fallback" | "open_context_preview") {
+    if (activeSpatialSourceRequest.runtimeEnvironment === "production") return;
+    setActiveSpatialSourceRequest({
+      ...activeSpatialSourceRequest,
+      requestedSourceMode: sourceMode,
+      approvedSourceMode: sourceMode
+    });
+  }
+
   function setAllLayers(visible: boolean) {
     setLayerVisibility(
       demoLayers.reduce<Record<DemoLayerId, boolean>>((visibility, layer) => {
@@ -2225,12 +2408,20 @@ export function MapWorkspaceClient({
         return visibility;
       }, {} as Record<DemoLayerId, boolean>)
     );
+    setOpenGeodataVisibility({
+      "geoai-open-landuse": visible,
+      "geoai-open-roads": visible,
+      "geoai-open-poi": visible
+    });
   }
 
   const visibleUploadedLayerCount = uploadedDatasets.filter(
     (dataset) => dataset.type === "geojson" && dataset.status === "parsed" && dataset.visible !== false
   ).length;
-  const activeLayerCount = Object.values(layerVisibility).filter(Boolean).length + visibleUploadedLayerCount + controlledFixtures.length;
+  const activeLayerCount = Object.values(layerVisibility).filter(Boolean).length
+    + Object.values(openGeodataVisibility).filter(Boolean).length
+    + visibleUploadedLayerCount
+    + controlledFixtures.length;
   const demoOverlayLayers = demoLayers.filter((layer) => !["planned_official", "customer_future"].includes(layer.sourceMode));
   const uploadedGeojsonDatasets = uploadedDatasets.filter((dataset) => dataset.type === "geojson" && dataset.status === "parsed");
   const isDrawingPolygon = drawState.mode === "drawing_polygon" || drawState.mode === "invalid_polygon";
@@ -2244,6 +2435,11 @@ export function MapWorkspaceClient({
       data-spatial-runtime-environment={activation.runtimeEnvironment}
       data-spatial-requested-source-mode={activation.requestedSourceMode}
       data-spatial-effective-source-mode={activation.effectiveSourceMode}
+      data-spatial-basemap-mode={basemapMode}
+      data-spatial-local-fixture-visible={localOpenGeodataVisible}
+      data-spatial-visible-attribution-ids={visibleAttributionIds.join(",")}
+      data-spatial-attribution-missing={attributionCoverage.missing.join(",")}
+      data-spatial-attribution-unexpected={attributionCoverage.unexpected.join(",")}
       data-spatial-fallback-reason={activation.fallbackReason ?? ""}
       data-spatial-synthetic-layer-count={activation.syntheticLayerCount}
       data-spatial-default-visible-count={activation.defaultVisibleSyntheticLayerCount}
@@ -2254,6 +2450,10 @@ export function MapWorkspaceClient({
       data-spatial-open-geodata-layer-count={mapObservability.openGeodataLayerCount}
       data-spatial-open-geodata-feature-count={mapObservability.openGeodataFeatureCount}
       data-spatial-open-geodata-selectable-count={mapObservability.openGeodataSelectableFeatureCount}
+      data-spatial-controlled-source-ids={mapObservability.controlledFixtureSourceIds.join(",")}
+      data-spatial-controlled-layer-ids={mapObservability.controlledFixtureLayerIds.join(",")}
+      data-spatial-obsolete-controlled-source-count={mapObservability.obsoleteControlledFixtureSourceCount}
+      data-spatial-selection-rollback-reason={selectionRollbackReason ?? ""}
       data-spatial-map-ready-ms={mapObservability.mapReadyMs}
       data-spatial-layer-registration-ms={mapObservability.layerRegistrationMs}
     >
@@ -2298,7 +2498,10 @@ export function MapWorkspaceClient({
         payload={attribution}
         fallbackReason={activation.fallbackReason}
         hasSelectedLineage={Boolean(selectedLineage)}
-        onOpenLineage={() => setIsLineageDrawerOpen(true)}
+        onOpenLineage={(returnFocusTo) => {
+          setLineageReturnFocusTo(returnFocusTo);
+          setIsLineageDrawerOpen(true);
+        }}
       />
 
       {isLineageDrawerOpen && selectedLineage && selectedObject ? (
@@ -2306,6 +2509,7 @@ export function MapWorkspaceClient({
           objectName={selectedObject.name}
           lineage={selectedLineage}
           onClose={() => setIsLineageDrawerOpen(false)}
+          returnFocusTo={lineageReturnFocusTo}
         />
       ) : null}
 
@@ -2433,6 +2637,35 @@ export function MapWorkspaceClient({
                 </button>
               </div>
 
+              {activeSpatialSourceRequest.runtimeEnvironment !== "production" ? (
+                <div className="mb-2 rounded-md border border-line bg-white p-1" data-spatial-preview-source-control>
+                  <p className="px-1.5 pb-1 text-[9px] font-semibold uppercase tracking-[0.08em] text-muted">
+                    Preview source contract
+                  </p>
+                  <div className="grid grid-cols-2 gap-1">
+                    {([
+                      ["synthetic_fallback", "Synthetic"],
+                      ["open_context_preview", "Controlled fixture"]
+                    ] as const).map(([sourceMode, label]) => (
+                      <button
+                        key={sourceMode}
+                        type="button"
+                        onClick={() => selectEvidenceSourceMode(sourceMode)}
+                        aria-pressed={activation.effectiveSourceMode === sourceMode}
+                        className={`min-h-8 rounded-md px-2 text-[10px] font-semibold transition ${
+                          activation.effectiveSourceMode === sourceMode
+                            ? "bg-brand text-white"
+                            : "bg-surface text-muted hover:text-ink"
+                        }`}
+                        data-spatial-source-mode-option={sourceMode}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
               {activation.fallbackReason ? (
                 <div className="mb-2 rounded-md border border-[#f0d7a4] bg-[#fff9ec] px-2.5 py-2 text-[10px] leading-4 text-[#775611]" data-spatial-fallback-notice>
                   Synthetic fallback active. {activation.fallbackReason}
@@ -2450,7 +2683,7 @@ export function MapWorkspaceClient({
                     <p className="mt-0.5 text-xs font-semibold text-ink">Roads, coastline, labels</p>
                   </div>
                   <span className="rounded-full bg-[#eaf4ef] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.08em] text-[#276749]">
-                    live
+                    Mapbox
                   </span>
                 </div>
               </div>
@@ -2459,20 +2692,20 @@ export function MapWorkspaceClient({
                 <p className="px-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-muted">
                   Open Geospatial Baseline
                 </p>
-                <div className="rounded-md border border-line bg-white px-2.5 py-2">
+                <div className="rounded-md border border-line bg-white px-2.5 py-2" data-local-open-geodata-fixture>
                   <div className="grid gap-1 text-[11px] text-muted">
-                    <div className="flex min-w-0 items-center justify-between gap-2">
+                    <label className="flex min-w-0 cursor-pointer items-center justify-between gap-2">
                       <span className="flex min-w-0 items-center gap-2"><span className="h-2.5 w-2.5 shrink-0 rounded-sm bg-[#536d7a]" /><span className="truncate">Roads / access</span></span>
-                      <span className="shrink-0 rounded-full bg-surface px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.06em]">OSM</span>
-                    </div>
-                    <div className="flex min-w-0 items-center justify-between gap-2">
+                      <span className="flex shrink-0 items-center gap-1.5"><span className="rounded-full bg-surface px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.06em]">local fixture</span><input type="checkbox" checked={openGeodataVisibility["geoai-open-roads"]} onChange={() => toggleOpenGeodataLayer("geoai-open-roads")} className="h-4 w-4 accent-[#174f63]" /></span>
+                    </label>
+                    <label className="flex min-w-0 cursor-pointer items-center justify-between gap-2">
                       <span className="flex min-w-0 items-center gap-2"><span className="h-2.5 w-2.5 shrink-0 rounded-full bg-[#1f6b83]" /><span className="truncate">POI / anchors</span></span>
-                      <span className="shrink-0 rounded-full bg-surface px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.06em]">open</span>
-                    </div>
-                    <div className="flex min-w-0 items-center justify-between gap-2">
+                      <span className="flex shrink-0 items-center gap-1.5"><span className="rounded-full bg-surface px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.06em]">local fixture</span><input type="checkbox" checked={openGeodataVisibility["geoai-open-poi"]} onChange={() => toggleOpenGeodataLayer("geoai-open-poi")} className="h-4 w-4 accent-[#174f63]" /></span>
+                    </label>
+                    <label className="flex min-w-0 cursor-pointer items-center justify-between gap-2">
                       <span className="flex min-w-0 items-center gap-2"><span className="h-2.5 w-2.5 shrink-0 rounded-sm bg-[#9bb5a6]" /><span className="truncate">Landuse context</span></span>
-                      <span className="shrink-0 rounded-full bg-surface px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.06em]">sample</span>
-                    </div>
+                      <span className="flex shrink-0 items-center gap-1.5"><span className="rounded-full bg-surface px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.06em]">OSM-style sample</span><input type="checkbox" checked={openGeodataVisibility["geoai-open-landuse"]} onChange={() => toggleOpenGeodataLayer("geoai-open-landuse")} className="h-4 w-4 accent-[#174f63]" /></span>
+                    </label>
                   </div>
                 </div>
 

@@ -59,6 +59,10 @@ function normalizeSelectedFeatureLineage(value: unknown): SpatialSelectionLineag
     typeof lineage.datasetId !== "string" ||
     typeof lineage.datasetVersion !== "string" ||
     typeof lineage.bundleChecksum !== "string" ||
+    typeof lineage.sourceId !== "string" ||
+    (lineage.providerFeatureId !== null && typeof lineage.providerFeatureId !== "string") ||
+    (lineage.sourceRecordId !== null && typeof lineage.sourceRecordId !== "string") ||
+    !Array.isArray(lineage.sourceAliases) ||
     !Array.isArray(lineage.attributionIds) ||
     !Array.isArray(lineage.limitations) ||
     typeof lineage.caveat !== "string"

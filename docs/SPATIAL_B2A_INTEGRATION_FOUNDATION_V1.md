@@ -2,28 +2,30 @@
 
 ## Release posture
 
-This package adds a Preview-safe Product integration foundation for future Spatial B1 geometry. The default Product remains the existing synthetic Dubai seed. No normalized real geometry is committed or activated.
+This draft package adds a Preview-safe Product integration foundation for future Spatial B1 geometry. The default Product remains the existing synthetic Dubai seed. No normalized real geometry is committed or activated.
 
 Authoritative base: `3a775e6b68c274fe8cb4e02218c48022b73d1862`.
 
 ## Source audit
 
-- `MapWorkspaceClient` previously registered the eight `demoLayers` directly; five are visible by default.
-- The existing small open-geodata sample remains a separate, unchanged source and selection path.
-- Spatial B1 already provides canonical identity, dataset version, provider aliases, freshness, review, quality, limitations and attribution provenance.
-- `ReportMapSnapshot` is the existing safe map/report contract and can carry optional attribution and selected-feature lineage without changing print layout.
+- `MapWorkspaceClient` registers eight synthetic `demoLayers`; five are visible by default.
+- The always-registered `openGeodataBaseline` is a local OSM-style sample fixture, not live OSM. Its exact external provenance and licence are not inferred.
+- Spatial B1 provides canonical identity, dataset version, provider aliases, freshness, review, quality, limitations and attribution contracts.
+- `ReportMapSnapshot` can carry optional attribution and selected-feature lineage without changing print layout.
 - Real B1 geometry remains evidence-artifact-only. `publicRepositoryGeometryApproved=false`, `openGeometryActivated=false` and real-bundle `releaseReady=false` remain authoritative.
 
 ## Implementation
 
 - Added a typed Product source-mode contract and server-resolved Workspace request.
-- Added a typed layer catalogue with one deterministic fallback for every layer.
+- Added a typed layer catalogue with deterministic fallback for every layer.
 - Added a read-only bundle-loader abstraction. B2A implements only `static_test_fixture`.
-- Added a pure activation resolver covering Production rejection, checksum failure, real-bundle release and distribution gates, and layer-level fallback.
-- Added a B1 compatibility adapter that preserves canonical identity and source lineage while keeping map styling separate.
-- Added additive overlay attribution and a compact Data Licences disclosure.
-- Added a selected-feature source-lineage drawer with nine approved sections.
-- Extended map snapshots with optional attribution and selected-feature lineage payloads. Report values, map rendering, CSS, dimensions and pagination are unchanged.
+- Added a pure activation resolver covering Production rejection, checksum failure, separate delivery/distribution/repository gates and layer-level fallback.
+- Added a source-generic B1 compatibility adapter plus an explicit controlled-fixture wrapper.
+- Added visible-layer-derived attribution for synthetic overlays, the local fixture and visible user-uploaded data.
+- Added basemap-aware attribution modes: `mapbox`, `fallback_grid` and `none`.
+- Added an accessible Data Licences dialog and selected-feature Source Lineage drawer.
+- Added no-reload synthetic-to-fixture-to-synthetic map synchronization and invalid fixture-selection rollback.
+- Extended map snapshots with optional attribution and selected-feature lineage payloads. Report values, map rendering, dimensions and pagination are unchanged.
 
 ## Source-mode matrix
 
@@ -31,58 +33,69 @@ Authoritative base: `3a775e6b68c274fe8cb4e02218c48022b73d1862`.
 | --- | --- |
 | Production / `synthetic_fallback` | Allowed; current synthetic catalogue |
 | Production / `open_context_preview` | Rejected with reason; deterministic synthetic fallback |
-| Preview or development / controlled fixture / valid checksum | Controlled non-real fixture may be added alongside the unchanged synthetic layers |
+| Preview or development / controlled fixture / valid checksum | Controlled non-real fixture may be added alongside synthetic layers |
 | Preview / checksum mismatch | Synthetic fallback |
-| Real bundle / `releaseReady=false` | Rejected |
-| Real bundle / distribution approval false | Rejected |
+| Real bundle / release, delivery or distribution gate false | Rejected |
+| Repository fixture / repository approval false | Rejected |
 | Missing individual fixture layer | Corresponding synthetic layer fallback retained |
 | Licensed, client or official mode in B2A | Not approved; synthetic fallback |
 
-The server determines the runtime environment. Query-string values cannot override the Production lock, and no localStorage source-mode override exists.
+The server determines the runtime environment. Query-string values cannot override the Production lock, and no localStorage source-mode override exists. The visible Preview/development switch exists only to exercise the controlled non-real activation contract without a page reload.
+
+## Delivery semantics
+
+`deliveryApproved`, `distributionApproved` and `publicRepositoryGeometryApproved` are separate controls. Public-repository approval is required only for `repository_fixture`. Metadata-only contract tests confirm that approved `release_asset`, `object_storage` and `vector_tiles` delivery may pass their delivery-policy check while repository approval remains false. No real delivery mechanism or geometry is implemented in B2A.
 
 ## Controlled fixture
 
-The fixture contains one invented point and one invented polygon in a Dubai-like test extent. They are not copied from OSM, Overture, Spatial B1 output or any selected AOI. The fixtures exist only to exercise source mode, attribution, selection lineage and rollback contracts.
+The fixture contains one invented point and one invented polygon in a Dubai-like test extent. They are not copied from OSM, Overture, Spatial B1 output or any selected AOI. They exercise source mode, attribution, identity, selection lineage and rollback contracts only.
 
-No runtime request is made to GitHub Actions artifacts. `release_asset`, `object_storage` and `vector_tiles` are interface-only future delivery methods.
+For the controlled point fixture, lineage keeps distinct values:
+
+- Source ID: `controlled-osm-attribution-fixture`
+- Provider feature ID: `invented-point-01`
+- Source record ID: `invented-point-01`
 
 ## Attribution behavior
 
-- Mapbox basemap attribution remains owned by the existing Mapbox control.
-- GeoAI overlay attribution is additive and calculated from active Product overlay sources.
-- Synthetic mode shows `GeoAI sample layers`.
-- Controlled fixture mode shows `Open-context overlays · source details`.
-- OSM/ODbL, Overture and upstream provider records remain separate.
-- Inactive external sources produce no overlay attribution.
-- The same serializable payload can be attached to a report map snapshot.
+- Native Mapbox attribution is visible on Landing and Workspace whenever Mapbox renders.
+- The GeoAI disclosure includes a Mapbox record only in `mapbox` mode; fallback grid does not claim Mapbox.
+- The local fixture is labelled `GeoAI local OSM-style fixture` / `local fixture`, never live OSM.
+- The local fixture attribution appears when at least one of its three layers is visible and disappears when all are hidden.
+- Visible user-uploaded GeoJSON is labelled `User-provided local data`; official/client validation is required and no external licence is inferred.
+- Attribution IDs are derived from actual visible overlays. The source gate rejects missing or unexpected coverage.
+- Controlled Overture fixture and source-provider records remain separate.
 
-## Source-lineage contract
+## Generic adapter mapping
 
-Selection remains backward compatible and can additionally carry the canonical feature key, layer key, source mode, dataset/version, bundle checksum, provider and aliases, freshness, review state, geometry origin/accuracy, quality summary, attribution IDs, limitations, caveat and fallback state.
+The generic adapter derives Product status from catalogue source mode, validation status, geometry origin, review status and source provenance. It has explicit mappings for `synthetic_fallback`, `open_context_preview`, `licensed_provider`, `client_validated` and `official_validated`. Open and licensed records are not marked official; client validation remains distinct; official status requires an explicitly official-validated contract record.
 
-Closing the drawer does not clear or change the selected object.
+## Activation synchronization and rollback
 
-## No-activation and rollback
+Preview/development can transition `synthetic_fallback` to `open_context_preview` and back without reload. The map adds active controlled sources/layers, removes obsolete layers before their GeoJSON sources, updates interaction and attribution, and preserves point/AOI state. If a selected controlled fixture becomes inactive, the object and stale result state are cleared, the point/AOI remains, and an explicit rollback reason is recorded.
 
-Production permits only `synthetic_fallback`. A non-synthetic request, missing bundle, checksum mismatch, ineligible review state, real bundle without release readiness, or unapproved real-geometry distribution fails closed. The existing synthetic layer is retained globally or per layer as applicable.
+Production permits only `synthetic_fallback`.
 
-Rollback is removal of B2A Product integration files or a source request of `synthetic_fallback`; no data migration or runtime data write is involved.
+## Modal accessibility
+
+Data Licences and Source Lineage move focus into the dialog, trap Tab and Shift+Tab, close on Escape or backdrop click, lock background scrolling, expose labelled close controls and return focus to the opener. Opening/closing disclosure does not change a valid selected object.
 
 ## Validation and evidence
 
 Required local checks:
 
-- `npm ci`
 - `npm run lint`
 - `npm run test:workspace-panel`
 - `npm run test:data-honesty`
-- `npm run test:api-contract`
 - `node scripts/spatial-b1-contract-check.mjs`
 - `node scripts/spatial-b2-integration-check.mjs`
 - `npm run build`
+- `npm run test:api-contract`
 - HTTP 200 smoke for `/`, `/workspace`, `/projects`, `/api/health` and both seeded print routes
 
-The temporary browser workflow must record the five approved viewports, source-mode matrix, catalogue, activation, rollback, attribution, lineage, registration/timing metrics, logs, exact SHA and exact Preview deployment. The temporary workflow and harness are removed after successful evidence capture.
+The temporary browser evidence workflow records Landing at 390x844 and 1440x900 plus the five approved Workspace viewports. It captures visible/hidden attribution, fallback mode, no-reload source transitions, source/layer inventories, exact identity, keyboard/backdrop/Escape behavior, report regression, logs, tested SHA and Preview deployment.
+
+Browser logging separates JavaScript errors, expected allowlisted headless WebGL warnings and unexpected warnings. The allowlist is restricted to software WebGL fallback deprecation and GPU stall/readback messages. Unexpected warnings fail evidence. The map retains `preserveDrawingBuffer` for the existing report snapshot path; headless `ReadPixels` warnings are a non-blocking performance limitation, not a fully clear console.
 
 ## Limitations
 
@@ -92,10 +105,11 @@ The temporary browser workflow must record the five approved viewports, source-m
 - The controlled fixture does not establish browser-performance expectations for real geometry.
 - Durable delivery and public-distribution treatment remain blocked for B2B.
 - B2C Production activation is not authorized.
+- Map screenshot capture may produce allowlisted WebGL readback warnings in headless Chromium.
 - This package does not change scoring, Candidate Search, report values, print pagination, Supabase, Auth, RLS, Storage, environment variables, secrets or Figma.
 
 ## Release control
 
-The branch is delivered through one draft pull request. It must remain draft and must not be merged or manually deployed to Production without separate approval. PR #69 remains unchanged.
+The branch remains in draft PR #81. It must not be merged or manually deployed to Production without separate approval. PR #69 remains unchanged.
 
 Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.

@@ -1381,6 +1381,21 @@ export function WorkspaceShell({
     setMarketContext(null);
   }
 
+  function handleObjectClearAfterSourceRollback() {
+    setMapSnapshot(null);
+    setSelectedObject(null);
+    setAnalysis(null);
+    setComparison(null);
+    setComparisonReturn(null);
+    setLastAnalyzedState(null);
+    setLastComparedState(null);
+    setReportPreview(null);
+    setComparisonMessage(null);
+    setAnalysisError(null);
+    setIsAnalyzing(false);
+    setMarketContext(null);
+  }
+
   function handleAoiSelect(aoi: UserDrawnAoi) {
     setMapSnapshot(null);
     setSelectedAoi(aoi);
@@ -2969,6 +2984,7 @@ export function WorkspaceShell({
                 selectedAoi={selectedAoi}
                 onPointSelect={handlePointSelect}
                 onObjectSelect={handleObjectSelect}
+                onObjectClear={handleObjectClearAfterSourceRollback}
                 onAoiSelect={handleAoiSelect}
                 onAoiDelete={handleAoiDelete}
                 uploadedDatasets={uploadedDatasets}
@@ -3084,6 +3100,7 @@ export function WorkspaceShell({
               selectedAoi={selectedAoi}
               onPointSelect={handlePointSelect}
               onObjectSelect={handleObjectSelect}
+              onObjectClear={handleObjectClearAfterSourceRollback}
               onAoiSelect={handleAoiSelect}
               onAoiDelete={handleAoiDelete}
               showEmptyOverlay={false}

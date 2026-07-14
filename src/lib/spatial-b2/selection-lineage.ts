@@ -9,7 +9,9 @@ export type SpatialSelectionLineage = {
   datasetId: string;
   datasetVersion: string;
   bundleChecksum: string;
-  providerId: string;
+  sourceId: string;
+  providerFeatureId: string | null;
+  sourceRecordId: string | null;
   sourceAliases: SpatialFeatureEnvelopeV1["sourceAliases"];
   sourceUpdatedAt: string | null;
   freshnessStatus: SpatialFeatureEnvelopeV1["freshnessStatus"];
@@ -41,7 +43,9 @@ export function createSpatialSelectionLineage(input: {
     datasetId: feature.datasetId,
     datasetVersion: feature.datasetVersion,
     bundleChecksum: catalogueEntry.bundleChecksum,
-    providerId: feature.sourceAliases[0]?.sourceId ?? dataset.sourceId,
+    sourceId: feature.sourceAliases[0]?.sourceId ?? dataset.sourceId,
+    providerFeatureId: feature.sourceAliases[0]?.sourceFeatureId ?? feature.sourceFeatureId,
+    sourceRecordId: feature.sourceProvenance[0]?.sourceRecordId ?? null,
     sourceAliases: feature.sourceAliases,
     sourceUpdatedAt: feature.sourceUpdatedAt,
     freshnessStatus: feature.freshnessStatus,

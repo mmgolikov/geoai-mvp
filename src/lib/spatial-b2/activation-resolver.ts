@@ -39,6 +39,36 @@ export type SpatialActivationInput = SpatialSourceRequest & {
   catalogue?: SpatialLayerCatalogueEntry[];
 };
 
+export type SpatialDeliveryPolicyInput = Pick<
+  SpatialBundleDescriptor,
+  "deliveryMethod" | "releaseReady" | "deliveryApproved" | "distributionApproved" | "publicRepositoryGeometryApproved"
+>;
+
+export type SpatialDeliveryPolicyResult = {
+  allowed: boolean;
+  repositoryApprovalRequired: boolean;
+  reason: string | null;
+};
+
+export function evaluateSpatialDeliveryPolicy(input: SpatialDeliveryPolicyInput): SpatialDeliveryPolicyResult {
+  const repositoryApprovalRequired = input.deliveryMethod === "repository_fixture";
+
+  if (!input.releaseReady) {
+    return { allowed: false, repositoryApprovalRequired, reason: "Bundle is not release-ready." };
+  }
+  if (!input.deliveryApproved) {
+    return { allowed: false, repositoryApprovalRequired, reason: "Bundle delivery is not approved." };
+  }
+  if (!input.distributionApproved) {
+    return { allowed: false, repositoryApprovalRequired, reason: "Bundle distribution is not approved." };
+  }
+  if (repositoryApprovalRequired && !input.publicRepositoryGeometryApproved) {
+    return { allowed: false, repositoryApprovalRequired, reason: "Public repository geometry publication is not approved." };
+  }
+
+  return { allowed: true, repositoryApprovalRequired, reason: null };
+}
+
 function unique<T>(values: T[]) {
   return [...new Set(values)];
 }
@@ -112,16 +142,11 @@ export function resolveSpatialActivation(input: SpatialActivationInput): Spatial
     return syntheticResult(input, "Bundle checksum mismatch; activation failed closed.");
   }
 
-  if (input.bundle.containsRealGeometry && !input.bundle.releaseReady) {
-    return syntheticResult(input, "Real geometry bundle is not release-ready; activation failed closed.");
-  }
-
-  if (input.bundle.containsRealGeometry && !input.bundle.distributionApproved) {
-    return syntheticResult(input, "Real geometry distribution is not approved; activation failed closed.");
-  }
-
-  if (input.bundle.containsRealGeometry && !input.bundle.publicRepositoryGeometryApproved) {
-    return syntheticResult(input, "Public repository geometry distribution is not approved; activation failed closed.");
+  if (input.bundle.containsRealGeometry) {
+    const deliveryPolicy = evaluateSpatialDeliveryPolicy(input.bundle);
+    if (!deliveryPolicy.allowed) {
+      return syntheticResult(input, `${deliveryPolicy.reason} Activation failed closed.`);
+    }
   }
 
   if (!input.bundle.controlledFixture && !input.bundle.containsRealGeometry) {
@@ -220,6 +245,7 @@ export function createDefaultSpatialActivation(input: SpatialSourceRequest) {
       controlledFixture: false,
       containsRealGeometry: false,
       releaseReady: false,
+      deliveryApproved: false,
       distributionApproved: false,
       publicRepositoryGeometryApproved: false,
       reason: "No bundle requested for synthetic mode."

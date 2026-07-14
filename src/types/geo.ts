@@ -55,8 +55,18 @@ export type AnalysisTarget = {
   properties?: Record<string, unknown>;
   datasetId?: string;
   datasetName?: string;
-  sourceMode?: "user-uploaded" | "user-drawn" | "sample-fixture" | "manual-offline" | "demo";
-  officialStatus?: "official-validation-required" | "not-official";
+  sourceMode?:
+    | "user-uploaded"
+    | "user-drawn"
+    | "manual-offline"
+    | "demo"
+      | "synthetic_fallback"
+      | "sample-fixture"
+      | "open_context_preview"
+    | "licensed_provider"
+    | "client_validated"
+    | "official_validated";
+  officialStatus?: "official-validation-required" | "not-official" | "client-validated-contract" | "official-validated-contract";
 };
 
 export type DemoLayerId =

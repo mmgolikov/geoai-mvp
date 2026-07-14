@@ -1,7 +1,9 @@
 import { createSpatialSelectionLineage } from "@/src/lib/spatial-b2/selection-lineage";
 import type { SpatialLayerCatalogueEntry } from "@/src/lib/spatial-b2/layer-catalogue";
-import type { SelectedDemoObject, DemoLayerId, DemoLayerType } from "@/src/types/geo";
-import type { SpatialLayerCategory, SpatialSelectionContext } from "@/src/types/spatial-data";
+import type { SpatialProductSourceMode } from "@/src/lib/spatial-b2/source-mode";
+import type { SelectedDemoObject, DemoLayerId, DemoLayerType, AnalysisTarget } from "@/src/types/geo";
+import type { DataSourceStatus } from "@/src/types/data-source";
+import type { SpatialLayerCategory, SpatialSelectionContext, SpatialFeatureProperties } from "@/src/types/spatial-data";
 import type { SpatialDatasetVersionV1, SpatialFeatureEnvelopeV1 } from "@/src/types/spatial-data-v1";
 
 export type SpatialB2MapStyle = {
@@ -13,6 +15,15 @@ export type SpatialB2MapStyle = {
   pointRadius: number;
   layerOrder: number;
   clickPriority: number;
+};
+
+export type SpatialProductStatusMapping = {
+  sourceMode: SpatialProductSourceMode;
+  sourceStatus: DataSourceStatus;
+  geometryStatus: SpatialFeatureProperties["geometryStatus"];
+  analysisSourceMode: NonNullable<AnalysisTarget["sourceMode"]>;
+  officialStatus: NonNullable<AnalysisTarget["officialStatus"]>;
+  controlledFixture: boolean;
 };
 
 export type SpatialB2MapFeature = {
@@ -30,7 +41,10 @@ export type SpatialB2MapFeature = {
     geometryType: DemoLayerType;
     category: string;
     subcategory: string;
-    sourceMode: string;
+    sourceMode: SpatialProductSourceMode;
+    sourceStatus: DataSourceStatus;
+    geometryStatus: SpatialFeatureProperties["geometryStatus"];
+    officialStatus: NonNullable<AnalysisTarget["officialStatus"]>;
     confidenceLevel: string;
     relevance: string;
     hoverLabel: string;
@@ -43,10 +57,12 @@ export type SpatialB2MapFeature = {
     pointRadius: number;
     layerOrder: number;
     clickPriority: number;
-    spatialB2Fixture: true;
+    spatialB2Fixture: boolean;
     datasetId: string;
     datasetVersion: string;
-    providerId: string;
+    sourceId: string;
+    providerFeatureId: string | null;
+    sourceRecordId: string | null;
     reviewStatus: string;
     freshnessStatus: string;
     geometryOrigin: string;
@@ -69,12 +85,47 @@ function toSpatialCategory(role: SpatialFeatureEnvelopeV1["geometryRole"]): Spat
   return "development_zone";
 }
 
+export function deriveSpatialProductStatus(input: {
+  sourceMode: SpatialProductSourceMode;
+  feature: Pick<SpatialFeatureEnvelopeV1, "validationStatus" | "geometryOrigin" | "quality" | "sourceProvenance" | "metadata">;
+}): SpatialProductStatusMapping {
+  const { sourceMode, feature } = input;
+  const controlledFixture = feature.metadata.controlledFixture === true;
+  const explicitlyClientValidated = sourceMode === "client_validated" && feature.validationStatus === "client_validated";
+  const explicitlyOfficialValidated = sourceMode === "official_validated" && feature.validationStatus === "official_validated";
+  const reviewedSourceGeometry = feature.geometryOrigin === "source" && feature.quality.sourceAlignmentStatus === "reviewed";
+
+  return {
+    sourceMode,
+    sourceStatus: sourceMode === "synthetic_fallback" || controlledFixture
+      ? "mock"
+      : feature.sourceProvenance.length > 0
+        ? "connected"
+        : "unavailable",
+    geometryStatus: sourceMode === "synthetic_fallback"
+      ? "seed_demo"
+      : explicitlyClientValidated || explicitlyOfficialValidated || reviewedSourceGeometry
+        ? "validated"
+        : "needs_review",
+    analysisSourceMode: sourceMode,
+    officialStatus: explicitlyOfficialValidated
+      ? "official-validated-contract"
+      : explicitlyClientValidated
+        ? "client-validated-contract"
+        : sourceMode === "client_validated" || sourceMode === "official_validated"
+          ? "official-validation-required"
+          : "not-official",
+    controlledFixture
+  };
+}
+
 function toSpatialContext(input: {
   feature: SpatialFeatureEnvelopeV1;
   dataset: SpatialDatasetVersionV1;
   catalogueEntry: SpatialLayerCatalogueEntry;
 }): SpatialSelectionContext {
   const lineage = createSpatialSelectionLineage(input);
+  const status = deriveSpatialProductStatus({ sourceMode: input.catalogueEntry.sourceMode, feature: input.feature });
   const geometryType = toDemoGeometryType(input.feature.geometry);
 
   return {
@@ -91,9 +142,9 @@ function toSpatialContext(input: {
       longitude: input.feature.centroid.longitude
     },
     areaSqm: input.feature.areaSqm ?? undefined,
-    sourceId: input.dataset.sourceId,
-    sourceStatus: "mock",
-    geometryStatus: "needs_review",
+    sourceId: lineage.sourceId,
+    sourceStatus: status.sourceStatus,
+    geometryStatus: status.geometryStatus,
     confidenceLevel: input.feature.confidenceLevel,
     limitations: [...input.feature.limitations],
     scenarioRelevance: []
@@ -106,9 +157,10 @@ export function adaptSpatialFeatureToMapFeature(input: {
   catalogueEntry: SpatialLayerCatalogueEntry;
   style: SpatialB2MapStyle;
 }): SpatialB2MapFeature {
-  const { feature, dataset, catalogueEntry, style } = input;
+  const { feature, catalogueEntry, style } = input;
   const geometryType = toDemoGeometryType(feature.geometry);
-  const providerId = feature.sourceAliases[0]?.sourceId ?? dataset.sourceId;
+  const lineage = createSpatialSelectionLineage(input);
+  const status = deriveSpatialProductStatus({ sourceMode: catalogueEntry.sourceMode, feature });
 
   return {
     type: "Feature",
@@ -126,6 +178,9 @@ export function adaptSpatialFeatureToMapFeature(input: {
       category: feature.category,
       subcategory: feature.subtype,
       sourceMode: catalogueEntry.sourceMode,
+      sourceStatus: status.sourceStatus,
+      geometryStatus: status.geometryStatus,
+      officialStatus: status.officialStatus,
       confidenceLevel: feature.confidenceLevel,
       relevance: feature.businessNarrative,
       hoverLabel: `${feature.displayName} · ${catalogueEntry.dataHonestyLabel}`,
@@ -138,10 +193,12 @@ export function adaptSpatialFeatureToMapFeature(input: {
       pointRadius: style.pointRadius,
       layerOrder: style.layerOrder,
       clickPriority: style.clickPriority,
-      spatialB2Fixture: true,
+      spatialB2Fixture: status.controlledFixture,
       datasetId: feature.datasetId,
       datasetVersion: feature.datasetVersion,
-      providerId,
+      sourceId: lineage.sourceId,
+      providerFeatureId: lineage.providerFeatureId,
+      sourceRecordId: lineage.sourceRecordId,
       reviewStatus: feature.quality.sourceAlignmentStatus,
       freshnessStatus: feature.freshnessStatus,
       geometryOrigin: feature.geometryOrigin,
@@ -149,6 +206,13 @@ export function adaptSpatialFeatureToMapFeature(input: {
       attributionIds: catalogueEntry.attributionIds.join(",")
     }
   };
+}
+
+export function adaptControlledFixtureToMapFeature(input: Parameters<typeof adaptSpatialFeatureToMapFeature>[0]) {
+  if (input.feature.metadata.controlledFixture !== true || input.feature.metadata.realGeometry !== false) {
+    throw new Error("Controlled fixture adaptation requires explicit controlledFixture=true and realGeometry=false metadata.");
+  }
+  return adaptSpatialFeatureToMapFeature(input);
 }
 
 export function createSelectedObjectFromSpatialFeature(input: {
@@ -163,6 +227,7 @@ export function createSelectedObjectFromSpatialFeature(input: {
     latitude: feature.centroid.latitude,
     longitude: feature.centroid.longitude
   };
+  const status = deriveSpatialProductStatus({ sourceMode: catalogueEntry.sourceMode, feature });
 
   return {
     id: feature.featureKey,
@@ -180,16 +245,18 @@ export function createSelectedObjectFromSpatialFeature(input: {
       coordinates: center,
       geometry: feature.geometry as GeoJSON.Geometry,
       properties: {
-        controlledFixture: true,
+        controlledFixture: status.controlledFixture,
         canonicalFeatureKey: feature.featureKey,
         datasetId: feature.datasetId,
         datasetVersion: feature.datasetVersion,
-        sourceMode: catalogueEntry.sourceMode
+        sourceMode: catalogueEntry.sourceMode,
+        sourceStatus: status.sourceStatus,
+        geometryStatus: status.geometryStatus
       },
       datasetId: feature.datasetId,
       datasetName: dataset.layerName,
-      sourceMode: "sample-fixture",
-      officialStatus: "not-official"
+      sourceMode: status.analysisSourceMode,
+      officialStatus: status.officialStatus
     }
   };
 }
