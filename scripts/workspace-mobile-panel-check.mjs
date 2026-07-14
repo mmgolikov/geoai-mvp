@@ -48,6 +48,7 @@ function assert(condition, message) {
 const {
   getDefaultRoleForAudience,
   getDefaultScenarioForRole,
+  getExploreScenario,
   getExploreScenariosByRole,
   isExploreScenarioForRole
 } = loadTsModule("src/lib/explore/scenarios.ts");
@@ -86,6 +87,15 @@ const b2bDefaultScenario = getDefaultScenarioForRole("b2b", b2bDefaultRole);
 assert(isExploreScenarioForRole("b2b", b2bDefaultRole, b2bDefaultScenario), "B2B default role/scenario should be valid");
 assert(!isExploreScenarioForRole("b2b", b2bDefaultRole, "b2c_tourist_objects_route"), "B2B segment reset should reject B2C scenario");
 
+assert(
+  getExploreScenario("b2b_redevelopment_selected_aoi").defaultInteractionMode === "map_first",
+  "Developer redevelopment scenario should preserve its Map-first default"
+);
+assert(
+  getExploreScenario("b2b_redevelopment_100ha").defaultInteractionMode === "criteria_first",
+  "Fund redevelopment search should preserve its Criteria-first default"
+);
+
 const panelSource = fs.readFileSync(path.join(process.cwd(), "components/analysis-panel.tsx"), "utf8");
 const scenarioSetupIndex = panelSource.indexOf("Scenario setup");
 const candidateSearchIndex = panelSource.indexOf("Candidate Search");
@@ -99,6 +109,31 @@ assert(panelSource.includes("onCustomQueryChange(event.target.value)"), "Custom 
 assert(!panelSource.includes("Cuscom query"), "Cuscom query typo must not render");
 assert(!panelSource.includes("Custom query"), "Custom Query label should use requested casing");
 assert(!panelSource.includes("Details"), "Project Details control must not render");
+assert(
+  panelSource.includes('const canonicalInteractionModeOrder: InteractionMode[] = ["criteria_first", "map_first"];'),
+  "Interaction modes should define Criteria-first then Map-first as canonical presentation order"
+);
+assert(
+  panelSource.includes("orderedInteractionModes.map((mode)"),
+  "Interaction mode buttons should render from canonical filtered order"
+);
+assert(
+  !panelSource.includes("exploreScenario.interactionModes.map((mode)"),
+  "Scenario registry order must not control Interaction Mode layout"
+);
+assert(
+  panelSource.includes("data-interaction-mode={mode}"),
+  "Interaction mode buttons should expose deterministic mode identity"
+);
+assert(!panelSource.includes("No point selected"), "Redundant selected-target empty state must not render");
+assert(!panelSource.includes('<dt className="text-muted">Lat</dt>'), "Redundant selected-target Lat tile must not render");
+assert(!panelSource.includes('<dt className="text-muted">Lng</dt>'), "Redundant selected-target Lng tile must not render");
+assert(!panelSource.includes('<dt className="text-muted">Confidence</dt>'), "Redundant selected-target Confidence tile must not render");
+assert(
+  (panelSource.match(/onClick=\{onPrimaryCta\}/g) ?? []).length === 1,
+  "Primary CTA should render once in the sticky footer"
+);
+assert(panelSource.includes("onClick={onOpenMap}"), "Mobile map access should remain available outside the removed card");
 
 console.log(JSON.stringify({
   ok: true,
@@ -111,7 +146,12 @@ console.log(JSON.stringify({
     "role invalid scenario rejection",
     "panel label order",
     "Custom Query state binding",
-    "Project Details removal"
+    "Project Details removal",
+    "scenario default mode preservation",
+    "canonical Criteria-first / Map-first presentation",
+    "redundant selected-target card removal",
+    "single sticky primary CTA",
+    "mobile map access preservation"
   ],
   caveat: "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
 }, null, 2));
