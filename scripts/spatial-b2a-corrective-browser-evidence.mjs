@@ -173,6 +173,11 @@ async function closeAttribution(page) {
   if (await close.isVisible().catch(() => false)) await close.click();
 }
 
+async function waitForAttributionChipFocus(page) {
+  await page.waitForFunction(() => document.activeElement?.getAttribute("data-spatial-attribution-chip") === "collapsed", undefined, { timeout: 5_000 });
+  return page.evaluate(() => document.activeElement?.getAttribute("data-spatial-attribution-chip") === "collapsed");
+}
+
 async function hideLocalFixture(page) {
   const checkboxes = page.locator("[data-local-open-geodata-fixture] input[type=checkbox]");
   record("Local fixture exposes three visibility controls", await checkboxes.count() === 3, `count=${await checkboxes.count()}`);
@@ -254,7 +259,7 @@ async function runWorkspace(browser, viewport) {
   record(`${viewport.name} approved local fixture badge`, /local fixture|OSM-style sample/i.test(panelText), panelText);
 
   stateRef.current = workspaceStates[2];
-  const attributionChip = await openAttribution(page);
+  await openAttribution(page);
   result.states[workspaceStates[2]] = await capture(page, viewport.name, workspaceStates[2]);
   let detailsText = await page.locator("[data-spatial-attribution-details]").innerText();
   record(`${viewport.name} visible fixture disclosure`, detailsText.includes("GeoAI local OSM-style fixture"), detailsText);
@@ -269,11 +274,11 @@ async function runWorkspace(browser, viewport) {
   record(`${viewport.name} modal forward focus stays trapped`, await dialog.evaluate((element) => element.contains(document.activeElement)), "Tab remains inside dialog");
   await page.keyboard.press("Escape");
   await dialog.waitFor({ state: "hidden" });
-  record(`${viewport.name} Escape closes and returns focus`, await attributionChip.evaluate((element) => document.activeElement === element), "focus returns to attribution chip");
+  record(`${viewport.name} Escape closes and returns focus`, await waitForAttributionChipFocus(page), "focus returns to attribution chip");
   await openAttribution(page);
   await page.mouse.click(2, 2);
   await dialog.waitFor({ state: "hidden" });
-  record(`${viewport.name} backdrop closes and returns focus`, await attributionChip.evaluate((element) => document.activeElement === element), "focus returns after backdrop close");
+  record(`${viewport.name} backdrop closes and returns focus`, await waitForAttributionChipFocus(page), "focus returns after backdrop close");
 
   stateRef.current = workspaceStates[3];
   await hideLocalFixture(page);
@@ -324,7 +329,7 @@ async function runWorkspace(browser, viewport) {
   record(`${viewport.name} lineage initial focus`, await page.getByRole("button", { name: "Close source lineage" }).evaluate((element) => document.activeElement === element), "close button receives focus");
   await page.keyboard.press("Escape");
   await drawer.waitFor({ state: "hidden" });
-  record(`${viewport.name} lineage Escape returns focus`, await attributionChip.evaluate((element) => document.activeElement === element), "focus returns to attribution chip");
+  record(`${viewport.name} lineage Escape returns focus`, await waitForAttributionChipFocus(page), "focus returns to attribution chip");
   record(`${viewport.name} selected object survives disclosure`, await page.getByText(/Selected: Controlled OSM attribution point/).first().isVisible(), "selection remains visible");
 
   stateRef.current = workspaceStates[7];
