@@ -256,6 +256,8 @@ Path('output/spatial-b1/evidence/tool-versions.json').write_text(
         'matplotlib': matplotlib.__version__,
         'duckdb': duckdb.__version__,
         'osmium': subprocess.run(['osmium', '--version'], check=True, capture_output=True, text=True).stdout.strip(),
+        'node': subprocess.run(['node', '--version'], check=True, capture_output=True, text=True).stdout.strip(),
+        'npm': subprocess.run(['npm', '--version'], check=True, capture_output=True, text=True).stdout.strip(),
     }, indent=2) + '\n'
 )
 PY
