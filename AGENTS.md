@@ -9,15 +9,15 @@ GeoAI helps users decide where to build, buy, invest, monitor, insure, reconstru
 Repo: https://github.com/mmgolikov/geoai-mvp
 Production: https://geoai-mvp.vercel.app
 Vercel team/project: geoaidev / geoai-mvp
-Main status: `main` is updated through Data Foundation v1.2.
-Merged PRs: PR #27, PR #28, PR #29, PR #30 and PR #33 are merged.
-Open design gate: PR #34 is open as a design QA gate and is docs/design-governance only.
-Older design gate: PR #32 remains open and should be compared with PR #34 before any cleanup decision.
-Legacy open PRs: PR #2, PR #3, PR #4 and PR #5 require superseded review before closure or archival.
-Open data branch: PR #37 is open for Data Foundation v1.3 and is not part of `main` until merged.
-Production status: production remains an investor/client demo and local fallback unless Supabase env is configured in the production runtime.
-Supabase: `geoai-dev`, ref `pphdqkurxneyagvnnjdt`, eu-west-1. Data Foundation v1.2 baseline includes 18 GeoAI core tables, PostGIS/pgcrypto, RLS on GeoAI tables, 5 source registry rows and 5 external snapshot metadata rows. Production runtime currently reports Supabase env as not configured and uses local/API fallback.
-Figma: PR #34 protects the current `/projects` Data Readiness / Source Lineage block. Design implementation remains blocked until manual Figma QA passes.
+Current `main`: PR #81 merge `cd5f9efe791ff7d5ac46597925bbf17eb60d2754`.
+Current Production: deployment `dpl_94Tz2TZG5Pf8k1PGygTBjQBCQAkf`, READY on the exact merge SHA.
+Released scope: inactive Spatial B1/B2A source-contract, attribution, lineage, fallback and Workspace UX foundation.
+Production status: public demo, synthetic/local fallback and soft access. Real geometry and B2B/B2C activation are not authorized.
+Next delivery controls: permanent merge-commit CI, source-fallback regression, evidence custody and reviewed architecture mapping.
+Spatial B2B gate: GitHub Issue #80 remains open; delivery, distribution, attribution, retention and rollback decisions are not approved.
+Supabase: `geoai-dev`, ref `pphdqkurxneyagvnnjdt`, eu-west-1. Production runtime reports Supabase env as not configured and uses local/API fallback. Do not infer Production readiness from the development project.
+Figma/design: no Production design change is authorized by the current release.
+Historical draft PRs remain separate governance records; do not merge or close them without explicit approval.
 Confluence Project Hub is the operational dashboard and single source of truth.
 
 ## Core product flow

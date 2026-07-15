@@ -150,10 +150,14 @@ See [Repository Mode & Fallback Consistency v2.0.2](docs/REPOSITORY_MODE_FALLBAC
 
 ## Governance / Current Status
 
-- [Current Release State - 2026-07-07](docs/CURRENT_RELEASE_STATE_2026_07_07.md)
+- [Current Release State — 2026-07-15](docs/CURRENT_RELEASE_STATE_2026_07_15.md)
+- Current `main`: PR #81 merge `cd5f9efe791ff7d5ac46597925bbf17eb60d2754`.
+- Current Production remains a synthetic/local-fallback public demo with soft access; real geometry and B2B/B2C activation are not authorized.
 
 ## Latest Release Notes
 
+- [Spatial B2A Integration Foundation v1](docs/SPATIAL_B2A_INTEGRATION_FOUNDATION_V1.md)
+- [Post-release Quality and Spatial Regression Gate v1 — Change Request](docs/POST_RELEASE_QUALITY_AND_SPATIAL_REGRESSION_GATE_V1_CHANGE_REQUEST.md)
 - [GeoAI Mobile Workspace Map Access and Segment Data v1](docs/RELEASE_GEOAI_MOBILE_WORKSPACE_SEGMENT_DATA_V1.md)
 - [GeoAI Supabase Runtime Readiness v1](docs/RELEASE_GEOAI_SUPABASE_RUNTIME_READINESS_V1.md)
 - [GeoAI Product Audit Hardening v1](docs/RELEASE_GEOAI_PRODUCT_AUDIT_HARDENING_V1.md)
@@ -190,6 +194,10 @@ npm run storage:check
 npm run storage:verify:signed-url
 npm run audit:verify
 npm run test:api-contract
+npm run test:workspace-panel
+npm run test:spatial-b1
+npm run test:spatial-b2a
+npm run test:data-honesty
 npm run ingest:dld:snapshot
 npm run ingest:osm:snapshot
 npm run data:status

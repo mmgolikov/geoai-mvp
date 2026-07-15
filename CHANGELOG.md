@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased — CR-DEV7-002
+
+### Changed
+
+- Run the permanent GeoAI Quality Gate on pull requests, manual dispatch and pushes to `main`.
+- Preserve the exact tested commit, Node/npm versions, TypeScript output and build output in short-lived CI evidence.
+- Add permanent Spatial B1 contract and Spatial B2A fail-closed regression checks to the Quality Gate.
+- Extend built-application route smoke to current Product and readiness-control routes.
+- Reconcile repository governance to the merged PR #81 inactive release baseline.
+
+### Scope boundary
+
+- No Product UI/API, real geometry, Supabase, Auth/RLS, Storage, environment, secret, Figma or deployment change.
+- Source-contract CI is not rendered-browser, physical-device, security, official-data, production-ready or pilot-ready certification.
+
 ## v0.1 — Public Demo Prototype
 
 Initial public demo baseline for GeoAI MVP.
