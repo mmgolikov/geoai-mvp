@@ -55,6 +55,7 @@ for (const artifact of metadata.artifacts) {
   const rendered = readFileSync(renderedPath);
   check(source.includes("@startuml") && source.includes("@enduml"), `${artifact.id} source is a complete PlantUML document`);
   check(source.includes(artifact.id), `${artifact.id} source carries artifact identity`);
+  check(source.includes(`v${artifact.version}`), `${artifact.id} source carries controlled artifact version`);
   check(rendered.toString("utf8", 0, Math.min(rendered.length, 4096)).includes("<svg"), `${artifact.id} render is SVG`);
 
   const renderEntry = renderManifest.entries.find((entry) => entry.id === artifact.id);

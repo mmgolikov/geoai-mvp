@@ -1,6 +1,6 @@
 @startuml DEP-001
 !pragma layout smetana
-title DEP-001 — Current deployment and data boundary
+title DEP-001 v1.0 — Current deployment and data boundary
 skinparam backgroundColor #FFFFFF
 skinparam shadowing false
 skinparam defaultFontName Arial

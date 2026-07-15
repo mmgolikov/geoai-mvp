@@ -1,14 +1,14 @@
 {
   "schemaVersion": "1.0",
   "packageId": "CR-DEV7-003",
-  "packageVersion": "1.0",
+  "packageVersion": "1.1",
   "publicationGate": "not_passed",
   "requiredCaveat": "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.",
   "artifacts": [
     {
       "id": "C4-001",
       "title": "GeoAI system context",
-      "version": "1.0",
+      "version": "1.4",
       "status": "Review",
       "approved": false,
       "source": "docs/artifacts/c4/C4-001-system-context.puml",
@@ -23,7 +23,7 @@
     {
       "id": "C4-002",
       "title": "GeoAI container architecture",
-      "version": "1.0",
+      "version": "1.4",
       "status": "Review",
       "approved": false,
       "source": "docs/artifacts/c4/C4-002-container-architecture.puml",
@@ -55,7 +55,7 @@
     {
       "id": "BPMN-001",
       "title": "Core analysis flow",
-      "version": "1.0",
+      "version": "1.5",
       "status": "Review",
       "approved": false,
       "source": "docs/artifacts/bpmn/BPMN-001-core-analysis-flow.puml",
@@ -69,7 +69,7 @@
     {
       "id": "STATE-001",
       "title": "Workspace analysis lifecycle",
-      "version": "1.0",
+      "version": "1.5",
       "status": "Review",
       "approved": false,
       "source": "docs/artifacts/state/STATE-001-analysis-lifecycle.puml",
@@ -83,7 +83,7 @@
     {
       "id": "SEQ-001",
       "title": "Analysis request sequence",
-      "version": "1.0",
+      "version": "1.5",
       "status": "Review",
       "approved": false,
       "source": "docs/artifacts/sequence/SEQ-001-analysis-request-sequence.puml",
@@ -97,7 +97,7 @@
     {
       "id": "ERD-001",
       "title": "Pilot persistence migration source model",
-      "version": "1.0",
+      "version": "1.5",
       "status": "Review",
       "approved": false,
       "source": "docs/artifacts/erd/ERD-001-core-data-model.puml",
@@ -111,7 +111,7 @@
     {
       "id": "DATA-LINEAGE-001",
       "title": "Spatial evidence lineage",
-      "version": "1.0",
+      "version": "1.6",
       "status": "Review",
       "approved": false,
       "source": "docs/artifacts/lineage/DATA-LINEAGE-001-spatial-evidence-flow.puml",

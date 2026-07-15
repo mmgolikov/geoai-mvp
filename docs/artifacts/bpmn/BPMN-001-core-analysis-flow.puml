@@ -1,6 +1,6 @@
 @startuml BPMN-001
 !pragma layout smetana
-title BPMN-001 — Core analysis flow (BPMN-aligned activity rendering)
+title BPMN-001 v1.5 — Core analysis flow (BPMN-aligned activity rendering)
 skinparam backgroundColor #FFFFFF
 skinparam shadowing false
 skinparam defaultFontName Arial

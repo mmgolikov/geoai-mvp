@@ -10,6 +10,14 @@ Current decision: Pending; publication not passed
 
 Review the SVG and canonical PlantUML source for: C4-001, C4-002, C4-003, BPMN-001, STATE-001, SEQ-001, ERD-001, DATA-LINEAGE-001, ACT-001, DEP-001 and API-001. Confirm the exact implementation map and the missing/invalid/unapproved/approved trace matrix.
 
+| Artifact group | Candidate version | Prior controlled version |
+|---|---:|---:|
+| C4-001 / C4-002 | v1.4 | v1.3 |
+| C4-003 | v1.0 | v0.6 |
+| BPMN-001 / STATE-001 / SEQ-001 / ERD-001 | v1.5 | v1.4 |
+| DATA-LINEAGE-001 | v1.6 | v1.5 |
+| ACT-001 / DEP-001 / API-001 | v1.0 | v0.6 |
+
 ## Named review roles
 
 | Review role | Required focus | Reviewer | Decision | Findings reference |

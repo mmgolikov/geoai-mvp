@@ -1,6 +1,6 @@
 @startuml DATA-LINEAGE-001
 !pragma layout smetana
-title DATA-LINEAGE-001 — Spatial evidence identity, lineage and attribution
+title DATA-LINEAGE-001 v1.6 — Spatial evidence identity, lineage and attribution
 skinparam backgroundColor #FFFFFF
 skinparam shadowing false
 skinparam defaultFontName Arial

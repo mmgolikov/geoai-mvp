@@ -1,6 +1,6 @@
 @startuml ERD-001
 !pragma layout smetana
-title ERD-001 — Pilot-persistence migration source model (runtime not proven)
+title ERD-001 v1.5 — Pilot-persistence migration source model (runtime not proven)
 hide methods
 hide stereotypes
 skinparam backgroundColor #FFFFFF

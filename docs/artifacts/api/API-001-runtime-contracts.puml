@@ -1,6 +1,6 @@
 @startuml API-001
 !pragma layout smetana
-title API-001 — Runtime contract groups and implementation owners
+title API-001 v1.0 — Runtime contract groups and implementation owners
 top to bottom direction
 skinparam backgroundColor #FFFFFF
 skinparam shadowing false

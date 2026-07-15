@@ -16,6 +16,7 @@ Authority boundary: This record is a Codex pre-review quality control. It is not
 | PRF-004 | Architecture notation | C4 diagrams used generic PlantUML shapes without explicit C4 semantics | Medium | Corrected with Person, Software System, Container and Component stereotypes; named notation review remains required |
 | PRF-005 | BPMN notation | BPMN-001 is a BPMN-aligned activity rendering, not BPMN 2.0 XML | Medium | Explicit limitation retained; reviewer must accept bounded notation or request a separate BPMN XML artifact |
 | PRF-006 | Governance | Five required roles are registered, but no named people or GitHub usernames are present in controlled records | Blocking | Open; do not invent or self-assign independent reviewers |
+| PRF-007 | Documentation control | Initial manifest reset all artifact versions to v1.0 despite higher controlled predecessor versions | High | Corrected: C4-001/002 v1.4; BPMN/STATE/SEQ/ERD v1.5; DATA-LINEAGE v1.6; new 0.6 groups advance to v1.0; version is enforced in source/render |
 
 ## Artifact coverage
 

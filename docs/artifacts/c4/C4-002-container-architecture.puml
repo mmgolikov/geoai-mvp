@@ -1,6 +1,6 @@
 @startuml C4-002
 !pragma layout smetana
-title C4-002 — GeoAI container architecture (implemented paths)
+title C4-002 v1.4 — GeoAI container architecture (implemented paths)
 skinparam backgroundColor #FFFFFF
 skinparam shadowing false
 skinparam componentStyle rectangle

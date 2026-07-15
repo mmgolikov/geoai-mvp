@@ -52,6 +52,7 @@ Publication gate: Not passed
 - [x] ERD-001 removes non-existent/reversed profile, analysis-score, AOI and audit relationships.
 - [x] C4-001/002/003 carry explicit Person, Software System, Container and Component semantics.
 - [x] Corrected sources were re-rendered and visually inspected; repeated render hashes match exactly.
+- [x] Controlled artifact versions advance existing lineage and are visible in canonical sources/renders.
 - [ ] Security/backend and Data/GIS reviewers disposition the ordered-migration versus applied-schema finding.
 - [ ] Architecture reviewer accepts the bounded BPMN-aligned rendering or requests BPMN 2.0 XML separately.
 - [ ] Real people are assigned to all five independent review roles.

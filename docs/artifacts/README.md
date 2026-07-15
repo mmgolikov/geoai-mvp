@@ -2,7 +2,7 @@
 
 This directory is the version-controlled architecture evidence package for GeoAI. Confluence remains the documentation and approval hub; GitHub stores canonical sources, deterministic SVG renders, implementation mappings and automated freshness evidence.
 
-Package: `CR-DEV7-003` v1.0
+Package: `CR-DEV7-003` v1.1
 
 Publication gate: **Not passed**
 
@@ -10,19 +10,19 @@ Runtime represented: current public demo, synthetic/local fallback and soft acce
 
 ## Controlled artifacts
 
-| ID | Canonical source | Render | Status |
-|---|---|---|---|
-| C4-001 | `c4/C4-001-system-context.puml` | `rendered/C4-001-system-context.svg` | Review |
-| C4-002 | `c4/C4-002-container-architecture.puml` | `rendered/C4-002-container-architecture.svg` | Review |
-| C4-003 | `c4/C4-003-spatial-b2a-components.puml` | `rendered/C4-003-spatial-b2a-components.svg` | Draft |
-| BPMN-001 | `bpmn/BPMN-001-core-analysis-flow.puml` | `rendered/BPMN-001-core-analysis-flow.svg` | Review |
-| STATE-001 | `state/STATE-001-analysis-lifecycle.puml` | `rendered/STATE-001-analysis-lifecycle.svg` | Review |
-| SEQ-001 | `sequence/SEQ-001-analysis-request-sequence.puml` | `rendered/SEQ-001-analysis-request-sequence.svg` | Review |
-| ERD-001 | `erd/ERD-001-core-data-model.puml` | `rendered/ERD-001-core-data-model.svg` | Review |
-| DATA-LINEAGE-001 | `lineage/DATA-LINEAGE-001-spatial-evidence-flow.puml` | `rendered/DATA-LINEAGE-001-spatial-evidence-flow.svg` | Review |
-| ACT-001 | `activity/ACT-001-spatial-package-activation.puml` | `rendered/ACT-001-spatial-package-activation.svg` | Draft |
-| DEP-001 | `deployment/DEP-001-current-deployment.puml` | `rendered/DEP-001-current-deployment.svg` | Draft |
-| API-001 | `api/API-001-runtime-contracts.puml` | `rendered/API-001-runtime-contracts.svg` | Draft |
+| ID | Version | Canonical source | Render | Status |
+|---|---:|---|---|---|
+| C4-001 | v1.4 | `c4/C4-001-system-context.puml` | `rendered/C4-001-system-context.svg` | Review |
+| C4-002 | v1.4 | `c4/C4-002-container-architecture.puml` | `rendered/C4-002-container-architecture.svg` | Review |
+| C4-003 | v1.0 | `c4/C4-003-spatial-b2a-components.puml` | `rendered/C4-003-spatial-b2a-components.svg` | Draft |
+| BPMN-001 | v1.5 | `bpmn/BPMN-001-core-analysis-flow.puml` | `rendered/BPMN-001-core-analysis-flow.svg` | Review |
+| STATE-001 | v1.5 | `state/STATE-001-analysis-lifecycle.puml` | `rendered/STATE-001-analysis-lifecycle.svg` | Review |
+| SEQ-001 | v1.5 | `sequence/SEQ-001-analysis-request-sequence.puml` | `rendered/SEQ-001-analysis-request-sequence.svg` | Review |
+| ERD-001 | v1.5 | `erd/ERD-001-core-data-model.puml` | `rendered/ERD-001-core-data-model.svg` | Review |
+| DATA-LINEAGE-001 | v1.6 | `lineage/DATA-LINEAGE-001-spatial-evidence-flow.puml` | `rendered/DATA-LINEAGE-001-spatial-evidence-flow.svg` | Review |
+| ACT-001 | v1.0 | `activity/ACT-001-spatial-package-activation.puml` | `rendered/ACT-001-spatial-package-activation.svg` | Draft |
+| DEP-001 | v1.0 | `deployment/DEP-001-current-deployment.puml` | `rendered/DEP-001-current-deployment.svg` | Draft |
+| API-001 | v1.0 | `api/API-001-runtime-contracts.puml` | `rendered/API-001-runtime-contracts.svg` | Draft |
 
 Supplemental SQL-001 (`sql/ERD-001-schema-spec.md`) maps ERD-001 to the ordered migration source set; it is not a separate diagram, migration authorization or applied-schema attestation.
 

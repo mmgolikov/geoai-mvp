@@ -29,19 +29,19 @@ Status: Review; publication not passed
 
 ## Artifact completeness trace
 
-| Artifact | Source | SVG | Code mapping | Independent approval |
-|---|---:|---:|---:|---:|
-| C4-001 | yes | yes | yes | pending |
-| C4-002 | yes | yes | yes | pending |
-| C4-003 | yes | yes | yes | pending |
-| BPMN-001 | yes | yes | yes | pending |
-| STATE-001 | yes | yes | yes | pending |
-| SEQ-001 | yes | yes | yes | pending |
-| ERD-001 | yes | yes | yes | pending |
-| DATA-LINEAGE-001 | yes | yes | yes | pending |
-| ACT-001 | yes | yes | yes | pending |
-| DEP-001 | yes | yes | yes | pending |
-| API-001 | yes | yes | yes | pending |
+| Artifact | Version | Source | SVG | Code mapping | Independent approval |
+|---|---:|---:|---:|---:|---:|
+| C4-001 | v1.4 | yes | yes | yes | pending |
+| C4-002 | v1.4 | yes | yes | yes | pending |
+| C4-003 | v1.0 | yes | yes | yes | pending |
+| BPMN-001 | v1.5 | yes | yes | yes | pending |
+| STATE-001 | v1.5 | yes | yes | yes | pending |
+| SEQ-001 | v1.5 | yes | yes | yes | pending |
+| ERD-001 | v1.5 | yes | yes | yes | pending |
+| DATA-LINEAGE-001 | v1.6 | yes | yes | yes | pending |
+| ACT-001 | v1.0 | yes | yes | yes | pending |
+| DEP-001 | v1.0 | yes | yes | yes | pending |
+| API-001 | v1.0 | yes | yes | yes | pending |
 
 The architecture gate checks source/render hashes and implementation symbols. It complements, but does not replace, the spatial integration assertions or independent visual/logical review.
 

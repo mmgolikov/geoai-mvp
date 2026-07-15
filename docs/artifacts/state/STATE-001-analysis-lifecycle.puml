@@ -1,6 +1,6 @@
 @startuml STATE-001
 !pragma layout smetana
-title STATE-001 — Workspace analysis and spatial-source lifecycles
+title STATE-001 v1.5 — Workspace analysis and spatial-source lifecycles
 top to bottom direction
 hide empty description
 skinparam backgroundColor #FFFFFF

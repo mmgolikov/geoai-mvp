@@ -1,6 +1,6 @@
 @startuml ACT-001
 !pragma layout smetana
-title ACT-001 — Spatial package activation and rollback decision
+title ACT-001 v1.0 — Spatial package activation and rollback decision
 skinparam backgroundColor #FFFFFF
 skinparam shadowing false
 skinparam defaultFontName Arial

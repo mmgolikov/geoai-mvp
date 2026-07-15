@@ -1,6 +1,6 @@
 @startuml C4-003
 !pragma layout smetana
-title C4-003 — Spatial B2A exact component map
+title C4-003 v1.0 — Spatial B2A exact component map
 skinparam backgroundColor #FFFFFF
 skinparam shadowing false
 skinparam componentStyle rectangle
