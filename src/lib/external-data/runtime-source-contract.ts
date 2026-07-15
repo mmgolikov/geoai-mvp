@@ -38,8 +38,8 @@ export type RuntimeSourcePackResponse = {
 };
 
 export function getRuntimeSourceEnvironment(): RuntimeSourceEnvironment {
-  if (process.env.VERCEL_ENV === "production") return "production";
   if (process.env.VERCEL_ENV === "preview") return "preview";
+  if (process.env.VERCEL_ENV === "production" || process.env.NODE_ENV === "production") return "production";
   return "local";
 }
 

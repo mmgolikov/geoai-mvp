@@ -229,7 +229,7 @@ export async function getSourceRegistryReadiness() {
       confidence: status === "snapshot_available" || status === "connected" ? "medium" : "requires-validation",
       caveat: row.caveat ?? externalDataCaveat,
       sourceMode,
-      usedInAnalysis: status === "connected" || (status === "snapshot_available" && acquiredSnapshot),
+      usedInAnalysis: status === "snapshot_available" && acquiredSnapshot,
       disclaimer: row.caveat ?? externalDataCaveat
     };
   });

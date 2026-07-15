@@ -17,6 +17,8 @@ function average(values: number[]) {
 
 export function parseNasaPowerPayload(value: unknown) {
   const data = asRecord(value);
+  const header = asRecord(data?.header);
+  const api = asRecord(header?.api);
   const properties = asRecord(data?.properties);
   const parameters = asRecord(properties?.parameter);
   const temperatures = finiteProviderValues(parameters?.T2M);
@@ -24,6 +26,7 @@ export function parseNasaPowerPayload(value: unknown) {
   if (temperatures.length === 0 || solar.length === 0) throw new Error("upstream_schema_mismatch");
 
   return {
+    providerVersion: typeof api?.version === "string" ? api.version : null,
     averageTemperatureC: average(temperatures),
     averageSolarRadiationKwhM2Day: average(solar),
     observationDays: Math.min(temperatures.length, solar.length)

@@ -35,13 +35,16 @@ type RuntimeCircuit = {
 type RuntimeState = {
   cache: Map<string, RuntimeCacheEntry>;
   circuits: Map<string, RuntimeCircuit>;
+  inFlight: Map<string, Promise<RuntimeSourceObservation>>;
 };
 
 const globalRuntime = globalThis as typeof globalThis & { __geoAiRuntimeSourceState?: RuntimeState };
 const runtimeState = globalRuntime.__geoAiRuntimeSourceState ?? {
   cache: new Map<string, RuntimeCacheEntry>(),
-  circuits: new Map<string, RuntimeCircuit>()
+  circuits: new Map<string, RuntimeCircuit>(),
+  inFlight: new Map<string, Promise<RuntimeSourceObservation>>()
 };
+runtimeState.inFlight ??= new Map<string, Promise<RuntimeSourceObservation>>();
 globalRuntime.__geoAiRuntimeSourceState = runtimeState;
 
 class UpstreamError extends Error {
@@ -76,19 +79,19 @@ function retryDelay(response: Response, attempt: number) {
   return Math.min(seconds === null ? 250 * (attempt + 1) : seconds * 1000, 2_000);
 }
 
-async function fetchJson(url: string, init: RequestInit, timeoutMs: number) {
-  for (let attempt = 0; attempt < 2; attempt += 1) {
+async function fetchJson(url: string, init: RequestInit, timeoutMs: number, maximumAttempts = 2) {
+  for (let attempt = 0; attempt < maximumAttempts; attempt += 1) {
     let response: Response;
     try {
       response = await fetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs) });
     } catch {
-      if (attempt === 0) continue;
+      if (attempt + 1 < maximumAttempts) continue;
       throw new UpstreamError("upstream_timeout_or_network_error");
     }
 
     if (response.ok) return readJsonResponse(response);
     const retryable = response.status === 429 || response.status >= 500;
-    if (attempt === 0 && retryable) {
+    if (attempt + 1 < maximumAttempts && retryable) {
       await new Promise((resolve) => setTimeout(resolve, retryDelay(response, attempt)));
       continue;
     }
@@ -142,31 +145,42 @@ async function executeControlledSource(
     return unavailableObservation(unavailableBase, servedAt, "provider_circuit_open");
   }
 
+  const activeRequest = runtimeState.inFlight.get(cacheKey);
+  if (activeRequest) return activeRequest.then((observation) => ({ ...observation, servedAt }));
+
+  const request = (async () => {
+    try {
+      const observation = await load();
+      runtimeState.cache.set(cacheKey, {
+        expiresAt: now + cacheMs,
+        staleUntil: now + staleMs,
+        value: observation
+      });
+      runtimeState.circuits.delete(sourceId);
+      return observation;
+    } catch (error) {
+      const failures = (circuit?.failures ?? 0) + 1;
+      runtimeState.circuits.set(sourceId, {
+        failures,
+        openUntil: failures >= 3 ? now + 300_000 : now
+      });
+      if (cached && cached.staleUntil > now) return cachedObservation(cached, servedAt, "stale_cache_after_provider_failure");
+      return unavailableObservation(
+        unavailableBase,
+        servedAt,
+        error instanceof UpstreamError
+          ? error.reason
+          : error instanceof Error && error.message === "upstream_schema_mismatch"
+            ? "upstream_schema_mismatch"
+            : "upstream_contract_error"
+      );
+    }
+  })();
+  runtimeState.inFlight.set(cacheKey, request);
   try {
-    const observation = await load();
-    runtimeState.cache.set(cacheKey, {
-      expiresAt: now + cacheMs,
-      staleUntil: now + staleMs,
-      value: observation
-    });
-    runtimeState.circuits.delete(sourceId);
-    return observation;
-  } catch (error) {
-    const failures = (circuit?.failures ?? 0) + 1;
-    runtimeState.circuits.set(sourceId, {
-      failures,
-      openUntil: failures >= 3 ? now + 300_000 : now
-    });
-    if (cached && cached.staleUntil > now) return cachedObservation(cached, servedAt, "stale_cache_after_provider_failure");
-    return unavailableObservation(
-      unavailableBase,
-      servedAt,
-      error instanceof UpstreamError
-        ? error.reason
-        : error instanceof Error && error.message === "upstream_schema_mismatch"
-          ? "upstream_schema_mismatch"
-          : "upstream_contract_error"
-    );
+    return await request;
+  } finally {
+    runtimeState.inFlight.delete(cacheKey);
   }
 }
 
@@ -191,13 +205,14 @@ async function getNasaPowerObservation(now: Date): Promise<RuntimeSourceObservat
     "time-standard": "UTC"
   });
   const queryFingerprint = fingerprint(`${NASA_POWER_URL}?${params.toString()}`);
+  const accessedOn = utcDate(now);
   const base = {
     sourceId: "nasa-power-solar-energy",
     queryFingerprint,
     coverage: "Fixed public demo point: Downtown Dubai; coarse model/reanalysis grid context",
-    licenseName: "NASA POWER data and citation guidance",
-    licenseUrl: "https://power.larc.nasa.gov/docs/services/api/",
-    attribution: "Source: NASA POWER.",
+    licenseName: "NASA POWER Referencing Guide",
+    licenseUrl: "https://power.larc.nasa.gov/docs/referencing/",
+    attribution: `Data obtained from NASA Langley Research Center's Prediction Of Worldwide Energy Resources (POWER) project; POWER Daily API, accessed ${accessedOn}.`,
     caveat: `Model/reanalysis grid estimate; not an on-site measurement or energy-yield certification. ${publicDataCaveat}`
   };
 
@@ -209,6 +224,7 @@ async function getNasaPowerObservation(now: Date): Promise<RuntimeSourceObservat
     const retrievedAt = now.toISOString();
     return {
       ...base,
+      attribution: `Data obtained from NASA Langley Research Center's Prediction Of Worldwide Energy Resources (POWER) project; POWER Daily API${parsed.providerVersion ? `, version ${parsed.providerVersion}` : ""}, accessed ${accessedOn}.`,
       mode: "live",
       retrievedAt,
       servedAt: retrievedAt,
@@ -239,13 +255,14 @@ async function getCopernicusObservation(now: Date): Promise<RuntimeSourceObserva
     fields: "-geometry,-bbox,-assets"
   });
   const queryFingerprint = fingerprint(`${COPERNICUS_STAC_URL}?${params.toString()}`);
+  const serviceInformationNotice = `Contains modified Copernicus Service information ${now.getUTCFullYear()}.`;
   const base = {
     sourceId: "copernicus-sentinel-metadata",
     queryFingerprint,
     coverage: "Fixed public demo AOI: bounded Downtown Dubai catalogue search",
     licenseName: "Copernicus Data Space Ecosystem terms and conditions",
     licenseUrl: "https://dataspace.copernicus.eu/terms-and-conditions",
-    attribution: "Source: Copernicus Data Space Ecosystem.",
+    attribution: serviceInformationNotice,
     caveat: `Sentinel-2 L2A product availability metadata only; no imagery download, geometry, assets or site-condition analysis. ${publicDataCaveat}`
   };
 
@@ -255,8 +272,15 @@ async function getCopernicusObservation(now: Date): Promise<RuntimeSourceObserva
       cache: "no-store"
     }, 8_000));
     const retrievedAt = now.toISOString();
+    const sceneYears = [...new Set(parsed.scenes
+      .map((scene) => scene.datetime?.slice(0, 4) ?? null)
+      .filter((year): year is string => Boolean(year && /^\d{4}$/.test(year))))];
+    const sentinelDataNotice = sceneYears.length > 0
+      ? `Contains modified Copernicus Sentinel data ${sceneYears.join(", ")}.`
+      : null;
     return {
       ...base,
+      attribution: [sentinelDataNotice, serviceInformationNotice].filter(Boolean).join(" "),
       mode: "live",
       retrievedAt,
       servedAt: retrievedAt,
@@ -276,7 +300,7 @@ async function getCopernicusObservation(now: Date): Promise<RuntimeSourceObserva
 
 async function getOverpassObservation(now: Date): Promise<RuntimeSourceObservation> {
   const bbox = `${publicDemoOverpassBbox.south},${publicDemoOverpassBbox.west},${publicDemoOverpassBbox.north},${publicDemoOverpassBbox.east}`;
-  const query = `[out:json][timeout:15];nwr["amenity"](${bbox});out count;nwr["public_transport"](${bbox});out count;nwr["highway"](${bbox});out count;`;
+  const query = `[out:json][timeout:8];nwr["amenity"](${bbox});out count;nwr["public_transport"](${bbox});out count;nwr["highway"](${bbox});out count;`;
   const queryFingerprint = fingerprint(`${OVERPASS_URL}:${query}`);
   const base = {
     sourceId: "osm-overpass-count-context",
@@ -284,7 +308,7 @@ async function getOverpassObservation(now: Date): Promise<RuntimeSourceObservati
     coverage: "Fixed public demo AOI: bounded Downtown Dubai count-only query",
     licenseName: "Open Database License (ODbL)",
     licenseUrl: "https://www.openstreetmap.org/copyright",
-    attribution: "© OpenStreetMap contributors · ODbL.",
+    attribution: "Data © OpenStreetMap contributors, available under ODbL 1.0.",
     caveat: `Community-mapped count context; coverage and completeness vary; not official cadastral, zoning, planning or transport data. ${publicDataCaveat}`
   };
 
@@ -298,7 +322,7 @@ async function getOverpassObservation(now: Date): Promise<RuntimeSourceObservati
       },
       body: new URLSearchParams({ data: query }).toString(),
       cache: "no-store"
-    }, 10_000));
+    }, 10_000, 1));
     const retrievedAt = now.toISOString();
     return {
       ...base,
