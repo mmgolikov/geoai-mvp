@@ -1,0 +1,35 @@
+@startuml DATA-LINEAGE-001
+!pragma layout smetana
+title DATA-LINEAGE-001 v1.6 — Spatial evidence identity, lineage and attribution
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam defaultFontName Arial
+
+rectangle "Source registry record\nsourceId + terms + readiness" as Registry
+rectangle "Dataset version\ndatasetId + version + checksum" as Dataset
+rectangle "Feature envelope\nfeatureKey + source aliases +\nprovenance + geometry quality" as Feature
+rectangle "Layer catalogue\nlayerKey + fallbackLayerKey +\nattributionIds + reviewState" as Layer
+rectangle "Activation result\neffective source/layers + reason" as Activation
+rectangle "Map feature / analysis target\nstatus labels + dataset identity" as MapFeature
+rectangle "Selection lineage\nproviderFeatureId != sourceRecordId" as Selection
+rectangle "Visible attribution payload\nonly visible layer/provider records" as Attribution
+rectangle "Analysis / report evidence\nsource snapshot + caveat" as Evidence
+
+Registry --> Dataset
+Dataset --> Feature
+Dataset --> Layer
+Feature --> Activation : bundle availability/checksum
+Layer --> Activation : eligibility + fallback
+Activation --> MapFeature : activated feature only
+Feature --> Selection
+Layer --> Selection
+MapFeature --> Evidence
+Selection --> Evidence
+Activation --> Attribution : active + visible layers
+Attribution --> Evidence
+
+note bottom of Feature
+Controlled B2A fixture has invented, non-real geometry.
+No OSM/Overture provider geometry is inferred from attribution tests.
+end note
+@enduml

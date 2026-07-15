@@ -91,6 +91,14 @@ jobs:
           set -euo pipefail
           npm run test:spatial-b2a | tee artifacts/spatial-b2a-check.txt
 
+      - name: Architecture artifact and exact-mapping checks
+        shell: bash
+        env:
+          ARCHITECTURE_EVIDENCE_DIR: artifacts/architecture
+        run: |
+          set -euo pipefail
+          npm run test:architecture | tee artifacts/architecture-check.txt
+
       - name: Data-honesty claim scan
         shell: bash
         run: |

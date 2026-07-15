@@ -1,0 +1,59 @@
+@startuml STATE-001
+!pragma layout smetana
+title STATE-001 v1.5 — Workspace analysis and spatial-source lifecycles
+top to bottom direction
+hide empty description
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam linetype ortho
+
+state "Workspace result lifecycle" as Workspace {
+  [*] --> NoTarget
+  state "No target" as NoTarget
+  state "Criteria ready" as CriteriaReady
+  state "Candidate list current" as CandidateList
+  state "Criteria stale" as CriteriaStale
+  state "Target selected\npoint · object · AOI" as TargetSelected
+  state "Analysis running" as Analyzing
+  state "Analysis ready" as AnalysisReady
+  state "Comparison ready" as ComparisonReady
+  state "Report preview" as ReportPreview
+
+  NoTarget --> CriteriaReady : criteria-first scenario
+  CriteriaReady --> CandidateList : run search
+  CandidateList --> CriteriaStale : criteria/role/scenario changed
+  CriteriaStale --> CandidateList : rerun search
+  CandidateList --> TargetSelected : select candidate
+  NoTarget --> TargetSelected : select map target
+  TargetSelected --> Analyzing : run analysis
+  Analyzing --> AnalysisReady : structured or fallback result
+  Analyzing --> TargetSelected : recoverable failure
+  AnalysisReady --> ComparisonReady : compare 2–3 targets
+  ComparisonReady --> AnalysisReady : open result
+  AnalysisReady --> ReportPreview : preview/export
+  ReportPreview --> AnalysisReady : close
+  AnalysisReady --> TargetSelected : target/settings changed
+  TargetSelected --> NoTarget : clear/delete
+}
+
+state "Spatial source lifecycle" as Spatial {
+  [*] --> Synthetic
+  state "Synthetic default" as Synthetic
+  state "Controlled non-real fixture" as ControlledFixture
+  state "Synthetic fallback\nwith reason" as SyntheticFallback
+
+  Synthetic --> ControlledFixture : eligible Preview checks pass
+  ControlledFixture --> SyntheticFallback : missing / invalid / unapproved / rollback
+  SyntheticFallback --> ControlledFixture : eligible Preview checks pass
+  ControlledFixture --> Synthetic : explicit source switch
+}
+
+Workspace -[hidden]down-> Spatial
+
+note right of Spatial
+Production cannot enter ControlledFixture.
+Point/AOI context survives invalid fixture rollback;
+an invalid selected fixture object is cleared.
+end note
+@enduml

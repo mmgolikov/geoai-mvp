@@ -1,55 +1,35 @@
-# BPMN-001 Core Analysis Flow
+# BPMN-001 Core Analysis Flow — Review Notes
 
-Version: v0.9  
-Status: Review  
-Notation target: BPMN 2.0.2  
-Publication gate: Not passed  
+Version: v1.0
 
-This file is the source specification for the BPMN visual model. The full BPMN XML and visual diagram must be generated after review.
+Status: Review
 
-## Lanes
+Publication gate: Not passed
+
+Canonical visual source: `BPMN-001-core-analysis-flow.puml`
+
+The committed SVG is an implementation-aligned, BPMN-style activity rendering of the current workspace process. It is not executable BPMN 2.0 XML and does not claim process-engine conformance.
+
+## Implemented participants
 
 - User
-- GeoAI Workspace
-- Data and GIS Layer
-- Analysis Layer
-- Report Service
-- Project Storage
+- `components/workspace-shell.tsx`
+- `app/api/analyze/route.ts`
+- optional OpenAI request with validated deterministic fallback
+- repository adapters and report-package routes
 
-## Main process
+## Controlled exception behavior
 
-1. Analysis need identified.
-2. Open workspace.
-3. Select AOI or object.
-4. Check spatial context.
-5. Select scenario or enter custom query.
-6. Create analysis request.
-7. Retrieve spatial context.
-8. Check source availability.
-9. Run analysis and scoring.
-10. Attach evidence and confidence.
-11. Render analysis dashboard.
-12. Decide whether comparison is needed.
-13. Render comparison view when needed.
-14. Decide whether custom query refinement is needed.
-15. Re-run analysis with query context when needed.
-16. Decide whether report export is needed.
-17. Generate report when requested.
-18. Save analysis and report metadata.
-19. Analysis completed.
-
-## Exception flows
-
-| Exception | Handling rule |
+| Condition | Implemented behavior |
 |---|---|
-| Invalid spatial context | Show validation message and keep user in workspace |
-| Missing required source | Continue only with clear confidence warning |
-| Analysis failure | Show recoverable error and allow retry |
-| Project mismatch | Block save/export and request state refresh |
-| Export failure | Preserve analysis state and allow retry |
+| No selected target in map-first mode | Primary analysis action does not run |
+| Criteria change after search | Candidate state becomes stale/ready and results must be regenerated |
+| Invalid analysis payload | `/api/analyze` returns HTTP 400 |
+| OpenAI unavailable or invalid | Deterministic structured fallback is returned |
+| Decision-score request unavailable | Analysis remains usable with a null score extension |
+| Persistence unavailable | Recoverable UI state remains; local fallback is explicitly non-durable |
+| Official validation missing | Screening claims remain bounded and caveated |
 
-## Review status
+Independent review must confirm the lanes, exception boundaries and repository semantics before publication. Converting this model into BPMN XML is a separate decision and is not required by the current Product runtime.
 
-Logical review: partial pass.  
-Visual BPMN rendering: pending.  
-Publication gate: not passed.
+Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.

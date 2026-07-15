@@ -1,49 +1,42 @@
-# ERD-001 Schema Specification
+# SQL-001 — ERD-001 Migration Source Mapping
 
-Version: v0.9  
-Status: Review  
-Publication gate: Not passed  
-Target: Supabase / PostgreSQL / PostGIS  
+Version: v1.0
 
-This is a non-executable schema specification. It must be converted into a reviewed migration only after engineering validation.
+Status: Review; publication not passed
 
-## Required tables
+Source basis: the ordered migration set, including `20260618_0001_geoai_core.sql`, `20260618_0003_persistence_payloads.sql`, `20260618_0004_projects_workspaces.sql`, `20260618_0005_fix_persistence_schema.sql`, `20260624_geoai_pilot_persistence_foundation.sql` and later hardening migrations
 
-| Table | Purpose |
-|---|---|
-| organizations | tenant or client organization |
-| user_profiles | product user profile and access role |
-| projects | workspace and analysis container |
-| datasets | source register and source status |
-| aois | selected point, polygon or spatial area |
-| objects | parcels, buildings, assets or detected features |
-| analyses | scenario and custom query runs |
-| scores | scoring outputs linked to analyses |
-| evidence_items | source-backed facts and observations |
-| reports | report metadata and export status |
-| audit_events | traceable user and system events |
+This document maps ERD-001 to migration source. It is not executable SQL, a migration authorization, proof that the full ordered chain applies cleanly to a fresh database, or evidence that the current Production demo is connected to Supabase.
 
-## Required spatial fields
+## ERD-001 entities
 
-| Table | Field | Notes |
+| Table | Implemented purpose | Primary scope |
 |---|---|---|
-| aois | geometry | geometry field, SRID 4326 target |
-| objects | geometry | geometry field, SRID 4326 target |
+| `organizations` | tenant/client organization foundation | organization |
+| `profiles` | User profile with `auth_user_id` identity link; the foundation declaration does not define an `auth.users` FK | user |
+| `projects` | project/workspace boundary | organization |
+| `project_memberships` | user-to-project role binding | project/user |
+| `aois` | selected/drawn/uploaded spatial target | project |
+| `analysis_runs` | analysis request/result with optional `selected_aoi_id` and `ai_decision_score_id` links | project/AOI/score |
+| `ai_decision_scores` | governed score payload with a text `analysis_run_key`; no score-to-run FK is declared | project/AOI |
+| `reports` | report metadata; the earlier persistence correction adds nullable UUID `analysis_run_id` | project/analysis |
+| `comparison_sets` | comparison payload | project |
+| `uploaded_datasets` | uploaded dataset metadata/storage reference | project |
+| `data_room_assets` | project evidence asset metadata | project |
+| `source_registry_snapshots` | registered source readiness snapshot | source |
+| `external_data_snapshots` | bounded external snapshot metadata/payload | source |
+| `audit_events` | audit foundation record with nullable `actor_user_id` link to `profiles.id` | project/actor |
 
-## Required status fields
+The migration also defines validation checklist, pilot workflow, client input and deliverable tables that are not shown in the compact ERD. The earlier core migration defines `sources`, `spatial_layers`, `spatial_features`, `market_areas` and `market_metrics`; those data-plane tables remain outside the pilot-control ERD view.
 
-| Table | Status examples |
-|---|---|
-| datasets | candidate, validated, connected, production_ready, deprecated |
-| analyses | draft, validating, running, completed, refining, failed, superseded, archived |
-| reports | requested, generating, ready, failed, archived |
-| evidence_items | source_backed, model_derived, manual_review_required |
+## Pre-review schema finding
 
-## Required review before migration
+The migration files use `create table if not exists` across an evolving schema. Several tables are created in earlier migrations and described again with additional columns in the 20260624 foundation file. Static source presence therefore does not prove that a fresh ordered migration chain or an existing applied schema has every field shown by the later declaration. Direct applied-schema verification and, if required, an additive reconciliation migration are separate Security/backend and Data review actions. CR-DEV7-003 does not apply or change a migration.
 
-1. Confirm table names against current repository code.
-2. Confirm whether `users` or `user_profiles` should be used.
-3. Confirm PostGIS extension and SRID policy.
-4. Confirm row-level security policy.
-5. Confirm project isolation and audit events.
-6. Convert to migration only after review.
+## Runtime boundary
+
+`src/lib/db/schema-readiness.ts` checks the required persistence table set. `src/lib/supabase/runtime-readiness.ts` separately reports environment, read reachability, schema, Storage, Auth/membership/RLS evidence and fallback. A migration file or readable table never by itself passes confidential-pilot or Production readiness.
+
+No migration is applied by CR-DEV7-003.
+
+Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.

@@ -9,16 +9,17 @@ GeoAI helps users decide where to build, buy, invest, monitor, insure, reconstru
 Repo: https://github.com/mmgolikov/geoai-mvp
 Production: https://geoai-mvp.vercel.app
 Vercel team/project: geoaidev / geoai-mvp
-Current `main`: PR #81 merge `cd5f9efe791ff7d5ac46597925bbf17eb60d2754`.
-Current Production: deployment `dpl_94Tz2TZG5Pf8k1PGygTBjQBCQAkf`, READY on the exact merge SHA.
-Released scope: inactive Spatial B1/B2A source-contract, attribution, lineage, fallback and Workspace UX foundation.
+Current `main`: PR #83 merge `754a9c68cd1ee7af80731f1b779df023d54e901e`.
+Current Production: deployment `dpl_BYcrrYvuVqrTtryuS1yKKrMFQKDy`, READY on the exact merge SHA.
+Released scope: inactive Spatial B1/B2A source-contract, attribution, lineage, fallback and Workspace UX foundation plus permanent exact-event-SHA merge/push quality evidence.
 Production status: public demo, synthetic/local fallback and soft access. Real geometry and B2B/B2C activation are not authorized.
-Next delivery controls: permanent merge-commit CI, source-fallback regression, evidence custody and reviewed architecture mapping.
+Next delivery control: CR-DEV7-003 renders and maps the current architecture. The package remains Draft/Review until independent architecture, engineering, Data/GIS, security/backend and documentation decisions are recorded.
 Spatial B2B gate: GitHub Issue #80 remains open; delivery, distribution, attribution, retention and rollback decisions are not approved.
 Supabase: `geoai-dev`, ref `pphdqkurxneyagvnnjdt`, eu-west-1. Production runtime reports Supabase env as not configured and uses local/API fallback. Do not infer Production readiness from the development project.
 Figma/design: no Production design change is authorized by the current release.
 Historical draft PRs remain separate governance records; do not merge or close them without explicit approval.
 Confluence Project Hub is the operational dashboard and single source of truth.
+Canonical architecture sources, SVG renders, exact code mappings and freshness hashes live under `docs/artifacts/`; diagram existence never implies activation or approval.
 
 ## Core product flow
 

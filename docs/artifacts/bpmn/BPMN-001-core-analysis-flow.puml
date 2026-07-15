@@ -1,0 +1,52 @@
+@startuml BPMN-001
+!pragma layout smetana
+title BPMN-001 v1.5 — Core analysis flow (BPMN-aligned activity rendering)
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam defaultFontName Arial
+
+|User|
+start
+:Choose audience, role and scenario;
+if (Interaction mode?) then (Criteria-first)
+  :Set criteria;
+  |Workspace|
+  :Generate bounded candidates;
+  |User|
+  :Select or compare candidates;
+else (Map-first)
+  :Select point, object or AOI;
+endif
+
+|Workspace|
+:Build deterministic context and scores;
+:Load validation governance;
+|Analysis API|
+:Validate request contract;
+if (OpenAI result valid?) then (yes)
+  :Return structured narrative;
+else (no / unavailable)
+  :Return deterministic fallback narrative;
+endif
+|Workspace|
+:Merge narrative and decision score;
+:Render dashboard;
+fork
+  :Persist analysis through repository adapter;
+fork again
+  :Keep recoverable in-memory UI state;
+end fork
+|User|
+if (Export requested?) then (yes)
+  |Report API|
+  :Create/read report package and print route;
+  |User|
+  :Print or save bounded report;
+endif
+stop
+
+legend bottom
+  This is an implementation-aligned activity rendering, not executable BPMN XML.
+  Official/client validation remains outside this automated flow.
+endlegend
+@enduml

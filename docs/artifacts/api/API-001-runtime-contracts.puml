@@ -1,0 +1,32 @@
+@startuml API-001
+!pragma layout smetana
+title API-001 v1.0 — Runtime contract groups and implementation owners
+top to bottom direction
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam rectangle {
+  BackgroundColor #F6F8FB
+  BorderColor #174F63
+  FontColor #172033
+  RoundCorner 12
+}
+
+rectangle "WorkspaceShell\nclient orchestration" as Client #EAF4EF
+rectangle "Analysis contracts\nPOST /api/analyze\nGET/POST /api/analysis-runs\nGET/POST /api/ai/decision-score" as Analysis
+rectangle "Context and lineage contracts\nPOST /api/context/market · GET /api/context/*\nGET /api/source-lineage\nGET /api/data-sources/readiness" as Context
+rectangle "Project and evidence contracts\nGET/POST /api/projects · /api/aois · /api/reports\nGET/POST /api/report-packages · /api/validation/*" as Evidence
+rectangle "Control-plane contracts\nGET /api/health · /api/db/health\nGET /api/platform/activation-status\nGET /api/pilot-backend/status\nGET /api/security/rls-readiness" as Control #FFF9EC
+
+Client -down-> Analysis : analysis request/result
+Client -down-> Context : context and source basis
+Client -down-> Evidence : project, persistence and export
+Evidence -down-> Control : runtime capability is checked separately
+Context -[hidden]down-> Evidence
+Analysis -[hidden]down-> Context
+
+note bottom of Control
+Route existence is not an activation claim. Each handler may report local fallback,
+not-configured or blocked readiness states and must preserve the required caveat.
+end note
+@enduml

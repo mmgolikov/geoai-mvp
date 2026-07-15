@@ -1,32 +1,48 @@
-# GeoAI Artifact File Registry
+# GeoAI Architecture Artifact Registry
 
-This directory stores controlled GeoAI architecture, system-analysis and data-model artifacts as repository files.
+This directory is the version-controlled architecture evidence package for GeoAI. Confluence remains the documentation and approval hub; GitHub stores canonical sources, deterministic SVG renders, implementation mappings and automated freshness evidence.
 
-Confluence is the documentation hub. GitHub stores artifact source files so they can be versioned, reviewed, linked, rendered and reused by engineering.
+Package: `CR-DEV7-003` v1.1
 
-## Artifact status
+Publication gate: **Not passed**
 
-| Artifact ID | File | Type | Status |
-|---|---|---|---|
-| BPMN-001 | `bpmn/BPMN-001-core-analysis-flow.md` | BPMN source specification | Review |
-| C4-001 | `c4/C4-001-system-context.mmd` | Mermaid context diagram | Review |
-| C4-002 | `c4/C4-002-container-architecture.mmd` | Mermaid container diagram | Review |
-| ERD-001 | `erd/ERD-001-core-data-model.mmd` | Mermaid ERD | Review |
-| STATE-001 | `state/STATE-001-analysis-lifecycle.mmd` | Mermaid state diagram | Review |
-| SEQ-001 | `sequence/SEQ-001-analysis-request-sequence.mmd` | Mermaid sequence diagram | Review |
-| SQL-001 | `sql/ERD-001-schema-spec.md` | Schema specification | Review |
+Runtime represented: current public demo, synthetic/local fallback and soft access
 
-## Publication gate
+## Controlled artifacts
 
-Files in this directory are source artifacts. They are not approved implementation specifications until:
+| ID | Version | Canonical source | Render | Status |
+|---|---:|---|---|---|
+| C4-001 | v1.4 | `c4/C4-001-system-context.puml` | `rendered/C4-001-system-context.svg` | Review |
+| C4-002 | v1.4 | `c4/C4-002-container-architecture.puml` | `rendered/C4-002-container-architecture.svg` | Review |
+| C4-003 | v1.0 | `c4/C4-003-spatial-b2a-components.puml` | `rendered/C4-003-spatial-b2a-components.svg` | Draft |
+| BPMN-001 | v1.5 | `bpmn/BPMN-001-core-analysis-flow.puml` | `rendered/BPMN-001-core-analysis-flow.svg` | Review |
+| STATE-001 | v1.5 | `state/STATE-001-analysis-lifecycle.puml` | `rendered/STATE-001-analysis-lifecycle.svg` | Review |
+| SEQ-001 | v1.5 | `sequence/SEQ-001-analysis-request-sequence.puml` | `rendered/SEQ-001-analysis-request-sequence.svg` | Review |
+| ERD-001 | v1.5 | `erd/ERD-001-core-data-model.puml` | `rendered/ERD-001-core-data-model.svg` | Review |
+| DATA-LINEAGE-001 | v1.6 | `lineage/DATA-LINEAGE-001-spatial-evidence-flow.puml` | `rendered/DATA-LINEAGE-001-spatial-evidence-flow.svg` | Review |
+| ACT-001 | v1.0 | `activity/ACT-001-spatial-package-activation.puml` | `rendered/ACT-001-spatial-package-activation.svg` | Draft |
+| DEP-001 | v1.0 | `deployment/DEP-001-current-deployment.puml` | `rendered/DEP-001-current-deployment.svg` | Draft |
+| API-001 | v1.0 | `api/API-001-runtime-contracts.puml` | `rendered/API-001-runtime-contracts.svg` | Draft |
 
-1. The corresponding Confluence page is marked Approved.
-2. Artifact Review Log shows Publication gate = Passed.
-3. Visual rendering has been reviewed.
-4. Engineering has validated the artifact against code and target architecture.
+Supplemental SQL-001 (`sql/ERD-001-schema-spec.md`) maps ERD-001 to the ordered migration source set; it is not a separate diagram, migration authorization or applied-schema attestation.
 
-## Current Figma board
+`architecture-artifact-manifest.json` is the machine-readable source of artifact identity, status and exact implementation references. `rendered/render-manifest.json` pins the renderer and source/render SHA-256 digests.
 
-Figma/FigJam artifact board: https://www.figma.com/board/hjy7prEcRySkqPvJYWIwwX
+`ARCHITECTURE_IMPLEMENTATION_MAPPING_V1.md`, `ARCHITECTURE_TRACE_MATRIX_V1.md` and `ARCHITECTURE_REVIEW_PACKET_V1.md` are the controlled review surfaces. `ARCHITECTURE_PRE_REVIEW_FINDINGS_V1.md` records pre-review corrections and open dispatch blockers; it is not independent approval.
 
-Visual rendering remains pending.
+## Reproduce and verify
+
+Rendering uses PlantUML 1.2025.4 with pinned JAR SHA-256 `26518e14a3a04100cd76c0d96cab2d1171f36152215edd9790a28d20268200c1` as a one-time documentation tool, not a Product runtime dependency.
+
+```bash
+PLANTUML_JAR=/absolute/path/plantuml-1.2025.4.jar npm run render:architecture
+npm run test:architecture
+```
+
+The permanent quality gate verifies all required IDs, source and SVG hashes, code paths, mapped symbols, mapping documents, required caveat and non-approved publication state. CI validates committed renders without downloading PlantUML.
+
+## Approval boundary
+
+Rendered does not mean approved. Publication requires independent architecture review, resolution of review findings, corresponding Confluence status change and an explicit publication decision. No artifact in this package authorizes real geometry, B2B/B2C activation, Production Supabase/Auth/RLS/Storage, secrets, environment changes or Production deployment.
+
+Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.
