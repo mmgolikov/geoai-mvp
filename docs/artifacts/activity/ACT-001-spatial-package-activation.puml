@@ -1,0 +1,50 @@
+@startuml ACT-001
+!pragma layout smetana
+title ACT-001 — Spatial package activation and rollback decision
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam defaultFontName Arial
+
+start
+:Create SpatialSourceRequest;
+if (Requested mode is synthetic?) then (yes)
+  :Activate enabled synthetic catalogue layers;
+  stop
+endif
+if (Runtime is Production?) then (yes)
+  :Reject request and activate synthetic fallback;
+  stop
+endif
+if (Requested and approved mode\nare open_context_preview?) then (no)
+  :Activate synthetic fallback;
+  stop
+endif
+:Load bundle descriptor;
+if (Available and checksum exact?) then (no)
+  :Activate synthetic fallback with reason;
+  stop
+endif
+if (Bundle contains real geometry?) then (yes)
+  :Evaluate release, delivery, distribution\nand repository-publication approvals;
+  if (All required approvals pass?) then (no)
+    :Fail closed to synthetic fallback;
+    stop
+  endif
+endif
+if (Controlled non-real fixture\nor approved real bundle?) then (no)
+  :Fail closed to synthetic fallback;
+  stop
+endif
+:Evaluate each fixture catalogue entry;
+if (Layer available, reviewed and\nchecksum matched?) then (yes)
+  :Activate fixture layer;
+else (no)
+  :Retain its synthetic fallback layer;
+endif
+if (Any fixture layer activated?) then (yes)
+  :Return controlled_fixture_active;
+else (no)
+  :Return synthetic_fallback;
+endif
+stop
+@enduml

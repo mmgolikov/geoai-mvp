@@ -1,0 +1,172 @@
+{
+  "schemaVersion": "1.0",
+  "packageId": "CR-DEV7-003",
+  "packageVersion": "1.0",
+  "publicationGate": "not_passed",
+  "requiredCaveat": "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.",
+  "artifacts": [
+    {
+      "id": "C4-001",
+      "title": "GeoAI system context",
+      "version": "1.0",
+      "status": "Review",
+      "approved": false,
+      "source": "docs/artifacts/c4/C4-001-system-context.puml",
+      "rendered": "docs/artifacts/rendered/C4-001-system-context.svg",
+      "implementationReferences": [
+        { "path": "app/workspace/page.tsx", "symbols": ["WorkspacePage", "createSpatialSourceRequest"] },
+        { "path": "app/api/analyze/route.ts", "symbols": ["requestOpenAiAnalysis", "createFallbackStructuredAnalysis"] },
+        { "path": "src/lib/supabase/runtime-readiness.ts", "symbols": ["getSupabaseRuntimeReadiness", "localApiFallbackActive"] },
+        { "path": "src/lib/repositories/local-json-store.ts", "symbols": ["/tmp/geoai-local_fallback", "localCreate"] }
+      ]
+    },
+    {
+      "id": "C4-002",
+      "title": "GeoAI container architecture",
+      "version": "1.0",
+      "status": "Review",
+      "approved": false,
+      "source": "docs/artifacts/c4/C4-002-container-architecture.puml",
+      "rendered": "docs/artifacts/rendered/C4-002-container-architecture.svg",
+      "implementationReferences": [
+        { "path": "components/workspace-shell.tsx", "symbols": ["WorkspaceShell", "runExpressAnalysis"] },
+        { "path": "components/map-workspace-client.tsx", "symbols": ["MapWorkspaceClient", "resolveSpatialActivation"] },
+        { "path": "src/lib/repositories/repository-mode.ts", "symbols": ["RepositoryMode", "local_fallback"] },
+        { "path": "app/api/pilot-backend/status/route.ts", "symbols": ["getPilotBackendActivationSummary", "buildRuntimeExecutiveStatus"] }
+      ]
+    },
+    {
+      "id": "C4-003",
+      "title": "Spatial B2A exact component map",
+      "version": "1.0",
+      "status": "Draft",
+      "approved": false,
+      "source": "docs/artifacts/c4/C4-003-spatial-b2a-components.puml",
+      "rendered": "docs/artifacts/rendered/C4-003-spatial-b2a-components.svg",
+      "implementationReferences": [
+        { "path": "src/lib/spatial-b2/source-mode.ts", "symbols": ["createSpatialSourceRequest", "synthetic_fallback"] },
+        { "path": "src/lib/spatial-b2/bundle-loader.ts", "symbols": ["loadSpatialBundle", "controlledSpatialContractFixture"] },
+        { "path": "src/lib/spatial-b2/activation-resolver.ts", "symbols": ["resolveSpatialActivation", "evaluateSpatialDeliveryPolicy"] },
+        { "path": "src/lib/spatial-b2/map-layer-adapter.ts", "symbols": ["adaptControlledFixtureToMapFeature", "createSelectedObjectFromSpatialFeature"] },
+        { "path": "src/lib/spatial-b2/selection-lineage.ts", "symbols": ["createSpatialSelectionLineage", "providerFeatureId"] },
+        { "path": "src/lib/spatial-b2/attribution.ts", "symbols": ["aggregateSpatialAttribution", "deriveVisibleSpatialAttributionIds"] }
+      ]
+    },
+    {
+      "id": "BPMN-001",
+      "title": "Core analysis flow",
+      "version": "1.0",
+      "status": "Review",
+      "approved": false,
+      "source": "docs/artifacts/bpmn/BPMN-001-core-analysis-flow.puml",
+      "rendered": "docs/artifacts/rendered/BPMN-001-core-analysis-flow.svg",
+      "implementationReferences": [
+        { "path": "components/workspace-shell.tsx", "symbols": ["runCandidateSearch", "runCandidateComparison", "runExpressAnalysis", "persistAnalysisRun"] },
+        { "path": "app/api/analyze/route.ts", "symbols": ["isAnalyzeRequest", "validateStructuredAnalysis", "createFallbackStructuredAnalysis"] },
+        { "path": "app/api/report-packages/route.ts", "symbols": ["export async function POST"] }
+      ]
+    },
+    {
+      "id": "STATE-001",
+      "title": "Workspace analysis lifecycle",
+      "version": "1.0",
+      "status": "Review",
+      "approved": false,
+      "source": "docs/artifacts/state/STATE-001-analysis-lifecycle.puml",
+      "rendered": "docs/artifacts/rendered/STATE-001-analysis-lifecycle.svg",
+      "implementationReferences": [
+        { "path": "components/workspace-shell.tsx", "symbols": ["CandidateSearchStatus", "candidateSearchStatus", "isAnalyzing", "reportPreview", "handleObjectClearAfterSourceRollback"] },
+        { "path": "components/map-workspace-client.tsx", "symbols": ["selectEvidenceSourceMode", "onObjectClearRef"] },
+        { "path": "src/lib/spatial-b2/activation-resolver.ts", "symbols": ["rollbackResult", "synthetic_fallback"] }
+      ]
+    },
+    {
+      "id": "SEQ-001",
+      "title": "Analysis request sequence",
+      "version": "1.0",
+      "status": "Review",
+      "approved": false,
+      "source": "docs/artifacts/sequence/SEQ-001-analysis-request-sequence.puml",
+      "rendered": "docs/artifacts/rendered/SEQ-001-analysis-request-sequence.svg",
+      "implementationReferences": [
+        { "path": "components/workspace-shell.tsx", "symbols": ["/api/context/market", "/api/analyze", "/api/ai/decision-score", "persistAnalysisRun"] },
+        { "path": "app/api/analyze/route.ts", "symbols": ["OPENAI_API_KEY", "requestOpenAiAnalysis", "createFallbackStructuredAnalysis"] },
+        { "path": "app/api/analysis-runs/route.ts", "symbols": ["export async function POST"] }
+      ]
+    },
+    {
+      "id": "ERD-001",
+      "title": "Implemented pilot persistence foundation",
+      "version": "1.0",
+      "status": "Review",
+      "approved": false,
+      "source": "docs/artifacts/erd/ERD-001-core-data-model.puml",
+      "rendered": "docs/artifacts/rendered/ERD-001-core-data-model.svg",
+      "implementationReferences": [
+        { "path": "supabase/migrations/20260624_geoai_pilot_persistence_foundation.sql", "symbols": ["public.organizations", "public.projects", "public.analysis_runs", "public.audit_events"] },
+        { "path": "src/lib/db/schema-readiness.ts", "symbols": ["requiredPersistenceTables", "getSchemaReadinessSummary"] },
+        { "path": "src/lib/supabase/runtime-readiness.ts", "symbols": ["schemaReady", "not_production_ready_or_pilot_ready"] }
+      ]
+    },
+    {
+      "id": "DATA-LINEAGE-001",
+      "title": "Spatial evidence lineage",
+      "version": "1.0",
+      "status": "Review",
+      "approved": false,
+      "source": "docs/artifacts/lineage/DATA-LINEAGE-001-spatial-evidence-flow.puml",
+      "rendered": "docs/artifacts/rendered/DATA-LINEAGE-001-spatial-evidence-flow.svg",
+      "implementationReferences": [
+        { "path": "src/types/spatial-data-v1.ts", "symbols": ["SpatialDatasetVersionV1", "SpatialFeatureEnvelopeV1", "sourceProvenance"] },
+        { "path": "src/lib/spatial-b2/selection-lineage.ts", "symbols": ["canonicalFeatureKey", "providerFeatureId", "sourceRecordId"] },
+        { "path": "src/lib/spatial-b2/attribution.ts", "symbols": ["findSpatialAttributionCoverageMismatch", "aggregateSpatialAttribution"] },
+        { "path": "src/lib/source-lineage-snapshot.ts", "symbols": ["createSourceLineageSnapshot", "plannedValidationSources"] }
+      ]
+    },
+    {
+      "id": "ACT-001",
+      "title": "Spatial package activation",
+      "version": "1.0",
+      "status": "Draft",
+      "approved": false,
+      "source": "docs/artifacts/activity/ACT-001-spatial-package-activation.puml",
+      "rendered": "docs/artifacts/rendered/ACT-001-spatial-package-activation.svg",
+      "implementationReferences": [
+        { "path": "src/lib/spatial-b2/activation-resolver.ts", "symbols": ["evaluateSpatialDeliveryPolicy", "resolveSpatialActivation", "No controlled fixture layer passed activation checks"] },
+        { "path": "src/lib/spatial-b2/source-mode.ts", "symbols": ["runtimeEnvironment === \"production\"", "defaultSpatialProductSourceMode"] },
+        { "path": "scripts/spatial-b2-integration-check.mjs", "symbols": ["missing", "invalid", "fallback"] }
+      ]
+    },
+    {
+      "id": "DEP-001",
+      "title": "Current deployment boundary",
+      "version": "1.0",
+      "status": "Draft",
+      "approved": false,
+      "source": "docs/artifacts/deployment/DEP-001-current-deployment.puml",
+      "rendered": "docs/artifacts/rendered/DEP-001-current-deployment.svg",
+      "implementationReferences": [
+        { "path": ".github/workflows/geoai-quality-gate.yml", "symbols": ["pull_request.head.sha", "Upload release evidence"] },
+        { "path": "src/lib/repositories/local-json-store.ts", "symbols": ["process.env.VERCEL", "/tmp/geoai-local_fallback"] },
+        { "path": "src/lib/platform/runtime-status-contract.ts", "symbols": ["vercel_production_demo", "demo_workflow_degraded"] },
+        { "path": "src/lib/supabase/runtime-readiness.ts", "symbols": ["serviceRoleUsedForWrites: false", "localApiFallbackActive"] }
+      ]
+    },
+    {
+      "id": "API-001",
+      "title": "Runtime contract groups",
+      "version": "1.0",
+      "status": "Draft",
+      "approved": false,
+      "source": "docs/artifacts/api/API-001-runtime-contracts.puml",
+      "rendered": "docs/artifacts/rendered/API-001-runtime-contracts.svg",
+      "implementationReferences": [
+        { "path": "app/api/analyze/route.ts", "symbols": ["export async function POST"] },
+        { "path": "app/api/source-lineage/route.ts", "symbols": ["export async function GET"] },
+        { "path": "app/api/platform/activation-status/route.ts", "symbols": ["getPilotActivationGate", "getSupabaseRuntimeReadiness"] },
+        { "path": "app/api/pilot-backend/status/route.ts", "symbols": ["buildRuntimeExecutiveStatus", "canRunConfidentialPilot"] },
+        { "path": "app/api/report-packages/route.ts", "symbols": ["export async function GET", "export async function POST"] }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,118 @@
+@startuml ERD-001
+!pragma layout smetana
+title ERD-001 — Implemented pilot-persistence foundation (not activated in Production)
+hide methods
+hide stereotypes
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam defaultFontName Arial
+
+entity organizations {
+  * id : uuid <<PK>>
+  --
+  name : text
+  status : text
+}
+entity profiles {
+  * id : uuid <<PK/FK auth.users>>
+  --
+  organization_id : uuid <<FK>>
+  email : text
+}
+entity projects {
+  * id : uuid <<PK>>
+  --
+  organization_id : uuid <<FK>>
+  project_key : text
+  status : text
+}
+entity project_memberships {
+  * project_id : uuid <<FK>>
+  * user_id : uuid <<FK>>
+  --
+  role : text
+}
+entity aois {
+  * id : uuid <<PK>>
+  --
+  project_id : uuid <<FK>>
+  geometry : geometry
+  validation_status : text
+}
+entity analysis_runs {
+  * id : uuid <<PK>>
+  --
+  project_id : uuid <<FK>>
+  aoi_id : uuid <<FK nullable>>
+  result : jsonb
+}
+entity ai_decision_scores {
+  * id : uuid <<PK>>
+  --
+  project_id : uuid <<FK>>
+  analysis_run_id : uuid <<FK nullable>>
+  score_payload : jsonb
+}
+entity reports {
+  * id : uuid <<PK>>
+  --
+  project_id : uuid <<FK>>
+  analysis_run_id : uuid <<FK nullable>>
+}
+entity comparison_sets {
+  * id : uuid <<PK>>
+  --
+  project_id : uuid <<FK>>
+  payload : jsonb
+}
+entity uploaded_datasets {
+  * id : uuid <<PK>>
+  --
+  project_id : uuid <<FK>>
+  storage_path : text
+}
+entity data_room_assets {
+  * id : uuid <<PK>>
+  --
+  project_id : uuid <<FK>>
+  storage_path : text
+}
+entity source_registry_snapshots {
+  * id : uuid <<PK>>
+  --
+  source_id : text
+  snapshot : jsonb
+}
+entity external_data_snapshots {
+  * id : uuid <<PK>>
+  --
+  source_id : text
+  snapshot : jsonb
+}
+entity audit_events {
+  * id : uuid <<PK>>
+  --
+  project_id : uuid <<FK nullable>>
+  actor_id : uuid <<FK nullable>>
+}
+
+organizations ||--o{ profiles
+organizations ||--o{ projects
+projects ||--o{ project_memberships
+profiles ||--o{ project_memberships
+projects ||--o{ aois
+projects ||--o{ analysis_runs
+aois |o--o{ analysis_runs
+analysis_runs |o--o{ ai_decision_scores
+projects ||--o{ reports
+analysis_runs |o--o{ reports
+projects ||--o{ comparison_sets
+projects ||--o{ uploaded_datasets
+projects ||--o{ data_room_assets
+projects |o--o{ audit_events
+
+note bottom
+Migrations and RLS policy foundations exist. Current Production demo does not have
+durable Supabase persistence configured; this ERD is not proof of runtime activation.
+end note
+@enduml

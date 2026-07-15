@@ -1,132 +1,54 @@
-# GeoAI Architecture Baseline
+# GeoAI Current Architecture Baseline
 
-This document describes the current GeoAI MVP architecture and the intended path toward a production-grade pilot.
+Controlled package: CR-DEV7-003 v1.0
 
-## Current Architecture
+Artifact registry: `docs/artifacts/README.md`
 
-GeoAI is a Next.js App Router application using client-side React components for the workspace, Mapbox rendering, mock analysis dashboards, comparison dashboards, and report previews.
+Publication gate: Not passed
 
-The current system is intentionally frontend-heavy. It does not use a database, OpenAI API, external data adapters, or persistent user accounts.
+## Current bounded runtime
 
-## Next.js App Structure
+GeoAI is a single Next.js App Router application deployed on Vercel. It serves a public spatial-decision demo with React workspace state, client-side Mapbox when a usable public token is present, deterministic analysis, optional server-side OpenAI narrative generation, route-handler APIs, report flows and repository adapters.
 
-- `app/layout.tsx`: root layout and global metadata.
-- `app/page.tsx`: homepage.
-- `app/workspace/page.tsx`: workspace route.
-- `app/api/health/route.ts`: health check route.
-- `app/api/demo-objects/route.ts`: mock demo object API route.
-- `app/globals.css`: Tailwind imports, global styles, Mapbox control cleanup, and print styles.
+Current Production remains synthetic/local fallback and soft access. Supabase/PostGIS, Storage, Auth, memberships, RLS and hard access have implementation/readiness foundations but are not configured and verified as the active Production backend. Vercel local JSON fallback writes to ephemeral `/tmp` and is not durable Production storage.
 
-## Frontend Components
+## Implemented logical boundaries
 
-- `components/top-navigation.tsx`: GeoAI top navigation.
-- `components/workspace-shell.tsx`: main workspace state coordinator.
-- `components/analysis-panel.tsx`: right-side command panel for selection, scenario, analysis, comparison, and export actions.
-- `components/map-workspace.tsx`: dynamic no-SSR Mapbox wrapper.
-- `components/map-workspace-client.tsx`: browser-only Mapbox implementation.
-- `components/express-dashboard.tsx`: single-site analysis dashboard.
-- `components/comparison-dashboard.tsx`: comparison dashboard.
-- `components/report-preview.tsx`: print-friendly report preview for analysis and comparison.
+- App pages: `/`, `/workspace`, `/projects`, `/explore`, `/demo`, print/report routes.
+- Workspace: `components/workspace-shell.tsx` owns target, role/scenario, criteria, candidate, analysis, comparison and report UI state.
+- Map: `components/map-workspace-client.tsx` owns Mapbox/fallback-grid rendering, layers, AOI drawing, uploaded data, selection and map snapshot state.
+- Analysis: deterministic domain libraries plus `/api/analyze`; OpenAI is optional and validated before merge, with a structured deterministic fallback.
+- Spatial B2A: source request, controlled bundle, fail-closed activation, layer catalogue, adapter, selection lineage and visible attribution in `src/lib/spatial-b2/*`.
+- Persistence: repository adapters select Supabase only when configured/ready; otherwise local/API or browser/demo fallback is labelled explicitly.
+- Control plane: `/api/platform/activation-status`, `/api/pilot-backend/status`, DB/storage/RLS readiness and runtime-status contracts report bounded status without returning secrets.
+- Evidence/reporting: analysis runs, comparisons, reports, report packages, validation evidence and source-lineage snapshots have API and schema foundations.
 
-## Mapbox Workspace
+## Spatial and data honesty boundary
 
-The live map is isolated in a client-only component to avoid server-side rendering issues with Mapbox GL JS.
+Production accepts `synthetic_fallback` only for the B2A source contract. Preview/development can switch to a controlled, invented, non-real fixture that validates integration behavior and attribution contracts without including provider geometry. Missing, invalid, checksum-mismatched or unapproved inputs fail closed to declared synthetic fallback layers.
 
-Current behavior:
+OSM/Overture references in the controlled fixture test attribution shape; they do not establish that provider feature geometry is present. User-uploaded data stays separately labelled. Mapbox attribution is tied to the actual basemap mode and is absent from the fallback-grid payload.
 
-- Centers on Dubai.
-- Reads `NEXT_PUBLIC_MAPBOX_TOKEN` from environment variables.
-- Initializes Mapbox only in the browser.
-- Allows arbitrary point selection.
-- Renders selected markers.
-- Renders synthetic demo geospatial layers.
-- Allows clicking demo objects.
-- Keeps layer visibility in local React state.
-- Uses collapsed spatial layer controls by default.
-- Uses bounded map placeholders to avoid layout instability in dashboards and reports.
+## Persistence and deployment boundary
 
-## Demo Data Layers
+Supabase migration files define a pilot-persistence foundation including organizations, profiles, projects, memberships, AOIs, analysis runs, decision scores, reports, comparisons, uploaded datasets, data-room assets, validation/workflow records, source snapshots and audit events. Static schema and RLS foundations do not prove that Production is connected, writable, secure or pilot-ready.
 
-Synthetic demo layer data lives in:
+GitHub Actions tests the exact pull-request head or push SHA and preserves evidence. Vercel Preview is a validation target, not Production. Neither CI success nor a READY Preview authorizes Product activation or Production promotion.
 
-- `src/data/demo-layers.ts`
+## Controlled diagrams
 
-The data includes simplified GeoJSON-style features for:
+- C4-001 — system context
+- C4-002 — logical container architecture
+- C4-003 — Spatial B2A exact component map
+- BPMN-001 — current core analysis activity flow
+- STATE-001 — workspace and spatial source lifecycle
+- SEQ-001 — analysis request sequence
+- ERD-001 — implemented pilot-persistence schema foundation
+- DATA-LINEAGE-001 — spatial evidence identity/lineage/attribution
+- ACT-001 — spatial package activation and rollback
+- DEP-001 — current deployment/data boundary
+- API-001 — runtime contract groups
 
-- Development Zones
-- Premium Real Estate Areas
-- Infrastructure Nodes
-- Construction Sites
-- Coastal / Flood Risk Zones
-- Heat Risk Zones
-- Transport Corridors
+Canonical sources, committed SVGs, hash provenance and implementation references live under `docs/artifacts/`. Independent review remains required before controlled publication.
 
-These layers are not official data and should not be used for decisions outside the demo.
-
-## Analysis Dashboard
-
-Single-site analysis is generated by:
-
-- `src/lib/mock-express-analysis.ts`
-
-The analysis engine currently:
-
-- Accepts a selected point or demo object.
-- Accepts a scenario.
-- Uses deterministic coordinate-based scoring.
-- Adds scenario-specific titles, summaries, score labels, factors, risks, opportunities, next actions, and evidence.
-- Does not call OpenAI.
-- Does not query external services.
-- Does not persist results.
-
-## Comparison Dashboard
-
-Comparison mode is generated by:
-
-- `src/lib/mock-comparison.ts`
-
-The comparison engine currently:
-
-- Accepts 2-3 selected points or demo objects.
-- Prevents duplicates and enforces a maximum of 3 items.
-- Produces deterministic scorecards.
-- Ranks items by mock risk-adjusted scoring.
-- Generates a winner recommendation, alternative interpretation, risks, opportunities, and next actions.
-
-## Report Preview
-
-Report preview is handled by:
-
-- `components/report-preview.tsx`
-
-The current export flow is MVP-safe:
-
-- Opens a print-friendly report preview in the main workspace area.
-- Provides `Print / Save as PDF` using `window.print()`.
-- Uses stable static map-window cards instead of adding additional live Mapbox instances.
-- Includes clear demo/mock evidence notes.
-
-## Current Mock Data Flow
-
-1. User selects a map point or demo object.
-2. Selection state is stored in `workspace-shell.tsx`.
-3. User selects a scenario and optional query context.
-4. Express Analysis or Comparison logic generates deterministic mock output.
-5. Dashboard components render the generated data.
-6. Report preview renders the current dashboard data in a print-friendly format.
-
-No runtime data is persisted.
-
-## Future Production Architecture
-
-A production-grade pilot should introduce:
-
-- API routes for OpenAI analysis generation.
-- Structured prompt and response schemas.
-- Data Source Registry for source metadata and licensing.
-- Real GIS/data adapters for Dubai and UAE datasets.
-- Evidence graph linking claims to source layers, documents, and timestamps.
-- Database persistence for projects, studies, selections, reports, and evidence.
-- Authentication and organization/workspace management.
-- Server-side report generation for PDF and export auditability.
-- Monitoring, logging, error tracking, and usage analytics.
+Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.

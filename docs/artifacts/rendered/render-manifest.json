@@ -1,0 +1,85 @@
+{
+  "schemaVersion": "1.0",
+  "packageId": "CR-DEV7-003",
+  "renderer": "PlantUML 1.2025.4",
+  "rendererJarSha256": "26518e14a3a04100cd76c0d96cab2d1171f36152215edd9790a28d20268200c1",
+  "entries": [
+    {
+      "id": "C4-001",
+      "source": "docs/artifacts/c4/C4-001-system-context.puml",
+      "rendered": "docs/artifacts/rendered/C4-001-system-context.svg",
+      "sourceSha256": "a763321320e868df96e44b936e500cfb08ba9223034957d14aad1a147e613f71",
+      "renderedSha256": "7f5bd28b5e362c485616d2307cbad55c143d5685eb8f1f9c7eada3f30ec15fd4"
+    },
+    {
+      "id": "C4-002",
+      "source": "docs/artifacts/c4/C4-002-container-architecture.puml",
+      "rendered": "docs/artifacts/rendered/C4-002-container-architecture.svg",
+      "sourceSha256": "585bf6f7bb4ff7e80b93bbc04bfeb08a8f35cf14623df3ca01f4905878680f07",
+      "renderedSha256": "02aea369620f3a09ff2e125b531da805dcd733a5294c310df53c13af7371b023"
+    },
+    {
+      "id": "C4-003",
+      "source": "docs/artifacts/c4/C4-003-spatial-b2a-components.puml",
+      "rendered": "docs/artifacts/rendered/C4-003-spatial-b2a-components.svg",
+      "sourceSha256": "5a94fd58374688e93d72b59b9000e6d51ca6203afd8e685272f119a5f4fed320",
+      "renderedSha256": "92e19b0da7b1db1af80e113690cb21fc1c42249125004b23d441c75b97c2b5ac"
+    },
+    {
+      "id": "BPMN-001",
+      "source": "docs/artifacts/bpmn/BPMN-001-core-analysis-flow.puml",
+      "rendered": "docs/artifacts/rendered/BPMN-001-core-analysis-flow.svg",
+      "sourceSha256": "dcd641a0d66a9410b242d4d0bc830dbac08839917724024fb89db56c6fb7169b",
+      "renderedSha256": "c8e7d4c229f951d8fc4256070eae9bd4022e4da8e2ed937ae08bc0cee8f72364"
+    },
+    {
+      "id": "STATE-001",
+      "source": "docs/artifacts/state/STATE-001-analysis-lifecycle.puml",
+      "rendered": "docs/artifacts/rendered/STATE-001-analysis-lifecycle.svg",
+      "sourceSha256": "f7a42cd1c7cf124d7f4fb0d3852a7911bdf241badfc87540c965a86420c43964",
+      "renderedSha256": "28ce52ad565ea5f78bc4bf467ae8186595bc43ea76b07f7c17457f7d6474c608"
+    },
+    {
+      "id": "SEQ-001",
+      "source": "docs/artifacts/sequence/SEQ-001-analysis-request-sequence.puml",
+      "rendered": "docs/artifacts/rendered/SEQ-001-analysis-request-sequence.svg",
+      "sourceSha256": "f5ffc0a36dd0b3622350efadfea1bf5c1eb801d16e70530aac0af01dbd94a05b",
+      "renderedSha256": "90df257dda631d5cb24f8f4b0b1edaeba3efb82f0d6b941c40f606e86f503e79"
+    },
+    {
+      "id": "ERD-001",
+      "source": "docs/artifacts/erd/ERD-001-core-data-model.puml",
+      "rendered": "docs/artifacts/rendered/ERD-001-core-data-model.svg",
+      "sourceSha256": "137f2bce73fda37a88ae483621b3d3240445da0b54cbb6ca17c694d2d75c5efd",
+      "renderedSha256": "fc3a6c8e61c252f0d26abc504b6dad4da768c2f927a8c5f73d4af09e28e0f438"
+    },
+    {
+      "id": "DATA-LINEAGE-001",
+      "source": "docs/artifacts/lineage/DATA-LINEAGE-001-spatial-evidence-flow.puml",
+      "rendered": "docs/artifacts/rendered/DATA-LINEAGE-001-spatial-evidence-flow.svg",
+      "sourceSha256": "7e5f3d218c4057cc3a5bdbd0057128ab546a176865abc7f295c62f80025495e4",
+      "renderedSha256": "47a6a941241f5fae948537aed9164580113f1b5129c624f153470441a0a579f3"
+    },
+    {
+      "id": "ACT-001",
+      "source": "docs/artifacts/activity/ACT-001-spatial-package-activation.puml",
+      "rendered": "docs/artifacts/rendered/ACT-001-spatial-package-activation.svg",
+      "sourceSha256": "f5f692edf60cc31b84362647d4706052ea4c0fb21dec7d8609c100737417f562",
+      "renderedSha256": "587ca009c47669d9baa344262e6d9d56b892bc13532a989656985dd7c2dd679d"
+    },
+    {
+      "id": "DEP-001",
+      "source": "docs/artifacts/deployment/DEP-001-current-deployment.puml",
+      "rendered": "docs/artifacts/rendered/DEP-001-current-deployment.svg",
+      "sourceSha256": "40c0fa7c9ccfcb1b8a20d8552a49063b6b974871215ab7aabdee7b3ce8fd6865",
+      "renderedSha256": "c17f035ba03188fe2aa98d981be5081cddd687c8e874c3447621645d5bcd1482"
+    },
+    {
+      "id": "API-001",
+      "source": "docs/artifacts/api/API-001-runtime-contracts.puml",
+      "rendered": "docs/artifacts/rendered/API-001-runtime-contracts.svg",
+      "sourceSha256": "96d25d63e3482bee4e8ad6fc4ddd56d369317655fc6a507dcb56e88d8d7126be",
+      "renderedSha256": "18f8bbd230cfc729b1d55340462cebe95d3ef03ac7b7470e6a1ee3e1a404ebaf"
+    }
+  ]
+}

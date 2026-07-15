@@ -1,0 +1,40 @@
+@startuml C4-003
+!pragma layout smetana
+title C4-003 — Spatial B2A exact component map
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam componentStyle rectangle
+skinparam defaultFontName Arial
+
+component "WorkspacePage\ncreateSpatialSourceRequest" as Page
+component "WorkspaceShell\nselection and analysis state" as Shell
+component "MapWorkspaceClient\nmap sources, layers, visibility" as Map
+component "source-mode.ts\nruntime/request approval" as SourceMode
+component "bundle-loader.ts\ncontrolled non-real fixture" as Bundle
+component "activation-resolver.ts\nfail-closed + fallback" as Activation
+component "layer-catalogue.ts\nlayer/source metadata" as Catalogue
+component "map-layer-adapter.ts\nfeature → map + target" as Adapter
+component "selection-lineage.ts\nidentity + provenance" as Lineage
+component "attribution.ts\nvisible-layer aggregation" as Attribution
+component "SpatialDataAttribution" as AttributionUI
+component "SpatialSourceLineageDrawer" as LineageUI
+
+Page --> SourceMode
+Page --> Shell : SpatialSourceRequest
+Shell --> Map : selection callbacks + request
+Map --> Bundle : load static_test_fixture
+Map --> Activation : resolveSpatialActivation
+Activation --> Catalogue
+Activation --> Bundle
+Map --> Adapter : controlled fixture only
+Adapter --> Lineage
+Map --> Attribution : visible source/layer state
+Attribution --> AttributionUI
+Lineage --> LineageUI
+
+note bottom of Activation
+Production accepts synthetic_fallback only.
+Preview may activate only the controlled non-real fixture.
+Missing, invalid, unapproved or mismatched inputs fall back closed.
+end note
+@enduml

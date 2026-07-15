@@ -1,0 +1,37 @@
+@startuml SEQ-001
+title SEQ-001 — Exact analysis request and persistence sequence
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam defaultFontName Arial
+
+actor User
+participant "WorkspaceShell" as Workspace
+participant "Context APIs" as Context
+participant "/api/analyze" as Analyze
+participant "OpenAI\noptional" as OpenAI
+participant "/api/ai/decision-score" as Score
+participant "Repository API" as Repository
+database "Supabase or\nlocal fallback" as Store
+
+User -> Workspace : choose criteria/map target and Run
+Workspace -> Context : POST /api/context/market\nGET climate + validation context
+Context --> Workspace : bounded context or safe fallback
+Workspace -> Workspace : createMockExpressAnalysis + deterministic scores
+Workspace -> Analyze : POST AnalyzeRequest
+Analyze -> Analyze : isAnalyzeRequest
+alt OPENAI_API_KEY present and valid response
+  Analyze -> OpenAI : chat.completions JSON request
+  OpenAI --> Analyze : JSON narrative
+  Analyze -> Analyze : validateStructuredAnalysis
+else absent, unavailable or invalid
+  Analyze -> Analyze : createFallbackStructuredAnalysis
+end
+Analyze --> Workspace : StructuredAnalysisResult
+Workspace -> Score : POST governed decision-score request
+Score --> Workspace : score or null fallback
+Workspace -> Workspace : merge, render and retain state
+Workspace -> Repository : POST /api/analysis-runs
+Repository -> Store : configured repository operation
+Store --> Repository : Supabase result or local fallback result
+Repository --> Workspace : mode + storage caveat
+@enduml

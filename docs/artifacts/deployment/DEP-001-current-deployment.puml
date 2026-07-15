@@ -1,0 +1,41 @@
+@startuml DEP-001
+!pragma layout smetana
+title DEP-001 — Current deployment and data boundary
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam defaultFontName Arial
+
+node "User browser" as Browser {
+  artifact "React client\nMapbox GL when token usable" as Client
+  folder "browser-local state\nlimited demo continuity" as BrowserStore
+}
+cloud "Vercel" as Vercel {
+  node "Production demo\nNext.js Node.js runtime" as Production {
+    artifact "App Router pages + route handlers" as App
+    folder "/tmp/geoai-local_fallback\nephemeral, non-durable" as Tmp
+  }
+  node "PR Preview\nisolated validation target" as Preview
+}
+cloud "Optional external services" as External {
+  cloud "Mapbox" as Mapbox
+  cloud "OpenAI API" as OpenAI
+  database "Supabase/PostGIS + Storage\nnot configured in current Production demo" as Supabase
+}
+node "GitHub Actions" as CI {
+  artifact "Exact-event SHA quality gate\nchecks + evidence artifact" as Gate
+}
+
+Browser --> Production : HTTPS
+Client --> BrowserStore
+Client --> Mapbox : public map token path
+App --> OpenAI : server-only optional key path
+App --> Supabase : readiness-gated path
+App --> Tmp : active Production fallback
+CI --> Preview : PR commit deployment/verification
+CI --> Production : main push quality evidence\n(no deployment control implied)
+
+note bottom of Production
+Public demo, synthetic/local fallback, soft access.
+Not Production-ready or confidential-pilot-ready.
+end note
+@enduml

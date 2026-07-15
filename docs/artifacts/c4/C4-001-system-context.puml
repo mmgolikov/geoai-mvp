@@ -1,0 +1,33 @@
+@startuml C4-001
+!pragma layout smetana
+title C4-001 — GeoAI system context (current bounded runtime)
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam rectangle {
+  BackgroundColor #F6F8FB
+  BorderColor #174F63
+  FontColor #172033
+  RoundCorner 12
+}
+
+actor "Screening user" as User
+rectangle "GeoAI\nNext.js spatial decision demo" as GeoAI #EAF4EF
+cloud "Mapbox styles and tiles\nwhen a public token is usable" as Mapbox
+cloud "OpenAI Chat Completions\noptional; deterministic fallback" as OpenAI
+database "Supabase/PostGIS + Storage\nreadiness-gated; not configured\nin current Production demo" as Supabase
+folder "Local/API fallback\n/tmp on Vercel; non-durable" as Local
+rectangle "Registered open/context sources\nmetadata, fixtures and bounded snapshots" as Sources
+
+User --> GeoAI : select role, scenario, criteria or map target\ncompare, inspect evidence, export
+GeoAI --> Mapbox : browser map request
+GeoAI --> OpenAI : structured narrative request\nonly when server key exists
+GeoAI --> Supabase : safe readiness probes and\nrepository operations when configured
+GeoAI --> Local : demo persistence fallback
+GeoAI --> Sources : context, lineage and attribution
+
+note bottom of GeoAI
+Production remains public demo, synthetic/local fallback and soft access.
+No official geometry or confidential-pilot activation is claimed.
+end note
+@enduml
