@@ -1,8 +1,21 @@
 # GeoAI Roadmap
 
+## Current delivery position — 2026-07-15
+
+Current `main` is PR #81 merge `cd5f9efe791ff7d5ac46597925bbf17eb60d2754`. The released Spatial B1/B2A capability is an inactive, fail-closed foundation. Production remains a synthetic/local-fallback public demo with soft access.
+
+Immediate sequence:
+
+1. Add exact merge-commit Quality Gate evidence and permanent Workspace/Spatial fallback source regressions.
+2. Preserve accepted evidence custody and reconcile rendered architecture/data mappings.
+3. Resolve GitHub Issue #80 delivery, distribution, attribution, retention and rollback decisions before any B2B Preview proposal.
+4. Keep real geometry, B2B/B2C and Production Supabase/Auth/RLS/Storage activation separately approval-gated.
+
+GeoAI is not established as production-ready or pilot-ready.
+
 ## v0.1 — Public Demo Prototype
 
-Status: current version.
+Status: historical initial baseline.
 
 Goals:
 

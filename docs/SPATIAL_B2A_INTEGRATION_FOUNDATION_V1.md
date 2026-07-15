@@ -2,9 +2,9 @@
 
 ## Release posture
 
-This draft package adds a Preview-safe Product integration foundation for future Spatial B1 geometry. The default Product remains the existing synthetic Dubai seed. No normalized real geometry is committed or activated.
+PR #81 is merged as an inactive, fail-closed Product integration foundation for future Spatial B1 geometry. The default Product remains the existing synthetic Dubai seed. No normalized real geometry is committed or activated.
 
-Authoritative base: `3a775e6b68c274fe8cb4e02218c48022b73d1862`.
+Authoritative release: merge `cd5f9efe791ff7d5ac46597925bbf17eb60d2754`; Vercel Production `dpl_94Tz2TZG5Pf8k1PGygTBjQBCQAkf` is READY on the exact merge SHA.
 
 ## Source audit
 
@@ -95,14 +95,17 @@ Required local checks:
 
 The temporary browser evidence workflow records Landing at 390x844 and 1440x900 plus the five approved Workspace viewports. It captures visible/hidden attribution, fallback mode, no-reload source transitions, source/layer inventories, exact identity, keyboard/backdrop/Escape behavior, report regression, logs, tested SHA and Preview deployment.
 
-Corrective browser evidence:
+Final accepted responsive correction evidence:
 
-- Tested Product SHA: `7de61b6c8bd584099ef0a5bded5180bd2c7d6a0c`.
-- Temporary evidence head: `bb3fda24e0608e6d8b0901e4a3b4dc86283a1332`.
-- Workflow run/job: `29361996332` / `87184148820`.
-- Artifact: `8322582900`, `spatial-b2a-corrective-evidence-29361996332`, 14-day retention.
-- Preview: `dpl_A2PiY96g3bMWnYZMX3iDNYtMx1vq`, `https://geoai-75nembsyc-geoaidev.vercel.app`.
-- Result: 47 screenshots and 191/191 hard browser assertions passed across Landing and all five Workspace viewports.
+- Tested Product SHA: `29c5b9f004e0cf65fddf7c23f846391ae87ad29d`.
+- Final clean head: `e9b02306857ee5f3584268ed9d5619d5d0296eb8`.
+- Workflow run/job: `29367934398` / `87204007323`.
+- Artifact: `8324879513`, `cr-dev7-001-responsive-evidence-29367934398`, 14-day retention through 2026-07-28.
+- Artifact digest: `sha256:c4775e97297285f4b644bb2149e7fa5abb5fc7f42490e28a93d04d34960986a7`.
+- Evidence ZIP digest: `sha256:7f70293642fd4b64c9b4bd5012b1d14d2794890276b67535f7daba7538a29cb2`.
+- Result: 17 screenshots and 223/223 assertions passed across the five controlled Workspace viewports.
+- Permanent pre-merge Quality Gate: `29368152641` / `87204710137`.
+- The final clean Product tree and tested Product tree are identical; the merge adds no Product-tree file difference.
 - Browser inventory: 0 JavaScript errors, 16 expected allowlisted WebGL warnings and 0 unexpected warnings.
 
 Browser logging separates JavaScript errors, expected allowlisted headless WebGL warnings and unexpected warnings. The allowlist is restricted to software WebGL fallback deprecation and GPU stall/readback messages. Unexpected warnings fail evidence. The map retains `preserveDrawingBuffer` for the existing report snapshot path; headless `ReadPixels` warnings are a non-blocking performance limitation, not a fully clear console.
@@ -120,6 +123,6 @@ Browser logging separates JavaScript errors, expected allowlisted headless WebGL
 
 ## Release control
 
-The branch remains in draft PR #81. It must not be merged or manually deployed to Production without separate approval. PR #69 remains unchanged.
+PR #81 was independently accepted, explicitly approved, merged and deployed through the Git-connected Vercel Production path. The released scope remains inactive. Any real geometry, public distribution, B2B/B2C activation, Production data-plane change or further merge requires a separate decision. PR #69 remains unchanged.
 
 Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.

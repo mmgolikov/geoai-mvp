@@ -10,6 +10,7 @@
 ## Workflow checks
 
 - [ ] Pull requests to `main` trigger the workflow.
+- [ ] Pushes to `main` trigger exact merge-commit evidence.
 - [ ] Manual dispatch is available.
 - [ ] Workflow permissions are read-only for repository contents.
 - [ ] Concurrent stale runs are canceled.
@@ -23,6 +24,8 @@
 - [ ] `npm run test:access-decision` passes.
 - [ ] `npm run test:rls-plan` passes.
 - [ ] `npm run test:workspace-panel` passes.
+- [ ] `npm run test:spatial-b1` passes.
+- [ ] `npm run test:spatial-b2a` passes.
 - [ ] `npm run test:data-honesty` passes or reports precise reviewed findings.
 - [ ] `npm run build` passes.
 
@@ -50,6 +53,8 @@
 ## Evidence artifact
 
 - [ ] Static check outputs are saved.
+- [ ] Exact tested commit and Node/npm versions are saved.
+- [ ] Spatial B1 and Spatial B2A JSON evidence is saved.
 - [ ] API contract result is saved.
 - [ ] Route-smoke result is saved.
 - [ ] Data-honesty JSON is saved.

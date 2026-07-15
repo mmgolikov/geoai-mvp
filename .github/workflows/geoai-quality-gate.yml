@@ -1,6 +1,9 @@
 name: GeoAI Quality Gate
 
 on:
+  push:
+    branches:
+      - main
   pull_request:
     branches:
       - main
@@ -38,8 +41,19 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Record run metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --version | tee artifacts/node-version.txt
+          npm --version | tee artifacts/npm-version.txt
+          git rev-parse HEAD | tee artifacts/tested-commit-sha.txt
+
       - name: TypeScript check
-        run: npm run lint
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run lint | tee artifacts/typescript-check.txt
 
       - name: Access-decision checks
         shell: bash
@@ -59,6 +73,22 @@ jobs:
           set -euo pipefail
           npm run test:workspace-panel | tee artifacts/workspace-panel-check.txt
 
+      - name: Spatial B1 contract checks
+        shell: bash
+        env:
+          SPATIAL_B1_CONTRACT_EVIDENCE_DIR: artifacts/spatial-b1
+        run: |
+          set -euo pipefail
+          npm run test:spatial-b1 | tee artifacts/spatial-b1-check.txt
+
+      - name: Spatial B2A fallback checks
+        shell: bash
+        env:
+          SPATIAL_B2_EVIDENCE_DIR: artifacts/spatial-b2a
+        run: |
+          set -euo pipefail
+          npm run test:spatial-b2a | tee artifacts/spatial-b2a-check.txt
+
       - name: Data-honesty claim scan
         shell: bash
         run: |
@@ -66,7 +96,10 @@ jobs:
           npm run test:data-honesty | tee artifacts/data-honesty-check.txt
 
       - name: Build
-        run: npm run build
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run build | tee artifacts/build.txt
 
       - name: Start built app and run API/route smoke
         shell: bash
@@ -102,6 +135,12 @@ jobs:
             "/"
             "/workspace"
             "/projects"
+            "/explore"
+            "/demo"
+            "/api/health"
+            "/api/db/health"
+            "/api/platform/activation-status"
+            "/api/pilot-backend/status"
             "/reports/seeded-analysis-dubai-marina-report/print"
             "/reports/seeded-comparison-dubai-shortlist-report/print"
           )

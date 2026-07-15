@@ -6,14 +6,14 @@
 | --- | --- |
 | Change Request | CR-DEV6-001 |
 | Work package | WP-009 |
-| Version | v1.0 |
-| Status | Implementation review |
+| Version | v1.1 |
+| Status | Released baseline / CR-DEV7-002 extension in review |
 | Owner | GeoAI Engineering / Delivery OS |
 | Source of truth | Confluence REL-EVID-001 and AUD-DEV6-001 |
 
 ## Problem
 
-The current `main` baseline has a successful Vercel status but no independent GitHub Actions quality-gate run. Existing static and API checks are available as package scripts, but they are not executed together as reusable release evidence. The source-level Workspace regression check also must not be described as responsive browser certification.
+The v1.0 Quality Gate is released and runs for pull requests and manual dispatch. PR #81 exposed the remaining control gap: the exact merge commit had no direct GitHub Actions run, and permanent Spatial B1/B2A checks were not part of the workflow. CR-DEV7-002 adds push-to-`main` evidence and the spatial source-contract regressions without changing Product or deployment behavior. The source-level Workspace regression check must not be described as responsive browser certification.
 
 ## Business reason
 
@@ -61,9 +61,9 @@ None. Responsive screenshot automation remains a separate WP-010 gate unless saf
 
 ## Acceptance criteria
 
-1. Workflow runs for pull requests to `main` and manual dispatch.
+1. Workflow runs for pull requests to `main`, pushes to `main` and manual dispatch.
 2. Workflow uses Node.js 22 and `npm ci`.
-3. TypeScript, build, access-decision, static RLS-plan, Workspace-panel and API-contract checks run.
+3. TypeScript, build, access-decision, static RLS-plan, Workspace-panel, Spatial B1, Spatial B2A and API-contract checks run.
 4. Core UI routes and seeded print routes return HTTP 200 on the local built server.
 5. Data-honesty claim scan produces a JSON evidence file and fails on clear unsupported affirmative claims.
 6. Workflow uploads non-secret evidence artifacts even after a failed step where possible.
