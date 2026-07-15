@@ -25,13 +25,14 @@ Create non-deploying, exact-SHA post-merge evidence and permanently protect the 
 ## Changes
 
 1. Trigger the existing Quality Gate for pull requests to `main`, manual dispatch and pushes to `main`.
-2. Preserve the existing workflow and job names.
-3. Record Node, npm and tested commit metadata in the evidence artifact.
-4. Run the permanent Spatial B1 contract check and preserve its JSON evidence.
-5. Run the permanent Spatial B2A fallback check and preserve its activation, delivery, attribution, lineage and assertion evidence.
-6. Preserve TypeScript and build output in addition to the existing static, API, route and runtime evidence.
-7. Extend local route smoke to the current release-control routes.
-8. Reconcile repository documentation to the merged PR #81 baseline.
+2. Check out the exact pull-request head for PR runs and the exact event SHA for push/manual runs.
+3. Preserve the existing workflow and job names.
+4. Record Node, npm and tested commit metadata in the evidence artifact.
+5. Run the permanent Spatial B1 contract check and preserve its JSON evidence.
+6. Run the permanent Spatial B2A fallback check and preserve its activation, delivery, attribution, lineage and assertion evidence.
+7. Preserve TypeScript and build output in addition to the existing static, API, route and runtime evidence.
+8. Extend local route smoke to the current release-control routes.
+9. Reconcile repository documentation to the merged PR #81 baseline.
 
 ## Acceptance criteria
 
@@ -42,7 +43,7 @@ Create non-deploying, exact-SHA post-merge evidence and permanently protect the 
 5. Workspace checks preserve canonical Criteria-first then Map-first presentation, scenario defaults, removal of the redundant selection card and one sticky primary action.
 6. Spatial checks preserve Production synthetic fallback, zero real geometry, rejected unapproved delivery/distribution states, attribution coverage, stable lineage and rollback hooks.
 7. Core Product, health, readiness and seeded report routes return HTTP 200 from the built local application.
-8. The evidence artifact records the tested SHA and contains no secrets, tokens, cookies, user files or real geometry.
+8. The evidence artifact records a tested SHA equal to the PR head on pull requests and the event SHA on pushes/manual runs, and contains no secrets, tokens, cookies, user files or real geometry.
 9. Repository documentation no longer describes PR #81 as draft or unmerged.
 10. The change does not claim browser-responsive, physical-device, security, legal, official-data, production-ready or pilot-ready certification.
 

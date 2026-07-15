@@ -14,6 +14,8 @@
 - [ ] Pull requests to `main` trigger the workflow.
 - [ ] Pushes to `main` trigger exact merge-commit evidence.
 - [ ] Manual dispatch remains available.
+- [ ] Pull-request runs check out the exact PR head instead of the synthetic merge ref.
+- [ ] Push/manual runs check out the exact event SHA.
 - [ ] Permissions remain `contents: read`.
 - [ ] Timeout and concurrency cancellation remain bounded.
 - [ ] No deploy, promotion, migration, seed or external-write command exists.
@@ -68,6 +70,7 @@
 ## Evidence and governance
 
 - [ ] Evidence contains Node, npm and exact tested commit metadata.
+- [ ] `tested-commit-sha.txt` equals the PR head for pull-request evidence.
 - [ ] TypeScript, build, static, spatial, API, route and runtime logs are preserved.
 - [ ] Artifact retention remains 14 days.
 - [ ] Evidence contains no env values, credentials, JWTs, cookies, user files or real geometry.
