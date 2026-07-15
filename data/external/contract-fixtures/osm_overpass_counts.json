@@ -1,0 +1,11 @@
+{
+  "version": 0.6,
+  "osm3s": {
+    "timestamp_osm_base": "2026-07-15T12:00:00Z"
+  },
+  "elements": [
+    { "type": "count", "tags": { "nodes": "100", "ways": "70", "relations": "7", "total": "177" } },
+    { "type": "count", "tags": { "nodes": "2", "ways": "2", "relations": "0", "total": "4" } },
+    { "type": "count", "tags": { "nodes": "900", "ways": "270", "relations": "3", "total": "1173" } }
+  ]
+}

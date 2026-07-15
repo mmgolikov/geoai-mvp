@@ -39,6 +39,7 @@
     "test:spatial-b1": "node scripts/spatial-b1-contract-check.mjs",
     "test:spatial-b2a": "node scripts/spatial-b2-integration-check.mjs",
     "test:data-honesty": "node scripts/data-honesty-claim-check.mjs",
+    "test:runtime-source-pack": "node scripts/runtime-source-pack-contract-check.mjs",
     "start": "next start",
     "lint": "tsc --noEmit --pretty false"
   },

@@ -1,9 +1,11 @@
 import { externalDataSources } from "@/src/lib/external-data/source-registry";
+import type { RuntimeSourceObservation } from "@/src/lib/external-data/runtime-source-contract";
 import type { SourceLineageSnapshot } from "@/src/lib/project-workspace-types";
 
 type SnapshotInput = {
   evidence?: Array<{ id: string; title?: string; sourceId?: string; description?: string; sourceType?: string; sourceStatus?: string }>;
   uploadedDatasets?: Array<{ id: string; name: string; type: string; notes?: string }>;
+  runtimeObservations?: RuntimeSourceObservation[];
 };
 
 function nextValidationStepForSource(source: (typeof externalDataSources)[number]) {
@@ -25,7 +27,9 @@ function nextValidationStepForSource(source: (typeof externalDataSources)[number
 export function createSourceLineageSnapshot(input: SnapshotInput = {}): SourceLineageSnapshot {
   const evidence = input.evidence ?? [];
   const uploadedDatasets = input.uploadedDatasets ?? [];
+  const runtimeObservations = input.runtimeObservations ?? [];
   const evidenceSourceIds = new Set(evidence.map((item) => item.sourceId).filter(Boolean));
+  const runtimeBySourceId = new Map(runtimeObservations.map((item) => [item.sourceId, item]));
 
   return {
     capturedAt: new Date().toISOString(),
@@ -44,17 +48,24 @@ export function createSourceLineageSnapshot(input: SnapshotInput = {}): SourceLi
       note: dataset.notes ?? "Uploaded local dataset metadata; official validation required."
     })),
     externalSources: externalDataSources
-      .filter((source) => source.usedInAnalysis || evidenceSourceIds.has(source.id))
-      .map((source) => ({
-        id: source.id,
-        name: source.name,
-        status: source.status,
-        dataMode: source.accessMode,
-        confidence: source.confidence,
-        validationStatus: source.validationStatus,
-        nextValidationStep: nextValidationStepForSource(source),
-        disclaimer: source.disclaimer
-      })),
+      .filter((source) => evidenceSourceIds.has(source.id) || runtimeBySourceId.has(source.id))
+      .map((source) => {
+        const observation = runtimeBySourceId.get(source.id);
+        return {
+          id: source.id,
+          name: source.name,
+          status: observation?.mode ?? source.status,
+          dataMode: observation ? "api_context" : source.accessMode,
+          confidence: source.confidence,
+          validationStatus: source.validationStatus,
+          nextValidationStep: nextValidationStepForSource(source),
+          queriedAt: observation?.retrievedAt,
+          sourceObservedAt: observation?.sourceObservedAt,
+          queryFingerprint: observation?.queryFingerprint,
+          fallbackReason: observation?.fallbackReason,
+          disclaimer: source.disclaimer
+        };
+      }),
     plannedValidationSources: externalDataSources
       .filter((source) => source.status === "planned" || source.status === "permission_required")
       .map((source) => ({

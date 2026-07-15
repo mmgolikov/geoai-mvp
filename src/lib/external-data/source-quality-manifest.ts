@@ -124,7 +124,7 @@ const licenseNotes: Record<string, string> = {
   [dldGroupId]: "DLD / Dubai Pulse public/open snapshot terms, attribution and redistribution limits must be confirmed per file before external use.",
   [osmGroupId]: "OSM / Geofabrik open geospatial context requires ODbL attribution, extract date tracking and compliance review.",
   [overtureGroupId]: "Overture Maps public snapshot use requires Overture license and attribution review.",
-  [climateGroupId]: "Open-Meteo and NASA POWER API context requires source attribution and screening-level assumptions review.",
+  [climateGroupId]: "Open-Meteo requires approved commercial access; NASA POWER Preview context requires citation, runtime receipt and screening-level assumptions review.",
   [copernicusGroupId]: "Copernicus / Sentinel metadata and imagery use requires mission/product terms review and token/query lineage before analytics."
 };
 
@@ -357,7 +357,7 @@ function buildOvertureGroup(): SourceQualityGroup {
 }
 
 function buildClimateGroup(): SourceQualityGroup {
-  const status: SourceStatus = "connected";
+  const status: SourceStatus = "permission_required";
   const snapshot: SnapshotQualityItem = {
     sourceGroupId: climateGroupId,
     sourceGroupName: groupNames[climateGroupId],
@@ -371,13 +371,13 @@ function buildClimateGroup(): SourceQualityGroup {
     generatedAt: null,
     extractedAt: null,
     licenseNote: licenseNotes[climateGroupId],
-    dataMode: "api_context",
+    dataMode: "permission_required",
     status,
-    confidence: "medium",
-    validationStatus: "api-context",
+    confidence: "requires-validation",
+    validationStatus: "token-or-permission-required",
     caveat: externalDataCaveat,
     nextValidationStep: nextValidationSteps[climateGroupId],
-    qualityNotes: ["API context route only; no engineering-grade climate or energy conclusion is provided."]
+    qualityNotes: ["Static registry state is not runtime success. Open-Meteo live access is disabled; NASA POWER is available only through the fixed Preview source pack."]
   };
 
   return groupFromSnapshots(climateGroupId, [snapshot], status);

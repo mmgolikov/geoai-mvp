@@ -277,14 +277,14 @@ export const publicSourceCatalog: PublicSourceCatalogItem[] = [
     provider: "Open-Meteo",
     geography: "Global / Dubai",
     category: "climate",
-    accessMode: "api-context",
-    connectionStatus: "connected",
-    licenseNote: "Open-Meteo terms and attribution apply.",
-    updateCadence: "On-demand open API context",
+    accessMode: "permissioned",
+    connectionStatus: "permission_required",
+    licenseNote: "The free Open-Meteo API is non-commercial. Public/commercial Preview requires approved paid customer access, approved self-hosting or written permission.",
+    updateCadence: "Disabled until commercial-use approval",
     dataQualityTier: "screening",
     officialClaimAllowed: false,
-    allowedUse: ["heat and rainfall screening proxy"],
-    limitations: ["Not certified flood, engineering-grade climate or insurance-grade hazard assessment."]
+    allowedUse: ["provider evaluation and planned climate screening path"],
+    limitations: ["No live Open-Meteo request is authorized; not a certified flood, engineering-grade climate or insurance-grade hazard assessment."]
   }),
   source({
     id: "nasa-power-solar-energy",
@@ -293,13 +293,13 @@ export const publicSourceCatalog: PublicSourceCatalogItem[] = [
     geography: "Global / Dubai",
     category: "energy",
     accessMode: "open-api",
-    connectionStatus: "connected",
-    licenseNote: "NASA POWER data and citation guidance apply.",
-    updateCadence: "On-demand open API context",
+    connectionStatus: "planned",
+    licenseNote: "NASA POWER citation guidance applies; commercial-use rights confirmation remains required before Production activation.",
+    updateCadence: "Fixed public demo query in local/Preview runtime only",
     dataQualityTier: "screening",
     officialClaimAllowed: false,
     allowedUse: ["solar radiation, wind and energy screening context"],
-    limitations: ["Not an energy-yield certification or engineering design assessment."]
+    limitations: ["Registry state is not runtime success; model/reanalysis grid context is not an on-site measurement, energy-yield certification or engineering design assessment."]
   }),
   source({
     id: "openaq-air-quality",
@@ -337,14 +337,29 @@ export const publicSourceCatalog: PublicSourceCatalogItem[] = [
     provider: "Copernicus Data Space / Sentinel",
     geography: "Global / Dubai",
     category: "satellite-metadata",
-    accessMode: "token-optional",
-    connectionStatus: "token_required",
-    licenseNote: "Mission/product-specific terms and API access rules apply.",
-    updateCadence: "Metadata query path planned/token optional",
+    accessMode: "open-api",
+    connectionStatus: "planned",
+    licenseNote: "Copernicus Data Space terms apply; this path is public STAC catalogue metadata only. Downloads, processing and protected products remain separately gated.",
+    updateCadence: "Fixed public demo catalogue query in local/Preview runtime only",
     dataQualityTier: "requires-validation",
     officialClaimAllowed: false,
     allowedUse: ["satellite availability planning", "future remote-sensing lineage"],
-    limitations: ["No imagery download, raster analytics or construction monitoring inference is connected."]
+    limitations: ["Registry state is not runtime success; no imagery download, geometry, assets, raster analytics or construction monitoring inference is connected."]
+  }),
+  source({
+    id: "osm-overpass-count-context",
+    name: "OpenStreetMap Overpass count-only context",
+    provider: "OpenStreetMap contributors / Overpass API",
+    geography: "Fixed Downtown Dubai public demo AOI",
+    category: "spatial",
+    accessMode: "open-api",
+    connectionStatus: "planned",
+    licenseNote: "© OpenStreetMap contributors; Open Database License (ODbL) attribution and share-alike obligations apply.",
+    updateCadence: "Bounded and cached count-only query in local/Preview runtime",
+    dataQualityTier: "open-context",
+    officialClaimAllowed: false,
+    allowedUse: ["amenity, public-transport and highway element count context"],
+    limitations: ["No coordinates or geometry are returned; community-mapped counts are mutable and are not official cadastral, zoning, planning or transport evidence."]
   }),
   source({
     id: "overture-divisions-admin-context",

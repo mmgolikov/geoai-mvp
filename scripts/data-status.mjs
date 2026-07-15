@@ -20,7 +20,7 @@ function modeFromStatus(status, count = 0) {
   if (normalized === "manual_import_ready") return "manual_import_ready";
   if (normalized === "permission_required") return "permission_required";
   if (normalized === "planned" || normalized === "planned_validation") return "planned_validation";
-  if (normalized === "connected") return "real_snapshot";
+  if (normalized === "connected") return "api_context";
   return count > 0 ? "sample_fallback" : "manual_import_ready";
 }
 
@@ -106,5 +106,10 @@ if (validate) {
     console.error(`Validation failed: ${invalid.length} invalid status row(s).`);
     process.exit(1);
   }
-  console.log("Validation passed: external data status rows are readable.");
+  const falseSnapshots = rows.filter((row) => ["real_snapshot", "imported_snapshot"].includes(row.sourceMode) && row.count <= 0);
+  if (falseSnapshots.length > 0) {
+    console.error(`Validation failed: ${falseSnapshots.length} zero-record row(s) are classified as acquired snapshots.`);
+    process.exit(1);
+  }
+  console.log("Validation passed: rows are readable and zero-record metadata is not classified as an acquired snapshot.");
 }

@@ -277,11 +277,11 @@ function enrichManifestWithSnapshots(manifest: ExternalDataManifest): ExternalDa
   });
 
   update("open-meteo-climate", {
-    status: "connected",
-    sourceMode: "real_snapshot",
-    coverageArea: "Coordinate-level open climate API context",
-    confidence: "medium",
-    caveat: `Screening-level heat/rainfall proxy only. ${externalDataCaveat}`
+    status: "permission_required",
+    sourceMode: "permission_required",
+    coverageArea: "Provider evaluated; no live request authorized",
+    confidence: "requires-validation",
+    caveat: `Open-Meteo commercial-use approval is required before activation; no API response or snapshot is claimed. ${externalDataCaveat}`
   });
 
   return {

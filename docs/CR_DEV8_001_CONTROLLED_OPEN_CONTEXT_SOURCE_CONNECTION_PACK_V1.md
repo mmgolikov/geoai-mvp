@@ -1,0 +1,154 @@
+# CR-DEV8-001 — Controlled Open-Context Source Connection Pack v1
+
+## Document control
+
+| Field | Value |
+|---|---|
+| Status | Implementation in Draft; merge and Production activation not approved |
+| User authority | Critical review and autonomous Preview implementation requested on 2026-07-15 |
+| Repository baseline | `main` at `754a9c68cd1ee7af80731f1b779df023d54e901e` |
+| Delivery mode | Stateless local/Vercel Preview only; Production fails closed |
+| Product score impact | None |
+| Supabase impact | None; no migration, write or external-payload persistence |
+| Geometry impact | None; no source geometry is returned or activated |
+| Related controls | CR-DEV6-012, GitHub #80, #85 and Draft PR #84 |
+
+## Executive decision
+
+The first connection package is deliberately narrow:
+
+1. NASA POWER historical climate/solar context for one fixed public demo point.
+2. Copernicus Data Space STAC catalogue metadata for one fixed public demo AOI.
+3. OpenStreetMap Overpass element counts for the same bounded public demo AOI.
+
+Open-Meteo live access is blocked. Its free endpoint is non-commercial and is not cleared for a public, promotional or commercial GeoAI Preview. DLD/Dubai Pulse live access is blocked because a stable public API and reusable licence were not verified. Overture is deferred because its useful delivery paths are geometry-bearing release files with theme-specific attribution obligations.
+
+This package does not authorize a merge, Production live-source activation, imagery download, source geometry, Supabase persistence, Auth/RLS/Storage changes, secrets or new environment variables.
+
+## Critical findings addressed
+
+| Finding | Severity | Control in this change |
+|---|---:|---|
+| `connected` was converted to `real_snapshot` | High | API context and acquired snapshots are now distinct |
+| A non-null Supabase `normalized_path` could promote a zero-record row to snapshot | High | Snapshot state now requires both a path and `record_count > 0` |
+| Unknown Supabase modes silently became `demo_seed` | High | Known metadata modes map to `planned_validation`; unknown modes fail closed |
+| Open-Meteo free API was called by public runtime code | High | Upstream call removed; response is `permission_required` with null metrics |
+| Missing query coordinates became `(0, 0)` because `Number(null) === 0` | High | Shared strict coordinate parser rejects missing, empty and out-of-range values |
+| Static registry `usedInAnalysis` was saved as actual lineage | High | Saved lineage now requires actual evidence or a runtime observation receipt |
+| External calls had no timeout, size budget or circuit control | High | Fixed allowlist, timeouts, 2 MB response cap, one retry, cache, stale fallback and circuit breaker |
+| Copernicus route implied credentials were required for catalogue metadata | Medium | Registry/status now distinguishes public STAC metadata from gated download/processing |
+
+## Source matrix
+
+| Source | v1 decision | Runtime scope | Production state | Rights/quality control |
+|---|---|---|---|---|
+| NASA POWER | GO | Fixed 2024-01-01…2024-01-07 point query; `T2M` and `ALLSKY_SFC_SW_DWN` | Disabled as part of this pack | Cite NASA POWER; model/reanalysis grid context, not site measurement or yield certification |
+| Copernicus Data Space STAC | GO | Sentinel-2 L2A metadata, maximum 3 items, rolling 14-day period | Disabled | No geometry, bbox, assets, imagery download, rendering or analysis |
+| OSM Overpass | GO | `out count` for amenity, public transport and highway elements | Disabled | Visible © OpenStreetMap contributors / ODbL attribution; counts are mutable and non-official |
+| Open-Meteo | BLOCK | No upstream request | Permission required | Commercial customer endpoint, approved self-hosting or written permission required |
+| DLD / Dubai Pulse | BLOCK live | Existing declared sample/manual snapshot only | Unchanged | Exact-file rights and custody decision required |
+| Overture Maps | DEFER | Registry/release review only | Unchanged | Theme/provider-specific licence and geometry delivery gate |
+
+## Official references
+
+- [NASA POWER API](https://power.larc.nasa.gov/docs/services/api/) and [Daily API](https://power.larc.nasa.gov/docs/services/api/temporal/daily/)
+- [Copernicus Data Space STAC](https://documentation.dataspace.copernicus.eu/APIs/STAC.html), [terms](https://dataspace.copernicus.eu/terms-and-conditions) and [quotas](https://documentation.dataspace.copernicus.eu/Quotas.html)
+- [OpenStreetMap copyright/licence](https://www.openstreetmap.org/copyright) and [Overpass API guidance](https://wiki.openstreetmap.org/wiki/Overpass_API)
+- [Open-Meteo terms](https://open-meteo.com/en/terms), [licence](https://open-meteo.com/en/licence) and [pricing](https://open-meteo.com/en/pricing)
+- [DLD Real Estate Data](https://dubailand.gov.ae/en/open-data/real-estate-data/)
+- [Overture access](https://docs.overturemaps.org/getting-data/cloud-sources/) and [attribution](https://docs.overturemaps.org/attribution/)
+
+## Runtime contract
+
+Endpoint:
+
+```text
+GET /api/external-data/source-connection-pack
+```
+
+The endpoint accepts no coordinates, bbox, dates, upstream URLs, provider mode or activation flag from the client. It resolves only the committed public demo point/AOI. Vercel Production returns `503` before any upstream request.
+
+Each source observation contains:
+
+```text
+sourceId
+mode: live | cached | unavailable | disabled
+retrievedAt
+servedAt
+sourceObservedAt
+queryFingerprint
+coverage
+licenseName
+licenseUrl
+attribution
+caveat
+fallbackReason
+payload
+```
+
+Top-level controls declare `scoreImpact: none` and `persistence: none`. An API observation is never an acquired snapshot.
+
+## Provider controls
+
+| Provider | Timeout | Fresh cache | Stale fallback | Payload restriction |
+|---|---:|---:|---:|---|
+| NASA POWER | 10 s/attempt | 30 d | 37 d | Two allowlisted parameters and aggregate screening metrics |
+| Copernicus STAC | 8 s/attempt | 1 h | 24 h | Allowlisted item ID, collection, datetime and scene cloud-cover metadata |
+| Overpass | 10 s/attempt | 30 min | 24 h | Three non-negative counts; no nodes, ways, coordinates or geometry |
+
+Common controls:
+
+- fixed upstream allowlist and fixed public demo geography;
+- at most one retry for timeout, HTTP 429 or 5xx; bounded `Retry-After` wait;
+- 2 MB maximum response body;
+- provider circuit opens for five minutes after three consecutive failures;
+- malformed responses fail closed;
+- expired last-good values can be served only within the declared stale window and are labelled `cached` with a fallback reason;
+- no upstream exception body, credential or provider asset link is exposed.
+
+## Acceptance criteria
+
+### Truth model
+
+- [ ] API context is never labelled `real_snapshot`.
+- [ ] A zero/null-record metadata row cannot become `snapshot_available`.
+- [ ] Unknown source modes fail to `planned_validation`.
+- [ ] Open-Meteo returns `permission_required`, null metrics and performs no fetch.
+- [ ] Saved external lineage includes only actual evidence or runtime observations.
+
+### Runtime and data minimisation
+
+- [ ] Production returns disabled before provider execution.
+- [ ] No client input controls the provider or queried geography.
+- [ ] NASA, Copernicus and OSM failures are independent.
+- [ ] Copernicus output contains no `geometry`, `bbox` or `assets`.
+- [ ] OSM request and response remain count-only.
+- [ ] The pack does not modify suitability/risk scores or persist payloads.
+
+### Verification
+
+- [ ] Frozen provider-contract fixtures pass.
+- [ ] Missing/empty/out-of-range coordinates return HTTP 400 on legacy point routes.
+- [ ] TypeScript, data-honesty, API contract and production build pass.
+- [ ] GitHub quality gate passes for the exact Draft PR head.
+- [ ] Vercel Preview is READY for the exact Draft PR head.
+- [ ] Live Preview smoke records schema/freshness only, never mutable value equality.
+- [ ] Deployment-scoped warning/error/4xx/5xx logs are reviewed.
+- [ ] Production deployment and Supabase migration/table state are unchanged.
+
+## Rollback
+
+Revert the source-pack commit or remove its route and runtime modules. No database cleanup, Storage cleanup, secret rotation or Production cache invalidation is required. Open-Meteo remains permission-gated. Existing sample/local source paths remain available.
+
+## Approval gates
+
+| Gate | Required decision |
+|---|---|
+| G0 | Draft implementation and source matrix review |
+| G1 | S0 truth/safety code review |
+| G2 | Per-source rights, attribution and operational review |
+| G3 | Exact-head Preview and quality evidence accepted |
+| G4 | Explicit merge authority; Production live mode still remains off |
+| G5 | Separate approval for any Production activation, secret, persistence, geometry or source-dependent scoring |
+
+**Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.**
