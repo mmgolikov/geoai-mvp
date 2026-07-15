@@ -153,7 +153,7 @@ type ValidationGovernanceResponse = {
 };
 
 type ClimateScreeningContext = {
-  status: "connected" | "sample_fallback";
+  status: "connected" | "sample_fallback" | "permission_required";
   sourceId: string;
   source: string;
   climateDataMode: string;
@@ -452,6 +452,17 @@ function withClimateScreeningContext(
 ): ExpressAnalysis {
   if (!climateContext) {
     return analysis;
+  }
+
+  if (climateContext.status !== "connected") {
+    return {
+      ...analysis,
+      limitations: Array.from(new Set([
+        ...(analysis.limitations ?? []),
+        climateContext.limitation,
+        climateContext.caveat
+      ]))
+    };
   }
 
   const evidence = createEvidenceItem(
@@ -2604,6 +2615,7 @@ export function WorkspaceShell({
 
     const uploadedDataContext = buildUploadedDataContext(uploadedDatasets, selectedPoint, selectedObject);
     const climateContext = await fetchClimateScreeningContext(selectedPoint);
+    const connectedClimateContext = climateContext?.status === "connected" ? climateContext : null;
     const selectedAoiTarget = selectedAoi
       ? {
           id: selectedAoi.id,
@@ -2683,7 +2695,7 @@ export function WorkspaceShell({
           selectedAoi,
           analysisTarget: deterministicAnalysis.analysisTarget,
           marketContext,
-          climateContext,
+          climateContext: connectedClimateContext,
           uploadedDataContext,
           validationGovernance,
           openGeodataContext: {

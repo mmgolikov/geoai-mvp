@@ -318,15 +318,15 @@ const sourceQualityManifest = {
     sourceQualityGroup({
       sourceGroupId: "open-meteo-nasa-power-context",
       sourceGroupName: "Open-Meteo + NASA POWER climate / energy context",
-      status: "connected",
-      dataMode: "api_context",
+      status: "permission_required",
+      dataMode: "permission_required",
       recordCount: null,
       featureCount: null,
       generatedAt: null,
       extractedAt: null,
-      licenseNote: "Open-Meteo and NASA POWER API context requires source attribution and screening-level assumptions review.",
-      confidence: "medium",
-      validationStatus: "api-context",
+      licenseNote: "Open-Meteo requires approved commercial access; NASA POWER Preview context requires citation and runtime receipt review.",
+      confidence: "requires-validation",
+      validationStatus: "token-or-permission-required",
       nextValidationStep: climateNextValidationStep,
       snapshots: [{
         sourceGroupId: "open-meteo-nasa-power-context",
@@ -340,14 +340,14 @@ const sourceQualityManifest = {
         featureCount: null,
         generatedAt: null,
         extractedAt: null,
-        licenseNote: "Open-Meteo and NASA POWER API context requires source attribution and screening-level assumptions review.",
-        dataMode: "api_context",
-        status: "connected",
-        confidence: "medium",
-        validationStatus: "api-context",
+        licenseNote: "Open-Meteo requires approved commercial access; NASA POWER Preview context requires citation and runtime receipt review.",
+        dataMode: "permission_required",
+        status: "permission_required",
+        confidence: "requires-validation",
+        validationStatus: "token-or-permission-required",
         caveat,
         nextValidationStep: climateNextValidationStep,
-        qualityNotes: ["API context route only; no engineering-grade climate or energy conclusion is provided."]
+        qualityNotes: ["Static registry metadata is not runtime success; no engineering-grade climate or energy conclusion is provided."]
       }]
     }),
     sourceQualityGroup({
@@ -436,11 +436,11 @@ const sourceGroups = [
     category: "climate-energy",
     access_mode: "api-context",
     sourceIds: ["open-meteo-climate", "nasa-power-solar-energy"],
-    connection_status: bestStatus(sourceStatuses(["open-meteo-climate", "nasa-power-solar-energy"], "connected"), "connected"),
+    connection_status: bestStatus(sourceStatuses(["open-meteo-climate", "nasa-power-solar-energy"], "permission_required"), "permission_required"),
     record_count: null,
     normalized_path: null,
     files: [],
-    confidence: "medium",
+    confidence: "requires-validation",
     nextValidationStep: climateNextValidationStep
   },
   {

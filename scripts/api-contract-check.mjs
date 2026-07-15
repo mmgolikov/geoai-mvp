@@ -210,6 +210,46 @@ for (const route of routes) {
   checked.push(route);
 }
 
+const boundedPointRoutes = [
+  "/api/context/climate",
+  "/api/context/solar-energy",
+  "/api/context/air-quality",
+  "/api/context/demographics",
+  "/api/context/accessibility",
+  "/api/context/spatial",
+  "/api/external-data/climate-context"
+];
+
+for (const route of boundedPointRoutes) {
+  const missing = await fetch(`${baseUrl}${route}`);
+  assert(missing.status === 400, `${route} must reject missing coordinates instead of querying (0, 0)`);
+  const outOfRange = await fetch(`${baseUrl}${route}?lat=91&lng=181`);
+  assert(outOfRange.status === 400, `${route} must reject out-of-range coordinates`);
+  checked.push(`${route}#coordinate-guard`);
+}
+
+const openMeteoGate = await fetch(`${baseUrl}/api/context/climate?lat=25.2048&lng=55.2708`);
+assert(openMeteoGate.status === 200, "Open-Meteo licence gate route must return a declared state");
+const openMeteoPayload = await openMeteoGate.json();
+assert(openMeteoPayload.status === "permission_required", "Open-Meteo free API must remain permission-gated");
+assert(openMeteoPayload.metrics?.avgTemperatureC === null, "Permission-gated Open-Meteo must not return fabricated metrics");
+checked.push("/api/context/climate#open-meteo-license-gate");
+
+const legacySolarGate = await fetch(`${baseUrl}/api/context/solar-energy?lat=25.2048&lng=55.2708`);
+assert(legacySolarGate.status === 200, "Legacy solar route must return a declared fallback state");
+const legacySolarPayload = await legacySolarGate.json();
+assert(legacySolarPayload.status === "sample_fallback", "Legacy solar route must not bypass the controlled source pack");
+assert(legacySolarPayload.fallbackReason === "runtime_source_pack_required", "Legacy solar fallback reason changed unexpectedly");
+checked.push("/api/context/solar-energy#controlled-pack-gate");
+
+const productionSourcePack = await fetch(`${baseUrl}/api/external-data/source-connection-pack`);
+assert(productionSourcePack.status === 503, "Generic production runtime must fail closed before provider execution");
+const productionSourcePackPayload = await productionSourcePack.json();
+assert(productionSourcePackPayload.effectiveMode === "disabled", "Production source pack must report disabled mode");
+assert(productionSourcePackPayload.activationAllowed === false, "Production source pack must deny activation");
+assert(Array.isArray(productionSourcePackPayload.sources) && productionSourcePackPayload.sources.length === 0, "Production source pack must return zero provider observations");
+checked.push("/api/external-data/source-connection-pack#production-fail-closed");
+
 console.log(JSON.stringify({
   ok: true,
   baseUrl,

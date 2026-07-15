@@ -19,13 +19,15 @@ export function normalizeSourceDataMode(value: unknown): SourceDataMode {
   }
 
   if (key === "snapshot_available" || key === "snapshot") return "imported_snapshot";
+  if (key === "public_snapshot" || key === "open_snapshot") return "imported_snapshot";
   if (key === "sample" || key === "sample_snapshot") return "sample_fallback";
   if (key === "api" || key === "api_context" || key === "open_api") return "api_context";
   if (key === "manual_import" || key === "manual_ready") return "manual_import_ready";
   if (key === "planned" || key === "planned_access") return "planned_validation";
+  if (key === "api_context_metadata" || key === "open_snapshot_metadata" || key === "metadata_query_planned") return "planned_validation";
   if (key === "connected") return "api_context";
 
-  return "demo_seed";
+  return "planned_validation";
 }
 
 export function sourceDataModeLabel(mode: unknown) {

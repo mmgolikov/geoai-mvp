@@ -64,6 +64,22 @@ function rowMatchesGroup(sourceId: string | null | undefined, group: SourceReadi
   return Boolean(sourceId && (sourceId === group.id || group.sourceIds.includes(sourceId)));
 }
 
+function hasAcquiredSnapshot(snapshot: SnapshotRow | undefined) {
+  return Boolean(
+    snapshot?.normalized_path &&
+    typeof snapshot.record_count === "number" &&
+    snapshot.record_count > 0
+  );
+}
+
+function failClosedDataMode(value: unknown, acquiredSnapshot: boolean) {
+  const normalized = normalizeSourceDataMode(value);
+  if (!acquiredSnapshot && (normalized === "real_snapshot" || normalized === "imported_snapshot")) {
+    return "planned_validation" as const;
+  }
+  return normalized;
+}
+
 function attachSourceQuality(
   groups: SourceReadinessGroup[],
   sourceQuality: SourceQualityManifest
@@ -91,8 +107,12 @@ function overlaySupabaseRows(
     const nextValidationStep = typeof lineage?.nextValidationStep === "string"
       ? lineage.nextValidationStep
       : group.nextValidationStep;
-    const status = normalizeRegistryStatus(registryRow?.connection_status ?? (snapshotRow?.normalized_path ? "snapshot_available" : group.status));
-    const dataMode = normalizeSourceDataMode(snapshotRow?.source_mode ?? registryRow?.source_mode ?? status);
+    const acquiredSnapshot = hasAcquiredSnapshot(snapshotRow);
+    const requestedStatus = normalizeRegistryStatus(registryRow?.connection_status ?? (acquiredSnapshot ? "snapshot_available" : group.status));
+    const status = requestedStatus === "snapshot_available" && !acquiredSnapshot
+      ? normalizeRegistryStatus(group.status === "snapshot_available" ? "manual_import_ready" : group.status)
+      : requestedStatus;
+    const dataMode = failClosedDataMode(snapshotRow?.source_mode ?? registryRow?.source_mode ?? status, acquiredSnapshot);
     const recordCount = snapshotRow?.record_count ?? registryRow?.record_count ?? group.recordCount;
 
     return {
@@ -108,7 +128,7 @@ function overlaySupabaseRows(
         ...group.availableFiles,
         ...lineageFiles,
         ...manifestFiles,
-        ...(snapshotRow?.normalized_path ? [snapshotRow.normalized_path] : [])
+        ...(acquiredSnapshot && snapshotRow?.normalized_path ? [snapshotRow.normalized_path] : [])
       ])),
       lastUpdated: snapshotRow?.imported_at ?? registryRow?.updated_at ?? group.lastUpdated,
       caveat: registryRow?.caveat ?? group.caveat,
@@ -126,6 +146,7 @@ async function readRows() {
     const snapshotQuery = client.from("external_data_snapshots").select("*") as Promise<{ data?: SnapshotRow[] | null; error?: unknown }>;
     const [sourceResponse, snapshotResponse] = await Promise.all([sourceQuery, snapshotQuery]);
     if (sourceResponse.error) return { rows: [] as RegistryRow[], snapshots: [] as SnapshotRow[], blocker: "Source registry query failed." };
+    if (snapshotResponse.error) return { rows: [] as RegistryRow[], snapshots: [] as SnapshotRow[], blocker: "External snapshot query failed; registry metadata was not promoted to evidence." };
     return {
       rows: Array.isArray(sourceResponse.data) ? sourceResponse.data : [],
       snapshots: Array.isArray(snapshotResponse.data) ? snapshotResponse.data : [],
@@ -194,19 +215,21 @@ export async function getSourceRegistryReadiness() {
   const snapshotsBySource = new Map(snapshots.filter((item) => item.source_id).map((item) => [item.source_id as string, item]));
   const manifestSources = rows.filter((row) => row.source_id).map((row) => {
     const snapshot = snapshotsBySource.get(row.source_id as string);
-    const status = normalizeRegistryStatus(row.connection_status ?? "manual_import_ready");
-    const sourceMode = normalizeSourceDataMode(snapshot?.normalized_path ? "snapshot_available" : row.source_mode ?? status);
+    const acquiredSnapshot = hasAcquiredSnapshot(snapshot);
+    const requestedStatus = normalizeRegistryStatus(row.connection_status ?? "manual_import_ready");
+    const status = requestedStatus === "snapshot_available" && !acquiredSnapshot ? "manual_import_ready" : requestedStatus;
+    const sourceMode = failClosedDataMode(acquiredSnapshot ? snapshot?.source_mode ?? "snapshot_available" : row.source_mode ?? status, acquiredSnapshot);
     return {
       id: row.source_id as string,
       status,
       lastUpdated: snapshot?.imported_at ?? row.updated_at ?? null,
-      availableFiles: snapshot?.normalized_path ? [snapshot.normalized_path] : [],
+      availableFiles: acquiredSnapshot && snapshot?.normalized_path ? [snapshot.normalized_path] : [],
       recordCount: snapshot?.record_count ?? row.record_count ?? undefined,
       coverageArea: row.category ?? "Dubai / UAE screening context",
       confidence: status === "snapshot_available" || status === "connected" ? "medium" : "requires-validation",
       caveat: row.caveat ?? externalDataCaveat,
       sourceMode,
-      usedInAnalysis: status === "connected" || status === "snapshot_available",
+      usedInAnalysis: status === "snapshot_available" && acquiredSnapshot,
       disclaimer: row.caveat ?? externalDataCaveat
     };
   });

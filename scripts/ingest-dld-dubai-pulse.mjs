@@ -34,19 +34,19 @@ const defaultManifestSources = [
   },
   {
     id: "open-meteo-climate",
-    status: "connected",
+    status: "permission_required",
     lastUpdated: null,
     availableFiles: [],
     usedInAnalysis: false,
-    disclaimer: "Climate context from reanalysis/model data; not a site-specific engineering or insurance assessment."
+    disclaimer: "Open-Meteo commercial-use approval is required; no live response or snapshot is claimed."
   },
   {
     id: "copernicus-sentinel-catalog",
-    status: "token_required",
+    status: "planned",
     lastUpdated: null,
     availableFiles: [],
     usedInAnalysis: false,
-    disclaimer: "Satellite imagery availability check only; analytics pipeline planned."
+    disclaimer: "Public catalogue metadata path only; imagery download and analytics remain gated."
   },
   {
     id: "geodubai-municipality-validation",

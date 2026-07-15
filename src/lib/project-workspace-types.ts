@@ -12,6 +12,10 @@ export type SourceLineageSnapshot = {
     confidence?: string;
     validationStatus?: string;
     nextValidationStep?: string;
+    queriedAt?: string | null;
+    sourceObservedAt?: string | null;
+    queryFingerprint?: string;
+    fallbackReason?: string | null;
     disclaimer: string;
   }>;
   plannedValidationSources: Array<{

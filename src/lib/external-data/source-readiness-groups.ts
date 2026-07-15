@@ -100,10 +100,10 @@ export const sourceGroupDefinitions: SourceGroupDefinition[] = [
     category: "climate-energy",
     sourceIds: ["open-meteo-climate", "nasa-power-solar-energy"],
     coverageArea: "Coordinate-level climate, heat and solar proxy context",
-    fallbackStatus: "connected",
-    fallbackDataMode: "api_context",
-    fallbackConfidence: "medium",
-    nextValidationStep: "Validate climate and energy assumptions with engineering/client-approved evidence before operational decisions."
+    fallbackStatus: "permission_required",
+    fallbackDataMode: "permission_required",
+    fallbackConfidence: "requires-validation",
+    nextValidationStep: "Approve Open-Meteo commercial-use rights separately; verify NASA POWER runtime receipts and assumptions before operational decisions."
   },
   {
     id: "copernicus-sentinel-metadata",

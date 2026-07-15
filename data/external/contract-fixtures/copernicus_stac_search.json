@@ -1,0 +1,25 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "S2_CONTRACT_FIXTURE_001",
+      "collection": "sentinel-2-l2a",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": []
+      },
+      "bbox": [55.2, 25.05, 55.35, 25.2],
+      "assets": {
+        "download": {
+          "href": "https://example.invalid/not-for-runtime-output"
+        }
+      },
+      "properties": {
+        "datetime": "2026-07-11T06:46:19Z",
+        "eo:cloud_cover": 6.1,
+        "provider_internal_field": "must-not-be-returned"
+      }
+    }
+  ]
+}
