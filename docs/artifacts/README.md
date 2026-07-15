@@ -24,9 +24,11 @@ Runtime represented: current public demo, synthetic/local fallback and soft acce
 | DEP-001 | `deployment/DEP-001-current-deployment.puml` | `rendered/DEP-001-current-deployment.svg` | Draft |
 | API-001 | `api/API-001-runtime-contracts.puml` | `rendered/API-001-runtime-contracts.svg` | Draft |
 
-Supplemental SQL-001 (`sql/ERD-001-schema-spec.md`) maps ERD-001 to the implemented migration foundation; it is not a separate diagram or migration authorization.
+Supplemental SQL-001 (`sql/ERD-001-schema-spec.md`) maps ERD-001 to the ordered migration source set; it is not a separate diagram, migration authorization or applied-schema attestation.
 
 `architecture-artifact-manifest.json` is the machine-readable source of artifact identity, status and exact implementation references. `rendered/render-manifest.json` pins the renderer and source/render SHA-256 digests.
+
+`ARCHITECTURE_IMPLEMENTATION_MAPPING_V1.md`, `ARCHITECTURE_TRACE_MATRIX_V1.md` and `ARCHITECTURE_REVIEW_PACKET_V1.md` are the controlled review surfaces. `ARCHITECTURE_PRE_REVIEW_FINDINGS_V1.md` records pre-review corrections and open dispatch blockers; it is not independent approval.
 
 ## Reproduce and verify
 

@@ -45,4 +45,14 @@ Status: Review; publication not passed
 
 The architecture gate checks source/render hashes and implementation symbols. It complements, but does not replace, the spatial integration assertions or independent visual/logical review.
 
+## Pre-review control traces
+
+| Finding | Candidate correction or remaining control | State |
+|---|---|---|
+| DEP-001 implied that GitHub Actions deployed Preview | Deployment now shows Vercel Git integration as deploy owner; Actions has no deploy step | Corrected; exact-head re-verification required |
+| ERD-001 used non-existent or reversed profile/score/audit relationships | Diagram now uses declared field names and FK direction | Corrected; exact-head re-verification required |
+| Ordered migration source may differ from a fresh/applied schema | Direct column/constraint verification and optional additive reconciliation migration | Open; outside CR-DEV7-003 mutation scope |
+| BPMN-aligned activity is not BPMN XML | Named reviewer must accept bounded notation or request a separate artifact | Open review decision |
+| Named reviewers are absent from controlled records | Real role owners must be assigned before independent acceptance | Open governance gate |
+
 Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.

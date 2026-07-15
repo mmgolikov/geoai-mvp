@@ -43,7 +43,7 @@ GitHub Actions tests the exact pull-request head or push SHA and preserves evide
 - BPMN-001 — current core analysis activity flow
 - STATE-001 — workspace and spatial source lifecycle
 - SEQ-001 — analysis request sequence
-- ERD-001 — implemented pilot-persistence schema foundation
+- ERD-001 — declared pilot-persistence migration source model; fresh-chain and applied-schema verification remain separate
 - DATA-LINEAGE-001 — spatial evidence identity/lineage/attribution
 - ACT-001 — spatial package activation and rollback
 - DEP-001 — current deployment/data boundary

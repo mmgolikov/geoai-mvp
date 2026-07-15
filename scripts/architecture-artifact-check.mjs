@@ -12,7 +12,8 @@ const requiredIds = [
 const requiredMappingDocs = [
   "docs/artifacts/ARCHITECTURE_IMPLEMENTATION_MAPPING_V1.md",
   "docs/artifacts/ARCHITECTURE_TRACE_MATRIX_V1.md",
-  "docs/artifacts/ARCHITECTURE_REVIEW_PACKET_V1.md"
+  "docs/artifacts/ARCHITECTURE_REVIEW_PACKET_V1.md",
+  "docs/artifacts/ARCHITECTURE_PRE_REVIEW_FINDINGS_V1.md"
 ];
 const failures = [];
 const checks = [];

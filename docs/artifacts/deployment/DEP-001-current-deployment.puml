@@ -24,6 +24,7 @@ cloud "Optional external services" as External {
 node "GitHub Actions" as CI {
   artifact "Exact-event SHA quality gate\nchecks + evidence artifact" as Gate
 }
+node "GitHub repository\nVercel Git integration" as Git
 
 Browser --> Production : HTTPS
 Client --> BrowserStore
@@ -31,8 +32,11 @@ Client --> Mapbox : public map token path
 App --> OpenAI : server-only optional key path
 App --> Supabase : readiness-gated path
 App --> Tmp : active Production fallback
-CI --> Preview : PR commit deployment/verification
-CI --> Production : main push quality evidence\n(no deployment control implied)
+Git -down-> Preview : PR commit\nVercel Git deploy
+Git -down-> Production : main merge\nVercel Git deploy
+Git -down-> CI : event SHA
+CI ..down-> Preview : separate evidence comparison\nno deploy step
+CI ..down-> Production : main quality evidence\nno deploy step
 
 note bottom of Production
 Public demo, synthetic/local fallback, soft access.

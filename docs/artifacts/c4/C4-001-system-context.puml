@@ -11,20 +11,24 @@ skinparam rectangle {
   RoundCorner 12
 }
 
-actor "Screening user" as User
-rectangle "GeoAI\nNext.js spatial decision demo" as GeoAI #EAF4EF
-cloud "Mapbox styles and tiles\nwhen a public token is usable" as Mapbox
-cloud "OpenAI Chat Completions\noptional; deterministic fallback" as OpenAI
-database "Supabase/PostGIS + Storage\nreadiness-gated; not configured\nin current Production demo" as Supabase
-folder "Local/API fallback\n/tmp on Vercel; non-durable" as Local
-rectangle "Registered open/context sources\nmetadata, fixtures and bounded snapshots" as Sources
+actor "Screening user" as User <<Person>>
+rectangle "GeoAI\nNext.js spatial decision demo" as GeoAI <<Software System>> #EAF4EF
+cloud "Mapbox styles and tiles\nwhen a public token is usable" as Mapbox <<External System>>
+cloud "OpenAI Chat Completions\noptional; deterministic fallback" as OpenAI <<External System>>
+database "Supabase/PostGIS + Storage\nreadiness-gated; not configured\nin current Production demo" as Supabase <<External System>>
+folder "Local/API fallback\n/tmp on Vercel; non-durable" as Local <<Internal Store>>
+rectangle "Registered open/context sources\nmetadata, fixtures and bounded snapshots" as Sources <<External Data Sources>>
 
 User --> GeoAI : select role, scenario, criteria or map target\ncompare, inspect evidence, export
-GeoAI --> Mapbox : browser map request
-GeoAI --> OpenAI : structured narrative request\nonly when server key exists
-GeoAI --> Supabase : safe readiness probes and\nrepository operations when configured
-GeoAI --> Local : demo persistence fallback
-GeoAI --> Sources : context, lineage and attribution
+GeoAI -left-> Mapbox : browser map request
+GeoAI -left-> OpenAI : structured narrative request\nonly when server key exists
+GeoAI -left-> Supabase : safe readiness probes and\nrepository operations when configured
+GeoAI -right-> Sources : context, lineage and attribution
+GeoAI -right-> Local : demo persistence fallback
+
+Mapbox -[hidden]down-> OpenAI
+OpenAI -[hidden]down-> Supabase
+Sources -[hidden]down-> Local
 
 note bottom of GeoAI
 Production remains public demo, synthetic/local fallback and soft access.

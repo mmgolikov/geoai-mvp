@@ -96,7 +96,7 @@
     },
     {
       "id": "ERD-001",
-      "title": "Implemented pilot persistence foundation",
+      "title": "Pilot persistence migration source model",
       "version": "1.0",
       "status": "Review",
       "approved": false,

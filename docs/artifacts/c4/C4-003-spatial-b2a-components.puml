@@ -6,18 +6,18 @@ skinparam shadowing false
 skinparam componentStyle rectangle
 skinparam defaultFontName Arial
 
-component "WorkspacePage\ncreateSpatialSourceRequest" as Page
-component "WorkspaceShell\nselection and analysis state" as Shell
-component "MapWorkspaceClient\nmap sources, layers, visibility" as Map
-component "source-mode.ts\nruntime/request approval" as SourceMode
-component "bundle-loader.ts\ncontrolled non-real fixture" as Bundle
-component "activation-resolver.ts\nfail-closed + fallback" as Activation
-component "layer-catalogue.ts\nlayer/source metadata" as Catalogue
-component "map-layer-adapter.ts\nfeature → map + target" as Adapter
-component "selection-lineage.ts\nidentity + provenance" as Lineage
-component "attribution.ts\nvisible-layer aggregation" as Attribution
-component "SpatialDataAttribution" as AttributionUI
-component "SpatialSourceLineageDrawer" as LineageUI
+component "WorkspacePage\ncreateSpatialSourceRequest" as Page <<Component>>
+component "WorkspaceShell\nselection and analysis state" as Shell <<Component>>
+component "MapWorkspaceClient\nmap sources, layers, visibility" as Map <<Component>>
+component "source-mode.ts\nruntime/request approval" as SourceMode <<Component>>
+component "bundle-loader.ts\ncontrolled non-real fixture" as Bundle <<Component>>
+component "activation-resolver.ts\nfail-closed + fallback" as Activation <<Component>>
+component "layer-catalogue.ts\nlayer/source metadata" as Catalogue <<Component>>
+component "map-layer-adapter.ts\nfeature → map + target" as Adapter <<Component>>
+component "selection-lineage.ts\nidentity + provenance" as Lineage <<Component>>
+component "attribution.ts\nvisible-layer aggregation" as Attribution <<Component>>
+component "SpatialDataAttribution" as AttributionUI <<Component>>
+component "SpatialSourceLineageDrawer" as LineageUI <<Component>>
 
 Page --> SourceMode
 Page --> Shell : SpatialSourceRequest

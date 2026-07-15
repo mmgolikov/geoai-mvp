@@ -8,22 +8,22 @@
       "id": "C4-001",
       "source": "docs/artifacts/c4/C4-001-system-context.puml",
       "rendered": "docs/artifacts/rendered/C4-001-system-context.svg",
-      "sourceSha256": "a763321320e868df96e44b936e500cfb08ba9223034957d14aad1a147e613f71",
-      "renderedSha256": "7f5bd28b5e362c485616d2307cbad55c143d5685eb8f1f9c7eada3f30ec15fd4"
+      "sourceSha256": "9f921f3897a5936df2990fc5156a1c39b98ee1af4a114cea2f123b6f855f1b2f",
+      "renderedSha256": "038d7ef191e62f711a74c133185bc7d2e987857726a75d8a53b259906f45b0d9"
     },
     {
       "id": "C4-002",
       "source": "docs/artifacts/c4/C4-002-container-architecture.puml",
       "rendered": "docs/artifacts/rendered/C4-002-container-architecture.svg",
-      "sourceSha256": "585bf6f7bb4ff7e80b93bbc04bfeb08a8f35cf14623df3ca01f4905878680f07",
-      "renderedSha256": "02aea369620f3a09ff2e125b531da805dcd733a5294c310df53c13af7371b023"
+      "sourceSha256": "6b6b032866f80c533420a19b998a43541b5590d818be87f661ba86424c9ac912",
+      "renderedSha256": "847ac91d91aaccc693a89afd6aa48ee3efba2f62ba04a982b7e31eae111e7932"
     },
     {
       "id": "C4-003",
       "source": "docs/artifacts/c4/C4-003-spatial-b2a-components.puml",
       "rendered": "docs/artifacts/rendered/C4-003-spatial-b2a-components.svg",
-      "sourceSha256": "5a94fd58374688e93d72b59b9000e6d51ca6203afd8e685272f119a5f4fed320",
-      "renderedSha256": "92e19b0da7b1db1af80e113690cb21fc1c42249125004b23d441c75b97c2b5ac"
+      "sourceSha256": "fc4069f89301ba69b50feb8703db0b59a3688cb287bf4271b03d59a396bef301",
+      "renderedSha256": "306894e02d0476da9611b642db609e69a5c8bfbe7781463a0f2c6355522915fd"
     },
     {
       "id": "BPMN-001",
@@ -50,8 +50,8 @@
       "id": "ERD-001",
       "source": "docs/artifacts/erd/ERD-001-core-data-model.puml",
       "rendered": "docs/artifacts/rendered/ERD-001-core-data-model.svg",
-      "sourceSha256": "137f2bce73fda37a88ae483621b3d3240445da0b54cbb6ca17c694d2d75c5efd",
-      "renderedSha256": "fc3a6c8e61c252f0d26abc504b6dad4da768c2f927a8c5f73d4af09e28e0f438"
+      "sourceSha256": "bd3af4cf15f4eab55e0d581b1052f5a78198ba0a5aba99d153f158fb48231008",
+      "renderedSha256": "c08254da89fbb53effc255de10ac15f90e05a0ad9166d9a2bd5f10922c668902"
     },
     {
       "id": "DATA-LINEAGE-001",
@@ -71,8 +71,8 @@
       "id": "DEP-001",
       "source": "docs/artifacts/deployment/DEP-001-current-deployment.puml",
       "rendered": "docs/artifacts/rendered/DEP-001-current-deployment.svg",
-      "sourceSha256": "40c0fa7c9ccfcb1b8a20d8552a49063b6b974871215ab7aabdee7b3ce8fd6865",
-      "renderedSha256": "c17f035ba03188fe2aa98d981be5081cddd687c8e874c3447621645d5bcd1482"
+      "sourceSha256": "69ed0709bd2031dfb14e9f749401aa0bf31c737ca4ee7ff9464bb7b5033d8cc4",
+      "renderedSha256": "34193e9e9ef9f54cfc9798b77389c54cd819c02be2699173cfbbcb00a0df54d7"
     },
     {
       "id": "API-001",

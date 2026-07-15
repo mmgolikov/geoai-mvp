@@ -32,6 +32,10 @@ The architecture registry contained schematic v0.9 Mermaid text but no committed
 - Merge, Vercel Production deployment or release promotion
 - Treating a diagram as proof that a conditional runtime path is active
 
+## Pre-review correction note
+
+Codex pre-review identified and corrected inaccurate ERD field/relationship labels, deployment ownership semantics and missing explicit C4 stereotypes before independent dispatch. The review package now also records two unresolved decisions: whether the bounded BPMN-aligned activity rendering is sufficient without BPMN 2.0 XML, and whether the ordered migration source matches a fresh/applied schema at column and constraint level. Neither issue is self-approved by this change request.
+
 ## Deliverables
 
 - 11 canonical `.puml` files and 11 committed SVG renders

@@ -20,6 +20,8 @@ Review the SVG and canonical PlantUML source for: C4-001, C4-002, C4-003, BPMN-0
 | Security/backend reviewer | Auth, RLS, Storage, persistence and environment boundary | Unassigned | Pending | — |
 | Documentation controller | IDs, versions, links and publication state | Unassigned | Pending | — |
 
+Named people or GitHub usernames are not registered in the controlled documentation. Pre-review must not self-assign or infer independent approval.
+
 ## Acceptance checklist
 
 - [ ] Every diagram is readable at repository and Confluence review scale.
@@ -34,6 +36,13 @@ Review the SVG and canonical PlantUML source for: C4-001, C4-002, C4-003, BPMN-0
 - [ ] Trace evidence covers missing, invalid, unapproved, approved, rollback and attribution parity states.
 - [ ] Review findings are linked and resolved or explicitly accepted with conditions.
 - [ ] Confluence publication state is changed only after the above decisions are recorded.
+
+## Pre-review findings to disposition
+
+- DEP-001 deployment ownership and ERD-001 field/relationship defects were identified before independent dispatch and corrected in the candidate package.
+- The ordered migration chain versus applied-schema state remains an open Security/backend and Data/GIS review item. A source file or table-name readiness check is not column-level applied-schema evidence.
+- BPMN-001 is explicitly a BPMN-aligned activity rendering, not executable BPMN 2.0 XML. The reviewer must accept that bounded notation for this package or require a separate BPMN XML artifact.
+- Independent reviewers remain unassigned; no approval is inferred from Codex pre-review, CI, Preview readiness or artifact rendering.
 
 ## Non-authorization statement
 

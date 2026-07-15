@@ -1,6 +1,6 @@
 @startuml ERD-001
 !pragma layout smetana
-title ERD-001 — Implemented pilot-persistence foundation (not activated in Production)
+title ERD-001 — Pilot-persistence migration source model (runtime not proven)
 hide methods
 hide stereotypes
 skinparam backgroundColor #FFFFFF
@@ -14,9 +14,9 @@ entity organizations {
   status : text
 }
 entity profiles {
-  * id : uuid <<PK/FK auth.users>>
+  * id : uuid <<PK>>
   --
-  organization_id : uuid <<FK>>
+  auth_user_id : uuid <<identity link; no declared FK>>
   email : text
 }
 entity projects {
@@ -27,9 +27,11 @@ entity projects {
   status : text
 }
 entity project_memberships {
-  * project_id : uuid <<FK>>
-  * user_id : uuid <<FK>>
+  * id : uuid <<PK>>
   --
+  organization_id : uuid <<FK>>
+  project_id : uuid <<FK>>
+  user_id : uuid <<FK profiles.id>>
   role : text
 }
 entity aois {
@@ -43,15 +45,17 @@ entity analysis_runs {
   * id : uuid <<PK>>
   --
   project_id : uuid <<FK>>
-  aoi_id : uuid <<FK nullable>>
-  result : jsonb
+  selected_aoi_id : uuid <<FK nullable>>
+  ai_decision_score_id : uuid <<FK nullable>>
+  result_json : jsonb
 }
 entity ai_decision_scores {
   * id : uuid <<PK>>
   --
   project_id : uuid <<FK>>
-  analysis_run_id : uuid <<FK nullable>>
-  score_payload : jsonb
+  analysis_run_key : text <<not FK>>
+  selected_aoi_id : uuid <<FK nullable>>
+  raw_response : jsonb
 }
 entity reports {
   * id : uuid <<PK>>
@@ -80,39 +84,48 @@ entity data_room_assets {
 entity source_registry_snapshots {
   * id : uuid <<PK>>
   --
+  project_id : uuid <<FK nullable>>
   source_id : text
-  snapshot : jsonb
+  quality : jsonb
+  lineage : jsonb
 }
 entity external_data_snapshots {
   * id : uuid <<PK>>
   --
+  project_id : uuid <<FK nullable>>
   source_id : text
-  snapshot : jsonb
+  quality : jsonb
+  manifest : jsonb
 }
 entity audit_events {
   * id : uuid <<PK>>
   --
   project_id : uuid <<FK nullable>>
-  actor_id : uuid <<FK nullable>>
+  actor_user_id : uuid <<FK profiles.id nullable>>
 }
 
-organizations ||--o{ profiles
 organizations ||--o{ projects
+organizations ||--o{ project_memberships
 projects ||--o{ project_memberships
 profiles ||--o{ project_memberships
 projects ||--o{ aois
 projects ||--o{ analysis_runs
 aois |o--o{ analysis_runs
-analysis_runs |o--o{ ai_decision_scores
+aois |o--o{ ai_decision_scores
+ai_decision_scores |o--o{ analysis_runs
 projects ||--o{ reports
 analysis_runs |o--o{ reports
 projects ||--o{ comparison_sets
 projects ||--o{ uploaded_datasets
 projects ||--o{ data_room_assets
+projects |o--o{ source_registry_snapshots
+projects |o--o{ external_data_snapshots
 projects |o--o{ audit_events
+profiles |o--o{ audit_events
 
 note bottom
-Migrations and RLS policy foundations exist. Current Production demo does not have
-durable Supabase persistence configured; this ERD is not proof of runtime activation.
+This compact model maps declared migration fields and explicit FK relations. It does not
+prove ordered fresh-database applicability or the live applied schema. Current Production
+does not have durable Supabase persistence configured.
 end note
 @enduml

@@ -46,6 +46,16 @@ Publication gate: Not passed
 - [ ] Vercel Preview routes and deployment-scoped warning/error/fatal logs are inspected after push.
 - [x] No secret, environment, Supabase, Figma or Production mutation occurs.
 
+## Pre-review corrections and open findings
+
+- [x] DEP-001 identifies Vercel Git integration, not GitHub Actions, as the deployment owner.
+- [x] ERD-001 removes non-existent/reversed profile, analysis-score, AOI and audit relationships.
+- [x] C4-001/002/003 carry explicit Person, Software System, Container and Component semantics.
+- [x] Corrected sources were re-rendered and visually inspected; repeated render hashes match exactly.
+- [ ] Security/backend and Data/GIS reviewers disposition the ordered-migration versus applied-schema finding.
+- [ ] Architecture reviewer accepts the bounded BPMN-aligned rendering or requests BPMN 2.0 XML separately.
+- [ ] Real people are assigned to all five independent review roles.
+
 ## Independent gate
 
 - [ ] Product architecture owner decision recorded.

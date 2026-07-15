@@ -8,17 +8,17 @@ skinparam defaultFontName Arial
 
 actor User
 package "Vercel / Next.js application" {
-  component "App Router pages\n/, /workspace, /projects, /explore, /demo" as Pages #EAF4EF
-  component "React workspace\nWorkspaceShell + MapWorkspaceClient" as Workspace #EAF4EF
-  component "Route handlers\n/api/*" as Api #F6F8FB
-  component "Deterministic analysis,\ncontext and report libraries" as Domain #F6F8FB
-  component "Repository adapters and\nruntime readiness gates" as Repositories #FFF9EC
-  component "Spatial B2A contract\nsource mode, bundle, activation,\nadapter, lineage, attribution" as Spatial #FFF9EC
+  component "App Router pages\n/, /workspace, /projects, /explore, /demo" as Pages <<Container: Next.js pages>> #EAF4EF
+  component "React workspace\nWorkspaceShell + MapWorkspaceClient" as Workspace <<Container: browser UI>> #EAF4EF
+  component "Route handlers\n/api/*" as Api <<Container: Next.js API>> #F6F8FB
+  component "Deterministic analysis,\ncontext and report libraries" as Domain <<Container: library>> #F6F8FB
+  component "Repository adapters and\nruntime readiness gates" as Repositories <<Container: library>> #FFF9EC
+  component "Spatial B2A contract\nsource mode, bundle, activation,\nadapter, lineage, attribution" as Spatial <<Container: library>> #FFF9EC
 }
-database "Supabase/PostGIS\noptional, readiness-gated" as Supabase
-folder "Local JSON + browser-local\ndemo fallback" as Fallback
-cloud "Mapbox" as Mapbox
-cloud "OpenAI\noptional" as OpenAI
+database "Supabase/PostGIS\noptional, readiness-gated" as Supabase <<External System>>
+folder "Local JSON + browser-local\ndemo fallback" as Fallback <<Internal Stores>>
+cloud "Mapbox" as Mapbox <<External System>>
+cloud "OpenAI\noptional" as OpenAI <<External System>>
 
 User --> Pages
 Pages --> Workspace
