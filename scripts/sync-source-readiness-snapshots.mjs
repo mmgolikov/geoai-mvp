@@ -541,22 +541,24 @@ async function upsertBySourceId(client, table, sourceId, payload) {
 }
 
 async function main() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  const url = process.env.GEOAI_OPERATOR_SUPABASE_URL?.trim();
+  const operatorSecretKey = process.env.GEOAI_OPERATOR_SUPABASE_SECRET_KEY?.trim();
+  const legacyDatabaseWriterQuarantined = true;
   const sourceRows = sourceGroups.map(toSourceRow);
   const externalRows = sourceGroups.map(toExternalSnapshotRow);
-  const canWrite = writeRequested && !dryRun && Boolean(url && serviceRoleKey);
+  const canWrite = writeRequested && !dryRun && Boolean(url && operatorSecretKey) && !legacyDatabaseWriterQuarantined;
 
   if (!canWrite) {
     const blockers = [
       !writeRequested && !dryRun ? "Pass --write to perform Supabase writes; without it this command only previews rows." : null,
-      !url || !serviceRoleKey ? "NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required for writes." : null
+      legacyDatabaseWriterQuarantined ? "Legacy mutable source-snapshot writes are quarantined until SOURCE-01 immutable custody and rights gates are implemented." : null,
+      !url || !operatorSecretKey ? "Trusted operator Supabase URL/secret are required for writes." : null
     ].filter(Boolean);
 
     console.log(JSON.stringify({
       ok: Boolean(dryRun || !strict),
       synced: false,
-      mode: dryRun ? "dry_run" : writeRequested ? "write_blocked_missing_supabase_service_role" : "preview_write_flag_required",
+      mode: dryRun ? "dry_run" : writeRequested ? "write_quarantined_source_01" : "preview_write_flag_required",
       writeRequested,
       sourceRegistryRows: sourceRows.length,
       externalSnapshotRows: externalRows.length,
@@ -601,7 +603,7 @@ async function main() {
     process.exit(!dryRun && writeRequested && strict ? 1 : 0);
   }
 
-  const client = createClient(url, serviceRoleKey, {
+  const client = createClient(url, operatorSecretKey, {
     auth: {
       persistSession: false,
       autoRefreshToken: false

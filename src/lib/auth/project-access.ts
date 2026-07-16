@@ -1,20 +1,14 @@
 import { getAuthModeStatus } from "@/src/lib/auth/auth-mode";
 import { createDemoProjectMembership, demoOrganization, demoUser } from "@/src/lib/auth/demo-session";
-import { getProjectAccessDecision, roleAllowsAction } from "@/src/lib/access/access-decision";
+import {
+  getProjectAccessDecision,
+  roleAllowsAction,
+  type ProjectAccessAction as DecisionProjectAccessAction
+} from "@/src/lib/access/access-decision";
 import { getEnforcementConfig, type GeoAIAccessEnforcementMode } from "@/src/lib/platform/enforcement-config";
 import type { GeoAIProjectMembership, GeoAIUser } from "@/src/types/auth";
 
-export type ProjectAccessAction =
-  | "read"
-  | "write"
-  | "manage"
-  | "export"
-  | "validate"
-  | "upload"
-  | "review"
-  | "generate"
-  | "attest_client"
-  | "attest_official";
+export type ProjectAccessAction = DecisionProjectAccessAction;
 export type ProjectAccessMode = GeoAIAccessEnforcementMode;
 
 const serverMutationActions = new Set<ProjectAccessAction>([
@@ -25,7 +19,26 @@ const serverMutationActions = new Set<ProjectAccessAction>([
   "review",
   "generate",
   "attest_client",
-  "attest_official"
+  "attest_official",
+  "project.create",
+  "project.update",
+  "project.delete",
+  "members.manage",
+  "aoi.write",
+  "aoi.delete",
+  "analysis.run",
+  "comparison.write",
+  "comparison.delete",
+  "report.generate",
+  "evidence.upload",
+  "evidence.delete",
+  "evidence.review_screening",
+  "evidence.attest_client",
+  "evidence.attest_official",
+  "dataset.upload",
+  "dataset.delete",
+  "workflow.write",
+  "source.manage"
 ]);
 const publicDemoProjectKeys = new Set([
   "unscoped-demo-project",
@@ -88,7 +101,15 @@ export function requireProjectAccess({
     authMode: authStatus.effectiveMode,
     action,
     user: membership ? { id: demoUser.id, email: demoUser.email } : null,
-    profile: membership ? { id: demoUser.id, organizationId: demoOrganization.id, status: "active" } : null,
+    profile: membership ? { id: demoUser.id, authUserId: demoUser.id, status: "active" } : null,
+    organizationMembership: membership
+      ? {
+          profileId: demoUser.id,
+          organizationId: demoOrganization.id,
+          role: "owner",
+          status: "active"
+        }
+      : null,
     project: { projectKey: effectiveProjectKey, organizationId: demoOrganization.id },
     membership: membership
       ? {

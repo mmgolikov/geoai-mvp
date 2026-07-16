@@ -12,7 +12,7 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const projectId = url.searchParams.get("projectId");
   const projectKey = url.searchParams.get("projectKey");
-  const access = requireProjectAccess({ projectKey, action: "read", mode: "soft" });
+  const access = requireProjectAccess({ projectKey, action: "evidence.read", mode: "soft" });
   if (!access.allowed) {
     return privateNoStoreJson(projectAccessDeniedPayload(access), { status: access.status });
   }
@@ -35,7 +35,7 @@ export async function POST(request: Request) {
   const input = typeof body === "object" && body !== null && !Array.isArray(body)
     ? body as { projectId?: string | null; projectKey?: string | null }
     : {};
-  const access = requireProjectAccess({ projectKey: input.projectKey ?? null, action: "read", mode: "soft" });
+  const access = requireProjectAccess({ projectKey: input.projectKey ?? null, action: "evidence.read", mode: "soft" });
   if (!access.allowed) {
     return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
   }

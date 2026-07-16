@@ -35,7 +35,7 @@ export async function GET(request: Request) {
   const projectId = url.searchParams.get("projectId");
   const projectKey = url.searchParams.get("projectKey");
   if (!hasRequestIdentityKernelEvidence()) {
-    const access = requireProjectAccess({ projectKey, action: "read", mode: "soft" });
+    const access = requireProjectAccess({ projectKey, action: "comparison.read", mode: "soft" });
     if (!access.allowed) {
       return privateNoStoreJson(projectAccessDeniedPayload(access), { status: access.status });
     }
@@ -47,7 +47,7 @@ export async function GET(request: Request) {
 
   const existing = id ? await getComparisonSet(id) : null;
   const resolvedProjectKey = (existing?.data as { projectKey?: string | null } | null)?.projectKey ?? projectKey;
-  const access = requireProjectAccess({ projectKey: resolvedProjectKey, action: "read", mode: "soft" });
+  const access = requireProjectAccess({ projectKey: resolvedProjectKey, action: "comparison.read", mode: "soft" });
   if (!access.allowed) {
     return privateNoStoreJson(projectAccessDeniedPayload(access), { status: access.status });
   }
@@ -89,7 +89,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   if (isPreAuthServerMutationBlocked("write")) {
-    const access = requireProjectAccess({ action: "write", mode: "soft" });
+    const access = requireProjectAccess({ action: "comparison.write", mode: "soft" });
     return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
   }
 
@@ -104,7 +104,7 @@ export async function POST(request: Request) {
   }
 
   const projectKey = (body as { projectKey?: string | null }).projectKey ?? null;
-  const access = requireProjectAccess({ projectKey, action: "write", mode: "soft" });
+  const access = requireProjectAccess({ projectKey, action: "comparison.write", mode: "soft" });
   if (!access.allowed) {
     return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
   }
@@ -143,7 +143,7 @@ export async function POST(request: Request) {
 
 export async function DELETE(request: Request) {
   if (isPreAuthServerMutationBlocked("write")) {
-    const access = requireProjectAccess({ action: "write", mode: "soft" });
+    const access = requireProjectAccess({ action: "comparison.delete", mode: "soft" });
     return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
   }
 
@@ -157,7 +157,7 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ ok: false, ...repositoryModeFields(existing.mode), message: "Comparison set not found." }, { status: 404 });
   }
   const projectKey = (existing.data as { projectKey?: string | null }).projectKey ?? null;
-  const access = requireProjectAccess({ projectKey, action: "write", mode: "soft" });
+  const access = requireProjectAccess({ projectKey, action: "comparison.delete", mode: "soft" });
   if (!access.allowed) {
     return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
   }

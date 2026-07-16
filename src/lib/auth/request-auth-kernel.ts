@@ -1,7 +1,9 @@
 export const requestAuthKernelStatus = {
   implemented: false,
+  ssrCookieTransportImplemented: true,
+  requestContextImplemented: true,
   requestUserVerified: false,
   projectMembershipVerified: false,
   rlsPersonaMatrixVerified: false,
-  reason: "Request-scoped Supabase user/JWT and project-membership verification are not implemented yet. Environment flags are not security evidence."
+  reason: "SSR cookie transport and a fail-closed request context are implemented, but real JWT, project-membership and RLS persona evidence is not certified yet. Environment flags are not security evidence."
 } as const;

@@ -15,7 +15,7 @@ function readString(value: unknown) {
 
 export async function POST(request: Request) {
   if (isPreAuthServerMutationBlocked("upload")) {
-    const access = requireProjectAccess({ action: "upload", mode: "soft" });
+    const access = requireProjectAccess({ action: "evidence.upload", mode: "soft" });
     return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
   }
   const body = await request.json().catch(() => ({})) as Record<string, unknown>;
@@ -28,7 +28,7 @@ export async function POST(request: Request) {
   const fileSizeBytes = typeof body.fileSizeBytes === "number" && Number.isFinite(body.fileSizeBytes)
     ? body.fileSizeBytes
     : 0;
-  const access = requireProjectAccess({ projectKey, action: "upload", mode: "soft" });
+  const access = requireProjectAccess({ projectKey, action: "evidence.upload", mode: "soft" });
   if (!access.allowed) {
     return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
   }

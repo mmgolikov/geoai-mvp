@@ -6,6 +6,9 @@
 -- Membership user_id points to profiles.id, while auth.uid() points to
 -- profiles.auth_user_id. Object scope is derived from the protected
 -- org/{orgId}/project/{projectId}/... path.
+-- SELECT is operation-aware: authenticated object fetch/signing is allowed,
+-- while bucket listing remains denied. client_viewer is deliberately excluded
+-- until a reviewed audience-aware delivery RPC exists.
 drop policy if exists "GeoAI project evidence upload" on storage.objects;
 drop policy if exists "GeoAI project evidence read" on storage.objects;
 drop policy if exists "GeoAI project evidence delete" on storage.objects;
@@ -18,19 +21,11 @@ with check (
   bucket_id in ('geoai-data-room-assets', 'geoai-validation-evidence', 'geoai-report-exports', 'geoai-aoi-imports')
   and split_part(name, '/', 1) = 'org'
   and split_part(name, '/', 3) = 'project'
-  and exists (
-    select 1
-    from public.project_memberships pm
-    join public.profiles p on p.id = pm.user_id
-    join public.projects project
-      on project.id = pm.project_id
-     and project.organization_id = pm.organization_id
-    where p.auth_user_id = auth.uid()
-      and p.status = 'active'
-      and pm.status = 'active'
-      and project.organization_id::text = split_part(name, '/', 2)
-      and project.id::text = split_part(name, '/', 4)
-      and pm.role in ('owner', 'admin', 'analyst')
+  and owner_id = (select auth.uid())::text
+  and geoai_private.has_storage_project_role(
+    split_part(name, '/', 2),
+    split_part(name, '/', 4),
+    array['owner', 'admin', 'analyst']::text[]
   )
 );
 
@@ -40,21 +35,17 @@ for select
 to authenticated
 using (
   bucket_id in ('geoai-data-room-assets', 'geoai-validation-evidence', 'geoai-report-exports', 'geoai-aoi-imports')
+  and storage.allow_any_operation(array[
+    'object.get_authenticated_info',
+    'object.get_authenticated',
+    'object.sign'
+  ])
   and split_part(name, '/', 1) = 'org'
   and split_part(name, '/', 3) = 'project'
-  and exists (
-    select 1
-    from public.project_memberships pm
-    join public.profiles p on p.id = pm.user_id
-    join public.projects project
-      on project.id = pm.project_id
-     and project.organization_id = pm.organization_id
-    where p.auth_user_id = auth.uid()
-      and p.status = 'active'
-      and pm.status = 'active'
-      and project.organization_id::text = split_part(name, '/', 2)
-      and project.id::text = split_part(name, '/', 4)
-      and pm.role in ('owner', 'admin', 'analyst', 'viewer', 'client_viewer')
+  and geoai_private.has_storage_project_role(
+    split_part(name, '/', 2),
+    split_part(name, '/', 4),
+    array['owner', 'admin', 'analyst', 'viewer']::text[]
   )
 );
 
@@ -66,19 +57,10 @@ using (
   bucket_id in ('geoai-data-room-assets', 'geoai-validation-evidence', 'geoai-report-exports', 'geoai-aoi-imports')
   and split_part(name, '/', 1) = 'org'
   and split_part(name, '/', 3) = 'project'
-  and exists (
-    select 1
-    from public.project_memberships pm
-    join public.profiles p on p.id = pm.user_id
-    join public.projects project
-      on project.id = pm.project_id
-     and project.organization_id = pm.organization_id
-    where p.auth_user_id = auth.uid()
-      and p.status = 'active'
-      and pm.status = 'active'
-      and project.organization_id::text = split_part(name, '/', 2)
-      and project.id::text = split_part(name, '/', 4)
-      and pm.role in ('owner', 'admin')
+  and geoai_private.has_storage_project_role(
+    split_part(name, '/', 2),
+    split_part(name, '/', 4),
+    array['owner', 'admin']::text[]
   )
 );
 

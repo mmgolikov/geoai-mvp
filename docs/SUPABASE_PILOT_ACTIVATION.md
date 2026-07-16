@@ -1,5 +1,7 @@
 # Supabase Pilot Activation
 
+> **Superseded — do not use operationally.** This is a historical activation draft and its legacy anon/service-role/DB-URL instructions are prohibited by the current application boundary. Use the [Documentation Index](DOCUMENTATION_INDEX.md), [Current Release State](CURRENT_RELEASE_STATE.md) and [Supabase Data API Containment Runbook](SUPABASE_DATA_API_CONTAINMENT_RUNBOOK_2026_07_16.md). No migration apply, Auth activation or public-runtime credential change is authorized by this file.
+
 GeoAI pilot activation targets Supabase project `geoai-dev` (`pphdqkurxneyagvnnjdt`) in `eu-west-1`. The project is expected to be `ACTIVE_HEALTHY` on Postgres `17.6`; the currently observed public healthcheck table is `geoai_healthcheck`.
 
 This runbook does not authorize production deployment by itself. It verifies readiness and documents the guarded path to activate Supabase/PostGIS persistence for preview or pilot environments.

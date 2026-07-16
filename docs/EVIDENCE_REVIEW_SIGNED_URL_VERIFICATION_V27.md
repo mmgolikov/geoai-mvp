@@ -1,5 +1,7 @@
 # GeoAI Evidence Review Workflow & Signed URL Verification v2.7
 
+> **Superseded — do not use operationally.** This point-in-time foundation does not describe the current fail-closed file routes: protected upload/download/review remains blocked before Auth and Storage persona evidence. Use [STORAGE-01](CODEX_BACKLOG_2026_07_16.md#storage-01--protected-evidence-pipeline), [AUTH-01](CODEX_BACKLOG_2026_07_16.md#auth-01--request-scoped-auth-and-rbac-kernel) and the [Current Release State](CURRENT_RELEASE_STATE.md).
+
 Date: 2026-06-24
 
 GeoAI v2.7 moves evidence uploads from file metadata into a conservative evidence review workflow. It does not create a certified audit trail, official validation connector, enterprise DMS or production-ready secure storage claim.

@@ -188,7 +188,7 @@ export async function getPilotBackendActivationSummary(): Promise<PilotBackendAc
       severity: "p0",
       title: "Request-scoped Supabase repositories are not enabled",
       description: "Durable persistence cannot be used until AUTH-01 binds a verified caller JWT to project membership and RLS.",
-      requiredEnv: ["NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_ANON_KEY"],
+      requiredEnv: ["NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"],
       relatedRoute: "/api/db/health",
       nextAction: "Implement the caller-JWT repository kernel; keep service-role and database credentials out of the public Vercel application."
     });

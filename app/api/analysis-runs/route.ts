@@ -35,7 +35,7 @@ export async function GET(request: Request) {
   const limitParam = Number(url.searchParams.get("limit") ?? "10");
   const limit = Number.isFinite(limitParam) ? Math.min(Math.max(limitParam, 1), 50) : 10;
   const projectKey = url.searchParams.get("projectKey");
-  const access = requireProjectAccess({ projectKey, action: "read", mode: "soft" });
+  const access = requireProjectAccess({ projectKey, action: "analysis.read", mode: "soft" });
   if (!access.allowed) {
     return privateNoStoreJson(projectAccessDeniedPayload(access), { status: access.status });
   }
@@ -77,7 +77,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   if (isPreAuthServerMutationBlocked("write")) {
-    const access = requireProjectAccess({ action: "write", mode: "soft" });
+    const access = requireProjectAccess({ action: "analysis.run", mode: "soft" });
     return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
   }
 
@@ -98,7 +98,7 @@ export async function POST(request: Request) {
   }
 
   const project = body.projectKey ? await getProjectByKey(body.projectKey) : null;
-  const access = requireProjectAccess({ projectKey: body.projectKey ?? project?.data?.projectKey ?? null, action: "write", mode: "soft" });
+  const access = requireProjectAccess({ projectKey: body.projectKey ?? project?.data?.projectKey ?? null, action: "analysis.run", mode: "soft" });
   if (!access.allowed) {
     return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
   }

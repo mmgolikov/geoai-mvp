@@ -12,6 +12,8 @@ This is **not** production-ready, pilot-ready, secure enterprise storage, legal,
 
 Required caveat: **Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.**
 
+> **Historical ledger correction — 2026-07-16.** The migration names below are repository-drift records. The authoritative [migration ledger baseline](../supabase/migration-ledger-baseline.json) records the applied versions as `20260708142250_geoai_storage_buckets_v1`, `20260708142802_geoai_audit_event_service_role_write_v1` and `20260708143337_geoai_audit_event_types_v1`. Preserve the old table only as point-in-time evidence; do not use it for replay.
+
 ## What changed
 
 ### Storage buckets

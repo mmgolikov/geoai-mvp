@@ -40,7 +40,7 @@ export async function PATCH(
   context: { params: Promise<{ id: string }> }
 ) {
   if (isPreAuthServerMutationBlocked("write")) {
-    const access = requireProjectAccess({ action: "write", mode: "soft" });
+    const access = requireProjectAccess({ action: "workflow.write", mode: "soft" });
     return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
   }
   const { id } = await context.params;
@@ -64,7 +64,7 @@ export async function PATCH(
   };
   const existing = await getPilotDeliverable(id);
   const projectKey = existing.data?.projectKey ?? item.projectKey;
-  const access = requireProjectAccess({ projectKey, action: "write", mode: "soft" });
+  const access = requireProjectAccess({ projectKey, action: "workflow.write", mode: "soft" });
   if (!access.allowed) {
     return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
   }

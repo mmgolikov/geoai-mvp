@@ -22,7 +22,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     return privateNoStoreJson({ ok: false, ...repositoryModeFields("local_fallback"), message: "Evidence file metadata not found." }, { status: 404 });
   }
 
-  const access = requireProjectAccess({ projectKey: existing.data.projectKey, action: "read", mode: "soft" });
+  const access = requireProjectAccess({ projectKey: existing.data.projectKey, action: "evidence.read", mode: "soft" });
   if (!access.allowed) {
     return privateNoStoreJson(projectAccessDeniedPayload(access), { status: access.status });
   }

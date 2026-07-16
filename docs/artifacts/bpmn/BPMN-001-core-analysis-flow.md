@@ -1,7 +1,9 @@
 # BPMN-001 Core Analysis Flow
 
+> **Non-authoritative target draft.** This v0.9 process model is not current runtime evidence or an approved implementation specification. Follow the current [Implemented Architecture](../../architecture.md) and [Current Release State](../../CURRENT_RELEASE_STATE.md).
+
 Version: v0.9  
-Status: Review  
+Status: Non-authoritative target draft
 Notation target: BPMN 2.0.2  
 Publication gate: Not passed  
 

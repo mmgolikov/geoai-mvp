@@ -28,7 +28,7 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const projectId = url.searchParams.get("projectId");
   const projectKey = url.searchParams.get("projectKey");
-  const access = requireProjectAccess({ projectKey, action: "read", mode: "soft" });
+  const access = requireProjectAccess({ projectKey, action: "workflow.read", mode: "soft" });
   if (!access.allowed) {
     return privateNoStoreJson(projectAccessDeniedPayload(access), { status: access.status });
   }
@@ -42,7 +42,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   if (isPreAuthServerMutationBlocked("write")) {
-    const access = requireProjectAccess({ action: "write", mode: "soft" });
+    const access = requireProjectAccess({ action: "workflow.write", mode: "soft" });
     return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
   }
   let body: unknown;
@@ -56,7 +56,7 @@ export async function POST(request: Request) {
   const input = asRecord(body);
   if (isWorkflow(input.workflow ?? input)) {
     const workflow = (input.workflow ?? input) as PilotWorkflow;
-    const access = requireProjectAccess({ projectKey: workflow.projectKey, action: "write", mode: "soft" });
+    const access = requireProjectAccess({ projectKey: workflow.projectKey, action: "workflow.write", mode: "soft" });
     if (!access.allowed) {
       return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
     }
@@ -77,7 +77,7 @@ export async function POST(request: Request) {
 
   const projectId = typeof input.projectId === "string" ? input.projectId : null;
   const projectKey = typeof input.projectKey === "string" ? input.projectKey : null;
-  const access = requireProjectAccess({ projectKey, action: "read", mode: "soft" });
+  const access = requireProjectAccess({ projectKey, action: "workflow.read", mode: "soft" });
   if (!access.allowed) {
     return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
   }

@@ -68,7 +68,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   if (isPreAuthServerMutationBlocked("generate")) {
-    const access = requireProjectAccess({ action: "generate", mode: "soft" });
+    const access = requireProjectAccess({ action: "analysis.run", mode: "soft" });
     return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
   }
 
@@ -83,7 +83,7 @@ export async function POST(request: Request) {
   // Client-supplied claimPolicy/review/validation objects are intentionally discarded.
   const body = safeDecisionScoreRequest(parsed.value);
 
-  const access = requireProjectAccess({ projectKey: body.projectKey ?? null, action: "generate", mode: "soft" });
+  const access = requireProjectAccess({ projectKey: body.projectKey ?? null, action: "analysis.run", mode: "soft" });
   if (!access.allowed) {
     return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
   }

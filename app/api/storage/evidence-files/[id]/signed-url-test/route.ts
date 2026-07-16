@@ -19,7 +19,7 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
     return NextResponse.json({ ok: false, ...repositoryModeFields("local_fallback"), message: "Evidence file metadata not found." }, { status: 404 });
   }
 
-  const access = requireProjectAccess({ projectKey: existing.data.projectKey, action: "read", mode: "soft" });
+  const access = requireProjectAccess({ projectKey: existing.data.projectKey, action: "evidence.read", mode: "soft" });
   if (!access.allowed) {
     return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
   }

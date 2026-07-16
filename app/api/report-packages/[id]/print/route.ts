@@ -19,7 +19,7 @@ export async function GET(request: Request, { params }: Params) {
   if (!result.data) {
     return privateNoStoreJson({ ok: false, ...repositoryModeFields(result.mode), message: "Report package not found." }, { status: 404 });
   }
-  const access = requireProjectAccess({ projectKey: result.data.projectKey, action: "export", mode: "soft" });
+  const access = requireProjectAccess({ projectKey: result.data.projectKey, action: "report.export", mode: "soft" });
   if (!access.allowed) {
     return privateNoStoreJson(projectAccessDeniedPayload(access), { status: access.status });
   }

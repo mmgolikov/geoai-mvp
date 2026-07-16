@@ -47,7 +47,7 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const projectId = url.searchParams.get("projectId");
   const projectKey = url.searchParams.get("projectKey");
-  const access = requireProjectAccess({ projectKey, action: "read", mode: "soft" });
+  const access = requireProjectAccess({ projectKey, action: "report.read", mode: "soft" });
   if (!access.allowed) {
     return privateNoStoreJson(projectAccessDeniedPayload(access), { status: access.status });
   }
@@ -105,7 +105,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   if (isPreAuthServerMutationBlocked("write")) {
-    const access = requireProjectAccess({ action: "write", mode: "soft" });
+    const access = requireProjectAccess({ action: "report.generate", mode: "soft" });
     return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
   }
 
@@ -122,7 +122,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, ...repositoryModeFields("local_fallback"), message: "projectKey is required." }, { status: 400 });
   }
 
-  const access = requireProjectAccess({ projectKey: input.projectKey, action: "write", mode: "soft" });
+  const access = requireProjectAccess({ projectKey: input.projectKey, action: "report.generate", mode: "soft" });
   if (!access.allowed) {
     return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
   }

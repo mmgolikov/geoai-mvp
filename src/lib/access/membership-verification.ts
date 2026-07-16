@@ -4,7 +4,12 @@ import {
   type ProjectAccessAction,
   type ProjectAccessDecisionMode
 } from "@/src/lib/access/access-decision";
-import type { GeoAIAuthMode, GeoAIProjectMembershipStatus, GeoAIProjectRole } from "@/src/types/auth";
+import type {
+  GeoAIAuthMode,
+  GeoAIOrganizationCapability,
+  GeoAIProjectMembershipStatus,
+  GeoAIProjectRole
+} from "@/src/types/auth";
 
 export type MembershipVerificationStatus =
   | "no_session"
@@ -20,7 +25,6 @@ export type MembershipVerificationStatus =
 export type MembershipVerificationProfile = {
   id: string;
   authUserId?: string | null;
-  organizationId?: string | null;
   status?: "active" | "invited" | "disabled" | "inactive" | string | null;
 };
 
@@ -65,6 +69,7 @@ export type MembershipVerificationInput = {
   organizationMembership?: MembershipVerificationOrgMembership | null;
   projectMemberships?: MembershipVerificationProjectMembership[];
   projectMembership?: MembershipVerificationProjectMembership | null;
+  capabilities?: GeoAIOrganizationCapability[];
 };
 
 export type MembershipVerificationResult = {
@@ -194,7 +199,7 @@ function evaluateHard(input: MembershipVerificationInput): Omit<MembershipVerifi
   const matchingOrgMembership = profileOrgMemberships.find((membership) => orgMatches(membership, projectOrgId));
 
   if (!matchingOrgMembership) {
-    if (profileOrgMemberships.length > 0 || (projectOrgId && profile.organizationId && projectOrgId !== profile.organizationId)) {
+    if (profileOrgMemberships.length > 0) {
       return denial({
         status: "wrong_organization",
         httpStatus: 403,
@@ -258,8 +263,8 @@ function evaluateHard(input: MembershipVerificationInput): Omit<MembershipVerifi
 
   if (
     !orgMatches(matchingProjectMembership, projectOrgId) ||
-    !profile.organizationId ||
-    matchingProjectMembership.organizationId !== profile.organizationId
+    !matchingOrgMembership.organizationId ||
+    matchingProjectMembership.organizationId !== matchingOrgMembership.organizationId
   ) {
     return denial({
       status: "wrong_organization",
@@ -272,7 +277,7 @@ function evaluateHard(input: MembershipVerificationInput): Omit<MembershipVerifi
     });
   }
 
-  if (!roleAllowsAction(matchingProjectMembership.role, action)) {
+  if (!roleAllowsAction(matchingProjectMembership.role, action, input.capabilities)) {
     return denial({
       status: "insufficient_role",
       httpStatus: 403,

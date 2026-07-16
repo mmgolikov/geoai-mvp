@@ -45,6 +45,28 @@ for (const file of await collectRouteFiles(apiRoot)) {
       continue;
     }
     if (policy.access === "public_demo") continue;
+    if (!policy.action || typeof policy.action !== "string" || !policy.action.includes(".")) {
+      failures.push(`${relative} ${handler.method}: protected route has no exact resource action`);
+      continue;
+    }
+    if (policy.access === "identity") {
+      if (policy.action !== "identity.session" || !/getSafeAuthSessionSummary\s*\(request\)/.test(handler.body)) {
+        failures.push(`${relative} ${handler.method}: identity route must use the fail-closed SSR session summary`);
+      }
+      continue;
+    }
+    if (policy.access === "operator") {
+      const guardIndex = handler.body.indexOf("hasRuntimeSourcePackOperatorAccess(request)");
+      const executionIndex = handler.body.indexOf("getRuntimeSourcePack(");
+      if (guardIndex < 0 || executionIndex < 0 || guardIndex > executionIndex) {
+        failures.push(`${relative} ${handler.method}: operator authorization must precede source-pack execution`);
+      }
+      continue;
+    }
+    if (policy.access === "org_admin") {
+      failures.push(`${relative} ${handler.method}: org_admin handler verification is not implemented yet`);
+      continue;
+    }
     if (policy.access !== "project") {
       failures.push(`${relative} ${handler.method}: unsupported access classification ${policy.access}`);
       continue;
@@ -71,6 +93,9 @@ for (const file of await collectRouteFiles(apiRoot)) {
     }
     if (!source.includes("projectAccessDeniedPayload")) {
       failures.push(`${relative}: missing projectAccessDeniedPayload import/use`);
+    }
+    if (!handler.body.includes(`action: "${policy.action}"`)) {
+      failures.push(`${relative} ${handler.method}: access decision does not use manifest action ${policy.action}`);
     }
 
     protectedHandlers += 1;

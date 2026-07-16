@@ -26,7 +26,7 @@ export async function GET(_request: Request, { params }: Params) {
   if (!result.data) {
     return privateNoStoreJson({ ok: false, ...repositoryModeFields("local_fallback"), message: "Report package not found." }, { status: 404 });
   }
-  const access = requireProjectAccess({ projectKey: result.data.projectKey, action: "read", mode: "soft" });
+  const access = requireProjectAccess({ projectKey: result.data.projectKey, action: "report.read", mode: "soft" });
   if (!access.allowed) {
     return privateNoStoreJson(projectAccessDeniedPayload(access), { status: access.status });
   }
@@ -43,7 +43,7 @@ export async function GET(_request: Request, { params }: Params) {
 
 export async function PATCH(request: Request, { params }: Params) {
   if (isPreAuthServerMutationBlocked("write")) {
-    const access = requireProjectAccess({ action: "write", mode: "soft" });
+    const access = requireProjectAccess({ action: "report.generate", mode: "soft" });
     return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
   }
 
@@ -68,7 +68,7 @@ export async function PATCH(request: Request, { params }: Params) {
   if (!existing.data) {
     return NextResponse.json({ ok: false, ...repositoryModeFields("local_fallback"), message: "Report package not found." }, { status: 404 });
   }
-  const access = requireProjectAccess({ projectKey: existing.data.projectKey, action: "write", mode: "soft" });
+  const access = requireProjectAccess({ projectKey: existing.data.projectKey, action: "report.generate", mode: "soft" });
   if (!access.allowed) {
     return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
   }

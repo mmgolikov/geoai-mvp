@@ -19,7 +19,7 @@ const priorities: ValidationChecklistPriority[] = ["high", "medium", "low"];
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
   if (isPreAuthServerMutationBlocked("write")) {
-    const access = requireProjectAccess({ action: "write", mode: "soft" });
+    const access = requireProjectAccess({ action: "evidence.review_screening", mode: "soft" });
     return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
   }
   const parsed = await readBoundedJson(request, 96 * 1024);
@@ -37,7 +37,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     return NextResponse.json({ ok: false, ...repositoryModeFields(existing.mode), message: "Checklist item not found." }, { status: 404 });
   }
   const projectKey = existing.data.projectKey;
-  const access = requireProjectAccess({ projectKey, action: "write", mode: "soft" });
+  const access = requireProjectAccess({ projectKey, action: "evidence.review_screening", mode: "soft" });
   if (!access.allowed) {
     return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
   }

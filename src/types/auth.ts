@@ -4,6 +4,11 @@ export type GeoAIProjectRole = "owner" | "admin" | "analyst" | "viewer" | "clien
 
 export type GeoAIProjectMembershipStatus = "active" | "invited" | "disabled";
 
+export type GeoAIOrganizationCapability =
+  | "client_attestor"
+  | "official_attestor"
+  | "source_operator";
+
 export type GeoAIUser = {
   id: string;
   email: string;

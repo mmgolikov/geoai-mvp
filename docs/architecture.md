@@ -19,13 +19,13 @@ This page describes the current audit candidate implementation. Production remai
 | Web | Next.js 15 App Router, React 19, TypeScript, Tailwind | Vercel Production is a public demo |
 | Product UI | Mapbox workspace, criteria/map-first flows, dashboards, comparisons, print routes | Large client coordinators remain a maintainability/performance risk |
 | API | 62 route files / 83 handlers | 51 project-scoped handlers are declared in `security/api-route-access.json`; public-demo handlers are explicitly allowlisted |
-| Authorization | Demo/soft access decision scaffold | No request-scoped caller JWT/profile/membership kernel; protected Auth/RBAC is blocked |
+| Authorization | Exact role/action/capability matrix plus staged SSR cookie transport and request identity context | Claims/user/profile verification exists through `api.current_profile()`, but activation flags, membership repositories and real personas remain blocked |
 | Persistence | Project-scoped browser-local public-demo state, local-development JSON fallback and Supabase repository adapters | Vercel `/tmp` fallback and public-demo server mutations are disabled; request repositories are not yet caller-JWT clients; durable user writes are not active |
-| Database | Supabase/Postgres/PostGIS development foundation, 20 public tables, 19 with RLS | Historical migration chain is not clean-replay certified; Production Supabase is not configured |
-| Storage | Private-bucket/readiness/upload foundations | Client binaries are blocked pending user-context policies, content validation and signed-URL evidence |
+| Database | Supabase/Postgres/PostGIS development foundation, 20 live public tables, 19 with RLS; exact ten-entry live ledger reconstructed; five-table SOURCE-01 custody model staged | Three pending containment/identity/source-custody migrations are review-only; clean/upgrade replay is not certified; Production Supabase is not configured |
+| Storage | Private-bucket/readiness/upload foundations plus narrow review-only role predicate and operation-aware object-read draft | Policies are unapplied; client binaries remain blocked pending live user-context policy, content validation and signed-URL evidence |
 | AI | Browser-local deterministic analysis/scoring plus dormant OpenAI server code | Both server generation POST routes return 403 before parsing until AUTH-01; no key/flag can activate them now |
 | Sources | Compact bundled public manifest plus bounded operator source-pack contract | Anonymous routes statically import only reviewed compact metadata; Production and unflagged Preview/local source packs fail closed; no real geometry/assets/persistence or score impact |
-| Operations | GitHub Actions quality gate, Vercel output-trace budgets, health/logs, Supabase advisors | No full E2E Auth/RLS persona suite, clean migration replay, distributed tracing or certified audit |
+| Operations | GitHub Actions quality gate, static custody checker, Vercel output-trace budgets, health/logs, Supabase advisors, configured database replay job | CI replay/checker has not run on the exact candidate SHA; no full HTTP Auth/RLS/source persona suite, distributed tracing or certified audit |
 
 ## Request and trust boundaries
 
@@ -36,14 +36,15 @@ Browser
   -> protected/generate server APIs -> 403 before body parsing
 
 Future authenticated request
-  -> request-scoped caller JWT -> project authorization -> RLS repository
+  -> SSR cookie -> claims + canonical user -> api.current_profile()
+  -> api.current_project_access(text) -> exact project action -> reviewed api resource RPC
 
 Operator-only future plane
   -> provisioning / migrations / controlled ingestion
   -> privileged credential (must never be imported by user-facing API routes)
 ```
 
-The lower access decision is authoritative, public-demo server mutations/generation are denied, and affected ID routes resolve stored project scope before authorization. This closes the confirmed hard-mode/synthetic-membership bypass but does not create real authentication. Public application Supabase repositories are disabled before AUTH-01; `requireProjectAccess` cannot authenticate a Supabase user.
+The lower access decision is authoritative, public-demo server mutations/generation are denied, and affected ID routes resolve stored project scope before authorization. This closes the confirmed hard-mode/synthetic-membership bypass but does not activate real authentication. SSR transport can verify a caller/profile through the staged `api` RPC, while `requireProjectAccess` remains disconnected from that context and application repositories stay disabled until AUTH-01B and real personas pass.
 
 Candidate browser state is keyed by project for uploads, AOIs, analysis history, report summaries and comparisons. Data Room/report/API lookups fail closed for unknown explicit project keys rather than substituting `demoProjects[0]`; an invalid Workspace URL key is explicitly cleared and visibly reset to the default public demo. Legacy uploads without `projectKey` are deliberately not assigned. Raw uploads, AOI geometry and their derived target coordinates remain local; user-provided targets skip market/climate calls. Protected controls are disabled with a capability reason before any request, while browser-safe demo actions remain usable. `/demo` is a 307 redirect to `/workspace`.
 
@@ -61,25 +62,25 @@ The current release separates source metadata from evidence activation:
 - Preview/local provider execution: requires the explicit flag, a server-only operator token of at least 32 characters and a matching request Bearer/header; Production stays disabled. Upstream fetches use fixed HTTPS hosts, reject redirects, cancel non-success/oversized bodies and enforce strict NASA date/value, Copernicus collection/timestamp/cloud and Overpass count contracts; the pack remains non-persistent and non-scoring.
 - Public data-sources/readiness/manifest/sources/status/lineage routes: reviewed `compact_public_v1`, `liveRegistryIncluded:false`, diagnostics withheld and no Supabase query. They statically import one manifest plus three aggregate-quality records; per-source DLD/OSM/Overture truth is not inferred from group totals and deep snapshots stay outside anonymous function traces.
 
-Public source DTOs enumerate approved fields and omit filesystem/storage paths by construction; new internal manifest fields do not flow through automatically. Real snapshots remain blocked until an explicit visibility/tenant model replaces the current nullable project convention.
+Public source DTOs enumerate approved fields and omit filesystem/storage paths by construction; new internal manifest fields do not flow through automatically. Pending SOURCE-01 replaces the nullable-project convention for future acquired releases with non-null organization/project scope and immutable custody metadata. It is not live or replay-certified, so real snapshots and all provider writes remain blocked.
 
 ## Supabase architecture status
 
 The development project proves a schema foundation, not a deployable security boundary. Current blockers:
 
 - live Data API exposure remains on `pphdqkurxneyagvnnjdt`: anon-readable domain/source/audit rows, full mutation privileges on `spatial_ref_sys` and 748 executable `public` RPCs (79 volatile, six `SECURITY DEFINER`); the candidate containment ledger count is zero;
-- owner decision to disable the Data API or expose a dedicated minimal `api` schema with minimum grants plus RLS; see the [draft containment runbook](SUPABASE_DATA_API_CONTAINMENT_RUNBOOK_2026_07_16.md), which is not executed/apply-ready;
-- request-scoped Supabase client carrying the caller session/JWT;
+- owner action to expose only the dedicated minimal `api` schema (or disable the Data API), prove direct-`public` denial and record the change; see the [containment runbook](SUPABASE_DATA_API_CONTAINMENT_RUNBOOK_2026_07_16.md), which is not executed/apply-ready;
+- request-scoped SSR cookie transport is implemented, but project membership/resource RPC integration and real HTTP/JWT evidence remain disabled;
 - removal/rotation of the service-role credential observed in the existing public Preview environment; candidate code no longer reads or needs it, but external Vercel configuration remains owner-controlled ENV-01 work;
-- one explicit identity model aligned across schema, TS/session and RLS. Recommended baseline is a global profile plus organization and project memberships; `profiles.auth_user_id` unique/FK, membership/org nullability, `UNIQUE(project_id,user_id)` and organization/project consistency are not closed;
-- replacement of the legacy authenticated AOI `FOR ALL` policy with operation/role-specific write policies;
-- clean shadow-database replay across historical migrations;
-- unique, upgrade-safe Supabase CLI migration versions (`20260618` is currently reused five times and `20260624` twice);
+- the pending identity draft aligns global profiles, organization/project memberships, capabilities, Auth FK/uniqueness, non-null/composite tenant constraints and operation-specific RLS; execution evidence is missing;
+- clean shadow-database and upgrade replay across the canonical ledger plus three pending migrations;
 - positive/negative RLS persona tests and schema drift evidence;
-- explicit public/demo/private snapshot visibility;
+- execution evidence for the staged source-custody model, real JWT source-read personas and a trusted worker write path;
 - protected Storage upload/download/delete tests in user context.
 
-`20260716000000_geoai_pre_auth_security_containment_v1.sql` is prepared but not applied. It retires every detected historical anonymous Preview policy/grant except the public healthcheck, limits explicit demo snapshot policies to authenticated callers, contains historical tables, corrects Storage membership roles/joins and reduces helper EXECUTE grants. The static test scans the full historical surface; applying it still requires separate approval and clean-replay/rollback/live-persona evidence.
+`20260716000000_geoai_pre_auth_security_containment_v1.sql`, `20260716085854_geoai_identity_authorization_foundation_v1.sql` and `20260716113000_geoai_source_custody_foundation_v1.sql` are prepared but not applied. Containment revokes direct domain/health grants for `anon` and `authenticated`, removes detected policies and exposed security-definer helpers, and closes default privileges. Identity adds tenant constraints, account-state-aware private helpers, organization capabilities, exact RLS policy templates and four minimal identity/membership `api` RPCs while keeping direct `public` table grants closed. Because those callers cannot directly select protected identity/tenant tables, the Storage policy draft uses narrow `SECURITY DEFINER geoai_private.has_storage_project_role()` for one exact organization/project/role decision; object fetch/signing is operation-aware so listing and `client_viewer` raw-object access remain denied. Source custody adds five RLS-enabled/direct-grant-closed tables: catalog, immutable releases/artifacts/status events/ingestion receipts, with composite tenant/release and actor organization/project-membership FKs. Legacy registry backfill is `restricted`/`registered_unverified`; bounded `api.current_source_releases()` returns only `approved` caller-scoped metadata for owner/admin/analyst/viewer, never Storage paths, source URIs, secrets or `client_viewer` access. It connects no provider and grants no table/write path. Static contracts pass; apply remains blocked by clean/upgrade replay, owner schema action, rollback, trusted-worker design and real-persona evidence.
+
+The repository now stages a reproducible local boundary in `supabase/config.toml`: Postgres 17 with only `api` exposed through the Data API. Supabase CLI `2.109.1` is pinned, the guarded operator migration check enumerates all three pending migrations and requires the source-custody checker, and CI `database-replay` is configured to start/reset the stack and execute the 57-assertion pgTAP database/source/Storage-helper persona suite, including negative source actor-membership and artifact/release tenant-scope FK cases. This is not a successful replay receipt: local Docker is unavailable and the controls have not run on the exact candidate SHA. Upgrade replay, live HTTP/JWT/source personas and advisor parity remain separate evidence.
 
 Supabase's supported boundary requires both minimum grants and RLS for exposed tables, explicit function `EXECUTE` grants, caller JWT validation and owner-created `storage.objects` policies. Service-role credentials bypass RLS and are restricted to an operator/worker plane; they are never user authorization.
 
@@ -119,12 +120,12 @@ These controls reduce exposure; they do not make the system Production-ready.
 - Upload input trusts caller metadata and declared MIME; malware/quarantine/checksum controls are incomplete.
 - Audit writes are non-blocking and mostly unattributed.
 - Report/package routes validate canonical raw IDs and the public package collection is summary-only/size-bounded; durable report/comparison identity round-trip evidence remains incomplete after Auth.
-- CI still needs an ephemeral Supabase replay and live Auth/RLS persona matrix.
+- CI has a configured ephemeral Supabase clean-replay/pgTAP job but still needs an exact-head pass, upgrade replay and the live HTTP/JWT Auth/RLS persona matrix.
 
 ## Required next architecture gates
 
-1. Choose the Data API/identity model, reconcile migrations and prove clean replay/drift/full-chain privileges/RLS personas.
-2. Implement the request-scoped caller-JWT Auth/RBAC kernel and fail-closed protected namespace; never authorize users with service-role repositories.
+1. Execute and evidence the selected Data API/identity model, then prove clean/upgrade replay, drift, full-chain privilege denial and RLS/API personas.
+2. Complete the staged request-scoped Auth/RBAC kernel by binding verified caller/profile/membership to exact route decisions and reviewed resource RPCs; never authorize users with service-role repositories.
 3. Build the protected evidence upload pipeline.
 4. Add explicit source visibility, custody and public projection.
 5. Add request IDs, structured telemetry, rate limits and incident/runbook evidence.

@@ -19,11 +19,16 @@ This checklist primarily verifies the unreleased Draft PR #97 audit candidate. P
 - [x] Every API handler is classified in `security/api-route-access.json`; static guard contract passes.
 - [x] Candidate static check: the environment-driven access wrapper denies hard mode when Auth/bypass evidence is absent; synthetic membership cannot override the lower decision. **Exact-head runtime evidence remains pending.**
 - [x] User-facing repository client cannot select the Supabase service-role key.
-- [ ] Canonical migration chain replays cleanly on an ephemeral Supabase/Postgres target. **Current status: blocked by historical schema collisions.**
-- [ ] Every Supabase migration has a unique CLI version. **Current status: blocked; `20260618` is reused five times and `20260624` twice.**
+- [ ] Canonical migration chain replays cleanly on an ephemeral Supabase/Postgres target. **Current status: exact unique ledger reconstruction and static checks pass; clean/upgrade execution evidence is still blocked.**
+- [x] Every canonical Supabase migration filename has a unique 14-digit CLI version; non-ledger duplicate-version drafts are quarantined outside `supabase/migrations`. **Replay certification remains separate.**
+- [x] Static local replay contract: `supabase/config.toml` exposes only `api` on Postgres 17, Supabase CLI `2.109.1` is pinned and CI `database-replay` is defined.
+- [ ] Exact-head GitHub CI `database-replay` successfully completes start/reset and the 57-assertion pgTAP database/source/Storage-helper persona suite across all three pending migrations, including negative source actor-membership and artifact/release tenant-scope FK tests. **Current status: configured but not executed locally because Docker is unavailable; remote result is pending.**
 - [ ] Live positive/negative RLS persona matrix passes for every protected table. **Current status: mock plan only.**
 - [ ] Protected upload validates total body, server-derived scope, magic bytes, checksum and quarantine/AV state. **Current status: blocked.**
-- [ ] Real snapshots have explicit tenant/visibility and custody; nullable project scope is not treated as public. **Current status: blocked.**
+- [x] Static SOURCE-01 contract proves five RLS-enabled/direct-grant-closed custody tables, immutable release/artifact/status/receipt records, composite tenant/release and actor membership FKs, `restricted`/`registered_unverified` legacy backfill, and approved-only bounded no-path/no-`client_viewer` `api.current_source_releases()` output.
+- [x] Static identity/Storage contract proves the review-only policy uses narrow `SECURITY DEFINER geoai_private.has_storage_project_role()` instead of protected base/Auth caller joins, allows only authenticated object fetch/signing operations, denies bucket listing and excludes `client_viewer` raw-object access. **Policy remains unapplied; live Storage personas are pending.**
+- [ ] Real snapshots have explicit tenant/visibility and custody; nullable project scope is not treated as public. **Current status: schema contract is staged but unapplied; clean/upgrade replay, real source personas, rights and trusted-worker evidence remain blocked.**
+- [ ] Source-provider writes remain disabled until a trusted operator/worker path proves idempotent receipts, rights checks, quarantine/revocation, rollback and negative public-app write access. **Current status: no provider is connected and the pending migration exposes no write API.**
 - [x] Public source DTOs exclude raw/normalized filesystem and Storage object paths.
 - [x] OpenAI key alone cannot activate upstream execution; body/time/token bounds are enforced.
 - [x] Candidate static check: public-demo upload, AOI, report, analysis-run and comparison state remains browser-only; Vercel server-local fallback is disabled and seeded reports are immutable server authority. **Production remains unsafe until merge/deploy; exact-head runtime evidence remains pending.**
@@ -44,6 +49,7 @@ This checklist primarily verifies the unreleased Draft PR #97 audit candidate. P
 - [ ] `OPENAI_API_KEY` is not required for current MVP behavior.
 - [ ] `GEOAI_ALLOW_OPENAI_UPSTREAM` remains false until hard Auth, request membership, privacy and quota gates are verified.
 - [ ] `NEXT_PUBLIC_AUTH_MODE` is optional and defaults to public demo access.
+- [ ] `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, if configured after AUTH-01 approval, starts with `sb_publishable_`; legacy anon JWT keys are rejected.
 - [x] Invalid environment values fail closed: Auth -> `disabled`, enforcement -> `hard`, demo bypass -> `false`, Supabase/Storage readiness requirements -> `true`.
 - [ ] `SUPABASE_SERVICE_ROLE_KEY` is not exposed in browser/client code.
 - [ ] `SUPABASE_SERVICE_ROLE_KEY` is absent from the public Preview runtime; privileged credentials belong only to an operator/worker plane. **Current status: credential presence was observed and remains a least-privilege blocker.**
@@ -99,13 +105,17 @@ This checklist primarily verifies the unreleased Draft PR #97 audit candidate. P
 
 ## Supabase/PostGIS Durable Persistence v2.3
 
-- [ ] Migration file exists at `supabase/migrations/20260624_geoai_pilot_persistence_foundation.sql`.
+- [x] The first ten canonical files match `supabase/migration-ledger-baseline.json` by version, byte count and MD5; the pre-ledger healthcheck reconciliation and legacy quarantine are present.
+- [ ] Pending migrations `20260716000000_geoai_pre_auth_security_containment_v1.sql`, `20260716085854_geoai_identity_authorization_foundation_v1.sql` and `20260716113000_geoai_source_custody_foundation_v1.sql` pass clean and upgrade replay plus real Auth/RLS/source personas before apply.
+- [x] `npm run test:source-custody-migration` statically verifies the five custody tables, RLS/direct-grant closure, immutability, tenant/actor FKs and bounded RPC; it is wired into the permanent Quality Gate. **Exact-head GitHub execution remains pending.**
+- [x] `npm run supabase:migrate:check` enumerates all three pending migrations and requires canonical-chain, security-surface, identity/authorization and SOURCE-01 custody static checks. **It deliberately reports live apply readiness false until replay/persona/owner evidence exists.**
 - [ ] Historical migrations plus the canonical reconciliation migration pass a clean replay; existence of additive SQL alone is not certification.
 - [ ] Migration includes organizations, profiles, memberships, projects, AOIs, analysis runs, reports, comparisons, Data Room, Pilot Workflow, source snapshot, AI score and audit event tables.
 - [ ] AOI table uses PostGIS polygon and centroid columns.
 - [ ] RLS is enabled for core tables.
 - [ ] No broad anonymous write policy exists.
 - [ ] The development Data API is disabled or exposes only an intentionally minimal `api` schema; minimum grants and RLS are both verified. See the [containment runbook](SUPABASE_DATA_API_CONTAINMENT_RUNBOOK_2026_07_16.md).
+- [ ] Direct `public` table/RPC access fails for `anon` and authenticated callers; anonymous readiness can execute only `api.healthcheck()`.
 - [ ] `profiles.auth_user_id` is unique and references `auth.users(id)`; AOI authenticated `FOR ALL` policy checks an allowed role for every write path.
 - [ ] Audit event helper is non-blocking and does not claim certified audit/compliance logging.
 - [ ] Supabase migration has been applied only in an intended Supabase environment, not against production without review.

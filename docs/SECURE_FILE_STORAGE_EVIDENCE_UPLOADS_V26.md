@@ -1,5 +1,7 @@
 # GeoAI Secure File Storage & Evidence Uploads v2.6
 
+> **Superseded — do not use operationally.** This historical storage foundation predates the current pre-Auth 403 boundary and contains an obsolete policy path plus metadata-fallback/service-role guidance. No protected upload or signed URL is activated. Use [STORAGE-01](CODEX_BACKLOG_2026_07_16.md#storage-01--protected-evidence-pipeline), the [Current Release State](CURRENT_RELEASE_STATE.md) and the [Supabase Data API Containment Runbook](SUPABASE_DATA_API_CONTAINMENT_RUNBOOK_2026_07_16.md).
+
 Date: 2026-06-24
 
 ## Scope

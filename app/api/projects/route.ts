@@ -23,7 +23,7 @@ function isProjectInput(value: unknown): value is ProjectInput {
 }
 
 export async function GET() {
-  const access = requireProjectAccess({ projectKey: null, action: "read", mode: "soft" });
+  const access = requireProjectAccess({ projectKey: null, action: "project.read", mode: "soft" });
   if (!access.allowed) {
     return privateNoStoreJson(projectAccessDeniedPayload(access), { status: access.status });
   }
@@ -51,7 +51,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   if (isPreAuthServerMutationBlocked("manage")) {
-    const access = requireProjectAccess({ action: "manage", mode: "soft" });
+    const access = requireProjectAccess({ action: "project.create", mode: "soft" });
     return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
   }
 
@@ -73,7 +73,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const access = requireProjectAccess({ projectKey: body.projectKey ?? null, action: "manage", mode: "soft" });
+  const access = requireProjectAccess({ projectKey: body.projectKey ?? null, action: "project.create", mode: "soft" });
   if (!access.allowed) {
     return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
   }

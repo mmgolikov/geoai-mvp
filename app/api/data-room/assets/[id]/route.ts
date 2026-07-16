@@ -21,7 +21,7 @@ function boundedIds(value: unknown) {
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
   if (isPreAuthServerMutationBlocked("write")) {
-    const access = requireProjectAccess({ action: "write", mode: "soft" });
+    const access = requireProjectAccess({ action: "evidence.review_screening", mode: "soft" });
     return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
   }
   const parsed = await readBoundedJson(request, 128 * 1024);
@@ -39,7 +39,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     return NextResponse.json({ ok: false, ...repositoryModeFields(existing.mode), message: "Data room asset not found." }, { status: 404 });
   }
 
-  const access = requireProjectAccess({ projectKey: existing.data.projectKey, action: "write", mode: "soft" });
+  const access = requireProjectAccess({ projectKey: existing.data.projectKey, action: "evidence.review_screening", mode: "soft" });
   if (!access.allowed) {
     return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
   }
@@ -96,7 +96,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
 
 export async function DELETE(_request: Request, context: { params: Promise<{ id: string }> }) {
   if (isPreAuthServerMutationBlocked("write")) {
-    const access = requireProjectAccess({ action: "write", mode: "soft" });
+    const access = requireProjectAccess({ action: "evidence.delete", mode: "soft" });
     return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
   }
   const { id } = await context.params;
@@ -105,7 +105,7 @@ export async function DELETE(_request: Request, context: { params: Promise<{ id:
     return NextResponse.json({ ok: false, ...repositoryModeFields(existing.mode), message: "Data room asset not found." }, { status: 404 });
   }
 
-  const access = requireProjectAccess({ projectKey: existing.data.projectKey, action: "write", mode: "soft" });
+  const access = requireProjectAccess({ projectKey: existing.data.projectKey, action: "evidence.delete", mode: "soft" });
   if (!access.allowed) {
     return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
   }

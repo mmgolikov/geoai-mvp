@@ -2,12 +2,14 @@ const project = {
   ref: "pphdqkurxneyagvnnjdt",
   name: "geoai-dev",
   region: "eu-west-1",
-  currentPublicTable: "geoai_healthcheck"
+  metadataSource: "repository_expected_target_not_live_status",
+  currentReadinessSurface: "api.healthcheck()"
 };
 
 const requiredTables = [
   "organizations",
   "profiles",
+  "organization_memberships",
   "project_memberships",
   "projects",
   "aois",
@@ -26,14 +28,6 @@ const requiredTables = [
   "audit_events"
 ];
 
-const dataHonestyCaveat =
-  "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.";
-const localFallbackCaveat = "Local/API fallback is not durable production storage.";
-const storageCaveat =
-  "Storage readiness is not secure enterprise storage until buckets, policies, signed URL flows and access enforcement are configured and verified.";
-const publicDemoCaveat =
-  "Public demo access is enabled; official validation and production access control are not configured.";
-
 function present(name) {
   return Boolean(process.env[name]?.trim());
 }
@@ -49,176 +43,124 @@ function unique(values) {
   return Array.from(new Set(values.filter(Boolean)));
 }
 
-function restUrl(table) {
+function publishableKey() {
+  const value = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim();
+  return value && /^sb_publishable_[A-Za-z0-9_-]{16,}$/.test(value) ? value : null;
+}
+
+async function probeApiHealth() {
   const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
-  if (!baseUrl) return null;
-
-  const url = new URL(`/rest/v1/${table}`, baseUrl);
-  url.searchParams.set("select", "*");
-  url.searchParams.set("limit", "1");
-  return url;
-}
-
-function readKey() {
-  return process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim() || null;
-}
-
-function parseContentRange(value) {
-  const match = String(value ?? "").match(/\/(\d+|\*)$/);
-  if (!match || match[1] === "*") return null;
-  return Number.parseInt(match[1], 10);
-}
-
-async function probeTable(name, table) {
-  const url = restUrl(table);
-  const key = readKey();
-
-  if (!url || !key) {
-    return {
-      name,
-      table,
-      ready: false,
-      count: null,
-      status: "not_configured"
-    };
+  const key = publishableKey();
+  if (!baseUrl || !key) {
+    return { schema: "api", rpc: "healthcheck", configured: false, reachable: false, healthy: false, status: "not_configured" };
   }
-
   try {
-    const response = await fetch(url, {
+    const target = new URL(baseUrl);
+    const projectRef = target.protocol === "https:"
+      ? target.hostname.match(/^([a-z0-9-]+)\.supabase\.co$/i)?.[1] ?? null
+      : null;
+    if (projectRef !== project.ref) {
+      return { schema: "api", rpc: "healthcheck", configured: true, reachable: false, healthy: false, status: "target_mismatch" };
+    }
+    const response = await fetch(new URL("/rest/v1/rpc/healthcheck", baseUrl), {
+      method: "POST",
       headers: {
         apikey: key,
         Authorization: `Bearer ${key}`,
-        Prefer: "count=exact"
-      }
+        Accept: "application/json",
+        "Accept-Profile": "api",
+        "Content-Profile": "api",
+        "Content-Type": "application/json"
+      },
+      body: "{}",
+      signal: AbortSignal.timeout(5_000)
     });
-
-    return {
-      name,
-      table,
-      ready: response.ok,
-      count: response.ok ? parseContentRange(response.headers.get("content-range")) : null,
-      status: response.ok ? "readable" : "blocked"
-    };
+    if (!response.ok) return { schema: "api", rpc: "healthcheck", configured: true, reachable: false, healthy: false, status: "blocked" };
+    const payload = await response.json();
+    const row = Array.isArray(payload) ? payload[0] : payload;
+    return { schema: "api", rpc: "healthcheck", configured: true, reachable: true, healthy: row?.healthy === true, status: "readable" };
   } catch {
-    return {
-      name,
-      table,
-      ready: false,
-      count: null,
-      status: "blocked"
-    };
+    return { schema: "api", rpc: "healthcheck", configured: true, reachable: false, healthy: false, status: "blocked" };
   }
 }
 
 const hasSupabaseUrl = present("NEXT_PUBLIC_SUPABASE_URL");
-const hasSupabaseAnonKey = present("NEXT_PUBLIC_SUPABASE_ANON_KEY");
+const hasSupabasePublishableKey = Boolean(publishableKey());
+const hasInvalidOrLegacyPublicKey = present("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY") && !hasSupabasePublishableKey;
 const hasSupabaseServiceRoleEnv = present("SUPABASE_SERVICE_ROLE_KEY");
 const hasSupabaseDbUrl = present("SUPABASE_DB_URL");
-const hasSupabasePublicEnv = hasSupabaseUrl && hasSupabaseAnonKey;
-const hasSupabaseServerEnv = hasSupabaseUrl && hasSupabaseServiceRoleEnv;
-const hasSupabaseReadEnv = hasSupabaseUrl && (hasSupabaseAnonKey || hasSupabaseServiceRoleEnv);
+const hasSupabasePublicEnv = hasSupabaseUrl && hasSupabasePublishableKey;
+const hasPrivilegedApplicationEnv = hasSupabaseServiceRoleEnv || hasSupabaseDbUrl;
 const accessEnforcementMode = process.env.GEOAI_ACCESS_ENFORCEMENT_MODE?.trim().toLowerCase() === "hard" ? "hard" : "soft";
 const authMode = process.env.NEXT_PUBLIC_AUTH_MODE?.trim() || "demo_public";
-
-const [healthcheck, sourceRegistry, externalSnapshots, ...schemaChecks] = await Promise.all([
-  probeTable("healthcheck", project.currentPublicTable),
-  probeTable("sourceRegistry", "source_registry_snapshots"),
-  probeTable("externalSnapshots", "external_data_snapshots"),
-  ...requiredTables.map((table) => probeTable("requiredTable", table))
-]);
-
-const missingTables = schemaChecks.filter((item) => !item.ready).map((item) => item.table);
-const schemaDetected = hasSupabaseReadEnv && missingTables.length < requiredTables.length;
-const schemaReady = hasSupabaseReadEnv && missingTables.length === 0;
-const postgisReady = schemaReady;
-const sourceRegistryReady = sourceRegistry.ready;
-const externalSnapshotsReady = externalSnapshots.ready;
-const canReadHealthcheck = healthcheck.ready;
+const healthcheck = await probeApiHealth();
+const canReadHealthcheck = healthcheck.reachable && healthcheck.healthy;
+const schemaReady = false;
+const postgisReady = false;
+const sourceRegistryReady = false;
+const externalSnapshotsReady = false;
 const storageReady = false;
-const runtimeMode = !hasSupabaseReadEnv
+const runtimeMode = !hasSupabasePublicEnv
   ? "local_api_fallback"
   : !canReadHealthcheck
     ? "supabase_configured_unreachable"
-    : schemaReady && sourceRegistryReady && externalSnapshotsReady
-      ? "supabase_read_only_ready"
-      : "supabase_read_only_partial";
-const repositoryMode = runtimeMode === "supabase_read_only_ready" ? "supabase" : "local_fallback";
+    : "supabase_api_reachable_unverified";
 const blockers = [];
 const nextActions = [];
 
 if (!hasSupabasePublicEnv) {
-  blockers.push("Supabase public URL/anon key env is missing.");
-  nextActions.push("Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in the target runtime.");
+  blockers.push("The expected Supabase URL and a publishable-key-shaped sb_publishable_ value are not configured.");
+  nextActions.push("Set public Auth variables only after AUTH-01 target approval.");
 }
-
-if (!hasSupabaseServiceRoleEnv) {
-  blockers.push("Server-only Supabase service role env is missing; the script remains read-only and fallback-safe.");
-  nextActions.push("Set SUPABASE_SERVICE_ROLE_KEY only in trusted server/Vercel environments when server-side read probes need it.");
+if (hasInvalidOrLegacyPublicKey) {
+  blockers.push("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY is not a publishable-key-shaped sb_publishable_ value; legacy anon JWTs are rejected. Shape does not prove server-side validity.");
 }
-
-if (hasSupabaseReadEnv && !canReadHealthcheck) {
-  blockers.push("Supabase env is present, but geoai_healthcheck is not readable from this runtime.");
-  nextActions.push("Verify Supabase URL/key scope, Data API exposure, RLS/read grants and network reachability.");
+if (hasPrivilegedApplicationEnv) {
+  blockers.push("A privileged Supabase/database credential is present in the application runtime.");
+  nextActions.push("Remove and rotate privileged Preview/Development credentials; keep GEOAI_OPERATOR_* only in a trusted terminal.");
 }
-
-if (!schemaReady) {
-  blockers.push(`${missingTables.length} required persistence table(s) are missing, RLS-blocked or unreachable.`);
-  nextActions.push("Run npm run supabase:migrate:check and verify required tables from a trusted runtime.");
+if (hasSupabasePublicEnv && !canReadHealthcheck) {
+  if (healthcheck.status === "target_mismatch") {
+    blockers.push("Configured Supabase URL does not match the approved development project ref.");
+    nextActions.push(`Set NEXT_PUBLIC_SUPABASE_URL only to the approved ${project.ref}.supabase.co target before any probe.`);
+  } else {
+    blockers.push("api.healthcheck() is unavailable or unhealthy.");
+    nextActions.push("Expose only api and grant anon EXECUTE only on api.healthcheck(); never expose public for probes.");
+  }
 }
+blockers.push("Base-table, PostGIS, RLS-persona and source-custody evidence is not accepted from an anonymous application probe.");
+nextActions.push("Attach clean/upgrade DB-01 replay, advisor, grant and persona artifacts from the isolated operator plane.");
+blockers.push("Supabase Storage readiness is not verified by this read-only script.");
+if (accessEnforcementMode !== "hard") blockers.push("Hard access enforcement is disabled; public demo/fallback access remains active.");
 
-if (!sourceRegistryReady) {
-  blockers.push("source_registry_snapshots is not readable from this runtime.");
-  nextActions.push("Verify source_registry_snapshots grants/RLS or keep local source-readiness fallback active.");
-}
-
-if (!externalSnapshotsReady) {
-  blockers.push("external_data_snapshots is not readable from this runtime.");
-  nextActions.push("Verify external_data_snapshots grants/RLS or keep local external snapshot fallback active.");
-}
-
-if (!storageReady) {
-  blockers.push("Supabase Storage readiness is not verified by this read-only script.");
-  nextActions.push("Use /api/storage/health and signed URL verification before storing protected files.");
-}
-
-if (accessEnforcementMode !== "hard") {
-  blockers.push("Hard access enforcement is disabled; public demo/fallback access remains active.");
-  nextActions.push("Keep GEOAI_ACCESS_ENFORCEMENT_MODE=soft until Supabase Auth, memberships, RLS and storage checks are verified.");
-}
-
-const output = {
+console.log(JSON.stringify({
   ok: true,
-  version: "1.0",
+  version: "2.0",
   project,
-  status: runtimeMode === "supabase_read_only_ready"
-    ? "read_only_ready"
-    : runtimeMode === "supabase_read_only_partial"
-      ? "read_only_partial"
-      : runtimeMode === "supabase_configured_unreachable"
-        ? "configured_unreachable"
-        : "fallback_missing_env",
+  status: runtimeMode === "local_api_fallback" ? "fallback_missing_env" : runtimeMode === "supabase_configured_unreachable" ? "configured_unreachable" : "api_reachable_unverified",
   runtimeMode,
-  repositoryMode,
-  supabaseConfigured: hasSupabaseReadEnv,
+  repositoryMode: "local_fallback",
+  supabaseConfigured: hasSupabasePublicEnv,
   hasSupabaseUrl,
   hasSupabasePublicEnv,
-  hasSupabaseAnonKey,
-  hasSupabaseServerEnv,
+  hasSupabasePublishableKey,
+  hasInvalidOrLegacyPublicKey,
+  hasPrivilegedApplicationEnv,
   hasSupabaseServiceRoleEnv,
   hasSupabaseDbUrl,
-  serviceRoleMode: hasSupabaseServiceRoleEnv ? "present_read_only" : "absent",
+  serviceRoleMode: hasSupabaseServiceRoleEnv ? "prohibited_present" : "absent",
   serviceRoleUsedForWrites: false,
   canReadHealthcheck,
-  canReadSourceRegistry: sourceRegistryReady,
-  canReadExternalSnapshots: externalSnapshotsReady,
-  schemaDetected,
+  canReadSourceRegistry: false,
+  canReadExternalSnapshots: false,
+  schemaDetected: false,
   schemaReady,
   postgisReady,
   sourceRegistryReady,
   externalSnapshotsReady,
   storageReady,
-  storageReadinessMissing: !storageReady,
-  localApiFallbackActive: repositoryMode !== "supabase",
+  storageReadinessMissing: true,
+  localApiFallbackActive: true,
   authMode,
   accessEnforcementMode,
   hardAccessEnabled: accessEnforcementMode === "hard",
@@ -226,29 +168,11 @@ const output = {
   requireSupabaseReady: boolEnv("GEOAI_REQUIRE_SUPABASE_READY"),
   requireStorageReady: boolEnv("GEOAI_REQUIRE_STORAGE_READY"),
   allowDemoPublic: boolEnv("GEOAI_ALLOW_DEMO_PUBLIC", true),
-  readOnlyProbes: [healthcheck, sourceRegistry, externalSnapshots],
-  counts: {
-    sourceRegistrySnapshots: sourceRegistry.count,
-    externalDataSnapshots: externalSnapshots.count
-  },
-  schema: {
-    requiredTables,
-    missingTables
-  },
+  readOnlyProbes: [healthcheck],
+  schema: { requiredTables, missingTables: [], unverifiedTables: requiredTables },
   readinessClaim: "not_production_ready_or_pilot_ready",
-  notReadyReason: "Runtime readiness only verifies safe read probes and fallback behavior; production/pilot access controls, storage policy verification and official data validation remain incomplete.",
   blockers: unique(blockers),
   nextActions: unique(nextActions),
-  caveat: dataHonestyCaveat,
-  caveats: unique([
-    dataHonestyCaveat,
-    localFallbackCaveat,
-    storageCaveat,
-    publicDemoCaveat,
-    "This script returns booleans, counts and status labels only; it never prints Supabase keys, JWTs, database URLs or raw env values.",
-    "This script performs read-only REST probes only; it never writes, migrates, seeds, changes RLS or creates buckets."
-  ]),
+  caveat: "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.",
   generatedAt: new Date().toISOString()
-};
-
-console.log(JSON.stringify(output, null, 2));
+}, null, 2));

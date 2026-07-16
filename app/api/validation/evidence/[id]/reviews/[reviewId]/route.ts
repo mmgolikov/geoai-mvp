@@ -13,7 +13,7 @@ function readString(value: unknown) {
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string; reviewId: string }> }) {
   if (isPreAuthServerMutationBlocked("review")) {
-    const access = requireProjectAccess({ action: "review", mode: "soft" });
+    const access = requireProjectAccess({ action: "evidence.review_screening", mode: "soft" });
     return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
   }
   const { id, reviewId } = await context.params;
@@ -24,7 +24,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     return NextResponse.json({ ok: false, ...repositoryModeFields(existing.mode), message: "Evidence review not found.", caveat: evidenceReviewCaveat }, { status: 404 });
   }
 
-  const access = requireProjectAccess({ projectKey: existing.data.projectKey, action: "review", mode: "soft" });
+  const access = requireProjectAccess({ projectKey: existing.data.projectKey, action: "evidence.review_screening", mode: "soft" });
   if (!access.allowed) {
     return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
   }

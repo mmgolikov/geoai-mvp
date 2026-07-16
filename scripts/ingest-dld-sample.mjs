@@ -346,96 +346,10 @@ Object.entries(outputs).forEach(([fileName, value]) => {
   writeFileSync(path.join(outputDir, fileName), `${JSON.stringify(value, null, 2)}\n`);
 });
 
-const supabaseConfigured = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY));
-
-async function tryPersistMetrics() {
-  if (!supabaseConfigured) {
-    return "not_configured";
-  }
-
-  try {
-    const { createClient } = await import("@supabase/supabase-js");
-    const client = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-      { auth: { persistSession: false, autoRefreshToken: false } }
-    );
-
-    await client.from("sources").upsert({
-      source_key: "dld-dubai-pulse-ingestion-prototype",
-      name: "DLD / Dubai Pulse CSV Ingestion Prototype",
-      provider: "GeoAI offline ingestion prototype",
-      geography: "Dubai, UAE",
-      category: "real_estate",
-      source_type: "open_data",
-      integration_status: "planned",
-      reliability_level: "medium",
-      used_in_current_prototype: false,
-      planned_for_pilot: true,
-      decision_grade: false,
-      license_note: "User-provided official/open CSV exports must be validated for licensing and permitted use.",
-      access_note: "Offline/manual CSV ingestion only. No live API connection in v0.1.",
-      usage_in_geoai: "Market comps, transaction activity, rental demand and pipeline validation readiness.",
-      limitations: "Sample fixture outputs are not official records and are not yet wired into scoring.",
-      recommended_next_step: "Connect permitted DLD/Dubai Pulse source exports and validate area matching."
-    }, { onConflict: "source_key" });
-
-    for (const metric of marketMetrics) {
-      const areaKey = metric.areaName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
-      const areaResponse = await client
-        .from("market_areas")
-        .upsert({
-          area_key: areaKey,
-          name: metric.areaName,
-          geography: "Dubai, UAE",
-          confidence_level: metric.dataConfidence,
-          limitations: "Created by offline DLD / Dubai Pulse ingestion prototype without geometry boundaries.",
-          metadata: {
-            sourceMode: "sample_fixture",
-            sourceSummary: metric.sourceSummary
-          }
-        }, { onConflict: "area_key" })
-        .select("id")
-        .limit(1);
-
-      const marketAreaId = areaResponse.data?.[0]?.id;
-      if (!marketAreaId) {
-        continue;
-      }
-
-      const metricRows = [
-        ["transaction_count", "Transaction count", metric.transactionCount, "count"],
-        ["transaction_value_aed", "Transaction value", metric.transactionValueAed, "AED"],
-        ["median_price_per_sqm", "Median price per sqm", metric.medianPricePerSqm, "AED/sqm"],
-        ["median_rent_per_sqm", "Median rent per sqm", metric.medianRentPerSqm, "AED/sqm"],
-        ["project_count", "Project count", metric.projectCount, "count"],
-        ["liquidity_index", "Liquidity index", metric.liquidityIndex, "index"],
-        ["rental_demand_proxy", "Rental demand proxy", metric.rentalDemandProxy, "index"],
-        ["pipeline_proxy", "Pipeline proxy", metric.pipelineProxy, "index"]
-      ].filter(([, , value]) => value !== null);
-
-      await client.from("market_metrics").insert(metricRows.map(([key, label, value, unit]) => ({
-        market_area_id: marketAreaId,
-        metric_key: key,
-        metric_label: label,
-        metric_value: value,
-        metric_unit: unit,
-        confidence_level: metric.dataConfidence,
-        observed_at: metric.periodEnd,
-        metadata: {
-          sourceMode: "sample_fixture",
-          sourceSummary: metric.sourceSummary
-        }
-      })));
-    }
-
-    return "write_succeeded";
-  } catch {
-    return "write_failed";
-  }
-}
-
-supabaseMode = await tryPersistMetrics();
+// SOURCE-01 quarantines the legacy mutable database writer. This parser emits
+// reviewed local artifacts only until immutable custody records, rights gates,
+// operator identity and activation receipts are implemented.
+supabaseMode = "database_write_quarantined";
 
 const report = {
   generatedAt: new Date().toISOString(),
@@ -465,4 +379,4 @@ writeFileSync(path.join(outputDir, "ingestion_report.json"), `${JSON.stringify(r
 
 console.log(`DLD / Dubai Pulse ingestion prototype complete.`);
 console.log(`Transactions: ${tx.data.length}, rents: ${rents.data.length}, projects: ${projects.data.length}, market metrics: ${marketMetrics.length}`);
-console.log(supabaseMode === "write_succeeded" ? "Supabase write succeeded." : supabaseMode === "write_failed" ? "Supabase write failed; local outputs are available." : "Supabase not configured; wrote local normalized outputs only.");
+console.log("Legacy Supabase writes are quarantined; wrote local normalized outputs only.");

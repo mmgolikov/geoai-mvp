@@ -55,7 +55,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   }
   const projectKey = validationEvidence.projectKey;
   const projectId = validationEvidence.projectId ?? requestedProjectId;
-  const access = requireProjectAccess({ projectKey, action: "read", mode: "soft" });
+  const access = requireProjectAccess({ projectKey, action: "evidence.read", mode: "soft" });
   if (!access.allowed) {
     return privateNoStoreJson(projectAccessDeniedPayload(access), { status: access.status });
   }
@@ -75,7 +75,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   if (isPreAuthServerMutationBlocked("review")) {
-    const access = requireProjectAccess({ action: "review", mode: "soft" });
+    const access = requireProjectAccess({ action: "evidence.review_screening", mode: "soft" });
     return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
   }
   const { id } = await context.params;
@@ -85,7 +85,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   const existingEvidence = await getValidationEvidence(id);
   const projectKey = existingEvidence.data?.projectKey ?? requestedProjectKey;
   const projectId = existingEvidence.data?.projectId ?? requestedProjectId;
-  const access = requireProjectAccess({ projectKey, action: "review", mode: "soft" });
+  const access = requireProjectAccess({ projectKey, action: "evidence.review_screening", mode: "soft" });
   if (!access.allowed) {
     return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
   }
@@ -104,9 +104,9 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     return NextResponse.json({ ok: false, ...repositoryModeFields(evidenceResult.mode), message: "Valid review decision is required.", caveat: evidenceReviewCaveat }, { status: 400 });
   }
   const attestationAction = decision === "mark_official_validated"
-    ? "attest_official"
+    ? "evidence.attest_official"
     : decision === "mark_client_validated"
-      ? "attest_client"
+      ? "evidence.attest_client"
       : null;
   if (attestationAction) {
     const attestationAccess = requireProjectAccess({ projectKey, action: attestationAction, mode: "hard" });

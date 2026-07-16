@@ -74,7 +74,7 @@ export async function GET(request: Request) {
   const projectKey = url.searchParams.get("projectKey");
   if (!hasRequestIdentityKernelEvidence()) {
     const publicSeed = id ? getSeededDemoReportRecord(id) : null;
-    const access = requireProjectAccess({ projectKey: publicSeed?.projectKey ?? projectKey, action: "read", mode: "soft" });
+    const access = requireProjectAccess({ projectKey: publicSeed?.projectKey ?? projectKey, action: "report.read", mode: "soft" });
     if (!access.allowed) {
       return privateNoStoreJson(projectAccessDeniedPayload(access), { status: access.status });
     }
@@ -110,7 +110,7 @@ export async function GET(request: Request) {
       ?? (existing?.data as { project_key?: string | null } | null)?.project_key
       ?? null)
     : projectKey;
-  const access = requireProjectAccess({ projectKey: resolvedProjectKey, action: "read", mode: "soft" });
+  const access = requireProjectAccess({ projectKey: resolvedProjectKey, action: "report.read", mode: "soft" });
   if (!access.allowed) {
     return privateNoStoreJson(projectAccessDeniedPayload(access), { status: access.status });
   }
@@ -163,7 +163,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   if (isPreAuthServerMutationBlocked("write")) {
-    const access = requireProjectAccess({ action: "write", mode: "soft" });
+    const access = requireProjectAccess({ action: "report.generate", mode: "soft" });
     return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
   }
 
@@ -201,7 +201,7 @@ export async function POST(request: Request) {
   }
 
   const project = body.projectKey ? await getProjectByKey(body.projectKey) : null;
-  const access = requireProjectAccess({ projectKey: body.projectKey ?? project?.data?.projectKey ?? null, action: "write", mode: "soft" });
+  const access = requireProjectAccess({ projectKey: body.projectKey ?? project?.data?.projectKey ?? null, action: "report.generate", mode: "soft" });
   if (!access.allowed) {
     return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
   }

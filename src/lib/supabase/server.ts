@@ -1,5 +1,5 @@
 import {
-  getSupabaseAnonKey,
+  getSupabasePublishableKey,
   getSupabaseUrl,
   isSupabaseConfigured
 } from "@/src/lib/supabase/config";
@@ -27,7 +27,7 @@ function getServerSupabaseKey() {
   // Request-scoped repositories must never inherit service-role privileges.
   // A real authenticated server client must later forward the caller's JWT so
   // Postgres RLS, rather than this process, remains the authorization boundary.
-  return getSupabaseAnonKey();
+  return getSupabasePublishableKey();
 }
 
 async function loadSupabaseModule(): Promise<SupabaseModuleLike | null> {

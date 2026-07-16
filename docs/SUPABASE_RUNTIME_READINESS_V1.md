@@ -1,5 +1,7 @@
 # Supabase Runtime Readiness v1
 
+> **Superseded — do not use operationally.** This point-in-time v1 document contains legacy anon/service-role/DB-URL setup guidance that is prohibited by the current application boundary. Use the [Documentation Index](DOCUMENTATION_INDEX.md) and [Supabase Data API Containment Runbook](SUPABASE_DATA_API_CONTAINMENT_RUNBOOK_2026_07_16.md). Current scripts accept only an `sb_publishable_` key, probe only `api.healthcheck()`, and keep privileged `GEOAI_OPERATOR_*` values outside the application runtime.
+
 ## Purpose
 
 Supabase Runtime Readiness v1 prepares GeoAI to connect safely to Supabase from local trusted runtimes or Vercel Preview/Production runtime configuration while preserving local/API fallback.

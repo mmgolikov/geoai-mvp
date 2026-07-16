@@ -1,13 +1,13 @@
-import { getSupabaseServerClient } from "@/src/lib/supabase/server";
-import { isSupabaseConfigured } from "@/src/lib/supabase/config";
 import { repositoryModeToCaveat, type RepositoryMode } from "@/src/lib/repositories/repository-mode";
+import { probeSupabaseApiHealth } from "@/src/lib/supabase/api-readiness";
 
-export const geoaiPersistenceMigrationName = "20260624_geoai_pilot_persistence_foundation";
+export const geoaiPersistenceMigrationName = "20260705102844_geoai_pilot_persistence_foundation";
 export const geoaiPersistenceSchemaVersion = "v2.3";
 
 export const requiredPersistenceTables = [
   "organizations",
   "profiles",
+  "organization_memberships",
   "project_memberships",
   "projects",
   "aois",
@@ -34,68 +34,48 @@ export type SchemaReadinessStatus =
   | "configured_incomplete"
   | "connected";
 
+export type SchemaReadinessSummary = {
+  configured: boolean;
+  status: SchemaReadinessStatus;
+  repositoryMode: RepositoryMode;
+  mode: RepositoryMode;
+  postgisReady: boolean;
+  tablesReady: boolean;
+  missingTables: RequiredPersistenceTable[];
+  unverifiedTables: RequiredPersistenceTable[];
+  requiredTables: RequiredPersistenceTable[];
+  migrationName: string;
+  schemaVersion: string;
+  caveat: string;
+  sources_count: number | null;
+  message: string;
+};
+
 type TableProbeResult = {
   table: RequiredPersistenceTable;
   ready: boolean;
 };
 
 async function probeTable(table: RequiredPersistenceTable): Promise<TableProbeResult> {
-  const client = await getSupabaseServerClient();
-  if (!client) return { table, ready: false };
-
-  try {
-    const query = client.from(table).select("id", { head: true, count: "exact" }) as Promise<{
-      error?: unknown;
-    }>;
-    const response = await query;
-    return { table, ready: !response.error };
-  } catch {
-    return { table, ready: false };
-  }
+  // Base tables are intentionally not part of the application Data API.
+  // Existence/PostGIS must be certified by the isolated DB-01 operator replay.
+  return { table, ready: false };
 }
 
 export async function checkSupabaseConnection() {
-  if (!isSupabaseConfigured()) {
-    return { configured: false, reachable: false };
-  }
-
-  const client = await getSupabaseServerClient();
-  if (!client) {
-    return { configured: true, reachable: false };
-  }
-
-  try {
-    const query = client.from("projects").select("id", { head: true, count: "exact" }) as Promise<{
-      error?: unknown;
-    }>;
-    const response = await query;
-    return { configured: true, reachable: !response.error };
-  } catch {
-    return { configured: true, reachable: false };
-  }
+  const health = await probeSupabaseApiHealth();
+  return {
+    configured: health.configured,
+    reachable: health.reachable && health.healthy,
+    surface: "api.healthcheck" as const
+  };
 }
 
 export async function checkPostgisReady() {
-  if (!isSupabaseConfigured()) return false;
-  const client = await getSupabaseServerClient();
-  if (!client) return false;
-
-  try {
-    const query = client.from("spatial_ref_sys").select("srid", { head: true, count: "exact" }) as Promise<{
-      error?: unknown;
-    }>;
-    const response = await query;
-    return !response.error;
-  } catch {
-    return false;
-  }
+  return false;
 }
 
 export async function checkRequiredTables() {
-  if (!isSupabaseConfigured()) {
-    return requiredPersistenceTables.map((table) => ({ table, ready: false }));
-  }
-
   return Promise.all(requiredPersistenceTables.map((table) => probeTable(table)));
 }
 
@@ -103,24 +83,21 @@ export function getMissingTables(results: TableProbeResult[]) {
   return results.filter((result) => !result.ready).map((result) => result.table);
 }
 
-export async function getSchemaReadinessSummary() {
+export async function getSchemaReadinessSummary(): Promise<SchemaReadinessSummary> {
   const connection = await checkSupabaseConnection();
   const [postgisReady, tableResults] = await Promise.all([
     checkPostgisReady(),
     checkRequiredTables()
   ]);
-  const missingTables = getMissingTables(tableResults);
-  const tablesReady = missingTables.length === 0;
-  const repositoryMode: RepositoryMode = connection.configured && connection.reachable && postgisReady && tablesReady
-    ? "supabase"
-    : "local_fallback";
+  const unverifiedTables = getMissingTables(tableResults);
+  const missingTables: RequiredPersistenceTable[] = [];
+  const tablesReady = false;
+  const repositoryMode: RepositoryMode = "local_fallback";
   const status: SchemaReadinessStatus = !connection.configured
     ? "not_configured"
     : !connection.reachable
       ? "configured_unavailable"
-      : tablesReady && postgisReady
-        ? "connected"
-        : "configured_incomplete";
+      : "configured_incomplete";
 
   return {
     configured: connection.configured,
@@ -130,17 +107,16 @@ export async function getSchemaReadinessSummary() {
     postgisReady,
     tablesReady,
     missingTables,
+    unverifiedTables,
     requiredTables: [...requiredPersistenceTables],
     migrationName: geoaiPersistenceMigrationName,
     schemaVersion: geoaiPersistenceSchemaVersion,
     caveat: repositoryModeToCaveat(repositoryMode),
     sources_count: null as number | null,
-    message: status === "connected"
-      ? "Supabase/PostGIS durable persistence foundation is reachable and required tables are present."
-      : status === "configured_incomplete"
-        ? "Supabase is reachable, but the v2.3 persistence schema is incomplete. Local fallback remains active."
+    message: status === "configured_incomplete"
+        ? "The api.healthcheck allowlist is reachable; base-table and PostGIS readiness still require isolated DB-01 replay evidence. Local fallback remains active."
         : status === "configured_unavailable"
-          ? "Supabase env is configured, but the database client is unavailable or unreachable. Local fallback remains active."
-          : "Supabase is not configured. GeoAI is running in local/demo mode."
+          ? "Supabase env is configured, but api.healthcheck is unavailable or unhealthy. Local fallback remains active."
+          : "A valid Supabase URL/publishable key is not configured. GeoAI is running in local/demo mode."
   };
 }

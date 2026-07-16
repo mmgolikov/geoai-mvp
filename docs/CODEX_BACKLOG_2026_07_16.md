@@ -17,12 +17,15 @@ Priority: P0 / S0
 Tracks: GitHub [#85](https://github.com/mmgolikov/geoai-mvp/issues/85)
 Blocks: AUTH-01 final integration, Storage, durable writes, real snapshots
 
-Reconcile legacy and current table definitions into an upgrade-safe canonical chain. Treat `20260716000000_geoai_pre_auth_security_containment_v1.sql` as a review draft until shadow replay proves it safe.
+Reconcile legacy and current table definitions into an upgrade-safe canonical chain. Treat `20260716000000_geoai_pre_auth_security_containment_v1.sql`, `20260716085854_geoai_identity_authorization_foundation_v1.sql` and `20260716113000_geoai_source_custody_foundation_v1.sql` as review drafts until shadow replay proves them safe.
+
+Current implementation: the first ten live-ledger files are restored and hash/byte pinned; non-ledger drafts are quarantined; pre-ledger healthcheck reconciliation, fail-closed containment, identity/tenant constraints, account-state helpers, exact RLS templates, organization capabilities, minimal `api` RPCs, SOURCE-01 custody contracts and a 57-assertion pgTAP persona suite are present. `supabase/config.toml` stages an `api`-only Postgres 17 local stack, Supabase CLI `2.109.1` is pinned, and the guarded operator migration check enumerates all three pending paths plus canonical/security/identity/source-custody checks. CI `database-replay` is configured. Static gates pass, but Docker is unavailable locally and the new controls have not run on the exact candidate SHA. Clean/upgrade execution, owner Data API configuration, real JWT/HTTP/source personas and advisor parity remain open, so DB-01 is not closed.
 
 Acceptance:
 
 - owner completes the [Data API containment runbook](SUPABASE_DATA_API_CONTAINMENT_RUNBOOK_2026_07_16.md): disable the Data API or expose a dedicated minimal `api` schema, with exact-ref before/after grants/RLS/RPC evidence. The current live baseline (anon-readable domain rows, `spatial_ref_sys` mutation grants, 748 public RPCs) is reduced to the explicit allowlist;
 - clean replay succeeds on an ephemeral Supabase/Postgres/PostGIS environment from migration 1 to head;
+- the GitHub `database-replay` job passes on the exact candidate SHA and preserves enough logs to prove start/reset plus all 57 pgTAP assertions;
 - every migration has a unique CLI version; the five `20260618_*` and two `20260624_*` files are replaced or reconciled through an upgrade-safe, recorded history repair rather than silently renamed after apply;
 - upgrade replay succeeds from the current development schema; drift is zero or explicitly dispositioned;
 - every GeoAI public table has an intentional RLS/privilege decision; private tables are not reachable by `anon`;
@@ -42,13 +45,15 @@ Blocks: AUTH-01 integration closure, protected persistence and any real-source p
 
 The candidate application no longer imports or requires a Supabase service-role credential or direct database URL. A privileged Supabase credential was nevertheless observed in the existing public Preview environment. Removing or rotating external environment values is an owner-controlled action and was not performed by this audit.
 
+Current implementation: application runtime accepts only `sb_publishable_` keys; operator variables are isolated under `GEOAI_OPERATOR_*`; `.env.operator` is gitignored; target/write/backup/rollback/pre-ledger receipts bind project ref, Git HEAD and migration-tree SHA; tracked secret shapes are scanned in CI. Read-only Vercel evidence shows a large historical Preview exposure set, so rotation/removal/fresh-deployment evidence remains mandatory.
+
 Acceptance:
 
 - inventory Vercel Development/Preview/Production environment-variable names and scopes without exposing values in logs, PRs, tickets or Confluence;
 - remove `SUPABASE_SERVICE_ROLE_KEY`, Supabase secret keys and `SUPABASE_DB_URL` from every public GeoAI application scope; isolate privileged provisioning/migration/storage work in a separate operator/worker or trusted-terminal environment;
 - rotate every removed credential if it was reused, disclosed to an unintended runtime or cannot be proven unique; record only rotation time/owner/scope, never the value;
 - redeploy the exact reviewed SHA and prove the public app build, static/sanitized status routes and browser-local demo work with no privileged Supabase/DB credential present;
-- confirm AUTH-01 caller repositories use only a publishable/legacy anon key plus the actual caller JWT and RLS; service role is never user authorization;
+- confirm AUTH-01 caller repositories use only an `sb_publishable_` key plus the actual caller JWT and RLS; legacy anon JWT and service-role credentials are never user authorization;
 - add a CI/source contract and Vercel configuration review preventing privileged database credentials from returning to the public app.
 
 ## AUTH-01 — Request-scoped Auth and RBAC kernel
@@ -59,6 +64,8 @@ Depends on: DB-01 schema decision and ENV-01 exact-deployment evidence; Auth may
 Blocks: Admin, protected reports, user files, durable project writes, pilot mode
 
 Implement one server authorization kernel that receives the actual request/cookie context, creates a caller-scoped Supabase client, verifies `auth.getUser()`, resolves one profile, organization and project membership, and enforces role/action rules. Protected modes fail closed; public demo is an explicit allowlisted read projection with browser-local deterministic generation only. Both server generation POSTs remain 403 before body parsing until AUTH-01, and public demo is never a fallback after an Auth error.
+
+Current implementation: browser/server SSR clients, middleware claim refresh, claims-before-user verification, canonical user/profile lookup through `api.current_profile()`, cookie-only transport, banned/deleted/unconfirmed denial, exact resource actions, capabilities and manifest wiring are staged. `requestAuthKernelStatus.implemented`, request-user, membership and RLS-persona evidence remain false; repositories are disabled and no protected mutation is activated.
 
 Acceptance:
 
@@ -103,8 +110,12 @@ Priority: P0 / S0
 Tracks: GitHub [#89](https://github.com/mmgolikov/geoai-mvp/issues/89); [#80](https://github.com/mmgolikov/geoai-mvp/issues/80) for geometry-bearing scope
 Depends on: DB-01; AUTH-01 for private sources
 
+Current implementation: pending migration `20260716113000_geoai_source_custody_foundation_v1.sql` defines five RLS-enabled/direct-grant-closed tables (`source_catalog`, `source_releases`, `source_artifacts`, `source_release_status_events`, `source_ingestion_receipts`). Releases, artifacts, status events and receipts are append-only; composite tenant/release and actor organization/project-membership FKs close cross-scope records. Legacy snapshot catalog backfill defaults to `restricted`/`registered_unverified`. `api.current_source_releases()` is caller/project-scoped, bounded to 1–100 rows, returns only `approved` catalog entries, allows owner/admin/analyst/viewer, denies `client_viewer` and omits object paths/source URIs/secrets. A static checker runs in CI and the pgTAP plan is 57 assertions, including the Storage role-helper semantic check plus negative source-actor-membership and artifact/release tenant-scope FK cases. This is an unapplied foundation only: it connects no provider, exposes no write API and leaves all provider writes blocked pending a trusted worker design, replay and real personas.
+
 Acceptance:
 
+- exact-SHA GitHub `database-replay` executes the full three-pending-migration chain and all 57 pgTAP assertions; clean/upgrade replay, schema diff/advisors and real JWT/HTTP source-read personas are preserved as evidence;
+- a trusted operator/worker write design is approved and tested for idempotent receipt/release creation, quarantine/revocation, rollback and rights checks before any provider write is enabled; the public application receives no custody-table write grant;
 - source/snapshot records use explicit `public_demo`, `project_private` or `operator_private` visibility; nullable tenant/project never means public;
 - all existing `project_key IS NULL` anonymous snapshot policy paths are removed before the first real/operator ingestion, and a negative PostgREST test proves that a NULL-key snapshot is not anonymous even when `project_id` is non-null;
 - public APIs return only the audited projection and never raw/normalized paths, bucket keys, local filenames, provider asset URLs or secrets;

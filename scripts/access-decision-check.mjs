@@ -64,10 +64,19 @@ function assert(condition, message) {
 }
 
 function decision(input) {
+  const profileOrganizationId = input.profile?.organizationId;
   return getProjectAccessDecision({
     mode: "hard",
     authMode: "supabase_auth",
     action: "read",
+    organizationMembership: input.organizationMembership ?? (profileOrganizationId
+      ? {
+          profileId: input.profile.id,
+          organizationId: profileOrganizationId,
+          role: "member",
+          status: "active"
+        }
+      : null),
     ...input
   });
 }
@@ -78,9 +87,18 @@ assert(!roleAllowsAction("client_viewer", "write"), "client_viewer should not wr
 assert(roleAllowsAction("analyst", "validate"), "analyst should validate");
 assert(!roleAllowsAction("analyst", "attest_client"), "analyst screening review must not establish client attestation");
 assert(!roleAllowsAction("analyst", "attest_official"), "analyst screening review must not establish official attestation");
-assert(roleAllowsAction("admin", "attest_client"), "admin should establish client attestation once the authority is implemented");
+assert(!roleAllowsAction("admin", "attest_client"), "admin role alone must not establish client attestation");
+assert(roleAllowsAction("admin", "attest_client", ["client_attestor"]), "admin with explicit capability may establish client attestation");
 assert(!roleAllowsAction("admin", "attest_official"), "admin must not establish official attestation");
-assert(roleAllowsAction("owner", "attest_official"), "owner should establish official attestation once the authority is implemented");
+assert(!roleAllowsAction("owner", "attest_official"), "owner role alone must not establish official attestation");
+assert(roleAllowsAction("owner", "attest_official", ["official_attestor"]), "owner with explicit capability may establish official attestation");
+assert(roleAllowsAction("analyst", "aoi.write"), "analyst should write AOIs through an exact action");
+assert(!roleAllowsAction("analyst", "write"), "legacy generic write must fail narrower than analyst resource writes");
+assert(!roleAllowsAction("client_viewer", "evidence.read"), "client viewer must not read base evidence without an audience check");
+assert(roleAllowsAction("admin", "audit.read"), "admin should read audit metadata");
+assert(roleAllowsAction("viewer", "source.read"), "viewer should read approved source metadata");
+assert(!roleAllowsAction("owner", "source.manage"), "owner role alone must not manage source custody");
+assert(roleAllowsAction("viewer", "source.manage", ["source_operator"]), "source operator capability is separate from project hierarchy");
 assert(!roleAllowsAction("analyst", "manage"), "analyst should not manage");
 assert(roleAllowsAction("admin", "manage"), "admin should manage");
 assert(roleAllowsAction("owner", "manage"), "owner should manage");
@@ -92,13 +110,19 @@ for (const role of roles) {
 for (const role of ["client_viewer", "viewer", "analyst", "admin", "owner"]) {
   assert(roleAllowsAction(role, "export"), `${role} should export`);
 }
-for (const action of ["write", "upload", "review", "validate"]) {
+for (const action of ["upload", "review", "validate"]) {
   for (const role of ["analyst", "admin", "owner"]) {
     assert(roleAllowsAction(role, action), `${role} should ${action}`);
   }
   for (const role of ["client_viewer", "viewer"]) {
     assert(!roleAllowsAction(role, action), `${role} should not ${action}`);
   }
+}
+for (const role of ["admin", "owner"]) {
+  assert(roleAllowsAction(role, "write"), `${role} should pass the legacy conservative write guard`);
+}
+for (const role of ["client_viewer", "viewer", "analyst"]) {
+  assert(!roleAllowsAction(role, "write"), `${role} should not pass the legacy generic write guard`);
 }
 for (const role of ["admin", "owner"]) {
   assert(roleAllowsAction(role, "manage"), `${role} should manage`);
@@ -117,7 +141,7 @@ assert(softDemo.allowed && softDemo.status === "hard_access_disabled", "soft dem
 const envKeys = [
   "NEXT_PUBLIC_AUTH_MODE",
   "NEXT_PUBLIC_SUPABASE_URL",
-  "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+  "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
   "GEOAI_ACCESS_ENFORCEMENT_MODE",
   "GEOAI_ALLOW_DEMO_PUBLIC",
   "GEOAI_REQUIRE_SUPABASE_READY",
@@ -168,7 +192,7 @@ assert(!hardNonDemo.allowed, "hard public demo bypass must not authorize non-dem
 const hardSupabaseWithoutRequestIdentity = accessWithEnv({
   NEXT_PUBLIC_AUTH_MODE: "supabase_auth",
   NEXT_PUBLIC_SUPABASE_URL: "https://example.supabase.co",
-  NEXT_PUBLIC_SUPABASE_ANON_KEY: "test-anon-key",
+  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "test-publishable-key",
   GEOAI_ACCESS_ENFORCEMENT_MODE: "hard",
   GEOAI_ALLOW_DEMO_PUBLIC: "false"
 });
@@ -177,7 +201,7 @@ assert(!hardSupabaseWithoutRequestIdentity.allowed, "hard Supabase mode must den
 const softSupabaseDemoMutationWithoutRequestIdentity = accessWithEnv({
   NEXT_PUBLIC_AUTH_MODE: "supabase_auth",
   NEXT_PUBLIC_SUPABASE_URL: "https://example.supabase.co",
-  NEXT_PUBLIC_SUPABASE_ANON_KEY: "test-anon-key",
+  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "test-publishable-key",
   GEOAI_ACCESS_ENFORCEMENT_MODE: "soft",
   GEOAI_ALLOW_DEMO_PUBLIC: "true"
 }, { action: "upload" });

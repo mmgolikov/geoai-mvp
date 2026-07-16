@@ -75,11 +75,29 @@ jobs:
           set -euo pipefail
           npm run test:server-credential-boundary | tee artifacts/server-credential-boundary-check.txt
 
+      - name: Secret hygiene
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:secret-hygiene | tee artifacts/secret-hygiene-check.txt
+
       - name: Readiness evidence boundary
         shell: bash
         run: |
           set -euo pipefail
           npm run test:readiness-evidence | tee artifacts/readiness-evidence-check.txt
+
+      - name: Auth SSR transport checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:auth-ssr-transport | tee artifacts/auth-ssr-transport-check.txt
+
+      - name: Auth mutation-origin checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:auth-mutation-origin | tee artifacts/auth-mutation-origin-check.txt
 
       - name: Protected GET cache-boundary checks
         shell: bash
@@ -98,6 +116,30 @@ jobs:
         run: |
           set -euo pipefail
           npm run test:migration-security-surface | tee artifacts/migration-security-surface-check.txt
+
+      - name: Canonical migration-chain checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:canonical-migration-chain | tee artifacts/canonical-migration-chain-check.txt
+
+      - name: Local Supabase replay contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:supabase-local-contract | tee artifacts/supabase-local-contract-check.txt
+
+      - name: Identity and authorization migration checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:identity-authorization-migration | tee artifacts/identity-authorization-migration-check.txt
+
+      - name: Source custody migration checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:source-custody-migration | tee artifacts/source-custody-migration-check.txt
 
       - name: Workspace-panel source checks
         shell: bash
@@ -250,3 +292,42 @@ jobs:
           path: artifacts/
           if-no-files-found: warn
           retention-days: 14
+
+  database-replay:
+    name: Supabase clean replay and pgTAP personas
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CI: "true"
+      SUPABASE_TELEMETRY_DISABLED: "true"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install pinned dependencies
+        run: npm ci
+
+      - name: Verify pinned Supabase CLI
+        run: test "$(npx supabase --version)" = "2.109.1"
+
+      - name: Start local Supabase and apply canonical migrations
+        run: npm run supabase:local:start
+
+      - name: Prove deterministic clean reset
+        run: npm run supabase:local:reset
+
+      - name: Run database persona tests
+        run: npm run supabase:test:db
+
+      - name: Stop local Supabase
+        if: always()
+        run: npm run supabase:local:stop

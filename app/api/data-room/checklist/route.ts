@@ -45,7 +45,7 @@ function isChecklistInput(value: unknown): value is Omit<ValidationChecklistItem
 
 export async function POST(request: Request) {
   if (isPreAuthServerMutationBlocked("write")) {
-    const access = requireProjectAccess({ action: "write", mode: "soft" });
+    const access = requireProjectAccess({ action: "evidence.review_screening", mode: "soft" });
     return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
   }
   const parsed = await readBoundedJson(request, 128 * 1024);
@@ -58,7 +58,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, ...repositoryModeFields("local_fallback"), message: "Invalid validation checklist item." }, { status: 400 });
   }
 
-  const access = requireProjectAccess({ projectKey: body.projectKey, action: "write", mode: "soft" });
+  const access = requireProjectAccess({ projectKey: body.projectKey, action: "evidence.review_screening", mode: "soft" });
   if (!access.allowed) {
     return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
   }

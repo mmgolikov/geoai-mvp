@@ -21,7 +21,7 @@ export async function GET(_request: Request, { params }: Params) {
   }
 
   const pkg = result.data;
-  const access = requireProjectAccess({ projectKey: pkg.projectKey, action: "export", mode: "soft" });
+  const access = requireProjectAccess({ projectKey: pkg.projectKey, action: "report.export", mode: "soft" });
   if (!access.allowed) {
     return privateNoStoreJson(projectAccessDeniedPayload(access), { status: access.status });
   }

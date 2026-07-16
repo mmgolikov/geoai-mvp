@@ -21,7 +21,7 @@ export async function GET(_request: Request, context: RouteContext) {
   const result = await getAoi(id);
   const access = requireProjectAccess({
     projectKey: (result.data as { projectKey?: string | null } | null)?.projectKey ?? null,
-    action: "read",
+    action: "aoi.read",
     mode: "soft"
   });
   if (!access.allowed) {
@@ -40,7 +40,7 @@ export async function GET(_request: Request, context: RouteContext) {
 
 export async function PATCH(request: Request, context: RouteContext) {
   if (isPreAuthServerMutationBlocked("write")) {
-    const access = requireProjectAccess({ action: "write", mode: "soft" });
+    const access = requireProjectAccess({ action: "aoi.write", mode: "soft" });
     return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
   }
   const { id } = await context.params;
@@ -62,7 +62,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     return NextResponse.json({ ok: false, ...repositoryModeFields(existing.mode), message: "AOI not found." }, { status: 404 });
   }
   const projectKey = (existing.data as { projectKey?: string | null }).projectKey ?? null;
-  const access = requireProjectAccess({ projectKey, action: "write", mode: "soft" });
+  const access = requireProjectAccess({ projectKey, action: "aoi.write", mode: "soft" });
   if (!access.allowed) {
     return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
   }
@@ -94,7 +94,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 
 export async function DELETE(_request: Request, context: RouteContext) {
   if (isPreAuthServerMutationBlocked("write")) {
-    const access = requireProjectAccess({ action: "write", mode: "soft" });
+    const access = requireProjectAccess({ action: "aoi.delete", mode: "soft" });
     return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
   }
   const { id } = await context.params;
@@ -103,7 +103,7 @@ export async function DELETE(_request: Request, context: RouteContext) {
     return NextResponse.json({ ok: false, ...repositoryModeFields(existing.mode), message: "AOI not found." }, { status: 404 });
   }
   const projectKey = (existing.data as { projectKey?: string | null }).projectKey ?? null;
-  const access = requireProjectAccess({ projectKey, action: "write", mode: "soft" });
+  const access = requireProjectAccess({ projectKey, action: "aoi.delete", mode: "soft" });
   if (!access.allowed) {
     return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
   }

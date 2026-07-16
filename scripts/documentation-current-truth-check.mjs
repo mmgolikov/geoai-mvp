@@ -30,6 +30,30 @@ const releaseFactDocs = [
   "AGENTS.md"
 ];
 
+const supersededOperationalDocs = [
+  "docs/SUPABASE_PILOT_ACTIVATION.md",
+  "docs/PILOT_INFRASTRUCTURE_ACTIVATION_V24.md",
+  "docs/PILOT_BACKEND_ACTIVATION_HARDENING_V29.md",
+  "docs/SUPABASE_POSTGIS_DURABLE_PERSISTENCE_V23.md",
+  "docs/SUPABASE_POSTGIS_V01.md",
+  "docs/PERSISTENCE_V01.md",
+  "docs/SECURE_FILE_STORAGE_EVIDENCE_UPLOADS_V26.md",
+  "docs/EVIDENCE_REVIEW_SIGNED_URL_VERIFICATION_V27.md",
+  "docs/AUTH_PROJECT_ACCESS_FOUNDATION_V22.md"
+];
+
+const activeDocForbiddenClaims = [
+  "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+  "publishable/legacy anon key",
+  "supabase/migrations/20260624_geoai_pilot_persistence_foundation.sql",
+  "supabase/migrations/20260624_geoai_storage_buckets_policies.sql",
+  "supabase/migrations/20260618_0004_projects_workspaces.sql",
+  "78 performance findings (60",
+  "76 performance findings (58",
+  "caller-JWT kernel is intentionally not implemented",
+  "code still lacks the user-context kernel"
+];
+
 const failures = [];
 
 function read(relativePath) {
@@ -96,6 +120,11 @@ for (const relativePath of activeDocs) {
   if (relativePath !== "CHANGELOG.md" && /PR #(?:81|83)\b/.test(content)) {
     failures.push(`${relativePath}: stale PR #81/#83 appears in current authority`);
   }
+  for (const forbidden of activeDocForbiddenClaims) {
+    if (content.includes(forbidden)) {
+      failures.push(`${relativePath}: prohibited current operational claim remains: ${forbidden}`);
+    }
+  }
 
   for (const match of content.matchAll(/\[[^\]]+\]\(([^)]+)\)/g)) {
     const target = match[1].trim();
@@ -119,6 +148,37 @@ for (const relativePath of activeDocs) {
   }
 }
 
+for (const relativePath of supersededOperationalDocs) {
+  const content = read(relativePath);
+  if (!content.includes("**Superseded — do not use operationally.**")) {
+    failures.push(`${relativePath}: dangerous historical operational guidance has no superseded banner`);
+  }
+  if (!content.includes("CURRENT_RELEASE_STATE.md") && !content.includes("SUPABASE_DATA_API_CONTAINMENT_RUNBOOK_2026_07_16.md") && !content.includes("CODEX_BACKLOG_2026_07_16.md")) {
+    failures.push(`${relativePath}: superseded operational guidance has no current successor link`);
+  }
+}
+
+const dbBaseline = read("docs/SUPABASE_DB_BASELINE_V1.md");
+for (const required of ["Historical ledger correction", "20260708132308", "20260708132343", "migration-ledger-baseline.json"]) {
+  if (!dbBaseline.includes(required)) failures.push(`docs/SUPABASE_DB_BASELINE_V1.md: missing ledger correction evidence: ${required}`);
+}
+
+const storageBaseline = read("docs/SUPABASE_STORAGE_READINESS_V1.md");
+for (const required of ["Historical ledger correction", "20260708142250", "20260708142802", "20260708143337", "migration-ledger-baseline.json"]) {
+  if (!storageBaseline.includes(required)) failures.push(`docs/SUPABASE_STORAGE_READINESS_V1.md: missing ledger correction evidence: ${required}`);
+}
+
+const artifactRegistry = read("docs/artifacts/README.md");
+for (const required of [
+  "**Non-authoritative target drafts.**",
+  "[Implemented Architecture](../architecture.md)",
+  "[Current Release State](../CURRENT_RELEASE_STATE.md)",
+  "](bpmn/BPMN-001-core-analysis-flow.md)",
+  "](erd/ERD-001-core-data-model.mmd)"
+]) {
+  if (!artifactRegistry.includes(required)) failures.push(`docs/artifacts/README.md: missing target-draft/navigation contract: ${required}`);
+}
+
 const semanticContracts = [
   {
     path: "README.md",
@@ -126,6 +186,8 @@ const semanticContracts = [
       "Public-demo analysis and decision scoring run deterministically in the browser.",
       "return 403 before body parsing until AUTH-01",
       "The current migration chain is not apply-ready.",
+      "Supabase CLI `2.109.1`",
+      "57-assertion pgTAP",
       "User-uploaded and user-drawn targets skip market/climate network calls"
     ],
     forbidden: [
@@ -139,6 +201,7 @@ const semanticContracts = [
     required: [
       "Both server generation POST routes return 403 before parsing until AUTH-01",
       "deep snapshots stay outside anonymous function traces",
+      "CI `database-replay`",
       "existing public Preview environment"
     ],
     forbidden: ["local fallback OR anon Supabase client"]
@@ -148,6 +211,7 @@ const semanticContracts = [
     required: [
       "Invalid environment values fail closed",
       "DLD valuations/brokers/developers and OSM buildings remain zero-record/not-used",
+      "57-assertion pgTAP",
       "returns seed-only context"
     ],
     forbidden: [

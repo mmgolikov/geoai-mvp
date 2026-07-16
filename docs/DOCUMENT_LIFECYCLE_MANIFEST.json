@@ -3,9 +3,9 @@
   "lastVerified": "2026-07-16",
   "authority": "docs/DOCUMENTATION_INDEX.md",
   "counts": {
-    "markdownDocuments": 129,
+    "markdownDocuments": 130,
     "activeAuthorities": 12,
-    "nonActiveDocuments": 117
+    "nonActiveDocuments": 118
   },
   "documents": {
     "AGENTS.md": {
@@ -781,6 +781,12 @@
       "currentAuthority": true,
       "successor": null,
       "rule": "Must carry Status, Last verified, Owner, Authority and Successor fields and be updated with affected behavior."
+    },
+    "supabase/legacy_migrations/README.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
     }
   }
 }

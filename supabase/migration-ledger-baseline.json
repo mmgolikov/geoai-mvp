@@ -1,0 +1,137 @@
+{
+  "schemaVersion": "1.0",
+  "status": "read_only_live_ledger_baseline",
+  "observedAt": "2026-07-16T08:24:00Z",
+  "projectRef": "pphdqkurxneyagvnnjdt",
+  "environment": "development",
+  "productionProject": false,
+  "contentSourceSha": "c115d24994f5ac9c1f21943ccb98270b9e9a9085",
+  "hashAlgorithm": "md5",
+  "hashBasis": "UTF-8 migration statement exactly as stored in supabase_migrations.schema_migrations, without an added trailing newline",
+  "canonicalBaselineCount": 10,
+  "preLedgerReconciliations": [
+    {
+      "version": "20260705100000",
+      "name": "geoai_preledger_healthcheck_bootstrap_v1",
+      "remoteState": "schema_object_present_ledger_repair_required",
+      "fileBytes": 1149,
+      "fileMd5": "8ba2f9ef48dbc87e79794f1bae0e118a",
+      "liveFingerprint": {
+        "table": "public.geoai_healthcheck",
+        "owner": "postgres",
+        "rls": true,
+        "forceRls": false,
+        "comment": null,
+        "primaryKey": ["id"],
+        "columns": ["id bigint not null", "name text not null", "created_at timestamptz default now()"],
+        "seedRow": { "id": 1, "name": "GeoAI Supabase connected" },
+        "selectPolicy": { "name": "public can read geoai healthcheck", "roles": ["anon", "authenticated"], "using": "true" },
+        "callerGrantsBeforeContainment": ["SELECT", "REFERENCES", "TRIGGER", "TRUNCATE"]
+      },
+      "operatorAction": "After exact schema fingerprint verification, mark version applied with Supabase migration repair before db push. Never run the CREATE against the existing development project."
+    }
+  ],
+  "liveAppliedMigrations": [
+    {
+      "version": "20260705102844",
+      "name": "geoai_pilot_persistence_foundation",
+      "statementBytes": 23223,
+      "statementMd5": "a2cc3194501be2c5762eda961cb7bc3a"
+    },
+    {
+      "version": "20260705103329",
+      "name": "geoai_source_registry_seed_v1",
+      "statementBytes": 4604,
+      "statementMd5": "04811c201628b97e868ce6e0688676e5"
+    },
+    {
+      "version": "20260708120003",
+      "name": "geoai_db_foundation_hardening_v1",
+      "statementBytes": 4745,
+      "statementMd5": "b62c4e0eaecd690670195d4d06fa9df0"
+    },
+    {
+      "version": "20260708120117",
+      "name": "geoai_demo_project_baseline_seed_v1",
+      "statementBytes": 29347,
+      "statementMd5": "81fb04d11227fabbc0e362fb044c58d0"
+    },
+    {
+      "version": "20260708132308",
+      "name": "geoai_preview_demo_read_policies_v1",
+      "statementBytes": 6287,
+      "statementMd5": "57f2f862fb0370169899eaa3a43bc99f"
+    },
+    {
+      "version": "20260708132343",
+      "name": "geoai_preview_demo_read_grants_v1",
+      "statementBytes": 1318,
+      "statementMd5": "49eb85158f2756a7bdcd0040c86c4dc1"
+    },
+    {
+      "version": "20260708133256",
+      "name": "geoai_service_role_runtime_select_grants_v1",
+      "statementBytes": 1232,
+      "statementMd5": "c9f147b6484e05e2a718e088ff6be1e1"
+    },
+    {
+      "version": "20260708142250",
+      "name": "geoai_storage_buckets_v1",
+      "statementBytes": 1234,
+      "statementMd5": "89a81de8dc5c84221d5a34b9d52285fb"
+    },
+    {
+      "version": "20260708142802",
+      "name": "geoai_audit_event_service_role_write_v1",
+      "statementBytes": 66,
+      "statementMd5": "610c9cab65b092e0261f472a27e02fc8"
+    },
+    {
+      "version": "20260708143337",
+      "name": "geoai_audit_event_types_v1",
+      "statementBytes": 1085,
+      "statementMd5": "a3a8ed31ea97a1d24198eb9ad1655810"
+    }
+  ],
+  "pendingMigrations": [
+    {
+      "version": "20260716000000",
+      "name": "geoai_pre_auth_security_containment_v1",
+      "applyState": "not_applied_review_draft",
+      "requires": [
+        "clean replay",
+        "upgrade replay",
+        "owner Data API boundary decision",
+        "rollback evidence",
+        "live persona matrix"
+      ]
+    },
+    {
+      "version": "20260716085854",
+      "name": "geoai_identity_authorization_foundation_v1",
+      "applyState": "not_applied_review_draft",
+      "requires": [
+        "containment migration applied first",
+        "clean replay",
+        "upgrade replay",
+        "Data API exposes only the approved api schema",
+        "real JWT persona matrix",
+        "schema diff and advisor evidence"
+      ]
+    },
+    {
+      "version": "20260716113000",
+      "name": "geoai_source_custody_foundation_v1",
+      "applyState": "not_applied_review_draft",
+      "requires": [
+        "identity migration applied first",
+        "clean replay",
+        "upgrade replay",
+        "immutable release and receipt tests",
+        "real JWT source-read personas",
+        "trusted worker write design and rollback evidence"
+      ]
+    }
+  ],
+  "rule": "Files under supabase/legacy_migrations are provenance only. Clean replay starts with the declared pre-ledger bootstrap. On the existing development project its schema fingerprint must be verified and its ledger version repaired to applied before any push. The following ten immutable files must match the live ledger exactly."
+}

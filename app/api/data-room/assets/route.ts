@@ -59,7 +59,7 @@ function isAssetInput(value: unknown): value is Omit<DataRoomAsset, "createdAt" 
 
 export async function POST(request: Request) {
   if (isPreAuthServerMutationBlocked("write")) {
-    const access = requireProjectAccess({ action: "write", mode: "soft" });
+    const access = requireProjectAccess({ action: "evidence.upload", mode: "soft" });
     return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
   }
   const parsed = await readBoundedJson(request, 192 * 1024);
@@ -72,7 +72,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, ...repositoryModeFields("local_fallback"), message: "Invalid data room asset metadata." }, { status: 400 });
   }
 
-  const access = requireProjectAccess({ projectKey: body.projectKey, action: "write", mode: "soft" });
+  const access = requireProjectAccess({ projectKey: body.projectKey, action: "evidence.upload", mode: "soft" });
   if (!access.allowed) {
     return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
   }

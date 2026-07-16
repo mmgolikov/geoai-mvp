@@ -13,6 +13,8 @@ This is **not** production-ready, pilot-ready, legal, cadastral, zoning, plannin
 
 Required caveat: **Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.**
 
+> **Historical ledger correction — 2026-07-16.** The migration table below recorded repository-side names, not the exact live ledger. The authoritative [migration ledger baseline](../supabase/migration-ledger-baseline.json) shows that the combined `20260708132300` draft was never the applied ledger entry; Preview read access is split into `20260708132308` policies and `20260708132343` grants. Do not replay migration names from this historical page.
+
 ## Preview activation result
 
 | Check | Result |
