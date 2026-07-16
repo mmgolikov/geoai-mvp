@@ -215,7 +215,7 @@ values
   ('82000000-0000-0000-0000-000000000001', '84000000-0000-0000-0000-000000000001', 'persona-project-a', '83000000-0000-0000-0000-000000000008', 'viewer', 'active'),
   ('82000000-0000-0000-0000-000000000001', '84000000-0000-0000-0000-000000000001', 'persona-project-a', '83000000-0000-0000-0000-000000000010', 'viewer', 'active'),
   ('82000000-0000-0000-0000-000000000001', '84000000-0000-0000-0000-000000000001', 'persona-project-a', '83000000-0000-0000-0000-000000000011', 'viewer', 'active'),
-  ('82000000-0000-0000-0000-000000000001', '84000000-0000-0000-0000-000000000001', 'persona-project-a', '83000000-0000-0000-0000-000000000012', 'viewer', 'inactive');
+  ('82000000-0000-0000-0000-000000000001', '84000000-0000-0000-0000-000000000001', 'persona-project-a', '83000000-0000-0000-0000-000000000012', 'viewer', 'disabled');
 
 insert into public.aois (
   id,
@@ -474,7 +474,7 @@ select set_config('request.jwt.claim.sub', '81000000-0000-0000-0000-000000000012
 select extensions.is(
   (select count(*)::integer from api.current_project_access('persona-project-a')),
   0,
-  'inactive project membership cannot resolve project access'
+  'disabled project membership cannot resolve project access'
 );
 
 reset role;
