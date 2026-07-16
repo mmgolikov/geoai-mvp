@@ -53,7 +53,7 @@ assert(callback.includes("exchangeCodeForSession") && redirectPath.includes("app
 assert(!callback.includes(".mfa") && !adminUi.includes("MFA") && !onboardingUi.includes("MFA"), "Current user flows must not expose or require MFA");
 assert(!onboardingUi.includes('type="password"') && !onboardingUi.includes("One-time invitation token"), "Onboarding must not ask users to paste technical invitation tokens");
 assert(landing.includes('href="/login"') && landing.includes("Sign in") && landing.includes("AccessStatusBadge"), "Landing must expose a prominent sign-in action in the hero and header");
-assert(navigation.includes("AccessStatusBadge") && accessBadge.includes('label = "Sign in"'), "Product navigation must expose the sign-in/account action on every screen size");
+assert(navigation.includes("AccessStatusBadge") && accessBadge.includes('label = "Sign in"') && accessBadge.includes('aria-label={isAuthenticated ? "Open GeoAI account" : "Sign in to GeoAI"}'), "Product navigation must expose an accessible sign-in/account action on every screen size");
 assert(adminRoute.includes("privateNoStoreJson") && onboardingRoute.includes("privateNoStoreJson"), "Authenticated Admin APIs must be private no-store");
 assert(adminUi.includes("initial-only") && adminUi.includes("capped at 25"), "Admin UI must disclose bounded initial-only snapshot pagination");
 
