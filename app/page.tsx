@@ -99,7 +99,7 @@ export default function HomePage() {
                 href="/login"
                 className="inline-flex h-12 items-center justify-center rounded-md bg-brand px-6 text-sm font-semibold text-white shadow-soft transition hover:bg-[#113f50]"
               >
-                Sign in
+                Sign in to GeoAI
               </Link>
               <Link
                 href="/workspace"
