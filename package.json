@@ -46,6 +46,8 @@
     "test:server-credential-boundary": "node scripts/server-credential-boundary-check.mjs",
     "test:secret-hygiene": "node scripts/secret-hygiene-check.mjs",
     "test:canonical-migration-chain": "node scripts/canonical-migration-chain-check.mjs",
+    "test:synthetic-upgrade-replay": "node scripts/synthetic-upgrade-replay-check.mjs",
+    "supabase:test:synthetic-upgrade-replay": "node scripts/synthetic-upgrade-replay-check.mjs --run-local",
     "test:supabase-local-contract": "node scripts/supabase-local-contract-check.mjs",
     "test:identity-authorization-migration": "node scripts/identity-authorization-migration-check.mjs",
     "test:source-custody-migration": "node scripts/source-custody-migration-check.mjs",

@@ -151,7 +151,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          node scripts/synthetic-upgrade-replay-check.mjs | tee artifacts/synthetic-upgrade-replay-static-check.txt
+          npm run test:synthetic-upgrade-replay | tee artifacts/synthetic-upgrade-replay-static-check.txt
 
       - name: Local Supabase replay contract
         shell: bash
@@ -436,7 +436,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          node scripts/synthetic-upgrade-replay-check.mjs --run-local | tee artifacts/database/synthetic-upgrade-rehearsal.txt
+          npm run supabase:test:synthetic-upgrade-replay | tee artifacts/database/synthetic-upgrade-rehearsal.txt
 
       - name: Run synthetic-upgrade database persona tests
         shell: bash
