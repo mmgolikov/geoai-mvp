@@ -10,6 +10,7 @@ export type PolygonValidation = {
 const minAreaSqM = 100;
 const maxAreaSqM = 500 * 1_000_000;
 const earthRadiusM = 6_371_000;
+export const maxAoiVertices = 1_000;
 
 function toRadians(value: number) {
   return value * Math.PI / 180;
@@ -153,6 +154,10 @@ export function calculatePolygonMeasurements(vertices: [number, number][]): Poly
 export function validatePolygonVertices(vertices: [number, number][]): PolygonValidation {
   if (vertices.length < 3) {
     return { valid: false, message: "Add at least 3 vertices before closing the polygon." };
+  }
+
+  if (vertices.length > maxAoiVertices) {
+    return { valid: false, message: `AOI exceeds the ${maxAoiVertices}-vertex browser screening limit.` };
   }
 
   for (let i = 1; i < vertices.length; i += 1) {

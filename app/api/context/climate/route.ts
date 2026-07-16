@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getOpenMeteoClimateContext } from "@/src/lib/external-data/climate-open-meteo";
 import { externalDataCaveat } from "@/src/lib/external-data/source-registry";
 import { isPointInRange, parseBoundedIsoDateRange, readPointFromSearchParams } from "@/src/lib/external-data/runtime-request-validation";
+import { readBoundedJson } from "@/src/lib/http/bounded-json";
 
 export const runtime = "nodejs";
 
@@ -83,13 +84,11 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  let body: ClimateRequest;
-
-  try {
-    body = await request.json() as ClimateRequest;
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON request body." }, { status: 400 });
+  const parsed = await readBoundedJson(request, 16 * 1024);
+  if (!parsed.ok) {
+    return NextResponse.json({ error: parsed.message }, { status: parsed.status });
   }
+  const body = parsed.value as ClimateRequest;
 
   const coordinates = readCoordinates(body);
   if (!coordinates) {

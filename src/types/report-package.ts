@@ -1,4 +1,5 @@
 import type { RepositoryMode } from "@/src/lib/repositories/repository-mode";
+import type { SourceDataMode } from "@/src/lib/external-data/source-modes";
 
 export const reportPackageRequiredCaveat =
   "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.";
@@ -68,7 +69,10 @@ export type ReportPackageSourceLineageItem = {
   id: string;
   name: string;
   category: string;
-  mode: "sample_fallback" | "imported_snapshot" | "api_context" | "permission_required" | "planned_validation" | "generated_by_geoai";
+  status: string;
+  dataMode: SourceDataMode | "generated_by_geoai" | "user_uploaded";
+  mode: SourceDataMode | "generated_by_geoai" | "user_uploaded";
+  evidenceRole: "used" | "candidate_validation_required";
   recordCount?: number | null;
   confidence: string;
   limitation: string;

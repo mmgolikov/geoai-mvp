@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { recordAuditEvent } from "@/src/lib/audit/audit-event";
 import {
   getConnectorReadinessSummary,
   officialConnectorReadiness
@@ -7,18 +6,12 @@ import {
 
 export const runtime = "nodejs";
 
-export async function GET() {
-  void recordAuditEvent({
-    eventType: "validation_connector_reviewed",
-    entityType: "validation_connectors",
-    action: "Reviewed validation connector readiness"
-  });
-
+export function GET() {
   return NextResponse.json({
     ok: true,
     mode: "local_fallback",
     connectorReadiness: officialConnectorReadiness,
     summary: getConnectorReadinessSummary(),
     dataHonesty: "Connector readiness is metadata only; no live official DLD, Dubai Pulse or GeoDubai integration is claimed."
-  });
+  }, { headers: { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600" } });
 }

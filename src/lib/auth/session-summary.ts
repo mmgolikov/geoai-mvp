@@ -113,7 +113,7 @@ export async function getSafeAuthSessionSummary(request: Request) {
     generatedAt: new Date().toISOString()
   };
 
-  if (authStatus.effectiveMode !== "supabase_auth") {
+  if (authStatus.effectiveMode === "demo_public") {
     return {
       ...base,
       isDemo: true,
@@ -127,6 +127,23 @@ export async function getSafeAuthSessionSummary(request: Request) {
       projectRole: demoProjectRole,
       membership: createDemoProjectMembership(),
       warnings: ["Public demo access is not a Supabase-authenticated session."]
+    };
+  }
+
+  if (authStatus.effectiveMode !== "supabase_auth") {
+    return {
+      ...base,
+      isDemo: false,
+      isAuthenticated: false,
+      supabaseAuthenticated: false,
+      sessionStatus: "auth_disabled_fail_closed",
+      user: null,
+      supabaseUser: null,
+      profile: null,
+      organization: null,
+      projectRole: null,
+      membership: null,
+      warnings: ["Authentication is disabled; no demo identity was synthesized."]
     };
   }
 

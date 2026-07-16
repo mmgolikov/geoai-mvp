@@ -1,10 +1,18 @@
 # GeoAI MVP
 
+Status: Active repository overview
+Last verified: 2026-07-16
+Owner: GeoAI Engineering
+Authority: Current repository/product behavior and local setup
+Successor: None; any replacement must update `docs/DOCUMENTATION_INDEX.md`
+
 GeoAI is a Next.js spatial decision intelligence MVP for evaluating Dubai real estate, infrastructure, construction, and climate-risk scenarios. The current release is a public demo prototype, not a production-ready or pilot-ready product. It uses Mapbox, synthetic/demo geospatial layers, deterministic scoring, bounded source-context contracts, comparison dashboards, and print-friendly report previews.
 
-Pilot UX v3.6 keeps the app workspace-first, preserves the criteria-first product flow, and freezes the current pilot UX as a release candidate after dashboard cockpit alignment hardening, a balanced 6-KPI grid, and full client-pilot review. Outputs remain screening hypotheses requiring official/client validation.
+Release authority is PR #87 / `2999e7e857989baf53ce58ecfed63550b5896be0`. This worktree contains the unreleased Draft PR #97 audit candidate; implementation claims below that concern browser-only state, server-mutation containment or `/explore` source wiring are candidate behavior until merge and deploy. The released Production demo must be used only with built-in synthetic fixtures: do not enter or upload user/client AOIs, CSV, GeoJSON, filenames, evidence or dynamic package data.
 
-OpenAI upstream execution is disabled by default. The demo uses deterministic fallback unless an operator explicitly enables the upstream gate behind hard access and Supabase Auth; request-scoped user/membership authorization is not implemented yet, so protected OpenAI activation remains blocked.
+The historical Pilot UX v3.6 label describes the current workspace-first and criteria-first design lineage; it is not Product SemVer or evidence of client/pilot approval. The current released build is identified by its Git commit and deployment ID. Outputs remain screening hypotheses requiring official/client validation.
+
+Public-demo analysis and decision scoring run deterministically in the browser. Server `POST /api/analyze` and `POST /api/ai/decision-score` fail closed with 403 before body parsing until AUTH-01 supplies a verified request identity. OpenAI upstream code is dormant and cannot be activated by an API key or environment flag alone.
 
 ## Implemented Features
 
@@ -31,8 +39,8 @@ OpenAI upstream execution is disabled by default. The demo uses deterministic fa
   - Infrastructure / Urban Planning
   - Climate & Risk
   - Custom Query
-- Express Analysis dashboard with deterministic scores and gated OpenAI narrative code path
-- Mock fallback mode when OpenAI is not configured or unavailable
+- Express Analysis dashboard with browser-local deterministic scores and narrative
+- Dormant, fail-closed server OpenAI path reserved for request-scoped Auth/RBAC
 - Dubai Market Context Adapter v0.1 with seed/demo-normalized area matching
 - Data Ingestion v0.1 for seed_static market metrics and deterministic normalization
 - Open Geospatial Baseline v0.1 for local OSM-style roads, POI anchors, landuse context and accessibility metrics
@@ -44,16 +52,16 @@ OpenAI upstream execution is disabled by default. The demo uses deterministic fa
 - Dedicated printable report route for saved reports: `/reports/[id]/print`
 - Lightweight project/workspace selector with local demo fallback
 - Project Dashboard v0.1 for active project summary, KPIs, recent analyses, data readiness and next actions
-- Client Data Room Foundation v1.9 for project-scoped AOIs, uploaded metadata, analyses, reports, comparisons, validation checklist and pilot deliverable summary
-- Pilot Workflow & Deliverables v2.0 for project-scoped client input checklist, deliverables workflow and caveated workflow-readiness scoring
+- Client Data Room Foundation v1.9 read-only/seed UI for project-scoped AOIs, analyses, reports, comparisons, validation checklist and pilot deliverable summary; public server mutations are blocked
+- Pilot Workflow & Deliverables v2.0 read-only/seed UI for project-scoped client inputs, deliverables and caveated workflow-readiness scoring; public updates are blocked
 - Auth & Project Access Foundation v2.2 with public demo access mode, Supabase Auth readiness and compact access status indicators
 - Supabase/PostGIS Durable Persistence Foundation v2.3 with additive migration SQL, schema readiness checks, RLS draft and audit event foundation
 - Pilot Infrastructure Activation v2.4 with guarded migration/seed/verify scripts, activation status APIs, soft access metadata, audit integration, storage readiness and known limitations tracker
 - Validation Governance & Official Connector Readiness v2.5 for project validation evidence metadata, official connector readiness, report appendices and AI claim guardrails
-- Secure File Storage & Evidence Uploads v2.6 foundation with evidence file metadata, storage readiness, server-side upload/download APIs, report appendix file metadata and Supabase Storage policy draft
-- Evidence Review Workflow & Signed URL Verification v2.7 with conservative review decisions, signed URL verification, upload intent and review-aware AI/report guardrails
-- Enterprise Report Pack v2.8 with structured package model, local/API fallback package repository, printable package route, safe JSON export, source lineage, validation governance, evidence review, Data Room and pilot workflow appendices
-- Pilot Backend Activation & Hardening v2.9 with canonical backend status, soft/hard access modes, membership/storage/audit verification scripts, dynamic known limitations and compact pilot readiness panel
+- Secure File Storage & Evidence Uploads v2.6 dormant foundation with readiness/API/policy drafts; public upload and metadata mutations are blocked pending AUTH-01/STORAGE-01
+- Evidence Review Workflow & Signed URL Verification v2.7 domain/read-only foundation; public review/upload-intent mutations are blocked
+- Enterprise Report Pack v2.8 with structured seed/package model, protected printable route, safe JSON export and governance appendices; public package mutation is blocked
+- Pilot Backend Activation & Hardening v2.9 foundation with static public limitations, sanitized status DTOs and operator-only infrastructure diagnostics
 - Pilot Readiness & Client Delivery Package v1.1 with client-specific pilot packages, readiness scoring, setup checklist and deliverable framing
 - Offline DLD / Dubai Pulse CSV ingestion prototype with normalized sample outputs
 - API routes for health, demo objects, and analysis
@@ -69,7 +77,7 @@ OpenAI upstream execution is disabled by default. The demo uses deterministic fa
 - Next.js API routes
 - Synthetic GeoJSON-style demo data
 - Deterministic local mock scoring logic
-- Server-side OpenAI analysis route behind an explicit hard/Auth gate, with deterministic fallback
+- Browser-local deterministic analysis; server OpenAI generation is blocked until request-scoped Auth/RBAC exists
 - Seed market context adapter for Dubai area-level qualitative intelligence
 - Local market ingestion layer with validation, normalization, aggregation, and data quality notes
 - Spatial adapter layer with geometry validation, centroid/area utilities, and seed GeoJSON registry
@@ -101,37 +109,43 @@ OPENAI_MODEL=
 OPENAI_MODEL_DECISION_SCORING=
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
-SUPABASE_SERVICE_ROLE_KEY=
-SUPABASE_DB_URL=
 NEXT_PUBLIC_AUTH_MODE=
 GEOAI_ACCESS_ENFORCEMENT_MODE=soft
 GEOAI_REQUIRE_SUPABASE_READY=false
 GEOAI_REQUIRE_STORAGE_READY=false
 GEOAI_ALLOW_DEMO_PUBLIC=true
 GEOAI_ALLOW_OPENAI_UPSTREAM=false
+GEOAI_ENABLE_PREVIEW_SOURCE_PACK=false
+GEOAI_OPERATOR_SOURCE_TOKEN=
 ```
 
 `NEXT_PUBLIC_MAPBOX_TOKEN` is required for the live Mapbox basemap.
 
-`OPENAI_API_KEY` is optional and server-only. A key alone never activates upstream calls. `GEOAI_ALLOW_OPENAI_UPSTREAM=true`, hard access and Supabase Auth mode must all be present, and project access still has to pass. Until the request-scoped Auth kernel is implemented and verified, deterministic fallback is the supported path.
+`OPENAI_API_KEY` is optional and server-only. A key alone never activates upstream calls. Until AUTH-01 implements and verifies the request-scoped Auth kernel, public analysis remains browser-local and both server generation POST routes return 403.
 
 Supabase/PostGIS is optional in v0.1. When Supabase environment variables are not configured, GeoAI remains fully usable in local/demo mode and analysis history stays in browser storage.
 
-`NEXT_PUBLIC_AUTH_MODE` is optional and defaults to `demo_public`. Valid values are `demo_public`, `supabase_auth`, and `disabled`. Current `supabase_auth` support is a foundation, not working API authorization: server routes do not yet bind the caller JWT to a verified profile/membership. Request-scoped repositories are pinned to the publishable/anon key; `SUPABASE_SERVICE_ROLE_KEY` must remain server-only and is not selected by user-facing repositories.
+`NEXT_PUBLIC_AUTH_MODE` is optional and defaults to `demo_public`. Valid values are `demo_public`, `supabase_auth`, and `disabled`. Requesting `supabase_auth` currently resolves to `disabled`, because the caller-JWT kernel is intentionally not implemented. Public application repositories do not connect to Supabase before AUTH-01.
+
+Invalid environment values fail closed: an unknown Auth mode becomes `disabled`; an unknown enforcement mode becomes `hard`; an invalid demo-public flag becomes `false`; and invalid Supabase/Storage readiness flags become `true`. This prevents a typo from weakening access or readiness requirements.
 
 Pilot backend activation is controlled by server/runtime environment variables. `GEOAI_ACCESS_ENFORCEMENT_MODE=soft` preserves the public demo. `hard` enables the protected access path and should only be used after Supabase Auth, memberships, RLS, storage and audit checks are verified. `GEOAI_ALLOW_DEMO_PUBLIC=true` keeps seeded demo projects visible while hard mode is being tested.
 
-### Supabase Activation For Pilot
+Bounded Preview provider execution is off by default. The non-secret `GEOAI_ENABLE_PREVIEW_SOURCE_PACK=true` flag is necessary but never sufficient: a reviewed local/Preview deployment also needs a server-only `GEOAI_OPERATOR_SOURCE_TOKEN` of at least 32 characters and each request must supply the matching Bearer or `x-geoai-operator-token`. Production remains disabled even when these values exist. The pack remains non-persistent/non-scoring, uses a fixed HTTPS host allowlist with redirects rejected, cancels non-success and oversized bodies, and enforces strict provider/date/value schemas. Exact-deployment provider evidence and distributed budgets remain required.
 
-Use `npm run supabase:activation-status` to inspect the configured Supabase pilot target without printing secrets. The current pilot target is project `geoai-dev` (`pphdqkurxneyagvnnjdt`) in `eu-west-1`, with `geoai_healthcheck` as the public readiness table.
+### Supabase development foundation — not activation guidance
 
-Migration apply remains guarded and is limited to reviewed preview/pilot targets. Set `SUPABASE_DB_URL`, `GEOAI_ALLOW_SUPABASE_MIGRATION_APPLY=true` and `GEOAI_ALLOW_SUPABASE_TARGET=preview` or `pilot` only in a trusted terminal. Add Supabase env vars in Vercel for the intended Preview or pilot environment; do not expose `SUPABASE_SERVICE_ROLE_KEY` or `SUPABASE_DB_URL` as public/client variables.
+Use `npm run supabase:activation-status` only for a local, read-only inspection of the separate development/Preview foundation. Project `geoai-dev` (`pphdqkurxneyagvnnjdt`, `eu-west-1`) is not a pilot target and is not Product runtime.
 
-See [Supabase Pilot Activation](docs/SUPABASE_PILOT_ACTIVATION.md).
+This development target is separate from Production and is not contained yet: the candidate containment migration is unapplied, anonymous domain rows and a broad PostGIS RPC/ACL surface remain reachable through the Data API. Before Auth, real sources or protected files, the owner must either disable the Data API or expose a dedicated minimal `api` schema and prove minimum grants, RLS and caller-JWT/Storage personas. Follow the [draft Supabase Data API Containment Runbook](docs/SUPABASE_DATA_API_CONTAINMENT_RUNBOOK_2026_07_16.md); it is not executed and not apply-ready.
+
+The current migration chain is not apply-ready. Do not run `supabase:migrate:apply` against any live project until DB-01 proves clean and upgrade replay, the owner completes the containment runbook, and an exact target/apply/rollback plan is approved. Historical [Supabase Pilot Activation](docs/SUPABASE_PILOT_ACTIVATION.md) guidance is superseded for current operations.
+
+Privileged Supabase/DB, Storage-write and provider credentials belong only in a separate operator/worker or trusted-terminal environment described by `.env.operator.example`; never configure them in the public GeoAI Vercel application. The public app may eventually use a Supabase URL plus publishable/legacy anon key only after AUTH-01, with caller JWT and RLS. The current candidate does not use them.
 
 For fallback-safe runtime env setup and read-only probes, see [Supabase Runtime Readiness v1](docs/SUPABASE_RUNTIME_READINESS_V1.md).
 
-Never expose the OpenAI key as a `NEXT_PUBLIC_*` variable. Only `NEXT_PUBLIC_MAPBOX_TOKEN` is intended for browser use.
+Never expose OpenAI, operator-source, service-role or database credentials as `NEXT_PUBLIC_*`. Browser-publishable variables are limited to the Mapbox token and, only after AUTH-01, the Supabase URL plus publishable/legacy anon key.
 
 Do not commit real tokens. `.env`, `.env.local`, and `.env*.local` are ignored.
 
@@ -151,35 +165,18 @@ See [Repository Mode & Fallback Consistency v2.0.2](docs/REPOSITORY_MODE_FALLBAC
 
 ## Governance / Current Status
 
+- [Confluence Project Hub](https://geoaimvp.atlassian.net/wiki/spaces/PH/overview)
 - [Current Release State](docs/CURRENT_RELEASE_STATE.md)
 - [Documentation Index](docs/DOCUMENTATION_INDEX.md)
 - [Full System Audit — 2026-07-16](docs/FULL_SYSTEM_AUDIT_2026_07_16.md)
+- [Supabase Data API Containment Runbook — draft, not executed](docs/SUPABASE_DATA_API_CONTAINMENT_RUNBOOK_2026_07_16.md)
 - Current `main`: PR #87 merge `2999e7e857989baf53ce58ecfed63550b5896be0`.
 - Current Production: `dpl_EAXREH31JKznnGbQYEU8bNqTqagN`, READY on that exact SHA.
 - Production remains a synthetic/local-fallback public demo with soft access and no Production Supabase. The source pack is fail-closed (`503`, disabled, zero sources). Real geometry, real-source persistence, protected client data and B2B/B2C activation are blocked.
 
-## Latest Release Notes
+## Historical release/control archive
 
-- [Spatial B2A Integration Foundation v1](docs/SPATIAL_B2A_INTEGRATION_FOUNDATION_V1.md)
-- [Post-release Quality and Spatial Regression Gate v1 — Change Request](docs/POST_RELEASE_QUALITY_AND_SPATIAL_REGRESSION_GATE_V1_CHANGE_REQUEST.md)
-- [GeoAI Mobile Workspace Map Access and Segment Data v1](docs/RELEASE_GEOAI_MOBILE_WORKSPACE_SEGMENT_DATA_V1.md)
-- [GeoAI Supabase Runtime Readiness v1](docs/RELEASE_GEOAI_SUPABASE_RUNTIME_READINESS_V1.md)
-- [GeoAI Product Audit Hardening v1](docs/RELEASE_GEOAI_PRODUCT_AUDIT_HARDENING_V1.md)
-- [GeoAI Data Foundation v1.3 - First Snapshot Ingestion Path](docs/RELEASE_GEOAI_DATA_FOUNDATION_V13.md)
-- [GeoAI Data Foundation v1.2 - Snapshot Ingestion and Data Readiness UI](docs/RELEASE_GEOAI_DATA_FOUNDATION_V12.md)
-- [GeoAI Pilot UX v3.6 - Release Candidate Hardening and Visual QA Freeze](docs/RELEASE_GEOAI_PILOT_UX_V36_RELEASE_CANDIDATE.md)
-- [GeoAI Pilot UX v3.5 - Final Dashboard Grid and KPI Fit Hardening](docs/RELEASE_GEOAI_PILOT_UX_V35_DASHBOARD_GRID_FIT.md)
-- [GeoAI Pilot UX v3.4 - Dashboard Viewport Alignment](docs/RELEASE_GEOAI_PILOT_UX_V34_VIEWPORT_ALIGNMENT.md)
-- [GeoAI Pilot UX v3.3 - Text-Safe BI Dashboard and Supabase Activation Readiness](docs/RELEASE_GEOAI_PILOT_UX_V33_TEXT_SAFE_SUPABASE.md)
-- [GeoAI Pilot UX v3.2 - Criteria Search Flow and BI Dashboard](docs/RELEASE_GEOAI_PILOT_UX_V32_CRITERIA_BI.md)
-- [GeoAI Pilot UX v3.1 - BI Dashboard and Candidate Comparison Flow](docs/RELEASE_GEOAI_PILOT_UX_V31_BI_DASHBOARD.md)
-- [GeoAI Pilot UX Simplification v3.0](docs/RELEASE_GEOAI_PILOT_UX_SIMPLIFICATION_V30.md)
-- [GeoAI Explore v1.1 - Embedded Scenario Command Panel](docs/RELEASE_GEOAI_EXPLORE_V11_EMBEDDED_COMMAND_PANEL.md)
-- [GeoAI Explore v1 - Scenario-first MVP Shell](docs/RELEASE_GEOAI_EXPLORE_V1_SCENARIO_SHELL.md)
-- [GeoAI Pilot Backend Activation & Hardening v2.9](docs/RELEASE_GEOAI_PILOT_BACKEND_ACTIVATION_HARDENING_V29.md)
-- [GeoAI Enterprise Report Pack v2.8](docs/RELEASE_GEOAI_ENTERPRISE_REPORT_PACK_V28.md)
-- [Enterprise Report Pack v2.8 architecture note](docs/ENTERPRISE_REPORT_PACK_V28.md)
-- [Pilot Backend Activation & Hardening v2.9](docs/PILOT_BACKEND_ACTIVATION_HARDENING_V29.md)
+Versioned release notes and change requests are preserved as point-in-time evidence; they are not the latest runtime authority. Start with the [Documentation Index](docs/DOCUMENTATION_INDEX.md) and use the [Changelog](CHANGELOG.md) for chronology. The index links the current source control and explains lifecycle precedence.
 
 ## Useful Commands
 
@@ -190,22 +187,32 @@ npm run build
 npm run supabase:activation-status
 npm run supabase:runtime-readiness
 npm run supabase:migrate:check
-npm run supabase:migrate:apply
 npm run supabase:seed:pilot-foundation
 npm run supabase:verify:persistence
 npm run supabase:verify:memberships
 npm run storage:check
 npm run storage:verify:signed-url
 npm run audit:verify
+npm run test:access-decision
 npm run test:api-contract
 npm run test:api-access-guards
 npm run test:server-credential-boundary
 npm run test:readiness-evidence
 npm run test:migration-security-surface
+npm run test:rls-plan
+npm run test:security-headers
+npm run test:private-cache-boundary
 npm run test:workspace-panel
 npm run test:spatial-b1
 npm run test:spatial-b2a
 npm run test:data-honesty
+npm run test:documentation-current-truth
+npm run test:runtime-status-contract
+npm run test:runtime-source-pack
+npm run test:document-lifecycle
+npm run test:project-isolation
+npm run test:report-package-public-contract
+npm run test:vercel-output-tracing
 npm run ingest:dld:snapshot
 npm run ingest:osm:snapshot
 npm run data:status
@@ -213,42 +220,33 @@ npm run validate:external-data
 npm run start
 ```
 
-The default `npm run dev` command uses stable Webpack mode with polling enabled for local reliability.
-
-`npm run supabase:migrate:apply` is guarded and will not apply SQL unless `SUPABASE_DB_URL`, `GEOAI_ALLOW_SUPABASE_MIGRATION_APPLY=true` and `GEOAI_ALLOW_SUPABASE_TARGET=preview` or `pilot` are set in a trusted terminal. See [Supabase Pilot Activation](docs/SUPABASE_PILOT_ACTIVATION.md).
-
-The activation guard does not apply live migrations automatically.
+The default `npm run dev` command uses stable Webpack mode with polling enabled for local reliability. Migration/seed commands are inspection scaffolding, not authorization to write: the current chain remains blocked by DB-01 and the unexecuted containment runbook.
 
 ## API Routes
 
 - `GET /api/health` returns app status.
-- `GET /api/db/health` returns optional Supabase/PostGIS readiness plus pilot activation blockers without exposing secrets.
-- `GET /api/platform/activation-status` returns the pilot infrastructure activation gate plus Supabase activation readiness without exposing secrets.
-- `GET /api/pilot-backend/status` returns the canonical pilot backend activation summary, including demo/confidential pilot readiness, Supabase activation readiness, capabilities, blockers and caveats.
-- `GET /api/storage/health` returns Supabase Storage readiness and bucket blockers.
-- `GET /api/known-limitations` returns the machine-readable limitations tracker.
+- `GET /api/db/health` returns a static `diagnostics_withheld` public DTO; it does not probe or enumerate database configuration, schema, tables, credentials or project refs.
+- `GET /api/platform/activation-status` returns the static public-demo activation boundary and blockers; infrastructure evidence belongs to an operator-authenticated control plane.
+- `GET /api/pilot-backend/status` returns a minimal public status DTO with explicit product/environment/access/auth/repository/source dimensions, demo/confidential readiness and sanitized blockers. Infrastructure diagnostics are not exposed by this public route.
+- `GET /api/storage/health` returns static public limits and `diagnostics_withheld`; bucket/configuration/signed-URL inventories are not public.
+- `GET /api/security/rls-readiness` returns a static non-attestation without table or policy inventory.
+- `GET /api/known-limitations` returns the reviewed `static_candidate_truth` catalog; it performs no live readiness probes.
+- `GET /api/external-data/manifest`, `/sources` and `/status` serve only reviewed bundled `compact_public_v1` (`contractVersion: 1.3`, manifest `1.6`, `liveRegistryIncluded: false`), expose no live registry probes/counts and use bounded public caching. Manifest/sources/status measured 19,448 B/5,063 B/8,158 B in the final local production build; `/sources` has a 48 KB cap and exact remote evidence remains pending.
 - `GET /api/demo-objects` returns mock spatial objects for demo use.
-- `POST /api/analyze` returns a bounded, project-gated structured narrative. OpenAI is used only when the explicit hard/Auth upstream gate is active; otherwise deterministic fallback is returned.
-- `GET|POST /api/ai/decision-score` returns bounded decision-support scoring. POST is project-gated; deterministic fallback remains the supported public-demo path.
-- `GET /api/analysis-runs` returns persisted analysis runs when Supabase is configured, or `local_fallback` mode otherwise.
-- `POST /api/analysis-runs` saves analysis runs when Supabase is configured, or returns a non-blocking `local_fallback` response otherwise.
-- `POST /api/context/market` returns seed/demo-normalized Dubai market context for selected coordinates.
+- Public Workspace analysis and decision scoring are browser-local. `POST /api/analyze` and `POST /api/ai/decision-score` return 403 before body parsing until AUTH-01; `GET /api/ai/decision-score` exposes only the sanitized mode/caveat status.
+- `GET /api/analysis-runs` exposes only immutable/demo-safe reads in public mode; user-created public-demo history remains browser-local.
+- `POST /api/analysis-runs` is blocked for public-demo server persistence; durable writes require verified Auth/membership/RLS.
+- `POST /api/context/market` returns seed-only Dubai market context for built-in/demo targets. User-uploaded and user-drawn targets skip market/climate network calls, so raw content, AOI geometry and derived coordinates stay in the browser.
 - `GET /api/open-geodata` returns local open-geodata baseline availability and counts.
-- `GET /api/aois?projectKey=...` returns saved project AOIs from local/API fallback storage.
-- `POST /api/aois` saves a project AOI in local/API fallback storage.
-- `PATCH /api/aois/[id]` updates saved AOI metadata.
-- `DELETE /api/aois/[id]` removes a saved AOI from local/API fallback storage.
+- Public-demo AOIs are browser-local and are not mirrored through `/api/aois`; AOI server mutations return 403 until verified Auth/membership/RLS exists.
+- `GET /api/uploaded-datasets` returns an empty `browser_local` projection; POST/DELETE are disabled so uploaded CSV/GeoJSON never leaves the browser in public demo.
 - `GET /api/data-room?projectKey=...` returns the project-scoped Client Data Room summary.
-- `GET /api/report-packages?projectKey=...` returns project-scoped report packages and seeded package summaries.
-- `POST /api/report-packages` creates a local/API fallback enterprise report package.
+- `GET /api/report-packages?projectKey=...` returns only bounded dashboard summaries for immutable seed packages in public mode; it excludes full package bodies and all dynamic/browser state.
+- `POST /api/report-packages` requires verified project access; public-demo package mutation is blocked.
 - `GET /api/report-packages/[id]/json` exports safe report package metadata and section summaries.
 - `GET /api/report-packages/[id]/export` returns package export manifest metadata.
-- `/report-packages/[id]/print` renders a print-friendly enterprise report package. Browser print/save as PDF remains the current PDF workflow.
-- `POST /api/data-room/assets` registers local/demo data room asset metadata.
-- `PATCH /api/data-room/assets/[id]` updates local/demo asset metadata.
-- `DELETE /api/data-room/assets/[id]` removes a local/demo asset metadata record.
-- `POST /api/data-room/checklist` creates a local/demo validation checklist item.
-- `PATCH /api/data-room/checklist/[id]` updates validation checklist status.
+- Report/package routes accept canonical already-decoded raw IDs only; malformed or unknown IDs return controlled 400/404 and never fall back to another project. `/report-packages/[id]/print` renders a print-friendly seed package; browser print/save as PDF remains the current PDF workflow.
+- Data Room/checklist/evidence/pilot-workflow mutations require verified project access; public-demo write/upload/review/validate/manage actions return 403.
 
 ## GeoAI Explore v1.1
 
@@ -331,7 +329,7 @@ AOIs remain user-provided or uploaded screening geometry. They are not official 
 
 GeoAI includes a lightweight project-level Client Data Room foundation that links AOIs, uploaded client metadata, analyses, reports, comparisons, source readiness, validation checklist items and expected pilot deliverables.
 
-This is local/API fallback only. It is not durable production storage, secure enterprise storage, official validation, legal/cadastral/zoning/planning evidence or a valuation conclusion. Client files are registered as metadata-only demo records unless future durable storage is configured.
+In the audit candidate, public-demo user state is browser-local and this section is a read-only/seed UI foundation. Data Room/checklist/file server mutations return 403 until request-scoped Auth, membership, RLS and protected Storage exist. Local JSON repositories are development-only and Vercel `/tmp` persistence is disabled. This is not durable production storage, secure enterprise storage, official validation, legal/cadastral/zoning/planning evidence or a valuation conclusion.
 
 See [Client Data Room Foundation v1.9](docs/CLIENT_DATA_ROOM_FOUNDATION_V19.md) and the [GeoAI Client Data Room Foundation v1.9 Release Note](docs/RELEASE_GEOAI_CLIENT_DATA_ROOM_FOUNDATION_V19.md).
 
@@ -345,7 +343,7 @@ See [Validation Governance & Official Connector Readiness v2.5](docs/VALIDATION_
 
 ## Secure File Storage & Evidence Uploads v2.6
 
-GeoAI now includes a storage-ready evidence file workflow for validation evidence and the Client Data Room. When Supabase Storage is not configured, uploads register metadata only and the UI/API clearly state that binary storage is unavailable.
+GeoAI contains a dormant storage/evidence workflow foundation for future validation evidence and the Client Data Room. In the current audit candidate, public uploads are rejected before multipart parsing and no metadata-only server record is created. Activation requires request-scoped Auth/membership/RLS plus the protected upload controls in STORAGE-01.
 
 This is not secure enterprise storage until buckets, policies, signed URL flows and access enforcement are configured and verified. Uploaded evidence requires review; it is not a legal, cadastral, zoning, planning, ownership or valuation conclusion.
 
@@ -353,15 +351,15 @@ See [Secure File Storage & Evidence Uploads v2.6](docs/SECURE_FILE_STORAGE_EVIDE
 
 ## Evidence Review Workflow & Signed URL Verification v2.7
 
-GeoAI now tracks evidence review decisions separately from file upload. Files enter `uploaded_unreviewed`, reviewers can move evidence through in-review, client-validated, official-validated, rejected, expired or superseded states, and AI/report guardrails stay conservative until review status supports stronger screening language.
+GeoAI defines evidence review states separately from file upload. The domain model supports `uploaded_unreviewed`, in-review, client-validated, official-validated, rejected, expired and superseded states, while AI/report guardrails remain conservative. Screening review, client attestation and official attestation use separate capabilities; analyst review cannot establish either attestation. Public mutations and both attestation authorities remain blocked until AUTH-01 supplies verified identity/membership, designated authority and RLS-backed immutable provenance.
 
-Signed download verification remains server-side. Without configured Supabase Storage buckets and private policies, the app returns metadata-only fallback and a controlled `409` for binary download. See [Evidence Review Workflow & Signed URL Verification v2.7](docs/EVIDENCE_REVIEW_SIGNED_URL_VERIFICATION_V27.md) and the [v2.7 release note](docs/RELEASE_GEOAI_EVIDENCE_REVIEW_SIGNED_URL_V27.md).
+Signed download verification remains a server-side foundation. Without verified private buckets, policies and caller identity, no public upload/metadata fallback is created; binary access remains unavailable. See [Evidence Review Workflow & Signed URL Verification v2.7](docs/EVIDENCE_REVIEW_SIGNED_URL_VERIFICATION_V27.md) and the [v2.7 release note](docs/RELEASE_GEOAI_EVIDENCE_REVIEW_SIGNED_URL_V27.md) as historical foundation records.
 
 ## Data Credibility Sprint v0.5
 
 GeoAI now supports local-first CSV and GeoJSON uploads from the Workspace command panel. Uploaded CSV files can provide user-supplied site/area metrics, while uploaded GeoJSON files render as toggleable local map layers under Spatial Layers / Uploaded datasets.
 
-Uploads are stored in browser `localStorage` only and are limited to 5 MB per file. They are never treated as official evidence by default: the UI, analysis, Evidence / Data Used, and report preview label them as user-provided, validation-required context. Sample files are available under `data/upload-samples/`:
+Uploads are stored unencrypted only in this origin's versioned `geoai-public-demo-v2` browser namespace; non-demo modes do not read or write it, and Auth startup/sign-out purges that namespace plus exact legacy keys. The UI explicitly warns not to upload confidential, personal or regulated data. Candidate limits are 5 MB/file, 24 retained uploads per project, 10,000 CSV data rows, 128 unique non-empty headers and 16,384 characters/cell. CSV requires a data record, balanced quoted fields and paired finite WGS84 latitude/longitude columns when either coordinate column is present. GeoJSON is capped at 2,500 features and 100,000 coordinate pairs with bounded properties plus geometry-specific tuple/cardinality/closed-ring/WGS84 validation. AOI import is capped at 5 MB, 1,000 vertices and 40 records per project before self-intersection work. Browser records are revalidated on read and mutations use compound project+ID identity. They are never official evidence by default. Expiry/TTL, verified subject/organization scoping, stricter CSP and worker/off-main-thread parsing remain open. Sample files are available under `data/upload-samples/`:
 
 - `dubai_site_metrics_sample.csv`
 - `dubai_pipeline_sites_sample.geojson`
@@ -412,7 +410,7 @@ See [GeoAI Public Data Ready Demo v1.6 Release Note](docs/RELEASE_GEOAI_PUBLIC_D
 
 ## Investor Demo Narrative & Client Pilot Package v1.5
 
-GeoAI now includes a guided investor/client narrative launcher at `/demo`. It frames the existing workspace around three buyer stories: fund/family office investment screening, developer land pipeline, and bank/lender asset review. Each narrative links to the prepared workspace, active project dashboard and client pilot package framing.
+The three historical narrative definitions remain available as prepared workspace/project context. The current `/demo` route is not a card launcher: it redirects with HTTP 307 to `/workspace`. Narrative-specific journeys use explicit prepared Workspace/Project links and query parameters.
 
 This is a demo and pilot-framing layer, not a production or official-data claim. Outputs remain a screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.
 
@@ -420,7 +418,7 @@ See [Investor Demo Narrative v1.5](docs/INVESTOR_DEMO_NARRATIVE_V15.md) and [Cli
 
 ## Persistence & Project Workspace v0.8
 
-GeoAI now has a local-first MVP persistence foundation. Analysis runs, report payloads, comparison sets and uploaded dataset metadata can be saved through API routes and associated with the active project. Supabase/PostGIS remains optional; when it is not configured, GeoAI returns non-blocking local fallback responses and relies on browser/local demo state for continuity. Vercel serverless fallback storage is non-durable and must not be treated as production persistence.
+GeoAI has repository and schema foundations for future persistence. In the audit candidate, user-created public-demo AOIs, uploads, reports, analysis history and comparisons remain browser-local; server write/manage/upload/review/validate routes return 403 until request-scoped identity and RLS exist. Local JSON repositories are development-only, and all Vercel `/tmp` fallback is disabled. Supabase/PostGIS adapters are not active Product persistence.
 
 This is not production-ready persistence. There is no auth, multi-tenant security, production file storage or validated official source governance yet. See [Persistence & Project Workspace v0.8](docs/PERSISTENCE_PROJECT_WORKSPACE_V08.md).
 
@@ -456,70 +454,34 @@ Current export remains browser print/save as PDF. GeoAI does not generate server
 - Data ingestion currently uses local seed/static context and imported sample CSV fixtures only.
 - Spatial layers currently use local seed_geojson demo geometries only.
 - Uploaded CSV / GeoJSON files are browser-local, user-provided, validation-required context.
-- AOI Library v1.8 stores project AOIs through browser-local/API fallback continuity; durable multi-tenant spatial storage is not complete.
-- Client Data Room v1.9 registers project evidence metadata through local/API fallback only; durable production file storage, auth, audit trail and secure workspace controls are not connected.
+- AOI Library v1.8 keeps user-created project AOIs in the browser; its server mutations are blocked until Auth/RLS.
+- Client Data Room v1.9 is read-only/seed UI in public demo; evidence/checklist/file server mutations are blocked.
 - AOI GeoJSON import supports Polygon only. MultiPolygon, holes, CRS transformations and shapefiles are deferred.
 - Real Data Backbone v0.7 supports optional snapshots/API context, but live official validation sources are still not connected.
-- Persistence v0.8 supports local/API fallback saved objects, but auth, tenant security, production file storage and report libraries are not complete.
-- Supabase/PostGIS durable persistence is active only when configured and schema readiness checks pass.
+- Persistence v0.8 supplies dormant repository/schema foundations; current public-demo user state is browser-local and server mutations are blocked.
+- Supabase/PostGIS durable persistence is not active; future activation requires schema readiness plus request-scoped Auth/membership/RLS evidence.
 - RLS policies require configured Supabase Auth, project memberships and deployment governance.
 - Supabase/PostGIS and persistence are optional prototype foundations, not production-grade user storage yet.
 - Pilot readiness scoring is a delivery checklist, not an approval, compliance or production-readiness certification.
 - Auth foundation exists in public-demo mode, but production route enforcement, RLS and durable user/organization access control are not complete.
 - No activated real parcel, zoning, transaction, imagery or regulatory evidence adapters; bounded Preview source context is non-decision-grade and disabled in Production.
 - Report export is browser print/save as PDF, not a generated server-side PDF.
-- Comparison sets can be saved through the local/API fallback, but production report libraries still require auth, tenant security and validated persistence.
+- Comparison sets remain browser-local in public demo; durable comparison/report libraries require normalized repository contracts, Auth, tenant security and validated persistence.
 
 ## Documentation
 
-- [Current Prototype Checkpoint v0.2](docs/CHECKPOINT_2026-06-18_investor_prototype_v02.md)
-- [Supabase / PostGIS Foundation v0.1](docs/SUPABASE_POSTGIS_V01.md)
-- [Persistence v0.1](docs/PERSISTENCE_V01.md)
-- [Projects / Workspaces v0.1](docs/PROJECTS_WORKSPACES_V01.md)
-- [Project Dashboard v0.1](docs/PROJECT_DASHBOARD_V01.md)
-- [DLD / Dubai Pulse Ingestion v0.1](docs/DLD_DUBAI_PULSE_INGESTION_V01.md)
-- [Open Geospatial Baseline v0.1](docs/OPEN_GEODATA_BASELINE_V01.md)
-- [Data Credibility v0.5](docs/DATA_CREDIBILITY_V05.md)
-- [Real Data Backbone v0.7](docs/REAL_DATA_BACKBONE_V07.md)
-- [GeoAI Data-Ready Demo RC v1.4 Release Note](docs/RELEASE_GEOAI_DATA_READY_DEMO_RC_V14.md)
-- [GeoAI Public Data Ready Demo v1.6 Release Note](docs/RELEASE_GEOAI_PUBLIC_DATA_READY_DEMO_V16.md)
-- [GeoAI AOI-Ready Demo v1.7 Release Note](docs/RELEASE_GEOAI_AOI_READY_DEMO_V17.md)
-- [AOI Library + GeoJSON Import/Export v1.8](docs/AOI_LIBRARY_GEOJSON_IMPORT_EXPORT_V18.md)
-- [Client Data Room Foundation v1.9](docs/CLIENT_DATA_ROOM_FOUNDATION_V19.md)
-- [GeoAI Client Data Room Foundation v1.9 Release Note](docs/RELEASE_GEOAI_CLIENT_DATA_ROOM_FOUNDATION_V19.md)
-- [Pilot Workflow & Deliverables v2.0](docs/PILOT_WORKFLOW_DELIVERABLES_V20.md)
-- [GeoAI Pilot Workflow & Deliverables Foundation v2.0 Release Note](docs/RELEASE_GEOAI_PILOT_WORKFLOW_DELIVERABLES_V20.md)
-- [GeoAI Repository Mode & Fallback Consistency v2.0.2 Release Note](docs/RELEASE_GEOAI_REPOSITORY_MODE_CONSISTENCY_V202.md)
-- [Real Data + OpenAI Decision Scoring Foundation v2.1](docs/REAL_DATA_OPENAI_SCORING_FOUNDATION_V21.md)
-- [GeoAI Real Data + OpenAI Decision Scoring Foundation v2.1 Release Note](docs/RELEASE_GEOAI_REAL_DATA_OPENAI_SCORING_V21.md)
-- [Auth & Project Access Foundation v2.2](docs/AUTH_PROJECT_ACCESS_FOUNDATION_V22.md)
-- [GeoAI Auth & Project Access Foundation v2.2 Release Note](docs/RELEASE_GEOAI_AUTH_PROJECT_ACCESS_FOUNDATION_V22.md)
-- [Supabase/PostGIS Durable Persistence Foundation v2.3](docs/SUPABASE_POSTGIS_DURABLE_PERSISTENCE_V23.md)
-- [GeoAI Supabase/PostGIS Durable Persistence Foundation v2.3 Release Note](docs/RELEASE_GEOAI_SUPABASE_POSTGIS_DURABLE_PERSISTENCE_V23.md)
-- [Supabase Pilot Activation](docs/SUPABASE_PILOT_ACTIVATION.md)
-- [GeoAI Pilot UX v3.3 Release Note](docs/RELEASE_GEOAI_PILOT_UX_V33_TEXT_SAFE_SUPABASE.md)
-- [Pilot Infrastructure Activation v2.4](docs/PILOT_INFRASTRUCTURE_ACTIVATION_V24.md)
-- [GeoAI Pilot Infrastructure Activation v2.4 Release Note](docs/RELEASE_GEOAI_PILOT_INFRASTRUCTURE_ACTIVATION_V24.md)
-- [GeoAI AOI Library Demo v1.8 Release Note](docs/RELEASE_GEOAI_AOI_LIBRARY_DEMO_V18.md)
-- [Persistence & Project Workspace v0.8](docs/PERSISTENCE_PROJECT_WORKSPACE_V08.md)
-- [Project-Scoped Persistence v13](docs/PROJECT_SCOPED_PERSISTENCE_V13.md)
-- [Pilot Readiness & Client Delivery Package v1.1](docs/PILOT_READINESS_CLIENT_PACKAGE_V11.md)
-- [Report Export & Client Deliverables v0.9](docs/REPORT_EXPORT_DELIVERABLES_V09.md)
-- [UI Layout Guardrails](docs/UI_LAYOUT_GUARDRAILS.md)
-- [UI Release Freeze v1.0](docs/UI_RELEASE_FREEZE_V10.md)
-- [Custom Query Intelligence v1.2](docs/CUSTOM_QUERY_INTELLIGENCE_V12.md)
-- [MVP UI System Hardening v1.0.1](docs/MVP_UI_HARDENING_V101.md)
-- [Demo Release Candidate v0.6.1](docs/DEMO_RC_V061.md)
-- [Audit QA — 2026-06-18](docs/AUDIT_QA_2026-06-18.md)
-- [Architecture](docs/architecture.md)
-- [Data Strategy](docs/data-strategy.md)
-- [Roadmap](docs/roadmap.md)
-- [QA Checklist](docs/qa-checklist.md)
-- [Changelog](CHANGELOG.md)
+| Need | Current authority |
+| --- | --- |
+| Operational snapshot and navigation | [Confluence Project Hub](https://geoaimvp.atlassian.net/wiki/spaces/PH/overview) |
+| Repository navigation and lifecycle precedence | [Documentation Index](docs/DOCUMENTATION_INDEX.md) |
+| Released/live truth | [Current Release State](docs/CURRENT_RELEASE_STATE.md) |
+| Findings and go/no-go boundaries | [Full System Audit](docs/FULL_SYSTEM_AUDIT_2026_07_16.md) |
+| Implemented architecture and source rules | [Architecture](docs/architecture.md) · [Data Strategy](docs/data-strategy.md) |
+| Verification and executable residuals | [QA Checklist](docs/qa-checklist.md) · [Codex Backlog](docs/CODEX_BACKLOG_2026_07_16.md) |
+| Delivery order and history | [Roadmap](docs/roadmap.md) · [Changelog](CHANGELOG.md) |
+
+All other versioned and dated documents are historical/control evidence unless the Documentation Index explicitly promotes them as current.
 
 ## Next Roadmap
 
-- v0.2: AI analysis engine hardening, prompt evaluation, and production guardrails
-- v0.3: Data Source Registry and real data adapters
-- v0.4: Pilot-ready workflows for saved studies, evidence, and client reports
-- v0.5: Enterprise readiness with auth, governance, auditability, and deployment controls
+Current P0 order is the development Data API/identity decision and canonical replay, with public Vercel credential evacuation/rotation (ENV-01) in parallel but completed before Auth integration closes; then request-scoped Auth/RBAC, protected Storage and explicit source custody/visibility. Product, performance, accessibility and documentation closure remain evidence-based P1/P2 work. See the current [Roadmap](docs/roadmap.md) and acceptance-level [Codex Backlog](docs/CODEX_BACKLOG_2026_07_16.md); historical version labels do not override them.

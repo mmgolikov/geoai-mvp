@@ -1,4 +1,5 @@
 import type { GeoAIAuthMode } from "@/src/types/auth";
+import { requestAuthKernelStatus } from "@/src/lib/auth/request-auth-kernel";
 
 export type AuthModeStatus = {
   requestedMode: GeoAIAuthMode;
@@ -17,7 +18,7 @@ export function getRequestedAuthMode(): GeoAIAuthMode {
     return raw;
   }
 
-  return "demo_public";
+  return raw ? "disabled" : "demo_public";
 }
 
 export function hasSupabasePublicConfig() {
@@ -30,8 +31,8 @@ export function hasSupabasePublicConfig() {
 export function getEffectiveAuthMode(): GeoAIAuthMode {
   const requestedMode = getRequestedAuthMode();
 
-  if (requestedMode === "supabase_auth" && !hasSupabasePublicConfig()) {
-    return "demo_public";
+  if (requestedMode === "supabase_auth" && (!hasSupabasePublicConfig() || !requestAuthKernelStatus.implemented)) {
+    return "disabled";
   }
 
   return requestedMode;
@@ -44,8 +45,10 @@ export function authModeToLabel(mode: GeoAIAuthMode) {
 }
 
 export function authModeToCaveat(mode: GeoAIAuthMode, requestedMode = mode) {
-  if (requestedMode === "supabase_auth" && mode === "demo_public") {
-    return "Supabase Auth was requested but public Supabase configuration is missing; GeoAI is using public demo access.";
+  if (requestedMode === "supabase_auth" && mode === "disabled") {
+    return hasSupabasePublicConfig()
+      ? `${requestAuthKernelStatus.reason} Access fails closed instead of synthesizing a profile, organization or membership.`
+      : "Supabase Auth was requested but public configuration is incomplete; access fails closed instead of falling back to a demo identity.";
   }
 
   if (mode === "supabase_auth") {
@@ -53,7 +56,7 @@ export function authModeToCaveat(mode: GeoAIAuthMode, requestedMode = mode) {
   }
 
   if (mode === "disabled") {
-    return "Authentication UI is disabled; public demo screening workflows remain available.";
+    return "Authentication is disabled; no demo identity is synthesized. Select demo_public explicitly for public screening access.";
   }
 
   return "Public demo access is enabled; official validation and production access control are not configured.";

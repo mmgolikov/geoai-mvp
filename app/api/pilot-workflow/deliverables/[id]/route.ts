@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { recordAuditEvent } from "@/src/lib/audit/audit-event";
-import { projectAccessDeniedPayload, requireProjectAccess } from "@/src/lib/auth/project-access";
+import { isPreAuthServerMutationBlocked, projectAccessDeniedPayload, requireProjectAccess } from "@/src/lib/auth/project-access";
 import { buildPilotWorkflowSummary } from "@/src/lib/pilot-workflow/pilot-workflow-summary";
 import { createPilotDeliverable, getPilotDeliverable } from "@/src/lib/repositories/pilot-workflow-repository";
 import { repositoryModeFields } from "@/src/lib/repositories/repository-mode";
@@ -39,6 +39,10 @@ export async function PATCH(
   request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
+  if (isPreAuthServerMutationBlocked("write")) {
+    const access = requireProjectAccess({ action: "write", mode: "soft" });
+    return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
+  }
   const { id } = await context.params;
   let body: unknown;
 

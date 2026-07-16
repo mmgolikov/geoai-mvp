@@ -32,6 +32,7 @@ function loadTsModule(id) {
   vm.runInNewContext(transpiled.outputText, {
     exports: module.exports,
     module,
+    process,
     require: (requireId) => {
       if (requireId.startsWith("@/")) return loadTsModule(requireId);
       throw new Error(`Unexpected runtime dependency while checking access decisions: ${requireId}`);
@@ -50,6 +51,14 @@ const {
   verifyMembershipAccess
 } = loadTsModule("src/lib/access/membership-verification.ts");
 
+const {
+  requireProjectAccess
+} = loadTsModule("src/lib/auth/project-access.ts");
+
+const {
+  getEnforcementConfig
+} = loadTsModule("src/lib/platform/enforcement-config.ts");
+
 function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
@@ -67,6 +76,11 @@ assert(roleAllowsAction("client_viewer", "read"), "client_viewer should read");
 assert(roleAllowsAction("client_viewer", "export"), "client_viewer should export");
 assert(!roleAllowsAction("client_viewer", "write"), "client_viewer should not write");
 assert(roleAllowsAction("analyst", "validate"), "analyst should validate");
+assert(!roleAllowsAction("analyst", "attest_client"), "analyst screening review must not establish client attestation");
+assert(!roleAllowsAction("analyst", "attest_official"), "analyst screening review must not establish official attestation");
+assert(roleAllowsAction("admin", "attest_client"), "admin should establish client attestation once the authority is implemented");
+assert(!roleAllowsAction("admin", "attest_official"), "admin must not establish official attestation");
+assert(roleAllowsAction("owner", "attest_official"), "owner should establish official attestation once the authority is implemented");
 assert(!roleAllowsAction("analyst", "manage"), "analyst should not manage");
 assert(roleAllowsAction("admin", "manage"), "admin should manage");
 assert(roleAllowsAction("owner", "manage"), "owner should manage");
@@ -100,6 +114,136 @@ const softDemo = getProjectAccessDecision({
 });
 assert(softDemo.allowed && softDemo.status === "hard_access_disabled", "soft demo mode should not block");
 
+const envKeys = [
+  "NEXT_PUBLIC_AUTH_MODE",
+  "NEXT_PUBLIC_SUPABASE_URL",
+  "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+  "GEOAI_ACCESS_ENFORCEMENT_MODE",
+  "GEOAI_ALLOW_DEMO_PUBLIC",
+  "GEOAI_REQUIRE_SUPABASE_READY",
+  "GEOAI_REQUIRE_STORAGE_READY"
+];
+const originalEnv = Object.fromEntries(envKeys.map((key) => [key, process.env[key]]));
+function accessWithEnv(env, input = {}) {
+  for (const key of envKeys) delete process.env[key];
+  Object.assign(process.env, env);
+  return requireProjectAccess({ projectKey: "dubai-investment-screening-demo", action: "read", ...input });
+}
+
+const hardDisabledNoBypass = accessWithEnv({
+  NEXT_PUBLIC_AUTH_MODE: "disabled",
+  GEOAI_ACCESS_ENFORCEMENT_MODE: "hard",
+  GEOAI_ALLOW_DEMO_PUBLIC: "false"
+});
+assert(!hardDisabledNoBypass.allowed && hardDisabledNoBypass.decisionStatus === "unauthenticated", "hard + disabled Auth + no demo bypass must deny");
+
+const hardDemoNoBypass = accessWithEnv({
+  NEXT_PUBLIC_AUTH_MODE: "demo_public",
+  GEOAI_ACCESS_ENFORCEMENT_MODE: "hard",
+  GEOAI_ALLOW_DEMO_PUBLIC: "false"
+});
+assert(!hardDemoNoBypass.allowed, "hard public demo without explicit bypass must deny");
+
+const hardExplicitDemoRead = accessWithEnv({
+  NEXT_PUBLIC_AUTH_MODE: "demo_public",
+  GEOAI_ACCESS_ENFORCEMENT_MODE: "hard",
+  GEOAI_ALLOW_DEMO_PUBLIC: "true"
+});
+assert(hardExplicitDemoRead.allowed && hardExplicitDemoRead.decisionStatus === "demo_public", "hard seeded demo read may pass only with explicit bypass");
+
+const hardExplicitDemoMutation = accessWithEnv({
+  NEXT_PUBLIC_AUTH_MODE: "demo_public",
+  GEOAI_ACCESS_ENFORCEMENT_MODE: "hard",
+  GEOAI_ALLOW_DEMO_PUBLIC: "true"
+}, { action: "upload" });
+assert(!hardExplicitDemoMutation.allowed && hardExplicitDemoMutation.status === 403, "public demo server mutations must remain blocked even with read bypass");
+
+const hardNonDemo = accessWithEnv({
+  NEXT_PUBLIC_AUTH_MODE: "demo_public",
+  GEOAI_ACCESS_ENFORCEMENT_MODE: "hard",
+  GEOAI_ALLOW_DEMO_PUBLIC: "true"
+}, { projectKey: "client-project" });
+assert(!hardNonDemo.allowed, "hard public demo bypass must not authorize non-demo projects");
+
+const hardSupabaseWithoutRequestIdentity = accessWithEnv({
+  NEXT_PUBLIC_AUTH_MODE: "supabase_auth",
+  NEXT_PUBLIC_SUPABASE_URL: "https://example.supabase.co",
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: "test-anon-key",
+  GEOAI_ACCESS_ENFORCEMENT_MODE: "hard",
+  GEOAI_ALLOW_DEMO_PUBLIC: "false"
+});
+assert(!hardSupabaseWithoutRequestIdentity.allowed, "hard Supabase mode must deny without request-scoped membership");
+
+const softSupabaseDemoMutationWithoutRequestIdentity = accessWithEnv({
+  NEXT_PUBLIC_AUTH_MODE: "supabase_auth",
+  NEXT_PUBLIC_SUPABASE_URL: "https://example.supabase.co",
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: "test-anon-key",
+  GEOAI_ACCESS_ENFORCEMENT_MODE: "soft",
+  GEOAI_ALLOW_DEMO_PUBLIC: "true"
+}, { action: "upload" });
+assert(
+  !softSupabaseDemoMutationWithoutRequestIdentity.allowed && softSupabaseDemoMutationWithoutRequestIdentity.status === 403,
+  "Environment-selected Supabase mode must not authorize server mutations without request-scoped identity"
+);
+
+const softDemoRead = accessWithEnv({
+  NEXT_PUBLIC_AUTH_MODE: "demo_public",
+  GEOAI_ACCESS_ENFORCEMENT_MODE: "soft",
+  GEOAI_ALLOW_DEMO_PUBLIC: "false"
+});
+assert(!softDemoRead.allowed, "explicitly disabled public demo access must deny even in soft mode");
+
+const defaultSoftDemoRead = accessWithEnv({
+  NEXT_PUBLIC_AUTH_MODE: "demo_public",
+  GEOAI_ACCESS_ENFORCEMENT_MODE: "soft"
+});
+assert(defaultSoftDemoRead.allowed, "explicit public demo mode with the default allowlist must remain available");
+
+const requestedSupabaseMissingConfig = accessWithEnv({
+  NEXT_PUBLIC_AUTH_MODE: "supabase_auth",
+  GEOAI_ACCESS_ENFORCEMENT_MODE: "soft",
+  GEOAI_ALLOW_DEMO_PUBLIC: "true"
+});
+assert(!requestedSupabaseMissingConfig.allowed && requestedSupabaseMissingConfig.authMode === "disabled", "incomplete requested Supabase Auth must fail closed without demo fallback");
+
+const invalidExplicitAuthMode = accessWithEnv({
+  NEXT_PUBLIC_AUTH_MODE: "demo-pbulic",
+  GEOAI_ACCESS_ENFORCEMENT_MODE: "soft",
+  GEOAI_ALLOW_DEMO_PUBLIC: "true"
+});
+assert(!invalidExplicitAuthMode.allowed && invalidExplicitAuthMode.authMode === "disabled", "invalid explicit Auth mode must fail closed");
+
+accessWithEnv({
+  NEXT_PUBLIC_AUTH_MODE: "demo_public",
+  GEOAI_ACCESS_ENFORCEMENT_MODE: "sfot",
+  GEOAI_ALLOW_DEMO_PUBLIC: "treu",
+  GEOAI_REQUIRE_SUPABASE_READY: "flase",
+  GEOAI_REQUIRE_STORAGE_READY: "flase"
+});
+const invalidEnforcement = getEnforcementConfig();
+assert(invalidEnforcement.accessEnforcementMode === "hard", "invalid enforcement mode must fail to hard");
+assert(!invalidEnforcement.allowDemoPublic, "invalid demo-public flag must fail to false");
+assert(invalidEnforcement.requireSupabaseReady && invalidEnforcement.requireStorageReady, "invalid readiness flags must fail to required");
+
+const suffixOnlyDemoBypass = accessWithEnv({
+  NEXT_PUBLIC_AUTH_MODE: "demo_public",
+  GEOAI_ACCESS_ENFORCEMENT_MODE: "hard",
+  GEOAI_ALLOW_DEMO_PUBLIC: "true"
+}, { projectKey: "attacker-controlled-demo" });
+assert(!suffixOnlyDemoBypass.allowed, "demo bypass must use the explicit seeded-key allowlist, not a suffix");
+
+const softDemoMutation = accessWithEnv({
+  NEXT_PUBLIC_AUTH_MODE: "demo_public",
+  GEOAI_ACCESS_ENFORCEMENT_MODE: "soft",
+  GEOAI_ALLOW_DEMO_PUBLIC: "true"
+}, { action: "write" });
+assert(!softDemoMutation.allowed, "soft public demo server mutation must be browser-local instead");
+
+for (const key of envKeys) {
+  if (originalEnv[key] === undefined) delete process.env[key];
+  else process.env[key] = originalEnv[key];
+}
+
 const unauthenticated = decision({ user: null });
 assert(!unauthenticated.allowed && unauthenticated.status === "unauthenticated", "hard mode should deny unauthenticated requests");
 
@@ -108,14 +252,22 @@ assert(!noProfile.allowed && noProfile.status === "authenticated_without_profile
 
 const noMembership = decision({
   user: { id: "auth-user-1" },
-  profile: { id: "profile-1", organizationId: "org-1", status: "active" },
+  profile: { id: "profile-1", authUserId: "auth-user-1", organizationId: "org-1", status: "active" },
   project: { id: "project-1", organizationId: "org-1" }
 });
 assert(!noMembership.allowed && noMembership.status === "profile_without_project_membership", "hard mode should deny profiles without membership");
 
+const missingProfileStatus = decision({
+  user: { id: "auth-user-1" },
+  profile: { id: "profile-1", authUserId: "auth-user-1", organizationId: "org-1" },
+  project: { id: "project-1", projectKey: "project-1", organizationId: "org-1" },
+  membership: { profileId: "profile-1", projectId: "project-1", projectKey: "project-1", organizationId: "org-1", role: "owner", status: "active" }
+});
+assert(!missingProfileStatus.allowed && missingProfileStatus.status === "authenticated_without_profile", "hard mode must reject a profile without explicit active status");
+
 const wrongOrganization = decision({
   user: { id: "auth-user-1" },
-  profile: { id: "profile-1", organizationId: "org-2", status: "active" },
+  profile: { id: "profile-1", authUserId: "auth-user-1", organizationId: "org-2", status: "active" },
   project: { id: "project-1", organizationId: "org-1" },
   membership: {
     userId: "profile-1",
@@ -130,7 +282,7 @@ assert(!wrongOrganization.allowed && wrongOrganization.status === "wrong_organiz
 const insufficientRole = decision({
   action: "write",
   user: { id: "auth-user-1" },
-  profile: { id: "profile-1", organizationId: "org-1", status: "active" },
+  profile: { id: "profile-1", authUserId: "auth-user-1", organizationId: "org-1", status: "active" },
   project: { id: "project-1", organizationId: "org-1" },
   membership: {
     userId: "profile-1",
@@ -145,7 +297,7 @@ assert(!insufficientRole.allowed && insufficientRole.status === "insufficient_ro
 const allowed = decision({
   action: "upload",
   user: { id: "auth-user-1" },
-  profile: { id: "profile-1", organizationId: "org-1", status: "active" },
+  profile: { id: "profile-1", authUserId: "auth-user-1", organizationId: "org-1", status: "active" },
   project: { id: "project-1", organizationId: "org-1" },
   membership: {
     userId: "profile-1",
@@ -156,6 +308,30 @@ const allowed = decision({
   }
 });
 assert(allowed.allowed && allowed.status === "allowed_project_member", "hard mode should allow analyst upload");
+
+const missingProjectIdentity = decision({
+  user: { id: "auth-user-1" },
+  profile: { id: "profile-1", authUserId: "auth-user-1", organizationId: "org-1", status: "active" },
+  project: { projectKey: "project-1", organizationId: "org-1" },
+  membership: { profileId: "profile-1", projectKey: "project-1", organizationId: "org-1", role: "owner", status: "active" }
+});
+assert(!missingProjectIdentity.allowed, "hard mode must fail closed when canonical project ids are missing");
+
+const mismatchedProjectKey = decision({
+  user: { id: "auth-user-1" },
+  profile: { id: "profile-1", authUserId: "auth-user-1", organizationId: "org-1", status: "active" },
+  project: { id: "project-1", projectKey: "project-1", organizationId: "org-1" },
+  membership: { profileId: "profile-1", projectId: "project-1", projectKey: "project-2", organizationId: "org-1", role: "owner", status: "active" }
+});
+assert(!mismatchedProjectKey.allowed, "hard mode must reject a mismatched denormalized project key even when ids match");
+
+const mismatchedAuthProfile = decision({
+  user: { id: "auth-user-1" },
+  profile: { id: "profile-1", authUserId: "auth-user-2", organizationId: "org-1", status: "active" },
+  project: { id: "project-1", projectKey: "project-1", organizationId: "org-1" },
+  membership: { profileId: "profile-1", projectId: "project-1", projectKey: "project-1", organizationId: "org-1", role: "owner", status: "active" }
+});
+assert(!mismatchedAuthProfile.allowed, "hard mode must reject a profile mapped to another auth user");
 
 function membershipInput(overrides = {}) {
   return {
@@ -193,6 +369,18 @@ assertMembership(
   false,
   "membership hard mode should deny inactive profile"
 );
+assertMembership(
+  { profile: { id: "profile-1", authUserId: "auth-user-1", organizationId: "org-1" } },
+  "inactive_profile",
+  false,
+  "membership hard mode should deny a profile without explicit status"
+);
+assertMembership(
+  { organizationMembership: { profileId: "profile-1", organizationId: "org-1" } },
+  "inactive_membership",
+  false,
+  "membership hard mode should deny org membership without explicit status"
+);
 assertMembership({ organizationMembership: null }, "no_org_membership", false, "membership hard mode should deny no org membership");
 assertMembership({ projectMembership: null }, "no_project_membership", false, "membership hard mode should deny no project membership");
 assertMembership(
@@ -200,6 +388,12 @@ assertMembership(
   "inactive_membership",
   false,
   "membership hard mode should deny inactive project membership"
+);
+assertMembership(
+  { projectMembership: { profileId: "profile-1", projectId: "project-1", projectKey: "project-1", organizationId: "org-1", role: "owner" } },
+  "inactive_membership",
+  false,
+  "membership hard mode should deny project membership without explicit status"
 );
 assertMembership(
   {
@@ -222,6 +416,27 @@ assertMembership(
   true,
   "membership hard mode should allow admin manage"
 );
+assertMembership(
+  {
+    project: { projectKey: "project-1", organizationId: "org-1" },
+    projectMembership: { profileId: "profile-1", projectKey: "project-1", organizationId: "org-1", role: "owner", status: "active" }
+  },
+  "no_project_membership",
+  false,
+  "membership hard mode should require canonical project ids"
+);
+assertMembership(
+  { projectMembership: { profileId: "profile-1", projectId: "project-1", projectKey: "project-2", organizationId: "org-1", role: "owner", status: "active" } },
+  "no_project_membership",
+  false,
+  "membership hard mode should reject project id/key mismatch"
+);
+assertMembership(
+  { profile: { id: "profile-1", authUserId: "auth-user-2", organizationId: "org-1", status: "active" } },
+  "no_profile",
+  false,
+  "membership hard mode should reject auth/profile mismatch"
+);
 
 const softMembership = verifyMembershipAccess(membershipInput({
   mode: "soft",
@@ -234,25 +449,50 @@ const serialized = JSON.stringify([softDemo, unauthenticated, allowed, softMembe
 assert(!/eyJ[a-zA-Z0-9_-]{20,}\.[a-zA-Z0-9_-]{20,}\.[a-zA-Z0-9_-]{20,}/.test(serialized), "decisions must not expose JWT-like values");
 assert(!/service[_-]?role/i.test(serialized), "decisions must not expose service-role strings");
 
+const evidenceReviewRouteSource = fs.readFileSync(
+  path.join(process.cwd(), "app/api/validation/evidence/[id]/reviews/route.ts"),
+  "utf8"
+);
+const attestationGuardIndex = evidenceReviewRouteSource.indexOf("hasEvidenceAttestationAuthority()");
+const evidenceReviewCreateIndex = evidenceReviewRouteSource.indexOf("const review = await createEvidenceReview");
+assert(attestationGuardIndex >= 0, "evidence review route must include the attestation-authority guard");
+assert(
+  evidenceReviewCreateIndex > attestationGuardIndex,
+  "evidence attestation authority and role checks must run before an evidence review is persisted"
+);
+
 console.log(JSON.stringify({
   ok: true,
   checked: [
     "role/action matrix",
+    "client/official attestation capability separation",
+    "evidence-attestation guard before persistence",
     "soft demo advisory mode",
+    "env-driven hard/soft/Auth/demo-bypass matrix",
+    "Supabase misconfiguration fail-closed matrix",
+    "invalid explicit environment values fail closed",
+    "explicit demo-key allowlist",
+    "public-demo server mutation denial",
     "hard unauthenticated denial",
     "hard no-profile denial",
+    "missing profile-status denial",
     "hard no-membership denial",
     "wrong organization denial",
     "insufficient role denial",
     "allowed project member",
+    "canonical project-id requirement",
+    "project id/key consistency denial",
+    "auth-user/profile mapping denial",
     "membership no-session denial",
     "membership no-profile denial",
     "membership inactive-profile denial",
+    "membership missing-status denials",
     "membership no-org-membership denial",
     "membership no-project-membership denial",
     "membership inactive-membership denial",
     "membership other-org denial",
     "membership insufficient-role denial",
+    "membership canonical-id and auth mapping denials",
     "membership soft-mode advisory"
   ],
   caveat: "Access decision checks validate helper behavior only; they are not Supabase RLS certification."

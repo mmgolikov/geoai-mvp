@@ -2,6 +2,7 @@ import type { SelectedDemoObject, SelectedPoint } from "@/src/types/geo";
 
 export type UploadedDataset = {
   id: string;
+  projectKey: string;
   name: string;
   type: "geojson" | "csv";
   status: "uploaded-local" | "parsed" | "invalid";

@@ -186,11 +186,11 @@ export async function getPilotBackendActivationSummary(): Promise<PilotBackendAc
     blockers.push({
       id: "supabase_env_missing",
       severity: "p0",
-      title: "Supabase environment is not configured",
-      description: "Durable persistence cannot be used until Supabase URL and server credentials are configured in the target runtime.",
-      requiredEnv: ["NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY"],
+      title: "Request-scoped Supabase repositories are not enabled",
+      description: "Durable persistence cannot be used until AUTH-01 binds a verified caller JWT to project membership and RLS.",
+      requiredEnv: ["NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_ANON_KEY"],
       relatedRoute: "/api/db/health",
-      nextAction: "Configure Supabase environment variables in Vercel/server runtime, then run migration readiness checks."
+      nextAction: "Implement the caller-JWT repository kernel; keep service-role and database credentials out of the public Vercel application."
     });
   }
 

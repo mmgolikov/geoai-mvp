@@ -86,10 +86,6 @@ function normalizeList<T>(single: T | null | undefined, many: T[] | undefined) {
   return [...(many ?? []), ...(single ? [single] : [])];
 }
 
-function sameDefinedValue(left?: string | null, right?: string | null) {
-  return Boolean(left && right && left === right);
-}
-
 function memberProfileId(
   membership: MembershipVerificationOrgMembership | MembershipVerificationProjectMembership
 ) {
@@ -97,22 +93,23 @@ function memberProfileId(
 }
 
 function statusIsActive(status?: string | null) {
-  return !status || status === "active";
+  return status === "active";
 }
 
 function orgMatches(
   membership: MembershipVerificationOrgMembership | MembershipVerificationProjectMembership,
   organizationId?: string | null
 ) {
-  return !organizationId || !membership.organizationId || membership.organizationId === organizationId;
+  return Boolean(organizationId && membership.organizationId && membership.organizationId === organizationId);
 }
 
 function projectMatches(
   membership: MembershipVerificationProjectMembership,
   project?: MembershipVerificationProject | null
 ) {
-  if (!project?.id && !project?.projectKey) return true;
-  return sameDefinedValue(membership.projectId, project.id) || sameDefinedValue(membership.projectKey, project.projectKey);
+  if (!project?.id || !membership.projectId || membership.projectId !== project.id) return false;
+  if (project.projectKey && membership.projectKey !== project.projectKey) return false;
+  return true;
 }
 
 function denial(input: {
@@ -143,7 +140,7 @@ function evaluateHard(input: MembershipVerificationInput): Omit<MembershipVerifi
   const action = input.action;
   const profile = input.profile ?? null;
   const project = input.project ?? null;
-  const projectOrgId = project?.organizationId ?? profile?.organizationId ?? null;
+  const projectOrgId = project?.organizationId ?? null;
 
   if (authMode !== "supabase_auth" || !input.session?.userId) {
     return denial({
@@ -167,6 +164,17 @@ function evaluateHard(input: MembershipVerificationInput): Omit<MembershipVerifi
     });
   }
 
+  if (!profile.authUserId || profile.authUserId !== input.session.userId) {
+    return denial({
+      status: "no_profile",
+      httpStatus: 403,
+      mode,
+      authMode,
+      action,
+      reason: "The authenticated session is not mapped to this GeoAI profile."
+    });
+  }
+
   if (!statusIsActive(profile.status)) {
     return denial({
       status: "inactive_profile",
@@ -181,7 +189,7 @@ function evaluateHard(input: MembershipVerificationInput): Omit<MembershipVerifi
   const organizationMemberships = normalizeList(input.organizationMembership, input.organizationMemberships);
   const profileOrgMemberships = organizationMemberships.filter((membership) => {
     const id = memberProfileId(membership);
-    return !id || id === profile.id;
+    return Boolean(id && id === profile.id);
   });
   const matchingOrgMembership = profileOrgMemberships.find((membership) => orgMatches(membership, projectOrgId));
 
@@ -221,7 +229,7 @@ function evaluateHard(input: MembershipVerificationInput): Omit<MembershipVerifi
   const projectMemberships = normalizeList(input.projectMembership, input.projectMemberships);
   const profileProjectMemberships = projectMemberships.filter((membership) => {
     const id = memberProfileId(membership);
-    return !id || id === profile.id;
+    return Boolean(id && id === profile.id);
   });
   const matchingProjectMembership = profileProjectMemberships.find((membership) => projectMatches(membership, project));
 
@@ -250,7 +258,8 @@ function evaluateHard(input: MembershipVerificationInput): Omit<MembershipVerifi
 
   if (
     !orgMatches(matchingProjectMembership, projectOrgId) ||
-    (matchingProjectMembership.organizationId && profile.organizationId && matchingProjectMembership.organizationId !== profile.organizationId)
+    !profile.organizationId ||
+    matchingProjectMembership.organizationId !== profile.organizationId
   ) {
     return denial({
       status: "wrong_organization",

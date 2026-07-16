@@ -375,7 +375,7 @@ export function ReportMapPreview({
           center,
           zoom: comparison ? 9.65 : selectedAoi || selectedObject ? 11.8 : 11.2,
           interactive: true,
-          attributionControl: false,
+        attributionControl: true,
           preserveDrawingBuffer: true
         });
         mapRef.current = map;

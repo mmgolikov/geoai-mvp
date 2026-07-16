@@ -7,6 +7,8 @@ const exactMain = "2999e7e857989baf53ce58ecfed63550b5896be0";
 const productionDeployment = "dpl_EAXREH31JKznnGbQYEU8bNqTqagN";
 
 const activeDocs = [
+  "README.md",
+  "CHANGELOG.md",
   "docs/DOCUMENTATION_INDEX.md",
   "docs/CURRENT_RELEASE_STATE.md",
   "docs/FULL_SYSTEM_AUDIT_2026_07_16.md",
@@ -14,7 +16,9 @@ const activeDocs = [
   "docs/architecture.md",
   "docs/data-strategy.md",
   "docs/roadmap.md",
-  "docs/qa-checklist.md"
+  "docs/qa-checklist.md",
+  "AGENTS.md",
+  "docs/SUPABASE_DATA_API_CONTAINMENT_RUNBOOK_2026_07_16.md"
 ];
 
 const releaseFactDocs = [
@@ -37,28 +41,170 @@ function read(relativePath) {
   return readFileSync(absolutePath, "utf8");
 }
 
+function githubHeadingSlug(value) {
+  return value
+    .replace(/<[^>]+>/g, "")
+    .replace(/!?(?:\[([^\]]*)\])\([^)]+\)/g, "$1")
+    .replace(/[`*_~]/g, "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s_-]/gu, "")
+    .replace(/\s/g, "-");
+}
+
+function markdownAnchors(content) {
+  const anchors = new Set();
+  const occurrences = new Map();
+  for (const line of content.split(/\r?\n/)) {
+    const heading = line.match(/^#{1,6}\s+(.+?)\s*#*\s*$/)?.[1];
+    if (heading) {
+      const base = githubHeadingSlug(heading);
+      if (base) {
+        const count = occurrences.get(base) ?? 0;
+        occurrences.set(base, count + 1);
+        anchors.add(count === 0 ? base : `${base}-${count}`);
+      }
+    }
+    for (const explicit of line.matchAll(/<(?:a\s+[^>]*?(?:id|name)|[^>]+\s+id)=["']([^"']+)["'][^>]*>/gi)) {
+      anchors.add(explicit[1]);
+    }
+  }
+  return anchors;
+}
+
+function decodedFragment(value) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
 for (const relativePath of activeDocs) {
   const content = read(relativePath);
   if (!/^Status:\s+/m.test(content)) {
     failures.push(`${relativePath}: active document has no Status field`);
   }
-  if (!/^Last (verified|reconciled):\s+2026-07-16\s*$/m.test(content)) {
-    failures.push(`${relativePath}: active document is not verified/reconciled on 2026-07-16`);
+  if (!/^Last verified:\s+2026-07-16\s*$/m.test(content)) {
+    failures.push(`${relativePath}: active document is not explicitly verified on 2026-07-16`);
   }
-  if (/PR #(?:81|83)\b/.test(content)) {
+  for (const field of ["Owner", "Authority", "Successor"]) {
+    if (!new RegExp(`^${field}:\\s+\\S`, "m").test(content)) {
+      failures.push(`${relativePath}: active document has no ${field} field`);
+    }
+  }
+  if (relativePath !== "CHANGELOG.md" && /PR #(?:81|83)\b/.test(content)) {
     failures.push(`${relativePath}: stale PR #81/#83 appears in current authority`);
   }
 
   for (const match of content.matchAll(/\[[^\]]+\]\(([^)]+)\)/g)) {
     const target = match[1].trim();
-    if (/^(?:https?:|mailto:|#)/.test(target)) continue;
-    const fileTarget = target.split("#", 1)[0];
-    if (!fileTarget) continue;
-    const linkedPath = resolve(root, dirname(relativePath), fileTarget);
+    if (/^(?:https?:|mailto:)/.test(target)) continue;
+    const hashIndex = target.indexOf("#");
+    const fileTarget = hashIndex >= 0 ? target.slice(0, hashIndex) : target;
+    const fragment = hashIndex >= 0 ? decodedFragment(target.slice(hashIndex + 1)) : "";
+    const linkedPath = fileTarget
+      ? resolve(root, dirname(relativePath), fileTarget)
+      : resolve(root, relativePath);
     if (!existsSync(linkedPath)) {
       failures.push(`${relativePath}: broken local link ${target}`);
+      continue;
+    }
+    if (fragment) {
+      const linkedContent = readFileSync(linkedPath, "utf8");
+      if (!markdownAnchors(linkedContent).has(fragment)) {
+        failures.push(`${relativePath}: broken local anchor ${target}`);
+      }
     }
   }
+}
+
+const semanticContracts = [
+  {
+    path: "README.md",
+    required: [
+      "Public-demo analysis and decision scoring run deterministically in the browser.",
+      "return 403 before body parsing until AUTH-01",
+      "The current migration chain is not apply-ready.",
+      "User-uploaded and user-drawn targets skip market/climate network calls"
+    ],
+    forbidden: [
+      "Mock fallback works when",
+      "returns snapshot-backed context",
+      "Decision score POST returns `deterministic_fallback`"
+    ]
+  },
+  {
+    path: "docs/architecture.md",
+    required: [
+      "Both server generation POST routes return 403 before parsing until AUTH-01",
+      "deep snapshots stay outside anonymous function traces",
+      "existing public Preview environment"
+    ],
+    forbidden: ["local fallback OR anon Supabase client"]
+  },
+  {
+    path: "docs/qa-checklist.md",
+    required: [
+      "Invalid environment values fail closed",
+      "DLD valuations/brokers/developers and OSM buildings remain zero-record/not-used",
+      "returns seed-only context"
+    ],
+    forbidden: [
+      "Mock fallback works when",
+      "returns snapshot-backed context",
+      "Decision score POST returns `deterministic_fallback`"
+    ]
+  },
+  {
+    path: "docs/DOCUMENTATION_INDEX.md",
+    required: [
+      "CONFLUENCE_SYNC_MAP.json",
+      "Independent reviewer approvals are not required in the current phase",
+      "old independent-review prerequisite is historical exact-hash evidence"
+    ],
+    forbidden: ["Stable layout rules: [UI Layout Guardrails]"]
+  },
+  {
+    path: "AGENTS.md",
+    required: ["Mapbox GL JS", "Public analysis is browser-local deterministic"],
+    forbidden: ["Mapbox/MapLibre"]
+  }
+];
+
+for (const contract of semanticContracts) {
+  const content = read(contract.path);
+  for (const required of contract.required) {
+    if (!content.includes(required)) failures.push(`${contract.path}: missing semantic current-truth invariant: ${required}`);
+  }
+  for (const forbidden of contract.forbidden) {
+    if (content.includes(forbidden)) failures.push(`${contract.path}: stale semantic claim remains: ${forbidden}`);
+  }
+}
+
+const confluenceSyncMapPath = "docs/CONFLUENCE_SYNC_MAP.json";
+const confluenceSyncMapContent = read(confluenceSyncMapPath);
+try {
+  const syncMap = JSON.parse(confluenceSyncMapContent);
+  if (syncMap.hubPageId !== "98425") failures.push(`${confluenceSyncMapPath}: canonical Hub page ID mismatch`);
+  if (!Array.isArray(syncMap.pages) || syncMap.pages.length !== 25) {
+    failures.push(`${confluenceSyncMapPath}: expected 25 mapped operational pages`);
+  } else {
+    const pageIds = new Set();
+    for (const page of syncMap.pages) {
+      if (!page?.pageId || !page?.title || !page?.role || !page?.authority || !("successorPageId" in page)) {
+        failures.push(`${confluenceSyncMapPath}: every page requires pageId/title/role/authority/successorPageId`);
+        break;
+      }
+      pageIds.add(page.pageId);
+    }
+    if (pageIds.size !== syncMap.pages.length) failures.push(`${confluenceSyncMapPath}: duplicate page IDs`);
+    for (const requiredPageId of ["98425", "98509", "2097153", "12320972", "1966084", "2490398", "12320810"]) {
+      if (!pageIds.has(requiredPageId)) failures.push(`${confluenceSyncMapPath}: missing required page ${requiredPageId}`);
+    }
+  }
+} catch {
+  failures.push(`${confluenceSyncMapPath}: invalid JSON`);
 }
 
 for (const relativePath of releaseFactDocs) {
@@ -73,7 +219,7 @@ for (const relativePath of releaseFactDocs) {
 
 const index = read("docs/DOCUMENTATION_INDEX.md");
 for (const requiredLink of activeDocs.filter((path) => path !== "docs/DOCUMENTATION_INDEX.md")) {
-  const relativeLink = requiredLink.replace(/^docs\//, "");
+  const relativeLink = requiredLink.startsWith("docs/") ? requiredLink.replace(/^docs\//, "") : `../${requiredLink}`;
   if (!index.includes(`(${relativeLink})`) && !index.includes(`(${relativeLink}#`)) {
     failures.push(`docs/DOCUMENTATION_INDEX.md: missing navigation link to ${relativeLink}`);
   }

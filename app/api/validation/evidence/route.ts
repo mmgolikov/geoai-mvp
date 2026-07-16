@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { recordAuditEvent } from "@/src/lib/audit/audit-event";
-import { projectAccessDeniedPayload, requireProjectAccess } from "@/src/lib/auth/project-access";
+import { isPreAuthServerMutationBlocked, projectAccessDeniedPayload, requireProjectAccess } from "@/src/lib/auth/project-access";
 import { repositoryModeFields } from "@/src/lib/repositories/repository-mode";
 import { createValidationEvidence } from "@/src/lib/repositories/validation-repository";
 import { getProjectByKey } from "@/src/lib/db/repositories/projects";
@@ -52,6 +52,10 @@ function boundedStringArray(value: unknown, maxItems = 40) {
 }
 
 export async function POST(request: Request) {
+  if (isPreAuthServerMutationBlocked("write")) {
+    const access = requireProjectAccess({ action: "write", mode: "soft" });
+    return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
+  }
   let body: unknown;
 
   try {

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { projectAccessDeniedPayload, requireProjectAccess } from "@/src/lib/auth/project-access";
+import { isPreAuthServerMutationBlocked, projectAccessDeniedPayload, requireProjectAccess } from "@/src/lib/auth/project-access";
 import { buildPilotWorkflowSummary } from "@/src/lib/pilot-workflow/pilot-workflow-summary";
 import { createPilotWorkflow } from "@/src/lib/repositories/pilot-workflow-repository";
 import { repositoryModeFields } from "@/src/lib/repositories/repository-mode";
@@ -7,6 +7,8 @@ import {
   pilotWorkflowCaveat,
   type PilotWorkflow
 } from "@/src/types/pilot-workflow";
+import { hasVerifiedRequestIdentity } from "@/src/lib/auth/verified-request-access";
+import { privateNoStoreJson } from "@/src/lib/http/private-no-store";
 
 export const runtime = "nodejs";
 
@@ -28,13 +30,21 @@ export async function GET(request: Request) {
   const projectKey = url.searchParams.get("projectKey");
   const access = requireProjectAccess({ projectKey, action: "read", mode: "soft" });
   if (!access.allowed) {
-    return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
+    return privateNoStoreJson(projectAccessDeniedPayload(access), { status: access.status });
   }
-  const summary = await buildPilotWorkflowSummary({ projectId, projectKey });
-  return NextResponse.json({ ...summary, access }, { status: summary.ok ? 200 : 404 });
+  const summary = await buildPilotWorkflowSummary({
+    projectId,
+    projectKey,
+    includeStoredState: hasVerifiedRequestIdentity(access)
+  });
+  return privateNoStoreJson({ ...summary, access }, { status: summary.ok ? 200 : 404 });
 }
 
 export async function POST(request: Request) {
+  if (isPreAuthServerMutationBlocked("write")) {
+    const access = requireProjectAccess({ action: "write", mode: "soft" });
+    return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
+  }
   let body: unknown;
 
   try {
@@ -54,7 +64,11 @@ export async function POST(request: Request) {
       ...workflow,
       caveat: workflow.caveat ?? pilotWorkflowCaveat
     });
-    const summary = await buildPilotWorkflowSummary({ projectId: workflow.projectId, projectKey: workflow.projectKey });
+    const summary = await buildPilotWorkflowSummary({
+      projectId: workflow.projectId,
+      projectKey: workflow.projectKey,
+      includeStoredState: hasVerifiedRequestIdentity(access)
+    });
     return NextResponse.json({
       ...summary,
       access
@@ -67,7 +81,11 @@ export async function POST(request: Request) {
   if (!access.allowed) {
     return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
   }
-  const summary = await buildPilotWorkflowSummary({ projectId, projectKey });
+  const summary = await buildPilotWorkflowSummary({
+    projectId,
+    projectKey,
+    includeStoredState: hasVerifiedRequestIdentity(access)
+  });
   return NextResponse.json({ ...summary, access }, { status: summary.ok ? 200 : 404 });
 }
 

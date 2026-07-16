@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { recordAuditEvent } from "@/src/lib/audit/audit-event";
-import { projectAccessDeniedPayload, requireProjectAccess } from "@/src/lib/auth/project-access";
+import { isPreAuthServerMutationBlocked, projectAccessDeniedPayload, requireProjectAccess } from "@/src/lib/auth/project-access";
 import { getDataRoomChecklistItem, updateDataRoomChecklistItem } from "@/src/lib/repositories/data-room-repository";
 import { repositoryModeFields } from "@/src/lib/repositories/repository-mode";
 import {
@@ -18,6 +18,10 @@ const statuses: ValidationChecklistStatus[] = ["not_started", "required", "in_re
 const priorities: ValidationChecklistPriority[] = ["high", "medium", "low"];
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
+  if (isPreAuthServerMutationBlocked("write")) {
+    const access = requireProjectAccess({ action: "write", mode: "soft" });
+    return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
+  }
   const parsed = await readBoundedJson(request, 96 * 1024);
   if (!parsed.ok) {
     return NextResponse.json({ ok: false, ...repositoryModeFields("local_fallback"), message: parsed.message }, { status: parsed.status });

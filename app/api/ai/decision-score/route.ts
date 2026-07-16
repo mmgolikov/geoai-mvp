@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { getOpenAiUpstreamStatus } from "@/src/lib/ai/openai-upstream-gate";
-import { recordAuditEvent } from "@/src/lib/audit/audit-event";
-import { projectAccessDeniedPayload, requireProjectAccess } from "@/src/lib/auth/project-access";
+import { isPreAuthServerMutationBlocked, projectAccessDeniedPayload, requireProjectAccess } from "@/src/lib/auth/project-access";
 import { createDecisionScore } from "@/src/lib/ai/decision-scoring-client";
 import { createDeterministicDecisionScore } from "@/src/lib/ai/decision-scoring-fallback";
 import type { DecisionScoreRequest } from "@/src/lib/ai/decision-scoring-schema";
@@ -60,12 +59,6 @@ function safeDecisionScoreRequest(body: DecisionScoreRequest): DecisionScoreRequ
 
 export async function GET() {
   const upstream = getOpenAiUpstreamStatus();
-  void recordAuditEvent({
-    eventType: "ai_decision_score_generated",
-    entityType: "ai_decision_score",
-    action: "Checked AI decision score readiness",
-    metadata: { mode: upstream.mode }
-  });
   return NextResponse.json({
     ok: true,
     mode: upstream.mode,
@@ -74,6 +67,11 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  if (isPreAuthServerMutationBlocked("generate")) {
+    const access = requireProjectAccess({ action: "generate", mode: "soft" });
+    return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
+  }
+
   const parsed = await readBoundedJson(request, 96 * 1024);
   if (!parsed.ok) {
     return NextResponse.json({ ok: false, message: parsed.message }, { status: parsed.status });
@@ -101,14 +99,6 @@ export async function POST(request: Request) {
     const requestIdentityVerified = access.authMode === "supabase_auth" && access.decisionStatus === "allowed_project_member" &&
       access.user?.isDemoUser === false && access.membership?.source !== "demo_seed";
     const result = await createDecisionScore(body, { allowUpstream: requestIdentityVerified });
-    const projectKey = (body as { projectKey?: string | null }).projectKey ?? null;
-    void recordAuditEvent({
-      projectKey,
-      eventType: "ai_decision_score_generated",
-      entityType: "ai_decision_score",
-      action: "Generated AI decision score",
-      metadata: { mode: result.mode, scenarioId: body.scenarioId }
-    });
     return NextResponse.json(result);
   } catch {
     return NextResponse.json({ ...fallback, mode: "deterministic_fallback" as const }, { status: 200 });

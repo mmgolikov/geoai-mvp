@@ -3,13 +3,14 @@ import {
   listAnalysisRuns,
   saveAnalysisRun
 } from "@/src/lib/db/repositories/analysis-runs";
-import { getProjectByKey } from "@/src/lib/db/repositories/projects";
+import { getLocalDemoProject, getProjectByKey } from "@/src/lib/db/repositories/projects";
 import { recordAuditEvent } from "@/src/lib/audit/audit-event";
-import { projectAccessDeniedPayload, requireProjectAccess } from "@/src/lib/auth/project-access";
+import { isPreAuthServerMutationBlocked, projectAccessDeniedPayload, requireProjectAccess } from "@/src/lib/auth/project-access";
 import { repositoryModeFields } from "@/src/lib/repositories/repository-mode";
 import type { DbAnalysisRunInput } from "@/src/lib/db/types";
 import { readBoundedJson } from "@/src/lib/http/bounded-json";
 import { hasVerifiedRequestIdentity } from "@/src/lib/auth/verified-request-access";
+import { privateNoStoreJson } from "@/src/lib/http/private-no-store";
 
 export const runtime = "nodejs";
 
@@ -36,15 +37,15 @@ export async function GET(request: Request) {
   const projectKey = url.searchParams.get("projectKey");
   const access = requireProjectAccess({ projectKey, action: "read", mode: "soft" });
   if (!access.allowed) {
-    return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
+    return privateNoStoreJson(projectAccessDeniedPayload(access), { status: access.status });
   }
-  const project = projectKey ? await getProjectByKey(projectKey) : null;
   if (!hasVerifiedRequestIdentity(access)) {
-    return NextResponse.json({
+    const project = projectKey ? getLocalDemoProject(projectKey) : null;
+    return privateNoStoreJson({
       ok: true,
       ...repositoryModeFields("browser_local"),
-      projectMode: project?.mode ?? null,
-      project: project?.data ?? null,
+      projectMode: "demo_seed",
+      project,
       access,
       count: 0,
       items: [],
@@ -53,13 +54,15 @@ export async function GET(request: Request) {
     });
   }
 
+  const project = projectKey ? await getProjectByKey(projectKey) : null;
+
   const result = await listAnalysisRuns(limit, project?.mode === "supabase" ? project.data?.id ?? null : null);
   const localProjectItems = result.mode === "local_fallback" && projectKey && Array.isArray(result.data)
     ? result.data.filter((item) => (item as { projectKey?: string | null }).projectKey === projectKey)
     : result.data ?? [];
 
   const responseMode = result.mode === "supabase" ? "supabase" : "local_fallback";
-  return NextResponse.json({
+  return privateNoStoreJson({
     ok: result.ok,
     ...repositoryModeFields(responseMode),
     projectMode: project?.mode ?? null,
@@ -73,6 +76,11 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  if (isPreAuthServerMutationBlocked("write")) {
+    const access = requireProjectAccess({ action: "write", mode: "soft" });
+    return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
+  }
+
   const parsed = await readBoundedJson(request, 768 * 1024);
   if (!parsed.ok) {
     return NextResponse.json(

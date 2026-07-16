@@ -133,7 +133,7 @@ export type DataRoomSummaryCounts = {
 
 export type DataRoomReadinessSummary = {
   label: string;
-  storageMode: "local_fallback";
+  storageMode: "local_fallback" | "browser_local";
   storageNote: string;
   validationNote: string;
   latestAssets: DataRoomAsset[];
@@ -155,7 +155,7 @@ export type DataRoomDataHonesty = {
 
 export type ClientDataRoom = {
   ok: boolean;
-  mode: "local_fallback";
+  mode: "local_fallback" | "browser_local";
   storageCaveat: string;
   projectId?: string | null;
   projectKey: string;

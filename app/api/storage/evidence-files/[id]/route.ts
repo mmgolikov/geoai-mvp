@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { recordAuditEvent } from "@/src/lib/audit/audit-event";
-import { projectAccessDeniedPayload, requireProjectAccess } from "@/src/lib/auth/project-access";
+import { isPreAuthServerMutationBlocked, projectAccessDeniedPayload, requireProjectAccess } from "@/src/lib/auth/project-access";
 import {
   deleteEvidenceFileAssetMetadata,
   getEvidenceFileAsset,
@@ -12,6 +12,10 @@ import { deleteEvidenceFile } from "@/src/lib/storage/storage-server";
 export const runtime = "nodejs";
 
 export async function DELETE(_request: Request, context: { params: Promise<{ id: string }> }) {
+  if (isPreAuthServerMutationBlocked("write")) {
+    const access = requireProjectAccess({ action: "write", mode: "soft" });
+    return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
+  }
   const { id } = await context.params;
   const existing = await getEvidenceFileAsset(id);
 

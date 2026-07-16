@@ -6,6 +6,7 @@ import { AnalysisReportPrint } from "@/components/reports/analysis-report-print"
 import { ComparisonReportPrint } from "@/components/reports/comparison-report-print";
 import { PrintButton } from "@/components/reports/print-button";
 import { getSeededDemoReportRecord } from "@/src/data/demo-report-seeds";
+import { browserDemoStorageKey, isBrowserDemoStorageEnabled } from "@/src/lib/browser-demo-storage";
 import { normalizeReportDeliverable, type AnalysisReportDeliverable, type ComparisonReportDeliverable } from "@/src/lib/report-deliverables";
 
 type PrintReportFallbackProps = {
@@ -18,9 +19,14 @@ export function PrintReportFallback({ reportId }: PrintReportFallbackProps) {
 
   useEffect(() => {
     try {
-      const storageKey = `geoai-print-report:${reportId}`;
-      const sessionRaw = window.sessionStorage.getItem(storageKey);
-      const localRaw = window.localStorage.getItem(storageKey);
+      const storageKey = browserDemoStorageKey(`print-report:${reportId}`);
+      const browserStorageEnabled = isBrowserDemoStorageEnabled();
+      const sessionRaw = browserStorageEnabled
+        ? window.sessionStorage.getItem(storageKey)
+        : null;
+      const localRaw = browserStorageEnabled
+        ? window.localStorage.getItem(storageKey)
+        : null;
       const parsed = sessionRaw
         ? JSON.parse(sessionRaw)
         : localRaw

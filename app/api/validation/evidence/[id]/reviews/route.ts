@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { recordAuditEvent } from "@/src/lib/audit/audit-event";
-import { projectAccessDeniedPayload, requireProjectAccess } from "@/src/lib/auth/project-access";
+import { isPreAuthServerMutationBlocked, projectAccessDeniedPayload, requireProjectAccess } from "@/src/lib/auth/project-access";
 import { createEvidenceReview, listEvidenceReviews, buildEvidenceReviewSummary } from "@/src/lib/repositories/evidence-review-repository";
 import { getEvidenceFileAsset, updateEvidenceFileAsset } from "@/src/lib/repositories/evidence-file-repository";
 import { repositoryModeFields } from "@/src/lib/repositories/repository-mode";
@@ -9,6 +9,12 @@ import { evidenceReviewCaveat, reviewStatusToValidationStatus, type EvidenceRevi
 import type { ValidationEvidence } from "@/src/types/validation";
 import { validateEvidenceReviewTransition, evidenceReviewStatusFromValidation } from "@/src/lib/validation/evidence-review-policy";
 import { requestAuthKernelStatus } from "@/src/lib/auth/request-auth-kernel";
+import { hasRequestIdentityKernelEvidence } from "@/src/lib/auth/verified-request-access";
+import {
+  evidenceAttestationAuthorityStatus,
+  hasEvidenceAttestationAuthority
+} from "@/src/lib/validation/evidence-attestation-authority";
+import { privateNoStoreJson } from "@/src/lib/http/private-no-store";
 
 export const runtime = "nodejs";
 
@@ -34,6 +40,9 @@ function readDecision(value: unknown): EvidenceReviewDecision | null {
 }
 
 export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
+  if (!hasRequestIdentityKernelEvidence()) {
+    return privateNoStoreJson({ ok: false, ...repositoryModeFields("browser_local"), message: "Evidence review history requires verified project identity.", caveat: evidenceReviewCaveat }, { status: 403 });
+  }
   const { id } = await context.params;
   const url = new URL(request.url);
   const requestedProjectKey = url.searchParams.get("projectKey") ?? "dubai-investment-screening-demo";
@@ -42,18 +51,18 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   const listed = existing.data ? null : await listValidationEvidence({ projectId: requestedProjectId, projectKey: requestedProjectKey, limit: 100 });
   const validationEvidence = existing.data ?? listed?.data.find((item) => item.id === id) ?? null;
   if (!validationEvidence) {
-    return NextResponse.json({ ok: false, ...repositoryModeFields(existing.mode), message: "Validation evidence not found.", caveat: evidenceReviewCaveat }, { status: 404 });
+    return privateNoStoreJson({ ok: false, ...repositoryModeFields(existing.mode), message: "Validation evidence not found.", caveat: evidenceReviewCaveat }, { status: 404 });
   }
   const projectKey = validationEvidence.projectKey;
   const projectId = validationEvidence.projectId ?? requestedProjectId;
   const access = requireProjectAccess({ projectKey, action: "read", mode: "soft" });
   if (!access.allowed) {
-    return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
+    return privateNoStoreJson(projectAccessDeniedPayload(access), { status: access.status });
   }
 
   const result = await listEvidenceReviews({ projectId, projectKey, validationEvidenceId: id, limit: 80 });
 
-  return NextResponse.json({
+  return privateNoStoreJson({
     ok: result.ok,
     ...repositoryModeFields(result.mode),
     reviews: result.data,
@@ -65,6 +74,10 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
 }
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
+  if (isPreAuthServerMutationBlocked("review")) {
+    const access = requireProjectAccess({ action: "review", mode: "soft" });
+    return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
+  }
   const { id } = await context.params;
   const body = await request.json().catch(() => ({})) as Record<string, unknown>;
   const requestedProjectKey = readString(body.projectKey) ?? "dubai-investment-screening-demo";
@@ -89,6 +102,31 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   const decision = readDecision(body.decision);
   if (!decision) {
     return NextResponse.json({ ok: false, ...repositoryModeFields(evidenceResult.mode), message: "Valid review decision is required.", caveat: evidenceReviewCaveat }, { status: 400 });
+  }
+  const attestationAction = decision === "mark_official_validated"
+    ? "attest_official"
+    : decision === "mark_client_validated"
+      ? "attest_client"
+      : null;
+  if (attestationAction) {
+    const attestationAccess = requireProjectAccess({ projectKey, action: attestationAction, mode: "hard" });
+    if (!attestationAccess.allowed) {
+      return NextResponse.json(projectAccessDeniedPayload(attestationAccess), { status: attestationAccess.status });
+    }
+    if (!hasEvidenceAttestationAuthority()) {
+      return NextResponse.json({
+        ok: false,
+        ...repositoryModeFields(evidenceResult.mode),
+        message: evidenceAttestationAuthorityStatus.reason,
+        caveat: evidenceReviewCaveat
+      }, {
+        status: 503,
+        headers: {
+          "Cache-Control": "private, no-store, max-age=0",
+          Vary: "Authorization, Cookie"
+        }
+      });
+    }
   }
   if (["mark_client_validated", "mark_official_validated"].includes(decision) &&
       (!requestAuthKernelStatus.requestUserVerified || !requestAuthKernelStatus.projectMembershipVerified)) {

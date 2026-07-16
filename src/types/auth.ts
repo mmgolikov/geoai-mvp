@@ -24,7 +24,7 @@ export type GeoAIProjectMembership = {
   projectKey: string;
   role: GeoAIProjectRole;
   status: GeoAIProjectMembershipStatus;
-  source: "demo_seed" | "supabase_placeholder";
+  source: "demo_seed" | "supabase_verified";
   caveat: string;
 };
 

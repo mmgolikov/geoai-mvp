@@ -1,6 +1,16 @@
 import type { GeoAIAuthMode, GeoAIProjectMembershipStatus, GeoAIProjectRole } from "@/src/types/auth";
 
-export type ProjectAccessAction = "read" | "write" | "manage" | "export" | "validate" | "upload" | "review" | "generate";
+export type ProjectAccessAction =
+  | "read"
+  | "write"
+  | "manage"
+  | "export"
+  | "validate"
+  | "upload"
+  | "review"
+  | "generate"
+  | "attest_client"
+  | "attest_official";
 export type ProjectAccessDecisionMode = "soft" | "hard";
 
 export type ProjectAccessDecisionStatus =
@@ -80,6 +90,8 @@ export const roleRank: Record<GeoAIProjectRole, number> = {
 export function roleAllowsAction(role: GeoAIProjectRole, action: ProjectAccessAction) {
   if (action === "read") return roleRank[role] >= roleRank.client_viewer;
   if (action === "export") return role === "client_viewer" || roleRank[role] >= roleRank.viewer;
+  if (action === "attest_official") return role === "owner";
+  if (action === "attest_client") return roleRank[role] >= roleRank.admin;
   if (action === "write" || action === "upload" || action === "review" || action === "validate" || action === "generate") {
     return roleRank[role] >= roleRank.analyst;
   }
@@ -113,7 +125,7 @@ function decision(input: {
 
 function isActiveProfile(profile: ProjectAccessDecisionProfile | null | undefined) {
   if (!profile) return false;
-  return !profile.status || profile.status === "active";
+  return profile.status === "active";
 }
 
 function isMatchingMembership(input: ProjectAccessDecisionInput) {
@@ -125,19 +137,10 @@ function isMatchingMembership(input: ProjectAccessDecisionInput) {
     return false;
   }
 
-  const membershipProfileId = membership.userId ?? membership.profileId;
-  if (profile?.id && membershipProfileId && membershipProfileId !== profile.id) {
-    return false;
-  }
-
-  if (project?.id && membership.projectId && membership.projectId !== project.id) {
-    return false;
-  }
-
-  if (project?.projectKey && membership.projectKey && membership.projectKey !== project.projectKey) {
-    return false;
-  }
-
+  const membershipProfileId = membership.profileId ?? membership.userId ?? null;
+  if (!profile?.id || !membershipProfileId || membershipProfileId !== profile.id) return false;
+  if (!project?.id || !membership.projectId || membership.projectId !== project.id) return false;
+  if (project.projectKey && membership.projectKey !== project.projectKey) return false;
   return true;
 }
 
@@ -146,10 +149,8 @@ function isWrongOrganization(input: ProjectAccessDecisionInput) {
   const membershipOrg = input.membership?.organizationId;
   const projectOrg = input.project?.organizationId;
 
-  if (projectOrg && membershipOrg && projectOrg !== membershipOrg) return true;
-  if (projectOrg && profileOrg && projectOrg !== profileOrg) return true;
-  if (membershipOrg && profileOrg && membershipOrg !== profileOrg) return true;
-  return false;
+  if (!projectOrg || !membershipOrg || !profileOrg) return true;
+  return projectOrg !== membershipOrg || projectOrg !== profileOrg || membershipOrg !== profileOrg;
 }
 
 export function getProjectAccessDecision(input: ProjectAccessDecisionInput): ProjectAccessDecision {
@@ -206,6 +207,18 @@ export function getProjectAccessDecision(input: ProjectAccessDecisionInput): Pro
       authMode: input.authMode,
       action: input.action,
       reason: "The authenticated user does not have an active server-verified GeoAI profile."
+    });
+  }
+
+  if (!input.profile?.authUserId || input.profile.authUserId !== input.user.id) {
+    return decision({
+      allowed: false,
+      status: "authenticated_without_profile",
+      httpStatus: 403,
+      mode,
+      authMode: input.authMode,
+      action: input.action,
+      reason: "The authenticated user is not mapped to this server-verified GeoAI profile."
     });
   }
 

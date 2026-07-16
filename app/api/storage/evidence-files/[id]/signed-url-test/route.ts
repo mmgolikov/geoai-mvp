@@ -4,10 +4,14 @@ import { projectAccessDeniedPayload, requireProjectAccess } from "@/src/lib/auth
 import { getEvidenceFileAsset, updateEvidenceFileAsset } from "@/src/lib/repositories/evidence-file-repository";
 import { repositoryModeFields } from "@/src/lib/repositories/repository-mode";
 import { verifySignedDownloadUrl } from "@/src/lib/storage/signed-url-verification";
+import { hasRequestIdentityKernelEvidence } from "@/src/lib/auth/verified-request-access";
 
 export const runtime = "nodejs";
 
 export async function POST(_request: Request, context: { params: Promise<{ id: string }> }) {
+  if (!hasRequestIdentityKernelEvidence()) {
+    return NextResponse.json({ ok: false, ...repositoryModeFields("browser_local"), message: "Signed URL verification requires verified project identity." }, { status: 403 });
+  }
   const { id } = await context.params;
   const existing = await getEvidenceFileAsset(id);
 

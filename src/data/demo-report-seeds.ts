@@ -315,6 +315,7 @@ function analysisReportRecord(id: string, analysis: ExpressAnalysis, title: stri
       evidence: analysis.evidence,
       uploadedDatasets: []
     }),
+    evidenceAuthority: "committed_demo_seed" as const,
     createdAt,
     sourceSummary
   };
@@ -334,6 +335,7 @@ function comparisonReportRecord(id: string, comparison: ComparisonResult, title:
       evidence: comparison.evidence,
       uploadedDatasets: []
     }),
+    evidenceAuthority: "committed_demo_seed" as const,
     createdAt,
     sourceSummary
   };

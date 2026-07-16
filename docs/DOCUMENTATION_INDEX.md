@@ -2,8 +2,12 @@
 
 Status: Active navigation authority
 Last verified: 2026-07-16
+Owner: GeoAI Documentation Governance
+Authority: Sole repository navigation and lifecycle precedence
+Successor: None; any replacement must update this file and the Confluence Hub atomically
 Operational dashboard: [Confluence Project Hub](https://geoaimvp.atlassian.net/wiki/spaces/PH/overview)
 Confluence audit authority: [09.13 Full System Audit — 2026-07-16](https://geoaimvp.atlassian.net/wiki/spaces/PH/pages/12320972)
+Navigation: [Confluence Hub](https://geoaimvp.atlassian.net/wiki/spaces/PH/overview) · [Current Release State](CURRENT_RELEASE_STATE.md) · [Full System Audit](FULL_SYSTEM_AUDIT_2026_07_16.md) · [Roadmap](roadmap.md) · [QA Checklist](qa-checklist.md) · [Codex Backlog](CODEX_BACKLOG_2026_07_16.md)
 
 This index is the repository entry point for current documentation. If a versioned release note, dated snapshot or old change request conflicts with an active document below, the active document wins. Historical files remain immutable evidence of what was believed or released at that time; they are not current operating instructions.
 
@@ -11,6 +15,7 @@ This index is the repository entry point for current documentation. If a version
 
 | Need | Current authority | What it answers |
 | --- | --- | --- |
+| Repository overview | [README](../README.md) | Supported prototype features, setup, routes and current public-demo restrictions |
 | Release/runtime truth | [Current Release State](CURRENT_RELEASE_STATE.md) | Exact GitHub SHA, CI, Vercel, Supabase and source activation state |
 | Full critical assessment | [Full System Audit — 2026-07-16](FULL_SYSTEM_AUDIT_2026_07_16.md) | Findings, fixes, residual risks and go/no-go boundaries |
 | Implemented system | [Architecture](architecture.md) | What the code does now and where trust boundaries stop |
@@ -18,8 +23,13 @@ This index is the repository entry point for current documentation. If a version
 | Delivery order | [Roadmap](roadmap.md) | P0/P1/P2 dependencies before Auth, Admin and real sources |
 | Verification | [QA Checklist](qa-checklist.md) | Mandatory technical and runtime checks |
 | Executable residual work | [Codex Backlog](CODEX_BACKLOG_2026_07_16.md) | Scoped tasks and acceptance criteria |
+| Codex/agent operating instructions | [AGENTS.md](../AGENTS.md) | Current implementation, validation and non-authorization rules for coding agents |
+| Supabase operator prerequisite | [Data API Containment Runbook](SUPABASE_DATA_API_CONTAINMENT_RUNBOOK_2026_07_16.md) | Live development exposure, owner decision and evidence required before apply; draft/not executed |
 | Released source package | [CR-DEV8-001](CR_DEV8_001_CONTROLLED_OPEN_CONTEXT_SOURCE_CONNECTION_PACK_V1.md) and [QA evidence](CR_DEV8_001_QA_CHECKLIST.md) | Exact bounded Preview source contract released in PR #87 |
 | Change history | [Changelog](../CHANGELOG.md) | Chronological repository changes |
+| Document lifecycle | [Generated lifecycle manifest](DOCUMENT_LIFECYCLE_MANIFEST.json) | Machine-derived active/non-active classification and successor for every in-scope repository Markdown document |
+| Historical/scoped archive navigation | [Generated document archive index](DOCUMENT_ARCHIVE_INDEX.md) | Clickable lifecycle and successor sidecar without rewriting point-in-time evidence |
+| Confluence synchronization | [Confluence sync map](CONFLUENCE_SYNC_MAP.json) | Page-ID to role, authority and successor map for atomic Hub/document updates |
 
 ## Cross-confirmed current baseline
 
@@ -34,29 +44,41 @@ The following facts must agree across the Hub, release state, architecture, road
 | Product mode | Public demo; `demo_only`, `local_fallback`, soft access |
 | Production database | Supabase not configured |
 | Production source pack | HTTP 503; disabled; zero sources |
+| Development Supabase | Ref `pphdqkurxneyagvnnjdt`, separate from Production; containment unapplied and Data API exposure remains |
 | Maturity | Not Production-ready and not pilot-ready |
 
-The full-system audit branch is unreleased until its own exact-head GitHub and Vercel Preview evidence exists. It does not authorize a Production deployment, Supabase apply, secret change, Auth activation, real source connection or geometry publication.
+The full-system audit branch is published as Draft PR #97 but remains unreleased. Exact candidate evidence is volatile and belongs in the PR and Confluence evidence register. It does not authorize a merge, Production deployment, Supabase apply, secret change, Auth activation, real source connection or geometry publication.
+
+Candidate-only current truth: anonymous infrastructure routes are static/sanitized; `/api/known-limitations` is a static reviewed catalog; public source manifest/sources/status use bundled `compact_public_v1` (`contractVersion: 1.3`, `manifestVersion`/`version: 1.6`, `liveRegistryIncluded: false`). The final local production build measured data-sources 5,063 B, readiness 4,467 B, manifest 19,448 B, sources 5,063 B, status 8,158 B and source-lineage 4,352 B within 48/64 KB budgets. Public-demo artifacts are project-scoped browser-local; protected controls are disabled before fetch; explicit data lookups fail closed and invalid Workspace URLs clear/reset visibly; `/demo` redirects 307 to `/workspace`. Final exact-head SHA/CI/Preview and remote runtime negative evidence remain pending. The previous candidate head/CI/Preview recorded in the [Full System Audit](FULL_SYSTEM_AUDIT_2026_07_16.md#released-live-development-and-candidate-boundaries) is superseded.
+
+Immediate released-runtime restriction: PR #87 does not isolate user-created server state, and its `/explore` UI can present incorrect Preview/open-context semantics even though the source-pack API is fail-closed. Until Draft PR #97 is merged and deployed, use only built-in synthetic fixtures in Production; do not enter or upload user/client AOIs, CSV, GeoJSON, filenames, evidence or dynamic package data.
 
 ## Topic navigation
 
+### Confluence operational map
+
+The machine-readable [Confluence sync map](CONFLUENCE_SYNC_MAP.json) is the complete synchronization contract for the 25-page active/supporting operational authority set, not for every historical page in the space. Primary authorities are: Hub `98425`; Home `98509`; Delivery `2097153`; Audit `12320972`; Artifact Register `1343521`; Change Log `98732`; Work Packages `1966084`; Risk `98712`; Decisions `98692`; Security `2490398`; Pilot Readiness `2686985`; Governance `294937`; Release Evidence `5242921`; and PR Disposition `5111891`. Product, Engineering, Data/AI, System Analysis, UX/UI, GTM and both roadmaps remain mapped supporting authorities. `CR-DEV8-001` (`12320810`) is historical released evidence and points to Current Delivery State as successor. The other 229 pages remain historical/scoped cleanup inventory under DOCS-01; synchronizing the operational set does not silently certify them as current.
+
+Hub is the operational snapshot; Home is the stable charter. Every evidence change must update Hub plus every affected mapped page after the exact candidate SHA/CI/deployment is final. Hub must directly link GitHub PR #97, execution program #96, the repository Codex backlog, Production/Vercel, Supabase containment, release state, audit, work packages, risks, decisions, security and pilot readiness.
+
 ### Product and UX
 
-- Current UI constraints and performance priorities: [Architecture](architecture.md#known-architectural-debt) and [Roadmap](roadmap.md#p2--product-and-design-quality).
-- Stable layout rules: [UI Layout Guardrails](UI_LAYOUT_GUARDRAILS.md).
+- Current UI constraints and performance priorities: [Architecture](architecture.md#known-architectural-debt) and [Roadmap](roadmap.md#p2--product-and-design-quality). Read-only Figma/FigJam authority and stale-node findings are recorded in [Current Release State](CURRENT_RELEASE_STATE.md#design-authority--read-only-verification).
+- Historical layout reference: [UI Layout Guardrails](UI_LAYOUT_GUARDRAILS.md). Current design authority is [Architecture](architecture.md), this index and the active [QA Checklist](qa-checklist.md); the guardrail file is not independently current.
 - Historical product release evidence: files prefixed `RELEASE_GEOAI_`, plus `DEMO_*`, `MVP_*` and dated audit/checkpoint files. These are historical unless linked as current above.
 
 ### Data, spatial and sources
 
 - Current policy: [Data Strategy](data-strategy.md).
 - Current released source contract: [CR-DEV8-001](CR_DEV8_001_CONTROLLED_OPEN_CONTEXT_SOURCE_CONNECTION_PACK_V1.md).
-- Spatial geometry remains governed by [Spatial B1 Release Control](SPATIAL_B1_RELEASE_CONTROL_V1.md), [Attribution and Distribution Spec](SPATIAL_B1_ATTRIBUTION_AND_DISTRIBUTION_SPEC_V1.md) and GitHub issue #80.
+- Spatial geometry uses the objective tests/rights controls preserved in [Spatial B1 Release Control](SPATIAL_B1_RELEASE_CONTROL_V1.md), the [Attribution and Distribution Spec](SPATIAL_B1_ATTRIBUTION_AND_DISTRIBUTION_SPEC_V1.md) and GitHub issue #80. Any old independent-review prerequisite is historical exact-hash evidence, not a current approval hold; owner activation and objective geometry/rights evidence remain mandatory.
 - Migration reconciliation remains governed by GitHub issue #85 and the audit [DB-01 task](CODEX_BACKLOG_2026_07_16.md#db-01--canonical-migration-replay-and-rls-evidence).
 
 ### Security, Auth and Storage
 
 - Implemented trust boundary: [Architecture](architecture.md#request-and-trust-boundaries).
 - Pre-activation checks: [QA Checklist](qa-checklist.md).
+- Development Data API operator decision and live evidence: [Supabase Data API Containment Runbook](SUPABASE_DATA_API_CONTAINMENT_RUNBOOK_2026_07_16.md). It is a draft, has not been executed and is not apply-ready.
 - Historical foundations such as `AUTH_*`, `RLS_*`, `SECURE_FILE_STORAGE_*` and `SUPABASE_*` describe intended or prior work. They do not prove active Auth, RLS, Storage or pilot readiness.
 
 ### Delivery and governance
@@ -65,6 +87,7 @@ The full-system audit branch is unreleased until its own exact-head GitHub and V
 - Current residual tasks: [Codex Backlog](CODEX_BACKLOG_2026_07_16.md).
 - Independent reviewer approvals are not required in the current phase. Objective evidence gates remain mandatory.
 - Dated `CURRENT_RELEASE_STATE_*`, `CHECKPOINT_*`, `*_CHANGE_REQUEST` and `*_QA_CHECKLIST` files are preserved as release/change evidence and must not be read as the latest state unless this index explicitly links them.
+- Confluence IA evidence is recorded in the [Full System Audit](FULL_SYSTEM_AUDIT_2026_07_16.md#s2--governance-and-maintainability): 253 unique descendants plus Hub, maximum hierarchy depth eight, no demonstrated root islands/orphans, known numbering collisions/stubs and two Hub label/target mismatches.
 
 ## Documentation lifecycle
 
@@ -76,3 +99,5 @@ The full-system audit branch is unreleased until its own exact-head GitHub and V
 | Draft/target | Must say that it is not implemented and must never be used as runtime evidence |
 
 Every change that affects release facts, APIs, trust boundaries, sources, activation or operator workflow must update this index or prove that no navigation/current-truth change is needed. `npm run test:documentation-current-truth` enforces the core cross-document invariants; semantic review is still required.
+
+The generated lifecycle baseline and counts live in [DOCUMENT_LIFECYCLE_MANIFEST.json](DOCUMENT_LIFECYCLE_MANIFEST.json); the [clickable archive sidecar](DOCUMENT_ARCHIVE_INDEX.md) gives every file its recorded lifecycle and successor without modifying historical evidence. Counts are generated and must not become a hand-maintained contract. The earlier manual “80 files without lifecycle language” count is superseded. DOCS-01 remains open for Confluence historical-page lifecycle/IA cleanup.

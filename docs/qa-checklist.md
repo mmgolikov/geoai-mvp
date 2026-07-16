@@ -3,13 +3,21 @@
 Use this checklist before demos, Vercel deployments, and milestone checkpoints.
 
 Status: Active checklist
-Last reconciled: 2026-07-16
+Last verified: 2026-07-16
+Owner: GeoAI Engineering / QA
+Authority: Current verification and release-gate criteria
+Successor: None; any replacement must update `DOCUMENTATION_INDEX.md`
 Current authority: [Current Release State](CURRENT_RELEASE_STATE.md)
+Navigation: [Documentation Index](DOCUMENTATION_INDEX.md) · [Current Release State](CURRENT_RELEASE_STATE.md) · [Full System Audit](FULL_SYSTEM_AUDIT_2026_07_16.md) · [Codex Backlog](CODEX_BACKLOG_2026_07_16.md) · [Confluence Hub](https://geoaimvp.atlassian.net/wiki/spaces/PH/overview)
+
+This checklist primarily verifies the unreleased Draft PR #97 audit candidate. Production remains on PR #87: use only built-in synthetic fixtures and do not enter/upload user/client AOIs, CSV, GeoJSON, filenames, evidence or dynamic package data until the containment candidate is merged and deployed. The released `/explore` source UI boundary is also not verified despite the source API returning 503.
 
 ## Mandatory pre-Auth / real-source gates
 
 - [ ] Request-scoped caller JWT/profile/project membership is implemented and negative 401/403 cases pass. **Current status: blocked.**
+- [ ] `profiles.auth_user_id` has an upgrade-safe `auth.users(id)` FK plus required uniqueness; authenticated AOI writes enforce an explicit authorized role, not membership alone. **Current status: blocked.**
 - [x] Every API handler is classified in `security/api-route-access.json`; static guard contract passes.
+- [x] Candidate static check: the environment-driven access wrapper denies hard mode when Auth/bypass evidence is absent; synthetic membership cannot override the lower decision. **Exact-head runtime evidence remains pending.**
 - [x] User-facing repository client cannot select the Supabase service-role key.
 - [ ] Canonical migration chain replays cleanly on an ephemeral Supabase/Postgres target. **Current status: blocked by historical schema collisions.**
 - [ ] Every Supabase migration has a unique CLI version. **Current status: blocked; `20260618` is reused five times and `20260624` twice.**
@@ -18,9 +26,13 @@ Current authority: [Current Release State](CURRENT_RELEASE_STATE.md)
 - [ ] Real snapshots have explicit tenant/visibility and custody; nullable project scope is not treated as public. **Current status: blocked.**
 - [x] Public source DTOs exclude raw/normalized filesystem and Storage object paths.
 - [x] OpenAI key alone cannot activate upstream execution; body/time/token bounds are enforced.
-- [x] Public-demo report, analysis-run and comparison state remains browser-only; seeded reports are immutable server authority.
+- [x] Candidate static check: public-demo upload, AOI, report, analysis-run and comparison state remains browser-only; Vercel server-local fallback is disabled and seeded reports are immutable server authority. **Production remains unsafe until merge/deploy; exact-head runtime evidence remains pending.**
+- [x] `npm run test:private-cache-boundary` proves all 18 manifest-classified project GET routes plus Auth session use `private, no-store, max-age=0` and `Vary: Authorization, Cookie`; only the explicit immutable package seed branch may be public. **Exact-head CI/Preview evidence remains pending.**
 - [ ] AI quotas, distributed rate limiting, privacy redaction and cost telemetry are verified. **Current status: blocked.**
 - [x] Production source pack returns 503/disabled/zero; no provider request or persistence occurs.
+- [x] Candidate static check: Preview/local source execution is off by default and requires the flag, a server-only operator token of at least 32 characters and a timing-safe matching Bearer/`x-geoai-operator-token`; Production remains disabled. **Exact-head runtime evidence remains pending.**
+- [ ] Runtime negative matrix proves flag-only and token-without-request-auth do not call providers, wrong tokens return 403, Production remains 503, upstream hosts stay on the fixed HTTPS allowlist, redirects fail closed and streamed bodies above 2 MB are cancelled before full allocation.
+- [x] Frozen provider contracts reject NASA date misalignment/out-of-period/invalid-calendar/value-range data, wrong Copernicus collection/timestamp/cloud range and null/duplicate/malformed Overpass counts; non-success retry bodies are cancelled. **Live-provider smoke evidence remains separate.**
 
 ## Environment
 
@@ -32,29 +44,36 @@ Current authority: [Current Release State](CURRENT_RELEASE_STATE.md)
 - [ ] `OPENAI_API_KEY` is not required for current MVP behavior.
 - [ ] `GEOAI_ALLOW_OPENAI_UPSTREAM` remains false until hard Auth, request membership, privacy and quota gates are verified.
 - [ ] `NEXT_PUBLIC_AUTH_MODE` is optional and defaults to public demo access.
+- [x] Invalid environment values fail closed: Auth -> `disabled`, enforcement -> `hard`, demo bypass -> `false`, Supabase/Storage readiness requirements -> `true`.
 - [ ] `SUPABASE_SERVICE_ROLE_KEY` is not exposed in browser/client code.
-- [ ] If Supabase is configured, `/api/db/health` does not print any secret values.
+- [ ] `SUPABASE_SERVICE_ROLE_KEY` is absent from the public Preview runtime; privileged credentials belong only to an operator/worker plane. **Current status: credential presence was observed and remains a least-privilege blocker.**
+- [ ] `/api/db/health`, `/api/storage/health`, `/api/platform/activation-status` and `/api/security/rls-readiness` are static/sanitized public responses: no live probes, project ref, credential-presence flags, table/policy/bucket inventories or live record counts.
 - [ ] `npm run build` passes.
 - [ ] `npm run lint` passes.
-- [ ] `GET /api/pilot-backend/status` returns 200 and shows legacy `canRunDemoPilot`, clearer `canRunDemoWorkflow` and `canRunConfidentialPilot`.
-- [ ] `GET /api/known-limitations` dynamically reflects DB/storage/auth/audit readiness without overclaiming.
+- [ ] `npm run test:vercel-output-tracing` passes after the production build; anonymous source routes trace only the reviewed manifest plus compact aggregate-quality files, never deep source snapshots.
+- [ ] `GET /api/pilot-backend/status` returns the minimal public DTO (`productStage`, environment/access/auth/repository/source dimensions, demo/confidential readiness) and omits runtime env-presence, project-ref, table/bucket and credential diagnostics.
+- [x] Candidate local API contract fixes public pilot `sourceMode` to `operator_only_disabled_for_public`; operator-token/flag presence cannot be inferred. **Exact remote Preview negative matrix remains pending.**
+- [ ] `GET /api/known-limitations` returns `status: "static_candidate_truth"`, `liveReadinessIncluded: false` and no live infrastructure probe.
 - [ ] `npm run supabase:verify:memberships` exits safely with blockers when Supabase is unavailable.
 - [ ] `npm run audit:verify` exits safely with blockers when Supabase is unavailable.
-- [ ] `npm run test:api-contract` passes against a running local or preview deployment.
+- [x] `npm run test:api-contract` passes against the local candidate production runtime. **Exact remote Preview rerun remains pending.**
+- [x] `npm run test:security-headers` passes against the local candidate production runtime. **Exact remote Preview rerun remains pending.**
 - [ ] `npm run ingest:dld:snapshot` exits successfully.
 - [ ] `npm run ingest:osm:snapshot` exits successfully.
 
 ## Enterprise Report Pack v2.8
 
 - [ ] `GET /api/report-packages?projectKey=dubai-investment-screening-demo` returns 200.
-- [ ] `POST /api/report-packages` creates a package with local/API fallback caveat.
+- [ ] Public report-package GET returns `compact_public_v1` / `dashboard_summaries_v1`, no `items` or full sections, `dynamicStoredStateIncluded:false`, at most 10 summaries and no more than 16 KB; only this immutable-seed response may use bounded public caching.
+- [ ] `POST /api/report-packages` returns 403 in public demo; after AUTH-01 it creates a package only with verified project membership and durable RLS-backed persistence.
 - [ ] `GET /api/report-packages/[id]` returns package metadata and sections.
 - [ ] `GET /api/report-packages/[id]/json` returns safe metadata without secrets, signed URLs or private file contents.
 - [ ] `GET /api/report-packages/[id]/export` returns export manifest metadata.
-- [ ] `/report-packages/[id]/print` renders a client-ready printable package.
+- [ ] `/report-packages/[id]/print` requires verified project access for dynamic packages and renders a client-ready printable package after Auth.
+- [ ] Package/report IDs are validated as canonical already-decoded raw IDs; malformed/double-encoded/unknown IDs return controlled 400/404 and never trigger cross-project fallback or all-project package construction.
 - [ ] Printable package shows Back and Print / Save as PDF only.
 - [ ] Project Dashboard shows compact Enterprise Report Packages section.
-- [ ] Workspace report package actions remain inside collapsed Data Room / Pilot Evidence section.
+- [ ] If report-package actions render in Workspace, they remain secondary and protected actions are visibly disabled with a reason; the dormant legacy Data Room block is not a required public surface.
 - [ ] Primary Run Express Analysis CTA remains pinned and visible.
 - [ ] After desktop/tablet map point selection, `Run Express Analysis` is visible inside or immediately below the Selected Point / AOI / Object card.
 - [ ] When no valid selection exists, the workflow shows disabled `Run Express Analysis` with `Select a map point, AOI, object, or candidate preview to begin.`
@@ -68,12 +87,10 @@ Current authority: [Current Release State](CURRENT_RELEASE_STATE.md)
 
 ## Repository Modes v2.0.2
 
-- [ ] `/api/db/health` separates connection `status` from `repositoryMode`.
-- [ ] `/api/db/health` returns `repositoryMode: "local_fallback"` when Supabase/PostGIS is not configured or unavailable.
-- [ ] `/api/db/health` returns `postgisReady`, `tablesReady`, `missingTables`, `requiredTables`, `migrationName`, and `schemaVersion`.
-- [ ] If Supabase is configured but the v2.3 schema is missing, `/api/db/health` returns `status: "configured_incomplete"` or `configured_unavailable` without a 500.
-- [ ] If Supabase/PostGIS is ready, `/api/db/health` returns `repositoryMode: "supabase"` only after schema readiness checks pass.
-- [ ] Project-scoped fallback APIs include `storageCaveat` where practical.
+- [ ] Public `/api/db/health` returns `status: "diagnostics_withheld"`, `repositoryMode: "browser_local"`, nullable reachability/schema fields, `canonicalReplayCertified: false` and `canRead/canWrite: false`.
+- [ ] Public `/api/storage/health` returns `diagnosticsWithheld: true`, no bucket names and `protectedStorageAvailableToPublic: false`.
+- [ ] Public diagnostics use `Cache-Control: private, no-store, max-age=0`; operator scripts, not anonymous endpoints, inspect the configured target.
+- [ ] Project-scoped fallback APIs include `storageCaveat` where practical; Vercel never writes shared local fallback.
 - [ ] UI labels show `Local/API fallback`, `Browser-local demo`, `Demo seed`, `Supabase/PostGIS`, or `Not configured`.
 - [ ] UI does not show raw legacy mode strings such as `local-fallback`, `local_only`, `local_demo`, or `local-only`.
 - [ ] The caveat remains visible where relevant: `Local/API fallback is not durable production storage.`
@@ -88,6 +105,8 @@ Current authority: [Current Release State](CURRENT_RELEASE_STATE.md)
 - [ ] AOI table uses PostGIS polygon and centroid columns.
 - [ ] RLS is enabled for core tables.
 - [ ] No broad anonymous write policy exists.
+- [ ] The development Data API is disabled or exposes only an intentionally minimal `api` schema; minimum grants and RLS are both verified. See the [containment runbook](SUPABASE_DATA_API_CONTAINMENT_RUNBOOK_2026_07_16.md).
+- [ ] `profiles.auth_user_id` is unique and references `auth.users(id)`; AOI authenticated `FOR ALL` policy checks an allowed role for every write path.
 - [ ] Audit event helper is non-blocking and does not claim certified audit/compliance logging.
 - [ ] Supabase migration has been applied only in an intended Supabase environment, not against production without review.
 
@@ -202,13 +221,13 @@ Current authority: [Current Release State](CURRENT_RELEASE_STATE.md)
 - [ ] `/projects` shows a compact Client Data Room section.
 - [ ] Client Data Room counts are scoped to the active project.
 - [ ] Latest assets show at most three records.
-- [ ] Add/upload data registers metadata only and does not claim durable file storage.
+- [ ] Public-demo add/upload mutation returns 403 before accepting metadata or binary data; protected persistence remains blocked until AUTH-01/STORAGE-01.
 - [ ] Validation checklist appears with compact status controls.
-- [ ] Updating a checklist item persists in local/API fallback for that project.
-- [ ] Workspace command panel shows Data Room / Pilot Evidence as a collapsed secondary block.
+- [ ] Updating a checklist item returns 403 in public demo; after AUTH-01 it persists only through caller-scoped RLS-backed storage.
+- [ ] The public Workspace does not claim that dormant Data Room/Pilot/Validation server controls are available; any rendered protected action is visibly disabled with a reason and sends no request.
 - [ ] Scenario and Custom Query remain near the top of the command panel.
 - [ ] Adding current AOI/analysis to the data room does not duplicate AOI Library bloat.
-- [ ] Local/API fallback caveat remains visible.
+- [ ] Browser-local/read-only demo caveat remains visible; server persistence is not implied.
 - [ ] Required official-validation caveat remains visible.
 - [ ] No secure/enterprise/production data room claim appears.
 
@@ -223,16 +242,16 @@ Current authority: [Current Release State](CURRENT_RELEASE_STATE.md)
 - [ ] Workflow readiness score is labeled as workflow completeness only.
 - [ ] Top blockers and next actions show at most three items by default.
 - [ ] Client input checklist renders with compact status controls.
-- [ ] Updating a client input status persists in local/API fallback for that project.
+- [ ] Updating a client input status returns 403 in public demo; authenticated persistence is an AUTH-01 follow-on.
 - [ ] Deliverables workflow renders with compact status controls.
-- [ ] Updating a deliverable status persists in local/API fallback for that project.
+- [ ] Updating a deliverable status returns 403 in public demo; authenticated persistence is an AUTH-01 follow-on.
 - [ ] Report Package Status reflects existing reports/comparisons and remains caveated.
-- [ ] Workspace command panel shows Pilot Context as a collapsed secondary block.
+- [ ] Dormant Pilot/Validation blocks are not required to render in public Workspace; no unreachable legacy panel is used as QA evidence.
 - [ ] Workspace Scenario and Custom Query remain near the top.
 - [ ] Workspace Run Express Analysis remains in the pinned action footer.
 - [ ] No project leakage occurs between the three demo projects.
 - [ ] No UI copy describes readiness as investment, legal, planning, valuation or commercial pilot readiness.
-- [ ] Local/API fallback storage caveat remains visible.
+- [ ] Browser-local/read-only demo caveat remains visible; server persistence is not implied.
 
 ## Scenario Analysis
 
@@ -242,8 +261,8 @@ Current authority: [Current Release State](CURRENT_RELEASE_STATE.md)
 - [ ] Custom Query requires a question before analysis.
 - [ ] Express Analysis opens dashboard.
 - [ ] Dashboard title and content change by scenario.
-- [ ] OpenAI works only through the server route after explicit upstream + hard access + Supabase Auth gates are verified.
-- [ ] Mock fallback works when `OPENAI_API_KEY` is missing.
+- [ ] Public Express Analysis and decision scoring execute deterministically in the browser and send no analysis payload to `/api/analyze` or `/api/ai/decision-score`.
+- [ ] Both server generation POST routes return 403 before body validation until AUTH-01 supplies verified caller identity; `OPENAI_API_KEY` alone changes nothing.
 - [ ] No OpenAI key is exposed to the browser.
 
 ## Dashboard
@@ -296,19 +315,19 @@ Current authority: [Current Release State](CURRENT_RELEASE_STATE.md)
 - [ ] `/projects` loads without login when `NEXT_PUBLIC_AUTH_MODE` is unset.
 - [ ] `/login` shows current auth mode and access caveat.
 - [ ] `/api/auth/session` returns safe JSON without secrets.
-- [ ] Protected `supabase_auth` mode fails closed if config, caller session or membership is missing; public demo remains a separate explicit mode. **Current implementation still needs this change.**
+- [x] Candidate static check: the current wrapper fails closed for missing hard-mode Auth/demo-bypass evidence and blocks public server mutations even when `supabase_auth` is selected only by environment. **Request-scoped Supabase user/membership verification still remains AUTH-01; exact-head runtime evidence is pending.**
 - [ ] Project/workspace access badges remain compact and do not push primary actions below the first viewport.
 
 ## Pilot Infrastructure Activation v2.4
 
-- [ ] `GET /api/platform/activation-status` returns 200 and no secrets.
-- [ ] `GET /api/db/health` returns `migrationApplied`, `seedReady`, `canRead`, `canWrite`, `blockers` and `nextActions`.
-- [ ] `GET /api/storage/health` returns required bucket names and readiness blockers.
-- [ ] `GET /api/known-limitations` returns the limitations tracker.
+- [ ] `GET /api/platform/activation-status` returns the static `public_demo_only` boundary with diagnostics withheld.
+- [ ] `GET /api/db/health` returns public `diagnostics_withheld`; it does not expose migration/seed/table state.
+- [ ] `GET /api/storage/health` returns public `diagnostics_withheld`; it does not expose required/missing bucket names.
+- [ ] `GET /api/known-limitations` returns the static reviewed candidate catalog, not live readiness.
 - [ ] `npm run supabase:migrate:check` exits safely and reports migration blockers.
 - [ ] `npm run supabase:verify:persistence` exits safely in local fallback when Supabase env is missing.
 - [ ] `npm run supabase:seed:pilot-foundation` writes nothing and reports blockers when schema is unavailable.
-- [ ] Core project APIs include `access` metadata without blocking public demo flows.
+- [ ] Public demo read/generate flows remain available; write/upload/review/validate/manage APIs return 403 until verified Auth/membership exists.
 - [ ] Audit calls do not break AOI, report, analysis, comparison, data room or pilot workflow operations.
 - [ ] `/projects` Platform Readiness panel is visible, compact and honest.
 
@@ -316,11 +335,11 @@ Current authority: [Current Release State](CURRENT_RELEASE_STATE.md)
 
 - [ ] `GET /api/validation?projectKey=dubai-investment-screening-demo` returns evidence, summary, claim policy and connector readiness.
 - [ ] `GET /api/validation/connectors` returns DLD, Dubai Pulse, GeoDubai, client document and licensed valuation readiness records.
-- [ ] `POST /api/validation/evidence` creates metadata-only evidence in local/API fallback without claiming official validation.
-- [ ] `PATCH /api/validation/evidence/[id]` updates validation status conservatively.
-- [ ] `DELETE /api/validation/evidence/[id]` removes the test evidence metadata.
+- [ ] `POST /api/validation/evidence` returns 403 in public demo; after AUTH-01 it creates only caller-scoped, RLS-backed evidence.
+- [ ] `PATCH /api/validation/evidence/[id]` returns 403 in public demo and rejects wrong-project/wrong-role personas after AUTH-01.
+- [ ] `DELETE /api/validation/evidence/[id]` returns 403 in public demo and deletes only authorized durable evidence after AUTH-01.
 - [ ] `/projects` shows Validation Governance compactly and keeps Data Room / Project Activity usable.
-- [ ] `/workspace` shows Validation Evidence collapsed or compact below the primary decision flow.
+- [ ] If Validation Evidence is rendered, it stays secondary and its protected controls are disabled with a reason; absence of the dormant legacy block is acceptable in public mode.
 - [ ] Express Analysis AI Decision Memo remains caveated when validation evidence is screening-only.
 - [ ] Analysis report preview and printable report include a Validation Governance Appendix.
 - [ ] Comparison report preview and printable report include a Validation Governance Appendix.
@@ -330,26 +349,27 @@ Current authority: [Current Release State](CURRENT_RELEASE_STATE.md)
 ## Secure File Storage & Evidence Uploads v2.6
 
 - [ ] `npm run storage:check` reports provider mode, buckets, 5 MB limit and storage caveat without secrets.
-- [ ] `GET /api/storage/health` returns provider, repository mode, required buckets, missing buckets, signed URL readiness, blockers and next actions.
+- [ ] `GET /api/storage/health` returns only the sanitized public contract; bucket/configuration/signed-URL diagnostics remain operator-only.
 - [ ] `GET /api/storage/evidence-files?projectKey=dubai-investment-screening-demo` returns metadata list safely.
-- [ ] `POST /api/storage/evidence-files` keeps client binary upload blocked until the protected upload gate above passes; metadata-only demo fallback remains explicit.
-- [ ] Unsupported file type upload returns 400 with a friendly message.
-- [ ] Oversized file upload returns 400 with a friendly message.
-- [ ] `GET /api/storage/evidence-files/[id]/download` returns signed URL only when storage is configured; metadata-only fallback returns controlled unavailable response.
-- [ ] `DELETE /api/storage/evidence-files/[id]` marks/deletes metadata and does not crash if binary storage is absent.
-- [ ] `/projects` shows Evidence Files / Storage compactly with provider, bucket status, count, metadata-only count and caveat.
-- [ ] `/workspace` Validation Evidence block remains collapsed and includes Attach evidence file as secondary action.
+- [ ] `POST /api/storage/evidence-files` returns 403 before multipart body parsing while AUTH-01/STORAGE-01 are incomplete; no metadata-only server fallback is created.
+- [ ] After AUTH-01/STORAGE-01, an unsupported file type returns 400 without storage side effects.
+- [ ] After AUTH-01/STORAGE-01, an oversized request is rejected before full multipart materialization.
+- [ ] Before AUTH-01/STORAGE-01, `GET /api/storage/evidence-files/[id]/download` returns 403. Afterwards, a caller-JWT/RLS test proves only an authorized user can receive a short-lived signed URL.
+- [ ] `DELETE /api/storage/evidence-files/[id]` returns 403 in public demo; after AUTH-01 it deletes only caller-authorized metadata/object state.
+- [ ] If `/projects` renders Evidence Files / Storage, it shows the sanitized public unavailability/caveat rather than bucket inventory or readiness attestation.
+- [ ] If Workspace renders Attach evidence, it is secondary, disabled before fetch and explains AUTH-01/STORAGE-01; the dormant legacy block need not render.
 - [ ] Data Room latest assets include evidence file metadata.
 - [ ] Report Validation Appendix lists linked evidence file metadata and download availability.
 - [ ] Uploading evidence never changes validation status to official validated automatically.
 - [ ] No UI claims secure enterprise storage while storage is unconfigured or unverified.
 
-## External Data v1.4
+## External Data public contract
 
-- [ ] `GET /api/external-data/manifest` returns v1.4 manifest JSON.
-- [ ] `GET /api/external-data/sources` returns Source Registry records.
-- [ ] `GET /api/external-data/status` returns readiness states.
-- [ ] `POST /api/context/market` returns snapshot-backed context when DLD snapshot area matches, otherwise seed/demo fallback.
+- [ ] `GET /api/external-data/manifest`, `/sources` and `/status` return `contractVersion: "1.3"` and `manifestVersion`/`version: "1.6"`.
+- [ ] All three public routes use `compact_public_v1`, `mode: "bundled_public_manifest"`, bounded public caching, `liveRegistryIncluded: false`, zero live counts and no Supabase registry query; `/sources` stays within 48 KB.
+- [x] Final local candidate production runtime confirms `compact_public_v1` without repeated quality/file details: data-sources 5,063 B; readiness 4,467 B; manifest 19,448 B; sources 5,063 B; status 8,158 B; source-lineage 4,352 B, within 48/64 KB caps. **Exact remote Preview evidence remains pending; old 133–158 KB Preview evidence is superseded.**
+- [ ] `POST /api/context/market` returns seed-only context for built-in/demo targets. User-uploaded/user-drawn targets send neither raw input, geometry nor derived coordinates to market/climate endpoints.
+- [ ] Manifest entries preserve per-source truth: DLD valuations/brokers/developers and OSM buildings remain zero-record/not-used; Overture buildings/places/transportation remain 2/2/1 rather than inheriting group totals.
 - [ ] `GET /api/context/climate?lat=25.08&lng=55.14` returns `permission_required` with null metrics and makes no Open-Meteo upstream request.
 - [ ] UI says snapshot/sample fallback, not live official integration.
 - [ ] Evidence and reports retain official-validation-required caveats.
@@ -357,15 +377,15 @@ Current authority: [Current Release State](CURRENT_RELEASE_STATE.md)
 ## Evidence Review Workflow & Signed URL Verification v2.7
 
 - [ ] `/projects` shows compact evidence review counts and review actions.
-- [ ] `/workspace` Validation Evidence block stays collapsed/secondary and includes review note actions.
-- [ ] `POST /api/validation/evidence/[id]/reviews` records valid review decisions.
-- [ ] Invalid review transitions return controlled errors, not 500s.
-- [ ] Uploading a file sets validation evidence to uploaded/unreviewed and does not improve claim posture.
-- [ ] `POST /api/storage/evidence-files/upload-intent` returns metadata-only when storage is unconfigured.
+- [ ] If a Validation Evidence block is rendered, review actions remain disabled with a reason in public mode; the dormant legacy block is not treated as a required surface.
+- [ ] `POST /api/validation/evidence/[id]/reviews` returns 403 in public demo; after AUTH-01 it records only authorized review decisions.
+- [ ] After AUTH-01, invalid review transitions return controlled errors, not 500s.
+- [ ] After AUTH-01/STORAGE-01, uploading a file sets validation evidence to uploaded/unreviewed and does not improve claim posture.
+- [ ] `POST /api/storage/evidence-files/upload-intent` returns 403 in public demo and never creates metadata-only server state.
 - [ ] `POST /api/storage/evidence-files/[id]/signed-url-test` returns controlled 409 for metadata-only files.
 - [ ] Report appendix shows review status, linked files and metadata-only download posture.
 - [ ] AI decision scoring treats unreviewed/rejected/expired evidence as unsupported.
-- [ ] Required caveats remain visible: uploaded evidence requires review; local/API fallback is not durable production storage.
+- [ ] Required caveats remain visible: uploaded evidence requires review; public-demo state is browser-local/read-only and protected persistence is unavailable.
 
 ## Public Data Connectors v1.6
 
@@ -392,8 +412,8 @@ Current authority: [Current Release State](CURRENT_RELEASE_STATE.md)
 - [ ] `npm run validate:external-data` exits successfully.
 - [ ] `/projects` market-area count agrees with `/api/market-metrics`.
 - [ ] `/api/ai/decision-score` returns route status with no API key exposed.
-- [ ] Decision score POST returns `deterministic_fallback` without `OPENAI_API_KEY`.
-- [ ] With `OPENAI_API_KEY` alone, decision score remains deterministic fallback; upstream requires the explicit hard/Auth gate and project authorization.
+- [ ] Decision score POST returns 403 before parsing in the pre-Auth public demo, with or without `OPENAI_API_KEY`.
+- [ ] Browser-local deterministic scoring remains available without `OPENAI_API_KEY`; future upstream use requires AUTH-01, explicit upstream gate, project authorization, privacy and quotas.
 - [ ] Express Analysis dashboard shows AI Decision Memo without replacing deterministic score cards.
 - [ ] Report preview and printable report include AI Decision Memo when present.
 - [ ] Russian query `что лучше построить на этой территории?` stays caveated and scenario-specific.
@@ -401,11 +421,8 @@ Current authority: [Current Release State](CURRENT_RELEASE_STATE.md)
 
 ## Investor Demo Narrative v1.5
 
-- [ ] `/demo` renders with three narrative cards.
-- [ ] `/demo` cards show buyer type, decision question, demo promise and pilot duration.
-- [ ] Start demo opens the correct prepared workspace for fund/family office.
-- [ ] Start demo opens the correct prepared workspace for developer land pipeline.
-- [ ] Start demo opens the correct prepared workspace for bank/lender asset review.
+- [ ] `GET /demo` returns HTTP 307 with `Location: /workspace`; no narrative-card launcher is claimed.
+- [ ] Prepared fund, developer and bank narrative links open the correct Workspace/project context directly.
 - [ ] `/workspace?demoNarrativeId=fund-investment-screening&projectId=dubai-investment-screening-demo` loads the Dubai investment screening context.
 - [ ] `/workspace?demoNarrativeId=developer-land-pipeline&projectId=developer-land-pipeline-demo` loads the developer land pipeline context.
 - [ ] `/workspace?demoNarrativeId=bank-asset-review&projectId=bank-asset-review-demo` loads the bank asset review context.
@@ -417,6 +434,22 @@ Current authority: [Current Release State](CURRENT_RELEASE_STATE.md)
 - [ ] `/projects?projectKey=bank-asset-review-demo` shows the bank pilot package.
 - [ ] Report preview and printable report show decision question and pilot next action when project context exists.
 - [ ] Required caveat remains visible: screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.
+
+## Audit-candidate state, performance and UX acceptance
+
+- [ ] Uploads, comparison sets and report summaries use project-scoped records with an explicit `projectKey` inside the shared versioned demo namespace; switching between two projects and reloading never leaks one project's artifacts into the other.
+- [ ] Upload UI warns not to submit confidential, personal or regulated data and explains unencrypted origin-local persistence/removal.
+- [ ] Candidate structural limits reject files above 5 MB; more than 24 uploads/project; CSV without a data row, with unbalanced quotes, empty/duplicate headers, over 10,000 data rows/128 columns/16,384 characters per cell, or unpaired/non-finite/out-of-WGS84 lat/lon; GeoJSON above 2,500 features/100,000 coordinate pairs, invalid tuple/cardinality/unclosed rings, or oversized/deep properties. AOI import rejects above 5 MB/1,000 vertices and retains at most 40/project before O(n²) topology checks. No failure partially persists.
+- [ ] Browser upload/AOI records are revalidated on read, use compound project+ID mutations, and a localStorage quota/security exception fails visibly without a false saved state.
+- [ ] Uploaded content is never injected/executed as markup/script; Production security-header/CSP checks pass and browser state can be explicitly purged.
+- [ ] Unknown explicit Data Room/report/API/local lookups return controlled empty/not-found and never silently resolve to `demoProjects[0]`; an invalid Workspace URL key is cleared and may reset to the default only with an explicit user-visible message. Legacy uploads without `projectKey` are not assigned to the active project.
+- [ ] Project Hub reflects browser-local analyses, reports and comparisons after reload, and no “saved” success toast is shown unless the candidate state actually persists.
+- [ ] Every protected write/upload/review/validate/manage control is disabled before `fetch`, explains the missing capability and produces zero guaranteed-403 network requests. Browser-safe AOI/upload/analysis/report/comparison actions remain usable.
+- [ ] Network capture confirms the disabled legacy `AnalysisPanel` server fanout sends zero requests. Unreachable state/effects/handlers are tracked for removal rather than treated as active functionality.
+- [ ] Project Hub records its exact initial request count and response bytes on the same exact-SHA build; the current six-request public baseline (projects, DB status, market metrics, external-data status, platform status and pilot status) must not regress, candidate compact source budgets pass, and aggregation/snapshot options are measured before a performance claim.
+- [ ] `preserveDrawingBuffer` is enabled only for an explicit capture path; route JS, build, API latency and Core Web Vitals budgets pass on the declared desktop/mobile profiles.
+- [ ] Mobile navigation exposes Workspace and Projects; each critical route has one meaningful `h1`, labelled project/candidate/audience controls, correct pressed/expanded/disabled states, useful live regions and WCAG 2.2-sized interactive targets.
+- [ ] Axe/Lighthouse and keyboard-only journeys cover Home → Workspace → analysis/report, criteria-first comparison, project switching and print; no active control targets a guaranteed 403.
 
 ## Responsive Checks
 

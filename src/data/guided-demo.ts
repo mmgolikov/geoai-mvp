@@ -251,11 +251,12 @@ function getPipelineFeature(preset: GuidedDemoPreset) {
   return geojson.features.find((feature) => feature.properties?.name === preset.featureName) ?? geojson.features[0];
 }
 
-function createDemoGeojsonDataset(uploadedAt: string): UploadedDataset {
+function createDemoGeojsonDataset(uploadedAt: string, projectKey: string): UploadedDataset {
   const geojson = clonePipelineGeojson();
 
   return {
-    id: "guided-demo-geojson-sites",
+    id: `guided-demo-geojson-sites-${projectKey}`,
+    projectKey,
     name: "Sample GeoJSON screening sites",
     type: "geojson",
     status: "parsed",
@@ -270,9 +271,10 @@ function createDemoGeojsonDataset(uploadedAt: string): UploadedDataset {
   };
 }
 
-function createDemoCsvDataset(uploadedAt: string): UploadedDataset {
+function createDemoCsvDataset(uploadedAt: string, projectKey: string): UploadedDataset {
   return {
-    id: "guided-demo-csv-metrics",
+    id: `guided-demo-csv-metrics-${projectKey}`,
+    projectKey,
     name: "Sample CSV metrics",
     type: "csv",
     status: "parsed",
@@ -324,9 +326,9 @@ function getGeometryCenter(geometry: GeoJSON.Geometry, fallback: SelectedPoint):
   };
 }
 
-export function createGuidedDemoDatasets() {
+export function createGuidedDemoDatasets(projectKey: string) {
   const uploadedAt = new Date().toISOString();
-  return [createDemoCsvDataset(uploadedAt), createDemoGeojsonDataset(uploadedAt)];
+  return [createDemoCsvDataset(uploadedAt, projectKey), createDemoGeojsonDataset(uploadedAt, projectKey)];
 }
 
 export function getGuidedDemoPreset(id?: string | null) {

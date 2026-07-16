@@ -213,6 +213,9 @@ type ReportPackageSummary = {
 };
 
 const canonicalInteractionModeOrder: InteractionMode[] = ["criteria_first", "map_first"];
+// Project Dashboard owns these server-backed summaries. Keep the public workspace panel
+// free of the legacy seven-request prefetch fan-out until authenticated access is enabled.
+const enableLegacyPanelServerFanout = false;
 
 function formatHistoryTimestamp(value: string) {
   return new Intl.DateTimeFormat("en", {
@@ -561,6 +564,7 @@ export function AnalysisPanel({
   }, [candidateSearchStatus, exploreInteractionMode, exploreScenarioId]);
 
   useEffect(() => {
+    if (!enableLegacyPanelServerFanout) return;
     let isMounted = true;
 
     fetch("/api/external-data/status")
@@ -582,6 +586,7 @@ export function AnalysisPanel({
   }, []);
 
   useEffect(() => {
+    if (!enableLegacyPanelServerFanout) return;
     let isMounted = true;
 
     fetch(`/api/data-room?projectKey=${encodeURIComponent(activeProject.projectKey)}`)
@@ -603,6 +608,7 @@ export function AnalysisPanel({
   }, [activeProject.projectKey, hasResult, projectAois.length, uploadedDatasets.length]);
 
   useEffect(() => {
+    if (!enableLegacyPanelServerFanout) return;
     let isMounted = true;
 
     fetch(`/api/validation?projectKey=${encodeURIComponent(activeProject.projectKey)}`)
@@ -620,6 +626,7 @@ export function AnalysisPanel({
   }, [activeProject.projectKey, selectedAoi?.id, hasResult]);
 
   useEffect(() => {
+    if (!enableLegacyPanelServerFanout) return;
     let isMounted = true;
 
     Promise.all([
@@ -645,6 +652,7 @@ export function AnalysisPanel({
   }, [activeProject.projectKey, selectedAoi?.id, hasResult]);
 
   useEffect(() => {
+    if (!enableLegacyPanelServerFanout) return;
     let isMounted = true;
 
     fetch(`/api/pilot-workflow?projectKey=${encodeURIComponent(activeProject.projectKey)}`)
@@ -666,6 +674,7 @@ export function AnalysisPanel({
   }, [activeProject.projectKey, hasResult, projectAois.length, uploadedDatasets.length]);
 
   useEffect(() => {
+    if (!enableLegacyPanelServerFanout) return;
     let isMounted = true;
 
     fetch(`/api/report-packages?projectKey=${encodeURIComponent(activeProject.projectKey)}`)
@@ -1552,6 +1561,90 @@ export function AnalysisPanel({
                 )}
               </div>
             </details>
+            </div>
+          </details>
+
+          <details className="order-[25] min-w-0 max-w-full overflow-hidden rounded-lg border border-line bg-white px-3">
+            <summary className="flex min-h-[50px] cursor-pointer list-none items-center justify-between gap-3 py-3">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Project data</p>
+                <h2 className="mt-1 truncate text-sm font-semibold text-ink">
+                  {uploadedDatasets.length > 0 ? `${uploadedDatasets.length} browser-local dataset${uploadedDatasets.length === 1 ? "" : "s"}` : "CSV / GeoJSON import"}
+                </h2>
+                <p className="mt-1 truncate text-xs leading-5 text-muted">Project-scoped prototype storage; official validation required.</p>
+              </div>
+              <span className="shrink-0 rounded-full bg-surface px-2 py-1 text-[11px] font-semibold text-brand">Open</span>
+            </summary>
+
+            <div className="grid gap-3 border-t border-line py-3">
+              <p id="browser-upload-warning" className="rounded-md border border-[#e5d7b2] bg-[#fff9e9] px-3 py-2 text-xs leading-5 text-[#6c5520]">
+                Do not upload confidential, personal or regulated data. Files are parsed in this browser and persist unencrypted in this origin&apos;s local storage until you remove them.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="inline-flex h-9 items-center justify-center rounded-md bg-brand px-3 text-xs font-semibold text-white transition hover:bg-[#113f50]"
+                >
+                  Import CSV / GeoJSON
+                </button>
+                {uploadedDatasets.length > 0 ? (
+                  <button
+                    type="button"
+                    onClick={onClearUploadedDatasets}
+                    className="inline-flex h-9 items-center justify-center rounded-md border border-line bg-white px-3 text-xs font-semibold text-muted transition hover:border-brand hover:text-ink"
+                  >
+                    Remove all project files
+                  </button>
+                ) : null}
+              </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv,.geojson,.json,text/csv,application/geo+json,application/json"
+                aria-describedby="browser-upload-warning"
+                className="hidden"
+                onChange={(event) => {
+                  void handleDatasetFileChange(event);
+                }}
+              />
+
+              {uploadedDatasets.length > 0 ? (
+                <div className="grid gap-2">
+                  {uploadedDatasets.map((dataset) => (
+                    <div key={dataset.id} className="flex min-w-0 items-center justify-between gap-3 rounded-md border border-line bg-surface p-2">
+                      <div className="min-w-0">
+                        <p className="truncate text-xs font-semibold text-ink">{dataset.name}</p>
+                        <p className="mt-1 text-[11px] leading-4 text-muted">
+                          {dataset.type.toUpperCase()} / {formatUploadedDatasetDetail(dataset)} / {dataset.officialStatus}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 gap-1.5">
+                        {dataset.type === "geojson" && dataset.status === "parsed" ? (
+                          <button
+                            type="button"
+                            onClick={() => onToggleUploadedDataset(dataset.id)}
+                            className="rounded-md border border-line bg-white px-2 py-1 text-[10px] font-semibold text-muted"
+                          >
+                            {dataset.visible === false ? "Show" : "Hide"}
+                          </button>
+                        ) : null}
+                        <button
+                          type="button"
+                          onClick={() => onRemoveUploadedDataset(dataset.id)}
+                          className="rounded-md border border-line bg-white px-2 py-1 text-[10px] font-semibold text-muted"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="rounded-md bg-surface px-3 py-2 text-xs leading-5 text-muted">No project data imported. Maximum file size: 5 MB.</p>
+              )}
+
+              {uploadedDataMessage ? <p className="rounded-md bg-surface px-3 py-2 text-xs leading-5 text-muted">{uploadedDataMessage}</p> : null}
             </div>
           </details>
 

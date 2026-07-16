@@ -7,6 +7,9 @@ import { getReport } from "@/src/lib/db/repositories/reports";
 import { normalizeReportDeliverable } from "@/src/lib/report-deliverables";
 import { normalizeReportForDisplay } from "@/src/lib/report-display-normalization";
 import { getSeededDemoReportRecord } from "@/src/data/demo-report-seeds";
+import { requireProjectAccess } from "@/src/lib/auth/project-access";
+import { hasRequestIdentityKernelEvidence, hasVerifiedRequestIdentity } from "@/src/lib/auth/verified-request-access";
+import { isCanonicalReportId } from "@/src/lib/report-id";
 
 type PrintableReportPageProps = {
   params: Promise<{ id: string }>;
@@ -16,13 +19,28 @@ export const runtime = "nodejs";
 
 export default async function PrintableReportPage({ params }: PrintableReportPageProps) {
   const { id } = await params;
-  const decodedId = decodeURIComponent(id);
-  const result = getSeededDemoReportRecord(decodedId) ? await getReport(decodedId) : { data: null };
+  if (!isCanonicalReportId(id)) {
+    return <PrintReportFallback reportId="invalid-report-id" />;
+  }
+  const seededRecord = getSeededDemoReportRecord(id);
+  const result = seededRecord
+    ? { data: seededRecord }
+    : hasRequestIdentityKernelEvidence()
+      ? await getReport(id)
+      : { data: null };
+  const projectKey = (result.data as { projectKey?: string | null; project_key?: string | null } | null)?.projectKey
+    ?? (result.data as { project_key?: string | null } | null)?.project_key
+    ?? null;
+  const access = requireProjectAccess({ projectKey, action: "export", mode: "soft" });
+  const publicSeed = Boolean(seededRecord);
+  if (!access.allowed || (!publicSeed && !hasVerifiedRequestIdentity(access))) {
+    return <PrintReportFallback reportId={id} />;
+  }
   const normalized = result.data ? normalizeReportDeliverable(result.data) : null;
   const report = normalized ? normalizeReportForDisplay(normalized) : null;
 
   if (!report) {
-    return <PrintReportFallback reportId={decodedId} />;
+    return <PrintReportFallback reportId={id} />;
   }
 
   return (

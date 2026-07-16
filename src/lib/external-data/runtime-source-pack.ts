@@ -20,6 +20,11 @@ const COPERNICUS_STAC_URL = "https://stac.dataspace.copernicus.eu/v1/search";
 const OVERPASS_URL = "https://overpass-api.de/api/interpreter";
 const CONTACT_URL = "https://github.com/mmgolikov/geoai-mvp";
 const maximumResponseBytes = 2_000_000;
+const allowedRuntimeSourceHosts = new Set([
+  "power.larc.nasa.gov",
+  "stac.dataspace.copernicus.eu",
+  "overpass-api.de"
+]);
 
 type RuntimeCacheEntry = {
   expiresAt: number;
@@ -60,11 +65,36 @@ function fingerprint(value: string) {
 async function readJsonResponse(response: Response) {
   const contentLength = Number(response.headers.get("content-length"));
   if (Number.isFinite(contentLength) && contentLength > maximumResponseBytes) {
+    await response.body?.cancel();
     throw new UpstreamError("upstream_response_too_large");
   }
-  const text = await response.text();
-  if (Buffer.byteLength(text, "utf8") > maximumResponseBytes) {
-    throw new UpstreamError("upstream_response_too_large");
+  if (!response.body) {
+    throw new UpstreamError("upstream_empty_response");
+  }
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let receivedBytes = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    receivedBytes += value.byteLength;
+    if (receivedBytes > maximumResponseBytes) {
+      await reader.cancel();
+      throw new UpstreamError("upstream_response_too_large");
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(receivedBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  let text: string;
+  try {
+    text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    throw new UpstreamError("upstream_invalid_utf8");
   }
   try {
     return JSON.parse(text) as unknown;
@@ -80,10 +110,15 @@ function retryDelay(response: Response, attempt: number) {
 }
 
 async function fetchJson(url: string, init: RequestInit, timeoutMs: number, maximumAttempts = 2) {
+  const target = new URL(url);
+  if (target.protocol !== "https:" || !allowedRuntimeSourceHosts.has(target.hostname)) {
+    throw new UpstreamError("upstream_host_not_allowlisted");
+  }
+
   for (let attempt = 0; attempt < maximumAttempts; attempt += 1) {
     let response: Response;
     try {
-      response = await fetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs) });
+      response = await fetch(url, { ...init, redirect: "error", signal: AbortSignal.timeout(timeoutMs) });
     } catch {
       if (attempt + 1 < maximumAttempts) continue;
       throw new UpstreamError("upstream_timeout_or_network_error");
@@ -92,9 +127,11 @@ async function fetchJson(url: string, init: RequestInit, timeoutMs: number, maxi
     if (response.ok) return readJsonResponse(response);
     const retryable = response.status === 429 || response.status >= 500;
     if (attempt + 1 < maximumAttempts && retryable) {
+      await response.body?.cancel();
       await new Promise((resolve) => setTimeout(resolve, retryDelay(response, attempt)));
       continue;
     }
+    await response.body?.cancel();
     throw new UpstreamError(`upstream_http_${response.status}`);
   }
   throw new UpstreamError("upstream_unavailable");
@@ -220,7 +257,7 @@ async function getNasaPowerObservation(now: Date): Promise<RuntimeSourceObservat
     const parsed = parseNasaPowerPayload(await fetchJson(`${NASA_POWER_URL}?${params.toString()}`, {
       headers: { Accept: "application/json", "User-Agent": `GeoAI/preview (+${CONTACT_URL})` },
       cache: "no-store"
-    }, 10_000));
+    }, 10_000), period);
     const retrievedAt = now.toISOString();
     return {
       ...base,
@@ -228,7 +265,7 @@ async function getNasaPowerObservation(now: Date): Promise<RuntimeSourceObservat
       mode: "live",
       retrievedAt,
       servedAt: retrievedAt,
-      sourceObservedAt: period.to,
+      sourceObservedAt: parsed.observedTo,
       fallbackReason: null,
       payload: {
         period,
@@ -270,7 +307,7 @@ async function getCopernicusObservation(now: Date): Promise<RuntimeSourceObserva
     const parsed = parseCopernicusStacPayload(await fetchJson(`${COPERNICUS_STAC_URL}?${params.toString()}`, {
       headers: { Accept: "application/geo+json, application/json", "User-Agent": `GeoAI/preview (+${CONTACT_URL})` },
       cache: "no-store"
-    }, 8_000));
+    }, 8_000), { collection: "sentinel-2-l2a", period });
     const retrievedAt = now.toISOString();
     const sceneYears = [...new Set(parsed.scenes
       .map((scene) => scene.datetime?.slice(0, 4) ?? null)

@@ -157,6 +157,64 @@ async function readRows() {
   }
 }
 
+/**
+ * Public endpoints must never turn one anonymous request into database
+ * discovery queries. This projection is built only from the reviewed,
+ * repository-bundled manifest; live registry state belongs in an
+ * operator-authenticated control plane.
+ */
+export function getPublicSourceRegistryReadiness() {
+  const fallback = readExternalDataManifest();
+  const sourceQuality = fallback.sourceQuality ?? buildSourceQualityManifest();
+  const sourceGroups = attachSourceQuality(buildSourceReadinessGroups(fallback), sourceQuality);
+  const summary = {
+    ...sourceReadinessSummary(sourceGroups),
+    qualityGroups: sourceQuality.groups.length
+  };
+  const generatedAt = fallback.generatedAt ?? new Date().toISOString();
+
+  return {
+    contractVersion: "1.3",
+    version: fallback.version,
+    manifestVersion: fallback.version,
+    mode: "bundled_public_manifest",
+    source: "reviewed_repository_snapshot",
+    sourceRegistryCount: 0,
+    externalSnapshotCount: 0,
+    liveRegistryIncluded: false,
+    diagnosticsWithheld: true,
+    manifest: {
+      ...fallback,
+      sourceQuality
+    },
+    sourceQuality,
+    sourceGroups,
+    summary,
+    readiness: sourceGroups.map((group) => ({
+      sourceId: group.id,
+      sourceName: group.name,
+      status: group.status,
+      sourceMode: group.dataMode,
+      dataMode: group.dataMode,
+      lastUpdated: group.lastUpdated,
+      recordCount: group.recordCount,
+      coverageArea: group.coverageArea,
+      confidence: group.confidence,
+      sourceQuality: group.sourceQuality,
+      caveat: group.caveat,
+      nextValidationStep: group.nextValidationStep,
+      validationRequired: true
+    })),
+    blockers: ["Live source-registry and custody diagnostics are withheld from anonymous endpoints."],
+    nextActions: sourceGroups.map((group) => group.nextValidationStep),
+    sync: {
+      status: "operator_only"
+    },
+    caveat: externalDataCaveat,
+    generatedAt
+  };
+}
+
 export async function getSourceRegistryReadiness() {
   const fallback = readExternalDataManifest();
   const sourceQuality = fallback.sourceQuality ?? buildSourceQualityManifest();

@@ -20,10 +20,11 @@ import { calculatePilotReadiness } from "@/src/lib/pilot/pilot-readiness";
 import {
   createLocalProject,
   mergeProjectsWithLocal,
-  projectToInput,
   saveLocalProject,
   type LocalProjectInput
 } from "@/src/lib/project-local-store";
+import { readBrowserProjectArtifacts } from "@/src/lib/browser-project-artifacts";
+import { browserDemoStorageKey, isBrowserDemoStorageEnabled } from "@/src/lib/browser-demo-storage";
 import {
   connectorRuntimeStatusLabel,
   initialRuntimeStatusRows,
@@ -33,12 +34,14 @@ import {
 import { normalizeCompactReportMetadata } from "@/src/lib/report-display-normalization";
 import { repositoryModeToLabel, type RepositoryMode } from "@/src/lib/repositories/repository-mode";
 import { readBrowserAois, sourceTypeLabel, validationStatusLabel } from "@/src/lib/aoi-library";
+import { readBrowserUploadedDatasets } from "@/src/lib/uploaded-data";
 import { formatArea } from "@/src/lib/polygon-aoi";
 import type { GeoAIProject } from "@/src/lib/db/types";
 import type { ExternalDataManifestSource } from "@/src/lib/external-data/data-manifest";
 import type { ProjectAoi } from "@/src/types/aoi";
 import type {
   ClientDataRoom,
+  DataRoomAsset,
   DataRoomAssetType,
   DataRoomValidationStatus,
   ValidationChecklistStatus
@@ -54,22 +57,30 @@ import type { EvidenceFileAsset } from "@/src/types/storage";
 import type { EvidenceReviewSummary } from "@/src/types/evidence-review";
 import type { AnalysisHistoryItem, AnalysisScenarioId, ExpressAnalysis } from "@/src/types/geo";
 
-const activeProjectStorageKey = "geoai-active-project-key-v1";
-const activeProjectSegmentStorageKey = "geoai-active-project-segment-v1";
-const analysisHistoryStorageKey = "geoai-analysis-history-v1";
-const openAnalysisRequestStorageKey = "geoai-open-analysis-request-v1";
+const activeProjectStorageKey = browserDemoStorageKey("active-project-key-v1");
+const activeProjectSegmentStorageKey = browserDemoStorageKey("active-project-segment-v1");
+const analysisHistoryStorageKey = browserDemoStorageKey("analysis-history-v1");
+const openAnalysisRequestStorageKey = browserDemoStorageKey("open-analysis-request-v1");
 const requiredDataCaveat = "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.";
 
 type ProjectSegment = "b2b" | "b2c";
 
 type DbHealth = {
-  configured: boolean;
-  status: "connected" | "configured_unavailable" | "configured_incomplete" | "not_configured";
+  configured: boolean | null;
+  status: "diagnostics_withheld";
   repositoryMode: RepositoryMode;
   mode: RepositoryMode;
+  reachable: boolean | null;
+  schemaReady: boolean | null;
+  postgisReady: boolean | null;
+  tablesReady: boolean | null;
+  canonicalReplayCertified: boolean;
+  diagnosticsWithheld: boolean;
   caveat: string;
   message: string;
   sources_count: number | null;
+  blockers: string[];
+  nextActions: string[];
 };
 
 type PlatformActivationStatus = {
@@ -78,14 +89,17 @@ type PlatformActivationStatus = {
   activationStatus: string;
   accessEnforcementMode?: "soft" | "hard";
   allowDemoPublic?: boolean;
-  supabaseConfigured: boolean;
-  schemaReady: boolean;
-  postgisReady: boolean;
-  tablesReady: boolean;
-  storageReady: boolean;
-  migrationApplied: boolean;
+  supabaseConfigured: boolean | null;
+  supabaseReachable: boolean | null;
+  schemaReady: boolean | null;
+  storageReady: boolean | null;
+  protectedModeActive: boolean;
+  canRunConfidentialPilot: boolean;
+  canonicalReplayCertified: boolean;
+  diagnosticsWithheld: boolean;
   blockers: string[];
   nextActions: string[];
+  caveats: string[];
 };
 
 type PilotBackendStatusResponse = {
@@ -104,10 +118,10 @@ type PilotBackendStatusResponse = {
   }>;
   blockers: Array<{
     id: string;
-    severity: "p0" | "p1" | "p2";
+    severity: string;
     title: string;
-    description: string;
-    nextAction: string;
+    description?: string;
+    nextAction?: string;
   }>;
   nextActions: string[];
   caveats: string[];
@@ -146,16 +160,13 @@ type ValidationGovernanceResponse = {
 };
 
 type StorageHealthResponse = {
-  provider: "supabase_storage" | "local_metadata_only" | "disabled";
-  configured?: boolean;
+  provider: "protected_storage_unavailable_to_public_demo";
+  configured: boolean | null;
   bucketReady: boolean;
   storageReady: boolean;
-  missingBuckets: string[];
   maxFileSizeBytes: number;
-  privateBucketPolicyReady?: boolean;
-  signedUrlVerified?: boolean;
-  writeTestAllowed?: boolean;
-  lastVerifiedAt?: string | null;
+  protectedStorageAvailableToPublic: boolean;
+  diagnosticsWithheld: boolean;
   blockers: string[];
   nextActions: string[];
   caveat: string;
@@ -296,6 +307,7 @@ type SavedObjectSummary = {
   reportId?: string;
   projectId?: string | null;
   projectKey?: string | null;
+  assetType?: DataRoomAssetType;
 };
 
 type ReportPackageSummary = {
@@ -312,10 +324,6 @@ type ReportPackageSummary = {
   printablePath: string;
   jsonPath: string;
   caveat: string;
-};
-
-type AoiLibraryResponse = {
-  items?: ProjectAoi[];
 };
 
 type DataRoomAssetInput = {
@@ -392,7 +400,9 @@ function readActiveProjectKey() {
       return demoProjects.find((project) => getProjectSegment(project) === requestedSegment)?.projectKey ?? demoProjects[0].projectKey;
     }
 
-    return window.localStorage.getItem(activeProjectStorageKey) || demoProjects[0].projectKey;
+    return isBrowserDemoStorageEnabled()
+      ? window.localStorage.getItem(activeProjectStorageKey) || demoProjects[0].projectKey
+      : demoProjects[0].projectKey;
   } catch {
     return demoProjects[0].projectKey;
   }
@@ -406,7 +416,9 @@ function readActiveProjectSegment(projectKey?: string | null): ProjectSegment {
       return requestedSegment;
     }
 
-    const storedSegment = window.localStorage.getItem(activeProjectSegmentStorageKey);
+    const storedSegment = isBrowserDemoStorageEnabled()
+      ? window.localStorage.getItem(activeProjectSegmentStorageKey)
+      : null;
     if (isProjectSegment(storedSegment)) {
       return storedSegment;
     }
@@ -419,6 +431,8 @@ function readActiveProjectSegment(projectKey?: string | null): ProjectSegment {
 }
 
 function writeActiveProjectKey(projectKey: string) {
+  if (!isBrowserDemoStorageEnabled()) return;
+
   try {
     window.localStorage.setItem(activeProjectStorageKey, projectKey);
   } catch {
@@ -427,6 +441,8 @@ function writeActiveProjectKey(projectKey: string) {
 }
 
 function writeActiveProjectSegment(segment: ProjectSegment) {
+  if (!isBrowserDemoStorageEnabled()) return;
+
   try {
     window.localStorage.setItem(activeProjectSegmentStorageKey, segment);
   } catch {
@@ -457,6 +473,176 @@ function dataRoomAssetName(assetType: DataRoomAssetType) {
   if (assetType === "uploaded_geojson") return "Client AOI GeoJSON";
   if (assetType === "uploaded_csv") return "Client CSV / market snapshot";
   return "Client document metadata";
+}
+
+function unavailableBrowserProject(projectKey: string): GeoAIProject {
+  const timestamp = new Date().toISOString();
+
+  return {
+    ...demoProjects[0],
+    id: null,
+    projectKey,
+    name: "Unavailable browser project",
+    description: "This project key is not present in browser storage. Select an available project or create a new one.",
+    status: "active",
+    metadata: {
+      ...demoProjects[0].metadata,
+      createdLocally: true,
+      unavailableLocally: true,
+      caveat: requiredDataCaveat
+    },
+    createdAt: timestamp,
+    updatedAt: timestamp
+  };
+}
+
+function mergeBrowserProjectDataRoom({
+  project,
+  serverDataRoom,
+  aois,
+  datasets,
+  analyses,
+  reports,
+  comparisons
+}: {
+  project: GeoAIProject;
+  serverDataRoom: ClientDataRoom | null;
+  aois: ProjectAoi[];
+  datasets: SavedObjectSummary[];
+  analyses: RecentAnalysisRow[];
+  reports: SavedObjectSummary[];
+  comparisons: SavedObjectSummary[];
+}): ClientDataRoom {
+  const fallbackTimestamp = project.updatedAt ?? project.createdAt ?? new Date(0).toISOString();
+  const browserAssets: DataRoomAsset[] = [
+    ...aois.map((aoi): DataRoomAsset => ({
+      id: `browser-aoi-${aoi.id}`,
+      projectId: project.id,
+      projectKey: project.projectKey,
+      name: aoi.name,
+      description: aoi.description ?? "Browser-local screening AOI; official geometry validation required.",
+      assetType: "aoi",
+      sourceType: aoi.sourceType === "uploaded_geojson" ? "user_uploaded" : "user_drawn",
+      linkedAoiIds: [aoi.id],
+      validationStatus: "validation_required",
+      createdAt: aoi.createdAt,
+      updatedAt: aoi.updatedAt,
+      caveat: aoi.caveat || requiredDataCaveat
+    })),
+    ...datasets.map((dataset): DataRoomAsset => ({
+      id: `browser-upload-${dataset.id}`,
+      projectId: project.id,
+      projectKey: project.projectKey,
+      name: dataset.title,
+      description: dataset.sourceSummary ?? "Browser-local uploaded dataset; official validation required.",
+      assetType: dataset.assetType ?? "uploaded_csv",
+      sourceType: "user_uploaded",
+      validationStatus: "client_provided_unvalidated",
+      createdAt: dataset.createdAt ?? fallbackTimestamp,
+      updatedAt: dataset.createdAt ?? fallbackTimestamp,
+      caveat: requiredDataCaveat
+    })),
+    ...analyses.map((analysis): DataRoomAsset => ({
+      id: `browser-analysis-${analysis.id}`,
+      projectId: project.id,
+      projectKey: project.projectKey,
+      name: analysis.title,
+      description: `${analysis.scenarioLabel}. ${analysis.decisionPosture}`,
+      assetType: "analysis",
+      sourceType: "generated_by_geoai",
+      linkedAnalysisIds: [analysis.id],
+      validationStatus: "ready_for_review",
+      createdAt: analysis.timestamp,
+      updatedAt: analysis.timestamp,
+      caveat: requiredDataCaveat
+    })),
+    ...reports.map((report): DataRoomAsset => ({
+      id: `browser-report-${report.id}`,
+      projectId: project.id,
+      projectKey: project.projectKey,
+      name: report.title,
+      description: report.sourceSummary ?? "Browser-local screening report; official validation required.",
+      assetType: "report",
+      sourceType: "generated_by_geoai",
+      linkedReportIds: [report.id],
+      validationStatus: "ready_for_review",
+      createdAt: report.createdAt ?? fallbackTimestamp,
+      updatedAt: report.createdAt ?? fallbackTimestamp,
+      caveat: requiredDataCaveat
+    })),
+    ...comparisons.map((comparison): DataRoomAsset => ({
+      id: `browser-comparison-${comparison.id}`,
+      projectId: project.id,
+      projectKey: project.projectKey,
+      name: comparison.title,
+      description: comparison.sourceSummary ?? "Browser-local screening comparison; official validation required.",
+      assetType: "comparison",
+      sourceType: "generated_by_geoai",
+      validationStatus: "ready_for_review",
+      createdAt: comparison.createdAt ?? fallbackTimestamp,
+      updatedAt: comparison.createdAt ?? fallbackTimestamp,
+      caveat: requiredDataCaveat
+    }))
+  ];
+  const validServerDataRoom = serverDataRoom?.projectKey === project.projectKey ? serverDataRoom : null;
+  const assetsById = new Map<string, DataRoomAsset>();
+  for (const asset of validServerDataRoom?.assets ?? []) assetsById.set(asset.id, asset);
+  for (const asset of browserAssets) assetsById.set(asset.id, asset);
+  const assets = Array.from(assetsById.values())
+    .sort((left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt));
+  const checklist = validServerDataRoom?.checklist ?? [];
+  const completed = checklist.filter((item) => item.status === "completed" || item.status === "not_applicable").length;
+  const required = checklist.filter((item) => item.status === "required" || item.status === "not_started").length;
+  const inReview = checklist.filter((item) => item.status === "in_review").length;
+  const blocked = checklist.filter((item) => item.status === "blocked").length;
+  const browserOnly = validServerDataRoom === null;
+
+  return {
+    ok: true,
+    mode: browserOnly ? "browser_local" : validServerDataRoom.mode,
+    storageCaveat: browserOnly
+      ? "Project artifacts are isolated to this browser and are not durable shared storage."
+      : validServerDataRoom.storageCaveat,
+    projectId: project.id,
+    projectKey: project.projectKey,
+    project,
+    projectClientType: project.clientType,
+    assets,
+    checklist,
+    deliverables: validServerDataRoom?.deliverables ?? [],
+    summary: {
+      label: browserOnly ? "Browser-local data room" : validServerDataRoom.summary.label,
+      storageMode: browserOnly ? "browser_local" : validServerDataRoom.summary.storageMode,
+      storageNote: browserOnly
+        ? "AOIs, uploads, analyses and report summaries stay in this browser and are scoped to this project."
+        : validServerDataRoom.summary.storageNote,
+      validationNote: requiredDataCaveat,
+      latestAssets: assets.slice(0, 8),
+      checklistStatus: {
+        completed,
+        required,
+        inReview,
+        blocked,
+        total: checklist.length
+      },
+      counts: {
+        aois: assets.filter((asset) => asset.assetType === "aoi").length,
+        uploadedDatasets: assets.filter((asset) => asset.assetType === "uploaded_csv" || asset.assetType === "uploaded_geojson").length,
+        uploadedDocuments: assets.filter((asset) => asset.assetType === "uploaded_document").length,
+        analyses: assets.filter((asset) => asset.assetType === "analysis").length,
+        reports: assets.filter((asset) => asset.assetType === "report").length,
+        comparisons: assets.filter((asset) => asset.assetType === "comparison").length,
+        validationItems: assets.filter((asset) => asset.assetType === "validation_note").length + checklist.length,
+        externalSources: assets.filter((asset) => asset.assetType === "external_source").length
+      }
+    },
+    dataHonesty: validServerDataRoom?.dataHonesty ?? {
+      caveat: requiredDataCaveat,
+      storageCaveat: "Browser-local state is not secure, durable or shared enterprise storage.",
+      allowedLabels: ["screening", "browser-local", "validation required"],
+      forbiddenClaims: ["officially validated", "certified", "production-ready storage"]
+    }
+  };
 }
 
 function formatBytes(value?: number) {
@@ -539,7 +725,7 @@ function createInitialExternalDataStatus(): ExternalDataStatus {
 }
 
 function writeOpenAnalysisRequest(row: RecentAnalysisRow) {
-  if (!row.analysis) return;
+  if (!row.analysis || !isBrowserDemoStorageEnabled()) return;
 
   try {
     window.localStorage.setItem(openAnalysisRequestStorageKey, JSON.stringify({
@@ -556,6 +742,8 @@ function writeOpenAnalysisRequest(row: RecentAnalysisRow) {
 }
 
 function readLocalHistory() {
+  if (!isBrowserDemoStorageEnabled()) return [];
+
   try {
     const raw = window.localStorage.getItem(analysisHistoryStorageKey);
     if (!raw) return [];
@@ -786,7 +974,7 @@ export function ProjectDashboard() {
   const [reportPackages, setReportPackages] = useState<ReportPackageSummary[]>([]);
   const [reportPackageMessage, setReportPackageMessage] = useState<string | null>(null);
   const [projectAois, setProjectAois] = useState<ProjectAoi[]>([]);
-  const [dataRoom, setDataRoom] = useState<ClientDataRoom | null>(null);
+  const [serverDataRoom, setServerDataRoom] = useState<ClientDataRoom | null>(null);
   const [dataRoomMessage, setDataRoomMessage] = useState<string | null>(null);
   const [pilotWorkflow, setPilotWorkflow] = useState<PilotWorkflowSummary | null>(null);
   const [pilotWorkflowMessage, setPilotWorkflowMessage] = useState<string | null>(null);
@@ -800,6 +988,8 @@ export function ProjectDashboard() {
   const [projectAudienceDraft, setProjectAudienceDraft] = useState<LocalProjectInput["audience"]>("b2b");
   const [projectRoleDraft, setProjectRoleDraft] = useState<LocalProjectInput["role"]>("developer");
   const [projectMarketDraft, setProjectMarketDraft] = useState("Dubai / UAE");
+  const serverMutationsEnabled = pilotBackendStatus?.canRunConfidentialPilot === true;
+  const activeProjectIsDemoSeed = demoProjects.some((project) => project.projectKey === activeProjectKey);
 
   useEffect(() => {
     const nextActiveProjectKey = readActiveProjectKey();
@@ -865,108 +1055,32 @@ export function ProjectDashboard() {
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
-
-    async function loadDbHistory() {
-      try {
-        const [analysisResponse, reportsResponse, comparisonsResponse, datasetsResponse, reportPackagesResponse] = await Promise.all([
-          fetch(`/api/analysis-runs?limit=8&projectKey=${encodeURIComponent(activeProjectKey)}`),
-          fetch(`/api/reports?projectKey=${encodeURIComponent(activeProjectKey)}`),
-          fetch(`/api/comparison-sets?projectKey=${encodeURIComponent(activeProjectKey)}`),
-          fetch(`/api/uploaded-datasets?projectKey=${encodeURIComponent(activeProjectKey)}`),
-          fetch(`/api/report-packages?projectKey=${encodeURIComponent(activeProjectKey)}`)
-        ]);
-        const [analysisPayload, reportsPayload, comparisonsPayload, datasetsPayload, reportPackagesPayload] = await Promise.all([
-          analysisResponse.json(),
-          reportsResponse.json(),
-          comparisonsResponse.json(),
-          datasetsResponse.json(),
-          reportPackagesResponse.json()
-        ]);
-        if (!cancelled) {
-          setDbHistory(Array.isArray(analysisPayload.items) ? persistedRowsToRecent(analysisPayload.items) : []);
-          setSavedReports(Array.isArray(reportsPayload.summaries)
-            ? reportsPayload.summaries.map((item: {
-                id: string;
-                title: string;
-                createdAt?: string;
-                sourceSummary?: string;
-                reportType?: "analysis" | "comparison";
-                scenario?: string | null;
-                targetLabel?: string | null;
-                projectId?: string | null;
-                project_id?: string | null;
-                projectKey?: string | null;
-                project_key?: string | null;
-              }) => ({
-                id: item.id,
-                title: item.title,
-                createdAt: item.createdAt,
-                sourceSummary: item.sourceSummary,
-                reportType: item.reportType,
-                scenario: item.scenario,
-                targetLabel: item.targetLabel,
-                projectId: item.projectId ?? item.project_id ?? null,
-                projectKey: item.projectKey ?? item.project_key ?? null
-              }))
-            : []);
-          setSavedComparisons(Array.isArray(comparisonsPayload.items)
-            ? comparisonsPayload.items.map((item: {
-                id: string;
-                title: string;
-                createdAt?: string;
-                recommendation?: string;
-                projectId?: string | null;
-                project_id?: string | null;
-                projectKey?: string | null;
-                project_key?: string | null;
-              }) => ({
-                id: item.id,
-                title: item.title,
-                createdAt: item.createdAt,
-                sourceSummary: item.recommendation,
-                projectId: item.projectId ?? item.project_id ?? null,
-                projectKey: item.projectKey ?? item.project_key ?? null
-              }))
-            : []);
-          setProjectDatasets(Array.isArray(datasetsPayload.items)
-            ? datasetsPayload.items.map((item: {
-                id: string;
-                name: string;
-                uploadedAt?: string;
-                officialStatus?: string;
-                projectId?: string | null;
-                projectKey?: string | null;
-              }) => ({
-                id: item.id,
-                title: item.name,
-                createdAt: item.uploadedAt,
-                sourceSummary: item.officialStatus,
-                projectId: item.projectId ?? null,
-                projectKey: item.projectKey ?? null
-              }))
-            : []);
-          setReportPackages(Array.isArray(reportPackagesPayload.summaries) ? reportPackagesPayload.summaries : []);
-        }
-      } catch {
-        if (!cancelled) {
-          setDbHistory([]);
-          setSavedReports([]);
-          setSavedComparisons([]);
-          setProjectDatasets([]);
-          setReportPackages([]);
-        }
-      }
-    }
-
-    void loadDbHistory();
-
-    return () => {
-      cancelled = true;
-    };
+    const artifacts = readBrowserProjectArtifacts();
+    setDbHistory([]);
+    setSavedReports(artifacts
+      .filter((artifact) => artifact.type === "report")
+      .map((artifact) => ({ ...artifact })));
+    setSavedComparisons(artifacts
+      .filter((artifact) => artifact.type === "comparison")
+      .map((artifact) => ({ ...artifact })));
+    setProjectDatasets(readBrowserUploadedDatasets().map((dataset) => ({
+      id: dataset.id,
+      title: dataset.name,
+      createdAt: dataset.uploadedAt,
+      sourceSummary: `Browser-local ${dataset.type.toUpperCase()} / ${dataset.officialStatus}`,
+      projectKey: dataset.projectKey,
+      assetType: dataset.type === "geojson" ? "uploaded_geojson" : "uploaded_csv"
+    })));
+    setReportPackages([]);
   }, [activeProjectKey]);
 
   useEffect(() => {
+    if (!serverMutationsEnabled || !activeProjectIsDemoSeed) {
+      setStorageHealth(null);
+      setEvidenceFiles([]);
+      return;
+    }
+
     let cancelled = false;
 
     async function loadStorageAndEvidenceFiles() {
@@ -994,9 +1108,14 @@ export function ProjectDashboard() {
     return () => {
       cancelled = true;
     };
-  }, [activeProjectKey]);
+  }, [activeProjectIsDemoSeed, activeProjectKey, serverMutationsEnabled]);
 
   useEffect(() => {
+    if (!serverMutationsEnabled || !activeProjectIsDemoSeed) {
+      setValidationGovernance(null);
+      return;
+    }
+
     let cancelled = false;
 
     async function loadValidationGovernance() {
@@ -1014,32 +1133,18 @@ export function ProjectDashboard() {
     return () => {
       cancelled = true;
     };
-  }, [activeProjectKey]);
+  }, [activeProjectIsDemoSeed, activeProjectKey, serverMutationsEnabled]);
 
   useEffect(() => {
     setProjectAois(readBrowserAois());
-    let cancelled = false;
-
-    fetch(`/api/aois?projectKey=${encodeURIComponent(activeProjectKey)}`)
-      .then((response) => (response.ok ? response.json() : null))
-      .then((payload: AoiLibraryResponse | null) => {
-        if (cancelled || !Array.isArray(payload?.items)) return;
-
-        setProjectAois((current) => {
-          const byId = new Map<string, ProjectAoi>();
-          for (const item of current) byId.set(item.id, item);
-          for (const item of payload.items ?? []) byId.set(item.id, item);
-          return Array.from(byId.values());
-        });
-      })
-      .catch(() => undefined);
-
-    return () => {
-      cancelled = true;
-    };
   }, [activeProjectKey]);
 
   useEffect(() => {
+    if (!serverMutationsEnabled || !activeProjectIsDemoSeed) {
+      setServerDataRoom(null);
+      return;
+    }
+
     let cancelled = false;
 
     async function loadDataRoom() {
@@ -1047,11 +1152,11 @@ export function ProjectDashboard() {
         const response = await fetch(`/api/data-room?projectKey=${encodeURIComponent(activeProjectKey)}`);
         const payload = response.ok ? await response.json() as ClientDataRoom : null;
         if (!cancelled) {
-          setDataRoom(payload);
+          setServerDataRoom(payload);
         }
       } catch {
         if (!cancelled) {
-          setDataRoom(null);
+          setServerDataRoom(null);
         }
       }
     }
@@ -1061,9 +1166,14 @@ export function ProjectDashboard() {
     return () => {
       cancelled = true;
     };
-  }, [activeProjectKey]);
+  }, [activeProjectIsDemoSeed, activeProjectKey, serverMutationsEnabled]);
 
   useEffect(() => {
+    if (!serverMutationsEnabled || !activeProjectIsDemoSeed) {
+      setPilotWorkflow(null);
+      return;
+    }
+
     let cancelled = false;
 
     async function loadPilotWorkflow() {
@@ -1085,10 +1195,10 @@ export function ProjectDashboard() {
     return () => {
       cancelled = true;
     };
-  }, [activeProjectKey]);
+  }, [activeProjectIsDemoSeed, activeProjectKey, serverMutationsEnabled]);
 
   const activeProject = useMemo(
-    () => projects.find((project) => project.projectKey === activeProjectKey) ?? getDemoProject(activeProjectKey),
+    () => projects.find((project) => project.projectKey === activeProjectKey) ?? unavailableBrowserProject(activeProjectKey),
     [activeProjectKey, projects]
   );
   const visibleProjects = useMemo(
@@ -1114,6 +1224,15 @@ export function ProjectDashboard() {
   const scopedProjectAois = projectAois
     .filter((item) => item.projectKey === activeProject.projectKey || item.projectId === activeProject.id)
     .sort((a, b) => Date.parse(b.updatedAt ?? b.createdAt) - Date.parse(a.updatedAt ?? a.createdAt));
+  const dataRoom = useMemo(() => mergeBrowserProjectDataRoom({
+    project: activeProject,
+    serverDataRoom,
+    aois: scopedProjectAois,
+    datasets: scopedProjectDatasets,
+    analyses: localRows,
+    reports: scopedSavedReports,
+    comparisons: scopedSavedComparisons
+  }), [activeProject, localRows, scopedProjectAois, scopedProjectDatasets, scopedSavedComparisons, scopedSavedReports, serverDataRoom]);
   const aoiSourceCounts = scopedProjectAois.reduce<Record<string, number>>((counts, aoi) => {
     const label = sourceTypeLabel(aoi.sourceType);
     counts[label] = (counts[label] ?? 0) + 1;
@@ -1348,6 +1467,11 @@ export function ProjectDashboard() {
 
   async function addValidationEvidencePlaceholder() {
     setValidationMessage(null);
+    if (!serverMutationsEnabled) {
+      setValidationMessage("Validation evidence writes are disabled in the public demo. Sign-in and project access enforcement must be verified first.");
+      return;
+    }
+
     const response = await fetch("/api/validation/evidence", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1375,6 +1499,11 @@ export function ProjectDashboard() {
   }
 
   async function createReviewDecision(decision: string) {
+    if (!serverMutationsEnabled) {
+      setValidationMessage("Review decisions are disabled in the public demo. Verified identity and project-scoped access are required.");
+      return;
+    }
+
     const target = validationGovernance?.evidence?.[0];
     if (!target) {
       setValidationMessage("Create validation evidence before adding a review decision.");
@@ -1412,16 +1541,18 @@ export function ProjectDashboard() {
     `/workspace?projectKey=${encodeURIComponent(activeProject.projectKey)}&projectId=${encodeURIComponent(activeProject.id ?? activeProject.projectKey)}&openAoi=${encodeURIComponent(aoi.id)}`;
 
   async function refreshDataRoom(projectKey = activeProject.projectKey) {
+    if (!serverMutationsEnabled) return;
     try {
       const response = await fetch(`/api/data-room?projectKey=${encodeURIComponent(projectKey)}`);
       if (!response.ok) return;
-      setDataRoom(await response.json() as ClientDataRoom);
+      setServerDataRoom(await response.json() as ClientDataRoom);
     } catch {
       setDataRoomMessage("Data room summary is temporarily unavailable.");
     }
   }
 
   async function refreshEvidenceFiles(projectKey = activeProject.projectKey) {
+    if (!serverMutationsEnabled) return;
     try {
       const response = await fetch(`/api/storage/evidence-files?projectKey=${encodeURIComponent(projectKey)}`);
       if (!response.ok) return;
@@ -1433,6 +1564,7 @@ export function ProjectDashboard() {
   }
 
   async function refreshPilotWorkflow(projectKey = activeProject.projectKey) {
+    if (!serverMutationsEnabled) return;
     try {
       const response = await fetch(`/api/pilot-workflow?projectKey=${encodeURIComponent(projectKey)}`);
       if (!response.ok) return;
@@ -1443,6 +1575,7 @@ export function ProjectDashboard() {
   }
 
   async function refreshReportPackages(projectKey = activeProject.projectKey) {
+    if (!serverMutationsEnabled) return;
     try {
       const response = await fetch(`/api/report-packages?projectKey=${encodeURIComponent(projectKey)}`);
       const payload = response.ok ? await response.json() as { summaries?: ReportPackageSummary[] } : null;
@@ -1453,6 +1586,11 @@ export function ProjectDashboard() {
   }
 
   async function createProjectReportPackage() {
+    if (!serverMutationsEnabled) {
+      setReportPackageMessage("Server report packages are disabled in the public demo. Use browser-local report export until verified sign-in is connected.");
+      return;
+    }
+
     setReportPackageMessage("Creating report package...");
     const response = await fetch("/api/report-packages", {
       method: "POST",
@@ -1486,6 +1624,11 @@ export function ProjectDashboard() {
   }
 
   async function registerDataRoomFile(file: File) {
+    if (!serverMutationsEnabled) {
+      setDataRoomMessage("Evidence-file writes are disabled in the public demo. Upload CSV or GeoJSON in the workspace for project-scoped browser-local use.");
+      return;
+    }
+
     const maxFileSize = storageHealth?.maxFileSizeBytes ?? 5 * 1024 * 1024;
     if (file.size > maxFileSize) {
       setDataRoomMessage("Keep evidence uploads under the 5 MB MVP limit.");
@@ -1514,6 +1657,11 @@ export function ProjectDashboard() {
   }
 
   async function updateChecklistStatus(item: NonNullable<ClientDataRoom["checklist"]>[number], status: ValidationChecklistStatus) {
+    if (!serverMutationsEnabled) {
+      setDataRoomMessage("Checklist writes are disabled until verified sign-in and project-scoped authorization are active.");
+      return;
+    }
+
     const response = await fetch(`/api/data-room/checklist/${encodeURIComponent(item.id)}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -1531,6 +1679,11 @@ export function ProjectDashboard() {
   }
 
   async function updatePilotInputStatus(item: ClientInputItem, status: ClientInputStatus) {
+    if (!serverMutationsEnabled) {
+      setPilotWorkflowMessage("Pilot input writes are disabled until verified sign-in and project-scoped authorization are active.");
+      return;
+    }
+
     const response = await fetch(`/api/pilot-workflow/client-inputs/${encodeURIComponent(item.id)}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -1547,6 +1700,11 @@ export function ProjectDashboard() {
   }
 
   async function updatePilotDeliverableStatus(item: PilotDeliverableStatus, status: PilotDeliverableWorkflowStatus) {
+    if (!serverMutationsEnabled) {
+      setPilotWorkflowMessage("Deliverable writes are disabled until verified sign-in and project-scoped authorization are active.");
+      return;
+    }
+
     const response = await fetch(`/api/pilot-workflow/deliverables/${encodeURIComponent(item.id)}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -1585,7 +1743,8 @@ export function ProjectDashboard() {
   }
 
   function changeProject(projectKey: string) {
-    const nextProject = projects.find((project) => project.projectKey === projectKey) ?? getDemoProject(projectKey);
+    const nextProject = projects.find((project) => project.projectKey === projectKey);
+    if (!nextProject) return;
     activateProject(nextProject);
   }
 
@@ -1599,7 +1758,7 @@ export function ProjectDashboard() {
     activateProject(nextProject);
   }
 
-  async function createProjectFromHub() {
+  function createProjectFromHub() {
     const name = projectNameDraft.trim();
     if (!name) return;
 
@@ -1610,31 +1769,13 @@ export function ProjectDashboard() {
       geography: projectMarketDraft.trim() || "Dubai / UAE"
     });
 
-    try {
-      const response = await fetch("/api/projects", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(projectToInput(localProject))
-      });
-      const payload = response.ok ? await response.json() as { project?: GeoAIProject | null; mode?: "supabase" | "demo_seed" } : null;
-      const createdProject = payload?.project ?? localProject;
-
-      saveLocalProject(createdProject);
-      setProjects((current) => mergeProjectsWithLocal([createdProject, ...current]));
-      setProjectsMode(payload?.mode ?? "demo_seed");
-      activateProject(createdProject);
-      setProjectNameDraft("");
-      setProjectMarketDraft("Dubai / UAE");
-      setIsProjectCreateOpen(false);
-    } catch {
-      saveLocalProject(localProject);
-      setProjects((current) => mergeProjectsWithLocal([localProject, ...current]));
-      setProjectsMode("demo_seed");
-      activateProject(localProject);
-      setProjectNameDraft("");
-      setProjectMarketDraft("Dubai / UAE");
-      setIsProjectCreateOpen(false);
-    }
+    saveLocalProject(localProject);
+    setProjects((current) => mergeProjectsWithLocal([localProject, ...current]));
+    setProjectsMode("demo_seed");
+    activateProject(localProject);
+    setProjectNameDraft("");
+    setProjectMarketDraft("Dubai / UAE");
+    setIsProjectCreateOpen(false);
   }
 
   return (
@@ -1914,7 +2055,9 @@ export function ProjectDashboard() {
               <button
                 type="button"
                 onClick={() => dataRoomFileInputRef.current?.click()}
-                className="inline-flex h-10 items-center justify-center rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink transition hover:border-brand"
+                disabled={!serverMutationsEnabled}
+                title={!serverMutationsEnabled ? "Requires verified sign-in and project-scoped authorization" : undefined}
+                className="inline-flex h-10 items-center justify-center rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink transition hover:border-brand disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Add file
               </button>
@@ -1997,7 +2140,7 @@ export function ProjectDashboard() {
                         {dataRoom?.summary.label ?? "Data room foundation active"}
                       </span>
                       <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-brand">
-                        local/sample fallback
+                        {formatDataRoomLabel(dataRoom.summary.storageMode)}
                       </span>
                     </div>
                     <p className="mt-2 text-sm leading-6 text-muted">
@@ -2018,7 +2161,9 @@ export function ProjectDashboard() {
                     <button
                       type="button"
                       onClick={() => dataRoomFileInputRef.current?.click()}
-                      className="inline-flex h-9 items-center justify-center rounded-md border border-line bg-white px-3 text-xs font-semibold text-ink transition hover:border-brand"
+                      disabled={!serverMutationsEnabled}
+                      title={!serverMutationsEnabled ? "Requires verified sign-in and project-scoped authorization" : undefined}
+                      className="inline-flex h-9 items-center justify-center rounded-md border border-line bg-white px-3 text-xs font-semibold text-ink transition hover:border-brand disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       Add/upload data
                     </button>
@@ -2035,6 +2180,7 @@ export function ProjectDashboard() {
                   ref={dataRoomFileInputRef}
                   type="file"
                   className="hidden"
+                  disabled={!serverMutationsEnabled}
                   accept=".pdf,.csv,.json,.geojson,.png,.jpg,.jpeg,.xlsx,.docx,application/pdf,text/csv,application/json,application/geo+json,image/png,image/jpeg,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                   onChange={(event) => {
                     void handleDataRoomFileChange(event);
@@ -2044,6 +2190,12 @@ export function ProjectDashboard() {
                 {dataRoomMessage ? (
                   <p className="rounded-md border border-line bg-white px-3 py-2 text-xs leading-5 text-muted">
                     {dataRoomMessage}
+                  </p>
+                ) : null}
+
+                {!serverMutationsEnabled ? (
+                  <p className="rounded-md border border-line bg-[#fff9e8] px-3 py-2 text-xs leading-5 text-[#6f5817]">
+                    Public demo containment is active: server evidence, checklist, review and package writes are disabled before any network request. Project AOIs, CSV/GeoJSON uploads, analyses and report summaries remain browser-local.
                   </p>
                 ) : null}
 
@@ -2117,10 +2269,12 @@ export function ProjectDashboard() {
                               </span>
                               <select
                                 value={item.status}
+                                disabled={!serverMutationsEnabled}
+                                title={!serverMutationsEnabled ? "Requires verified sign-in and project-scoped authorization" : undefined}
                                 onChange={(event) => {
                                   void updateChecklistStatus(item, event.target.value as ValidationChecklistStatus);
                                 }}
-                                className="h-8 rounded-md border border-line bg-white px-2 text-xs font-semibold text-ink outline-none transition focus:border-brand"
+                                className="h-8 rounded-md border border-line bg-white px-2 text-xs font-semibold text-ink outline-none transition focus:border-brand disabled:cursor-not-allowed disabled:opacity-50"
                                 aria-label={`Validation status for ${item.title}`}
                               >
                                 {["required", "in_review", "completed", "blocked", "not_applicable"].map((status) => (
@@ -2221,10 +2375,12 @@ export function ProjectDashboard() {
                             </div>
                             <select
                               value={item.status}
+                              disabled={!serverMutationsEnabled}
+                              title={!serverMutationsEnabled ? "Requires verified sign-in and project-scoped authorization" : undefined}
                               onChange={(event) => {
                                 void updatePilotInputStatus(item, event.target.value as ClientInputStatus);
                               }}
-                              className="h-8 shrink-0 rounded-md border border-line bg-surface px-2 text-xs font-semibold text-ink outline-none transition focus:border-brand"
+                              className="h-8 shrink-0 rounded-md border border-line bg-surface px-2 text-xs font-semibold text-ink outline-none transition focus:border-brand disabled:cursor-not-allowed disabled:opacity-50"
                               aria-label={`Client input status for ${item.title}`}
                             >
                               {["missing", "requested", "provided_unvalidated", "in_review", "accepted_for_screening", "blocked", "not_applicable"].map((status) => (
@@ -2254,10 +2410,12 @@ export function ProjectDashboard() {
                             </div>
                             <select
                               value={item.status}
+                              disabled={!serverMutationsEnabled}
+                              title={!serverMutationsEnabled ? "Requires verified sign-in and project-scoped authorization" : undefined}
                               onChange={(event) => {
                                 void updatePilotDeliverableStatus(item, event.target.value as PilotDeliverableWorkflowStatus);
                               }}
-                              className="h-8 shrink-0 rounded-md border border-line bg-surface px-2 text-xs font-semibold text-ink outline-none transition focus:border-brand"
+                              className="h-8 shrink-0 rounded-md border border-line bg-surface px-2 text-xs font-semibold text-ink outline-none transition focus:border-brand disabled:cursor-not-allowed disabled:opacity-50"
                               aria-label={`Deliverable status for ${item.title}`}
                             >
                               {["planned", "in_progress", "generated", "ready_for_review", "validation_required", "blocked"].map((status) => (
@@ -2274,8 +2432,10 @@ export function ProjectDashboard() {
                 </div>
               ) : (
                 <EmptyState
-                  title="Pilot workflow unavailable"
-                  text="The workflow summary could not be loaded for this project. The Data Room and workspace remain available."
+                  title={serverMutationsEnabled ? "Pilot workflow unavailable" : "Pilot workflow writes locked"}
+                  text={serverMutationsEnabled
+                    ? "The workflow summary could not be loaded for this project. The Data Room and workspace remain available."
+                    : "The public demo keeps project work browser-local. Verified sign-in and project-scoped authorization are required before server workflow data can be loaded or changed."}
                   href={openWorkspaceHref}
                   action="Open workspace"
                 />
@@ -2421,7 +2581,9 @@ export function ProjectDashboard() {
                     onClick={() => {
                       void createProjectReportPackage();
                     }}
-                    className="inline-flex h-9 shrink-0 items-center justify-center rounded-md bg-brand px-3 text-xs font-semibold text-white transition hover:bg-[#113f50]"
+                    disabled={!serverMutationsEnabled}
+                    title={!serverMutationsEnabled ? "Requires verified sign-in and project-scoped authorization" : undefined}
+                    className="inline-flex h-9 shrink-0 items-center justify-center rounded-md bg-brand px-3 text-xs font-semibold text-white transition hover:bg-[#113f50] disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     Create package
                   </button>
@@ -2590,7 +2752,7 @@ export function ProjectDashboard() {
                         : "Checking runtime status"}
                     </p>
                     <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted">
-                      {pilotBackendStatus?.blockers?.[0]?.description ?? platformStatus?.blockers?.[0] ?? dbHealth?.message ?? "Loading current runtime and security gate evidence."}
+                      {pilotBackendStatus?.blockers?.[0]?.description ?? pilotBackendStatus?.blockers?.[0]?.title ?? platformStatus?.blockers?.[0] ?? dbHealth?.message ?? "Loading current runtime and security gate evidence."}
                     </p>
                   </div>
                   <span className="shrink-0 rounded-full bg-white px-2 py-1 text-xs font-semibold text-brand">
@@ -2676,7 +2838,9 @@ export function ProjectDashboard() {
                         key={decision}
                         type="button"
                         onClick={() => void createReviewDecision(decision)}
-                        className="inline-flex h-8 items-center justify-center rounded-md border border-line bg-white px-3 text-xs font-semibold text-ink transition hover:border-brand"
+                        disabled={!serverMutationsEnabled}
+                        title={!serverMutationsEnabled ? "Requires verified sign-in and project-scoped authorization" : undefined}
+                        className="inline-flex h-8 items-center justify-center rounded-md border border-line bg-white px-3 text-xs font-semibold text-ink transition hover:border-brand disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         {label}
                       </button>
@@ -2721,7 +2885,9 @@ export function ProjectDashboard() {
                   <button
                     type="button"
                     onClick={() => void addValidationEvidencePlaceholder()}
-                    className="inline-flex h-9 items-center justify-center rounded-md bg-brand px-3 text-sm font-semibold text-white transition hover:bg-[#113f50]"
+                    disabled={!serverMutationsEnabled}
+                    title={!serverMutationsEnabled ? "Requires verified sign-in and project-scoped authorization" : undefined}
+                    className="inline-flex h-9 items-center justify-center rounded-md bg-brand px-3 text-sm font-semibold text-white transition hover:bg-[#113f50] disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     Add validation evidence
                   </button>
@@ -2747,10 +2913,10 @@ export function ProjectDashboard() {
                 <div className="rounded-md border border-line bg-surface p-4">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold text-ink">{formatDataRoomLabel(storageHealth?.provider ?? "local_metadata_only")}</p>
+                      <p className="text-sm font-semibold text-ink">{formatDataRoomLabel(storageHealth?.provider ?? "protected_storage_unavailable_to_public_demo")}</p>
                       <p className="mt-1 text-xs leading-5 text-muted">
                         {storageRuntimeSummary({
-                          configured: storageHealth?.configured ?? storageHealth?.provider === "supabase_storage",
+                          configured: storageHealth?.configured === true,
                           storageReady: Boolean(storageHealth?.storageReady && storageHealth?.bucketReady),
                           evidenceFileCount: evidenceFiles.length,
                           metadataOnlyCount: evidenceFiles.filter((file) => file.objectStatus === "metadata_only").length
@@ -2792,7 +2958,9 @@ export function ProjectDashboard() {
                   <button
                     type="button"
                     onClick={() => dataRoomFileInputRef.current?.click()}
-                    className="inline-flex h-9 items-center justify-center rounded-md bg-brand px-3 text-sm font-semibold text-white transition hover:bg-[#113f50]"
+                    disabled={!serverMutationsEnabled}
+                    title={!serverMutationsEnabled ? "Requires verified sign-in and project-scoped authorization" : undefined}
+                    className="inline-flex h-9 items-center justify-center rounded-md bg-brand px-3 text-sm font-semibold text-white transition hover:bg-[#113f50] disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     Add evidence file
                   </button>

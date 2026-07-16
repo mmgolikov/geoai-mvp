@@ -52,6 +52,16 @@ for (const file of await collectRouteFiles(apiRoot)) {
 
     const calls = countMatches(handler.body, /requireProjectAccess\s*\(/g);
     if (calls === 0) {
+      if (policy.scope === "static_browser_local") {
+        const safeGet = handler.method === "GET" && /repositoryModeFields\("browser_local"\)/.test(handler.body) && /items:\s*\[\]/.test(handler.body);
+        const deniedMutation = handler.method !== "GET" && /repositoryModeFields\("browser_local"\)/.test(handler.body) && /status:\s*403/.test(handler.body);
+        const parsesRequestBody = /request\.(?:json|formData)\s*\(|readBoundedJson\s*\(/.test(handler.body);
+        if (!(safeGet || deniedMutation) || parsesRequestBody) {
+          failures.push(`${relative} ${handler.method}: static browser-local containment is incomplete`);
+        }
+        protectedHandlers += 1;
+        continue;
+      }
       if (policy.scope === "delegated" && /return\s+(?:GET|POST|PUT|PATCH|DELETE)\s*\(request\)/.test(handler.body)) {
         protectedHandlers += 1;
         continue;
@@ -65,9 +75,48 @@ for (const file of await collectRouteFiles(apiRoot)) {
 
     protectedHandlers += 1;
     guardCalls += calls;
-    const checks = countMatches(handler.body, /if\s*\(\s*!access\.allowed\s*\)/g);
-    if (checks !== calls) {
-      failures.push(`${relative} ${handler.method}: ${calls} access decision(s), ${checks} blocking check(s)`);
+    const checks = countMatches(handler.body, /if\s*\(\s*![A-Za-z_$][\w$]*\.allowed\s*\)/g);
+    const preAuthChecks = countMatches(handler.body, /if\s*\(\s*isPreAuthServerMutationBlocked\s*\(/g);
+    if (checks + preAuthChecks !== calls) {
+      failures.push(`${relative} ${handler.method}: ${calls} access decision(s), ${checks + preAuthChecks} blocking check(s)`);
+      continue;
+    }
+
+    if (policy.preAuthMutation === true && preAuthChecks === 0) {
+      failures.push(`${relative} ${handler.method}: manifest requires an early pre-Auth mutation denial`);
+      continue;
+    }
+
+    if (policy.preAuthIdentityRequired === true) {
+      const identityIndex = handler.body.indexOf("hasRequestIdentityKernelEvidence(");
+      const sensitiveIndexes = [
+        handler.body.indexOf("await context.params"),
+        handler.body.search(/await\s+(?:get|create|update|delete|list)[A-Z][A-Za-z0-9_]*\s*\(/),
+        handler.body.search(/request\.(?:json|formData)\s*\(|readBoundedJson\s*\(/)
+      ].filter((index) => index >= 0);
+      const firstSensitive = sensitiveIndexes.length > 0 ? Math.min(...sensitiveIndexes) : -1;
+      const identityWindow = identityIndex >= 0 ? handler.body.slice(Math.max(0, identityIndex - 40), identityIndex + 1400) : "";
+      const visiblyReturns = /if\s*\(\s*!hasRequestIdentityKernelEvidence\(\)\s*\)\s*\{[\s\S]*?return\s+(?:NextResponse\.|privateNoStoreJson\s*\()/.test(identityWindow);
+      if (identityIndex < 0 || (firstSensitive >= 0 && identityIndex > firstSensitive) || !visiblyReturns) {
+        failures.push(`${relative} ${handler.method}: verified-identity denial must precede params, body and repository access`);
+        continue;
+      }
+    }
+
+    if (preAuthChecks > 0) {
+      const preAuthIndex = handler.body.indexOf("isPreAuthServerMutationBlocked(");
+      const sensitiveIndexes = [
+        handler.body.indexOf("await context.params"),
+        handler.body.indexOf("request.json()"),
+        handler.body.indexOf("request.formData()"),
+        handler.body.indexOf("readBoundedJson("),
+        handler.body.search(/await\s+(?:get|create|update|delete|list)[A-Z][A-Za-z0-9_]*\s*\(/)
+      ].filter((index) => index >= 0);
+      const firstSensitive = sensitiveIndexes.length > 0 ? Math.min(...sensitiveIndexes) : -1;
+      const preAuthWindow = handler.body.slice(Math.max(0, preAuthIndex - 20), preAuthIndex + 800);
+      if ((firstSensitive >= 0 && preAuthIndex > firstSensitive) || !/return\s+NextResponse\.json\(projectAccessDeniedPayload\(access\)/.test(preAuthWindow)) {
+        failures.push(`${relative} ${handler.method}: pre-Auth denial must return before params, body and repository access`);
+      }
       continue;
     }
 
@@ -78,7 +127,7 @@ for (const file of await collectRouteFiles(apiRoot)) {
       continue;
     }
     const denialWindow = handler.body.slice(checkIndex, checkIndex + 1200);
-    if (!/if\s*\(\s*!access\.allowed\s*\)\s*\{[\s\S]*?return\s+NextResponse\./.test(denialWindow)) {
+    if (!/if\s*\(\s*!access\.allowed\s*\)\s*\{[\s\S]*?return\s+(?:NextResponse\.|privateNoStoreJson\s*\()/.test(denialWindow)) {
       failures.push(`${relative} ${handler.method}: denial branch does not visibly return a response`);
       continue;
     }

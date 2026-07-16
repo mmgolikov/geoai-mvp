@@ -81,6 +81,12 @@ jobs:
           set -euo pipefail
           npm run test:readiness-evidence | tee artifacts/readiness-evidence-check.txt
 
+      - name: Protected GET cache-boundary checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:private-cache-boundary | tee artifacts/private-cache-boundary-check.txt
+
       - name: Static RLS-plan checks
         shell: bash
         run: |
@@ -127,6 +133,30 @@ jobs:
           set -euo pipefail
           npm run test:documentation-current-truth | tee artifacts/documentation-current-truth-check.txt
 
+      - name: Documentation lifecycle manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:document-lifecycle | tee artifacts/document-lifecycle-check.txt
+
+      - name: Project isolation source contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:project-isolation | tee artifacts/project-isolation-check.txt
+
+      - name: Public report-package projection contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:report-package-public-contract | tee artifacts/report-package-public-contract-check.txt
+
+      - name: Runtime status contract checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:runtime-status-contract | tee artifacts/runtime-status-contract-check.txt
+
       - name: Runtime source-pack contract checks
         shell: bash
         run: |
@@ -138,6 +168,12 @@ jobs:
         run: |
           set -euo pipefail
           npm run build | tee artifacts/build.txt
+
+      - name: Vercel output-file tracing contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:vercel-output-tracing | tee artifacts/vercel-output-tracing-check.txt
 
       - name: Start built app and run API/route smoke
         shell: bash
@@ -183,9 +219,19 @@ jobs:
             "/reports/seeded-analysis-dubai-marina-report/print"
             "/reports/seeded-comparison-dubai-shortlist-report/print"
           )
+          declare -A expected_status
           for route in "${routes[@]}"; do
-            curl --fail --silent --show-error --output /dev/null "http://127.0.0.1:3000${route}"
-            printf '%s\t%s\n' "200" "$route" | tee -a artifacts/route-smoke.txt
+            expected_status["$route"]="200"
+          done
+          expected_status["/demo"]="307"
+
+          for route in "${routes[@]}"; do
+            code=$(curl --silent --show-error --max-time 20 --output /dev/null --write-out '%{http_code}' "http://127.0.0.1:3000${route}")
+            printf '%s\t%s\n' "$code" "$route" | tee -a artifacts/route-smoke.txt
+            if [ "$code" != "${expected_status[$route]}" ]; then
+              echo "Unexpected HTTP status for $route: got $code, expected ${expected_status[$route]}" >&2
+              exit 1
+            fi
           done
 
       - name: Preserve application log

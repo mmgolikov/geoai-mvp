@@ -18,9 +18,29 @@ const contentSecurityPolicy = [
   "upgrade-insecure-requests"
 ].join("; ");
 
+const publicSourceRuntimeFiles = [
+  "./data/external/normalized/external_data_manifest.json",
+  "./data/normalized/dld_source_quality.json",
+  "./data/normalized/osm_source_quality.json",
+  "./data/normalized/overture_source_quality.json"
+];
+
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   reactStrictMode: true,
+  // Public source/readiness routes import only a bounded reviewed manifest plus
+  // compact aggregate-quality metadata. Deep snapshots are reserved for the
+  // operator plane. Dynamic context routes declare their one required file.
+  outputFileTracingIncludes: {
+    "/api/context/spatial": ["./data/normalized/overture_buildings_snapshot.json"],
+    "/api/context/demographics": ["./data/normalized/worldpop_population_context.json"],
+    "/api/context/satellite-availability": ["./data/external/samples/copernicus_sentinel_metadata_sample.json"],
+    "/api/data-sources*": publicSourceRuntimeFiles,
+    "/api/external-data/manifest": publicSourceRuntimeFiles,
+    "/api/external-data/sources": publicSourceRuntimeFiles,
+    "/api/external-data/status": publicSourceRuntimeFiles,
+    "/api/source-lineage": publicSourceRuntimeFiles
+  },
   async headers() {
     return [
       {

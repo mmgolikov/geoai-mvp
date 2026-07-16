@@ -2,7 +2,12 @@
 
 Status: Active baseline
 Last verified: 2026-07-16
-Release authority: PR #87 / `2999e7e857989baf53ce58ecfed63550b5896be0`
+Owner: GeoAI Data / Engineering
+Authority: Current source, custody and evidence policy
+Successor: None; any replacement must update `DOCUMENTATION_INDEX.md`
+Released baseline: PR #87 / `2999e7e857989baf53ce58ecfed63550b5896be0`
+Unreleased implementation scope: audit worktree / Draft PR #97 candidate; candidate controls do not describe Production until merge and deploy
+Navigation: [Confluence Hub](https://geoaimvp.atlassian.net/wiki/spaces/PH/overview) · [Documentation Index](DOCUMENTATION_INDEX.md) · [Current Release State](CURRENT_RELEASE_STATE.md) · [Architecture](architecture.md) · [Full System Audit](FULL_SYSTEM_AUDIT_2026_07_16.md) · [Codex Backlog](CODEX_BACKLOG_2026_07_16.md)
 
 ## Operating principle
 
@@ -13,7 +18,7 @@ GeoAI is source-lineage-first and fail-closed. A registered connector, sample fi
 | Source group | Current state | Allowed use | Prohibited interpretation |
 | --- | --- | --- | --- |
 | Synthetic/seed GeoJSON | Active public demo | Stable workflow and UI demonstration | Official parcel, planning, zoning, cadastral or risk geometry |
-| User-uploaded CSV/GeoJSON | Browser/local, validation required | User-provided screening context | Verified or official evidence |
+| User-uploaded CSV/GeoJSON | Project-tagged browser-local only in public demo; structural quotas; validation required | Non-confidential user-provided screening context | Personal/confidential/regulated data, server persistence, cross-user sharing, verified or official evidence |
 | NASA POWER | Fixed historical point context in bounded Preview | Low-volume climate/energy screening context | Engineering/insurance-grade model or live SLA |
 | Copernicus Sentinel-2 | Catalogue metadata only in bounded Preview | Availability/context metadata | Geometry, bbox, imagery asset acquisition or analysis |
 | OSM Overpass | Bounded counts only in Preview | Count-level open context with ODbL attribution | Features, coordinates, geometry or official GIS |
@@ -22,7 +27,11 @@ GeoAI is source-lineage-first and fail-closed. A registered connector, sample fi
 | Overture/OSM geometry | Deferred | Contract/design work only | Activated Product geometry |
 | WorldPop/OpenAQ/administrative samples | Sample/manual/readiness | Caveated source catalog context | Connected or decision-grade evidence |
 
-Production source-pack execution is disabled and returns HTTP 503 with zero active sources. No current source influences deterministic scores.
+Production source-pack API execution is disabled and returns HTTP 503 with zero active sources. The released `/explore` route nevertheless has a known UI/runtime-environment wiring defect that can present Preview/open-context source semantics; the audit candidate fixes it by resolving the runtime server-side. Treat the API as fail-closed but the released source UI boundary as unverified until Draft PR #97 is merged and deployed. No current source influences deterministic scores.
+
+Candidate local/Preview provider execution requires all of: explicit flag, server-only operator token of at least 32 characters and matching request authorization. Production remains disabled. Provider fetches are constrained to fixed HTTPS hosts, reject redirects and cancel non-success/oversized bodies. NASA pairs must align on valid in-period dates and parameter ranges; Copernicus requires the exact collection, strict UTC in-period datetime and 0–100 cloud cover; Overpass requires exactly three finite non-negative count values. This narrows SSRF, accidental activation, semantic corruption and single-response memory risk but is not distributed quota/circuit evidence.
+
+The audit candidate's anonymous data-sources/readiness/manifest/sources/status/lineage routes are static `compact_public_v1` projections of the reviewed repository snapshot. Their API/source contract is `1.3`; the bundled data manifest `version`/`manifestVersion` is `1.6`. They set `liveRegistryIncluded:false`, expose zero live counts, withhold diagnostics and perform no Supabase probe. The serverless functions statically import only the reviewed manifest plus three compact aggregate-quality records; deep source snapshots are excluded by an output-trace gate. DLD/OSM/Overture per-source count/status/`usedInAnalysis` values are contract-tested independently of group totals. The old Preview repeated roughly 133–158 KB per route; the candidate enforces 64 KB per manifest/status route and 48 KB on the other public data-foundation routes. Final local sizes are 5,063/4,467/19,448/5,063/8,158/4,352 B for data-sources/readiness/manifest/sources/status/lineage; only exact-head remote Preview measurement remains a publication gate.
 
 ## Source lifecycle
 
@@ -58,7 +67,9 @@ Public APIs may expose only approved DTO fields. Raw filenames, normalized paths
 
 ## Persistence and authorization boundary
 
-Real source ingestion must use a separate operator/worker plane. User-facing API repositories must never inherit service-role credentials. Project data access must be based on a request-scoped user session and RLS. The current code does not yet implement that user-context kernel, so real-source persistence and protected files remain blocked.
+Real source ingestion must use a separate operator/worker plane. User-facing API repositories must never inherit service-role credentials. Project data access must be based on a validated caller JWT through a request-scoped Supabase client plus minimum grants and RLS. Public-demo mutations and Vercel server-local fallback are disabled; AOIs/uploads remain project-scoped browser-local. The code still lacks the user-context kernel, so real-source persistence and protected files remain blocked.
+
+The separate development Supabase ref `pphdqkurxneyagvnnjdt` still exposes `public` through the Data API; the review-only containment migration is unapplied. Before any source registry/snapshot is written there, the owner must either disable the Data API or expose a dedicated minimal `api` schema, close profile/organization/project identity constraints, and prove anon/authenticated/Storage negative personas. See the [draft containment runbook](SUPABASE_DATA_API_CONTAINMENT_RUNBOOK_2026_07_16.md); it authorizes no live change.
 
 ## Data quality gates
 
@@ -67,6 +78,7 @@ Real source ingestion must use a separate operator/worker plane. User-facing API
 - Duplicate/outlier/null and temporal-coverage checks.
 - Quality tier and limitations visible in lineage.
 - Sample/permission-required inputs cannot be promoted to acquired evidence.
+- Zero-record, manual-import, planned or permission-required sources cannot appear in report `evidenceUsed`; they remain candidate/validation-required lineage until a selected report/analysis or acquired authorized asset identifies actual use.
 - Missing or failed providers must produce a truthful unavailable/fallback state, not stale positive evidence.
 - AI prompts receive only approved, project-authorized, privacy-classified projections.
 
@@ -75,9 +87,10 @@ Real source ingestion must use a separate operator/worker plane. User-facing API
 - `src/lib/external-data/runtime-source-pack.ts`
 - `src/lib/external-data/source-registry.ts`
 - `src/lib/external-data/supabase-source-registry.ts`
+- `src/lib/external-data/public-source-readiness.ts`
 - `src/lib/external-data/public-source-projection.ts`
 - `security/api-route-access.json`
-- `data/external/manifest.json`
+- `data/external/normalized/external_data_manifest.json`
 - `docs/CR_DEV8_001_CONTROLLED_OPEN_CONTEXT_SOURCE_CONNECTION_PACK_V1.md`
 - `docs/CR_DEV8_001_QA_CHECKLIST.md`
 

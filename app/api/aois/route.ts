@@ -4,6 +4,9 @@ import { repositoryModeFields } from "@/src/lib/repositories/repository-mode";
 import { projectAccessDeniedPayload, requireProjectAccess } from "@/src/lib/auth/project-access";
 import { recordAuditEvent } from "@/src/lib/audit/audit-event";
 import { aoiRequiredCaveat, type ProjectAoi } from "@/src/types/aoi";
+import { hasVerifiedRequestIdentity } from "@/src/lib/auth/verified-request-access";
+import { isPreAuthServerMutationBlocked } from "@/src/lib/auth/project-access";
+import { privateNoStoreJson } from "@/src/lib/http/private-no-store";
 
 export const runtime = "nodejs";
 
@@ -32,11 +35,22 @@ export async function GET(request: Request) {
   const projectKey = url.searchParams.get("projectKey");
   const access = requireProjectAccess({ projectKey, action: "read", mode: "soft" });
   if (!access.allowed) {
-    return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
+    return privateNoStoreJson(projectAccessDeniedPayload(access), { status: access.status });
+  }
+  if (!hasVerifiedRequestIdentity(access)) {
+    return privateNoStoreJson({
+      ok: true,
+      ...repositoryModeFields("browser_local"),
+      count: 0,
+      items: [],
+      access,
+      error: null,
+      dataHonesty: "Public-demo AOIs remain in the caller browser; shared server reads are disabled."
+    });
   }
   const result = await listAois({ projectId, projectKey, limit: 50 });
 
-  return NextResponse.json({
+  return privateNoStoreJson({
     ok: result.ok,
     ...repositoryModeFields(result.mode),
     count: result.data.length,
@@ -48,6 +62,11 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  if (isPreAuthServerMutationBlocked("write")) {
+    const access = requireProjectAccess({ action: "write", mode: "soft" });
+    return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
+  }
+
   let body: unknown;
 
   try {

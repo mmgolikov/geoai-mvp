@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getOpenAiUpstreamStatus } from "@/src/lib/ai/openai-upstream-gate";
-import { projectAccessDeniedPayload, requireProjectAccess } from "@/src/lib/auth/project-access";
+import { isPreAuthServerMutationBlocked, projectAccessDeniedPayload, requireProjectAccess } from "@/src/lib/auth/project-access";
 import { buildAnalyzePrompt } from "@/src/lib/analysis-prompts";
 import {
   createFallbackStructuredAnalysis,
@@ -54,14 +54,6 @@ function isSelectedAoi(value: unknown) {
     isBoundedStringArray(value.limitations, 50, 2000);
 }
 
-function isUploadedDataContext(value: unknown) {
-  if (value === undefined || value === null) return true;
-  return isRecord(value) && Array.isArray(value.appliedMetrics) && value.appliedMetrics.length <= 100 &&
-    Array.isArray(value.availableButNotApplied) && value.availableButNotApplied.length <= 100 &&
-    Array.isArray(value.visibleGeojsonLayers) && value.visibleGeojsonLayers.length <= 50 &&
-    value.visibleGeojsonLayers.every((item) => isRecord(item) && typeof item.id === "string" && typeof item.name === "string");
-}
-
 function isAnalyzeRequest(value: unknown): value is AnalyzeRequest {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return false;
@@ -95,8 +87,7 @@ function isAnalyzeRequest(value: unknown): value is AnalyzeRequest {
   );
   const optionalObjectsValid = isSelectedObject(request.selectedObject) && isSelectedAoi(request.selectedAoi) &&
     (request.analysisTarget === undefined || request.analysisTarget === null || isRecord(request.analysisTarget)) &&
-    (request.marketContext === undefined || request.marketContext === null || isRecord(request.marketContext)) &&
-    isUploadedDataContext(request.uploadedDataContext);
+    (request.marketContext === undefined || request.marketContext === null || isRecord(request.marketContext));
 
   return (
     projectKeyValid &&
@@ -196,6 +187,11 @@ async function requestOpenAiAnalysis(request: AnalyzeRequest): Promise<Structure
 }
 
 export async function POST(request: Request) {
+  if (isPreAuthServerMutationBlocked("generate")) {
+    const access = requireProjectAccess({ action: "generate", mode: "soft" });
+    return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
+  }
+
   const parsed = await readBoundedJson(request, 128 * 1024);
   if (!parsed.ok) {
     return NextResponse.json({ error: parsed.message }, { status: parsed.status });

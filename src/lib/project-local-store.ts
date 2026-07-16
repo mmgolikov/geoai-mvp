@@ -1,7 +1,8 @@
 import type { GeoAIProject, ProjectClientType, ProjectInput } from "@/src/lib/db/types";
 import type { ExploreAudience, ExploreRole, ExploreScenarioId } from "@/src/lib/explore/types";
+import { browserDemoStorageKey, isBrowserDemoStorageEnabled } from "@/src/lib/browser-demo-storage";
 
-export const localProjectsStorageKey = "geoai-local-projects-v1";
+export const localProjectsStorageKey = browserDemoStorageKey("local-projects-v1");
 
 export type LocalProjectInput = {
   name: string;
@@ -76,7 +77,7 @@ export function projectToInput(project: GeoAIProject): ProjectInput {
 }
 
 export function readLocalProjects() {
-  if (typeof window === "undefined") {
+  if (typeof window === "undefined" || !isBrowserDemoStorageEnabled()) {
     return [] as GeoAIProject[];
   }
 
@@ -98,7 +99,7 @@ export function readLocalProjects() {
 }
 
 export function writeLocalProjects(projects: GeoAIProject[]) {
-  if (typeof window === "undefined") {
+  if (typeof window === "undefined" || !isBrowserDemoStorageEnabled()) {
     return;
   }
 

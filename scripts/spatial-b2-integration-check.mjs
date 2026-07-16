@@ -237,17 +237,31 @@ const rejectedReportAttribution = reportMapSnapshot.normalizeReportMapSnapshot({
 assert(!rejectedReportAttribution?.attribution, "Malformed optional report attribution must fail closed without invalidating the map snapshot");
 
 const workspacePage = fs.readFileSync(path.join(process.cwd(), "app/workspace/page.tsx"), "utf8");
+const explorePage = fs.readFileSync(path.join(process.cwd(), "app/explore/page.tsx"), "utf8");
+const workspaceShell = fs.readFileSync(path.join(process.cwd(), "components/workspace-shell.tsx"), "utf8");
 const mapClient = fs.readFileSync(path.join(process.cwd(), "components/map-workspace-client.tsx"), "utf8");
 const landingMap = fs.readFileSync(path.join(process.cwd(), "components/landing-hero-map.tsx"), "utf8");
+const reportMapPreview = fs.readFileSync(path.join(process.cwd(), "components/report-map-preview.tsx"), "utf8");
+const uploadedDatasetRoute = fs.readFileSync(path.join(process.cwd(), "app/api/uploaded-datasets/route.ts"), "utf8");
+const evidenceUploadRoute = fs.readFileSync(path.join(process.cwd(), "app/api/storage/evidence-files/route.ts"), "utf8");
 const modalHook = fs.readFileSync(path.join(process.cwd(), "components/use-accessible-modal.ts"), "utf8");
 assert(workspacePage.includes("createSpatialSourceRequest"), "Workspace source request must be resolved on the server");
+assert(explorePage.includes("createSpatialSourceRequest") && explorePage.includes("spatialSourceRequest={spatialSourceRequest}"), "Explore source request must be resolved and wired on the server");
+assert(/spatialSourceRequest:\s*SpatialSourceRequest/.test(workspaceShell) && !workspaceShell.includes("defaultSpatialSourceRequest"), "WorkspaceShell must require a server-resolved source request and have no development fallback");
 assert(!/localStorage[^\n]*spatial/i.test(mapClient), "No localStorage spatial source-mode bypass may exist");
 assert(!/[?&]spatialMode=.*open_context_preview/.test(mapClient), "Map client must not construct an open-mode URL bypass");
 assert(mapClient.includes("removeControlledFixtureLayerFromMap"), "Activation synchronization must remove obsolete controlled fixture layers and sources");
 assert(mapClient.includes("syncOpenGeodataVisibility"), "Local fixture visibility must synchronize with the existing map");
 assert(!/>OSM</.test(mapClient), "Legacy local fixture must not be labelled as OSM");
 assert(mapClient.includes("local fixture") && mapClient.includes("OSM-style sample"), "Legacy fixture must use approved local-fixture wording");
+assert(!mapClient.includes("console.error ="), "Map runtime must not monkeypatch global console.error observability");
+assert(mapClient.includes("!mapReady") && mapClient.includes("Map did not become ready in time"), "Map watchdog must fail over when readiness stalls, not only when construction fails");
+assert(mapClient.includes("Select sample map center"), "Fallback map must expose a keyboard-operable point-selection control");
 assert(landingMap.includes("attributionControl: true"), "Landing Mapbox attribution must be visible through the native control");
+assert(reportMapPreview.includes("attributionControl: true"), "Live report Mapbox preview must expose native attribution");
+assert(!workspaceShell.includes("/api/uploaded-datasets") && !workspaceShell.includes("/api/aois"), "Public-demo uploads and AOIs must remain browser-local");
+assert(uploadedDatasetRoute.includes('repositoryModeFields("browser_local")') && !uploadedDatasetRoute.includes("parsedContent"), "Uploaded-dataset API must not persist or accept browser geometry in public demo");
+assert(evidenceUploadRoute.indexOf('isPreAuthServerMutationBlocked("upload")') < evidenceUploadRoute.indexOf("request.formData()"), "Evidence upload must deny before parsing multipart data while request identity is unavailable");
 assert(modalHook.includes('document.body.style.overflow = "hidden"'), "Accessible dialogs must lock background scrolling");
 assert(modalHook.includes('event.key !== "Tab"') && modalHook.includes('event.key === "Escape"'), "Accessible dialogs must trap focus and close on Escape");
 

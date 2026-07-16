@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import { publicDataCaveat } from "@/src/lib/external-data/public-source-catalog";
 
 export const runtimeSourcePackId = "runtime_api_preview_v1" as const;
@@ -5,6 +6,7 @@ export const runtimeSourcePackDemoId = "dubai-downtown-public-demo" as const;
 
 export type RuntimeSourceEnvironment = "local" | "preview" | "production";
 export type RuntimeSourceMode = "live" | "cached" | "unavailable" | "disabled";
+export type RuntimeSourceActivationMode = "local_operator_enabled" | "preview_operator_enabled" | "disabled";
 
 export type RuntimeSourceObservation<TPayload extends Record<string, unknown> = Record<string, unknown>> = {
   sourceId: string;
@@ -43,8 +45,32 @@ export function getRuntimeSourceEnvironment(): RuntimeSourceEnvironment {
   return "local";
 }
 
+export function isRuntimeSourcePackOperatorEnabled() {
+  const token = process.env.GEOAI_OPERATOR_SOURCE_TOKEN?.trim() ?? "";
+  return process.env.GEOAI_ENABLE_PREVIEW_SOURCE_PACK?.trim().toLowerCase() === "true" && Buffer.byteLength(token, "utf8") >= 32;
+}
+
+export function hasRuntimeSourcePackOperatorAccess(request: Request) {
+  const expected = process.env.GEOAI_OPERATOR_SOURCE_TOKEN?.trim() ?? "";
+  const authorization = request.headers.get("authorization")?.trim() ?? "";
+  const supplied = authorization.startsWith("Bearer ")
+    ? authorization.slice("Bearer ".length).trim()
+    : request.headers.get("x-geoai-operator-token")?.trim() ?? "";
+  const expectedBytes = Buffer.from(expected, "utf8");
+  const suppliedBytes = Buffer.from(supplied, "utf8");
+  if (expectedBytes.byteLength < 32 || suppliedBytes.byteLength !== expectedBytes.byteLength) return false;
+  return timingSafeEqual(suppliedBytes, expectedBytes);
+}
+
 export function isRuntimeSourcePackAllowed(environment = getRuntimeSourceEnvironment()) {
-  return environment !== "production";
+  return environment !== "production" && isRuntimeSourcePackOperatorEnabled();
+}
+
+export function getRuntimeSourcePackActivationMode(
+  environment = getRuntimeSourceEnvironment()
+): RuntimeSourceActivationMode {
+  if (!isRuntimeSourcePackAllowed(environment)) return "disabled";
+  return environment === "preview" ? "preview_operator_enabled" : "local_operator_enabled";
 }
 
 export function disabledRuntimeSourcePack(now = new Date()): RuntimeSourcePackResponse {
@@ -62,6 +88,6 @@ export function disabledRuntimeSourcePack(now = new Date()): RuntimeSourcePackRe
     persistence: "none",
     generatedAt: now.toISOString(),
     sources: [],
-    caveat: `Production runtime source activation is not authorized. ${publicDataCaveat}`
+    caveat: `Runtime source activation is not operator-enabled for this deployment. ${publicDataCaveat}`
   };
 }

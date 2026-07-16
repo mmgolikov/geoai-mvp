@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { recordAuditEvent } from "@/src/lib/audit/audit-event";
-import { projectAccessDeniedPayload, requireProjectAccess } from "@/src/lib/auth/project-access";
+import { isPreAuthServerMutationBlocked, projectAccessDeniedPayload, requireProjectAccess } from "@/src/lib/auth/project-access";
 import { deleteDataRoomAsset, getDataRoomAsset, updateDataRoomAsset } from "@/src/lib/repositories/data-room-repository";
 import { repositoryModeFields } from "@/src/lib/repositories/repository-mode";
 import type { DataRoomAsset } from "@/src/types/data-room";
@@ -20,6 +20,10 @@ function boundedIds(value: unknown) {
 }
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
+  if (isPreAuthServerMutationBlocked("write")) {
+    const access = requireProjectAccess({ action: "write", mode: "soft" });
+    return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
+  }
   const parsed = await readBoundedJson(request, 128 * 1024);
   if (!parsed.ok) {
     return NextResponse.json({ ok: false, ...repositoryModeFields("local_fallback"), message: parsed.message }, { status: parsed.status });
@@ -91,6 +95,10 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
 }
 
 export async function DELETE(_request: Request, context: { params: Promise<{ id: string }> }) {
+  if (isPreAuthServerMutationBlocked("write")) {
+    const access = requireProjectAccess({ action: "write", mode: "soft" });
+    return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
+  }
   const { id } = await context.params;
   const existing = await getDataRoomAsset(id);
   if (!existing.data) {

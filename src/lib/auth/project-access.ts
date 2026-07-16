@@ -4,11 +4,47 @@ import { getProjectAccessDecision, roleAllowsAction } from "@/src/lib/access/acc
 import { getEnforcementConfig, type GeoAIAccessEnforcementMode } from "@/src/lib/platform/enforcement-config";
 import type { GeoAIProjectMembership, GeoAIUser } from "@/src/types/auth";
 
-export type ProjectAccessAction = "read" | "write" | "manage" | "export" | "validate" | "upload" | "review" | "generate";
+export type ProjectAccessAction =
+  | "read"
+  | "write"
+  | "manage"
+  | "export"
+  | "validate"
+  | "upload"
+  | "review"
+  | "generate"
+  | "attest_client"
+  | "attest_official";
 export type ProjectAccessMode = GeoAIAccessEnforcementMode;
 
+const serverMutationActions = new Set<ProjectAccessAction>([
+  "write",
+  "manage",
+  "validate",
+  "upload",
+  "review",
+  "generate",
+  "attest_client",
+  "attest_official"
+]);
+const publicDemoProjectKeys = new Set([
+  "unscoped-demo-project",
+  "all-demo-projects",
+  "dubai-investment-screening-demo",
+  "developer-land-pipeline-demo",
+  "bank-asset-review-demo",
+  "home-buyer-neighborhood-demo",
+  "family-relocation-area-demo"
+]);
+
+export function isPreAuthServerMutationBlocked(action: ProjectAccessAction) {
+  // AUTH-01 has not supplied a request-scoped, verified caller yet. Merely
+  // selecting supabase_auth in the environment is not identity evidence.
+  return serverMutationActions.has(action);
+}
+
 function isDemoProjectKey(projectKey: string) {
-  return projectKey === "unscoped-demo-project" || projectKey === "all-demo-projects" || projectKey.endsWith("-demo");
+  return publicDemoProjectKeys.has(projectKey);
 }
 
 export function getProjectAccessCaveat() {
@@ -22,7 +58,7 @@ export function getServerSafeUser(): GeoAIUser | null {
     return null;
   }
 
-  return demoUser;
+  return authStatus.effectiveMode === "demo_public" ? demoUser : null;
 }
 
 export function getDemoProjectMembership(projectKey: string): GeoAIProjectMembership {
@@ -43,10 +79,9 @@ export function requireProjectAccess({
   const effectiveMode = mode === "hard" ? "hard" : enforcement.accessEnforcementMode;
   const effectiveProjectKey = projectKey ?? "unscoped-demo-project";
   const demoPublicAllowed = enforcement.allowDemoPublic && isDemoProjectKey(effectiveProjectKey);
-  const membership =
-    authStatus.effectiveMode === "supabase_auth" && !demoPublicAllowed
-      ? null
-      : createDemoProjectMembership(effectiveProjectKey);
+  const membership = authStatus.effectiveMode === "demo_public" && demoPublicAllowed
+    ? createDemoProjectMembership(effectiveProjectKey)
+    : null;
   const roleAllowed = membership ? roleAllowsAction(membership.role, action) : false;
   const accessDecision = getProjectAccessDecision({
     mode: effectiveMode,
@@ -67,23 +102,18 @@ export function requireProjectAccess({
       : null,
     allowDemoPublic: demoPublicAllowed
   });
-  const allowed = authStatus.effectiveMode === "demo_public"
-    ? effectiveMode === "soft" || demoPublicAllowed
-      ? roleAllowed
-      : false
-    : Boolean(membership && roleAllowed);
+  const serverMutationBlocked = isPreAuthServerMutationBlocked(action);
+  // The lower decision is authoritative. Synthetic demo membership must never
+  // turn a denied hard-mode decision into an allow result.
+  const allowed = accessDecision.allowed && Boolean(membership && roleAllowed) && !serverMutationBlocked;
   const reason = allowed
-    ? authStatus.effectiveMode === "demo_public"
-      ? effectiveMode === "hard"
-        ? "Public demo project access allowed by GEOAI_ALLOW_DEMO_PUBLIC for seeded demo project."
-        : "Public demo project access allowed in soft mode."
-      : "Project membership allows this action."
-    : authStatus.effectiveMode === "supabase_auth"
-      ? "Supabase Auth is requested, but project membership is not available in this runtime."
-      : effectiveMode === "hard"
-        ? "Hard enforcement blocks this request without authenticated project membership or demo-public allowance."
-        : "Project access was not granted.";
-  const status = allowed ? 200 : authStatus.effectiveMode === "demo_public" ? 403 : 401;
+    ? accessDecision.reason
+    : serverMutationBlocked
+      ? "Server mutations are disabled until request-scoped Auth, membership and RLS are verified; keep public-demo user state in the browser."
+      : accessDecision.allowed
+      ? "Project membership does not allow this action."
+      : accessDecision.reason;
+  const status = allowed ? 200 : serverMutationBlocked || accessDecision.allowed ? 403 : accessDecision.httpStatus;
 
   return {
     allowed,

@@ -66,7 +66,10 @@ export async function getReport(id: string): Promise<DbRepositoryResult<Workspac
     const query = client.from("reports").select("*") as {
       eq: (column: string, value: string) => { limit: (count: number) => Promise<{ data: unknown[] | null; error?: unknown }> };
     };
-    const response = await query.eq("report_key", id).limit(1);
+    const lookupColumn = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)
+      ? "id"
+      : "report_key";
+    const response = await query.eq(lookupColumn, id).limit(1);
     const stored = response.data?.[0] ?? null;
     // Complete configured records retain precedence. Only reserved demo IDs with
     // missing legacy payload fields use the canonical read-only fixture.

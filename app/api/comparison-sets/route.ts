@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { recordAuditEvent } from "@/src/lib/audit/audit-event";
-import { projectAccessDeniedPayload, requireProjectAccess } from "@/src/lib/auth/project-access";
+import { isPreAuthServerMutationBlocked, projectAccessDeniedPayload, requireProjectAccess } from "@/src/lib/auth/project-access";
 import {
   deleteComparisonSet,
   getComparisonSet,
@@ -10,7 +10,8 @@ import {
 import { repositoryModeFields } from "@/src/lib/repositories/repository-mode";
 import type { WorkspaceComparisonSet } from "@/src/lib/project-workspace-types";
 import { readBoundedJson } from "@/src/lib/http/bounded-json";
-import { hasVerifiedRequestIdentity } from "@/src/lib/auth/verified-request-access";
+import { hasRequestIdentityKernelEvidence, hasVerifiedRequestIdentity } from "@/src/lib/auth/verified-request-access";
+import { privateNoStoreJson } from "@/src/lib/http/private-no-store";
 
 export const runtime = "nodejs";
 
@@ -33,20 +34,31 @@ export async function GET(request: Request) {
   const id = url.searchParams.get("id");
   const projectId = url.searchParams.get("projectId");
   const projectKey = url.searchParams.get("projectKey");
+  if (!hasRequestIdentityKernelEvidence()) {
+    const access = requireProjectAccess({ projectKey, action: "read", mode: "soft" });
+    if (!access.allowed) {
+      return privateNoStoreJson(projectAccessDeniedPayload(access), { status: access.status });
+    }
+    if (id) {
+      return privateNoStoreJson({ ok: false, ...repositoryModeFields("browser_local"), message: "Server-side comparison reads are disabled in public-demo mode." }, { status: 404 });
+    }
+    return privateNoStoreJson({ ok: true, ...repositoryModeFields("browser_local"), count: 0, items: [], access, error: null, dataHonesty: "Public-demo comparisons remain browser-local." });
+  }
+
   const existing = id ? await getComparisonSet(id) : null;
   const resolvedProjectKey = (existing?.data as { projectKey?: string | null } | null)?.projectKey ?? projectKey;
   const access = requireProjectAccess({ projectKey: resolvedProjectKey, action: "read", mode: "soft" });
   if (!access.allowed) {
-    return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
+    return privateNoStoreJson(projectAccessDeniedPayload(access), { status: access.status });
   }
 
   if (id) {
     if (!hasVerifiedRequestIdentity(access)) {
-      return NextResponse.json({ ok: false, ...repositoryModeFields("browser_local"), message: "Server-side comparison reads are disabled in public-demo mode." }, { status: 404 });
+      return privateNoStoreJson({ ok: false, ...repositoryModeFields("browser_local"), message: "Server-side comparison reads are disabled in public-demo mode." }, { status: 404 });
     }
     const result = existing!;
     const responseMode = result.mode === "supabase" ? "supabase" : "local_fallback";
-    return NextResponse.json({
+    return privateNoStoreJson({
       ok: result.ok,
       ...repositoryModeFields(responseMode),
       item: result.data,
@@ -57,14 +69,14 @@ export async function GET(request: Request) {
   }
 
   if (!hasVerifiedRequestIdentity(access)) {
-    return NextResponse.json({ ok: true, ...repositoryModeFields("browser_local"), count: 0, items: [], access, error: null, dataHonesty: "Public-demo comparisons remain browser-local." });
+    return privateNoStoreJson({ ok: true, ...repositoryModeFields("browser_local"), count: 0, items: [], access, error: null, dataHonesty: "Public-demo comparisons remain browser-local." });
   }
 
   const result = await listComparisonSets({ projectId, projectKey, limit: 50 });
   const items = Array.isArray(result.data) ? result.data : [];
 
   const responseMode = result.mode === "supabase" ? "supabase" : "local_fallback";
-  return NextResponse.json({
+  return privateNoStoreJson({
     ok: result.ok,
     ...repositoryModeFields(responseMode),
     count: items.length,
@@ -76,6 +88,11 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  if (isPreAuthServerMutationBlocked("write")) {
+    const access = requireProjectAccess({ action: "write", mode: "soft" });
+    return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
+  }
+
   const parsed = await readBoundedJson(request, 768 * 1024);
   if (!parsed.ok) {
     return NextResponse.json({ ok: false, ...repositoryModeFields("local_fallback"), message: parsed.message }, { status: parsed.status });
@@ -125,6 +142,11 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+  if (isPreAuthServerMutationBlocked("write")) {
+    const access = requireProjectAccess({ action: "write", mode: "soft" });
+    return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
+  }
+
   const id = new URL(request.url).searchParams.get("id");
   if (!id) {
     return NextResponse.json({ ok: false, ...repositoryModeFields("local_fallback"), message: "id query parameter is required." }, { status: 400 });

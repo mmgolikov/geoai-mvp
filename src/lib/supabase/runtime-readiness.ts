@@ -5,6 +5,7 @@ import { getEnforcementConfig } from "@/src/lib/platform/enforcement-config";
 import { type RepositoryMode } from "@/src/lib/repositories/repository-mode";
 import { getStorageReadiness } from "@/src/lib/storage/storage-readiness";
 import { getSupabaseServerClient } from "@/src/lib/supabase/server";
+import { requestScopedSupabaseRepositoriesEnabled } from "@/src/lib/supabase/config";
 
 export const supabaseRuntimeReadinessVersion = "1.0";
 
@@ -130,11 +131,9 @@ export async function getSupabaseRuntimeReadiness() {
   const enforcement = getEnforcementConfig();
   const hasSupabaseUrl = envPresent("NEXT_PUBLIC_SUPABASE_URL");
   const hasSupabaseAnonKey = envPresent("NEXT_PUBLIC_SUPABASE_ANON_KEY");
-  const hasSupabaseServiceRoleEnv = envPresent("SUPABASE_SERVICE_ROLE_KEY");
-  const hasSupabaseDbUrl = envPresent("SUPABASE_DB_URL");
   const hasSupabasePublicEnv = hasSupabaseUrl && hasSupabaseAnonKey;
-  const hasSupabaseServerEnv = hasSupabaseUrl && hasSupabaseServiceRoleEnv;
-  const hasSupabaseReadEnv = hasSupabaseUrl && (hasSupabaseAnonKey || hasSupabaseServiceRoleEnv);
+  const hasSupabaseServerEnv = hasSupabasePublicEnv && requestScopedSupabaseRepositoriesEnabled;
+  const hasSupabaseReadEnv = hasSupabaseServerEnv;
   const schemaReady = schema.status === "connected" && schema.postgisReady && schema.tablesReady;
   const schemaDetected = schema.configured && schema.missingTables.length < requiredPersistenceTables.length;
   const sourceRegistryReady = sourceRegistry.ready;
@@ -167,9 +166,9 @@ export async function getSupabaseRuntimeReadiness() {
     nextActions.push("Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in the target runtime.");
   }
 
-  if (!hasSupabaseServiceRoleEnv) {
-    blockers.push("Server-only Supabase service role env is missing; no write path is enabled by this check.");
-    nextActions.push("Set SUPABASE_SERVICE_ROLE_KEY only in trusted server/Vercel environments when server-side read probes need it.");
+  if (!requestScopedSupabaseRepositoriesEnabled) {
+    blockers.push("Request-scoped Supabase repositories are disabled until AUTH-01 and the RLS persona matrix pass.");
+    nextActions.push("Keep privileged Supabase/database credentials in a separate operator/worker runtime, never in the public Vercel application.");
   }
 
   if (hasSupabaseReadEnv && !canReadHealthcheck) {
@@ -215,9 +214,8 @@ export async function getSupabaseRuntimeReadiness() {
     hasSupabasePublicEnv,
     hasSupabaseAnonKey,
     hasSupabaseServerEnv,
-    hasSupabaseServiceRoleEnv,
-    hasSupabaseDbUrl,
-    serviceRoleMode: hasSupabaseServiceRoleEnv ? "present_read_only" : "absent",
+    operatorCredentialsInspected: false,
+    serviceRoleMode: "forbidden_in_application_runtime",
     serviceRoleUsedForWrites: false,
     publicAnonReadOnlyReachable: hasSupabasePublicEnv && canReadHealthcheck,
     canReadHealthcheck,

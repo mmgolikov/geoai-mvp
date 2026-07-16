@@ -1,13 +1,18 @@
 import { NextResponse } from "next/server";
 import { recordAuditEvent } from "@/src/lib/audit/audit-event";
-import { projectAccessDeniedPayload, requireProjectAccess } from "@/src/lib/auth/project-access";
+import { isPreAuthServerMutationBlocked, projectAccessDeniedPayload, requireProjectAccess } from "@/src/lib/auth/project-access";
 import { getProjectByKey } from "@/src/lib/db/repositories/projects";
 import { getReport, listReports, saveReport } from "@/src/lib/db/repositories/reports";
 import { repositoryModeFields } from "@/src/lib/repositories/repository-mode";
 import type { DbReportInput } from "@/src/lib/db/types";
 import { readBoundedJson } from "@/src/lib/http/bounded-json";
+import { privateNoStoreJson } from "@/src/lib/http/private-no-store";
 import { getSeededDemoReportRecord } from "@/src/data/demo-report-seeds";
-import { hasVerifiedRequestIdentity } from "@/src/lib/auth/verified-request-access";
+import { hasRequestIdentityKernelEvidence, hasVerifiedRequestIdentity } from "@/src/lib/auth/verified-request-access";
+import {
+  hasServerReportEvidenceAttestation,
+  reportEvidenceAttestationStatus
+} from "@/src/lib/report-package/report-evidence-attestation";
 
 export const runtime = "nodejs";
 
@@ -49,7 +54,8 @@ function summarizeReport(item: unknown) {
   const payload = report.reportPayload ?? report.report_json;
 
   return {
-    id: report.id ?? report.report_key,
+    id: report.report_key ?? report.id,
+    reportKey: report.report_key ?? report.id,
     projectId: report.projectId ?? report.project_id ?? null,
     projectKey: report.projectKey ?? report.project_key ?? null,
     title: report.title ?? "Saved report",
@@ -66,6 +72,38 @@ export async function GET(request: Request) {
   const id = url.searchParams.get("id");
   const projectId = url.searchParams.get("projectId");
   const projectKey = url.searchParams.get("projectKey");
+  if (!hasRequestIdentityKernelEvidence()) {
+    const publicSeed = id ? getSeededDemoReportRecord(id) : null;
+    const access = requireProjectAccess({ projectKey: publicSeed?.projectKey ?? projectKey, action: "read", mode: "soft" });
+    if (!access.allowed) {
+      return privateNoStoreJson(projectAccessDeniedPayload(access), { status: access.status });
+    }
+    if (id && !publicSeed) {
+      return privateNoStoreJson({ ok: false, ...repositoryModeFields("browser_local"), message: "Server-side dynamic report reads are disabled in public-demo mode." }, { status: 404 });
+    }
+    if (publicSeed) {
+      return privateNoStoreJson({
+        ok: true,
+        ...repositoryModeFields("demo_seed"),
+        item: publicSeed,
+        summary: summarizeReport(publicSeed),
+        access,
+        error: null,
+        dataHonesty: "Immutable seeded report; sample/open context only and official validation required."
+      });
+    }
+    return privateNoStoreJson({
+      ok: true,
+      ...repositoryModeFields("browser_local"),
+      count: 0,
+      items: [],
+      summaries: [],
+      access,
+      error: null,
+      dataHonesty: "Public-demo reports remain in the caller browser; shared server reads are disabled."
+    });
+  }
+
   const existing = id ? await getReport(id) : null;
   const resolvedProjectKey = id
     ? ((existing?.data as { projectKey?: string | null; project_key?: string | null } | null)?.projectKey
@@ -74,16 +112,16 @@ export async function GET(request: Request) {
     : projectKey;
   const access = requireProjectAccess({ projectKey: resolvedProjectKey, action: "read", mode: "soft" });
   if (!access.allowed) {
-    return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
+    return privateNoStoreJson(projectAccessDeniedPayload(access), { status: access.status });
   }
 
   if (id) {
     if (!hasVerifiedRequestIdentity(access) && !getSeededDemoReportRecord(id)) {
-      return NextResponse.json({ ok: false, ...repositoryModeFields("local_fallback"), message: "Server-side dynamic report reads are disabled in public-demo mode." }, { status: 404 });
+      return privateNoStoreJson({ ok: false, ...repositoryModeFields("local_fallback"), message: "Server-side dynamic report reads are disabled in public-demo mode." }, { status: 404 });
     }
     const result = existing!;
     const responseMode = result.mode === "supabase" ? "supabase" : "local_fallback";
-    return NextResponse.json({
+    return privateNoStoreJson({
       ok: result.ok,
       ...repositoryModeFields(responseMode),
       item: result.data,
@@ -95,7 +133,7 @@ export async function GET(request: Request) {
   }
 
   if (!hasVerifiedRequestIdentity(access)) {
-    return NextResponse.json({
+    return privateNoStoreJson({
       ok: true,
       ...repositoryModeFields("local_fallback"),
       count: 0,
@@ -111,7 +149,7 @@ export async function GET(request: Request) {
   const items = Array.isArray(result.data) ? result.data : [];
 
   const responseMode = result.mode === "supabase" ? "supabase" : "local_fallback";
-  return NextResponse.json({
+  return privateNoStoreJson({
     ok: result.ok,
     ...repositoryModeFields(responseMode),
     count: items.length,
@@ -124,6 +162,20 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  if (isPreAuthServerMutationBlocked("write")) {
+    const access = requireProjectAccess({ action: "write", mode: "soft" });
+    return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
+  }
+
+  if (!hasServerReportEvidenceAttestation()) {
+    return privateNoStoreJson({
+      ok: false,
+      persisted: false,
+      ...repositoryModeFields("browser_local"),
+      message: reportEvidenceAttestationStatus.reason
+    }, { status: 503 });
+  }
+
   const parsed = await readBoundedJson(request, 768 * 1024);
   if (!parsed.ok) {
     return NextResponse.json(

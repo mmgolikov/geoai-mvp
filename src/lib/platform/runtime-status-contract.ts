@@ -9,14 +9,15 @@ export type RuntimeExecutiveStatus = {
   accessMode:
     | "demo_public"
     | "supabase_authenticated_preview"
+    | "supabase_auth_configured_unverified"
     | "hard_access_unverified"
     | "hard_access_verified_preview"
     | "hard_access_verified_production";
   repositoryMode: string;
   demoWorkflow: "demo_workflow_available" | "demo_workflow_degraded" | "demo_workflow_blocked";
   confidentialPilot: "confidential_pilot_ready" | "confidential_pilot_blocked";
-  supabaseRuntime: "reachable" | "configured_unavailable" | "not_configured_in_runtime";
-  storageRuntime: "reachable" | "configured_unavailable" | "not_configured_in_runtime";
+  supabaseRuntime: "reachable" | "configured_unavailable" | "not_configured_in_runtime" | "not_attested_on_public_endpoint";
+  storageRuntime: "reachable" | "configured_unavailable" | "not_configured_in_runtime" | "not_attested_on_public_endpoint";
   rows: RuntimeStatusRow[];
   caveat: string;
 };
@@ -39,6 +40,7 @@ export type RuntimeExecutiveStatusInput = {
   rlsPoliciesVerified: boolean;
   hardAccessEnabled: boolean;
   hardAccessVerified: boolean;
+  infrastructureDiagnosticsWithheld?: boolean;
 };
 
 const caveat =
@@ -75,16 +77,22 @@ function deriveAccessMode(input: RuntimeExecutiveStatusInput): RuntimeExecutiveS
       ? "hard_access_verified_production"
       : "hard_access_verified_preview";
   }
-  if (input.authMode === "supabase_auth") return "supabase_authenticated_preview";
+  if (input.authMode === "supabase_auth") {
+    return input.authSessionVerified && input.projectMembershipsVerified
+      ? "supabase_authenticated_preview"
+      : "supabase_auth_configured_unverified";
+  }
   return "demo_public";
 }
 
 function deriveSupabaseRuntime(input: RuntimeExecutiveStatusInput): RuntimeExecutiveStatus["supabaseRuntime"] {
+  if (input.infrastructureDiagnosticsWithheld) return "not_attested_on_public_endpoint";
   if (!input.supabaseConfigured) return "not_configured_in_runtime";
   return input.supabaseReachable && input.schemaReady ? "reachable" : "configured_unavailable";
 }
 
 function deriveStorageRuntime(input: RuntimeExecutiveStatusInput): RuntimeExecutiveStatus["storageRuntime"] {
+  if (input.infrastructureDiagnosticsWithheld) return "not_attested_on_public_endpoint";
   if (!input.storageConfigured) return "not_configured_in_runtime";
   return input.storageReady ? "reachable" : "configured_unavailable";
 }
@@ -123,7 +131,11 @@ export function buildRuntimeExecutiveStatus(input: RuntimeExecutiveStatusInput):
     },
     {
       label: "Auth",
-      value: input.authMode === "supabase_auth" ? "Preview authenticated access" : "Public demo access",
+      value: input.authMode === "supabase_auth"
+        ? authVerified
+          ? "Preview authenticated access"
+          : "Supabase Auth configured; caller unverified"
+        : "Public demo access",
       note: input.authMode === "supabase_auth"
         ? authVerified
           ? "Preview Auth and membership evidence is recorded; this does not activate Production access."
@@ -132,15 +144,23 @@ export function buildRuntimeExecutiveStatus(input: RuntimeExecutiveStatusInput):
     },
     {
       label: "Repository",
-      value: input.repositoryMode === "local_fallback" ? "Local/demo fallback" : "Supabase runtime",
-      note: input.repositoryMode === "local_fallback"
-        ? "This runtime is not using durable Production Supabase persistence."
-        : "Repository mode must be interpreted with schema, access and environment evidence."
+      value: input.repositoryMode === "browser_local"
+        ? "Browser-local demo"
+        : input.repositoryMode === "local_fallback"
+          ? "Local/demo fallback"
+          : "Supabase runtime",
+      note: input.repositoryMode === "browser_local"
+        ? "User-created public-demo state remains in this browser and is not durable or shared."
+        : input.repositoryMode === "local_fallback"
+          ? "This runtime is not using durable Production Supabase persistence."
+          : "Repository mode must be interpreted with schema, access and environment evidence."
     },
     {
       label: "Supabase schema",
       value: supabaseRuntime === "reachable"
         ? "Reachable in this runtime"
+        : supabaseRuntime === "not_attested_on_public_endpoint"
+          ? "Not attested on public endpoint"
         : supabaseRuntime === "not_configured_in_runtime"
           ? "Not connected in this runtime"
           : "Configured but not verified",
@@ -148,6 +168,8 @@ export function buildRuntimeExecutiveStatus(input: RuntimeExecutiveStatusInput):
         ? environment === "vercel_preview"
           ? "Preview read-only evidence is reachable; this does not activate Production Supabase persistence."
           : "Required application schema is reachable in this runtime."
+        : supabaseRuntime === "not_attested_on_public_endpoint"
+          ? "Configuration and reachability diagnostics are withheld from this public response."
         : supabaseRuntime === "not_configured_in_runtime"
           ? "The development Supabase project state does not mean this Production runtime is connected."
           : "Schema is incomplete, policy-blocked or unreachable in this runtime."
@@ -156,6 +178,8 @@ export function buildRuntimeExecutiveStatus(input: RuntimeExecutiveStatusInput):
       label: "Storage",
       value: storageRuntime === "reachable"
         ? "Reachable in this runtime"
+        : storageRuntime === "not_attested_on_public_endpoint"
+          ? "Not attested on public endpoint"
         : storageRuntime === "not_configured_in_runtime"
           ? "Not connected in this runtime"
           : "Configured but not verified",
@@ -163,14 +187,18 @@ export function buildRuntimeExecutiveStatus(input: RuntimeExecutiveStatusInput):
         ? environment === "vercel_preview"
           ? "Preview Storage evidence is reachable; object scope and signed URL behavior remain environment-specific."
           : "Storage reachability is recorded for this runtime; access scope still follows the backend gates."
+        : storageRuntime === "not_attested_on_public_endpoint"
+          ? "Storage configuration and reachability diagnostics are withheld from this public response."
         : storageRuntime === "not_configured_in_runtime"
           ? "Private buckets and signed URL flows are not available or verified in this runtime."
           : "Storage configuration, private bucket reachability or signed URL verification is incomplete."
     },
     {
       label: "Audit",
-      value: input.auditFoundationPresent ? "Foundation" : "Not verified",
-      note: input.auditFoundationPresent
+      value: input.infrastructureDiagnosticsWithheld ? "Not attested on public endpoint" : input.auditFoundationPresent ? "Foundation" : "Not verified",
+      note: input.infrastructureDiagnosticsWithheld
+        ? "Audit infrastructure diagnostics are withheld from this public response."
+        : input.auditFoundationPresent
         ? "Audit foundation evidence exists; this is not a certified audit trail."
         : "Audit durability is not verified in this runtime."
     },
@@ -185,8 +213,10 @@ export function buildRuntimeExecutiveStatus(input: RuntimeExecutiveStatusInput):
     },
     {
       label: "RLS",
-      value: input.rlsPoliciesVerified ? "Verified in this runtime" : input.schemaReady ? "Static/readiness foundation" : "Not verified",
-      note: input.rlsPoliciesVerified
+      value: input.infrastructureDiagnosticsWithheld ? "Not attested on public endpoint" : input.rlsPoliciesVerified ? "Verified in this runtime" : input.schemaReady ? "Static/readiness foundation" : "Not verified",
+      note: input.infrastructureDiagnosticsWithheld
+        ? "RLS and persona-test diagnostics are withheld from this public response."
+        : input.rlsPoliciesVerified
         ? "Recorded positive and negative RLS checks apply only to this environment."
         : "Live positive/negative RLS behavior has not been verified."
     }

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { recordAuditEvent } from "@/src/lib/audit/audit-event";
-import { projectAccessDeniedPayload, requireProjectAccess } from "@/src/lib/auth/project-access";
+import { isPreAuthServerMutationBlocked, projectAccessDeniedPayload, requireProjectAccess } from "@/src/lib/auth/project-access";
 import { createDataRoomAsset } from "@/src/lib/repositories/data-room-repository";
 import { repositoryModeFields } from "@/src/lib/repositories/repository-mode";
 import {
@@ -58,6 +58,10 @@ function isAssetInput(value: unknown): value is Omit<DataRoomAsset, "createdAt" 
 }
 
 export async function POST(request: Request) {
+  if (isPreAuthServerMutationBlocked("write")) {
+    const access = requireProjectAccess({ action: "write", mode: "soft" });
+    return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
+  }
   const parsed = await readBoundedJson(request, 192 * 1024);
   if (!parsed.ok) {
     return NextResponse.json({ ok: false, ...repositoryModeFields("local_fallback"), message: parsed.message }, { status: parsed.status });

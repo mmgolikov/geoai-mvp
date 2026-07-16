@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { recordAuditEvent } from "@/src/lib/audit/audit-event";
-import { projectAccessDeniedPayload, requireProjectAccess } from "@/src/lib/auth/project-access";
+import { isPreAuthServerMutationBlocked, projectAccessDeniedPayload, requireProjectAccess } from "@/src/lib/auth/project-access";
 import { getEvidenceReview, updateEvidenceReview } from "@/src/lib/repositories/evidence-review-repository";
 import { repositoryModeFields } from "@/src/lib/repositories/repository-mode";
 import { evidenceReviewCaveat } from "@/src/types/evidence-review";
@@ -12,6 +12,10 @@ function readString(value: unknown) {
 }
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string; reviewId: string }> }) {
+  if (isPreAuthServerMutationBlocked("review")) {
+    const access = requireProjectAccess({ action: "review", mode: "soft" });
+    return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
+  }
   const { id, reviewId } = await context.params;
   const body = await request.json().catch(() => ({})) as Record<string, unknown>;
   const existing = await getEvidenceReview(reviewId);

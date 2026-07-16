@@ -3,6 +3,7 @@ import { getSchemaReadinessSummary } from "@/src/lib/db/schema-readiness";
 import { getEnforcementConfig } from "@/src/lib/platform/enforcement-config";
 import { getStorageReadiness } from "@/src/lib/storage/storage-readiness";
 import { getSupabaseServerClient } from "@/src/lib/supabase/server";
+import { requestScopedSupabaseRepositoriesEnabled } from "@/src/lib/supabase/config";
 
 export const supabasePilotProject = {
   ref: "pphdqkurxneyagvnnjdt",
@@ -21,16 +22,8 @@ type ActivationInput = {
   storage?: StorageReadinessSummary;
 };
 
-function boolEnv(name: string) {
-  return process.env[name]?.trim().toLowerCase() === "true";
-}
-
 function envPresent(name: string) {
   return Boolean(process.env[name]?.trim());
-}
-
-function migrationTarget() {
-  return process.env.GEOAI_ALLOW_SUPABASE_TARGET?.trim().toLowerCase() || null;
 }
 
 async function checkHealthcheckTable() {
@@ -76,14 +69,10 @@ export async function getSupabaseActivationReadiness(input: ActivationInput = {}
   ]);
   const authStatus = getAuthModeStatus();
   const enforcement = getEnforcementConfig();
-  const target = migrationTarget();
   const urlConfigured = envPresent("NEXT_PUBLIC_SUPABASE_URL");
   const anonKeyConfigured = envPresent("NEXT_PUBLIC_SUPABASE_ANON_KEY");
-  const serviceRoleConfigured = envPresent("SUPABASE_SERVICE_ROLE_KEY");
-  const dbUrlConfigured = envPresent("SUPABASE_DB_URL");
-  const migrationApplyGuardEnabled = boolEnv("GEOAI_ALLOW_SUPABASE_MIGRATION_APPLY");
-  const migrationTargetAllowed = target === "preview" || target === "pilot";
-  const canApplyGuardedMigration = dbUrlConfigured && migrationApplyGuardEnabled && migrationTargetAllowed;
+  const applicationRepositoryEnabled = requestScopedSupabaseRepositoriesEnabled;
+  const canApplyGuardedMigration = false;
   const schemaReady = schema.status === "connected" && schema.postgisReady && schema.tablesReady;
   const blockers: string[] = [];
   const nextActions: string[] = [];
@@ -93,9 +82,9 @@ export async function getSupabaseActivationReadiness(input: ActivationInput = {}
     nextActions.push("Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in local/Vercel runtime.");
   }
 
-  if (!serviceRoleConfigured) {
-    blockers.push("Server-only Supabase service role key is not configured.");
-    nextActions.push("Set SUPABASE_SERVICE_ROLE_KEY only in trusted server/Vercel environments.");
+  if (!applicationRepositoryEnabled) {
+    blockers.push("Request-scoped Supabase application repositories are disabled until AUTH-01 and RLS personas are verified.");
+    nextActions.push("Keep service-role and database credentials in a separate operator/worker runtime; never add them to the public Vercel application.");
   }
 
   if (!healthcheck.reachable) {
@@ -115,8 +104,8 @@ export async function getSupabaseActivationReadiness(input: ActivationInput = {}
     nextActions.push(...storage.nextActions);
   }
 
-  if (!canApplyGuardedMigration && !schemaReady) {
-    nextActions.push("To apply migrations, use a trusted terminal with SUPABASE_DB_URL, GEOAI_ALLOW_SUPABASE_MIGRATION_APPLY=true and GEOAI_ALLOW_SUPABASE_TARGET=preview or pilot.");
+  if (!schemaReady) {
+    nextActions.push("Do not apply the current migration chain until DB-01 clean/upgrade replay and an owner-approved exact operator plan pass.");
   }
 
   return {
@@ -125,11 +114,8 @@ export async function getSupabaseActivationReadiness(input: ActivationInput = {}
     environment: {
       urlConfigured,
       anonKeyConfigured,
-      serviceRoleConfigured,
-      dbUrlConfigured,
-      migrationApplyGuardEnabled,
-      migrationTarget: target,
-      migrationTargetAllowed,
+      applicationRepositoryEnabled,
+      operatorCredentialsInspected: false,
       canApplyGuardedMigration,
       authMode: authStatus.effectiveMode,
       accessEnforcementMode: enforcement.accessEnforcementMode,
@@ -164,7 +150,7 @@ export async function getSupabaseActivationReadiness(input: ActivationInput = {}
       detectableFromRuntime: false,
       caveat: "RLS policy correctness is not inferred from public table probes; verify with Supabase Auth, memberships and policy tests before confidential pilot access."
     },
-    activationReady: urlConfigured && anonKeyConfigured && serviceRoleConfigured && healthcheck.reachable && schemaReady && storage.storageReady,
+    activationReady: urlConfigured && anonKeyConfigured && applicationRepositoryEnabled && healthcheck.reachable && schemaReady && storage.storageReady,
     blockers: Array.from(new Set(blockers)),
     nextActions: Array.from(new Set(nextActions)),
     caveats: Array.from(new Set([

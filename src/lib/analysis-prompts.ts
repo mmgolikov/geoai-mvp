@@ -84,22 +84,6 @@ export function buildAnalyzePrompt(request: AnalyzeRequest) {
         sourceIds: request.marketContext.sourceIds
       }
     : null;
-  const uploadedDataContext = request.uploadedDataContext
-    ? {
-        appliedMetrics: request.uploadedDataContext.appliedMetrics,
-        availableButNotApplied: request.uploadedDataContext.availableButNotApplied,
-        visibleGeojsonLayers: request.uploadedDataContext.visibleGeojsonLayers.map((dataset) => ({
-          id: dataset.id,
-          name: dataset.name,
-          featureCount: dataset.featureCount,
-          confidence: dataset.confidence,
-          officialStatus: dataset.officialStatus,
-          notes: dataset.notes
-        })),
-        limitations: "Uploaded datasets are browser-local, user-provided context and are not official until externally validated."
-      }
-    : null;
-
   return `
 You are GeoAI, a spatial decision intelligence assistant for real estate, infrastructure, construction, investment, and climate-risk screening in Dubai.
 
@@ -117,7 +101,7 @@ Critical rules:
 - If enriched marketMetrics are provided, refer to them as seed_static sample-open indicators: activity, rental demand, liquidity, development pipeline, risk, and trend.
 - If spatialContext is provided, use its feature category, geometry type, centroid, estimated area, geometry confidence, source status and limitations. Never describe seed_geojson geometries as official parcel or planning boundaries.
 - If selectionType is user_drawn_aoi, use the AOI centroid, bbox, vertex count, area and perimeter as user-provided screening context only. Clearly state it is not an official parcel, zoning, cadastral, planning, ownership or entitlement boundary.
-- If uploadedDataContext is provided, reference uploaded CSV/GeoJSON only as user-provided local context. Do not treat it as official, live, verified, or decision-grade evidence unless validation is explicitly supplied.
+- Browser-local uploads and AOI geometry are never included in this server/AI prompt. Protected evidence requires a future request-scoped Auth/RBAC and privacy gateway.
 - If the custom query is non-empty, it is an additional decision lens and must materially affect the executive summary, key factors, risks and recommended actions.
 - Do not ignore the custom query even when the scenario is not Custom Query.
 - Answer the custom query within the constraints of available evidence and clearly state what official/customer-approved validation is required.
@@ -164,9 +148,6 @@ ${marketContext ? compactJson(marketContext) : "No market context provided."}
 
 Climate screening context:
 ${request.climateContext ? compactJson(request.climateContext) : "No climate context provided."}
-
-Uploaded local dataset context:
-${uploadedDataContext ? compactJson(uploadedDataContext) : "No uploaded dataset context provided."}
 
 Available Data Source Registry entries:
 ${compactJson(dataSources)}

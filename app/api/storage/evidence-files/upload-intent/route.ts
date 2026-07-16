@@ -5,6 +5,7 @@ import { repositoryModeFields } from "@/src/lib/repositories/repository-mode";
 import { allowedEvidenceMimeTypes, maxEvidenceFileSizeBytes } from "@/src/lib/storage/storage-readiness";
 import { buildStoragePath, sanitizeFileName, validateEvidenceFile, getStorageProviderStatus } from "@/src/lib/storage/storage-server";
 import { evidenceFileCaveat } from "@/src/types/storage";
+import { isPreAuthServerMutationBlocked } from "@/src/lib/auth/project-access";
 
 export const runtime = "nodejs";
 
@@ -13,6 +14,10 @@ function readString(value: unknown) {
 }
 
 export async function POST(request: Request) {
+  if (isPreAuthServerMutationBlocked("upload")) {
+    const access = requireProjectAccess({ action: "upload", mode: "soft" });
+    return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
+  }
   const body = await request.json().catch(() => ({})) as Record<string, unknown>;
   const projectKey = readString(body.projectKey) ?? "dubai-investment-screening-demo";
   const projectId = readString(body.projectId);

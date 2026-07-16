@@ -1,65 +1,72 @@
 import { NextResponse } from "next/server";
-import { getPilotBackendActivationSummary } from "@/src/lib/platform/pilot-backend-activation";
+import { getAuthModeStatus } from "@/src/lib/auth/auth-mode";
+import { getEnforcementConfig } from "@/src/lib/platform/enforcement-config";
+import { requireProjectAccess } from "@/src/lib/auth/project-access";
 import { buildRuntimeExecutiveStatus } from "@/src/lib/platform/runtime-status-contract";
-import { getSupabaseActivationReadiness } from "@/src/lib/supabase/activation-check";
-import { getSupabaseRuntimeReadiness } from "@/src/lib/supabase/runtime-readiness";
 
 export const runtime = "nodejs";
 
-export async function GET() {
-  const [summary, supabaseActivation, runtimeReadiness] = await Promise.all([
-    getPilotBackendActivationSummary(),
-    getSupabaseActivationReadiness(),
-    getSupabaseRuntimeReadiness()
-  ]);
-  const capability = (id: string) => summary.capabilities.find((item) => item.id === id);
+export function GET() {
+  const auth = getAuthModeStatus();
+  const config = getEnforcementConfig();
+  const demoAccess = requireProjectAccess({
+    projectKey: "dubai-investment-screening-demo",
+    action: "read",
+    mode: config.accessEnforcementMode
+  });
+  const canRunDemoWorkflow = demoAccess.allowed;
   const executiveStatus = buildRuntimeExecutiveStatus({
     vercelEnvironment: process.env.VERCEL_ENV,
-    authMode: runtimeReadiness.authMode,
-    repositoryMode: runtimeReadiness.repositoryMode,
-    accessEnforcementMode: summary.accessEnforcementMode,
-    canRunDemoWorkflow: summary.canRunDemoWorkflow,
-    canRunConfidentialPilot: summary.canRunConfidentialPilot,
-    supabaseConfigured: runtimeReadiness.supabaseConfigured,
-    supabaseReachable: runtimeReadiness.canReadHealthcheck,
-    schemaReady: runtimeReadiness.schemaReady,
-    storageConfigured: runtimeReadiness.supabaseConfigured && runtimeReadiness.storage.provider === "supabase_storage",
-    storageReady: runtimeReadiness.storageReady,
-    auditFoundationPresent: Boolean(
-      capability("audit_events") && capability("audit_events")?.status !== "not_configured"
-    ),
-    authSessionVerified: runtimeReadiness.authSessionVerified,
-    projectMembershipsVerified: runtimeReadiness.projectMembershipsVerified,
-    rlsPoliciesVerified: runtimeReadiness.rlsPoliciesVerified,
-    hardAccessEnabled: runtimeReadiness.hardAccessEnabled,
-    hardAccessVerified: runtimeReadiness.hardAccessVerified
+    authMode: auth.effectiveMode,
+    repositoryMode: "browser_local",
+    accessEnforcementMode: config.accessEnforcementMode,
+    canRunDemoWorkflow,
+    canRunConfidentialPilot: false,
+    supabaseConfigured: false,
+    supabaseReachable: false,
+    schemaReady: false,
+    storageConfigured: false,
+    storageReady: false,
+    auditFoundationPresent: false,
+    authSessionVerified: false,
+    projectMembershipsVerified: false,
+    rlsPoliciesVerified: false,
+    hardAccessEnabled: config.accessEnforcementMode === "hard",
+    hardAccessVerified: false,
+    infrastructureDiagnosticsWithheld: true
   });
 
   return NextResponse.json({
-    ...summary,
+    ok: true,
+    status: "public_demo_prototype",
+    productStage: "public_demo_prototype",
+    productSemVer: null,
+    environment: executiveStatus.environment,
+    accessMode: executiveStatus.accessMode,
+    authMode: auth.effectiveMode,
+    repositoryMode: "browser_local",
+    sourceMode: "operator_only_disabled_for_public",
+    canRunDemoPilot: canRunDemoWorkflow,
+    canRunDemoWorkflow,
+    canRunConfidentialPilot: false,
+    canonicalReplayCertified: false,
+    containmentMigrationApplied: false,
     executiveStatus,
-    runtimeMode: runtimeReadiness.runtimeMode,
-    supabaseConfigured: runtimeReadiness.supabaseConfigured,
-    supabaseReachable: runtimeReadiness.canReadHealthcheck,
-    localApiFallbackActive: runtimeReadiness.localApiFallbackActive,
-    readinessClaim: runtimeReadiness.readinessClaim,
-    notReadyReason: runtimeReadiness.notReadyReason,
-    supabaseActivation,
-    runtimeReadiness,
+    readinessClaim: "not_production_ready_or_pilot_ready",
+    notReadyReason: "Protected Auth, canonical database replay, private Storage and source custody are not activated.",
     blockers: [
-      ...summary.blockers,
-      ...runtimeReadiness.blockers.map((description) => ({
-        id: `runtime_${description.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "").slice(0, 56)}`,
-        severity: "p1" as const,
-        title: "Supabase runtime readiness blocker",
-        description,
-        relatedRoute: "/api/platform/activation-status",
-        nextAction: runtimeReadiness.nextActions[0] ?? "Review Supabase runtime readiness."
-      }))
+      { id: "DB-01", severity: "S0", title: "Canonical database replay and RLS evidence" },
+      { id: "AUTH-01", severity: "S0", title: "Request-scoped Auth and project membership" },
+      { id: "STORAGE-01", severity: "S0", title: "Protected evidence pipeline" },
+      { id: "SOURCE-01", severity: "S0", title: "Real-source custody and visibility" }
     ],
-    nextActions: Array.from(new Set([...summary.nextActions, ...runtimeReadiness.nextActions])),
-    caveats: Array.from(new Set([...summary.caveats, ...runtimeReadiness.caveats])),
-    caveat: runtimeReadiness.caveat,
-    generatedAt: runtimeReadiness.generatedAt
-  });
+    nextActions: ["Use an operator-authenticated control plane for infrastructure diagnostics."],
+    caveats: [
+      auth.caveat,
+      "Public-demo user state is browser-local and is not durable or shared.",
+      "Infrastructure and credential diagnostics are intentionally excluded from this public response."
+    ],
+    caveat: executiveStatus.caveat,
+    generatedAt: new Date().toISOString()
+  }, { headers: { "Cache-Control": "private, no-store, max-age=0" } });
 }

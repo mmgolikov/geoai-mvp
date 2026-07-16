@@ -1,30 +1,25 @@
 import { NextResponse } from "next/server";
-import { recordAuditEvent } from "@/src/lib/audit/audit-event";
-import { getStorageReadiness } from "@/src/lib/storage/storage-readiness";
+import { repositoryModeFields } from "@/src/lib/repositories/repository-mode";
+import { allowedEvidenceMimeTypes, maxEvidenceFileSizeBytes } from "@/src/lib/storage/storage-readiness";
 
 export const runtime = "nodejs";
 
-export async function GET() {
-  const readiness = await getStorageReadiness();
-  const audit = await recordAuditEvent({
-    eventType: "storage_health_checked",
-    entityType: "storage",
-    action: "Checked storage readiness",
-    metadata: {
-      provider: readiness.provider,
-      bucketReady: readiness.bucketReady,
-      storageReady: readiness.storageReady,
-      signedUrlVerified: readiness.signedUrlVerified,
-      verification: readiness.signedUrlVerified ? "geoai-storage-readiness-v1" : "pending"
-    }
-  });
-
+export function GET() {
   return NextResponse.json({
-    ...readiness,
-    audit: {
-      recorded: audit.recorded,
-      mode: audit.mode,
-      message: audit.message
-    }
-  });
+    ok: true,
+    status: "diagnostics_withheld",
+    ...repositoryModeFields("browser_local"),
+    provider: "protected_storage_unavailable_to_public_demo",
+    configured: null,
+    bucketReady: false,
+    storageReady: false,
+    signedUrlReady: false,
+    protectedStorageAvailableToPublic: false,
+    diagnosticsWithheld: true,
+    maxFileSizeBytes: maxEvidenceFileSizeBytes,
+    allowedMimeTypes: allowedEvidenceMimeTypes,
+    blockers: ["AUTH-01 and STORAGE-01 are required before any protected binary or metadata operation."],
+    nextActions: ["Use an operator-authenticated control plane for bucket and signed-URL diagnostics."],
+    caveat: "Public uploads and protected reads are blocked; configuration and bucket diagnostics are withheld."
+  }, { headers: { "Cache-Control": "private, no-store, max-age=0" } });
 }

@@ -1,0 +1,786 @@
+{
+  "schemaVersion": "1.1",
+  "lastVerified": "2026-07-16",
+  "authority": "docs/DOCUMENTATION_INDEX.md",
+  "counts": {
+    "markdownDocuments": 129,
+    "activeAuthorities": 12,
+    "nonActiveDocuments": 117
+  },
+  "documents": {
+    "AGENTS.md": {
+      "lifecycle": "active_authority",
+      "currentAuthority": true,
+      "successor": null,
+      "rule": "Must carry Status, Last verified, Owner, Authority and Successor fields and be updated with affected behavior."
+    },
+    "CHANGELOG.md": {
+      "lifecycle": "active_authority",
+      "currentAuthority": true,
+      "successor": null,
+      "rule": "Must carry Status, Last verified, Owner, Authority and Successor fields and be updated with affected behavior."
+    },
+    "README.md": {
+      "lifecycle": "active_authority",
+      "currentAuthority": true,
+      "successor": null,
+      "rule": "Must carry Status, Last verified, Owner, Authority and Successor fields and be updated with affected behavior."
+    },
+    "docs/AOI_LIBRARY_GEOJSON_IMPORT_EXPORT_V18.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/AUDIT_QA_2026-06-18.md": {
+      "lifecycle": "historical_release_evidence",
+      "currentAuthority": false,
+      "successor": "docs/CURRENT_RELEASE_STATE.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/AUTH_HARD_ACCESS_V1_CHANGE_REQUEST.md": {
+      "lifecycle": "historical_or_scoped_delivery_evidence",
+      "currentAuthority": false,
+      "successor": "docs/CODEX_BACKLOG_2026_07_16.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/AUTH_HARD_ACCESS_V1_PLAN.md": {
+      "lifecycle": "historical_or_scoped_delivery_evidence",
+      "currentAuthority": false,
+      "successor": "docs/CODEX_BACKLOG_2026_07_16.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/AUTH_HARD_ACCESS_V1_QA_CHECKLIST.md": {
+      "lifecycle": "historical_or_scoped_delivery_evidence",
+      "currentAuthority": false,
+      "successor": "docs/CODEX_BACKLOG_2026_07_16.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/AUTH_PROJECT_ACCESS_FOUNDATION_V22.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/AUTH_TEST_USERS_MEMBERSHIP_FIXTURES_V1.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/AUTH_TEST_USERS_MEMBERSHIP_V1_CHANGE_REQUEST.md": {
+      "lifecycle": "historical_or_scoped_delivery_evidence",
+      "currentAuthority": false,
+      "successor": "docs/CODEX_BACKLOG_2026_07_16.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/AUTH_TEST_USERS_MEMBERSHIP_V1_QA_CHECKLIST.md": {
+      "lifecycle": "historical_or_scoped_delivery_evidence",
+      "currentAuthority": false,
+      "successor": "docs/CODEX_BACKLOG_2026_07_16.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/CHECKPOINT_2026-06-18_investor_prototype_v02.md": {
+      "lifecycle": "historical_release_evidence",
+      "currentAuthority": false,
+      "successor": "docs/CURRENT_RELEASE_STATE.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/CLIENT_DATA_ROOM_FOUNDATION_V19.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/CLIENT_PILOT_PACKAGE_V15.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/CODEX_BACKLOG_2026_07_16.md": {
+      "lifecycle": "active_authority",
+      "currentAuthority": true,
+      "successor": null,
+      "rule": "Must carry Status, Last verified, Owner, Authority and Successor fields and be updated with affected behavior."
+    },
+    "docs/CR_DEV8_001_CONTROLLED_OPEN_CONTEXT_SOURCE_CONNECTION_PACK_V1.md": {
+      "lifecycle": "scoped_release_control_evidence",
+      "currentAuthority": false,
+      "successor": "docs/CURRENT_RELEASE_STATE.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/CR_DEV8_001_QA_CHECKLIST.md": {
+      "lifecycle": "scoped_release_control_evidence",
+      "currentAuthority": false,
+      "successor": "docs/CURRENT_RELEASE_STATE.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/CURRENT_RELEASE_STATE.md": {
+      "lifecycle": "active_authority",
+      "currentAuthority": true,
+      "successor": null,
+      "rule": "Must carry Status, Last verified, Owner, Authority and Successor fields and be updated with affected behavior."
+    },
+    "docs/CURRENT_RELEASE_STATE_2026_07_07.md": {
+      "lifecycle": "historical_release_evidence",
+      "currentAuthority": false,
+      "successor": "docs/CURRENT_RELEASE_STATE.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/CURRENT_RELEASE_STATE_2026_07_15.md": {
+      "lifecycle": "historical_release_evidence",
+      "currentAuthority": false,
+      "successor": "docs/CURRENT_RELEASE_STATE.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/CUSTOM_QUERY_INTELLIGENCE_V12.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/DATA_CREDIBILITY_V05.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/DATA_LICENSE_AND_CAVEATS_V16.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/DEMO_RC_V061.md": {
+      "lifecycle": "historical_release_evidence",
+      "currentAuthority": false,
+      "successor": "docs/CURRENT_RELEASE_STATE.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/DEMO_READINESS_CHECKLIST.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/DEMO_SCRIPT_V06.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/DLD_DUBAI_PULSE_INGESTION_V01.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/DOCUMENTATION_INDEX.md": {
+      "lifecycle": "active_authority",
+      "currentAuthority": true,
+      "successor": null,
+      "rule": "Must carry Status, Last verified, Owner, Authority and Successor fields and be updated with affected behavior."
+    },
+    "docs/DOCUMENT_ARCHIVE_INDEX.md": {
+      "lifecycle": "generated_navigation",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Generated sidecar navigation only; the Documentation Index remains authoritative."
+    },
+    "docs/ENTERPRISE_REPORT_PACK_V28.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/EVIDENCE_REVIEW_SIGNED_URL_VERIFICATION_V27.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/FINAL_DEMO_AUDIT_V061.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/FULL_SYSTEM_AUDIT_2026_07_16.md": {
+      "lifecycle": "active_authority",
+      "currentAuthority": true,
+      "successor": null,
+      "rule": "Must carry Status, Last verified, Owner, Authority and Successor fields and be updated with affected behavior."
+    },
+    "docs/GOVERNANCE_STALE_PR_CLEANUP_2026_07_07.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/INVESTOR_DEMO_NARRATIVE_V15.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/MVP_UI_HARDENING_V101.md": {
+      "lifecycle": "historical_release_evidence",
+      "currentAuthority": false,
+      "successor": "docs/CURRENT_RELEASE_STATE.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/OPEN_GEODATA_BASELINE_V01.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/PERSISTENCE_PROJECT_WORKSPACE_V08.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/PERSISTENCE_V01.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/PILOT_BACKEND_ACTIVATION_HARDENING_V29.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/PILOT_INFRASTRUCTURE_ACTIVATION_V24.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/PILOT_READINESS_CLIENT_PACKAGE_V11.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/PILOT_WORKFLOW_DELIVERABLES_V20.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/POLYGON_AOI_DRAWING_V17.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/POST_RELEASE_QUALITY_AND_SPATIAL_REGRESSION_GATE_V1_CHANGE_REQUEST.md": {
+      "lifecycle": "historical_or_scoped_delivery_evidence",
+      "currentAuthority": false,
+      "successor": "docs/CODEX_BACKLOG_2026_07_16.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/POST_RELEASE_QUALITY_AND_SPATIAL_REGRESSION_GATE_V1_QA_CHECKLIST.md": {
+      "lifecycle": "historical_or_scoped_delivery_evidence",
+      "currentAuthority": false,
+      "successor": "docs/CODEX_BACKLOG_2026_07_16.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/PROJECTS_WORKSPACES_V01.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/PROJECT_DASHBOARD_V01.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/PROJECT_HUB_RUNTIME_STATUS_RECONCILIATION_V11_CHANGE_REQUEST.md": {
+      "lifecycle": "historical_or_scoped_delivery_evidence",
+      "currentAuthority": false,
+      "successor": "docs/CODEX_BACKLOG_2026_07_16.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/PROJECT_SCOPED_PERSISTENCE_V13.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/PUBLIC_DATA_CONNECTORS_V16.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/PUBLIC_DATA_SOURCE_REGISTER_V16.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/REAL_DATA_BACKBONE_V07.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/REAL_DATA_OPENAI_SCORING_FOUNDATION_V21.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/REAL_EXTERNAL_DATA_INTEGRATION_V14.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/RELEASE_EVIDENCE_CI_GATE_V1_CHANGE_REQUEST.md": {
+      "lifecycle": "historical_release_evidence",
+      "currentAuthority": false,
+      "successor": "docs/CURRENT_RELEASE_STATE.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/RELEASE_EVIDENCE_CI_GATE_V1_QA_CHECKLIST.md": {
+      "lifecycle": "historical_release_evidence",
+      "currentAuthority": false,
+      "successor": "docs/CURRENT_RELEASE_STATE.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/RELEASE_GEOAI_AOI_LIBRARY_DEMO_V18.md": {
+      "lifecycle": "historical_release_evidence",
+      "currentAuthority": false,
+      "successor": "docs/CURRENT_RELEASE_STATE.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/RELEASE_GEOAI_AOI_READY_DEMO_V17.md": {
+      "lifecycle": "historical_release_evidence",
+      "currentAuthority": false,
+      "successor": "docs/CURRENT_RELEASE_STATE.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/RELEASE_GEOAI_AUTH_PROJECT_ACCESS_FOUNDATION_V22.md": {
+      "lifecycle": "historical_release_evidence",
+      "currentAuthority": false,
+      "successor": "docs/CURRENT_RELEASE_STATE.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/RELEASE_GEOAI_CLIENT_DATA_ROOM_FOUNDATION_V19.md": {
+      "lifecycle": "historical_release_evidence",
+      "currentAuthority": false,
+      "successor": "docs/CURRENT_RELEASE_STATE.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/RELEASE_GEOAI_DATA_FOUNDATION_V11.md": {
+      "lifecycle": "historical_release_evidence",
+      "currentAuthority": false,
+      "successor": "docs/CURRENT_RELEASE_STATE.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/RELEASE_GEOAI_DATA_FOUNDATION_V12.md": {
+      "lifecycle": "historical_release_evidence",
+      "currentAuthority": false,
+      "successor": "docs/CURRENT_RELEASE_STATE.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/RELEASE_GEOAI_DATA_FOUNDATION_V13.md": {
+      "lifecycle": "historical_release_evidence",
+      "currentAuthority": false,
+      "successor": "docs/CURRENT_RELEASE_STATE.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/RELEASE_GEOAI_DATA_READY_DEMO_RC_V14.md": {
+      "lifecycle": "historical_release_evidence",
+      "currentAuthority": false,
+      "successor": "docs/CURRENT_RELEASE_STATE.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/RELEASE_GEOAI_ENTERPRISE_REPORT_PACK_V28.md": {
+      "lifecycle": "historical_release_evidence",
+      "currentAuthority": false,
+      "successor": "docs/CURRENT_RELEASE_STATE.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/RELEASE_GEOAI_EVIDENCE_REVIEW_SIGNED_URL_V27.md": {
+      "lifecycle": "historical_release_evidence",
+      "currentAuthority": false,
+      "successor": "docs/CURRENT_RELEASE_STATE.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/RELEASE_GEOAI_EXPLORE_V11_EMBEDDED_COMMAND_PANEL.md": {
+      "lifecycle": "historical_release_evidence",
+      "currentAuthority": false,
+      "successor": "docs/CURRENT_RELEASE_STATE.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/RELEASE_GEOAI_EXPLORE_V1_SCENARIO_SHELL.md": {
+      "lifecycle": "historical_release_evidence",
+      "currentAuthority": false,
+      "successor": "docs/CURRENT_RELEASE_STATE.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/RELEASE_GEOAI_MOBILE_WORKSPACE_SEGMENT_DATA_V1.md": {
+      "lifecycle": "historical_release_evidence",
+      "currentAuthority": false,
+      "successor": "docs/CURRENT_RELEASE_STATE.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/RELEASE_GEOAI_PILOT_BACKEND_ACTIVATION_HARDENING_V29.md": {
+      "lifecycle": "historical_release_evidence",
+      "currentAuthority": false,
+      "successor": "docs/CURRENT_RELEASE_STATE.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/RELEASE_GEOAI_PILOT_INFRASTRUCTURE_ACTIVATION_V24.md": {
+      "lifecycle": "historical_release_evidence",
+      "currentAuthority": false,
+      "successor": "docs/CURRENT_RELEASE_STATE.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/RELEASE_GEOAI_PILOT_UX_SIMPLIFICATION_V30.md": {
+      "lifecycle": "historical_release_evidence",
+      "currentAuthority": false,
+      "successor": "docs/CURRENT_RELEASE_STATE.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/RELEASE_GEOAI_PILOT_UX_V31_BI_DASHBOARD.md": {
+      "lifecycle": "historical_release_evidence",
+      "currentAuthority": false,
+      "successor": "docs/CURRENT_RELEASE_STATE.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/RELEASE_GEOAI_PILOT_UX_V32_CRITERIA_BI.md": {
+      "lifecycle": "historical_release_evidence",
+      "currentAuthority": false,
+      "successor": "docs/CURRENT_RELEASE_STATE.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/RELEASE_GEOAI_PILOT_UX_V33_TEXT_SAFE_SUPABASE.md": {
+      "lifecycle": "historical_release_evidence",
+      "currentAuthority": false,
+      "successor": "docs/CURRENT_RELEASE_STATE.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/RELEASE_GEOAI_PILOT_UX_V34_VIEWPORT_ALIGNMENT.md": {
+      "lifecycle": "historical_release_evidence",
+      "currentAuthority": false,
+      "successor": "docs/CURRENT_RELEASE_STATE.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/RELEASE_GEOAI_PILOT_UX_V35_DASHBOARD_GRID_FIT.md": {
+      "lifecycle": "historical_release_evidence",
+      "currentAuthority": false,
+      "successor": "docs/CURRENT_RELEASE_STATE.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/RELEASE_GEOAI_PILOT_UX_V36_RELEASE_CANDIDATE.md": {
+      "lifecycle": "historical_release_evidence",
+      "currentAuthority": false,
+      "successor": "docs/CURRENT_RELEASE_STATE.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/RELEASE_GEOAI_PILOT_WORKFLOW_DELIVERABLES_V20.md": {
+      "lifecycle": "historical_release_evidence",
+      "currentAuthority": false,
+      "successor": "docs/CURRENT_RELEASE_STATE.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/RELEASE_GEOAI_PRODUCT_AUDIT_HARDENING_V1.md": {
+      "lifecycle": "historical_release_evidence",
+      "currentAuthority": false,
+      "successor": "docs/CURRENT_RELEASE_STATE.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/RELEASE_GEOAI_PUBLIC_DATA_READY_DEMO_V16.md": {
+      "lifecycle": "historical_release_evidence",
+      "currentAuthority": false,
+      "successor": "docs/CURRENT_RELEASE_STATE.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/RELEASE_GEOAI_REAL_DATA_OPENAI_SCORING_V21.md": {
+      "lifecycle": "historical_release_evidence",
+      "currentAuthority": false,
+      "successor": "docs/CURRENT_RELEASE_STATE.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/RELEASE_GEOAI_REPOSITORY_MODE_CONSISTENCY_V202.md": {
+      "lifecycle": "historical_release_evidence",
+      "currentAuthority": false,
+      "successor": "docs/CURRENT_RELEASE_STATE.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/RELEASE_GEOAI_SUPABASE_POSTGIS_DURABLE_PERSISTENCE_V23.md": {
+      "lifecycle": "historical_release_evidence",
+      "currentAuthority": false,
+      "successor": "docs/CURRENT_RELEASE_STATE.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/RELEASE_GEOAI_SUPABASE_RUNTIME_READINESS_V1.md": {
+      "lifecycle": "historical_release_evidence",
+      "currentAuthority": false,
+      "successor": "docs/CURRENT_RELEASE_STATE.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/RELEASE_GEOAI_VALIDATION_GOVERNANCE_V25.md": {
+      "lifecycle": "historical_release_evidence",
+      "currentAuthority": false,
+      "successor": "docs/CURRENT_RELEASE_STATE.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/RELEASE_GEOAI_WORKSPACE_PROJECT_HUB_REPORT_ALIGNMENT_V1.md": {
+      "lifecycle": "historical_release_evidence",
+      "currentAuthority": false,
+      "successor": "docs/CURRENT_RELEASE_STATE.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/RELEASE_PROJECT_HUB_RUNTIME_STATUS_RECONCILIATION_V11.md": {
+      "lifecycle": "historical_release_evidence",
+      "currentAuthority": false,
+      "successor": "docs/CURRENT_RELEASE_STATE.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/RELEASE_REPORT_CONNECTOR_READINESS_WORDING_V1.md": {
+      "lifecycle": "historical_release_evidence",
+      "currentAuthority": false,
+      "successor": "docs/CURRENT_RELEASE_STATE.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/REPORT_CONNECTOR_READINESS_WORDING_V1_CHANGE_REQUEST.md": {
+      "lifecycle": "historical_or_scoped_delivery_evidence",
+      "currentAuthority": false,
+      "successor": "docs/CODEX_BACKLOG_2026_07_16.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/REPORT_EXPORT_DELIVERABLES_V09.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/REPOSITORY_MODE_FALLBACK_CONSISTENCY_V202.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/RLS_POSITIVE_NEGATIVE_TEST_PLAN_V1.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/RLS_VERIFICATION_HARNESS_V1_CHANGE_REQUEST.md": {
+      "lifecycle": "historical_or_scoped_delivery_evidence",
+      "currentAuthority": false,
+      "successor": "docs/CODEX_BACKLOG_2026_07_16.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/RLS_VERIFICATION_HARNESS_V1_QA_CHECKLIST.md": {
+      "lifecycle": "historical_or_scoped_delivery_evidence",
+      "currentAuthority": false,
+      "successor": "docs/CODEX_BACKLOG_2026_07_16.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/SECURE_FILE_STORAGE_EVIDENCE_UPLOADS_V26.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/SPATIAL_B1_ATTRIBUTION_AND_DISTRIBUTION_SPEC_V1.md": {
+      "lifecycle": "scoped_release_control_evidence",
+      "currentAuthority": false,
+      "successor": "docs/CURRENT_RELEASE_STATE.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/SPATIAL_B1_EXECUTION_PLAN_V1.md": {
+      "lifecycle": "scoped_release_control_evidence",
+      "currentAuthority": false,
+      "successor": "docs/CURRENT_RELEASE_STATE.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/SPATIAL_B1_RELEASE_CONTROL_V1.md": {
+      "lifecycle": "scoped_release_control_evidence",
+      "currentAuthority": false,
+      "successor": "docs/CURRENT_RELEASE_STATE.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/SPATIAL_B2A_INTEGRATION_FOUNDATION_V1.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/SUPABASE_DATA_API_CONTAINMENT_RUNBOOK_2026_07_16.md": {
+      "lifecycle": "active_authority",
+      "currentAuthority": true,
+      "successor": null,
+      "rule": "Must carry Status, Last verified, Owner, Authority and Successor fields and be updated with affected behavior."
+    },
+    "docs/SUPABASE_DB_BASELINE_V1.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/SUPABASE_PILOT_ACTIVATION.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/SUPABASE_POSTGIS_DURABLE_PERSISTENCE_V23.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/SUPABASE_POSTGIS_V01.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/SUPABASE_RUNTIME_READINESS_V1.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/SUPABASE_STORAGE_READINESS_V1.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/UI_LAYOUT_GUARDRAILS.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/UI_RELEASE_FREEZE_V10.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/VALIDATION_GOVERNANCE_OFFICIAL_CONNECTOR_READINESS_V25.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/WORKSPACE_CTA_STATE_MODEL.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/WORKSPACE_MOBILE_PANEL_UX_FIXES_V1_CHANGE_REQUEST.md": {
+      "lifecycle": "historical_or_scoped_delivery_evidence",
+      "currentAuthority": false,
+      "successor": "docs/CODEX_BACKLOG_2026_07_16.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/WORKSPACE_MOBILE_RESPONSIVE_CORRECTIONS_V12.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/WORKSPACE_PROJECT_HUB_REPORT_ALIGNMENT_CORRECTIONS_V1_CHANGE_REQUEST.md": {
+      "lifecycle": "historical_or_scoped_delivery_evidence",
+      "currentAuthority": false,
+      "successor": "docs/CODEX_BACKLOG_2026_07_16.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/architecture.md": {
+      "lifecycle": "active_authority",
+      "currentAuthority": true,
+      "successor": null,
+      "rule": "Must carry Status, Last verified, Owner, Authority and Successor fields and be updated with affected behavior."
+    },
+    "docs/artifacts/README.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/artifacts/bpmn/BPMN-001-core-analysis-flow.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/artifacts/sql/ERD-001-schema-spec.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/data-strategy.md": {
+      "lifecycle": "active_authority",
+      "currentAuthority": true,
+      "successor": null,
+      "rule": "Must carry Status, Last verified, Owner, Authority and Successor fields and be updated with affected behavior."
+    },
+    "docs/design/CODEX_UI_V22_ISOLATED_PREVIEW_APPROVAL.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/design/DESIGN_REDESIGN_OPERATING_SYSTEM_V1.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/design/FIGMA_REDESIGN_BRIEF_V6.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/design/FIGMA_V6_EXTENDED_REDESIGN_STATUS.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/design/FIGMA_V6_FOUNDATION_STATUS.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/design/RESPONSIVE_IMPLEMENTATION_CONTRACT_V1.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/qa-checklist.md": {
+      "lifecycle": "active_authority",
+      "currentAuthority": true,
+      "successor": null,
+      "rule": "Must carry Status, Last verified, Owner, Authority and Successor fields and be updated with affected behavior."
+    },
+    "docs/roadmap.md": {
+      "lifecycle": "active_authority",
+      "currentAuthority": true,
+      "successor": null,
+      "rule": "Must carry Status, Last verified, Owner, Authority and Successor fields and be updated with affected behavior."
+    }
+  }
+}
