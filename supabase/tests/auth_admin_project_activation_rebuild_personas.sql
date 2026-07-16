@@ -253,7 +253,7 @@ select extensions.throws_ok(
     (select id from pg_temp.activation_ids where key = 'outsider_profile'),
     'member', 'active', null, null
   )$$,
-  '42501', 'organization administration role is required', 'ordinary member cannot mutate organization membership'
+  '42501', 'organization administrator required', 'ordinary member cannot mutate organization membership'
 );
 select set_config('request.jwt.claim.sub', '92000000-0000-0000-0000-000000000001', true);
 select set_config('request.jwt.claims', '{"sub":"92000000-0000-0000-0000-000000000001","role":"authenticated","aal":"aal1","is_anonymous":false}', true);
