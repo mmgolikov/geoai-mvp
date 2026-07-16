@@ -65,7 +65,7 @@ Blocks: Admin, protected reports, user files, durable project writes, pilot mode
 
 Implement one server authorization kernel that receives the actual request/cookie context, creates a caller-scoped Supabase client, verifies `auth.getUser()`, resolves one profile, organization and project membership, and enforces role/action rules. Protected modes fail closed; public demo is an explicit allowlisted read projection with browser-local deterministic generation only. Both server generation POSTs remain 403 before body parsing until AUTH-01, and public demo is never a fallback after an Auth error.
 
-Current implementation: browser/server SSR clients, middleware claim refresh, claims-before-user verification, canonical user/profile lookup through `api.current_profile()`, cookie-only transport, banned/deleted/unconfirmed denial, exact resource actions, capabilities and manifest wiring are staged. `requestAuthKernelStatus.implemented`, request-user, membership and RLS-persona evidence remain false; repositories are disabled and no protected mutation is activated.
+Current implementation: browser/server SSR clients, middleware claim refresh, claims-before-user verification, canonical user/profile lookup through `api.current_profile()`, cookie-only transport, banned/deleted/unconfirmed denial, exact resource actions, capabilities and manifest wiring are staged. AUTH-01B adds a pure request-scoped read facade that validates an exact project key/action before I/O, rejects bearer/mixed transport and non-Auth modes, resolves caller-bound `api.current_project_access()`, checks identity/scope/status invariants and delegates role decisions to the shared kernel. Its first repository reads only bounded approved `api.current_source_releases()` metadata through an explicit DTO; `client_viewer`, base-table access, service-role clients and public caching are excluded. `requestAuthKernelStatus.implemented`, request-user, membership and RLS-persona evidence remain false; repositories are disabled, no route consumes the facade and no protected mutation is activated.
 
 Acceptance:
 
@@ -110,7 +110,9 @@ Priority: P0 / S0
 Tracks: GitHub [#89](https://github.com/mmgolikov/geoai-mvp/issues/89); [#80](https://github.com/mmgolikov/geoai-mvp/issues/80) for geometry-bearing scope
 Depends on: DB-01; AUTH-01 for private sources
 
-Current implementation: pending migration `20260716113000_geoai_source_custody_foundation_v1.sql` defines five RLS-enabled/direct-grant-closed tables (`source_catalog`, `source_releases`, `source_artifacts`, `source_release_status_events`, `source_ingestion_receipts`). Releases, artifacts, status events and receipts are append-only; composite tenant/release and actor organization/project-membership FKs close cross-scope records. Legacy snapshot catalog backfill defaults to `restricted`/`registered_unverified`. `api.current_source_releases()` is caller/project-scoped, bounded to 1–100 rows, returns only `approved` catalog entries, allows owner/admin/analyst/viewer, denies `client_viewer` and omits object paths/source URIs/secrets. A static checker runs in CI and the pgTAP plan is 57 assertions, including the Storage role-helper semantic check plus negative source-actor-membership and artifact/release tenant-scope FK cases. This is an unapplied foundation only: it connects no provider, exposes no write API and leaves all provider writes blocked pending a trusted worker design, replay and real personas.
+Current implementation: pending migration `20260716113000_geoai_source_custody_foundation_v1.sql` defines five RLS-enabled/direct-grant-closed tables (`source_catalog`, `source_releases`, `source_artifacts`, `source_release_status_events`, `source_ingestion_receipts`). Releases, artifacts, status events and receipts are append-only; composite tenant/release and actor organization/project-membership FKs close cross-scope records. Legacy snapshot catalog backfill defaults to `restricted`/`registered_unverified`. `api.current_source_releases()` is caller/project-scoped, bounded to 1–100 rows, returns only an explicit `approved` projection for owner/admin/analyst/viewer, denies `client_viewer` and omits arbitrary quality/lineage summary JSON, object paths, source URIs and secrets. A static checker runs in CI and the pgTAP plan is 57 assertions, including the Storage role-helper semantic check plus negative source-actor-membership and artifact/release tenant-scope FK cases.
+
+SOURCE-02 is staged as a pure provider-neutral connector registry, request planner and stable success/quarantine/failure/duplicate receipt model. The shipped registry is empty; the module performs no DNS or provider request, reads no environment or secret, injects no credential and writes no custody record. Production is always denied and persistence is explicitly outside SOURCE-02. A future local/Preview plan must resolve an explicit approved-disabled connector and rights receipt, bind tenant/project/actor scope, use exact HTTPS endpoint/query/body/size/timeout/redirect/network policies and pass canonical replay, custody/source-persona, authenticated-worker, owner-bound, exact-SHA, distributed-rate, cross-instance-circuit and credential-broker gates. Public distribution, geometry and imagery each add their own objective gate. These remain unapplied, disconnected foundations only; all provider writes are blocked.
 
 Acceptance:
 
@@ -119,6 +121,7 @@ Acceptance:
 - source/snapshot records use explicit `public_demo`, `project_private` or `operator_private` visibility; nullable tenant/project never means public;
 - all existing `project_key IS NULL` anonymous snapshot policy paths are removed before the first real/operator ingestion, and a negative PostgREST test proves that a NULL-key snapshot is not anonymous even when `project_id` is non-null;
 - public APIs return only the audited projection and never raw/normalized paths, bucket keys, local filenames, provider asset URLs or secrets;
+- project source-release reads also exclude unstructured `quality_summary`/`lineage_summary` JSON; future fields do not enter the request repository without explicit DTO review;
 - public source DTOs enumerate every approved field explicitly; spread/delete projection is prohibited so new internal manifest fields cannot become public by default;
 - anonymous manifest/sources/status responses remain bundled-only with `contractVersion: 1.3`, manifest `1.6`, `liveRegistryIncluded:false`, zero live counts and no Supabase probe; candidate `compact_public_v1` stays within 64 KB (other data-foundation routes 48 KB) without dropping caveats, with exact-head runtime evidence;
 - anonymous source routes statically import only the reviewed manifest and compact aggregate-quality records; Vercel output traces exclude deep DLD/OSM/Overture/WorldPop snapshots. Per-source zero/count/status/`usedInAnalysis` truth has adversarial runtime contracts and group totals are not copied to categories;
@@ -127,6 +130,7 @@ Acceptance:
 - the current Preview source pack remains non-persistent, fixed-geography, `scoreImpact:none`; Production remains disabled;
 - Preview provider execution is off by default and requires the flag, a 32+ character server-only operator token and matching request authorization. NASA observations must be date-aligned, valid-calendar/in-period and in parameter ranges; Copernicus must use the exact approved collection, strict UTC in-period datetime and 0–100 cloud cover; Overpass must contain exactly the three finite non-negative counts. Fixed HTTPS hosts, redirect rejection, cancellation of non-success/oversized bodies, missing/wrong credential tests and Production denial are mandatory; distributed rate/concurrency budgets and cross-instance circuit evidence remain required;
 - geometry, imagery, wider distribution and score impact each require their own validation and owner activation evidence.
+- SOURCE-02 remains provider-neutral planning only: a separate trusted executor must re-resolve DNS/connect-time IP, inject broker-held credentials, enforce distributed budgets/circuits, validate provider-specific semantics and create SOURCE-01 receipts/releases transactionally; no planning result itself authorizes persistence.
 
 ## AI-01 — Safe AI gateway and privacy controls
 
@@ -150,6 +154,8 @@ Acceptance:
 
 Priority: P1 / S1
 Tracks: GitHub [#93](https://github.com/mmgolikov/geoai-mvp/issues/93); [#80](https://github.com/mmgolikov/geoai-mvp/issues/80) where real geometry is involved
+
+Current implementation: the shared polygon validator rejects non-finite and out-of-WGS84 coordinates, tuples other than exact longitude/latitude pairs, unsupported antimeridian crossings, duplicate/self-intersecting and over-complex polygons, and recomputes bbox, centroid, area and perimeter. The permanent test exercises 11 geometry personas: one representative Dubai success and ten adversarial failures. Public-demo AOIs remain browser-local; authenticated server-route byte/feature/ring enforcement and durable-write evidence are still open.
 
 Acceptance:
 
@@ -203,6 +209,8 @@ Acceptance:
 
 Priority: P1 / S1
 Tracks: GitHub [#95](https://github.com/mmgolikov/geoai-mvp/issues/95)
+
+Current implementation: Workspace comparison, express-result and report-preview surfaces are dynamically loaded behind a stable accessible loading state. On the same local production-build basis, First Load JS decreased from 252 kB to 218 kB (34 kB, approximately 13.5% gzip). This closes only the narrow lazy-result-surface increment; exact-Preview, Core Web Vitals and broader coordinator/Mapbox/Hub work remain open.
 
 Acceptance:
 

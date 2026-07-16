@@ -260,8 +260,6 @@ returns table (
   extracted_at timestamptz,
   released_at timestamptz,
   effective_status text,
-  quality_summary jsonb,
-  lineage_summary jsonb,
   caveat text
 )
 language sql
@@ -281,8 +279,6 @@ as $$
     release.extracted_at,
     release.released_at,
     coalesce(status_event.status, 'sealed'),
-    release.quality_summary,
-    release.lineage_summary,
     release.caveat
   from public.source_releases release
   join public.source_catalog catalog on catalog.source_id = release.source_id
@@ -325,4 +321,4 @@ comment on table public.source_releases is
 comment on table public.source_artifacts is
   'Immutable artifact custody metadata. Object paths are never returned by the public read RPC.';
 comment on function api.current_source_releases(text, integer, timestamptz, uuid) is
-  'Bounded caller-scoped release metadata; no object path, secret, or client_viewer access.';
+  'Bounded caller-scoped allowlisted release metadata; no arbitrary summary JSON, object path, secret, or client_viewer access.';

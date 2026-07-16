@@ -1,11 +1,9 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
 import { AnalysisPanel } from "@/components/analysis-panel";
-import { ComparisonDashboard } from "@/components/comparison-dashboard";
-import { ExpressDashboard } from "@/components/express-dashboard";
 import { MapWorkspace } from "@/components/map-workspace";
-import { ReportPreview } from "@/components/report-preview";
 import {
   createEvidenceItem,
   getDataSourceById
@@ -107,6 +105,33 @@ import type {
 import type { MarketContext } from "@/src/types/market-context";
 import type { UploadedDataset } from "@/src/types/uploaded-data";
 import type { ProjectAoi } from "@/src/types/aoi";
+
+function WorkspaceResultLoading() {
+  return (
+    <div
+      className="flex h-full min-h-[420px] items-center justify-center bg-surface px-6 text-center"
+      role="status"
+      aria-live="polite"
+    >
+      <p className="text-sm font-semibold text-muted">Loading decision view…</p>
+    </div>
+  );
+}
+
+const ComparisonDashboard = dynamic(
+  () => import("@/components/comparison-dashboard").then((module) => module.ComparisonDashboard),
+  { loading: WorkspaceResultLoading }
+);
+
+const ExpressDashboard = dynamic(
+  () => import("@/components/express-dashboard").then((module) => module.ExpressDashboard),
+  { loading: WorkspaceResultLoading }
+);
+
+const ReportPreview = dynamic(
+  () => import("@/components/report-preview").then((module) => module.ReportPreview),
+  { loading: WorkspaceResultLoading }
+);
 
 const analysisHistoryStorageKey = browserDemoStorageKey("analysis-history-v1");
 const activeProjectStorageKey = browserDemoStorageKey("active-project-key-v1");

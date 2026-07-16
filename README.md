@@ -125,7 +125,7 @@ GEOAI_OPERATOR_SOURCE_TOKEN=
 
 Supabase/PostGIS is optional in v0.1. When Supabase environment variables are not configured, GeoAI remains fully usable in local/demo mode and analysis history stays in browser storage.
 
-`NEXT_PUBLIC_AUTH_MODE` is optional and defaults to `demo_public`. Valid values are `demo_public`, `supabase_auth`, and `disabled`. Requesting `supabase_auth` currently resolves to `disabled`: SSR cookie transport and request identity/profile context are staged, but membership/resource repositories, real personas and activation evidence remain disabled. Public application repositories do not connect to Supabase before AUTH-01 closure.
+`NEXT_PUBLIC_AUTH_MODE` is optional and defaults to `demo_public`. Valid values are `demo_public`, `supabase_auth`, and `disabled`. Requesting `supabase_auth` currently resolves to `disabled`: SSR cookie transport plus a request-scoped read facade are staged, but every Auth/repository/persona readiness flag remains false. The facade accepts cookie transport only, requires an exact project key, resolves `api.current_project_access()` through the caller client and reuses the canonical role/action kernel before any bounded `api.current_source_releases()` read. It has no public-demo fallback, bearer path, base-table read, service-role client or public cache; `client_viewer` cannot read raw source releases. No application route consumes this facade before AUTH-01 evidence closes.
 
 Invalid environment values fail closed: an unknown Auth mode becomes `disabled`; an unknown enforcement mode becomes `hard`; an invalid demo-public flag becomes `false`; and invalid Supabase/Storage readiness flags become `true`. This prevents a typo from weakening access or readiness requirements.
 
@@ -139,7 +139,9 @@ Use `npm run supabase:activation-status` only for a local, read-only inspection 
 
 This development target is separate from Production and is not contained yet: the candidate containment, identity and source-custody migrations are unapplied, anonymous domain rows and a broad PostGIS RPC/ACL surface remain reachable through the live Data API. The repository now reconstructs the exact ten-entry live migration ledger, adds a pre-ledger reconciliation artifact, stages operation-specific RLS plus a minimal `api.healthcheck()`/identity/membership/source-release RPC allowlist, and keeps direct `public` grants closed in the pending model. These are review artifacts only. Before Auth, real sources or protected files, the owner must expose only `api` (or disable the Data API) and prove clean/upgrade replay, direct-`public` denial and caller-JWT/Storage/source personas. Follow the [Supabase Data API Containment Runbook](docs/SUPABASE_DATA_API_CONTAINMENT_RUNBOOK_2026_07_16.md); it authorizes no live change.
 
-Pending SOURCE-01 migration `20260716113000_geoai_source_custody_foundation_v1.sql` adds five RLS-enabled, direct-grant-closed custody tables: catalog, immutable releases, artifacts, status events and ingestion receipts. Composite tenant/release and actor organization/project-membership FKs prevent cross-scope custody rows. Legacy registry backfill is fail-closed as `restricted`/`registered_unverified`. Bounded `api.current_source_releases()` returns only `approved` catalog metadata for owner/admin/analyst/viewer in the caller project, with no Storage path, source URI, secret or `client_viewer` access. The migration connects no provider and exposes no write API; all source-provider writes remain blocked pending a trusted worker design, rights approval and execution evidence.
+Pending SOURCE-01 migration `20260716113000_geoai_source_custody_foundation_v1.sql` adds five RLS-enabled, direct-grant-closed custody tables: catalog, immutable releases, artifacts, status events and ingestion receipts. Composite tenant/release and actor organization/project-membership FKs prevent cross-scope custody rows. Legacy registry backfill is fail-closed as `restricted`/`registered_unverified`. Bounded `api.current_source_releases()` returns only an explicit approved metadata projection for owner/admin/analyst/viewer in the caller project; it omits arbitrary quality/lineage summary JSON, Storage paths, source URIs, secrets and `client_viewer` access. The migration connects no provider and exposes no write API; all source-provider writes remain blocked pending a trusted worker design, rights approval and execution evidence.
+
+SOURCE-02 adds a provider-neutral, pure planning and receipt foundation. Its shipped connector registry is empty, it performs no provider `fetch`, environment/secret read, credential injection or custody persistence, and it always denies Production. A future local/Preview plan must bind an explicitly reviewed connector and rights receipt to exact tenant/actor scope and pass canonical replay, custody/source personas, authenticated worker, owner, exact-deployment SHA, distributed rate, cross-instance circuit and credential-broker gates, plus public-distribution, geometry and imagery approvals when applicable. SOURCE-02 can produce only a non-persisted release candidate or stable failure/quarantine/duplicate receipt; it does not activate a source.
 
 The local replay contract is staged in `supabase/config.toml` with only the `api` schema exposed and Postgres 17, and the repository pins Supabase CLI `2.109.1`. CI `database-replay` is configured to start/reset the local stack and run the 57-assertion pgTAP persona suite; the permanent Quality Gate also runs the static source-custody migration checker. The guarded operator migration check enumerates all three pending migrations and requires the canonical/security/identity/source-custody static checks. This is configuration, not execution evidence: local Docker is unavailable in the current workspace and GitHub CI has not yet run these controls on the exact candidate SHA.
 
@@ -208,6 +210,9 @@ npm run test:canonical-migration-chain
 npm run test:identity-authorization-migration
 npm run test:source-custody-migration
 npm run test:auth-ssr-transport
+npm run test:request-scoped-project-read
+npm run test:source-connector-foundation
+npm run test:aoi-integrity
 npm run test:supabase-local-contract
 npm run test:readiness-evidence
 npm run test:migration-security-surface
@@ -325,7 +330,7 @@ Current geometries are synthetic/demo only. They are not official parcel, planni
 
 GeoAI supports an explicit polygon AOI drawing workflow in the workspace. Users can choose `Add polygon`, click vertices on the Mapbox canvas, preview the next edge while moving the cursor, close the polygon by clicking near the first vertex, then run Express Analysis or add the AOI to comparison.
 
-Drawn AOIs include approximate area, perimeter, centroid, bounding box and vertex count. The app validates minimum vertex count, duplicate consecutive vertices, self-intersection, minimum area and maximum area before accepting the polygon.
+Drawn AOIs include approximate area, perimeter, centroid, bounding box and vertex count. The shared validator rejects too few/too many vertices, non-finite or out-of-WGS84 coordinates, tuples other than exact longitude/latitude pairs, consecutive duplicates, self-intersections, antimeridian crossings unsupported by the planar model, and polygons outside the configured area bounds. The 11-persona adversarial contract includes one representative Dubai polygon and ten negative geometry cases; it does not replace server-route and durable-persistence evidence after Auth.
 
 User-drawn AOIs are treated as user-provided screening context only. They are not official parcel, zoning, cadastral, planning, ownership or entitlement boundaries. See [Polygon AOI Drawing v1.7](docs/POLYGON_AOI_DRAWING_V17.md) and [GeoAI AOI-Ready Demo v1.7 Release Note](docs/RELEASE_GEOAI_AOI_READY_DEMO_V17.md).
 
@@ -476,9 +481,11 @@ Current export remains browser print/save as PDF. GeoAI does not generate server
 - Supabase/PostGIS and persistence are optional prototype foundations, not production-grade user storage yet.
 - Pilot readiness scoring is a delivery checklist, not an approval, compliance or production-readiness certification.
 - Auth foundation exists in public-demo mode, but production route enforcement, RLS and durable user/organization access control are not complete.
+- The AUTH-01B read facade and SOURCE-02 connector planner are fail-closed foundations only: readiness flags are false, the connector registry is empty, and no protected read/provider/persistence path is active.
 - No activated real parcel, zoning, transaction, imagery or regulatory evidence adapters; bounded Preview source context is non-decision-grade and disabled in Production.
 - Report export is browser print/save as PDF, not a generated server-side PDF.
 - Comparison sets remain browser-local in public demo; durable comparison/report libraries require normalized repository contracts, Auth, tenant security and validated persistence.
+- Workspace result-only dashboards and report preview are now loaded on demand; the same local production-build comparison reduced First Load JS from 252 kB to 218 kB (34 kB, approximately 13.5% gzip). This is a narrow bundle result, not a Core Web Vitals or exact-Preview performance certification.
 
 ## Documentation
 

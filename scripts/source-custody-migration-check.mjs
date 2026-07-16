@@ -65,6 +65,7 @@ if (!/limit\s+least\s*\(greatest\s*\(coalesce\(page_size\s*,\s*25\)\s*,\s*1\)\s*
 }
 const returnsBlock = apiBlock.match(/returns\s+table\s*\([\s\S]*?\)\s*language/i)?.[0] ?? "";
 if (/storage_(?:bucket|object_path)|source_uri/i.test(returnsBlock)) failures.push("Source release RPC leaks custody object locations");
+if (/quality_summary|lineage_summary/i.test(apiBlock)) failures.push("Source release RPC exposes arbitrary summary JSON through the Data API");
 if (!/revoke\s+all\s+on\s+function\s+api\.current_source_releases\(text\s*,\s*integer\s*,\s*timestamptz\s*,\s*uuid\)[\s\S]*from\s+public\s*,\s*anon\s*,\s*authenticated\s*,\s*service_role/i.test(sql)) {
   failures.push("Source release RPC execute privileges are not reset explicitly");
 }

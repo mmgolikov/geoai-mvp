@@ -48,6 +48,28 @@ function sameCoordinate(a: [number, number], b: [number, number]) {
   return Math.abs(a[0] - b[0]) < 1e-9 && Math.abs(a[1] - b[1]) < 1e-9;
 }
 
+function coordinateError(coordinate: unknown) {
+  if (!Array.isArray(coordinate) || coordinate.length !== 2) {
+    return "Every AOI vertex must contain exactly [longitude, latitude].";
+  }
+
+  const [longitude, latitude] = coordinate;
+  if (
+    typeof longitude !== "number" ||
+    typeof latitude !== "number" ||
+    !Number.isFinite(longitude) ||
+    !Number.isFinite(latitude)
+  ) {
+    return "AOI coordinates must be finite numbers.";
+  }
+
+  if (longitude < -180 || longitude > 180 || latitude < -90 || latitude > 90) {
+    return "AOI coordinates must be valid WGS84 longitude/latitude values.";
+  }
+
+  return null;
+}
+
 function orientation(a: [number, number], b: [number, number], c: [number, number]) {
   return (b[1] - a[1]) * (c[0] - b[0]) - (b[0] - a[0]) * (c[1] - b[1]);
 }
@@ -158,6 +180,19 @@ export function validatePolygonVertices(vertices: [number, number][]): PolygonVa
 
   if (vertices.length > maxAoiVertices) {
     return { valid: false, message: `AOI exceeds the ${maxAoiVertices}-vertex browser screening limit.` };
+  }
+
+  for (const coordinate of vertices) {
+    const error = coordinateError(coordinate);
+    if (error) return { valid: false, message: error };
+  }
+
+  const longitudes = vertices.map(([longitude]) => longitude);
+  if (Math.max(...longitudes) - Math.min(...longitudes) > 180) {
+    return {
+      valid: false,
+      message: "AOIs crossing the antimeridian are not supported by the current planar measurement model."
+    };
   }
 
   for (let i = 1; i < vertices.length; i += 1) {

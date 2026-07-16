@@ -18,6 +18,7 @@ This checklist primarily verifies the unreleased Draft PR #97 audit candidate. P
 - [ ] `profiles.auth_user_id` has an upgrade-safe `auth.users(id)` FK plus required uniqueness; authenticated AOI writes enforce an explicit authorized role, not membership alone. **Current status: blocked.**
 - [x] Every API handler is classified in `security/api-route-access.json`; static guard contract passes.
 - [x] Candidate static check: the environment-driven access wrapper denies hard mode when Auth/bypass evidence is absent; synthetic membership cannot override the lower decision. **Exact-head runtime evidence remains pending.**
+- [x] AUTH-01B pure contract: cookie-only reads require an exact project key/action, reject bearer/non-Auth modes, verify caller-bound `api.current_project_access()`, reuse the canonical role kernel, deny `client_viewer` raw source access and expose no base-table/service-role/cache path. **All readiness flags remain false; no route is activated and real HTTP/JWT/RLS personas are pending.**
 - [x] User-facing repository client cannot select the Supabase service-role key.
 - [ ] Canonical migration chain replays cleanly on an ephemeral Supabase/Postgres target. **Current status: exact unique ledger reconstruction and static checks pass; clean/upgrade execution evidence is still blocked.**
 - [x] Every canonical Supabase migration filename has a unique 14-digit CLI version; non-ledger duplicate-version drafts are quarantined outside `supabase/migrations`. **Replay certification remains separate.**
@@ -25,10 +26,11 @@ This checklist primarily verifies the unreleased Draft PR #97 audit candidate. P
 - [ ] Exact-head GitHub CI `database-replay` successfully completes start/reset and the 57-assertion pgTAP database/source/Storage-helper persona suite across all three pending migrations, including negative source actor-membership and artifact/release tenant-scope FK tests. **Current status: configured but not executed locally because Docker is unavailable; remote result is pending.**
 - [ ] Live positive/negative RLS persona matrix passes for every protected table. **Current status: mock plan only.**
 - [ ] Protected upload validates total body, server-derived scope, magic bytes, checksum and quarantine/AV state. **Current status: blocked.**
-- [x] Static SOURCE-01 contract proves five RLS-enabled/direct-grant-closed custody tables, immutable release/artifact/status/receipt records, composite tenant/release and actor membership FKs, `restricted`/`registered_unverified` legacy backfill, and approved-only bounded no-path/no-`client_viewer` `api.current_source_releases()` output.
+- [x] Static SOURCE-01 contract proves five RLS-enabled/direct-grant-closed custody tables, immutable release/artifact/status/receipt records, composite tenant/release and actor membership FKs, `restricted`/`registered_unverified` legacy backfill, and approved-only bounded `api.current_source_releases()` output without arbitrary quality/lineage summary JSON, paths, URI, secrets or `client_viewer`.
 - [x] Static identity/Storage contract proves the review-only policy uses narrow `SECURITY DEFINER geoai_private.has_storage_project_role()` instead of protected base/Auth caller joins, allows only authenticated object fetch/signing operations, denies bucket listing and excludes `client_viewer` raw-object access. **Policy remains unapplied; live Storage personas are pending.**
 - [ ] Real snapshots have explicit tenant/visibility and custody; nullable project scope is not treated as public. **Current status: schema contract is staged but unapplied; clean/upgrade replay, real source personas, rights and trusted-worker evidence remain blocked.**
 - [ ] Source-provider writes remain disabled until a trusted operator/worker path proves idempotent receipts, rights checks, quarantine/revocation, rollback and negative public-app write access. **Current status: no provider is connected and the pending migration exposes no write API.**
+- [x] SOURCE-02 pure contract ships an empty registry, performs no fetch/env/secret/credential injection/persistence, denies Production, binds tenant/actor request identity and fails closed on missing rights/replay/custody/persona/worker/owner/exact-SHA/rate/circuit/credential evidence plus applicable distribution/geometry/imagery gates. **This is planning/receipt evidence only, not live-provider or custody-write evidence.**
 - [x] Public source DTOs exclude raw/normalized filesystem and Storage object paths.
 - [x] OpenAI key alone cannot activate upstream execution; body/time/token bounds are enforced.
 - [x] Candidate static check: public-demo upload, AOI, report, analysis-run and comparison state remains browser-only; Vercel server-local fallback is disabled and seeded reports are immutable server authority. **Production remains unsafe until merge/deploy; exact-head runtime evidence remains pending.**
@@ -191,6 +193,7 @@ This checklist primarily verifies the unreleased Draft PR #97 audit candidate. P
 - [ ] `Undo vertex` removes the last vertex.
 - [ ] `Cancel` and `Esc` exit drawing mode.
 - [ ] Invalid/self-intersecting polygons are rejected with a clear message.
+- [x] The 11-persona AOI contract accepts a representative Dubai polygon and rejects non-finite/out-of-WGS84/wrong-arity coordinates, unsupported antimeridian crossing, duplicate/self-intersecting and over-complex cases while recomputing measurements. **Authenticated server-route and durable-write evidence remain pending.**
 - [ ] Accepted AOI shows area, perimeter, vertices, source and validation status in the command panel.
 - [ ] Express Analysis works for the user-drawn AOI.
 - [ ] Report preview and print route include AOI measurements and validation caveat.
@@ -326,6 +329,7 @@ This checklist primarily verifies the unreleased Draft PR #97 audit candidate. P
 - [ ] `/login` shows current auth mode and access caveat.
 - [ ] `/api/auth/session` returns safe JSON without secrets.
 - [x] Candidate static check: the current wrapper fails closed for missing hard-mode Auth/demo-bypass evidence and blocks public server mutations even when `supabase_auth` is selected only by environment. **Request-scoped Supabase user/membership verification still remains AUTH-01; exact-head runtime evidence is pending.**
+- [x] `npm run test:request-scoped-project-read` proves exact-key cookie-only prerequisites, five independent readiness denials, caller/profile/project/status invariants, shared role outcomes and strict source-release DTO mapping. **The implementation is intentionally disconnected while readiness remains false.**
 - [ ] Project/workspace access badges remain compact and do not push primary actions below the first viewport.
 
 ## Pilot Infrastructure Activation v2.4
@@ -457,6 +461,7 @@ This checklist primarily verifies the unreleased Draft PR #97 audit candidate. P
 - [ ] Every protected write/upload/review/validate/manage control is disabled before `fetch`, explains the missing capability and produces zero guaranteed-403 network requests. Browser-safe AOI/upload/analysis/report/comparison actions remain usable.
 - [ ] Network capture confirms the disabled legacy `AnalysisPanel` server fanout sends zero requests. Unreachable state/effects/handlers are tracked for removal rather than treated as active functionality.
 - [ ] Project Hub records its exact initial request count and response bytes on the same exact-SHA build; the current six-request public baseline (projects, DB status, market metrics, external-data status, platform status and pilot status) must not regress, candidate compact source budgets pass, and aggregation/snapshot options are measured before a performance claim.
+- [x] Workspace result-only comparison/dashboard/report surfaces are lazy and the same local production-build comparison records First Load JS 252 kB → 218 kB (34 kB, approximately 13.5% gzip). **Exact-Preview, browser-flow and Core Web Vitals evidence remain pending.**
 - [ ] `preserveDrawingBuffer` is enabled only for an explicit capture path; route JS, build, API latency and Core Web Vitals budgets pass on the declared desktop/mobile profiles.
 - [ ] Mobile navigation exposes Workspace and Projects; each critical route has one meaningful `h1`, labelled project/candidate/audience controls, correct pressed/expanded/disabled states, useful live regions and WCAG 2.2-sized interactive targets.
 - [ ] Axe/Lighthouse and keyboard-only journeys cover Home → Workspace → analysis/report, criteria-first comparison, project switching and print; no active control targets a guaranteed 403.
