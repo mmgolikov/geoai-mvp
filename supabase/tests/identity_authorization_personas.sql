@@ -202,7 +202,6 @@ values
   ('82000000-0000-0000-0000-000000000001', '83000000-0000-0000-0000-000000000010', 'member', 'active'),
   ('82000000-0000-0000-0000-000000000001', '83000000-0000-0000-0000-000000000011', 'member', 'suspended'),
   ('82000000-0000-0000-0000-000000000001', '83000000-0000-0000-0000-000000000012', 'member', 'active'),
-  ('82000000-0000-0000-0000-000000000002', '83000000-0000-0000-0000-000000000002', 'member', 'active'),
   ('82000000-0000-0000-0000-000000000003', '83000000-0000-0000-0000-000000000013', 'member', 'active'),
   ('82000000-0000-0000-0000-000000000004', '83000000-0000-0000-0000-000000000014', 'member', 'active');
 
@@ -638,6 +637,13 @@ select extensions.throws_ok(
   '23503',
   'insert or update on table "source_releases" violates foreign key constraint "source_releases_creator_membership_fkey"',
   'source release creator must belong to the release organization'
+);
+insert into public.organization_memberships (organization_id, profile_id, role, status)
+values (
+  '82000000-0000-0000-0000-000000000002',
+  '83000000-0000-0000-0000-000000000002',
+  'member',
+  'active'
 );
 select extensions.throws_ok(
   $$
