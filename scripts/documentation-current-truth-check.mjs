@@ -187,7 +187,7 @@ const semanticContracts = [
       "return 403 before body parsing until AUTH-01",
       "The current migration chain is not apply-ready.",
       "Supabase CLI `2.109.1`",
-      "69-assertion pgTAP",
+      "71-assertion pgTAP",
       "User-uploaded and user-drawn targets skip market/climate network calls"
     ],
     forbidden: [
@@ -211,7 +211,7 @@ const semanticContracts = [
     required: [
       "Invalid environment values fail closed",
       "DLD valuations/brokers/developers and OSM buildings remain zero-record/not-used",
-      "69-assertion pgTAP",
+      "71-assertion pgTAP",
       "returns seed-only context"
     ],
     forbidden: [

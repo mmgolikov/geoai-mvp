@@ -6,7 +6,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select extensions.plan(69);
+select extensions.plan(71);
 
 select extensions.has_table(
   'public',
@@ -357,17 +357,40 @@ insert into public.source_release_status_events (
   id, source_release_id, organization_id, project_id, project_key,
   status, reason_code, actor_profile_id, created_at
 )
-values (
-  '89000000-0000-0000-0000-000000000001',
-  '86000000-0000-0000-0000-000000000001',
-  '82000000-0000-0000-0000-000000000001',
-  '84000000-0000-0000-0000-000000000001',
-  'persona-project-a',
-  'quarantined',
-  'persona_quality_hold',
-  '83000000-0000-0000-0000-000000000001',
-  timestamptz '2026-07-16 12:01:00+00'
-);
+values
+  (
+    '89000000-0000-0000-0000-000000000002',
+    '86000000-0000-0000-0000-000000000001',
+    '82000000-0000-0000-0000-000000000001',
+    '84000000-0000-0000-0000-000000000001',
+    'persona-project-a',
+    'sealed',
+    'persona_initial_seal',
+    '83000000-0000-0000-0000-000000000001',
+    timestamptz '2026-07-16 12:00:30+00'
+  ),
+  (
+    '89000000-0000-0000-0000-000000000001',
+    '86000000-0000-0000-0000-000000000001',
+    '82000000-0000-0000-0000-000000000001',
+    '84000000-0000-0000-0000-000000000001',
+    'persona-project-a',
+    'quarantined',
+    'persona_quality_hold',
+    '83000000-0000-0000-0000-000000000001',
+    timestamptz '2026-07-16 12:01:00+00'
+  ),
+  (
+    '89000000-0000-0000-0000-000000000003',
+    '86000000-0000-0000-0000-000000000002',
+    '82000000-0000-0000-0000-000000000001',
+    '84000000-0000-0000-0000-000000000001',
+    'persona-project-a',
+    'revoked',
+    'persona_revocation',
+    '83000000-0000-0000-0000-000000000001',
+    timestamptz '2026-07-16 12:02:00+00'
+  );
 
 set local role anon;
 select extensions.is(
@@ -431,6 +454,24 @@ select extensions.results_eq(
     'Test fixture only.'::text
   )$$,
   'source-release RPC returns the exact approved projection and latest effective status'
+);
+select extensions.is(
+  (
+    select effective_status
+    from api.current_source_releases('persona-project-a', 100)
+    where release_version = 'v2'
+  ),
+  'revoked',
+  'source-release RPC projects an explicit revoked status'
+);
+select extensions.is(
+  (
+    select effective_status
+    from api.current_source_releases('persona-project-a', 100)
+    where release_version = 'page-002'
+  ),
+  'sealed',
+  'source-release RPC defaults to sealed when no status event exists'
 );
 select extensions.is(
   (select count(*)::integer from api.current_source_releases('persona-project-a', 0)),
