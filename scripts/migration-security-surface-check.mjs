@@ -112,4 +112,4 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-console.log(`Migration security-surface contract passed: ${createdTables.size} created public tables covered; pre-Auth containment is present. Clean replay remains uncertified and blocked by DB-01.`);
+console.log(`Migration security-surface contract passed: ${createdTables.size} created public tables covered; pre-Auth containment is present. Exact-head clean replay is separately evidenced. The local synthetic ledger-prefix rehearsal is a separate non-certifying control; live-derived upgrade replay, live apply and real JWT personas remain DB-01 gates.`);

@@ -18,9 +18,10 @@ import type {
   SourceConnectorResult,
   SourceConnectorSuccessEvidence,
   SourceEndpointPolicy,
+  SourceReceiptClaimResult,
   SourceTenantScope
 } from "./contracts";
-import { sourceConnectorContractVersion } from "./contracts";
+import { sourceConnectorContractVersion, sourceReceiptClaimContractVersion } from "./contracts";
 
 const identifierPattern = /^[a-z0-9][a-z0-9._-]{2,127}$/;
 const projectKeyPattern = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
@@ -35,6 +36,7 @@ const internalLocationNamePattern = /(?:^|[-_.])(bucket|cookie|filename|headers?
 const forbiddenHostSuffixes = [".internal", ".invalid", ".local", ".localhost"];
 const maximumUrlLength = 4096;
 const maximumQueryValueLength = 1024;
+const sourceReceiptIdempotencyPattern = /^source02:[0-9a-f]{64}$/;
 
 function hasExactKeys(value: object, keys: readonly string[]) {
   const actual = Object.keys(value).sort();
@@ -309,6 +311,7 @@ export const sourceConnectorActivationDefaults: SourceConnectorActivationEvidenc
   distributedRateBudgetReady: false,
   crossInstanceCircuitBreakerReady: false,
   credentialBrokerReady: false,
+  idempotentReceiptWriterReady: false,
   publicDistributionVerified: false,
   geometryScopeVerified: false,
   imageryScopeVerified: false
@@ -331,6 +334,7 @@ export function evaluateSourceConnectorActivation(
     "distributedRateBudgetReady",
     "crossInstanceCircuitBreakerReady",
     "credentialBrokerReady",
+    "idempotentReceiptWriterReady",
     "publicDistributionVerified",
     "geometryScopeVerified",
     "imageryScopeVerified"
@@ -346,6 +350,7 @@ export function evaluateSourceConnectorActivation(
       evidence.distributedRateBudgetReady,
       evidence.crossInstanceCircuitBreakerReady,
       evidence.credentialBrokerReady,
+      evidence.idempotentReceiptWriterReady,
       evidence.publicDistributionVerified,
       evidence.geometryScopeVerified,
       evidence.imageryScopeVerified
@@ -380,6 +385,7 @@ export function evaluateSourceConnectorActivation(
   if (lookup.ok && lookup.connector.credentialPolicy.mode === "broker_reference" && !evidence.credentialBrokerReady) {
     blockers.push("credential_broker_not_ready");
   }
+  if (!evidence.idempotentReceiptWriterReady) blockers.push("idempotent_receipt_writer_not_ready");
   if (lookup.ok && lookup.connector.visibility === "public_demo" && !evidence.publicDistributionVerified) {
     blockers.push("public_distribution_not_verified");
   }
@@ -457,24 +463,57 @@ function authorizeExactTarget(endpoint: SourceEndpointPolicy, target: URL) {
     target.origin === normalizeOrigin(endpoint.origin) && target.pathname === endpoint.path && target.href.length <= maximumUrlLength;
 }
 
-function intentJson(intent: SourceConnectorIntent, sourceId: string): JsonValue {
-  const query = Object.fromEntries(Object.keys(intent.query).sort().map((name) => {
-    const value = intent.query[name];
-    return [name, Array.isArray(value) ? [...value] : value];
-  })) as Record<string, JsonValue>;
+function executionContractJson(
+  intent: SourceConnectorIntent,
+  connector: SourceConnectorDefinition,
+  endpoint: SourceEndpointPolicy,
+  target: URL,
+  requestBody: Readonly<{ body: string | null; requestMediaType: "application/json" | null }>,
+  environment: SourceConnectorActivationDecision["environment"]
+): JsonValue {
+  const credentialPolicy: JsonValue = connector.credentialPolicy.mode === "none"
+    ? { mode: "none" }
+    : {
+        mode: "broker_reference",
+        referenceId: connector.credentialPolicy.referenceId,
+        allowedHeaderNames: [...connector.credentialPolicy.allowedHeaderNames]
+      };
   return {
     contractVersion: sourceConnectorContractVersion,
+    environment,
     tenant: {
       organizationId: intent.scope.organizationId,
       projectId: intent.scope.projectId,
       projectKey: intent.scope.projectKey,
       actorProfileId: intent.scope.actorProfileId
     },
-    connectorId: intent.connectorId,
-    sourceId,
-    endpointKey: intent.endpointKey,
-    query,
-    body: intent.body,
+    connector: {
+      connectorId: connector.connectorId,
+      sourceId: connector.sourceId,
+      providerId: connector.providerId,
+      parserContractId: connector.parserContractId,
+      lifecycle: connector.lifecycle,
+      rightsStatus: connector.rightsStatus,
+      rightsEvidenceId: connector.rightsEvidenceId,
+      visibility: connector.visibility,
+      contentClass: connector.contentClass,
+      credentialPolicy
+    },
+    endpoint: {
+      endpointKey: endpoint.endpointKey,
+      method: endpoint.method,
+      url: target.href,
+      body: requestBody.body,
+      requestMediaType: requestBody.requestMediaType,
+      requestBodyPolicy: endpoint.requestBodyPolicy,
+      maximumRequestBytes: endpoint.maximumRequestBytes,
+      allowedQueryParameters: [...endpoint.allowedQueryParameters],
+      allowedResponseMediaTypes: [...endpoint.allowedResponseMediaTypes],
+      maximumResponseBytes: endpoint.maximumResponseBytes,
+      timeoutMs: endpoint.timeoutMs,
+      redirectPolicy: endpoint.redirectPolicy,
+      networkPolicy: endpoint.networkPolicy
+    },
     releaseVersion: intent.releaseVersion,
     schemaVersion: intent.schemaVersion,
     acquisitionWindow: intent.acquisitionWindow
@@ -483,8 +522,8 @@ function intentJson(intent: SourceConnectorIntent, sourceId: string): JsonValue 
   };
 }
 
-function idempotencyJson(intent: SourceConnectorIntent, sourceId: string): JsonValue {
-  const value = intentJson(intent, sourceId) as Record<string, JsonValue>;
+function idempotencyJson(executionContract: JsonValue): JsonValue {
+  const value = executionContract as Record<string, JsonValue>;
   const tenant = value.tenant as Record<string, JsonValue>;
   return {
     ...value,
@@ -526,8 +565,16 @@ export function prepareSourceConnectorRequest(
   const target = new URL(endpoint.path, endpoint.origin);
   appendQuery(target, endpoint, intent.query);
   if (!authorizeExactTarget(endpoint, target)) return { ok: false, code: "invalid_endpoint_target" };
-  const requestSha256 = sha256Hex(canonicalSourceJson(intentJson(intent, lookup.connector.sourceId)));
-  const idempotencySha256 = sha256Hex(canonicalSourceJson(idempotencyJson(intent, lookup.connector.sourceId)));
+  const executionContract = executionContractJson(
+    intent,
+    lookup.connector,
+    endpoint,
+    target,
+    requestBody,
+    activation.environment
+  );
+  const requestSha256 = sha256Hex(canonicalSourceJson(executionContract));
+  const idempotencySha256 = sha256Hex(canonicalSourceJson(idempotencyJson(executionContract)));
   const credentialInjection = lookup.connector.credentialPolicy.mode === "none"
     ? { mode: "none" as const }
     : {
@@ -537,10 +584,12 @@ export function prepareSourceConnectorRequest(
       };
   const plan: SourceConnectorRequestPlan = {
     contractVersion: sourceConnectorContractVersion,
+    environment: activation.environment,
     scope: { ...intent.scope },
     connectorId: lookup.connector.connectorId,
     sourceId: lookup.connector.sourceId,
     providerId: lookup.connector.providerId,
+    parserContractId: lookup.connector.parserContractId,
     endpointKey: endpoint.endpointKey,
     method: endpoint.method,
     url: target.href,
@@ -564,13 +613,138 @@ export function prepareSourceConnectorRequest(
   return { ok: true, plan: deepFreeze(plan) };
 }
 
+function hasValidCredentialInjection(plan: SourceConnectorRequestPlan) {
+  if (!isRecord(plan.credentialInjection)) return false;
+  if (plan.credentialInjection.mode === "none") {
+    return hasExactKeys(plan.credentialInjection, ["mode"]);
+  }
+  return plan.credentialInjection.mode === "broker_only" &&
+    hasExactKeys(plan.credentialInjection, ["mode", "referenceId", "allowedHeaderNames"]) &&
+    isIdentifier(plan.credentialInjection.referenceId) &&
+    Array.isArray(plan.credentialInjection.allowedHeaderNames) &&
+    plan.credentialInjection.allowedHeaderNames.length > 0 &&
+    new Set(plan.credentialInjection.allowedHeaderNames).size === plan.credentialInjection.allowedHeaderNames.length &&
+    plan.credentialInjection.allowedHeaderNames.every((name) => ["authorization", "x-api-key", "api-key"].includes(name));
+}
+
+function isValidReceiptClaimPlan(value: unknown): value is SourceConnectorRequestPlan {
+  if (!isRecord(value) || !hasExactKeys(value, [
+    "contractVersion",
+    "environment",
+    "scope",
+    "connectorId",
+    "sourceId",
+    "providerId",
+    "parserContractId",
+    "endpointKey",
+    "method",
+    "url",
+    "body",
+    "requestMediaType",
+    "requestSha256",
+    "idempotencyKey",
+    "releaseVersion",
+    "schemaVersion",
+    "visibility",
+    "contentClass",
+    "scoreImpact",
+    "rightsEvidenceId",
+    "maximumResponseBytes",
+    "timeoutMs",
+    "redirectPolicy",
+    "networkPolicy",
+    "credentialInjection",
+    "allowedResponseMediaTypes"
+  ])) return false;
+  const plan = value as SourceConnectorRequestPlan;
+  if (plan.contractVersion !== sourceConnectorContractVersion ||
+      (plan.environment !== "local" && plan.environment !== "preview") ||
+      !isValidSourceTenantScope(plan.scope) || !isIdentifier(plan.connectorId) || !isIdentifier(plan.sourceId) ||
+      !isIdentifier(plan.providerId) || !isIdentifier(plan.parserContractId) || !endpointKeyPattern.test(plan.endpointKey) ||
+      (plan.method !== "GET" && plan.method !== "POST") ||
+      !sha256Pattern.test(plan.requestSha256) || !sourceReceiptIdempotencyPattern.test(plan.idempotencyKey) ||
+      !versionPattern.test(plan.releaseVersion) || !versionPattern.test(plan.schemaVersion) ||
+      !["public_demo", "project_private", "operator_private"].includes(plan.visibility) ||
+      !["metadata", "tabular", "geometry", "imagery"].includes(plan.contentClass) ||
+      plan.scoreImpact !== "none" || !isIdentifier(plan.rightsEvidenceId) ||
+      !Number.isSafeInteger(plan.maximumResponseBytes) || plan.maximumResponseBytes < 1 || plan.maximumResponseBytes > 50_000_000 ||
+      !Number.isSafeInteger(plan.timeoutMs) || plan.timeoutMs < 100 || plan.timeoutMs > 60_000 ||
+      plan.redirectPolicy !== "reject" || plan.networkPolicy !== "https_public_dns_and_ip_recheck" ||
+      !hasValidCredentialInjection(plan) || !Array.isArray(plan.allowedResponseMediaTypes) ||
+      plan.allowedResponseMediaTypes.length === 0 || !plan.allowedResponseMediaTypes.every(isSafeMediaType) ||
+      new Set(plan.allowedResponseMediaTypes).size !== plan.allowedResponseMediaTypes.length) return false;
+  if (plan.method === "GET" ? plan.body !== null || plan.requestMediaType !== null :
+      typeof plan.body !== "string" || plan.requestMediaType !== "application/json") return false;
+  let target: URL;
+  try {
+    target = new URL(plan.url);
+  } catch {
+    return false;
+  }
+  return target.protocol === "https:" && target.username === "" && target.password === "" && target.hash === "" &&
+    target.port === "" && target.href.length <= maximumUrlLength && normalizeOrigin(target.origin) === target.origin;
+}
+
+/**
+ * Produces an unsigned, non-persisted reserve-or-replay request for the future
+ * trusted custody writer. This digest is correlation evidence, not executor
+ * authentication, a credential, a lock, or proof that a database reservation
+ * occurred.
+ */
+export function prepareSourceReceiptClaim(plan: SourceConnectorRequestPlan): SourceReceiptClaimResult {
+  if (isRecord(plan) && plan.environment === "production") {
+    return { ok: false, code: "production_not_supported_by_source_02" };
+  }
+  if (!isValidReceiptClaimPlan(plan)) return { ok: false, code: "invalid_receipt_claim_plan" };
+  const environment: "local" | "preview" = plan.environment === "local" ? "local" : "preview";
+  const credentialResolution = plan.credentialInjection.mode === "none"
+    ? { mode: "none" as const }
+    : {
+        mode: "external_broker_required" as const,
+        referenceId: plan.credentialInjection.referenceId,
+        allowedHeaderNames: [...plan.credentialInjection.allowedHeaderNames]
+      };
+  const claimPayload = {
+    contractVersion: sourceReceiptClaimContractVersion,
+    connectorContractVersion: sourceConnectorContractVersion,
+    environment,
+    operation: "reserve_or_replay" as const,
+    scope: {
+      organizationId: plan.scope.organizationId,
+      projectId: plan.scope.projectId,
+      projectKey: plan.scope.projectKey
+    },
+    actorProfileId: plan.scope.actorProfileId,
+    connectorId: plan.connectorId,
+    sourceId: plan.sourceId,
+    providerId: plan.providerId,
+    parserContractId: plan.parserContractId,
+    requestSha256: plan.requestSha256,
+    idempotencyKey: plan.idempotencyKey,
+    idempotencyScope: ["organization_id", "project_id", "source_id", "idempotency_key"] as const,
+    conflictPolicy: "return_existing_receipt" as const,
+    authorization: "none" as const,
+    verificationAuthority: "external_registry_plan_and_hash_revalidation_required" as const,
+    executionAuthority: "external_trusted_executor_required" as const,
+    custodyAuthority: "external_transactional_writer_required" as const,
+    credentialResolution,
+    networkExecution: "forbidden_by_source_02" as const,
+    persistence: "not_attempted" as const,
+    integrity: "unsigned_contract_digest" as const
+  };
+  const claimPayloadSha256 = sha256Hex(canonicalSourceJson(claimPayload as unknown as JsonValue));
+  return { ok: true, claim: deepFreeze({ ...claimPayload, claimPayloadSha256 }) };
+}
+
 function resultBase(plan: SourceConnectorRequestPlan, startedAt: string, finishedAt: string) {
   return {
     contractVersion: sourceConnectorContractVersion,
+    environment: plan.environment,
     scope: plan.scope,
     connectorId: plan.connectorId,
     sourceId: plan.sourceId,
     providerId: plan.providerId,
+    parserContractId: plan.parserContractId,
     requestSha256: plan.requestSha256,
     idempotencyKey: plan.idempotencyKey,
     startedAt,

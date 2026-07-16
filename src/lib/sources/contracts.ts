@@ -1,4 +1,5 @@
 export const sourceConnectorContractVersion = "source_connector_v1" as const;
+export const sourceReceiptClaimContractVersion = "source_receipt_claim_v1" as const;
 
 export type JsonPrimitive = string | number | boolean | null;
 export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
@@ -83,6 +84,7 @@ export type SourceConnectorActivationBlocker =
   | "rate_budget_not_ready"
   | "circuit_breaker_not_ready"
   | "credential_broker_not_ready"
+  | "idempotent_receipt_writer_not_ready"
   | "public_distribution_not_verified"
   | "geometry_scope_not_verified"
   | "imagery_scope_not_verified";
@@ -100,6 +102,7 @@ export type SourceConnectorActivationEvidence = Readonly<{
   distributedRateBudgetReady: boolean;
   crossInstanceCircuitBreakerReady: boolean;
   credentialBrokerReady: boolean;
+  idempotentReceiptWriterReady: boolean;
   publicDistributionVerified: boolean;
   geometryScopeVerified: boolean;
   imageryScopeVerified: boolean;
@@ -128,10 +131,12 @@ export type SourceConnectorIntent = Readonly<{
 
 export type SourceConnectorRequestPlan = Readonly<{
   contractVersion: typeof sourceConnectorContractVersion;
+  environment: SourceConnectorEnvironment;
   scope: SourceTenantScope;
   connectorId: string;
   sourceId: string;
   providerId: string;
+  parserContractId: string;
   endpointKey: string;
   method: SourceHttpMethod;
   url: string;
@@ -203,10 +208,12 @@ export type SourceConnectorQuarantineCode =
 
 export type SourceConnectorResultBase = Readonly<{
   contractVersion: typeof sourceConnectorContractVersion;
+  environment: SourceConnectorEnvironment;
   scope: SourceTenantScope;
   connectorId: string;
   sourceId: string;
   providerId: string;
+  parserContractId: string;
   requestSha256: string;
   idempotencyKey: string;
   startedAt: string;
@@ -268,3 +275,47 @@ export type SourceConnectorResult =
       errorCode: null;
       existingReceiptId: string;
     }>);
+
+export type SourceReceiptClaimBlocker =
+  | "invalid_receipt_claim_plan"
+  | "production_not_supported_by_source_02";
+
+export type SourceReceiptClaim = Readonly<{
+  contractVersion: typeof sourceReceiptClaimContractVersion;
+  connectorContractVersion: typeof sourceConnectorContractVersion;
+  environment: Exclude<SourceConnectorEnvironment, "production">;
+  operation: "reserve_or_replay";
+  scope: Readonly<{
+    organizationId: string;
+    projectId: string;
+    projectKey: string;
+  }>;
+  actorProfileId: string;
+  connectorId: string;
+  sourceId: string;
+  providerId: string;
+  parserContractId: string;
+  requestSha256: string;
+  idempotencyKey: string;
+  idempotencyScope: readonly ["organization_id", "project_id", "source_id", "idempotency_key"];
+  conflictPolicy: "return_existing_receipt";
+  authorization: "none";
+  verificationAuthority: "external_registry_plan_and_hash_revalidation_required";
+  executionAuthority: "external_trusted_executor_required";
+  custodyAuthority: "external_transactional_writer_required";
+  credentialResolution:
+    | Readonly<{ mode: "none" }>
+    | Readonly<{
+        mode: "external_broker_required";
+        referenceId: string;
+        allowedHeaderNames: readonly ("authorization" | "x-api-key" | "api-key")[];
+      }>;
+  networkExecution: "forbidden_by_source_02";
+  persistence: "not_attempted";
+  integrity: "unsigned_contract_digest";
+  claimPayloadSha256: string;
+}>;
+
+export type SourceReceiptClaimResult =
+  | Readonly<{ ok: true; claim: SourceReceiptClaim }>
+  | Readonly<{ ok: false; code: SourceReceiptClaimBlocker }>;

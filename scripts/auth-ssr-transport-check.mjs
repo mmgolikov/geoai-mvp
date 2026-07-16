@@ -1,21 +1,47 @@
-import { readFile } from "node:fs/promises";
+import fs from "node:fs";
+import path from "node:path";
+import vm from "node:vm";
+import ts from "typescript";
+
+async function readFile(pathname) {
+  return fs.promises.readFile(pathname, "utf8");
+}
 
 async function source(path) {
   return readFile(new URL(`../${path}`, import.meta.url), "utf8");
 }
 
-const [browser, server, updater, middleware, mutationOrigin, context, summary, kernel] = await Promise.all([
+const [browser, server, updater, middleware, mutationOrigin, context, identityEvidenceSource, summary, kernel] = await Promise.all([
   source("src/lib/supabase/browser.ts"),
   source("src/lib/supabase/ssr-server.ts"),
   source("src/lib/supabase/update-session.ts"),
   source("middleware.ts"),
   source("src/lib/auth/api-mutation-origin.ts"),
   source("src/lib/auth/request-context.ts"),
+  source("src/lib/auth/request-identity-evidence.ts"),
   source("src/lib/auth/session-summary.ts"),
   source("src/lib/auth/request-auth-kernel.ts")
 ]);
-const combined = [browser, server, updater, middleware, mutationOrigin, context, summary].join("\n");
+const combined = [browser, server, updater, middleware, mutationOrigin, context, identityEvidenceSource, summary].join("\n");
 const failures = [];
+
+function assert(condition, message) {
+  if (!condition) failures.push(message);
+}
+
+function loadPureIdentityEvidenceContract() {
+  const filename = path.join(process.cwd(), "src/lib/auth/request-identity-evidence.ts");
+  const output = ts.transpileModule(fs.readFileSync(filename, "utf8"), {
+    compilerOptions: {
+      module: ts.ModuleKind.CommonJS,
+      target: ts.ScriptTarget.ES2022,
+      verbatimModuleSyntax: false
+    }
+  }).outputText;
+  const module = { exports: {} };
+  vm.runInNewContext(output, { exports: module.exports, module }, { filename });
+  return module.exports;
+}
 
 if (!browser.includes('createBrowserClient') || !browser.includes("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY") && !browser.includes("getSupabasePublishableKey")) {
   failures.push("Browser client is not using @supabase/ssr with the publishable key");
@@ -55,6 +81,11 @@ if (!context.includes('"unsupported_bearer_transport"') || contextBody.indexOf('
 if (context.indexOf("auth.getClaims()") < 0 || context.indexOf("auth.getUser()") < 0 || context.indexOf("auth.getClaims()") > context.indexOf("auth.getUser()")) {
   failures.push("Request context does not verify claims before canonical user lookup");
 }
+const identityEvidenceCallIndex = contextBody.indexOf("evaluateRequestIdentityEvidence({");
+const profileRpcIndex = contextBody.indexOf('.rpc("current_profile"');
+if (identityEvidenceCallIndex < 0 || profileRpcIndex < 0 || identityEvidenceCallIndex > profileRpcIndex) {
+  failures.push("Request context does not evaluate permanent-user identity evidence before profile resolution");
+}
 if (!/\.schema\s*\(\s*["']api["']\s*\)[\s\S]*?\.rpc\s*\(\s*["']current_profile["']\s*\)/.test(context)) {
   failures.push("Request context bypasses the api.current_profile allowlist RPC");
 }
@@ -64,6 +95,23 @@ if (/\.from\s*\(\s*["']profiles["']\s*\)/.test(context)) {
 if (!context.includes('profile.status !== "active"') || !context.includes('profile.identity_kind !== "user"')) {
   failures.push("Request context does not require an active human profile");
 }
+const identityContract = loadPureIdentityEvidenceContract();
+const permanentUser = "81000000-0000-4000-8000-000000000002";
+const otherUser = "81000000-0000-4000-8000-000000000003";
+function identity(claims, user) {
+  return identityContract.evaluateRequestIdentityEvidence({ claims, user });
+}
+assert(identity({ sub: permanentUser, isAnonymous: false }, { id: permanentUser, isAnonymous: false }).verified, "Explicit permanent claims/user evidence should pass");
+assert(identity({ sub: permanentUser, isAnonymous: true }, { id: permanentUser, isAnonymous: true }).status === "anonymous_identity", "Anonymous Supabase identities must fail closed");
+assert(identity({ sub: permanentUser, isAnonymous: false }, { id: permanentUser, isAnonymous: true }).status === "anonymous_identity", "A canonical anonymous-user signal must override a permanent claim signal");
+assert(identity({ sub: permanentUser, isAnonymous: true }, { id: permanentUser, isAnonymous: false }).status === "anonymous_identity", "An anonymous JWT signal must override a permanent user signal");
+assert(identity({ sub: permanentUser }, { id: permanentUser, isAnonymous: false }).status === "identity_malformed", "Missing JWT anonymity evidence must fail closed");
+assert(identity({ sub: permanentUser, isAnonymous: false }, { id: permanentUser }).status === "identity_malformed", "Missing canonical-user anonymity evidence must fail closed");
+assert(identity({ sub: permanentUser, isAnonymous: "false" }, { id: permanentUser, isAnonymous: false }).status === "identity_malformed", "Stringified JWT anonymity evidence must not be coerced");
+assert(identity({ sub: permanentUser, isAnonymous: false }, { id: otherUser, isAnonymous: false }).status === "claims_user_mismatch", "JWT subject substitution must fail closed");
+assert(identity({ sub: "not-a-uuid", isAnonymous: false }, { id: "not-a-uuid", isAnonymous: false }).status === "identity_malformed", "Malformed subject identifiers must fail before profile resolution");
+assert(identity(null, { id: permanentUser, isAnonymous: false }).status === "claims_unverified", "Missing verified claims must fail closed");
+assert(identity({ sub: permanentUser, isAnonymous: false }, null).status === "user_unverified", "Missing canonical Auth user must fail closed");
 if (!summary.includes("createRequestAuthContext") || /createClient|Bearer|appRole/.test(summary)) {
   failures.push("Session summary still owns a bearer/global client path or exposes claim-derived roles");
 }
@@ -80,4 +128,4 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-console.log("Auth SSR transport contract passed: publishable-key cookie clients, claims/user/profile verification and evidence-gated activation are present.");
+console.log("Auth SSR transport contract passed: publishable-key cookie clients, permanent-user claims/user/profile verification and evidence-gated activation are present.");

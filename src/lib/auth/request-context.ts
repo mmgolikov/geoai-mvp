@@ -1,13 +1,15 @@
 import type { SupabaseClient, User } from "@supabase/supabase-js";
+import {
+  evaluateRequestIdentityEvidence,
+  type RequestIdentityEvidenceStatus
+} from "@/src/lib/auth/request-identity-evidence";
 import { createRequestScopedSupabaseClient } from "@/src/lib/supabase/ssr-server";
 
 export type RequestAuthStatus =
   | "verified"
   | "public_config_missing"
   | "unsupported_bearer_transport"
-  | "claims_unverified"
-  | "user_unverified"
-  | "claims_user_mismatch"
+  | Exclude<RequestIdentityEvidenceStatus, "verified">
   | "profile_missing"
   | "profile_inactive"
   | "dependency_unavailable";
@@ -71,17 +73,28 @@ export async function createRequestAuthContext(request?: Request): Promise<Reque
   try {
     const claimsResponse = await supabase.auth.getClaims();
     const claims = claimsResponse.data?.claims;
-    if (claimsResponse.error || !claims?.sub) {
+    if (claimsResponse.error || !claims) {
       return result(requestId, "claims_unverified", supabase);
     }
 
     const userResponse = await supabase.auth.getUser();
     const user = userResponse.data.user;
-    if (userResponse.error || !user?.id) {
+    if (userResponse.error || !user) {
       return result(requestId, "user_unverified", supabase);
     }
-    if (claims.sub !== user.id) {
-      return result(requestId, "claims_user_mismatch", supabase);
+
+    const identityEvidence = evaluateRequestIdentityEvidence({
+      claims: {
+        sub: claims.sub,
+        isAnonymous: claims.is_anonymous
+      },
+      user: {
+        id: user.id,
+        isAnonymous: user.is_anonymous
+      }
+    });
+    if (!identityEvidence.verified) {
+      return result(requestId, identityEvidence.status, supabase);
     }
 
     const profileResponse = await supabase
@@ -93,7 +106,7 @@ export async function createRequestAuthContext(request?: Request): Promise<Reque
       return result(requestId, "dependency_unavailable", supabase, user);
     }
     const profile = profileResponse.data;
-    if (!profile?.id || profile.auth_user_id !== user.id) {
+    if (!profile?.id || profile.auth_user_id !== identityEvidence.userId) {
       return result(requestId, "profile_missing", supabase, user);
     }
     if (profile.status !== "active" || profile.identity_kind !== "user") {

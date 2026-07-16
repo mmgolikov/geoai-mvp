@@ -54,7 +54,13 @@ function requestContextDenial(status: string): RequestProjectReadDenial {
   return {
     allowed: false,
     code: "request_identity_unverified",
-    httpStatus: status === "claims_unverified" || status === "user_unverified" ? 401 : 403,
+    httpStatus:
+      status === "claims_unverified" ||
+      status === "user_unverified" ||
+      status === "claims_user_mismatch" ||
+      status === "identity_malformed"
+        ? 401
+        : 403,
     reason: "The request does not have a verified active caller profile."
   };
 }

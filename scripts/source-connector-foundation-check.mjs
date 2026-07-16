@@ -45,8 +45,12 @@ function loadIsolatedTypeScriptModule(relativePath, imports = {}) {
 const awaitlessCrypto = await import("node:crypto");
 const awaitlessNet = await import("node:net");
 const contractVersion = "source_connector_v1";
+const receiptClaimContractVersion = "source_receipt_claim_v1";
 const source = loadIsolatedTypeScriptModule("src/lib/sources/source-connector.ts", {
-  "./contracts": { sourceConnectorContractVersion: contractVersion }
+  "./contracts": {
+    sourceConnectorContractVersion: contractVersion,
+    sourceReceiptClaimContractVersion: receiptClaimContractVersion
+  }
 });
 
 const organizationId = "11111111-1111-4111-8111-111111111111";
@@ -110,6 +114,7 @@ function activationEvidence(patch = {}) {
     distributedRateBudgetReady: true,
     crossInstanceCircuitBreakerReady: true,
     credentialBrokerReady: true,
+    idempotentReceiptWriterReady: true,
     publicDistributionVerified: false,
     geometryScopeVerified: false,
     imageryScopeVerified: false,
@@ -134,6 +139,7 @@ function intent(patch = {}) {
 assert(source.sourceConnectorRegistry.size === 0, "The shipped SOURCE-02 registry must contain zero live connectors");
 assert(source.sourceConnectorActivationDefaults.requested === false, "Default activation must be false");
 assert(source.sourceConnectorActivationDefaults.canonicalReplayVerified === false, "Default evidence must not imply DB replay");
+assert(source.sourceConnectorActivationDefaults.idempotentReceiptWriterReady === false, "Default evidence must not imply an atomic receipt writer");
 
 const mutableEndpoint = endpoint();
 const mutableConnector = connector({ endpoints: [mutableEndpoint] });
@@ -162,6 +168,8 @@ const malformedDecision = source.evaluateSourceConnectorActivation(registry, { .
 assert(!malformedDecision.allowed && malformedDecision.blockers.includes("activation_evidence_invalid"), "Activation evidence with unknown fields must fail closed");
 const missingBroker = source.evaluateSourceConnectorActivation(registry, activationEvidence({ credentialBrokerReady: false }));
 assert(!missingBroker.allowed && missingBroker.blockers.includes("credential_broker_not_ready"), "Credentialed connectors require a broker boundary");
+const missingReceiptWriter = source.evaluateSourceConnectorActivation(registry, activationEvidence({ idempotentReceiptWriterReady: false }));
+assert(!missingReceiptWriter.allowed && missingReceiptWriter.blockers.includes("idempotent_receipt_writer_not_ready"), "Execution requires an atomic receipt claim writer");
 const productionDecision = source.evaluateSourceConnectorActivation(registry, activationEvidence({ environment: "production" }));
 assert(!productionDecision.allowed && productionDecision.blockers.includes("production_not_supported_by_source_02"), "SOURCE-02 must deny Production");
 const activation = source.evaluateSourceConnectorActivation(registry, activationEvidence());
@@ -194,6 +202,7 @@ assert(!unexpectedBodyPlan.ok && unexpectedBodyPlan.code === "request_body_not_a
 const planned = source.prepareSourceConnectorRequest(registry, activationEvidence(), intent());
 assert(planned.ok, "Reviewed allowlisted request planning failed");
 const plan = planned.plan;
+assert(plan.environment === "preview", "Request plans must bind the reviewed execution environment");
 assert(plan.url === "https://api.provider.example/v1/snapshots?format=json&from=2026-07-01&to=2026-07-15", "Request URL must derive from registry order and exact endpoint metadata");
 assert(plan.redirectPolicy === "reject" && plan.networkPolicy === "https_public_dns_and_ip_recheck", "Request plans must carry redirect and connect-time IP controls");
 assert(plan.credentialInjection.mode === "broker_only" && !("value" in plan.credentialInjection), "Plans may expose only an opaque credential reference, never a value");
@@ -213,6 +222,43 @@ const otherTenant = source.prepareSourceConnectorRequest(registry, activationEvi
   scope: { organizationId, projectId: otherProjectId, projectKey: "project-beta", actorProfileId }
 }));
 assert(otherTenant.ok && otherTenant.plan.idempotencyKey !== plan.idempotencyKey, "Idempotency must be tenant scoped");
+const localEnvironment = source.prepareSourceConnectorRequest(registry, activationEvidence({ environment: "local" }), intent());
+assert(localEnvironment.ok && localEnvironment.plan.requestSha256 !== plan.requestSha256, "Request identity must bind the execution environment");
+assert(localEnvironment.ok && localEnvironment.plan.idempotencyKey !== plan.idempotencyKey, "Receipt idempotency must not collide across execution environments");
+const changedEndpointRegistry = source.createSourceConnectorRegistry([connector({ endpoints: [endpoint({ path: "/v2/snapshots" })] })]);
+const changedEndpointPlan = source.prepareSourceConnectorRequest(changedEndpointRegistry, activationEvidence(), intent());
+assert(changedEndpointPlan.ok && changedEndpointPlan.plan.requestSha256 !== plan.requestSha256, "Request identity must bind the exact endpoint contract");
+assert(changedEndpointPlan.ok && changedEndpointPlan.plan.idempotencyKey !== plan.idempotencyKey, "Receipt idempotency must not replay across endpoint contract changes");
+const changedParserRegistry = source.createSourceConnectorRegistry([connector({ parserContractId: "controlled-parser-v2" })]);
+const changedParserPlan = source.prepareSourceConnectorRequest(changedParserRegistry, activationEvidence(), intent());
+assert(changedParserPlan.ok && changedParserPlan.plan.requestSha256 !== plan.requestSha256, "Request identity must bind the reviewed parser contract");
+assert(changedParserPlan.ok && changedParserPlan.plan.idempotencyKey !== plan.idempotencyKey, "Receipt idempotency must not replay across parser contract changes");
+
+const receiptClaim = source.prepareSourceReceiptClaim(plan);
+assert(receiptClaim.ok, "A reviewed non-Production plan must produce a pure reserve-or-replay claim");
+assert(receiptClaim.claim.contractVersion === receiptClaimContractVersion, "Receipt claim contract version changed unexpectedly");
+assert(receiptClaim.claim.parserContractId === "controlled-parser-v1", "Receipt claims must bind the reviewed parser contract");
+assert(receiptClaim.claim.operation === "reserve_or_replay" && receiptClaim.claim.conflictPolicy === "return_existing_receipt", "Receipt claims must require atomic reserve-or-replay semantics");
+assert(receiptClaim.claim.idempotencyScope.join(",") === "organization_id,project_id,source_id,idempotency_key", "Receipt claims must mirror the SOURCE-01 unique receipt boundary exactly");
+assert(receiptClaim.claim.authorization === "none" && receiptClaim.claim.verificationAuthority === "external_registry_plan_and_hash_revalidation_required", "Unsigned claims must grant no authority and require external registry/plan/hash revalidation");
+assert(receiptClaim.claim.executionAuthority === "external_trusted_executor_required", "Receipt claims must not imply trusted-executor authentication");
+assert(receiptClaim.claim.custodyAuthority === "external_transactional_writer_required", "Receipt claims must not imply custody-write authority");
+assert(receiptClaim.claim.networkExecution === "forbidden_by_source_02" && receiptClaim.claim.persistence === "not_attempted", "Receipt claims must perform neither network nor persistence");
+assert(receiptClaim.claim.integrity === "unsigned_contract_digest" && /^[0-9a-f]{64}$/.test(receiptClaim.claim.claimPayloadSha256), "Receipt claims must label their digest as unsigned correlation evidence");
+assert(receiptClaim.claim.credentialResolution.mode === "external_broker_required" && !("value" in receiptClaim.claim.credentialResolution), "Receipt claims may carry only an opaque credential-broker reference");
+assert(JSON.stringify(receiptClaim).includes(plan.idempotencyKey) && !JSON.stringify(receiptClaim).includes(plan.url) && !JSON.stringify(receiptClaim).includes(plan.body ?? "__no_body__"), "Receipt claims must bind request identity without copying provider URLs or bodies");
+const repeatedReceiptClaim = source.prepareSourceReceiptClaim(plan);
+assert(repeatedReceiptClaim.ok && repeatedReceiptClaim.claim.claimPayloadSha256 === receiptClaim.claim.claimPayloadSha256, "Receipt claim correlation digests must be deterministic");
+const otherActorClaim = otherActor.ok ? source.prepareSourceReceiptClaim(otherActor.plan) : null;
+assert(otherActorClaim?.ok && otherActorClaim.claim.idempotencyKey === receiptClaim.claim.idempotencyKey && otherActorClaim.claim.claimPayloadSha256 !== receiptClaim.claim.claimPayloadSha256, "Receipt claims must retain actor correlation while reserving the shared acquisition key");
+const productionReceiptClaim = source.prepareSourceReceiptClaim({ ...plan, environment: "production" });
+assert(!productionReceiptClaim.ok && productionReceiptClaim.code === "production_not_supported_by_source_02", "Receipt claims must deny Production unconditionally");
+const malformedReceiptClaim = source.prepareSourceReceiptClaim({ ...plan, credentialValue: "forbidden-extra-field" });
+assert(!malformedReceiptClaim.ok && malformedReceiptClaim.code === "invalid_receipt_claim_plan", "Receipt claims with unknown fields must fail closed");
+const noCredentialRegistry = source.createSourceConnectorRegistry([connector({ credentialPolicy: { mode: "none" } })]);
+const noCredentialPlan = source.prepareSourceConnectorRequest(noCredentialRegistry, activationEvidence({ credentialBrokerReady: false }), intent());
+const noCredentialClaim = noCredentialPlan.ok ? source.prepareSourceReceiptClaim(noCredentialPlan.plan) : null;
+assert(noCredentialClaim?.ok && noCredentialClaim.claim.credentialResolution.mode === "none", "Credential-free connectors must not invent a broker dependency or credential material");
 
 const postRegistry = source.createSourceConnectorRegistry([connector({
   endpoints: [endpoint({
@@ -303,6 +349,8 @@ assert(implementation.startsWith('import "server-only";'), "SOURCE-02 worker pla
 assert(implementation.includes("createSourceConnectorRegistry([])"), "The shipped connector allowlist must remain empty");
 assert(implementation.includes('persistence: "forbidden_by_source_02"'), "Activation must explicitly deny persistence");
 assert(implementation.includes('"https_public_dns_and_ip_recheck"'), "Plans must require DNS and connect-time IP revalidation from the future executor");
+assert(implementation.includes('operation: "reserve_or_replay"') && implementation.includes('integrity: "unsigned_contract_digest"'), "SOURCE-02 must expose only an unsigned pure receipt-claim contract");
+assert(implementation.includes('custodyAuthority: "external_transactional_writer_required"'), "Receipt claims must retain the external trusted-writer boundary");
 
 console.log(JSON.stringify({
   ok: true,
@@ -315,7 +363,8 @@ console.log(JSON.stringify({
     "disabled_default_and_production_denial",
     "objective_activation_evidence_matrix",
     "tenant_and_actor_bound_request_identity",
-    "cross_actor_tenant_bound_idempotency",
+    "cross_actor_tenant_environment_and_execution_contract_bound_idempotency",
+    "pure_atomic_reserve_or_replay_claim_contract",
     "canonical_json_and_sha256_integrity",
     "checksum_media_type_freshness_coverage_and_timestamp_quarantine",
     "stable_failure_and_duplicate_result_model",

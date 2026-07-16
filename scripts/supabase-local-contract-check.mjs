@@ -3,6 +3,10 @@ import { readFile } from "node:fs/promises";
 const config = await readFile(new URL("../supabase/config.toml", import.meta.url), "utf8");
 const packageJson = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
 const workflow = await readFile(new URL("../.github/workflows/geoai-quality-gate.yml", import.meta.url), "utf8");
+const syntheticUpgradeReplay = await readFile(
+  new URL("./synthetic-upgrade-replay-check.mjs", import.meta.url),
+  "utf8"
+);
 const failures = [];
 
 if (!/^schemas\s*=\s*\["api"\]$/m.test(config)) {
@@ -20,8 +24,28 @@ if (packageJson.devDependencies?.supabase !== "2.109.1") {
 for (const command of ["supabase:local:start", "supabase:local:reset", "supabase:test:db", "supabase:local:stop"]) {
   if (!packageJson.scripts?.[command]) failures.push(`Missing package script: ${command}`);
 }
-for (const evidence of ["database-replay:", "npm run supabase:local:reset", "npm run supabase:test:db"]) {
+for (const evidence of [
+  "database-replay:",
+  "npm run supabase:local:reset",
+  "npm run supabase:test:db",
+  "node scripts/synthetic-upgrade-replay-check.mjs | tee artifacts/synthetic-upgrade-replay-static-check.txt",
+  "node scripts/synthetic-upgrade-replay-check.mjs --run-local",
+  "Synthetic ledger-prefix upgrade rehearsal (not live-clone certification)",
+  "geoai-database-evidence-${{ github.run_id }}"
+]) {
   if (!workflow.includes(evidence)) failures.push(`CI database replay evidence is missing: ${evidence}`);
+}
+for (const localOnlyControl of [
+  '["db", "reset", "--local", "--version", lastLiveEntry.version, "--no-seed"]',
+  '["migration", "repair", preLedgerEntry.version, "--status", "reverted", "--local"]',
+  '["migration", "repair", preLedgerEntry.version, "--status", "applied", "--local"]',
+  '["migration", "up", "--local"]',
+  "not a current-development clone",
+  "does not certify DB-01"
+]) {
+  if (!syntheticUpgradeReplay.includes(localOnlyControl)) {
+    failures.push(`Synthetic replay local-only/caveat control is missing: ${localOnlyControl}`);
+  }
 }
 
 if (failures.length > 0) {
@@ -30,4 +54,4 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-console.log("Supabase local replay contract passed: api-only config, Postgres 17, pinned CLI and CI clean replay/pgTAP are present.");
+console.log("Supabase local replay contract passed: api-only config, Postgres 17, pinned CLI, clean replay/pgTAP, and an explicitly non-certifying synthetic ledger-prefix upgrade rehearsal are present.");

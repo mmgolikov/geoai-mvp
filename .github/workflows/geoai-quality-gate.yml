@@ -135,6 +135,12 @@ jobs:
           set -euo pipefail
           npm run test:canonical-migration-chain | tee artifacts/canonical-migration-chain-check.txt
 
+      - name: Synthetic upgrade-replay static contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/synthetic-upgrade-replay-check.mjs | tee artifacts/synthetic-upgrade-replay-static-check.txt
+
       - name: Local Supabase replay contract
         shell: bash
         run: |
@@ -318,7 +324,7 @@ jobs:
           retention-days: 14
 
   database-replay:
-    name: Supabase clean replay and pgTAP personas
+    name: Supabase clean replay, synthetic upgrade rehearsal and pgTAP personas
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -337,21 +343,70 @@ jobs:
           node-version: 22
           cache: npm
 
+      - name: Prepare database evidence directory
+        run: mkdir -p artifacts/database
+
       - name: Install pinned dependencies
-        run: npm ci
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci | tee artifacts/database/npm-ci.txt
 
       - name: Verify pinned Supabase CLI
-        run: test "$(npx supabase --version)" = "2.109.1"
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx supabase --version | tee artifacts/database/supabase-cli-version.txt
+          test "$(npx supabase --version)" = "2.109.1"
+          git rev-parse HEAD | tee artifacts/database/tested-commit-sha.txt
+          cp supabase/migration-ledger-baseline.json artifacts/database/migration-ledger-baseline.json
 
       - name: Start local Supabase and apply canonical migrations
-        run: npm run supabase:local:start
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run supabase:local:start | tee artifacts/database/clean-start.txt
 
       - name: Prove deterministic clean reset
-        run: npm run supabase:local:reset
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run supabase:local:reset | tee artifacts/database/clean-reset.txt
 
-      - name: Run database persona tests
-        run: npm run supabase:test:db
+      - name: Run clean-replay database persona tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run supabase:test:db | tee artifacts/database/clean-replay-pgtap.txt
+
+      - name: Synthetic ledger-prefix upgrade rehearsal (not live-clone certification)
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/synthetic-upgrade-replay-check.mjs --run-local | tee artifacts/database/synthetic-upgrade-rehearsal.txt
+
+      - name: Run synthetic-upgrade database persona tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run supabase:test:db | tee artifacts/database/synthetic-upgrade-pgtap.txt
 
       - name: Stop local Supabase
         if: always()
-        run: npm run supabase:local:stop
+        shell: bash
+        run: |
+          set -o pipefail
+          if [ -x node_modules/.bin/supabase ]; then
+            npm run supabase:local:stop | tee artifacts/database/stop.txt
+          else
+            echo "Supabase stop skipped because the pinned CLI was not installed." | tee artifacts/database/stop.txt
+          fi
+
+      - name: Upload database replay evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: geoai-database-evidence-${{ github.run_id }}
+          path: artifacts/database/
+          if-no-files-found: warn
+          retention-days: 14
