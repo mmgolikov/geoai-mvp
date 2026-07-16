@@ -1,0 +1,32 @@
+{
+  "schemaVersion": "1.0",
+  "controlPackage": "CHG-2026-07-16-17",
+  "supersededBy": "CHG-2026-07-16-18",
+  "postReceiptDrift": "After this receipt was recorded, Hub page 98425 was independently edited to version 180 and regressed to CHG-16. CHG-18 detected and remediated that drift, then directly verified all 28 current bodies.",
+  "completedAt": "2026-07-16T17:24:00Z",
+  "cloudId": "8671019f-f899-4452-a153-9c96cc5eec31",
+  "spaceId": "98311",
+  "hubPageId": "98425",
+  "updatedPages": 28,
+  "directReadBackPassed": 28,
+  "directReadBackFailed": 0,
+  "requiredEvidence": {
+    "controlMarkerCountPerPage": 1,
+    "previousControlMarkerCountPerPage": 0,
+    "rehearsalProjectRef": "bkmfcjzalcvdsdvyxpgi",
+    "hostedPgtap": "144/144"
+  },
+  "canonicalVersions": {
+    "hub": { "pageId": "98425", "version": 179 },
+    "projectHome": { "pageId": "98509", "version": 183 },
+    "currentDelivery": { "pageId": "2097153", "version": 182 },
+    "fullAudit": { "pageId": "12320972", "version": 13 },
+    "documentationLifecycle": { "pageId": "13008962", "version": 5 },
+    "database": { "pageId": "131194", "version": 6 },
+    "erd": { "pageId": "131293", "version": 11 }
+  },
+  "verification": "All 28 pages were read immediately before their update and directly fetched afterwards. Each current body contained exactly one CHG17 control start marker, no CHG16 control start marker, the rehearsal ref and 144/144 evidence.",
+  "cqlCaveat": "Immediate Confluence search still returned historical CHG-16 matches because indexing is asynchronous; direct page readback is authoritative for this receipt.",
+  "productionChanged": false,
+  "mainChanged": false
+}

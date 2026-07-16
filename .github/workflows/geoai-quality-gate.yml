@@ -99,6 +99,18 @@ jobs:
           set -euo pipefail
           npm run test:auth-ssr-transport | tee artifacts/auth-ssr-transport-check.txt
 
+      - name: Supabase exact-target checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:supabase-exact-target | tee artifacts/supabase-exact-target-check.txt
+
+      - name: Auth, MFA and Admin UI checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:auth-admin-ui | tee artifacts/auth-admin-ui-check.txt
+
       - name: Auth mutation-origin checks
         shell: bash
         run: |
@@ -158,6 +170,30 @@ jobs:
         run: |
           set -euo pipefail
           npm run test:source-custody-migration | tee artifacts/source-custody-migration-check.txt
+
+      - name: Auth/Admin activation migration checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:auth-admin-project-activation-rebuild | tee artifacts/auth-admin-project-activation-rebuild-check.txt
+
+      - name: Foreign-key index hardening checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:foreign-key-index-hardening | tee artifacts/foreign-key-index-hardening-check.txt
+
+      - name: Auth/Admin lifecycle remediation checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:auth-admin-lifecycle-remediation | tee artifacts/auth-admin-lifecycle-remediation-check.txt
+
+      - name: Data API operator checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:data-api-operator | tee artifacts/data-api-operator-check.txt
 
       - name: Source connector foundation checks
         shell: bash
@@ -283,6 +319,11 @@ jobs:
             "/workspace"
             "/projects"
             "/explore"
+            "/login"
+            "/register"
+            "/mfa"
+            "/onboarding"
+            "/admin"
             "/demo"
             "/api/health"
             "/api/db/health"
@@ -305,6 +346,18 @@ jobs:
               exit 1
             fi
           done
+
+          auth_smoke_base="http://localhost:3000"
+          admin_code=$(curl --silent --show-error --max-time 20 --output /dev/null --write-out '%{http_code}' -X POST -H "Origin: ${auth_smoke_base}" -H 'Sec-Fetch-Site: same-origin' -H 'Content-Type: application/json' --data '{}' "${auth_smoke_base}/api/admin")
+          invitation_code=$(curl --silent --show-error --max-time 20 --output /dev/null --write-out '%{http_code}' -X POST -H "Origin: ${auth_smoke_base}" -H 'Sec-Fetch-Site: same-origin' -H 'Content-Type: application/json' --data '{}' "${auth_smoke_base}/api/onboarding/invitation")
+          stage_code=$(curl --silent --show-error --max-time 20 --output /dev/null --write-out '%{http_code}' -X POST -H "Origin: ${auth_smoke_base}" -H 'Sec-Fetch-Site: same-origin' -H 'Content-Type: application/json' --data '{"token":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}' "${auth_smoke_base}/api/onboarding/invitation/stage")
+          logout_code=$(curl --silent --show-error --max-time 20 --output /dev/null --write-out '%{http_code}' -X POST -H "Origin: ${auth_smoke_base}" -H 'Sec-Fetch-Site: same-origin' -H 'Content-Type: application/json' --data '{}' "${auth_smoke_base}/api/auth/logout")
+          cross_origin_code=$(curl --silent --show-error --max-time 20 --output /dev/null --write-out '%{http_code}' -X POST -H 'Origin: https://attacker.invalid' -H 'Sec-Fetch-Site: cross-site' -H 'Content-Type: application/json' --data '{}' "${auth_smoke_base}/api/auth/logout")
+          printf '%s\t%s\n' "$admin_code" "/api/admin POST demo-mode denial" "$invitation_code" "/api/onboarding/invitation POST demo-mode denial" "$stage_code" "/api/onboarding/invitation/stage POST demo-mode denial" "$logout_code" "/api/auth/logout POST demo-mode denial" "$cross_origin_code" "/api/auth/logout POST cross-origin denial" | tee -a artifacts/route-smoke.txt
+          if [ "$admin_code" != "401" ] || [ "$invitation_code" != "401" ] || [ "$stage_code" != "503" ] || [ "$logout_code" != "503" ] || [ "$cross_origin_code" != "403" ]; then
+            echo "Auth/Admin demo-mode negative smoke returned an unexpected status." >&2
+            exit 1
+          fi
 
       - name: Preserve application log
         if: always()

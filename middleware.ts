@@ -1,9 +1,18 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { evaluateApiMutationOrigin } from "@/src/lib/auth/api-mutation-origin";
+import { getEffectiveAuthMode } from "@/src/lib/auth/auth-mode";
 import { updateSupabaseSession } from "@/src/lib/supabase/update-session";
 
+function isAuthCookieMutationPath(pathname: string) {
+  return pathname === "/api/admin" ||
+    pathname === "/api/auth/logout" ||
+    pathname === "/api/onboarding/invitation" ||
+    pathname.startsWith("/api/onboarding/invitation/");
+}
+
 export function middleware(request: NextRequest) {
-  if (process.env.NEXT_PUBLIC_AUTH_MODE?.trim() !== "supabase_auth") {
+  const authMode = getEffectiveAuthMode();
+  if (authMode !== "supabase_auth" && !isAuthCookieMutationPath(request.nextUrl.pathname)) {
     return NextResponse.next({ request });
   }
 
@@ -29,6 +38,10 @@ export function middleware(request: NextRequest) {
         "Vary": "Origin, Sec-Fetch-Site, Cookie"
       }
     });
+  }
+
+  if (authMode !== "supabase_auth") {
+    return NextResponse.next({ request });
   }
 
   return updateSupabaseSession(request);

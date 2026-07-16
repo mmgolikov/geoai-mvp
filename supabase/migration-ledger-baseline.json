@@ -131,6 +131,46 @@
         "real JWT source-read personas",
         "trusted worker write design and rollback evidence"
       ]
+    },
+    {
+      "version": "20260716164451",
+      "name": "geoai_auth_admin_project_activation_rebuild_v1",
+      "applyState": "not_applied_to_development_rehearsal_only",
+      "requires": [
+        "source custody migration applied first",
+        "isolated rehearsal replay",
+        "permanent-user Auth personas",
+        "AAL1 and AAL2 mutation personas",
+        "last-owner and invitation replay tests",
+        "Data API api-only owner-path evidence",
+        "schema diff and advisor evidence"
+      ]
+    },
+    {
+      "version": "20260716172000",
+      "name": "geoai_foreign_key_index_hardening_v1",
+      "applyState": "not_applied_to_development_rehearsal_only",
+      "requires": [
+        "activation migration applied first",
+        "isolated rehearsal replay",
+        "zero unindexed domain foreign-key advisor findings",
+        "write-amplification review before development apply",
+        "schema diff and rollback evidence"
+      ]
+    },
+    {
+      "version": "20260716175210",
+      "name": "geoai_auth_admin_lifecycle_remediation_v1",
+      "applyState": "not_applied_to_development_rehearsal_only",
+      "requires": [
+        "activation and FK-index migrations applied first",
+        "isolated rehearsal forward apply",
+        "legacy 71 and 73 assertion persona regression",
+        "39 assertion lifecycle-remediation persona suite",
+        "two-session invitation concurrency evidence",
+        "real HTTP temporary-ban and session-refresh personas",
+        "schema diff, advisor and rollback evidence"
+      ]
     }
   ],
   "rule": "Files under supabase/legacy_migrations are provenance only. Clean replay starts with the declared pre-ledger bootstrap. On the existing development project its schema fingerprint must be verified and its ledger version repaired to applied before any push. The following ten immutable files must match the live ledger exactly."

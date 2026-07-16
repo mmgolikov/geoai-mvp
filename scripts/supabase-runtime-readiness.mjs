@@ -1,8 +1,10 @@
-const project = {
-  ref: "pphdqkurxneyagvnnjdt",
-  name: "geoai-dev",
+const approvedProjects = {
+  pphdqkurxneyagvnnjdt: { name: "geoai-dev", purpose: "development" },
+  bkmfcjzalcvdsdvyxpgi: { name: "geoai-auth-rehearsal", purpose: "auth_rehearsal" }
+};
+const projectMetadata = {
   region: "eu-west-1",
-  metadataSource: "repository_expected_target_not_live_status",
+  metadataSource: "repository_approved_target_not_live_status",
   currentReadinessSurface: "api.healthcheck()"
 };
 
@@ -59,8 +61,23 @@ async function probeApiHealth() {
     const projectRef = target.protocol === "https:"
       ? target.hostname.match(/^([a-z0-9-]+)\.supabase\.co$/i)?.[1] ?? null
       : null;
-    if (projectRef !== project.ref) {
-      return { schema: "api", rpc: "healthcheck", configured: true, reachable: false, healthy: false, status: "target_mismatch" };
+    const approved = projectRef && Object.hasOwn(approvedProjects, projectRef)
+      ? approvedProjects[projectRef]
+      : null;
+    const exactHostedOrigin = projectRef
+      ? `https://${projectRef}.supabase.co`
+      : null;
+    if (
+      !approved ||
+      target.origin !== exactHostedOrigin ||
+      target.pathname !== "/" ||
+      target.port ||
+      target.username ||
+      target.password ||
+      target.search ||
+      target.hash
+    ) {
+      return { schema: "api", rpc: "healthcheck", configured: true, reachable: false, healthy: false, status: "target_mismatch", target: null };
     }
     const response = await fetch(new URL("/rest/v1/rpc/healthcheck", baseUrl), {
       method: "POST",
@@ -75,10 +92,10 @@ async function probeApiHealth() {
       body: "{}",
       signal: AbortSignal.timeout(5_000)
     });
-    if (!response.ok) return { schema: "api", rpc: "healthcheck", configured: true, reachable: false, healthy: false, status: "blocked" };
+    if (!response.ok) return { schema: "api", rpc: "healthcheck", configured: true, reachable: false, healthy: false, status: "blocked", target: { ref: projectRef, ...approved, ...projectMetadata } };
     const payload = await response.json();
     const row = Array.isArray(payload) ? payload[0] : payload;
-    return { schema: "api", rpc: "healthcheck", configured: true, reachable: true, healthy: row?.healthy === true, status: "readable" };
+    return { schema: "api", rpc: "healthcheck", configured: true, reachable: true, healthy: row?.healthy === true, status: "readable", target: { ref: projectRef, ...approved, ...projectMetadata } };
   } catch {
     return { schema: "api", rpc: "healthcheck", configured: true, reachable: false, healthy: false, status: "blocked" };
   }
@@ -121,8 +138,8 @@ if (hasPrivilegedApplicationEnv) {
 }
 if (hasSupabasePublicEnv && !canReadHealthcheck) {
   if (healthcheck.status === "target_mismatch") {
-    blockers.push("Configured Supabase URL does not match the approved development project ref.");
-    nextActions.push(`Set NEXT_PUBLIC_SUPABASE_URL only to the approved ${project.ref}.supabase.co target before any probe.`);
+    blockers.push("Configured Supabase URL does not match an approved exact GeoAI project ref.");
+    nextActions.push("Set NEXT_PUBLIC_SUPABASE_URL only to an approved exact development or auth-rehearsal target before any probe.");
   } else {
     blockers.push("api.healthcheck() is unavailable or unhealthy.");
     nextActions.push("Expose only api and grant anon EXECUTE only on api.healthcheck(); never expose public for probes.");
@@ -136,7 +153,8 @@ if (accessEnforcementMode !== "hard") blockers.push("Hard access enforcement is 
 console.log(JSON.stringify({
   ok: true,
   version: "2.0",
-  project,
+  project: healthcheck.target,
+  approvedTargetPurposes: Object.values(approvedProjects).map((target) => target.purpose),
   status: runtimeMode === "local_api_fallback" ? "fallback_missing_env" : runtimeMode === "supabase_configured_unreachable" ? "configured_unreachable" : "api_reachable_unverified",
   runtimeMode,
   repositoryMode: "local_fallback",

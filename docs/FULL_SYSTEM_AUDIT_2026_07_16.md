@@ -16,18 +16,20 @@ The prototype is a credible public-demo foundation, but it is not ready for prot
 
 The audit removed the organisational dependency on unavailable independent reviewer approvals. It did **not** remove objective technical gates. Six boundaries remain release-blocking for any confidential or real-data mode: development Data API/identity-model containment, clean database replay with RLS persona evidence, public-runtime credential evacuation, request-scoped identity/membership, protected file handling and explicit source visibility/custody.
 
+Post-audit implementation has now closed two isolated rehearsal increments. Free project `bkmfcjzalcvdsdvyxpgi` passes `183/183` hosted SQL personas, including forward lifecycle remediation, exposes only the 14-RPC `api` schema through PostgREST, denies `public` over HTTP and has zero uncovered domain foreign keys. Two independent backend sessions also passed rollback-only table-level invitation create→accept and create→revoke lock-order checks without residual rows or deadlocks. This is strong SQL/API-boundary and table-level concurrency evidence, but not authenticated RPC/HTTP Auth/MFA/Admin, Storage, development or Production certification. [Machine receipt](SUPABASE_AUTH_REHEARSAL_RECEIPT_2026_07_16.json).
+
 ## Evidence scope
 
 The audit covered:
 
 - every repository API handler, data repository boundary, readiness signal and current migration;
 - GitHub release/CI state, open delivery controls and dependency advisories;
-- Vercel Production SHA, mode, routes and logs, plus the exact audit Preview HTTP matrix; browser/mobile/keyboard/print evidence remains explicitly unclaimed because local headless launch is blocked by a system Unix-socket restriction, and HTTP is not browser evidence;
+- Vercel Production SHA, mode, routes and logs, plus the exact audit Preview HTTP matrix and a local production-server HTTP smoke matrix for the Auth/Admin/Onboarding candidate; rendered browser/mobile/keyboard/print evidence remains explicitly unclaimed because HTTP is not browser evidence;
 - development Supabase schema, migrations, table/RLS surface, policies, function grants and advisors;
 - Product architecture, UI structure, accessibility, bundle/runtime performance and error history;
 - repository documentation and the Confluence information architecture, operational Hub, release facts, decisions, risks and stale review controls.
 
-No Production deployment, Supabase migration/apply, secret change, provider activation, real geometry publication or Auth activation was performed.
+No Production deployment, development/Production Supabase migration/apply, secret change, provider activation, real geometry publication or application Auth activation was performed. All database writes described here were confined to the explicitly authorized Free rehearsal.
 
 ## Verified released state
 
@@ -48,27 +50,28 @@ Operational warning: the released PR #87 public demo still permits shared server
 | Plane | Verified truth | What must not be inferred |
 | --- | --- | --- |
 | Released Production | PR #87 exact SHA/deployment above; no Production Supabase; source pack 503/disabled/zero | Candidate containment, sanitized routes and browser isolation are not live |
-| Live development Supabase | Direct Data API exposure described below; candidate migration unapplied | Development schema/RLS is not Auth/RBAC/Storage certification and is not Production |
+| Live development Supabase | Direct Data API exposure described below; all six candidate migrations unapplied | Development schema/RLS is not Auth/RBAC/Storage certification and is not Production |
+| Isolated Free rehearsal | Ref `bkmfcjzalcvdsdvyxpgi`; six candidate migrations and API-only operator applied; hosted `183/183`; positive/negative PostgREST HTTP evidence; zero uncovered domain FKs; rollback-only two-backend table-level invitation concurrency | Does not prove authenticated RPC/HTTP concurrency, real HTTP Auth/MFA/Admin, Storage, development upgrade/drift or Production |
 | Unreleased audit candidate | Head `e999c5a07d3ced6c95f2eb44f6a5f03a9c17caea`, tree `73b7c198813d6aede795b8b186bd4d58e741b181`; run `29500488408` success; DB clean/rehearsal/second 71/71; Preview `dpl_CY7oNavQwu5ddkhRRLaR3FWTd3d9` READY | Live-derived upgrade/drift, apply/Data API containment, credential evacuation, live JWT/Storage/source personas and browser quality remain required |
 
 All previously published candidate receipts are superseded and must not be reused. Exact volatile receipts are maintained in [Current Release State](CURRENT_RELEASE_STATE.md); this audit records their scope and residual risk.
 
 ### Live development Supabase exposure
 
-Fresh read-only audit of `pphdqkurxneyagvnnjdt` at 2026-07-16 11:31 UTC found `ACTIVE_HEALTHY` on PostgreSQL `17.6.1.141`, 20 public tables with RLS on 19 (`spatial_ref_sys` remains the exception), ten applied migrations and zero of the three candidate migrations, zero Auth users, four buckets and zero `storage.objects` policies. `anon` and `authenticated` each retain 22 public-table `TRUNCATE` grants, which RLS cannot constrain. Advisors returned 14 security findings (one ERROR, 13 WARN) and 71 performance findings (53 INFO, 18 WARN). This refresh confirms that the live development boundary is unchanged by the ephemeral replay; no live write was performed.
+The 2026-07-16 11:31 UTC read-only audit of `pphdqkurxneyagvnnjdt` found `ACTIVE_HEALTHY` on PostgreSQL `17.6.1.141`, 20 public tables with RLS on 19 (`spatial_ref_sys` remains the exception), zero Auth users, four buckets and zero `storage.objects` policies. A later read-only migration-ledger check still shows exactly ten historical entries and none of the six current candidates. `anon` and `authenticated` each retained 22 public-table `TRUNCATE` grants, which RLS cannot constrain. Advisors returned 14 security findings (one ERROR, 13 WARN) and 71 performance findings (53 INFO, 18 WARN). This confirms that the development boundary is unchanged; no development write was performed.
 
-Before Auth, real sources, protected files or durable user data, the owner must either disable the development Data API or expose a dedicated minimal `api` schema with minimum grants/RLS. See the [draft operator runbook](SUPABASE_DATA_API_CONTAINMENT_RUNBOOK_2026_07_16.md); it is not executed and not apply-ready.
+Before Auth, real sources, protected files or durable user data, the owner must either disable the development Data API or expose a dedicated minimal `api` schema with minimum grants/RLS. See the [operator runbook](SUPABASE_DATA_API_CONTAINMENT_RUNBOOK_2026_07_16.md); its owner path is executed on rehearsal only and remains a draft/not apply-ready for development.
 
 ## Critical findings
 
 ### S0 — block protected/real-data activation
 
 1. **The migration/identity/source-custody chain has exact-head clean and synthetic prefix-rehearsal receipts but is not upgrade/live certified.** Head `e999c5a07d3ced6c95f2eb44f6a5f03a9c17caea` passed clean 71/71, a synthetic exact-ten-ledger-prefix/pre-ledger-repair/three-pending-migration/security-surface rehearsal and a second 71/71 in job `87627894968`. This is not a current-development clone, live-derived upgrade replay, drift, live apply or DB-01 certification. Live Data API/ACL containment, advisor parity and real JWT/HTTP/Storage/source personas remain mandatory.
-2. **Permanent-user identity and AUTH-01B are hardened but not activated.** Before profile RPC, UUID `claims.sub` must equal canonical `auth.getUser().id`, and claims/user anonymous markers must both be explicitly false; mismatch is 401, anonymous identity 403 and ambiguity fails closed. The exact-project facade remains disconnected, readiness false, repositories disabled and live HTTP/JWT/RLS/IDOR personas absent.
+2. **Permanent-user identity and AUTH-01B are implemented locally but not activated or persona-certified.** Before profile RPC, UUID `claims.sub` must equal canonical `auth.getUser().id`, and claims/user anonymous markers must both be explicitly false; mismatch is 401, anonymous identity 403 and ambiguity fails closed. Exact-target SSR/PKCE/session/logout, TOTP MFA, one-time hashed invitation onboarding and AAL2 Admin RPC routes are present and pass static/build/local HTTP smoke. The exact-project Product facade remains disconnected, readiness false, Product repositories disabled and live hosted HTTP/JWT/RLS/IDOR personas absent.
 3. **Protected Storage is incomplete.** Live Storage has four private buckets and zero `storage.objects` policies, so it is correctly unusable rather than exposed. Current upload foundations also trust caller-supplied organization/project/evidence IDs and declared type too far; server-resolved canonical scope, magic-byte detection, checksum, quarantine/AV state, safe download disposition and user-context signed-URL evidence are incomplete. No client binary may enter the system before [STORAGE-01](CODEX_BACKLOG_2026_07_16.md#storage-01--protected-evidence-pipeline).
-4. **Real snapshot visibility/custody is unsafe live, with fail-closed SOURCE-01/SOURCE-02 foundations staged.** SOURCE-01 remains unapplied. SOURCE-02 now produces only an unsigned `reserve_or_replay` correlation claim whose execution/idempotency hashes bind exact environment, tenant, connector/provider/parser, rights, broker, endpoint/network/body/window; actor is omitted only from the shared acquisition key. It grants authorization `none` and requires external registry/plan/hash revalidation, trusted execution, transactional writing and a still-absent atomic pre-fetch reservation writer. The registry is empty, Production denied and there is no fetch/env/secrets/persistence. Provider writes and activation remain blocked.
+4. **Real snapshot visibility/custody is unsafe live, with fail-closed SOURCE-01/SOURCE-02 foundations staged.** SOURCE-01 is applied and SQL-tested on the isolated rehearsal only; it remains unapplied to development/Production and no provider is connected. SOURCE-02 now produces only an unsigned `reserve_or_replay` correlation claim whose execution/idempotency hashes bind exact environment, tenant, connector/provider/parser, rights, broker, endpoint/network/body/window; actor is omitted only from the shared acquisition key. It grants authorization `none` and requires external registry/plan/hash revalidation, trusted execution, transactional writing and a still-absent atomic pre-fetch reservation writer. The registry is empty, Production denied and there is no fetch/env/secrets/persistence. Provider writes and activation remain blocked.
 5. **The live development Data API is overexposed.** RLS alone is insufficient while broad grants/functions remain reachable, and the application still lacks a caller-JWT Supabase repository client. The separate operator choice—disable the Data API or expose a minimal `api` schema—must close with before/after anon/RPC/Storage persona evidence. The runbook authorizes no apply.
-6. **The existing public Preview violates least privilege.** Read-only environment inventory confirmed a privileged Supabase credential in the application runtime. Candidate code no longer reads or needs service-role/direct-DB credentials, but code cannot remove or rotate external values. ENV-01 must evacuate/rotate them and redeploy the exact reviewed SHA before Auth, protected persistence or real sources.
+6. **Historical public Previews violated least privilege; owner evacuation is complete but fresh-deployment evidence is pending.** Read-only evidence confirmed a privileged development Supabase credential in the application runtime. On 2026-07-16 the owner confirmed Vercel service-role/legacy-anon removal, Shared-scope review, development legacy-key disablement and Preview-only rehearsal configuration with a modern publishable key. No value was recorded. Because the available connectors cannot independently enumerate Vercel values or legacy-key state, ENV-01 remains open only for a fresh exact-head Preview plus hosted negative/Auth evidence; historical deployments are not evidence.
 
 AI-01 is a conditional S0/P0 only before protected or upstream AI use; it remains S1/P1 for the deterministic public demo.
 
@@ -90,7 +93,7 @@ AI-01 is a conditional S0/P0 only before protected or upstream AI use; it remain
 
 ### S2 — governance and maintainability
 
-1. The generated repository [lifecycle manifest](DOCUMENT_LIFECYCLE_MANIFEST.json) classifies all 130 in-scope Markdown documents: 12 active authorities and 118 non-active/generated records, including `docs/artifacts`. The generated [archive index](DOCUMENT_ARCHIVE_INDEX.md) gives every file a clickable lifecycle and successor without rewriting historical evidence. Its CI gate passes with no unclassified document. The earlier hand scan that found 80 files without inline lifecycle language is superseded; counts must be derived, not copied. [DOCS-01](CODEX_BACKLOG_2026_07_16.md#docs-01--documentation-lifecycle-and-confluence-ia) still owns Confluence historical-page cleanup.
+1. The generated repository [lifecycle manifest](DOCUMENT_LIFECYCLE_MANIFEST.json) classifies all 131 in-scope Markdown documents: 12 active authorities and 119 non-active/generated records, including `docs/artifacts`. The generated [archive index](DOCUMENT_ARCHIVE_INDEX.md) gives every file a clickable lifecycle and successor without rewriting historical evidence. Its CI gate passes with no unclassified document. The earlier hand scan that found 80 files without inline lifecycle language is superseded; counts must be derived, not copied. [DOCS-01](CODEX_BACKLOG_2026_07_16.md#docs-01--documentation-lifecycle-and-confluence-ia) still owns Confluence historical-page cleanup.
 2. Several open PRs/issues describe completed or superseded work and need individual disposition. They must not be silently closed or relabelled as current.
 3. `lint` is TypeScript-only; the codebase lacks a conventional lint/unit/integration stack proportional to its surface.
 4. Historical runtime telemetry showed a report-print `.map` failure on an older deployment. It is not reproducible on the current exact-SHA Production routes, so it is retained as regression evidence rather than called an active defect.
@@ -102,7 +105,7 @@ AI-01 is a conditional S0/P0 only before protected or upstream AI use; it remain
 
 The branch contains risk-reduction controls, not a readiness promotion:
 
-- a complete 83-handler access manifest with 51 protected handler decisions and explicit public-demo classifications;
+- a complete 88-handler access manifest with 51 project-scoped decisions, two AAL2 organization-admin handlers, three identity-mutation handlers and explicit public-demo classifications;
 - a seven-key demo-project allowlist, strict profile/membership status checks, fail-closed Supabase Auth misconfiguration handling and six identity-gated handlers with visible pre-repository denial;
 - authoritative access decisions before affected mutations, explicit public-demo server-mutation denial and object-first project resolution for affected ID routes;
 - separate screening-review, client-attestation and official-attestation capabilities, with attestation persistence disabled until server authority exists;
@@ -129,16 +132,16 @@ The branch contains risk-reduction controls, not a readiness promotion:
 - explicit source/attribution rendering for seeded/captured report map images and native attribution for live report maps;
 - map failure handling that does not monkeypatch global logging, detects stalled readiness and exposes a keyboard fallback action;
 - dependency upgrades/override that reduce the audited npm advisory count to zero;
-- three review-only, unapplied Supabase containment, identity and source-custody migrations that retire detected anonymous/authenticated domain grants and policies, close direct health/base-table access, add account-state-aware private helpers, stage an `api` RPC allowlist with exact tenant roles/capabilities and define immutable tenant/actor-bound custody records without provider write access;
+- six Supabase candidate migrations, applied only on rehearsal and unapplied to development/Production, that retire detected anonymous/authenticated domain grants and policies, close direct health/base-table access, add account-state-aware private helpers, stage the Auth/Admin/client/project model, harden foreign-key coverage and lifecycle concurrency, and define immutable tenant/actor-bound custody records without provider write access;
 - a narrow `SECURITY DEFINER geoai_private.has_storage_project_role()` predicate so review-only Storage policies do not join protected base/Auth tables as the caller; object fetch/signing remains operation-aware with listing and `client_viewer` raw access denied;
-- a permanent-user identity gate requiring matching UUID claims/user subjects and explicit non-anonymous evidence before profile RPC, plus a disconnected exact-project AUTH-01B facade; all readiness flags remain false;
+- a permanent-user identity gate requiring matching UUID claims/user subjects and explicit non-anonymous evidence before profile RPC; effective-mode-gated exact-target SSR/PKCE/session/logout, TOTP MFA, short-lived HttpOnly invitation handoff with one-time hashed onboarding and AAL2 Admin RPC routes; plus a disconnected exact-project AUTH-01B Product facade whose persona-readiness flags remain false;
 - a pure SOURCE-02 `reserve_or_replay` correlation claim with authorization `none`, exact execution/idempotency hashes, empty registry/no fetch/env/secrets/persistence/Production, and external revalidation/trusted-executor/transactional-writer/atomic-reservation requirements;
 - an AOI integrity validator and 11-persona adversarial contract covering finite WGS84 exact-arity coordinates, supported longitude span, topology and authoritative measurements;
 - candidate containment constraints for missing `profiles.status`, a partial unique Auth-user mapping and removal of the legacy AOI authenticated `FOR ALL` policy; canonical identity/role semantics and live apply remain open;
 - active documentation reset, current-truth regression check and explicit Codex backlog.
 - safe dynamic imports for Workspace result-only dashboards/report preview, reducing the same local production-build First Load JS measure from 252 kB to 218 kB (approximately 13.5% gzip), with exact-Preview/Core Web Vitals evidence still required.
 
-These changes do not activate request-scoped Auth, certify upgrade/live replay, make the prepared migration safe to apply, connect a provider or complete report/comparison persistence. Their purpose is to narrow exposure and make remaining work measurable.
+These changes implement the local request-scoped Auth/MFA/Admin/Onboarding candidate but do not activate it on a hosted target or certify its real-user personas. They also do not certify upgrade/live replay, make the prepared migration safe to apply, connect a provider or complete report/comparison persistence. Their purpose is to narrow exposure and make remaining work measurable.
 
 ## Hold disposition
 
@@ -151,7 +154,7 @@ These changes do not activate request-scoped Auth, certify upgrade/live replay, 
 | Auth/RBAC/Admin activation | Remains | AUTH-01 + DB-01 + user-context runtime evidence |
 | Client file upload | Remains | STORAGE-01 |
 | Real sources or Production activation | Remains | SOURCE-01 migration execution/real personas/trusted worker, provider rights/custody, Preview evidence and explicit owner action |
-| Browser/print visual evidence | Not an approval hold | Unclaimed P1 verification under UX-01/PRINT-01; local headless launch is blocked by a system Unix-socket restriction, and HTTP evidence does not imply browser approval |
+| Browser/print visual evidence | Not an approval hold | Unclaimed P1 verification under UX-01/PRINT-01; local production-server HTTP smoke does not imply rendered browser approval |
 
 ## Release decision
 
@@ -163,6 +166,6 @@ These changes do not activate request-scoped Auth, certify upgrade/live replay, 
 
 The original audit worktree passed a clean dependency install (using an isolated npm cache), all then-current repository gates, `npm audit`, the Next.js production build, built-runtime API/guard probes, the security-header probe and critical route smoke checks. That point-in-time evidence is retained only for chronology.
 
-Head `e999c5a07d3ced6c95f2eb44f6a5f03a9c17caea` (tree `73b7c198813d6aede795b8b186bd4d58e741b181`) passed run `29500488408`; app and DB jobs succeeded and two evidence artifacts preserve quality/database receipts. Preview `dpl_CY7oNavQwu5ddkhRRLaR3FWTd3d9` is READY on the exact head. Its matrix returned expected 200 routes, 503 disabled/zero source pack, 400 invalid climate and CSP/HSTS/nosniff/frame-DENY headers; body sizes remain 5,164/4,411/18,284/5,164/8,221/4,292 B. Browser/mobile/keyboard/print evidence remains unclaimed. Production remains PR #87, and none of these receipts applies Supabase, rotates credentials or activates Auth, Storage or providers.
+Head `e999c5a07d3ced6c95f2eb44f6a5f03a9c17caea` (tree `73b7c198813d6aede795b8b186bd4d58e741b181`) passed run `29500488408`; app and DB jobs succeeded and two evidence artifacts preserve quality/database receipts. Preview `dpl_CY7oNavQwu5ddkhRRLaR3FWTd3d9` is READY on the exact head. Its matrix returned expected 200 routes, 503 disabled/zero source pack, 400 invalid climate and CSP/HSTS/nosniff/frame-DENY headers; body sizes remain 5,164/4,411/18,284/5,164/8,221/4,292 B. Browser/mobile/keyboard/print evidence remains unclaimed. Production remains PR #87, and none of these GitHub/Vercel receipts applies Supabase, rotates credentials or activates Auth, Storage or providers; rehearsal database evidence is recorded separately.
 
 Required caveat: **Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.**

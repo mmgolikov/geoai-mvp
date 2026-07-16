@@ -11,7 +11,7 @@ async function source(path) {
   return readFile(new URL(`../${path}`, import.meta.url), "utf8");
 }
 
-const [browser, server, updater, middleware, mutationOrigin, context, identityEvidenceSource, summary, kernel] = await Promise.all([
+const [browser, server, updater, middleware, mutationOrigin, context, identityEvidenceSource, summary, kernel, callback, logout, provider, mfa, elevated] = await Promise.all([
   source("src/lib/supabase/browser.ts"),
   source("src/lib/supabase/ssr-server.ts"),
   source("src/lib/supabase/update-session.ts"),
@@ -20,9 +20,14 @@ const [browser, server, updater, middleware, mutationOrigin, context, identityEv
   source("src/lib/auth/request-context.ts"),
   source("src/lib/auth/request-identity-evidence.ts"),
   source("src/lib/auth/session-summary.ts"),
-  source("src/lib/auth/request-auth-kernel.ts")
+  source("src/lib/auth/request-auth-kernel.ts"),
+  source("app/auth/callback/route.ts"),
+  source("app/api/auth/logout/route.ts"),
+  source("components/auth/auth-provider.tsx"),
+  source("components/auth/mfa-panel.tsx"),
+  source("src/lib/auth/elevated-request-context.ts")
 ]);
-const combined = [browser, server, updater, middleware, mutationOrigin, context, identityEvidenceSource, summary].join("\n");
+const combined = [browser, server, updater, middleware, mutationOrigin, context, identityEvidenceSource, summary, callback, logout, provider, mfa, elevated].join("\n");
 const failures = [];
 
 function assert(condition, message) {
@@ -52,11 +57,11 @@ if (!server.includes("createServerClient") || !server.includes("cookies") || !se
 if (!updater.includes("await supabase.auth.getClaims()") || !updater.includes("response.cookies.set")) {
   failures.push("Middleware does not verify/refresh claims and propagate response cookies");
 }
-if (!middleware.includes('NEXT_PUBLIC_AUTH_MODE') || !middleware.includes("updateSupabaseSession")) {
+if (!middleware.includes("getEffectiveAuthMode") || !middleware.includes("updateSupabaseSession")) {
   failures.push("Next middleware does not fail closed outside explicit Supabase Auth mode");
 }
 const middlewareBody = middleware.slice(middleware.indexOf("export function middleware"));
-const authModeIndex = middlewareBody.indexOf('NEXT_PUBLIC_AUTH_MODE');
+const authModeIndex = middlewareBody.indexOf("getEffectiveAuthMode()");
 const originGuardIndex = middlewareBody.indexOf("evaluateApiMutationOrigin(");
 const sessionRefreshIndex = middlewareBody.indexOf("updateSupabaseSession(request)");
 if (authModeIndex < 0 || originGuardIndex < authModeIndex || sessionRefreshIndex < originGuardIndex) {
@@ -64,6 +69,9 @@ if (authModeIndex < 0 || originGuardIndex < authModeIndex || sessionRefreshIndex
 }
 if (!/status:\s*403/.test(middlewareBody) || !/private, no-store/.test(middlewareBody) || !middlewareBody.includes('"request_origin_rejected"')) {
   failures.push("Rejected authenticated API mutations are not returned as private no-store JSON 403 responses");
+}
+if (!middleware.includes("isAuthCookieMutationPath") || middlewareBody.indexOf("isAuthCookieMutationPath(request.nextUrl.pathname)") > originGuardIndex) {
+  failures.push("Identity/Admin cookie mutations must retain the origin guard even when effective Auth mode is disabled");
 }
 if (
   !mutationOrigin.includes('"missing_origin"') ||
@@ -75,6 +83,9 @@ if (
   failures.push("Mutation-origin helper does not cover missing Origin, Fetch Metadata and request-authority boundaries");
 }
 const contextBody = context.slice(context.indexOf("export async function createRequestAuthContext"));
+if (contextBody.indexOf('getEffectiveAuthMode() !== "supabase_auth"') < 0 || !server.includes('getEffectiveAuthMode() !== "supabase_auth"') || !browser.includes('getEffectiveAuthMode() !== "supabase_auth"')) {
+  failures.push("Request and browser Supabase clients must fail closed outside effective Supabase Auth mode");
+}
 if (!context.includes('"unsupported_bearer_transport"') || contextBody.indexOf('headers.get("authorization")') > contextBody.indexOf("await createRequestScopedSupabaseClient")) {
   failures.push("Request context does not reject bearer/mixed transport before client creation");
 }
@@ -118,8 +129,23 @@ if (!summary.includes("createRequestAuthContext") || /createClient|Bearer|appRol
 for (const forbidden of ["getSession(", "user_metadata", "raw_user_meta_data", "SUPABASE_SERVICE_ROLE_KEY", "GEOAI_OPERATOR_SUPABASE_"]) {
   if (combined.includes(forbidden)) failures.push(`Auth transport contains forbidden authority/credential pattern: ${forbidden}`);
 }
-if (!kernel.includes("ssrCookieTransportImplemented: true") || !kernel.includes("implemented: false") || !kernel.includes("rlsPersonaMatrixVerified: false")) {
-  failures.push("Auth activation evidence flags are not pinned off while transport is staged");
+if (!kernel.includes("ssrCookieTransportImplemented: true") || !kernel.includes("implemented: true") || !kernel.includes("requestUserVerified: false") || !kernel.includes("projectMembershipVerified: false") || !kernel.includes("rlsPersonaMatrixVerified: false")) {
+  failures.push("Auth implementation/evidence flags do not distinguish implemented transport from unverified runtime personas");
+}
+if (!callback.includes("exchangeCodeForSession") || !callback.includes("getSafeAuthRedirectPath") || !callback.includes("applyPrivateNoStore")) {
+  failures.push("PKCE callback does not exchange the code with a bounded redirect and private no-store response");
+}
+if (!logout.includes('signOut({ scope: "local" })') || !logout.includes("privateNoStoreJson")) {
+  failures.push("Logout route does not clear the local SSR session through a private no-store response");
+}
+if (!provider.includes("shouldCreateUser: false") || !provider.includes("shouldCreateUser: true") || !provider.includes('fetch("/api/auth/session"') || !provider.includes('fetch("/api/auth/logout"')) {
+  failures.push("Browser auth provider does not separate login/registration or consume the session/logout routes");
+}
+if (!mfa.includes("challengeAndVerify") || !mfa.includes("getAuthenticatorAssuranceLevel") || !mfa.includes("auth.refreshSession()") || !mfa.includes("selectedFactorId")) {
+  failures.push("MFA UI does not cover explicit factor selection, AAL verification and immediate post-unenroll refresh");
+}
+if (!elevated.includes('currentLevel !== "aal2"') || !elevated.includes("createRequestAuthContext")) {
+  failures.push("Elevated request context does not require a verified caller and AAL2 session");
 }
 
 if (failures.length > 0) {
@@ -128,4 +154,4 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-console.log("Auth SSR transport contract passed: publishable-key cookie clients, permanent-user claims/user/profile verification and evidence-gated activation are present.");
+console.log("Auth SSR transport contract passed: exact publishable-key cookie clients, PKCE/session/logout routes, permanent-user verification, MFA/AAL2 elevation and evidence-gated activation are present.");

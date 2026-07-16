@@ -14,6 +14,12 @@ The historical Pilot UX v3.6 label describes the current workspace-first and cri
 
 Public-demo analysis and decision scoring run deterministically in the browser. Server `POST /api/analyze` and `POST /api/ai/decision-score` fail closed with 403 before body parsing until AUTH-01 supplies a verified request identity. OpenAI upstream code is dormant and cannot be activated by an API key or environment flag alone.
 
+## Current isolated Auth/database rehearsal
+
+The Free Supabase project `geoai-auth-rehearsal` (`bkmfcjzalcvdsdvyxpgi`, `eu-west-1`) is now the only environment where the six candidate migrations and owner Data API path have been executed. It is not development or Production. Hosted PostgreSQL evidence passes `183/183` pgTAP personas across identity/RLS/source custody, Auth/Admin/client/project activation and lifecycle remediation; all test Auth users rolled back. The forward remediation enforces organization→project→invitation locking, durable expired status, bootstrap-v2 change provenance, dynamic temporary-ban behavior and an initial-only 25-row-per-collection Admin snapshot. PostgREST remains pinned to the RPC-only `api` schema (`14` functions, `0` relations): anonymous health returns HTTP 200, `public` returns `PGRST106`, and a base-table lookup in `api` returns `PGRST205`. All `29` GeoAI domain tables have RLS and all domain foreign keys are covered after `39` added indexes.
+
+This closes the SQL/rehearsal and API-schema isolation increments only. A two-session hosted PostgreSQL regression also completed `create→accept` and `create→revoke` lock-order transitions without deadlock or residual rows; it was table-level runtime evidence, not authenticated RPC/HTTP E2E. The local worktree now contains exact-target Auth/PKCE/session/logout, TOTP MFA and AAL2 Admin/Onboarding candidate routes. The owner has confirmed Vercel privileged-key evacuation, development legacy-key disablement and safe Preview-only rehearsal configuration, but a fresh exact-head deployment and real HTTP signup/login/MFA/Admin personas are still required. First-owner bootstrap, Storage policies/personas, development apply, real sources and Production remain blocked. See the [machine receipt](docs/SUPABASE_AUTH_REHEARSAL_RECEIPT_2026_07_16.json).
+
 ## Implemented Features
 
 - Homepage and `/workspace` application shell
@@ -55,6 +61,7 @@ Public-demo analysis and decision scoring run deterministically in the browser. 
 - Client Data Room Foundation v1.9 read-only/seed UI for project-scoped AOIs, analyses, reports, comparisons, validation checklist and pilot deliverable summary; public server mutations are blocked
 - Pilot Workflow & Deliverables v2.0 read-only/seed UI for project-scoped client inputs, deliverables and caveated workflow-readiness scoring; public updates are blocked
 - Auth & Project Access Foundation v2.2 with public demo access mode, Supabase Auth readiness and compact access status indicators
+- Unreleased exact-target Auth candidate with `/register`, `/auth/callback`, `/login`, `/mfa`, `/onboarding` and `/admin`; PKCE cookie sessions, local logout, TOTP AAL2 elevation, server-hashed one-time invitations and `api`-only Admin RPCs are implemented but not hosted-persona certified
 - Supabase/PostGIS Durable Persistence Foundation v2.3 with additive migration SQL, schema readiness checks, RLS draft and audit event foundation
 - Pilot Infrastructure Activation v2.4 with guarded migration/seed/verify scripts, activation status APIs, soft access metadata, audit integration, storage readiness and known limitations tracker
 - Validation Governance & Official Connector Readiness v2.5 for project validation evidence metadata, official connector readiness, report appendices and AI claim guardrails
@@ -109,6 +116,7 @@ OPENAI_MODEL=
 OPENAI_MODEL_DECISION_SCORING=
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
+NEXT_PUBLIC_GEOAI_ALLOW_LOCAL_SUPABASE=false
 NEXT_PUBLIC_AUTH_MODE=
 GEOAI_ACCESS_ENFORCEMENT_MODE=soft
 GEOAI_REQUIRE_SUPABASE_READY=false
@@ -125,21 +133,21 @@ GEOAI_OPERATOR_SOURCE_TOKEN=
 
 Supabase/PostGIS is optional in v0.1. When Supabase environment variables are not configured, GeoAI remains fully usable in local/demo mode and analysis history stays in browser storage.
 
-`NEXT_PUBLIC_AUTH_MODE` is optional and defaults to `demo_public`. Valid values are `demo_public`, `supabase_auth`, and `disabled`. Requesting `supabase_auth` currently resolves to `disabled`: SSR cookie transport plus a request-scoped read facade are staged, but every Auth/repository/persona readiness flag remains false. The facade accepts cookie transport only, requires an exact project key, resolves `api.current_project_access()` through the caller client and reuses the canonical role/action kernel before any bounded `api.current_source_releases()` read. It has no public-demo fallback, bearer path, base-table read, service-role client or public cache; `client_viewer` cannot read raw source releases. No application route consumes this facade before AUTH-01 evidence closes.
+`NEXT_PUBLIC_AUTH_MODE` is optional and defaults to `demo_public`. Valid values are `demo_public`, `supabase_auth`, and `disabled`. `supabase_auth` now becomes effective only when the URL resolves to the exact development or Auth-rehearsal allowlist and the key has the `sb_publishable_` shape. Arbitrary Supabase hosts fail closed; exact loopback `http://127.0.0.1:54321` additionally requires `NEXT_PUBLIC_GEOAI_ALLOW_LOCAL_SUPABASE=true`. The implemented candidate uses PKCE cookie transport, `auth.getClaims()` plus canonical `auth.getUser()`, `api.current_profile()`, local logout, TOTP MFA and AAL2-gated Admin/Onboarding APIs. Repository, membership and RLS persona readiness flags remain false; enabling the mode is not runtime certification and creates no public-demo fallback.
 
 Invalid environment values fail closed: an unknown Auth mode becomes `disabled`; an unknown enforcement mode becomes `hard`; an invalid demo-public flag becomes `false`; and invalid Supabase/Storage readiness flags become `true`. This prevents a typo from weakening access or readiness requirements.
 
 Pilot backend activation is controlled by server/runtime environment variables. `GEOAI_ACCESS_ENFORCEMENT_MODE=soft` preserves the public demo. `hard` requests protected enforcement but remains fail-closed until verified Auth, membership, RLS, Storage and audit evidence exists; it does not activate Auth by itself. `GEOAI_ALLOW_DEMO_PUBLIC=true` keeps seeded demo projects visible while hard mode is being tested.
 
-The inactive AUTH permanent-user boundary now requires a UUID `claims.sub` exactly equal to canonical `auth.getUser().id`, plus explicit `claims.is_anonymous === false` and `user.is_anonymous === false`, before any profile RPC. Subject mismatch is a 401 and anonymous identity is a 403; missing or ambiguous evidence fails closed. This does not activate Auth: readiness remains false, no route/repository consumes the protected facade and live HTTP/JWT/RLS personas remain open.
+The AUTH permanent-user boundary requires a UUID `claims.sub` exactly equal to canonical `auth.getUser().id`, plus explicit `claims.is_anonymous === false` and `user.is_anonymous === false`, before any profile RPC. Subject mismatch is a 401 and anonymous identity is a 403; missing or ambiguous evidence fails closed. Session, MFA and Admin/Onboarding routes consume this boundary in the local candidate, while Product repositories remain disconnected and live HTTP/JWT/RLS/IDOR personas remain open.
 
 Bounded Preview provider execution is off by default. The non-secret `GEOAI_ENABLE_PREVIEW_SOURCE_PACK=true` flag is necessary but never sufficient: a reviewed local/Preview deployment also needs a server-only `GEOAI_OPERATOR_SOURCE_TOKEN` of at least 32 characters and each request must supply the matching Bearer or `x-geoai-operator-token`. Production remains disabled even when these values exist. The pack remains non-persistent/non-scoring, uses a fixed HTTPS host allowlist with redirects rejected, cancels non-success and oversized bodies, and enforces strict provider/date/value schemas. Exact-deployment provider evidence and distributed budgets remain required.
 
 ### Supabase development foundation — not activation guidance
 
-Use `npm run supabase:activation-status` only for a local, read-only inspection of the separate development/Preview foundation. Project `geoai-dev` (`pphdqkurxneyagvnnjdt`, `eu-west-1`) is not a pilot target and is not Product runtime.
+Use `npm run supabase:activation-status` only for a local, read-only inspection of an exact allowlisted development or Auth-rehearsal target. It rejects arbitrary Supabase refs. Project `geoai-dev` (`pphdqkurxneyagvnnjdt`, `eu-west-1`) is not a pilot target and is not Product runtime.
 
-This development target is separate from Production and is not contained yet. Fresh read-only evidence at 2026-07-16 11:31 UTC found it `ACTIVE_HEALTHY` on PostgreSQL `17.6.1.141`, with 20 public tables/19 using RLS (`spatial_ref_sys` is the exception), ten applied migrations and zero of the three candidate migrations, zero Auth users, four buckets and zero `storage.objects` policies. `anon` and `authenticated` each retain 22 public-table `TRUNCATE` grants; advisors remain 14 security findings (one ERROR, 13 WARN) and 71 performance findings (53 INFO, 18 WARN). The repository reconstructs the exact ten-entry live migration ledger, adds a pre-ledger reconciliation artifact, pins Supabase CLI `2.109.1`, stages operation-specific RLS plus a minimal `api.healthcheck()`/identity/membership/source-release RPC allowlist, and keeps direct `public` grants closed in the pending model. These are review artifacts only. Before Auth, real sources or protected files, the owner must expose only `api` (or disable the Data API) and prove upgrade replay, direct-`public` denial and live caller-JWT/Storage/source personas. Follow the [Supabase Data API Containment Runbook](docs/SUPABASE_DATA_API_CONTAINMENT_RUNBOOK_2026_07_16.md); it authorizes no live change.
+This development target is separate from Production and is not contained yet. The 2026-07-16 11:31 UTC snapshot found it `ACTIVE_HEALTHY` on PostgreSQL `17.6.1.141`, with 20 public tables/19 using RLS (`spatial_ref_sys` is the exception), zero Auth users, four buckets and zero `storage.objects` policies. A later read-only migration-ledger check still shows exactly the ten historical entries and none of the six current candidates. `anon` and `authenticated` each retained 22 public-table `TRUNCATE` grants; advisors were 14 security findings (one ERROR, 13 WARN) and 71 performance findings (53 INFO, 18 WARN). The repository reconstructs the exact ten-entry live migration ledger, adds a pre-ledger reconciliation artifact, pins Supabase CLI `2.109.1`, stages operation-specific RLS plus a minimal `api.healthcheck()`/identity/membership/source-release RPC allowlist, and keeps direct `public` grants closed in the pending model. These are rehearsal-proven but development-unapplied artifacts. Before Auth, real sources or protected files, the owner must expose only `api` (or disable the Data API) and prove development upgrade replay, direct-`public` denial and live caller-JWT/Storage/source personas. Follow the [Supabase Data API Containment Runbook](docs/SUPABASE_DATA_API_CONTAINMENT_RUNBOOK_2026_07_16.md); it authorizes no development change.
 
 Pending SOURCE-01 migration `20260716113000_geoai_source_custody_foundation_v1.sql` adds five RLS-enabled, direct-grant-closed custody tables: catalog, immutable releases, artifacts, status events and ingestion receipts. Composite tenant/release and actor organization/project-membership FKs prevent cross-scope custody rows. Legacy registry backfill is fail-closed as `restricted`/`registered_unverified`. Bounded `api.current_source_releases()` returns only an explicit approved metadata projection for owner/admin/analyst/viewer in the caller project; it omits arbitrary quality/lineage summary JSON, Storage paths, source URIs, secrets and `client_viewer` access. The migration connects no provider and exposes no write API; all source-provider writes remain blocked pending a trusted worker design, rights approval and execution evidence.
 
@@ -149,7 +157,7 @@ Functional/evidence head `e999c5a07d3ced6c95f2eb44f6a5f03a9c17caea` (tree `73b7c
 
 Because authenticated callers have no direct `public`/Auth-table `SELECT`, the review-only Storage policy uses narrow `SECURITY DEFINER` predicate `geoai_private.has_storage_project_role()` for one exact organization/project path and role set. Authenticated object reads remain operation-aware so bucket listing is denied, and `client_viewer` remains excluded from raw objects. The policy is not applied or Storage-certified.
 
-The current migration chain is not apply-ready. Do not run `supabase:migrate:apply` against any live project until DB-01 proves clean and upgrade replay, the owner completes the containment runbook, and an exact target/apply/rollback plan is approved. Historical [Supabase Pilot Activation](docs/SUPABASE_PILOT_ACTIVATION.md) guidance is superseded for current operations.
+The current migration chain is not apply-ready for development or Production. Do not run `supabase:migrate:apply` against either target until DB-01 proves a target-derived upgrade/drift path, the owner completes the target-specific containment runbook, and an exact apply/rollback plan is approved. The isolated rehearsal apply is recorded separately and grants no broader authorization. Historical [Supabase Pilot Activation](docs/SUPABASE_PILOT_ACTIVATION.md) guidance is superseded for current operations.
 
 Privileged Supabase/DB, Storage-write and provider credentials belong only in a separate operator/worker or trusted-terminal environment described by `.env.operator.example`; never configure them in the public GeoAI Vercel application. The public app may eventually use a Supabase URL plus an `sb_publishable_` key only after AUTH-01, with caller JWT and RLS. Legacy anon JWT keys are rejected by the candidate runtime.
 
@@ -179,11 +187,11 @@ See [Repository Mode & Fallback Consistency v2.0.2](docs/REPOSITORY_MODE_FALLBAC
 - [Current Release State](docs/CURRENT_RELEASE_STATE.md)
 - [Documentation Index](docs/DOCUMENTATION_INDEX.md)
 - [Full System Audit — 2026-07-16](docs/FULL_SYSTEM_AUDIT_2026_07_16.md)
-- [Supabase Data API Containment Runbook — draft, not executed](docs/SUPABASE_DATA_API_CONTAINMENT_RUNBOOK_2026_07_16.md)
+- [Supabase Data API Containment Runbook — rehearsal executed; development draft](docs/SUPABASE_DATA_API_CONTAINMENT_RUNBOOK_2026_07_16.md)
 - Current `main`: PR #87 merge `2999e7e857989baf53ce58ecfed63550b5896be0`.
 - Current Production: `dpl_EAXREH31JKznnGbQYEU8bNqTqagN`, READY on that exact SHA.
 - Current functional/evidence head: `e999c5a07d3ced6c95f2eb44f6a5f03a9c17caea`, tree `73b7c198813d6aede795b8b186bd4d58e741b181`; Quality Gate run `29500488408`, app job `87627894974` and DB job `87627894968` succeeded; quality artifact `8376235675` and database artifact `8376300064` preserve the receipts.
-- Current audit Preview: `dpl_CY7oNavQwu5ddkhRRLaR3FWTd3d9`, READY on the exact head at [geoai-oni3o8lwu-geoaidev.vercel.app](https://geoai-oni3o8lwu-geoaidev.vercel.app). Browser/mobile/keyboard/print evidence remains unclaimed; local headless launch is blocked by a system Unix-socket restriction, and HTTP checks are not browser evidence.
+- Last fully evidenced audit Preview: `dpl_CY7oNavQwu5ddkhRRLaR3FWTd3d9`, READY on exact evidence head `e999c5a07d3ced6c95f2eb44f6a5f03a9c17caea` at [geoai-oni3o8lwu-geoaidev.vercel.app](https://geoai-oni3o8lwu-geoaidev.vercel.app). The latest observed READY deployment is `dpl_3r3eFhCEnhg7QdURF79r4tnLsPfF` on remote PR head `cf0ee1903e8411eabf8e048c1d8e775a0454340c`, but no new route/browser matrix is claimed for it. Browser/mobile/keyboard/print evidence remains unclaimed; HTTP checks are not browser evidence.
 - Production remains a synthetic/local-fallback public demo with soft access and no Production Supabase. The source pack is fail-closed (`503`, disabled, zero sources). Real geometry, real-source persistence, protected client data and B2B/B2C activation are blocked.
 
 ## Historical release/control archive
@@ -241,7 +249,7 @@ npm run validate:external-data
 npm run start
 ```
 
-The default `npm run dev` command uses stable Webpack mode with polling enabled for local reliability. Migration/seed commands are inspection scaffolding, not authorization to write: the current chain remains blocked by DB-01 and the unexecuted containment runbook.
+The default `npm run dev` command uses stable Webpack mode with polling enabled for local reliability. Migration/seed commands are inspection scaffolding, not authorization to write: development/Production remain blocked by DB-01 and their unexecuted target-specific containment plan; rehearsal execution is separately receipted.
 
 ## API Routes
 
@@ -441,7 +449,7 @@ See [Investor Demo Narrative v1.5](docs/INVESTOR_DEMO_NARRATIVE_V15.md) and [Cli
 
 GeoAI has repository and schema foundations for future persistence. In the audit candidate, user-created public-demo AOIs, uploads, reports, analysis history and comparisons remain browser-local; server write/manage/upload/review/validate routes return 403 until request-scoped identity and RLS exist. Local JSON repositories are development-only, and all Vercel `/tmp` fallback is disabled. Supabase/PostGIS adapters are not active Product persistence.
 
-This is not production-ready persistence. There is no auth, multi-tenant security, production file storage or validated official source governance yet. See [Persistence & Project Workspace v0.8](docs/PERSISTENCE_PROJECT_WORKSPACE_V08.md).
+This is not production-ready persistence. There is no activated application Auth, production-certified tenant security, protected production file storage or validated official source governance yet. See [Persistence & Project Workspace v0.8](docs/PERSISTENCE_PROJECT_WORKSPACE_V08.md).
 
 Project dashboard records are scoped by active project. See [Project-Scoped Persistence v13](docs/PROJECT_SCOPED_PERSISTENCE_V13.md).
 

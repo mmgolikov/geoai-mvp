@@ -1,0 +1,197 @@
+{
+  "schemaVersion": "1.0",
+  "controlPackage": "CHG-2026-07-16-19",
+  "startedAt": "2026-07-16T19:33:51Z",
+  "completedAt": "2026-07-16T19:39:54Z",
+  "cloudId": "8671019f-f899-4452-a153-9c96cc5eec31",
+  "spaceId": "98311",
+  "hubPageId": "98425",
+  "repository": {
+    "remotePrHead": "cf0ee1903e8411eabf8e048c1d8e775a0454340c",
+    "localBaseCommit": "db9f8630f21b50ba76455338050dcb1b335b0dac",
+    "localBranch": "p0/db01-auth-rehearsal-rebuild-v1",
+    "localWorkingTreeState": "uncommitted_candidate",
+    "pushed": false,
+    "deployed": false,
+    "productionOrMainChanged": false
+  },
+  "updatedPages": 28,
+  "directReadBackPassed": 28,
+  "directReadBackFailed": 0,
+  "preWriteConflictRemediation": {
+    "pageId": "98547",
+    "observedVersion": 49,
+    "expectedPriorVersion": 48,
+    "resolution": "Explicitly authorized safe rebase: preserved all post-CHG18 design/navigation content byte-for-byte and replaced only the CHG18 control block.",
+    "finalVersion": 50
+  },
+  "requiredEvidence": {
+    "controlMarkerCountPerPage": 1,
+    "previousControlMarkerCountPerPage": 0,
+    "rehearsalProjectRef": "bkmfcjzalcvdsdvyxpgi",
+    "hostedPgtap": "183/183",
+    "dataApiRpcCount": 14,
+    "rlsDomainTables": "29/29",
+    "uncoveredForeignKeys": 0,
+    "tableLevelInvitationConcurrency": "two independent backend sessions; rollback-only create-to-accept and create-to-revoke; authenticated RPC/HTTP concurrency remains open",
+    "applicationEvidence": "local-only exact-target effective-mode-gated SSR/PKCE/session/logout, TOTP MFA, HttpOnly same-site invitation handoff, AAL2 Admin/Onboarding; 66 route patterns/88 handlers; lint/build/static/demo HTTP smoke pass",
+    "performance": "/workspace and /explore First Load JS 220 kB after fixing 285 kB regression; pre-Auth candidate baseline 218 kB",
+    "releaseBoundary": "ENV-01 blocks push and clean Preview; Production/main unchanged; no hosted Auth readiness claimed"
+  },
+  "hubLinkValidation": {
+    "production": true,
+    "vercelProject": true,
+    "currentReleaseState": true,
+    "codexBacklog": true,
+    "supabaseContainmentRunbook": true,
+    "pr97": true,
+    "executionProgram96": true
+  },
+  "contentHashAlgorithm": "sha256",
+  "contentHashBasis": "Current UTF-8 Markdown body returned by independent direct Confluence page read-back after CHG-19 update.",
+  "verification": "All 28 mapped pages were freshly read immediately before update, updated only by replacing the CHG18 control block with CHG19, individually read back, and then independently fetched as a complete set. Expected version increments, exact desired bodies, markers, evidence facts, Hub links and SHA-256 hashes passed 28/28.",
+  "pageReadBack": [
+    {
+      "pageId": "98425",
+      "version": 182,
+      "contentSha256": "f6ad7ef97fba0e387ede629781d697bc5383cbbea9fc573b660fc1198f1f8c88"
+    },
+    {
+      "pageId": "98509",
+      "version": 185,
+      "contentSha256": "bee2f7109e923463e4866dbd2da6f780fa1c94b38ffae2bf798a6c504efc603e"
+    },
+    {
+      "pageId": "2097153",
+      "version": 184,
+      "contentSha256": "1d431a54a58a317f4ffd6554955299d450f0ac552084c5fa845ecf07c6a6f86b"
+    },
+    {
+      "pageId": "12320972",
+      "version": 15,
+      "contentSha256": "9b97ebbeb5b731d9a6953e58d370eabe78b178ccbe273f2bc3c14628fea5a865"
+    },
+    {
+      "pageId": "13008962",
+      "version": 7,
+      "contentSha256": "810917f27e26d3d6fdd34c01a9d190b00d10b8f8cdeafd5118c2477f77903357"
+    },
+    {
+      "pageId": "131194",
+      "version": 8,
+      "contentSha256": "637dbdba1e59b7e4288cd50551806a30b2af50daa8fc0b96a0f1e3b7f9cf0653"
+    },
+    {
+      "pageId": "131293",
+      "version": 13,
+      "contentSha256": "81775b5832a30fc2ef6fb67b5077bc7599a9dfd5fb193d6b8767aac906717e7e"
+    },
+    {
+      "pageId": "1343521",
+      "version": 237,
+      "contentSha256": "35731f234407152016d3e4bc14b65f7638ce216eb3b8c8713d11525606dd84a1"
+    },
+    {
+      "pageId": "98732",
+      "version": 235,
+      "contentSha256": "0e5008546b93f7d1d61f80f28ec82c6854ecea4a2eb5246973b51e1fc4608be7"
+    },
+    {
+      "pageId": "1966084",
+      "version": 85,
+      "contentSha256": "cc05462b68f723e22fdb6393d54c07d87eb4a8c42a4426724c4887e46b7bb013"
+    },
+    {
+      "pageId": "98712",
+      "version": 120,
+      "contentSha256": "71554f9cb3bde986a06be2a32efba428ffd2c81856821a4c0f587bf5cf4fb289"
+    },
+    {
+      "pageId": "98692",
+      "version": 84,
+      "contentSha256": "4c688e414f7cc7ca30ace819a992d89b535f2634c067cecc34ba9576745d90b2"
+    },
+    {
+      "pageId": "2490398",
+      "version": 24,
+      "contentSha256": "36e1025ff6ddb01ad25fb63a5a47474501382c037811587c7dbc4563898cb78b"
+    },
+    {
+      "pageId": "2686985",
+      "version": 16,
+      "contentSha256": "1047a76cc4dcd213c196de2e2a648623df71c4ae17850029d10f7e073a38c9b5"
+    },
+    {
+      "pageId": "294937",
+      "version": 54,
+      "contentSha256": "17ae76719bc4149d24058a92276f8f959e63ca934d4ad7947575ad06a4727952"
+    },
+    {
+      "pageId": "295058",
+      "version": 153,
+      "contentSha256": "f1251aadd7a23fe7c3ddf7a72c8f92192dab595eb9bf685c222c07299585ddc0"
+    },
+    {
+      "pageId": "5242921",
+      "version": 76,
+      "contentSha256": "c654b6405eab52dbdf15a2f1453d25a335eeff3ded83545c81882dcb2a1b3fcc"
+    },
+    {
+      "pageId": "5111891",
+      "version": 75,
+      "contentSha256": "797e8c85a7754250033d82462e5345385b32784dd57e92b7ddf39c4be5f54ecd"
+    },
+    {
+      "pageId": "2031641",
+      "version": 95,
+      "contentSha256": "57d82cc9a9248592fa9c6dfdeb5b64ba7a250688cddd88ca7a3bb7a79d77b9cf"
+    },
+    {
+      "pageId": "1802311",
+      "version": 112,
+      "contentSha256": "6f31b71ffed8ca897ed785578f735c87720d832538db2ad6007c4d67ff3ad7d2"
+    },
+    {
+      "pageId": "131271",
+      "version": 27,
+      "contentSha256": "78ec790559020a496884ad81e95aeb9bbfc8c1a164c984be34bf327a2310f2a2"
+    },
+    {
+      "pageId": "131094",
+      "version": 53,
+      "contentSha256": "ae1491bae1c491e81281e9add688d63c9ac6220a95a12e73d13dbfc49baaa112"
+    },
+    {
+      "pageId": "131114",
+      "version": 26,
+      "contentSha256": "b970fc623101c68c096e9a68b272e6caef329d9b94db45fa9b5d3e6d6050e6bc"
+    },
+    {
+      "pageId": "66106",
+      "version": 77,
+      "contentSha256": "5d873e4be8bcd4249ef82811449297b5a8890589a01a560e7a515c47583bc3c9"
+    },
+    {
+      "pageId": "131134",
+      "version": 34,
+      "contentSha256": "567460e22a96f06e587c6bd2607ed75228fb2083a99f328edf8c0a0aae798e09"
+    },
+    {
+      "pageId": "98547",
+      "version": 50,
+      "contentSha256": "9ab1fc13ca26606eaf567f86f34c098421a1bf55745e5d8c203c40b4bcdd43fc"
+    },
+    {
+      "pageId": "98567",
+      "version": 13,
+      "contentSha256": "b0ca4524d975b655d630cd61f5d8aa2c07315fd6fd64cdc2098ea06f9f513860"
+    },
+    {
+      "pageId": "12320810",
+      "version": 20,
+      "contentSha256": "e8158890bf5c936e456b4fdc2b5f98e4065f8af8e6ced8e6730fbf55f059abcf"
+    }
+  ],
+  "productionChanged": false,
+  "mainChanged": false
+}

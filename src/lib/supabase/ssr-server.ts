@@ -1,9 +1,11 @@
 import { createServerClient } from "@supabase/ssr";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
+import { getEffectiveAuthMode } from "@/src/lib/auth/auth-mode";
 import { getSupabasePublishableKey, getSupabaseUrl } from "@/src/lib/supabase/config";
 
 export async function createRequestScopedSupabaseClient(): Promise<SupabaseClient | null> {
+  if (getEffectiveAuthMode() !== "supabase_auth") return null;
   const url = getSupabaseUrl();
   const publishableKey = getSupabasePublishableKey();
   if (!url || !publishableKey) return null;

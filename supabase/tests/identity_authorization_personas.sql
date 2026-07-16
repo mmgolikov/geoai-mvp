@@ -158,6 +158,15 @@ values
   ('81000000-0000-0000-0000-000000000013', 'authenticated', 'authenticated', 'inactive-org-entity@test.invalid', '', now(), '{}'::jsonb, '{}'::jsonb, now(), now(), null, null, false),
   ('81000000-0000-0000-0000-000000000014', 'authenticated', 'authenticated', 'inactive-project-entity@test.invalid', '', now(), '{}'::jsonb, '{}'::jsonb, now(), now(), null, null, false);
 
+-- The hosted Auth schema is owned by supabase_auth_admin, so a normal
+-- migration/test role must not disable its triggers. Remove only the
+-- transaction-local auto-provisioned fixture profiles before inserting the
+-- deterministic persona IDs below.
+delete from public.profiles
+where auth_user_id between
+  '81000000-0000-0000-0000-000000000001'::uuid
+  and '81000000-0000-0000-0000-000000000014'::uuid;
+
 insert into public.organizations (id, name, slug, status)
 values
   ('82000000-0000-0000-0000-000000000001', 'Persona Org A', 'persona-org-a', 'active'),

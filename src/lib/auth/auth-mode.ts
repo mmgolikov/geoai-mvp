@@ -1,5 +1,6 @@
 import type { GeoAIAuthMode } from "@/src/types/auth";
 import { requestAuthKernelStatus } from "@/src/lib/auth/request-auth-kernel";
+import { getSupabasePublishableKey, getSupabaseUrl } from "@/src/lib/supabase/config";
 
 export type AuthModeStatus = {
   requestedMode: GeoAIAuthMode;
@@ -22,10 +23,7 @@ export function getRequestedAuthMode(): GeoAIAuthMode {
 }
 
 export function hasSupabasePublicConfig() {
-  return Boolean(
-    process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() &&
-      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim()
-  );
+  return Boolean(getSupabaseUrl() && getSupabasePublishableKey());
 }
 
 export function getEffectiveAuthMode(): GeoAIAuthMode {

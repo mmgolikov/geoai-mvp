@@ -185,7 +185,7 @@ const semanticContracts = [
     required: [
       "Public-demo analysis and decision scoring run deterministically in the browser.",
       "return 403 before body parsing until AUTH-01",
-      "The current migration chain is not apply-ready.",
+      "The current migration chain is not apply-ready for development or Production.",
       "Supabase CLI `2.109.1`",
       "71-assertion pgTAP",
       "User-uploaded and user-drawn targets skip market/climate network calls"
@@ -248,11 +248,16 @@ for (const contract of semanticContracts) {
 
 const confluenceSyncMapPath = "docs/CONFLUENCE_SYNC_MAP.json";
 const confluenceSyncMapContent = read(confluenceSyncMapPath);
+let confluenceSyncMap;
 try {
   const syncMap = JSON.parse(confluenceSyncMapContent);
+  confluenceSyncMap = syncMap;
   if (syncMap.hubPageId !== "98425") failures.push(`${confluenceSyncMapPath}: canonical Hub page ID mismatch`);
-  if (!Array.isArray(syncMap.pages) || syncMap.pages.length !== 25) {
-    failures.push(`${confluenceSyncMapPath}: expected 25 mapped operational pages`);
+  if (syncMap.controlPackage !== "CHG-2026-07-16-19") failures.push(`${confluenceSyncMapPath}: current control package must be CHG-19`);
+  if (!syncMap.readBackVerification?.includes("183/183")) failures.push(`${confluenceSyncMapPath}: final 183/183 rehearsal evidence is missing`);
+  if (syncMap.contentHashAlgorithm !== "sha256") failures.push(`${confluenceSyncMapPath}: current-body hash algorithm must be sha256`);
+  if (!Array.isArray(syncMap.pages) || syncMap.pages.length !== 28) {
+    failures.push(`${confluenceSyncMapPath}: expected 28 mapped operational pages`);
   } else {
     const pageIds = new Set();
     for (const page of syncMap.pages) {
@@ -260,15 +265,42 @@ try {
         failures.push(`${confluenceSyncMapPath}: every page requires pageId/title/role/authority/successorPageId`);
         break;
       }
+      if (!Number.isInteger(page.syncedVersion) || page.syncedVersion < 1 || !/^[a-f0-9]{64}$/.test(page.contentSha256 ?? "")) {
+        failures.push(`${confluenceSyncMapPath}: page ${page.pageId} requires a positive syncedVersion and exact SHA-256`);
+      }
       pageIds.add(page.pageId);
     }
     if (pageIds.size !== syncMap.pages.length) failures.push(`${confluenceSyncMapPath}: duplicate page IDs`);
-    for (const requiredPageId of ["98425", "98509", "2097153", "12320972", "1966084", "2490398", "12320810"]) {
+    for (const requiredPageId of ["98425", "98509", "2097153", "12320972", "13008962", "131194", "131293", "1966084", "2490398", "12320810"]) {
       if (!pageIds.has(requiredPageId)) failures.push(`${confluenceSyncMapPath}: missing required page ${requiredPageId}`);
     }
   }
 } catch {
   failures.push(`${confluenceSyncMapPath}: invalid JSON`);
+}
+
+const confluenceChg19ReceiptPath = "docs/CONFLUENCE_CHG19_RECEIPT.json";
+try {
+  const receipt = JSON.parse(read(confluenceChg19ReceiptPath));
+  if (receipt.controlPackage !== "CHG-2026-07-16-19" || receipt.directReadBackPassed !== 28 || receipt.directReadBackFailed !== 0) {
+    failures.push(`${confluenceChg19ReceiptPath}: CHG-19 28/28 direct read-back contract mismatch`);
+  }
+  if (receipt.requiredEvidence?.hostedPgtap !== "183/183") {
+    failures.push(`${confluenceChg19ReceiptPath}: final hosted pgTAP evidence mismatch`);
+  }
+  if (!Array.isArray(receipt.pageReadBack) || receipt.pageReadBack.length !== 28) {
+    failures.push(`${confluenceChg19ReceiptPath}: expected 28 versioned page hashes`);
+  } else if (confluenceSyncMap?.pages) {
+    const receiptPages = new Map(receipt.pageReadBack.map((page) => [page.pageId, page]));
+    for (const page of confluenceSyncMap.pages) {
+      const received = receiptPages.get(page.pageId);
+      if (received?.version !== page.syncedVersion || received?.contentSha256 !== page.contentSha256) {
+        failures.push(`${confluenceChg19ReceiptPath}: page ${page.pageId} does not match sync-map version/hash`);
+      }
+    }
+  }
+} catch {
+  failures.push(`${confluenceChg19ReceiptPath}: invalid JSON`);
 }
 
 for (const relativePath of releaseFactDocs) {

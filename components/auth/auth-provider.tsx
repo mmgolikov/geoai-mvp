@@ -4,13 +4,20 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
 import { getAuthModeStatus } from "@/src/lib/auth/auth-mode";
 import { createDemoProjectMembership, demoOrganization, demoProjectRole, demoUser } from "@/src/lib/auth/demo-session";
 import type { AuthModeStatus } from "@/src/lib/auth/auth-mode";
+import { getSafeAuthRedirectPath } from "@/src/lib/auth/redirect-path";
 import type { GeoAIAuthSession, GeoAIProjectRole } from "@/src/types/auth";
 import { clearBrowserDemoStorage } from "@/src/lib/browser-demo-storage";
+
+async function loadSupabaseBrowserClient() {
+  const { getSupabaseBrowserClient } = await import("@/src/lib/supabase/browser");
+  return getSupabaseBrowserClient();
+}
 
 type AuthContextValue = GeoAIAuthSession & {
   authStatus: AuthModeStatus;
   roleLabel: string;
   signIn: (email: string) => Promise<{ ok: boolean; message: string }>;
+  register: (email: string) => Promise<{ ok: boolean; message: string }>;
   signOut: () => Promise<void>;
   refreshSession: () => Promise<void>;
 };
@@ -54,9 +61,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(createDemoSession());
       return;
     }
-    // AUTH-01 is intentionally incomplete. Do not contact Supabase or create a
-    // placeholder organization/membership from an unbound browser session.
-    setSession(createAnonymousSession());
+    if (authStatus.effectiveMode !== "supabase_auth") {
+      setSession(createAnonymousSession());
+      return;
+    }
+    try {
+      const response = await fetch("/api/auth/session", {
+        method: "GET",
+        credentials: "same-origin",
+        cache: "no-store",
+        headers: { Accept: "application/json" }
+      });
+      if (!response.ok) {
+        setSession(createAnonymousSession());
+        return;
+      }
+      const summary = await response.json() as {
+        isAuthenticated?: unknown;
+        user?: GeoAIAuthSession["user"];
+      };
+      if (summary.isAuthenticated !== true || !summary.user) {
+        setSession(createAnonymousSession());
+        return;
+      }
+      setSession({
+        user: summary.user,
+        organization: null,
+        projectRole: null,
+        membership: null,
+        isAuthenticated: true,
+        isDemo: false
+      });
+    } catch {
+      setSession(createAnonymousSession());
+    }
   }
 
   useEffect(() => {
@@ -68,6 +106,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    if (authStatus.effectiveMode !== "supabase_auth") return;
+
+    let active = true;
+    let unsubscribe: (() => void) | null = null;
+    const synchronize = () => {
+      if (document.visibilityState === "visible") void refreshSession();
+    };
+
+    window.addEventListener("focus", synchronize);
+    document.addEventListener("visibilitychange", synchronize);
+    void loadSupabaseBrowserClient().then((supabase) => {
+      if (!active || !supabase) return;
+      const { data } = supabase.auth.onAuthStateChange(() => {
+        if (active) void refreshSession();
+      });
+      unsubscribe = () => data.subscription.unsubscribe();
+    });
+
+    return () => {
+      active = false;
+      unsubscribe?.();
+      window.removeEventListener("focus", synchronize);
+      document.removeEventListener("visibilitychange", synchronize);
+    };
+    // Auth mode is deployment-static and refreshSession intentionally reads no
+    // changing closure state beyond that mode.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authStatus.effectiveMode]);
+
   async function signIn(email: string) {
     if (authStatus.effectiveMode === "demo_public") {
       return {
@@ -75,12 +143,86 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         message: "GeoAI is running in public demo access mode; no sign-in is required."
       };
     }
-    void email;
-    return { ok: false, message: authStatus.caveat };
+    const supabase = await loadSupabaseBrowserClient();
+    if (!supabase) return { ok: false, message: authStatus.caveat };
+
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail) || normalizedEmail.length > 254) {
+      return { ok: false, message: "Enter a valid email address." };
+    }
+
+    const callback = new URL("/auth/callback", window.location.origin);
+    callback.searchParams.set("next", getSafeAuthRedirectPath(new URL(window.location.href).searchParams.get("next")));
+    const { error } = await supabase.auth.signInWithOtp({
+      email: normalizedEmail,
+      options: {
+        emailRedirectTo: callback.toString(),
+        shouldCreateUser: false
+      }
+    });
+    if (error) {
+      return {
+        ok: false,
+        message: "If this account can use email sign-in, a secure link will be sent. Try again later if it does not arrive."
+      };
+    }
+    return {
+      ok: true,
+      message: "If this account can use email sign-in, a secure link has been sent."
+    };
+  }
+
+  async function register(email: string) {
+    if (authStatus.effectiveMode !== "supabase_auth") {
+      return { ok: false, message: authStatus.caveat };
+    }
+    const supabase = await loadSupabaseBrowserClient();
+    if (!supabase) return { ok: false, message: authStatus.caveat };
+
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail) || normalizedEmail.length > 254) {
+      return { ok: false, message: "Enter a valid email address." };
+    }
+
+    const callback = new URL("/auth/callback", window.location.origin);
+    callback.searchParams.set("next", getSafeAuthRedirectPath(new URL(window.location.href).searchParams.get("next")));
+    const { error } = await supabase.auth.signInWithOtp({
+      email: normalizedEmail,
+      options: {
+        emailRedirectTo: callback.toString(),
+        shouldCreateUser: true
+      }
+    });
+    if (error) {
+      return {
+        ok: false,
+        message: "Registration could not be completed. Try again later or contact the project administrator."
+      };
+    }
+    return {
+      ok: true,
+      message: "Check your email and follow the confirmation link to finish registration."
+    };
   }
 
   async function signOut() {
     clearBrowserDemoStorage();
+    if (authStatus.effectiveMode === "supabase_auth") {
+      try {
+        await fetch("/api/auth/logout", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json"
+          },
+          body: "{}"
+        });
+      } finally {
+        setSession(createAnonymousSession());
+      }
+      return;
+    }
     setSession(authStatus.effectiveMode === "demo_public" ? createDemoSession() : createAnonymousSession());
   }
 
@@ -89,6 +231,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     authStatus,
     roleLabel: formatRole(session.projectRole),
     signIn,
+    register,
     signOut,
     refreshSession
   };

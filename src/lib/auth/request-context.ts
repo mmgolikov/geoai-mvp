@@ -3,10 +3,12 @@ import {
   evaluateRequestIdentityEvidence,
   type RequestIdentityEvidenceStatus
 } from "@/src/lib/auth/request-identity-evidence";
+import { getEffectiveAuthMode } from "@/src/lib/auth/auth-mode";
 import { createRequestScopedSupabaseClient } from "@/src/lib/supabase/ssr-server";
 
 export type RequestAuthStatus =
   | "verified"
+  | "auth_mode_disabled"
   | "public_config_missing"
   | "unsupported_bearer_transport"
   | Exclude<RequestIdentityEvidenceStatus, "verified">
@@ -60,6 +62,10 @@ function result(
 
 export async function createRequestAuthContext(request?: Request): Promise<RequestAuthContext> {
   const requestId = crypto.randomUUID();
+
+  if (getEffectiveAuthMode() !== "supabase_auth") {
+    return result(requestId, "auth_mode_disabled", null);
+  }
 
   // AUTH-01A intentionally supports the SSR cookie transport only. A future
   // bearer API transport must be explicit and must reject mixed credentials.

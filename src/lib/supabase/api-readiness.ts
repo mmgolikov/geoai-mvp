@@ -1,6 +1,8 @@
-import { getSupabasePublishableKey, getSupabaseUrl } from "@/src/lib/supabase/config";
-
-const expectedDevelopmentProjectRef = "pphdqkurxneyagvnnjdt";
+import {
+  getSupabasePublishableKey,
+  getSupabaseUrl,
+  resolveSupabaseTarget
+} from "@/src/lib/supabase/config";
 
 export type SupabaseApiHealthStatus =
   | "not_configured"
@@ -18,8 +20,19 @@ export type SupabaseApiHealth = {
 };
 
 export async function probeSupabaseApiHealth(): Promise<SupabaseApiHealth> {
+  const target = resolveSupabaseTarget();
   const baseUrl = getSupabaseUrl();
   const publishableKey = getSupabasePublishableKey();
+  if (target.status === "target_mismatch") {
+    return {
+      schema: "api",
+      rpc: "healthcheck",
+      configured: true,
+      reachable: false,
+      healthy: false,
+      status: "target_mismatch"
+    };
+  }
   if (!baseUrl || !publishableKey) {
     return {
       schema: "api",
@@ -28,26 +41,6 @@ export async function probeSupabaseApiHealth(): Promise<SupabaseApiHealth> {
       reachable: false,
       healthy: false,
       status: "not_configured"
-    };
-  }
-
-  let projectRef: string | null = null;
-  try {
-    const parsed = new URL(baseUrl);
-    projectRef = parsed.protocol === "https:"
-      ? parsed.hostname.match(/^([a-z0-9-]+)\.supabase\.co$/i)?.[1] ?? null
-      : null;
-  } catch {
-    projectRef = null;
-  }
-  if (projectRef !== expectedDevelopmentProjectRef) {
-    return {
-      schema: "api",
-      rpc: "healthcheck",
-      configured: true,
-      reachable: false,
-      healthy: false,
-      status: "target_mismatch"
     };
   }
 

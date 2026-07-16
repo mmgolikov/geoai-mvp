@@ -55,6 +55,44 @@ for (const file of await collectRouteFiles(apiRoot)) {
       }
       continue;
     }
+    if (policy.access === "identity_mutation") {
+      if (policy.action === "identity.logout") {
+        const clientIndex = handler.body.indexOf("createRequestScopedSupabaseClient()");
+        const signOutIndex = handler.body.indexOf('signOut({ scope: "local" })');
+        if (clientIndex < 0 || signOutIndex < clientIndex || !handler.body.includes("privateNoStoreJson")) {
+          failures.push(`${relative} ${handler.method}: logout must clear only the request-scoped local session through private no-store JSON`);
+        }
+        continue;
+      }
+      if (policy.action === "identity.accept_invitation") {
+        const guardIndex = handler.body.indexOf("createRequestAuthContext(request)");
+        const denialIndex = handler.body.indexOf("if (!context.verified", guardIndex);
+        const bodyIndex = handler.body.indexOf("await request.text()", guardIndex);
+        const rpcIndex = handler.body.indexOf('.rpc("accept_invitation"', guardIndex);
+        const denialWindow = denialIndex >= 0 ? handler.body.slice(denialIndex, bodyIndex >= 0 ? bodyIndex : undefined) : "";
+        if (
+          guardIndex < 0 ||
+          denialIndex < guardIndex ||
+          bodyIndex < denialIndex ||
+          rpcIndex < bodyIndex ||
+          !/return\s+privateNoStoreJson\s*\(/.test(denialWindow)
+        ) {
+          failures.push(`${relative} ${handler.method}: invitation acceptance must deny an unverified identity before body parsing and api RPC execution`);
+        }
+        continue;
+      }
+      if (policy.action === "identity.stage_invitation") {
+        const modeIndex = handler.body.indexOf('getEffectiveAuthMode() !== "supabase_auth"');
+        const bodyIndex = handler.body.indexOf("await request.text()", modeIndex);
+        const cookieIndex = handler.body.indexOf("response.cookies.set(", bodyIndex);
+        if (modeIndex < 0 || bodyIndex < modeIndex || cookieIndex < bodyIndex || !handler.body.includes("privateNoStoreJson")) {
+          failures.push(`${relative} ${handler.method}: invitation staging must fail outside effective Auth mode before parsing and set only a private no-store cookie after validation`);
+        }
+        continue;
+      }
+      failures.push(`${relative} ${handler.method}: unsupported identity mutation ${policy.action}`);
+      continue;
+    }
     if (policy.access === "operator") {
       const guardIndex = handler.body.indexOf("hasRuntimeSourcePackOperatorAccess(request)");
       const executionIndex = handler.body.indexOf("getRuntimeSourcePack(");
@@ -64,7 +102,24 @@ for (const file of await collectRouteFiles(apiRoot)) {
       continue;
     }
     if (policy.access === "org_admin") {
-      failures.push(`${relative} ${handler.method}: org_admin handler verification is not implemented yet`);
+      const guardIndex = handler.body.indexOf("createElevatedRequestContext(request)");
+      const denialIndex = handler.body.indexOf("if (!elevated.ok)", guardIndex);
+      const sensitiveIndexes = [
+        handler.body.indexOf("await request.text()"),
+        handler.body.indexOf(".rpc(")
+      ].filter((index) => index >= 0);
+      const firstSensitive = sensitiveIndexes.length > 0 ? Math.min(...sensitiveIndexes) : -1;
+      const denialWindow = denialIndex >= 0
+        ? handler.body.slice(denialIndex, firstSensitive >= 0 ? firstSensitive : undefined)
+        : "";
+      if (
+        guardIndex < 0 ||
+        denialIndex < guardIndex ||
+        (firstSensitive >= 0 && denialIndex > firstSensitive) ||
+        !/return\s+privateNoStoreJson\s*\(/.test(denialWindow)
+      ) {
+        failures.push(`${relative} ${handler.method}: org_admin AAL2 denial must precede body parsing and api RPC execution`);
+      }
       continue;
     }
     if (policy.access !== "project") {
