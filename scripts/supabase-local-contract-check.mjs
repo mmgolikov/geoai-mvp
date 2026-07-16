@@ -21,15 +21,22 @@ if (!/^enable_anonymous_sign_ins\s*=\s*false$/m.test(config)) {
 if (packageJson.devDependencies?.supabase !== "2.109.1") {
   failures.push("Supabase CLI must be pinned exactly to 2.109.1");
 }
-for (const command of ["supabase:local:start", "supabase:local:reset", "supabase:test:db", "supabase:local:stop"]) {
+for (const command of [
+  "supabase:local:start",
+  "supabase:local:reset",
+  "supabase:test:db",
+  "supabase:local:stop",
+  "test:synthetic-upgrade-replay",
+  "supabase:test:synthetic-upgrade-replay"
+]) {
   if (!packageJson.scripts?.[command]) failures.push(`Missing package script: ${command}`);
 }
 for (const evidence of [
   "database-replay:",
   "npm run supabase:local:reset",
   "npm run supabase:test:db",
-  "node scripts/synthetic-upgrade-replay-check.mjs | tee artifacts/synthetic-upgrade-replay-static-check.txt",
-  "node scripts/synthetic-upgrade-replay-check.mjs --run-local",
+  "npm run test:synthetic-upgrade-replay | tee artifacts/synthetic-upgrade-replay-static-check.txt",
+  "npm run supabase:test:synthetic-upgrade-replay",
   "Synthetic ledger-prefix upgrade rehearsal (not live-clone certification)",
   "geoai-database-evidence-${{ github.run_id }}"
 ]) {
