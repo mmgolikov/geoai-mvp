@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AccessStatusBadge } from "@/components/auth/access-status-badge";
 
 export function TopNavigation() {
   return (
@@ -17,14 +18,17 @@ export function TopNavigation() {
             </div>
           </Link>
         </div>
-        <nav className="hidden items-center gap-2 sm:flex">
-          <Link href="/workspace" className="rounded-md bg-surface px-3 py-2 text-sm font-semibold text-ink transition hover:text-brand">
-            Workspace
-          </Link>
-          <Link href="/projects" className="rounded-md px-3 py-2 text-sm font-semibold text-muted transition hover:bg-surface hover:text-ink">
-            Projects
-          </Link>
-        </nav>
+        <div className="flex items-center gap-2">
+          <nav className="hidden items-center gap-2 sm:flex">
+            <Link href="/workspace" className="rounded-md bg-surface px-3 py-2 text-sm font-semibold text-ink transition hover:text-brand">
+              Workspace
+            </Link>
+            <Link href="/projects" className="rounded-md px-3 py-2 text-sm font-semibold text-muted transition hover:bg-surface hover:text-ink">
+              Projects
+            </Link>
+          </nav>
+          <AccessStatusBadge compact />
+        </div>
       </div>
     </header>
   );

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AccessStatusBadge } from "@/components/auth/access-status-badge";
 import { LandingHeroMap } from "@/components/landing-hero-map";
 
 const productStrip = [
@@ -52,14 +53,17 @@ function LandingHeader() {
             <div className="truncate text-xs font-medium text-muted">Spatial decision intelligence</div>
           </div>
         </Link>
-        <nav className="hidden items-center gap-2 sm:flex">
-          <Link href="/workspace" className="rounded-md bg-surface px-3 py-2 text-sm font-semibold text-ink transition hover:text-brand">
-            Workspace
-          </Link>
-          <Link href="/projects" className="rounded-md px-3 py-2 text-sm font-semibold text-muted transition hover:bg-surface hover:text-ink">
-            Projects
-          </Link>
-        </nav>
+        <div className="flex items-center gap-2">
+          <nav className="hidden items-center gap-2 sm:flex">
+            <Link href="/workspace" className="rounded-md bg-surface px-3 py-2 text-sm font-semibold text-ink transition hover:text-brand">
+              Workspace
+            </Link>
+            <Link href="/projects" className="rounded-md px-3 py-2 text-sm font-semibold text-muted transition hover:bg-surface hover:text-ink">
+              Projects
+            </Link>
+          </nav>
+          <AccessStatusBadge compact />
+        </div>
       </div>
     </header>
   );
@@ -92,16 +96,16 @@ export default function HomePage() {
             </p>
             <div className="mt-7 flex flex-col gap-3 sm:flex-row">
               <Link
-                href="/workspace"
+                href="/login"
                 className="inline-flex h-12 items-center justify-center rounded-md bg-brand px-6 text-sm font-semibold text-white shadow-soft transition hover:bg-[#113f50]"
               >
-                Open workspace
+                Sign in
               </Link>
               <Link
-                href="/projects"
+                href="/workspace"
                 className="inline-flex h-12 items-center justify-center rounded-md border border-line bg-white/92 px-6 text-sm font-semibold text-ink transition hover:border-brand"
               >
-                View projects
+                Open workspace
               </Link>
             </div>
             <p className="mt-4 max-w-2xl text-sm leading-6 text-muted">

@@ -4,7 +4,7 @@ async function source(path) {
   return fs.promises.readFile(new URL(`../${path}`, import.meta.url), "utf8");
 }
 
-const [adminRoute, onboardingRoute, onboardingStageRoute, invitationCookie, tokenHelper, elevated, adminUi, onboardingUi, callback, redirectPath] = await Promise.all([
+const [adminRoute, onboardingRoute, onboardingStageRoute, invitationCookie, tokenHelper, elevated, adminUi, onboardingUi, callback, redirectPath, landing, navigation, accessBadge] = await Promise.all([
   source("app/api/admin/route.ts"),
   source("app/api/onboarding/invitation/route.ts"),
   source("app/api/onboarding/invitation/stage/route.ts"),
@@ -14,7 +14,10 @@ const [adminRoute, onboardingRoute, onboardingStageRoute, invitationCookie, toke
   source("components/auth/admin-panel.tsx"),
   source("components/auth/onboarding-panel.tsx"),
   source("app/auth/callback/route.ts"),
-  source("src/lib/auth/redirect-path.ts")
+  source("src/lib/auth/redirect-path.ts"),
+  source("app/page.tsx"),
+  source("components/top-navigation.tsx"),
+  source("components/auth/access-status-badge.tsx")
 ]);
 
 const failures = [];
@@ -49,6 +52,8 @@ assert(onboardingRoute.includes("onboardingInvitationCookieName") && onboardingR
 assert(callback.includes("exchangeCodeForSession") && redirectPath.includes("approvedAuthDestinations"), "PKCE callback must use a bounded same-origin redirect allowlist");
 assert(!callback.includes(".mfa") && !adminUi.includes("MFA") && !onboardingUi.includes("MFA"), "Current user flows must not expose or require MFA");
 assert(!onboardingUi.includes('type="password"') && !onboardingUi.includes("One-time invitation token"), "Onboarding must not ask users to paste technical invitation tokens");
+assert(landing.includes('href="/login"') && landing.includes("Sign in") && landing.includes("AccessStatusBadge"), "Landing must expose a prominent sign-in action in the hero and header");
+assert(navigation.includes("AccessStatusBadge") && accessBadge.includes('label = "Sign in"'), "Product navigation must expose the sign-in/account action on every screen size");
 assert(adminRoute.includes("privateNoStoreJson") && onboardingRoute.includes("privateNoStoreJson"), "Authenticated Admin APIs must be private no-store");
 assert(adminUi.includes("initial-only") && adminUi.includes("capped at 25"), "Admin UI must disclose bounded initial-only snapshot pagination");
 

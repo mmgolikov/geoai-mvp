@@ -5,14 +5,10 @@ import { useAuth } from "@/components/auth/auth-provider";
 
 export function AccessStatusBadge({ compact = false }: { compact?: boolean }) {
   const { authStatus, isAuthenticated, isDemo, roleLabel } = useAuth();
-  const label =
-    authStatus.effectiveMode === "supabase_auth"
-      ? isAuthenticated
-        ? "Authenticated"
-        : "Sign in available"
-      : authStatus.effectiveMode === "disabled"
-        ? "Auth off"
-        : "Pilot access";
+  let label = "Demo access";
+  if (isAuthenticated) label = isDemo ? "Demo account" : "Account";
+  else if (authStatus.effectiveMode === "supabase_auth") label = "Sign in";
+  else if (authStatus.effectiveMode === "disabled") label = "Auth unavailable";
 
   return (
     <Link
