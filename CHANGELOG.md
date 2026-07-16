@@ -11,7 +11,7 @@ Navigation: [Documentation Index](docs/DOCUMENTATION_INDEX.md) · [Current Relea
 
 ### Simplified Auth product decision
 
-- Added an explicit `Sign in` action to the landing header, landing hero and shared product navigation so `/login` is discoverable on desktop and mobile instead of existing as a hidden direct URL.
+- Added an explicit `Sign in` action to the landing header, landing hero and shared product navigation so `/login` is discoverable on desktop and mobile instead of existing as a hidden direct URL. The shared action exposes a stable sign-in/account accessibility label as its session state changes.
 - Replaced the separate registration, MFA and technical invitation flow with one `/login` experience for email, phone and demo access. Email login now creates the user when needed; phone OTP code paths are implemented but still require an external SMS provider.
 - Added the ready browser-only mock account `demo@geoai.space` / `111111`. The demo session enables only sample/browser-local behavior and is never accepted by protected server APIs, Admin, customer data or durable writes.
 - Redirected `/register` and `/mfa` to `/login`, removed MFA callback/session/UI dependencies and changed the default verified callback destination to `/workspace`.
