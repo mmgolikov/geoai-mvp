@@ -379,18 +379,25 @@ values
     'persona_quality_hold',
     '83000000-0000-0000-0000-000000000001',
     timestamptz '2026-07-16 12:01:00+00'
-  ),
-  (
-    '89000000-0000-0000-0000-000000000003',
-    '86000000-0000-0000-0000-000000000002',
-    '82000000-0000-0000-0000-000000000001',
-    '84000000-0000-0000-0000-000000000001',
-    'persona-project-a',
-    'revoked',
-    'persona_revocation',
-    '83000000-0000-0000-0000-000000000001',
-    timestamptz '2026-07-16 12:02:00+00'
   );
+
+insert into public.source_release_status_events (
+  id, source_release_id, organization_id, project_id, project_key,
+  status, reason_code, actor_profile_id, created_at
+)
+select
+  '89000000-0000-0000-0000-000000000003',
+  release.id,
+  release.organization_id,
+  release.project_id,
+  release.project_key,
+  'revoked',
+  'persona_revocation',
+  '83000000-0000-0000-0000-000000000001',
+  timestamptz '2026-07-16 12:02:00+00'
+from public.source_releases release
+where release.project_key = 'persona-project-a'
+  and release.release_version = 'page-003';
 
 set local role anon;
 select extensions.is(
@@ -459,7 +466,7 @@ select extensions.is(
   (
     select effective_status
     from api.current_source_releases('persona-project-a', 100)
-    where release_version = 'v2'
+    where release_version = 'page-003'
   ),
   'revoked',
   'source-release RPC projects an explicit revoked status'
