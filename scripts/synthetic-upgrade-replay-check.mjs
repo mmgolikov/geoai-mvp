@@ -30,8 +30,8 @@ if (preLedger.length !== 1) {
 if (liveLedger.length !== manifest.canonicalBaselineCount || liveLedger.length !== 10) {
   failures.push(`Expected the exact 10-entry live ledger; found ${liveLedger.length}`);
 }
-if (pending.length !== 6) {
-  failures.push(`Expected exactly six review-only pending migrations; found ${pending.length}`);
+if (pending.length !== 7) {
+  failures.push(`Expected exactly seven review-only pending migrations; found ${pending.length}`);
 }
 
 const allEntries = [...preLedger, ...liveLedger, ...pending];
@@ -368,7 +368,7 @@ runSupabase(
   "Rehearse the required pre-ledger repair locally"
 );
 assertLedger([...preLedger, ...liveLedger], "Verify the reconciled ledger prefix", false);
-runSupabase(["migration", "up", "--local"], "Apply the six review-only pending migrations locally");
+runSupabase(["migration", "up", "--local"], "Apply the seven review-only pending migrations locally");
 assertLedger(allEntries, "Verify the complete synthetic upgrade ledger", false);
 assertPostUpgradeSurface();
 
