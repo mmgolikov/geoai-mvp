@@ -336,7 +336,14 @@ jobs:
           for route in "${routes[@]}"; do
             expected_status["$route"]="200"
           done
+          expected_status["/register"]="307"
+          expected_status["/mfa"]="307"
           expected_status["/demo"]="307"
+
+          declare -A expected_location
+          expected_location["/register"]="/login"
+          expected_location["/mfa"]="/login"
+          expected_location["/demo"]="/workspace"
 
           for route in "${routes[@]}"; do
             code=$(curl --silent --show-error --max-time 20 --output /dev/null --write-out '%{http_code}' "http://127.0.0.1:3000${route}")
@@ -344,6 +351,13 @@ jobs:
             if [ "$code" != "${expected_status[$route]}" ]; then
               echo "Unexpected HTTP status for $route: got $code, expected ${expected_status[$route]}" >&2
               exit 1
+            fi
+            if [ -n "${expected_location[$route]:-}" ]; then
+              redirect_url=$(curl --silent --show-error --max-time 20 --output /dev/null --write-out '%{redirect_url}' "http://127.0.0.1:3000${route}")
+              if [ "$redirect_url" != "http://127.0.0.1:3000${expected_location[$route]}" ]; then
+                echo "Unexpected redirect for $route: got $redirect_url, expected http://127.0.0.1:3000${expected_location[$route]}" >&2
+                exit 1
+              fi
             fi
           done
 
