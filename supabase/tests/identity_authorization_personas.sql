@@ -192,7 +192,7 @@ values
   ('82000000-0000-0000-0000-000000000001', '83000000-0000-0000-0000-000000000007', 'member', 'active'),
   ('82000000-0000-0000-0000-000000000001', '83000000-0000-0000-0000-000000000008', 'member', 'active'),
   ('82000000-0000-0000-0000-000000000001', '83000000-0000-0000-0000-000000000010', 'member', 'active'),
-  ('82000000-0000-0000-0000-000000000001', '83000000-0000-0000-0000-000000000011', 'member', 'inactive'),
+  ('82000000-0000-0000-0000-000000000001', '83000000-0000-0000-0000-000000000011', 'member', 'suspended'),
   ('82000000-0000-0000-0000-000000000001', '83000000-0000-0000-0000-000000000012', 'member', 'active');
 
 insert into public.project_memberships (
@@ -465,7 +465,7 @@ select set_config('request.jwt.claim.sub', '81000000-0000-0000-0000-000000000011
 select extensions.is(
   (select count(*)::integer from api.current_project_access('persona-project-a')),
   0,
-  'inactive organization membership cannot resolve project access'
+  'suspended organization membership cannot resolve project access'
 );
 
 reset role;
