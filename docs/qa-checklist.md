@@ -2,6 +2,26 @@
 
 Use this checklist before demos, Vercel deployments, and milestone checkpoints.
 
+Status: Active checklist
+Last reconciled: 2026-07-16
+Current authority: [Current Release State](CURRENT_RELEASE_STATE.md)
+
+## Mandatory pre-Auth / real-source gates
+
+- [ ] Request-scoped caller JWT/profile/project membership is implemented and negative 401/403 cases pass. **Current status: blocked.**
+- [x] Every API handler is classified in `security/api-route-access.json`; static guard contract passes.
+- [x] User-facing repository client cannot select the Supabase service-role key.
+- [ ] Canonical migration chain replays cleanly on an ephemeral Supabase/Postgres target. **Current status: blocked by historical schema collisions.**
+- [ ] Every Supabase migration has a unique CLI version. **Current status: blocked; `20260618` is reused five times and `20260624` twice.**
+- [ ] Live positive/negative RLS persona matrix passes for every protected table. **Current status: mock plan only.**
+- [ ] Protected upload validates total body, server-derived scope, magic bytes, checksum and quarantine/AV state. **Current status: blocked.**
+- [ ] Real snapshots have explicit tenant/visibility and custody; nullable project scope is not treated as public. **Current status: blocked.**
+- [x] Public source DTOs exclude raw/normalized filesystem and Storage object paths.
+- [x] OpenAI key alone cannot activate upstream execution; body/time/token bounds are enforced.
+- [x] Public-demo report, analysis-run and comparison state remains browser-only; seeded reports are immutable server authority.
+- [ ] AI quotas, distributed rate limiting, privacy redaction and cost telemetry are verified. **Current status: blocked.**
+- [x] Production source pack returns 503/disabled/zero; no provider request or persistence occurs.
+
 ## Environment
 
 - [ ] `.env.local` exists locally when running Mapbox.
@@ -10,6 +30,7 @@ Use this checklist before demos, Vercel deployments, and milestone checkpoints.
 - [ ] `NEXT_PUBLIC_MAPBOX_TOKEN` is configured locally.
 - [ ] `NEXT_PUBLIC_MAPBOX_TOKEN` is configured in Vercel.
 - [ ] `OPENAI_API_KEY` is not required for current MVP behavior.
+- [ ] `GEOAI_ALLOW_OPENAI_UPSTREAM` remains false until hard Auth, request membership, privacy and quota gates are verified.
 - [ ] `NEXT_PUBLIC_AUTH_MODE` is optional and defaults to public demo access.
 - [ ] `SUPABASE_SERVICE_ROLE_KEY` is not exposed in browser/client code.
 - [ ] If Supabase is configured, `/api/db/health` does not print any secret values.
@@ -62,7 +83,7 @@ Use this checklist before demos, Vercel deployments, and milestone checkpoints.
 ## Supabase/PostGIS Durable Persistence v2.3
 
 - [ ] Migration file exists at `supabase/migrations/20260624_geoai_pilot_persistence_foundation.sql`.
-- [ ] Migration is additive and does not contain destructive data operations.
+- [ ] Historical migrations plus the canonical reconciliation migration pass a clean replay; existence of additive SQL alone is not certification.
 - [ ] Migration includes organizations, profiles, memberships, projects, AOIs, analysis runs, reports, comparisons, Data Room, Pilot Workflow, source snapshot, AI score and audit event tables.
 - [ ] AOI table uses PostGIS polygon and centroid columns.
 - [ ] RLS is enabled for core tables.
@@ -221,7 +242,7 @@ Use this checklist before demos, Vercel deployments, and milestone checkpoints.
 - [ ] Custom Query requires a question before analysis.
 - [ ] Express Analysis opens dashboard.
 - [ ] Dashboard title and content change by scenario.
-- [ ] OpenAI works only through the server route when configured.
+- [ ] OpenAI works only through the server route after explicit upstream + hard access + Supabase Auth gates are verified.
 - [ ] Mock fallback works when `OPENAI_API_KEY` is missing.
 - [ ] No OpenAI key is exposed to the browser.
 
@@ -275,7 +296,7 @@ Use this checklist before demos, Vercel deployments, and milestone checkpoints.
 - [ ] `/projects` loads without login when `NEXT_PUBLIC_AUTH_MODE` is unset.
 - [ ] `/login` shows current auth mode and access caveat.
 - [ ] `/api/auth/session` returns safe JSON without secrets.
-- [ ] `supabase_auth` mode falls back to public demo access if public Supabase env values are missing.
+- [ ] Protected `supabase_auth` mode fails closed if config, caller session or membership is missing; public demo remains a separate explicit mode. **Current implementation still needs this change.**
 - [ ] Project/workspace access badges remain compact and do not push primary actions below the first viewport.
 
 ## Pilot Infrastructure Activation v2.4
@@ -311,7 +332,7 @@ Use this checklist before demos, Vercel deployments, and milestone checkpoints.
 - [ ] `npm run storage:check` reports provider mode, buckets, 5 MB limit and storage caveat without secrets.
 - [ ] `GET /api/storage/health` returns provider, repository mode, required buckets, missing buckets, signed URL readiness, blockers and next actions.
 - [ ] `GET /api/storage/evidence-files?projectKey=dubai-investment-screening-demo` returns metadata list safely.
-- [ ] `POST /api/storage/evidence-files` accepts a small allowed file and returns Supabase upload or metadata-only fallback.
+- [ ] `POST /api/storage/evidence-files` keeps client binary upload blocked until the protected upload gate above passes; metadata-only demo fallback remains explicit.
 - [ ] Unsupported file type upload returns 400 with a friendly message.
 - [ ] Oversized file upload returns 400 with a friendly message.
 - [ ] `GET /api/storage/evidence-files/[id]/download` returns signed URL only when storage is configured; metadata-only fallback returns controlled unavailable response.
@@ -329,7 +350,7 @@ Use this checklist before demos, Vercel deployments, and milestone checkpoints.
 - [ ] `GET /api/external-data/sources` returns Source Registry records.
 - [ ] `GET /api/external-data/status` returns readiness states.
 - [ ] `POST /api/context/market` returns snapshot-backed context when DLD snapshot area matches, otherwise seed/demo fallback.
-- [ ] `GET /api/context/climate?lat=25.08&lng=55.14` returns climate context or sample fallback.
+- [ ] `GET /api/context/climate?lat=25.08&lng=55.14` returns `permission_required` with null metrics and makes no Open-Meteo upstream request.
 - [ ] UI says snapshot/sample fallback, not live official integration.
 - [ ] Evidence and reports retain official-validation-required caveats.
 
@@ -372,7 +393,7 @@ Use this checklist before demos, Vercel deployments, and milestone checkpoints.
 - [ ] `/projects` market-area count agrees with `/api/market-metrics`.
 - [ ] `/api/ai/decision-score` returns route status with no API key exposed.
 - [ ] Decision score POST returns `deterministic_fallback` without `OPENAI_API_KEY`.
-- [ ] With `OPENAI_API_KEY`, decision score attempts OpenAI and falls back safely on invalid output/failure.
+- [ ] With `OPENAI_API_KEY` alone, decision score remains deterministic fallback; upstream requires the explicit hard/Auth gate and project authorization.
 - [ ] Express Analysis dashboard shows AI Decision Memo without replacing deterministic score cards.
 - [ ] Report preview and printable report include AI Decision Memo when present.
 - [ ] Russian query `что лучше построить на этой территории?` stays caveated and scenario-specific.

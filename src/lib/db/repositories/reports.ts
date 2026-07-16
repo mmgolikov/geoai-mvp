@@ -29,8 +29,7 @@ function hasCompleteReportPayload(record: unknown) {
 
 function resolveReservedSeedRecord(id: string, stored: unknown | null) {
   const seeded = getSeededDemoReportRecord(id);
-  if (!seeded || hasCompleteReportPayload(stored)) return stored;
-  return seeded;
+  return seeded ?? stored;
 }
 
 export async function listReports(filters: { projectId?: string | null; projectKey?: string | null; limit?: number } = {}): Promise<DbRepositoryResult<WorkspaceReport[] | unknown[]>> {
@@ -78,6 +77,9 @@ export async function getReport(id: string): Promise<DbRepositoryResult<Workspac
 }
 
 export async function saveReport(input: DbReportInput): Promise<DbRepositoryResult<unknown>> {
+  if (getSeededDemoReportRecord(input.reportKey)) {
+    return { ok: false, mode: "local_fallback", data: null, error: "Reserved seeded report IDs are immutable." };
+  }
   const client = await getSupabaseServerClient();
   if (!client) {
     const reportPayload = input.reportJson as {

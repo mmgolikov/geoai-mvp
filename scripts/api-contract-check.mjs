@@ -30,6 +30,7 @@ const secretPatterns = [
 ];
 
 const requiredCaveatPattern = /screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion/i;
+const privateSourceKeys = /"(?:available[_-]?files|input[_-]?file|output[_-]?file|file[_-]?path|normalized[_-]?path|raw[_-]?file[_-]?name|raw[_-]?path|storage[_-]?path|object[_-]?path|local[_-]?path|filesystem[_-]?path|bucket[_-]?name|storage[_-]?key|object[_-]?key)"\s*:/i;
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -202,6 +203,7 @@ for (const route of routes) {
   assertNoPositiveReadinessClaim(route, text, payload);
 
   if (dataFoundationRoutes.has(route)) {
+    assert(!privateSourceKeys.test(text), `${route} exposes a private source path/file key`);
     assertDataFoundationPayload(route, payload);
   } else {
     assertBackendPayload(route, payload);

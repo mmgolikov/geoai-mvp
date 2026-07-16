@@ -1,10 +1,10 @@
 # GeoAI MVP
 
-GeoAI is a Next.js spatial decision intelligence MVP for evaluating Dubai real estate, infrastructure, construction, and climate-risk scenarios. The current version is an investor demo prototype, not a production-ready or pilot-ready product: it uses Mapbox for the workspace, synthetic/demo geospatial layers, OSM-style sample baseline fixtures, deterministic mock scoring, optional OpenAI-powered narrative analysis, comparison dashboards, and print-friendly report previews.
+GeoAI is a Next.js spatial decision intelligence MVP for evaluating Dubai real estate, infrastructure, construction, and climate-risk scenarios. The current release is a public demo prototype, not a production-ready or pilot-ready product. It uses Mapbox, synthetic/demo geospatial layers, deterministic scoring, bounded source-context contracts, comparison dashboards, and print-friendly report previews.
 
 Pilot UX v3.6 keeps the app workspace-first, preserves the criteria-first product flow, and freezes the current pilot UX as a release candidate after dashboard cockpit alignment hardening, a balanced 6-KPI grid, and full client-pilot review. Outputs remain screening hypotheses requiring official/client validation.
 
-OpenAI is optional. If `OPENAI_API_KEY` is not configured, GeoAI automatically uses the deterministic mock fallback so the product remains fully usable for demos.
+OpenAI upstream execution is disabled by default. The demo uses deterministic fallback unless an operator explicitly enables the upstream gate behind hard access and Supabase Auth; request-scoped user/membership authorization is not implemented yet, so protected OpenAI activation remains blocked.
 
 ## Implemented Features
 
@@ -31,7 +31,7 @@ OpenAI is optional. If `OPENAI_API_KEY` is not configured, GeoAI automatically u
   - Infrastructure / Urban Planning
   - Climate & Risk
   - Custom Query
-- Express Analysis dashboard with deterministic scores and optional OpenAI narrative analysis
+- Express Analysis dashboard with deterministic scores and gated OpenAI narrative code path
 - Mock fallback mode when OpenAI is not configured or unavailable
 - Dubai Market Context Adapter v0.1 with seed/demo-normalized area matching
 - Data Ingestion v0.1 for seed_static market metrics and deterministic normalization
@@ -69,7 +69,7 @@ OpenAI is optional. If `OPENAI_API_KEY` is not configured, GeoAI automatically u
 - Next.js API routes
 - Synthetic GeoJSON-style demo data
 - Deterministic local mock scoring logic
-- Server-side OpenAI analysis route with mock fallback
+- Server-side OpenAI analysis route behind an explicit hard/Auth gate, with deterministic fallback
 - Seed market context adapter for Dubai area-level qualitative intelligence
 - Local market ingestion layer with validation, normalization, aggregation, and data quality notes
 - Spatial adapter layer with geometry validation, centroid/area utilities, and seed GeoJSON registry
@@ -108,15 +108,16 @@ GEOAI_ACCESS_ENFORCEMENT_MODE=soft
 GEOAI_REQUIRE_SUPABASE_READY=false
 GEOAI_REQUIRE_STORAGE_READY=false
 GEOAI_ALLOW_DEMO_PUBLIC=true
+GEOAI_ALLOW_OPENAI_UPSTREAM=false
 ```
 
 `NEXT_PUBLIC_MAPBOX_TOKEN` is required for the live Mapbox basemap.
 
-`OPENAI_API_KEY` is optional and server-only. When it is set in local or Vercel server environment variables, `/api/analyze` can use OpenAI to generate dashboard-ready narrative analysis and `/api/ai/decision-score` can generate structured decision-support scoring. When it is missing or an API request fails, GeoAI returns deterministic fallback responses.
+`OPENAI_API_KEY` is optional and server-only. A key alone never activates upstream calls. `GEOAI_ALLOW_OPENAI_UPSTREAM=true`, hard access and Supabase Auth mode must all be present, and project access still has to pass. Until the request-scoped Auth kernel is implemented and verified, deterministic fallback is the supported path.
 
 Supabase/PostGIS is optional in v0.1. When Supabase environment variables are not configured, GeoAI remains fully usable in local/demo mode and analysis history stays in browser storage.
 
-`NEXT_PUBLIC_AUTH_MODE` is optional and defaults to `demo_public`. Valid values are `demo_public`, `supabase_auth`, and `disabled`. In `supabase_auth`, GeoAI only uses public Supabase URL/anon values in the browser and falls back to public demo access if those values are missing. `SUPABASE_SERVICE_ROLE_KEY` must remain server-only.
+`NEXT_PUBLIC_AUTH_MODE` is optional and defaults to `demo_public`. Valid values are `demo_public`, `supabase_auth`, and `disabled`. Current `supabase_auth` support is a foundation, not working API authorization: server routes do not yet bind the caller JWT to a verified profile/membership. Request-scoped repositories are pinned to the publishable/anon key; `SUPABASE_SERVICE_ROLE_KEY` must remain server-only and is not selected by user-facing repositories.
 
 Pilot backend activation is controlled by server/runtime environment variables. `GEOAI_ACCESS_ENFORCEMENT_MODE=soft` preserves the public demo. `hard` enables the protected access path and should only be used after Supabase Auth, memberships, RLS, storage and audit checks are verified. `GEOAI_ALLOW_DEMO_PUBLIC=true` keeps seeded demo projects visible while hard mode is being tested.
 
@@ -150,9 +151,12 @@ See [Repository Mode & Fallback Consistency v2.0.2](docs/REPOSITORY_MODE_FALLBAC
 
 ## Governance / Current Status
 
-- [Current Release State — 2026-07-15](docs/CURRENT_RELEASE_STATE_2026_07_15.md)
-- Current `main`: PR #81 merge `cd5f9efe791ff7d5ac46597925bbf17eb60d2754`.
-- Current Production remains a synthetic/local-fallback public demo with soft access; real geometry and B2B/B2C activation are not authorized.
+- [Current Release State](docs/CURRENT_RELEASE_STATE.md)
+- [Documentation Index](docs/DOCUMENTATION_INDEX.md)
+- [Full System Audit — 2026-07-16](docs/FULL_SYSTEM_AUDIT_2026_07_16.md)
+- Current `main`: PR #87 merge `2999e7e857989baf53ce58ecfed63550b5896be0`.
+- Current Production: `dpl_EAXREH31JKznnGbQYEU8bNqTqagN`, READY on that exact SHA.
+- Production remains a synthetic/local-fallback public demo with soft access and no Production Supabase. The source pack is fail-closed (`503`, disabled, zero sources). Real geometry, real-source persistence, protected client data and B2B/B2C activation are blocked.
 
 ## Latest Release Notes
 
@@ -194,6 +198,10 @@ npm run storage:check
 npm run storage:verify:signed-url
 npm run audit:verify
 npm run test:api-contract
+npm run test:api-access-guards
+npm run test:server-credential-boundary
+npm run test:readiness-evidence
+npm run test:migration-security-surface
 npm run test:workspace-panel
 npm run test:spatial-b1
 npm run test:spatial-b2a
@@ -220,8 +228,8 @@ The activation guard does not apply live migrations automatically.
 - `GET /api/storage/health` returns Supabase Storage readiness and bucket blockers.
 - `GET /api/known-limitations` returns the machine-readable limitations tracker.
 - `GET /api/demo-objects` returns mock spatial objects for demo use.
-- `POST /api/analyze` returns structured analysis narrative. It uses OpenAI when `OPENAI_API_KEY` is available and otherwise returns mock fallback content.
-- `GET|POST /api/ai/decision-score` returns structured decision-support scoring. It uses server-side OpenAI when available and otherwise returns deterministic fallback.
+- `POST /api/analyze` returns a bounded, project-gated structured narrative. OpenAI is used only when the explicit hard/Auth upstream gate is active; otherwise deterministic fallback is returned.
+- `GET|POST /api/ai/decision-score` returns bounded decision-support scoring. POST is project-gated; deterministic fallback remains the supported public-demo path.
 - `GET /api/analysis-runs` returns persisted analysis runs when Supabase is configured, or `local_fallback` mode otherwise.
 - `POST /api/analysis-runs` saves analysis runs when Supabase is configured, or returns a non-blocking `local_fallback` response otherwise.
 - `POST /api/context/market` returns seed/demo-normalized Dubai market context for selected coordinates.
@@ -285,7 +293,7 @@ No external API keys are required for Data Ingestion v0.1. Tiny samples are scor
 
 ## Open Geospatial Baseline v0.1
 
-GeoAI includes an offline open-geodata baseline prototype for OSM-style roads, POI anchors, landuse context and accessibility metrics. It uses small local fixtures only; the app does not call live OSM, Geofabrik, Overpass or external GIS APIs at runtime.
+GeoAI includes an offline open-geodata baseline prototype for OSM-style roads, POI anchors, landuse context and accessibility metrics. The released source pack also contains a bounded OSM Overpass count-only Preview path without features, coordinates or geometry; it is disabled in Production. No real geometry is activated.
 
 Run:
 
@@ -362,11 +370,11 @@ See [Data Credibility v0.5](docs/DATA_CREDIBILITY_V05.md) for the upload schema,
 
 ## Real Data Backbone v0.7
 
-GeoAI now includes the first Real Data Backbone layer for external source metadata, graceful snapshot ingestion and source-lineage visibility. It supports manual DLD / Dubai Pulse CSV snapshot normalization, prepared OSM / Geofabrik GeoJSON baseline normalization, Open-Meteo climate context routing, Copernicus/Sentinel connector status, and planned official validation paths for GeoDubai / Dubai Municipality and DLD API Gateway.
+This section is a historical capability description. Current authority is stricter: DLD/Dubai Pulse and Open-Meteo live use are blocked pending approved access/rights; permission-gated climate context is excluded from evidence and AI payloads. The released Preview pack is limited to fixed NASA POWER historical point context, Copernicus catalogue metadata without geometry/assets and OSM counts without geometry. Production is disabled.
 
 ## Real External Data Integration v1.4
 
-GeoAI now includes snapshot connector commands and a stricter external Source Registry foundation for DLD / Dubai Pulse market snapshots, OSM / Geofabrik-style open geospatial snapshots, Open-Meteo climate context, Copernicus/Sentinel metadata availability, and planned official validation paths.
+GeoAI includes snapshot connector commands and a Source Registry foundation. These are readiness/manual-import tools, not current live-provider authorization. Open-Meteo remains `permission_required`; DLD/Dubai Pulse requires an approved stable snapshot/access path and reusable rights.
 
 This is not a live official integration. Snapshot outputs remain screening context only: official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.
 
@@ -383,7 +391,7 @@ If raw external files are missing, the scripts exit gracefully and keep existing
 
 ## Public Data Connectors v1.6
 
-GeoAI now includes a public/open data connector layer for DLD / Dubai Pulse public snapshots, OSM / Geofabrik, Overture Maps, Open-Meteo, NASA POWER, OpenAQ, WorldPop, Copernicus/Sentinel metadata and non-official administrative context. These connectors use manual snapshots, public/open API context, sample fallbacks and source-lineage metadata.
+GeoAI includes connector contracts/readiness metadata for these source groups. Current positive runtime authority is narrower than the historical v1.6 catalog: only fixed, low-volume Preview context for NASA POWER, Copernicus catalogue metadata and OSM counts is released; Production is fail-closed. Other providers remain sample/manual/permission-required or deferred.
 
 Run:
 
@@ -436,14 +444,14 @@ Current export remains browser print/save as PDF. GeoAI does not generate server
 2. Create a Vercel project from the repository.
 3. Keep the default Next.js build settings.
 4. Add `NEXT_PUBLIC_MAPBOX_TOKEN` in Vercel environment variables.
-5. Optionally add `OPENAI_API_KEY` as a server-side Vercel environment variable for OpenAI narrative analysis.
+5. Keep OpenAI upstream disabled until request-scoped Auth/RBAC and quotas are implemented. A server-side key alone does not activate it.
 6. Deploy.
 
 ## Current Limitations
 
 - Uses synthetic/demo geospatial data only.
 - Uses deterministic mock scoring only.
-- OpenAI narrative and decision scoring are optional, server-side and fallback-safe; deterministic scoring remains the baseline.
+- OpenAI upstream is disabled by default and additionally requires the explicit hard/Auth gate; deterministic scoring is the supported baseline.
 - Market context is seed/demo-normalized and not official market evidence.
 - Data ingestion currently uses local seed/static context and imported sample CSV fixtures only.
 - Spatial layers currently use local seed_geojson demo geometries only.
@@ -458,7 +466,7 @@ Current export remains browser print/save as PDF. GeoAI does not generate server
 - Supabase/PostGIS and persistence are optional prototype foundations, not production-grade user storage yet.
 - Pilot readiness scoring is a delivery checklist, not an approval, compliance or production-readiness certification.
 - Auth foundation exists in public-demo mode, but production route enforcement, RLS and durable user/organization access control are not complete.
-- No real parcel, zoning, transaction, satellite, or regulatory data adapters.
+- No activated real parcel, zoning, transaction, imagery or regulatory evidence adapters; bounded Preview source context is non-decision-grade and disabled in Production.
 - Report export is browser print/save as PDF, not a generated server-side PDF.
 - Comparison sets can be saved through the local/API fallback, but production report libraries still require auth, tenant security and validated persistence.
 

@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { getSourceRegistryReadiness } from "@/src/lib/external-data/supabase-source-registry";
+import { redactPrivateSourceLineage } from "@/src/lib/external-data/public-source-projection";
 
 export const runtime = "nodejs";
 
 export async function GET() {
-  const data = await getSourceRegistryReadiness();
+  const data = redactPrivateSourceLineage(await getSourceRegistryReadiness());
   return NextResponse.json({
     ok: true,
     ...data,

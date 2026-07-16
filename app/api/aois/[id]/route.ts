@@ -48,7 +48,12 @@ export async function PATCH(request: Request, context: RouteContext) {
   }
 
   const patch = body as Partial<ProjectAoi>;
-  const access = requireProjectAccess({ projectKey: patch.projectKey ?? null, action: "write", mode: "soft" });
+  const existing = await getAoi(id);
+  if (!existing.data) {
+    return NextResponse.json({ ok: false, ...repositoryModeFields(existing.mode), message: "AOI not found." }, { status: 404 });
+  }
+  const projectKey = (existing.data as { projectKey?: string | null }).projectKey ?? null;
+  const access = requireProjectAccess({ projectKey, action: "write", mode: "soft" });
   if (!access.allowed) {
     return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
   }
@@ -61,7 +66,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     reportCount: typeof patch.reportCount === "number" ? patch.reportCount : undefined
   });
   void recordAuditEvent({
-    projectKey: patch.projectKey ?? null,
+    projectKey,
     eventType: "aoi_updated",
     entityType: "aoi",
     entityId: id,
@@ -80,8 +85,19 @@ export async function PATCH(request: Request, context: RouteContext) {
 
 export async function DELETE(_request: Request, context: RouteContext) {
   const { id } = await context.params;
+  const existing = await getAoi(id);
+  if (!existing.data) {
+    return NextResponse.json({ ok: false, ...repositoryModeFields(existing.mode), message: "AOI not found." }, { status: 404 });
+  }
+  const projectKey = (existing.data as { projectKey?: string | null }).projectKey ?? null;
+  const access = requireProjectAccess({ projectKey, action: "write", mode: "soft" });
+  if (!access.allowed) {
+    return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
+  }
+
   const result = await deleteAoi(id);
   void recordAuditEvent({
+    projectKey,
     eventType: "aoi_deleted",
     entityType: "aoi",
     entityId: id,
@@ -92,6 +108,7 @@ export async function DELETE(_request: Request, context: RouteContext) {
     ok: result.ok,
     ...repositoryModeFields(result.mode),
     deleted: result.data,
+    access,
     error: result.error
   });
 }

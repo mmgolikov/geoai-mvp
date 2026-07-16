@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { recordAuditEvent } from "@/src/lib/audit/audit-event";
-import { requireProjectAccess } from "@/src/lib/auth/project-access";
+import { projectAccessDeniedPayload, requireProjectAccess } from "@/src/lib/auth/project-access";
 import {
   deleteEvidenceFileAssetMetadata,
   getEvidenceFileAsset,
@@ -20,6 +20,10 @@ export async function DELETE(_request: Request, context: { params: Promise<{ id:
   }
 
   const access = requireProjectAccess({ projectKey: existing.data.projectKey, action: "write", mode: "soft" });
+  if (!access.allowed) {
+    return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
+  }
+
   const deleteResult = await deleteEvidenceFile(existing.data);
   const metadataResult = await updateEvidenceFileAsset(id, {
     objectStatus: "deleted",

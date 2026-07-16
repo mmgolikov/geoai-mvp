@@ -842,6 +842,9 @@ export function WorkspaceShell({
 }: WorkspaceShellProps) {
   const mapSectionRef = useRef<HTMLDivElement | null>(null);
   const workflowPanelRef = useRef<HTMLDivElement | null>(null);
+  const mobileMapDialogRef = useRef<HTMLElement | null>(null);
+  const mobileMapInitialFocusRef = useRef<HTMLButtonElement | null>(null);
+  const mobileMapReturnFocusRef = useRef<HTMLElement | null>(null);
   const [selectedPoint, setSelectedPoint] = useState<SelectedPoint | null>(null);
   const [selectedObject, setSelectedObject] = useState<SelectedDemoObject | null>(null);
   const [selectedAoi, setSelectedAoi] = useState<UserDrawnAoi | null>(null);
@@ -1305,7 +1308,51 @@ export function WorkspaceShell({
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
 
+    const focusFrame = window.requestAnimationFrame(() => {
+      mobileMapInitialFocusRef.current?.focus();
+    });
+
+    function handleDialogKeyboard(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeMobileMapPicker(true);
+        return;
+      }
+
+      if (event.key !== "Tab") {
+        return;
+      }
+
+      const dialog = mobileMapDialogRef.current;
+      if (!dialog) return;
+      const focusable = Array.from(
+        dialog.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        )
+      ).filter((element) => element.getClientRects().length > 0);
+
+      if (focusable.length === 0) {
+        event.preventDefault();
+        dialog.focus();
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && (document.activeElement === first || !dialog.contains(document.activeElement))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || !dialog.contains(document.activeElement))) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+
+    document.addEventListener("keydown", handleDialogKeyboard);
+
     return () => {
+      window.cancelAnimationFrame(focusFrame);
+      document.removeEventListener("keydown", handleDialogKeyboard);
       document.body.style.overflow = previousOverflow;
     };
   }, [isMobileMapPickerOpen]);
@@ -1985,11 +2032,17 @@ export function WorkspaceShell({
   }
 
   function closeMobileMapPicker(returnToWorkflow = false) {
+    const returnFocusTarget = mobileMapReturnFocusRef.current;
     setIsMobileMapPickerOpen(false);
 
     if (returnToWorkflow) {
       scrollToWorkflowPanel();
     }
+
+    window.requestAnimationFrame(() => {
+      returnFocusTarget?.focus();
+      mobileMapReturnFocusRef.current = null;
+    });
   }
 
   function showAnalysisResult(nextAnalysis: ExpressAnalysis) {
@@ -2009,6 +2062,9 @@ export function WorkspaceShell({
   }
 
   function openMapFromPanel() {
+    mobileMapReturnFocusRef.current = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
     backToMap();
     if (window.matchMedia("(min-width: 1367px)").matches) {
       window.setTimeout(() => {
@@ -2682,6 +2738,7 @@ export function WorkspaceShell({
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
+          projectKey: activeProject.projectKey,
           point: selectedPoint,
           selectedObject,
           scenarioId: selectedScenario,
@@ -2952,6 +3009,8 @@ export function WorkspaceShell({
   return (
     <>
       <div
+        aria-hidden={isMobileMapPickerOpen ? true : undefined}
+        inert={isMobileMapPickerOpen ? true : undefined}
         className="grid min-h-[calc(100svh-4rem)] shrink-0 grid-cols-1 lg:h-[calc(100vh-4rem)] lg:min-h-0 lg:grid-cols-[minmax(0,1fr)_380px] lg:overflow-hidden"
       >
         <div className={`${hasResultSurface ? "order-1" : "order-2 lg:order-1"} min-h-0 lg:h-full`}>
@@ -3084,19 +3143,23 @@ export function WorkspaceShell({
       </div>
       {isMobileMapPickerOpen ? (
         <section
+          ref={mobileMapDialogRef}
           role="dialog"
           aria-modal="true"
-          aria-label="Full-screen map picker"
+          aria-labelledby="mobile-map-picker-title"
+          aria-describedby="mobile-map-picker-description"
+          tabIndex={-1}
           className="fixed inset-0 z-50 flex flex-col bg-white min-[1367px]:hidden"
         >
           <div className="flex min-h-14 items-center justify-between gap-3 border-b border-line bg-white px-3 py-2">
             <div className="min-w-0">
               <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">Map selection</p>
-              <h2 className="mt-0.5 truncate text-sm font-semibold text-ink">{mobileMapTargetLabel}</h2>
-              <p className="truncate text-[11px] leading-4 text-muted">{mobileMapTargetDetail}</p>
+              <h2 id="mobile-map-picker-title" className="mt-0.5 truncate text-sm font-semibold text-ink">{mobileMapTargetLabel}</h2>
+              <p id="mobile-map-picker-description" className="truncate text-[11px] leading-4 text-muted">{mobileMapTargetDetail}</p>
             </div>
             <button
               type="button"
+              ref={mobileMapInitialFocusRef}
               onClick={() => closeMobileMapPicker(true)}
               className="inline-flex h-9 shrink-0 items-center justify-center rounded-md border border-line bg-white px-3 text-xs font-semibold text-ink transition hover:border-brand"
             >

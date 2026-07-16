@@ -9,15 +9,15 @@ GeoAI helps users decide where to build, buy, invest, monitor, insure, reconstru
 Repo: https://github.com/mmgolikov/geoai-mvp
 Production: https://geoai-mvp.vercel.app
 Vercel team/project: geoaidev / geoai-mvp
-Current `main`: PR #81 merge `cd5f9efe791ff7d5ac46597925bbf17eb60d2754`.
-Current Production: deployment `dpl_94Tz2TZG5Pf8k1PGygTBjQBCQAkf`, READY on the exact merge SHA.
-Released scope: inactive Spatial B1/B2A source-contract, attribution, lineage, fallback and Workspace UX foundation.
-Production status: public demo, synthetic/local fallback and soft access. Real geometry and B2B/B2C activation are not authorized.
-Next delivery controls: permanent merge-commit CI, source-fallback regression, evidence custody and reviewed architecture mapping.
+Current `main`: PR #87 merge `2999e7e857989baf53ce58ecfed63550b5896be0`.
+Current Production: deployment `dpl_EAXREH31JKznnGbQYEU8bNqTqagN`, READY on the exact merge SHA.
+Released scope: public-demo source truth/safety foundation plus fixed, bounded Preview context; the Production source pack is fail-closed (`503`, disabled, zero sources).
+Production status: public demo, synthetic/local fallback and soft access with Production Supabase not configured. Real geometry, real-source persistence, protected client data and B2B/B2C activation are not authorized.
+Next delivery controls: request-scoped Auth/RBAC, canonical migration replay/RLS, protected Storage, explicit source visibility/custody, observability and current architecture publication.
 Spatial B2B gate: GitHub Issue #80 remains open; delivery, distribution, attribution, retention and rollback decisions are not approved.
 Supabase: `geoai-dev`, ref `pphdqkurxneyagvnnjdt`, eu-west-1. Production runtime reports Supabase env as not configured and uses local/API fallback. Do not infer Production readiness from the development project.
 Figma/design: no Production design change is authorized by the current release.
-Historical draft PRs remain separate governance records; do not merge or close them without explicit approval.
+Historical draft PRs remain separate governance records; do not merge or close them without explicit owner approval. Independent reviewer approvals are not a prerequisite in the current phase; record Codex/owner critical review honestly and keep objective technical/evidence gates.
 Confluence Project Hub is the operational dashboard and single source of truth.
 
 ## Core product flow
@@ -52,7 +52,7 @@ Required caveat in UI/report/AI/source panels:
 
 Registered source groups: DLD/Dubai Pulse public real estate snapshots; OSM/Geofabrik; Overture Maps; Open-Meteo + NASA POWER; Copernicus/Sentinel metadata.
 
-Treat them as metadata/readiness/source-lineage first, then snapshot/API ingestion, then UI/API. Do not claim official/live integration unless access, license, lineage, caveats and UI labels are implemented and verified. DLD/Dubai Pulse is manual/open snapshot path unless explicitly changed. OSM/Overture are open context, not official GIS. Open-Meteo/NASA POWER are screening context, not engineering/insurance-grade risk models. Copernicus/Sentinel is metadata availability unless imagery download/processing is explicitly implemented.
+Treat them as metadata/readiness/source-lineage first, then snapshot/API ingestion, then UI/API. Do not claim official/live integration unless access, license, lineage, visibility, custody, caveats and UI labels are implemented and verified. DLD/Dubai Pulse remains blocked without a stable approved snapshot/access path and reusable rights. Open-Meteo live use is permission-gated and must not enter evidence or AI payloads. NASA POWER is fixed historical point context only; OSM runtime context is count-only; Copernicus is catalogue metadata without geometry/assets. OSM/Overture geometry, imagery and source-dependent scoring remain deferred.
 
 ## Engineering stack
 

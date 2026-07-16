@@ -4,7 +4,7 @@ import { getProjectAccessDecision, roleAllowsAction } from "@/src/lib/access/acc
 import { getEnforcementConfig, type GeoAIAccessEnforcementMode } from "@/src/lib/platform/enforcement-config";
 import type { GeoAIProjectMembership, GeoAIUser } from "@/src/types/auth";
 
-export type ProjectAccessAction = "read" | "write" | "manage" | "export" | "validate" | "upload" | "review";
+export type ProjectAccessAction = "read" | "write" | "manage" | "export" | "validate" | "upload" | "review" | "generate";
 export type ProjectAccessMode = GeoAIAccessEnforcementMode;
 
 function isDemoProjectKey(projectKey: string) {

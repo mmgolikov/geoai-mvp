@@ -1,114 +1,48 @@
-# GeoAI Roadmap
+# GeoAI Delivery Roadmap
 
-## Current delivery position — 2026-07-15
+Status: Active
+Last verified: 2026-07-16
+Current release: PR #87 merge `2999e7e857989baf53ce58ecfed63550b5896be0`; Production `dpl_EAXREH31JKznnGbQYEU8bNqTqagN`
 
-Current `main` is PR #81 merge `cd5f9efe791ff7d5ac46597925bbf17eb60d2754`. The released Spatial B1/B2A capability is an inactive, fail-closed foundation. Production remains a synthetic/local-fallback public demo with soft access.
+GeoAI remains a public demo prototype. Production is `demo_only`, `local_fallback`, soft access and has no Production Supabase connection. The source pack is fail-closed in Production. No Production-ready or pilot-ready maturity claim is supported.
 
-Immediate sequence:
+## P0 — precondition for Auth, RBAC, Admin and real sources
 
-1. Add exact merge-commit Quality Gate evidence and permanent Workspace/Spatial fallback source regressions.
-2. Preserve accepted evidence custody and reconcile rendered architecture/data mappings.
-3. Resolve GitHub Issue #80 delivery, distribution, attribution, retention and rollback decisions before any B2B Preview proposal.
-4. Keep real geometry, B2B/B2C and Production Supabase/Auth/RLS/Storage activation separately approval-gated.
+1. Request-scoped Auth kernel: verify Supabase user, profile, organization, project membership and role on the server; remove placeholder/demo fallback from protected mode.
+2. Canonical database migration: reconcile historical schemas, prove clean replay on an ephemeral project, zero drift and positive/negative RLS personas.
+3. Protected Storage: derive scope server-side, validate full body and file magic, checksum/quarantine/AV state, and verify signed URL behavior in user context.
+4. Source custody/visibility: explicit public-demo/project-private/operator visibility, rights/attribution, checksums, retention and a public DTO without internal paths.
+5. AI safety gateway: request authorization, quotas/rate limits, privacy classification/redaction, bounded schemas/tokens, cost telemetry and fail-closed output filtering.
 
-GeoAI is not established as production-ready or pilot-ready.
+## P1 — reliability and production-quality engineering
 
-## v0.1 — Public Demo Prototype
+1. Add request IDs, structured logs, traces/metrics, error monitoring and incident/runbook links.
+2. Replace readiness boolean claims with deployment/Supabase-ref/TTL-bound verification evidence.
+3. Add ephemeral migration replay, Auth/RLS persona E2E, IDOR and adversarial upload tests to CI.
+4. Split multi-thousand-line UI coordinators and enforce route/bundle/Core Web Vitals budgets.
+5. Protect report/print pages with the same server session model as APIs.
 
-Status: historical initial baseline.
+## P1 — current architecture and governance
 
-Goals:
+1. Retire independent-reviewer prerequisites for the current phase; owner/Codex critical review is the honest governance model.
+2. Keep objective technical gates: issue #85 migration chain, issue #80 geometry/distribution, provider rights and Production activation.
+3. Publish implemented architecture separately from target architecture and dispose PR #84 findings by exact scope.
+4. Reconcile open PRs/issues individually; do not hide them under a generic legacy bucket.
 
-- Demonstrate the core GeoAI spatial decision workflow.
-- Support Dubai map workspace.
-- Show synthetic geospatial layers.
-- Enable point and demo object selection.
-- Generate deterministic scenario-based Express Analysis.
-- Compare 2-3 selected sites or objects.
-- Preview printable reports.
-- Deploy on Vercel.
+## P2 — product and design quality
 
-Limitations:
+1. Resolve the live UX/a11y/performance audit backlog.
+2. Define and implement the missing criteria-first wireflow and empty/stub product documents.
+3. Modularize Workspace, Project Dashboard, Map and Analysis surfaces with regression coverage.
+4. Establish visual regression and multi-device browser tests for critical B2B/B2C journeys.
 
-- Mock/demo data only.
-- OpenAI integration is optional and protected by mock fallback.
-- Supabase/PostGIS and persistence foundations exist, but are not production-grade user storage.
-- No authentication.
-- No real data adapters.
+## Source activation sequence
 
-## v0.2 — AI Analysis And Persistence Foundation
+The current fixed Preview pack may remain as a non-scoring, non-persistent public-demo track. Real source work must follow:
 
-Goals:
+```text
+rights + custody -> private ingestion -> quality/quarantine -> visibility/RLS
+-> Preview evidence -> Product integration -> Production decision
+```
 
-- Harden OpenAI API route integration.
-- Create structured prompt templates per scenario.
-- Add typed response schema validation.
-- Separate AI-generated insights from deterministic demo scoring.
-- Add error handling and retry behavior.
-- Keep mock fallback mode for demos.
-- Stabilize optional persistence, projects, and ingestion foundations.
-
-Key deliverables:
-
-- `/api/analyze` route
-- Scenario prompt library
-- Structured AI response schema
-- Server-side OpenAI key usage only
-- AI/mock mode switch
-- Optional Supabase/PostGIS persistence foundation
-- Local ingestion and normalized market metric outputs
-
-## v0.3 — Data Source Registry And Real Data Adapters
-
-Goals:
-
-- Introduce Data Source Registry.
-- Add real data adapter structure.
-- Start with a small number of licensed or open Dubai-relevant sources.
-- Add evidence metadata to dashboard outputs.
-
-Key deliverables:
-
-- Source metadata model
-- Adapter interface
-- OSM/infrastructure adapter
-- Planning/GIS adapter stub
-- Remote sensing adapter stub
-- Evidence model
-
-## v0.4 — Pilot-Ready Workflows
-
-Goals:
-
-- Support saved studies and repeatable client workflows.
-- Add project/session model.
-- Add uploaded documents as analysis context.
-- Improve reporting and export workflow.
-- Support pilot-specific scenarios.
-
-Key deliverables:
-
-- Saved project brief flow
-- Named site studies
-- Document upload placeholder to working parser flow
-- Exportable client memo
-- Site comparison workflow improvements
-- Pilot QA pack
-
-## v0.5 — Enterprise Readiness
-
-Goals:
-
-- Prepare for enterprise pilots and controlled production use.
-- Add authentication, permissions, observability, auditability, and governance.
-
-Key deliverables:
-
-- Auth and organization workspace model
-- Role-based access control
-- Audit logs
-- Usage logging
-- Error monitoring
-- Data governance controls
-- Deployment and environment hardening
-- Security review checklist
+No stage in this roadmap authorizes a Production deployment, Supabase migration, secret change, real geometry publication or provider activation by itself.

@@ -1,17 +1,19 @@
 import { NextResponse } from "next/server";
 import { getSourceRegistryReadiness } from "@/src/lib/external-data/supabase-source-registry";
+import { redactPrivateSourceLineage } from "@/src/lib/external-data/public-source-projection";
 
 export const runtime = "nodejs";
 
 export async function GET() {
   const readiness = await getSourceRegistryReadiness();
+  const publicReadiness = redactPrivateSourceLineage(readiness);
 
   return NextResponse.json({
     ok: true,
-    version: readiness.version,
-    mode: readiness.mode,
-    source: readiness.source,
-    lineage: readiness.sourceGroups.map((item) => ({
+    version: publicReadiness.version,
+    mode: publicReadiness.mode,
+    source: publicReadiness.source,
+    lineage: publicReadiness.sourceGroups.map((item) => ({
       sourceGroupId: item.id,
       sourceGroupName: item.name,
       sourceIds: item.sourceIds,
@@ -20,20 +22,19 @@ export async function GET() {
       confidence: item.confidence,
       recordCount: item.recordCount,
       coverageArea: item.coverageArea,
-      availableFiles: item.availableFiles,
       sourceQuality: item.sourceQuality,
       caveat: item.caveat,
       nextValidationStep: item.nextValidationStep,
       validationRequired: item.validationRequired
     })),
-    sourceGroups: readiness.sourceGroups,
-    readiness: readiness.readiness,
-    manifest: readiness.manifest,
-    sourceQuality: readiness.sourceQuality,
-    summary: readiness.summary,
-    blockers: readiness.blockers,
-    nextActions: readiness.nextActions,
-    caveat: readiness.caveat,
-    generatedAt: readiness.generatedAt
+    sourceGroups: publicReadiness.sourceGroups,
+    readiness: publicReadiness.readiness,
+    manifest: publicReadiness.manifest,
+    sourceQuality: publicReadiness.sourceQuality,
+    summary: publicReadiness.summary,
+    blockers: publicReadiness.blockers,
+    nextActions: publicReadiness.nextActions,
+    caveat: publicReadiness.caveat,
+    generatedAt: publicReadiness.generatedAt
   });
 }

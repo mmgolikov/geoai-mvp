@@ -1,4 +1,5 @@
 import { getAuthModeStatus } from "@/src/lib/auth/auth-mode";
+import { requestAuthKernelStatus } from "@/src/lib/auth/request-auth-kernel";
 import { requiredPersistenceTables, getSchemaReadinessSummary } from "@/src/lib/db/schema-readiness";
 import { getEnforcementConfig } from "@/src/lib/platform/enforcement-config";
 import { type RepositoryMode } from "@/src/lib/repositories/repository-mode";
@@ -149,9 +150,9 @@ export async function getSupabaseRuntimeReadiness() {
   const status = runtimeStatusFromMode(runtimeMode);
   const fallbackActive = schema.repositoryMode !== "supabase" || runtimeMode !== "supabase_read_only_ready";
   const hardAccessEnabled = enforcement.accessEnforcementMode === "hard";
-  const authSessionVerified = process.env.GEOAI_AUTH_SESSION_VERIFIED?.trim().toLowerCase() === "true";
-  const projectMembershipsVerified = process.env.GEOAI_PROJECT_MEMBERSHIP_TESTS_VERIFIED?.trim().toLowerCase() === "true";
-  const rlsPoliciesVerified = process.env.GEOAI_RLS_POLICY_TESTS_VERIFIED?.trim().toLowerCase() === "true";
+  const authSessionVerified = requestAuthKernelStatus.requestUserVerified;
+  const projectMembershipsVerified = requestAuthKernelStatus.projectMembershipVerified;
+  const rlsPoliciesVerified = requestAuthKernelStatus.rlsPersonaMatrixVerified;
   const hardAccessVerified =
     hardAccessEnabled &&
     auth.effectiveMode === "supabase_auth" &&

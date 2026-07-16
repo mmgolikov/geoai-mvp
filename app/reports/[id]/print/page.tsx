@@ -6,6 +6,7 @@ import { PrintReportFallback } from "@/components/reports/print-report-fallback"
 import { getReport } from "@/src/lib/db/repositories/reports";
 import { normalizeReportDeliverable } from "@/src/lib/report-deliverables";
 import { normalizeReportForDisplay } from "@/src/lib/report-display-normalization";
+import { getSeededDemoReportRecord } from "@/src/data/demo-report-seeds";
 
 type PrintableReportPageProps = {
   params: Promise<{ id: string }>;
@@ -16,7 +17,7 @@ export const runtime = "nodejs";
 export default async function PrintableReportPage({ params }: PrintableReportPageProps) {
   const { id } = await params;
   const decodedId = decodeURIComponent(id);
-  const result = await getReport(decodedId);
+  const result = getSeededDemoReportRecord(decodedId) ? await getReport(decodedId) : { data: null };
   const normalized = result.data ? normalizeReportDeliverable(result.data) : null;
   const report = normalized ? normalizeReportForDisplay(normalized) : null;
 

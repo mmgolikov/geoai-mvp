@@ -60,6 +60,7 @@ export type StructuredAnalysisResult = {
 };
 
 export type AnalyzeRequest = {
+  projectKey?: string | null;
   point: SelectedPoint;
   selectedObject?: SelectedDemoObject | null;
   selectedAoi?: UserDrawnAoi | null;

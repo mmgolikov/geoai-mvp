@@ -1,6 +1,6 @@
 import type { GeoAIAuthMode, GeoAIProjectMembershipStatus, GeoAIProjectRole } from "@/src/types/auth";
 
-export type ProjectAccessAction = "read" | "write" | "manage" | "export" | "validate" | "upload" | "review";
+export type ProjectAccessAction = "read" | "write" | "manage" | "export" | "validate" | "upload" | "review" | "generate";
 export type ProjectAccessDecisionMode = "soft" | "hard";
 
 export type ProjectAccessDecisionStatus =
@@ -80,7 +80,7 @@ export const roleRank: Record<GeoAIProjectRole, number> = {
 export function roleAllowsAction(role: GeoAIProjectRole, action: ProjectAccessAction) {
   if (action === "read") return roleRank[role] >= roleRank.client_viewer;
   if (action === "export") return role === "client_viewer" || roleRank[role] >= roleRank.viewer;
-  if (action === "write" || action === "upload" || action === "review" || action === "validate") {
+  if (action === "write" || action === "upload" || action === "review" || action === "validate" || action === "generate") {
     return roleRank[role] >= roleRank.analyst;
   }
   return roleRank[role] >= roleRank.admin;

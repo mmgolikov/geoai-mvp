@@ -2,6 +2,7 @@ import { isSupabaseConfigured } from "@/src/lib/supabase/config";
 import { getSupabaseServerClient } from "@/src/lib/supabase/server";
 import { repositoryModeFields, type RepositoryMode } from "@/src/lib/repositories/repository-mode";
 import type { StorageProvider } from "@/src/types/storage";
+import { storageSecurityEvidenceStatus } from "@/src/lib/storage/storage-security-evidence";
 
 export const requiredStorageBuckets = [
   "geoai-data-room-assets",
@@ -38,15 +39,9 @@ export type StorageReadiness = {
   nextActions: string[];
 };
 
-type SupabaseStorageBucketLike = {
-  download?: (path: string) => Promise<{ data?: unknown; error?: unknown }>;
-  createSignedUrl?: (path: string, expiresIn: number) => Promise<{ data?: { signedUrl?: string } | null; error?: unknown }>;
-};
-
 type SupabaseStorageClientLike = {
   storage?: {
     getBucket: (bucket: string) => Promise<{ data?: unknown; error?: unknown }>;
-    from?: (bucket: string) => SupabaseStorageBucketLike;
   };
 };
 
@@ -71,40 +66,6 @@ function baseResponse(input: Omit<StorageReadiness, "ok" | "maxFileSize" | "maxF
     allowedMimeTypes: [...allowedEvidenceMimeTypes],
     ...input
   };
-}
-
-async function verifySignedStorageMarker(client: SupabaseStorageClientLike | null) {
-  const bucket = client?.storage?.from?.(storageVerificationBucket);
-  if (!bucket?.download || !bucket.createSignedUrl) {
-    return { verified: false, verifiedAt: null as string | null };
-  }
-
-  try {
-    const downloadResponse = await bucket.download(storageVerificationMarkerPath);
-    if (downloadResponse.error || !downloadResponse.data) {
-      return { verified: false, verifiedAt: null as string | null };
-    }
-
-    const signedUrlResponse = await bucket.createSignedUrl(storageVerificationMarkerPath, 60);
-    const signedUrl = signedUrlResponse.data?.signedUrl;
-    if (signedUrlResponse.error || !signedUrl) {
-      return { verified: false, verifiedAt: null as string | null };
-    }
-
-    const fetchResponse = await fetch(signedUrl, { cache: "no-store" });
-    if (!fetchResponse.ok) {
-      return { verified: false, verifiedAt: null as string | null };
-    }
-
-    const text = await fetchResponse.text();
-    const marker = JSON.parse(text) as { verifiedAt?: string; markerVersion?: string };
-    return {
-      verified: marker.markerVersion === "geoai-storage-readiness-v1",
-      verifiedAt: marker.verifiedAt ?? null
-    };
-  } catch {
-    return { verified: false, verifiedAt: null as string | null };
-  }
 }
 
 export async function getStorageReadiness(): Promise<StorageReadiness> {
@@ -169,32 +130,32 @@ export async function getStorageReadiness(): Promise<StorageReadiness> {
   );
   const missingBuckets = checks.filter((item) => !item.ready).map((item) => item.bucket);
   const bucketReady = missingBuckets.length === 0;
-  const markerVerification = bucketReady
-    ? await verifySignedStorageMarker(client)
-    : { verified: false, verifiedAt: null as string | null };
-  const signedUrlVerified = process.env.GEOAI_STORAGE_SIGNED_URL_VERIFIED?.trim().toLowerCase() === "true" || markerVerification.verified;
+  const signedUrlVerified = storageSecurityEvidenceStatus.implemented &&
+    storageSecurityEvidenceStatus.userContextUploadDownloadDeleteVerified &&
+    storageSecurityEvidenceStatus.wrongTenantDenied &&
+    storageSecurityEvidenceStatus.privateBucketPolicyVerified;
 
   return baseResponse({
     configured: true,
     provider: "supabase_storage",
     repositoryMode: bucketReady ? "supabase" : "local_fallback",
     bucketReady,
-    storageReady: bucketReady,
+    storageReady: bucketReady && signedUrlVerified,
     requiredBuckets: [...requiredStorageBuckets],
     missingBuckets,
-    signedUploadReady: bucketReady,
-    signedDownloadReady: bucketReady,
+    signedUploadReady: signedUrlVerified,
+    signedDownloadReady: signedUrlVerified,
     privateBucketPolicyReady: bucketReady && signedUrlVerified,
     signedUrlVerified,
     writeTestAllowed,
-    lastVerifiedAt: markerVerification.verifiedAt ?? process.env.GEOAI_STORAGE_LAST_VERIFIED_AT?.trim() ?? null,
+    lastVerifiedAt: null,
     caveat: signedUrlVerified
-      ? "Storage buckets and signed URL marker are verified for Preview/demo readiness. Protected client file storage still requires Auth and hard access verification."
+      ? "Storage upload/download/delete and private policy behavior are verified in authenticated user context."
       : bucketReady
-        ? "Storage buckets are reachable, but signed URL flows and access policies still require project-level verification before protected client use."
+        ? `Storage buckets are reachable, but this is not a security result. ${storageSecurityEvidenceStatus.reason}`
         : "Storage readiness is not secure enterprise storage until buckets, policies, signed URL flows and access enforcement are configured and verified.",
     blockers: bucketReady
-      ? signedUrlVerified ? [] : ["Signed URL marker verification is pending."]
+      ? signedUrlVerified ? [] : [storageSecurityEvidenceStatus.reason]
       : missingBuckets.map((bucket) => `Missing or unreachable storage bucket: ${bucket}`),
     nextActions: bucketReady
       ? signedUrlVerified

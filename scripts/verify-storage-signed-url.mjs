@@ -5,6 +5,8 @@ const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
 const allowWriteTest = process.env.GEOAI_ALLOW_STORAGE_WRITE_TEST?.trim().toLowerCase() === "true";
 const bucket = "geoai-validation-evidence";
 const objectPath = `qa/signed-url-verify-${Date.now()}.txt`;
+const projectRef = url?.match(/^https:\/\/([a-z0-9-]+)\.supabase\.co/i)?.[1] ?? null;
+const deploymentSha = (process.env.GEOAI_EVIDENCE_DEPLOYMENT_SHA || process.env.VERCEL_GIT_COMMIT_SHA || "").trim();
 
 function blocked(blockers) {
   console.log(JSON.stringify({
@@ -25,6 +27,7 @@ function blocked(blockers) {
 
 if (!url || !key) blocked(["Supabase URL/service role env is missing."]);
 if (!allowWriteTest) blocked(["GEOAI_ALLOW_STORAGE_WRITE_TEST=true is required before writing a temporary object."]);
+if (!projectRef || !/^[a-f0-9]{40}$/i.test(deploymentSha)) blocked(["Exact 40-character GEOAI_EVIDENCE_DEPLOYMENT_SHA and a valid Supabase project URL are required."]);
 
 const client = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
 const bucketCheck = await client.storage.getBucket(bucket);
@@ -49,8 +52,10 @@ try {
     verified: true,
     status: "signed_url_verified",
     bucket,
-    cleanup: "complete",
-    nextActions: ["Set GEOAI_STORAGE_SIGNED_URL_VERIFIED=true and GEOAI_STORAGE_LAST_VERIFIED_AT after controlled verification if you need readiness reflected in runtime status."],
+    cleanup: "temporary object removed",
+    projectRef,
+    deploymentSha,
+    nextActions: ["Capture this exact-SHA artifact, then run real authenticated upload/download/delete, no-session, wrong-tenant and revocation tests before protected use. Runtime readiness intentionally remains blocked until that evidence kernel exists."],
     caveat: "Signed URL verification is technical readiness only; protected client use still requires hard access enforcement."
   }, null, 2));
 } catch (error) {

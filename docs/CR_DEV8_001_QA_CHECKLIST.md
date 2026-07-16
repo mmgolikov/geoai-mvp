@@ -2,7 +2,7 @@
 
 ## Scope invariants
 
-- [x] Branch starts from exact `main` SHA `754a9c68cd1ee7af80731f1b779df023d54e901e`.
+- [x] Historical development branch started from exact `main` SHA `754a9c68cd1ee7af80731f1b779df023d54e901e`.
 - [x] PR is separate from PR #84, issue #85 and issue #80.
 - [x] No Supabase migration/write, Storage, Auth/RLS, secret, new environment variable or Figma change.
 - [x] No live Product geometry, source-dependent score change or Production source activation.
@@ -78,11 +78,13 @@ Do not trigger or redeploy Production as part of this CR.
 
 ## External-state evidence
 
-- [x] GitHub final exact-head quality run and artifact recorded externally.
-- [x] Vercel Preview final exact-head deployment and logs recorded externally.
+- [x] GitHub PR [#87](https://github.com/mmgolikov/geoai-mvp/pull/87) is merged at `2999e7e857989baf53ce58ecfed63550b5896be0`.
+- [x] Exact-main quality run `29456624801` passed 18/18 steps; evidence artifact `8359607780` was recorded externally.
+- [x] Vercel Production deployment `dpl_EAXREH31JKznnGbQYEU8bNqTqagN` is READY on the exact merge SHA.
+- [x] Production source-pack runtime remains fail-closed: HTTP 503, activation disabled, zero sources.
 - [x] Supabase migration list and source-table counts are unchanged from the pre-change audit.
 - [x] Confluence CR, implementation issue and PR cross-link one another.
 - [x] Owner accepted G0–G4 for this bounded phase and intentionally waived independent reviewer approvals; no independent review is claimed.
-- [x] PR may be marked Ready after final exact-head evidence; Production source activation remains disabled.
+- [x] PR #87 was merged after final exact-head evidence; Production source activation remains disabled.
 
 **Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.**

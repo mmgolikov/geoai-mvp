@@ -8,6 +8,7 @@ import {
   type DecisionScoreResult
 } from "@/src/lib/ai/decision-scoring-schema";
 import { createDeterministicDecisionScore } from "@/src/lib/ai/decision-scoring-fallback";
+import { getOpenAiUpstreamStatus } from "@/src/lib/ai/openai-upstream-gate";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -107,7 +108,8 @@ Required JSON shape:
 }`.trim();
 }
 
-export async function createOpenAiDecisionScore(request: DecisionScoreRequest): Promise<DecisionScoreResult | null> {
+export async function createOpenAiDecisionScore(request: DecisionScoreRequest, allowUpstream = false): Promise<DecisionScoreResult | null> {
+  if (!allowUpstream || !getOpenAiUpstreamStatus().enabled) return null;
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) return null;
 
@@ -135,7 +137,8 @@ export async function createOpenAiDecisionScore(request: DecisionScoreRequest): 
           }
         ],
         response_format: { type: "json_object" },
-        temperature: 0.1
+        temperature: 0.1,
+        max_tokens: 1000
       })
     });
 
@@ -151,7 +154,7 @@ export async function createOpenAiDecisionScore(request: DecisionScoreRequest): 
   }
 }
 
-export async function createDecisionScore(request: DecisionScoreRequest) {
-  const openAiResult = await createOpenAiDecisionScore(request);
+export async function createDecisionScore(request: DecisionScoreRequest, options: { allowUpstream?: boolean } = {}) {
+  const openAiResult = await createOpenAiDecisionScore(request, options.allowUpstream === true);
   return openAiResult ?? createDeterministicDecisionScore(request);
 }

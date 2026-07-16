@@ -8,6 +8,8 @@ import { recordAuditEvent } from "@/src/lib/audit/audit-event";
 import { projectAccessDeniedPayload, requireProjectAccess } from "@/src/lib/auth/project-access";
 import { repositoryModeFields } from "@/src/lib/repositories/repository-mode";
 import type { DbAnalysisRunInput } from "@/src/lib/db/types";
+import { readBoundedJson } from "@/src/lib/http/bounded-json";
+import { hasVerifiedRequestIdentity } from "@/src/lib/auth/verified-request-access";
 
 export const runtime = "nodejs";
 
@@ -18,12 +20,12 @@ function isAnalysisRunInput(value: unknown): value is DbAnalysisRunInput {
 
   const input = value as Partial<DbAnalysisRunInput>;
   return (
-    typeof input.runKey === "string" &&
-    typeof input.scenarioId === "string" &&
-    typeof input.selectedName === "string" &&
-    typeof input.selectedType === "string" &&
-    input.selectedPoint !== undefined &&
-    input.resultJson !== undefined
+    typeof input.runKey === "string" && /^[a-zA-Z0-9_.:-]{1,240}$/.test(input.runKey) &&
+    typeof input.scenarioId === "string" && input.scenarioId.length <= 120 &&
+    typeof input.selectedName === "string" && input.selectedName.length <= 500 &&
+    typeof input.selectedType === "string" && input.selectedType.length <= 160 &&
+    typeof input.selectedPoint === "object" && input.selectedPoint !== null &&
+    typeof input.resultJson === "object" && input.resultJson !== null
   );
 }
 
@@ -37,6 +39,19 @@ export async function GET(request: Request) {
     return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
   }
   const project = projectKey ? await getProjectByKey(projectKey) : null;
+  if (!hasVerifiedRequestIdentity(access)) {
+    return NextResponse.json({
+      ok: true,
+      ...repositoryModeFields("browser_local"),
+      projectMode: project?.mode ?? null,
+      project: project?.data ?? null,
+      access,
+      count: 0,
+      items: [],
+      error: null,
+      dataHonesty: "Public-demo analysis history is browser-local; shared server reads are disabled."
+    });
+  }
 
   const result = await listAnalysisRuns(limit, project?.mode === "supabase" ? project.data?.id ?? null : null);
   const localProjectItems = result.mode === "local_fallback" && projectKey && Array.isArray(result.data)
@@ -58,16 +73,14 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  let body: unknown;
-
-  try {
-    body = await request.json();
-  } catch {
+  const parsed = await readBoundedJson(request, 768 * 1024);
+  if (!parsed.ok) {
     return NextResponse.json(
-      { persisted: false, ...repositoryModeFields("local_fallback"), message: "Invalid JSON body." },
-      { status: 400 }
+      { persisted: false, ...repositoryModeFields("local_fallback"), message: parsed.message },
+      { status: parsed.status }
     );
   }
+  const body = parsed.value;
 
   if (!isAnalysisRunInput(body)) {
     return NextResponse.json(
@@ -80,6 +93,19 @@ export async function POST(request: Request) {
   const access = requireProjectAccess({ projectKey: body.projectKey ?? project?.data?.projectKey ?? null, action: "write", mode: "soft" });
   if (!access.allowed) {
     return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
+  }
+  if (!hasVerifiedRequestIdentity(access)) {
+    return NextResponse.json({
+      ok: true,
+      persisted: false,
+      ...repositoryModeFields("browser_local"),
+      runKey: body.runKey,
+      project: project?.data ?? null,
+      access,
+      data: null,
+      error: null,
+      message: "Public-demo analysis remains in caller browser history; shared server persistence is disabled."
+    });
   }
   const result = await saveAnalysisRun({
     ...body,

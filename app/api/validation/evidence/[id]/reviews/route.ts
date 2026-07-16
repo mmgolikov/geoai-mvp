@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 import { recordAuditEvent } from "@/src/lib/audit/audit-event";
-import { requireProjectAccess } from "@/src/lib/auth/project-access";
+import { projectAccessDeniedPayload, requireProjectAccess } from "@/src/lib/auth/project-access";
 import { createEvidenceReview, listEvidenceReviews, buildEvidenceReviewSummary } from "@/src/lib/repositories/evidence-review-repository";
 import { getEvidenceFileAsset, updateEvidenceFileAsset } from "@/src/lib/repositories/evidence-file-repository";
 import { repositoryModeFields } from "@/src/lib/repositories/repository-mode";
-import { listValidationEvidence, updateValidationEvidence } from "@/src/lib/repositories/validation-repository";
+import { getValidationEvidence, listValidationEvidence, updateValidationEvidence } from "@/src/lib/repositories/validation-repository";
 import { evidenceReviewCaveat, reviewStatusToValidationStatus, type EvidenceReviewDecision } from "@/src/types/evidence-review";
 import type { ValidationEvidence } from "@/src/types/validation";
 import { validateEvidenceReviewTransition, evidenceReviewStatusFromValidation } from "@/src/lib/validation/evidence-review-policy";
+import { requestAuthKernelStatus } from "@/src/lib/auth/request-auth-kernel";
 
 export const runtime = "nodejs";
 
@@ -32,40 +33,24 @@ function readDecision(value: unknown): EvidenceReviewDecision | null {
   return null;
 }
 
-function createTransientValidationEvidence(id: string, projectKey: string, projectId: string | null): ValidationEvidence {
-  const now = new Date().toISOString();
-  return {
-    id,
-    projectId,
-    projectKey,
-    linkedAoiIds: [],
-    linkedAnalysisIds: [],
-    linkedReportIds: [],
-    linkedDataRoomAssetIds: [],
-    linkedEvidenceFileIds: [],
-    sourceCategory: "client_uploaded_document",
-    sourceName: "Local fallback validation evidence",
-    accessMode: "client_provided",
-    validationStatus: "uploaded_unreviewed",
-    confidence: "unknown",
-    allowedClaimLevel: "screening_only",
-    title: "Local fallback validation evidence",
-    description: "Transient fallback evidence metadata for serverless local/API fallback. This is not durable production storage.",
-    limitations: ["Local/API fallback is not durable production storage.", evidenceReviewCaveat],
-    allowedClaims: ["Evidence may be reviewed for screening workflow only after explicit reviewer decision."],
-    forbiddenClaims: ["GeoAI certifies ownership", "zoning approval", "certified valuation"],
-    caveat: evidenceReviewCaveat,
-    createdAt: now,
-    updatedAt: now
-  };
-}
-
 export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
   const { id } = await context.params;
   const url = new URL(request.url);
-  const projectKey = url.searchParams.get("projectKey") ?? "dubai-investment-screening-demo";
-  const projectId = url.searchParams.get("projectId");
+  const requestedProjectKey = url.searchParams.get("projectKey") ?? "dubai-investment-screening-demo";
+  const requestedProjectId = url.searchParams.get("projectId");
+  const existing = await getValidationEvidence(id);
+  const listed = existing.data ? null : await listValidationEvidence({ projectId: requestedProjectId, projectKey: requestedProjectKey, limit: 100 });
+  const validationEvidence = existing.data ?? listed?.data.find((item) => item.id === id) ?? null;
+  if (!validationEvidence) {
+    return NextResponse.json({ ok: false, ...repositoryModeFields(existing.mode), message: "Validation evidence not found.", caveat: evidenceReviewCaveat }, { status: 404 });
+  }
+  const projectKey = validationEvidence.projectKey;
+  const projectId = validationEvidence.projectId ?? requestedProjectId;
   const access = requireProjectAccess({ projectKey, action: "read", mode: "soft" });
+  if (!access.allowed) {
+    return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
+  }
+
   const result = await listEvidenceReviews({ projectId, projectKey, validationEvidenceId: id, limit: 80 });
 
   return NextResponse.json({
@@ -82,16 +67,37 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   const { id } = await context.params;
   const body = await request.json().catch(() => ({})) as Record<string, unknown>;
-  const projectKey = readString(body.projectKey) ?? "dubai-investment-screening-demo";
-  const projectId = readString(body.projectId);
-  const access = requireProjectAccess({ projectKey, action: "write", mode: "soft" });
+  const requestedProjectKey = readString(body.projectKey) ?? "dubai-investment-screening-demo";
+  const requestedProjectId = readString(body.projectId);
+  const existingEvidence = await getValidationEvidence(id);
+  const projectKey = existingEvidence.data?.projectKey ?? requestedProjectKey;
+  const projectId = existingEvidence.data?.projectId ?? requestedProjectId;
+  const access = requireProjectAccess({ projectKey, action: "review", mode: "soft" });
+  if (!access.allowed) {
+    return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
+  }
+  if (existingEvidence.data && requestedProjectKey !== existingEvidence.data.projectKey) {
+    return NextResponse.json({ ok: false, ...repositoryModeFields(existingEvidence.mode), message: "Validation evidence does not belong to the requested project." }, { status: 400 });
+  }
+
   const evidenceResult = await listValidationEvidence({ projectId, projectKey, limit: 100 });
-  const validationEvidence = evidenceResult.data.find((item) => item.id === id)
-    ?? createTransientValidationEvidence(id, projectKey, projectId);
+  const validationEvidence = existingEvidence.data ?? evidenceResult.data.find((item) => item.id === id) ?? null;
+  if (!validationEvidence) {
+    return NextResponse.json({ ok: false, ...repositoryModeFields(evidenceResult.mode), message: "Validation evidence not found.", caveat: evidenceReviewCaveat }, { status: 404 });
+  }
 
   const decision = readDecision(body.decision);
   if (!decision) {
     return NextResponse.json({ ok: false, ...repositoryModeFields(evidenceResult.mode), message: "Valid review decision is required.", caveat: evidenceReviewCaveat }, { status: 400 });
+  }
+  if (["mark_client_validated", "mark_official_validated"].includes(decision) &&
+      (!requestAuthKernelStatus.requestUserVerified || !requestAuthKernelStatus.projectMembershipVerified)) {
+    return NextResponse.json({
+      ok: false,
+      ...repositoryModeFields(evidenceResult.mode),
+      message: "Client/official validation cannot be recorded until reviewer identity and project membership are request-verified.",
+      caveat: evidenceReviewCaveat
+    }, { status: 409 });
   }
 
   const evidenceFileId = readString(body.evidenceFileId);
@@ -118,8 +124,11 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   }
 
   const now = new Date().toISOString();
-  const reviewerName = readString(body.reviewerName) ?? "GeoAI reviewer";
-  const reviewerRole = readString(body.reviewerRole) ?? "reviewer";
+  const reviewerIdentityVerified = requestAuthKernelStatus.requestUserVerified && requestAuthKernelStatus.projectMembershipVerified;
+  const reviewerName = reviewerIdentityVerified
+    ? (access.user?.name ?? access.user?.email ?? "Verified project reviewer")
+    : "GeoAI public-demo reviewer (identity unverified)";
+  const reviewerRole = reviewerIdentityVerified ? (access.role ?? "reviewer") : "demo_unverified";
   const review = await createEvidenceReview({
     id: `evidence-review-${id}-${Date.now()}`,
     organizationId: validationEvidence.organizationId ?? null,
@@ -127,7 +136,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     projectKey: validationEvidence.projectKey,
     validationEvidenceId: id,
     evidenceFileId,
-    reviewerId: readString(body.reviewerId),
+    reviewerId: reviewerIdentityVerified ? access.user?.id ?? null : null,
     reviewerName,
     reviewerRole,
     decision,
@@ -168,7 +177,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     entityType: "validation_evidence",
     entityId: id,
     action: "Created evidence review decision",
-    metadata: { decision, previousStatus: policy.previousStatus, nextStatus: policy.nextStatus, evidenceFileId, accessAllowed: access.allowed }
+    metadata: { decision, previousStatus: policy.previousStatus, nextStatus: policy.nextStatus, evidenceFileId, accessAllowed: access.allowed, reviewerIdentityVerified }
   });
   void recordAuditEvent({
     projectKey,

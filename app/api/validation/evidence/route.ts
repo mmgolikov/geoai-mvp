@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { recordAuditEvent } from "@/src/lib/audit/audit-event";
-import { requireProjectAccess } from "@/src/lib/auth/project-access";
+import { projectAccessDeniedPayload, requireProjectAccess } from "@/src/lib/auth/project-access";
 import { repositoryModeFields } from "@/src/lib/repositories/repository-mode";
 import { createValidationEvidence } from "@/src/lib/repositories/validation-repository";
+import { getProjectByKey } from "@/src/lib/db/repositories/projects";
 import type { ValidationEvidence, ValidationSourceCategory } from "@/src/types/validation";
 
 export const runtime = "nodejs";
@@ -36,6 +37,20 @@ function isEvidenceInput(value: unknown): value is Partial<ValidationEvidence> &
   );
 }
 
+function boundedString(value: unknown, maxLength: number) {
+  return typeof value === "string" && value.trim().length > 0
+    ? value.trim().slice(0, maxLength)
+    : undefined;
+}
+
+function boundedStringArray(value: unknown, maxItems = 40) {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+        .slice(0, maxItems)
+        .map((item) => item.trim().slice(0, 240))
+    : [];
+}
+
 export async function POST(request: Request) {
   let body: unknown;
 
@@ -50,14 +65,45 @@ export async function POST(request: Request) {
   }
 
   const access = requireProjectAccess({ projectKey: body.projectKey, action: "write", mode: "soft" });
-  const result = await createValidationEvidence(body);
+  if (!access.allowed) {
+    return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
+  }
+
+  const project = await getProjectByKey(body.projectKey);
+  const safeInput: Partial<ValidationEvidence> & Pick<ValidationEvidence, "projectKey" | "title" | "sourceCategory"> = {
+    projectKey: body.projectKey,
+    projectId: project.data?.id ?? null,
+    title: body.title.trim().slice(0, 500),
+    sourceCategory: body.sourceCategory,
+    sourceName: boundedString(body.sourceName, 500) ?? "Client-provided evidence request",
+    accessMode: "client_provided",
+    validationStatus: "evidence_requested",
+    confidence: "unknown",
+    allowedClaimLevel: "screening_only",
+    description: boundedString(body.description, 4000) ?? "Validation evidence metadata registered for review.",
+    documentDate: boundedString(body.documentDate, 40) ?? null,
+    referenceId: boundedString(body.referenceId, 240) ?? null,
+    sourceUrl: boundedString(body.sourceUrl, 2000) ?? null,
+    linkedAoiIds: boundedStringArray(body.linkedAoiIds),
+    linkedAnalysisIds: boundedStringArray(body.linkedAnalysisIds),
+    linkedReportIds: boundedStringArray(body.linkedReportIds),
+    linkedDataRoomAssetIds: boundedStringArray(body.linkedDataRoomAssetIds),
+    linkedEvidenceFileIds: [],
+    reviewedBy: null,
+    reviewedAt: null,
+    limitations: ["Public-demo metadata request only; reviewer identity and supporting evidence are not verified."],
+    allowedClaims: ["Validation evidence has been requested for a screening workflow."],
+    forbiddenClaims: ["GeoAI certifies ownership", "zoning approval", "official validation", "certified valuation"]
+  };
+
+  const result = await createValidationEvidence(safeInput);
   void recordAuditEvent({
     projectKey: body.projectKey,
     eventType: "validation_evidence_created",
     entityType: "validation_evidence",
     entityId: result.data.id,
     action: "Created validation evidence metadata",
-    metadata: { sourceCategory: body.sourceCategory, accessAllowed: access.allowed }
+    metadata: { sourceCategory: safeInput.sourceCategory, accessAllowed: access.allowed, posture: "evidence_requested" }
   });
 
   return NextResponse.json({

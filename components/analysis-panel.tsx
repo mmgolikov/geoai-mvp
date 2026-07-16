@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/components/auth/auth-provider";
 import ingestionReport from "@/data/normalized/ingestion_report.json";
@@ -279,13 +279,17 @@ function ExploreSetupControl({
   value: ExploreFilters[string] | undefined;
   onChange: (value: ExploreFilters[string]) => void;
 }) {
+  const controlId = useId();
+  const valueId = `${controlId}-value`;
+
   if (config.type === "select") {
     return (
       <div className="min-w-0">
-        <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
+        <label htmlFor={controlId} className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
           {config.label}
         </label>
         <select
+          id={controlId}
           value={typeof value === "string" ? value : String(config.defaultValue)}
           onChange={(event) => onChange(event.target.value)}
           className="mt-1 h-8 w-full rounded-md border border-line bg-white px-2 text-xs font-semibold text-ink outline-none transition focus:border-brand"
@@ -306,21 +310,24 @@ function ExploreSetupControl({
     return (
       <div className="min-w-0 rounded-md border border-line bg-white p-2">
         <div className="flex items-center justify-between gap-2">
-          <label className="truncate text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
+          <label htmlFor={controlId} className="truncate text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
             {config.label}
           </label>
-          <span className="shrink-0 text-[11px] font-semibold text-brand">
+          <span id={valueId} className="shrink-0 text-[11px] font-semibold text-brand">
             {numericValue}{config.unit ? ` ${config.unit}` : ""}
           </span>
         </div>
         <input
+          id={controlId}
           type="range"
+          aria-describedby={valueId}
+          aria-valuetext={`${numericValue}${config.unit ? ` ${config.unit}` : ""}`}
           value={numericValue}
           min={config.min}
           max={config.max}
           step={config.step}
           onChange={(event) => onChange(Number(event.target.value))}
-          className="mt-2 w-full accent-brand"
+          className="mt-2 h-6 w-full accent-brand"
         />
       </div>
     );

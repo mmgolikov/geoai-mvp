@@ -1,6 +1,33 @@
 # Changelog
 
-## Unreleased — CR-DEV7-002
+## Unreleased — Full system audit and pre-Auth containment
+
+### Security and reliability
+
+- Classified all 83 API handlers in an explicit public-demo/project access manifest.
+- Enforced access denial before mutation across the known bypassed routes and added object-first scope checks for affected ID routes.
+- Removed service-role selection from user-facing repository clients.
+- Prevented boolean environment flags from promoting Auth/membership/RLS readiness.
+- Added bounded AI request parsing, timeouts/token caps and an explicit hard/Auth upstream gate.
+- Removed private filesystem/storage paths from public source-lineage projections.
+- Added CSP, HSTS, frame, MIME, referrer and permissions headers.
+- Prepared (not applied) pre-Auth RLS/Storage/function-ACL containment SQL.
+- Updated patch dependencies and forced PostCSS 8.5.19; `npm audit` reports zero known vulnerabilities.
+
+### Documentation and governance
+
+- Reconciled active repository documentation to PR #87 / `2999e7e857989baf53ce58ecfed63550b5896be0` and Production `dpl_EAXREH31JKznnGbQYEU8bNqTqagN`.
+- Replaced stale architecture, source strategy and roadmap baselines.
+- Added canonical current-release, documentation-index, audit and Codex-backlog documents.
+- Recorded that independent reviewer approvals are not required in the current phase while objective technical/evidence gates remain.
+
+### Scope boundary
+
+- No Production deployment or promotion.
+- No Supabase migration/data write or Auth/hard-mode activation.
+- No real provider, geometry, imagery, persistence or source-dependent scoring activation.
+
+## Released — CR-DEV7-002 permanent Quality Gate
 
 ### Changed
 
@@ -8,7 +35,7 @@
 - Preserve the exact tested commit, Node/npm versions, TypeScript output and build output in short-lived CI evidence.
 - Add permanent Spatial B1 contract and Spatial B2A fail-closed regression checks to the Quality Gate.
 - Extend built-application route smoke to current Product and readiness-control routes.
-- Reconcile repository governance to the merged PR #81 inactive release baseline.
+- Reconciled repository governance to the then-current PR #81 inactive release baseline. This is historical; current authority is PR #87.
 
 ### Scope boundary
 

@@ -33,34 +33,44 @@
     "storage:verify:signed-url": "node scripts/verify-storage-signed-url.mjs",
     "audit:verify": "node scripts/verify-audit.mjs",
     "test:access-decision": "node scripts/access-decision-check.mjs",
+    "test:api-access-guards": "node scripts/api-access-guard-check.mjs",
+    "test:server-credential-boundary": "node scripts/server-credential-boundary-check.mjs",
+    "test:migration-security-surface": "node scripts/migration-security-surface-check.mjs",
+    "test:readiness-evidence": "node scripts/readiness-evidence-check.mjs",
+    "test:security-headers": "node scripts/security-header-check.mjs",
     "test:rls-plan": "node scripts/rls-verification-plan-check.mjs",
     "test:api-contract": "node scripts/api-contract-check.mjs",
     "test:workspace-panel": "node scripts/workspace-mobile-panel-check.mjs",
     "test:spatial-b1": "node scripts/spatial-b1-contract-check.mjs",
     "test:spatial-b2a": "node scripts/spatial-b2-integration-check.mjs",
     "test:data-honesty": "node scripts/data-honesty-claim-check.mjs",
+    "test:documentation-current-truth": "node scripts/documentation-current-truth-check.mjs",
     "test:runtime-source-pack": "node scripts/runtime-source-pack-contract-check.mjs",
     "start": "next start",
     "lint": "tsc --noEmit --pretty false"
   },
   "dependencies": {
-    "@supabase/ssr": "^0.12.0",
-    "@supabase/supabase-js": "^2.109.0",
-    "mapbox-gl": "^3.11.0",
-    "next": "^15.3.3",
-    "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "@supabase/ssr": "^0.12.3",
+    "@supabase/supabase-js": "^2.110.6",
+    "mapbox-gl": "^3.26.0",
+    "next": "^15.5.20",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
   },
   "devDependencies": {
-    "@types/node": "^22.15.30",
-    "@types/react": "^19.1.6",
-    "@types/react-dom": "^19.1.5",
-    "autoprefixer": "^10.4.21",
-    "postcss": "^8.5.4",
-    "tailwindcss": "^3.4.17",
-    "typescript": "^5.8.3"
+    "@types/geojson": "^7946.0.16",
+    "@types/node": "^22.20.1",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "autoprefixer": "^10.5.3",
+    "postcss": "^8.5.19",
+    "tailwindcss": "^3.4.19",
+    "typescript": "^5.9.3"
+  },
+  "overrides": {
+    "postcss": "$postcss"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22 <25"
   }
 }

@@ -63,11 +63,35 @@ jobs:
           set -euo pipefail
           npm run test:access-decision | tee artifacts/access-decision-check.txt
 
+      - name: API access-guard checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:api-access-guards | tee artifacts/api-access-guard-check.txt
+
+      - name: Server credential boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:server-credential-boundary | tee artifacts/server-credential-boundary-check.txt
+
+      - name: Readiness evidence boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:readiness-evidence | tee artifacts/readiness-evidence-check.txt
+
       - name: Static RLS-plan checks
         shell: bash
         run: |
           set -euo pipefail
           npm run test:rls-plan | tee artifacts/rls-plan-check.txt
+
+      - name: Migration security-surface checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:migration-security-surface | tee artifacts/migration-security-surface-check.txt
 
       - name: Workspace-panel source checks
         shell: bash
@@ -96,6 +120,12 @@ jobs:
         run: |
           set -euo pipefail
           npm run test:data-honesty | tee artifacts/data-honesty-check.txt
+
+      - name: Documentation current-truth checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:documentation-current-truth | tee artifacts/documentation-current-truth-check.txt
 
       - name: Runtime source-pack contract checks
         shell: bash
@@ -137,6 +167,7 @@ jobs:
           fi
 
           GEOAI_TEST_BASE_URL=http://127.0.0.1:3000 npm run test:api-contract | tee artifacts/api-contract-check.txt
+          GEOAI_TEST_BASE_URL=http://127.0.0.1:3000 npm run test:security-headers | tee artifacts/security-header-check.txt
 
           : > artifacts/route-smoke.txt
           routes=(

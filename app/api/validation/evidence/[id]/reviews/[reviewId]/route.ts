@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { recordAuditEvent } from "@/src/lib/audit/audit-event";
-import { requireProjectAccess } from "@/src/lib/auth/project-access";
+import { projectAccessDeniedPayload, requireProjectAccess } from "@/src/lib/auth/project-access";
 import { getEvidenceReview, updateEvidenceReview } from "@/src/lib/repositories/evidence-review-repository";
 import { repositoryModeFields } from "@/src/lib/repositories/repository-mode";
 import { evidenceReviewCaveat } from "@/src/types/evidence-review";
@@ -20,11 +20,15 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     return NextResponse.json({ ok: false, ...repositoryModeFields(existing.mode), message: "Evidence review not found.", caveat: evidenceReviewCaveat }, { status: 404 });
   }
 
-  const access = requireProjectAccess({ projectKey: existing.data.projectKey, action: "write", mode: "soft" });
+  const access = requireProjectAccess({ projectKey: existing.data.projectKey, action: "review", mode: "soft" });
+  if (!access.allowed) {
+    return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
+  }
+
   const result = await updateEvidenceReview(reviewId, {
     notes: readString(body.notes) ?? existing.data.notes,
-    reviewerName: readString(body.reviewerName) ?? existing.data.reviewerName,
-    reviewerRole: readString(body.reviewerRole) ?? existing.data.reviewerRole,
+    reviewerName: existing.data.reviewerName,
+    reviewerRole: existing.data.reviewerRole,
     expiresAt: readString(body.expiresAt) ?? existing.data.expiresAt,
     limitations: Array.isArray(body.limitations)
       ? body.limitations.map((item) => String(item ?? "").trim()).filter(Boolean).slice(0, 6)
