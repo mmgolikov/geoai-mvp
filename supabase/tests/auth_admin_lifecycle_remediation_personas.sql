@@ -74,7 +74,7 @@ select extensions.is(
 );
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '93000000-0000-0000-0000-000000000003', true);
-select set_config('request.jwt.claims', '{"sub":"93000000-0000-0000-0000-000000000003","role":"authenticated","aal":"aal1"}', true);
+select set_config('request.jwt.claims', '{"sub":"93000000-0000-0000-0000-000000000003","role":"authenticated","aal":"aal1","is_anonymous":false}', true);
 select extensions.is((select count(*)::integer from api.current_profile()), 0, 'current temporary ban still denies the caller dynamically');
 reset role;
 update auth.users
@@ -82,7 +82,7 @@ set banned_until = now() - interval '1 second', updated_at = now()
 where id = '93000000-0000-0000-0000-000000000003';
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '93000000-0000-0000-0000-000000000003', true);
-select set_config('request.jwt.claims', '{"sub":"93000000-0000-0000-0000-000000000003","role":"authenticated","aal":"aal1"}', true);
+select set_config('request.jwt.claims', '{"sub":"93000000-0000-0000-0000-000000000003","role":"authenticated","aal":"aal1","is_anonymous":false}', true);
 select extensions.is(
   (select email from api.current_profile()),
   'remediation-banned@test.invalid',
@@ -192,7 +192,7 @@ select 'invitee_profile', id from public.profiles where auth_user_id = '93000000
 
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '93000000-0000-0000-0000-000000000001', true);
-select set_config('request.jwt.claims', '{"sub":"93000000-0000-0000-0000-000000000001","role":"authenticated","aal":"aal2"}', true);
+select set_config('request.jwt.claims', '{"sub":"93000000-0000-0000-0000-000000000001","role":"authenticated","aal":"aal1","is_anonymous":false}', true);
 insert into pg_temp.remediation_ids
 select 'organization', (api.create_organization('Remediation Tenant', 'remediation-tenant', null) ->> 'id')::uuid;
 select extensions.ok((select id is not null from pg_temp.remediation_ids where key = 'organization'), 'bootstrap owner creates the remediation organization');
@@ -237,7 +237,7 @@ insert into public.invitations (
 -- Invitation expiry persistence and revoke regression (26-34).
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '93000000-0000-0000-0000-000000000002', true);
-select set_config('request.jwt.claims', '{"sub":"93000000-0000-0000-0000-000000000002","role":"authenticated","aal":"aal1"}', true);
+select set_config('request.jwt.claims', '{"sub":"93000000-0000-0000-0000-000000000002","role":"authenticated","aal":"aal1","is_anonymous":false}', true);
 select extensions.is(api.accept_invitation(repeat('e', 64), null) ->> 'status', 'expired', 'matching caller persists and receives expired invitation status');
 reset role;
 select extensions.is((select status from public.invitations where id = '93000000-0000-0000-0000-000000000201'), 'expired', 'expired status survives the successful RPC transaction');
@@ -254,14 +254,14 @@ select extensions.is(
 );
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '93000000-0000-0000-0000-000000000002', true);
-select set_config('request.jwt.claims', '{"sub":"93000000-0000-0000-0000-000000000002","role":"authenticated","aal":"aal1"}', true);
+select set_config('request.jwt.claims', '{"sub":"93000000-0000-0000-0000-000000000002","role":"authenticated","aal":"aal1","is_anonymous":false}', true);
 select extensions.throws_ok(
   $$select api.accept_invitation(repeat('e', 64), null)$$,
   '23514', 'invitation is not pending',
   'expired invitation cannot be replayed'
 );
 select set_config('request.jwt.claim.sub', '93000000-0000-0000-0000-000000000001', true);
-select set_config('request.jwt.claims', '{"sub":"93000000-0000-0000-0000-000000000001","role":"authenticated","aal":"aal2"}', true);
+select set_config('request.jwt.claims', '{"sub":"93000000-0000-0000-0000-000000000001","role":"authenticated","aal":"aal1","is_anonymous":false}', true);
 select extensions.is(
   api.revoke_invitation('93000000-0000-0000-0000-000000000202', 1, '93000000-0000-0000-0000-000000000103') ->> 'status',
   'revoked',
@@ -281,7 +281,7 @@ select extensions.ok(
 -- Initial-only aggregate snapshot boundary (35-39).
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '93000000-0000-0000-0000-000000000001', true);
-select set_config('request.jwt.claims', '{"sub":"93000000-0000-0000-0000-000000000001","role":"authenticated","aal":"aal2"}', true);
+select set_config('request.jwt.claims', '{"sub":"93000000-0000-0000-0000-000000000001","role":"authenticated","aal":"aal1","is_anonymous":false}', true);
 select extensions.ok(
   (api.organization_admin_snapshot((select id from pg_temp.remediation_ids where key = 'organization'), 1000, null, null) #>> '{pagination,continuationSupported}')::boolean is false,
   'aggregate snapshot explicitly reports that continuation is unsupported'

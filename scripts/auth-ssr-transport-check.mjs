@@ -11,7 +11,7 @@ async function source(path) {
   return readFile(new URL(`../${path}`, import.meta.url), "utf8");
 }
 
-const [browser, server, updater, middleware, mutationOrigin, context, identityEvidenceSource, summary, kernel, callback, logout, provider, mfa, elevated] = await Promise.all([
+const [browser, server, updater, middleware, mutationOrigin, context, identityEvidenceSource, summary, kernel, callback, logout, provider, login, mockDemo, elevated] = await Promise.all([
   source("src/lib/supabase/browser.ts"),
   source("src/lib/supabase/ssr-server.ts"),
   source("src/lib/supabase/update-session.ts"),
@@ -24,10 +24,11 @@ const [browser, server, updater, middleware, mutationOrigin, context, identityEv
   source("app/auth/callback/route.ts"),
   source("app/api/auth/logout/route.ts"),
   source("components/auth/auth-provider.tsx"),
-  source("components/auth/mfa-panel.tsx"),
+  source("components/auth/login-panel.tsx"),
+  source("src/lib/auth/mock-demo-session.ts"),
   source("src/lib/auth/elevated-request-context.ts")
 ]);
-const combined = [browser, server, updater, middleware, mutationOrigin, context, identityEvidenceSource, summary, callback, logout, provider, mfa, elevated].join("\n");
+const combined = [browser, server, updater, middleware, mutationOrigin, context, identityEvidenceSource, summary, callback, logout, provider, login, mockDemo, elevated].join("\n");
 const failures = [];
 
 function assert(condition, message) {
@@ -138,14 +139,20 @@ if (!callback.includes("exchangeCodeForSession") || !callback.includes("getSafeA
 if (!logout.includes('signOut({ scope: "local" })') || !logout.includes("privateNoStoreJson")) {
   failures.push("Logout route does not clear the local SSR session through a private no-store response");
 }
-if (!provider.includes("shouldCreateUser: false") || !provider.includes("shouldCreateUser: true") || !provider.includes('fetch("/api/auth/session"') || !provider.includes('fetch("/api/auth/logout"')) {
-  failures.push("Browser auth provider does not separate login/registration or consume the session/logout routes");
+if (!provider.includes("shouldCreateUser: true") || !provider.includes("signInWithPhone") || !provider.includes("verifyPhoneCode") || !provider.includes('fetch("/api/auth/session"') || !provider.includes('fetch("/api/auth/logout"')) {
+  failures.push("Browser auth provider does not implement unified email/phone signup-login or consume the session/logout routes");
 }
-if (!mfa.includes("challengeAndVerify") || !mfa.includes("getAuthenticatorAssuranceLevel") || !mfa.includes("auth.refreshSession()") || !mfa.includes("selectedFactorId")) {
-  failures.push("MFA UI does not cover explicit factor selection, AAL verification and immediate post-unenroll refresh");
+if (!login.includes("mockDemoEmail") || !login.includes("mockDemoPassword") || !login.includes("signInWithPhone") || !login.includes("verifyPhoneCode")) {
+  failures.push("Simple login UI does not expose email, phone-code and isolated mock-demo paths");
 }
-if (!elevated.includes('currentLevel !== "aal2"') || !elevated.includes("createRequestAuthContext")) {
-  failures.push("Elevated request context does not require a verified caller and AAL2 session");
+if (!mockDemo.includes('demo@geoai.space') || !mockDemo.includes('"111111"') || !mockDemo.includes("localStorage") || mockDemo.includes("fetch(")) {
+  failures.push("Mock demo credentials/session are not explicit browser-only state");
+}
+if (!elevated.includes("createRequestAuthContext") || !elevated.includes('assuranceLevel: "verified_identity"') || elevated.includes(".mfa")) {
+  failures.push("Admin request context must require a verified permanent identity without an MFA dependency");
+}
+if (callback.includes(".mfa") || callback.includes('"/mfa"') || summary.includes(".mfa")) {
+  failures.push("Email/phone session and callback must not redirect to or query MFA");
 }
 
 if (failures.length > 0) {
@@ -154,4 +161,4 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-console.log("Auth SSR transport contract passed: exact publishable-key cookie clients, PKCE/session/logout routes, permanent-user verification, MFA/AAL2 elevation and evidence-gated activation are present.");
+console.log("Auth SSR transport contract passed: exact publishable-key cookie clients, unified email/phone login, browser-only mock demo, permanent-user verification and no MFA dependency are present.");

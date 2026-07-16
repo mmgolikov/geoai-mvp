@@ -159,15 +159,15 @@ set local role authenticated;
 select set_config('request.jwt.claim.sub', '92000000-0000-0000-0000-000000000001', true);
 select set_config('request.jwt.claims', '{"sub":"92000000-0000-0000-0000-000000000001","role":"authenticated","aal":"aal1"}', true);
 
--- Tenant/client/project creation (45-54).
+-- Verified identity, tenant/client/project creation (45-54).
 select extensions.throws_ok(
   $$select api.create_organization('Activation Tenant', 'activation-tenant', null)$$,
-  '42501', 'aal2 authentication is required', 'organization creation fails closed below AAL2'
+  '42501', 'a permanent verified identity is required', 'organization creation fails closed when permanent-user evidence is absent'
 );
-select set_config('request.jwt.claims', '{"sub":"92000000-0000-0000-0000-000000000001","role":"authenticated","aal":"aal2"}', true);
+select set_config('request.jwt.claims', '{"sub":"92000000-0000-0000-0000-000000000001","role":"authenticated","aal":"aal1","is_anonymous":false}', true);
 insert into pg_temp.activation_ids
 select 'organization', (api.create_organization('Activation Tenant', 'activation-tenant', null) ->> 'id')::uuid;
-select extensions.ok((select id is not null from pg_temp.activation_ids where key = 'organization'), 'AAL2 platform owner creates an organization');
+select extensions.ok((select id is not null from pg_temp.activation_ids where key = 'organization'), 'verified email or phone platform owner creates an organization without MFA');
 select extensions.is((select organization_role from api.current_organization_memberships() where organization_id = (select id from pg_temp.activation_ids where key = 'organization')), 'owner', 'organization creator becomes its owner');
 select extensions.ok(
   exists (
@@ -196,16 +196,16 @@ select extensions.ok(
 );
 
 -- Invitation lifecycle and membership boundaries (55-65).
-select set_config('request.jwt.claims', '{"sub":"92000000-0000-0000-0000-000000000001","role":"authenticated","aal":"aal1"}', true);
+select set_config('request.jwt.claims', '{"sub":"92000000-0000-0000-0000-000000000001","role":"authenticated","aal":"aal1","is_anonymous":true}', true);
 select extensions.throws_ok(
   $$select api.create_invitation(
     (select id from pg_temp.activation_ids where key = 'organization'),
     (select id from pg_temp.activation_ids where key = 'project'),
     'invitee@test.invalid', 'member', 'analyst', repeat('a',64), now() + interval '1 day', null
   )$$,
-  '42501', 'aal2 authentication is required', 'invitation creation fails closed below AAL2'
+  '42501', 'a permanent verified identity is required', 'anonymous identity cannot create an invitation'
 );
-select set_config('request.jwt.claims', '{"sub":"92000000-0000-0000-0000-000000000001","role":"authenticated","aal":"aal2"}', true);
+select set_config('request.jwt.claims', '{"sub":"92000000-0000-0000-0000-000000000001","role":"authenticated","aal":"aal1","is_anonymous":false}', true);
 select extensions.throws_ok(
   $$select api.create_invitation(
     (select id from pg_temp.activation_ids where key = 'organization'), null,
@@ -225,14 +225,14 @@ select extensions.ok(
   'raw invitation tokens are never stored'
 );
 select set_config('request.jwt.claim.sub', '92000000-0000-0000-0000-000000000003', true);
-select set_config('request.jwt.claims', '{"sub":"92000000-0000-0000-0000-000000000003","role":"authenticated","aal":"aal1"}', true);
+select set_config('request.jwt.claims', '{"sub":"92000000-0000-0000-0000-000000000003","role":"authenticated","aal":"aal1","is_anonymous":false}', true);
 select extensions.throws_ok(
   $$select api.accept_invitation(repeat('c',64), null)$$,
   '42501', 'invitation email does not match authenticated user',
   'wrong email cannot consume an invitation'
 );
 select set_config('request.jwt.claim.sub', '92000000-0000-0000-0000-000000000002', true);
-select set_config('request.jwt.claims', '{"sub":"92000000-0000-0000-0000-000000000002","role":"authenticated","aal":"aal1"}', true);
+select set_config('request.jwt.claims', '{"sub":"92000000-0000-0000-0000-000000000002","role":"authenticated","aal":"aal1","is_anonymous":false}', true);
 select extensions.is(api.accept_invitation(repeat('c',64), null) ->> 'status', 'accepted', 'matching email consumes a member invitation at AAL1');
 select extensions.is((select email from api.current_profile()), 'invitee@test.invalid', 'accepted invitation remains bound to the authenticated account');
 select extensions.is((select organization_role from api.current_organization_memberships() where organization_id = (select id from pg_temp.activation_ids where key = 'organization')), 'member', 'acceptance creates organization membership');
@@ -246,17 +246,17 @@ select extensions.throws_ok(
   '42501', 'organization administration role is required', 'ordinary member cannot read the admin snapshot'
 );
 
--- AAL, role escalation, last-owner, concurrency and append-only audit (66-73).
+-- Role escalation, last-owner, concurrency and append-only audit (66-73).
 select extensions.throws_ok(
   $$select api.set_organization_member(
     (select id from pg_temp.activation_ids where key = 'organization'),
     (select id from pg_temp.activation_ids where key = 'outsider_profile'),
     'member', 'active', null, null
   )$$,
-  '42501', 'aal2 authentication is required', 'membership mutation fails closed below AAL2'
+  '42501', 'organization administration role is required', 'ordinary member cannot mutate organization membership'
 );
 select set_config('request.jwt.claim.sub', '92000000-0000-0000-0000-000000000001', true);
-select set_config('request.jwt.claims', '{"sub":"92000000-0000-0000-0000-000000000001","role":"authenticated","aal":"aal2"}', true);
+select set_config('request.jwt.claims', '{"sub":"92000000-0000-0000-0000-000000000001","role":"authenticated","aal":"aal1","is_anonymous":false}', true);
 insert into pg_temp.activation_ids
 select 'outsider_org_membership', (api.set_organization_member(
   (select id from pg_temp.activation_ids where key = 'organization'),
@@ -273,7 +273,7 @@ select extensions.ok(
   'project owner promotes an existing member to project admin'
 );
 select set_config('request.jwt.claim.sub', '92000000-0000-0000-0000-000000000002', true);
-select set_config('request.jwt.claims', '{"sub":"92000000-0000-0000-0000-000000000002","role":"authenticated","aal":"aal2"}', true);
+select set_config('request.jwt.claims', '{"sub":"92000000-0000-0000-0000-000000000002","role":"authenticated","aal":"aal1","is_anonymous":false}', true);
 select extensions.throws_ok(
   $$select api.set_project_member(
     (select id from pg_temp.activation_ids where key = 'project'),
@@ -283,7 +283,7 @@ select extensions.throws_ok(
   '42501', 'project admin cannot grant elevated authority', 'project admin cannot self-expand authority'
 );
 select set_config('request.jwt.claim.sub', '92000000-0000-0000-0000-000000000001', true);
-select set_config('request.jwt.claims', '{"sub":"92000000-0000-0000-0000-000000000001","role":"authenticated","aal":"aal2"}', true);
+select set_config('request.jwt.claims', '{"sub":"92000000-0000-0000-0000-000000000001","role":"authenticated","aal":"aal1","is_anonymous":false}', true);
 select extensions.throws_ok(
   $$select api.set_organization_member(
     (select id from pg_temp.activation_ids where key = 'organization'),

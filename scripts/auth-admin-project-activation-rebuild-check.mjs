@@ -12,6 +12,10 @@ const bootstrap = await readFile(
   new URL("../supabase/operator/20260716_first_platform_owner_bootstrap.sql", import.meta.url),
   "utf8"
 );
+const authSimplification = await readFile(
+  new URL("../supabase/migrations/20260716213214_simplify_auth_remove_mfa_requirement.sql", import.meta.url),
+  "utf8"
+);
 
 const failures = [];
 for (const table of ["platform_memberships", "clients", "invitations", "admin_audit_events"]) {
@@ -42,7 +46,7 @@ for (const rpc of [
 for (const [pattern, message] of [
   [/create\s+trigger\s+geoai_provision_auth_profile[\s\S]*?on\s+auth[.]users/i, "Auth profile provision trigger is missing"],
   [/is_anonymous[\s\S]*?email_confirmed_at[\s\S]*?confirmed_at/i, "Permanent confirmed-user provisioning checks are missing"],
-  [/require_aal2/i, "AAL2 guard is missing"],
+  [/require_verified_identity[\s\S]*?is_anonymous/i, "Permanent verified-identity guard is missing"],
   [/platform owner bootstrap has already been consumed/i, "One-time platform-owner bootstrap guard is missing"],
   [/pg_advisory_xact_lock[\s\S]*?geoai:platform-owner/i, "Platform-owner bootstrap is not serialized"],
   [/last active organization owner/i, "Last organization-owner protection is missing"],
@@ -51,7 +55,11 @@ for (const [pattern, message] of [
   [/token_hash[\s\S]*?digest\([^)]*'sha256'/i, "Invitation token hashing is missing"],
   [/admin audit rows cannot be updated/i, "Activation persona suite lacks append-only audit evidence"]
 ]) {
-  if (!pattern.test(`${sql}\n${personas}`)) failures.push(message);
+  if (!pattern.test(`${sql}\n${authSimplification}\n${personas}`)) failures.push(message);
+}
+
+if (!/create\s+or\s+replace\s+function\s+geoai_private[.]require_aal2[\s\S]*?require_verified_identity/i.test(authSimplification) || /auth[.]jwt\(\)\s*->>\s*'aal'/i.test(authSimplification)) {
+  failures.push("Legacy AAL2 wrapper is not safely superseded by verified identity without MFA");
 }
 
 if (!/select\s+extensions[.]plan\(73\)/i.test(personas)) failures.push("Activation persona plan is not 73 assertions");
@@ -72,4 +80,4 @@ if (failures.length) {
   for (const failure of failures) console.error(`- ${failure}`);
   process.exit(1);
 }
-console.log("Auth/admin/project activation rebuild contract passed: closed tables, invoker API wrappers, permanent-user/AAL/owner/concurrency controls and 73 personas are present.");
+console.log("Auth/admin/project activation rebuild contract passed: closed tables, invoker API wrappers, permanent-user/owner/concurrency controls, MFA-free identity override and 73 personas are present.");

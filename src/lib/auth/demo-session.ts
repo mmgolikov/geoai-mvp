@@ -7,7 +7,7 @@ import type {
 
 export const demoUser: GeoAIUser = {
   id: "demo-user-geoai",
-  email: "demo@geoai.local",
+  email: "demo@geoai.space",
   name: "GeoAI Demo User",
   isDemoUser: true
 };

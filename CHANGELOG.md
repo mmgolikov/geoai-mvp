@@ -9,6 +9,14 @@ Navigation: [Documentation Index](docs/DOCUMENTATION_INDEX.md) · [Current Relea
 
 ## Unreleased — Full system audit and pre-Auth containment
 
+### Simplified Auth product decision
+
+- Replaced the separate registration, MFA and technical invitation flow with one `/login` experience for email, phone and demo access. Email login now creates the user when needed; phone OTP code paths are implemented but still require an external SMS provider.
+- Added the ready browser-only mock account `demo@geoai.space` / `111111`. The demo session enables only sample/browser-local behavior and is never accepted by protected server APIs, Admin, customer data or durable writes.
+- Redirected `/register` and `/mfa` to `/login`, removed MFA callback/session/UI dependencies and changed the default verified callback destination to `/workspace`.
+- Rebuilt onboarding around plain-language account/project states. Invitation tokens remain fragment-to-HttpOnly-cookie staged and SHA-256 hashed, but users no longer see or paste them.
+- Added unapplied migration `20260716213214_simplify_auth_remove_mfa_requirement.sql`, replacing the legacy AAL2 check with a permanent verified-identity guard while preserving role/RLS/last-owner/concurrency/audit controls. No Supabase environment was modified.
+
 ### Security and reliability
 
 - Created one authorized Free Supabase rehearsal (`geoai-auth-rehearsal`, ref `bkmfcjzalcvdsdvyxpgi`) without changing development or Production. Replayed the canonical ledger plus six candidates, including a newly rebuilt Auth/Admin/client/project activation migration, 39-index FK hardening and forward-only lifecycle remediation; the lost unpublished activation migration was not claimed as recovered.

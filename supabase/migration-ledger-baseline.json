@@ -140,7 +140,7 @@
         "source custody migration applied first",
         "isolated rehearsal replay",
         "permanent-user Auth personas",
-        "AAL1 and AAL2 mutation personas",
+        "verified permanent-user mutation personas",
         "last-owner and invitation replay tests",
         "Data API api-only owner-path evidence",
         "schema diff and advisor evidence"
@@ -169,6 +169,19 @@
         "39 assertion lifecycle-remediation persona suite",
         "two-session invitation concurrency evidence",
         "real HTTP temporary-ban and session-refresh personas",
+        "schema diff, advisor and rollback evidence"
+      ]
+    },
+    {
+      "version": "20260716213214",
+      "name": "simplify_auth_remove_mfa_requirement",
+      "applyState": "not_applied_anywhere_product_decision",
+      "requires": [
+        "lifecycle remediation migration applied first",
+        "explicit exact-target rehearsal apply approval",
+        "verified email and phone identity personas",
+        "anonymous identity denial persona",
+        "Admin role, RLS, concurrency and audit regression",
         "schema diff, advisor and rollback evidence"
       ]
     }

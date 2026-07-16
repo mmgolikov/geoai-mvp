@@ -7,6 +7,12 @@ import type { AuthModeStatus } from "@/src/lib/auth/auth-mode";
 import { getSafeAuthRedirectPath } from "@/src/lib/auth/redirect-path";
 import type { GeoAIAuthSession, GeoAIProjectRole } from "@/src/types/auth";
 import { clearBrowserDemoStorage } from "@/src/lib/browser-demo-storage";
+import {
+  activateMockDemoSession,
+  clearMockDemoSession,
+  isMockDemoSessionActive,
+  matchesMockDemoCredentials
+} from "@/src/lib/auth/mock-demo-session";
 
 async function loadSupabaseBrowserClient() {
   const { getSupabaseBrowserClient } = await import("@/src/lib/supabase/browser");
@@ -17,6 +23,9 @@ type AuthContextValue = GeoAIAuthSession & {
   authStatus: AuthModeStatus;
   roleLabel: string;
   signIn: (email: string) => Promise<{ ok: boolean; message: string }>;
+  signInDemo: (email: string, password: string) => Promise<{ ok: boolean; message: string }>;
+  signInWithPhone: (phone: string) => Promise<{ ok: boolean; message: string }>;
+  verifyPhoneCode: (phone: string, code: string) => Promise<{ ok: boolean; message: string }>;
   register: (email: string) => Promise<{ ok: boolean; message: string }>;
   signOut: () => Promise<void>;
   refreshSession: () => Promise<void>;
@@ -57,6 +66,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   async function refreshSession() {
+    if (isMockDemoSessionActive()) {
+      setSession(createDemoSession());
+      return;
+    }
     if (authStatus.effectiveMode === "demo_public") {
       setSession(createDemoSession());
       return;
@@ -98,7 +111,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
-    if (authStatus.effectiveMode !== "demo_public") {
+    if (authStatus.effectiveMode !== "demo_public" && !isMockDemoSessionActive()) {
       clearBrowserDemoStorage();
     }
     void refreshSession();
@@ -146,38 +159,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const supabase = await loadSupabaseBrowserClient();
     if (!supabase) return { ok: false, message: authStatus.caveat };
 
-    const normalizedEmail = email.trim().toLowerCase();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail) || normalizedEmail.length > 254) {
-      return { ok: false, message: "Enter a valid email address." };
-    }
-
-    const callback = new URL("/auth/callback", window.location.origin);
-    callback.searchParams.set("next", getSafeAuthRedirectPath(new URL(window.location.href).searchParams.get("next")));
-    const { error } = await supabase.auth.signInWithOtp({
-      email: normalizedEmail,
-      options: {
-        emailRedirectTo: callback.toString(),
-        shouldCreateUser: false
-      }
-    });
-    if (error) {
-      return {
-        ok: false,
-        message: "If this account can use email sign-in, a secure link will be sent. Try again later if it does not arrive."
-      };
-    }
-    return {
-      ok: true,
-      message: "If this account can use email sign-in, a secure link has been sent."
-    };
-  }
-
-  async function register(email: string) {
-    if (authStatus.effectiveMode !== "supabase_auth") {
-      return { ok: false, message: authStatus.caveat };
-    }
-    const supabase = await loadSupabaseBrowserClient();
-    if (!supabase) return { ok: false, message: authStatus.caveat };
+    clearMockDemoSession();
 
     const normalizedEmail = email.trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail) || normalizedEmail.length > 254) {
@@ -196,16 +178,82 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (error) {
       return {
         ok: false,
-        message: "Registration could not be completed. Try again later or contact the project administrator."
+        message: "We could not send the sign-in email. Try again in a moment."
       };
     }
     return {
       ok: true,
-      message: "Check your email and follow the confirmation link to finish registration."
+      message: "Check your email and open the GeoAI sign-in link."
     };
   }
 
+  async function signInDemo(email: string, password: string) {
+    if (!matchesMockDemoCredentials(email, password)) {
+      return { ok: false, message: "The demo email or password is incorrect." };
+    }
+    if (authStatus.effectiveMode === "supabase_auth") {
+      try {
+        await fetch("/api/auth/logout", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { Accept: "application/json", "Content-Type": "application/json" },
+          body: "{}"
+        });
+      } catch {
+        // A mock demo session never receives protected server authorization,
+        // so an unavailable Supabase logout cannot elevate it.
+      }
+    }
+    activateMockDemoSession();
+    setSession(createDemoSession());
+    return { ok: true, message: "Demo account is ready." };
+  }
+
+  async function signInWithPhone(phone: string) {
+    if (authStatus.effectiveMode !== "supabase_auth") {
+      return { ok: false, message: authStatus.caveat };
+    }
+    const normalizedPhone = phone.replace(/[\s()-]/g, "");
+    if (!/^\+[1-9]\d{7,14}$/.test(normalizedPhone)) {
+      return { ok: false, message: "Enter the phone number with country code, for example +971501234567." };
+    }
+    const supabase = await loadSupabaseBrowserClient();
+    if (!supabase) return { ok: false, message: authStatus.caveat };
+    clearMockDemoSession();
+    const { error } = await supabase.auth.signInWithOtp({
+      phone: normalizedPhone,
+      options: { channel: "sms", shouldCreateUser: true }
+    });
+    if (error) {
+      return { ok: false, message: "Phone sign-in is not connected yet. Use email or the demo account." };
+    }
+    return { ok: true, message: "Enter the six-digit code sent to your phone." };
+  }
+
+  async function verifyPhoneCode(phone: string, code: string) {
+    const normalizedPhone = phone.replace(/[\s()-]/g, "");
+    const normalizedCode = code.trim();
+    if (!/^\+[1-9]\d{7,14}$/.test(normalizedPhone) || !/^\d{6}$/.test(normalizedCode)) {
+      return { ok: false, message: "Enter the six-digit code from the SMS." };
+    }
+    const supabase = await loadSupabaseBrowserClient();
+    if (!supabase) return { ok: false, message: authStatus.caveat };
+    const { error } = await supabase.auth.verifyOtp({
+      phone: normalizedPhone,
+      token: normalizedCode,
+      type: "sms"
+    });
+    if (error) return { ok: false, message: "The code is invalid or expired. Request a new code." };
+    await refreshSession();
+    return { ok: true, message: "Phone verified. You are signed in." };
+  }
+
+  async function register(email: string) {
+    return signIn(email);
+  }
+
   async function signOut() {
+    clearMockDemoSession();
     clearBrowserDemoStorage();
     if (authStatus.effectiveMode === "supabase_auth") {
       try {
@@ -231,6 +279,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     authStatus,
     roleLabel: formatRole(session.projectRole),
     signIn,
+    signInDemo,
+    signInWithPhone,
+    verifyPhoneCode,
     register,
     signOut,
     refreshSession

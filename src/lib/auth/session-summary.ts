@@ -77,20 +77,6 @@ export async function getSafeAuthSessionSummary(request: Request) {
 
   const user = context.user;
   const profile = context.profile;
-  const assurance = context.supabase
-    ? await context.supabase.auth.mfa.getAuthenticatorAssuranceLevel()
-    : null;
-  const mfa = assurance && !assurance.error
-    ? {
-        currentLevel: assurance.data.currentLevel,
-        nextLevel: assurance.data.nextLevel,
-        requiresChallenge: assurance.data.nextLevel === "aal2" && assurance.data.currentLevel !== "aal2"
-      }
-    : {
-        currentLevel: null,
-        nextLevel: null,
-        requiresChallenge: false
-      };
 
   return {
     ...base,
@@ -110,7 +96,6 @@ export async function getSafeAuthSessionSummary(request: Request) {
       email: user.email ?? null
     },
     profile,
-    mfa,
     organization: null,
     projectRole: null,
     membership: null,

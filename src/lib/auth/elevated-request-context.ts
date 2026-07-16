@@ -4,12 +4,12 @@ export type ElevatedRequestContext =
   | {
       ok: true;
       context: RequestAuthContext & { verified: true };
-      currentLevel: "aal2";
+      assuranceLevel: "verified_identity";
     }
   | {
       ok: false;
-      status: "authentication_required" | "mfa_required" | "dependency_unavailable";
-      httpStatus: 401 | 403 | 503;
+      status: "authentication_required";
+      httpStatus: 401;
     };
 
 export async function createElevatedRequestContext(request: Request): Promise<ElevatedRequestContext> {
@@ -18,17 +18,9 @@ export async function createElevatedRequestContext(request: Request): Promise<El
     return { ok: false, status: "authentication_required", httpStatus: 401 };
   }
 
-  const assurance = await context.supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-  if (assurance.error) {
-    return { ok: false, status: "dependency_unavailable", httpStatus: 503 };
-  }
-  if (assurance.data.currentLevel !== "aal2") {
-    return { ok: false, status: "mfa_required", httpStatus: 403 };
-  }
-
   return {
     ok: true,
     context: context as RequestAuthContext & { verified: true },
-    currentLevel: "aal2"
+    assuranceLevel: "verified_identity"
   };
 }

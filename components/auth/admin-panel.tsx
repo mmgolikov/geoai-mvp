@@ -1,6 +1,4 @@
 "use client";
-
-import Link from "next/link";
 import { useState } from "react";
 
 type JsonRecord = Record<string, unknown>;
@@ -42,9 +40,7 @@ export function AdminPanel() {
       const result = await response.json() as { ok?: unknown; status?: unknown; data?: unknown };
       if (!response.ok || result.ok !== true) {
         setSnapshot(null);
-        setMessage(result.status === "mfa_required"
-          ? "An AAL2 session is required. Verify MFA before opening the Admin workspace."
-          : "The organization snapshot is unavailable or this account is not authorized.");
+        setMessage("The organization snapshot is unavailable or this account is not authorized.");
         return;
       }
       setSnapshot(record(result.data));
@@ -72,9 +68,7 @@ export function AdminPanel() {
       });
       const result = await response.json() as { ok?: unknown; status?: unknown; data?: unknown; acceptPath?: unknown };
       if (!response.ok || result.ok !== true) {
-        setMessage(result.status === "mfa_required"
-          ? "An AAL2 session is required for this action."
-          : "The action was denied, invalid or conflicted with a newer row version.");
+        setMessage("The action was denied, invalid or conflicted with a newer row version.");
         return null;
       }
       if (typeof result.acceptPath === "string") setAcceptPath(result.acceptPath);
@@ -112,18 +106,13 @@ export function AdminPanel() {
   return (
     <section className="mx-auto max-w-7xl px-4 py-8">
       <div className="rounded-lg border border-line bg-white p-6 shadow-sm">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">AAL2 administration</p>
-            <h1 className="mt-3 text-3xl font-semibold text-ink">Organization Admin workspace</h1>
-            <p className="mt-3 max-w-3xl text-sm leading-6 text-muted">
-              All writes use the authenticated 14-RPC API allowlist, optimistic row versions and append-only audit.
-              This candidate UI is not active in Production.
-            </p>
-          </div>
-          <Link href="/mfa?next=/admin" className="inline-flex h-10 items-center justify-center rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink transition hover:border-brand">
-            Verify or manage MFA
-          </Link>
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">Organization administration</p>
+          <h1 className="mt-3 text-3xl font-semibold text-ink">Organization Admin workspace</h1>
+          <p className="mt-3 max-w-3xl text-sm leading-6 text-muted">
+            All writes use the authenticated 14-RPC API allowlist, optimistic row versions and append-only audit.
+            This candidate UI is not active in Production.
+          </p>
         </div>
 
         <div className="mt-6 grid gap-3 md:grid-cols-[1fr_auto]">

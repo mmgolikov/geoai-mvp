@@ -9,6 +9,7 @@ const sourceCustodyPath = "supabase/migrations/20260716113000_geoai_source_custo
 const activationPath = "supabase/migrations/20260716164451_geoai_auth_admin_project_activation_rebuild_v1.sql";
 const foreignKeyIndexPath = "supabase/migrations/20260716172000_geoai_foreign_key_index_hardening_v1.sql";
 const lifecycleRemediationPath = "supabase/migrations/20260716175210_geoai_auth_admin_lifecycle_remediation_v1.sql";
+const authSimplificationPath = "supabase/migrations/20260716213214_simplify_auth_remove_mfa_requirement.sql";
 const rehearsalReceiptPath = "docs/SUPABASE_AUTH_REHEARSAL_RECEIPT_2026_07_16.json";
 
 function runNodeCheck(script) {
@@ -27,7 +28,7 @@ const activation = runNodeCheck("scripts/auth-admin-project-activation-rebuild-c
 const foreignKeyIndexes = runNodeCheck("scripts/foreign-key-index-hardening-check.mjs");
 const lifecycleRemediation = runNodeCheck("scripts/auth-admin-lifecycle-remediation-check.mjs");
 const dataApiOperator = runNodeCheck("scripts/data-api-operator-check.mjs");
-const files = [canonicalBaseline, foundationPath, containmentPath, identityPath, sourceCustodyPath, activationPath, foreignKeyIndexPath, lifecycleRemediationPath];
+const files = [canonicalBaseline, foundationPath, containmentPath, identityPath, sourceCustodyPath, activationPath, foreignKeyIndexPath, lifecycleRemediationPath, authSimplificationPath];
 const missingFiles = files.filter((file) => !existsSync(file));
 const staticChecksPassed = [chain, security, identity, sourceCustody, activation, foreignKeyIndexes, lifecycleRemediation, dataApiOperator].every((result) => result.status === 0);
 const rehearsalReceiptPresent = existsSync(rehearsalReceiptPath);
@@ -40,8 +41,8 @@ const output = {
   ok: missingFiles.length === 0 && staticChecksPassed && !privilegedApplicationEnvDetected,
   canonicalBaseline,
   foundationPath,
-  pendingMigrations: [containmentPath, identityPath, sourceCustodyPath, activationPath, foreignKeyIndexPath, lifecycleRemediationPath],
-  pendingTarget: "development has six pending candidates; all six are applied and evidenced only on the isolated Free rehearsal",
+  pendingMigrations: [containmentPath, identityPath, sourceCustodyPath, activationPath, foreignKeyIndexPath, lifecycleRemediationPath, authSimplificationPath],
+  pendingTarget: "development has seven pending candidates; the first six are applied and evidenced only on the isolated Free rehearsal, while the MFA-removal product decision remains unapplied everywhere",
   rehearsalEvidence: {
     projectRef: "bkmfcjzalcvdsdvyxpgi",
     receipt: rehearsalReceiptPath,
@@ -70,7 +71,7 @@ const output = {
     ...(privilegedApplicationEnvDetected ? ["Privileged Supabase/database credentials are present in this application runtime."] : []),
     "Development still lacks the pre-ledger geoai_healthcheck ledger reconciliation; the isolated rehearsal is reconciled.",
     "A development-derived upgrade replay and zero-drift decision have not been certified; full clean replay is certified only on the isolated rehearsal.",
-    "Real application HTTP Auth/MFA/browser personas have not been certified; hosted rehearsal SQL personas pass 183/183.",
+    "Real application HTTP email/phone/browser personas have not been certified; hosted rehearsal SQL personas pass 183/183 before the pending MFA-removal override.",
     "Development source-custody and source-read personas have not been certified; rehearsal SQL coverage does not connect a source.",
     "The development Data API schema boundary is not confirmed; the isolated rehearsal is pinned to api-only and has positive/negative HTTP evidence."
   ],
@@ -78,7 +79,7 @@ const output = {
     "Use the isolated rehearsal receipt as evidence only for that exact project; do not infer development or Production readiness.",
     "Before any development push, verify the development geoai_healthcheck fingerprint and reconcile version 20260705100000.",
     "Run a development-derived upgrade replay with drift/advisor comparison under an exact-ref owner-approved plan.",
-    "Implement and prove real HTTP Auth/MFA/browser Admin personas against the rehearsal before development activation.",
+    "Apply the MFA-removal override only with exact rehearsal approval, then prove real HTTP email/phone/browser Admin personas before development activation.",
     "For development, expose only the approved api schema (or disable Data API) and repeat direct-public denial evidence.",
     "Use npm run supabase:migrate:apply only after exact development target approval, backup and rollback evidence."
   ],

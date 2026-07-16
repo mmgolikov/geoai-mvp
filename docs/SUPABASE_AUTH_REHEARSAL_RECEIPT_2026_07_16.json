@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "1.5",
+  "schemaVersion": "1.6",
   "receiptType": "isolated_supabase_auth_admin_rehearsal",
   "recordedAt": "2026-07-16T19:25:48Z",
   "costAuthorization": {
@@ -44,6 +44,16 @@
     "seedProfiles": 1,
     "storageBuckets": 4,
     "storageObjectPolicies": 0
+  },
+  "pendingProductDecision": {
+    "migrationVersion": "20260716213214",
+    "migrationName": "simplify_auth_remove_mfa_requirement",
+    "behavior": "verified permanent identity replaces the Admin AAL2 requirement; the legacy helper remains only as a compatibility wrapper",
+    "appliedToRehearsal": false,
+    "appliedToDevelopment": false,
+    "appliedToProduction": false,
+    "requiresSeparateExactTargetApproval": true,
+    "historicalReceiptStillDescribesFirstSixMigrations": true
   },
   "dataApi": {
     "authenticatorSetting": "pgrst.db_schemas=api",
@@ -159,13 +169,14 @@
     "verificationLimits": [
       "The available Vercel connector does not enumerate or mutate project environment values, so deletion and final names/scopes are owner-confirmed from the dashboard rather than independently machine-read.",
       "The available Supabase connector does not expose legacy-key enabled/disabled state, so legacy-key disablement is owner-confirmed.",
-      "Rendered browser and real email/Auth/MFA/Admin personas are separate AUTH-01 evidence and remain open."
+      "Rendered browser and real email/phone/Admin personas are separate AUTH-01 evidence and remain open; phone delivery also requires an owner-configured SMS provider.",
+      "The later no-MFA verified-identity migration is recorded as pending and was not applied by this receipt."
     ],
     "status": "closed_for_non_production_preview_integration"
   },
   "notYetCertified": [
-    "real HTTP signup, email confirmation, login, refresh, logout and callback",
-    "real MFA enrollment, verification, recovery and factor removal",
+    "real HTTP email sign-in-link, callback, refresh and logout",
+    "real phone OTP delivery and verification after SMS provider configuration",
     "first real platform owner bootstrap",
     "authenticated api.create_invitation/accept_invitation/revoke_invitation concurrency through real caller sessions",
     "resource-specific Admin pagination beyond the bounded initial snapshot",

@@ -1,12 +1,11 @@
 const approvedAuthDestinations = new Set([
   "/admin",
-  "/mfa",
   "/onboarding",
   "/projects",
   "/workspace"
 ]);
 
-export function getSafeAuthRedirectPath(value: string | null | undefined, fallback = "/onboarding") {
+export function getSafeAuthRedirectPath(value: string | null | undefined, fallback = "/workspace") {
   const candidate = value?.trim();
   if (!candidate || !candidate.startsWith("/") || candidate.startsWith("//") || candidate.includes("\\")) {
     return fallback;

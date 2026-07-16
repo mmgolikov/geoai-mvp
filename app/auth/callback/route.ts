@@ -27,12 +27,5 @@ export async function GET(request: Request) {
     return redirect(requestUrl, "/login?auth_error=callback_failed");
   }
 
-  const assurance = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-  if (!assurance.error && assurance.data.nextLevel === "aal2" && assurance.data.currentLevel !== "aal2") {
-    const mfaUrl = new URL("/mfa", requestUrl.origin);
-    mfaUrl.searchParams.set("next", next);
-    return applyPrivateNoStore(NextResponse.redirect(mfaUrl));
-  }
-
   return redirect(requestUrl, next);
 }

@@ -118,7 +118,7 @@ for (const file of await collectRouteFiles(apiRoot)) {
         (firstSensitive >= 0 && denialIndex > firstSensitive) ||
         !/return\s+privateNoStoreJson\s*\(/.test(denialWindow)
       ) {
-        failures.push(`${relative} ${handler.method}: org_admin AAL2 denial must precede body parsing and api RPC execution`);
+        failures.push(`${relative} ${handler.method}: org_admin verified-identity denial must precede body parsing and api RPC execution`);
       }
       continue;
     }

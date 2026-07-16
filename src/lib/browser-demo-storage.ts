@@ -1,4 +1,5 @@
 export const browserDemoStorageNamespace = "geoai-public-demo-v2";
+export const mockDemoBrowserSessionKey = "geoai-mock-demo-session-v1";
 
 const legacyBrowserDemoStorageKeys = [
   "geoai-active-project-key-v1",
@@ -15,7 +16,13 @@ const legacyBrowserDemoStoragePrefixes = ["geoai-print-report:"] as const;
 
 export function isBrowserDemoStorageEnabled() {
   const requestedMode = process.env.NEXT_PUBLIC_AUTH_MODE?.trim();
-  return !requestedMode || requestedMode === "demo_public";
+  if (!requestedMode || requestedMode === "demo_public") return true;
+  if (typeof window === "undefined") return false;
+  try {
+    return window.localStorage.getItem(mockDemoBrowserSessionKey) === "active";
+  } catch {
+    return false;
+  }
 }
 
 export function browserDemoStorageKey(name: string) {
