@@ -151,14 +151,14 @@ These changes implement the local request-scoped Auth/MFA/Admin/Onboarding candi
 | PR #87 source-pack merge | Completed | Exact-main CI and Production evidence; Production upstream remains disabled |
 | Canonical migration chain / GitHub #85 | Remains | Ephemeral clean replay passed; upgrade replay, drift, live Data API containment and RLS personas remain |
 | Spatial geometry/distribution / GitHub #80 | Remains | Rights, attribution, geometry QA and separate activation decision |
-| Auth/RBAC/Admin activation | Remains | AUTH-01 + DB-01 + user-context runtime evidence |
+| Auth/RBAC/Admin activation | Remains | ENV-01 is closed for the exact rehearsal Preview; AUTH-01 + DB-01 + real user-context runtime evidence remain |
 | Client file upload | Remains | STORAGE-01 |
 | Real sources or Production activation | Remains | SOURCE-01 migration execution/real personas/trusted worker, provider rights/custody, Preview evidence and explicit owner action |
 | Browser/print visual evidence | Not an approval hold | Unclaimed P1 verification under UX-01/PRINT-01; local production-server HTTP smoke does not imply rendered browser approval |
 
 ## Release decision
 
-- **GO** for continued public-demo development and the evidenced non-Production audit Preview on head `e999c5a07d3ced6c95f2eb44f6a5f03a9c17caea`; this does not authorize Production or external activation.
+- **GO** for continued public-demo development and the evidenced non-Production Auth-rehearsal Preview on head `8e0039260f4cf201b230288b6b02c48d2955600e`; this does not authorize Production or external activation.
 - **NO-GO** for protected client data, real Auth/RBAC/Admin, durable user writes, real source snapshots, source geometry/assets, Production upstream execution or pilot-readiness claims.
 - **No independent reviewer approval is required** at this phase; every NO-GO above is evidence-based and can be retired only by its acceptance criteria.
 
@@ -167,5 +167,7 @@ These changes implement the local request-scoped Auth/MFA/Admin/Onboarding candi
 The original audit worktree passed a clean dependency install (using an isolated npm cache), all then-current repository gates, `npm audit`, the Next.js production build, built-runtime API/guard probes, the security-header probe and critical route smoke checks. That point-in-time evidence is retained only for chronology.
 
 Head `e999c5a07d3ced6c95f2eb44f6a5f03a9c17caea` (tree `73b7c198813d6aede795b8b186bd4d58e741b181`) passed run `29500488408`; app and DB jobs succeeded and two evidence artifacts preserve quality/database receipts. Preview `dpl_CY7oNavQwu5ddkhRRLaR3FWTd3d9` is READY on the exact head. Its matrix returned expected 200 routes, 503 disabled/zero source pack, 400 invalid climate and CSP/HSTS/nosniff/frame-DENY headers; body sizes remain 5,164/4,411/18,284/5,164/8,221/4,292 B. Browser/mobile/keyboard/print evidence remains unclaimed. Production remains PR #87, and none of these GitHub/Vercel receipts applies Supabase, rotates credentials or activates Auth, Storage or providers; rehearsal database evidence is recorded separately.
+
+Exact Auth-rehearsal head `8e0039260f4cf201b230288b6b02c48d2955600e` (tree `4c4f007e74f189bf5acdb5de66f352cf9cd59edb`) passed Quality Gate run `29534323096`: application job `87741880884` and database job `87741880992` succeeded, with artifacts `8389906783` and `8389970353`. Preview `dpl_66rk4tVny9TmPjo7BKona5Xo1p1b` is READY. Hosted session/status evidence proves requested/effective `supabase_auth`, hard enforcement, `allowDemoPublic:false`, no anonymous demo identity and private/no-store responses; the Auth client bundles contain no legacy anon/service-role runtime names, and no Auth-route runtime error cluster was observed. This closes ENV-01 for non-Production Preview integration. Real email callback, MFA, Admin/onboarding and rendered-browser personas remain unclaimed AUTH-01 evidence.
 
 Required caveat: **Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.**

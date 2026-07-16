@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "1.4",
+  "schemaVersion": "1.5",
   "receiptType": "isolated_supabase_auth_admin_rehearsal",
   "recordedAt": "2026-07-16T19:25:48Z",
   "costAuthorization": {
@@ -21,8 +21,12 @@
   },
   "repository": {
     "baseRemoteHead": "cf0ee1903e8411eabf8e048c1d8e775a0454340c",
+    "candidateRemoteHead": "8e0039260f4cf201b230288b6b02c48d2955600e",
+    "candidateTree": "4c4f007e74f189bf5acdb5de66f352cf9cd59edb",
     "localBranch": "p0/db01-auth-rehearsal-rebuild-v1",
-    "pushed": false,
+    "remoteBranch": "audit/system-readiness-and-docs-v1",
+    "draftPullRequest": 97,
+    "pushed": true,
     "productionOrMainChanged": false
   },
   "database": {
@@ -132,12 +136,32 @@
     "forbiddenRuntimeValuesRecorded": false,
     "productionEnvironmentChanged": false,
     "mainChanged": false,
+    "exactRuntimeEvidence": {
+      "githubWorkflowRun": 29534323096,
+      "applicationJob": 87741880884,
+      "databaseJob": 87741880992,
+      "qualityArtifact": 8389906783,
+      "qualityArtifactDigest": "sha256:a59d7ea7323665abf51ca0dd75ec3cedc67768dcf532f7935c545417487a5f71",
+      "databaseArtifact": 8389970353,
+      "databaseArtifactDigest": "sha256:f8fc827cec263848def2f25d29da99900a3cc820b3b3cf56c25859d367817962",
+      "vercelDeployment": "dpl_66rk4tVny9TmPjo7BKona5Xo1p1b",
+      "vercelUrl": "https://geoai-jmlv4t456-geoaidev.vercel.app",
+      "vercelState": "READY",
+      "authMode": "supabase_auth",
+      "accessEnforcementMode": "hard",
+      "allowDemoPublic": false,
+      "anonymousSessionStatus": "claims_unverified",
+      "anonymousDemoIdentityReturned": false,
+      "legacyAnonRuntimeNameInAuthClientBundle": false,
+      "serviceRoleRuntimeNameInAuthClientBundle": false,
+      "runtimeErrorsForAuthRoutes": 0
+    },
     "verificationLimits": [
       "The available Vercel connector does not enumerate or mutate project environment values, so deletion and final names/scopes are owner-confirmed from the dashboard rather than independently machine-read.",
       "The available Supabase connector does not expose legacy-key enabled/disabled state, so legacy-key disablement is owner-confirmed.",
-      "A fresh exact-head Preview and hosted negative/Auth/browser evidence are still required before ENV-01 integration closure."
+      "Rendered browser and real email/Auth/MFA/Admin personas are separate AUTH-01 evidence and remain open."
     ],
-    "status": "owner_action_complete_fresh_preview_pending"
+    "status": "closed_for_non_production_preview_integration"
   },
   "notYetCertified": [
     "real HTTP signup, email confirmation, login, refresh, logout and callback",
@@ -150,7 +174,6 @@
     "Realtime authorization",
     "trusted source worker and real-source persistence",
     "development apply or drift certification",
-    "Production activation",
-    "fresh exact-head Vercel Preview and hosted negative/Auth/browser evidence after owner-confirmed credential evacuation"
+    "Production activation"
   ]
 }

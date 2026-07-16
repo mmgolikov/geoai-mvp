@@ -42,10 +42,11 @@ Acceptance:
 Priority: P0 / S0
 May run in parallel with: DB-01
 Blocks: AUTH-01 integration closure, protected persistence and any real-source promotion
+Status: **Closed for non-Production Preview integration on 2026-07-16**; Production was not changed.
 
 The candidate application no longer imports or requires a Supabase service-role credential or direct database URL. A privileged development Supabase credential was nevertheless observed in the existing public Preview environment. On 2026-07-16 the owner confirmed removal of `SUPABASE_SERVICE_ROLE_KEY` and the legacy anon variable from the Vercel Preview application, Shared-scope review, disablement of development legacy `anon`/`service_role` keys, and Preview-only configuration of the rehearsal URL, a modern publishable key, `supabase_auth`, hard enforcement and public-demo denial. No credential value was recorded.
 
-Current implementation: application runtime accepts only `sb_publishable_` keys; operator variables are isolated under `GEOAI_OPERATOR_*`; `.env.operator` is gitignored; target/write/backup/rollback/pre-ledger receipts bind project ref, Git HEAD and migration-tree SHA; tracked secret shapes are scanned in CI. Owner action closes the dashboard evacuation/legacy-disable step, but the available connectors cannot independently enumerate Vercel values or legacy-key state. Historical deployments remain non-evidence; a fresh exact-head Preview plus hosted negative/Auth checks is still mandatory.
+Current implementation: application runtime accepts only `sb_publishable_` keys; operator variables are isolated under `GEOAI_OPERATOR_*`; `.env.operator` is gitignored; target/write/backup/rollback/pre-ledger receipts bind project ref, Git HEAD and migration-tree SHA; tracked secret shapes are scanned in CI. Owner action closed the dashboard evacuation/legacy-disable step. Exact head `8e0039260f4cf201b230288b6b02c48d2955600e` passed Quality Gate run `29534323096`; fresh Preview `dpl_66rk4tVny9TmPjo7BKona5Xo1p1b` is READY and reports `supabase_auth`, hard access, `allowDemoPublic:false`, no anonymous demo identity, private/no-store session responses and no Auth-route runtime error cluster. Auth client bundles contain neither the legacy anon variable name nor service-role variable name. Historical deployments are not reused as evidence.
 
 Acceptance:
 
