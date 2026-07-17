@@ -1098,6 +1098,7 @@ export function AnalysisPanel({
                 <button
                   key={audience}
                   type="button"
+                  aria-pressed={exploreAudience === audience}
                   onClick={() => onExploreAudienceChange(audience)}
                   className={`h-8 rounded-md px-2 text-xs font-semibold transition ${
                     exploreAudience === audience

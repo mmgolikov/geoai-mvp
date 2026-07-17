@@ -210,7 +210,11 @@ export function ComparisonDashboard({
   }, [comparison.id]);
 
   return (
-    <section ref={dashboardRef} className="h-full min-h-0 overflow-y-auto bg-surface [scrollbar-width:thin]">
+    <section
+      ref={dashboardRef}
+      data-dashboard-comparison-id={comparison.id}
+      className="h-full min-h-0 overflow-y-auto bg-surface [scrollbar-width:thin]"
+    >
       <div className="flex h-full w-full min-w-0 flex-col">
         {/* Dashboard viewport contract: first overview must fit within workspace height and align with command panel footer; drill-down content starts below. */}
         <section className="flex h-full min-h-0 shrink-0 flex-col gap-3 p-3">
