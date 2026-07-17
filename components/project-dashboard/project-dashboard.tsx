@@ -414,6 +414,16 @@ function readActiveProjectKey() {
   }
 }
 
+function readStoredActiveProjectKey() {
+  if (!isBrowserDemoStorageEnabled()) return null;
+
+  try {
+    return window.localStorage.getItem(activeProjectStorageKey);
+  } catch {
+    return null;
+  }
+}
+
 function readActiveProjectSegment(projectKey?: string | null): ProjectSegment {
   try {
     const params = new URLSearchParams(window.location.search);
@@ -1010,12 +1020,24 @@ export function ProjectDashboard() {
       ? user.profile.defaultRole
       : getDefaultRoleForAudience(preferredSegment);
     const explicitContext = hasExplicitProjectContext();
+    const storedProjectKey = readStoredActiveProjectKey();
+    const storedProject = storedProjectKey
+      ? nextProjects.find((project) => project.projectKey === storedProjectKey)
+      : null;
     const nextActiveProjectKey = explicitContext
       ? readActiveProjectKey()
-      : nextProjects.find((project) => getProjectSegment(project) === preferredSegment)?.projectKey ?? demoProjects[0].projectKey;
+      : storedProject?.projectKey
+        ?? nextProjects.find((project) => getProjectSegment(project) === preferredSegment)?.projectKey
+        ?? demoProjects[0].projectKey;
     setProjects(nextProjects);
     setActiveProjectKey(nextActiveProjectKey);
-    setActiveProjectSegment(explicitContext ? readActiveProjectSegment(nextActiveProjectKey) : preferredSegment);
+    setActiveProjectSegment(
+      explicitContext
+        ? readActiveProjectSegment(nextActiveProjectKey)
+        : storedProject
+          ? getProjectSegment(storedProject)
+          : preferredSegment
+    );
     setProjectAudienceDraft(preferredSegment);
     setProjectRoleDraft(preferredRole);
     setLocalHistory(readLocalHistory());
