@@ -213,9 +213,9 @@ export function ComparisonDashboard({
     <section
       ref={dashboardRef}
       data-dashboard-comparison-id={comparison.id}
-      className="h-full min-h-0 overflow-y-auto bg-surface [scrollbar-width:thin]"
+      className="h-full min-h-0 max-w-full overflow-x-hidden overflow-y-auto bg-surface [scrollbar-width:thin]"
     >
-      <div className="flex h-full w-full min-w-0 flex-col">
+      <div className="flex h-full w-full min-w-0 max-w-full flex-col">
         {/* Dashboard viewport contract: first overview must fit within workspace height and align with command panel footer; drill-down content starts below. */}
         <section className="flex h-full min-h-0 shrink-0 flex-col gap-3 p-3">
           <header className="grid shrink-0 gap-3 rounded-lg border border-line bg-white p-3 shadow-sm lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
@@ -336,7 +336,7 @@ export function ComparisonDashboard({
                     <button
                       type="button"
                       onClick={() => onOpenCandidateDashboard(scorecard.item)}
-                      className="mt-3 inline-flex h-9 w-full items-center justify-center rounded-md border border-line bg-white px-3 text-xs font-semibold text-ink transition hover:border-brand"
+                      className="mt-3 inline-flex h-10 w-full items-center justify-center rounded-md border border-line bg-white px-3 text-xs font-semibold text-ink transition hover:border-brand sm:h-9"
                     >
                       Open dashboard
                     </button>
@@ -349,10 +349,15 @@ export function ComparisonDashboard({
 
         </section>
 
-        <section className="grid gap-4 p-3 pt-0">
-        <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
+        <section className="grid min-w-0 max-w-full gap-4 p-3 pt-0">
+        <section className="min-w-0 max-w-full overflow-hidden rounded-lg border border-line bg-white p-5 shadow-sm">
           <h2 className="text-lg font-semibold text-ink">Comparison Table</h2>
-          <div className="mt-4 overflow-x-auto">
+          <div
+            role="region"
+            aria-label="Comparison table"
+            tabIndex={0}
+            className="mt-4 w-full max-w-full overflow-x-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+          >
             <table className="w-full min-w-[900px] border-separate border-spacing-0 text-left text-sm">
               <thead>
                 <tr>

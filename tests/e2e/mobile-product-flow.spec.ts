@@ -170,6 +170,13 @@ test.describe("mobile product navigation, targets and visual evidence", () => {
     await expect(comparisonDashboard.getByRole("heading", { level: 1, name: "Candidate Comparison" })).toBeVisible();
     await expectNoHorizontalOverflow(page);
     await expectNoElementOverflow(comparisonDashboard, "Candidate comparison dashboard");
+    const comparisonTable = comparisonDashboard.getByRole("region", { name: "Comparison table" });
+    await expect(comparisonTable).toBeVisible();
+    const comparisonTableMetrics = await comparisonTable.evaluate((element) => ({
+      clientWidth: element.clientWidth,
+      scrollWidth: element.scrollWidth
+    }));
+    expect(comparisonTableMetrics.scrollWidth).toBeGreaterThan(comparisonTableMetrics.clientWidth);
     const exportButton = comparisonDashboard.getByRole("button", { name: "Export", exact: true });
     const backToMap = comparisonDashboard.getByRole("button", { name: "Back to map" });
     await expectMinimumTargetSize("Export", exportButton);

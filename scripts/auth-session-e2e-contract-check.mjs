@@ -101,6 +101,7 @@ for (const marker of [
   '"mobile-explore-setup.png"',
   '"mobile-comparison-dashboard.png"',
   '"mobile-comparison-report.png"',
+  'name: "Comparison table"',
   'name: "Create project"',
   'name: "Criteria-first"',
   'name: "Compare Candidates"',
