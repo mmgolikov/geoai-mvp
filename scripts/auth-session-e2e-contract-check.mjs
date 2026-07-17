@@ -6,6 +6,7 @@ const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 const packageJson = JSON.parse(read("package.json"));
 const config = read("playwright.config.ts");
 const spec = read("tests/e2e/auth-session-flow.spec.ts");
+const realEmailSpec = read("tests/e2e/real-email-auth-flow.spec.ts");
 const responsiveSpec = read("tests/e2e/auth-responsive-flow.spec.ts");
 const accessibilitySpec = read("tests/e2e/accessibility-workspace-flow.spec.ts");
 const projectComparisonAccessibilitySpec = read("tests/e2e/accessibility-project-comparison-flow.spec.ts");
@@ -14,6 +15,8 @@ const mobileGlobalNavigationSpec = read("tests/e2e/mobile-global-navigation.spec
 const productNavigation = read("components/product-navigation.tsx");
 const lighthouseBudgetScript = read("scripts/lighthouse-budget-check.mjs");
 const workflow = read(".github/workflows/geoai-quality-gate.yml");
+const operatorEnvExample = read(".env.operator.example");
+const publicEnvExample = read(".env.example");
 const failures = [];
 
 function requireText(source, text, message) {
@@ -28,6 +31,9 @@ if (packageJson.devDependencies?.["@axe-core/playwright"] !== "4.12.1") {
 }
 if (packageJson.scripts?.["test:e2e:auth-session"] !== "playwright test tests/e2e/auth-session-flow.spec.ts tests/e2e/auth-responsive-flow.spec.ts tests/e2e/accessibility-workspace-flow.spec.ts tests/e2e/accessibility-project-comparison-flow.spec.ts tests/e2e/mobile-product-flow.spec.ts tests/e2e/mobile-global-navigation.spec.ts") {
   failures.push("The focused Auth/session, responsive and accessibility Playwright command is missing");
+}
+if (packageJson.scripts?.["test:e2e:auth-real-persona"] !== "playwright test tests/e2e/real-email-auth-flow.spec.ts") {
+  failures.push("The explicit trusted-terminal real email Auth persona command is missing");
 }
 if (packageJson.devDependencies?.lighthouse !== "13.4.0") {
   failures.push("Lighthouse must stay exactly pinned to 13.4.0");
@@ -54,6 +60,53 @@ for (const marker of [
   "Sign out",
   "expectLoginRedirect(page, \"/workspace\")"
 ]) requireText(spec, marker, `Browser flow is missing ${marker}`);
+
+for (const marker of [
+  'const rehearsalProjectRef = "bkmfcjzalcvdsdvyxpgi"',
+  "GEOAI_REAL_AUTH_EMAIL",
+  "GEOAI_REAL_AUTH_PASSWORD",
+  "GEOAI_REAL_AUTH_EXPECTED_USER_ID",
+  "GEOAI_REAL_AUTH_PROJECT_REF",
+  "GEOAI_REAL_AUTH_RUN_APPROVAL",
+  "read-only:${expectedProjectRef}",
+  'realEmail === "demo@geoai.space"',
+  'realPassword === "111111"',
+  'target.hostname === "geoai-mvp.vercel.app"',
+  'page.request.get("/api/auth/session"',
+  'sessionStatus).toBe("supabase_user_with_profile")',
+  'name: "Open your profile"',
+  '"This is already your account email."',
+  '"The password confirmation does not match."',
+  'name: "Sign out"',
+  "geoai-mock-demo-session-v1"
+]) requireText(realEmailSpec, marker, `Real email Auth persona is missing ${marker}`);
+
+for (const marker of [
+  "GEOAI_REAL_AUTH_PROJECT_REF=bkmfcjzalcvdsdvyxpgi",
+  "GEOAI_REAL_AUTH_RUN_APPROVAL=",
+  "GEOAI_REAL_AUTH_EMAIL=",
+  "GEOAI_REAL_AUTH_PASSWORD=",
+  "GEOAI_REAL_AUTH_EXPECTED_USER_ID=",
+  "GEOAI_E2E_BASE_URL=",
+  "Never configure these values in the public"
+]) requireText(operatorEnvExample, marker, `Trusted operator environment example is missing ${marker}`);
+
+for (const forbidden of [
+  "GEOAI_REAL_AUTH_EMAIL",
+  "GEOAI_REAL_AUTH_PASSWORD",
+  "GEOAI_REAL_AUTH_EXPECTED_USER_ID",
+  "GEOAI_REAL_AUTH_RUN_APPROVAL"
+]) {
+  if (publicEnvExample.includes(forbidden)) {
+    failures.push(`${forbidden} must not appear in the public application environment example`);
+  }
+  if (workflow.includes(forbidden)) {
+    failures.push(`${forbidden} must not be consumed by the normal GitHub Quality Gate`);
+  }
+}
+if (workflow.includes("test:e2e:auth-real-persona")) {
+  failures.push("The real email Auth persona must remain an explicit trusted-terminal run, not an automatic Quality Gate step");
+}
 
 for (const marker of [
   '{ name: "desktop", width: 1440, height: 900 }',
@@ -123,7 +176,7 @@ for (const marker of [
   'name: /Workspace/',
   'name: /Projects/',
   'name: /Explore/',
-  'aria-current',
+  "aria-current",
   '"mobile-product-navigation.png"',
   'page.keyboard.press("Escape")',
   "expectNoHorizontalOverflow(page)"
@@ -184,4 +237,4 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-console.log("Auth/session E2E contract passed: bounded guest redirects, browser-only demo restoration, authenticated route navigation, logout re-gating, desktop/tablet/390px layout checks, serious/critical Axe scans, mobile target-size/visual evidence, Lighthouse budgets, keyboard-only browser-local project save/open and analysis/comparison-to-print journeys are wired into CI without live credentials.");
+console.log("Auth/session E2E contract passed: bounded guest redirects, browser-only demo restoration, authenticated route navigation, logout re-gating, desktop/tablet/390px layout checks, serious/critical Axe scans, mobile target-size/visual evidence, Lighthouse budgets, keyboard-only browser-local project save/open and analysis/comparison-to-print journeys are wired into normal CI without live credentials; a separately approved rehearsal-only real email/password persona can be run read-only from a trusted terminal.");
