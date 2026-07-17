@@ -196,7 +196,7 @@ Tracks: GitHub [#95](https://github.com/mmgolikov/geoai-mvp/issues/95)
 
 The audit branch fixes the confirmed dialog focus/Escape/background isolation and criteria-control accessible-name defects. Treat those edits as unverified until this task supplies browser evidence.
 
-Current candidate slice: the permanent Playwright command now discovers desktop/tablet/390px landing-login layout checks, no-horizontal-overflow assertions, a 40px primary mobile entry-control baseline and a Tab/Enter-only mock demo → Workspace → profile journey. Static wiring/discovery/TypeScript validation pass locally; exact-head Chrome CI is still required. This is a bounded first slice, not closure of UX-01 or the Axe/deep Workspace/project/report/print acceptance below.
+Completed bounded slice: exact head `e203e895406817497f339fccf1d04da377a7bc65`, Quality Gate `29584919107`, passed desktop/tablet/390px landing-login layout checks, no-horizontal-overflow assertions, a 40px primary mobile entry-control baseline and a Tab/Enter-only mock demo → Workspace → profile journey in Chrome `5/5` / `41.5 s`. This is not closure of UX-01 or the Axe/deep Workspace/project/report/print acceptance below.
 
 Acceptance:
 
