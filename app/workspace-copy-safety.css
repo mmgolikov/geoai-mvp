@@ -1,0 +1,44 @@
+/*
+ * Workspace copy-safety rules for compact mobile layouts.
+ *
+ * These rules intentionally change presentation only. They preserve the
+ * existing workflow, role/scenario state and data-honesty boundary while
+ * preventing user-facing labels from being clipped or replaced by ellipses.
+ */
+
+@media (max-width: 429px) {
+  /* Native select values cannot wrap. Give role/scenario pairs the full row. */
+  aside .grid.grid-cols-2:has(> label > select) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* Let compact workflow labels use the document flow instead of clipping. */
+  aside label.truncate,
+  aside label .truncate,
+  aside button .truncate,
+  aside p.truncate {
+    min-width: 0;
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  /* Scenario summaries must remain fully readable at the 390 px target. */
+  aside .line-clamp-1 {
+    display: block;
+    overflow: visible;
+    -webkit-line-clamp: unset;
+    overflow-wrap: anywhere;
+  }
+
+  /* Multi-select chips may grow to two lines rather than hiding their meaning. */
+  aside button:has(> span.truncate) {
+    border-radius: 0.5rem;
+  }
+
+  aside button > span.truncate {
+    max-width: none;
+    line-height: 1rem;
+  }
+}
