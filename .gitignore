@@ -2,6 +2,9 @@ node_modules
 .npm-cache
 .next
 out
+artifacts/
+playwright-report/
+test-results/
 .env
 .env.local
 .env*.local

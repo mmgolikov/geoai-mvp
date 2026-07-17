@@ -111,6 +111,12 @@ jobs:
           set -euo pipefail
           npm run test:auth-admin-ui | tee artifacts/auth-admin-ui-check.txt
 
+      - name: Auth session E2E wiring checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:auth-session-e2e-contract | tee artifacts/auth-session-e2e-contract-check.txt
+
       - name: Auth mutation-origin checks
         shell: bash
         run: |
@@ -270,6 +276,48 @@ jobs:
         run: |
           set -euo pipefail
           npm run test:runtime-source-pack | tee artifacts/runtime-source-pack-check.txt
+
+      - name: Browser Auth/session flow
+        shell: bash
+        env:
+          NEXT_PUBLIC_AUTH_MODE: supabase_auth
+          NEXT_PUBLIC_SUPABASE_URL: https://bkmfcjzalcvdsdvyxpgi.supabase.co
+          E2E_KEY_SUFFIX: geoai_ci_browser_contract_only
+          GEOAI_ACCESS_ENFORCEMENT_MODE: hard
+          GEOAI_ALLOW_DEMO_PUBLIC: "false"
+          GEOAI_E2E_BASE_URL: http://127.0.0.1:3100
+        run: |
+          set -euo pipefail
+          export NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="sb_publishable_${E2E_KEY_SUFFIX}"
+          npm run dev -- -p 3100 > /tmp/geoai-e2e-next.log 2>&1 &
+          APP_PID=$!
+          cleanup() {
+            cp /tmp/geoai-e2e-next.log artifacts/auth-session-e2e-next.log 2>/dev/null || true
+            kill "$APP_PID" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          READY=0
+          for attempt in $(seq 1 90); do
+            if curl --fail --silent --show-error http://127.0.0.1:3100/login > /dev/null; then
+              READY=1
+              break
+            fi
+            if ! kill -0 "$APP_PID" 2>/dev/null; then
+              cat /tmp/geoai-e2e-next.log
+              exit 1
+            fi
+            sleep 1
+          done
+
+          if [ "$READY" -ne 1 ]; then
+            cat /tmp/geoai-e2e-next.log
+            echo "E2E app did not become ready within 90 seconds." >&2
+            exit 1
+          fi
+
+          google-chrome --version | tee artifacts/google-chrome-version.txt
+          npm run test:e2e:auth-session | tee artifacts/auth-session-e2e.txt
 
       - name: Build
         shell: bash

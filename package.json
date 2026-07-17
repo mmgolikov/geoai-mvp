@@ -39,6 +39,8 @@
     "test:access-decision": "node scripts/access-decision-check.mjs",
     "test:auth-ssr-transport": "node scripts/auth-ssr-transport-check.mjs",
     "test:auth-admin-ui": "node scripts/auth-admin-ui-check.mjs",
+    "test:auth-session-e2e-contract": "node scripts/auth-session-e2e-contract-check.mjs",
+    "test:e2e:auth-session": "playwright test tests/e2e/auth-session-flow.spec.ts",
     "test:user-profile": "node scripts/user-profile-check.mjs",
     "test:supabase-exact-target": "node scripts/supabase-exact-target-check.mjs",
     "test:auth-mutation-origin": "node --experimental-strip-types scripts/auth-mutation-origin-check.mjs",
@@ -88,6 +90,7 @@
     "react-dom": "^19.2.7"
   },
   "devDependencies": {
+    "@playwright/test": "1.61.1",
     "@types/geojson": "^7946.0.16",
     "@types/node": "^22.20.1",
     "@types/react": "^19.2.14",
