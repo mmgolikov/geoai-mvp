@@ -1,7 +1,7 @@
 # GeoAI Codex Backlog — 2026-07-16
 
 Status: Active, implementation-ready
-Last verified: 2026-07-16
+Last verified: 2026-07-17
 Owner: GeoAI Engineering
 Authority: Executable residual work and acceptance criteria
 Successor: None; any replacement must update `DOCUMENTATION_INDEX.md`
@@ -204,10 +204,12 @@ Completed third bounded slice: exact head `0edf442f7aa59f0fe1f82f26ef6ad7ca9dde7
 
 Completed fourth bounded slice: exact head `32267fdea6a5f71d0bcc47e2f4821dd3da173352`, Quality Gate `29596337090`, passed Chrome `10/10` / `1.1m`; five fixed-time 390px screenshot baselines matched within `1%`, used primary targets met 40px, nine Axe surfaces stayed at zero and mobile landing/desktop login Lighthouse budgets passed. The browser work exposed and fixed comparison-container overflow and a non-wrapping winner label. Global mobile navigation, additional devices/deep-route performance and real users remain open, so UX-01 stays active.
 
+Completed fifth bounded slice: exact head `80645d64662699bd646f96718d300df5d2b84f5f`, Quality Gate `29611412924`, passed Chrome `12/12` / `1.7m`; the authenticated 430×932 one-action product menu covers Workspace, Projects and Explore with current-route, Escape/focus-return, outside-pointer, target-size and overflow assertions; 834×1112 retains direct navigation; a sixth screenshot baseline matches; and mobile Projects/desktop Explore Lighthouse budgets pass. Field Core Web Vitals, broader device/route coverage and real users remain open, so UX-01 stays active.
+
 Acceptance:
 
 - map/dialog opening moves focus inside, traps Tab/Shift+Tab, closes on Escape, returns focus to the opener and hides inert background content from assistive technology;
-- desktop, tablet and 390px mobile critical journeys have automated Playwright checks;
+- desktop, 834px tablet and 390/430px mobile critical journeys have automated Playwright checks;
 - axe or equivalent has no critical/serious findings on Hub, Workspace, Projects, Explore and print routes;
 - keyboard-only criteria-first/map-first switching, project save/open and report print are covered;
 - visual regressions are reviewed against stable fixtures, not stitched full-page screenshot artefacts.

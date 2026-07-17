@@ -5,6 +5,7 @@ import process from "node:process";
 const root = process.cwd();
 const exactMain = "2999e7e857989baf53ce58ecfed63550b5896be0";
 const productionDeployment = "dpl_EAXREH31JKznnGbQYEU8bNqTqagN";
+const minimumVerificationDate = "2026-07-16";
 
 const activeDocs = [
   "README.md",
@@ -109,8 +110,9 @@ for (const relativePath of activeDocs) {
   if (!/^Status:\s+/m.test(content)) {
     failures.push(`${relativePath}: active document has no Status field`);
   }
-  if (!/^Last verified:\s+2026-07-16\s*$/m.test(content)) {
-    failures.push(`${relativePath}: active document is not explicitly verified on 2026-07-16`);
+  const verifiedDate = content.match(/^Last verified:\s+(\d{4}-\d{2}-\d{2})\s*$/m)?.[1];
+  if (!verifiedDate || verifiedDate < minimumVerificationDate) {
+    failures.push(`${relativePath}: active document is not explicitly verified on or after ${minimumVerificationDate}`);
   }
   for (const field of ["Owner", "Authority", "Successor"]) {
     if (!new RegExp(`^${field}:\\s+\\S`, "m").test(content)) {

@@ -3,7 +3,7 @@
 Use this checklist before demos, Vercel deployments, and milestone checkpoints.
 
 Status: Active checklist
-Last verified: 2026-07-16
+Last verified: 2026-07-17
 Owner: GeoAI Engineering / QA
 Authority: Current verification and release-gate criteria
 Successor: None; any replacement must update `DOCUMENTATION_INDEX.md`
@@ -12,7 +12,7 @@ Navigation: [Documentation Index](DOCUMENTATION_INDEX.md) · [Current Release St
 
 This checklist primarily verifies the unreleased Draft PR #97 audit candidate. Production remains on PR #87: use only built-in synthetic fixtures and do not enter/upload user/client AOIs, CSV, GeoJSON, filenames, evidence or dynamic package data until the containment candidate is merged and deployed. The released `/explore` source UI boundary is also not verified despite the source API returning 503.
 
-Exact-head receipt: head `e999c5a07d3ced6c95f2eb44f6a5f03a9c17caea`, tree `73b7c198813d6aede795b8b186bd4d58e741b181`; run `29500488408`, app job `87627894974` and DB job `87627894968` succeeded. Quality artifact `8376235675` and database artifact `8376300064` preserve separate receipts. Preview `dpl_CY7oNavQwu5ddkhRRLaR3FWTd3d9` is READY at `https://geoai-oni3o8lwu-geoaidev.vercel.app`. HTTP/API/security and response-size receipts are not browser-flow evidence; the later responsive Auth receipt below claims only its narrow desktop/mobile/keyboard path, not print or deep product behavior.
+Exact-head receipt: head `80645d64662699bd646f96718d300df5d2b84f5f`, tree `0fb7982f3a9cbd40366a84fdfb715a083ba26cde`; run `29611412924`, app job `87986721079` and DB job `87986721050` succeeded. Quality artifact `8418943293` and database artifact `8418941261` preserve separate receipts. Preview `dpl_94eRMRsM8NJR2hdmYE1zLLbiQE8b` is READY at `https://geoai-ln4ohqv5m-geoaidev.vercel.app`. Browser evidence is bounded to the mock session and declared routes/viewports/lab profiles; real-user authorization and field telemetry remain separate gates.
 
 ## Mandatory pre-Auth / real-source gates
 
@@ -475,11 +475,12 @@ Exact-head receipt: head `e999c5a07d3ced6c95f2eb44f6a5f03a9c17caea`, tree `73b7c
 - [ ] Project Hub records its exact initial request count and response bytes on the same exact-SHA build; the current six-request public baseline (projects, DB status, market metrics, external-data status, platform status and pilot status) must not regress, candidate compact source budgets pass, and aggregation/snapshot options are measured before a performance claim.
 - [x] Workspace result-only comparison/dashboard/report surfaces are lazy and the same local production-build comparison records First Load JS 252 kB → 218 kB (34 kB, approximately 13.5% gzip). **Exact-SHA Preview response-size/HTTP evidence passes; route bundle, browser-flow and Core Web Vitals evidence remain pending.**
 - [ ] `preserveDrawingBuffer` is enabled only for an explicit capture path; route JS, build, API latency and Core Web Vitals budgets pass on the declared desktop/mobile profiles.
-- [ ] Mobile navigation exposes Workspace and Projects; each critical route has one meaningful `h1`, labelled project/candidate/audience controls, correct pressed/expanded/disabled states, useful live regions and WCAG 2.2-sized interactive targets.
-- [ ] Lighthouse, visual regression and remaining multi-device/navigation/target-size journeys cover the declared critical surfaces; no active control targets a guaranteed 403.
+- [x] Mobile navigation exposes Workspace, Projects and Explore in one action at 430×932; direct navigation remains visible at 834×1112; each declared critical route has one meaningful `h1`, named controls/current-route state and used 40px-or-larger targets. Exact head `80645d64662699bd646f96718d300df5d2b84f5f`, Quality Gate `29611412924`, Chrome `12/12`.
+- [ ] Field Core Web Vitals and broader device/route coverage extend the current four-profile Lighthouse and 390/430/834px browser matrix; no active control targets a guaranteed 403.
 - [x] Bounded accessibility/deep-keyboard slice passes on exact head `5d7af89ac2ead5b4df545e2f1810d5966c22cd0e`, Quality Gate `29587485235`: Chrome `6/6` in `41.6 s`; Axe `0` serious/critical on Landing Hub, unified login, Workspace setup, analysis dashboard and printable report; Tab/Enter-only mock flow switches Map-first to Criteria-first, searches/selects a candidate, analyzes, exports and focuses `Print / Save as PDF`. **Projects/Explore Axe, criteria-first comparison, project save/open, visual regression, Lighthouse/Core Web Vitals and real users remain open.**
 - [x] Expanded project/comparison slice passes on exact head `0edf442f7aa59f0fe1f82f26ef6ad7ca9dde7868`, Quality Gate `29590190286`: Chrome `8/8` in `1.4m`; all nine Axe surfaces report `0` serious/critical, including Projects, Explore, comparison and printable comparison; Tab/Enter-only mock flows create/persist/reload/open a browser-local project and compare/export/print a criteria-first shortlist. **Visual regression, Lighthouse/Core Web Vitals, remaining responsive/navigation/target-size acceptance and real users remain open.**
-- [x] Bounded mobile visual/performance slice passes on exact head `32267fdea6a5f71d0bcc47e2f4821dd3da173352`, Quality Gate `29596337090`: Chrome `10/10` in `1.1m`; five 390px screenshot baselines match within `1%`; used primary controls meet 40px; outer comparison overflow is rejected while the wide table stays in a named focusable scroll region; mobile landing Lighthouse is `0.99` (LCP `2075 ms`, CLS `0`, TBT `59 ms`) and desktop login is `1.00` (LCP `748 ms`, CLS `0`, TBT `0`). **Global mobile navigation, additional device/deep-route budgets and real users remain open.**
+- [x] Bounded mobile visual/performance slice passes on exact head `32267fdea6a5f71d0bcc47e2f4821dd3da173352`, Quality Gate `29596337090`: Chrome `10/10` in `1.1m`; five 390px screenshot baselines match within `1%`; used primary controls meet 40px; outer comparison overflow is rejected while the wide table stays in a named focusable scroll region; mobile landing Lighthouse is `0.99` (LCP `2075 ms`, CLS `0`, TBT `59 ms`) and desktop login is `1.00` (LCP `748 ms`, CLS `0`, TBT `0`).
+- [x] Global-navigation/deep-performance slice passes on exact head `80645d64662699bd646f96718d300df5d2b84f5f`, Quality Gate `29611412924`: Chrome `12/12` in `1.7m`; the 430×932 navigation baseline matches, 834×1112 direct navigation passes, all nine Axe surfaces remain at zero serious/critical, mobile Projects is `0.97` (LCP `2398 ms`, CLS `0`, TBT `83.5 ms`) and desktop Explore is `1.00` (LCP `582 ms`, CLS `0.0109`, TBT `0`). **Field Core Web Vitals, broader device/route coverage and real users remain open.**
 
 ## Responsive Checks
 

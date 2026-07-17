@@ -1,7 +1,7 @@
 # GeoAI Current Release State
 
 Status: Canonical repository release snapshot
-Last verified: 2026-07-16
+Last verified: 2026-07-17
 Owner: GeoAI Release Engineering
 Authority: Exact released and candidate runtime evidence
 Successor: None; any replacement must update `DOCUMENTATION_INDEX.md`
@@ -42,26 +42,28 @@ The accessibility/deep-keyboard increment adds exact-pinned `@axe-core/playwrigh
 
 The expanded accessibility/project/comparison increment raises the focused suite to eight tests and nine zero-finding Axe surfaces. Its keyboard-only Projects flow creates a browser-local project, proves local persistence, reloads Project Hub, restores that project as active and opens it in Workspace. Its keyboard-only Explore flow runs criteria-first search, compares the unselected shortlist, exports the comparison and focuses the printable report control. CI exposed a real Project Hub defect: a stored active local project was discarded on reload in favor of the default profile segment; the implementation now restores a valid stored project after explicit URL context and before profile defaults. Exact functional head `0edf442f7aa59f0fe1f82f26ef6ad7ca9dde7868` passed Quality Gate `29590190286`; Chrome `150.0.7871.114` completed `8/8` in `1.4m`, and both application and isolated database jobs succeeded. This remains browser-only mock evidence and does not close visual regression, Lighthouse/Core Web Vitals, all mobile/target-size acceptance or real-user authorization personas.
 
-The next bounded mobile/visual/performance increment raises the suite to ten tests. At 390×844 it creates/restores/opens a project and completes criteria-first compare/export/print while measuring the used primary controls against a 40px application target. Five exact Chrome/Linux screenshots are now regression baselines with a `1%` maximum differing-pixel ratio. The wide comparison table is contained in a named focusable scroll region; the outer dashboard has no horizontal overflow and the winner label wraps. Pinned Lighthouse `13.4.0` audits the mobile landing and desktop login on the built app and enforces category plus LCP/CLS/TBT budgets. Exact head `32267fdea6a5f71d0bcc47e2f4821dd3da173352` passed Quality Gate `29596337090`; this closes only the declared 390px/entry-surface slice, not mobile global navigation, additional devices, deep-route performance or real-user authorization.
+The next bounded mobile/visual/performance increment raises the suite to ten tests. At 390×844 it creates/restores/opens a project and completes criteria-first compare/export/print while measuring the used primary controls against a 40px application target. Five exact Chrome/Linux screenshots are now regression baselines with a `1%` maximum differing-pixel ratio. The wide comparison table is contained in a named focusable scroll region; the outer dashboard has no horizontal overflow and the winner label wraps. Pinned Lighthouse `13.4.0` audits the mobile landing and desktop login on the built app and enforces category plus LCP/CLS/TBT budgets. Exact head `32267fdea6a5f71d0bcc47e2f4821dd3da173352` passed Quality Gate `29596337090`.
 
-## Current mobile/visual/Lighthouse evidence
+The global-navigation/deep-performance increment raises the suite to twelve tests. At 430×932 an authenticated user opens a named one-action product menu beside the highlighted profile control and reaches Workspace, Projects and Explore; current-route semantics, outside-pointer/Escape dismissal, Escape focus restoration, 40px targets and no horizontal overflow are enforced. At 834×1112 the same three destinations stay directly visible. One CI-generated Chrome/Linux PNG is the exact navigation baseline. Lighthouse now additionally audits mobile Projects and desktop Explore on the built app. Exact head `80645d64662699bd646f96718d300df5d2b84f5f` passed Quality Gate `29611412924`; this closes the declared mobile global-navigation, 430px/834px and Projects/Explore lab-budget slice, not field Core Web Vitals, every device/route or real-user authorization.
+
+## Current global-navigation/mobile/visual/Lighthouse evidence
 
 | Candidate receipt | Verified value |
 | --- | --- |
-| Functional head | `32267fdea6a5f71d0bcc47e2f4821dd3da173352`, Draft PR #97; `main` unchanged |
-| Git tree | `dac48ab7dbd93802d4f5bb28584d47483735b43f` |
-| GitHub Quality Gate | Run `29596337090`, success |
-| Application job | `87937539033`, success; Chrome, visual regression, Lighthouse, production build and route/API smoke passed |
-| Chrome browser result | `Google Chrome 150.0.7871.114`; Playwright `10/10` passed in `1.1m` |
+| Functional head | `80645d64662699bd646f96718d300df5d2b84f5f`, Draft PR #97; `main` unchanged |
+| Git tree | `0fb7982f3a9cbd40366a84fdfb715a083ba26cde` |
+| GitHub Quality Gate | Run `29611412924`, success |
+| Application job | `87986721079`, success; Chrome, visual regression, four Lighthouse audits, production build and route/API smoke passed |
+| Chrome browser result | `Google Chrome 150.0.7871.114`; Playwright `12/12` passed in `1.7m` |
 | Axe result | `0` serious/critical on Landing Hub, unified login, Workspace setup, Projects Hub, Explore setup, analysis dashboard, candidate comparison dashboard and both printable analysis/comparison reports |
-| Mobile visual/target result | Five 390px screenshot baselines matched within `1%`; used primary controls met 40px; document/dashboard overflow rejected; wide table has a named focusable scroll region |
-| Lighthouse result | Mobile landing performance `0.99`, LCP `2075 ms`, CLS `0`, TBT `59 ms`; desktop login performance `1.00`, LCP `748 ms`, CLS `0`, TBT `0`; accessibility/best-practices/SEO `1.00` on both |
-| Supabase replay/rehearsal/pgTAP | Job `87937539005`, success; clean `183/183`, synthetic ledger-prefix upgrade rehearsal, second `183/183` |
-| Quality artifact | `8413223166`, `geoai-quality-evidence-29596337090`, digest `sha256:eed425b6a2f4af8256f52cb1184d5feba098761a48147f3ca5bb646f435d50a0` |
-| Database artifact | `8413255960`, `geoai-database-evidence-29596337090`, digest `sha256:73347a0fae80bca0f1c97d9b5e9cabf66a005da3f926be4c8d05c69591a8383b` |
-| Exact Vercel Preview | `dpl_77DXr2wR1qKdm8Mk4q7bUSDw4CEx`, READY on exact functional head; [deployment](https://geoai-dr82vysld-geoaidev.vercel.app) |
-| Hosted HTTP/security | Landing, Projects, Explore, bounded Explore login, project-context Workspace, health, activation status and seeded comparison print returned 200; CSP, HSTS and `nosniff` are present; error-only build and error/fatal runtime evidence is empty |
-| Authority boundary | Browser-only mock UX/accessibility/local-persistence plus bounded 390px visual and entry-performance evidence; no real key/user, Supabase write/migration, RLS/Admin persona, Production promotion, global mobile-navigation, additional-device/deep-route budget or full UX-01 claim |
+| Mobile visual/target result | Five 390px product baselines plus one 430×932 navigation baseline matched; used primary controls met 40px; document/dashboard overflow rejected; 834×1112 keeps direct product navigation visible |
+| Lighthouse result | Mobile landing performance `0.99`, LCP `2096 ms`, CLS `0`, TBT `77 ms`; desktop login `1.00`, LCP `771 ms`, CLS `0`, TBT `0`; mobile Projects `0.97`, LCP `2398 ms`, CLS `0`, TBT `83.5 ms`; desktop Explore `1.00`, LCP `582 ms`, CLS `0.0109`, TBT `0`; accessibility/best-practices/SEO `1.00` on all four |
+| Supabase replay/rehearsal/pgTAP | Job `87986721050`, success; clean `183/183`, synthetic ledger-prefix upgrade rehearsal, second `183/183` |
+| Quality artifact | `8418943293`, `geoai-quality-evidence-29611412924`, digest `sha256:3112ace57e3b6c7e020c0d19dbc737cc7bfa148564b7e8a636e1fd77f1aa6619` |
+| Database artifact | `8418941261`, `geoai-database-evidence-29611412924`, digest `sha256:b30a4df40f2840a4f4b5bc8528beb2076eef95e0d7700345e03c37c8878005a7` |
+| Exact Vercel Preview | `dpl_94eRMRsM8NJR2hdmYE1zLLbiQE8b`, READY on exact functional head; [deployment](https://geoai-ln4ohqv5m-geoaidev.vercel.app) |
+| Hosted HTTP/security | Landing, login, register, Workspace, Projects, Explore, Profile and Admin returned 200; CI security/header contracts passed; exact-deployment error-only build and error/fatal runtime evidence is empty |
+| Authority boundary | Browser-only mock UX/accessibility/local-persistence plus bounded 390/430/834px visual/navigation and four-profile lab-performance evidence; no real key/user, Supabase write/migration, RLS/Admin persona, Production promotion, field Core Web Vitals, every-device/route or full UX-01 claim |
 
 ## Current accessibility/deep-keyboard browser increment evidence
 
