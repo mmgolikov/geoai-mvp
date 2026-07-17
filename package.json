@@ -40,7 +40,7 @@
     "test:auth-ssr-transport": "node scripts/auth-ssr-transport-check.mjs",
     "test:auth-admin-ui": "node scripts/auth-admin-ui-check.mjs",
     "test:auth-session-e2e-contract": "node scripts/auth-session-e2e-contract-check.mjs",
-    "test:e2e:auth-session": "playwright test tests/e2e/auth-session-flow.spec.ts",
+    "test:e2e:auth-session": "playwright test tests/e2e/auth-session-flow.spec.ts tests/e2e/auth-responsive-flow.spec.ts",
     "test:user-profile": "node scripts/user-profile-check.mjs",
     "test:supabase-exact-target": "node scripts/supabase-exact-target-check.mjs",
     "test:auth-mutation-origin": "node --experimental-strip-types scripts/auth-mutation-origin-check.mjs",

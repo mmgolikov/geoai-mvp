@@ -44,7 +44,7 @@ GeoAI remains a public demo prototype. Production is `demo_only`, `local_fallbac
 1. Resolve the live UX/a11y/performance audit backlog.
 2. Define and implement the missing criteria-first wireflow and empty/stub product documents.
 3. Modularize Workspace, Project Dashboard, Map and Analysis surfaces with regression coverage.
-4. Establish visual regression and multi-device browser tests for critical B2B/B2C journeys.
+4. Establish visual regression and multi-device browser tests for critical B2B/B2C journeys. The current candidate supplies the narrow first slice—desktop/tablet/390px landing/login layout plus a 390px keyboard-only mock-demo/profile path—but Chrome CI, Axe/Lighthouse and deep Workspace/project/report/print coverage remain required.
 
 ## Source activation sequence
 

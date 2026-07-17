@@ -6,6 +6,7 @@ const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 const packageJson = JSON.parse(read("package.json"));
 const config = read("playwright.config.ts");
 const spec = read("tests/e2e/auth-session-flow.spec.ts");
+const responsiveSpec = read("tests/e2e/auth-responsive-flow.spec.ts");
 const workflow = read(".github/workflows/geoai-quality-gate.yml");
 const failures = [];
 
@@ -16,8 +17,8 @@ function requireText(source, text, message) {
 if (packageJson.devDependencies?.["@playwright/test"] !== "1.61.1") {
   failures.push("@playwright/test must stay exactly pinned to 1.61.1");
 }
-if (packageJson.scripts?.["test:e2e:auth-session"] !== "playwright test tests/e2e/auth-session-flow.spec.ts") {
-  failures.push("The focused Auth/session Playwright command is missing");
+if (packageJson.scripts?.["test:e2e:auth-session"] !== "playwright test tests/e2e/auth-session-flow.spec.ts tests/e2e/auth-responsive-flow.spec.ts") {
+  failures.push("The focused Auth/session and responsive Playwright command is missing");
 }
 
 for (const [text, message] of [
@@ -38,6 +39,18 @@ for (const marker of [
   "Sign out",
   "expectLoginRedirect(page, \"/workspace\")"
 ]) requireText(spec, marker, `Browser flow is missing ${marker}`);
+
+for (const marker of [
+  '{ name: "desktop", width: 1440, height: 900 }',
+  '{ name: "tablet", width: 834, height: 1112 }',
+  '{ name: "mobile-390", width: 390, height: 844 }',
+  "expectNoHorizontalOverflow(page)",
+  "Primary mobile controls must have a rendered box",
+  'control.href === "/login?next=/workspace&intent=demo"',
+  'control.text === "Use demo credentials"',
+  'control.text === "Open demo"',
+  'control.label === "Open demo profile"'
+]) requireText(responsiveSpec, marker, `Responsive/keyboard browser flow is missing ${marker}`);
 
 const browserStepStart = workflow.indexOf("- name: Browser Auth/session flow");
 const buildStepStart = workflow.indexOf("- name: Build", browserStepStart);
@@ -64,4 +77,4 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-console.log("Auth/session E2E contract passed: bounded guest redirects, browser-only demo restoration, authenticated route navigation and logout re-gating are wired into CI without live credentials.");
+console.log("Auth/session E2E contract passed: bounded guest redirects, browser-only demo restoration, authenticated route navigation, logout re-gating, desktop/tablet/390px layout checks and a mobile keyboard-only journey are wired into CI without live credentials.");

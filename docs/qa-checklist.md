@@ -480,6 +480,7 @@ Exact-head receipt: head `e999c5a07d3ced6c95f2eb44f6a5f03a9c17caea`, tree `73b7c
 
 ## Responsive Checks
 
+- [ ] Candidate Playwright coverage is wired for 1440px desktop, 834px tablet and 390px mobile landing/login layouts, horizontal overflow, primary mobile entry targets and a keyboard-only demo → Workspace → profile path. Promote this line to passed only after exact-head Chrome CI evidence; it does not cover Axe/Lighthouse or deep product/print flows.
 - [ ] Homepage renders on desktop.
 - [ ] Workspace renders on desktop.
 - [ ] Workspace remains usable on tablet width.
