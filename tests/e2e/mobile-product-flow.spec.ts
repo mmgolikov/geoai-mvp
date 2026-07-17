@@ -46,6 +46,9 @@ async function expectMinimumTargetSize(label: string, locator: Locator, minimum 
 }
 
 async function captureVisualEvidence(page: Page, label: string, fileName: string) {
+  await page.evaluate(() => {
+    document.querySelector("nextjs-portal")?.remove();
+  });
   await page.evaluate(async () => {
     await document.fonts.ready;
   });
@@ -170,6 +173,8 @@ test.describe("mobile product navigation, targets and visual evidence", () => {
     await expect(comparisonDashboard.getByRole("heading", { level: 1, name: "Candidate Comparison" })).toBeVisible();
     await expectNoHorizontalOverflow(page);
     await expectNoElementOverflow(comparisonDashboard, "Candidate comparison dashboard");
+    const comparisonPageHeight = await page.evaluate(() => document.documentElement.scrollHeight);
+    expect(comparisonPageHeight, "Mobile comparison must not reserve desktop-sized blank regions").toBeLessThan(9_000);
     const comparisonTable = comparisonDashboard.getByRole("region", { name: "Comparison table" });
     await expect(comparisonTable).toBeVisible();
     const comparisonTableMetrics = await comparisonTable.evaluate((element) => ({
