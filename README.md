@@ -32,6 +32,8 @@ The landing header and hero expose `View demo` and `Leave a request`. Both open 
 
 Exact functional head `232fb532db1e5bc1dcf134ca1d616e4506f682f0` passed [Quality Gate 29572587381](https://github.com/mmgolikov/geoai-mvp/actions/runs/29572587381). Vercel Preview `dpl_G5vcKVQCHypacP9foGpAJ4Egwu5k` is READY at [geoai-obetsesdv-geoaidev.vercel.app](https://geoai-obetsesdv-geoaidev.vercel.app); hosted HTTP checks returned 200 for the profile, login, workspace, health and activation-status routes. Rendered browser interaction and real-user Auth personas remain unclaimed.
 
+The landing/Auth-continuation follow-up is published at exact functional head `bdb7f0629c39838e2e3451925825699df7f84fc0`, which passed [Quality Gate 29576709336](https://github.com/mmgolikov/geoai-mvp/actions/runs/29576709336). Vercel Preview `dpl_HNLx2RCVTYKjnHvxhi8mEoHpLgfa` is READY at [geoai-4yyjv5qfd-geoaidev.vercel.app](https://geoai-4yyjv5qfd-geoaidev.vercel.app); hosted checks found both landing actions and exact Auth targets and returned 200 for both login intents, profile, Workspace, health and activation status. No exact-deployment build or error/fatal runtime log was found. This remains hosted HTTP/static evidence, not rendered-browser or real-user Auth proof.
+
 ## Implemented Features
 
 - Homepage and `/workspace` application shell
