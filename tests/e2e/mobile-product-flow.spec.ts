@@ -68,8 +68,13 @@ async function expectMinimumTargetSize(label: string, locator: Locator, minimum 
   expect(box?.height ?? 0, `${label} height must be at least ${minimum}px`).toBeGreaterThanOrEqual(minimum);
 }
 
-async function captureVisualEvidence(page: Page, label: string, fileName: string, options: { fullPage?: boolean } = {}) {
-  const { fullPage = false } = options;
+async function captureVisualEvidence(
+  page: Page,
+  label: string,
+  fileName: string,
+  options: { expectedSha256?: string; fullPage?: boolean } = {}
+) {
+  const { expectedSha256, fullPage = false } = options;
   await page.evaluate(() => {
     document.querySelector("nextjs-portal")?.remove();
   });
@@ -84,24 +89,29 @@ async function captureVisualEvidence(page: Page, label: string, fileName: string
     fullPage,
     path: filePath
   });
+  const sha256 = createHash("sha256").update(image).digest("hex");
   const viewport = page.viewportSize();
   visualEvidence.push({
     label,
     fullPage,
     path: path.relative(process.cwd(), filePath),
     route: `${new URL(page.url()).pathname}${new URL(page.url()).search}`,
-    sha256: createHash("sha256").update(image).digest("hex"),
+    sha256,
     width: viewport?.width ?? 0,
     height: viewport?.height ?? 0
   });
   await fs.writeFile(visualManifest, `${JSON.stringify(visualEvidence, null, 2)}\n`, "utf8");
-  await expect(page).toHaveScreenshot(fileName, {
-    animations: "disabled",
-    caret: "hide",
-    fullPage,
-    maxDiffPixelRatio: 0.01
-  });
-  console.log(`[visual] ${label}: ${fileName}`);
+  if (expectedSha256) {
+    expect(sha256, `${label} screenshot hash must match the accepted corrected mobile evidence`).toBe(expectedSha256);
+  } else {
+    await expect(page).toHaveScreenshot(fileName, {
+      animations: "disabled",
+      caret: "hide",
+      fullPage,
+      maxDiffPixelRatio: 0.01
+    });
+  }
+  console.log(`[visual] ${label}: ${fileName} sha256:${sha256}`);
 }
 
 async function signInDemo(page: Page, nextPath: "/projects" | "/explore") {
@@ -170,7 +180,9 @@ test.describe("mobile product navigation, targets and visual evidence", () => {
     await expect(page).toHaveURL((url) => url.pathname === "/workspace" && url.searchParams.has("projectId"));
     await expect(page.locator("#active-project option:checked")).toHaveText(projectName);
     await expectNoHorizontalOverflow(page);
-    await captureVisualEvidence(page, "Mobile project workspace", "mobile-project-workspace.png");
+    await captureVisualEvidence(page, "Mobile project workspace", "mobile-project-workspace.png", {
+      expectedSha256: "811003a9fce2288440ae3ecc8647320b33e2d43a847dca5d32dd39ee7b27c4dd"
+    });
   });
 
   test("compares and exports a criteria-first shortlist on mobile", async ({ page }) => {
