@@ -25,6 +25,7 @@ Exact-head receipt: head `e999c5a07d3ced6c95f2eb44f6a5f03a9c17caea`, tree `73b7c
 - [x] Browser/server Supabase Auth clients and PKCE callback require effective `supabase_auth`; Auth-cookie mutations retain exact same-origin enforcement even when Auth mode is off.
 - [x] Invitation token arrives only in a fragment, is immediately moved to a short-lived HttpOnly same-site cookie for the magic-link round trip, is cleared after successful acceptance and reaches Postgres only as SHA-256.
 - [x] The active product flow has no MFA enrollment, challenge, recovery, factor-management route or AAL2 redirect. Admin still requires a verified permanent Supabase identity and authorized role; the browser-only mock demo cannot satisfy this boundary.
+- [x] `/profile` statically covers full name, region, editable contact phone, browser-local JPEG/PNG/WebP avatar (1 MB), B2B/B2C role defaults, registered-email confirmation and password change. Server authorization does not read user-editable metadata; explicit Workspace project/analysis/guided-demo URLs override profile defaults. **Real hosted account actions, rendered browser evidence, protected avatar Storage and verified sign-in phone change remain pending.**
 - [x] User-facing repository client cannot select the Supabase service-role key.
 - [x] Exact-functional-content canonical migration chain replays cleanly from migration 1 to the candidate migration head on the ephemeral Supabase/Postgres/PostGIS target. **This does not prove upgrade replay, development drift or live apply.**
 - [x] Every canonical Supabase migration filename has a unique 14-digit CLI version; non-ledger duplicate-version drafts are quarantined outside `supabase/migrations`. **Replay certification remains separate.**
@@ -62,8 +63,9 @@ Exact-head receipt: head `e999c5a07d3ced6c95f2eb44f6a5f03a9c17caea`, tree `73b7c
 - [ ] `SUPABASE_SERVICE_ROLE_KEY` is not exposed in browser/client code.
 - [ ] `SUPABASE_SERVICE_ROLE_KEY` is absent from the public Preview runtime; privileged credentials belong only to an operator/worker plane. **Current status: credential presence was observed and remains a least-privilege blocker.**
 - [ ] `/api/db/health`, `/api/storage/health`, `/api/platform/activation-status` and `/api/security/rls-readiness` are static/sanitized public responses: no live probes, project ref, credential-presence flags, table/policy/bucket inventories or live record counts.
-- [x] `npm run build` passes for the local Auth/Admin candidate; `/workspace` and `/explore` First Load JS are 220 kB after mode-gated Supabase dynamic loading.
+- [x] `npm run build` passes for the local Auth/profile candidate; `/profile` is 120 kB and `/workspace`/`/explore` are 223 kB First Load JS after mode-gated Supabase dynamic loading.
 - [x] `npm run lint` passes for the local Auth/Admin candidate.
+- [x] `npm run test:user-profile` passes the local personal-field, photo-boundary, account-action and default-propagation contract.
 - [ ] `npm run test:vercel-output-tracing` passes after the production build; anonymous source routes trace only the reviewed manifest plus compact aggregate-quality files, never deep source snapshots.
 - [ ] `GET /api/pilot-backend/status` returns the minimal public DTO (`productStage`, environment/access/auth/repository/source dimensions, demo/confidential readiness) and omits runtime env-presence, project-ref, table/bucket and credential diagnostics.
 - [x] Candidate local API contract fixes public pilot `sourceMode` to `operator_only_disabled_for_public`; operator-token/flag presence cannot be inferred. **Exact Preview activation status is false/empty and the source pack returns 503; the pilot-status-specific remote matrix remains pending.**

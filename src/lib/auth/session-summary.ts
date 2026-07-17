@@ -2,6 +2,7 @@ import { getAuthModeStatus } from "@/src/lib/auth/auth-mode";
 import { createDemoProjectMembership, demoOrganization, demoProjectRole, demoUser } from "@/src/lib/auth/demo-session";
 import { createRequestAuthContext } from "@/src/lib/auth/request-context";
 import { getEnforcementConfig } from "@/src/lib/platform/enforcement-config";
+import { readGeoAIUserProfile } from "@/src/lib/auth/profile-preferences";
 
 export async function getSafeAuthSessionSummary(request: Request) {
   const authStatus = getAuthModeStatus();
@@ -77,6 +78,10 @@ export async function getSafeAuthSessionSummary(request: Request) {
 
   const user = context.user;
   const profile = context.profile;
+  const userProfile = readGeoAIUserProfile(null, {
+    fullName: profile.fullName,
+    phone: user.phone
+  });
 
   return {
     ...base,
@@ -88,8 +93,10 @@ export async function getSafeAuthSessionSummary(request: Request) {
     user: {
       id: user.id,
       email: user.email ?? profile.email,
-      name: profile.fullName ?? user.email ?? "Supabase Auth user",
-      isDemoUser: false
+      phone: user.phone ?? null,
+      name: userProfile.fullName,
+      isDemoUser: false,
+      profile: userProfile
     },
     supabaseUser: {
       id: user.id,

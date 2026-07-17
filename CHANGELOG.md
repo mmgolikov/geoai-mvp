@@ -11,6 +11,9 @@ Navigation: [Documentation Index](docs/DOCUMENTATION_INDEX.md) · [Current Relea
 
 ### Simplified Auth product decision
 
+- Added `/profile` with full name, region, contact phone, browser-local photo, registered-email change, password change and default B2B/B2C role selection. Workspace and Projects consume these defaults unless an explicit URL context is present; user-editable preference metadata never authorizes server access.
+- Added optional real email/password sign-in so a password created from the profile is usable, while retaining email-link signup/sign-in and the exact browser-only demo credentials. Direct verified sign-in phone change remains disabled pending a safe provider/backend flow; avatar upload remains browser-local until STORAGE-01.
+- Added `test:user-profile` plus local `/profile` production-build/HTTP evidence. No live Supabase project, Storage policy, Production deployment or migration was changed.
 - Added an explicit `Sign in` action to the landing header, landing hero and shared product navigation so `/login` is discoverable on desktop and mobile instead of existing as a hidden direct URL. The shared action exposes a stable sign-in/account accessibility label as its session state changes.
 - Replaced the separate registration, MFA and technical invitation flow with one `/login` experience for email, phone and demo access. Email login now creates the user when needed; phone OTP code paths are implemented but still require an external SMS provider.
 - Added the ready browser-only mock account `demo@geoai.space` / `111111`. The demo session enables only sample/browser-local behavior and is never accepted by protected server APIs, Admin, customer data or durable writes.

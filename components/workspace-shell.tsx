@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
 import { AnalysisPanel } from "@/components/analysis-panel";
 import { MapWorkspace } from "@/components/map-workspace";
+import { useAuth } from "@/components/auth/auth-provider";
 import {
   createEvidenceItem,
   getDataSourceById
@@ -545,6 +546,12 @@ function readProjectKeyFromUrl(projects: GeoAIProject[]) {
   return projects.find((project) => project.id === projectId || project.projectKey === projectId)?.projectKey ?? null;
 }
 
+function hasExplicitWorkspaceContext() {
+  const params = new URLSearchParams(window.location.search);
+  return ["projectKey", "projectId", "guidedDemo", "demoNarrativeId", "openAnalysis"]
+    .some((key) => params.has(key));
+}
+
 function writeActiveProjectKey(projectKey: string) {
   if (!isBrowserDemoStorageEnabled()) return;
 
@@ -758,6 +765,7 @@ export function WorkspaceShell({
   initialExploreMode = false,
   spatialSourceRequest
 }: WorkspaceShellProps) {
+  const { user } = useAuth();
   const mapSectionRef = useRef<HTMLDivElement | null>(null);
   const workflowPanelRef = useRef<HTMLDivElement | null>(null);
   const mobileMapDialogRef = useRef<HTMLElement | null>(null);
@@ -871,8 +879,10 @@ export function WorkspaceShell({
   const visibleProjects = projects.filter((project) => getProjectSegment(project) === selectedExploreAudience);
   const projectSelectorProjects = visibleProjects.length > 0 ? visibleProjects : [getDefaultProjectForAudience(projects, selectedExploreAudience)];
 
-  function applyExploreDefaultsForAudience(audience: ExploreAudience) {
-    const nextRole = getDefaultRoleForAudience(audience);
+  function applyExploreDefaultsForAudience(audience: ExploreAudience, preferredRole?: ExploreRole) {
+    const nextRole = preferredRole && isExploreRoleForAudience(audience, preferredRole)
+      ? preferredRole
+      : getDefaultRoleForAudience(audience);
     const nextScenarioId = getDefaultScenarioForRole(audience, nextRole);
     const nextScenario = getExploreScenario(nextScenarioId);
     const nextAnalysisScenario = exploreScenarioToAnalysisScenario(nextScenarioId);
@@ -1113,10 +1123,14 @@ export function WorkspaceShell({
 
   useEffect(() => {
     const requestedProjectKey = readProjectKeyFromUrl(demoProjects);
-    const storedProjectKey = requestedProjectKey ?? readActiveProjectKey();
     const localProjects = mergeProjectsWithLocal(demoProjects);
+    const explicitContext = hasExplicitWorkspaceContext();
+    const preferredAudience = user?.profile.defaultAudience ?? "b2b";
+    const preferredRole = user?.profile.defaultRole ?? getDefaultRoleForAudience(preferredAudience);
+    const preferredProject = getDefaultProjectForAudience(localProjects, preferredAudience);
+    const storedProjectKey = requestedProjectKey ?? (explicitContext ? readActiveProjectKey() : preferredProject.projectKey);
     const resolvedLocalProject = localProjects.find((project) => project.projectKey === storedProjectKey);
-    const localProject = resolvedLocalProject ?? demoProjects[0];
+    const localProject = resolvedLocalProject ?? preferredProject;
     let isMounted = true;
 
     if (!resolvedLocalProject && storedProjectKey !== localProject.projectKey) {
@@ -1129,7 +1143,8 @@ export function WorkspaceShell({
 
     setProjects(localProjects);
     setActiveProject(localProject);
-    applyExploreDefaultsForProject(localProject);
+    if (explicitContext) applyExploreDefaultsForProject(localProject);
+    else applyExploreDefaultsForAudience(preferredAudience, preferredRole);
 
     fetch("/api/projects")
       .then((response) => (response.ok ? response.json() : null))
@@ -1146,7 +1161,8 @@ export function WorkspaceShell({
         setProjects(nextProjects);
         setProjectsMode(payload.mode);
         setActiveProject(nextActiveProject);
-        applyExploreDefaultsForProject(nextActiveProject);
+        if (explicitContext) applyExploreDefaultsForProject(nextActiveProject);
+        else applyExploreDefaultsForAudience(preferredAudience, preferredRole);
         writeActiveProjectKey(nextActiveProject.projectKey);
       })
       .catch(() => {
@@ -1154,14 +1170,15 @@ export function WorkspaceShell({
           setProjects(localProjects);
           setProjectsMode("demo_seed");
           setActiveProject(localProject);
-          applyExploreDefaultsForProject(localProject);
+          if (explicitContext) applyExploreDefaultsForProject(localProject);
+          else applyExploreDefaultsForAudience(preferredAudience, preferredRole);
         }
       });
 
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [user?.id, user?.profile.defaultAudience, user?.profile.defaultRole]);
 
   useEffect(() => {
     const localHistory = readAnalysisHistory();

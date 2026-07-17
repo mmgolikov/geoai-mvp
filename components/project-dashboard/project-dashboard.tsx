@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useAuth } from "@/components/auth/auth-provider";
 import externalDataManifestStatic from "@/data/external/normalized/external_data_manifest.json";
 import dldMarketSnapshotStatic from "@/data/normalized/dld_market_snapshot.json";
 import openGeodataSnapshotStatic from "@/data/normalized/open_geodata_snapshot.json";
@@ -12,6 +13,11 @@ import { demoProjects, getDemoProject } from "@/src/data/demo-projects";
 import { getClientPilotPackageForProject } from "@/src/data/pilot-packages";
 import { getSupabaseFallbackMessage } from "@/src/lib/data-readiness";
 import { deriveDecisionPosture } from "@/src/lib/decision-posture";
+import {
+  getDefaultRoleForAudience,
+  getExploreRolesByAudience,
+  isExploreRoleForAudience
+} from "@/src/lib/explore/scenarios";
 import { normalizeSourceStatus, sourceStatusToLabel } from "@/src/lib/external-data/source-status";
 import { buildSourceReadinessGroups, sourceReadinessSummary } from "@/src/lib/external-data/source-readiness-groups";
 import { sourceDataModeLabel } from "@/src/lib/external-data/source-modes";
@@ -428,6 +434,11 @@ function readActiveProjectSegment(projectKey?: string | null): ProjectSegment {
   } catch {
     return "b2b";
   }
+}
+
+function hasExplicitProjectContext() {
+  const params = new URLSearchParams(window.location.search);
+  return ["projectKey", "projectId", "segment"].some((key) => params.has(key));
 }
 
 function writeActiveProjectKey(projectKey: string) {
@@ -957,6 +968,7 @@ function getNextActions(project: GeoAIProject, importedMetricsCount: number) {
 }
 
 export function ProjectDashboard() {
+  const { user } = useAuth();
   const dataRoomFileInputRef = useRef<HTMLInputElement | null>(null);
   const [projects, setProjects] = useState<GeoAIProject[]>(demoProjects);
   const [projectsMode, setProjectsMode] = useState<"supabase" | "demo_seed">("demo_seed");
@@ -992,13 +1004,23 @@ export function ProjectDashboard() {
   const activeProjectIsDemoSeed = demoProjects.some((project) => project.projectKey === activeProjectKey);
 
   useEffect(() => {
-    const nextActiveProjectKey = readActiveProjectKey();
-    setProjects(mergeProjectsWithLocal(demoProjects));
+    const nextProjects = mergeProjectsWithLocal(demoProjects);
+    const preferredSegment = user?.profile.defaultAudience ?? "b2b";
+    const preferredRole = user?.profile.defaultRole && isExploreRoleForAudience(preferredSegment, user.profile.defaultRole)
+      ? user.profile.defaultRole
+      : getDefaultRoleForAudience(preferredSegment);
+    const explicitContext = hasExplicitProjectContext();
+    const nextActiveProjectKey = explicitContext
+      ? readActiveProjectKey()
+      : nextProjects.find((project) => getProjectSegment(project) === preferredSegment)?.projectKey ?? demoProjects[0].projectKey;
+    setProjects(nextProjects);
     setActiveProjectKey(nextActiveProjectKey);
-    setActiveProjectSegment(readActiveProjectSegment(nextActiveProjectKey));
+    setActiveProjectSegment(explicitContext ? readActiveProjectSegment(nextActiveProjectKey) : preferredSegment);
+    setProjectAudienceDraft(preferredSegment);
+    setProjectRoleDraft(preferredRole);
     setLocalHistory(readLocalHistory());
     setProjectAois(readBrowserAois());
-  }, []);
+  }, [user?.id, user?.profile.defaultAudience, user?.profile.defaultRole]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1874,7 +1896,7 @@ export function ProjectDashboard() {
                       onChange={(event) => {
                         const audience = event.target.value as LocalProjectInput["audience"];
                         setProjectAudienceDraft(audience);
-                        setProjectRoleDraft(audience === "b2b" ? "developer" : "home_buyer");
+                        setProjectRoleDraft(getDefaultRoleForAudience(audience));
                       }}
                       className="h-9 rounded-md border border-line bg-white px-2 text-xs font-semibold text-ink outline-none transition focus:border-brand"
                     >
@@ -1886,21 +1908,9 @@ export function ProjectDashboard() {
                       onChange={(event) => setProjectRoleDraft(event.target.value as LocalProjectInput["role"])}
                       className="h-9 rounded-md border border-line bg-white px-2 text-xs font-semibold text-ink outline-none transition focus:border-brand"
                     >
-                      {projectAudienceDraft === "b2b" ? (
-                        <>
-                          <option value="developer">Developer</option>
-                          <option value="real_estate_fund">Real estate fund</option>
-                          <option value="bank_lender">Bank / lender</option>
-                          <option value="family_office">Family office</option>
-                        </>
-                      ) : (
-                        <>
-                          <option value="home_buyer">Home buyer</option>
-                          <option value="tourist">Tourist</option>
-                          <option value="resident_expat">Resident / expat</option>
-                          <option value="family_relocation">Family relocation</option>
-                        </>
-                      )}
+                      {getExploreRolesByAudience(projectAudienceDraft).map((role) => (
+                        <option key={role.id} value={role.id}>{role.label}</option>
+                      ))}
                     </select>
                   </div>
                   <input

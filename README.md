@@ -26,6 +26,8 @@ The current MVP deliberately has no two-factor authentication. `/login` is the s
 
 The ready mock account is `demo@geoai.space` with password `111111`. These public credentials create browser-only demo state and sample-data access. They are not a Supabase identity, are never trusted by protected server APIs and cannot authorize Admin, customer data or durable writes. Migration `20260716213214_simplify_auth_remove_mfa_requirement.sql` is prepared but unapplied; it replaces the previous AAL2 check with a permanent verified-identity check while preserving roles, RLS, last-owner protection, optimistic concurrency and audit. Phone delivery additionally requires an external SMS provider and is not yet runtime-certified.
 
+The candidate now includes `/profile` as the authenticated account entry point. Users can edit full name, region, contact phone and default B2B/B2C role; those audience/role defaults initialize Workspace and Projects unless an explicit project, analysis or guided-demo URL is opened. Real-user profile fields are stored as non-authoritative Supabase Auth preferences and are never used for RBAC/RLS. Email confirmation and password change use the signed-in Auth client; a changed password can be used by the optional real email/password login path. Direct verified sign-in phone change is deliberately not exposed while the current provider flow has an unresolved ambiguous pending-number risk. Demo profile data and all avatar images are browser-local; avatar upload to protected Storage remains blocked under STORAGE-01.
+
 ## Implemented Features
 
 - Homepage and `/workspace` application shell
@@ -68,6 +70,7 @@ The ready mock account is `demo@geoai.space` with password `111111`. These publi
 - Pilot Workflow & Deliverables v2.0 read-only/seed UI for project-scoped client inputs, deliverables and caveated workflow-readiness scoring; public updates are blocked
 - Auth & Project Access Foundation v2.2 with public demo access mode, Supabase Auth readiness and compact access status indicators
 - Unreleased simplified Auth candidate with a single `/login` screen for email links, phone OTP and the isolated mock demo; `/register` and `/mfa` redirect to `/login`; server-hashed invitation links and `api`-only Admin RPCs remain, but the MFA-removal migration and real personas are not hosted-certified
+- Unreleased `/profile` personal account with full name, browser-local avatar, editable contact phone, registered-email change, password change, region and default B2B/B2C role applied to Workspace and Projects
 - Supabase/PostGIS Durable Persistence Foundation v2.3 with additive migration SQL, schema readiness checks, RLS draft and audit event foundation
 - Pilot Infrastructure Activation v2.4 with guarded migration/seed/verify scripts, activation status APIs, soft access metadata, audit integration, storage readiness and known limitations tracker
 - Validation Governance & Official Connector Readiness v2.5 for project validation evidence metadata, official connector readiness, report appendices and AI claim guardrails

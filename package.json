@@ -39,6 +39,7 @@
     "test:access-decision": "node scripts/access-decision-check.mjs",
     "test:auth-ssr-transport": "node scripts/auth-ssr-transport-check.mjs",
     "test:auth-admin-ui": "node scripts/auth-admin-ui-check.mjs",
+    "test:user-profile": "node scripts/user-profile-check.mjs",
     "test:supabase-exact-target": "node scripts/supabase-exact-target-check.mjs",
     "test:auth-mutation-origin": "node --experimental-strip-types scripts/auth-mutation-origin-check.mjs",
     "test:request-scoped-project-read": "node scripts/request-scoped-project-read-check.mjs",

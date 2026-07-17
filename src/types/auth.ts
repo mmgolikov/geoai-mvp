@@ -1,3 +1,5 @@
+import type { ExploreAudience, ExploreRole } from "@/src/lib/explore/types";
+
 export type GeoAIAuthMode = "demo_public" | "supabase_auth" | "disabled";
 
 export type GeoAIProjectRole = "owner" | "admin" | "analyst" | "viewer" | "client_viewer";
@@ -9,11 +11,26 @@ export type GeoAIOrganizationCapability =
   | "official_attestor"
   | "source_operator";
 
+export type GeoAIUserProfile = {
+  fullName: string;
+  region: string;
+  defaultAudience: ExploreAudience;
+  defaultRole: ExploreRole;
+  contactPhone: string;
+  avatarUrl: string | null;
+};
+
 export type GeoAIUser = {
   id: string;
-  email: string;
+  email: string | null;
+  phone: string | null;
   name: string;
   isDemoUser: boolean;
+  profile: GeoAIUserProfile;
+};
+
+export type GeoAIUserProfileUpdate = Omit<GeoAIUserProfile, "avatarUrl"> & {
+  avatarDataUrl: string | null;
 };
 
 export type GeoAIOrganization = {

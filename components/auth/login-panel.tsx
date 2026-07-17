@@ -16,6 +16,7 @@ export function LoginPanel() {
     isDemo,
     user,
     signIn,
+    signInWithPassword,
     signInDemo,
     signInWithPhone,
     verifyPhoneCode,
@@ -28,7 +29,8 @@ export function LoginPanel() {
   const [message, setMessage] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const normalizedIdentifier = identifier.trim().toLowerCase();
-  const demoSelected = normalizedIdentifier === mockDemoEmail || password.length > 0;
+  const demoSelected = normalizedIdentifier === mockDemoEmail;
+  const passwordSelected = password.length > 0;
   function destination() {
     return getSafeAuthRedirectPath(new URL(window.location.href).searchParams.get("next"), "/workspace");
   }
@@ -46,6 +48,13 @@ export function LoginPanel() {
     try {
       if (demoSelected) {
         const result = await signInDemo(identifier, password);
+        setMessage(result.message);
+        if (result.ok) window.location.assign(destination());
+        return;
+      }
+
+      if (passwordSelected) {
+        const result = await signInWithPassword(identifier, password);
         setMessage(result.message);
         if (result.ok) window.location.assign(destination());
         return;
@@ -107,6 +116,9 @@ export function LoginPanel() {
                   : "Your available projects are determined by your organization membership."}
               </p>
               <div className="mt-4 flex flex-wrap gap-2">
+                <Link href="/profile" className="inline-flex h-10 items-center justify-center rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink transition hover:border-brand">
+                  Open profile
+                </Link>
                 <Link href="/workspace" className="inline-flex h-10 items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white transition hover:bg-[#113f50]">
                   Open workspace
                 </Link>
@@ -141,7 +153,7 @@ export function LoginPanel() {
                     <label htmlFor="login-password" className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">
                       Password
                     </label>
-                    <span className="text-xs text-muted">Demo account only</span>
+                    <span className="text-xs text-muted">Optional for existing email accounts</span>
                   </div>
                   <input
                     id="login-password"
@@ -150,7 +162,7 @@ export function LoginPanel() {
                     value={password}
                     onChange={(event) => setPassword(event.target.value)}
                     className="h-12 rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition focus:border-brand"
-                    placeholder="Leave empty for email or phone"
+                    placeholder="Leave empty for a sign-in link or SMS code"
                   />
                 </div>
                 <button
@@ -158,7 +170,7 @@ export function LoginPanel() {
                   disabled={pending}
                   className="inline-flex h-12 items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white transition hover:bg-[#113f50] disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {pending ? "Please wait…" : demoSelected ? "Open demo" : isPhoneIdentifier(identifier) ? "Send code" : "Send sign-in link"}
+                  {pending ? "Please wait…" : demoSelected ? "Open demo" : passwordSelected ? "Sign in" : isPhoneIdentifier(identifier) ? "Send code" : "Send sign-in link"}
                 </button>
               </form>
 
