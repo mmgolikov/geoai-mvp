@@ -1857,7 +1857,7 @@ export function ProjectDashboard() {
                     type="button"
                     aria-pressed={activeProjectSegment === segment}
                     onClick={() => changeProjectSegment(segment)}
-                    className={`h-9 rounded-md px-3 text-xs font-semibold transition ${
+                    className={`h-10 rounded-md px-3 text-xs font-semibold transition ${
                       activeProjectSegment === segment
                         ? "bg-brand text-white shadow-sm"
                         : "text-muted hover:bg-white hover:text-ink"
@@ -1911,7 +1911,7 @@ export function ProjectDashboard() {
                     aria-label="Project name"
                     value={projectNameDraft}
                     onChange={(event) => setProjectNameDraft(event.target.value)}
-                    className="h-9 rounded-md border border-line bg-white px-3 text-sm font-semibold text-ink outline-none transition focus:border-brand"
+                    className="h-10 rounded-md border border-line bg-white px-3 text-sm font-semibold text-ink outline-none transition focus:border-brand"
                     placeholder="Project name"
                   />
                   <div className="grid grid-cols-2 gap-2">
@@ -1923,7 +1923,7 @@ export function ProjectDashboard() {
                         setProjectAudienceDraft(audience);
                         setProjectRoleDraft(getDefaultRoleForAudience(audience));
                       }}
-                      className="h-9 rounded-md border border-line bg-white px-2 text-xs font-semibold text-ink outline-none transition focus:border-brand"
+                      className="h-10 rounded-md border border-line bg-white px-2 text-xs font-semibold text-ink outline-none transition focus:border-brand"
                     >
                       <option value="b2b">B2B</option>
                       <option value="b2c">B2C</option>
@@ -1932,7 +1932,7 @@ export function ProjectDashboard() {
                       aria-label="Role"
                       value={projectRoleDraft}
                       onChange={(event) => setProjectRoleDraft(event.target.value as LocalProjectInput["role"])}
-                      className="h-9 rounded-md border border-line bg-white px-2 text-xs font-semibold text-ink outline-none transition focus:border-brand"
+                      className="h-10 rounded-md border border-line bg-white px-2 text-xs font-semibold text-ink outline-none transition focus:border-brand"
                     >
                       {getExploreRolesByAudience(projectAudienceDraft).map((role) => (
                         <option key={role.id} value={role.id}>{role.label}</option>
@@ -1943,7 +1943,7 @@ export function ProjectDashboard() {
                     aria-label="Location / market"
                     value={projectMarketDraft}
                     onChange={(event) => setProjectMarketDraft(event.target.value)}
-                    className="h-9 rounded-md border border-line bg-white px-3 text-sm font-semibold text-ink outline-none transition focus:border-brand"
+                    className="h-10 rounded-md border border-line bg-white px-3 text-sm font-semibold text-ink outline-none transition focus:border-brand"
                     placeholder="Dubai / UAE"
                   />
                   <button
@@ -1952,7 +1952,7 @@ export function ProjectDashboard() {
                     onClick={() => {
                       void createProjectFromHub();
                     }}
-                    className="inline-flex h-9 items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white transition hover:bg-[#113f50] disabled:cursor-not-allowed disabled:bg-[#c9d2d7]"
+                    className="inline-flex h-10 items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white transition hover:bg-[#113f50] disabled:cursor-not-allowed disabled:bg-[#c9d2d7]"
                   >
                     Create
                   </button>

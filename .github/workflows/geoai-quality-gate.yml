@@ -421,6 +421,21 @@ jobs:
             exit 1
           fi
 
+          npx lighthouse http://127.0.0.1:3000/ \
+            --quiet \
+            --output=json \
+            --output-path=artifacts/lighthouse-mobile.json \
+            --only-categories=performance,accessibility,best-practices,seo \
+            --chrome-flags="--headless --no-sandbox --disable-dev-shm-usage --disable-gpu"
+          npx lighthouse 'http://127.0.0.1:3000/login?next=/workspace&intent=demo' \
+            --quiet \
+            --preset=desktop \
+            --output=json \
+            --output-path=artifacts/lighthouse-desktop.json \
+            --only-categories=performance,accessibility,best-practices,seo \
+            --chrome-flags="--headless --no-sandbox --disable-dev-shm-usage --disable-gpu"
+          npm run test:lighthouse-budget | tee artifacts/lighthouse-budget-check.txt
+
       - name: Preserve application log
         if: always()
         shell: bash

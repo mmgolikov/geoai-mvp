@@ -6,7 +6,7 @@ export function TopNavigation() {
     <header className="sticky top-0 z-20 h-16 border-b border-line bg-white/90 backdrop-blur">
       <div className="flex h-full items-center justify-between px-4 sm:px-6">
         <div className="flex min-w-0 items-center justify-between">
-          <Link href="/" className="flex min-w-0 items-center gap-3">
+          <Link href="/" className="flex min-h-10 min-w-0 items-center gap-3">
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-brand text-sm font-semibold text-white">
               G
             </div>

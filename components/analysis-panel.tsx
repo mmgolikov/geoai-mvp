@@ -1100,7 +1100,7 @@ export function AnalysisPanel({
                   type="button"
                   aria-pressed={exploreAudience === audience}
                   onClick={() => onExploreAudienceChange(audience)}
-                  className={`h-8 rounded-md px-2 text-xs font-semibold transition ${
+                  className={`h-10 rounded-md px-2 text-xs font-semibold transition sm:h-8 ${
                     exploreAudience === audience
                       ? "bg-brand text-white shadow-sm"
                       : "text-muted hover:bg-white hover:text-ink"
@@ -1129,7 +1129,7 @@ export function AnalysisPanel({
                 id="active-project"
                 value={activeProject.projectKey}
                 onChange={(event) => onProjectChange(event.target.value)}
-                className="h-9 min-w-0 rounded-md border border-line bg-white px-2 text-xs font-semibold text-ink outline-none transition focus:border-brand"
+                className="h-10 min-w-0 rounded-md border border-line bg-white px-2 text-xs font-semibold text-ink outline-none transition focus:border-brand sm:h-9"
               >
                 {projects.map((project) => (
                   <option key={project.projectKey} value={project.projectKey}>
@@ -1143,7 +1143,7 @@ export function AnalysisPanel({
                   setProjectMarketDraft(activeProject.geography || "Dubai / UAE");
                   setIsProjectCreateOpen((value) => !value);
                 }}
-                className="inline-flex h-9 items-center justify-center rounded-md bg-brand px-3 text-xs font-semibold text-white transition hover:bg-[#113f50]"
+                className="inline-flex h-10 items-center justify-center rounded-md bg-brand px-3 text-xs font-semibold text-white transition hover:bg-[#113f50] sm:h-9"
               >
                 Create
               </button>
@@ -1157,7 +1157,7 @@ export function AnalysisPanel({
                   <input
                     value={projectNameDraft}
                     onChange={(event) => setProjectNameDraft(event.target.value)}
-                    className="mt-1 h-8 w-full rounded-md border border-line bg-surface px-2 text-xs font-semibold text-ink outline-none transition focus:border-brand"
+                    className="mt-1 h-10 w-full rounded-md border border-line bg-surface px-2 text-xs font-semibold text-ink outline-none transition focus:border-brand sm:h-8"
                     placeholder="Pilot screening project"
                   />
                 </label>
@@ -1168,7 +1168,7 @@ export function AnalysisPanel({
                   <input
                     value={projectMarketDraft}
                     onChange={(event) => setProjectMarketDraft(event.target.value)}
-                    className="mt-1 h-8 w-full rounded-md border border-line bg-surface px-2 text-xs font-semibold text-ink outline-none transition focus:border-brand"
+                    className="mt-1 h-10 w-full rounded-md border border-line bg-surface px-2 text-xs font-semibold text-ink outline-none transition focus:border-brand sm:h-8"
                     placeholder="Dubai / UAE"
                   />
                 </label>
@@ -1182,7 +1182,7 @@ export function AnalysisPanel({
                     onClick={() => {
                       void handleProjectCreate();
                     }}
-                    className="inline-flex h-8 items-center justify-center rounded-md bg-brand px-3 text-xs font-semibold text-white transition hover:bg-[#113f50] disabled:cursor-not-allowed disabled:bg-[#c9d2d7]"
+                    className="inline-flex h-10 items-center justify-center rounded-md bg-brand px-3 text-xs font-semibold text-white transition hover:bg-[#113f50] disabled:cursor-not-allowed disabled:bg-[#c9d2d7] sm:h-8"
                   >
                     Create
                   </button>
@@ -1200,7 +1200,7 @@ export function AnalysisPanel({
                 <select
                   value={exploreRole}
                   onChange={(event) => onExploreRoleChange(event.target.value as ExploreRole)}
-                  className="mt-1 h-8 w-full rounded-md border border-line bg-surface px-2 text-xs font-semibold text-ink outline-none transition focus:border-brand"
+                  className="mt-1 h-10 w-full rounded-md border border-line bg-surface px-2 text-xs font-semibold text-ink outline-none transition focus:border-brand sm:h-8"
                 >
                   {exploreRoles.map((role) => (
                     <option key={role.id} value={role.id}>
@@ -1217,7 +1217,7 @@ export function AnalysisPanel({
                 <select
                   value={exploreScenarioId}
                   onChange={(event) => onExploreScenarioChange(event.target.value as ExploreScenarioId)}
-                  className="mt-1 h-8 w-full rounded-md border border-line bg-surface px-2 text-xs font-semibold text-ink outline-none transition focus:border-brand"
+                  className="mt-1 h-10 w-full rounded-md border border-line bg-surface px-2 text-xs font-semibold text-ink outline-none transition focus:border-brand sm:h-8"
                 >
                   {exploreScenarios.map((item) => (
                     <option key={item.id} value={item.id}>
@@ -1243,7 +1243,7 @@ export function AnalysisPanel({
                 </span>
               </div>
               <details className="mt-1 rounded-md bg-white px-2">
-                <summary className="flex h-6 cursor-pointer list-none items-center text-[10px] font-semibold uppercase tracking-[0.1em] text-muted">
+                <summary className="flex min-h-10 cursor-pointer list-none items-center text-[10px] font-semibold uppercase tracking-[0.1em] text-muted sm:min-h-6">
                   Validation caveat
                 </summary>
                 <p className="border-t border-line py-1.5 text-[11px] leading-4 text-muted">
@@ -1260,7 +1260,7 @@ export function AnalysisPanel({
                 <button
                   type="button"
                   onClick={onOpenMap}
-                  className="inline-flex h-7 items-center justify-center rounded-md border border-line bg-white px-2 text-[10px] font-semibold text-ink transition hover:border-brand min-[1367px]:hidden"
+                  className="inline-flex h-10 items-center justify-center rounded-md border border-line bg-white px-2 text-[10px] font-semibold text-ink transition hover:border-brand min-[1367px]:hidden"
                 >
                   Open map
                 </button>
@@ -1273,7 +1273,7 @@ export function AnalysisPanel({
                     data-interaction-mode={mode}
                     aria-pressed={exploreInteractionMode === mode}
                     onClick={() => onExploreInteractionModeChange(mode)}
-                    className={`h-8 rounded-md border px-2 text-[11px] font-semibold transition ${
+                    className={`h-10 rounded-md border px-2 text-[11px] font-semibold transition sm:h-8 ${
                       exploreInteractionMode === mode
                         ? "border-brand bg-brand text-white"
                         : "border-line bg-surface text-muted hover:border-brand hover:text-ink"
@@ -1290,7 +1290,7 @@ export function AnalysisPanel({
               open={isExploreSetupOpen}
               onToggle={(event) => setIsExploreSetupOpen(event.currentTarget.open)}
             >
-              <summary className="flex min-h-8 cursor-pointer list-none items-center justify-between gap-2 py-1.5 text-xs font-semibold text-ink">
+              <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between gap-2 py-1.5 text-xs font-semibold text-ink sm:min-h-8">
                 <span>Scenario setup</span>
                 <span className="shrink-0 rounded-full bg-white px-2 py-1 text-[10px] font-semibold text-brand">
                   {exploreScenario.inputSchema.length} controls

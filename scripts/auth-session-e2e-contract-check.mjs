@@ -9,6 +9,8 @@ const spec = read("tests/e2e/auth-session-flow.spec.ts");
 const responsiveSpec = read("tests/e2e/auth-responsive-flow.spec.ts");
 const accessibilitySpec = read("tests/e2e/accessibility-workspace-flow.spec.ts");
 const projectComparisonAccessibilitySpec = read("tests/e2e/accessibility-project-comparison-flow.spec.ts");
+const mobileProductSpec = read("tests/e2e/mobile-product-flow.spec.ts");
+const lighthouseBudgetScript = read("scripts/lighthouse-budget-check.mjs");
 const workflow = read(".github/workflows/geoai-quality-gate.yml");
 const failures = [];
 
@@ -22,8 +24,14 @@ if (packageJson.devDependencies?.["@playwright/test"] !== "1.61.1") {
 if (packageJson.devDependencies?.["@axe-core/playwright"] !== "4.12.1") {
   failures.push("@axe-core/playwright must stay exactly pinned to 4.12.1");
 }
-if (packageJson.scripts?.["test:e2e:auth-session"] !== "playwright test tests/e2e/auth-session-flow.spec.ts tests/e2e/auth-responsive-flow.spec.ts tests/e2e/accessibility-workspace-flow.spec.ts tests/e2e/accessibility-project-comparison-flow.spec.ts") {
+if (packageJson.scripts?.["test:e2e:auth-session"] !== "playwright test tests/e2e/auth-session-flow.spec.ts tests/e2e/auth-responsive-flow.spec.ts tests/e2e/accessibility-workspace-flow.spec.ts tests/e2e/accessibility-project-comparison-flow.spec.ts tests/e2e/mobile-product-flow.spec.ts") {
   failures.push("The focused Auth/session, responsive and accessibility Playwright command is missing");
+}
+if (packageJson.devDependencies?.lighthouse !== "13.4.0") {
+  failures.push("Lighthouse must stay exactly pinned to 13.4.0");
+}
+if (packageJson.scripts?.["test:lighthouse-budget"] !== "node scripts/lighthouse-budget-check.mjs artifacts/lighthouse-mobile.json artifacts/lighthouse-desktop.json") {
+  failures.push("The Lighthouse budget command is missing");
 }
 
 for (const [text, message] of [
@@ -83,6 +91,31 @@ for (const marker of [
   'name: "Print / Save as PDF"'
 ]) requireText(projectComparisonAccessibilitySpec, marker, `Project/comparison accessibility flow is missing ${marker}`);
 
+for (const marker of [
+  'viewport: { width: 390, height: 844 }',
+  "expectMinimumTargetSize",
+  "expectNoHorizontalOverflow",
+  "mobile-visual-evidence",
+  '"mobile-project-hub.png"',
+  '"mobile-project-workspace.png"',
+  '"mobile-explore-setup.png"',
+  '"mobile-comparison-dashboard.png"',
+  '"mobile-comparison-report.png"',
+  'name: "Create project"',
+  'name: "Criteria-first"',
+  'name: "Compare Candidates"',
+  'name: "Print / Save as PDF"'
+]) requireText(mobileProductSpec, marker, `Mobile product flow is missing ${marker}`);
+
+for (const marker of [
+  "lighthouse-budget-summary.json",
+  'performance: 0.7',
+  'accessibility: 0.95',
+  '"largest-contentful-paint"',
+  '"cumulative-layout-shift"',
+  '"total-blocking-time"'
+]) requireText(lighthouseBudgetScript, marker, `Lighthouse budget contract is missing ${marker}`);
+
 const browserStepStart = workflow.indexOf("- name: Browser Auth/session flow");
 const buildStepStart = workflow.indexOf("- name: Build", browserStepStart);
 if (browserStepStart === -1 || buildStepStart === -1) {
@@ -101,6 +134,12 @@ if (browserStepStart === -1 || buildStepStart === -1) {
 }
 
 requireText(workflow, "npm run test:auth-session-e2e-contract", "Quality Gate must run the static E2E wiring contract");
+for (const marker of [
+  "artifacts/lighthouse-mobile.json",
+  "artifacts/lighthouse-desktop.json",
+  "--preset=desktop",
+  "npm run test:lighthouse-budget"
+]) requireText(workflow, marker, `Quality Gate Lighthouse step is missing ${marker}`);
 
 if (failures.length > 0) {
   console.error("Auth/session E2E contract failed:");
@@ -108,4 +147,4 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-console.log("Auth/session E2E contract passed: bounded guest redirects, browser-only demo restoration, authenticated route navigation, logout re-gating, desktop/tablet/390px layout checks, serious/critical Axe scans, keyboard-only browser-local project save/open and analysis/comparison-to-print journeys are wired into CI without live credentials.");
+console.log("Auth/session E2E contract passed: bounded guest redirects, browser-only demo restoration, authenticated route navigation, logout re-gating, desktop/tablet/390px layout checks, serious/critical Axe scans, mobile target-size/visual evidence, Lighthouse budgets, keyboard-only browser-local project save/open and analysis/comparison-to-print journeys are wired into CI without live credentials.");

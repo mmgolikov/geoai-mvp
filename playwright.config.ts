@@ -22,5 +22,6 @@ export default defineConfig({
     screenshot: "only-on-failure",
     video: "off"
   },
-  outputDir: "artifacts/playwright-auth-session"
+  outputDir: "artifacts/playwright-auth-session",
+  snapshotPathTemplate: "{testDir}/__screenshots__/{testFilePath}/{arg}{ext}"
 });
