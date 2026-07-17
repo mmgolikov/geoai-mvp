@@ -225,7 +225,9 @@ test.describe("mobile product navigation, targets and visual evidence", () => {
     await scenarioSetupDisclosure.locator("summary").click();
     await expect(scenarioSetupDisclosure).not.toHaveAttribute("open", "");
 
-    await captureVisualEvidence(page, "Mobile explore setup", "mobile-explore-setup.png");
+    await captureVisualEvidence(page, "Mobile explore setup", "mobile-explore-setup.png", {
+      expectedSha256: "3e86296e106fa0e79fd61d3fa2e1821ef11e2021e7a38a77ac478a96455ce0b1"
+    });
 
     await criteriaFirst.click();
     await expect(criteriaFirst).toHaveAttribute("aria-pressed", "true");
