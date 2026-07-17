@@ -38,6 +38,28 @@ async function expectNoElementOverflow(locator: Locator, label: string) {
   expect(metrics.scrollWidth, `${label} must not overflow horizontally`).toBeLessThanOrEqual(metrics.clientWidth + 1);
 }
 
+async function expectTextNotTruncated(locator: Locator, label: string) {
+  await expect(locator, `${label} must be visible`).toBeVisible();
+  const metrics = await locator.evaluate((element) => {
+    const style = window.getComputedStyle(element);
+    return {
+      clientHeight: element.clientHeight,
+      clientWidth: element.clientWidth,
+      lineClamp: style.webkitLineClamp,
+      scrollHeight: element.scrollHeight,
+      scrollWidth: element.scrollWidth,
+      textOverflow: style.textOverflow,
+      whiteSpace: style.whiteSpace
+    };
+  });
+
+  expect(metrics.scrollWidth, `${label} must not clip horizontally`).toBeLessThanOrEqual(metrics.clientWidth + 1);
+  expect(metrics.scrollHeight, `${label} must not clip vertically`).toBeLessThanOrEqual(metrics.clientHeight + 1);
+  expect(metrics.textOverflow, `${label} must not use an ellipsis`).not.toBe("ellipsis");
+  expect(["none", "0", "unset", ""], `${label} must not use a line clamp`).toContain(metrics.lineClamp);
+  expect(metrics.whiteSpace, `${label} must be allowed to wrap`).not.toBe("nowrap");
+}
+
 async function expectMinimumTargetSize(label: string, locator: Locator, minimum = 40) {
   await expect(locator, `${label} must be visible`).toBeVisible();
   const box = await locator.boundingBox();
@@ -157,16 +179,32 @@ test.describe("mobile product navigation, targets and visual evidence", () => {
     await expectNoHorizontalOverflow(page);
 
     const criteriaFirst = page.getByRole("button", { name: "Criteria-first" });
+    const scenarioSelect = page.getByLabel("Scenario");
     for (const [label, locator] of [
       ["Authenticated profile", page.getByRole("link", { name: "Open demo profile" })],
       ["B2B audience", page.getByRole("button", { name: "B2B", exact: true })],
       ["B2C audience", page.getByRole("button", { name: "B2C", exact: true })],
       ["Active project", page.locator("#active-project")],
       ["Role", page.getByLabel("Role")],
-      ["Scenario", page.getByLabel("Scenario")],
+      ["Scenario", scenarioSelect],
       ["Open map", page.getByRole("button", { name: "Open map" })],
       ["Criteria-first", criteriaFirst]
     ] as Array<[string, Locator]>) await expectMinimumTargetSize(label, locator);
+
+    const scenarioBox = await scenarioSelect.boundingBox();
+    expect(scenarioBox, "Scenario select must have a rendered box").not.toBeNull();
+    expect(scenarioBox?.width ?? 0, "Scenario select must use the full mobile row").toBeGreaterThanOrEqual(300);
+
+    await expectTextNotTruncated(page.locator("aside p.truncate").first(), "Scenario action copy");
+    await expectTextNotTruncated(page.locator("aside .line-clamp-1").first(), "Scenario summary copy");
+    await expectTextNotTruncated(page.locator("aside label.truncate").first(), "Scenario range label");
+    const truncatedChipLabels = page.locator("aside button > span.truncate");
+    const chipCount = await truncatedChipLabels.count();
+    expect(chipCount, "Scenario multi-select chip labels must be present").toBeGreaterThan(0);
+    for (let index = 0; index < chipCount; index += 1) {
+      await expectTextNotTruncated(truncatedChipLabels.nth(index), `Scenario multi-select chip ${index + 1}`);
+    }
+
     await captureVisualEvidence(page, "Mobile explore setup", "mobile-explore-setup.png");
 
     await criteriaFirst.click();
