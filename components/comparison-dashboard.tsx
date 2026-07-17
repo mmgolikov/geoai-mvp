@@ -256,7 +256,7 @@ export function ComparisonDashboard({
                 <h2 className="text-lg font-semibold text-ink">Ranked shortlist decision</h2>
                 <p className="mt-1 text-sm text-muted">Best option based on deterministic sample/open scoring</p>
               </div>
-              <TextSafeValue as="span" className="shrink-0 rounded-full bg-[#eaf3f1] px-3 py-1 text-sm font-semibold text-brand">
+              <TextSafeValue as="span" className="max-w-full whitespace-normal break-words rounded-md bg-[#eaf3f1] px-3 py-1 text-sm font-semibold text-brand lg:rounded-full">
                 Best option: {comparison.winner.item.name}
               </TextSafeValue>
             </div>
