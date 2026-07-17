@@ -40,6 +40,25 @@ The responsive/keyboard increment extends the focused command to five Playwright
 
 The accessibility/deep-keyboard increment adds exact-pinned `@axe-core/playwright` and a machine-readable `axe-accessibility-results.json` artifact. Its single pointer-free desktop journey authenticates with the browser-only demo, changes the default Map-first workflow to Criteria-first, searches redevelopment zones, selects the first candidate by reverse focus traversal, runs analysis, opens the dashboard, exports a browser-local printable report and focuses the print control. Axe reports `0` serious/critical findings on the landing Hub, unified login, Workspace setup, analysis dashboard and printable report. The first CI attempt usefully exposed duplicate print-page `h1` semantics; the final head makes the toolbar title `h2` and retains the report document as the sole `h1`. Exact head `5d7af89ac2ead5b4df545e2f1810d5966c22cd0e` passed Quality Gate `29587485235`: Chrome `150.0.7871.114` completed all `6/6` tests in `41.6 s`, and application plus isolated database jobs succeeded. This is not UX-01 closure: Projects/Explore Axe, comparison, project save/open, visual regression, Lighthouse/Core Web Vitals and real-user personas remain open.
 
+The expanded accessibility/project/comparison increment raises the focused suite to eight tests and nine zero-finding Axe surfaces. Its keyboard-only Projects flow creates a browser-local project, proves local persistence, reloads Project Hub, restores that project as active and opens it in Workspace. Its keyboard-only Explore flow runs criteria-first search, compares the unselected shortlist, exports the comparison and focuses the printable report control. CI exposed a real Project Hub defect: a stored active local project was discarded on reload in favor of the default profile segment; the implementation now restores a valid stored project after explicit URL context and before profile defaults. Exact functional head `0edf442f7aa59f0fe1f82f26ef6ad7ca9dde7868` passed Quality Gate `29590190286`; Chrome `150.0.7871.114` completed `8/8` in `1.4m`, and both application and isolated database jobs succeeded. This remains browser-only mock evidence and does not close visual regression, Lighthouse/Core Web Vitals, all mobile/target-size acceptance or real-user authorization personas.
+
+## Current expanded accessibility/project/comparison evidence
+
+| Candidate receipt | Verified value |
+| --- | --- |
+| Functional head | `0edf442f7aa59f0fe1f82f26ef6ad7ca9dde7868`, Draft PR #97; `main` unchanged |
+| Git tree | `ac23e66e33b8f42ea8e603797b0dc25b2ea87022` |
+| GitHub Quality Gate | Run `29590190286`, success |
+| Application job | `87917050301`, success; Chrome, production build and route/API smoke passed |
+| Chrome browser result | `Google Chrome 150.0.7871.114`; Playwright `8/8` passed in `1.4m` |
+| Axe result | `0` serious/critical on Landing Hub, unified login, Workspace setup, Projects Hub, Explore setup, analysis dashboard, candidate comparison dashboard and both printable analysis/comparison reports |
+| Supabase replay/rehearsal/pgTAP | Job `87917050251`, success; clean `183/183`, synthetic ledger-prefix upgrade rehearsal, second `183/183` |
+| Quality artifact | `8410790742`, `geoai-quality-evidence-29590190286`, digest `sha256:a0e7d16d54ecf5f123a2ad4024241a8ebe6cbde79b2aa500eb9bd541a6bf6b8a` |
+| Database artifact | `8410824146`, `geoai-database-evidence-29590190286`, digest `sha256:d5b1daeca1a3009315ba3494da6db6c64c3c2c88fb6ccd1aeef12ccf7d8661ed` |
+| Exact Vercel Preview | `dpl_9n6d8RoVN6yEoxRzEALyG3F3rSHP`, READY on exact functional head; [deployment](https://geoai-hwg7wapdd-geoaidev.vercel.app) |
+| Hosted HTTP/security | Landing, Projects, Explore, bounded Explore login, project-context Workspace, health, activation status and seeded comparison print returned 200; CSP, HSTS and `nosniff` are present; error-only build and error/fatal runtime evidence is empty |
+| Authority boundary | Browser-only mock UX/accessibility and local-persistence evidence; no real key/user, Supabase write/migration, RLS/Admin persona, Production promotion, visual-regression, Lighthouse/Core Web Vitals or full UX-01 claim |
+
 ## Current accessibility/deep-keyboard browser increment evidence
 
 | Candidate receipt | Verified value |
