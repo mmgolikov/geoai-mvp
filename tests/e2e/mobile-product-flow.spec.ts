@@ -73,6 +73,12 @@ async function captureVisualEvidence(page: Page, label: string, fileName: string
     height: viewport?.height ?? 0
   });
   await fs.writeFile(visualManifest, `${JSON.stringify(visualEvidence, null, 2)}\n`, "utf8");
+  await expect(page).toHaveScreenshot(fileName, {
+    animations: "disabled",
+    caret: "hide",
+    fullPage,
+    maxDiffPixelRatio: 0.01
+  });
   console.log(`[visual] ${label}: ${fileName}`);
 }
 
@@ -98,6 +104,7 @@ test.describe("mobile product navigation, targets and visual evidence", () => {
 
   test("creates, restores and opens a project on mobile", async ({ page }) => {
     const projectName = "Mobile product pilot";
+    await page.clock.setFixedTime(new Date("2026-07-17T16:23:00.000Z"));
     await signInDemo(page, "/projects");
     await expect(page.getByRole("heading", { level: 1, name: "Project Hub" })).toBeVisible();
     await expectNoHorizontalOverflow(page);
@@ -145,6 +152,7 @@ test.describe("mobile product navigation, targets and visual evidence", () => {
   });
 
   test("compares and exports a criteria-first shortlist on mobile", async ({ page }) => {
+    await page.clock.setFixedTime(new Date("2026-07-17T16:23:00.000Z"));
     await signInDemo(page, "/explore");
     await expectNoHorizontalOverflow(page);
 
