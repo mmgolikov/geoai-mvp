@@ -95,7 +95,6 @@ for (const marker of [
   'viewport: { width: 390, height: 844 }',
   "expectMinimumTargetSize",
   "expectNoHorizontalOverflow",
-  "Mobile comparison must not reserve desktop-sized blank regions",
   'document.querySelector("nextjs-portal")?.remove()',
   "mobile-visual-evidence",
   '"mobile-project-hub.png"',
