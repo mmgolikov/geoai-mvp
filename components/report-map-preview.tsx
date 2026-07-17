@@ -579,5 +579,5 @@ export function ReportMapPreview({
     return <FallbackMap markers={markers} selectedFeatures={selectedFeatures} message="Map preview unavailable" />;
   }
 
-  return <div ref={containerRef} className="absolute inset-0 h-full min-h-[260px] w-full" aria-label="GeoAI report map preview" />;
+  return <div ref={containerRef} className="absolute inset-0 h-full min-h-[260px] w-full" role="region" aria-label="GeoAI report map preview" />;
 }

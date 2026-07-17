@@ -260,7 +260,7 @@ export function ProfilePanel() {
             <legend className="px-1 text-xs font-semibold uppercase tracking-[0.14em] text-muted">Default workspace</legend>
             <p className="mt-1 text-sm leading-6 text-muted">This selection becomes the initial audience and role in Workspace and Projects. You can still change it there.</p>
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
-              <div className="grid grid-cols-2 gap-2" aria-label="Default audience">
+              <div className="grid grid-cols-2 gap-2" role="group" aria-label="Default audience">
                 {(["b2b", "b2c"] as ExploreAudience[]).map((audience) => (
                   <button key={audience} type="button" aria-pressed={defaultAudience === audience} onClick={() => changeAudience(audience)} className={`h-11 rounded-md text-sm font-semibold transition ${defaultAudience === audience ? "bg-brand text-white" : "border border-line bg-white text-ink hover:border-brand"}`}>
                     {audience.toUpperCase()}

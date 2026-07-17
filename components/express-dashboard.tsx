@@ -156,10 +156,10 @@ export function ExpressDashboard({
               <p
                 className="mt-0.5 truncate text-xs leading-4 text-muted"
                 title={fullEvidenceText}
-                aria-label={fullEvidenceText}
                 data-dashboard-evidence-row
               >
-                {compactEvidenceText}
+                <span className="sr-only">{fullEvidenceText}</span>
+                <span aria-hidden="true">{compactEvidenceText}</span>
               </p>
             </div>
             <div className="flex shrink-0 items-center justify-start gap-2 lg:justify-end">

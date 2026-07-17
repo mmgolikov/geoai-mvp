@@ -2500,7 +2500,7 @@ export function MapWorkspaceClient({
       data-spatial-map-ready-ms={mapObservability.mapReadyMs}
       data-spatial-layer-registration-ms={mapObservability.layerRegistrationMs}
     >
-      <div ref={mapContainerRef} className="absolute inset-0" aria-label="GeoAI map workspace" />
+      <div ref={mapContainerRef} className="absolute inset-0" role="region" aria-label="GeoAI map workspace" />
 
       {shouldShowFallbackMap ? (
         <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(23,79,99,0.12)_1px,transparent_1px),linear-gradient(rgba(23,79,99,0.12)_1px,transparent_1px)] bg-[size:42px_42px]">

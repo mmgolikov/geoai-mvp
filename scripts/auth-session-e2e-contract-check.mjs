@@ -7,6 +7,7 @@ const packageJson = JSON.parse(read("package.json"));
 const config = read("playwright.config.ts");
 const spec = read("tests/e2e/auth-session-flow.spec.ts");
 const responsiveSpec = read("tests/e2e/auth-responsive-flow.spec.ts");
+const accessibilitySpec = read("tests/e2e/accessibility-workspace-flow.spec.ts");
 const workflow = read(".github/workflows/geoai-quality-gate.yml");
 const failures = [];
 
@@ -17,8 +18,11 @@ function requireText(source, text, message) {
 if (packageJson.devDependencies?.["@playwright/test"] !== "1.61.1") {
   failures.push("@playwright/test must stay exactly pinned to 1.61.1");
 }
-if (packageJson.scripts?.["test:e2e:auth-session"] !== "playwright test tests/e2e/auth-session-flow.spec.ts tests/e2e/auth-responsive-flow.spec.ts") {
-  failures.push("The focused Auth/session and responsive Playwright command is missing");
+if (packageJson.devDependencies?.["@axe-core/playwright"] !== "4.12.1") {
+  failures.push("@axe-core/playwright must stay exactly pinned to 4.12.1");
+}
+if (packageJson.scripts?.["test:e2e:auth-session"] !== "playwright test tests/e2e/auth-session-flow.spec.ts tests/e2e/auth-responsive-flow.spec.ts tests/e2e/accessibility-workspace-flow.spec.ts") {
+  failures.push("The focused Auth/session, responsive and accessibility Playwright command is missing");
 }
 
 for (const [text, message] of [
@@ -52,6 +56,18 @@ for (const marker of [
   'control.label === "Open demo profile"'
 ]) requireText(responsiveSpec, marker, `Responsive/keyboard browser flow is missing ${marker}`);
 
+for (const marker of [
+  "@axe-core/playwright",
+  'violation.impact === "critical" || violation.impact === "serious"',
+  "axe-accessibility-results.json",
+  'name: "Criteria-first"',
+  'name: "Find redevelopment zones"',
+  'name: "Analyze Selected"',
+  'section[data-dashboard-analysis-id]',
+  'name: "Print / Save as PDF"',
+  'direction: "backward"'
+]) requireText(accessibilitySpec, marker, `Accessibility/keyboard browser flow is missing ${marker}`);
+
 const browserStepStart = workflow.indexOf("- name: Browser Auth/session flow");
 const buildStepStart = workflow.indexOf("- name: Build", browserStepStart);
 if (browserStepStart === -1 || buildStepStart === -1) {
@@ -77,4 +93,4 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-console.log("Auth/session E2E contract passed: bounded guest redirects, browser-only demo restoration, authenticated route navigation, logout re-gating, desktop/tablet/390px layout checks and a mobile keyboard-only journey are wired into CI without live credentials.");
+console.log("Auth/session E2E contract passed: bounded guest redirects, browser-only demo restoration, authenticated route navigation, logout re-gating, desktop/tablet/390px layout checks, serious/critical Axe scans and keyboard-only analysis-to-print journeys are wired into CI without live credentials.");
