@@ -28,6 +28,8 @@ The ready mock account is `demo@geoai.space` with password `111111`. These publi
 
 The candidate now includes `/profile` as the authenticated account entry point. Users can edit full name, region, contact phone and default B2B/B2C role; those audience/role defaults initialize Workspace and Projects unless an explicit project, analysis or guided-demo URL is opened. Real-user profile fields are stored as non-authoritative Supabase Auth preferences and are never used for RBAC/RLS. Email confirmation and password change use the signed-in Auth client; a changed password can be used by the optional real email/password login path. Direct verified sign-in phone change is deliberately not exposed while the current provider flow has an unresolved ambiguous pending-number risk. Demo profile data and all avatar images are browser-local; avatar upload to protected Storage remains blocked under STORAGE-01.
 
+Exact functional head `232fb532db1e5bc1dcf134ca1d616e4506f682f0` passed [Quality Gate 29572587381](https://github.com/mmgolikov/geoai-mvp/actions/runs/29572587381). Vercel Preview `dpl_G5vcKVQCHypacP9foGpAJ4Egwu5k` is READY at [geoai-obetsesdv-geoaidev.vercel.app](https://geoai-obetsesdv-geoaidev.vercel.app); hosted HTTP checks returned 200 for the profile, login, workspace, health and activation-status routes. Rendered browser interaction and real-user Auth personas remain unclaimed.
+
 ## Implemented Features
 
 - Homepage and `/workspace` application shell
