@@ -144,7 +144,7 @@ test.describe("accessible critical screens and keyboard-only workspace journey",
     await expect(page).toHaveURL((url) => /^\/reports\/[^/]+\/print$/.test(url.pathname));
     const printButton = page.getByRole("button", { name: "Print / Save as PDF" });
     await expect(printButton).toBeVisible();
-    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "GeoAI Analysis Report" })).toBeVisible();
     await recordAccessibilityResult(page, "Printable analysis report", evidence);
 
     await tabUntilLocator(page, printButton, { maximumTabs: 40 });
