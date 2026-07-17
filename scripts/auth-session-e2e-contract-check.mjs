@@ -10,6 +10,8 @@ const responsiveSpec = read("tests/e2e/auth-responsive-flow.spec.ts");
 const accessibilitySpec = read("tests/e2e/accessibility-workspace-flow.spec.ts");
 const projectComparisonAccessibilitySpec = read("tests/e2e/accessibility-project-comparison-flow.spec.ts");
 const mobileProductSpec = read("tests/e2e/mobile-product-flow.spec.ts");
+const mobileGlobalNavigationSpec = read("tests/e2e/mobile-global-navigation.spec.ts");
+const productNavigation = read("components/product-navigation.tsx");
 const lighthouseBudgetScript = read("scripts/lighthouse-budget-check.mjs");
 const workflow = read(".github/workflows/geoai-quality-gate.yml");
 const failures = [];
@@ -24,13 +26,13 @@ if (packageJson.devDependencies?.["@playwright/test"] !== "1.61.1") {
 if (packageJson.devDependencies?.["@axe-core/playwright"] !== "4.12.1") {
   failures.push("@axe-core/playwright must stay exactly pinned to 4.12.1");
 }
-if (packageJson.scripts?.["test:e2e:auth-session"] !== "playwright test tests/e2e/auth-session-flow.spec.ts tests/e2e/auth-responsive-flow.spec.ts tests/e2e/accessibility-workspace-flow.spec.ts tests/e2e/accessibility-project-comparison-flow.spec.ts tests/e2e/mobile-product-flow.spec.ts") {
+if (packageJson.scripts?.["test:e2e:auth-session"] !== "playwright test tests/e2e/auth-session-flow.spec.ts tests/e2e/auth-responsive-flow.spec.ts tests/e2e/accessibility-workspace-flow.spec.ts tests/e2e/accessibility-project-comparison-flow.spec.ts tests/e2e/mobile-product-flow.spec.ts tests/e2e/mobile-global-navigation.spec.ts") {
   failures.push("The focused Auth/session, responsive and accessibility Playwright command is missing");
 }
 if (packageJson.devDependencies?.lighthouse !== "13.4.0") {
   failures.push("Lighthouse must stay exactly pinned to 13.4.0");
 }
-if (packageJson.scripts?.["test:lighthouse-budget"] !== "node scripts/lighthouse-budget-check.mjs artifacts/lighthouse-mobile.json artifacts/lighthouse-desktop.json") {
+if (packageJson.scripts?.["test:lighthouse-budget"] !== "node scripts/lighthouse-budget-check.mjs artifacts/lighthouse-mobile.json artifacts/lighthouse-desktop.json artifacts/lighthouse-mobile-projects.json artifacts/lighthouse-desktop-explore.json") {
   failures.push("The Lighthouse budget command is missing");
 }
 
@@ -113,8 +115,36 @@ for (const marker of [
 ]) requireText(mobileProductSpec, marker, `Mobile product flow is missing ${marker}`);
 
 for (const marker of [
+  '{ width: 430, height: 932 }',
+  '{ width: 834, height: 1112 }',
+  'name: "Open product navigation"',
+  'name: "Mobile product navigation"',
+  'name: "Primary product navigation"',
+  'name: /Workspace/',
+  'name: /Projects/',
+  'name: /Explore/',
+  'aria-current',
+  '"mobile-product-navigation.png"',
+  'page.keyboard.press("Escape")',
+  "expectNoHorizontalOverflow(page)"
+]) requireText(mobileGlobalNavigationSpec, marker, `Mobile global navigation flow is missing ${marker}`);
+
+for (const marker of [
+  'aria-label="Primary product navigation"',
+  'aria-label="Mobile product navigation"',
+  'aria-controls="mobile-product-navigation-menu"',
+  'aria-current={isCurrent ? "page" : undefined}',
+  'href: "/workspace"',
+  'href: "/projects"',
+  'href: "/explore"',
+  "triggerRef.current?.focus()"
+]) requireText(productNavigation, marker, `Product navigation component is missing ${marker}`);
+
+for (const marker of [
   "lighthouse-budget-summary.json",
   'performance: 0.7',
+  'name: "mobile-projects"',
+  'name: "desktop-explore"',
   'accessibility: 0.95',
   '"largest-contentful-paint"',
   '"cumulative-layout-shift"',
@@ -142,6 +172,8 @@ requireText(workflow, "npm run test:auth-session-e2e-contract", "Quality Gate mu
 for (const marker of [
   "artifacts/lighthouse-mobile.json",
   "artifacts/lighthouse-desktop.json",
+  "artifacts/lighthouse-mobile-projects.json",
+  "artifacts/lighthouse-desktop-explore.json",
   "--preset=desktop",
   "npm run test:lighthouse-budget"
 ]) requireText(workflow, marker, `Quality Gate Lighthouse step is missing ${marker}`);

@@ -1,7 +1,12 @@
 import fs from "node:fs";
 import path from "node:path";
 
-const [mobilePath = "artifacts/lighthouse-mobile.json", desktopPath = "artifacts/lighthouse-desktop.json"] = process.argv.slice(2);
+const [
+  mobilePath = "artifacts/lighthouse-mobile.json",
+  desktopPath = "artifacts/lighthouse-desktop.json",
+  mobileProjectsPath = "artifacts/lighthouse-mobile-projects.json",
+  desktopExplorePath = "artifacts/lighthouse-desktop-explore.json"
+] = process.argv.slice(2);
 const failures = [];
 
 const profiles = [
@@ -14,6 +19,16 @@ const profiles = [
     file: desktopPath,
     name: "desktop-login",
     budgets: { performance: 0.8, accessibility: 0.95, "best-practices": 0.9, seo: 0.85, lcp: 2500, cls: 0.1, tbt: 250 }
+  },
+  {
+    file: mobileProjectsPath,
+    name: "mobile-projects",
+    budgets: { performance: 0.6, accessibility: 0.95, "best-practices": 0.9, seo: 0.8, lcp: 5000, cls: 0.1, tbt: 500 }
+  },
+  {
+    file: desktopExplorePath,
+    name: "desktop-explore",
+    budgets: { performance: 0.65, accessibility: 0.95, "best-practices": 0.9, seo: 0.8, lcp: 4000, cls: 0.1, tbt: 400 }
   }
 ];
 
@@ -93,4 +108,4 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-console.log("Lighthouse budgets passed for the mobile landing and desktop login entry surfaces.");
+console.log("Lighthouse budgets passed for entry surfaces plus the mobile Projects and desktop Explore deep routes.");

@@ -102,6 +102,7 @@ type AnalysisPanelProps = {
   candidateSearchStatus: CandidateSearchStatus;
   selectedExploreCandidateId: string | null;
   exploreSetupDefaultOpen?: boolean;
+  workspaceHeading: string;
   onProjectChange: (projectKey: string) => void;
   onCustomQueryChange: (query: string) => void;
   onExploreAudienceChange: (audience: ExploreAudience) => void;
@@ -427,6 +428,7 @@ export function AnalysisPanel({
   candidateSearchStatus,
   selectedExploreCandidateId,
   exploreSetupDefaultOpen = false,
+  workspaceHeading,
   onProjectChange,
   onCustomQueryChange,
   onExploreAudienceChange,
@@ -1091,6 +1093,7 @@ export function AnalysisPanel({
   return (
     <aside className="flex min-h-0 max-w-full flex-col border-line bg-white max-lg:border-t lg:h-full lg:w-[380px] lg:overflow-hidden lg:border-l">
       <section className="min-w-0 max-w-full overflow-x-hidden p-3 pb-5 [scrollbar-width:thin] lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
+        {!hasResult ? <h1 className="sr-only">{workspaceHeading}</h1> : null}
         <div className="grid min-w-0 gap-2">
           <section className="min-w-0 max-w-full overflow-hidden rounded-lg border border-line bg-white p-2">
             <div className="grid grid-cols-2 gap-1 rounded-md bg-surface p-1">
