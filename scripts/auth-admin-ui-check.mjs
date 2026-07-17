@@ -4,7 +4,7 @@ async function source(path) {
   return fs.promises.readFile(new URL(`../${path}`, import.meta.url), "utf8");
 }
 
-const [adminRoute, onboardingRoute, onboardingStageRoute, invitationCookie, tokenHelper, elevated, adminUi, onboardingUi, callback, redirectPath, landing, navigation, accessBadge, login] = await Promise.all([
+const [adminRoute, onboardingRoute, onboardingStageRoute, invitationCookie, tokenHelper, elevated, adminUi, onboardingUi, callback, redirectPath, landing, navigation, accessBadge, login, provider, routeGate, workspacePage, projectsPage, explorePage, profilePage] = await Promise.all([
   source("app/api/admin/route.ts"),
   source("app/api/onboarding/invitation/route.ts"),
   source("app/api/onboarding/invitation/stage/route.ts"),
@@ -18,7 +18,13 @@ const [adminRoute, onboardingRoute, onboardingStageRoute, invitationCookie, toke
   source("app/page.tsx"),
   source("components/top-navigation.tsx"),
   source("components/auth/access-status-badge.tsx"),
-  source("components/auth/login-panel.tsx")
+  source("components/auth/login-panel.tsx"),
+  source("components/auth/auth-provider.tsx"),
+  source("components/auth/authenticated-route-gate.tsx"),
+  source("app/workspace/page.tsx"),
+  source("app/projects/page.tsx"),
+  source("app/explore/page.tsx"),
+  source("app/profile/page.tsx")
 ]);
 
 const failures = [];
@@ -58,6 +64,15 @@ assert(landing.includes('href="/login?next=/workspace&intent=request"') && landi
 assert(!landing.includes('href="/workspace"') && !landing.includes('href="/projects"'), "Landing must not bypass the requested authentication funnel");
 assert(login.includes("Sign in or create account") && login.includes("window.location.replace(getDestination())") && login.includes("Authorization saved. Opening Workspace"), "Successful login must immediately continue to Workspace with the saved session");
 assert(navigation.includes("AccessStatusBadge") && accessBadge.includes('data-authenticated={isAuthenticated ? "true" : "false"}') && accessBadge.includes('isAuthenticated ? "/profile" : "/login"'), "Product navigation must expose a highlighted profile icon that opens the personal account");
+assert(provider.includes("isSessionResolved") && provider.includes("finally") && provider.includes("setIsSessionResolved(true)"), "AuthProvider must resolve the browser session before protected product UI renders");
+assert(routeGate.includes('authStatus.effectiveMode === "demo_public"') && routeGate.includes("return children"), "Public demo mode must preserve direct product access");
+assert(routeGate.includes("!isSessionResolved") && routeGate.includes("!isAuthenticated"), "Supabase-auth product routes must wait for session resolution and reject anonymous rendering");
+assert(routeGate.includes("getSafeAuthRedirectPath(requestedPath") && routeGate.includes('router.replace(`/login?next=${encodeURIComponent(next)}`)'), "Anonymous product routes must use a bounded same-origin login continuation");
+assert(!routeGate.includes("getSession(") && !routeGate.includes("user_metadata") && !routeGate.includes("SUPABASE_"), "Client route gate must not invent session authority or consume privileged/user-editable data");
+for (const [name, page] of [["Workspace", workspacePage], ["Projects", projectsPage], ["Explore", explorePage], ["Profile", profilePage]]) {
+  assert(page.includes("AuthenticatedRouteGate") && page.includes("<AuthenticatedRouteGate>"), `${name} route is not wrapped in the resolved-session gate`);
+}
+assert(redirectPath.includes('"/explore"') && redirectPath.includes('"/profile"'), "Explore and Profile must be valid bounded post-login destinations");
 assert(adminRoute.includes("privateNoStoreJson") && onboardingRoute.includes("privateNoStoreJson"), "Authenticated Admin APIs must be private no-store");
 assert(adminUi.includes("initial-only") && adminUi.includes("capped at 25"), "Admin UI must disclose bounded initial-only snapshot pagination");
 
@@ -73,4 +88,4 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-console.log("Auth/Admin UI contract passed: verified-identity same-origin APIs, api-only RPCs, invisible hashed invitation handoff, simple onboarding and no MFA dependency are wired.");
+console.log("Auth/Admin UI contract passed: resolved-session route gating, bounded login continuation, verified-identity same-origin APIs, api-only RPCs, invisible hashed invitation handoff, simple onboarding and no MFA dependency are wired.");

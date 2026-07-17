@@ -6,6 +6,7 @@ function source(path) {
 
 const files = {
   page: source("app/profile/page.tsx"),
+  gate: source("components/auth/authenticated-route-gate.tsx"),
   panel: source("components/auth/profile-panel.tsx"),
   provider: source("components/auth/auth-provider.tsx"),
   login: source("components/auth/login-panel.tsx"),
@@ -23,6 +24,7 @@ function expect(condition, message) {
 }
 
 expect(files.page.includes("ProfilePanel") && files.page.includes("TopNavigation"), "Profile route is not wired into shared navigation");
+expect(files.page.includes("AuthenticatedRouteGate") && files.gate.includes("isSessionResolved"), "Profile route can render before the browser session is resolved");
 for (const contract of [
   "Full name",
   "Region",

@@ -39,6 +39,7 @@ async function loadBrowserUserProfile(user: NonNullable<GeoAIAuthSession["user"]
 
 type AuthContextValue = GeoAIAuthSession & {
   authStatus: AuthModeStatus;
+  isSessionResolved: boolean;
   roleLabel: string;
   signIn: (email: string) => Promise<{ ok: boolean; message: string }>;
   signInWithPassword: (email: string, password: string) => Promise<{ ok: boolean; message: string }>;
@@ -86,21 +87,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<GeoAIAuthSession>(() =>
     authStatus.effectiveMode === "demo_public" ? createDemoSession() : createAnonymousSession()
   );
+  const [isSessionResolved, setIsSessionResolved] = useState(authStatus.effectiveMode === "demo_public");
 
   async function refreshSession() {
-    if (isMockDemoSessionActive()) {
-      setSession(createDemoSession());
-      return;
-    }
-    if (authStatus.effectiveMode === "demo_public") {
-      setSession(createDemoSession());
-      return;
-    }
-    if (authStatus.effectiveMode !== "supabase_auth") {
-      setSession(createAnonymousSession());
-      return;
-    }
     try {
+      if (isMockDemoSessionActive()) {
+        setSession(createDemoSession());
+        return;
+      }
+      if (authStatus.effectiveMode === "demo_public") {
+        setSession(createDemoSession());
+        return;
+      }
+      if (authStatus.effectiveMode !== "supabase_auth") {
+        setSession(createAnonymousSession());
+        return;
+      }
       const response = await fetch("/api/auth/session", {
         method: "GET",
         credentials: "same-origin",
@@ -130,6 +132,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
     } catch {
       setSession(createAnonymousSession());
+    } finally {
+      setIsSessionResolved(true);
     }
   }
 
@@ -229,6 +233,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     activateMockDemoSession();
     setSession(createDemoSession());
+    setIsSessionResolved(true);
     return { ok: true, message: "Demo account is ready." };
   }
 
@@ -401,6 +406,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value: AuthContextValue = {
     ...session,
     authStatus,
+    isSessionResolved,
     roleLabel: formatRole(session.projectRole),
     signIn,
     signInWithPassword,

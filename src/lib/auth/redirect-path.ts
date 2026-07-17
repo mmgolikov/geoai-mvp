@@ -1,6 +1,8 @@
 const approvedAuthDestinations = new Set([
   "/admin",
+  "/explore",
   "/onboarding",
+  "/profile",
   "/projects",
   "/workspace"
 ]);

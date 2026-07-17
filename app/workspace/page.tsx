@@ -1,3 +1,4 @@
+import { AuthenticatedRouteGate } from "@/components/auth/authenticated-route-gate";
 import { TopNavigation } from "@/components/top-navigation";
 import { WorkspaceShell } from "@/components/workspace-shell";
 import { createSpatialSourceRequest } from "@/src/lib/spatial-b2/source-mode";
@@ -18,12 +19,14 @@ export default async function WorkspacePage({ searchParams }: WorkspacePageProps
   });
 
   return (
-    <main className="flex min-h-screen flex-col bg-surface">
-      <TopNavigation />
-      <WorkspaceShell
-        initialExploreMode={params?.mode === "explore"}
-        spatialSourceRequest={spatialSourceRequest}
-      />
-    </main>
+    <AuthenticatedRouteGate>
+      <main className="flex min-h-screen flex-col bg-surface">
+        <TopNavigation />
+        <WorkspaceShell
+          initialExploreMode={params?.mode === "explore"}
+          spatialSourceRequest={spatialSourceRequest}
+        />
+      </main>
+    </AuthenticatedRouteGate>
   );
 }
