@@ -209,6 +209,12 @@ test.describe("mobile product navigation, targets and visual evidence", () => {
 
     await expectTextNotTruncated(page.locator("aside p.truncate").first(), "Scenario action copy");
     await expectTextNotTruncated(page.locator("aside .line-clamp-1").first(), "Scenario summary copy");
+
+    const scenarioSetupDisclosure = page.locator("details").filter({
+      has: page.getByText("Scenario setup", { exact: true })
+    });
+    await scenarioSetupDisclosure.locator("summary").click();
+    await expect(scenarioSetupDisclosure).toHaveAttribute("open", "");
     await expectTextNotTruncated(page.locator("aside label.truncate").first(), "Scenario range label");
     const truncatedChipLabels = page.locator("aside button > span.truncate");
     const chipCount = await truncatedChipLabels.count();
@@ -216,6 +222,8 @@ test.describe("mobile product navigation, targets and visual evidence", () => {
     for (let index = 0; index < chipCount; index += 1) {
       await expectTextNotTruncated(truncatedChipLabels.nth(index), `Scenario multi-select chip ${index + 1}`);
     }
+    await scenarioSetupDisclosure.locator("summary").click();
+    await expect(scenarioSetupDisclosure).not.toHaveAttribute("open", "");
 
     await captureVisualEvidence(page, "Mobile explore setup", "mobile-explore-setup.png");
 
