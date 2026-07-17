@@ -202,6 +202,8 @@ Completed second bounded slice: exact head `5d7af89ac2ead5b4df545e2f1810d5966c22
 
 Completed third bounded slice: exact head `0edf442f7aa59f0fe1f82f26ef6ad7ca9dde7868`, Quality Gate `29590190286`, passed Chrome `8/8` / `1.4m`; all nine Axe surfaces returned zero serious/critical findings, now including Projects, Explore, comparison dashboard and printable comparison. Keyboard-only mock flows create/persist/reload/open a browser-local project and compare/export/print an untouched criteria-first shortlist. The test exposed and the implementation fixed active local-project loss after Project Hub reload. Visual regression, Lighthouse/Core Web Vitals, remaining mobile/navigation/target-size acceptance and real users remain open, so UX-01 stays active.
 
+Completed fourth bounded slice: exact head `32267fdea6a5f71d0bcc47e2f4821dd3da173352`, Quality Gate `29596337090`, passed Chrome `10/10` / `1.1m`; five fixed-time 390px screenshot baselines matched within `1%`, used primary targets met 40px, nine Axe surfaces stayed at zero and mobile landing/desktop login Lighthouse budgets passed. The browser work exposed and fixed comparison-container overflow and a non-wrapping winner label. Global mobile navigation, additional devices/deep-route performance and real users remain open, so UX-01 stays active.
+
 Acceptance:
 
 - map/dialog opening moves focus inside, traps Tab/Shift+Tab, closes on Escape, returns focus to the opener and hides inert background content from assistive technology;

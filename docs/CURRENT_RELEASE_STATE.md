@@ -42,22 +42,26 @@ The accessibility/deep-keyboard increment adds exact-pinned `@axe-core/playwrigh
 
 The expanded accessibility/project/comparison increment raises the focused suite to eight tests and nine zero-finding Axe surfaces. Its keyboard-only Projects flow creates a browser-local project, proves local persistence, reloads Project Hub, restores that project as active and opens it in Workspace. Its keyboard-only Explore flow runs criteria-first search, compares the unselected shortlist, exports the comparison and focuses the printable report control. CI exposed a real Project Hub defect: a stored active local project was discarded on reload in favor of the default profile segment; the implementation now restores a valid stored project after explicit URL context and before profile defaults. Exact functional head `0edf442f7aa59f0fe1f82f26ef6ad7ca9dde7868` passed Quality Gate `29590190286`; Chrome `150.0.7871.114` completed `8/8` in `1.4m`, and both application and isolated database jobs succeeded. This remains browser-only mock evidence and does not close visual regression, Lighthouse/Core Web Vitals, all mobile/target-size acceptance or real-user authorization personas.
 
-## Current expanded accessibility/project/comparison evidence
+The next bounded mobile/visual/performance increment raises the suite to ten tests. At 390×844 it creates/restores/opens a project and completes criteria-first compare/export/print while measuring the used primary controls against a 40px application target. Five exact Chrome/Linux screenshots are now regression baselines with a `1%` maximum differing-pixel ratio. The wide comparison table is contained in a named focusable scroll region; the outer dashboard has no horizontal overflow and the winner label wraps. Pinned Lighthouse `13.4.0` audits the mobile landing and desktop login on the built app and enforces category plus LCP/CLS/TBT budgets. Exact head `32267fdea6a5f71d0bcc47e2f4821dd3da173352` passed Quality Gate `29596337090`; this closes only the declared 390px/entry-surface slice, not mobile global navigation, additional devices, deep-route performance or real-user authorization.
+
+## Current mobile/visual/Lighthouse evidence
 
 | Candidate receipt | Verified value |
 | --- | --- |
-| Functional head | `0edf442f7aa59f0fe1f82f26ef6ad7ca9dde7868`, Draft PR #97; `main` unchanged |
-| Git tree | `ac23e66e33b8f42ea8e603797b0dc25b2ea87022` |
-| GitHub Quality Gate | Run `29590190286`, success |
-| Application job | `87917050301`, success; Chrome, production build and route/API smoke passed |
-| Chrome browser result | `Google Chrome 150.0.7871.114`; Playwright `8/8` passed in `1.4m` |
+| Functional head | `32267fdea6a5f71d0bcc47e2f4821dd3da173352`, Draft PR #97; `main` unchanged |
+| Git tree | `dac48ab7dbd93802d4f5bb28584d47483735b43f` |
+| GitHub Quality Gate | Run `29596337090`, success |
+| Application job | `87937539033`, success; Chrome, visual regression, Lighthouse, production build and route/API smoke passed |
+| Chrome browser result | `Google Chrome 150.0.7871.114`; Playwright `10/10` passed in `1.1m` |
 | Axe result | `0` serious/critical on Landing Hub, unified login, Workspace setup, Projects Hub, Explore setup, analysis dashboard, candidate comparison dashboard and both printable analysis/comparison reports |
-| Supabase replay/rehearsal/pgTAP | Job `87917050251`, success; clean `183/183`, synthetic ledger-prefix upgrade rehearsal, second `183/183` |
-| Quality artifact | `8410790742`, `geoai-quality-evidence-29590190286`, digest `sha256:a0e7d16d54ecf5f123a2ad4024241a8ebe6cbde79b2aa500eb9bd541a6bf6b8a` |
-| Database artifact | `8410824146`, `geoai-database-evidence-29590190286`, digest `sha256:d5b1daeca1a3009315ba3494da6db6c64c3c2c88fb6ccd1aeef12ccf7d8661ed` |
-| Exact Vercel Preview | `dpl_9n6d8RoVN6yEoxRzEALyG3F3rSHP`, READY on exact functional head; [deployment](https://geoai-hwg7wapdd-geoaidev.vercel.app) |
+| Mobile visual/target result | Five 390px screenshot baselines matched within `1%`; used primary controls met 40px; document/dashboard overflow rejected; wide table has a named focusable scroll region |
+| Lighthouse result | Mobile landing performance `0.99`, LCP `2075 ms`, CLS `0`, TBT `59 ms`; desktop login performance `1.00`, LCP `748 ms`, CLS `0`, TBT `0`; accessibility/best-practices/SEO `1.00` on both |
+| Supabase replay/rehearsal/pgTAP | Job `87937539005`, success; clean `183/183`, synthetic ledger-prefix upgrade rehearsal, second `183/183` |
+| Quality artifact | `8413223166`, `geoai-quality-evidence-29596337090`, digest `sha256:eed425b6a2f4af8256f52cb1184d5feba098761a48147f3ca5bb646f435d50a0` |
+| Database artifact | `8413255960`, `geoai-database-evidence-29596337090`, digest `sha256:73347a0fae80bca0f1c97d9b5e9cabf66a005da3f926be4c8d05c69591a8383b` |
+| Exact Vercel Preview | `dpl_77DXr2wR1qKdm8Mk4q7bUSDw4CEx`, READY on exact functional head; [deployment](https://geoai-dr82vysld-geoaidev.vercel.app) |
 | Hosted HTTP/security | Landing, Projects, Explore, bounded Explore login, project-context Workspace, health, activation status and seeded comparison print returned 200; CSP, HSTS and `nosniff` are present; error-only build and error/fatal runtime evidence is empty |
-| Authority boundary | Browser-only mock UX/accessibility and local-persistence evidence; no real key/user, Supabase write/migration, RLS/Admin persona, Production promotion, visual-regression, Lighthouse/Core Web Vitals or full UX-01 claim |
+| Authority boundary | Browser-only mock UX/accessibility/local-persistence plus bounded 390px visual and entry-performance evidence; no real key/user, Supabase write/migration, RLS/Admin persona, Production promotion, global mobile-navigation, additional-device/deep-route budget or full UX-01 claim |
 
 ## Current accessibility/deep-keyboard browser increment evidence
 
