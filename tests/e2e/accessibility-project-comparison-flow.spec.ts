@@ -137,7 +137,7 @@ test.describe("accessible browser-local project and comparison journeys", () => 
     await expect(page.getByRole("heading", { level: 1, name: "Project Hub" })).toBeVisible();
     await expect(projectSelector.locator("option:checked")).toHaveText(projectName);
 
-    const openWorkspace = page.getByRole("link", { name: "Open workspace" });
+    const openWorkspace = page.getByRole("link", { name: "Open workspace", exact: true }).first();
     await tabUntilLocator(page, openWorkspace, { maximumTabs: 80 });
     await page.keyboard.press("Enter");
     await expect(page).toHaveURL((url) => url.pathname === "/workspace" && url.searchParams.has("projectId"));
