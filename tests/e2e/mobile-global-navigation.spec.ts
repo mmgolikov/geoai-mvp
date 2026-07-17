@@ -28,10 +28,12 @@ async function expectMinimumTargetSize(label: string, locator: Locator, minimum 
 }
 
 async function openMobileNavigation(page: Page) {
-  const trigger = page.getByRole("button", { name: "Open product navigation" });
+  const trigger = page.locator('button[aria-controls="mobile-product-navigation-menu"]');
   await expectMinimumTargetSize("Mobile navigation trigger", trigger);
+  await expect(trigger).toHaveAccessibleName("Open product navigation");
   await trigger.click();
   await expect(trigger).toHaveAttribute("aria-expanded", "true");
+  await expect(trigger).toHaveAccessibleName("Close product navigation");
   const navigation = page.getByRole("navigation", { name: "Mobile product navigation" });
   await expect(navigation).toBeVisible();
   return navigation;
