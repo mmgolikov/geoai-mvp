@@ -201,12 +201,6 @@ export function ProfilePanel() {
         </div>
       </div>
 
-      {isDemo ? (
-        <div className="mt-6 rounded-xl border border-[#d9c58f] bg-[#fff9e8] px-4 py-3 text-sm leading-6 text-[#6f5817]">
-          Demo profile changes stay in this browser. They do not create a Supabase user or grant access to protected customer data.
-        </div>
-      ) : null}
-
       <div className="mt-6 grid gap-6 lg:grid-cols-[1.35fr_0.85fr]">
         <form onSubmit={handleProfileSave} className="rounded-2xl border border-line bg-white p-5 shadow-sm sm:p-7">
           <div className="flex flex-col gap-5 border-b border-line pb-6 sm:flex-row sm:items-center">

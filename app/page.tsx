@@ -55,14 +55,20 @@ function LandingHeader() {
         </Link>
         <div className="flex items-center gap-2">
           <nav className="hidden items-center gap-2 sm:flex">
-            <Link href="/workspace" className="rounded-md bg-surface px-3 py-2 text-sm font-semibold text-ink transition hover:text-brand">
-              Workspace
+            <Link
+              href="/login?next=/workspace&intent=demo"
+              className="rounded-md bg-brand px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#113f50]"
+            >
+              View demo
             </Link>
-            <Link href="/projects" className="rounded-md px-3 py-2 text-sm font-semibold text-muted transition hover:bg-surface hover:text-ink">
-              Projects
+            <Link
+              href="/login?next=/workspace&intent=request"
+              className="rounded-md border border-line bg-white px-4 py-2 text-sm font-semibold text-ink transition hover:border-brand"
+            >
+              Leave a request
             </Link>
           </nav>
-          <AccessStatusBadge compact />
+          <AccessStatusBadge />
         </div>
       </div>
     </header>
@@ -96,16 +102,16 @@ export default function HomePage() {
             </p>
             <div className="mt-7 flex flex-col gap-3 sm:flex-row">
               <Link
-                href="/login"
+                href="/login?next=/workspace&intent=demo"
                 className="inline-flex h-12 items-center justify-center rounded-md bg-brand px-6 text-sm font-semibold text-white shadow-soft transition hover:bg-[#113f50]"
               >
-                Sign in to GeoAI
+                View demo
               </Link>
               <Link
-                href="/workspace"
+                href="/login?next=/workspace&intent=request"
                 className="inline-flex h-12 items-center justify-center rounded-md border border-line bg-white/92 px-6 text-sm font-semibold text-ink transition hover:border-brand"
               >
-                Open workspace
+                Leave a request
               </Link>
             </div>
             <p className="mt-4 max-w-2xl text-sm leading-6 text-muted">

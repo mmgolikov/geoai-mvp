@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { useAuth } from "@/components/auth/auth-provider";
 import { getSafeAuthRedirectPath } from "@/src/lib/auth/redirect-path";
 import { mockDemoEmail, mockDemoPassword } from "@/src/lib/auth/mock-demo-session";
@@ -10,18 +9,20 @@ function isPhoneIdentifier(value: string) {
   return value.trim().startsWith("+");
 }
 
+function getDestination() {
+  return getSafeAuthRedirectPath(new URL(window.location.href).searchParams.get("next"), "/workspace");
+}
+
 export function LoginPanel() {
   const {
     isAuthenticated,
-    isDemo,
-    user,
     signIn,
     signInWithPassword,
     signInDemo,
     signInWithPhone,
-    verifyPhoneCode,
-    signOut
+    verifyPhoneCode
   } = useAuth();
+  const [intent, setIntent] = useState<"demo" | "request" | null>(null);
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [phoneCode, setPhoneCode] = useState("");
@@ -31,15 +32,18 @@ export function LoginPanel() {
   const normalizedIdentifier = identifier.trim().toLowerCase();
   const demoSelected = normalizedIdentifier === mockDemoEmail;
   const passwordSelected = password.length > 0;
-  function destination() {
-    return getSafeAuthRedirectPath(new URL(window.location.href).searchParams.get("next"), "/workspace");
-  }
 
   useEffect(() => {
-    if (new URL(window.location.href).searchParams.has("auth_error")) {
+    const url = new URL(window.location.href);
+    const requestedIntent = url.searchParams.get("intent");
+    setIntent(requestedIntent === "demo" || requestedIntent === "request" ? requestedIntent : null);
+    if (url.searchParams.has("auth_error")) {
       setMessage("The sign-in link is invalid or expired. Request a new email.");
     }
-  }, []);
+    if (isAuthenticated) {
+      window.location.replace(getDestination());
+    }
+  }, [isAuthenticated]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -49,14 +53,14 @@ export function LoginPanel() {
       if (demoSelected) {
         const result = await signInDemo(identifier, password);
         setMessage(result.message);
-        if (result.ok) window.location.assign(destination());
+        if (result.ok) window.location.assign(getDestination());
         return;
       }
 
       if (passwordSelected) {
         const result = await signInWithPassword(identifier, password);
         setMessage(result.message);
-        if (result.ok) window.location.assign(destination());
+        if (result.ok) window.location.assign(getDestination());
         return;
       }
 
@@ -81,7 +85,7 @@ export function LoginPanel() {
     try {
       const result = await verifyPhoneCode(identifier, phoneCode);
       setMessage(result.message);
-      if (result.ok) window.location.assign(destination());
+      if (result.ok) window.location.assign(getDestination());
     } finally {
       setPending(false);
     }
@@ -99,33 +103,22 @@ export function LoginPanel() {
     <section className="mx-auto grid min-h-[calc(100vh-64px)] max-w-5xl place-items-center px-4 py-10">
       <div className="grid w-full overflow-hidden rounded-2xl border border-line bg-white shadow-sm lg:grid-cols-[1.15fr_0.85fr]">
         <div className="p-6 sm:p-9">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">GeoAI access</p>
-          <h1 className="mt-3 text-3xl font-semibold text-ink sm:text-4xl">Sign in to GeoAI</h1>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">
+            {intent === "demo" ? "GeoAI demo access" : intent === "request" ? "GeoAI access request" : "GeoAI access"}
+          </p>
+          <h1 className="mt-3 text-3xl font-semibold text-ink sm:text-4xl">Sign in or create account</h1>
           <p className="mt-3 max-w-xl text-sm leading-6 text-muted">
-            Continue with your email or phone number. New users are created automatically after verification.
+            {intent === "demo"
+              ? "Sign in or use the ready demo account. Workspace opens automatically after authorization."
+              : intent === "request"
+                ? "Register with email or phone, or sign in if you already have an account. Workspace opens automatically after verification."
+                : "Continue with email or phone. New users are created automatically, and Workspace opens after authorization."}
           </p>
 
           {isAuthenticated ? (
-            <div className="mt-7 rounded-xl border border-line bg-surface p-5">
-              <p className="text-sm font-semibold text-ink">
-                {isDemo ? "Demo account is active" : `Signed in as ${user?.email ?? "GeoAI user"}`}
-              </p>
-              <p className="mt-2 text-sm leading-6 text-muted">
-                {isDemo
-                  ? "This account uses sample data only and cannot access Admin or protected customer data."
-                  : "Your available projects are determined by your organization membership."}
-              </p>
-              <div className="mt-4 flex flex-wrap gap-2">
-                <Link href="/profile" className="inline-flex h-10 items-center justify-center rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink transition hover:border-brand">
-                  Open profile
-                </Link>
-                <Link href="/workspace" className="inline-flex h-10 items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white transition hover:bg-[#113f50]">
-                  Open workspace
-                </Link>
-                <button type="button" onClick={() => void signOut()} className="inline-flex h-10 items-center justify-center rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink transition hover:border-brand">
-                  Sign out
-                </button>
-              </div>
+            <div className="mt-7 flex items-center gap-3 rounded-xl border border-brand/25 bg-surface p-5" aria-live="polite">
+              <span className="h-3 w-3 animate-pulse rounded-full bg-brand" aria-hidden="true" />
+              <p className="text-sm font-semibold text-ink">Authorization saved. Opening Workspace…</p>
             </div>
           ) : (
             <>

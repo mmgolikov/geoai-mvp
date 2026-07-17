@@ -27,7 +27,7 @@ export function TopNavigation() {
               Projects
             </Link>
           </nav>
-          <AccessStatusBadge compact />
+          <AccessStatusBadge />
         </div>
       </div>
     </header>

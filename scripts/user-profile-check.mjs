@@ -41,6 +41,9 @@ expect(files.provider.includes("saveProfile") && files.provider.includes("reques
 expect(files.provider.includes("signInWithPassword") && files.login.includes("passwordSelected"), "A changed real-user password cannot be used by the login UI");
 expect(files.login.includes("normalizedIdentifier === mockDemoEmail") && !files.login.includes("mockDemoEmail || password.length"), "Any password must not be treated as mock-demo authority");
 expect(files.badge.includes('isAuthenticated ? "/profile" : "/login"'), "Authenticated account control does not open the profile");
+expect(files.badge.includes('data-authenticated={isAuthenticated ? "true" : "false"}') && files.badge.includes("Open your profile"), "Profile icon does not expose a visible authenticated state");
+expect(files.login.includes("window.location.replace(getDestination())"), "Saved authorization does not continue directly to Workspace");
+expect(!files.panel.includes("Demo profile changes stay in this browser."), "Large demo caveat still occupies the top of the personal account");
 expect(files.workspace.includes("user?.profile.defaultAudience") && files.workspace.includes("user?.profile.defaultRole"), "Workspace does not consume profile defaults");
 expect(files.workspace.includes("hasExplicitWorkspaceContext"), "Workspace profile defaults can overwrite explicit URL context");
 expect(files.projects.includes("user?.profile.defaultAudience") && files.projects.includes("getExploreRolesByAudience(projectAudienceDraft)"), "Projects does not consume the full profile audience/role contract");

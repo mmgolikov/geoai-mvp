@@ -4,7 +4,7 @@ async function source(path) {
   return fs.promises.readFile(new URL(`../${path}`, import.meta.url), "utf8");
 }
 
-const [adminRoute, onboardingRoute, onboardingStageRoute, invitationCookie, tokenHelper, elevated, adminUi, onboardingUi, callback, redirectPath, landing, navigation, accessBadge] = await Promise.all([
+const [adminRoute, onboardingRoute, onboardingStageRoute, invitationCookie, tokenHelper, elevated, adminUi, onboardingUi, callback, redirectPath, landing, navigation, accessBadge, login] = await Promise.all([
   source("app/api/admin/route.ts"),
   source("app/api/onboarding/invitation/route.ts"),
   source("app/api/onboarding/invitation/stage/route.ts"),
@@ -17,7 +17,8 @@ const [adminRoute, onboardingRoute, onboardingStageRoute, invitationCookie, toke
   source("src/lib/auth/redirect-path.ts"),
   source("app/page.tsx"),
   source("components/top-navigation.tsx"),
-  source("components/auth/access-status-badge.tsx")
+  source("components/auth/access-status-badge.tsx"),
+  source("components/auth/login-panel.tsx")
 ]);
 
 const failures = [];
@@ -52,8 +53,11 @@ assert(onboardingRoute.includes("onboardingInvitationCookieName") && onboardingR
 assert(callback.includes("exchangeCodeForSession") && redirectPath.includes("approvedAuthDestinations"), "PKCE callback must use a bounded same-origin redirect allowlist");
 assert(!callback.includes(".mfa") && !adminUi.includes("MFA") && !onboardingUi.includes("MFA"), "Current user flows must not expose or require MFA");
 assert(!onboardingUi.includes('type="password"') && !onboardingUi.includes("One-time invitation token"), "Onboarding must not ask users to paste technical invitation tokens");
-assert(landing.includes('href="/login"') && landing.includes("Sign in") && landing.includes("AccessStatusBadge"), "Landing must expose a prominent sign-in action in the hero and header");
-assert(navigation.includes("AccessStatusBadge") && accessBadge.includes('label = "Sign in"') && accessBadge.includes('aria-label={isAuthenticated ? "Open GeoAI account" : "Sign in to GeoAI"}'), "Product navigation must expose an accessible sign-in/account action on every screen size");
+assert(landing.includes('href="/login?next=/workspace&intent=demo"') && landing.includes("View demo"), "Landing demo CTA must enter the bounded auth flow before Workspace");
+assert(landing.includes('href="/login?next=/workspace&intent=request"') && landing.includes("Leave a request"), "Landing must expose the account-registration request CTA");
+assert(!landing.includes('href="/workspace"') && !landing.includes('href="/projects"'), "Landing must not bypass the requested authentication funnel");
+assert(login.includes("Sign in or create account") && login.includes("window.location.replace(getDestination())") && login.includes("Authorization saved. Opening Workspace"), "Successful login must immediately continue to Workspace with the saved session");
+assert(navigation.includes("AccessStatusBadge") && accessBadge.includes('data-authenticated={isAuthenticated ? "true" : "false"}') && accessBadge.includes('isAuthenticated ? "/profile" : "/login"'), "Product navigation must expose a highlighted profile icon that opens the personal account");
 assert(adminRoute.includes("privateNoStoreJson") && onboardingRoute.includes("privateNoStoreJson"), "Authenticated Admin APIs must be private no-store");
 assert(adminUi.includes("initial-only") && adminUi.includes("capped at 25"), "Admin UI must disclose bounded initial-only snapshot pagination");
 
