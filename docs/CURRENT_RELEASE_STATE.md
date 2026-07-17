@@ -38,6 +38,25 @@ The permanent Chrome/Playwright contract now proves the browser-only mock journe
 
 The responsive/keyboard increment extends the focused command to five Playwright tests. It covers landing and unified login at 1440×900 desktop, 834×1112 tablet and 390×844 mobile widths; checks a single meaningful landing `h1`, both bounded public entry targets, absence of horizontal overflow and a 40px minimum application baseline for primary mobile entry controls; and drives the full mobile demo → Workspace → authenticated profile path using Tab and Enter only. Exact head `e203e895406817497f339fccf1d04da377a7bc65` passed Quality Gate `29584919107`: Chrome `150.0.7871.114` completed `5/5` in `41.5 s`, and both application and isolated database jobs succeeded. This narrow path does not close Axe/Lighthouse, Workspace analysis/report, project switching, print, real email/phone or RLS/Admin personas.
 
+The accessibility/deep-keyboard increment adds exact-pinned `@axe-core/playwright` and a machine-readable `axe-accessibility-results.json` artifact. Its single pointer-free desktop journey authenticates with the browser-only demo, changes the default Map-first workflow to Criteria-first, searches redevelopment zones, selects the first candidate by reverse focus traversal, runs analysis, opens the dashboard, exports a browser-local printable report and focuses the print control. Axe reports `0` serious/critical findings on the landing Hub, unified login, Workspace setup, analysis dashboard and printable report. The first CI attempt usefully exposed duplicate print-page `h1` semantics; the final head makes the toolbar title `h2` and retains the report document as the sole `h1`. Exact head `5d7af89ac2ead5b4df545e2f1810d5966c22cd0e` passed Quality Gate `29587485235`: Chrome `150.0.7871.114` completed all `6/6` tests in `41.6 s`, and application plus isolated database jobs succeeded. This is not UX-01 closure: Projects/Explore Axe, comparison, project save/open, visual regression, Lighthouse/Core Web Vitals and real-user personas remain open.
+
+## Current accessibility/deep-keyboard browser increment evidence
+
+| Candidate receipt | Verified value |
+| --- | --- |
+| Functional accessibility head | `5d7af89ac2ead5b4df545e2f1810d5966c22cd0e`, Draft PR #97; `main` unchanged |
+| Git tree | `d475cb83599881143e0a3552673efbe3ceca409d` |
+| GitHub Quality Gate | Run `29587485235`, success |
+| Application job | `87907969862`, success; static contracts, Chrome, production build and required route/API smoke passed |
+| Chrome browser result | `Google Chrome 150.0.7871.114`; Playwright `6/6` passed in `41.6 s` |
+| Axe result | `0` serious/critical on Landing Hub, unified login, Workspace setup, analysis dashboard and printable analysis report; JSON included in the quality artifact |
+| Supabase replay/rehearsal/pgTAP | Job `87907969852`, success; clean `183/183`, synthetic ledger-prefix upgrade rehearsal, second `183/183` |
+| Quality artifact | `8409664456`, `geoai-quality-evidence-29587485235`, digest `sha256:679e3e549548c30dd92e433620e3db2df3145720aa54d071d8e25d37d5eae080` |
+| Database artifact | `8409706875`, `geoai-database-evidence-29587485235`, digest `sha256:132c9212b2ee117798b7ada9216574d643469c0c5b578937e3aa2817f9d6832c` |
+| Exact Vercel Preview | `dpl_HhpTExvknfLRhMNqxXunUvXZQorF`, READY on exact functional head; [deployment](https://geoai-gjifhfee6-geoaidev.vercel.app) |
+| Hosted HTTP/security | Landing, Workspace, bounded demo login, health, activation status and seeded print route returned 200; CSP, HSTS and `nosniff` are present; error-only build logs and error/fatal runtime logs are empty |
+| Authority boundary | Browser-only mock UX/accessibility evidence; no real key/user, Supabase write, migration, RLS/Admin persona, Production promotion, Lighthouse/Core Web Vitals or full UX-01 claim |
+
 ## Current responsive/keyboard browser increment evidence
 
 | Candidate receipt | Verified value |

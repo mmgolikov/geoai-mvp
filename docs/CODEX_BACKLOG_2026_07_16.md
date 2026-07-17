@@ -198,6 +198,8 @@ The audit branch fixes the confirmed dialog focus/Escape/background isolation an
 
 Completed bounded slice: exact head `e203e895406817497f339fccf1d04da377a7bc65`, Quality Gate `29584919107`, passed desktop/tablet/390px landing-login layout checks, no-horizontal-overflow assertions, a 40px primary mobile entry-control baseline and a Tab/Enter-only mock demo → Workspace → profile journey in Chrome `5/5` / `41.5 s`. This is not closure of UX-01 or the Axe/deep Workspace/project/report/print acceptance below.
 
+Completed second bounded slice: exact head `5d7af89ac2ead5b4df545e2f1810d5966c22cd0e`, Quality Gate `29587485235`, passed Chrome `6/6` / `41.6 s`; exact-pinned Axe returned zero serious/critical findings on Landing Hub, unified login, Workspace setup, analysis dashboard and printable report; and the Tab/Enter-only mock path switched Map-first to Criteria-first, searched/selected a candidate, analyzed, exported and focused print. Projects/Explore Axe, comparison, project save/open, visual regression, Lighthouse/Core Web Vitals and real users remain open, so UX-01 stays active.
+
 Acceptance:
 
 - map/dialog opening moves focus inside, traps Tab/Shift+Tab, closes on Escape, returns focus to the opener and hides inert background content from assistive technology;

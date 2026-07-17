@@ -477,6 +477,7 @@ Exact-head receipt: head `e999c5a07d3ced6c95f2eb44f6a5f03a9c17caea`, tree `73b7c
 - [ ] `preserveDrawingBuffer` is enabled only for an explicit capture path; route JS, build, API latency and Core Web Vitals budgets pass on the declared desktop/mobile profiles.
 - [ ] Mobile navigation exposes Workspace and Projects; each critical route has one meaningful `h1`, labelled project/candidate/audience controls, correct pressed/expanded/disabled states, useful live regions and WCAG 2.2-sized interactive targets.
 - [ ] Axe/Lighthouse and keyboard-only journeys cover Home → Workspace → analysis/report, criteria-first comparison, project switching and print; no active control targets a guaranteed 403.
+- [x] Bounded accessibility/deep-keyboard slice passes on exact head `5d7af89ac2ead5b4df545e2f1810d5966c22cd0e`, Quality Gate `29587485235`: Chrome `6/6` in `41.6 s`; Axe `0` serious/critical on Landing Hub, unified login, Workspace setup, analysis dashboard and printable report; Tab/Enter-only mock flow switches Map-first to Criteria-first, searches/selects a candidate, analyzes, exports and focuses `Print / Save as PDF`. **Projects/Explore Axe, criteria-first comparison, project save/open, visual regression, Lighthouse/Core Web Vitals and real users remain open.**
 
 ## Responsive Checks
 

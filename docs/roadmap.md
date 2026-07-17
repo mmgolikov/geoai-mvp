@@ -44,7 +44,7 @@ GeoAI remains a public demo prototype. Production is `demo_only`, `local_fallbac
 1. Resolve the live UX/a11y/performance audit backlog.
 2. Define and implement the missing criteria-first wireflow and empty/stub product documents.
 3. Modularize Workspace, Project Dashboard, Map and Analysis surfaces with regression coverage.
-4. Establish visual regression and multi-device browser tests for critical B2B/B2C journeys. Exact head `e203e895406817497f339fccf1d04da377a7bc65` closes the narrow first slice—desktop/tablet/390px landing/login layout plus a 390px keyboard-only mock-demo/profile path passed Chrome `5/5`—but Axe/Lighthouse and deep Workspace/project/report/print coverage remain required.
+4. Establish visual regression and multi-device browser tests for critical B2B/B2C journeys. Exact head `e203e895406817497f339fccf1d04da377a7bc65` closes the narrow responsive slice—desktop/tablet/390px landing/login layout plus a 390px keyboard-only mock-demo/profile path passed Chrome `5/5`. Exact head `5d7af89ac2ead5b4df545e2f1810d5966c22cd0e` adds the first deep accessibility slice: Chrome `6/6`, zero serious/critical Axe findings on Hub/Login/Workspace/dashboard/print, and a Tab/Enter-only Map-first → Criteria-first → candidate → analysis → export → print-control path. Projects/Explore Axe, comparison/project save-open, visual regression, Lighthouse/Core Web Vitals and real-user journeys remain required.
 
 ## Source activation sequence
 
