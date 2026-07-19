@@ -23,9 +23,9 @@ const visualManifest = path.join(visualDirectory, "manifest.json");
 const visualEvidence: CommercialVisualEvidence[] = [];
 
 const expectedSha256ByFile: Record<string, string> = {
-  "landing-desktop-1440.png": "0000000000000000000000000000000000000000000000000000000000000000",
-  "login-desktop-1440.png": "0000000000000000000000000000000000000000000000000000000000000000",
-  "profile-desktop-1440.png": "0000000000000000000000000000000000000000000000000000000000000000",
+  "landing-desktop-1440.png": "95f8bc525f38d515429251f2ffc98c49396e559ea7be5c403df5181889b44b7b",
+  "login-desktop-1440.png": "fd0647336406c1d4c476f4c59a01b32267256005c71255a459689b7871f6ea1a",
+  "profile-desktop-1440.png": "7fbc2389c44e2c47555918cc1b3a73d3705bfd6556b224f9eef06ad04d2e7445",
   "landing-tablet-768.png": "0000000000000000000000000000000000000000000000000000000000000000",
   "login-tablet-768.png": "0000000000000000000000000000000000000000000000000000000000000000",
   "profile-tablet-768.png": "0000000000000000000000000000000000000000000000000000000000000000",
@@ -79,17 +79,16 @@ async function openDemoProfile(page: Page) {
   await expect(page.getByRole("heading", { level: 1, name: "Your profile" })).toBeVisible();
 }
 
-test.describe.configure({ mode: "serial" });
-
 test.describe("commercial Landing and Account visual acceptance", () => {
   test.beforeAll(async () => {
     visualEvidence.length = 0;
     await fs.rm(visualDirectory, { recursive: true, force: true });
   });
 
-  for (const viewport of viewports) {
-    test(`${viewport.name} captures Landing, Login and Profile`, async ({ page }) => {
-      await page.setViewportSize({ width: viewport.width, height: viewport.height });
+  test("captures Landing, Login and Profile at all declared viewports", async ({ browser }) => {
+    for (const viewport of viewports) {
+      const context = await browser.newContext({ viewport: { width: viewport.width, height: viewport.height } });
+      const page = await context.newPage();
       await page.clock.setFixedTime(new Date("2026-07-19T09:00:00.000Z"));
 
       await page.goto("/");
@@ -105,6 +104,8 @@ test.describe("commercial Landing and Account visual acceptance", () => {
       await openDemoProfile(page);
       await expectNoHorizontalOverflow(page);
       await captureCommercialVisual(page, `${viewport.name} Profile`, `profile-${viewport.name}.png`);
-    });
-  }
+
+      await context.close();
+    }
+  });
 });
