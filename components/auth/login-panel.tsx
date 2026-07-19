@@ -5,12 +5,22 @@ import { useAuth } from "@/components/auth/auth-provider";
 import { getSafeAuthRedirectPath } from "@/src/lib/auth/redirect-path";
 import { mockDemoEmail, mockDemoPassword } from "@/src/lib/auth/mock-demo-session";
 
-function isPhoneIdentifier(value: string) {
-  return value.trim().startsWith("+");
-}
+type AuthMethod = "email" | "phone";
 
 function getDestination() {
   return getSafeAuthRedirectPath(new URL(window.location.href).searchParams.get("next"), "/workspace");
+}
+
+function JourneyItem({ number, tone, label, text }: { number: string; tone: "brand" | "personal"; label: string; text: string }) {
+  return (
+    <div className="flex min-h-[58px] items-center gap-3">
+      <span className={`inline-flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full text-xs font-bold ${tone === "brand" ? "bg-[#f0f7ff] text-brand" : "bg-[#f5f2ff] text-personal"}`}>{number}</span>
+      <span className="min-w-0">
+        <strong className={`block text-[10px] font-semibold uppercase ${tone === "brand" ? "text-brand" : "text-personal"}`}>{label}</strong>
+        <span className="mt-0.5 block text-sm font-medium text-ink">{text}</span>
+      </span>
+    </div>
+  );
 }
 
 export function LoginPanel() {
@@ -23,6 +33,7 @@ export function LoginPanel() {
     verifyPhoneCode
   } = useAuth();
   const [intent, setIntent] = useState<"demo" | "request" | null>(null);
+  const [method, setMethod] = useState<AuthMethod>("email");
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [phoneCode, setPhoneCode] = useState("");
@@ -30,8 +41,8 @@ export function LoginPanel() {
   const [message, setMessage] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const normalizedIdentifier = identifier.trim().toLowerCase();
-  const demoSelected = normalizedIdentifier === mockDemoEmail;
-  const passwordSelected = password.length > 0;
+  const demoSelected = method === "email" && normalizedIdentifier === mockDemoEmail;
+  const passwordSelected = method === "email" && password.length > 0;
 
   useEffect(() => {
     const url = new URL(window.location.href);
@@ -40,37 +51,41 @@ export function LoginPanel() {
     if (url.searchParams.has("auth_error")) {
       setMessage("The sign-in link is invalid or expired. Request a new email.");
     }
-    if (isAuthenticated) {
-      window.location.replace(getDestination());
-    }
+    if (isAuthenticated) window.location.replace(getDestination());
   }, [isAuthenticated]);
+
+  function changeMethod(nextMethod: AuthMethod) {
+    setMethod(nextMethod);
+    setPhoneCodeSent(false);
+    setPhoneCode("");
+    setPassword("");
+    setIdentifier("");
+    setMessage(null);
+  }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setPending(true);
     setMessage(null);
     try {
+      if (method === "phone") {
+        const result = await signInWithPhone(identifier);
+        setMessage(result.message);
+        setPhoneCodeSent(result.ok);
+        return;
+      }
       if (demoSelected) {
         const result = await signInDemo(identifier, password);
         setMessage(result.message);
         if (result.ok) window.location.assign(getDestination());
         return;
       }
-
       if (passwordSelected) {
         const result = await signInWithPassword(identifier, password);
         setMessage(result.message);
         if (result.ok) window.location.assign(getDestination());
         return;
       }
-
-      if (isPhoneIdentifier(identifier)) {
-        const result = await signInWithPhone(identifier);
-        setMessage(result.message);
-        setPhoneCodeSent(result.ok);
-        return;
-      }
-
       const result = await signIn(identifier);
       setMessage(result.message);
     } finally {
@@ -92,6 +107,7 @@ export function LoginPanel() {
   }
 
   function fillDemoCredentials() {
+    setMethod("email");
     setIdentifier(mockDemoEmail);
     setPassword(mockDemoPassword);
     setPhoneCodeSent(false);
@@ -99,79 +115,112 @@ export function LoginPanel() {
     setMessage(null);
   }
 
+  const kicker = intent === "demo" ? "GeoAI demo access" : intent === "request" ? "GeoAI access request" : "GeoAI access";
+
   return (
-    <section className="mx-auto grid min-h-[calc(100vh-64px)] max-w-5xl place-items-center px-4 py-10">
-      <div className="grid w-full overflow-hidden rounded-2xl border border-line bg-white shadow-sm lg:grid-cols-[1.15fr_0.85fr]">
-        <div className="p-6 sm:p-9">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">
-            {intent === "demo" ? "GeoAI demo access" : intent === "request" ? "GeoAI access request" : "GeoAI access"}
+    <section className="bg-gradient-to-br from-white via-[#fbfdff] to-[#edf6ff] px-4 py-8 sm:px-6 sm:py-10 lg:min-h-[calc(100vh-64px)] lg:py-12">
+      <div className="mx-auto grid w-full max-w-[1320px] gap-5 lg:grid-cols-[0.82fr_1.18fr]">
+        <aside className="order-2 overflow-hidden rounded-[28px] border border-line bg-[#f0f7ff] p-6 sm:p-8 lg:order-1 lg:p-11">
+          <p className="text-xs font-semibold uppercase tracking-[0.08em] text-brand">GeoAI access</p>
+          <h2 className="mt-5 text-4xl font-semibold leading-[1.06] tracking-[-0.035em] text-ink sm:text-[46px] sm:leading-[50px]">
+            One account.<br />Every decision stays connected.
+          </h2>
+          <p className="mt-6 max-w-lg text-base leading-7 text-muted">
+            Sign in once, open Workspace immediately and keep your preferred audience and role across the system.
           </p>
-          <h1 className="mt-3 text-3xl font-semibold text-ink sm:text-4xl">Sign in or create account</h1>
-          <p className="mt-3 max-w-xl text-sm leading-6 text-muted">
+          <div className="mt-7 grid gap-3 rounded-[20px] border border-line bg-white p-5">
+            <JourneyItem number="01" tone="brand" label="Verify" text="Email, password or phone" />
+            <JourneyItem number="02" tone="brand" label="Open" text="Workspace starts automatically" />
+            <JourneyItem number="03" tone="personal" label="Remember" text="Profile saves role and region" />
+          </div>
+          <div className="mt-5 flex min-h-[52px] items-center gap-3 rounded-[14px] bg-[#e8fafa] px-4 text-[13px] font-semibold text-ink">
+            <span className="text-lg text-accent">✓</span> After authorization: {getDestination()}
+          </div>
+          <p className="mt-6 text-xs leading-5 text-muted">
+            Account preferences sync through the configured account service; the profile photo remains on this device until protected storage is enabled.
+          </p>
+        </aside>
+
+        <div className="order-1 overflow-hidden rounded-[28px] border border-line bg-white p-6 shadow-soft sm:p-8 lg:order-2 lg:p-[42px]">
+          <p className="text-xs font-semibold uppercase tracking-[0.08em] text-brand">{kicker}</p>
+          <h1 className="mt-4 text-3xl font-semibold tracking-[-0.025em] text-ink sm:text-[40px]">Sign in or create account</h1>
+          <h2 className="mt-2 text-xl font-semibold text-ink sm:text-2xl">Continue to GeoAI</h2>
+          <p className="mt-3 max-w-2xl text-sm leading-6 text-muted">
             {intent === "demo"
-              ? "Sign in or use the ready demo account. Workspace opens automatically after authorization."
+              ? "Sign in or use the ready browser-local demo. Workspace opens automatically after authorization."
               : intent === "request"
-                ? "Register with email or phone, or sign in if you already have an account. Workspace opens automatically after verification."
-                : "Continue with email or phone. New users are created automatically, and Workspace opens after authorization."}
+                ? "Continue with email or phone. New accounts are created only after the configured verification step succeeds."
+                : "Continue with email or phone. A saved session opens Workspace automatically."}
           </p>
 
           {isAuthenticated ? (
-            <div className="mt-7 flex items-center gap-3 rounded-xl border border-brand/25 bg-surface p-5" aria-live="polite">
-              <span className="h-3 w-3 animate-pulse rounded-full bg-brand" aria-hidden="true" />
+            <div className="mt-7 flex min-h-20 items-center gap-4 rounded-2xl border border-accent/30 bg-[#e8fafa] p-5" aria-live="polite">
+              <span className="h-3 w-3 animate-pulse rounded-full bg-accent motion-reduce:animate-none" aria-hidden="true" />
               <p className="text-sm font-semibold text-ink">Authorization saved. Opening Workspace…</p>
             </div>
           ) : (
             <>
-              <form onSubmit={handleSubmit} className="mt-7 grid gap-4">
-                <div className="grid gap-2">
-                  <label htmlFor="login-identifier" className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">
-                    Email or phone
-                  </label>
+              <div className="mt-7 grid h-14 grid-cols-2 gap-1.5 rounded-xl bg-[#f0f7ff] p-1" role="group" aria-label="Sign-in method">
+                {(["email", "phone"] as AuthMethod[]).map((item) => (
+                  <button
+                    key={item}
+                    type="button"
+                    aria-pressed={method === item}
+                    onClick={() => changeMethod(item)}
+                    className={`rounded-[10px] text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand ${method === item ? "bg-brand text-white shadow-sm" : "text-muted hover:bg-white"}`}
+                  >
+                    {item === "email" ? "Email" : "Phone"}
+                  </button>
+                ))}
+              </div>
+
+              <form onSubmit={handleSubmit} className="mt-6 grid gap-5">
+                <label className="grid gap-2" htmlFor="login-identifier">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">Email or phone</span>
                   <input
                     id="login-identifier"
-                    type="text"
+                    type={method === "phone" ? "tel" : "email"}
                     required
-                    autoComplete="username"
+                    autoComplete={method === "phone" ? "tel" : "username"}
                     value={identifier}
                     onChange={(event) => {
                       setIdentifier(event.target.value);
                       setPhoneCodeSent(false);
                     }}
-                    className="h-12 rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition focus:border-brand"
-                    placeholder="name@company.com or +971501234567"
+                    className="h-[52px] rounded-[10px] border border-line bg-white px-4 text-sm text-ink outline-none transition placeholder:text-muted/70 focus:border-brand focus:ring-2 focus:ring-brand/10"
+                    placeholder={method === "phone" ? "+971501234567" : "name@company.com"}
                   />
-                </div>
-                <div className="grid gap-2">
-                  <div className="flex items-center justify-between gap-3">
-                    <label htmlFor="login-password" className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">
-                      Password
-                    </label>
-                    <span className="text-xs text-muted">Optional for existing email accounts</span>
-                  </div>
-                  <input
-                    id="login-password"
-                    type="password"
-                    autoComplete="current-password"
-                    value={password}
-                    onChange={(event) => setPassword(event.target.value)}
-                    className="h-12 rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition focus:border-brand"
-                    placeholder="Leave empty for a sign-in link or SMS code"
-                  />
-                </div>
+                  <span className="text-[11px] leading-4 text-muted">{method === "phone" ? "Use a full phone number with country code." : "Use the email registered for your account or request a secure sign-in link."}</span>
+                </label>
+
+                {method === "email" ? (
+                  <label className="grid gap-2" htmlFor="login-password">
+                    <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">Password</span>
+                    <input
+                      id="login-password"
+                      type="password"
+                      autoComplete="current-password"
+                      value={password}
+                      onChange={(event) => setPassword(event.target.value)}
+                      className="h-[52px] rounded-[10px] border border-line bg-white px-4 text-sm text-ink outline-none transition placeholder:text-muted/70 focus:border-brand focus:ring-2 focus:ring-brand/10"
+                      placeholder="Optional"
+                    />
+                    <span className="text-[11px] leading-4 text-muted">Leave empty to receive a secure sign-in link.</span>
+                  </label>
+                ) : null}
+
                 <button
                   type="submit"
                   disabled={pending}
-                  className="inline-flex h-12 items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white transition hover:bg-[#113f50] disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex h-12 items-center justify-center rounded-control bg-brand px-5 text-sm font-semibold text-white transition hover:bg-[#0854dd] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {pending ? "Please wait…" : demoSelected ? "Open demo" : passwordSelected ? "Sign in" : isPhoneIdentifier(identifier) ? "Send code" : "Send sign-in link"}
+                  {pending ? "Please wait…" : demoSelected ? "Open demo" : passwordSelected ? "Sign in" : method === "phone" ? "Send code" : "Send sign-in link"}
                 </button>
               </form>
 
               {phoneCodeSent ? (
-                <form onSubmit={handlePhoneVerification} className="mt-4 grid gap-3 rounded-xl border border-brand/25 bg-surface p-4">
-                  <label htmlFor="phone-code" className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">
-                    SMS code
-                  </label>
+                <form onSubmit={handlePhoneVerification} className="mt-5 grid gap-3 rounded-2xl border border-accent/30 bg-[#e8fafa] p-4">
+                  <label htmlFor="phone-code" className="text-[11px] font-semibold uppercase tracking-[0.08em] text-accent">SMS code</label>
                   <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
                     <input
                       id="phone-code"
@@ -182,44 +231,43 @@ export function LoginPanel() {
                       required
                       value={phoneCode}
                       onChange={(event) => setPhoneCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
-                      className="h-11 rounded-md border border-line bg-white px-3 text-sm tracking-[0.3em] text-ink outline-none focus:border-brand"
+                      className="h-12 rounded-[10px] border border-line bg-white px-4 text-sm tracking-[0.3em] text-ink outline-none focus:border-brand"
                       placeholder="000000"
                     />
-                    <button disabled={pending} className="h-11 rounded-md bg-brand px-5 text-sm font-semibold text-white disabled:opacity-60">
-                      Verify
-                    </button>
+                    <button disabled={pending} className="h-12 rounded-control bg-brand px-6 text-sm font-semibold text-white disabled:opacity-60">Verify</button>
                   </div>
                 </form>
               ) : null}
 
-              {message ? <p aria-live="polite" className="mt-4 rounded-md bg-surface px-3 py-2 text-sm leading-6 text-muted">{message}</p> : null}
+              {message ? (
+                <p aria-live="polite" className="mt-5 rounded-[14px] border border-line bg-surface px-4 py-3 text-sm leading-6 text-muted">{message}</p>
+              ) : null}
+
+              <div className="mt-5 rounded-2xl bg-[#e8fafa] p-4 text-xs leading-5 text-ink">
+                <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full bg-accent" aria-hidden="true" />
+                No separate registration form: the configured verification step creates the account when allowed.
+              </div>
+
+              <div className="mt-4 grid gap-4 rounded-2xl bg-[#f5f2ff] p-4 sm:grid-cols-[1fr_auto] sm:items-center">
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-personal">Guided access</p>
+                  <p className="mt-1 text-xs leading-5 text-muted">Use the ready browser-local sample account. It never authorizes protected server resources.</p>
+                  <p className="mt-2 text-[11px] font-semibold text-ink"><code>{mockDemoEmail}</code> · <code>{mockDemoPassword}</code></p>
+                </div>
+                <button
+                  type="button"
+                  onClick={fillDemoCredentials}
+                  className="inline-flex h-12 items-center justify-center rounded-control border border-personal bg-white px-5 text-sm font-semibold text-personal transition hover:bg-white/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-personal"
+                >
+                  Use demo credentials
+                </button>
+              </div>
+
+              <p className="mt-4 text-[10px] leading-4 text-muted">By continuing, you accept the Terms and Privacy Policy.</p>
+              <p className="mt-2 text-[10px] leading-4 text-muted">Phone sign-in becomes operational only after an approved SMS provider is connected. Email and browser-local demo access do not depend on it.</p>
             </>
           )}
         </div>
-
-        <aside className="border-t border-line bg-[#f1f7f8] p-6 sm:p-9 lg:border-l lg:border-t-0">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">Explore first</p>
-          <h2 className="mt-3 text-2xl font-semibold text-ink">Use the ready demo account</h2>
-          <p className="mt-3 text-sm leading-6 text-muted">
-            Open the sample workspace immediately. Demo activity stays in this browser and never becomes customer or official data.
-          </p>
-          <div className="mt-6 grid gap-3 rounded-xl border border-brand/20 bg-white p-4">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Email</p>
-              <code className="mt-1 block text-sm font-semibold text-ink">{mockDemoEmail}</code>
-            </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Password</p>
-              <code className="mt-1 block text-sm font-semibold text-ink">{mockDemoPassword}</code>
-            </div>
-          </div>
-          <button type="button" onClick={fillDemoCredentials} className="mt-4 inline-flex h-11 w-full items-center justify-center rounded-md border border-brand bg-white px-4 text-sm font-semibold text-brand transition hover:bg-surface">
-            Use demo credentials
-          </button>
-          <p className="mt-5 text-xs leading-5 text-muted">
-            Phone sign-in becomes operational after an SMS provider is connected. Email and demo access do not depend on it.
-          </p>
-        </aside>
       </div>
     </section>
   );
