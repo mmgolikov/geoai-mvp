@@ -99,7 +99,7 @@ test.describe("accessible critical screens and keyboard-only workspace journey",
     const evidence: AccessibilityResult[] = [];
 
     await page.goto("/");
-    await expect(page.getByRole("heading", { level: 1, name: "GeoAI spatial decision intelligence" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Ask the map. Move with evidence." })).toBeVisible();
     await recordAccessibilityResult(page, "Landing hub", evidence);
 
     const demoLink = page.getByRole("link", { name: "View demo" }).last();
