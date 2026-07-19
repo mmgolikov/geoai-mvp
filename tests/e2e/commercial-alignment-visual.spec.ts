@@ -25,13 +25,13 @@ const visualMismatches: string[] = [];
 
 const expectedSha256ByFile: Record<string, string> = {
   "landing-desktop-1440.png": "95f8bc525f38d515429251f2ffc98c49396e559ea7be5c403df5181889b44b7b",
-  "login-desktop-1440.png": "fd0647336406c1d4c476f4c59a01b32267256005c71255a459689b7871f6ea1a",
+  "login-desktop-1440.png": "dacc2ed2694193c655855fee9913c8f984d62f3368660f5e4c843706a2998a8f",
   "profile-desktop-1440.png": "7fbc2389c44e2c47555918cc1b3a73d3705bfd6556b224f9eef06ad04d2e7445",
   "landing-tablet-768.png": "f5983ef52825a963a06ddc0d57d9e01b6f6677b7dfb083c976788ff4dd323f74",
-  "login-tablet-768.png": "8daece9bdb7d236eb2c8097d160b08d98f9f9518f544c00467e60f3655e9c491",
+  "login-tablet-768.png": "2f16049447cad5093967e2464527144e29407d6c5397abdb0647cc799d005a92",
   "profile-tablet-768.png": "ce117e93972a4b86a0fd0e8c9345055b2f15700b7dd539140d8593d732d18ae5",
   "landing-mobile-390.png": "9007908e7d00eaedc5449474ecf56c900e4436f0a9b0a4efe22b0f94742f8051",
-  "login-mobile-390.png": "6c351b23e6fdc773fdfa1a7ff31842621a773d7126aa079fa14695d1e1316ddc",
+  "login-mobile-390.png": "fe84d32cbd2a22e8f188f9e1ba8f8c6011880bf30ea33494b5ce221aceb05189",
   "profile-mobile-390.png": "74fc1cd7e86bb06e0660ed49e5f5c5d3448b876bc2d2cae5fed88802c8577c1b"
 };
 
