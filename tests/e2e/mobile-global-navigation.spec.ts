@@ -46,8 +46,8 @@ async function captureAcceptedNavigationEvidence(page: Page) {
   const sha256 = createHash("sha256").update(image).digest("hex");
   expect(
     sha256,
-    "Mobile product navigation screenshot hash must match the accepted Figma-aligned palette evidence"
-  ).toBe("fe4671ce5358bb605ed41068bb3a30fe84abf5a66daecddb1aa4f72ffee688e7");
+    "Mobile product navigation screenshot hash must match the accepted accessible Figma-aligned palette evidence"
+  ).toBe("20cb723f848542d80aa7a79ff1850c0526db692c937466b04b5d8e45335dc9ea");
   console.log(`[visual] Mobile product navigation: ${fileName} sha256:${sha256}`);
 }
 
