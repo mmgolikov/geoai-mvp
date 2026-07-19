@@ -12,6 +12,7 @@ const accessibilitySpec = read("tests/e2e/accessibility-workspace-flow.spec.ts")
 const projectComparisonAccessibilitySpec = read("tests/e2e/accessibility-project-comparison-flow.spec.ts");
 const mobileProductSpec = read("tests/e2e/mobile-product-flow.spec.ts");
 const mobileGlobalNavigationSpec = read("tests/e2e/mobile-global-navigation.spec.ts");
+const commercialAlignmentVisualSpec = read("tests/e2e/commercial-alignment-visual.spec.ts");
 const productNavigation = read("components/product-navigation.tsx");
 const lighthouseBudgetScript = read("scripts/lighthouse-budget-check.mjs");
 const workflow = read(".github/workflows/geoai-quality-gate.yml");
@@ -29,8 +30,8 @@ if (packageJson.devDependencies?.["@playwright/test"] !== "1.61.1") {
 if (packageJson.devDependencies?.["@axe-core/playwright"] !== "4.12.1") {
   failures.push("@axe-core/playwright must stay exactly pinned to 4.12.1");
 }
-if (packageJson.scripts?.["test:e2e:auth-session"] !== "playwright test tests/e2e/auth-session-flow.spec.ts tests/e2e/auth-responsive-flow.spec.ts tests/e2e/accessibility-workspace-flow.spec.ts tests/e2e/accessibility-project-comparison-flow.spec.ts tests/e2e/mobile-product-flow.spec.ts tests/e2e/mobile-global-navigation.spec.ts") {
-  failures.push("The focused Auth/session, responsive and accessibility Playwright command is missing");
+if (packageJson.scripts?.["test:e2e:auth-session"] !== "playwright test tests/e2e/auth-session-flow.spec.ts tests/e2e/auth-responsive-flow.spec.ts tests/e2e/accessibility-workspace-flow.spec.ts tests/e2e/accessibility-project-comparison-flow.spec.ts tests/e2e/mobile-product-flow.spec.ts tests/e2e/mobile-global-navigation.spec.ts tests/e2e/commercial-alignment-visual.spec.ts") {
+  failures.push("The focused Auth/session, responsive, accessibility and commercial visual Playwright command is missing");
 }
 if (packageJson.scripts?.["test:e2e:auth-real-persona"] !== "playwright test tests/e2e/real-email-auth-flow.spec.ts") {
   failures.push("The explicit trusted-terminal real email Auth persona command is missing");
@@ -183,6 +184,22 @@ for (const marker of [
 ]) requireText(mobileGlobalNavigationSpec, marker, `Mobile global navigation flow is missing ${marker}`);
 
 for (const marker of [
+  '{ name: "desktop-1440", width: 1440, height: 900 }',
+  '{ name: "tablet-768", width: 768, height: 1024 }',
+  '{ name: "mobile-390", width: 390, height: 844 }',
+  "commercial-visual-evidence",
+  "expectedSha256ByFile",
+  "expectNoHorizontalOverflow(page)",
+  'page.clock.setFixedTime(new Date("2026-07-19T09:00:00.000Z"))',
+  'name: "Ask the map. Move with evidence."',
+  'name: "Sign in or create account"',
+  'name: "Your profile"',
+  '"landing-desktop-1440.png"',
+  '"login-tablet-768.png"',
+  '"profile-mobile-390.png"'
+]) requireText(commercialAlignmentVisualSpec, marker, `Commercial Landing/Account visual flow is missing ${marker}`);
+
+for (const marker of [
   'aria-label="Primary product navigation"',
   'aria-label="Mobile product navigation"',
   'aria-controls="mobile-product-navigation-menu"',
@@ -237,4 +254,4 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-console.log("Auth/session E2E contract passed: bounded guest redirects, browser-only demo restoration, authenticated route navigation, logout re-gating, desktop/tablet/390px layout checks, serious/critical Axe scans, mobile target-size/visual evidence, Lighthouse budgets, keyboard-only browser-local project save/open and analysis/comparison-to-print journeys are wired into normal CI without live credentials; a separately approved rehearsal-only real email/password persona can be run read-only from a trusted terminal.");
+console.log("Auth/session E2E contract passed: bounded guest redirects, browser-only demo restoration, authenticated route navigation, logout re-gating, desktop/tablet/390px layout checks, serious/critical Axe scans, strict mobile and nine-screen commercial visual evidence, Lighthouse budgets, keyboard-only browser-local project save/open and analysis/comparison-to-print journeys are wired into normal CI without live credentials; a separately approved rehearsal-only real email/password persona can be run read-only from a trusted terminal.");
