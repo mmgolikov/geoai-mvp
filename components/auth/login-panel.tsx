@@ -8,6 +8,7 @@ import { mockDemoEmail, mockDemoPassword } from "@/src/lib/auth/mock-demo-sessio
 type AuthMethod = "email" | "phone";
 
 function getDestination() {
+  if (typeof window === "undefined") return "/workspace";
   return getSafeAuthRedirectPath(new URL(window.location.href).searchParams.get("next"), "/workspace");
 }
 
