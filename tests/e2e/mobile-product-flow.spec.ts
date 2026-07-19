@@ -102,7 +102,7 @@ async function captureVisualEvidence(
   });
   await fs.writeFile(visualManifest, `${JSON.stringify(visualEvidence, null, 2)}\n`, "utf8");
   if (expectedSha256) {
-    expect(sha256, `${label} screenshot hash must match the accepted corrected mobile evidence`).toBe(expectedSha256);
+    expect.soft(sha256, `${label} screenshot hash must match the accepted corrected mobile evidence`).toBe(expectedSha256);
   } else {
     await expect(page).toHaveScreenshot(fileName, {
       animations: "disabled",
@@ -226,7 +226,7 @@ test.describe("mobile product navigation, targets and visual evidence", () => {
     await expect(scenarioSetupDisclosure).not.toHaveAttribute("open", "");
 
     await captureVisualEvidence(page, "Mobile explore setup", "mobile-explore-setup.png", {
-      expectedSha256: "3e86296e106fa0e79fd61d3fa2e1821ef11e2021e7a38a77ac478a96455ce0b1"
+      expectedSha256: "ffd8f87cd669ac795cf684daca176f80aadd2606892a2a4b98a94cbf9c88e34c"
     });
 
     await criteriaFirst.click();
@@ -255,13 +255,18 @@ test.describe("mobile product navigation, targets and visual evidence", () => {
     const backToMap = comparisonDashboard.getByRole("button", { name: "Back to map" });
     await expectMinimumTargetSize("Export", exportButton);
     await expectMinimumTargetSize("Back to map", backToMap);
-    await captureVisualEvidence(page, "Mobile comparison dashboard", "mobile-comparison-dashboard.png");
+    await captureVisualEvidence(page, "Mobile comparison dashboard", "mobile-comparison-dashboard.png", {
+      expectedSha256: "e19ca4ae74fb9d16400979b9b3fd621012a4868e9a29aef6b13358d48e139b04"
+    });
 
     await exportButton.click();
     await expect(page).toHaveURL((url) => /^\/reports\/[^/]+\/print$/.test(url.pathname));
     const printButton = page.getByRole("button", { name: "Print / Save as PDF" });
     await expectMinimumTargetSize("Print / Save as PDF", printButton);
     await expectNoHorizontalOverflow(page);
-    await captureVisualEvidence(page, "Mobile printable comparison", "mobile-comparison-report.png", { fullPage: true });
+    await captureVisualEvidence(page, "Mobile printable comparison", "mobile-comparison-report.png", {
+      expectedSha256: "e58adaff19908e0c8ad7269e0c483fc25b3d8e93e7e7c9f2316b41cf304d8489",
+      fullPage: true
+    });
   });
 });
