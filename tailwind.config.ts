@@ -13,10 +13,10 @@ const config: Config = {
         muted: "#4d6694",
         line: "#ccdef5",
         surface: "#f4f9ff",
-        brand: "#0d61fa",
-        accent: "#0594a3",
-        personal: "#6b59f0",
-        risk: "#e56300",
+        brand: "#064fcf",
+        accent: "#06717a",
+        personal: "#5b48d8",
+        risk: "#a63f00",
         navy: "#06122e"
       },
       boxShadow: {
