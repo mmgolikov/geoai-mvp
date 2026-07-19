@@ -14,10 +14,12 @@ import { deriveDecisionPosture, deriveDecisionRationale } from "@/src/lib/decisi
 import { userDrawnAoiSourceCode, userDrawnAoiSourceLabel } from "@/src/lib/aoi-library";
 import { formatArea, formatPerimeter } from "@/src/lib/polygon-aoi";
 import { createSourceLineageSnapshot } from "@/src/lib/source-lineage-snapshot";
+import { browserDemoStorageKey, isBrowserDemoStorageEnabled } from "@/src/lib/browser-demo-storage";
 import type { ComparisonResult, ExpressAnalysis, ScoreKey } from "@/src/types/geo";
 import type { EvidenceFileAsset } from "@/src/types/storage";
 import type { EvidenceReviewSummary } from "@/src/types/evidence-review";
 import type { ReportMapSnapshot } from "@/src/lib/report-map-snapshot";
+import { decodeCanonicalReportPathSegment } from "@/src/lib/report-id";
 
 type ReportPreviewProps =
   | {
@@ -357,14 +359,15 @@ function ReportShell({
     }
 
     try {
-      const reportId = printableHref.split("/reports/")[1]?.split("/print")[0];
+      const encodedReportId = printableHref.split("/reports/")[1]?.split("/print")[0];
+      const reportId = encodedReportId ? decodeCanonicalReportPathSegment(encodedReportId) : null;
       if (!reportId) {
-        return { ok: false, error: "Printable report id is missing." };
+        return { ok: false, error: "Printable report id is missing or invalid." };
       }
 
-      if (printableReportRecord) {
+      if (printableReportRecord && isBrowserDemoStorageEnabled()) {
         const serializedReport = JSON.stringify(printableReportRecord);
-        const storageKey = `geoai-print-report:${decodeURIComponent(reportId)}`;
+        const storageKey = browserDemoStorageKey(`print-report:${reportId}`);
         window.sessionStorage.setItem(storageKey, serializedReport);
         window.localStorage.setItem(storageKey, serializedReport);
       }

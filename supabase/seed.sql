@@ -1,2 +1,4 @@
-\i ./migrations/20260618_0002_seed_demo_sources.sql
-\i ./migrations/20260618_0004_projects_workspaces.sql
+-- Canonical demo/source seed state is already part of the exact migration
+-- ledger in 20260705103329 and 20260708120117. Keep this file intentionally
+-- empty so `supabase db reset` cannot re-run the archived pre-ledger drafts or
+-- create a second, divergent demo state.

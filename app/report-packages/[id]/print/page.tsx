@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { PrintButton } from "@/components/reports/print-button";
-import { getReportPackage } from "@/src/lib/repositories/report-package-repository";
+import { getReportPackage, isCanonicalReportPackageId } from "@/src/lib/repositories/report-package-repository";
+import { requireProjectAccess } from "@/src/lib/auth/project-access";
 import type { ReportPackageSection } from "@/src/types/report-package";
 
 type ReportPackagePrintPageProps = {
@@ -45,6 +46,43 @@ function BulletList({ items }: { items: unknown[] }) {
         <li key={`report-package-print-item-${index}-${String(item).slice(0, 32)}`}>{String(item)}</li>
       ))}
     </ul>
+  );
+}
+
+function SourceCards({
+  items,
+  emptyMessage,
+  fallbackRole
+}: {
+  items: unknown[];
+  emptyMessage: string;
+  fallbackRole: string;
+}) {
+  if (items.length === 0) {
+    return <p className="text-sm leading-6 text-[#5e7180]">{emptyMessage}</p>;
+  }
+
+  return (
+    <div className="grid gap-3">
+      {items.slice(0, 8).map((item, index) => {
+        const source = asRecord(item);
+        const sourceRole = text(source.evidenceRole ?? source.mode, fallbackRole);
+        return (
+          <div key={`package-source-${index}-${text(source.id, "source")}`} className="rounded-md border border-[#d9e1e7] bg-[#f8fafb] p-3">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="font-semibold text-[#162c38]">{text(source.name, "Source")}</p>
+                <p className="mt-1 text-xs leading-5 text-[#5e7180]">{text(source.limitation, "Validation required.")}</p>
+              </div>
+              <span className="rounded-full bg-white px-2 py-1 text-[10px] font-semibold text-[#195266]">
+                {formatLabel(sourceRole)}
+              </span>
+            </div>
+            <p className="mt-2 text-[11px] leading-4 text-[#5e7180]">{text(source.caveat, "Official validation required.")}</p>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
@@ -96,28 +134,38 @@ function SectionContent({ section }: { section: ReportPackageSection }) {
     );
   }
 
-  if (section.type === "source_lineage" || section.type === "market_context") {
-    const sources = asList(content.lineage ?? content.sources);
+  if (section.type === "market_context") {
+    const evidence = asList(content.evidence);
+    const candidates = asList(content.candidates);
     return (
-      <div className="grid gap-3">
-        {sources.slice(0, 8).map((item, index) => {
-          const source = asRecord(item);
-          return (
-            <div key={`package-source-${index}-${text(source.id, "source")}`} className="rounded-md border border-[#d9e1e7] bg-[#f8fafb] p-3">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <p className="font-semibold text-[#162c38]">{text(source.name, "Source")}</p>
-                  <p className="mt-1 text-xs leading-5 text-[#5e7180]">{text(source.limitation, "Validation required.")}</p>
-                </div>
-                <span className="rounded-full bg-white px-2 py-1 text-[10px] font-semibold text-[#195266]">
-                  {text(source.mode, "source")}
-                </span>
-              </div>
-              <p className="mt-2 text-[11px] leading-4 text-[#5e7180]">{text(source.caveat, section.caveat)}</p>
-            </div>
-          );
-        })}
+      <div className="grid gap-5 md:grid-cols-2">
+        <div>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-[#5e7180]">Evidence used</p>
+          <SourceCards
+            items={evidence}
+            emptyMessage="No acquired source evidence is attached to this package."
+            fallbackRole="used evidence"
+          />
+        </div>
+        <div>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-[#5e7180]">Candidates requiring validation</p>
+          <SourceCards
+            items={candidates}
+            emptyMessage="No candidate source is recorded."
+            fallbackRole="validation required"
+          />
+        </div>
       </div>
+    );
+  }
+
+  if (section.type === "source_lineage") {
+    return (
+      <SourceCards
+        items={asList(content.lineage)}
+        emptyMessage="No source lineage is recorded."
+        fallbackRole="source"
+      />
     );
   }
 
@@ -252,9 +300,26 @@ function SectionContent({ section }: { section: ReportPackageSection }) {
 
 export default async function ReportPackagePrintPage({ params }: ReportPackagePrintPageProps) {
   const { id } = await params;
-  const decodedId = decodeURIComponent(id);
-  const result = await getReportPackage(decodedId);
+  const result = isCanonicalReportPackageId(id)
+    ? await getReportPackage(id, { includeStoredState: false })
+    : { data: null };
   const pkg = result.data;
+
+  if (pkg) {
+    const access = requireProjectAccess({ projectKey: pkg.projectKey, action: "export", mode: "soft" });
+    if (!access.allowed) {
+      return (
+        <main className="min-h-screen bg-[#eef2f5] px-4 py-6 text-[#162c38]">
+          <div className="mx-auto max-w-[920px] rounded-lg border border-[#d9e1e7] bg-white p-6">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#195266]">Report package</p>
+            <h1 className="mt-2 text-2xl font-semibold">Verified project access required</h1>
+            <p className="mt-2 text-sm leading-6 text-[#5e7180]">Dynamic server report packages are unavailable in public-demo mode.</p>
+            <Link href="/projects" className="mt-4 inline-flex h-10 items-center rounded-md border border-[#d9e1e7] bg-white px-4 text-sm font-semibold">Back</Link>
+          </div>
+        </main>
+      );
+    }
+  }
 
   if (!pkg) {
     return (

@@ -1,15 +1,13 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
 import { AnalysisPanel } from "@/components/analysis-panel";
-import { ComparisonDashboard } from "@/components/comparison-dashboard";
-import { ExpressDashboard } from "@/components/express-dashboard";
 import { MapWorkspace } from "@/components/map-workspace";
-import { ReportPreview } from "@/components/report-preview";
+import { useAuth } from "@/components/auth/auth-provider";
 import {
   createEvidenceItem,
-  getDataSourceById,
-  getScenarioDataSources
+  getDataSourceById
 } from "@/src/data/data-source-registry";
 import {
   getDemoNarrativeById,
@@ -57,10 +55,10 @@ import {
 import {
   createLocalProject,
   mergeProjectsWithLocal,
-  projectToInput,
   saveLocalProject,
   type LocalProjectInput
 } from "@/src/lib/project-local-store";
+import { browserDemoStorageKey, isBrowserDemoStorageEnabled } from "@/src/lib/browser-demo-storage";
 import type { RepositoryMode } from "@/src/lib/repositories/repository-mode";
 import type { ReportMapSnapshot } from "@/src/lib/report-map-snapshot";
 import type { SpatialSourceRequest } from "@/src/lib/spatial-b2/source-mode";
@@ -87,13 +85,14 @@ import {
   createInvalidUploadedDataset,
   createUploadedCsvDataset,
   createUploadedGeojsonDataset,
+  limitUploadedDatasetsPerProject,
   maxUploadedFileSizeBytes,
-  uploadedDatasetStorageKey,
+  readBrowserUploadedDatasets,
+  writeBrowserUploadedDatasets,
   withUploadedDataContext
 } from "@/src/lib/uploaded-data";
 import type { GeoAIProject } from "@/src/lib/db/types";
-import type { DecisionScoreResult } from "@/src/lib/ai/decision-scoring-schema";
-import type { StructuredAnalysisResult } from "@/src/types/analysis";
+import { upsertBrowserProjectArtifact } from "@/src/lib/browser-project-artifacts";
 import type {
   AnalysisScenarioId,
   AnalysisHistoryItem,
@@ -108,9 +107,36 @@ import type { MarketContext } from "@/src/types/market-context";
 import type { UploadedDataset } from "@/src/types/uploaded-data";
 import type { ProjectAoi } from "@/src/types/aoi";
 
-const analysisHistoryStorageKey = "geoai-analysis-history-v1";
-const activeProjectStorageKey = "geoai-active-project-key-v1";
-const openAnalysisRequestStorageKey = "geoai-open-analysis-request-v1";
+function WorkspaceResultLoading() {
+  return (
+    <div
+      className="flex h-full min-h-[420px] items-center justify-center bg-surface px-6 text-center"
+      role="status"
+      aria-live="polite"
+    >
+      <p className="text-sm font-semibold text-muted">Loading decision view…</p>
+    </div>
+  );
+}
+
+const ComparisonDashboard = dynamic(
+  () => import("@/components/comparison-dashboard").then((module) => module.ComparisonDashboard),
+  { loading: WorkspaceResultLoading }
+);
+
+const ExpressDashboard = dynamic(
+  () => import("@/components/express-dashboard").then((module) => module.ExpressDashboard),
+  { loading: WorkspaceResultLoading }
+);
+
+const ReportPreview = dynamic(
+  () => import("@/components/report-preview").then((module) => module.ReportPreview),
+  { loading: WorkspaceResultLoading }
+);
+
+const analysisHistoryStorageKey = browserDemoStorageKey("analysis-history-v1");
+const activeProjectStorageKey = browserDemoStorageKey("active-project-key-v1");
+const openAnalysisRequestStorageKey = browserDemoStorageKey("open-analysis-request-v1");
 const maxAnalysisHistoryItems = 8;
 
 type BackendStatus = {
@@ -135,21 +161,6 @@ type ProjectsResponse = {
   mode: "supabase" | "demo_seed";
   items: GeoAIProject[];
   error: string | null;
-};
-
-type CreateProjectResponse = {
-  ok: boolean;
-  mode: "supabase" | "demo_seed";
-  project?: GeoAIProject | null;
-  error?: string | null;
-};
-
-type ValidationGovernanceResponse = {
-  evidence?: unknown[];
-  summary?: unknown;
-  reviewSummaries?: unknown[];
-  claimPolicy?: unknown;
-  connectorReadiness?: unknown[];
 };
 
 type ClimateScreeningContext = {
@@ -250,69 +261,6 @@ function getProjectExploreScenario(
 
   const validScenario = candidates.find((scenarioId) => isExploreScenarioForRole(audience, role, scenarioId));
   return validScenario ?? getDefaultScenarioForRole(audience, role);
-}
-
-function titledText(title: string, description: string) {
-  return title ? `${title}: ${description}` : description;
-}
-
-function mergeNarrativeAnalysis(
-  deterministicAnalysis: ExpressAnalysis,
-  narrative: StructuredAnalysisResult
-): ExpressAnalysis {
-  const importedMarketNote = deterministicAnalysis.marketMetricsMatch?.importedMetricsUsed
-    ? ` Imported market metrics for ${deterministicAnalysis.marketMetricsMatch.matchedAreaName} support liquidity and demand proxy interpretation, but remain sample/manual-import derived and require official validation.`
-    : "";
-  const importedKeyFactor = deterministicAnalysis.marketMetricsMatch?.importedMetricsUsed
-    ? [`Imported market metrics matched to ${deterministicAnalysis.marketMetricsMatch.matchedAreaName} with ${deterministicAnalysis.marketMetricsMatch.confidence} match confidence.`]
-    : [];
-  const importedRisk = deterministicAnalysis.marketMetricsMatch?.importedMetricsUsed
-    ? ["Imported DLD / Dubai Pulse-style metrics are sample/manual-import derived and must be validated against official datasets before underwriting."]
-    : [];
-  const importedAction = deterministicAnalysis.marketMetricsMatch?.importedMetricsUsed
-    ? ["Validate imported market metrics against official DLD / Dubai Pulse exports before underwriting."]
-    : [];
-
-  return {
-    ...deterministicAnalysis,
-    summary: `${narrative.executive_summary || deterministicAnalysis.summary}${importedMarketNote}`,
-    keyFactors:
-      narrative.key_factors.length > 0
-        ? [...importedKeyFactor, ...narrative.key_factors.map((item) => titledText(item.title, item.description))]
-        : deterministicAnalysis.keyFactors,
-    opportunities:
-      narrative.opportunities.length > 0
-        ? narrative.opportunities.map((item) => titledText(item.title, item.description))
-        : deterministicAnalysis.opportunities,
-    risks:
-      narrative.risks.length > 0
-        ? [...importedRisk, ...narrative.risks.map((item) => titledText(item.title, item.description))]
-        : deterministicAnalysis.risks,
-    nextActions:
-      narrative.recommended_actions.length > 0
-        ? [...importedAction, ...narrative.recommended_actions.map((item) => titledText(item.title, item.description))]
-        : deterministicAnalysis.nextActions,
-    analysisMode: narrative.mode,
-    confidenceLevel: narrative.confidence_level,
-    limitations: Array.from(new Set([...(deterministicAnalysis.limitations ?? []), ...narrative.limitations])),
-    analysisNotice: narrative.notice,
-    customQueryAnswer: narrative.custom_query_answer ?? deterministicAnalysis.customQueryAnswer,
-    customQueryIntent: narrative.custom_query_answer?.intent ?? deterministicAnalysis.customQueryIntent,
-    customQuerySummary: narrative.custom_query_answer?.shortAnswer ?? deterministicAnalysis.customQuerySummary,
-    generatedAt: new Date().toISOString()
-  };
-}
-
-function withDecisionScore(analysis: ExpressAnalysis, decisionScore: DecisionScoreResult | null): ExpressAnalysis {
-  if (!decisionScore) {
-    return analysis;
-  }
-
-  return {
-    ...analysis,
-    aiDecisionScore: decisionScore,
-    limitations: Array.from(new Set([...(analysis.limitations ?? []), decisionScore.caveat, ...decisionScore.unsupportedClaims]))
-  };
 }
 
 function withMarketContext(analysis: ExpressAnalysis, marketContext: MarketContext | null): ExpressAnalysis {
@@ -423,6 +371,16 @@ function withOpenGeodataContext(analysis: ExpressAnalysis): ExpressAnalysis {
   };
 }
 
+function isBrowserLocalSelection(selectedObject: SelectedDemoObject | null, selectedAoi: UserDrawnAoi | null) {
+  const sourceMode = selectedObject?.analysisTarget?.sourceMode;
+  return Boolean(
+    selectedAoi ||
+    sourceMode === "user-uploaded" ||
+    sourceMode === "user-drawn" ||
+    sourceMode === "manual-offline"
+  );
+}
+
 async function fetchClimateScreeningContext(point: SelectedPoint): Promise<ClimateScreeningContext | null> {
   try {
     const response = await fetch("/api/context/climate", {
@@ -523,6 +481,8 @@ function createHistoryItem(
 }
 
 function readAnalysisHistory() {
+  if (!isBrowserDemoStorageEnabled()) return [];
+
   try {
     const storedHistory = window.localStorage.getItem(analysisHistoryStorageKey);
     if (!storedHistory) {
@@ -530,25 +490,39 @@ function readAnalysisHistory() {
     }
 
     const parsed = JSON.parse(storedHistory) as AnalysisHistoryItem[];
-    return Array.isArray(parsed) ? parsed.slice(0, maxAnalysisHistoryItems) : [];
+    return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
   }
 }
 
 function writeAnalysisHistory(items: AnalysisHistoryItem[]) {
+  if (!isBrowserDemoStorageEnabled()) return;
+
   try {
-    window.localStorage.setItem(analysisHistoryStorageKey, JSON.stringify(items.slice(0, maxAnalysisHistoryItems)));
+    const counts = new Map<string, number>();
+    const bounded = items
+      .sort((left, right) => right.timestamp.localeCompare(left.timestamp))
+      .filter((item) => {
+        const projectKey = item.projectKey ?? item.project?.projectKey;
+        if (!projectKey) return false;
+        const count = counts.get(projectKey) ?? 0;
+        counts.set(projectKey, count + 1);
+        return count < maxAnalysisHistoryItems;
+      });
+    window.localStorage.setItem(analysisHistoryStorageKey, JSON.stringify(bounded));
   } catch {
     // Local history is a convenience feature; storage failures should not affect analysis.
   }
 }
 
 function filterHistoryByProject(items: AnalysisHistoryItem[], projectKey: string) {
-  return items.filter((item) => item.projectKey === projectKey || item.project?.projectKey === projectKey);
+  return items.filter((item) => (item.projectKey ?? item.project?.projectKey) === projectKey);
 }
 
 function readActiveProjectKey() {
+  if (!isBrowserDemoStorageEnabled()) return demoProjects[0].projectKey;
+
   try {
     return window.localStorage.getItem(activeProjectStorageKey) || demoProjects[0].projectKey;
   } catch {
@@ -572,7 +546,15 @@ function readProjectKeyFromUrl(projects: GeoAIProject[]) {
   return projects.find((project) => project.id === projectId || project.projectKey === projectId)?.projectKey ?? null;
 }
 
+function hasExplicitWorkspaceContext() {
+  const params = new URLSearchParams(window.location.search);
+  return ["projectKey", "projectId", "guidedDemo", "demoNarrativeId", "openAnalysis"]
+    .some((key) => params.has(key));
+}
+
 function writeActiveProjectKey(projectKey: string) {
+  if (!isBrowserDemoStorageEnabled()) return;
+
   try {
     window.localStorage.setItem(activeProjectStorageKey, projectKey);
   } catch {
@@ -580,13 +562,13 @@ function writeActiveProjectKey(projectKey: string) {
   }
 }
 
-async function fetchValidationGovernance(projectKey: string): Promise<ValidationGovernanceResponse | null> {
+function clearActiveProjectKey() {
+  if (!isBrowserDemoStorageEnabled()) return;
+
   try {
-    const response = await fetch(`/api/validation?projectKey=${encodeURIComponent(projectKey)}`);
-    if (!response.ok) return null;
-    return await response.json() as ValidationGovernanceResponse;
+    window.localStorage.removeItem(activeProjectStorageKey);
   } catch {
-    return null;
+    // Invalid stored identity is ignored even if browser storage cannot be changed.
   }
 }
 
@@ -595,6 +577,8 @@ function normalizeQuery(query: string) {
 }
 
 function readOpenAnalysisRequest() {
+  if (!isBrowserDemoStorageEnabled()) return null;
+
   try {
     const raw = window.localStorage.getItem(openAnalysisRequestStorageKey);
     if (!raw) return null;
@@ -606,6 +590,8 @@ function readOpenAnalysisRequest() {
 }
 
 function clearOpenAnalysisRequest() {
+  if (!isBrowserDemoStorageEnabled()) return;
+
   try {
     window.localStorage.removeItem(openAnalysisRequestStorageKey);
   } catch {
@@ -686,62 +672,6 @@ function getCandidateSearchActionLabel(scenarioId: ExploreScenarioId, status: Ca
   return labels[scenarioId] ?? "Find candidates";
 }
 
-function readUploadedDatasets() {
-  try {
-    const stored = window.localStorage.getItem(uploadedDatasetStorageKey);
-    if (!stored) {
-      return [];
-    }
-
-    const parsed = JSON.parse(stored) as unknown;
-    if (!Array.isArray(parsed)) {
-      window.localStorage.removeItem(uploadedDatasetStorageKey);
-      return [];
-    }
-
-    const validItems = parsed.filter((item): item is UploadedDataset => {
-      if (typeof item !== "object" || item === null) {
-        return false;
-      }
-
-      const dataset = item as Partial<UploadedDataset>;
-      const hasValidGeojson =
-        dataset.type !== "geojson" ||
-        dataset.status !== "parsed" ||
-        dataset.geojson?.type === "FeatureCollection";
-
-      return (
-        typeof dataset.id === "string" &&
-        typeof dataset.name === "string" &&
-        (dataset.type === "csv" || dataset.type === "geojson") &&
-        (dataset.status === "parsed" || dataset.status === "invalid" || dataset.status === "uploaded-local") &&
-        hasValidGeojson
-      );
-    });
-
-    if (validItems.length !== parsed.length) {
-      writeUploadedDatasets(validItems);
-    }
-
-    return validItems;
-  } catch {
-    try {
-      window.localStorage.removeItem(uploadedDatasetStorageKey);
-    } catch {
-      // Ignore storage cleanup failures.
-    }
-    return [];
-  }
-}
-
-function writeUploadedDatasets(items: UploadedDataset[]) {
-  try {
-    window.localStorage.setItem(uploadedDatasetStorageKey, JSON.stringify(items));
-  } catch {
-    // Local uploads are convenience context; parsing still works in memory if storage fails.
-  }
-}
-
 function filterAoisByProject(items: ProjectAoi[], projectKey: string) {
   return items
     .filter((item) => item.projectKey === projectKey)
@@ -803,6 +733,7 @@ function historyItemFromPersistedRun(value: unknown): AnalysisHistoryItem | null
 
   const scenario = analysisScenarios.find((item) => item.id === analysis.scenarioId);
   const project = getDemoProject(value.project_key);
+  if (!project) return null;
 
   return {
     id: value.id ?? value.run_key ?? analysis.id,
@@ -827,21 +758,19 @@ function historyItemFromPersistedRun(value: unknown): AnalysisHistoryItem | null
 
 type WorkspaceShellProps = {
   initialExploreMode?: boolean;
-  spatialSourceRequest?: SpatialSourceRequest;
-};
-
-const defaultSpatialSourceRequest: SpatialSourceRequest = {
-  runtimeEnvironment: "development",
-  requestedSourceMode: "synthetic_fallback",
-  approvedSourceMode: "synthetic_fallback"
+  spatialSourceRequest: SpatialSourceRequest;
 };
 
 export function WorkspaceShell({
   initialExploreMode = false,
-  spatialSourceRequest = defaultSpatialSourceRequest
+  spatialSourceRequest
 }: WorkspaceShellProps) {
+  const { user } = useAuth();
   const mapSectionRef = useRef<HTMLDivElement | null>(null);
   const workflowPanelRef = useRef<HTMLDivElement | null>(null);
+  const mobileMapDialogRef = useRef<HTMLElement | null>(null);
+  const mobileMapInitialFocusRef = useRef<HTMLButtonElement | null>(null);
+  const mobileMapReturnFocusRef = useRef<HTMLElement | null>(null);
   const [selectedPoint, setSelectedPoint] = useState<SelectedPoint | null>(null);
   const [selectedObject, setSelectedObject] = useState<SelectedDemoObject | null>(null);
   const [selectedAoi, setSelectedAoi] = useState<UserDrawnAoi | null>(null);
@@ -890,6 +819,7 @@ export function WorkspaceShell({
   const [analysisHistorySource, setAnalysisHistorySource] = useState<"DB" | "local">("local");
   const [backendStatus, setBackendStatus] = useState<BackendStatus | null>(null);
   const [uploadedDatasets, setUploadedDatasets] = useState<UploadedDataset[]>([]);
+  const scopedUploadedDatasets = uploadedDatasets.filter((dataset) => dataset.projectKey === activeProject.projectKey);
   const [uploadedDataMessage, setUploadedDataMessage] = useState<string | null>(null);
   const [projectAois, setProjectAois] = useState<ProjectAoi[]>([]);
   const [aoiDraftName, setAoiDraftName] = useState("");
@@ -949,8 +879,10 @@ export function WorkspaceShell({
   const visibleProjects = projects.filter((project) => getProjectSegment(project) === selectedExploreAudience);
   const projectSelectorProjects = visibleProjects.length > 0 ? visibleProjects : [getDefaultProjectForAudience(projects, selectedExploreAudience)];
 
-  function applyExploreDefaultsForAudience(audience: ExploreAudience) {
-    const nextRole = getDefaultRoleForAudience(audience);
+  function applyExploreDefaultsForAudience(audience: ExploreAudience, preferredRole?: ExploreRole) {
+    const nextRole = preferredRole && isExploreRoleForAudience(audience, preferredRole)
+      ? preferredRole
+      : getDefaultRoleForAudience(audience);
     const nextScenarioId = getDefaultScenarioForRole(audience, nextRole);
     const nextScenario = getExploreScenario(nextScenarioId);
     const nextAnalysisScenario = exploreScenarioToAnalysisScenario(nextScenarioId);
@@ -1011,14 +943,18 @@ export function WorkspaceShell({
   function loadGuidedDemo(presetId: string, includeComparisonSites = false) {
     const preset = getGuidedDemoPreset(presetId);
     const narrative = getDemoNarrativeForGuidedDemo(preset.id);
-    const demoDatasets = createGuidedDemoDatasets();
+    const demoDatasets = createGuidedDemoDatasets(preset.projectKey);
     const demoSelection = createGuidedDemoSelection(preset);
     const nextProject = projects.find((project) => project.projectKey === preset.projectKey) ?? getDemoProject(preset.projectKey);
+    if (!nextProject) {
+      setAnalysisError("The requested guided-demo project is unavailable; no substitute project was selected.");
+      return;
+    }
 
     updateUploadedDatasets((items) => [
       ...demoDatasets,
-      ...items.filter((item) => !demoDatasets.some((dataset) => dataset.id === item.id))
-    ].slice(0, 8));
+      ...items.filter((item) => !demoDatasets.some((dataset) => dataset.id === item.id && dataset.projectKey === item.projectKey))
+    ]);
     setSelectedObject(demoSelection);
     setSelectedAoi(null);
     setSelectedPoint(demoSelection.center);
@@ -1070,33 +1006,11 @@ export function WorkspaceShell({
   }
 
   useEffect(() => {
-    setUploadedDatasets(readUploadedDatasets());
+    setUploadedDatasets(readBrowserUploadedDatasets());
   }, []);
 
   useEffect(() => {
     setProjectAois(filterAoisByProject(readBrowserAois(), activeProject.projectKey));
-    let isMounted = true;
-
-    fetch(`/api/aois?projectKey=${encodeURIComponent(activeProject.projectKey)}`)
-      .then((response) => (response.ok ? response.json() : null))
-      .then((payload: { items?: ProjectAoi[] } | null) => {
-        if (!isMounted || !Array.isArray(payload?.items)) return;
-
-        const browserAois = filterAoisByProject(readBrowserAois(), activeProject.projectKey);
-        const byId = new Map<string, ProjectAoi>();
-        for (const item of browserAois) byId.set(item.id, item);
-        for (const item of payload.items) byId.set(item.id, item);
-        const merged = filterAoisByProject(Array.from(byId.values()), activeProject.projectKey);
-        updateProjectAois(() => merged);
-      })
-      .catch(() => undefined);
-
-    return () => {
-      isMounted = false;
-    };
-    // `updateProjectAois` reads the current active project and intentionally
-    // mirrors server fallback AOIs into browser-local continuity.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeProject.projectKey]);
 
   useEffect(() => {
@@ -1151,12 +1065,22 @@ export function WorkspaceShell({
     const projectKey = params.get("projectKey") ?? readProjectKeyFromUrl(demoProjects);
     const restoreRequest = readOpenAnalysisRequest();
     const requestedAnalysis = restoreRequest?.analysis;
+    const restoredAnalysisProjectKey = requestedAnalysis?.project?.projectKey ?? restoreRequest?.projectKey ?? null;
     const scenario = analysisScenarios.find((item) => item.id === requestedAnalysis?.scenarioId);
 
     if (
       requestedAnalysis &&
+      projectKey &&
+      restoredAnalysisProjectKey === projectKey &&
+      restoreRequest?.projectKey === projectKey &&
       (requestedAnalysis.id === openAnalysisId || restoreRequest?.analysisId === openAnalysisId)
     ) {
+      const restoredProject = requestedAnalysis.project ?? getDemoProject(restoreRequest?.projectKey ?? projectKey);
+      if (!restoredProject) {
+        setAnalysisError("The requested analysis project is unavailable; another demo project was not substituted.");
+        clearOpenAnalysisRequest();
+        return;
+      }
       restoreAnalysisDashboard({
         id: `restore-${requestedAnalysis.id}`,
         title: requestedAnalysis.selectedObject?.name ?? requestedAnalysis.title,
@@ -1168,26 +1092,29 @@ export function WorkspaceShell({
         confidenceLevel: requestedAnalysis.confidenceLevel,
         dataConfidenceLevel: requestedAnalysis.marketContext?.confidenceLevel,
         source: "local",
-        project: requestedAnalysis.project ?? getDemoProject(restoreRequest?.projectKey ?? projectKey),
-        projectKey: requestedAnalysis.project?.projectKey ?? restoreRequest?.projectKey ?? projectKey ?? undefined,
+        project: restoredProject,
+        projectKey: restoredProject.projectKey,
         recommendation: deriveDecisionPosture(requestedAnalysis),
         analysis: {
           ...requestedAnalysis,
           customQuery: restoreRequest?.customQuery ?? requestedAnalysis.customQuery
         }
-      });
+      }, projectKey);
       clearOpenAnalysisRequest();
       return;
     }
 
-    const historyItem = readAnalysisHistory().find((item) =>
+    const historyItem = projectKey ? filterHistoryByProject(readAnalysisHistory(), projectKey).find((item) =>
       item.id === openAnalysisId ||
       item.analysis.id === openAnalysisId ||
       `${item.analysis.id}-${item.analysis.generatedAt ?? ""}` === openAnalysisId
-    );
+    ) : undefined;
 
-    if (historyItem) {
-      restoreAnalysisDashboard(historyItem);
+    if (historyItem && projectKey) {
+      restoreAnalysisDashboard(historyItem, projectKey);
+      clearOpenAnalysisRequest();
+    } else {
+      setAnalysisError("The requested analysis was not restored because its project identity did not match the URL project.");
       clearOpenAnalysisRequest();
     }
     // Run once from initial URL only.
@@ -1196,15 +1123,28 @@ export function WorkspaceShell({
 
   useEffect(() => {
     const requestedProjectKey = readProjectKeyFromUrl(demoProjects);
-    const storedProjectKey = requestedProjectKey ?? readActiveProjectKey();
     const localProjects = mergeProjectsWithLocal(demoProjects);
-    const localProject =
-      localProjects.find((project) => project.projectKey === storedProjectKey) ?? getDemoProject(storedProjectKey);
+    const explicitContext = hasExplicitWorkspaceContext();
+    const preferredAudience = user?.profile.defaultAudience ?? "b2b";
+    const preferredRole = user?.profile.defaultRole ?? getDefaultRoleForAudience(preferredAudience);
+    const preferredProject = getDefaultProjectForAudience(localProjects, preferredAudience);
+    const storedProjectKey = requestedProjectKey ?? (explicitContext ? readActiveProjectKey() : preferredProject.projectKey);
+    const resolvedLocalProject = localProjects.find((project) => project.projectKey === storedProjectKey);
+    const localProject = resolvedLocalProject ?? preferredProject;
     let isMounted = true;
+
+    if (!resolvedLocalProject && storedProjectKey !== localProject.projectKey) {
+      setAnalysisError(`Project '${storedProjectKey}' is unavailable. The invalid key was cleared and the workspace reset to the default public demo.`);
+      clearActiveProjectKey();
+      const nextUrl = new URL(window.location.href);
+      nextUrl.searchParams.delete("projectKey");
+      window.history.replaceState({}, "", `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`);
+    }
 
     setProjects(localProjects);
     setActiveProject(localProject);
-    applyExploreDefaultsForProject(localProject);
+    if (explicitContext) applyExploreDefaultsForProject(localProject);
+    else applyExploreDefaultsForAudience(preferredAudience, preferredRole);
 
     fetch("/api/projects")
       .then((response) => (response.ok ? response.json() : null))
@@ -1216,12 +1156,13 @@ export function WorkspaceShell({
         const nextProjects = mergeProjectsWithLocal(payload.items);
         const urlProjectKey = readProjectKeyFromUrl(nextProjects);
         const nextActiveProject =
-          nextProjects.find((project) => project.projectKey === (urlProjectKey ?? storedProjectKey)) ?? nextProjects[0];
+          nextProjects.find((project) => project.projectKey === (urlProjectKey ?? storedProjectKey)) ?? localProject;
 
         setProjects(nextProjects);
         setProjectsMode(payload.mode);
         setActiveProject(nextActiveProject);
-        applyExploreDefaultsForProject(nextActiveProject);
+        if (explicitContext) applyExploreDefaultsForProject(nextActiveProject);
+        else applyExploreDefaultsForAudience(preferredAudience, preferredRole);
         writeActiveProjectKey(nextActiveProject.projectKey);
       })
       .catch(() => {
@@ -1229,14 +1170,15 @@ export function WorkspaceShell({
           setProjects(localProjects);
           setProjectsMode("demo_seed");
           setActiveProject(localProject);
-          applyExploreDefaultsForProject(localProject);
+          if (explicitContext) applyExploreDefaultsForProject(localProject);
+          else applyExploreDefaultsForAudience(preferredAudience, preferredRole);
         }
       });
 
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [user?.id, user?.profile.defaultAudience, user?.profile.defaultRole]);
 
   useEffect(() => {
     const localHistory = readAnalysisHistory();
@@ -1305,13 +1247,70 @@ export function WorkspaceShell({
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
 
+    const focusFrame = window.requestAnimationFrame(() => {
+      mobileMapInitialFocusRef.current?.focus();
+    });
+
+    function handleDialogKeyboard(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeMobileMapPicker(true);
+        return;
+      }
+
+      if (event.key !== "Tab") {
+        return;
+      }
+
+      const dialog = mobileMapDialogRef.current;
+      if (!dialog) return;
+      const focusable = Array.from(
+        dialog.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        )
+      ).filter((element) => element.getClientRects().length > 0);
+
+      if (focusable.length === 0) {
+        event.preventDefault();
+        dialog.focus();
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && (document.activeElement === first || !dialog.contains(document.activeElement))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || !dialog.contains(document.activeElement))) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+
+    document.addEventListener("keydown", handleDialogKeyboard);
+
     return () => {
+      window.cancelAnimationFrame(focusFrame);
+      document.removeEventListener("keydown", handleDialogKeyboard);
       document.body.style.overflow = previousOverflow;
     };
   }, [isMobileMapPickerOpen]);
 
   useEffect(() => {
-    if (!selectedPoint) {
+    if (!isMobileMapPickerOpen) return undefined;
+
+    const desktopViewport = window.matchMedia("(min-width: 1367px)");
+    const closeIfDesktop = () => {
+      if (desktopViewport.matches) setIsMobileMapPickerOpen(false);
+    };
+
+    closeIfDesktop();
+    desktopViewport.addEventListener("change", closeIfDesktop);
+    return () => desktopViewport.removeEventListener("change", closeIfDesktop);
+  }, [isMobileMapPickerOpen]);
+
+  useEffect(() => {
+    if (!selectedPoint || isBrowserLocalSelection(selectedObject, selectedAoi)) {
       setMarketContext(null);
       setIsMarketContextLoading(false);
       return;
@@ -1327,7 +1326,6 @@ export function WorkspaceShell({
       },
       body: JSON.stringify({
         point: selectedPoint,
-        selectedObject,
         scenarioId: selectedScenario
       }),
       signal: controller.signal
@@ -1354,7 +1352,7 @@ export function WorkspaceShell({
       });
 
     return () => controller.abort();
-  }, [selectedPoint, selectedObject, selectedScenario]);
+  }, [selectedPoint, selectedObject, selectedAoi, selectedScenario]);
 
   function handlePointSelect(point: SelectedPoint) {
     setMapSnapshot(null);
@@ -1605,14 +1603,6 @@ export function WorkspaceShell({
     return nextProjectAois;
   }
 
-  function syncAoiToApi(aoi: ProjectAoi) {
-    void fetch("/api/aois", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(aoi)
-    }).catch(() => undefined);
-  }
-
   function saveSelectedAoi() {
     if (!selectedAoi) {
       setAoiMessage("Draw or import an AOI before saving.");
@@ -1636,10 +1626,9 @@ export function WorkspaceShell({
     };
 
     updateProjectAois((items) => [savedAoi, ...items.filter((item) => item.id !== savedAoi.id)]);
-    syncAoiToApi(savedAoi);
     setSelectedAoi(projectAoiToUserDrawnAoi(savedAoi));
     setAoiDraftName(savedAoi.name);
-    setAoiMessage("AOI saved to this project library. Official validation required.");
+    setAoiMessage("AOI saved to this browser-local project library. Official validation required.");
   }
 
   function openSavedAoi(aoi: ProjectAoi) {
@@ -1662,22 +1651,15 @@ export function WorkspaceShell({
 
     if (!renamedAoi) return;
 
-    void fetch(`/api/aois/${encodeURIComponent(aoi.id)}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: trimmedName })
-    }).catch(() => undefined);
-
     if (selectedAoi?.savedAoiId === aoi.id || selectedAoi?.id === aoi.id) {
       setSelectedAoi(projectAoiToUserDrawnAoi(renamedAoi));
       setAoiDraftName(trimmedName);
     }
-    setAoiMessage("AOI renamed in this project library.");
+    setAoiMessage("AOI renamed in this browser-local project library.");
   }
 
   function deleteSavedAoi(aoiId: string) {
     updateProjectAois((items) => items.filter((item) => item.id !== aoiId));
-    void fetch(`/api/aois/${encodeURIComponent(aoiId)}`, { method: "DELETE" }).catch(() => undefined);
     if (selectedAoi?.savedAoiId === aoiId || selectedAoi?.id === aoiId) {
       handleAoiDelete();
     }
@@ -1884,7 +1866,7 @@ export function WorkspaceShell({
     const itemSelectedObject = item.selectedObject ?? null;
     const itemSelectedAoi = item.selectedAoi ?? null;
     const scenario = analysisScenarios.find((scenarioItem) => scenarioItem.id === item.scenarioId) ?? analysisScenarios[0];
-    const uploadedDataContext = buildUploadedDataContext(uploadedDatasets, item.point, itemSelectedObject);
+    const uploadedDataContext = buildUploadedDataContext(scopedUploadedDatasets, item.point, itemSelectedObject);
     const candidateAnalysis = withUploadedDataContext(
       withOpenGeodataContext({
         ...createMockExpressAnalysis(
@@ -1985,11 +1967,17 @@ export function WorkspaceShell({
   }
 
   function closeMobileMapPicker(returnToWorkflow = false) {
+    const returnFocusTarget = mobileMapReturnFocusRef.current;
     setIsMobileMapPickerOpen(false);
 
     if (returnToWorkflow) {
       scrollToWorkflowPanel();
     }
+
+    window.requestAnimationFrame(() => {
+      returnFocusTarget?.focus();
+      mobileMapReturnFocusRef.current = null;
+    });
   }
 
   function showAnalysisResult(nextAnalysis: ExpressAnalysis) {
@@ -2009,6 +1997,9 @@ export function WorkspaceShell({
   }
 
   function openMapFromPanel() {
+    mobileMapReturnFocusRef.current = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
     backToMap();
     if (window.matchMedia("(min-width: 1367px)").matches) {
       window.setTimeout(() => {
@@ -2025,124 +2016,37 @@ export function WorkspaceShell({
 
     setAnalysisHistory(() => {
       const storedItems = readAnalysisHistory();
-      const nextItems = [
+      const projectItems = [
         historyItem,
-        ...storedItems.filter((item) => item.analysis.id !== analysisResult.id)
+        ...filterHistoryByProject(storedItems, activeProject.projectKey)
+          .filter((item) => item.analysis.id !== analysisResult.id)
       ].slice(0, maxAnalysisHistoryItems);
+      const nextItems = [
+        ...projectItems,
+        ...storedItems.filter((item) => (item.projectKey ?? item.project?.projectKey) !== activeProject.projectKey)
+      ];
 
       writeAnalysisHistory(nextItems);
       return filterHistoryByProject(nextItems, activeProject.projectKey);
     });
   }
 
-  async function persistAnalysisRun(analysisResult: ExpressAnalysis, scenarioLabel: string) {
-    try {
-      await fetch("/api/analysis-runs", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          runKey: analysisResult.id,
-          projectKey: activeProject.projectKey,
-          projectName: activeProject.name,
-          projectId: activeProject.id,
-          scenarioId: analysisResult.scenarioId,
-          selectedName: analysisResult.selectedAoi?.name ?? analysisResult.selectedObject?.name ?? "Custom map selection",
-          selectedType: analysisResult.selectedAoi ? "aoi" : analysisResult.selectedObject ? "object" : "point",
-          selectedPoint: analysisResult.point,
-          selectedFeatureKey: analysisResult.selectedAoi?.id ?? analysisResult.selectedObject?.spatialContext?.featureId ?? analysisResult.selectedObject?.id ?? null,
-          inputContext: {
-            scenarioLabel,
-            customQuery: analysisResult.customQuery ?? "",
-            customQueryIntent: analysisResult.customQueryIntent ?? null,
-            customQuerySummary: analysisResult.customQuerySummary ?? null,
-            customQueryAnswer: analysisResult.customQueryAnswer ?? null,
-            selectedPoint: analysisResult.point,
-            selectedObject: analysisResult.selectedObject ?? null,
-            selectedAoi: analysisResult.selectedAoi ?? null,
-            marketContext: analysisResult.marketContext ?? null,
-            marketMetrics: createMarketMetricsMetadata(analysisResult),
-            uploadedDataContext: analysisResult.uploadedDataContext ?? null,
-            evidence: analysisResult.evidence,
-            project: activeProject
-          },
-          selectedObject: analysisResult.selectedObject ?? analysisResult.selectedAoi ?? null,
-          resultJson: analysisResult,
-          decisionPosture: deriveDecisionPosture(analysisResult),
-          confidenceLevel: analysisResult.confidenceLevel ?? null,
-          dataConfidenceLevel: analysisResult.marketContext?.confidenceLevel ?? null,
-          analysisMode: analysisResult.analysisMode ?? null,
-          createdAt: analysisResult.generatedAt ?? new Date().toISOString()
-        })
-      });
-      await fetch("/api/data-room/assets", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: `analysis-evidence-${activeProject.projectKey}-${analysisResult.id}`,
-          projectId: activeProject.id,
-          projectKey: activeProject.projectKey,
-          name: analysisResult.selectedAoi?.name ?? analysisResult.selectedObject?.name ?? "Express Analysis",
-          description: `${scenarioLabel} generated by GeoAI; screening evidence only.`,
-          assetType: "analysis",
-          sourceType: "generated_by_geoai",
-          linkedAoiIds: analysisResult.selectedAoi?.savedAoiId
-            ? [analysisResult.selectedAoi.savedAoiId]
-            : analysisResult.selectedAoi?.id
-              ? [analysisResult.selectedAoi.id]
-              : [],
-          linkedAnalysisIds: [analysisResult.id],
-          validationStatus: "ready_for_review"
-        })
-      });
-    } catch {
-      // Persistence is optional in v0.1; local history remains the source of truth.
-    }
+  async function persistAnalysisRun(_analysisResult: ExpressAnalysis, _scenarioLabel: string) {
+    // saveAnalysisHistory is the authoritative project-scoped browser store in public-demo mode.
   }
 
   async function persistComparisonSet(comparisonResult: ComparisonResult) {
-    try {
-      const sourceLineage = createSourceLineageSnapshot({
-        evidence: comparisonResult.evidence,
-        uploadedDatasets
-      });
-
-      await fetch("/api/comparison-sets", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: comparisonResult.id,
-          projectId: activeProject.id,
-          projectKey: activeProject.projectKey,
-          title: "Site Comparison Intelligence",
-          itemCount: comparisonResult.items.length,
-          items: comparisonResult.items,
-          recommendation: `Best option: ${comparisonResult.winner.item.name}`,
-          sourceLineage,
-          payload: comparisonResult,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        })
-      });
-      await fetch("/api/data-room/assets", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: `comparison-evidence-${activeProject.projectKey}-${comparisonResult.id}`,
-          projectId: activeProject.id,
-          projectKey: activeProject.projectKey,
-          name: "Site Comparison Intelligence",
-          description: `Best option: ${comparisonResult.winner.item.name}. Screening comparison; official validation required.`,
-          assetType: "comparison",
-          sourceType: "generated_by_geoai",
-          validationStatus: "ready_for_review"
-        })
-      });
-      setComparisonMessage("Comparison saved to project fallback.");
-    } catch {
-      setComparisonMessage("Comparison generated; persistence unavailable in local fallback.");
-    }
+    const createdAt = new Date().toISOString();
+    upsertBrowserProjectArtifact({
+      id: `${activeProject.projectKey}-${comparisonResult.id}`,
+      projectId: activeProject.id,
+      projectKey: activeProject.projectKey,
+      type: "comparison",
+      title: "Site Comparison Intelligence",
+      createdAt,
+      sourceSummary: `Best option: ${comparisonResult.winner.item.name}. Browser-local screening comparison; official validation required.`
+    });
+    setComparisonMessage("Comparison saved in this browser for the active project.");
   }
 
   function createAnalysisReportPayload(analysisResult: ExpressAnalysis) {
@@ -2261,95 +2165,30 @@ export function WorkspaceShell({
 
   async function persistReport(mode: "analysis" | "comparison") {
     const reportKey = mode === "analysis" && analysis
-      ? `analysis-report-${analysis.id}`
+      ? `analysis-report-${activeProject.projectKey}-${analysis.id}`
       : mode === "comparison" && comparison
-        ? `comparison-report-${comparison.id}`
+        ? `comparison-report-${activeProject.projectKey}-${comparison.id}`
         : null;
 
     if (!reportKey) {
       return null;
     }
 
-    try {
-      if (mode === "analysis" && analysis) {
-        const reportJson = createAnalysisReportPayload(analysis);
-        await fetch("/api/reports", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            reportKey,
-            analysisRunId: analysis.id,
-            projectKey: activeProject.projectKey,
-            projectName: activeProject.name,
-            projectId: activeProject.id,
-            runKey: analysis.id,
-            reportType: "analysis",
-            title: reportJson.title,
-            reportJson,
-            decisionPosture: reportJson.decisionPosture,
-            generatedAt: reportJson.generatedAt
-          })
-        });
-        await fetch("/api/data-room/assets", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            id: `report-evidence-${activeProject.projectKey}-${reportKey}`,
-            projectId: activeProject.id,
-            projectKey: activeProject.projectKey,
-            name: reportJson.title,
-            description: "Printable GeoAI memo/report artifact; official validation required.",
-            assetType: "report",
-            sourceType: "generated_by_geoai",
-            linkedAoiIds: analysis.selectedAoi?.savedAoiId
-              ? [analysis.selectedAoi.savedAoiId]
-              : analysis.selectedAoi?.id
-                ? [analysis.selectedAoi.id]
-                : [],
-            linkedAnalysisIds: [analysis.id],
-            linkedReportIds: [reportKey],
-            validationStatus: "ready_for_review"
-          })
-        });
-      }
-
-      if (mode === "comparison" && comparison) {
-        const reportJson = createComparisonReportPayload(comparison);
-        await fetch("/api/reports", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            reportKey,
-            projectKey: activeProject.projectKey,
-            projectName: activeProject.name,
-            projectId: activeProject.id,
-            reportType: "comparison",
-            title: reportJson.title,
-            reportJson,
-            decisionPosture: reportJson.decisionPosture,
-            generatedAt: reportJson.generatedAt
-          })
-        });
-        await fetch("/api/data-room/assets", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            id: `report-evidence-${activeProject.projectKey}-${reportKey}`,
-            projectId: activeProject.id,
-            projectKey: activeProject.projectKey,
-            name: reportJson.title,
-            description: "Printable comparison memo artifact; official validation required.",
-            assetType: "report",
-            sourceType: "generated_by_geoai",
-            linkedAnalysisIds: comparison.items.map((item) => item.item.id),
-            linkedReportIds: [reportKey],
-            validationStatus: "ready_for_review"
-          })
-        });
-      }
-    } catch {
-      // Export remains print/screen-first; DB persistence is optional.
-    }
+    const reportTitle = mode === "analysis" ? "Express Analysis / Investment Memo" : "Site Comparison Investment Memo";
+    const targetLabel = mode === "analysis"
+      ? analysis?.selectedAoi?.name ?? analysis?.selectedObject?.name ?? "Custom map selection"
+      : comparison?.items.map((item) => item.item.name).join(", ") ?? null;
+    upsertBrowserProjectArtifact({
+      id: reportKey,
+      projectId: activeProject.id,
+      projectKey: activeProject.projectKey,
+      type: "report",
+      reportType: mode,
+      title: reportTitle,
+      targetLabel,
+      createdAt: new Date().toISOString(),
+      sourceSummary: "Browser-local printable screening report; official validation required."
+    });
 
     return reportKey;
   }
@@ -2386,9 +2225,9 @@ export function WorkspaceShell({
       }
 
       const sessionRecord = createPrintableSessionReport(mode, reportKey);
-      if (sessionRecord) {
+      if (sessionRecord && isBrowserDemoStorageEnabled()) {
         const serializedReport = JSON.stringify(sessionRecord);
-        const storageKey = `geoai-print-report:${reportKey}`;
+        const storageKey = browserDemoStorageKey(`print-report:${reportKey}`);
         window.sessionStorage.setItem(storageKey, serializedReport);
         window.localStorage.setItem(storageKey, serializedReport);
       }
@@ -2402,6 +2241,10 @@ export function WorkspaceShell({
 
   function changeActiveProject(projectKey: string) {
     const nextProject = projects.find((project) => project.projectKey === projectKey) ?? getDemoProject(projectKey);
+    if (!nextProject) {
+      setAnalysisError(`Project '${projectKey}' is unavailable; the active project was not changed.`);
+      return;
+    }
 
     setActiveProject(nextProject);
     writeActiveProjectKey(nextProject.projectKey);
@@ -2421,31 +2264,25 @@ export function WorkspaceShell({
     clearWorkspaceResultState();
   }
 
-  async function createProject(input: LocalProjectInput) {
+  function createProject(input: LocalProjectInput) {
     const localProject = createLocalProject(input);
-
-    try {
-      const response = await fetch("/api/projects", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(projectToInput(localProject))
-      });
-      const payload = response.ok ? await response.json() as CreateProjectResponse : null;
-      const createdProject = payload?.project ?? localProject;
-
-      saveLocalProject(createdProject);
-      setProjectsMode(payload?.mode ?? "demo_seed");
-      activateProject(createdProject);
-    } catch {
-      saveLocalProject(localProject);
-      setProjectsMode("demo_seed");
-      activateProject(localProject);
-    }
+    saveLocalProject(localProject);
+    setProjectsMode("demo_seed");
+    activateProject(localProject);
   }
 
-  function restoreAnalysisDashboard(item: AnalysisHistoryItem) {
+  function restoreAnalysisDashboard(item: AnalysisHistoryItem, expectedProjectKey = activeProject.projectKey) {
+    const itemProjectKey = item.projectKey ?? item.project?.projectKey ?? item.analysis.project?.projectKey ?? null;
+    if (!itemProjectKey || itemProjectKey !== expectedProjectKey) {
+      setAnalysisError("The requested analysis belongs to another project and was not restored.");
+      return;
+    }
     const restoredCustomQuery = normalizeQuery(item.analysis.customQuery ?? "");
     const restoredProject = item.project ?? item.analysis.project ?? getDemoProject(item.projectKey);
+    if (!restoredProject || restoredProject.projectKey !== expectedProjectKey) {
+      setAnalysisError(`Project '${item.projectKey ?? "unknown"}' is unavailable; the analysis was not restored into another project.`);
+      return;
+    }
     const restoredAnalysis = {
       ...item.analysis,
       project: restoredProject
@@ -2502,21 +2339,21 @@ export function WorkspaceShell({
 
   function clearAnalysisHistory() {
     setAnalysisHistory([]);
-    writeAnalysisHistory([]);
+    writeAnalysisHistory(readAnalysisHistory().filter((item) => (item.projectKey ?? item.project?.projectKey) !== activeProject.projectKey));
   }
 
   function updateUploadedDatasets(updater: (items: UploadedDataset[]) => UploadedDataset[]) {
     setUploadedDatasets((currentItems) => {
-      const nextItems = updater(currentItems);
-      writeUploadedDatasets(nextItems);
+      const nextItems = limitUploadedDatasetsPerProject(updater(currentItems));
+      writeBrowserUploadedDatasets(nextItems);
       return nextItems;
     });
   }
 
   async function uploadDataset(file: File) {
     if (file.size > maxUploadedFileSizeBytes) {
-      const invalid = createInvalidUploadedDataset(file.name, "File is larger than the 5 MB local upload limit.");
-      updateUploadedDatasets((items) => [invalid, ...items].slice(0, 8));
+      const invalid = createInvalidUploadedDataset(file.name, "File is larger than the 5 MB local upload limit.", activeProject.projectKey);
+      updateUploadedDatasets((items) => [invalid, ...items]);
       setUploadedDataMessage(invalid.notes ?? "Upload rejected.");
       return;
     }
@@ -2524,66 +2361,38 @@ export function WorkspaceShell({
     try {
       const text = await file.text();
       const dataset = file.name.toLowerCase().endsWith(".csv")
-        ? createUploadedCsvDataset(file.name, text)
-        : createUploadedGeojsonDataset(file.name, text);
+        ? createUploadedCsvDataset(file.name, text, activeProject.projectKey)
+        : createUploadedGeojsonDataset(file.name, text, activeProject.projectKey);
 
-      updateUploadedDatasets((items) => [dataset, ...items.filter((item) => item.name !== dataset.name)].slice(0, 8));
-      void persistUploadedDatasetMetadata(dataset);
+      updateUploadedDatasets((items) => [
+        dataset,
+        ...items.filter((item) => item.projectKey !== dataset.projectKey || item.name !== dataset.name)
+      ]);
       setUploadedDataMessage(`${dataset.name} parsed locally. Validation is still required before official use.`);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Dataset could not be parsed.";
-      const invalid = createInvalidUploadedDataset(file.name, message);
-      updateUploadedDatasets((items) => [invalid, ...items].slice(0, 8));
+      const invalid = createInvalidUploadedDataset(file.name, message, activeProject.projectKey);
+      updateUploadedDatasets((items) => [invalid, ...items]);
       setUploadedDataMessage(message);
     }
   }
 
   function removeUploadedDataset(datasetId: string) {
-    updateUploadedDatasets((items) => items.filter((item) => item.id !== datasetId));
-    void fetch(`/api/uploaded-datasets?id=${encodeURIComponent(datasetId)}`, { method: "DELETE" }).catch(() => undefined);
+    updateUploadedDatasets((items) => items.filter((item) => item.id !== datasetId || item.projectKey !== activeProject.projectKey));
     setUploadedDataMessage("Uploaded dataset removed from local workspace.");
   }
 
   function clearUploadedDatasets() {
-    updateUploadedDatasets(() => []);
-    setUploadedDataMessage("Local uploaded datasets cleared.");
+    updateUploadedDatasets((items) => items.filter((item) => item.projectKey !== activeProject.projectKey));
+    setUploadedDataMessage("Local uploaded datasets cleared for this project.");
   }
 
   function toggleUploadedDataset(datasetId: string) {
     updateUploadedDatasets((items) =>
-      items.map((item) => item.id === datasetId ? { ...item, visible: item.visible === false } : item)
+      items.map((item) => item.id === datasetId && item.projectKey === activeProject.projectKey
+        ? { ...item, visible: item.visible === false }
+        : item)
     );
-  }
-
-  async function persistUploadedDatasetMetadata(dataset: UploadedDataset) {
-    try {
-      await fetch("/api/uploaded-datasets", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: dataset.id,
-          projectId: activeProject.id,
-          projectKey: activeProject.projectKey,
-          name: dataset.name,
-          type: dataset.type,
-          status: dataset.status,
-          rowCount: dataset.type === "csv" ? dataset.rowCount ?? null : null,
-          featureCount: dataset.type === "geojson" ? dataset.featureCount ?? null : null,
-          columns: dataset.type === "csv" ? dataset.columns ?? [] : [],
-          sourceMode: dataset.sourceMode,
-          officialStatus: dataset.officialStatus,
-          uploadedAt: dataset.uploadedAt,
-          metadata: {
-            confidence: dataset.confidence,
-            notes: dataset.notes,
-            visible: dataset.visible
-          },
-          parsedContent: dataset.type === "geojson" && (dataset.featureCount ?? 0) <= 50 ? dataset.geojson : undefined
-        })
-      });
-    } catch {
-      // Browser-local upload remains available even when metadata persistence is unavailable.
-    }
   }
 
   async function runExpressAnalysis(options: { forceSelectedTarget?: boolean } = {}) {
@@ -2613,9 +2422,9 @@ export function WorkspaceShell({
     setReportPreview(null);
     setLastComparedState(null);
 
-    const uploadedDataContext = buildUploadedDataContext(uploadedDatasets, selectedPoint, selectedObject);
-    const climateContext = await fetchClimateScreeningContext(selectedPoint);
-    const connectedClimateContext = climateContext?.status === "connected" ? climateContext : null;
+    const uploadedDataContext = buildUploadedDataContext(scopedUploadedDatasets, selectedPoint, selectedObject);
+    const keepSelectionLocal = isBrowserLocalSelection(selectedObject, selectedAoi);
+    const climateContext = keepSelectionLocal ? null : await fetchClimateScreeningContext(selectedPoint);
     const selectedAoiTarget = selectedAoi
       ? {
           id: selectedAoi.id,
@@ -2665,7 +2474,7 @@ export function WorkspaceShell({
                 officialStatus: "not-official"
               }
             },
-            marketContext
+            keepSelectionLocal ? null : marketContext
           )
         ),
         uploadedDataContext
@@ -2673,168 +2482,34 @@ export function WorkspaceShell({
       climateContext
     );
     const scenario = analysisScenarios.find((item) => item.id === selectedScenario) ?? analysisScenarios[0];
-    const validationGovernance = await fetchValidationGovernance(activeProject.projectKey);
+    const finalAnalysis: ExpressAnalysis = {
+      ...deterministicAnalysis,
+      analysisMode: "mock_fallback",
+      confidenceLevel: "medium",
+      analysisNotice: "Deterministic browser-local analysis. Uploaded datasets, AOI details, and their derived coordinates were not sent to a server or AI.",
+      limitations: Array.from(new Set([
+        ...(deterministicAnalysis.limitations ?? []),
+        "Narrative and scoring are generated locally from deterministic sample/open context.",
+        "Official parcel, planning, transaction, imagery, and risk data are not connected yet."
+      ])),
+      generatedAt: new Date().toISOString()
+    };
 
-    try {
-      const response = await fetch("/api/analyze", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          point: selectedPoint,
-          selectedObject,
-          scenarioId: selectedScenario,
-          scenarioLabel: scenario.label,
-          customQuery,
-          customQueryIntent: deterministicAnalysis.customQueryIntent,
-          customQueryAnswer: deterministicAnalysis.customQueryAnswer,
-          deterministicScores: deterministicAnalysis.scores,
-          evidence: deterministicAnalysis.evidence,
-          dataSources: getScenarioDataSources(selectedScenario),
-          selectedAoi,
-          analysisTarget: deterministicAnalysis.analysisTarget,
-          marketContext,
-          climateContext: connectedClimateContext,
-          uploadedDataContext,
-          validationGovernance,
-          openGeodataContext: {
-            nearestAccessibility: getNearestAccessibilityMetric(selectedPoint),
-            nearestRoad: getNearestOpenRoad(selectedPoint),
-            nearbyPoi: getNearbyOpenPoi(selectedPoint, 7).slice(0, 4)
-          }
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error("Analysis API unavailable");
-      }
-
-      const narrative = (await response.json()) as StructuredAnalysisResult;
-      const narrativeAnalysis = mergeNarrativeAnalysis(deterministicAnalysis, narrative);
-      let decisionScore: DecisionScoreResult | null = null;
-
-      try {
-        const scoreResponse = await fetch("/api/ai/decision-score", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            projectKey: activeProject.projectKey,
-            target: narrativeAnalysis.analysisTarget ?? narrativeAnalysis.selectedObject ?? narrativeAnalysis.selectedAoi ?? {
-              type: "point",
-              coordinates: narrativeAnalysis.point
-            },
-            scenarioId: selectedScenario,
-            scenarioLabel: scenario.label,
-            customQuery,
-            deterministicScores: narrativeAnalysis.scores,
-            marketMetricsContext: narrativeAnalysis.marketContext?.importedMarketMetrics ?? narrativeAnalysis.marketMetricsMatch ?? null,
-            externalDataLineage: narrativeAnalysis.evidence.map((item) => ({
-              id: item.id,
-              sourceId: item.sourceId,
-              title: item.label,
-              note: item.description
-            })),
-            validationSummary: validationGovernance?.summary ?? null,
-            validationEvidence: validationGovernance?.evidence ?? [],
-            evidenceReviewSummaries: validationGovernance?.reviewSummaries ?? [],
-            claimPolicy: validationGovernance?.claimPolicy ?? null,
-            evidence: narrativeAnalysis.evidence,
-            validationGaps: [
-              ...((validationGovernance?.summary as { requiredValidationGaps?: string[] } | null)?.requiredValidationGaps ?? []),
-              ...(narrativeAnalysis.limitations ?? [])
-            ].slice(0, 8)
-          })
-        });
-        decisionScore = scoreResponse.ok ? await scoreResponse.json() as DecisionScoreResult : null;
-      } catch {
-        decisionScore = null;
-      }
-
-      const finalAnalysis = withDecisionScore(narrativeAnalysis, decisionScore);
-      showAnalysisResult(finalAnalysis);
-      setLastAnalyzedState({
-        query: normalizeQuery(customQuery),
-        scenarioId: selectedScenario,
-        targetSignature: createTargetSignature(selectedPoint, selectedObject, selectedAoi),
-        settingsSignature: createExploreSettingsSignature({
-          audience: selectedExploreAudience,
-          role: selectedExploreRole,
-          interactionMode: exploreInteractionMode,
-          filters: exploreFilters
-        })
-      });
-      saveAnalysisHistory(finalAnalysis, scenario.label);
-      void persistAnalysisRun(finalAnalysis, scenario.label);
-    } catch {
-      const fallbackAnalysis: ExpressAnalysis = {
-        ...deterministicAnalysis,
-        analysisMode: "mock_fallback",
-        confidenceLevel: "medium",
-        analysisNotice: "AI analysis is unavailable. Using deterministic sample/open scoring.",
-        limitations: [
-          ...(deterministicAnalysis.limitations ?? []),
-          "Narrative content is generated from deterministic sample/open context.",
-          "Official parcel, planning, transaction, imagery, and risk data are not connected yet."
-        ],
-        generatedAt: new Date().toISOString()
-      };
-
-      let decisionScore: DecisionScoreResult | null = null;
-      try {
-        const scoreResponse = await fetch("/api/ai/decision-score", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            projectKey: activeProject.projectKey,
-            target: fallbackAnalysis.analysisTarget ?? fallbackAnalysis.selectedObject ?? fallbackAnalysis.selectedAoi ?? {
-              type: "point",
-              coordinates: fallbackAnalysis.point
-            },
-            scenarioId: selectedScenario,
-            scenarioLabel: scenario.label,
-            customQuery,
-            deterministicScores: fallbackAnalysis.scores,
-            marketMetricsContext: fallbackAnalysis.marketContext?.importedMarketMetrics ?? fallbackAnalysis.marketMetricsMatch ?? null,
-            externalDataLineage: fallbackAnalysis.evidence,
-            validationSummary: validationGovernance?.summary ?? null,
-            validationEvidence: validationGovernance?.evidence ?? [],
-            evidenceReviewSummaries: validationGovernance?.reviewSummaries ?? [],
-            claimPolicy: validationGovernance?.claimPolicy ?? null,
-            evidence: fallbackAnalysis.evidence,
-            validationGaps: [
-              ...((validationGovernance?.summary as { requiredValidationGaps?: string[] } | null)?.requiredValidationGaps ?? []),
-              ...(fallbackAnalysis.limitations ?? [])
-            ].slice(0, 8)
-          })
-        });
-        decisionScore = scoreResponse.ok ? await scoreResponse.json() as DecisionScoreResult : null;
-      } catch {
-        decisionScore = null;
-      }
-
-      const finalFallbackAnalysis = withDecisionScore(fallbackAnalysis, decisionScore);
-      showAnalysisResult(finalFallbackAnalysis);
-      setLastAnalyzedState({
-        query: normalizeQuery(customQuery),
-        scenarioId: selectedScenario,
-        targetSignature: createTargetSignature(selectedPoint, selectedObject, selectedAoi),
-        settingsSignature: createExploreSettingsSignature({
-          audience: selectedExploreAudience,
-          role: selectedExploreRole,
-          interactionMode: exploreInteractionMode,
-          filters: exploreFilters
-        })
-      });
-      saveAnalysisHistory(finalFallbackAnalysis, scenario.label);
-      void persistAnalysisRun(finalFallbackAnalysis, scenario.label);
-    } finally {
-      setIsAnalyzing(false);
-    }
+    showAnalysisResult(finalAnalysis);
+    setLastAnalyzedState({
+      query: normalizeQuery(customQuery),
+      scenarioId: selectedScenario,
+      targetSignature: createTargetSignature(selectedPoint, selectedObject, selectedAoi),
+      settingsSignature: createExploreSettingsSignature({
+        audience: selectedExploreAudience,
+        role: selectedExploreRole,
+        interactionMode: exploreInteractionMode,
+        filters: exploreFilters
+      })
+    });
+    saveAnalysisHistory(finalAnalysis, scenario.label);
+    void persistAnalysisRun(finalAnalysis, scenario.label);
+    setIsAnalyzing(false);
   }
 
   const currentTargetSignature = createTargetSignature(selectedPoint, selectedObject, selectedAoi);
@@ -2952,6 +2627,8 @@ export function WorkspaceShell({
   return (
     <>
       <div
+        aria-hidden={isMobileMapPickerOpen ? true : undefined}
+        inert={isMobileMapPickerOpen ? true : undefined}
         className="grid min-h-[calc(100svh-4rem)] shrink-0 grid-cols-1 lg:h-[calc(100vh-4rem)] lg:min-h-0 lg:grid-cols-[minmax(0,1fr)_380px] lg:overflow-hidden"
       >
         <div className={`${hasResultSurface ? "order-1" : "order-2 lg:order-1"} min-h-0 lg:h-full`}>
@@ -2988,25 +2665,33 @@ export function WorkspaceShell({
             />
           ) : (
             <div ref={mapSectionRef} id="workspace-map" className="min-h-0 lg:h-full">
-              <MapWorkspace
-                key="map-workspace"
-                className="relative h-[68svh] min-h-[420px] overflow-hidden bg-[#dfe8ec] sm:h-[70svh] lg:h-full lg:min-h-0"
-                selectedPoint={selectedPoint}
-                selectedObject={selectedObject}
-                selectedAoi={selectedAoi}
-                onPointSelect={handlePointSelect}
-                onObjectSelect={handleObjectSelect}
-                onObjectClear={handleObjectClearAfterSourceRollback}
-                onAoiSelect={handleAoiSelect}
-                onAoiDelete={handleAoiDelete}
-                uploadedDatasets={uploadedDatasets}
-                projectId={activeProject.projectKey}
-                exploreCandidates={visibleExploreCandidates}
-                selectedExploreCandidateId={selectedExploreCandidateId}
-                onExploreCandidateSelect={selectExploreCandidate}
-                onMapSnapshotChange={setMapSnapshot}
-                spatialSourceRequest={spatialSourceRequest}
-              />
+              {isMobileMapPickerOpen ? (
+                <div
+                  aria-hidden="true"
+                  className="h-[68svh] min-h-[420px] bg-[#dfe8ec] sm:h-[70svh] lg:h-full lg:min-h-0"
+                  data-map-workspace-suspended="mobile-dialog"
+                />
+              ) : (
+                <MapWorkspace
+                  key="map-workspace"
+                  className="relative h-[68svh] min-h-[420px] overflow-hidden bg-[#dfe8ec] sm:h-[70svh] lg:h-full lg:min-h-0"
+                  selectedPoint={selectedPoint}
+                  selectedObject={selectedObject}
+                  selectedAoi={selectedAoi}
+                  onPointSelect={handlePointSelect}
+                  onObjectSelect={handleObjectSelect}
+                  onObjectClear={handleObjectClearAfterSourceRollback}
+                  onAoiSelect={handleAoiSelect}
+                  onAoiDelete={handleAoiDelete}
+                  uploadedDatasets={scopedUploadedDatasets}
+                  projectId={activeProject.projectKey}
+                  exploreCandidates={visibleExploreCandidates}
+                  selectedExploreCandidateId={selectedExploreCandidateId}
+                  onExploreCandidateSelect={selectExploreCandidate}
+                  onMapSnapshotChange={setMapSnapshot}
+                  spatialSourceRequest={spatialSourceRequest}
+                />
+              )}
             </div>
           )}
         </div>
@@ -3032,7 +2717,7 @@ export function WorkspaceShell({
             backendStatus={backendStatus}
             marketContext={marketContext}
             isMarketContextLoading={isMarketContextLoading}
-            uploadedDatasets={uploadedDatasets}
+            uploadedDatasets={scopedUploadedDatasets}
             uploadedDataMessage={uploadedDataMessage}
             projectAois={projectAois}
             aoiDraftName={aoiDraftName}
@@ -3046,6 +2731,7 @@ export function WorkspaceShell({
             candidateSearchStatus={candidateSearchStatus}
             selectedExploreCandidateId={selectedExploreCandidateId}
             exploreSetupDefaultOpen={initialExploreMode}
+            workspaceHeading={initialExploreMode ? "Explore candidate locations" : "Workspace location screening"}
             onExploreAudienceChange={changeExploreAudience}
             onExploreRoleChange={changeExploreRole}
             onExploreScenarioChange={changeExploreScenario}
@@ -3084,19 +2770,23 @@ export function WorkspaceShell({
       </div>
       {isMobileMapPickerOpen ? (
         <section
+          ref={mobileMapDialogRef}
           role="dialog"
           aria-modal="true"
-          aria-label="Full-screen map picker"
+          aria-labelledby="mobile-map-picker-title"
+          aria-describedby="mobile-map-picker-description"
+          tabIndex={-1}
           className="fixed inset-0 z-50 flex flex-col bg-white min-[1367px]:hidden"
         >
           <div className="flex min-h-14 items-center justify-between gap-3 border-b border-line bg-white px-3 py-2">
             <div className="min-w-0">
               <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">Map selection</p>
-              <h2 className="mt-0.5 truncate text-sm font-semibold text-ink">{mobileMapTargetLabel}</h2>
-              <p className="truncate text-[11px] leading-4 text-muted">{mobileMapTargetDetail}</p>
+              <h2 id="mobile-map-picker-title" className="mt-0.5 truncate text-sm font-semibold text-ink">{mobileMapTargetLabel}</h2>
+              <p id="mobile-map-picker-description" className="truncate text-[11px] leading-4 text-muted">{mobileMapTargetDetail}</p>
             </div>
             <button
               type="button"
+              ref={mobileMapInitialFocusRef}
               onClick={() => closeMobileMapPicker(true)}
               className="inline-flex h-9 shrink-0 items-center justify-center rounded-md border border-line bg-white px-3 text-xs font-semibold text-ink transition hover:border-brand"
             >
@@ -3117,7 +2807,7 @@ export function WorkspaceShell({
               onAoiDelete={handleAoiDelete}
               showEmptyOverlay={false}
               showLayerControls={false}
-              uploadedDatasets={uploadedDatasets}
+              uploadedDatasets={scopedUploadedDatasets}
               projectId={activeProject.projectKey}
               exploreCandidates={visibleExploreCandidates}
               selectedExploreCandidateId={selectedExploreCandidateId}

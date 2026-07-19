@@ -97,6 +97,8 @@ assert(
 );
 
 const panelSource = fs.readFileSync(path.join(process.cwd(), "components/analysis-panel.tsx"), "utf8");
+const mapSource = fs.readFileSync(path.join(process.cwd(), "components/map-workspace-client.tsx"), "utf8");
+const workspaceSource = fs.readFileSync(path.join(process.cwd(), "components/workspace-shell.tsx"), "utf8");
 const scenarioSetupIndex = panelSource.indexOf("Scenario setup");
 const candidateSearchIndex = panelSource.indexOf("Candidate Search");
 const customQueryIndex = panelSource.indexOf("Custom Query");
@@ -135,6 +137,43 @@ assert(
 );
 assert(panelSource.includes("onClick={onOpenMap}"), "Mobile map access should remain available outside the removed card");
 
+const pointerMoveStart = mapSource.indexOf("function processPendingPointerMove()");
+const pointerMoveEnd = mapSource.indexOf('mapRef.current.on("mouseleave"', pointerMoveStart);
+const pointerMoveSource = mapSource.slice(pointerMoveStart, pointerMoveEnd);
+assert(pointerMoveStart >= 0 && pointerMoveEnd > pointerMoveStart, "Map pointer movement should use a bounded processing function");
+assert(
+  mapSource.includes("window.requestAnimationFrame(processPendingPointerMove)"),
+  "Map pointer movement should be coalesced to one animation-frame callback"
+);
+assert(
+  (pointerMoveSource.match(/queryRenderedFeatures\(/g) ?? []).length === 1,
+  "Map hover processing should issue exactly one rendered-feature query per animation frame"
+);
+assert(
+  mapSource.includes("interactiveLayerIdsRef") && mapSource.includes("hoverQueryLayerIdsRef"),
+  "Map hover and click paths should reuse cached interactive/query layer ids"
+);
+assert(
+  mapSource.includes("hoverFeatureKeyRef.current !== nextHoverFeatureKey"),
+  "Map hover source updates should be deduplicated by stable feature identity"
+);
+assert(
+  mapSource.includes("interactiveLayerIdsRef.current = []") && mapSource.includes("hoverQueryLayerIdsRef.current = []"),
+  "Basemap style changes should invalidate cached query-layer ids before setStyle"
+);
+assert(
+  mapSource.includes("Residual performance trade-off") && mapSource.includes("preserveDrawingBuffer: true"),
+  "Canvas preservation must remain an explicit snapshot-path performance residual"
+);
+assert(
+  workspaceSource.includes('data-map-workspace-suspended="mobile-dialog"'),
+  "Opening the mobile map dialog should suspend the underlying workspace map"
+);
+assert(
+  workspaceSource.includes('window.matchMedia("(min-width: 1367px)")'),
+  "Mobile map suspension should be released when the viewport becomes desktop-sized"
+);
+
 console.log(JSON.stringify({
   ok: true,
   checked: [
@@ -151,7 +190,13 @@ console.log(JSON.stringify({
     "canonical Criteria-first / Map-first presentation",
     "redundant selected-target card removal",
     "single sticky primary CTA",
-    "mobile map access preservation"
+    "mobile map access preservation",
+    "animation-frame map hover coalescing",
+    "single-query cached map hover",
+    "hover source update deduplication",
+    "style-change query-cache invalidation",
+    "snapshot canvas performance residual",
+    "single active mobile map instance"
   ],
   caveat: "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
 }, null, 2));

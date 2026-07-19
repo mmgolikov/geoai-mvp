@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import { recordAuditEvent } from "@/src/lib/audit/audit-event";
 import { projectAccessDeniedPayload, requireProjectAccess } from "@/src/lib/auth/project-access";
 import {
@@ -7,20 +6,25 @@ import {
 } from "@/src/lib/repositories/evidence-file-repository";
 import { repositoryModeFields } from "@/src/lib/repositories/repository-mode";
 import { verifySignedDownloadUrl } from "@/src/lib/storage/signed-url-verification";
+import { hasRequestIdentityKernelEvidence } from "@/src/lib/auth/verified-request-access";
+import { privateNoStoreJson } from "@/src/lib/http/private-no-store";
 
 export const runtime = "nodejs";
 
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
+  if (!hasRequestIdentityKernelEvidence()) {
+    return privateNoStoreJson({ ok: false, ...repositoryModeFields("browser_local"), message: "Protected evidence download requires verified project identity." }, { status: 403 });
+  }
   const { id } = await context.params;
   const existing = await getEvidenceFileAsset(id);
 
   if (!existing.data || existing.data.objectStatus === "deleted") {
-    return NextResponse.json({ ok: false, ...repositoryModeFields("local_fallback"), message: "Evidence file metadata not found." }, { status: 404 });
+    return privateNoStoreJson({ ok: false, ...repositoryModeFields("local_fallback"), message: "Evidence file metadata not found." }, { status: 404 });
   }
 
-  const access = requireProjectAccess({ projectKey: existing.data.projectKey, action: "read", mode: "soft" });
+  const access = requireProjectAccess({ projectKey: existing.data.projectKey, action: "evidence.read", mode: "soft" });
   if (!access.allowed) {
-    return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
+    return privateNoStoreJson(projectAccessDeniedPayload(access), { status: access.status });
   }
   const signed = await verifySignedDownloadUrl(existing.data);
 
@@ -34,7 +38,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   });
 
   if (!signed.ok) {
-    return NextResponse.json({
+    return privateNoStoreJson({
       ok: false,
       ...repositoryModeFields(existing.mode),
       access,
@@ -55,7 +59,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     metadata: { expiresAt: signed.expiresAt, accessAllowed: access.allowed }
   });
 
-  return NextResponse.json({
+  return privateNoStoreJson({
     ok: true,
     ...repositoryModeFields("supabase"),
     access,

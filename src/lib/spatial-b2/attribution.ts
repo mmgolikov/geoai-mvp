@@ -41,7 +41,7 @@ export const spatialAttributionRegistry: Record<string, SpatialAttributionRecord
     id: "mapbox-basemap",
     kind: "basemap",
     sourceName: "Mapbox basemap",
-    notice: "Mapbox basemap attribution is also available through the native Mapbox map control.",
+    notice: "Basemap © Mapbox; underlying map data © OpenStreetMap contributors. The exported image is screening context only.",
     datasetId: null,
     datasetVersion: null,
     licenseName: "Mapbox terms and attribution",

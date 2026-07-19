@@ -1,10 +1,17 @@
-import { demoProjects, getDemoProject } from "@/src/data/demo-projects";
 import { buildReportPackage } from "@/src/lib/report-package/report-package-builder";
+import {
+  seededReportPackageDefinitions,
+  seededReportPackageKey
+} from "@/src/lib/report-package/report-package-seed-definitions";
 import { localCreate, localDelete, localGet, localList, localUpdate } from "@/src/lib/repositories/local-json-store";
 import { localFallbackStorageCaveat, type RepositoryMode } from "@/src/lib/repositories/repository-mode";
 import type { ReportPackage, ReportPackageBuildInput, ReportPackageStatus } from "@/src/types/report-package";
 
 const reportPackageStore = "report-packages";
+
+export function isCanonicalReportPackageId(value: string) {
+  return value.length > 0 && value.length <= 240 && /^[a-z0-9][a-z0-9._:-]*$/i.test(value);
+}
 
 type ReportPackageRepositoryResult<T> = {
   ok: boolean;
@@ -35,33 +42,55 @@ export function summarizeReportPackage(pkg: ReportPackage) {
   };
 }
 
-function projectFor(input: { projectKey?: string | null; projectId?: string | null }) {
-  return demoProjects.find((project) =>
-    (input.projectKey && project.projectKey === input.projectKey) ||
-    (input.projectId && (project.id === input.projectId || project.projectKey === input.projectId))
-  ) ?? getDemoProject(input.projectKey ?? input.projectId);
+const seededPackageDefinitions = seededReportPackageDefinitions.map((definition) => {
+  const input: ReportPackageBuildInput = {
+    projectId: null,
+    projectKey: definition.projectKey,
+    packageType: definition.packageType,
+    reportId: definition.reportId
+  };
+  return {
+    projectKey: definition.projectKey,
+    packageKey: seededReportPackageKey(definition),
+    input
+  };
+});
+
+const globalSeedCache = globalThis as typeof globalThis & {
+  __geoAiSeededReportPackageCache?: Map<string, Promise<ReportPackage>>;
+};
+const seededReportPackageCache = globalSeedCache.__geoAiSeededReportPackageCache ?? new Map<string, Promise<ReportPackage>>();
+globalSeedCache.__geoAiSeededReportPackageCache = seededReportPackageCache;
+
+async function buildSeededPackage(definition: (typeof seededPackageDefinitions)[number]) {
+  const current = seededReportPackageCache.get(definition.projectKey);
+  if (current) return current;
+  const pending = buildReportPackage(definition.input, { includeStoredState: false });
+  seededReportPackageCache.set(definition.projectKey, pending);
+  try {
+    return await pending;
+  } catch (error) {
+    seededReportPackageCache.delete(definition.projectKey);
+    throw error;
+  }
 }
 
 async function seededPackagesForProject(projectKey?: string | null) {
-  const projects = projectKey ? [projectFor({ projectKey })] : demoProjects;
-  return Promise.all(projects.map((project) => buildReportPackage({
-    projectId: project.id,
-    projectKey: project.projectKey,
-    packageType: project.clientType === "developer"
-      ? "development_feasibility"
-      : project.clientType === "bank"
-        ? "bank_asset_review"
-        : "investment_screening",
-    reportId: project.projectKey === "developer-land-pipeline-demo"
-      ? "seeded-analysis-dubai-south-development-report"
-      : project.projectKey === "bank-asset-review-demo"
-        ? "seeded-analysis-mbr-collateral-report"
-        : "seeded-analysis-dubai-marina-report"
-  })));
+  const definitions = projectKey
+    ? seededPackageDefinitions.filter((item) => item.projectKey === projectKey)
+    : seededPackageDefinitions;
+  return Promise.all(definitions.map(buildSeededPackage));
 }
 
-export async function listReportPackages(filters: { projectId?: string | null; projectKey?: string | null; limit?: number } = {}): Promise<ReportPackageRepositoryResult<ReportPackage[]>> {
-  const stored = localList<ReportPackage>(reportPackageStore, filters);
+export async function listReportPackages(filters: {
+  projectId?: string | null;
+  projectKey?: string | null;
+  limit?: number;
+  includeStoredState?: boolean;
+} = {}): Promise<ReportPackageRepositoryResult<ReportPackage[]>> {
+  const stored = filters.includeStoredState === false
+    ? { ok: true, mode: "browser_local" as const, data: [] as ReportPackage[], error: null, storageCaveat: localFallbackStorageCaveat }
+    : localList<ReportPackage>(reportPackageStore, filters);
   const seeded = await seededPackagesForProject(filters.projectKey);
   const byId = new Map<string, ReportPackage>();
 
@@ -83,14 +112,19 @@ export async function listReportPackages(filters: { projectId?: string | null; p
   };
 }
 
-export async function getReportPackage(idOrKey: string): Promise<ReportPackageRepositoryResult<ReportPackage | null>> {
-  const stored = localGet<ReportPackage>(reportPackageStore, idOrKey);
+export async function getReportPackage(
+  idOrKey: string,
+  options: { includeStoredState?: boolean } = {}
+): Promise<ReportPackageRepositoryResult<ReportPackage | null>> {
+  const stored = options.includeStoredState === false
+    ? { ok: true, mode: "browser_local" as const, data: null, error: null, storageCaveat: localFallbackStorageCaveat }
+    : localGet<ReportPackage>(reportPackageStore, idOrKey);
   if (stored.data) {
     return { ...stored, data: stored.data };
   }
 
-  const seeded = await seededPackagesForProject(null);
-  const generated = seeded.find((item) => item.id === idOrKey || item.packageKey === idOrKey) ?? null;
+  const definition = seededPackageDefinitions.find((item) => item.packageKey === idOrKey);
+  const generated = definition ? await buildSeededPackage(definition) : null;
   return {
     ok: true,
     mode: "local_fallback",

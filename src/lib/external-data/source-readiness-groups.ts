@@ -144,14 +144,22 @@ export function buildSourceReadinessGroups(manifest: ExternalDataManifest): Sour
   return sourceGroupDefinitions.map((definition) => {
     const ids = new Set([...definition.sourceIds, ...(definition.aliases ?? [])]);
     const matches = sources.filter((source) => ids.has(source.id));
+    const qualityGroup = manifest.sourceQuality?.groups.find((group) => group.sourceGroupId === definition.id);
     const statuses = matches.map((source) => normalizeSourceStatus(source.status));
-    const status = statuses.length > 0
-      ? statuses.sort((a, b) => sourceStatusPriority(a) - sourceStatusPriority(b))[0]
-      : definition.fallbackStatus;
+    const status = qualityGroup
+      ? normalizeSourceStatus(qualityGroup.status)
+      : statuses.length > 0
+        ? statuses.sort((a, b) => sourceStatusPriority(a) - sourceStatusPriority(b))[0]
+        : definition.fallbackStatus;
     const counts = matches.map(sourceCount).filter((count): count is number => typeof count === "number");
-    const recordCount = counts.length > 0 ? Math.max(...counts) : null;
+    const qualityCount = qualityGroup?.recordCount ?? qualityGroup?.featureCount;
+    const recordCount = typeof qualityCount === "number" && Number.isFinite(qualityCount)
+      ? qualityCount
+      : counts.length > 0
+        ? Math.max(...counts)
+        : null;
     const resolvedDataMode = normalizeSourceDataMode(
-      matches.find((source) => source.sourceMode)?.sourceMode ?? status ?? definition.fallbackDataMode
+      qualityGroup?.dataMode ?? matches.find((source) => source.sourceMode)?.sourceMode ?? status ?? definition.fallbackDataMode
     );
     const dataMode = definition.fallbackDataMode === "api_context" && status === "connected"
       ? "api_context"
@@ -169,7 +177,7 @@ export function buildSourceReadinessGroups(manifest: ExternalDataManifest): Sour
       status,
       dataMode,
       recordCount,
-      confidence: confidenceFor(status, Boolean(recordCount && recordCount > 0), definition.fallbackConfidence),
+      confidence: qualityGroup?.confidence ?? confidenceFor(status, Boolean(recordCount && recordCount > 0), definition.fallbackConfidence),
       coverageArea: matches.find((source) => source.coverageArea)?.coverageArea ?? definition.coverageArea,
       availableFiles,
       lastUpdated: newestDate(matches.map((source) => source.lastUpdated)),

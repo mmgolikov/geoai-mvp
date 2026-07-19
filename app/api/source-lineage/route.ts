@@ -1,39 +1,26 @@
 import { NextResponse } from "next/server";
-import { getSourceRegistryReadiness } from "@/src/lib/external-data/supabase-source-registry";
+import { getCompactPublicSourceRegistryReadiness } from "@/src/lib/external-data/public-source-readiness";
 
 export const runtime = "nodejs";
 
-export async function GET() {
-  const readiness = await getSourceRegistryReadiness();
+export function GET() {
+  const readiness = getCompactPublicSourceRegistryReadiness();
 
   return NextResponse.json({
     ok: true,
+    contractVersion: readiness.contractVersion,
     version: readiness.version,
+    manifestVersion: readiness.manifestVersion,
+    projection: readiness.projection,
     mode: readiness.mode,
     source: readiness.source,
-    lineage: readiness.sourceGroups.map((item) => ({
-      sourceGroupId: item.id,
-      sourceGroupName: item.name,
-      sourceIds: item.sourceIds,
-      status: item.status,
-      dataMode: item.dataMode,
-      confidence: item.confidence,
-      recordCount: item.recordCount,
-      coverageArea: item.coverageArea,
-      availableFiles: item.availableFiles,
-      sourceQuality: item.sourceQuality,
-      caveat: item.caveat,
-      nextValidationStep: item.nextValidationStep,
-      validationRequired: item.validationRequired
-    })),
-    sourceGroups: readiness.sourceGroups,
-    readiness: readiness.readiness,
-    manifest: readiness.manifest,
-    sourceQuality: readiness.sourceQuality,
+    liveRegistryIncluded: readiness.liveRegistryIncluded,
+    diagnosticsWithheld: readiness.diagnosticsWithheld,
+    sourceRegistryCount: readiness.sourceRegistryCount,
+    externalSnapshotCount: readiness.externalSnapshotCount,
     summary: readiness.summary,
-    blockers: readiness.blockers,
-    nextActions: readiness.nextActions,
+    lineage: readiness.lineage,
     caveat: readiness.caveat,
     generatedAt: readiness.generatedAt
-  });
+  }, { headers: { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600" } });
 }

@@ -1,6 +1,6 @@
 import type { DbRepositoryResult } from "@/src/lib/db/types";
 import type { UploadedDatasetRecord } from "@/src/lib/project-workspace-types";
-import { localCreate, localDelete, localList } from "@/src/lib/repositories/local-json-store";
+import { localCreate, localDelete, localGet, localList } from "@/src/lib/repositories/local-json-store";
 
 export type UploadedDatasetRecordInput = UploadedDatasetRecord;
 
@@ -12,6 +12,11 @@ export async function listUploadedDatasetRecords(filters: { projectId?: string |
 export async function saveUploadedDatasetRecord(input: UploadedDatasetRecordInput): Promise<DbRepositoryResult<UploadedDatasetRecord>> {
   const result = localCreate<UploadedDatasetRecord>("uploaded-datasets", input);
   return { ok: true, mode: "local_fallback", data: result.data, error: result.error };
+}
+
+export async function getUploadedDatasetRecord(id: string): Promise<DbRepositoryResult<UploadedDatasetRecord>> {
+  const result = localGet<UploadedDatasetRecord>("uploaded-datasets", id);
+  return { ok: true, mode: "local_fallback", data: result.data, error: null };
 }
 
 export async function deleteUploadedDatasetRecord(id: string): Promise<DbRepositoryResult<boolean>> {

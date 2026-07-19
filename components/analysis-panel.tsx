@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/components/auth/auth-provider";
 import ingestionReport from "@/data/normalized/ingestion_report.json";
@@ -102,6 +102,7 @@ type AnalysisPanelProps = {
   candidateSearchStatus: CandidateSearchStatus;
   selectedExploreCandidateId: string | null;
   exploreSetupDefaultOpen?: boolean;
+  workspaceHeading: string;
   onProjectChange: (projectKey: string) => void;
   onCustomQueryChange: (query: string) => void;
   onExploreAudienceChange: (audience: ExploreAudience) => void;
@@ -213,6 +214,9 @@ type ReportPackageSummary = {
 };
 
 const canonicalInteractionModeOrder: InteractionMode[] = ["criteria_first", "map_first"];
+// Project Dashboard owns these server-backed summaries. Keep the public workspace panel
+// free of the legacy seven-request prefetch fan-out until authenticated access is enabled.
+const enableLegacyPanelServerFanout = false;
 
 function formatHistoryTimestamp(value: string) {
   return new Intl.DateTimeFormat("en", {
@@ -279,13 +283,17 @@ function ExploreSetupControl({
   value: ExploreFilters[string] | undefined;
   onChange: (value: ExploreFilters[string]) => void;
 }) {
+  const controlId = useId();
+  const valueId = `${controlId}-value`;
+
   if (config.type === "select") {
     return (
       <div className="min-w-0">
-        <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
+        <label htmlFor={controlId} className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
           {config.label}
         </label>
         <select
+          id={controlId}
           value={typeof value === "string" ? value : String(config.defaultValue)}
           onChange={(event) => onChange(event.target.value)}
           className="mt-1 h-8 w-full rounded-md border border-line bg-white px-2 text-xs font-semibold text-ink outline-none transition focus:border-brand"
@@ -306,21 +314,24 @@ function ExploreSetupControl({
     return (
       <div className="min-w-0 rounded-md border border-line bg-white p-2">
         <div className="flex items-center justify-between gap-2">
-          <label className="truncate text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
+          <label htmlFor={controlId} className="truncate text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
             {config.label}
           </label>
-          <span className="shrink-0 text-[11px] font-semibold text-brand">
+          <span id={valueId} className="shrink-0 text-[11px] font-semibold text-brand">
             {numericValue}{config.unit ? ` ${config.unit}` : ""}
           </span>
         </div>
         <input
+          id={controlId}
           type="range"
+          aria-describedby={valueId}
+          aria-valuetext={`${numericValue}${config.unit ? ` ${config.unit}` : ""}`}
           value={numericValue}
           min={config.min}
           max={config.max}
           step={config.step}
           onChange={(event) => onChange(Number(event.target.value))}
-          className="mt-2 w-full accent-brand"
+          className="mt-2 h-6 w-full accent-brand"
         />
       </div>
     );
@@ -417,6 +428,7 @@ export function AnalysisPanel({
   candidateSearchStatus,
   selectedExploreCandidateId,
   exploreSetupDefaultOpen = false,
+  workspaceHeading,
   onProjectChange,
   onCustomQueryChange,
   onExploreAudienceChange,
@@ -554,6 +566,7 @@ export function AnalysisPanel({
   }, [candidateSearchStatus, exploreInteractionMode, exploreScenarioId]);
 
   useEffect(() => {
+    if (!enableLegacyPanelServerFanout) return;
     let isMounted = true;
 
     fetch("/api/external-data/status")
@@ -575,6 +588,7 @@ export function AnalysisPanel({
   }, []);
 
   useEffect(() => {
+    if (!enableLegacyPanelServerFanout) return;
     let isMounted = true;
 
     fetch(`/api/data-room?projectKey=${encodeURIComponent(activeProject.projectKey)}`)
@@ -596,6 +610,7 @@ export function AnalysisPanel({
   }, [activeProject.projectKey, hasResult, projectAois.length, uploadedDatasets.length]);
 
   useEffect(() => {
+    if (!enableLegacyPanelServerFanout) return;
     let isMounted = true;
 
     fetch(`/api/validation?projectKey=${encodeURIComponent(activeProject.projectKey)}`)
@@ -613,6 +628,7 @@ export function AnalysisPanel({
   }, [activeProject.projectKey, selectedAoi?.id, hasResult]);
 
   useEffect(() => {
+    if (!enableLegacyPanelServerFanout) return;
     let isMounted = true;
 
     Promise.all([
@@ -638,6 +654,7 @@ export function AnalysisPanel({
   }, [activeProject.projectKey, selectedAoi?.id, hasResult]);
 
   useEffect(() => {
+    if (!enableLegacyPanelServerFanout) return;
     let isMounted = true;
 
     fetch(`/api/pilot-workflow?projectKey=${encodeURIComponent(activeProject.projectKey)}`)
@@ -659,6 +676,7 @@ export function AnalysisPanel({
   }, [activeProject.projectKey, hasResult, projectAois.length, uploadedDatasets.length]);
 
   useEffect(() => {
+    if (!enableLegacyPanelServerFanout) return;
     let isMounted = true;
 
     fetch(`/api/report-packages?projectKey=${encodeURIComponent(activeProject.projectKey)}`)
@@ -1075,6 +1093,7 @@ export function AnalysisPanel({
   return (
     <aside className="flex min-h-0 max-w-full flex-col border-line bg-white max-lg:border-t lg:h-full lg:w-[380px] lg:overflow-hidden lg:border-l">
       <section className="min-w-0 max-w-full overflow-x-hidden p-3 pb-5 [scrollbar-width:thin] lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
+        {!hasResult ? <h1 className="sr-only">{workspaceHeading}</h1> : null}
         <div className="grid min-w-0 gap-2">
           <section className="min-w-0 max-w-full overflow-hidden rounded-lg border border-line bg-white p-2">
             <div className="grid grid-cols-2 gap-1 rounded-md bg-surface p-1">
@@ -1082,8 +1101,9 @@ export function AnalysisPanel({
                 <button
                   key={audience}
                   type="button"
+                  aria-pressed={exploreAudience === audience}
                   onClick={() => onExploreAudienceChange(audience)}
-                  className={`h-8 rounded-md px-2 text-xs font-semibold transition ${
+                  className={`h-10 rounded-md px-2 text-xs font-semibold transition sm:h-8 ${
                     exploreAudience === audience
                       ? "bg-brand text-white shadow-sm"
                       : "text-muted hover:bg-white hover:text-ink"
@@ -1112,7 +1132,7 @@ export function AnalysisPanel({
                 id="active-project"
                 value={activeProject.projectKey}
                 onChange={(event) => onProjectChange(event.target.value)}
-                className="h-9 min-w-0 rounded-md border border-line bg-white px-2 text-xs font-semibold text-ink outline-none transition focus:border-brand"
+                className="h-10 min-w-0 rounded-md border border-line bg-white px-2 text-xs font-semibold text-ink outline-none transition focus:border-brand sm:h-9"
               >
                 {projects.map((project) => (
                   <option key={project.projectKey} value={project.projectKey}>
@@ -1126,7 +1146,7 @@ export function AnalysisPanel({
                   setProjectMarketDraft(activeProject.geography || "Dubai / UAE");
                   setIsProjectCreateOpen((value) => !value);
                 }}
-                className="inline-flex h-9 items-center justify-center rounded-md bg-brand px-3 text-xs font-semibold text-white transition hover:bg-[#113f50]"
+                className="inline-flex h-10 items-center justify-center rounded-md bg-brand px-3 text-xs font-semibold text-white transition hover:bg-[#113f50] sm:h-9"
               >
                 Create
               </button>
@@ -1140,7 +1160,7 @@ export function AnalysisPanel({
                   <input
                     value={projectNameDraft}
                     onChange={(event) => setProjectNameDraft(event.target.value)}
-                    className="mt-1 h-8 w-full rounded-md border border-line bg-surface px-2 text-xs font-semibold text-ink outline-none transition focus:border-brand"
+                    className="mt-1 h-10 w-full rounded-md border border-line bg-surface px-2 text-xs font-semibold text-ink outline-none transition focus:border-brand sm:h-8"
                     placeholder="Pilot screening project"
                   />
                 </label>
@@ -1151,7 +1171,7 @@ export function AnalysisPanel({
                   <input
                     value={projectMarketDraft}
                     onChange={(event) => setProjectMarketDraft(event.target.value)}
-                    className="mt-1 h-8 w-full rounded-md border border-line bg-surface px-2 text-xs font-semibold text-ink outline-none transition focus:border-brand"
+                    className="mt-1 h-10 w-full rounded-md border border-line bg-surface px-2 text-xs font-semibold text-ink outline-none transition focus:border-brand sm:h-8"
                     placeholder="Dubai / UAE"
                   />
                 </label>
@@ -1165,7 +1185,7 @@ export function AnalysisPanel({
                     onClick={() => {
                       void handleProjectCreate();
                     }}
-                    className="inline-flex h-8 items-center justify-center rounded-md bg-brand px-3 text-xs font-semibold text-white transition hover:bg-[#113f50] disabled:cursor-not-allowed disabled:bg-[#c9d2d7]"
+                    className="inline-flex h-10 items-center justify-center rounded-md bg-brand px-3 text-xs font-semibold text-white transition hover:bg-[#113f50] disabled:cursor-not-allowed disabled:bg-[#c9d2d7] sm:h-8"
                   >
                     Create
                   </button>
@@ -1183,7 +1203,7 @@ export function AnalysisPanel({
                 <select
                   value={exploreRole}
                   onChange={(event) => onExploreRoleChange(event.target.value as ExploreRole)}
-                  className="mt-1 h-8 w-full rounded-md border border-line bg-surface px-2 text-xs font-semibold text-ink outline-none transition focus:border-brand"
+                  className="mt-1 h-10 w-full rounded-md border border-line bg-surface px-2 text-xs font-semibold text-ink outline-none transition focus:border-brand sm:h-8"
                 >
                   {exploreRoles.map((role) => (
                     <option key={role.id} value={role.id}>
@@ -1200,7 +1220,7 @@ export function AnalysisPanel({
                 <select
                   value={exploreScenarioId}
                   onChange={(event) => onExploreScenarioChange(event.target.value as ExploreScenarioId)}
-                  className="mt-1 h-8 w-full rounded-md border border-line bg-surface px-2 text-xs font-semibold text-ink outline-none transition focus:border-brand"
+                  className="mt-1 h-10 w-full rounded-md border border-line bg-surface px-2 text-xs font-semibold text-ink outline-none transition focus:border-brand sm:h-8"
                 >
                   {exploreScenarios.map((item) => (
                     <option key={item.id} value={item.id}>
@@ -1226,7 +1246,7 @@ export function AnalysisPanel({
                 </span>
               </div>
               <details className="mt-1 rounded-md bg-white px-2">
-                <summary className="flex h-6 cursor-pointer list-none items-center text-[10px] font-semibold uppercase tracking-[0.1em] text-muted">
+                <summary className="flex min-h-10 cursor-pointer list-none items-center text-[10px] font-semibold uppercase tracking-[0.1em] text-muted sm:min-h-6">
                   Validation caveat
                 </summary>
                 <p className="border-t border-line py-1.5 text-[11px] leading-4 text-muted">
@@ -1243,7 +1263,7 @@ export function AnalysisPanel({
                 <button
                   type="button"
                   onClick={onOpenMap}
-                  className="inline-flex h-7 items-center justify-center rounded-md border border-line bg-white px-2 text-[10px] font-semibold text-ink transition hover:border-brand min-[1367px]:hidden"
+                  className="inline-flex h-10 items-center justify-center rounded-md border border-line bg-white px-2 text-[10px] font-semibold text-ink transition hover:border-brand min-[1367px]:hidden"
                 >
                   Open map
                 </button>
@@ -1256,7 +1276,7 @@ export function AnalysisPanel({
                     data-interaction-mode={mode}
                     aria-pressed={exploreInteractionMode === mode}
                     onClick={() => onExploreInteractionModeChange(mode)}
-                    className={`h-8 rounded-md border px-2 text-[11px] font-semibold transition ${
+                    className={`h-10 rounded-md border px-2 text-[11px] font-semibold transition sm:h-8 ${
                       exploreInteractionMode === mode
                         ? "border-brand bg-brand text-white"
                         : "border-line bg-surface text-muted hover:border-brand hover:text-ink"
@@ -1273,7 +1293,7 @@ export function AnalysisPanel({
               open={isExploreSetupOpen}
               onToggle={(event) => setIsExploreSetupOpen(event.currentTarget.open)}
             >
-              <summary className="flex min-h-8 cursor-pointer list-none items-center justify-between gap-2 py-1.5 text-xs font-semibold text-ink">
+              <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between gap-2 py-1.5 text-xs font-semibold text-ink sm:min-h-8">
                 <span>Scenario setup</span>
                 <span className="shrink-0 rounded-full bg-white px-2 py-1 text-[10px] font-semibold text-brand">
                   {exploreScenario.inputSchema.length} controls
@@ -1545,6 +1565,90 @@ export function AnalysisPanel({
                 )}
               </div>
             </details>
+            </div>
+          </details>
+
+          <details className="order-[25] min-w-0 max-w-full overflow-hidden rounded-lg border border-line bg-white px-3">
+            <summary className="flex min-h-[50px] cursor-pointer list-none items-center justify-between gap-3 py-3">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Project data</p>
+                <h2 className="mt-1 truncate text-sm font-semibold text-ink">
+                  {uploadedDatasets.length > 0 ? `${uploadedDatasets.length} browser-local dataset${uploadedDatasets.length === 1 ? "" : "s"}` : "CSV / GeoJSON import"}
+                </h2>
+                <p className="mt-1 truncate text-xs leading-5 text-muted">Project-scoped prototype storage; official validation required.</p>
+              </div>
+              <span className="shrink-0 rounded-full bg-surface px-2 py-1 text-[11px] font-semibold text-brand">Open</span>
+            </summary>
+
+            <div className="grid gap-3 border-t border-line py-3">
+              <p id="browser-upload-warning" className="rounded-md border border-[#e5d7b2] bg-[#fff9e9] px-3 py-2 text-xs leading-5 text-[#6c5520]">
+                Do not upload confidential, personal or regulated data. Files are parsed in this browser and persist unencrypted in this origin&apos;s local storage until you remove them.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="inline-flex h-9 items-center justify-center rounded-md bg-brand px-3 text-xs font-semibold text-white transition hover:bg-[#113f50]"
+                >
+                  Import CSV / GeoJSON
+                </button>
+                {uploadedDatasets.length > 0 ? (
+                  <button
+                    type="button"
+                    onClick={onClearUploadedDatasets}
+                    className="inline-flex h-9 items-center justify-center rounded-md border border-line bg-white px-3 text-xs font-semibold text-muted transition hover:border-brand hover:text-ink"
+                  >
+                    Remove all project files
+                  </button>
+                ) : null}
+              </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv,.geojson,.json,text/csv,application/geo+json,application/json"
+                aria-describedby="browser-upload-warning"
+                className="hidden"
+                onChange={(event) => {
+                  void handleDatasetFileChange(event);
+                }}
+              />
+
+              {uploadedDatasets.length > 0 ? (
+                <div className="grid gap-2">
+                  {uploadedDatasets.map((dataset) => (
+                    <div key={dataset.id} className="flex min-w-0 items-center justify-between gap-3 rounded-md border border-line bg-surface p-2">
+                      <div className="min-w-0">
+                        <p className="truncate text-xs font-semibold text-ink">{dataset.name}</p>
+                        <p className="mt-1 text-[11px] leading-4 text-muted">
+                          {dataset.type.toUpperCase()} / {formatUploadedDatasetDetail(dataset)} / {dataset.officialStatus}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 gap-1.5">
+                        {dataset.type === "geojson" && dataset.status === "parsed" ? (
+                          <button
+                            type="button"
+                            onClick={() => onToggleUploadedDataset(dataset.id)}
+                            className="rounded-md border border-line bg-white px-2 py-1 text-[10px] font-semibold text-muted"
+                          >
+                            {dataset.visible === false ? "Show" : "Hide"}
+                          </button>
+                        ) : null}
+                        <button
+                          type="button"
+                          onClick={() => onRemoveUploadedDataset(dataset.id)}
+                          className="rounded-md border border-line bg-white px-2 py-1 text-[10px] font-semibold text-muted"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="rounded-md bg-surface px-3 py-2 text-xs leading-5 text-muted">No project data imported. Maximum file size: 5 MB.</p>
+              )}
+
+              {uploadedDataMessage ? <p className="rounded-md bg-surface px-3 py-2 text-xs leading-5 text-muted">{uploadedDataMessage}</p> : null}
             </div>
           </details>
 

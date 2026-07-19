@@ -160,7 +160,7 @@
       "recordCount": 0,
       "coverageArea": "Dubai public real-estate categories",
       "confidence": "low",
-      "usedInAnalysis": true,
+      "usedInAnalysis": false,
       "caveat": "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.",
       "disclaimer": "DLD / Dubai Pulse public snapshot; not a live DLD API or ownership/title validation."
     },
@@ -220,7 +220,7 @@
       "recordCount": 0,
       "coverageArea": "Dubai public real-estate categories",
       "confidence": "low",
-      "usedInAnalysis": true,
+      "usedInAnalysis": false,
       "caveat": "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.",
       "disclaimer": "DLD / Dubai Pulse public snapshot; not a live DLD API or ownership/title validation."
     },
@@ -235,7 +235,7 @@
       "recordCount": 0,
       "coverageArea": "Dubai public real-estate categories",
       "confidence": "low",
-      "usedInAnalysis": true,
+      "usedInAnalysis": false,
       "caveat": "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.",
       "disclaimer": "DLD / Dubai Pulse public snapshot; not a live DLD API or ownership/title validation."
     },

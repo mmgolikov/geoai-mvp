@@ -1,4 +1,4 @@
-import { localCreate, localDelete, localList, localUpdate } from "@/src/lib/repositories/local-json-store";
+import { localCreate, localDelete, localGet, localList, localUpdate } from "@/src/lib/repositories/local-json-store";
 import {
   dataRoomRequiredCaveat,
   type DataRoomAsset,
@@ -22,6 +22,10 @@ export async function listDataRoomAssets(filters: { projectId?: string | null; p
   return localList<DataRoomAsset>(dataRoomAssetStore, filters);
 }
 
+export async function getDataRoomAsset(id: string) {
+  return localGet<DataRoomAsset>(dataRoomAssetStore, id);
+}
+
 export async function createDataRoomAsset(input: DataRoomAssetInput) {
   const now = new Date().toISOString();
   return localCreate<DataRoomAsset>(dataRoomAssetStore, {
@@ -42,6 +46,10 @@ export async function deleteDataRoomAsset(id: string) {
 
 export async function listDataRoomChecklist(filters: { projectId?: string | null; projectKey?: string | null; limit?: number } = {}) {
   return localList<ValidationChecklistItem>(dataRoomChecklistStore, filters);
+}
+
+export async function getDataRoomChecklistItem(id: string) {
+  return localGet<ValidationChecklistItem>(dataRoomChecklistStore, id);
 }
 
 export async function createDataRoomChecklistItem(input: ValidationChecklistItemInput) {

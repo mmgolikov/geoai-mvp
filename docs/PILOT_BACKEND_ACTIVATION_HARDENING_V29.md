@@ -1,5 +1,7 @@
 # GeoAI Pilot Backend Activation & Hardening v2.9
 
+> **Superseded — do not use operationally.** This point-in-time record predates the current fail-closed Auth, publishable-key and project-bound operator controls. Do not follow its hard-mode, migration, seed or credential instructions. Use the [Current Release State](CURRENT_RELEASE_STATE.md), [Codex Backlog](CODEX_BACKLOG_2026_07_16.md) and [Supabase Data API Containment Runbook](SUPABASE_DATA_API_CONTAINMENT_RUNBOOK_2026_07_16.md).
+
 Date: 2026-06-26
 
 ## Scope

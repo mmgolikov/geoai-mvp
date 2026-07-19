@@ -1,4 +1,4 @@
-import { localCreate, localList, localUpdate } from "@/src/lib/repositories/local-json-store";
+import { localCreate, localGet, localList, localUpdate } from "@/src/lib/repositories/local-json-store";
 import {
   pilotWorkflowCaveat,
   type ClientInputItem,
@@ -36,6 +36,10 @@ export async function listPilotClientInputs(filters: { projectId?: string | null
   return localList<ClientInputItem>(clientInputStore, filters);
 }
 
+export async function getPilotClientInput(id: string) {
+  return localGet<ClientInputItem>(clientInputStore, id);
+}
+
 export async function createPilotClientInput(input: ClientInputInput) {
   return localCreate<ClientInputItem>(clientInputStore, {
     ...input,
@@ -52,6 +56,10 @@ export async function updatePilotClientInput(id: string, patch: Partial<ClientIn
 
 export async function listPilotDeliverables(filters: { projectId?: string | null; projectKey?: string | null; limit?: number } = {}) {
   return localList<PilotDeliverableStatus>(deliverableStore, filters);
+}
+
+export async function getPilotDeliverable(id: string) {
+  return localGet<PilotDeliverableStatus>(deliverableStore, id);
 }
 
 export async function createPilotDeliverable(input: DeliverableInput) {

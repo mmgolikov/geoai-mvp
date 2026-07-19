@@ -210,10 +210,14 @@ export function ComparisonDashboard({
   }, [comparison.id]);
 
   return (
-    <section ref={dashboardRef} className="h-full min-h-0 overflow-y-auto bg-surface [scrollbar-width:thin]">
-      <div className="flex h-full w-full min-w-0 flex-col">
+    <section
+      ref={dashboardRef}
+      data-dashboard-comparison-id={comparison.id}
+      className="max-w-full overflow-x-hidden bg-surface [scrollbar-width:thin] xl:h-full xl:min-h-0 xl:overflow-y-auto"
+    >
+      <div className="flex w-full min-w-0 max-w-full flex-col xl:h-full">
         {/* Dashboard viewport contract: first overview must fit within workspace height and align with command panel footer; drill-down content starts below. */}
-        <section className="flex h-full min-h-0 shrink-0 flex-col gap-3 p-3">
+        <section className="flex min-w-0 flex-col gap-3 p-3 xl:h-full xl:min-h-0 xl:shrink-0">
           <header className="grid shrink-0 gap-3 rounded-lg border border-line bg-white p-3 shadow-sm lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-3">
@@ -230,29 +234,29 @@ export function ComparisonDashboard({
             <button
               type="button"
               onClick={onExportComparison}
-              className="inline-flex h-9 items-center justify-center rounded-md bg-brand px-3 text-sm font-semibold text-white transition hover:bg-[#113f50]"
+              className="inline-flex h-10 items-center justify-center rounded-md bg-brand px-3 text-sm font-semibold text-white transition hover:bg-[#113f50] sm:h-9"
             >
               Export
             </button>
             <button
               type="button"
               onClick={onBackToMap}
-              className="inline-flex h-9 items-center justify-center rounded-md border border-line bg-white px-3 text-sm font-semibold text-ink transition hover:border-brand"
+              className="inline-flex h-10 items-center justify-center rounded-md border border-line bg-white px-3 text-sm font-semibold text-ink transition hover:border-brand sm:h-9"
             >
               Back to map
             </button>
           </div>
         </header>
 
-        <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_minmax(0,1fr)] items-stretch gap-3 xl:grid-cols-[minmax(0,1.15fr)_minmax(440px,0.85fr)] xl:grid-rows-none">
-          <section className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-line bg-white p-3 shadow-sm">
-            <div className="min-h-0 flex-1 overflow-y-auto pr-1 [scrollbar-width:thin]">
+        <div className="grid min-w-0 items-stretch gap-3 xl:min-h-0 xl:flex-1 xl:grid-cols-[minmax(0,1.15fr)_minmax(440px,0.85fr)]">
+          <section className="flex min-w-0 flex-col rounded-lg border border-line bg-white p-3 shadow-sm xl:h-full xl:min-h-0 xl:overflow-hidden">
+            <div className="pr-1 [scrollbar-width:thin] xl:min-h-0 xl:flex-1 xl:overflow-y-auto">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0">
                 <h2 className="text-lg font-semibold text-ink">Ranked shortlist decision</h2>
                 <p className="mt-1 text-sm text-muted">Best option based on deterministic sample/open scoring</p>
               </div>
-              <TextSafeValue as="span" className="shrink-0 rounded-full bg-[#eaf3f1] px-3 py-1 text-sm font-semibold text-brand">
+              <TextSafeValue as="span" className="max-w-full whitespace-normal break-words rounded-md bg-[#eaf3f1] px-3 py-1 text-sm font-semibold text-brand lg:rounded-full">
                 Best option: {comparison.winner.item.name}
               </TextSafeValue>
             </div>
@@ -299,11 +303,11 @@ export function ComparisonDashboard({
             </div>
           </section>
 
-          <section className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-line bg-white p-3 shadow-sm">
+          <section className="flex min-w-0 flex-col rounded-lg border border-line bg-white p-3 shadow-sm xl:h-full xl:min-h-0 xl:overflow-hidden">
             <TextSafeValue as="h2" className="text-lg font-semibold text-ink">
               Shortlist Matrix
             </TextSafeValue>
-            <div className="mt-3 grid min-h-0 flex-1 content-start gap-2 overflow-y-auto pr-1 [scrollbar-width:thin]">
+            <div className="mt-3 grid content-start gap-2 pr-1 [scrollbar-width:thin] xl:min-h-0 xl:flex-1 xl:overflow-y-auto">
               {comparison.items.map((scorecard, index) => (
                 <div key={createStableKey("map-context-item", scorecard.item.id, index)} className="rounded-md border border-line bg-surface p-3">
                   <div className="flex items-start justify-between gap-3">
@@ -332,7 +336,7 @@ export function ComparisonDashboard({
                     <button
                       type="button"
                       onClick={() => onOpenCandidateDashboard(scorecard.item)}
-                      className="mt-3 inline-flex h-9 w-full items-center justify-center rounded-md border border-line bg-white px-3 text-xs font-semibold text-ink transition hover:border-brand"
+                      className="mt-3 inline-flex h-10 w-full items-center justify-center rounded-md border border-line bg-white px-3 text-xs font-semibold text-ink transition hover:border-brand sm:h-9"
                     >
                       Open dashboard
                     </button>
@@ -345,10 +349,15 @@ export function ComparisonDashboard({
 
         </section>
 
-        <section className="grid gap-4 p-3 pt-0">
-        <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
+        <section className="grid min-w-0 max-w-full gap-4 p-3 pt-0">
+        <section className="min-w-0 max-w-full overflow-hidden rounded-lg border border-line bg-white p-5 shadow-sm">
           <h2 className="text-lg font-semibold text-ink">Comparison Table</h2>
-          <div className="mt-4 overflow-x-auto">
+          <div
+            role="region"
+            aria-label="Comparison table"
+            tabIndex={0}
+            className="mt-4 w-full max-w-full overflow-x-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+          >
             <table className="w-full min-w-[900px] border-separate border-spacing-0 text-left text-sm">
               <thead>
                 <tr>

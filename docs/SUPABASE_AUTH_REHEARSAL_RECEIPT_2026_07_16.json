@@ -1,0 +1,190 @@
+{
+  "schemaVersion": "1.6",
+  "receiptType": "isolated_supabase_auth_admin_rehearsal",
+  "recordedAt": "2026-07-16T19:25:48Z",
+  "costAuthorization": {
+    "projectName": "geoai-auth-rehearsal",
+    "plan": "Free",
+    "monthlyCostUsd": 0,
+    "userConfirmation": "подтверждаю бесплатный Supabase project geoai-auth-rehearsal ($0/месяц)",
+    "duplicateCreationAllowed": false
+  },
+  "target": {
+    "projectRef": "bkmfcjzalcvdsdvyxpgi",
+    "organizationId": "jxfaprylyupipfhbtcyb",
+    "region": "eu-west-1",
+    "health": "ACTIVE_HEALTHY",
+    "postgresVersion": "17.6.1.147",
+    "production": false,
+    "developmentProjectChanged": false,
+    "productionProjectChanged": false
+  },
+  "repository": {
+    "baseRemoteHead": "cf0ee1903e8411eabf8e048c1d8e775a0454340c",
+    "candidateRemoteHead": "8e0039260f4cf201b230288b6b02c48d2955600e",
+    "candidateTree": "4c4f007e74f189bf5acdb5de66f352cf9cd59edb",
+    "localBranch": "p0/db01-auth-rehearsal-rebuild-v1",
+    "remoteBranch": "audit/system-readiness-and-docs-v1",
+    "draftPullRequest": 97,
+    "pushed": true,
+    "productionOrMainChanged": false
+  },
+  "database": {
+    "canonicalSchemaMigrationCount": 17,
+    "operatorLedgerEntryCount": 1,
+    "totalProjectMigrationLedgerEntries": 18,
+    "latestCanonicalVersion": "20260716175210",
+    "latestCanonicalName": "geoai_auth_admin_lifecycle_remediation_v1",
+    "operatorVersion": "20260716170411",
+    "operatorName": "operator_data_api_api_only_owner_path_20260716",
+    "publicDomainTableCountExcludingManagedSpatialRefSys": 29,
+    "publicDomainTablesWithoutRls": 0,
+    "uncoveredForeignKeys": 0,
+    "authUsersAfterRollback": 0,
+    "seedProfiles": 1,
+    "storageBuckets": 4,
+    "storageObjectPolicies": 0
+  },
+  "pendingProductDecision": {
+    "migrationVersion": "20260716213214",
+    "migrationName": "simplify_auth_remove_mfa_requirement",
+    "behavior": "verified permanent identity replaces the Admin AAL2 requirement; the legacy helper remains only as a compatibility wrapper",
+    "appliedToRehearsal": false,
+    "appliedToDevelopment": false,
+    "appliedToProduction": false,
+    "requiresSeparateExactTargetApproval": true,
+    "historicalReceiptStillDescribesFirstSixMigrations": true
+  },
+  "dataApi": {
+    "authenticatorSetting": "pgrst.db_schemas=api",
+    "apiFunctionCount": 14,
+    "apiRelationCount": 0,
+    "anonymousApiFunctions": ["api.healthcheck()"],
+    "httpEvidence": {
+      "apiHealthcheck": { "status": 200, "result": "healthy_true" },
+      "publicSchemaProbe": { "status": 406, "code": "PGRST106" },
+      "apiBaseTableProbe": { "status": 404, "code": "PGRST205" }
+    },
+    "managedPostgisAclMutated": false,
+    "managedSpatialRefSysRlsMutated": false
+  },
+  "tests": {
+    "hostedPgtap": {
+      "identityAuthorization": { "planned": 71, "passed": 71 },
+      "authAdminProjectActivation": { "planned": 73, "passed": 73 },
+      "authAdminLifecycleRemediation": { "planned": 39, "passed": 39 },
+      "total": { "planned": 183, "passed": 183 }
+    },
+    "local": {
+      "typescript": "pass",
+      "nextProductionBuild": "pass",
+      "supabaseExactTargetAllowlist": "pass",
+      "authSsrPkceSessionLogoutStatic": "pass",
+      "authAdminMfaUiStatic": "pass",
+      "apiAccessManifestHandlers": 88,
+      "effectiveAuthModeGate": "pass",
+      "authCookieMutationOriginGuard": "pass",
+      "invitationFragmentToHttpOnlyCookieHandoff": "pass",
+      "publicDemoWorkspaceFirstLoadJsKb": 220,
+      "localHttpRouteSmoke": "pass_demo_mode_only",
+      "canonicalMigrationChain": "pass",
+      "migrationSecuritySurface": "pass",
+      "identityAuthorizationStatic": "pass",
+      "sourceCustodyStatic": "pass",
+      "activationStatic": "pass",
+      "foreignKeyIndexStatic": "pass",
+      "authAdminLifecycleRemediationStatic": "pass",
+      "dataApiOperatorStatic": "pass",
+      "documentationCurrentTruth": "pass",
+      "documentationLifecycle": "pass"
+    },
+    "twoSessionConcurrency": {
+      "result": "pass_with_scope_limit",
+      "scope": "table_level_create_accept_and_create_revoke_lock_order_regression",
+      "authenticatedRpcOrHttpE2e": false,
+      "sessionBackendPids": [21150, 21239],
+      "lockOrder": ["organization", "project", "invitation"],
+      "lockTimeoutSeconds": 5,
+      "statementTimeoutSeconds": 15,
+      "firstSessionLockHoldSeconds": 2,
+      "deadlocksObserved": 0,
+      "mutationsObservedBeforeRollback": true,
+      "fixtureRowsAfterRollback": 0,
+      "postTestAuthUsers": 0,
+      "postTestInvitations": 0,
+      "interpretation": "Two independent hosted PostgreSQL sessions completed the canonical lock-order transitions without lock timeout or deadlock and rolled back cleanly. This is runtime concurrency evidence, but not api.create_invitation/accept_invitation/revoke_invitation HTTP E2E because rehearsal has no confirmed Auth user or Auth-linked profile."
+    }
+  },
+  "advisors": {
+    "security": {
+      "total": 20,
+      "levels": { "ERROR": 1, "WARN": 7, "INFO": 12 },
+      "interpretation": "Supabase linter still reports managed public PostGIS objects and intentional no-policy deny-all tables. Runtime HTTP proves public is not an exposed PostgREST schema. Findings are recorded, not deleted or mislabeled as remediated."
+    },
+    "performance": {
+      "total": 94,
+      "levels": { "INFO": 94 },
+      "unindexedForeignKeys": 0,
+      "unusedIndexFindings": 94,
+      "interpretation": "All remaining findings are unused-index observations on a near-empty rehearsal and are not deletion evidence."
+    }
+  },
+  "environmentEvacuation": {
+    "recordedAt": "2026-07-16T20:54:51Z",
+    "evidenceClass": "owner_attested_dashboard_action_plus_public_build_observation",
+    "vercelProject": "geoaidev/geoai-mvp",
+    "historicalPreviewObservedSupabaseRef": "pphdqkurxneyagvnnjdt",
+    "ownerConfirmedActions": [
+      "removed SUPABASE_SERVICE_ROLE_KEY from the Vercel application Preview environment",
+      "removed NEXT_PUBLIC_SUPABASE_ANON_KEY from the Vercel application Preview environment",
+      "checked the Vercel Shared environment-variable view for forbidden Supabase variables",
+      "disabled legacy anon and service_role API keys on development project pphdqkurxneyagvnnjdt",
+      "configured Preview-only NEXT_PUBLIC_SUPABASE_URL for auth rehearsal bkmfcjzalcvdsdvyxpgi",
+      "configured a Preview-only sb_publishable_ key without recording its value",
+      "configured Preview-only supabase_auth, hard enforcement and public-demo denial"
+    ],
+    "forbiddenRuntimeValuesRecorded": false,
+    "productionEnvironmentChanged": false,
+    "mainChanged": false,
+    "exactRuntimeEvidence": {
+      "githubWorkflowRun": 29534323096,
+      "applicationJob": 87741880884,
+      "databaseJob": 87741880992,
+      "qualityArtifact": 8389906783,
+      "qualityArtifactDigest": "sha256:a59d7ea7323665abf51ca0dd75ec3cedc67768dcf532f7935c545417487a5f71",
+      "databaseArtifact": 8389970353,
+      "databaseArtifactDigest": "sha256:f8fc827cec263848def2f25d29da99900a3cc820b3b3cf56c25859d367817962",
+      "vercelDeployment": "dpl_66rk4tVny9TmPjo7BKona5Xo1p1b",
+      "vercelUrl": "https://geoai-jmlv4t456-geoaidev.vercel.app",
+      "vercelState": "READY",
+      "authMode": "supabase_auth",
+      "accessEnforcementMode": "hard",
+      "allowDemoPublic": false,
+      "anonymousSessionStatus": "claims_unverified",
+      "anonymousDemoIdentityReturned": false,
+      "legacyAnonRuntimeNameInAuthClientBundle": false,
+      "serviceRoleRuntimeNameInAuthClientBundle": false,
+      "runtimeErrorsForAuthRoutes": 0
+    },
+    "verificationLimits": [
+      "The available Vercel connector does not enumerate or mutate project environment values, so deletion and final names/scopes are owner-confirmed from the dashboard rather than independently machine-read.",
+      "The available Supabase connector does not expose legacy-key enabled/disabled state, so legacy-key disablement is owner-confirmed.",
+      "Rendered browser and real email/phone/Admin personas are separate AUTH-01 evidence and remain open; phone delivery also requires an owner-configured SMS provider.",
+      "The later no-MFA verified-identity migration is recorded as pending and was not applied by this receipt."
+    ],
+    "status": "closed_for_non_production_preview_integration"
+  },
+  "notYetCertified": [
+    "real HTTP email sign-in-link, callback, refresh and logout",
+    "real phone OTP delivery and verification after SMS provider configuration",
+    "first real platform owner bootstrap",
+    "authenticated api.create_invitation/accept_invitation/revoke_invitation concurrency through real caller sessions",
+    "resource-specific Admin pagination beyond the bounded initial snapshot",
+    "browser admin and onboarding E2E with real sessions",
+    "storage.objects policies and real upload/download personas",
+    "Realtime authorization",
+    "trusted source worker and real-source persistence",
+    "development apply or drift certification",
+    "Production activation"
+  ]
+}

@@ -1,24 +1,34 @@
 # Codex Workflow Instructions
 
+Status: Active coding-agent operating authority
+Last verified: 2026-07-19
+Owner: GeoAI Engineering
+Authority: Current Codex/agent operating rules
+Successor: None; any replacement must update `docs/DOCUMENTATION_INDEX.md`
+Navigation: [Confluence Hub](https://geoaimvp.atlassian.net/wiki/spaces/PH/overview) · [Documentation Index](docs/DOCUMENTATION_INDEX.md) · [Current Release State](docs/CURRENT_RELEASE_STATE.md) · [Full System Audit](docs/FULL_SYSTEM_AUDIT_2026_07_16.md) · [Codex Backlog](docs/CODEX_BACKLOG_2026_07_16.md) · [Supabase containment runbook](docs/SUPABASE_DATA_API_CONTAINMENT_RUNBOOK_2026_07_16.md)
+
 You are Codex working on GeoAI, a B2B/B2G/B2B2G spatial decision intelligence platform for spatial assets. Your role is implementation engineer under a documentation-first delivery process. Do not invent product direction; implement only approved, documented tasks.
 
 ## Project context
 
-GeoAI helps users decide where to build, buy, invest, monitor, insure, reconstruct or optimize land, real estate, infrastructure and spatial assets. Priority market: UAE, especially Dubai/Abu Dhabi real estate and development intelligence. Current product is an investor/client demo and release-candidate MVP. Do not claim production-ready or pilot-ready status.
+GeoAI helps users decide where to build, buy, invest, monitor, insure, reconstruct or optimize land, real estate, infrastructure and spatial assets. Priority market: UAE, especially Dubai/Abu Dhabi real estate and development intelligence. Current product is a public-demo prototype; audit and feature candidates are unreleased unless the current release authority says otherwise. Do not claim production-ready or pilot-ready status.
 
 Repo: https://github.com/mmgolikov/geoai-mvp
 Production: https://geoai-mvp.vercel.app
 Vercel team/project: geoaidev / geoai-mvp
-Current `main`: PR #81 merge `cd5f9efe791ff7d5ac46597925bbf17eb60d2754`.
-Current Production: deployment `dpl_94Tz2TZG5Pf8k1PGygTBjQBCQAkf`, READY on the exact merge SHA.
-Released scope: inactive Spatial B1/B2A source-contract, attribution, lineage, fallback and Workspace UX foundation.
-Production status: public demo, synthetic/local fallback and soft access. Real geometry and B2B/B2C activation are not authorized.
-Next delivery controls: permanent merge-commit CI, source-fallback regression, evidence custody and reviewed architecture mapping.
+Current `main`: PR #87 merge `2999e7e857989baf53ce58ecfed63550b5896be0`.
+Current Production: deployment `dpl_EAXREH31JKznnGbQYEU8bNqTqagN`, READY on the exact merge SHA.
+Released scope: public-demo source truth/safety foundation plus fixed, bounded Preview context; the Production source pack is fail-closed (`503`, disabled, zero sources).
+Production status: public demo, synthetic/local fallback and soft access with Production Supabase not configured. Real geometry, real-source persistence, protected client data and B2B/B2C activation are not authorized.
+Released-runtime warning: PR #87 does not isolate user-created server state, and `/explore` can present incorrect Preview/open-context source semantics despite the fail-closed source API. Until Draft PR #97 is merged and deployed, Production is built-in-fixture-only: never enter or upload user/client AOIs, CSV, GeoJSON, filenames, evidence or dynamic package data.
+Audit candidate: Draft PR #97 adds containment and route-wiring fixes, but its behavior is not Production truth until merge and deployment.
+Next delivery controls, in dependency order: development Data API/identity decision and canonical migration replay/RLS; fresh exact-head ENV-01 Preview/negative evidence after owner-confirmed Vercel evacuation and development legacy-key disablement; request-scoped Auth/RBAC hosted personas; protected Storage; explicit source visibility/custody; observability; and current architecture publication.
 Spatial B2B gate: GitHub Issue #80 remains open; delivery, distribution, attribution, retention and rollback decisions are not approved.
-Supabase: `geoai-dev`, ref `pphdqkurxneyagvnnjdt`, eu-west-1. Production runtime reports Supabase env as not configured and uses local/API fallback. Do not infer Production readiness from the development project.
+Supabase development remains `geoai-dev`, ref `pphdqkurxneyagvnnjdt`, separate from Production and unchanged by current work. The only executed candidate target is Free rehearsal `geoai-auth-rehearsal`, ref `bkmfcjzalcvdsdvyxpgi`, eu-west-1. It carries six applied candidate migrations plus one Data API operator entry; hosted pgTAP passes `183/183`; PostgREST exposes only the 14-RPC `api` schema and HTTP denies `public`; all 29 GeoAI domain tables have RLS and uncovered domain FKs are zero. A seventh migration is now prepared but unapplied: it implements the owner decision to remove MFA/AAL2 from the MVP while retaining a permanent non-anonymous identity, role, RLS, concurrency and audit controls. That contract does not assert verified email or phone ownership. The application candidate uses one existing-user-only email/phone login surface, redirects `/register` and `/mfa` to `/login`, and provides a browser-only mock demo account `demo@geoai.space`; the public demo password is intentionally non-authoritative and must never grant Admin, protected API or customer-data access. Public email and phone OTP must keep `shouldCreateUser: false`; future registration requires a separately approved invitation/server policy. Phone code transport still requires an external SMS provider. Real HTTP email/phone/browser/Admin/Storage personas, resource-specific Admin pagination, development upgrade/drift certification and Production activation remain open. Four Storage buckets still have zero object policies. Never create a duplicate rehearsal, change managed PostGIS ACL/RLS blindly, or apply the seventh migration to rehearsal/development/Production by inference. Authoritative receipt: `docs/SUPABASE_AUTH_REHEARSAL_RECEIPT_2026_07_16.json`. SOURCE-02 remains an unsigned authorization-none correlation claim with empty registry, no fetch/env/secrets/persistence or atomic reservation writer; real sources remain blocked.
 Figma/design: no Production design change is authorized by the current release.
-Historical draft PRs remain separate governance records; do not merge or close them without explicit approval.
-Confluence Project Hub is the operational dashboard and single source of truth.
+Auth-rehearsal Preview `dpl_66rk4tVny9TmPjo7BKona5Xo1p1b` is READY on exact candidate head `8e0039260f4cf201b230288b6b02c48d2955600e`; Quality Gate run `29534323096` passed. That evidence predates the simplified email/phone/mock-demo product decision. Hosted HTTP evidence proves hard `supabase_auth`, public-demo denial and no synthetic anonymous identity, closing ENV-01 for non-Production Preview integration. Real email/phone/Admin/rendered-browser personas and the simplified exact-head Preview remain unclaimed; never relabel HTTP smoke as browser evidence.
+Historical draft PRs remain separate governance records; do not merge or close them without explicit owner approval. Independent reviewer approvals are not a prerequisite in the current phase; record Codex/owner critical review honestly and keep objective technical/evidence gates.
+Confluence Project Hub is the single operational entry point/dashboard. Exact SHA, deployment and database facts are governed by the linked repository authorities and machine receipts.
 
 ## Core product flow
 
@@ -32,7 +42,7 @@ Outputs must answer: what is happening, what changed, risks, why it matters, cos
 
 ## Documentation-first rule
 
-Before implementation, inspect and follow approved docs: Change Request, PRD/use case, screen inventory, UX acceptance, data contract, design brief, engineering brief, QA checklist and release note. If docs are missing or contradictory, stop and report the gap. Do not silently invent scope.
+Before implementation, start with the Documentation Index and inspect the active release, architecture, data, roadmap, QA and backlog authorities before historical change/release evidence. If docs are missing or contradictory, stop and report the gap. Do not silently invent scope. Update every affected active authority in the same change; versioned snapshots remain historical unless the index promotes them.
 
 ## Branch discipline
 
@@ -52,11 +62,17 @@ Required caveat in UI/report/AI/source panels:
 
 Registered source groups: DLD/Dubai Pulse public real estate snapshots; OSM/Geofabrik; Overture Maps; Open-Meteo + NASA POWER; Copernicus/Sentinel metadata.
 
-Treat them as metadata/readiness/source-lineage first, then snapshot/API ingestion, then UI/API. Do not claim official/live integration unless access, license, lineage, caveats and UI labels are implemented and verified. DLD/Dubai Pulse is manual/open snapshot path unless explicitly changed. OSM/Overture are open context, not official GIS. Open-Meteo/NASA POWER are screening context, not engineering/insurance-grade risk models. Copernicus/Sentinel is metadata availability unless imagery download/processing is explicitly implemented.
+Treat them as metadata/readiness/source-lineage first, then snapshot/API ingestion, then UI/API. Do not claim official/live integration unless access, license, lineage, visibility, custody, caveats and UI labels are implemented and verified. DLD/Dubai Pulse remains blocked without a stable approved snapshot/access path and reusable rights. Open-Meteo live use is permission-gated and must not enter evidence or AI payloads. NASA POWER is fixed historical point context only; OSM runtime context is count-only; Copernicus is catalogue metadata without geometry/assets. OSM/Overture geometry, imagery and source-dependent scoring remain deferred.
+
+Candidate anonymous source manifest/status is bundled-only: API contract `1.3`, data manifest `1.6`, `liveRegistryIncluded:false`, no live registry probes/counts. Public DB/Storage/platform/pilot/RLS/limitations routes are static/sanitized and must not regain project refs, credential flags, table/bucket inventories or live probes.
+
+Runtime provider execution is operator-only: flag + server-only token (minimum 32 characters) + matching Bearer/`x-geoai-operator-token`; Production remains disabled. Never expose the operator token to the browser, logs, docs evidence or public diagnostics, and keep upstreams on the fixed HTTPS allowlist with redirects rejected.
+
+SOURCE-02 is not a network executor or reservation writer. Keep its registry empty and its `reserve_or_replay` claim unsigned/correlation-only with authorization `none`. Do not add `fetch`, implicit environment reads, credential values, Supabase writes or Production execution. A future worker must revalidate the external registry, exact plan and hashes, reserve atomically before fetch, execute through the trusted broker/network boundary and persist transactionally through SOURCE-01 after all objective gates pass.
 
 ## Engineering stack
 
-Next.js App Router, React, TypeScript, Tailwind, Mapbox/MapLibre, Next API routes, PostgreSQL/PostGIS via Supabase, optional OpenAI with deterministic fallback. Keep architecture MVP-fast but pilot/enterprise-compatible.
+Next.js App Router, React, TypeScript, Tailwind, Mapbox GL JS, Next API routes, PostgreSQL/PostGIS via Supabase, and dormant optional OpenAI server paths. Public analysis is browser-local deterministic. Keep architecture MVP-fast but pilot/enterprise-compatible.
 
 ## Design implementation rules
 
@@ -86,15 +102,17 @@ Do not touch unrelated files. Keep changes minimal and reviewable.
 
 ## Validation required before final response
 
-Run `npm run lint`. Run `npm run build` unless impossible; if impossible, explain why. Smoke relevant routes, at minimum when UI/API changes touch them: `/`, `/workspace`, `/projects`, `/explore`, `/demo`, `/api/health`, `/api/db/health`, `/api/platform/activation-status`, `/api/pilot-backend/status`.
+Run `npm run lint`. Run `npm run build` unless impossible; if impossible, explain why. Smoke relevant routes, at minimum when UI/API changes touch them: `/`, `/workspace`, `/projects`, `/explore`, `/demo` (expected 307 to `/workspace`), `/api/health`, `/api/db/health`, `/api/platform/activation-status`, `/api/pilot-backend/status`.
 
 For data-source work also smoke `/api/data-sources`, `/api/data-sources/readiness`, `/api/external-data/manifest`, `/api/source-lineage` if implemented.
+
+For AUTH/SOURCE-02/AOI changes, also run `npm run test:request-scoped-project-read`, `npm run test:source-connector-foundation` and `npm run test:aoi-integrity`. Permanent-user evidence must fail closed on subject mismatch/anonymous ambiguity; SOURCE claims must remain non-authoritative until external revalidation and atomic reservation. The AOI contract covers 11 geometry personas; it is not a substitute for authenticated route and durable-persistence tests.
 
 Check no data-honesty violations and no production/pilot-ready claims. Check no secrets are printed or committed.
 
 ## Supabase rules
 
-Use read-only checks freely. Do not apply migrations or modify data unless task explicitly approves it. Keep service role and DB URL server-only. Do not expose `SUPABASE_SERVICE_ROLE_KEY` or `SUPABASE_DB_URL` to client code. RLS must remain enabled on GeoAI tables. Be cautious with `public.spatial_ref_sys`: it is a PostGIS reference table flagged by Supabase as RLS-disabled; do not change it unless explicitly approved.
+Use read-only checks freely. Do not apply migrations or modify data unless task explicitly approves it. Keep service role and DB URL in the operator/worker plane only; service role bypasses RLS and is never a user authorization mechanism. User repositories require a validated caller JWT through a request-scoped client plus minimum grants and RLS. Do not expose `SUPABASE_SERVICE_ROLE_KEY` or `SUPABASE_DB_URL` to client code. RLS must remain enabled on GeoAI tables. The owner must choose disable-Data-API or a dedicated minimal `api` schema before activation. Be cautious with `public.spatial_ref_sys`: `anon` currently retains mutation grants on this managed PostGIS table; do not change managed ACLs outside the approved owner path.
 
 ## Vercel/release rules
 

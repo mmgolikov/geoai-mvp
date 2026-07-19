@@ -33,7 +33,7 @@ import type { SpatialSelectionLineage } from "@/src/lib/spatial-b2/selection-lin
 import type { SpatialDatasetVersionV1, SpatialFeatureEnvelopeV1 } from "@/src/types/spatial-data-v1";
 import { createUserDrawnAoi, formatArea, formatPerimeter, validatePolygonVertices } from "@/src/lib/polygon-aoi";
 import type { OpenLanduseFeature, OpenPoiFeature, OpenRoadFeature } from "@/src/lib/open-geodata";
-import type { GeoJSONSource, Map as MapboxMap, MapboxGeoJSONFeature, Marker as MapboxMarker, Popup as MapboxPopup } from "mapbox-gl";
+import type { GeoJSONSource, Map as MapboxMap, MapboxGeoJSONFeature, MapMouseEvent, Marker as MapboxMarker, Popup as MapboxPopup } from "mapbox-gl";
 import type { DemoLayerId, DemoLayerType, SelectedDemoObject, SelectedPoint, UserDrawnAoi } from "@/src/types/geo";
 import type { UploadedDataset } from "@/src/types/uploaded-data";
 
@@ -389,6 +389,16 @@ function getFeatureLabel(feature: DemoLayerFeature) {
   };
 }
 
+function isBasemapContextLayer(layerId: string) {
+  return (
+    layerId.includes("label") ||
+    layerId.includes("road") ||
+    layerId.includes("poi") ||
+    layerId.includes("place") ||
+    layerId.includes("building")
+  );
+}
+
 function getBasemapContextFeature(features: MapboxGeoJSONFeature[] = []) {
   return features.find((feature) => {
     const layerId = feature.layer?.id ?? "";
@@ -398,13 +408,7 @@ function getBasemapContextFeature(features: MapboxGeoJSONFeature[] = []) {
       return false;
     }
 
-    return (
-      layerId.includes("label") ||
-      layerId.includes("road") ||
-      layerId.includes("poi") ||
-      layerId.includes("place") ||
-      layerId.includes("building")
-    );
+    return isBasemapContextLayer(layerId);
   });
 }
 
@@ -1473,6 +1477,10 @@ export function MapWorkspaceClient({
   const controlledFixturesRef = useRef<ControlledFixtureRecord[]>(controlledFixtures);
   const activationRef = useRef(activation);
   const mapInitializationStartedAtRef = useRef<number | null>(null);
+  const interactiveLayerIdsRef = useRef<string[]>([]);
+  const interactiveLayerIdSetRef = useRef<Set<string>>(new Set());
+  const hoverQueryLayerIdsRef = useRef<string[]>([]);
+  const hoverFeatureKeyRef = useRef<string | null>(null);
   const [layerVisibility, setLayerVisibility] = useState(initialLayerVisibility);
   const [openGeodataVisibility, setOpenGeodataVisibility] = useState(initialOpenGeodataVisibility);
   const [layersExpanded, setLayersExpanded] = useState(false);
@@ -1705,6 +1713,36 @@ export function MapWorkspaceClient({
     });
   }
 
+  function refreshInteractiveLayerCache(map: MapboxMap) {
+    const interactiveLayerIds = getInteractiveLayerIds(
+      layerVisibilityRef.current,
+      openGeodataVisibilityRef.current,
+      uploadedDatasetsRef.current,
+      exploreCandidatesRef.current,
+      controlledFixturesRef.current
+    ).filter((layerId) => Boolean(map.getLayer(layerId)));
+    const basemapContextLayerIds = (map.getStyle().layers ?? [])
+      .map((layer) => layer.id)
+      .filter((layerId) => !layerId.startsWith("geoai-") && isBasemapContextLayer(layerId));
+
+    interactiveLayerIdsRef.current = interactiveLayerIds;
+    interactiveLayerIdSetRef.current = new Set(interactiveLayerIds);
+    hoverQueryLayerIdsRef.current = Array.from(new Set([
+      ...interactiveLayerIds,
+      ...basemapContextLayerIds
+    ]));
+  }
+
+  function clearHoverOverlay(map: MapboxMap) {
+    if (hoverFeatureKeyRef.current !== "empty") {
+      const source = map.getSource(hoverObjectSourceId) as GeoJSONSource | undefined;
+      source?.setData(toFeatureCollection([]));
+    }
+    hoverFeatureKeyRef.current = "empty";
+    hoverPopupRef.current?.remove();
+    map.getCanvas().style.cursor = "";
+  }
+
   function startPolygonDrawing() {
     markerRef.current?.remove();
     markerRef.current = null;
@@ -1810,39 +1848,21 @@ export function MapWorkspaceClient({
   }
 
   useEffect(() => {
-    const originalConsoleError = console.error;
-
-    console.error = (...args: unknown[]) => {
-      const message = args.map((arg) => String(arg)).join(" ");
-      const isMapboxTileError =
-        message.includes("api.mapbox.com") ||
-        (message.includes("Failed to fetch") && message.toLowerCase().includes("mapbox"));
-
-      if (isMapboxTileError) {
-        setMapResourceError(
-          "Map tiles could not be loaded. Check the Mapbox token, internet access, or token domain settings."
-        );
-        return;
-      }
-
-      originalConsoleError(...args);
-    };
-
-    return () => {
-      console.error = originalConsoleError;
-    };
-  }, []);
-
-  useEffect(() => {
     if (!canUseMapbox || !mapContainerRef.current || mapRef.current) {
       return;
     }
 
     let isMounted = true;
+    let mapReady = false;
+    let pendingMouseMoveEvent: MapMouseEvent | null = null;
+    let mouseMoveFrame: number | null = null;
     const mapInitTimeout = window.setTimeout(() => {
-      if (isMounted && !mapRef.current) {
+      if (isMounted && !mapReady) {
+        mapRef.current?.remove();
+        mapRef.current = null;
+        setIsMapReady(false);
         setMapResourceError(
-          "Map could not initialize in this browser. The sample map remains available for point selection."
+          "Map did not become ready in time. The keyboard-accessible sample map remains available for point selection."
         );
       }
     }, 4000);
@@ -1865,6 +1885,8 @@ export function MapWorkspaceClient({
           style: basemapOptions[0].styleUrl,
           center: defaultCenter,
           zoom: defaultZoom,
+          // Residual performance trade-off: report snapshots currently copy the
+          // live WebGL canvas. Remove this only with a verified on-demand capture path.
           preserveDrawingBuffer: true
         });
       } catch {
@@ -1895,6 +1917,8 @@ export function MapWorkspaceClient({
 
       const handleStyleReady = () => {
         if (isMounted) {
+          mapReady = true;
+          window.clearTimeout(mapInitTimeout);
           setMapResourceError(null);
           const registrationStartedAt = performance.now();
           const registration = attachGeoAiMapLayers(
@@ -1911,6 +1935,8 @@ export function MapWorkspaceClient({
             selectedExploreCandidateIdRef.current
           );
           const registrationFinishedAt = performance.now();
+          refreshInteractiveLayerCache(mapRef.current as MapboxMap);
+          hoverFeatureKeyRef.current = null;
           setMapObservability({
             ...registration,
             mapReadyMs: Math.round(registrationFinishedAt - (mapInitializationStartedAtRef.current ?? registrationStartedAt)),
@@ -1924,82 +1950,87 @@ export function MapWorkspaceClient({
       mapRef.current.on("load", handleStyleReady);
       mapRef.current.on("style.load", handleStyleReady);
 
-      mapRef.current.on("mousemove", (event) => {
+      function processPendingPointerMove() {
+        mouseMoveFrame = null;
+        const event = pendingMouseMoveEvent;
+        pendingMouseMoveEvent = null;
+        const map = mapRef.current;
+        if (!event || !map || !isMounted) return;
+
         const currentDrawState = drawStateRef.current;
         if (currentDrawState.mode === "drawing_polygon") {
           updateDrawState((state) => ({
             ...state,
             previewCursor: [event.lngLat.lng, event.lngLat.lat]
           }));
-          if (mapRef.current) {
-            mapRef.current.getCanvas().style.cursor = "crosshair";
-          }
+          map.getCanvas().style.cursor = "crosshair";
           hoverPopupRef.current?.remove();
           return;
         }
 
-        const interactiveLayers = getInteractiveLayerIds(
-          layerVisibilityRef.current,
-          openGeodataVisibilityRef.current,
-          uploadedDatasetsRef.current,
-          exploreCandidatesRef.current,
-          controlledFixturesRef.current
-        ).filter((layerId) => Boolean(mapRef.current?.getLayer(layerId)));
-        const features = interactiveLayers.length > 0
-          ? mapRef.current?.queryRenderedFeatures(event.point, { layers: interactiveLayers })
+        const queryLayerIds = hoverQueryLayerIdsRef.current;
+        const renderedFeatures = queryLayerIds.length > 0
+          ? map.queryRenderedFeatures(event.point, { layers: queryLayerIds })
           : [];
-        const orderedFeatures = sortRenderedFeatures(features);
+        const orderedFeatures = sortRenderedFeatures(
+          renderedFeatures.filter((feature) => interactiveLayerIdSetRef.current.has(feature.layer?.id ?? ""))
+        );
         const hoveredFeature = orderedFeatures[0];
         const featureId = hoveredFeature?.properties?.id as string | undefined;
         const demoFeature = featureId ? getDemoFeatureById(featureId) : null;
         const controlledFixture = getControlledFixtureRecord(controlledFixturesRef.current, featureId);
-        const basemapFeature = demoFeature ? null : getBasemapContextFeature(mapRef.current?.queryRenderedFeatures(event.point) ?? []);
-        const source = mapRef.current?.getSource(hoverObjectSourceId) as GeoJSONSource | undefined;
+        const basemapFeature = demoFeature ? null : getBasemapContextFeature(renderedFeatures);
+        const hoverOverlayFeatures = demoFeature
+          ? [demoFeature]
+          : controlledFixture
+            ? [controlledFixture.mapFeature]
+            : (hoveredFeature?.properties?.openFeatureKind || hoveredFeature?.properties?.uploadedFeatureKind)
+              ? [hoveredFeature]
+              : [];
+        const nextHoverFeatureKey = hoverOverlayFeatures.length > 0
+          ? `${hoveredFeature?.layer?.id ?? "demo"}:${String(featureId ?? hoveredFeature?.id ?? "feature")}`
+          : "empty";
 
-        if (source) {
-          source.setData(toFeatureCollection(
-            demoFeature
-              ? [demoFeature]
-              : controlledFixture
-                ? [controlledFixture.mapFeature]
-                : (hoveredFeature?.properties?.openFeatureKind || hoveredFeature?.properties?.uploadedFeatureKind)
-                  ? [hoveredFeature]
-                  : []
-          ));
+        if (hoverFeatureKeyRef.current !== nextHoverFeatureKey) {
+          const source = map.getSource(hoverObjectSourceId) as GeoJSONSource | undefined;
+          source?.setData(toFeatureCollection(hoverOverlayFeatures));
+          hoverFeatureKeyRef.current = nextHoverFeatureKey;
         }
 
-        if (mapRef.current) {
-          const isSelectableOpenPoi = hoveredFeature?.properties?.openFeatureKind === "poi";
-          const isUploadedFeature = Boolean(hoveredFeature?.properties?.uploadedFeatureKind);
-          const isExploreCandidate = Boolean(hoveredFeature?.properties?.exploreCandidateKind);
-          mapRef.current.getCanvas().style.cursor = demoFeature || controlledFixture || isSelectableOpenPoi || isUploadedFeature || isExploreCandidate ? "pointer" : "";
+        const isSelectableOpenPoi = hoveredFeature?.properties?.openFeatureKind === "poi";
+        const isUploadedFeature = Boolean(hoveredFeature?.properties?.uploadedFeatureKind);
+        const isExploreCandidate = Boolean(hoveredFeature?.properties?.exploreCandidateKind);
+        map.getCanvas().style.cursor = demoFeature || controlledFixture || isSelectableOpenPoi || isUploadedFeature || isExploreCandidate ? "pointer" : "";
 
-          if (demoFeature) {
-            setHoverTooltip(hoverPopupRef.current, event.lngLat, demoFeature, mapRef.current);
-          } else if (controlledFixture) {
-            setControlledFixtureTooltip(hoverPopupRef.current, event.lngLat, hoveredFeature, mapRef.current);
-          } else if (hoveredFeature?.properties?.uploadedFeatureKind) {
-            setUploadedDatasetTooltip(hoverPopupRef.current, event.lngLat, hoveredFeature, mapRef.current);
-          } else if (hoveredFeature?.properties?.exploreCandidateKind) {
-            setExploreCandidateTooltip(hoverPopupRef.current, event.lngLat, hoveredFeature, mapRef.current);
-          } else if (hoveredFeature?.properties?.openFeatureKind) {
-            setOpenGeodataTooltip(hoverPopupRef.current, event.lngLat, hoveredFeature, mapRef.current);
-          } else if (basemapFeature) {
-            setBasemapTooltip(hoverPopupRef.current, event.lngLat, basemapFeature, mapRef.current);
-          } else {
-            hoverPopupRef.current?.remove();
-          }
+        if (demoFeature) {
+          setHoverTooltip(hoverPopupRef.current, event.lngLat, demoFeature, map);
+        } else if (controlledFixture) {
+          setControlledFixtureTooltip(hoverPopupRef.current, event.lngLat, hoveredFeature, map);
+        } else if (hoveredFeature?.properties?.uploadedFeatureKind) {
+          setUploadedDatasetTooltip(hoverPopupRef.current, event.lngLat, hoveredFeature, map);
+        } else if (hoveredFeature?.properties?.exploreCandidateKind) {
+          setExploreCandidateTooltip(hoverPopupRef.current, event.lngLat, hoveredFeature, map);
+        } else if (hoveredFeature?.properties?.openFeatureKind) {
+          setOpenGeodataTooltip(hoverPopupRef.current, event.lngLat, hoveredFeature, map);
+        } else if (basemapFeature) {
+          setBasemapTooltip(hoverPopupRef.current, event.lngLat, basemapFeature, map);
+        } else {
+          hoverPopupRef.current?.remove();
+        }
+      }
+
+      mapRef.current.on("mousemove", (event) => {
+        pendingMouseMoveEvent = event;
+        if (mouseMoveFrame === null) {
+          mouseMoveFrame = window.requestAnimationFrame(processPendingPointerMove);
         }
       });
 
       mapRef.current.on("mouseleave", () => {
-        const source = mapRef.current?.getSource(hoverObjectSourceId) as GeoJSONSource | undefined;
-        source?.setData(toFeatureCollection([]));
-        hoverPopupRef.current?.remove();
-
-        if (mapRef.current) {
-          mapRef.current.getCanvas().style.cursor = "";
-        }
+        pendingMouseMoveEvent = null;
+        if (mouseMoveFrame !== null) window.cancelAnimationFrame(mouseMoveFrame);
+        mouseMoveFrame = null;
+        if (mapRef.current) clearHoverOverlay(mapRef.current);
       });
 
       mapRef.current.on("click", (event) => {
@@ -2008,13 +2039,7 @@ export function MapWorkspaceClient({
           return;
         }
 
-        const interactiveLayers = getInteractiveLayerIds(
-          layerVisibilityRef.current,
-          openGeodataVisibilityRef.current,
-          uploadedDatasetsRef.current,
-          exploreCandidatesRef.current,
-          controlledFixturesRef.current
-        ).filter((layerId) => Boolean(mapRef.current?.getLayer(layerId)));
+        const interactiveLayers = interactiveLayerIdsRef.current;
         const features = interactiveLayers.length > 0
           ? mapRef.current?.queryRenderedFeatures(event.point, { layers: interactiveLayers })
           : [];
@@ -2107,6 +2132,9 @@ export function MapWorkspaceClient({
     return () => {
       isMounted = false;
       window.clearTimeout(mapInitTimeout);
+      if (mouseMoveFrame !== null) window.cancelAnimationFrame(mouseMoveFrame);
+      pendingMouseMoveEvent = null;
+      mouseMoveFrame = null;
       setIsMapReady(false);
       markerRef.current?.remove();
       markerRef.current = null;
@@ -2114,6 +2142,10 @@ export function MapWorkspaceClient({
       hoverPopupRef.current = null;
       mapRef.current?.remove();
       mapRef.current = null;
+      interactiveLayerIdsRef.current = [];
+      interactiveLayerIdSetRef.current = new Set();
+      hoverQueryLayerIdsRef.current = [];
+      hoverFeatureKeyRef.current = null;
     };
   }, [canUseMapbox, mapboxToken]);
 
@@ -2133,6 +2165,8 @@ export function MapWorkspaceClient({
       .forEach((record) => removeControlledFixtureLayerFromMap(map, record));
     controlledFixtures.forEach((record) => addControlledFixtureLayerToMap(map, record));
     controlledFixturesRef.current = controlledFixtures;
+    refreshInteractiveLayerCache(map);
+    clearHoverOverlay(map);
 
     const controlledFixtureSourceIds = controlledFixtures
       .map(getControlledFixtureSourceId)
@@ -2185,10 +2219,16 @@ export function MapWorkspaceClient({
       return;
     }
 
+    const map = mapRef.current;
     try {
-      mapRef.current.setStyle(nextStyle.styleUrl);
+      clearHoverOverlay(map);
+      interactiveLayerIdsRef.current = [];
+      interactiveLayerIdSetRef.current = new Set();
+      hoverQueryLayerIdsRef.current = [];
+      map.setStyle(nextStyle.styleUrl);
       setMapResourceError(null);
     } catch {
+      refreshInteractiveLayerCache(map);
       setMapResourceError("Basemap style could not be loaded. Keeping the current map style.");
     }
   }, [basemapStyle, canUseMapbox, isMapReady]);
@@ -2294,16 +2334,15 @@ export function MapWorkspaceClient({
     }
 
     syncLayerVisibility(mapRef.current, layerVisibility);
-
-    const hoverSource = mapRef.current.getSource(hoverObjectSourceId) as GeoJSONSource | undefined;
-    hoverSource?.setData(toFeatureCollection([]));
+    refreshInteractiveLayerCache(mapRef.current);
+    clearHoverOverlay(mapRef.current);
   }, [canUseMapbox, isMapReady, layerVisibility]);
 
   useEffect(() => {
     if (!canUseMapbox || !mapRef.current || !isMapReady) return;
     syncOpenGeodataVisibility(mapRef.current, openGeodataVisibility);
-    const hoverSource = mapRef.current.getSource(hoverObjectSourceId) as GeoJSONSource | undefined;
-    hoverSource?.setData(toFeatureCollection([]));
+    refreshInteractiveLayerCache(mapRef.current);
+    clearHoverOverlay(mapRef.current);
   }, [canUseMapbox, isMapReady, openGeodataVisibility]);
 
   useEffect(() => {
@@ -2329,6 +2368,8 @@ export function MapWorkspaceClient({
 
     addUploadedDatasetLayers(mapRef.current, uploadedDatasets);
     syncUploadedDatasetSource(mapRef.current, uploadedDatasets);
+    refreshInteractiveLayerCache(mapRef.current);
+    clearHoverOverlay(mapRef.current);
   }, [canUseMapbox, isMapReady, uploadedDatasets]);
 
   useEffect(() => {
@@ -2338,6 +2379,8 @@ export function MapWorkspaceClient({
 
     addExploreCandidateLayers(mapRef.current, exploreCandidates, selectedExploreCandidateId);
     syncExploreCandidateSource(mapRef.current, exploreCandidates, selectedExploreCandidateId);
+    refreshInteractiveLayerCache(mapRef.current);
+    clearHoverOverlay(mapRef.current);
   }, [canUseMapbox, exploreCandidates, isMapReady, selectedExploreCandidateId]);
 
   useEffect(() => {
@@ -2457,7 +2500,7 @@ export function MapWorkspaceClient({
       data-spatial-map-ready-ms={mapObservability.mapReadyMs}
       data-spatial-layer-registration-ms={mapObservability.layerRegistrationMs}
     >
-      <div ref={mapContainerRef} className="absolute inset-0" aria-label="GeoAI map workspace" />
+      <div ref={mapContainerRef} className="absolute inset-0" role="region" aria-label="GeoAI map workspace" />
 
       {shouldShowFallbackMap ? (
         <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(23,79,99,0.12)_1px,transparent_1px),linear-gradient(rgba(23,79,99,0.12)_1px,transparent_1px)] bg-[size:42px_42px]">
@@ -2475,6 +2518,16 @@ export function MapWorkspaceClient({
                     ? mapResourceError
                     : "Add `NEXT_PUBLIC_MAPBOX_TOKEN` later to render the live Mapbox basemap. The app stays usable without local environment tokens."}
                 </p>
+                <button
+                  type="button"
+                  className="mt-4 inline-flex min-h-10 items-center rounded-md border border-brand bg-white px-4 text-sm font-semibold text-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onPointSelect({ longitude: defaultCenter[0], latitude: defaultCenter[1] });
+                  }}
+                >
+                  Select sample map center
+                </button>
               </div>
               <div className="absolute bottom-6 left-6 right-6 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-white/70 bg-white/85 px-4 py-3 text-sm text-muted shadow-soft backdrop-blur">
                 <span>Dubai / Abu Dhabi sample extent</span>

@@ -1,0 +1,21 @@
+grant usage on schema public to service_role;
+
+grant select on table public.geoai_healthcheck to service_role;
+grant select on table public.organizations to service_role;
+grant select on table public.profiles to service_role;
+grant select on table public.projects to service_role;
+grant select on table public.project_memberships to service_role;
+grant select on table public.aois to service_role;
+grant select on table public.analysis_runs to service_role;
+grant select on table public.reports to service_role;
+grant select on table public.comparison_sets to service_role;
+grant select on table public.uploaded_datasets to service_role;
+grant select on table public.data_room_assets to service_role;
+grant select on table public.validation_checklist_items to service_role;
+grant select on table public.pilot_workflows to service_role;
+grant select on table public.pilot_client_inputs to service_role;
+grant select on table public.pilot_deliverables to service_role;
+grant select on table public.source_registry_snapshots to service_role;
+grant select on table public.external_data_snapshots to service_role;
+grant select on table public.ai_decision_scores to service_role;
+grant select on table public.audit_events to service_role;

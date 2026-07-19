@@ -1,5 +1,7 @@
 # GeoAI Auth & Project Access Foundation v2.2
 
+> **Superseded — do not use operationally.** This historical scaffold contains a legacy anon-key and demo-fallback Auth model that the current candidate rejects. Missing or invalid protected Auth now fails closed; no environment flag activates Auth by itself. Use the [Implemented Architecture](architecture.md), [AUTH-01 backlog](CODEX_BACKLOG_2026_07_16.md#auth-01--request-scoped-auth-and-rbac-kernel) and [Current Release State](CURRENT_RELEASE_STATE.md).
+
 Date: 2026-06-24
 
 ## Scope

@@ -274,7 +274,7 @@ function ingestDldPublic() {
       recordCount: normalizedRows.length,
       coverageArea: "Dubai public real-estate categories",
       confidence: normalizedStatus === "snapshot_available" ? "medium" : "low",
-      usedInAnalysis: true,
+      usedInAnalysis: normalizedRows.length > 0,
       caveat,
       disclaimer: "DLD / Dubai Pulse public snapshot; not a live DLD API or ownership/title validation."
     });
@@ -412,7 +412,7 @@ function ingestOsmPublic() {
       recordCount: totalFeatures,
       coverageArea: "Dubai open geospatial baseline",
       confidence: normalizedStatus === "snapshot_available" ? "medium" : "low",
-      usedInAnalysis: true,
+      usedInAnalysis: totalFeatures > 0,
       caveat,
       disclaimer: "OSM / Geofabrik open snapshot; not official municipal GIS."
     }

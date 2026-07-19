@@ -375,7 +375,7 @@ export function ReportMapPreview({
           center,
           zoom: comparison ? 9.65 : selectedAoi || selectedObject ? 11.8 : 11.2,
           interactive: true,
-          attributionControl: false,
+        attributionControl: true,
           preserveDrawingBuffer: true
         });
         mapRef.current = map;
@@ -579,5 +579,5 @@ export function ReportMapPreview({
     return <FallbackMap markers={markers} selectedFeatures={selectedFeatures} message="Map preview unavailable" />;
   }
 
-  return <div ref={containerRef} className="absolute inset-0 h-full min-h-[260px] w-full" aria-label="GeoAI report map preview" />;
+  return <div ref={containerRef} className="absolute inset-0 h-full min-h-[260px] w-full" role="region" aria-label="GeoAI report map preview" />;
 }

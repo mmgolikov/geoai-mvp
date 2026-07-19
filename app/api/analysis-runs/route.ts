@@ -3,11 +3,14 @@ import {
   listAnalysisRuns,
   saveAnalysisRun
 } from "@/src/lib/db/repositories/analysis-runs";
-import { getProjectByKey } from "@/src/lib/db/repositories/projects";
+import { getLocalDemoProject, getProjectByKey } from "@/src/lib/db/repositories/projects";
 import { recordAuditEvent } from "@/src/lib/audit/audit-event";
-import { projectAccessDeniedPayload, requireProjectAccess } from "@/src/lib/auth/project-access";
+import { isPreAuthServerMutationBlocked, projectAccessDeniedPayload, requireProjectAccess } from "@/src/lib/auth/project-access";
 import { repositoryModeFields } from "@/src/lib/repositories/repository-mode";
 import type { DbAnalysisRunInput } from "@/src/lib/db/types";
+import { readBoundedJson } from "@/src/lib/http/bounded-json";
+import { hasVerifiedRequestIdentity } from "@/src/lib/auth/verified-request-access";
+import { privateNoStoreJson } from "@/src/lib/http/private-no-store";
 
 export const runtime = "nodejs";
 
@@ -18,12 +21,12 @@ function isAnalysisRunInput(value: unknown): value is DbAnalysisRunInput {
 
   const input = value as Partial<DbAnalysisRunInput>;
   return (
-    typeof input.runKey === "string" &&
-    typeof input.scenarioId === "string" &&
-    typeof input.selectedName === "string" &&
-    typeof input.selectedType === "string" &&
-    input.selectedPoint !== undefined &&
-    input.resultJson !== undefined
+    typeof input.runKey === "string" && /^[a-zA-Z0-9_.:-]{1,240}$/.test(input.runKey) &&
+    typeof input.scenarioId === "string" && input.scenarioId.length <= 120 &&
+    typeof input.selectedName === "string" && input.selectedName.length <= 500 &&
+    typeof input.selectedType === "string" && input.selectedType.length <= 160 &&
+    typeof input.selectedPoint === "object" && input.selectedPoint !== null &&
+    typeof input.resultJson === "object" && input.resultJson !== null
   );
 }
 
@@ -32,10 +35,25 @@ export async function GET(request: Request) {
   const limitParam = Number(url.searchParams.get("limit") ?? "10");
   const limit = Number.isFinite(limitParam) ? Math.min(Math.max(limitParam, 1), 50) : 10;
   const projectKey = url.searchParams.get("projectKey");
-  const access = requireProjectAccess({ projectKey, action: "read", mode: "soft" });
+  const access = requireProjectAccess({ projectKey, action: "analysis.read", mode: "soft" });
   if (!access.allowed) {
-    return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
+    return privateNoStoreJson(projectAccessDeniedPayload(access), { status: access.status });
   }
+  if (!hasVerifiedRequestIdentity(access)) {
+    const project = projectKey ? getLocalDemoProject(projectKey) : null;
+    return privateNoStoreJson({
+      ok: true,
+      ...repositoryModeFields("browser_local"),
+      projectMode: "demo_seed",
+      project,
+      access,
+      count: 0,
+      items: [],
+      error: null,
+      dataHonesty: "Public-demo analysis history is browser-local; shared server reads are disabled."
+    });
+  }
+
   const project = projectKey ? await getProjectByKey(projectKey) : null;
 
   const result = await listAnalysisRuns(limit, project?.mode === "supabase" ? project.data?.id ?? null : null);
@@ -44,7 +62,7 @@ export async function GET(request: Request) {
     : result.data ?? [];
 
   const responseMode = result.mode === "supabase" ? "supabase" : "local_fallback";
-  return NextResponse.json({
+  return privateNoStoreJson({
     ok: result.ok,
     ...repositoryModeFields(responseMode),
     projectMode: project?.mode ?? null,
@@ -58,16 +76,19 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  let body: unknown;
+  if (isPreAuthServerMutationBlocked("write")) {
+    const access = requireProjectAccess({ action: "analysis.run", mode: "soft" });
+    return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
+  }
 
-  try {
-    body = await request.json();
-  } catch {
+  const parsed = await readBoundedJson(request, 768 * 1024);
+  if (!parsed.ok) {
     return NextResponse.json(
-      { persisted: false, ...repositoryModeFields("local_fallback"), message: "Invalid JSON body." },
-      { status: 400 }
+      { persisted: false, ...repositoryModeFields("local_fallback"), message: parsed.message },
+      { status: parsed.status }
     );
   }
+  const body = parsed.value;
 
   if (!isAnalysisRunInput(body)) {
     return NextResponse.json(
@@ -77,9 +98,22 @@ export async function POST(request: Request) {
   }
 
   const project = body.projectKey ? await getProjectByKey(body.projectKey) : null;
-  const access = requireProjectAccess({ projectKey: body.projectKey ?? project?.data?.projectKey ?? null, action: "write", mode: "soft" });
+  const access = requireProjectAccess({ projectKey: body.projectKey ?? project?.data?.projectKey ?? null, action: "analysis.run", mode: "soft" });
   if (!access.allowed) {
     return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
+  }
+  if (!hasVerifiedRequestIdentity(access)) {
+    return NextResponse.json({
+      ok: true,
+      persisted: false,
+      ...repositoryModeFields("browser_local"),
+      runKey: body.runKey,
+      project: project?.data ?? null,
+      access,
+      data: null,
+      error: null,
+      message: "Public-demo analysis remains in caller browser history; shared server persistence is disabled."
+    });
   }
   const result = await saveAnalysisRun({
     ...body,

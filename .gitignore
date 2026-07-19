@@ -2,9 +2,15 @@ node_modules
 .npm-cache
 .next
 out
+artifacts/
+playwright-report/
+test-results/
 .env
 .env.local
 .env*.local
+.env.*
+!.env.example
+!.env.operator.example
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

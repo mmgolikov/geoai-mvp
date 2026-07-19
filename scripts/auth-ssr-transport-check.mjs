@@ -1,0 +1,168 @@
+import fs from "node:fs";
+import path from "node:path";
+import vm from "node:vm";
+import ts from "typescript";
+
+async function readFile(pathname) {
+  return fs.promises.readFile(pathname, "utf8");
+}
+
+async function source(path) {
+  return readFile(new URL(`../${path}`, import.meta.url), "utf8");
+}
+
+const [browser, server, updater, middleware, mutationOrigin, context, identityEvidenceSource, summary, kernel, callback, logout, provider, login, mockDemo, elevated] = await Promise.all([
+  source("src/lib/supabase/browser.ts"),
+  source("src/lib/supabase/ssr-server.ts"),
+  source("src/lib/supabase/update-session.ts"),
+  source("middleware.ts"),
+  source("src/lib/auth/api-mutation-origin.ts"),
+  source("src/lib/auth/request-context.ts"),
+  source("src/lib/auth/request-identity-evidence.ts"),
+  source("src/lib/auth/session-summary.ts"),
+  source("src/lib/auth/request-auth-kernel.ts"),
+  source("app/auth/callback/route.ts"),
+  source("app/api/auth/logout/route.ts"),
+  source("components/auth/auth-provider.tsx"),
+  source("components/auth/login-panel.tsx"),
+  source("src/lib/auth/mock-demo-session.ts"),
+  source("src/lib/auth/elevated-request-context.ts")
+]);
+const combined = [browser, server, updater, middleware, mutationOrigin, context, identityEvidenceSource, summary, callback, logout, provider, login, mockDemo, elevated].join("\n");
+const failures = [];
+
+function assert(condition, message) {
+  if (!condition) failures.push(message);
+}
+
+function loadPureIdentityEvidenceContract() {
+  const filename = path.join(process.cwd(), "src/lib/auth/request-identity-evidence.ts");
+  const output = ts.transpileModule(fs.readFileSync(filename, "utf8"), {
+    compilerOptions: {
+      module: ts.ModuleKind.CommonJS,
+      target: ts.ScriptTarget.ES2022,
+      verbatimModuleSyntax: false
+    }
+  }).outputText;
+  const module = { exports: {} };
+  vm.runInNewContext(output, { exports: module.exports, module }, { filename });
+  return module.exports;
+}
+
+if (!browser.includes('createBrowserClient') || !browser.includes("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY") && !browser.includes("getSupabasePublishableKey")) {
+  failures.push("Browser client is not using @supabase/ssr with the publishable key");
+}
+if (!server.includes("createServerClient") || !server.includes("cookies") || !server.includes("getAll") || !server.includes("setAll")) {
+  failures.push("Server client does not implement the SSR cookie adapter");
+}
+if (!updater.includes("await supabase.auth.getClaims()") || !updater.includes("response.cookies.set")) {
+  failures.push("Middleware does not verify/refresh claims and propagate response cookies");
+}
+if (!middleware.includes("getEffectiveAuthMode") || !middleware.includes("updateSupabaseSession")) {
+  failures.push("Next middleware does not fail closed outside explicit Supabase Auth mode");
+}
+const middlewareBody = middleware.slice(middleware.indexOf("export function middleware"));
+const authModeIndex = middlewareBody.indexOf("getEffectiveAuthMode()");
+const originGuardIndex = middlewareBody.indexOf("evaluateApiMutationOrigin(");
+const sessionRefreshIndex = middlewareBody.indexOf("updateSupabaseSession(request)");
+if (authModeIndex < 0 || originGuardIndex < authModeIndex || sessionRefreshIndex < originGuardIndex) {
+  failures.push("Supabase cookie mutation-origin enforcement must run after the explicit Auth-mode gate and before session refresh");
+}
+if (!/status:\s*403/.test(middlewareBody) || !/private, no-store/.test(middlewareBody) || !middlewareBody.includes('"request_origin_rejected"')) {
+  failures.push("Rejected authenticated API mutations are not returned as private no-store JSON 403 responses");
+}
+if (!middleware.includes("isAuthCookieMutationPath") || middlewareBody.indexOf("isAuthCookieMutationPath(request.nextUrl.pathname)") > originGuardIndex) {
+  failures.push("Identity/Admin cookie mutations must retain the origin guard even when effective Auth mode is disabled");
+}
+if (
+  !mutationOrigin.includes('"missing_origin"') ||
+  !mutationOrigin.includes('"cross_site_fetch_metadata"') ||
+  !mutationOrigin.includes('"invalid_request_authority"') ||
+  !mutationOrigin.includes('"same-origin"') ||
+  !mutationOrigin.includes('pathname.startsWith("/api/")')
+) {
+  failures.push("Mutation-origin helper does not cover missing Origin, Fetch Metadata and request-authority boundaries");
+}
+const contextBody = context.slice(context.indexOf("export async function createRequestAuthContext"));
+if (contextBody.indexOf('getEffectiveAuthMode() !== "supabase_auth"') < 0 || !server.includes('getEffectiveAuthMode() !== "supabase_auth"') || !browser.includes('getEffectiveAuthMode() !== "supabase_auth"')) {
+  failures.push("Request and browser Supabase clients must fail closed outside effective Supabase Auth mode");
+}
+if (!context.includes('"unsupported_bearer_transport"') || contextBody.indexOf('headers.get("authorization")') > contextBody.indexOf("await createRequestScopedSupabaseClient")) {
+  failures.push("Request context does not reject bearer/mixed transport before client creation");
+}
+if (context.indexOf("auth.getClaims()") < 0 || context.indexOf("auth.getUser()") < 0 || context.indexOf("auth.getClaims()") > context.indexOf("auth.getUser()")) {
+  failures.push("Request context does not verify claims before canonical user lookup");
+}
+const identityEvidenceCallIndex = contextBody.indexOf("evaluateRequestIdentityEvidence({");
+const profileRpcIndex = contextBody.indexOf('.rpc("current_profile"');
+if (identityEvidenceCallIndex < 0 || profileRpcIndex < 0 || identityEvidenceCallIndex > profileRpcIndex) {
+  failures.push("Request context does not evaluate permanent-user identity evidence before profile resolution");
+}
+if (!/\.schema\s*\(\s*["']api["']\s*\)[\s\S]*?\.rpc\s*\(\s*["']current_profile["']\s*\)/.test(context)) {
+  failures.push("Request context bypasses the api.current_profile allowlist RPC");
+}
+if (/\.from\s*\(\s*["']profiles["']\s*\)/.test(context)) {
+  failures.push("Request context reads the public profiles base table directly");
+}
+if (!context.includes('profile.status !== "active"') || !context.includes('profile.identity_kind !== "user"')) {
+  failures.push("Request context does not require an active human profile");
+}
+const identityContract = loadPureIdentityEvidenceContract();
+const permanentUser = "81000000-0000-4000-8000-000000000002";
+const otherUser = "81000000-0000-4000-8000-000000000003";
+function identity(claims, user) {
+  return identityContract.evaluateRequestIdentityEvidence({ claims, user });
+}
+assert(identity({ sub: permanentUser, isAnonymous: false }, { id: permanentUser, isAnonymous: false }).verified, "Explicit permanent claims/user evidence should pass");
+assert(identity({ sub: permanentUser, isAnonymous: true }, { id: permanentUser, isAnonymous: true }).status === "anonymous_identity", "Anonymous Supabase identities must fail closed");
+assert(identity({ sub: permanentUser, isAnonymous: false }, { id: permanentUser, isAnonymous: true }).status === "anonymous_identity", "A canonical anonymous-user signal must override a permanent claim signal");
+assert(identity({ sub: permanentUser, isAnonymous: true }, { id: permanentUser, isAnonymous: false }).status === "anonymous_identity", "An anonymous JWT signal must override a permanent user signal");
+assert(identity({ sub: permanentUser }, { id: permanentUser, isAnonymous: false }).status === "identity_malformed", "Missing JWT anonymity evidence must fail closed");
+assert(identity({ sub: permanentUser, isAnonymous: false }, { id: permanentUser }).status === "identity_malformed", "Missing canonical-user anonymity evidence must fail closed");
+assert(identity({ sub: permanentUser, isAnonymous: "false" }, { id: permanentUser, isAnonymous: false }).status === "identity_malformed", "Stringified JWT anonymity evidence must not be coerced");
+assert(identity({ sub: permanentUser, isAnonymous: false }, { id: otherUser, isAnonymous: false }).status === "claims_user_mismatch", "JWT subject substitution must fail closed");
+assert(identity({ sub: "not-a-uuid", isAnonymous: false }, { id: "not-a-uuid", isAnonymous: false }).status === "identity_malformed", "Malformed subject identifiers must fail before profile resolution");
+assert(identity(null, { id: permanentUser, isAnonymous: false }).status === "claims_unverified", "Missing verified claims must fail closed");
+assert(identity({ sub: permanentUser, isAnonymous: false }, null).status === "user_unverified", "Missing canonical Auth user must fail closed");
+if (!summary.includes("createRequestAuthContext") || /createClient|Bearer|appRole/.test(summary)) {
+  failures.push("Session summary still owns a bearer/global client path or exposes claim-derived roles");
+}
+for (const forbidden of ["getSession(", "user_metadata", "raw_user_meta_data", "SUPABASE_SERVICE_ROLE_KEY", "GEOAI_OPERATOR_SUPABASE_"]) {
+  if (combined.includes(forbidden)) failures.push(`Auth transport contains forbidden authority/credential pattern: ${forbidden}`);
+}
+if (!kernel.includes("ssrCookieTransportImplemented: true") || !kernel.includes("implemented: true") || !kernel.includes("requestUserVerified: false") || !kernel.includes("projectMembershipVerified: false") || !kernel.includes("rlsPersonaMatrixVerified: false")) {
+  failures.push("Auth implementation/evidence flags do not distinguish implemented transport from unverified runtime personas");
+}
+if (!callback.includes("exchangeCodeForSession") || !callback.includes("getSafeAuthRedirectPath") || !callback.includes("applyPrivateNoStore")) {
+  failures.push("PKCE callback does not exchange the code with a bounded redirect and private no-store response");
+}
+if (!logout.includes('signOut({ scope: "local" })') || !logout.includes("privateNoStoreJson")) {
+  failures.push("Logout route does not clear the local SSR session through a private no-store response");
+}
+const existingUserOnlyOtpGuards = provider.match(/shouldCreateUser:\s*false/g) ?? [];
+if (existingUserOnlyOtpGuards.length !== 2 || /shouldCreateUser:\s*true/.test(provider) || /[.]auth[.]signUp\s*\(/.test(provider)) {
+  failures.push("Public email and phone OTP paths must be existing-user-only and must not expose an automatic signup path");
+}
+if (!provider.includes("signInWithPassword") || !provider.includes("signInWithPhone") || !provider.includes("verifyPhoneCode") || !provider.includes('fetch("/api/auth/session"') || !provider.includes('fetch("/api/auth/logout"')) {
+  failures.push("Browser auth provider does not preserve existing-user email/password/phone sign-in and session/logout routes");
+}
+if (!login.includes("mockDemoEmail") || !login.includes("mockDemoPassword") || !login.includes("signInWithPhone") || !login.includes("verifyPhoneCode")) {
+  failures.push("Simple login UI does not expose email, phone-code and isolated mock-demo paths");
+}
+if (!mockDemo.includes('demo@geoai.space') || !mockDemo.includes('"111111"') || !mockDemo.includes("localStorage") || mockDemo.includes("fetch(")) {
+  failures.push("Mock demo credentials/session are not explicit browser-only state");
+}
+if (!elevated.includes("createRequestAuthContext") || !elevated.includes('assuranceLevel: "permanent_identity"') || elevated.includes("verified_identity") || elevated.includes(".mfa")) {
+  failures.push("Admin request context must require a permanent non-anonymous identity without claiming credential verification or MFA");
+}
+if (callback.includes(".mfa") || callback.includes('"/mfa"') || summary.includes(".mfa")) {
+  failures.push("Email/phone session and callback must not redirect to or query MFA");
+}
+
+if (failures.length > 0) {
+  console.error("Auth SSR transport contract failed:");
+  for (const failure of failures) console.error(`- ${failure}`);
+  process.exit(1);
+}
+
+console.log("Auth SSR transport contract passed: exact publishable-key cookie clients, existing-user-only email/phone OTP, existing-password sign-in, browser-only mock demo, permanent non-anonymous identity and no MFA dependency are present.");

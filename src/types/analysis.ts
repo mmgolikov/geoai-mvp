@@ -1,7 +1,6 @@
 import type { DataSource, EvidenceItem } from "@/src/types/data-source";
 import type { CustomQueryAnswer } from "@/src/lib/custom-query/query-answer";
 import type { MarketContext } from "@/src/types/market-context";
-import type { UploadedDataContext } from "@/src/types/uploaded-data";
 import type {
   AnalysisScenarioId,
   AnalysisTarget,
@@ -60,6 +59,7 @@ export type StructuredAnalysisResult = {
 };
 
 export type AnalyzeRequest = {
+  projectKey?: string | null;
   point: SelectedPoint;
   selectedObject?: SelectedDemoObject | null;
   selectedAoi?: UserDrawnAoi | null;
@@ -74,5 +74,4 @@ export type AnalyzeRequest = {
   dataSources: DataSource[];
   marketContext?: MarketContext | null;
   climateContext?: unknown;
-  uploadedDataContext?: UploadedDataContext | null;
 };

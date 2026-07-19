@@ -1,8 +1,14 @@
 import { NextResponse } from "next/server";
-import { projectAccessDeniedPayload, requireProjectAccess } from "@/src/lib/auth/project-access";
-import { createReportPackage, listReportPackages, summarizeReportPackage } from "@/src/lib/repositories/report-package-repository";
+import { isPreAuthServerMutationBlocked, projectAccessDeniedPayload, requireProjectAccess } from "@/src/lib/auth/project-access";
 import { repositoryModeFields } from "@/src/lib/repositories/repository-mode";
 import type { ReportPackageBuildInput, ReportPackageType } from "@/src/types/report-package";
+import { hasVerifiedRequestIdentity } from "@/src/lib/auth/verified-request-access";
+import {
+  createReportPackageListProjection,
+  publicReportPackageListMaxBytes
+} from "@/src/lib/report-package/public-report-package-list";
+import { publicSeedReportPackageSummaries } from "@/src/lib/report-package/report-package-seed-definitions";
+import { privateNoStoreJson, publicImmutableSeedJson } from "@/src/lib/http/private-no-store";
 
 export const runtime = "nodejs";
 
@@ -41,25 +47,68 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const projectId = url.searchParams.get("projectId");
   const projectKey = url.searchParams.get("projectKey");
-  const access = requireProjectAccess({ projectKey, action: "read", mode: "soft" });
+  const access = requireProjectAccess({ projectKey, action: "report.read", mode: "soft" });
   if (!access.allowed) {
-    return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
+    return privateNoStoreJson(projectAccessDeniedPayload(access), { status: access.status });
   }
-  const result = await listReportPackages({ projectId, projectKey, limit: 50 });
-
-  return NextResponse.json({
+  const verifiedRequestIdentity = hasVerifiedRequestIdentity(access);
+  const staticSeedOnly = !verifiedRequestIdentity;
+  const result = staticSeedOnly
+    ? {
+        ok: true,
+        data: projectId
+          ? []
+          : publicSeedReportPackageSummaries.filter((item) => !projectKey || item.projectKey === projectKey).slice(0, 10),
+        error: null
+      }
+    : await import("@/src/lib/repositories/report-package-repository").then(({ listReportPackages }) => listReportPackages({
+        projectId,
+        projectKey,
+        limit: 50,
+        includeStoredState: true
+      }));
+  const repositoryFields = repositoryModeFields(staticSeedOnly ? "demo_seed" : "local_fallback");
+  const payload = createReportPackageListProjection({
+    packages: result.data,
+    projectKey,
+    staticSeedOnly,
     ok: result.ok,
-    ...repositoryModeFields("local_fallback"),
-    count: result.data.length,
-    items: result.data,
-    summaries: result.data.map(summarizeReportPackage),
-    access,
-    error: result.error,
-    caveat: "Report packages are decision-support deliverables; official validation required."
+    ...repositoryFields,
+    error: result.error
   });
+  const payloadBytes = new TextEncoder().encode(JSON.stringify(payload)).byteLength;
+  const cacheStaticSeedResponse = staticSeedOnly && result.ok && result.error === null && payloadBytes <= publicReportPackageListMaxBytes;
+
+  if (staticSeedOnly && payloadBytes > publicReportPackageListMaxBytes) {
+    return privateNoStoreJson({
+      ok: false,
+      contractVersion: "compact_public_v1",
+      projection: "dashboard_summaries_v1",
+      sourceMode: "demo_seed",
+      dynamicStoredStateIncluded: false,
+      ...repositoryFields,
+      projectKey,
+      count: 0,
+      summaries: [],
+      error: "Public report-package projection exceeded its response budget.",
+      caveat: "Report packages are decision-support deliverables; official validation required."
+    }, {
+      status: 503
+    });
+  }
+
+  if (cacheStaticSeedResponse) {
+    return publicImmutableSeedJson(payload);
+  }
+  return privateNoStoreJson(payload);
 }
 
 export async function POST(request: Request) {
+  if (isPreAuthServerMutationBlocked("write")) {
+    const access = requireProjectAccess({ action: "report.generate", mode: "soft" });
+    return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
+  }
+
   let body: unknown;
 
   try {
@@ -73,10 +122,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, ...repositoryModeFields("local_fallback"), message: "projectKey is required." }, { status: 400 });
   }
 
-  const access = requireProjectAccess({ projectKey: input.projectKey, action: "write", mode: "soft" });
+  const access = requireProjectAccess({ projectKey: input.projectKey, action: "report.generate", mode: "soft" });
   if (!access.allowed) {
     return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
   }
+  const { createReportPackage, summarizeReportPackage } = await import("@/src/lib/repositories/report-package-repository");
   const result = await createReportPackage(input);
   const summary = summarizeReportPackage(result.data);
 

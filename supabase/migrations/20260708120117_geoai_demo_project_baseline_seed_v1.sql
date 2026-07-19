@@ -1,11 +1,3 @@
--- GeoAI Demo Project Baseline Seed v1
--- Applied to geoai-dev / pphdqkurxneyagvnnjdt on 2026-07-08.
--- Purpose: persist a demo/project workspace baseline for Preview Supabase runtime.
--- This remains demo/sample data only.
-
--- Required caveat for all seeded decision records:
--- Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.
-
 do $$
 declare
   v_org_id uuid;
@@ -60,8 +52,7 @@ begin
   end if;
 
   insert into public.projects (
-    organization_id, project_key, name, description, geography, client_type,
-    primary_scenario, status, data_mode, metadata, created_by
+    organization_id, project_key, name, description, geography, client_type, primary_scenario, status, data_mode, metadata, created_by
   )
   values
     (v_org_id, 'dubai-investment-screening-demo', 'Dubai Investment Screening', 'Fund / family office pilot screening workspace for Dubai site screening, comparison, evidence confidence and investment memo workflow using sample/open data.', 'Dubai / UAE', 'fund', 'investmentSiteSelection', 'demo', 'demo_normalized', jsonb_build_object('audience','b2b','segment','b2b','default',true,'demoPurpose','Compare coastal and growth-area opportunities before underwriting.','dataStatus','Local sample context and open-data style signals; official validation required.','recommendedNextAction','Validate official market, parcel and planning evidence before investment decisions.','caveat',v_caveat), v_profile_id),
@@ -92,8 +83,7 @@ begin
   on conflict do nothing;
 
   insert into public.pilot_workflows (
-    organization_id, project_id, project_key, title, client_type, use_case,
-    geography, decision_question, pilot_stage, owner_id, metadata, caveat
+    organization_id, project_id, project_key, title, client_type, use_case, geography, decision_question, pilot_stage, owner_id, metadata, caveat
   )
   select
     v_org_id,
@@ -115,7 +105,10 @@ begin
     jsonb_build_object('source','geoai_demo_project_baseline_seed_v1','demoOnly',true,'caveat',v_caveat),
     v_caveat
   from public.projects p
-  where p.project_key like '%-demo'
+  where p.project_key in (
+    'dubai-investment-screening-demo', 'developer-land-pipeline-demo', 'bank-asset-review-demo',
+    'home-buyer-neighborhood-demo', 'family-relocation-area-demo'
+  )
   on conflict (project_key) where project_key is not null do update set
     title = excluded.title,
     client_type = excluded.client_type,
@@ -129,11 +122,9 @@ begin
     updated_at = now();
 
   insert into public.validation_checklist_items (
-    organization_id, project_id, project_key, title, category, status, priority,
-    description, caveat, created_by
+    organization_id, project_id, project_key, title, category, status, priority, description, caveat, created_by
   )
-  select v_org_id, p.id, p.project_key, item.title, item.category, item.status,
-         item.priority, item.description, v_caveat, v_profile_id
+  select v_org_id, p.id, p.project_key, item.title, item.category, item.status, item.priority, item.description, v_caveat, v_profile_id
   from public.projects p
   cross join (values
     ('Validate official market/transaction evidence', 'market_evidence', 'required', 'high', 'Validate DLD/Dubai Pulse or client-approved market evidence before any underwriting use.'),
@@ -141,7 +132,10 @@ begin
     ('Validate ownership/title and legal status outside GeoAI', 'legal_validation', 'required', 'high', 'GeoAI does not verify ownership, title, cadastral status or legal rights.'),
     ('Review source lineage and data freshness', 'source_lineage', 'in_review', 'medium', 'Review source dates, sample/open context and caveats before client-facing use.')
   ) as item(title, category, status, priority, description)
-  where p.project_key like '%-demo'
+  where p.project_key in (
+    'dubai-investment-screening-demo', 'developer-land-pipeline-demo', 'bank-asset-review-demo',
+    'home-buyer-neighborhood-demo', 'family-relocation-area-demo'
+  )
   on conflict (project_key, title) where project_key is not null do update set
     category = excluded.category,
     status = excluded.status,
@@ -152,18 +146,19 @@ begin
     updated_at = now();
 
   insert into public.pilot_client_inputs (
-    organization_id, project_id, project_key, title, input_type, required,
-    status, priority, notes, caveat
+    organization_id, project_id, project_key, title, input_type, required, status, priority, notes, caveat
   )
-  select v_org_id, p.id, p.project_key, item.title, item.input_type, item.required,
-         item.status, item.priority, item.notes, v_caveat
+  select v_org_id, p.id, p.project_key, item.title, item.input_type, item.required, item.status, item.priority, item.notes, v_caveat
   from public.projects p
   cross join (values
     ('Client target sites / AOIs', 'geojson_or_coordinate_list', true, 'needed', 'high', 'User-provided or client-approved shortlist geometry required for non-demo work.'),
     ('Official/customer validation evidence', 'documents_or_data_exports', true, 'needed', 'high', 'Required before any official/legal/planning/valuation use.'),
     ('Decision criteria and weighting', 'structured_requirements', true, 'draft', 'medium', 'Client-specific criteria required before pilot scoring calibration.')
   ) as item(title, input_type, required, status, priority, notes)
-  where p.project_key like '%-demo'
+  where p.project_key in (
+    'dubai-investment-screening-demo', 'developer-land-pipeline-demo', 'bank-asset-review-demo',
+    'home-buyer-neighborhood-demo', 'family-relocation-area-demo'
+  )
   on conflict (project_key, title) where project_key is not null do update set
     input_type = excluded.input_type,
     required = excluded.required,
@@ -174,18 +169,19 @@ begin
     updated_at = now();
 
   insert into public.pilot_deliverables (
-    organization_id, project_id, project_key, title, deliverable_type,
-    status, next_action, caveat
+    organization_id, project_id, project_key, title, deliverable_type, status, next_action, caveat
   )
-  select v_org_id, p.id, p.project_key, item.title, item.deliverable_type,
-         item.status, item.next_action, v_caveat
+  select v_org_id, p.id, p.project_key, item.title, item.deliverable_type, item.status, item.next_action, v_caveat
   from public.projects p
   cross join (values
     ('Workspace configuration', 'workspace_setup', 'ready_for_demo', 'Connect real client data only after validation-source agreement.'),
     ('Screening memo / report package', 'report', 'browser_print_ready', 'Use browser Print / Save as PDF for demos; server PDF remains later.'),
     ('Validation checklist', 'governance', 'active', 'Track official/client validation evidence before decision use.')
   ) as item(title, deliverable_type, status, next_action)
-  where p.project_key like '%-demo'
+  where p.project_key in (
+    'dubai-investment-screening-demo', 'developer-land-pipeline-demo', 'bank-asset-review-demo',
+    'home-buyer-neighborhood-demo', 'family-relocation-area-demo'
+  )
   on conflict (project_key, title) where project_key is not null do update set
     deliverable_type = excluded.deliverable_type,
     status = excluded.status,
@@ -194,12 +190,10 @@ begin
     updated_at = now();
 
   insert into public.analysis_runs (
-    organization_id, project_id, project_key, run_key, scenario_id,
-    selected_name, selected_type, selected_point, selected_object,
-    selected_feature_key, input_context, deterministic_scores, result_payload,
-    result_json, source_lineage, decision_posture, confidence_level,
-    data_confidence_level, analysis_mode, custom_query, project_name,
-    created_by, created_at
+    organization_id, project_id, project_key, run_key, scenario_id, selected_name, selected_type,
+    selected_point, selected_object, selected_feature_key, input_context, deterministic_scores,
+    result_payload, result_json, source_lineage, decision_posture, confidence_level, data_confidence_level,
+    analysis_mode, custom_query, project_name, created_by, created_at
   )
   select
     v_org_id,
@@ -264,8 +258,7 @@ begin
     updated_at = now();
 
   insert into public.comparison_sets (
-    organization_id, project_id, project_key, comparison_key, title, item_count,
-    items, recommendation, result_payload, payload, source_lineage, created_by, created_at
+    organization_id, project_id, project_key, comparison_key, title, item_count, items, recommendation, result_payload, payload, source_lineage, created_by, created_at
   )
   select
     v_org_id,
@@ -305,10 +298,8 @@ begin
     updated_at = now();
 
   insert into public.reports (
-    organization_id, project_id, project_key, report_key, report_type, title,
-    summary, payload, report_json, linked_analysis_ids, linked_comparison_id,
-    source_lineage, printable_path, project_name, decision_posture,
-    generated_by, generated_at
+    organization_id, project_id, project_key, report_key, report_type, title, summary, payload, report_json,
+    linked_analysis_ids, linked_comparison_id, source_lineage, printable_path, project_name, decision_posture, generated_by, generated_at
   )
   select
     v_org_id,
@@ -361,9 +352,8 @@ begin
     updated_at = now();
 
   insert into public.data_room_assets (
-    organization_id, project_id, project_key, name, description, asset_type,
-    source_type, validation_status, linked_analysis_ids, linked_report_ids,
-    metadata, caveat, created_by
+    organization_id, project_id, project_key, name, description, asset_type, source_type, validation_status,
+    linked_analysis_ids, linked_report_ids, metadata, caveat, created_by
   )
   select
     v_org_id,

@@ -8,7 +8,7 @@ import {
   listPilotDeliverables,
   listPilotWorkflows
 } from "@/src/lib/repositories/pilot-workflow-repository";
-import { listValidationEvidence } from "@/src/lib/repositories/validation-repository";
+import { createDemoValidationEvidence, listValidationEvidence } from "@/src/lib/repositories/validation-repository";
 import type { GeoAIProject, ProjectClientType } from "@/src/lib/db/types";
 import {
   pilotWorkflowCaveat,
@@ -383,7 +383,11 @@ function calculateReadiness(input: {
   };
 }
 
-export async function buildPilotWorkflowSummary(input: { projectId?: string | null; projectKey?: string | null }): Promise<PilotWorkflowSummary> {
+export async function buildPilotWorkflowSummary(input: {
+  projectId?: string | null;
+  projectKey?: string | null;
+  includeStoredState?: boolean;
+}): Promise<PilotWorkflowSummary> {
   const requestedProject = input.projectKey
     ? demoProjects.find((project) => project.projectKey === input.projectKey)
     : input.projectId
@@ -407,8 +411,15 @@ export async function buildPilotWorkflowSummary(input: { projectId?: string | nu
   }
 
   const project = requestedProject;
-  const dataRoom = await buildClientDataRoom({ projectId: project.id, projectKey: project.projectKey });
-  const validationEvidence = await listValidationEvidence({ projectId: project.id, projectKey: project.projectKey, limit: 50 });
+  const includeStoredState = input.includeStoredState !== false;
+  const dataRoom = await buildClientDataRoom({
+    projectId: project.id,
+    projectKey: project.projectKey,
+    includeStoredState
+  });
+  const validationEvidence = includeStoredState
+    ? await listValidationEvidence({ projectId: project.id, projectKey: project.projectKey, limit: 50 })
+    : { ok: true, mode: "browser_local" as const, data: createDemoValidationEvidence(project.projectKey), error: null };
   const evidenceThatCanImproveReadiness = validationEvidence.data.filter((item) =>
     ["in_review", "client_validated", "official_validated"].includes(item.validationStatus)
   );
@@ -433,11 +444,14 @@ export async function buildPilotWorkflowSummary(input: { projectId?: string | nu
   const workflowDefaults = defaultWorkflow(project, template);
   const inputDefaults = defaultClientInputs(project, template, dataRoomCounts);
   const deliverableDefaults = defaultDeliverables(project, template, dataRoomCounts);
-  const [storedWorkflows, storedInputs, storedDeliverables] = await Promise.all([
-    listPilotWorkflows({ projectKey: project.projectKey }),
-    listPilotClientInputs({ projectKey: project.projectKey }),
-    listPilotDeliverables({ projectKey: project.projectKey })
-  ]);
+  const emptyResult = { ok: true, mode: "browser_local" as const, data: [], error: null };
+  const [storedWorkflows, storedInputs, storedDeliverables] = includeStoredState
+    ? await Promise.all([
+        listPilotWorkflows({ projectKey: project.projectKey }),
+        listPilotClientInputs({ projectKey: project.projectKey }),
+        listPilotDeliverables({ projectKey: project.projectKey })
+      ])
+    : [emptyResult, emptyResult, emptyResult];
   const workflow = storedWorkflows.data[0] ? { ...workflowDefaults, ...storedWorkflows.data[0] } : workflowDefaults;
   const clientInputs = mergeById(inputDefaults, storedInputs.data);
   const deliverables = mergeById(deliverableDefaults, storedDeliverables.data);
@@ -445,7 +459,7 @@ export async function buildPilotWorkflowSummary(input: { projectId?: string | nu
 
   return {
     ok: true,
-    mode: "local_fallback",
+    mode: includeStoredState ? "local_fallback" : "browser_local",
     storageCaveat: pilotWorkflowStorageCaveat,
     projectId: project.id,
     projectKey: project.projectKey,

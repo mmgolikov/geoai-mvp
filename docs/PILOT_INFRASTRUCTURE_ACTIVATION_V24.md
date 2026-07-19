@@ -1,5 +1,7 @@
 # GeoAI Pilot Infrastructure Activation v2.4
 
+> **Superseded — do not use operationally.** This point-in-time delivery record contains obsolete migration paths and apply/seed guidance. Current operator authority is the [Supabase Data API Containment Runbook](SUPABASE_DATA_API_CONTAINMENT_RUNBOOK_2026_07_16.md); current runtime truth is the [Current Release State](CURRENT_RELEASE_STATE.md). Preserve the body below only as historical evidence.
+
 Date: 2026-06-24
 
 ## Scope

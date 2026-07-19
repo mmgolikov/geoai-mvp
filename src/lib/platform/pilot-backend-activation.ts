@@ -1,8 +1,9 @@
 import { getAuthModeStatus } from "@/src/lib/auth/auth-mode";
+import { requestAuthKernelStatus } from "@/src/lib/auth/request-auth-kernel";
 import { getSchemaReadinessSummary } from "@/src/lib/db/schema-readiness";
 import { getEnforcementConfig } from "@/src/lib/platform/enforcement-config";
 import { getStorageReadiness } from "@/src/lib/storage/storage-readiness";
-import { getSupabaseServerClient } from "@/src/lib/supabase/server";
+import { auditEvidenceKernelStatus } from "@/src/lib/audit/audit-evidence-kernel";
 import type {
   ActivationBlocker,
   BackendCapability,
@@ -17,23 +18,6 @@ const demoAccessCaveat = "Public demo access is not production authentication.";
 const supabaseCaveat = "Supabase/PostGIS durable persistence is active only when configured and schema readiness checks pass.";
 const storageCaveat = "Storage readiness is not secure enterprise storage until buckets, policies, signed URL flows and access enforcement are configured and verified.";
 const auditCaveat = "Audit events are a foundation only, not a certified audit trail.";
-
-type AuditRow = {
-  event_type?: string | null;
-  metadata?: Record<string, unknown> | null;
-  created_at?: string | null;
-};
-
-type DbSelectResponse<T> = {
-  data?: T[] | null;
-  error?: unknown;
-};
-
-type DbClientLike = {
-  from: (table: string) => {
-    select: (columns?: string, options?: unknown) => unknown;
-  };
-};
 
 function capability(
   id: BackendCapability,
@@ -57,10 +41,6 @@ function statusRank(status: CapabilityStatus) {
   return 0;
 }
 
-function boolEnv(name: string) {
-  return process.env[name]?.trim().toLowerCase() === "true";
-}
-
 function deriveOverallStatus(input: {
   supabaseConfigured: boolean;
   schemaReady: boolean;
@@ -81,36 +61,10 @@ function deriveOverallStatus(input: {
 }
 
 async function isAuditDurabilityVerified(schemaReady: boolean) {
-  if (!schemaReady) {
-    return false;
-  }
-
-  if (process.env.GEOAI_AUDIT_WRITE_READ_VERIFIED?.trim().toLowerCase() === "true") {
-    return true;
-  }
-
-  const client = await getSupabaseServerClient() as DbClientLike | null;
-  if (!client) {
-    return false;
-  }
-
-  try {
-    const response = await client
-      .from("audit_events")
-      .select("event_type,metadata,created_at") as DbSelectResponse<AuditRow>;
-
-    if (response.error || !Array.isArray(response.data)) {
-      return false;
-    }
-
-    return response.data.some((event) => (
-      event.event_type === "storage_health_checked" &&
-      event.metadata?.verification === "geoai-storage-readiness-v1" &&
-      event.metadata?.signedUrlVerified === true
-    ));
-  } catch {
-    return false;
-  }
+  return schemaReady && auditEvidenceKernelStatus.implemented &&
+    auditEvidenceKernelStatus.requestActorVerified &&
+    auditEvidenceKernelStatus.durableWriteReadVerified &&
+    auditEvidenceKernelStatus.exactDeploymentEvidenceVerified;
 }
 
 export async function getPilotBackendActivationSummary(): Promise<PilotBackendActivationSummary> {
@@ -122,12 +76,12 @@ export async function getPilotBackendActivationSummary(): Promise<PilotBackendAc
   const config = getEnforcementConfig();
   const schemaReady = schema.status === "connected" && schema.postgisReady && schema.tablesReady;
   const authConfigured = auth.effectiveMode === "supabase_auth" && auth.supabasePublicConfigAvailable;
-  const authSessionVerified = authConfigured && boolEnv("GEOAI_AUTH_SESSION_VERIFIED");
+  const authSessionVerified = authConfigured && requestAuthKernelStatus.requestUserVerified;
   const hardAccessEnabled = config.accessEnforcementMode === "hard";
   const membershipsConfigured = schemaReady;
-  const membershipsVerified = membershipsConfigured && boolEnv("GEOAI_PROJECT_MEMBERSHIP_TESTS_VERIFIED");
+  const membershipsVerified = membershipsConfigured && requestAuthKernelStatus.projectMembershipVerified;
   const rlsConfigured = schemaReady;
-  const rlsVerified = rlsConfigured && boolEnv("GEOAI_RLS_POLICY_TESTS_VERIFIED");
+  const rlsVerified = rlsConfigured && requestAuthKernelStatus.rlsPersonaMatrixVerified;
   const hardAccessVerified = hardAccessEnabled && authSessionVerified && membershipsVerified && rlsVerified;
   const signedUrlVerified = Boolean(storage.signedUrlVerified);
   const auditVerified = await isAuditDurabilityVerified(schemaReady);
@@ -232,11 +186,11 @@ export async function getPilotBackendActivationSummary(): Promise<PilotBackendAc
     blockers.push({
       id: "supabase_env_missing",
       severity: "p0",
-      title: "Supabase environment is not configured",
-      description: "Durable persistence cannot be used until Supabase URL and server credentials are configured in the target runtime.",
-      requiredEnv: ["NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY"],
+      title: "Request-scoped Supabase repositories are not enabled",
+      description: "Durable persistence cannot be used until AUTH-01 binds a verified caller JWT to project membership and RLS.",
+      requiredEnv: ["NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"],
       relatedRoute: "/api/db/health",
-      nextAction: "Configure Supabase environment variables in Vercel/server runtime, then run migration readiness checks."
+      nextAction: "Implement the caller-JWT repository kernel; keep service-role and database credentials out of the public Vercel application."
     });
   }
 
@@ -260,7 +214,7 @@ export async function getPilotBackendActivationSummary(): Promise<PilotBackendAc
       severity: "p0",
       title: "Production auth is not enforced",
       description: authConfigured
-        ? "Supabase Auth config is present, but a real server-verified Preview session has not been recorded."
+        ? requestAuthKernelStatus.reason
         : auth.caveat,
       requiredEnv: ["NEXT_PUBLIC_AUTH_MODE=supabase_auth"],
       relatedRoute: "/api/auth/session",

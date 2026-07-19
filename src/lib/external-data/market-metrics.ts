@@ -36,9 +36,63 @@ export type ExternalMarketMetricsResponse = {
   };
 };
 
+export type CompactPublicMarketMetricsResponse = {
+  contractVersion: "compact_public_v1";
+  sourceMode: "sample_fallback";
+  source: {
+    id: "sample-market-area-metrics";
+    name: "GeoAI bundled sample market metrics";
+    status: "sample_fallback";
+    sourceType: "sample-open";
+    disclaimer: string;
+  };
+  count: number;
+  availableAreaNames: string[];
+  fallbackUsed: true;
+  liveSnapshotIncluded: false;
+  diagnosticsWithheld: true;
+  message: string;
+  caveat: string;
+  quality: {
+    status: "bundled_reviewed_sample";
+    warnings: string[];
+  };
+};
+
 const realMetricsPath = join(process.cwd(), "data/external/normalized/market_area_metrics.real.json");
 const dldSnapshotPath = join(process.cwd(), "data/normalized/dld_market_snapshot.json");
 const requiredCaveat = "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.";
+
+export function getCompactPublicMarketMetrics(): CompactPublicMarketMetricsResponse {
+  const availableAreaNames = Array.from(new Set(
+    listImportedMarketMetrics()
+      .map((metric) => metric.areaName.trim())
+      .filter(Boolean)
+  )).slice(0, 100);
+
+  return {
+    contractVersion: "compact_public_v1",
+    sourceMode: "sample_fallback",
+    source: {
+      id: "sample-market-area-metrics",
+      name: "GeoAI bundled sample market metrics",
+      status: "sample_fallback",
+      sourceType: "sample-open",
+      disclaimer: "Bundled sample/offline metrics only; no live or imported official market snapshot is exposed publicly."
+    },
+    count: availableAreaNames.length,
+    availableAreaNames,
+    fallbackUsed: true,
+    liveSnapshotIncluded: false,
+    diagnosticsWithheld: true,
+    message: "Using the reviewed bundled sample market-area catalog. Operator snapshots remain outside the public API.",
+    caveat: requiredCaveat,
+    quality: {
+      status: "bundled_reviewed_sample",
+      warnings: ["Sample fallback only; official/customer-approved market validation is required."]
+    }
+  };
+}
 
 function sourceModeFromSnapshot(parsed: { source?: { status?: string }; areas?: Array<{ sourceFile?: string; sourceDate?: string }> }): SourceDataMode {
   const areas = Array.isArray(parsed.areas) ? parsed.areas : [];

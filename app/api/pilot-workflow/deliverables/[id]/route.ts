@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { recordAuditEvent } from "@/src/lib/audit/audit-event";
-import { requireProjectAccess } from "@/src/lib/auth/project-access";
+import { isPreAuthServerMutationBlocked, projectAccessDeniedPayload, requireProjectAccess } from "@/src/lib/auth/project-access";
 import { buildPilotWorkflowSummary } from "@/src/lib/pilot-workflow/pilot-workflow-summary";
-import { createPilotDeliverable } from "@/src/lib/repositories/pilot-workflow-repository";
+import { createPilotDeliverable, getPilotDeliverable } from "@/src/lib/repositories/pilot-workflow-repository";
 import { repositoryModeFields } from "@/src/lib/repositories/repository-mode";
 import {
   pilotWorkflowCaveat,
@@ -39,6 +39,10 @@ export async function PATCH(
   request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
+  if (isPreAuthServerMutationBlocked("write")) {
+    const access = requireProjectAccess({ action: "workflow.write", mode: "soft" });
+    return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
+  }
   const { id } = await context.params;
   let body: unknown;
 
@@ -58,9 +62,18 @@ export async function PATCH(
     id,
     caveat: input.caveat ?? pilotWorkflowCaveat
   };
+  const existing = await getPilotDeliverable(id);
+  const projectKey = existing.data?.projectKey ?? item.projectKey;
+  const access = requireProjectAccess({ projectKey, action: "workflow.write", mode: "soft" });
+  if (!access.allowed) {
+    return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
+  }
+  if (existing.data && item.projectKey !== existing.data.projectKey) {
+    return NextResponse.json({ ok: false, ...repositoryModeFields(existing.mode), message: "projectKey cannot be changed by this route." }, { status: 400 });
+  }
+
   const result = await createPilotDeliverable(item);
   const summary = await buildPilotWorkflowSummary({ projectId: item.projectId, projectKey: item.projectKey });
-  const access = requireProjectAccess({ projectKey: item.projectKey, action: "write", mode: "soft" });
   void recordAuditEvent({
     projectKey: item.projectKey,
     eventType: "pilot_deliverable_updated",

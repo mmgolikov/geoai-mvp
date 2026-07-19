@@ -1,0 +1,291 @@
+{
+  "schemaVersion": "1.5",
+  "lastVerified": "2026-07-16",
+  "lastSyncedAt": "2026-07-16T19:39:54Z",
+  "controlPackage": "CHG-2026-07-16-19",
+  "repositoryBaseSha": "cf0ee1903e8411eabf8e048c1d8e775a0454340c",
+  "localBranch": "p0/db01-auth-rehearsal-rebuild-v1",
+  "localWorkingTreeState": "uncommitted_candidate",
+  "functionalContentSourceSha": "e999c5a07d3ced6c95f2eb44f6a5f03a9c17caea",
+  "functionalQualityGateRunId": "29500488408",
+  "functionalEvidenceArtifactId": "8376235675",
+  "functionalDatabaseEvidenceArtifactId": "8376300064",
+  "functionalPreviewDeploymentId": "dpl_CY7oNavQwu5ddkhRRLaR3FWTd3d9",
+  "documentationContentSourceSha": "379bc9d9c3713ffa8b16640bc48b52092aa34d91",
+  "documentationQualityGateRunId": "29502134685",
+  "documentationEvidenceArtifactId": "8376908800",
+  "documentationDatabaseEvidenceArtifactId": "8376983558",
+  "documentationPreviewDeploymentId": "dpl_58GCmLXR4LjrU2kxHBiwiPRAELiy",
+  "latestObservedRemoteHead": "cf0ee1903e8411eabf8e048c1d8e775a0454340c",
+  "latestObservedQualityGateRunId": "29504438956",
+  "latestObservedEvidenceArtifactId": "8377868088",
+  "latestObservedDatabaseEvidenceArtifactId": "8377961310",
+  "latestObservedDeploymentId": "dpl_3r3eFhCEnhg7QdURF79r4tnLsPfF",
+  "productionChanged": false,
+  "mainChanged": false,
+  "syncState": "synced_and_direct_read_back_verified",
+  "readBackVerification": "28/28 directly fetched after update. Every mapped page contains exactly one CHG19-CONTROL-START/END pair, zero CHG16/CHG17/CHG18 control markers, rehearsal ref bkmfcjzalcvdsdvyxpgi, hosted result 183/183 and explicit local-only Auth/Admin evidence boundaries.",
+  "contentHashAlgorithm": "sha256",
+  "contentHashBasis": "Current UTF-8 Markdown body returned by direct Confluence page read-back after CHG-18 update.",
+  "repositoryBinding": "Confluence body hashes bind the exact current page content to this receipt. CHG-19 application work remains an uncommitted local-only working-tree delta on base db9f8630f21b50ba76455338050dcb1b335b0dac and is not recursively embedded or claimed published.",
+  "scope": "The 28 active/supporting operational authority pages synchronized by CHG-18. The remaining Confluence pages are historical/domain material governed by DOCS-01 and are not asserted current by this map.",
+  "cloudId": "8671019f-f899-4452-a153-9c96cc5eec31",
+  "spaceId": "98311",
+  "hubPageId": "98425",
+  "rule": "Read the current page before every update and read it back afterwards. Hub and every affected mapped page move under one control package. Preserve concurrent page content by explicit rebase; historical release controls retain released facts and link to current authorities.",
+  "pages": [
+    {
+      "pageId": "98425",
+      "title": "Project hub",
+      "role": "operational_hub",
+      "authority": "Current operational snapshot and primary navigation",
+      "syncedVersion": 182,
+      "contentSha256": "f6ad7ef97fba0e387ede629781d697bc5383cbbea9fc573b660fc1198f1f8c88",
+      "successorPageId": null
+    },
+    {
+      "pageId": "98509",
+      "title": "GeoAI (MVP)",
+      "role": "charter_navigation",
+      "authority": "Stable charter and section navigation",
+      "syncedVersion": 185,
+      "contentSha256": "bee2f7109e923463e4866dbd2da6f780fa1c94b38ffae2bf798a6c504efc603e",
+      "successorPageId": null
+    },
+    {
+      "pageId": "2097153",
+      "title": "09.09 Current Delivery State",
+      "role": "release_state",
+      "authority": "Exact released, remote, local and environment state",
+      "syncedVersion": 184,
+      "contentSha256": "1d431a54a58a317f4ffd6554955299d450f0ac552084c5fa845ecf07c6a6f86b",
+      "successorPageId": null
+    },
+    {
+      "pageId": "12320972",
+      "title": "09.13 Full System Audit — 2026-07-16",
+      "role": "audit",
+      "authority": "Current findings, remediation and residual risk",
+      "syncedVersion": 15,
+      "contentSha256": "9b97ebbeb5b731d9a6953e58d370eabe78b178ccbe273f2bc3c14628fea5a865",
+      "successorPageId": null
+    },
+    {
+      "pageId": "13008962",
+      "title": "09.19 Documentation Architecture and Lifecycle Audit",
+      "role": "documentation_lifecycle",
+      "authority": "Current documentation architecture, lifecycle and synchronization evidence",
+      "syncedVersion": 7,
+      "contentSha256": "810917f27e26d3d6fdd34c01a9d190b00d10b8f8cdeafd5118c2477f77903357",
+      "successorPageId": null
+    },
+    {
+      "pageId": "131194",
+      "title": "05.02 Database",
+      "role": "database",
+      "authority": "Current implemented database and environment boundaries",
+      "syncedVersion": 8,
+      "contentSha256": "637dbdba1e59b7e4288cd50551806a30b2af50daa8fc0b96a0f1e3b7f9cf0653",
+      "successorPageId": null
+    },
+    {
+      "pageId": "131293",
+      "title": "05.03 ERD-001 Core Data Model",
+      "role": "erd",
+      "authority": "Current rehearsal entity model and trust boundary",
+      "syncedVersion": 13,
+      "contentSha256": "81775b5832a30fc2ef6fb67b5077bc7599a9dfd5fb193d6b8767aac906717e7e",
+      "successorPageId": null
+    },
+    {
+      "pageId": "1343521",
+      "title": "09.10 Artifact Master Register",
+      "role": "evidence_register",
+      "authority": "Artifact identity, scope and disposition",
+      "syncedVersion": 237,
+      "contentSha256": "35731f234407152016d3e4bc14b65f7638ce216eb3b8c8713d11525606dd84a1",
+      "successorPageId": null
+    },
+    {
+      "pageId": "98732",
+      "title": "09.04 Change Log",
+      "role": "change_log",
+      "authority": "Chronological change record",
+      "syncedVersion": 235,
+      "contentSha256": "0e5008546b93f7d1d61f80f28ec82c6854ecea4a2eb5246973b51e1fc4608be7",
+      "successorPageId": null
+    },
+    {
+      "pageId": "1966084",
+      "title": "07.07 Work Packages",
+      "role": "execution_backlog",
+      "authority": "Current scoped work and acceptance",
+      "syncedVersion": 85,
+      "contentSha256": "cc05462b68f723e22fdb6393d54c07d87eb4a8c42a4426724c4887e46b7bb013",
+      "successorPageId": null
+    },
+    {
+      "pageId": "98712",
+      "title": "09.03 Risk Register",
+      "role": "risk_register",
+      "authority": "Current risks, owners and mitigations",
+      "syncedVersion": 120,
+      "contentSha256": "71554f9cb3bde986a06be2a32efba428ffd2c81856821a4c0f587bf5cf4fb289",
+      "successorPageId": null
+    },
+    {
+      "pageId": "98692",
+      "title": "09.02 Decision Log",
+      "role": "decision_log",
+      "authority": "Current architecture, product and governance decisions",
+      "syncedVersion": 84,
+      "contentSha256": "4c688e414f7cc7ca30ace819a992d89b535f2634c067cecc34ba9576745d90b2",
+      "successorPageId": null
+    },
+    {
+      "pageId": "2490398",
+      "title": "09.12 Security Baseline",
+      "role": "security",
+      "authority": "Current security boundary and unresolved controls",
+      "syncedVersion": 24,
+      "contentSha256": "36e1025ff6ddb01ad25fb63a5a47474501382c037811587c7dbc4563898cb78b",
+      "successorPageId": null
+    },
+    {
+      "pageId": "2686985",
+      "title": "08.01 Pilot Readiness Checklist",
+      "role": "readiness",
+      "authority": "Current no-go/go prerequisites; not pilot certification",
+      "syncedVersion": 16,
+      "contentSha256": "1047a76cc4dcd213c196de2e2a648623df71c4ae17850029d10f7e073a38c9b5",
+      "successorPageId": null
+    },
+    {
+      "pageId": "294937",
+      "title": "GeoAI — 09 Governance",
+      "role": "governance",
+      "authority": "Documentation, release and change governance",
+      "syncedVersion": 54,
+      "contentSha256": "17ae76719bc4149d24058a92276f8f959e63ca934d4ad7947575ad06a4727952",
+      "successorPageId": null
+    },
+    {
+      "pageId": "295058",
+      "title": "09.06 Artifact Review Log",
+      "role": "review_log",
+      "authority": "Objective artifact review outcomes",
+      "syncedVersion": 153,
+      "contentSha256": "f1251aadd7a23fe7c3ddf7a72c8f92192dab595eb9bf685c222c07299585ddc0",
+      "successorPageId": null
+    },
+    {
+      "pageId": "5242921",
+      "title": "09.15 Release Evidence Matrix",
+      "role": "release_evidence",
+      "authority": "Exact SHA, CI, deployment and rehearsal evidence matrix",
+      "syncedVersion": 76,
+      "contentSha256": "c654b6405eab52dbdf15a2f1453d25a335eeff3ded83545c81882dcb2a1b3fcc",
+      "successorPageId": null
+    },
+    {
+      "pageId": "5111891",
+      "title": "09.16 Open PR Disposition Record",
+      "role": "pr_governance",
+      "authority": "Current PR status and disposition",
+      "syncedVersion": 75,
+      "contentSha256": "797e8c85a7754250033d82462e5345385b32784dd57e92b7ddf39c4be5f54ecd",
+      "successorPageId": null
+    },
+    {
+      "pageId": "2031641",
+      "title": "02.09 Product Roadmap",
+      "role": "product_roadmap",
+      "authority": "Current product dependency order",
+      "syncedVersion": 95,
+      "contentSha256": "57d82cc9a9248592fa9c6dfdeb5b64ba7a250688cddd88ca7a3bb7a79d77b9cf",
+      "successorPageId": null
+    },
+    {
+      "pageId": "1802311",
+      "title": "07.08 Technical Roadmap",
+      "role": "technical_roadmap",
+      "authority": "Current engineering dependency order",
+      "syncedVersion": 112,
+      "contentSha256": "6f31b71ffed8ca897ed785578f735c87720d832538db2ad6007c4d67ff3ad7d2",
+      "successorPageId": null
+    },
+    {
+      "pageId": "131271",
+      "title": "07.01 Architecture Modeling Standard",
+      "role": "architecture_standard",
+      "authority": "Modeling notation and required viewpoints",
+      "syncedVersion": 27,
+      "contentSha256": "78ec790559020a496884ad81e95aeb9bbfc8c1a164c984be34bf327a2310f2a2",
+      "successorPageId": null
+    },
+    {
+      "pageId": "131094",
+      "title": "GeoAI — 02 Product & MVP",
+      "role": "product_scope",
+      "authority": "Current public-demo scope and exclusions",
+      "syncedVersion": 53,
+      "contentSha256": "ae1491bae1c491e81281e9add688d63c9ac6220a95a12e73d13dbfc49baaa112",
+      "successorPageId": null
+    },
+    {
+      "pageId": "131114",
+      "title": "GeoAI — 04 System Analysis & Requirements",
+      "role": "requirements",
+      "authority": "Current system requirements and trust boundaries",
+      "syncedVersion": 26,
+      "contentSha256": "b970fc623101c68c096e9a68b272e6caef329d9b94db45fa9b5d3e6d6050e6bc",
+      "successorPageId": null
+    },
+    {
+      "pageId": "66106",
+      "title": "GeoAI — 07 Engineering, Architecture & DevOps",
+      "role": "engineering",
+      "authority": "Current implementation and process navigation",
+      "syncedVersion": 77,
+      "contentSha256": "5d873e4be8bcd4249ef82811449297b5a8890589a01a560e7a515c47583bc3c9",
+      "successorPageId": null
+    },
+    {
+      "pageId": "131134",
+      "title": "GeoAI — 05 Data, AI & Remote Sensing",
+      "role": "data_ai",
+      "authority": "Current source, evidence and AI boundary",
+      "syncedVersion": 34,
+      "contentSha256": "567460e22a96f06e587c6bd2607ed75228fb2083a99f328edf8c0a0aae798e09",
+      "successorPageId": null
+    },
+    {
+      "pageId": "98547",
+      "title": "GeoAI — 06 UX, UI and Design System",
+      "role": "ux_ui",
+      "authority": "Current design-system and UX navigation",
+      "syncedVersion": 50,
+      "contentSha256": "9ab1fc13ca26606eaf567f86f34c098421a1bf55745e5d8c203c40b4bcdd43fc",
+      "successorPageId": null
+    },
+    {
+      "pageId": "98567",
+      "title": "GeoAI — 08 GTM, Pilots & Fundraising",
+      "role": "gtm",
+      "authority": "Current GTM and pilot no-go boundaries",
+      "syncedVersion": 13,
+      "contentSha256": "b0ca4524d975b655d630cd61f5d8aa2c07315fd6fd64cdc2098ea06f9f513860",
+      "successorPageId": null
+    },
+    {
+      "pageId": "12320810",
+      "title": "CR-DEV8-001 — Controlled Open-Context Source Connection Pack v1",
+      "role": "historical_release_control",
+      "authority": "Released PR #87 point-in-time source-pack evidence only",
+      "syncedVersion": 20,
+      "contentSha256": "e8158890bf5c936e456b4fdc2b5f98e4065f8af8e6ced8e6730fbf55f059abcf",
+      "successorPageId": "2097153"
+    }
+  ],
+  "localBaseCommit": "db9f8630f21b50ba76455338050dcb1b335b0dac"
+}

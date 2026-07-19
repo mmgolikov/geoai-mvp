@@ -1,10 +1,15 @@
 import { NextResponse } from "next/server";
+import { projectAccessDeniedPayload, requireProjectAccess } from "@/src/lib/auth/project-access";
 import {
   createProject,
   listProjects
 } from "@/src/lib/db/repositories/projects";
 import { repositoryModeFields } from "@/src/lib/repositories/repository-mode";
 import type { ProjectInput } from "@/src/lib/db/types";
+import { demoProjects } from "@/src/data/demo-projects";
+import { hasVerifiedRequestIdentity } from "@/src/lib/auth/verified-request-access";
+import { isPreAuthServerMutationBlocked } from "@/src/lib/auth/project-access";
+import { privateNoStoreJson } from "@/src/lib/http/private-no-store";
 
 export const runtime = "nodejs";
 
@@ -18,17 +23,38 @@ function isProjectInput(value: unknown): value is ProjectInput {
 }
 
 export async function GET() {
+  const access = requireProjectAccess({ projectKey: null, action: "project.read", mode: "soft" });
+  if (!access.allowed) {
+    return privateNoStoreJson(projectAccessDeniedPayload(access), { status: access.status });
+  }
+
+  if (!hasVerifiedRequestIdentity(access)) {
+    return privateNoStoreJson({
+      ok: true,
+      ...repositoryModeFields("demo_seed"),
+      items: demoProjects,
+      access,
+      error: null
+    });
+  }
+
   const result = await listProjects();
 
-  return NextResponse.json({
+  return privateNoStoreJson({
     ok: result.ok,
     ...repositoryModeFields(result.mode),
     items: result.data ?? [],
+    access,
     error: result.error
   });
 }
 
 export async function POST(request: Request) {
+  if (isPreAuthServerMutationBlocked("manage")) {
+    const access = requireProjectAccess({ action: "project.create", mode: "soft" });
+    return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
+  }
+
   let body: unknown;
 
   try {
@@ -47,12 +73,18 @@ export async function POST(request: Request) {
     );
   }
 
+  const access = requireProjectAccess({ projectKey: body.projectKey ?? null, action: "project.create", mode: "soft" });
+  if (!access.allowed) {
+    return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
+  }
+
   const result = await createProject(body);
 
   return NextResponse.json({
     ok: result.ok,
     ...repositoryModeFields(result.mode),
     persisted: result.mode === "supabase" && result.ok,
+    access,
     project: result.data,
     error: result.error,
     message: result.mode === "supabase" && result.ok

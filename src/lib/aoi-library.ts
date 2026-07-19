@@ -8,11 +8,13 @@ import {
 import {
   calculatePolygonMeasurements,
   closePolygonRing,
+  maxAoiVertices,
   validatePolygonVertices
 } from "@/src/lib/polygon-aoi";
 import type { UserDrawnAoi } from "@/src/types/geo";
+import { browserDemoStorageKey, isBrowserDemoStorageEnabled } from "@/src/lib/browser-demo-storage";
 
-export const aoiLibraryStorageKey = "geoai-aoi-library-v1";
+export const aoiLibraryStorageKey = browserDemoStorageKey("aoi-library-v1");
 
 type AoiImportResult = {
   ok: true;
@@ -59,6 +61,13 @@ function normalizePolygonRing(geometry: GeoJSON.Polygon): [number, number][] | s
   const ring = rings[0];
   if (!Array.isArray(ring) || ring.length < 4) {
     return "Only Polygon GeoJSON is supported in v1.8.";
+  }
+  const first = ring[0];
+  const last = ring[ring.length - 1];
+  const isClosed = Array.isArray(first) && Array.isArray(last) && first[0] === last[0] && first[1] === last[1];
+  const openVertexCount = isClosed ? ring.length - 1 : ring.length;
+  if (openVertexCount > maxAoiVertices) {
+    return `AOI exceeds the ${maxAoiVertices}-vertex browser screening limit.`;
   }
 
   const coordinates: [number, number][] = [];
@@ -226,6 +235,9 @@ export function createAoiGeojsonFeature(aoi: ProjectAoi | UserDrawnAoi): GeoJSON
 }
 
 export function parseGeojsonAoi(text: string, input: { projectKey: string; projectId?: string | null; fileName: string }): AoiImportResult {
+  if (new TextEncoder().encode(text).byteLength > 5 * 1024 * 1024) {
+    return { ok: false, message: "GeoJSON file exceeds the 5 MB AOI import limit." };
+  }
   let parsed: unknown;
   try {
     parsed = JSON.parse(text);
@@ -276,17 +288,48 @@ export function parseGeojsonAoi(text: string, input: { projectKey: string; proje
 }
 
 export function readBrowserAois(): ProjectAoi[] {
-  if (typeof window === "undefined") return [];
+  if (typeof window === "undefined" || !isBrowserDemoStorageEnabled()) return [];
   try {
     const raw = window.localStorage.getItem(aoiLibraryStorageKey);
     const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed)) return [];
+    return parsed.flatMap((item): ProjectAoi[] => {
+      if (!item || typeof item !== "object") return [];
+      const candidate = item as Partial<ProjectAoi>;
+      if (typeof candidate.id !== "string" || typeof candidate.projectKey !== "string" ||
+          typeof candidate.name !== "string" || candidate.geometry?.type !== "Polygon") return [];
+      const normalized = normalizePolygonRing(candidate.geometry);
+      if (typeof normalized === "string") return [];
+      const validation = validatePolygonVertices(normalized);
+      if (!validation.valid || !validation.measurements) return [];
+      const ring = closePolygonRing(normalized);
+      return [{
+        ...candidate,
+        geometry: { type: "Polygon", coordinates: [ring] },
+        centroid: validation.measurements.centroid,
+        bbox: validation.measurements.bbox,
+        measurements: validation.measurements
+      } as ProjectAoi];
+    });
   } catch {
     return [];
   }
 }
 
 export function writeBrowserAois(items: ProjectAoi[]) {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(aoiLibraryStorageKey, JSON.stringify(items.slice(0, 200)));
+  if (typeof window === "undefined" || !isBrowserDemoStorageEnabled()) return false;
+  const perProject = new Map<string, ProjectAoi[]>();
+  for (const item of items) {
+    const scoped = perProject.get(item.projectKey) ?? [];
+    if (scoped.length < 40) scoped.push(item);
+    perProject.set(item.projectKey, scoped);
+  }
+  try {
+    window.localStorage.setItem(aoiLibraryStorageKey, JSON.stringify(Array.from(perProject.values()).flat()));
+    return true;
+  } catch {
+    // Keep the validated AOI available in React state when browser storage is
+    // unavailable or over quota; persistence failure must not crash the UI.
+    return false;
+  }
 }

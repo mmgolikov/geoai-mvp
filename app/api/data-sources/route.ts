@@ -1,41 +1,28 @@
 import { NextResponse } from "next/server";
-import { getSourceRegistryReadiness } from "@/src/lib/external-data/supabase-source-registry";
+import { getCompactPublicSourceRegistryReadiness } from "@/src/lib/external-data/public-source-readiness";
 
 export const runtime = "nodejs";
 
-export async function GET() {
-  const readiness = await getSourceRegistryReadiness();
+export function GET() {
+  const readiness = getCompactPublicSourceRegistryReadiness();
 
   return NextResponse.json({
     ok: true,
+    contractVersion: readiness.contractVersion,
     version: readiness.version,
+    manifestVersion: readiness.manifestVersion,
+    projection: readiness.projection,
     mode: readiness.mode,
     source: readiness.source,
-    summary: readiness.summary,
-    sources: readiness.sourceGroups,
-    sourceGroups: readiness.sourceGroups,
-    readiness: readiness.readiness,
-    manifest: readiness.manifest,
-    sourceQuality: readiness.sourceQuality,
-    lineage: readiness.sourceGroups.map((group) => ({
-      sourceGroupId: group.id,
-      sourceGroupName: group.name,
-      sourceIds: group.sourceIds,
-      status: group.status,
-      dataMode: group.dataMode,
-      recordCount: group.recordCount,
-      confidence: group.confidence,
-      sourceQuality: group.sourceQuality,
-      caveat: group.caveat,
-      nextValidationStep: group.nextValidationStep,
-      validationRequired: group.validationRequired
-    })),
+    liveRegistryIncluded: readiness.liveRegistryIncluded,
+    diagnosticsWithheld: readiness.diagnosticsWithheld,
     sourceRegistryCount: readiness.sourceRegistryCount,
     externalSnapshotCount: readiness.externalSnapshotCount,
+    summary: readiness.summary,
+    sources: readiness.sourceGroups,
     blockers: readiness.blockers,
     nextActions: readiness.nextActions,
-    sync: readiness.sync,
     caveat: readiness.caveat,
     generatedAt: readiness.generatedAt
-  });
+  }, { headers: { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600" } });
 }

@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { recordAuditEvent } from "@/src/lib/audit/audit-event";
-import { projectAccessDeniedPayload, requireProjectAccess } from "@/src/lib/auth/project-access";
+import {
+  isPreAuthServerMutationBlocked,
+  projectAccessDeniedPayload,
+  requireProjectAccess
+} from "@/src/lib/auth/project-access";
 import {
   createEvidenceFileAsset,
   listEvidenceFileAssets
@@ -14,6 +18,8 @@ import {
   validateEvidenceFile
 } from "@/src/lib/storage/storage-server";
 import { evidenceFileCaveat, type EvidenceFileAsset } from "@/src/types/storage";
+import { hasVerifiedRequestIdentity } from "@/src/lib/auth/verified-request-access";
+import { privateNoStoreJson } from "@/src/lib/http/private-no-store";
 
 export const runtime = "nodejs";
 
@@ -29,13 +35,23 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const projectId = url.searchParams.get("projectId");
   const projectKey = url.searchParams.get("projectKey");
-  const access = requireProjectAccess({ projectKey, action: "read", mode: "soft" });
+  const access = requireProjectAccess({ projectKey, action: "evidence.read", mode: "soft" });
   if (!access.allowed) {
-    return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
+    return privateNoStoreJson(projectAccessDeniedPayload(access), { status: access.status });
+  }
+  if (!hasVerifiedRequestIdentity(access)) {
+    return privateNoStoreJson({
+      ok: true,
+      ...repositoryModeFields("browser_local"),
+      items: [],
+      access,
+      error: null,
+      caveat: "Public-demo evidence files remain browser-local; protected metadata and binary reads require a permanent non-anonymous identity."
+    });
   }
   const result = await listEvidenceFileAssets({ projectId, projectKey, limit: 80 });
 
-  return NextResponse.json({
+  return privateNoStoreJson({
     ok: result.ok,
     ...repositoryModeFields(result.mode),
     items: result.data,
@@ -46,6 +62,11 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  if (isPreAuthServerMutationBlocked("upload")) {
+    const access = requireProjectAccess({ action: "evidence.upload", mode: "soft" });
+    return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
+  }
+
   let formData: FormData;
 
   try {
@@ -63,7 +84,7 @@ export async function POST(request: Request) {
   const aoiId = readString(formData.get("aoiId"));
   const reportId = readString(formData.get("reportId"));
   const notes = readString(formData.get("notes"));
-  const access = requireProjectAccess({ projectKey, action: "upload", mode: "soft" });
+  const access = requireProjectAccess({ projectKey, action: "evidence.upload", mode: "soft" });
   if (!access.allowed) {
     return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
   }

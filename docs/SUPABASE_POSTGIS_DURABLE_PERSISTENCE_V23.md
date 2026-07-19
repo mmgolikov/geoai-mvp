@@ -1,5 +1,7 @@
 # GeoAI Supabase/PostGIS Durable Persistence Foundation v2.3
 
+> **Superseded — do not use operationally.** This historical foundation document contains an obsolete migration filename, legacy anon/service-role environment guidance and a pre-canonical apply path. Use the [Current Release State](CURRENT_RELEASE_STATE.md) and [Supabase Data API Containment Runbook](SUPABASE_DATA_API_CONTAINMENT_RUNBOOK_2026_07_16.md); the authoritative ledger is `supabase/migration-ledger-baseline.json`.
+
 Date: 2026-06-24
 
 ## Purpose

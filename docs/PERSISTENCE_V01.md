@@ -1,5 +1,7 @@
 # Persistence v0.1
 
+> **Superseded — do not use operationally.** This historical persistence description predates public-demo server-mutation containment, request-scoped Auth and the canonical migration chain. Its DB-write, fallback-success and legacy credential instructions are not current behavior. Use the [Implemented Architecture](architecture.md), [Current Release State](CURRENT_RELEASE_STATE.md) and [Codex Backlog](CODEX_BACKLOG_2026_07_16.md).
+
 GeoAI Persistence v0.1 uses the optional Supabase/PostGIS foundation to save analysis runs and report metadata when Supabase is configured. The app remains fully usable without Supabase.
 
 ## What Is Persisted

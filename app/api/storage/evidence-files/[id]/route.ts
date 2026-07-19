@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { recordAuditEvent } from "@/src/lib/audit/audit-event";
-import { requireProjectAccess } from "@/src/lib/auth/project-access";
+import { isPreAuthServerMutationBlocked, projectAccessDeniedPayload, requireProjectAccess } from "@/src/lib/auth/project-access";
 import {
   deleteEvidenceFileAssetMetadata,
   getEvidenceFileAsset,
@@ -12,6 +12,10 @@ import { deleteEvidenceFile } from "@/src/lib/storage/storage-server";
 export const runtime = "nodejs";
 
 export async function DELETE(_request: Request, context: { params: Promise<{ id: string }> }) {
+  if (isPreAuthServerMutationBlocked("write")) {
+    const access = requireProjectAccess({ action: "evidence.delete", mode: "soft" });
+    return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
+  }
   const { id } = await context.params;
   const existing = await getEvidenceFileAsset(id);
 
@@ -19,7 +23,11 @@ export async function DELETE(_request: Request, context: { params: Promise<{ id:
     return NextResponse.json({ ok: false, ...repositoryModeFields("local_fallback"), message: "Evidence file metadata not found." }, { status: 404 });
   }
 
-  const access = requireProjectAccess({ projectKey: existing.data.projectKey, action: "write", mode: "soft" });
+  const access = requireProjectAccess({ projectKey: existing.data.projectKey, action: "evidence.delete", mode: "soft" });
+  if (!access.allowed) {
+    return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
+  }
+
   const deleteResult = await deleteEvidenceFile(existing.data);
   const metadataResult = await updateEvidenceFileAsset(id, {
     objectStatus: "deleted",

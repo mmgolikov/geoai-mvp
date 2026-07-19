@@ -1,10 +1,7 @@
 import {
-  geoaiSupabaseProjectRef,
-  getSupabaseAnonKey,
-  getSupabaseServiceRoleKey,
+  getSupabasePublishableKey,
   getSupabaseUrl,
-  isSupabaseConfigured,
-  isPreviewRuntime
+  isSupabaseConfigured
 } from "@/src/lib/supabase/config";
 
 export type SupabaseServerClient = {
@@ -26,43 +23,11 @@ type SupabaseModuleLike = {
   createClient: (url: string, key: string, options?: unknown) => SupabaseServerClient;
 };
 
-type JwtPayload = {
-  role?: string;
-  ref?: string;
-};
-
-function decodeBase64Url(value: string) {
-  const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
-  const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
-  return Buffer.from(padded, "base64").toString("utf8");
-}
-
-function isLegacyServiceRoleJwt(value: string | null) {
-  if (!value || !value.includes(".")) {
-    return false;
-  }
-
-  try {
-    const payload = JSON.parse(decodeBase64Url(value.split(".")[1] ?? "")) as JwtPayload;
-    if (payload.role !== "service_role") {
-      return false;
-    }
-
-    return isPreviewRuntime() ? payload.ref === geoaiSupabaseProjectRef : true;
-  } catch {
-    return false;
-  }
-}
-
 function getServerSupabaseKey() {
-  const serviceRoleKey = getSupabaseServiceRoleKey();
-  const anonKey = getSupabaseAnonKey();
-
-  if (isLegacyServiceRoleJwt(serviceRoleKey)) {
-    return serviceRoleKey;
-  }
-
-  return anonKey ?? serviceRoleKey;
+  // Request-scoped repositories must never inherit service-role privileges.
+  // A real authenticated server client must later forward the caller's JWT so
+  // Postgres RLS, rather than this process, remains the authorization boundary.
+  return getSupabasePublishableKey();
 }
 
 async function loadSupabaseModule(): Promise<SupabaseModuleLike | null> {

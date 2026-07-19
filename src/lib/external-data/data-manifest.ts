@@ -10,12 +10,14 @@ import {
 } from "@/src/lib/external-data/source-registry";
 import {
   normalizeSourceStatus,
+  sourceStatusPriority,
   sourceStatusToReadiness,
   type SourceStatus
 } from "@/src/lib/external-data/source-status";
 import { normalizeSourceDataMode, type SourceDataMode } from "@/src/lib/external-data/source-modes";
 import {
   buildSourceQualityManifest,
+  type SnapshotQualityItem,
   type SourceQualityManifest
 } from "@/src/lib/external-data/source-quality-manifest";
 
@@ -48,6 +50,7 @@ const dldSnapshotPath = "data/normalized/dld_market_snapshot.json";
 const osmSnapshotPath = "data/normalized/open_geodata_snapshot.json";
 const dldLegacyPath = "data/external/normalized/market_area_metrics.real.json";
 const osmLegacyPath = "data/external/normalized/spatial_baseline.real.geojson";
+const aggregateOnlyQualitySourceIds = new Set(["osm-geofabrik-baseline"]);
 
 function readJsonFile<T>(relativePath: string): T | null {
   const path = join(process.cwd(), relativePath);
@@ -57,6 +60,83 @@ function readJsonFile<T>(relativePath: string): T | null {
     return JSON.parse(readFileSync(path, "utf8")) as T;
   } catch {
     return null;
+  }
+}
+
+function newestQualityTimestamp(snapshots: SnapshotQualityItem[]) {
+  const timestamps = snapshots
+    .flatMap((snapshot) => [snapshot.generatedAt, snapshot.extractedAt])
+    .filter((value): value is string => Boolean(value))
+    .map((value) => new Date(value).getTime())
+    .filter((value) => Number.isFinite(value));
+
+  if (timestamps.length === 0) return null;
+  return new Date(Math.max(...timestamps)).toISOString();
+}
+
+/**
+ * Category-quality records are the canonical source for per-source counts.
+ * Group totals must not be copied to every category, and legacy aggregate
+ * entries remain separate because they can overlap the canonical categories.
+ */
+function applyPerSourceQualityOverlay(
+  sourceById: Map<string, ExternalDataManifestSource>,
+  sourceQuality: SourceQualityManifest
+) {
+  const snapshotsBySourceId = new Map<string, SnapshotQualityItem[]>();
+
+  for (const snapshot of sourceQuality.groups.flatMap((group) => group.snapshots)) {
+    if (aggregateOnlyQualitySourceIds.has(snapshot.sourceId) || !sourceById.has(snapshot.sourceId)) continue;
+    const existing = snapshotsBySourceId.get(snapshot.sourceId) ?? [];
+    existing.push(snapshot);
+    snapshotsBySourceId.set(snapshot.sourceId, existing);
+  }
+
+  for (const [sourceId, snapshots] of snapshotsBySourceId) {
+    const existing = sourceById.get(sourceId);
+    if (!existing) continue;
+
+    const status = snapshots
+      .map((snapshot) => normalizeSourceStatus(snapshot.status))
+      .sort((a, b) => sourceStatusPriority(a) - sourceStatusPriority(b))[0];
+    const preferredSnapshot = snapshots.find((snapshot) => normalizeSourceStatus(snapshot.status) === status) ?? snapshots[0];
+    const recordCounts = snapshots
+      .map((snapshot) => snapshot.recordCount)
+      .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+    const featureCounts = snapshots
+      .map((snapshot) => snapshot.featureCount)
+      .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+    const recordCount = recordCounts.length > 0 ? recordCounts.reduce((sum, value) => sum + value, 0) : undefined;
+    const featureCount = featureCounts.length > 0 ? featureCounts.reduce((sum, value) => sum + value, 0) : undefined;
+    const evidenceCount = featureCount ?? recordCount ?? 0;
+    const availableFiles = Array.from(new Set(
+      snapshots.flatMap((snapshot) => snapshot.availableFiles).filter(normalizedExternalFileExists)
+    ));
+    const {
+      rowCount: _staleRowCount,
+      featureCount: _staleFeatureCount,
+      recordCount: _staleRecordCount,
+      ...stableFields
+    } = existing;
+    const next: ExternalDataManifestSource = {
+      ...stableFields,
+      id: sourceId,
+      status,
+      sourceMode: normalizeSourceDataMode(preferredSnapshot.dataMode ?? status),
+      lastUpdated: newestQualityTimestamp(snapshots) ?? existing.lastUpdated ?? null,
+      availableFiles,
+      recordCount,
+      confidence: preferredSnapshot.confidence,
+      usedInAnalysis: evidenceCount > 0
+    };
+
+    if (typeof featureCount === "number") {
+      next.featureCount = featureCount;
+    } else if (typeof recordCount === "number") {
+      next.rowCount = recordCount;
+    }
+
+    sourceById.set(sourceId, next);
   }
 }
 
@@ -104,6 +184,7 @@ export function normalizedExternalFileExists(relativePath: string) {
 }
 
 function enrichManifestWithSnapshots(manifest: ExternalDataManifest): ExternalDataManifest {
+  const sourceQuality = buildSourceQualityManifest();
   const dldSnapshot = readJsonFile<{ areas?: unknown[]; generatedAt?: string; quality?: { notes?: string[] } }>(dldSnapshotPath) ??
     dldSnapshotStatic as { areas?: unknown[]; generatedAt?: string; quality?: { notes?: string[] } };
   const osmSnapshot = readJsonFile<{ roads?: unknown[]; pois?: unknown[]; landuse?: unknown[]; generatedAt?: string }>(osmSnapshotPath) ??
@@ -122,41 +203,23 @@ function enrichManifestWithSnapshots(manifest: ExternalDataManifest): ExternalDa
     });
   };
 
-  const dldCount = dldSnapshot?.areas?.length ?? dldLegacy?.areas?.length ?? 0;
-  const dldPublicFiles = [
-    "data/normalized/dld_transactions_snapshot.json",
-    "data/normalized/dld_rents_snapshot.json",
-    "data/normalized/dld_projects_snapshot.json",
-    "data/normalized/dld_valuations_snapshot.json",
-    "data/normalized/dld_land_snapshot.json",
-    "data/normalized/dld_building_snapshot.json",
-    "data/normalized/dld_unit_snapshot.json",
-    "data/normalized/dld_brokers_snapshot.json",
-    "data/normalized/dld_developers_snapshot.json",
-    "data/normalized/dld_market_summary.json",
-    "data/normalized/dld_source_quality.json"
-  ].filter(normalizedExternalFileExists);
-  const dldPublicQuality = readJsonFile<{ totalRecords?: number; categories?: Record<string, { recordCount?: number; status?: string }> }>("data/normalized/dld_source_quality.json");
-  const dldPublicCount = dldPublicQuality?.totalRecords ?? dldCount;
-  const dldMarketSnapshotFileExists = normalizedExternalFileExists(dldSnapshotPath);
-  const dldLegacyStatus: SourceStatus = normalizedExternalFileExists(dldLegacyPath) || dldMarketSnapshotFileExists ? "snapshot_available" : "sample_fallback";
-  const dldPublicStatuses = Object.values(dldPublicQuality?.categories ?? {}).map((item) => normalizeSourceStatus(item.status));
-  const dldPublicStatus: SourceStatus = dldPublicStatuses.some((status) => status === "snapshot_available") ? "snapshot_available" : "sample_fallback";
+  const dldCount = dldLegacy?.areas?.length ?? dldSnapshot?.areas?.length ?? 0;
+  const dldLegacyStatus: SourceStatus = normalizedExternalFileExists(dldLegacyPath)
+    ? "snapshot_available"
+    : normalizeSourceStatus(sourceById.get("dld-dubai-pulse-transactions")?.status ?? "sample_fallback");
   const dldSourceMode: SourceDataMode = normalizedExternalFileExists(dldLegacyPath)
     ? "real_snapshot"
-    : dldMarketSnapshotFileExists
-      ? "sample_fallback"
-      : "manual_import_ready";
+    : normalizeSourceDataMode(sourceById.get("dld-dubai-pulse-transactions")?.sourceMode ?? dldLegacyStatus);
   const dldPatch: Partial<ExternalDataManifestSource> = {
     status: dldCount > 0 ? dldLegacyStatus : "sample_fallback",
-    sourceMode: dldCount > 0 ? dldSourceMode : "manual_import_ready",
+    sourceMode: dldCount > 0 ? dldSourceMode : "sample_fallback",
     lastUpdated: dldSnapshot?.generatedAt ?? sourceById.get("dld-dubai-pulse-transactions")?.lastUpdated ?? null,
-    rowCount: dldPublicCount,
-    recordCount: dldPublicCount,
+    rowCount: dldCount,
+    recordCount: dldCount,
     availableFiles: [
       normalizedExternalFileExists(dldSnapshotPath) ? dldSnapshotPath : null,
       normalizedExternalFileExists(dldLegacyPath) ? dldLegacyPath : null
-    ].filter((file): file is string => Boolean(file)).concat(dldPublicFiles),
+    ].filter((file): file is string => Boolean(file)),
     coverageArea: "Dubai market areas",
     confidence: dldLegacyStatus === "snapshot_available" ? "medium" : "low",
     caveat: dldCount > 0
@@ -176,36 +239,23 @@ function enrichManifestWithSnapshots(manifest: ExternalDataManifest): ExternalDa
     "dld-dubai-pulse-public-brokers",
     "dld-dubai-pulse-public-developers"
   ].forEach((id) => update(id, {
-    ...dldPatch,
-    status: dldPublicFiles.length > 0 ? dldPublicStatus : "sample_fallback",
-    sourceMode: dldPublicStatus === "snapshot_available" ? "imported_snapshot" : "sample_fallback",
-    coverageArea: "Dubai public real-estate categories"
+    coverageArea: "Dubai public real-estate categories",
+    caveat: externalDataCaveat
   }));
 
   const osmCount = (osmSnapshot?.roads?.length ?? 0) + (osmSnapshot?.pois?.length ?? 0) + (osmSnapshot?.landuse?.length ?? 0);
   const legacyOsmCount = osmLegacy?.features?.length ?? 0;
-  const resolvedOsmCount = osmCount || legacyOsmCount;
-  const osmPublicFiles = [
-    "data/normalized/osm_roads_snapshot.json",
-    "data/normalized/osm_buildings_snapshot.json",
-    "data/normalized/osm_pois_snapshot.json",
-    "data/normalized/osm_landuse_snapshot.json",
-    "data/normalized/osm_transport_snapshot.json",
-    "data/normalized/osm_source_quality.json"
-  ].filter(normalizedExternalFileExists);
-  const osmPublicQuality = readJsonFile<{ totalFeatures?: number; status?: string }>("data/normalized/osm_source_quality.json");
-  const osmPublicCount = osmPublicQuality?.totalFeatures ?? resolvedOsmCount;
+  const resolvedOsmCount = osmLegacy ? legacyOsmCount : osmCount;
   const osmLegacyStatus: SourceStatus = normalizedExternalFileExists(osmLegacyPath) ? "snapshot_available" : "sample_fallback";
-  const osmPublicStatus = normalizeSourceStatus(osmPublicQuality?.status ?? osmLegacyStatus);
   const osmPatch: Partial<ExternalDataManifestSource> = {
     status: resolvedOsmCount > 0 ? osmLegacyStatus : "sample_fallback",
     lastUpdated: osmSnapshot?.generatedAt ?? sourceById.get("osm-geofabrik-baseline")?.lastUpdated ?? null,
-    featureCount: osmPublicCount,
-    recordCount: osmPublicCount,
+    featureCount: resolvedOsmCount,
+    recordCount: resolvedOsmCount,
     availableFiles: [
       normalizedExternalFileExists(osmSnapshotPath) ? osmSnapshotPath : null,
       normalizedExternalFileExists(osmLegacyPath) ? osmLegacyPath : null
-    ].filter((file): file is string => Boolean(file)).concat(osmPublicFiles),
+    ].filter((file): file is string => Boolean(file)),
     coverageArea: "Dubai open geospatial baseline",
     confidence: osmLegacyStatus === "snapshot_available" ? "medium" : "low",
     sourceMode: normalizedExternalFileExists(osmLegacyPath) ? "real_snapshot" : "sample_fallback",
@@ -216,27 +266,12 @@ function enrichManifestWithSnapshots(manifest: ExternalDataManifest): ExternalDa
   };
   update("osm-geofabrik-baseline", osmPatch);
   ["osm-geofabrik-open-roads", "osm-geofabrik-open-pois", "osm-geofabrik-open-buildings"].forEach((id) => update(id, {
-    ...osmPatch,
-    status: osmPublicFiles.length > 0 ? osmPublicStatus : "sample_fallback",
-    sourceMode: osmPublicStatus === "snapshot_available" ? "imported_snapshot" : "sample_fallback"
+    coverageArea: "Dubai open geospatial baseline",
+    caveat: externalDataCaveat
   }));
 
-  const overtureFiles = [
-    "data/normalized/overture_buildings_snapshot.json",
-    "data/normalized/overture_places_snapshot.json",
-    "data/normalized/overture_transportation_snapshot.json",
-    "data/normalized/overture_source_quality.json"
-  ].filter(normalizedExternalFileExists);
-  const overtureQuality = readJsonFile<{ totalFeatures?: number; status?: string }>("data/normalized/overture_source_quality.json");
-  const overtureStatus = normalizeSourceStatus(overtureQuality?.status ?? "manual_import_ready");
   ["overture-maps-open-buildings", "overture-maps-open-places", "overture-maps-open-transportation"].forEach((id) => update(id, {
-    status: overtureFiles.length > 0 ? overtureStatus : "manual_import_ready",
-    sourceMode: overtureFiles.length > 0 ? normalizeSourceDataMode(overtureStatus) : "manual_import_ready",
-    featureCount: overtureQuality?.totalFeatures,
-    recordCount: overtureQuality?.totalFeatures,
-    availableFiles: overtureFiles,
     coverageArea: "Dubai open Overture snapshot",
-    confidence: overtureStatus === "snapshot_available" ? "medium" : "low",
     caveat: `Overture Maps open snapshot/manual import context. ${externalDataCaveat}`
   }));
 
@@ -284,10 +319,12 @@ function enrichManifestWithSnapshots(manifest: ExternalDataManifest): ExternalDa
     caveat: `Open-Meteo commercial-use approval is required before activation; no API response or snapshot is claimed. ${externalDataCaveat}`
   });
 
+  applyPerSourceQualityOverlay(sourceById, sourceQuality);
+
   return {
     ...manifest,
     version: "1.6",
-    sourceQuality: buildSourceQualityManifest(),
+    sourceQuality,
     sources: externalDataSources.map((source) => {
       const existing = sourceById.get(source.id);
       return {

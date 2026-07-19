@@ -4,9 +4,11 @@
 
 | Field | Value |
 |---|---|
-| Status | Owner-accepted for merge / fixed-geography Preview scope; Production source activation remains disabled |
+| Status | Merged and post-merge verified for fixed-geography Preview scope; Production source activation remains disabled |
 | User authority | Critical review, autonomous Preview implementation and removal of current-stage HOLDs requested on 2026-07-15 |
-| Repository baseline | `main` at `754a9c68cd1ee7af80731f1b779df023d54e901e` |
+| Development baseline | `main` at `754a9c68cd1ee7af80731f1b779df023d54e901e` |
+| Released authority | PR [#87](https://github.com/mmgolikov/geoai-mvp/pull/87), merge SHA `2999e7e857989baf53ce58ecfed63550b5896be0` |
+| Release evidence | GitHub Actions run `29456624801` (18/18); Vercel Production `dpl_EAXREH31JKznnGbQYEU8bNqTqagN` READY on the exact merge SHA |
 | Delivery mode | Stateless local/Vercel Preview only; Production fails closed |
 | Product score impact | None |
 | Supabase impact | None; no migration, write or external-payload persistence |
@@ -23,7 +25,7 @@ The first connection package is deliberately narrow:
 
 Open-Meteo live access is blocked. Its free endpoint is non-commercial and is not cleared for a public, promotional or commercial GeoAI Preview. DLD/Dubai Pulse live access is blocked because a stable public API and reusable licence were not verified. Overture is deferred because its useful delivery paths are geometry-bearing release files with theme-specific attribution obligations.
 
-The owner accepted this bounded package for merge consideration on 2026-07-15. Independent reviewer approvals are intentionally waived for this phase; no independent review is claimed. Actual merge is a separate repository operation and was not performed by this change. Production live-source activation, imagery download, source geometry, Supabase persistence, Auth/RLS/Storage changes, secrets and new environment variables remain prohibited.
+The owner accepted this bounded package on 2026-07-15 without an independent-reviewer prerequisite; no independent review is claimed. PR #87 is merged and the exact merge SHA passed the main quality run and is deployed in Vercel Production. Production still fails closed before any source-provider request: the source-pack endpoint returns HTTP 503 with activation disabled and zero sources. Imagery download, source geometry, Supabase persistence, Auth/RLS/Storage changes, secrets and source-dependent scoring remain outside this released scope.
 
 ## Owner decision and residual disposition
 
@@ -150,7 +152,7 @@ Common controls:
 - [x] Vercel Preview evidence is recorded externally against the final published PR head.
 - [x] Live Preview smoke records schema/freshness only, never mutable value equality.
 - [x] Deployment-scoped warning/error/4xx/5xx logs are reviewed.
-- [x] Production deployment and Supabase migration/table state are unchanged before merge.
+- [x] Production source execution and Supabase migration/table state remained unchanged by the release.
 
 ## Rollback
 
@@ -164,7 +166,7 @@ Revert the source-pack commit or remove its route and runtime modules. No databa
 | G1 | Truth/safety controls verified; accepted by owner |
 | G2 | Provider rights/attribution controls verified for Preview; accepted by owner |
 | G3 | Final exact-head Preview and quality evidence recorded in PR/issue; accepted by owner |
-| G4 | Merge HOLD removed by owner; no independent reviewer approval is required or claimed for this phase; Production live mode remains off |
+| G4 | Completed: owner removed the merge HOLD; PR #87 is merged; no independent reviewer approval is required or claimed for this phase; Production live mode remains off |
 | G5 | Still required separately for any Production source activation, secret, persistence, geometry, imagery or source-dependent scoring |
 
 **Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.**

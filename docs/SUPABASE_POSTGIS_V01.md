@@ -1,5 +1,7 @@
 # Supabase / PostGIS Foundation v0.1
 
+> **Superseded — do not use operationally.** This historical foundation predates the canonical migration ledger, api-only Data API boundary and publishable-key runtime contract. Do not run its `db push`, seed or environment instructions. Use the [Documentation Index](DOCUMENTATION_INDEX.md), [Current Release State](CURRENT_RELEASE_STATE.md) and [Supabase Data API Containment Runbook](SUPABASE_DATA_API_CONTAINMENT_RUNBOOK_2026_07_16.md).
+
 GeoAI currently runs as a stable demo-normalized prototype. Supabase/PostGIS v0.1 adds an optional persistence and spatial database foundation without changing the working Mapbox, analysis, comparison, or report flows.
 
 This foundation is intentionally non-blocking: if Supabase is not configured, GeoAI continues to run in local/demo mode.

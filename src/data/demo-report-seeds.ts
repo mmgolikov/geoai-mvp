@@ -2,6 +2,7 @@ import { createMockComparison, createComparisonItem } from "@/src/lib/mock-compa
 import { createMockExpressAnalysis, analysisScenarios } from "@/src/lib/mock-express-analysis";
 import { createSourceLineageSnapshot } from "@/src/lib/source-lineage-snapshot";
 import type { ReportMapSnapshot } from "@/src/lib/report-map-snapshot";
+import { aggregateSpatialAttribution } from "@/src/lib/spatial-b2/attribution";
 import { demoProjects } from "@/src/data/demo-projects";
 import type { AnalysisScenarioId, ComparisonResult, ExpressAnalysis, SelectedDemoObject, SelectedPoint } from "@/src/types/geo";
 
@@ -12,7 +13,12 @@ const seededMarinaMapSnapshot: ReportMapSnapshot = {
   height: 358,
   capturedAt: createdAt,
   targetLabel: "Dubai Marina / JBR Market Signal",
-  source: "seeded-dashboard-map"
+  source: "seeded-dashboard-map",
+  attribution: aggregateSpatialAttribution({
+    sourceMode: "synthetic_fallback",
+    basemapMode: "mapbox",
+    activeAttributionIds: ["geoai-sample-layers"]
+  })
 };
 
 const investmentProject = demoProjects.find((project) => project.projectKey === "dubai-investment-screening-demo") ?? demoProjects[0];
@@ -309,6 +315,7 @@ function analysisReportRecord(id: string, analysis: ExpressAnalysis, title: stri
       evidence: analysis.evidence,
       uploadedDatasets: []
     }),
+    evidenceAuthority: "committed_demo_seed" as const,
     createdAt,
     sourceSummary
   };
@@ -328,6 +335,7 @@ function comparisonReportRecord(id: string, comparison: ComparisonResult, title:
       evidence: comparison.evidence,
       uploadedDatasets: []
     }),
+    evidenceAuthority: "committed_demo_seed" as const,
     createdAt,
     sourceSummary
   };

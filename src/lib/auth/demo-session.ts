@@ -7,9 +7,18 @@ import type {
 
 export const demoUser: GeoAIUser = {
   id: "demo-user-geoai",
-  email: "demo@geoai.local",
+  email: "demo@geoai.space",
+  phone: null,
   name: "GeoAI Demo User",
-  isDemoUser: true
+  isDemoUser: true,
+  profile: {
+    fullName: "GeoAI Demo User",
+    region: "Dubai / UAE",
+    defaultAudience: "b2b",
+    defaultRole: "developer",
+    contactPhone: "",
+    avatarUrl: null
+  }
 };
 
 export const demoOrganization: GeoAIOrganization = {

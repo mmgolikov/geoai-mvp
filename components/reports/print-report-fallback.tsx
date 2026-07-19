@@ -6,6 +6,7 @@ import { AnalysisReportPrint } from "@/components/reports/analysis-report-print"
 import { ComparisonReportPrint } from "@/components/reports/comparison-report-print";
 import { PrintButton } from "@/components/reports/print-button";
 import { getSeededDemoReportRecord } from "@/src/data/demo-report-seeds";
+import { browserDemoStorageKey, isBrowserDemoStorageEnabled } from "@/src/lib/browser-demo-storage";
 import { normalizeReportDeliverable, type AnalysisReportDeliverable, type ComparisonReportDeliverable } from "@/src/lib/report-deliverables";
 
 type PrintReportFallbackProps = {
@@ -18,9 +19,14 @@ export function PrintReportFallback({ reportId }: PrintReportFallbackProps) {
 
   useEffect(() => {
     try {
-      const storageKey = `geoai-print-report:${reportId}`;
-      const sessionRaw = window.sessionStorage.getItem(storageKey);
-      const localRaw = window.localStorage.getItem(storageKey);
+      const storageKey = browserDemoStorageKey(`print-report:${reportId}`);
+      const browserStorageEnabled = isBrowserDemoStorageEnabled();
+      const sessionRaw = browserStorageEnabled
+        ? window.sessionStorage.getItem(storageKey)
+        : null;
+      const localRaw = browserStorageEnabled
+        ? window.localStorage.getItem(storageKey)
+        : null;
       const parsed = sessionRaw
         ? JSON.parse(sessionRaw)
         : localRaw
@@ -40,7 +46,7 @@ export function PrintReportFallback({ reportId }: PrintReportFallbackProps) {
         <div className="print-hidden mx-auto mb-4 flex max-w-[920px] flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">Printable deliverable</p>
-            <h1 className="mt-1 text-xl font-semibold text-ink">{report.title}</h1>
+            <h2 className="mt-1 text-xl font-semibold text-ink">{report.title}</h2>
             <p className="mt-1 text-sm leading-6 text-muted">Loaded from saved browser/sample fallback; official validation required.</p>
           </div>
           <div className="flex flex-wrap gap-2">

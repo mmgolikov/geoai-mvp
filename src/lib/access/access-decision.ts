@@ -1,12 +1,61 @@
-import type { GeoAIAuthMode, GeoAIProjectMembershipStatus, GeoAIProjectRole } from "@/src/types/auth";
+import type {
+  GeoAIAuthMode,
+  GeoAIOrganizationCapability,
+  GeoAIProjectMembershipStatus,
+  GeoAIProjectRole
+} from "@/src/types/auth";
 
-export type ProjectAccessAction = "read" | "write" | "manage" | "export" | "validate" | "upload" | "review";
+export type LegacyProjectAccessAction =
+  | "read"
+  | "write"
+  | "manage"
+  | "export"
+  | "validate"
+  | "upload"
+  | "review"
+  | "generate"
+  | "attest_client"
+  | "attest_official";
+export type ProjectResourceAction =
+  | "project.read"
+  | "project.create"
+  | "project.update"
+  | "project.delete"
+  | "members.read"
+  | "members.manage"
+  | "aoi.read"
+  | "aoi.write"
+  | "aoi.delete"
+  | "analysis.read"
+  | "analysis.run"
+  | "comparison.read"
+  | "comparison.write"
+  | "comparison.delete"
+  | "report.read"
+  | "report.generate"
+  | "report.export"
+  | "evidence.read"
+  | "evidence.upload"
+  | "evidence.delete"
+  | "evidence.review_screening"
+  | "evidence.attest_client"
+  | "evidence.attest_official"
+  | "dataset.read"
+  | "dataset.upload"
+  | "dataset.delete"
+  | "workflow.read"
+  | "workflow.write"
+  | "source.read"
+  | "source.manage"
+  | "audit.read";
+export type ProjectAccessAction = LegacyProjectAccessAction | ProjectResourceAction;
 export type ProjectAccessDecisionMode = "soft" | "hard";
 
 export type ProjectAccessDecisionStatus =
   | "unauthenticated"
   | "demo_public"
   | "authenticated_without_profile"
+  | "profile_without_organization_membership"
   | "profile_without_project_membership"
   | "allowed_project_member"
   | "wrong_organization"
@@ -21,8 +70,14 @@ export type ProjectAccessDecisionUser = {
 export type ProjectAccessDecisionProfile = {
   id: string;
   authUserId?: string | null;
-  organizationId?: string | null;
   status?: "active" | "invited" | "disabled" | string | null;
+};
+
+export type ProjectAccessDecisionOrganizationMembership = {
+  profileId?: string | null;
+  organizationId?: string | null;
+  role?: "owner" | "admin" | "member" | null;
+  status?: "active" | "invited" | "disabled" | "suspended" | string | null;
 };
 
 export type ProjectAccessDecisionProject = {
@@ -49,7 +104,9 @@ export type ProjectAccessDecisionInput = {
   user?: ProjectAccessDecisionUser | null;
   profile?: ProjectAccessDecisionProfile | null;
   project?: ProjectAccessDecisionProject | null;
+  organizationMembership?: ProjectAccessDecisionOrganizationMembership | null;
   membership?: ProjectAccessDecisionMembership | null;
+  capabilities?: GeoAIOrganizationCapability[];
   allowDemoPublic?: boolean;
 };
 
@@ -69,21 +126,75 @@ export type ProjectAccessDecision = {
 export const accessDecisionCaveat =
   "Access decision scaffold only; enable hard access only after Supabase Auth, project memberships and RLS are verified.";
 
-export const roleRank: Record<GeoAIProjectRole, number> = {
-  client_viewer: 1,
-  viewer: 2,
-  analyst: 3,
-  admin: 4,
-  owner: 5
+const actionRoles: Record<ProjectResourceAction, readonly GeoAIProjectRole[]> = {
+  "project.read": ["client_viewer", "viewer", "analyst", "admin", "owner"],
+  "project.create": ["admin", "owner"],
+  "project.update": ["admin", "owner"],
+  "project.delete": ["owner"],
+  "members.read": ["admin", "owner"],
+  "members.manage": ["admin", "owner"],
+  "aoi.read": ["viewer", "analyst", "admin", "owner"],
+  "aoi.write": ["analyst", "admin", "owner"],
+  "aoi.delete": ["admin", "owner"],
+  "analysis.read": ["viewer", "analyst", "admin", "owner"],
+  "analysis.run": ["analyst", "admin", "owner"],
+  "comparison.read": ["viewer", "analyst", "admin", "owner"],
+  "comparison.write": ["analyst", "admin", "owner"],
+  "comparison.delete": ["admin", "owner"],
+  "report.read": ["client_viewer", "viewer", "analyst", "admin", "owner"],
+  "report.generate": ["analyst", "admin", "owner"],
+  "report.export": ["client_viewer", "viewer", "analyst", "admin", "owner"],
+  "evidence.read": ["viewer", "analyst", "admin", "owner"],
+  "evidence.upload": ["analyst", "admin", "owner"],
+  "evidence.delete": ["admin", "owner"],
+  "evidence.review_screening": ["analyst", "admin", "owner"],
+  "evidence.attest_client": ["admin", "owner"],
+  "evidence.attest_official": ["admin", "owner"],
+  "dataset.read": ["viewer", "analyst", "admin", "owner"],
+  "dataset.upload": ["analyst", "admin", "owner"],
+  "dataset.delete": ["admin", "owner"],
+  "workflow.read": ["client_viewer", "viewer", "analyst", "admin", "owner"],
+  "workflow.write": ["analyst", "admin", "owner"],
+  "source.read": ["viewer", "analyst", "admin", "owner"],
+  "source.manage": [],
+  "audit.read": ["admin", "owner"]
 };
 
-export function roleAllowsAction(role: GeoAIProjectRole, action: ProjectAccessAction) {
-  if (action === "read") return roleRank[role] >= roleRank.client_viewer;
-  if (action === "export") return role === "client_viewer" || roleRank[role] >= roleRank.viewer;
-  if (action === "write" || action === "upload" || action === "review" || action === "validate") {
-    return roleRank[role] >= roleRank.analyst;
+const legacyActionMap: Record<LegacyProjectAccessAction, ProjectResourceAction> = {
+  read: "project.read",
+  write: "project.update",
+  manage: "members.manage",
+  export: "report.export",
+  validate: "evidence.review_screening",
+  upload: "evidence.upload",
+  review: "evidence.review_screening",
+  generate: "report.generate",
+  attest_client: "evidence.attest_client",
+  attest_official: "evidence.attest_official"
+};
+
+function normalizeAction(action: ProjectAccessAction): ProjectResourceAction {
+  return action.includes(".")
+    ? action as ProjectResourceAction
+    : legacyActionMap[action as LegacyProjectAccessAction];
+}
+
+export function roleAllowsAction(
+  role: GeoAIProjectRole,
+  action: ProjectAccessAction,
+  capabilities: readonly GeoAIOrganizationCapability[] = []
+) {
+  const normalized = normalizeAction(action);
+  if (normalized === "evidence.attest_client") {
+    return actionRoles[normalized].includes(role) && capabilities.includes("client_attestor");
   }
-  return roleRank[role] >= roleRank.admin;
+  if (normalized === "evidence.attest_official") {
+    return actionRoles[normalized].includes(role) && capabilities.includes("official_attestor");
+  }
+  if (normalized === "source.manage") {
+    return capabilities.includes("source_operator");
+  }
+  return actionRoles[normalized].includes(role);
 }
 
 function decision(input: {
@@ -113,7 +224,7 @@ function decision(input: {
 
 function isActiveProfile(profile: ProjectAccessDecisionProfile | null | undefined) {
   if (!profile) return false;
-  return !profile.status || profile.status === "active";
+  return profile.status === "active";
 }
 
 function isMatchingMembership(input: ProjectAccessDecisionInput) {
@@ -125,31 +236,30 @@ function isMatchingMembership(input: ProjectAccessDecisionInput) {
     return false;
   }
 
-  const membershipProfileId = membership.userId ?? membership.profileId;
-  if (profile?.id && membershipProfileId && membershipProfileId !== profile.id) {
-    return false;
-  }
-
-  if (project?.id && membership.projectId && membership.projectId !== project.id) {
-    return false;
-  }
-
-  if (project?.projectKey && membership.projectKey && membership.projectKey !== project.projectKey) {
-    return false;
-  }
-
+  const membershipProfileId = membership.profileId ?? membership.userId ?? null;
+  if (!profile?.id || !membershipProfileId || membershipProfileId !== profile.id) return false;
+  if (!project?.id || !membership.projectId || membership.projectId !== project.id) return false;
+  if (project.projectKey && membership.projectKey !== project.projectKey) return false;
   return true;
 }
 
+function isActiveOrganizationMembership(input: ProjectAccessDecisionInput) {
+  const membership = input.organizationMembership;
+  return Boolean(
+    membership &&
+    membership.status === "active" &&
+    input.profile?.id &&
+    membership.profileId === input.profile.id
+  );
+}
+
 function isWrongOrganization(input: ProjectAccessDecisionInput) {
-  const profileOrg = input.profile?.organizationId;
+  const organizationMembershipOrg = input.organizationMembership?.organizationId;
   const membershipOrg = input.membership?.organizationId;
   const projectOrg = input.project?.organizationId;
 
-  if (projectOrg && membershipOrg && projectOrg !== membershipOrg) return true;
-  if (projectOrg && profileOrg && projectOrg !== profileOrg) return true;
-  if (membershipOrg && profileOrg && membershipOrg !== profileOrg) return true;
-  return false;
+  if (!projectOrg || !membershipOrg || !organizationMembershipOrg) return true;
+  return projectOrg !== membershipOrg || projectOrg !== organizationMembershipOrg || membershipOrg !== organizationMembershipOrg;
 }
 
 export function getProjectAccessDecision(input: ProjectAccessDecisionInput): ProjectAccessDecision {
@@ -209,6 +319,30 @@ export function getProjectAccessDecision(input: ProjectAccessDecisionInput): Pro
     });
   }
 
+  if (!input.profile?.authUserId || input.profile.authUserId !== input.user.id) {
+    return decision({
+      allowed: false,
+      status: "authenticated_without_profile",
+      httpStatus: 403,
+      mode,
+      authMode: input.authMode,
+      action: input.action,
+      reason: "The authenticated user is not mapped to this server-verified GeoAI profile."
+    });
+  }
+
+  if (!isActiveOrganizationMembership(input)) {
+    return decision({
+      allowed: false,
+      status: "profile_without_organization_membership",
+      httpStatus: 403,
+      mode,
+      authMode: input.authMode,
+      action: input.action,
+      reason: "The active profile does not have an active organization membership for this project."
+    });
+  }
+
   if (!isMatchingMembership(input)) {
     return decision({
       allowed: false,
@@ -235,7 +369,7 @@ export function getProjectAccessDecision(input: ProjectAccessDecisionInput): Pro
   }
 
   const role = input.membership?.role ?? null;
-  if (!role || !roleAllowsAction(role, input.action)) {
+  if (!role || !roleAllowsAction(role, input.action, input.capabilities)) {
     return decision({
       allowed: false,
       status: "insufficient_role",

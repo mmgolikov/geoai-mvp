@@ -1,215 +1,111 @@
-# GeoAI Data Strategy
+# GeoAI Data and Source Strategy
 
-This document describes the current demo data strategy and the intended path toward production data readiness.
+Status: Active baseline
+Last verified: 2026-07-16
+Owner: GeoAI Data / Engineering
+Authority: Current source, custody and evidence policy
+Successor: None; any replacement must update `DOCUMENTATION_INDEX.md`
+Released baseline: PR #87 / `2999e7e857989baf53ce58ecfed63550b5896be0`
+Unreleased implementation scope: audit worktree / Draft PR #97 candidate; candidate controls do not describe Production until merge and deploy
+Navigation: [Confluence Hub](https://geoaimvp.atlassian.net/wiki/spaces/PH/overview) · [Documentation Index](DOCUMENTATION_INDEX.md) · [Current Release State](CURRENT_RELEASE_STATE.md) · [Architecture](architecture.md) · [Full System Audit](FULL_SYSTEM_AUDIT_2026_07_16.md) · [Codex Backlog](CODEX_BACKLOG_2026_07_16.md)
 
-## Current Synthetic Demo Data
+## Operating principle
 
-The MVP uses synthetic Dubai-focused demo data only.
+GeoAI is source-lineage-first and fail-closed. A registered connector, sample file, successful catalogue request or provider name is not evidence activation. A source can affect Product claims or scoring only after access rights, license/attribution, custody, schema, visibility, quality and fallback behavior are independently verified.
 
-Current demo data lives in:
+The isolated Free Auth rehearsal now proves the SOURCE-01 schema can coexist with the rebuilt and lifecycle-remediated tenant/Auth/Admin model: hosted SQL personas pass `183/183`, the Data API exposes only reviewed `api` RPCs, and direct `public` HTTP access is denied. No provider is connected and no trusted worker exists; therefore this evidence changes database readiness only and authorizes no source fetch, write, scoring or Product claim. [Receipt](SUPABASE_AUTH_REHEARSAL_RECEIPT_2026_07_16.json).
 
-- `src/data/demo-layers.ts`
-- `src/data/demo-objects.json`
+## Current source authority
 
-The demo layers are hand-authored, lightweight GeoJSON-style objects. They are used to demonstrate product workflows, not to provide authoritative planning, market, or risk intelligence.
+| Source group | Current state | Allowed use | Prohibited interpretation |
+| --- | --- | --- | --- |
+| Synthetic/seed GeoJSON | Active public demo | Stable workflow and UI demonstration | Official parcel, planning, zoning, cadastral or risk geometry |
+| User-uploaded CSV/GeoJSON | Project-tagged browser-local only in public demo; structural quotas; validation required | Non-confidential user-provided screening context | Personal/confidential/regulated data, server persistence, cross-user sharing, verified or official evidence |
+| NASA POWER | Fixed historical point context in bounded Preview | Low-volume climate/energy screening context | Engineering/insurance-grade model or live SLA |
+| Copernicus Sentinel-2 | Catalogue metadata only in bounded Preview | Availability/context metadata | Geometry, bbox, imagery asset acquisition or analysis |
+| OSM Overpass | Bounded counts only in Preview | Count-level open context with ODbL attribution | Features, coordinates, geometry or official GIS |
+| Open-Meteo | `permission_required` | Limitation/caveat only | Evidence, AI payload, scoring or live Product context |
+| DLD/Dubai Pulse | Blocked pending stable approved access/snapshot and reusable rights | Readiness/manual import planning | Live/official integration or current transaction evidence |
+| Overture/OSM geometry | Deferred | Contract/design work only | Activated Product geometry |
+| WorldPop/OpenAQ/administrative samples | Sample/manual/readiness | Caveated source catalog context | Connected or decision-grade evidence |
 
-Current synthetic categories:
+Production source-pack API execution is disabled and returns HTTP 503 with zero active sources. The released `/explore` route nevertheless has a known UI/runtime-environment wiring defect that can present Preview/open-context source semantics; the audit candidate fixes it by resolving the runtime server-side. Treat the API as fail-closed but the released source UI boundary as unverified until Draft PR #97 is merged and deployed. No current source influences deterministic scores.
 
-- Development Zones
-- Premium Real Estate Areas
-- Infrastructure Nodes
-- Construction Sites
-- Coastal / Flood Risk Zones
-- Heat Risk Zones
-- Transport Corridors
+Candidate local/Preview provider execution requires all of: explicit flag, server-only operator token of at least 32 characters and matching request authorization. Production remains disabled. Provider fetches are constrained to fixed HTTPS hosts, reject redirects and cancel non-success/oversized bodies. NASA pairs must align on valid in-period dates and parameter ranges; Copernicus requires the exact collection, strict UTC in-period datetime and 0–100 cloud cover; Overpass requires exactly three finite non-negative count values. This narrows SSRF, accidental activation, semantic corruption and single-response memory risk but is not distributed quota/circuit evidence.
 
-## Future Data Source Registry
+The audit candidate's anonymous data-sources/readiness/manifest/sources/status/lineage routes are static `compact_public_v1` projections of the reviewed repository snapshot. Their API/source contract is `1.3`; manifest is `1.6`; `liveRegistryIncluded:false`. Deep snapshots remain excluded. Exact Preview `dpl_CY7oNavQwu5ddkhRRLaR3FWTd3d9` on head `e999c5a07d3ced6c95f2eb44f6a5f03a9c17caea` measures 5,164/4,411/18,284/5,164/8,221/4,292 B for data-sources/readiness/manifest/sources/status/lineage. The source pack remains 503 with `activationAllowed:false` and zero sources; no provider or Supabase live-registry call was activated.
 
-Production GeoAI should use a Data Source Registry as the system of record for all connected datasets.
+## Source lifecycle
 
-The registry should track:
-
-- Source name
-- Provider
-- Dataset category
-- Geography
-- License
-- Refresh cadence
-- Last updated date
-- Access method
-- Confidence level
-- Usage restrictions
-- Fields available
-- Spatial resolution
-- Temporal resolution
-- Evidence citation format
-
-## Dubai Real Estate Sources
-
-Future real estate data adapters may include:
-
-- Land and parcel datasets where licensed
-- Transaction and valuation datasets
-- Rental market datasets
-- Developer project pipeline data
-- Broker or market research datasets
-- Supply, demand, absorption, and vacancy indicators
-- Asset class benchmarks for residential, commercial, hospitality, logistics, and mixed-use
-
-All commercial datasets require license review before integration.
-
-## GIS And Planning Sources
-
-Future GIS and planning integrations may include:
-
-- Zoning and land-use layers
-- Master plan boundaries
-- Building footprints
-- Permitted density and height controls
-- Protected areas and environmental constraints
-- Road networks and right-of-way data
-- Utility and infrastructure capacity layers
-- Administrative boundaries
-
-Official government or municipality data should be preferred when available and licensed.
-
-## OSM And Infrastructure Sources
-
-OpenStreetMap and other open infrastructure sources can support:
-
-- Road network context
-- Transit stations and lines
-- Points of interest
-- Access and connectivity approximations
-- Public infrastructure context
-
-Open data should be marked clearly as open-source derived and should include attribution and license handling.
-
-## Satellite And Remote Sensing Sources
-
-Future remote sensing integrations may include:
-
-- Satellite basemaps
-- Construction progress monitoring
-- Change detection
-- Vegetation and surface condition indicators
-- Heat and land-surface-temperature proxies
-- Flood, coastal, and drainage exposure context
-- Drone imagery where provided by users or partners
-
-Remote sensing outputs should include date, resolution, provider, processing method, and confidence notes.
-
-## Source Metadata Model
-
-A production source record should include:
-
-```ts
-type DataSource = {
-  id: string;
-  name: string;
-  provider: string;
-  category: string;
-  geography: string;
-  license: string;
-  refreshCadence: string;
-  lastUpdated: string;
-  accessMethod: "api" | "file" | "database" | "manual" | "partner";
-  confidence: "low" | "medium" | "high";
-  restrictions: string[];
-};
+```text
+registered
+  -> rights reviewed
+  -> access acquired
+  -> quarantined snapshot
+  -> checksum/schema/quality validated
+  -> tenant/visibility assigned
+  -> public or project projection approved
+  -> Product evidence integration
+  -> monitored refresh / rollback / retirement
 ```
 
-## Evidence Model
+Skipping a stage is not allowed. `project_key IS NULL` must not be used as a synonym for public when real snapshots are introduced.
 
-GeoAI outputs should eventually reference evidence explicitly.
+## Required custody metadata
 
-An evidence record should include:
+Every acquired snapshot must record:
 
-- Claim or insight
-- Source dataset
-- Source feature or document
-- Timestamp
-- Geometry or location reference
-- Confidence score
-- Citation text
-- Link to raw or derived source where allowed
+- provider and canonical source URL;
+- license, attribution and permitted use;
+- retrieval timestamp, geography and temporal coverage;
+- checksum, byte size, record count and schema version;
+- raw/normalized object identifiers stored only in private/operator surfaces;
+- validation/quarantine state and quality findings;
+- tenant/project scope and explicit visibility (`public_demo`, `project_private`, or operator-only);
+- transformation lineage and code version;
+- retention, refresh, rollback and deletion rules.
 
-This allows analysis cards, dashboards, reports, and exports to show where each claim came from.
+Public APIs may expose only approved DTO fields. Raw filenames, normalized paths, bucket/object paths and private file manifests are not public lineage.
 
-## Data Licensing Notes
+SOURCE-01 migration `20260716113000_geoai_source_custody_foundation_v1.sql` stages the acquired-source authority as five RLS-enabled/direct-grant-closed tables: catalog, releases, artifacts, release-status events and ingestion receipts. Releases, artifacts, status events and receipts are immutable; composite tenant/release and actor organization/project-membership FKs prevent cross-scope custody. Legacy registry rows backfill as `restricted`/`registered_unverified`. Bounded `api.current_source_releases()` exposes only an explicit `approved` release projection for the verified owner/admin/analyst/viewer project context and omits arbitrary quality/lineage summary JSON, Storage paths, source URIs, secrets and `client_viewer`. It is applied and SQL-tested only on isolated rehearsal, remains unapplied to development/Production, connects no provider, grants no write API and does not satisfy rights, retention, trusted-worker or real-persona acceptance.
 
-- Do not assume public web availability means commercial reuse is allowed.
-- Track source licenses before using data in reports.
-- Separate open, commercial, government, partner, and user-uploaded data.
-- Include attribution where required.
-- Keep raw licensed data access-controlled.
-- Make demo/mock data clearly labeled as synthetic.
+SOURCE-02 stages pure `reserve_or_replay` claim v1 between reviewed acquisition intent and a future executor. Execution/idempotency hashes bind exact environment, tenant, connector/provider/parser, rights, broker, endpoint/network/body and window; actor is omitted only from the shared acquisition key. The unsigned digest is correlation-only and grants authorization `none`. External registry/plan/hash revalidation, trusted execution and transactional SOURCE-01 writing remain required. The default registry is empty; there is no fetch/env/secrets/persistence or atomic pre-fetch reservation writer; Production is denied.
 
-## Mock Fallback Strategy
+## Persistence and authorization boundary
 
-The product should continue to support deterministic mock fallback data for demos, local development, and sales walkthroughs.
+Real source ingestion must use a separate operator/worker plane. Before profile RPC, the AUTH boundary requires UUID `claims.sub === auth.getUser().id` and explicit claims/user `is_anonymous === false`; mismatch is 401, anonymous identity 403 and ambiguity fails closed. Exact-target Auth/MFA/Admin/Onboarding routes now consume that identity boundary locally. AUTH-01B separately resolves caller Product project scope and approved source DTOs only. Its Product repository/persona readiness flags remain false and hosted real-user personas are absent, so real-source persistence and protected files remain blocked.
 
-Mock fallback should:
+Review-only Storage authorization delegates one exact organization/project/role predicate to hardened `SECURITY DEFINER geoai_private.has_storage_project_role()` because authenticated callers have no direct protected identity/tenant table `SELECT`. Object read remains operation-aware for authenticated fetch/signing only, denying bucket listing; `client_viewer` is excluded from raw evidence objects. This draft is outside the migration chain and remains unapplied pending full Storage personas.
 
-- Be clearly labeled as demo data.
-- Avoid implying official status.
-- Be deterministic and stable.
-- Mirror future production schemas where possible.
-- Allow offline or token-limited demos.
-- Never mix mock and real evidence without clear labeling.
+The separate development Supabase ref `pphdqkurxneyagvnnjdt` still exposes `public` through the Data API; all six current candidate migrations are unapplied there. Fresh migration-ledger read-back remains exactly ten historical entries/zero candidates; the broader snapshot was 20 public tables/19 RLS, zero Auth users, four buckets/zero object policies and 22 public-table `TRUNCATE` grants for each public role. Head `e999c5a07d3ced6c95f2eb44f6a5f03a9c17caea`, tree `73b7c198813d6aede795b8b186bd4d58e741b181`, passed run `29500488408`; DB job `87627894968` passed clean 71/71, a synthetic ledger-prefix rehearsal and a second 71/71. The separate Free rehearsal adds hosted 183/183 and API-only evidence, but neither receipt is a current-development clone, live-derived upgrade replay, drift, live apply or DB-01 certification. Before any source write, the owner must contain the target Data API and prove live personas. Provider writes remain blocked. See the [containment runbook](SUPABASE_DATA_API_CONTAINMENT_RUNBOOK_2026_07_16.md); it authorizes no development change.
 
-## Snapshot Connector Strategy v1.4
+## Data quality gates
 
-GeoAI now supports optional local snapshot connectors for DLD / Dubai Pulse-style market context and OSM / Geofabrik-style open geospatial context. Snapshot files are local CSV/JSON/GeoJSON inputs, not live official integrations.
+- Schema validation and deterministic normalization.
+- Coordinate, geometry and topology validation where geometry is permitted.
+- Duplicate/outlier/null and temporal-coverage checks.
+- Quality tier and limitations visible in lineage.
+- Sample/permission-required inputs cannot be promoted to acquired evidence.
+- Zero-record, manual-import, planned or permission-required sources cannot appear in report `evidenceUsed`; they remain candidate/validation-required lineage until a selected report/analysis or acquired authorized asset identifies actual use.
+- Missing or failed providers must produce a truthful unavailable/fallback state, not stale positive evidence.
+- AI prompts receive only approved, project-authorized, privacy-classified projections.
 
-Current normalized outputs:
+## Current implementation references
 
-- `data/normalized/dld_market_snapshot.json`
-- `data/normalized/open_geodata_snapshot.json`
-
-Current API context:
-
-- `/api/context/climate` for screening-level Open-Meteo heat/rainfall proxy with demo fallback.
-
-Every snapshot-backed output must retain this caveat: screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.
-
-## Public Data Connectors v1.6
-
-GeoAI v1.6 expands the source strategy from v1.4 snapshots into a structured public source catalog.
-
-Canonical files:
-
-- `src/lib/external-data/public-source-types.ts`
-- `src/lib/external-data/public-source-catalog.ts`
+- `src/lib/external-data/runtime-source-pack.ts`
 - `src/lib/external-data/source-registry.ts`
+- `src/lib/external-data/supabase-source-registry.ts`
+- `src/lib/external-data/public-source-readiness.ts`
+- `src/lib/external-data/public-source-projection.ts`
+- `src/lib/auth/request-project-read-access.ts`
+- `src/lib/repositories/request-scoped-project-read.ts`
+- `src/lib/sources/source-connector.ts`
+- `src/lib/sources/contracts.ts`
+- `security/api-route-access.json`
+- `data/external/normalized/external_data_manifest.json`
+- `docs/CR_DEV8_001_CONTROLLED_OPEN_CONTEXT_SOURCE_CONNECTION_PACK_V1.md`
+- `docs/CR_DEV8_001_QA_CHECKLIST.md`
 
-Supported public/open source groups:
+Historical connector/release documents describe the capability available at their release date. They are not current source authority unless linked from [Documentation Index](DOCUMENTATION_INDEX.md).
 
-- DLD / Dubai Pulse public snapshots for transactions, rents, projects, land, building and unit context.
-- DLD API Gateway as a separate permission-required validation path.
-- OSM / Geofabrik open snapshots for roads, buildings, POIs, landuse and transport context.
-- Overture Maps manual snapshots for buildings, places, transportation and divisions.
-- Open-Meteo climate context.
-- NASA POWER solar and wind screening context.
-- OpenAQ air-quality context.
-- WorldPop demographic/catchment context.
-- Copernicus / Sentinel metadata availability path.
-- Non-official administrative context through Overture divisions or optional GADM caveated usage.
-
-The v1.6 strategy keeps source text centralized in the catalog so UI, manifest, readiness and reports can refer to source metadata instead of scattered hardcoded claims.
-
-Every v1.6 source remains screening-level unless separately validated by client-approved or authorized official sources.
-
-## Real Data + OpenAI Decision Scoring Foundation v2.1
-
-GeoAI v2.1 separates storage repository modes from source data modes.
-
-Repository modes describe persistence behavior: `supabase`, `local_fallback`, `browser_local`, `demo_seed`, and `disabled`.
-
-Source data modes describe evidence state: `real_snapshot`, `imported_snapshot`, `sample_fallback`, `manual_import_ready`, `permission_required`, `planned_validation`, and `demo_seed`.
-
-DLD / Dubai Pulse-style public CSV snapshots are supported as manual imports only. The app recognizes dated filenames such as `dld_transactions_YYYYMMDD.csv`, `dld_rents_YYYYMMDD.csv`, `dld_projects_YYYYMMDD.csv`, `dld_valuations_YYYYMMDD.csv`, `dld_land_YYYYMMDD.csv`, `dld_building_YYYYMMDD.csv`, `dld_unit_YYYYMMDD.csv`, `dld_brokers_YYYYMMDD.csv`, and `dld_developers_YYYYMMDD.csv`.
-
-No scraping, captcha bypass, protected endpoint automation, live DLD API Gateway access, live Dubai Pulse integration or GeoDubai connection is included.
-
-OpenAI decision scoring is optional and server-side. It produces a structured decision-support memo with guardrails and deterministic fallback. It does not replace source validation, official planning checks, cadastral validation, ownership verification or valuation due diligence.
+Required caveat: **Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.**

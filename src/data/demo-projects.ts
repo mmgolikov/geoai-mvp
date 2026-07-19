@@ -103,6 +103,7 @@ export const demoProjects: GeoAIProject[] = [
   }
 ];
 
-export function getDemoProject(projectKey?: string | null) {
-  return demoProjects.find((project) => project.projectKey === projectKey) ?? demoProjects[0];
+export function getDemoProject(projectKey?: string | null): GeoAIProject | null {
+  if (!projectKey) return demoProjects[0] ?? null;
+  return demoProjects.find((project) => project.projectKey === projectKey) ?? null;
 }

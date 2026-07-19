@@ -1,9 +1,11 @@
 import { getAuthModeStatus } from "@/src/lib/auth/auth-mode";
+import { requestAuthKernelStatus } from "@/src/lib/auth/request-auth-kernel";
 import { requiredPersistenceTables, getSchemaReadinessSummary } from "@/src/lib/db/schema-readiness";
 import { getEnforcementConfig } from "@/src/lib/platform/enforcement-config";
 import { type RepositoryMode } from "@/src/lib/repositories/repository-mode";
 import { getStorageReadiness } from "@/src/lib/storage/storage-readiness";
-import { getSupabaseServerClient } from "@/src/lib/supabase/server";
+import { probeSupabaseApiHealth } from "@/src/lib/supabase/api-readiness";
+import { getSupabasePublishableKey, requestScopedSupabaseRepositoriesEnabled } from "@/src/lib/supabase/config";
 
 export const supabaseRuntimeReadinessVersion = "1.0";
 
@@ -35,12 +37,7 @@ type ReadProbe = {
   table: string;
   ready: boolean;
   count: number | null;
-  status: "not_configured" | "readable" | "blocked";
-};
-
-type CountResponse = {
-  count?: number | null;
-  error?: unknown;
+  status: "not_configured" | "readable" | "blocked" | "operator_evidence_required";
 };
 
 function envPresent(name: string) {
@@ -49,44 +46,6 @@ function envPresent(name: string) {
 
 function unique(values: string[]) {
   return Array.from(new Set(values.filter(Boolean)));
-}
-
-async function probeCount(name: ProbeName, table: string): Promise<ReadProbe> {
-  const client = await getSupabaseServerClient();
-
-  if (!client) {
-    return {
-      name,
-      table,
-      ready: false,
-      count: null,
-      status: "not_configured"
-    };
-  }
-
-  try {
-    const query = client.from(table).select("*", {
-      count: "exact",
-      head: true
-    }) as Promise<CountResponse>;
-    const response = await query;
-
-    return {
-      name,
-      table,
-      ready: !response.error,
-      count: response.error ? null : response.count ?? 0,
-      status: response.error ? "blocked" : "readable"
-    };
-  } catch {
-    return {
-      name,
-      table,
-      ready: false,
-      count: null,
-      status: "blocked"
-    };
-  }
 }
 
 function deriveRuntimeMode(input: {
@@ -115,25 +74,40 @@ export async function getSupabaseRuntimeReadiness() {
   const [
     schema,
     storage,
-    healthcheck,
-    sourceRegistry,
-    externalSnapshots
+    apiHealth
   ] = await Promise.all([
     getSchemaReadinessSummary(),
     getStorageReadiness(),
-    probeCount("healthcheck", "geoai_healthcheck"),
-    probeCount("sourceRegistry", "source_registry_snapshots"),
-    probeCount("externalSnapshots", "external_data_snapshots")
+    probeSupabaseApiHealth()
   ]);
+  const healthcheck: ReadProbe = {
+    name: "healthcheck",
+    table: "api.healthcheck()",
+    ready: apiHealth.reachable && apiHealth.healthy,
+    count: null,
+    status: !apiHealth.configured ? "not_configured" : apiHealth.reachable ? "readable" : "blocked"
+  };
+  const sourceRegistry: ReadProbe = {
+    name: "sourceRegistry",
+    table: "public.source_registry_snapshots",
+    ready: false,
+    count: null,
+    status: "operator_evidence_required"
+  };
+  const externalSnapshots: ReadProbe = {
+    name: "externalSnapshots",
+    table: "public.external_data_snapshots",
+    ready: false,
+    count: null,
+    status: "operator_evidence_required"
+  };
   const auth = getAuthModeStatus();
   const enforcement = getEnforcementConfig();
   const hasSupabaseUrl = envPresent("NEXT_PUBLIC_SUPABASE_URL");
-  const hasSupabaseAnonKey = envPresent("NEXT_PUBLIC_SUPABASE_ANON_KEY");
-  const hasSupabaseServiceRoleEnv = envPresent("SUPABASE_SERVICE_ROLE_KEY");
-  const hasSupabaseDbUrl = envPresent("SUPABASE_DB_URL");
-  const hasSupabasePublicEnv = hasSupabaseUrl && hasSupabaseAnonKey;
-  const hasSupabaseServerEnv = hasSupabaseUrl && hasSupabaseServiceRoleEnv;
-  const hasSupabaseReadEnv = hasSupabaseUrl && (hasSupabaseAnonKey || hasSupabaseServiceRoleEnv);
+  const hasSupabasePublishableKey = Boolean(getSupabasePublishableKey());
+  const hasSupabasePublicEnv = hasSupabaseUrl && hasSupabasePublishableKey;
+  const hasSupabaseServerEnv = hasSupabasePublicEnv && requestScopedSupabaseRepositoriesEnabled;
+  const hasSupabaseReadEnv = hasSupabaseServerEnv;
   const schemaReady = schema.status === "connected" && schema.postgisReady && schema.tablesReady;
   const schemaDetected = schema.configured && schema.missingTables.length < requiredPersistenceTables.length;
   const sourceRegistryReady = sourceRegistry.ready;
@@ -149,9 +123,9 @@ export async function getSupabaseRuntimeReadiness() {
   const status = runtimeStatusFromMode(runtimeMode);
   const fallbackActive = schema.repositoryMode !== "supabase" || runtimeMode !== "supabase_read_only_ready";
   const hardAccessEnabled = enforcement.accessEnforcementMode === "hard";
-  const authSessionVerified = process.env.GEOAI_AUTH_SESSION_VERIFIED?.trim().toLowerCase() === "true";
-  const projectMembershipsVerified = process.env.GEOAI_PROJECT_MEMBERSHIP_TESTS_VERIFIED?.trim().toLowerCase() === "true";
-  const rlsPoliciesVerified = process.env.GEOAI_RLS_POLICY_TESTS_VERIFIED?.trim().toLowerCase() === "true";
+  const authSessionVerified = requestAuthKernelStatus.requestUserVerified;
+  const projectMembershipsVerified = requestAuthKernelStatus.projectMembershipVerified;
+  const rlsPoliciesVerified = requestAuthKernelStatus.rlsPersonaMatrixVerified;
   const hardAccessVerified =
     hardAccessEnabled &&
     auth.effectiveMode === "supabase_auth" &&
@@ -162,35 +136,35 @@ export async function getSupabaseRuntimeReadiness() {
   const nextActions: string[] = [];
 
   if (!hasSupabasePublicEnv) {
-    blockers.push("Supabase public URL/anon key env is missing.");
-    nextActions.push("Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in the target runtime.");
+    blockers.push("Supabase public URL/publishable key env is missing.");
+    nextActions.push("Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY only after AUTH-01 target approval.");
   }
 
-  if (!hasSupabaseServiceRoleEnv) {
-    blockers.push("Server-only Supabase service role env is missing; no write path is enabled by this check.");
-    nextActions.push("Set SUPABASE_SERVICE_ROLE_KEY only in trusted server/Vercel environments when server-side read probes need it.");
+  if (!requestScopedSupabaseRepositoriesEnabled) {
+    blockers.push("Request-scoped Supabase repositories are disabled until AUTH-01 and the RLS persona matrix pass.");
+    nextActions.push("Keep privileged Supabase/database credentials in a separate operator/worker runtime, never in the public Vercel application.");
   }
 
   if (hasSupabaseReadEnv && !canReadHealthcheck) {
-    blockers.push("Supabase env is present, but the healthcheck table is not readable from this runtime.");
-    nextActions.push("Verify Supabase URL/key scope, Data API exposure, RLS/read grants and network reachability.");
+    blockers.push("Supabase env is present, but api.healthcheck() is unavailable or unhealthy.");
+    nextActions.push("Verify the publishable-key class, expose only the api schema, and grant anon EXECUTE only on api.healthcheck().");
   }
 
   if (!schemaReady) {
     blockers.push(schema.missingTables.length > 0
-      ? `Supabase schema is not fully readable: ${schema.missingTables.length} required table(s) missing, RLS-blocked or unreachable.`
-      : "Supabase schema readiness is not fully verified.");
-    nextActions.push("Run npm run supabase:migrate:check and verify required tables from a trusted runtime.");
+      ? `Supabase schema reports ${schema.missingTables.length} missing required table(s).`
+      : "Base-table and PostGIS readiness is not certified by isolated DB-01 evidence.");
+    nextActions.push("Run the clean/upgrade replay and persona suite in the approved operator plane; never expose public for readiness probes.");
   }
 
   if (!sourceRegistryReady) {
-    blockers.push("source_registry_snapshots is not readable from this runtime.");
-    nextActions.push("Verify source_registry_snapshots grants/RLS or keep local source-readiness fallback active.");
+    blockers.push("Source registry custody has no approved api projection or operator evidence.");
+    nextActions.push("Keep source readiness on local fallback until SOURCE-01 adds a reviewed api RPC and freshness evidence.");
   }
 
   if (!externalSnapshotsReady) {
-    blockers.push("external_data_snapshots is not readable from this runtime.");
-    nextActions.push("Verify external_data_snapshots grants/RLS or keep local external snapshot fallback active.");
+    blockers.push("External snapshot custody has no approved api projection or operator evidence.");
+    nextActions.push("Keep external snapshots on local fallback until SOURCE-01 adds a reviewed api RPC and freshness evidence.");
   }
 
   if (!storage.storageReady) {
@@ -212,13 +186,12 @@ export async function getSupabaseRuntimeReadiness() {
     supabaseConfigured: hasSupabaseReadEnv,
     hasSupabaseUrl,
     hasSupabasePublicEnv,
-    hasSupabaseAnonKey,
+    hasSupabasePublishableKey,
     hasSupabaseServerEnv,
-    hasSupabaseServiceRoleEnv,
-    hasSupabaseDbUrl,
-    serviceRoleMode: hasSupabaseServiceRoleEnv ? "present_read_only" : "absent",
+    operatorCredentialsInspected: false,
+    serviceRoleMode: "forbidden_in_application_runtime",
     serviceRoleUsedForWrites: false,
-    publicAnonReadOnlyReachable: hasSupabasePublicEnv && canReadHealthcheck,
+    publicPublishableReadOnlyReachable: hasSupabasePublicEnv && canReadHealthcheck,
     canReadHealthcheck,
     canReadSourceRegistry: sourceRegistryReady,
     canReadExternalSnapshots: externalSnapshotsReady,
@@ -251,7 +224,8 @@ export async function getSupabaseRuntimeReadiness() {
     schema: {
       status: schema.status,
       requiredTables: schema.requiredTables,
-      missingTables: schema.missingTables
+      missingTables: schema.missingTables,
+      unverifiedTables: schema.unverifiedTables
     },
     storage: {
       provider: storage.provider,

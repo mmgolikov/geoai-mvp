@@ -91,7 +91,7 @@ export async function listProjects(): Promise<DbRepositoryResult<GeoAIProject[]>
   }
 }
 
-export async function getProjectByKey(projectKey: string): Promise<DbRepositoryResult<GeoAIProject>> {
+export async function getProjectByKey(projectKey: string): Promise<DbRepositoryResult<GeoAIProject | null>> {
   const client = await getSupabaseServerClient();
   if (!client) {
     return { ok: true, mode: "demo_seed", data: getLocalDemoProject(projectKey), error: null };

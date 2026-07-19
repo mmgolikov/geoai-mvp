@@ -7,7 +7,7 @@ import { listComparisonSets } from "@/src/lib/repositories/comparison-set-reposi
 import { listAois } from "@/src/lib/repositories/aoi-repository";
 import { listDataRoomAssets, listDataRoomChecklist } from "@/src/lib/repositories/data-room-repository";
 import { listEvidenceFileAssets } from "@/src/lib/repositories/evidence-file-repository";
-import { listValidationEvidence } from "@/src/lib/repositories/validation-repository";
+import { createDemoValidationEvidence, listValidationEvidence } from "@/src/lib/repositories/validation-repository";
 import { listUploadedDatasetRecords } from "@/src/lib/repositories/uploaded-dataset-repository";
 import { localList } from "@/src/lib/repositories/local-json-store";
 import { getExternalDataReadiness } from "@/src/lib/external-data/data-manifest";
@@ -482,13 +482,59 @@ function dedupeAssets(assets: DataRoomAsset[]) {
   return Array.from(byId.values()).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 
-export async function buildClientDataRoom(input: { projectKey?: string | null; projectId?: string | null } = {}): Promise<ClientDataRoom> {
+export async function buildClientDataRoom(input: {
+  projectKey?: string | null;
+  projectId?: string | null;
+  includeStoredState?: boolean;
+} = {}): Promise<ClientDataRoom> {
+  const requestedIdentity = input.projectKey ?? input.projectId ?? null;
   const project = demoProjects.find((item) =>
     (input.projectKey && item.projectKey === input.projectKey) ||
     (input.projectId && (item.id === input.projectId || item.projectKey === input.projectId))
-  ) ?? getDemoProject(input.projectKey ?? input.projectId);
+  ) ?? (requestedIdentity ? null : getDemoProject(null));
+
+  if (!project) {
+    return {
+      ok: false,
+      mode: "browser_local",
+      storageCaveat: dataRoomStorageCaveat,
+      projectId: input.projectId ?? null,
+      projectKey: input.projectKey ?? input.projectId ?? "",
+      project: null,
+      assets: [],
+      checklist: [],
+      deliverables: [],
+      summary: {
+        counts: {
+          aois: 0,
+          uploadedDatasets: 0,
+          uploadedDocuments: 0,
+          analyses: 0,
+          reports: 0,
+          comparisons: 0,
+          validationItems: 0,
+          externalSources: 0
+        },
+        label: "Project unavailable",
+        storageMode: "browser_local",
+        storageNote: "No server-side project was resolved; no demo project was substituted.",
+        validationNote: dataRoomRequiredCaveat,
+        latestAssets: [],
+        checklistStatus: { completed: 0, required: 0, inReview: 0, blocked: 0, total: 0 }
+      },
+      dataHonesty: {
+        caveat: dataRoomRequiredCaveat,
+        storageCaveat: dataRoomStorageCaveat,
+        allowedLabels: ["browser-local project", "project unavailable", "validation required"],
+        forbiddenClaims: ["demo project fallback", "durable project state", "official validation"]
+      },
+      error: "Unknown project. Data Room did not substitute another demo project."
+    };
+  }
   const projectKey = project.projectKey;
 
+  const includeStoredState = input.includeStoredState !== false;
+  const emptyResult = { ok: true, mode: "browser_local" as const, data: [], error: null };
   const [
     manualAssetsResult,
     storedChecklistResult,
@@ -499,7 +545,7 @@ export async function buildClientDataRoom(input: { projectKey?: string | null; p
     comparisonResult,
     validationResult,
     evidenceFileResult
-  ] = await Promise.all([
+  ] = includeStoredState ? await Promise.all([
     listDataRoomAssets({ projectId: project.id, projectKey, limit: 80 }),
     listDataRoomChecklist({ projectId: project.id, projectKey, limit: 50 }),
     listAois({ projectId: project.id, projectKey, limit: 50 }),
@@ -509,8 +555,20 @@ export async function buildClientDataRoom(input: { projectKey?: string | null; p
     listComparisonSets({ projectId: project.id, projectKey, limit: 50 }),
     listValidationEvidence({ projectId: project.id, projectKey, limit: 50 }),
     listEvidenceFileAssets({ projectId: project.id, projectKey, limit: 50 })
-  ]);
-  const reportPackageResult = localList<ReportPackage>("report-packages", { projectId: project.id, projectKey, limit: 20 });
+  ]) : [
+    emptyResult,
+    emptyResult,
+    emptyResult,
+    emptyResult,
+    emptyResult,
+    emptyResult,
+    emptyResult,
+    { ...emptyResult, data: createDemoValidationEvidence(projectKey) },
+    emptyResult
+  ];
+  const reportPackageResult = includeStoredState
+    ? localList<ReportPackage>("report-packages", { projectId: project.id, projectKey, limit: 20 })
+    : emptyResult;
 
   const localAnalyses = Array.isArray(analysisResult.data)
     ? analysisResult.data.filter((item) => belongsToProject(item, project))
@@ -562,7 +620,7 @@ export async function buildClientDataRoom(input: { projectKey?: string | null; p
 
   return {
     ok: true,
-    mode: "local_fallback",
+    mode: includeStoredState ? "local_fallback" : "browser_local",
     storageCaveat: dataRoomStorageCaveat,
     projectId: project.id,
     projectKey,
@@ -574,8 +632,10 @@ export async function buildClientDataRoom(input: { projectKey?: string | null; p
     summary: {
       counts,
       label: "Data room foundation active",
-      storageMode: "local_fallback",
-      storageNote: "Local/sample fallback; durable storage not configured.",
+      storageMode: includeStoredState ? "local_fallback" : "browser_local",
+      storageNote: includeStoredState
+        ? "Local development fallback; durable storage not configured."
+        : "Public-demo user state is browser-local; shared server reads and writes are disabled.",
       validationNote: dataRoomRequiredCaveat,
       latestAssets: assets.slice(0, 3),
       checklistStatus: summarizeChecklist(checklist)

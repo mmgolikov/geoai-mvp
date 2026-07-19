@@ -1,7 +1,9 @@
 # ERD-001 Schema Specification
 
+> **Non-authoritative target draft.** This v0.9 schema sketch predates the selected global-profile plus organization/project-membership model and the canonical migration ledger. It must not be converted or applied without reconciliation against the current [Implemented Architecture](../../architecture.md) and [Supabase containment runbook](../../SUPABASE_DATA_API_CONTAINMENT_RUNBOOK_2026_07_16.md).
+
 Version: v0.9  
-Status: Review  
+Status: Non-authoritative target draft
 Publication gate: Not passed  
 Target: Supabase / PostgreSQL / PostGIS  
 

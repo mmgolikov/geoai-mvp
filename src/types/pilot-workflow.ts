@@ -158,7 +158,7 @@ export type PilotWorkflowDataHonesty = {
 
 export type PilotWorkflowSummary = {
   ok: boolean;
-  mode: "local_fallback";
+  mode: "local_fallback" | "browser_local";
   storageCaveat: string;
   projectId?: string | null;
   projectKey: string;

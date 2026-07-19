@@ -46,6 +46,9 @@ assert(contractSource.includes("Not connected in this runtime"), "Contract must 
 assert(contractSource.includes("manual import path available; no verified snapshot attached"), "Contract must clarify manual import readiness");
 assert(routeSource.includes("buildRuntimeExecutiveStatus"), "Pilot backend route must derive the executive contract");
 assert(routeSource.includes("executiveStatus"), "Pilot backend route must expose executiveStatus");
+assert(routeSource.includes('sourceMode: "operator_only_disabled_for_public"'), "Pilot backend route must expose a static public source mode");
+assert(!routeSource.includes("getRuntimeSourcePackActivationMode"), "Public pilot status must not leak operator source-pack configuration");
+assert(!routeSource.includes("getSupabaseRuntimeReadiness") && !routeSource.includes("getPilotBackendActivationSummary"), "Public pilot status must not invoke privileged infrastructure readiness probes");
 assert(dashboardSource.includes("pilotBackendStatus?.executiveStatus?.rows ?? initialRuntimeStatusRows"), "Project Hub must consume executive rows with neutral initial state");
 assert(dashboardSource.includes("Review-ready screening memo previews remain connected to the workspace result and report flow."), "Project Hub must use review-ready memo wording");
 assert(dashboardSource.includes("connectorRuntimeStatusLabel"), "Project Hub must use conservative connector wording");
@@ -93,6 +96,36 @@ assert(row(productionDemo, "Auth")?.value === "Public demo access", "Production 
 assert(row(productionDemo, "Repository")?.value === "Local/demo fallback", "Production repository row is incorrect");
 assert(row(productionDemo, "Supabase schema")?.value === "Not connected in this runtime", "Production Supabase row is incorrect");
 assert(row(productionDemo, "Storage")?.value === "Not connected in this runtime", "Production Storage row is incorrect");
+
+const browserLocalDemo = runtime.buildRuntimeExecutiveStatus({
+  ...productionDemoInput,
+  repositoryMode: "browser_local",
+  infrastructureDiagnosticsWithheld: true
+});
+assert(browserLocalDemo.demoWorkflow === "demo_workflow_available", "Browser-local public demo must not be labelled as server fallback degradation");
+assert(row(browserLocalDemo, "Repository")?.value === "Browser-local demo", "Browser-local repository row is incorrect");
+assert(row(browserLocalDemo, "Supabase schema")?.value === "Not attested on public endpoint", "Public status must not fabricate a negative Supabase diagnostic");
+assert(row(browserLocalDemo, "Storage")?.value === "Not attested on public endpoint", "Public status must not fabricate a negative Storage diagnostic");
+
+const configuredUnverifiedAuth = runtime.buildRuntimeExecutiveStatus({
+  ...productionDemoInput,
+  vercelEnvironment: "preview",
+  authMode: "supabase_auth",
+  repositoryMode: "browser_local",
+  accessEnforcementMode: "soft",
+  canRunDemoWorkflow: true,
+  canRunConfidentialPilot: false,
+  supabaseConfigured: true,
+  supabaseReachable: false,
+  schemaReady: false,
+  authSessionVerified: false,
+  projectMembershipsVerified: false,
+  infrastructureDiagnosticsWithheld: true
+});
+assert(configuredUnverifiedAuth.accessMode === "supabase_auth_configured_unverified", "Configured Auth without verified caller/membership must remain explicitly unverified");
+assert(configuredUnverifiedAuth.demoWorkflow === "demo_workflow_available", "Configured but unverified Auth must not hide the controlled browser-local demo");
+assert(configuredUnverifiedAuth.confidentialPilot === "confidential_pilot_blocked", "Configured but unverified Auth must keep confidential access blocked");
+assert(row(configuredUnverifiedAuth, "Auth")?.value === "Supabase Auth configured; caller unverified", "Configured/unverified Auth row is incorrect");
 
 const previewEvidence = runtime.buildRuntimeExecutiveStatus({
   vercelEnvironment: "preview",
@@ -192,6 +225,7 @@ console.log(JSON.stringify({
   ok: true,
   matrices: [
     "production public demo",
+    "configured but unverified Supabase Auth",
     "preview Supabase read-only evidence",
     "neutral client initial state",
     "hard access without complete evidence",

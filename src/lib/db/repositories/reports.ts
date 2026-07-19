@@ -29,8 +29,7 @@ function hasCompleteReportPayload(record: unknown) {
 
 function resolveReservedSeedRecord(id: string, stored: unknown | null) {
   const seeded = getSeededDemoReportRecord(id);
-  if (!seeded || hasCompleteReportPayload(stored)) return stored;
-  return seeded;
+  return seeded ?? stored;
 }
 
 export async function listReports(filters: { projectId?: string | null; projectKey?: string | null; limit?: number } = {}): Promise<DbRepositoryResult<WorkspaceReport[] | unknown[]>> {
@@ -67,7 +66,10 @@ export async function getReport(id: string): Promise<DbRepositoryResult<Workspac
     const query = client.from("reports").select("*") as {
       eq: (column: string, value: string) => { limit: (count: number) => Promise<{ data: unknown[] | null; error?: unknown }> };
     };
-    const response = await query.eq("report_key", id).limit(1);
+    const lookupColumn = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)
+      ? "id"
+      : "report_key";
+    const response = await query.eq(lookupColumn, id).limit(1);
     const stored = response.data?.[0] ?? null;
     // Complete configured records retain precedence. Only reserved demo IDs with
     // missing legacy payload fields use the canonical read-only fixture.
@@ -78,6 +80,9 @@ export async function getReport(id: string): Promise<DbRepositoryResult<Workspac
 }
 
 export async function saveReport(input: DbReportInput): Promise<DbRepositoryResult<unknown>> {
+  if (getSeededDemoReportRecord(input.reportKey)) {
+    return { ok: false, mode: "local_fallback", data: null, error: "Reserved seeded report IDs are immutable." };
+  }
   const client = await getSupabaseServerClient();
   if (!client) {
     const reportPayload = input.reportJson as {

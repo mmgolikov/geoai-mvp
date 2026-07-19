@@ -1,15 +1,19 @@
 import { seededDemoReportRecords } from "@/src/data/demo-report-seeds";
-import { demoProjects, getDemoProject } from "@/src/data/demo-projects";
+import { demoProjects } from "@/src/data/demo-projects";
 import { knownLimitations } from "@/src/data/known-limitations";
+import { getDataSourceById } from "@/src/data/data-source-registry";
 import { buildClientDataRoom } from "@/src/lib/data-room/data-room-summary";
 import { listReports } from "@/src/lib/db/repositories/reports";
 import { getExternalDataReadiness } from "@/src/lib/external-data/data-manifest";
+import { normalizeSourceDataMode } from "@/src/lib/external-data/source-modes";
+import { getExternalDataSource } from "@/src/lib/external-data/source-registry";
 import { buildPilotWorkflowSummary } from "@/src/lib/pilot-workflow/pilot-workflow-summary";
 import { listEvidenceReviews, buildEvidenceReviewSummaries } from "@/src/lib/repositories/evidence-review-repository";
 import { listEvidenceFileAssets } from "@/src/lib/repositories/evidence-file-repository";
-import { listValidationEvidence } from "@/src/lib/repositories/validation-repository";
+import { createDemoValidationEvidence, listValidationEvidence } from "@/src/lib/repositories/validation-repository";
 import { buildValidationSummary } from "@/src/lib/validation/validation-summary";
 import type { GeoAIProject } from "@/src/lib/db/types";
+import type { DataRoomAsset } from "@/src/types/data-room";
 import type {
   ReportExportManifest,
   ReportPackage,
@@ -45,6 +49,14 @@ function readNumber(value: unknown, fallback = 0) {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
 }
 
+function asArray(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function readStringArray(value: unknown) {
+  return asArray(value).filter((item): item is string => typeof item === "string" && item.trim().length > 0);
+}
+
 function slug(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 72) || "package";
 }
@@ -77,6 +89,8 @@ function normalizeReport(record: unknown) {
     scenario: readString(item.scenario) || readString(payload.scenario, "Screening analysis"),
     targetLabel: readString(item.targetLabel) || readString(item.target_label) || readString(payload.selectedSite, "Selected area"),
     payload,
+    sourceLineage: asRecord(item.sourceLineage ?? item.source_lineage),
+    evidenceAuthority: readString(item.evidenceAuthority) || readString(item.evidence_authority) || readString(payload.evidenceAuthority, "unverified_client_assertion"),
     sourceSummary: readString(item.sourceSummary, "Saved with sample/local source lineage; official validation required."),
     createdAt: readString(item.createdAt) || readString(item.created_at) || readString(item.generated_at)
   };
@@ -104,41 +118,263 @@ function extractScoreRows(report: ReturnType<typeof normalizeReport>) {
   }));
 }
 
-function externalSourceLineage(): ReportPackageSourceLineageItem[] {
-  return getExternalDataReadiness().slice(0, 8).map((item) => ({
-    id: item.sourceId,
-    name: item.sourceId.replace(/-/g, " "),
-    category: "external_data",
-    mode: item.status === "snapshot_available" ? "imported_snapshot" : "sample_fallback",
-    recordCount: item.recordCount ?? null,
-    confidence: item.confidence,
-    limitation: item.caveat,
-    caveat: item.caveat
-  }));
+type ReportEvidenceReference = {
+  sourceId: string;
+  label: string;
+  description: string;
+  sourceStatus: string;
+  sourceType: string;
+  confidence: string;
+  runtimeObserved: boolean;
+};
+
+type LineageClassification = {
+  evidence: ReportPackageSourceLineageItem[];
+  candidates: ReportPackageSourceLineageItem[];
+};
+
+function sourceModeFromReference(reference: ReportEvidenceReference) {
+  if (reference.sourceStatus === "mock") return "demo_seed" as const;
+  if (reference.sourceStatus === "planned" || reference.sourceStatus === "unavailable") return "planned_validation" as const;
+  if (reference.sourceType === "customer") return "permission_required" as const;
+  if (reference.sourceType === "mock" || reference.sourceType === "demo") return "demo_seed" as const;
+  return normalizeSourceDataMode(reference.sourceStatus);
 }
 
-function dataRoomSourceLineage(dataRoom: Awaited<ReturnType<typeof buildClientDataRoom>>): ReportPackageSourceLineageItem[] {
-  return (dataRoom.assets ?? [])
-    .filter((asset) => asset.assetType === "external_source" || asset.assetType === "uploaded_document" || asset.assetType === "uploaded_csv" || asset.assetType === "uploaded_geojson")
-    .slice(0, 10)
-    .map((asset) => ({
+function reportEvidenceReferences(report: ReturnType<typeof normalizeReport> | null): ReportEvidenceReference[] {
+  if (!report) return [];
+  const payload = report.payload;
+  const memo = asRecord(payload.memoJson);
+  const comparison = asRecord(payload.comparisonJson);
+  const sourceLineage = report.sourceLineage;
+  const references = new Map<string, ReportEvidenceReference>();
+  const evidenceRows = [
+    ...asArray(payload.evidenceSourceReadiness),
+    ...asArray(memo.evidence),
+    ...asArray(comparison.evidence)
+  ];
+
+  for (const value of evidenceRows) {
+    const item = asRecord(value);
+    const sourceId = readString(item.sourceId);
+    if (!sourceId || references.has(sourceId)) continue;
+    references.set(sourceId, {
+      sourceId,
+      label: readString(item.label, sourceId.replace(/-/g, " ")),
+      description: readString(item.description),
+      sourceStatus: readString(item.sourceStatus, "unavailable"),
+      sourceType: readString(item.sourceType, "unknown"),
+      confidence: readString(item.confidence, "requires-validation"),
+      runtimeObserved: false
+    });
+  }
+
+  for (const value of asArray(sourceLineage.externalSources)) {
+    const item = asRecord(value);
+    const sourceId = readString(item.id);
+    if (!sourceId) continue;
+    const existing = references.get(sourceId);
+    references.set(sourceId, {
+      sourceId,
+      label: existing?.label ?? readString(item.name, sourceId.replace(/-/g, " ")),
+      description: existing?.description ?? readString(item.disclaimer),
+      sourceStatus: readString(item.status, existing?.sourceStatus ?? "unavailable"),
+      sourceType: existing?.sourceType ?? "external_data",
+      confidence: readString(item.confidence, existing?.confidence ?? "requires-validation"),
+      runtimeObserved: Boolean(readString(item.queriedAt) || readString(item.sourceObservedAt))
+    });
+  }
+
+  const aiEvidenceIds = [
+    ...readStringArray(asRecord(memo.aiDecisionScore).evidenceUsed),
+    ...readStringArray(asRecord(comparison.aiDecisionScore).evidenceUsed),
+    ...readStringArray(asRecord(payload.aiDecisionScore).evidenceUsed)
+  ];
+  for (const sourceId of aiEvidenceIds) {
+    if (references.has(sourceId)) continue;
+    references.set(sourceId, {
+      sourceId,
+      label: sourceId.replace(/-/g, " "),
+      description: "Explicitly referenced by the selected report; acquisition evidence is still required.",
+      sourceStatus: "unavailable",
+      sourceType: "unknown",
+      confidence: "requires-validation",
+      runtimeObserved: false
+    });
+  }
+
+  return [...references.values()];
+}
+
+function classifyReportSources(report: ReturnType<typeof normalizeReport> | null): LineageClassification {
+  const readinessById = new Map(getExternalDataReadiness().map((item) => [item.sourceId, item]));
+  const evidence: ReportPackageSourceLineageItem[] = [];
+  const candidates: ReportPackageSourceLineageItem[] = [];
+  const trustedEvidenceAuthority = report?.evidenceAuthority === "committed_demo_seed" ||
+    report?.evidenceAuthority === "server_verified_analysis_receipt_v1";
+
+  for (const reference of reportEvidenceReferences(report)) {
+    const readiness = readinessById.get(reference.sourceId);
+    const registrySource = getDataSourceById(reference.sourceId);
+    const externalSource = getExternalDataSource(reference.sourceId);
+    const status = readiness?.status ?? registrySource?.status ?? reference.sourceStatus;
+    const dataMode = readiness
+      ? normalizeSourceDataMode(readiness.sourceMode ?? readiness.status)
+      : registrySource?.status === "mock" || (registrySource?.status === "connected" && ["mock", "demo"].includes(registrySource.sourceType))
+        ? "demo_seed"
+        : sourceModeFromReference(reference);
+    const recordCount = readiness?.recordCount ?? null;
+    const hasRecords = typeof recordCount === "number" && recordCount > 0;
+    const acquiredSnapshot = hasRecords && ["real_snapshot", "imported_snapshot", "sample_fallback", "demo_seed"].includes(dataMode);
+    const acquiredApiContext = dataMode === "api_context" && reference.runtimeObserved;
+    const acquiredDemo = dataMode === "demo_seed" && (
+      registrySource?.status === "mock" ||
+      (reference.sourceStatus === "mock" && reference.sourceType === "mock")
+    );
+    const isEvidence = trustedEvidenceAuthority && (acquiredSnapshot || acquiredApiContext || acquiredDemo);
+    const caveat = readiness?.caveat
+      ?? externalSource?.disclaimer
+      ?? registrySource?.limitations
+      ?? "Source is referenced by the report but requires acquisition and validation evidence.";
+    const item: ReportPackageSourceLineageItem = {
+      id: reference.sourceId,
+      name: externalSource?.name ?? registrySource?.name ?? reference.label,
+      category: registrySource?.category ?? externalSource?.category ?? "external_data",
+      status,
+      dataMode,
+      mode: dataMode,
+      evidenceRole: isEvidence ? "used" : "candidate_validation_required",
+      recordCount,
+      confidence: readiness?.confidence ?? registrySource?.reliabilityLevel ?? reference.confidence,
+      limitation: reference.description || caveat,
+      caveat: trustedEvidenceAuthority
+        ? caveat
+        : `Client-supplied source assertions are not evidence receipts. ${caveat}`
+    };
+
+    (isEvidence ? evidence : candidates).push(item);
+  }
+
+  return { evidence, candidates };
+}
+
+function reportLinkContext(report: ReturnType<typeof normalizeReport> | null, input: ReportPackageBuildInput) {
+  const payload = report?.payload ?? {};
+  const memo = asRecord(payload.memoJson);
+  const analysisIds = new Set([
+    readString(input.analysisId),
+    readString(payload.analysisRunId),
+    readString(payload.runKey),
+    readString(memo.id)
+  ].filter(Boolean));
+  const uploadedIds = new Set<string>();
+  const uploadedNames = new Set<string>();
+  const uploadedContext = asRecord(payload.uploadedDataContext);
+
+  for (const value of asArray(uploadedContext.datasets)) {
+    const item = asRecord(value);
+    const id = readString(item.id);
+    const name = readString(item.name) || readString(item.fileName);
+    if (id) uploadedIds.add(id);
+    if (name) uploadedNames.add(name);
+  }
+  for (const value of asArray(report?.sourceLineage.uploadedSources)) {
+    const item = asRecord(value);
+    const id = readString(item.id);
+    const name = readString(item.name);
+    if (id) uploadedIds.add(id);
+    if (name) uploadedNames.add(name);
+  }
+
+  return {
+    reportId: report?.id ?? null,
+    analysisIds,
+    uploadedIds,
+    uploadedNames
+  };
+}
+
+function isLinkedDataRoomAsset(asset: DataRoomAsset, context: ReturnType<typeof reportLinkContext>) {
+  if (context.reportId && asset.linkedReportIds?.includes(context.reportId)) return true;
+  if (asset.linkedAnalysisIds?.some((id) => context.analysisIds.has(id))) return true;
+  if (context.uploadedIds.has(asset.id) || [...context.uploadedIds].some((id) => asset.id === `derived-upload-${id}`)) return true;
+  return context.uploadedNames.has(asset.name) || Boolean(asset.fileName && context.uploadedNames.has(asset.fileName));
+}
+
+function classifyDataRoomSources(
+  dataRoom: Awaited<ReturnType<typeof buildClientDataRoom>>,
+  report: ReturnType<typeof normalizeReport> | null,
+  input: ReportPackageBuildInput
+): LineageClassification {
+  const context = reportLinkContext(report, input);
+  const evidence: ReportPackageSourceLineageItem[] = [];
+  const candidates: ReportPackageSourceLineageItem[] = [];
+
+  for (const asset of dataRoom.assets ?? []) {
+    if (!["uploaded_document", "uploaded_csv", "uploaded_geojson"].includes(asset.assetType)) continue;
+    if (!isLinkedDataRoomAsset(asset, context)) continue;
+    const acquired = (asset.assetType === "uploaded_csv" || asset.assetType === "uploaded_geojson")
+      ? asset.sourceType === "user_uploaded"
+      : asset.sourceType === "user_uploaded" && (asset.objectStatus === "available" || asset.downloadAvailable === true);
+    const dataMode = asset.sourceType === "api_context"
+      ? "api_context"
+      : asset.sourceType === "public_snapshot"
+        ? "imported_snapshot"
+        : asset.sourceType === "sample_fallback"
+          ? "sample_fallback"
+          : "user_uploaded";
+    const item: ReportPackageSourceLineageItem = {
       id: asset.id,
       name: asset.name,
       category: asset.assetType,
-      mode: asset.sourceType === "public_snapshot"
-        ? "imported_snapshot"
-        : asset.sourceType === "permission_required"
-          ? "permission_required"
-          : asset.sourceType === "planned_validation"
-            ? "planned_validation"
-            : asset.sourceType === "generated_by_geoai"
-              ? "generated_by_geoai"
-              : "sample_fallback",
+      status: asset.objectStatus ?? asset.validationStatus,
+      dataMode,
+      mode: dataMode,
+      evidenceRole: acquired ? "used" : "candidate_validation_required",
       recordCount: null,
       confidence: asset.validationStatus,
       limitation: asset.description ?? asset.caveat,
       caveat: asset.caveat
-    }));
+    };
+    (acquired ? evidence : candidates).push(item);
+  }
+
+  return { evidence, candidates };
+}
+
+function uniqueLineage(items: ReportPackageSourceLineageItem[], maximum: number) {
+  return items
+    .filter((item, index, all) => all.findIndex((candidate) => candidate.id === item.id) === index)
+    .slice(0, maximum);
+}
+
+function reportMatchesAnalysis(report: ReturnType<typeof normalizeReport>, analysisId: string) {
+  const memo = asRecord(report.payload.memoJson);
+  return [
+    report.payload.analysisRunId,
+    report.payload.runKey,
+    memo.id,
+    report.id.replace(/-report$/, "")
+  ].some((value) => readString(value) === analysisId);
+}
+
+function reportMatchesComparison(report: ReturnType<typeof normalizeReport>, comparisonId: string) {
+  const comparison = asRecord(report.payload.comparisonJson);
+  return [
+    report.payload.comparisonId,
+    comparison.id,
+    report.id.replace(/-report$/, "")
+  ].some((value) => readString(value) === comparisonId);
+}
+
+function selectReport(
+  reports: Array<ReturnType<typeof normalizeReport>>,
+  input: ReportPackageBuildInput
+) {
+  if (input.reportId) return reports.find((report) => report.id === input.reportId) ?? null;
+  if (input.analysisId) return reports.find((report) => reportMatchesAnalysis(report, input.analysisId as string)) ?? null;
+  if (input.comparisonId) return reports.find((report) => reportMatchesComparison(report, input.comparisonId as string)) ?? null;
+  return reports[0] ?? null;
 }
 
 function packageSection(input: Omit<ReportPackageSection, "id" | "order" | "caveat"> & {
@@ -195,15 +431,21 @@ function sectionStatus(hasData: boolean, fallback: ReportPackageSectionStatus = 
   return hasData ? "generated" : fallback;
 }
 
-export async function buildReportPackage(input: ReportPackageBuildInput): Promise<ReportPackage> {
-  const project = demoProjects.find((item) => item.projectKey === input.projectKey || item.id === input.projectId)
-    ?? getDemoProject(input.projectKey);
+export async function buildReportPackage(
+  input: ReportPackageBuildInput,
+  options: { includeStoredState?: boolean } = {}
+): Promise<ReportPackage> {
+  const project = demoProjects.find((item) => item.projectKey === input.projectKey || item.id === input.projectId);
+  if (!project) {
+    throw new Error(`Unknown project '${input.projectKey}'; report package generation did not substitute a demo project.`);
+  }
   const projectKey = project.projectKey;
   const packageType = projectPackageType(project, input.packageType);
   const generatedAt = nowIso();
   const stableBase = input.reportId ?? input.analysisId ?? input.comparisonId ?? projectKey;
   const packageKey = `report-package-${slug(projectKey)}-${slug(packageType)}-${slug(stableBase)}`;
 
+  const includeStoredState = options.includeStoredState !== false;
   const [
     reportsResult,
     dataRoom,
@@ -211,45 +453,74 @@ export async function buildReportPackage(input: ReportPackageBuildInput): Promis
     reviewResult,
     evidenceFileResult,
     pilotWorkflow
-  ] = await Promise.all([
-    listReports({ projectId: project.id, projectKey, limit: 50 }),
-    buildClientDataRoom({ projectId: project.id, projectKey }),
-    listValidationEvidence({ projectId: project.id, projectKey, limit: 80 }),
-    listEvidenceReviews({ projectId: project.id, projectKey, limit: 80 }),
-    listEvidenceFileAssets({ projectId: project.id, projectKey, limit: 80 }),
-    buildPilotWorkflowSummary({ projectId: project.id, projectKey })
-  ]);
+  ] = includeStoredState
+    ? await Promise.all([
+        listReports({ projectId: project.id, projectKey, limit: 50 }),
+        buildClientDataRoom({ projectId: project.id, projectKey, includeStoredState: true }),
+        listValidationEvidence({ projectId: project.id, projectKey, limit: 80 }),
+        listEvidenceReviews({ projectId: project.id, projectKey, limit: 80 }),
+        listEvidenceFileAssets({ projectId: project.id, projectKey, limit: 80 }),
+        buildPilotWorkflowSummary({ projectId: project.id, projectKey, includeStoredState: true })
+      ])
+    : await Promise.all([
+        Promise.resolve({ ok: true, mode: "demo_seed" as const, data: [], error: null }),
+        buildClientDataRoom({ projectId: project.id, projectKey, includeStoredState: false }),
+        Promise.resolve({ ok: true, mode: "browser_local" as const, data: createDemoValidationEvidence(projectKey), error: null }),
+        Promise.resolve({ ok: true, mode: "browser_local" as const, data: [], error: null }),
+        Promise.resolve({ ok: true, mode: "browser_local" as const, data: [], error: null }),
+        buildPilotWorkflowSummary({ projectId: project.id, projectKey, includeStoredState: false })
+      ]);
 
   const reports = Array.isArray(reportsResult.data) && reportsResult.data.length > 0
     ? reportsResult.data
     : seededDemoReportRecords.filter((report) => report.projectKey === projectKey);
   const normalizedReports = reports.map(normalizeReport);
-  const selectedReport = normalizedReports.find((report) => report.id === input.reportId)
-    ?? normalizedReports.find((report) => input.comparisonId && report.id.includes(input.comparisonId))
-    ?? normalizedReports[0]
-    ?? null;
+  // An explicit but unknown report/analysis/comparison id must never silently
+  // substitute another report: that would attach unrelated claims and lineage.
+  const selectedReport = selectReport(normalizedReports, input);
   const scoreRows = selectedReport ? extractScoreRows(selectedReport) : [];
   const validationSummary = toPackageValidationSummary(buildValidationSummary(validationResult.data ?? []));
   const reviewSummaries = buildEvidenceReviewSummaries((validationResult.data ?? []).map((item) => item.id), reviewResult.data ?? []);
   const evidenceReviewSummary = toEvidenceReviewSummary(reviewSummaries);
   const evidenceFiles = evidenceFileResult.data ?? [];
-  const sourceLineage = [
-    ...externalSourceLineage(),
-    ...dataRoomSourceLineage(dataRoom)
-  ].filter((item, index, all) => all.findIndex((candidate) => candidate.id === item.id) === index).slice(0, 14);
+  const reportSources = classifyReportSources(selectedReport);
+  const dataRoomSources = classifyDataRoomSources(dataRoom, selectedReport, input);
+  const sourceEvidenceLineage = uniqueLineage([
+    ...reportSources.evidence,
+    ...dataRoomSources.evidence
+  ], 14);
+  const evidenceIds = new Set(sourceEvidenceLineage.map((item) => item.id));
+  const sourceCandidateLineage = uniqueLineage([
+    ...reportSources.candidates,
+    ...dataRoomSources.candidates
+  ].filter((item) => !evidenceIds.has(item.id)), 14);
+  const sourceLineage = uniqueLineage([
+    ...sourceEvidenceLineage,
+    ...sourceCandidateLineage
+  ], 14);
   const latestAssets = dataRoom.summary.latestAssets ?? [];
-  const linkedReportIds = selectedReport?.id ? [selectedReport.id] : normalizedReports.map((report) => report.id).filter(Boolean).slice(0, 4);
+  const linkedReportIds = selectedReport?.id ? [selectedReport.id] : [];
   const linkedValidationEvidenceIds = (validationResult.data ?? []).map((item) => item.id);
   const linkedEvidenceFileIds = evidenceFiles.map((item) => item.id);
   const linkedDataRoomAssetIds = latestAssets.map((asset) => asset.id);
-  const linkedAnalysisIds = selectedReport?.id?.includes("analysis") ? [selectedReport.id.replace(/-report$/, "")] : [];
-  const linkedComparisonIds = selectedReport?.id?.includes("comparison") ? [selectedReport.id.replace(/-report$/, "")] : [];
+  const selectedAnalysisId = selectedReport
+    ? readString(selectedReport.payload.analysisRunId) || readString(selectedReport.payload.runKey)
+    : "";
+  const selectedComparisonId = selectedReport
+    ? readString(asRecord(selectedReport.payload.comparisonJson).id) || readString(selectedReport.payload.comparisonId)
+    : "";
+  const linkedAnalysisIds = selectedAnalysisId ? [selectedAnalysisId] : [];
+  const linkedComparisonIds = selectedComparisonId ? [selectedComparisonId] : [];
   const linkedAoiIds = latestAssets.flatMap((asset) => asset.linkedAoiIds ?? []).slice(0, 8);
 
   const executiveDrivers = [
     selectedReport?.targetLabel ? `Screening target: ${selectedReport.targetLabel}` : "Project-scoped screening context available.",
-    sourceLineage.length > 0 ? `${sourceLineage.length} source lineage entries summarized.` : "Source lineage requires additional validated evidence.",
-    dataRoom.assets.length > 0 ? `${dataRoom.assets.length} data room evidence metadata items linked.` : "Data room evidence needs client inputs."
+    sourceEvidenceLineage.length > 0
+      ? `${sourceEvidenceLineage.length} acquired source evidence item(s) are explicitly linked.`
+      : "No acquired source evidence is explicitly linked.",
+    sourceCandidateLineage.length > 0
+      ? `${sourceCandidateLineage.length} referenced source candidate(s) still require acquisition or validation.`
+      : "No unresolved source candidates are linked."
   ];
   const executiveRisks = [
     ...validationSummary.blockers.slice(0, 3),
@@ -304,7 +575,8 @@ export async function buildReportPackage(input: ReportPackageBuildInput): Promis
         decisionPosture: readString(selectedReport?.payload.decisionPosture, "Proceed with conditions"),
         recommendedUse: readString(asRecord(selectedReport?.payload.memoJson).recommendedUse, "Further screening before underwriting."),
         confidence: readString(asRecord(selectedReport?.payload.memoJson).confidenceLevel, "medium"),
-        evidenceUsed: sourceLineage.slice(0, 5).map((source) => source.name),
+        evidenceUsed: sourceEvidenceLineage.slice(0, 5).map((source) => source.name),
+        candidateSourcesRequiringValidation: sourceCandidateLineage.slice(0, 5).map((source) => source.name),
         unsupportedClaims: ["official parcel boundary", "zoning approval", "ownership verification", "certified valuation"],
         validationRequired: validationSummary.nextActions
       }
@@ -322,19 +594,27 @@ export async function buildReportPackage(input: ReportPackageBuildInput): Promis
       order: 5,
       type: "market_context",
       title: "External Data / Market Context",
-      summary: "Snapshot/open/API context is summarized with caveats and confidence notes.",
-      status: sourceLineage.length > 0 ? "generated" : "validation_required",
+      summary: "Only explicitly linked, acquired source evidence is treated as used; candidates remain validation-required.",
+      status: sourceEvidenceLineage.length > 0 ? "generated" : "validation_required",
       linkedEntityIds: sourceLineage.map((source) => source.id),
-      content: { sources: sourceLineage.slice(0, 8), caveat: "No live official integration claim is made." }
+      content: {
+        evidence: sourceEvidenceLineage.slice(0, 8),
+        candidates: sourceCandidateLineage.slice(0, 8),
+        caveat: "No live official integration claim is made; candidate sources are not evidence used."
+      }
     }),
     packageSection({
       order: 6,
       type: "source_lineage",
       title: "Source Lineage Appendix",
-      summary: "Source modes, record counts and limitations are included for diligence review.",
+      summary: "Source modes, evidence roles, record counts and limitations are included for diligence review.",
       status: sourceLineage.length > 0 ? "generated" : "validation_required",
       linkedEntityIds: sourceLineage.map((source) => source.id),
-      content: { lineage: sourceLineage }
+      content: {
+        evidence: sourceEvidenceLineage,
+        candidates: sourceCandidateLineage,
+        lineage: sourceLineage
+      }
     }),
     packageSection({
       order: 7,

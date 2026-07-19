@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { recordAuditEvent } from "@/src/lib/audit/audit-event";
-import { requireProjectAccess } from "@/src/lib/auth/project-access";
+import { isPreAuthServerMutationBlocked, projectAccessDeniedPayload, requireProjectAccess } from "@/src/lib/auth/project-access";
 import { createDataRoomAsset } from "@/src/lib/repositories/data-room-repository";
 import { repositoryModeFields } from "@/src/lib/repositories/repository-mode";
 import {
@@ -10,6 +10,8 @@ import {
   type DataRoomSourceType,
   type DataRoomValidationStatus
 } from "@/src/types/data-room";
+import { readBoundedJson } from "@/src/lib/http/bounded-json";
+import { getProjectByKey } from "@/src/lib/db/repositories/projects";
 
 export const runtime = "nodejs";
 
@@ -46,9 +48,9 @@ function isAssetInput(value: unknown): value is Omit<DataRoomAsset, "createdAt" 
   if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
   const input = value as Partial<DataRoomAsset>;
   return (
-    typeof input.id === "string" &&
-    typeof input.projectKey === "string" &&
-    typeof input.name === "string" &&
+    typeof input.id === "string" && /^[a-zA-Z0-9_.:-]{1,240}$/.test(input.id) &&
+    typeof input.projectKey === "string" && input.projectKey.length <= 160 &&
+    typeof input.name === "string" && input.name.trim().length > 0 && input.name.length <= 500 &&
     Boolean(input.assetType && assetTypes.includes(input.assetType)) &&
     Boolean(input.sourceType && sourceTypes.includes(input.sourceType)) &&
     Boolean(input.validationStatus && validationStatuses.includes(input.validationStatus))
@@ -56,23 +58,41 @@ function isAssetInput(value: unknown): value is Omit<DataRoomAsset, "createdAt" 
 }
 
 export async function POST(request: Request) {
-  let body: unknown;
-
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ ok: false, ...repositoryModeFields("local_fallback"), message: "Invalid JSON body." }, { status: 400 });
+  if (isPreAuthServerMutationBlocked("write")) {
+    const access = requireProjectAccess({ action: "evidence.upload", mode: "soft" });
+    return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
   }
+  const parsed = await readBoundedJson(request, 192 * 1024);
+  if (!parsed.ok) {
+    return NextResponse.json({ ok: false, ...repositoryModeFields("local_fallback"), message: parsed.message }, { status: parsed.status });
+  }
+  const body = parsed.value;
 
   if (!isAssetInput(body)) {
     return NextResponse.json({ ok: false, ...repositoryModeFields("local_fallback"), message: "Invalid data room asset metadata." }, { status: 400 });
   }
 
+  const access = requireProjectAccess({ projectKey: body.projectKey, action: "evidence.upload", mode: "soft" });
+  if (!access.allowed) {
+    return NextResponse.json(projectAccessDeniedPayload(access), { status: access.status });
+  }
+
+  const project = await getProjectByKey(body.projectKey);
+  const safeIds = (value: string[] | undefined) => (value ?? []).filter((item) => typeof item === "string" && /^[a-zA-Z0-9_.:-]{1,240}$/.test(item)).slice(0, 50);
   const result = await createDataRoomAsset({
-    ...body,
-    caveat: body.caveat ?? dataRoomRequiredCaveat
+    id: body.id,
+    projectId: project.data?.id ?? null,
+    projectKey: body.projectKey,
+    name: body.name.trim().slice(0, 500),
+    description: typeof body.description === "string" ? body.description.trim().slice(0, 4000) : undefined,
+    assetType: body.assetType,
+    sourceType: body.sourceType,
+    linkedAoiIds: safeIds(body.linkedAoiIds),
+    linkedAnalysisIds: safeIds(body.linkedAnalysisIds),
+    linkedReportIds: safeIds(body.linkedReportIds),
+    validationStatus: body.validationStatus,
+    caveat: dataRoomRequiredCaveat
   });
-  const access = requireProjectAccess({ projectKey: body.projectKey, action: "write", mode: "soft" });
   void recordAuditEvent({
     projectKey: body.projectKey,
     eventType: "data_room_asset_added",
