@@ -40,7 +40,7 @@
     "test:auth-ssr-transport": "node scripts/auth-ssr-transport-check.mjs",
     "test:auth-admin-ui": "node scripts/auth-admin-ui-check.mjs",
     "test:auth-session-e2e-contract": "node scripts/auth-session-e2e-contract-check.mjs",
-    "test:e2e:auth-session": "playwright test tests/e2e/auth-session-flow.spec.ts tests/e2e/auth-responsive-flow.spec.ts tests/e2e/accessibility-workspace-flow.spec.ts tests/e2e/accessibility-project-comparison-flow.spec.ts tests/e2e/mobile-product-flow.spec.ts tests/e2e/mobile-global-navigation.spec.ts",
+    "test:e2e:auth-session": "playwright test tests/e2e/auth-session-flow.spec.ts tests/e2e/auth-responsive-flow.spec.ts tests/e2e/accessibility-workspace-flow.spec.ts tests/e2e/accessibility-project-comparison-flow.spec.ts tests/e2e/mobile-product-flow.spec.ts tests/e2e/mobile-global-navigation.spec.ts tests/e2e/commercial-alignment-visual.spec.ts",
     "test:e2e:auth-real-persona": "playwright test tests/e2e/real-email-auth-flow.spec.ts",
     "test:lighthouse-budget": "node scripts/lighthouse-budget-check.mjs artifacts/lighthouse-mobile.json artifacts/lighthouse-desktop.json artifacts/lighthouse-mobile-projects.json artifacts/lighthouse-desktop-explore.json",
     "test:user-profile": "node scripts/user-profile-check.mjs",
