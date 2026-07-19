@@ -139,8 +139,12 @@ if (!callback.includes("exchangeCodeForSession") || !callback.includes("getSafeA
 if (!logout.includes('signOut({ scope: "local" })') || !logout.includes("privateNoStoreJson")) {
   failures.push("Logout route does not clear the local SSR session through a private no-store response");
 }
-if (!provider.includes("shouldCreateUser: true") || !provider.includes("signInWithPhone") || !provider.includes("verifyPhoneCode") || !provider.includes('fetch("/api/auth/session"') || !provider.includes('fetch("/api/auth/logout"')) {
-  failures.push("Browser auth provider does not implement unified email/phone signup-login or consume the session/logout routes");
+const existingUserOnlyOtpGuards = provider.match(/shouldCreateUser:\s*false/g) ?? [];
+if (existingUserOnlyOtpGuards.length !== 2 || /shouldCreateUser:\s*true/.test(provider) || /[.]auth[.]signUp\s*\(/.test(provider)) {
+  failures.push("Public email and phone OTP paths must be existing-user-only and must not expose an automatic signup path");
+}
+if (!provider.includes("signInWithPassword") || !provider.includes("signInWithPhone") || !provider.includes("verifyPhoneCode") || !provider.includes('fetch("/api/auth/session"') || !provider.includes('fetch("/api/auth/logout"')) {
+  failures.push("Browser auth provider does not preserve existing-user email/password/phone sign-in and session/logout routes");
 }
 if (!login.includes("mockDemoEmail") || !login.includes("mockDemoPassword") || !login.includes("signInWithPhone") || !login.includes("verifyPhoneCode")) {
   failures.push("Simple login UI does not expose email, phone-code and isolated mock-demo paths");
@@ -148,8 +152,8 @@ if (!login.includes("mockDemoEmail") || !login.includes("mockDemoPassword") || !
 if (!mockDemo.includes('demo@geoai.space') || !mockDemo.includes('"111111"') || !mockDemo.includes("localStorage") || mockDemo.includes("fetch(")) {
   failures.push("Mock demo credentials/session are not explicit browser-only state");
 }
-if (!elevated.includes("createRequestAuthContext") || !elevated.includes('assuranceLevel: "verified_identity"') || elevated.includes(".mfa")) {
-  failures.push("Admin request context must require a verified permanent identity without an MFA dependency");
+if (!elevated.includes("createRequestAuthContext") || !elevated.includes('assuranceLevel: "permanent_identity"') || elevated.includes("verified_identity") || elevated.includes(".mfa")) {
+  failures.push("Admin request context must require a permanent non-anonymous identity without claiming credential verification or MFA");
 }
 if (callback.includes(".mfa") || callback.includes('"/mfa"') || summary.includes(".mfa")) {
   failures.push("Email/phone session and callback must not redirect to or query MFA");
@@ -161,4 +165,4 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-console.log("Auth SSR transport contract passed: exact publishable-key cookie clients, unified email/phone login, browser-only mock demo, permanent-user verification and no MFA dependency are present.");
+console.log("Auth SSR transport contract passed: exact publishable-key cookie clients, existing-user-only email/phone OTP, existing-password sign-in, browser-only mock demo, permanent non-anonymous identity and no MFA dependency are present.");

@@ -21,6 +21,7 @@ const viewports = [
 const visualDirectory = path.join(process.cwd(), "artifacts", "commercial-visual-evidence");
 const visualManifest = path.join(visualDirectory, "manifest.json");
 const visualEvidence: CommercialVisualEvidence[] = [];
+const visualMismatches: string[] = [];
 
 const expectedSha256ByFile: Record<string, string> = {
   "landing-desktop-1440.png": "95f8bc525f38d515429251f2ffc98c49396e559ea7be5c403df5181889b44b7b",
@@ -66,7 +67,9 @@ async function captureCommercialVisual(page: Page, label: string, fileName: stri
     height: viewport?.height ?? 0
   });
   await fs.writeFile(visualManifest, `${JSON.stringify(visualEvidence, null, 2)}\n`, "utf8");
-  expect(sha256, `${label} must match the accepted commercial alignment evidence`).toBe(expectedSha256ByFile[fileName]);
+  if (sha256 !== expectedSha256ByFile[fileName]) {
+    visualMismatches.push(`${label}: expected ${expectedSha256ByFile[fileName]}, received ${sha256}`);
+  }
   console.log(`[commercial-visual] ${label}: ${fileName} sha256:${sha256}`);
 }
 
@@ -82,6 +85,7 @@ async function openDemoProfile(page: Page) {
 test.describe("commercial Landing and Account visual acceptance", () => {
   test.beforeAll(async () => {
     visualEvidence.length = 0;
+    visualMismatches.length = 0;
     await fs.rm(visualDirectory, { recursive: true, force: true });
   });
 
@@ -97,7 +101,7 @@ test.describe("commercial Landing and Account visual acceptance", () => {
       await captureCommercialVisual(page, `${viewport.name} Landing`, `landing-${viewport.name}.png`);
 
       await page.goto("/login?next=/workspace&intent=demo");
-      await expect(page.getByRole("heading", { level: 1, name: "Sign in or create account" })).toBeVisible();
+      await expect(page.getByRole("heading", { level: 1, name: "Sign in to GeoAI" })).toBeVisible();
       await expectNoHorizontalOverflow(page);
       await captureCommercialVisual(page, `${viewport.name} Login`, `login-${viewport.name}.png`);
 
@@ -107,5 +111,7 @@ test.describe("commercial Landing and Account visual acceptance", () => {
 
       await context.close();
     }
+
+    expect(visualMismatches, "Every commercial visual must match its accepted SHA-256").toEqual([]);
   });
 });

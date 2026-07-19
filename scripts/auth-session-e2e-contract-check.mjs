@@ -63,6 +63,15 @@ for (const marker of [
 ]) requireText(spec, marker, `Browser flow is missing ${marker}`);
 
 for (const marker of [
+  'test.describe("public Auth signup containment"',
+  'create_user: false',
+  'pathname === "/auth/v1/signup"',
+  'name: "Send sign-in link"',
+  'name: "Send code"',
+  'expect(signupRequests).toEqual([])'
+]) requireText(spec, marker, `Public signup containment browser flow is missing ${marker}`);
+
+for (const marker of [
   'const rehearsalProjectRef = "bkmfcjzalcvdsdvyxpgi"',
   "GEOAI_REAL_AUTH_EMAIL",
   "GEOAI_REAL_AUTH_PASSWORD",
@@ -192,7 +201,7 @@ for (const marker of [
   "expectNoHorizontalOverflow(page)",
   'page.clock.setFixedTime(new Date("2026-07-19T09:00:00.000Z"))',
   'name: "Ask the map. Move with evidence."',
-  'name: "Sign in or create account"',
+  'name: "Sign in to GeoAI"',
   'name: "Your profile"',
   '"landing-desktop-1440.png"',
   '"login-tablet-768.png"',

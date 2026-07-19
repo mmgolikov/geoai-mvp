@@ -46,7 +46,7 @@ export async function GET(request: Request) {
       items: [],
       access,
       error: null,
-      caveat: "Public-demo evidence files remain browser-local; protected metadata and binary reads require verified identity."
+      caveat: "Public-demo evidence files remain browser-local; protected metadata and binary reads require a permanent non-anonymous identity."
     });
   }
   const result = await listEvidenceFileAssets({ projectId, projectKey, limit: 80 });

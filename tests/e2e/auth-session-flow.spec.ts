@@ -6,7 +6,7 @@ async function expectLoginRedirect(page: Page, expectedNext: string) {
   await expect(page).toHaveURL((url) =>
     url.pathname === "/login" && url.searchParams.get("next") === expectedNext
   );
-  await expect(page.getByRole("heading", { name: "Sign in or create account" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Sign in to GeoAI" })).toBeVisible();
 }
 
 async function expectAuthenticatedProfileControl(page: Page) {
@@ -51,5 +51,44 @@ test.describe("authenticated product route session", () => {
 
     await page.goto("/workspace");
     await expectLoginRedirect(page, "/workspace");
+  });
+});
+
+test.describe("public Auth signup containment", () => {
+  test("sends existing-user-only email and phone OTP requests", async ({ page }) => {
+    const otpRequests: Array<Record<string, unknown>> = [];
+    const signupRequests: string[] = [];
+
+    page.on("request", (request) => {
+      if (new URL(request.url()).pathname === "/auth/v1/signup") signupRequests.push(request.url());
+    });
+    await page.route(/^https:\/\/bkmfcjzalcvdsdvyxpgi[.]supabase[.]co\/auth\/v1\/otp(?:[?].*)?$/, async (route) => {
+      otpRequests.push(route.request().postDataJSON() as Record<string, unknown>);
+      await route.fulfill({ status: 200, contentType: "application/json", body: "{}" });
+    });
+
+    await page.goto("/login?next=%2Fworkspace&intent=request");
+    await page.getByLabel("Email or phone").fill("existing.user@example.com");
+    await page.getByRole("button", { name: "Send sign-in link" }).click();
+    await expect(page.getByText("Check your email and open the GeoAI sign-in link.", { exact: true })).toBeVisible();
+    await expect.poll(() => otpRequests.length).toBe(1);
+    expect(otpRequests[0]).toMatchObject({
+      email: "existing.user@example.com",
+      create_user: false
+    });
+
+    await page.getByRole("button", { name: "Phone", exact: true }).click();
+    await page.getByLabel("Email or phone").fill("+971501234567");
+    await page.getByRole("button", { name: "Send code" }).click();
+    await expect(page.getByText("Enter the six-digit code sent to your phone.", { exact: true })).toBeVisible();
+    await expect.poll(() => otpRequests.length).toBe(2);
+    expect(otpRequests[1]).toMatchObject({
+      phone: "+971501234567",
+      channel: "sms",
+      create_user: false
+    });
+
+    expect(otpRequests.every((request) => request.create_user === false)).toBe(true);
+    expect(signupRequests).toEqual([]);
   });
 });

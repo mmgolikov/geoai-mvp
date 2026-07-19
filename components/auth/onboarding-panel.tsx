@@ -92,7 +92,7 @@ export function OnboardingPanel() {
               </p>
             ) : isDemo ? (
               <p className="mt-2 text-sm leading-6 text-muted">
-                The demo account cannot join private projects. Sign out and use your verified email or phone number.
+                The demo account cannot join private projects. Sign out and use an approved existing Supabase account.
               </p>
             ) : (
               <p className="mt-2 text-sm leading-6 text-muted">

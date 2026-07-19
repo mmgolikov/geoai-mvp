@@ -14,7 +14,7 @@ export function AccessStatusBadge() {
     ? isDemo
       ? "Open demo profile"
       : "Open your profile"
-    : "Sign in or create account";
+    : "Sign in to GeoAI";
 
   return (
     <Link

@@ -46,7 +46,7 @@ for (const rpc of [
 for (const [pattern, message] of [
   [/create\s+trigger\s+geoai_provision_auth_profile[\s\S]*?on\s+auth[.]users/i, "Auth profile provision trigger is missing"],
   [/is_anonymous[\s\S]*?email_confirmed_at[\s\S]*?confirmed_at/i, "Permanent confirmed-user provisioning checks are missing"],
-  [/require_verified_identity[\s\S]*?is_anonymous/i, "Permanent verified-identity guard is missing"],
+  [/require_permanent_identity[\s\S]*?is_anonymous/i, "Permanent non-anonymous identity guard is missing"],
   [/platform owner bootstrap has already been consumed/i, "One-time platform-owner bootstrap guard is missing"],
   [/pg_advisory_xact_lock[\s\S]*?geoai:platform-owner/i, "Platform-owner bootstrap is not serialized"],
   [/last active organization owner/i, "Last organization-owner protection is missing"],
@@ -58,8 +58,14 @@ for (const [pattern, message] of [
   if (!pattern.test(`${sql}\n${authSimplification}\n${personas}`)) failures.push(message);
 }
 
-if (!/create\s+or\s+replace\s+function\s+geoai_private[.]require_aal2[\s\S]*?require_verified_identity/i.test(authSimplification) || /auth[.]jwt\(\)\s*->>\s*'aal'/i.test(authSimplification)) {
-  failures.push("Legacy AAL2 wrapper is not safely superseded by verified identity without MFA");
+if (!/create\s+or\s+replace\s+function\s+geoai_private[.]require_permanent_identity[\s\S]*?is_anonymous/i.test(authSimplification)) {
+  failures.push("Permanent non-anonymous identity helper is missing");
+}
+if (!/create\s+or\s+replace\s+function\s+geoai_private[.]require_aal2[\s\S]*?require_permanent_identity/i.test(authSimplification) || /auth[.]jwt\(\)\s*->>\s*'aal'/i.test(authSimplification)) {
+  failures.push("Legacy AAL2 wrapper is not safely superseded by the permanent non-anonymous identity helper");
+}
+if (/require_verified_identity/i.test(authSimplification) || !/does not assert verified email or phone ownership/i.test(authSimplification)) {
+  failures.push("Auth simplification migration must not equate permanent identity with verified email or phone ownership");
 }
 
 if (!/select\s+extensions[.]plan\(73\)/i.test(personas)) failures.push("Activation persona plan is not 73 assertions");

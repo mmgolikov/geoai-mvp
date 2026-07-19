@@ -77,7 +77,7 @@ for (const file of await collectRouteFiles(apiRoot)) {
           rpcIndex < bodyIndex ||
           !/return\s+privateNoStoreJson\s*\(/.test(denialWindow)
         ) {
-          failures.push(`${relative} ${handler.method}: invitation acceptance must deny an unverified identity before body parsing and api RPC execution`);
+          failures.push(`${relative} ${handler.method}: invitation acceptance must deny a non-permanent identity before body parsing and api RPC execution`);
         }
         continue;
       }
@@ -118,7 +118,7 @@ for (const file of await collectRouteFiles(apiRoot)) {
         (firstSensitive >= 0 && denialIndex > firstSensitive) ||
         !/return\s+privateNoStoreJson\s*\(/.test(denialWindow)
       ) {
-        failures.push(`${relative} ${handler.method}: org_admin verified-identity denial must precede body parsing and api RPC execution`);
+        failures.push(`${relative} ${handler.method}: org_admin permanent-identity denial must precede body parsing and api RPC execution`);
       }
       continue;
     }
@@ -178,7 +178,7 @@ for (const file of await collectRouteFiles(apiRoot)) {
       const identityWindow = identityIndex >= 0 ? handler.body.slice(Math.max(0, identityIndex - 40), identityIndex + 1400) : "";
       const visiblyReturns = /if\s*\(\s*!hasRequestIdentityKernelEvidence\(\)\s*\)\s*\{[\s\S]*?return\s+(?:NextResponse\.|privateNoStoreJson\s*\()/.test(identityWindow);
       if (identityIndex < 0 || (firstSensitive >= 0 && identityIndex > firstSensitive) || !visiblyReturns) {
-        failures.push(`${relative} ${handler.method}: verified-identity denial must precede params, body and repository access`);
+        failures.push(`${relative} ${handler.method}: permanent-identity denial must precede params, body and repository access`);
         continue;
       }
     }

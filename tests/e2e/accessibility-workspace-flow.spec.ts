@@ -105,7 +105,7 @@ test.describe("accessible critical screens and keyboard-only workspace journey",
     const demoLink = page.getByRole("link", { name: "View demo" }).last();
     await tabUntilLocator(page, demoLink, { maximumTabs: 40 });
     await page.keyboard.press("Enter");
-    await expect(page.getByRole("heading", { level: 1, name: "Sign in or create account" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Sign in to GeoAI" })).toBeVisible();
     await recordAccessibilityResult(page, "Unified login", evidence);
 
     await useDemoCredentialsWithKeyboard(page);

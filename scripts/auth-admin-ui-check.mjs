@@ -48,7 +48,7 @@ for (const rpc of allowedAdminRpcs) {
 assert(onboardingRoute.includes('.rpc("accept_invitation"'), "Onboarding API is not wired to api.accept_invitation");
 assert(!/\.from\s*\(/.test(`${adminRoute}\n${onboardingRoute}`), "Admin/Onboarding APIs must not read protected base tables");
 assert(adminRoute.includes('.schema("api")') && onboardingRoute.includes('.schema("api")'), "All Admin/Onboarding calls must stay in the api schema");
-assert(elevated.includes('assuranceLevel: "verified_identity"') && !elevated.includes(".mfa"), "Admin API must require verified identity without MFA");
+assert(elevated.includes('assuranceLevel: "permanent_identity"') && !elevated.includes("verified_identity") && !elevated.includes(".mfa"), "Admin API must require a permanent non-anonymous identity without claiming credential verification or MFA");
 assert(adminRoute.includes("expected_row_version") && adminUi.includes("rowVersion"), "Admin mutation flow must preserve optimistic row versions");
 assert(tokenHelper.includes('randomBytes(32).toString("base64url")') && tokenHelper.includes('createHash("sha256")'), "Invitation tokens must be random and SHA-256 hashed server-side");
 assert(adminRoute.includes("target_token_hash: hashInvitationToken(rawToken)") && !adminRoute.includes("target_token:"), "Admin API must send only the invitation hash to the RPC");
@@ -60,9 +60,9 @@ assert(callback.includes("exchangeCodeForSession") && redirectPath.includes("app
 assert(!callback.includes(".mfa") && !adminUi.includes("MFA") && !onboardingUi.includes("MFA"), "Current user flows must not expose or require MFA");
 assert(!onboardingUi.includes('type="password"') && !onboardingUi.includes("One-time invitation token"), "Onboarding must not ask users to paste technical invitation tokens");
 assert(landing.includes('href="/login?next=/workspace&intent=demo"') && landing.includes("View demo"), "Landing demo CTA must enter the bounded auth flow before Workspace");
-assert(landing.includes('href="/login?next=/workspace&intent=request"') && landing.includes("Leave a request"), "Landing must expose the account-registration request CTA");
+assert(landing.includes('href="/login?next=/workspace&intent=request"') && landing.includes("Leave a request"), "Landing must expose the bounded access-request CTA");
 assert(!landing.includes('href="/workspace"') && !landing.includes('href="/projects"'), "Landing must not bypass the requested authentication funnel");
-assert(login.includes("Sign in or create account") && login.includes("window.location.replace(getDestination())") && login.includes("Authorization saved. Opening Workspace"), "Successful login must immediately continue to Workspace with the saved session");
+assert(login.includes("Sign in to GeoAI") && login.includes("sign-in only") && login.includes("separate approved invitation") && !login.includes("Sign in or create account") && login.includes("window.location.replace(getDestination())") && login.includes("Authorization saved. Opening Workspace"), "Existing-user-only login must not advertise public signup and must immediately continue a saved session to Workspace");
 assert(navigation.includes("AccessStatusBadge") && accessBadge.includes('data-authenticated={isAuthenticated ? "true" : "false"}') && accessBadge.includes('isAuthenticated ? "/profile" : "/login"'), "Product navigation must expose a highlighted profile icon that opens the personal account");
 assert(provider.includes("isSessionResolved") && provider.includes("finally") && provider.includes("setIsSessionResolved(true)"), "AuthProvider must resolve the browser session before protected product UI renders");
 assert(routeGate.includes('authStatus.effectiveMode === "demo_public"') && routeGate.includes("return children"), "Public demo mode must preserve direct product access");
@@ -88,4 +88,4 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-console.log("Auth/Admin UI contract passed: resolved-session route gating, bounded login continuation, verified-identity same-origin APIs, api-only RPCs, invisible hashed invitation handoff, simple onboarding and no MFA dependency are wired.");
+console.log("Auth/Admin UI contract passed: resolved-session route gating, bounded existing-user login, permanent-identity same-origin APIs, api-only RPCs, invisible hashed invitation handoff, invitation-only onboarding and no MFA dependency are wired.");

@@ -159,15 +159,15 @@ set local role authenticated;
 select set_config('request.jwt.claim.sub', '92000000-0000-0000-0000-000000000001', true);
 select set_config('request.jwt.claims', '{"sub":"92000000-0000-0000-0000-000000000001","role":"authenticated","aal":"aal1"}', true);
 
--- Verified identity, tenant/client/project creation (45-54).
+-- Permanent non-anonymous identity, tenant/client/project creation (45-54).
 select extensions.throws_ok(
   $$select api.create_organization('Activation Tenant', 'activation-tenant', null)$$,
-  '42501', 'a permanent verified identity is required', 'organization creation fails closed when permanent-user evidence is absent'
+  '42501', 'a permanent non-anonymous identity is required', 'organization creation fails closed when permanent-user evidence is absent'
 );
 select set_config('request.jwt.claims', '{"sub":"92000000-0000-0000-0000-000000000001","role":"authenticated","aal":"aal1","is_anonymous":false}', true);
 insert into pg_temp.activation_ids
 select 'organization', (api.create_organization('Activation Tenant', 'activation-tenant', null) ->> 'id')::uuid;
-select extensions.ok((select id is not null from pg_temp.activation_ids where key = 'organization'), 'verified email or phone platform owner creates an organization without MFA');
+select extensions.ok((select id is not null from pg_temp.activation_ids where key = 'organization'), 'permanent non-anonymous platform owner creates an organization without MFA');
 select extensions.is((select organization_role from api.current_organization_memberships() where organization_id = (select id from pg_temp.activation_ids where key = 'organization')), 'owner', 'organization creator becomes its owner');
 select extensions.ok(
   exists (
@@ -203,7 +203,7 @@ select extensions.throws_ok(
     (select id from pg_temp.activation_ids where key = 'project'),
     'invitee@test.invalid', 'member', 'analyst', repeat('a',64), now() + interval '1 day', null
   )$$,
-  '42501', 'a permanent verified identity is required', 'anonymous identity cannot create an invitation'
+  '42501', 'a permanent non-anonymous identity is required', 'anonymous identity cannot create an invitation'
 );
 select set_config('request.jwt.claims', '{"sub":"92000000-0000-0000-0000-000000000001","role":"authenticated","aal":"aal1","is_anonymous":false}', true);
 select extensions.throws_ok(

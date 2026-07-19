@@ -144,14 +144,14 @@ export function LoginPanel() {
 
         <div className="order-1 overflow-hidden rounded-[28px] border border-line bg-white p-6 shadow-soft sm:p-8 lg:order-2 lg:p-[42px]">
           <p className="text-xs font-semibold uppercase tracking-[0.08em] text-brand">{kicker}</p>
-          <h1 className="mt-4 text-3xl font-semibold tracking-[-0.025em] text-ink sm:text-[40px]">Sign in or create account</h1>
+          <h1 className="mt-4 text-3xl font-semibold tracking-[-0.025em] text-ink sm:text-[40px]">Sign in to GeoAI</h1>
           <h2 className="mt-2 text-xl font-semibold text-ink sm:text-2xl">Continue to GeoAI</h2>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-muted">
             {intent === "demo"
               ? "Sign in or use the ready browser-local demo. Workspace opens automatically after authorization."
               : intent === "request"
-                ? "Continue with email or phone. New accounts are created only after the configured verification step succeeds."
-                : "Continue with email or phone. A saved session opens Workspace automatically."}
+                ? "Sign in with an existing email or phone account. New account onboarding requires a separate approved invitation."
+                : "Sign in with an existing email or phone account. A saved session opens Workspace automatically."}
           </p>
 
           {isAuthenticated ? (
@@ -246,7 +246,7 @@ export function LoginPanel() {
 
               <div className="mt-5 rounded-2xl bg-[#e8fafa] p-4 text-xs leading-5 text-ink">
                 <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full bg-accent" aria-hidden="true" />
-                No separate registration form: the configured verification step creates the account when allowed.
+                Public email and phone access is sign-in only. New account onboarding requires a separate approved invitation.
               </div>
 
               <div className="mt-4 grid gap-4 rounded-2xl bg-[#f5f2ff] p-4 sm:grid-cols-[1fr_auto] sm:items-center">
@@ -265,7 +265,7 @@ export function LoginPanel() {
               </div>
 
               <p className="mt-4 text-[10px] leading-4 text-muted">By continuing, you accept the Terms and Privacy Policy.</p>
-              <p className="mt-2 text-[10px] leading-4 text-muted">Phone sign-in becomes operational only after an approved SMS provider is connected. Email and browser-local demo access do not depend on it.</p>
+              <p className="mt-2 text-[10px] leading-4 text-muted">Phone sign-in is limited to existing accounts and becomes operational only after an approved SMS provider is connected. Email and browser-local demo access do not depend on it.</p>
             </>
           )}
         </div>

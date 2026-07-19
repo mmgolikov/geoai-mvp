@@ -79,7 +79,7 @@ async function tabUntilLocator(
 
 async function signInDemoWithKeyboard(page: Page, nextPath: "/projects" | "/explore") {
   await page.goto(`/login?next=${encodeURIComponent(nextPath)}&intent=demo`);
-  await expect(page.getByRole("heading", { level: 1, name: "Sign in or create account" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Sign in to GeoAI" })).toBeVisible();
 
   const demoCredentials = page.getByRole("button", { name: "Use demo credentials" });
   await tabUntilLocator(page, demoCredentials, { maximumTabs: 40 });

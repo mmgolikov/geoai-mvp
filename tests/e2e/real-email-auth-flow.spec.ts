@@ -46,7 +46,7 @@ async function expectLoginRedirect(page: Page, expectedNext: string) {
   await expect(page).toHaveURL((url) =>
     url.pathname === "/login" && url.searchParams.get("next") === expectedNext
   );
-  await expect(page.getByRole("heading", { name: "Sign in or create account" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Sign in to GeoAI" })).toBeVisible();
 }
 
 async function readSession(page: Page) {

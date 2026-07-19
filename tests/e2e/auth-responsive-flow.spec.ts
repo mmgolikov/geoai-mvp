@@ -59,7 +59,7 @@ for (const viewport of viewports) {
       await expect(demoLink).toHaveAttribute("href", "/login?next=/workspace&intent=demo");
       await expect(requestLink).toBeVisible();
       await expect(requestLink).toHaveAttribute("href", "/login?next=/workspace&intent=request");
-      await expect(page.getByRole("link", { name: "Sign in or create account" })).toBeVisible();
+      await expect(page.getByRole("link", { name: "Sign in to GeoAI" })).toBeVisible();
       await expectNoHorizontalOverflow(page);
 
       await demoLink.click();
@@ -68,7 +68,7 @@ for (const viewport of viewports) {
         && url.searchParams.get("next") === "/workspace"
         && url.searchParams.get("intent") === "demo"
       );
-      await expect(page.getByRole("heading", { level: 1, name: "Sign in or create account" })).toBeVisible();
+      await expect(page.getByRole("heading", { level: 1, name: "Sign in to GeoAI" })).toBeVisible();
       await expect(page.getByLabel("Email or phone")).toBeVisible();
       await expect(page.getByLabel("Password")).toBeVisible();
       await expect(page.getByRole("button", { name: "Use demo credentials" })).toBeVisible();
@@ -85,7 +85,7 @@ test.describe("mobile keyboard and target-size access", () => {
 
     const demoLink = page.getByRole("link", { name: "View demo" }).last();
     const requestLink = page.getByRole("link", { name: "Leave a request" }).last();
-    const profileLink = page.getByRole("link", { name: "Sign in or create account" });
+    const profileLink = page.getByRole("link", { name: "Sign in to GeoAI" });
 
     for (const control of [demoLink, requestLink, profileLink]) {
       const box = await control.boundingBox();

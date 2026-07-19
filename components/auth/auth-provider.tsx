@@ -199,7 +199,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email: normalizedEmail,
       options: {
         emailRedirectTo: callback.toString(),
-        shouldCreateUser: true
+        shouldCreateUser: false
       }
     });
     if (error) {
@@ -275,10 +275,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     clearMockDemoSession();
     const { error } = await supabase.auth.signInWithOtp({
       phone: normalizedPhone,
-      options: { channel: "sms", shouldCreateUser: true }
+      options: { channel: "sms", shouldCreateUser: false }
     });
     if (error) {
-      return { ok: false, message: "Phone sign-in is not connected yet. Use email or the demo account." };
+      return { ok: false, message: "Phone sign-in is unavailable for this existing account or the SMS provider is not configured. Use email or the browser-local demo." };
     }
     return { ok: true, message: "Enter the six-digit code sent to your phone." };
   }

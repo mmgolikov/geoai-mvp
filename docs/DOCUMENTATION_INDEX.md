@@ -1,7 +1,7 @@
 # GeoAI Documentation Index
 
 Status: Active navigation authority
-Last verified: 2026-07-17
+Last verified: 2026-07-19
 Owner: GeoAI Documentation Governance
 Authority: Sole repository navigation and lifecycle precedence
 Successor: None; any replacement must update this file and the Confluence Hub atomically
@@ -47,7 +47,7 @@ The following facts must agree across the Hub, release state, architecture, road
 | Production database | Supabase not configured |
 | Production source pack | HTTP 503; disabled; zero sources |
 | Development Supabase | Ref `pphdqkurxneyagvnnjdt`, separate from Production; snapshot `ACTIVE_HEALTHY` on PG `17.6.1.141`; fresh ledger remains exactly ten historical entries with all seven current candidates unapplied; live Data API/Storage/persona/upgrade gates remain |
-| Free Auth rehearsal | Ref `bkmfcjzalcvdsdvyxpgi`, separate from development/Production; the first six candidate migrations + owner API operator are applied; hosted pgTAP `183/183`; PostgREST `api` only proven by positive/negative HTTP; zero uncovered domain FKs; rollback-only two-backend table-level invitation concurrency passed. The seventh no-MFA verified-identity migration is prepared but unapplied; real email/phone/Admin, Storage and rendered-browser personas remain open |
+| Free Auth rehearsal | Ref `bkmfcjzalcvdsdvyxpgi`, separate from development/Production; the first six candidate migrations + owner API operator are applied; hosted pgTAP `183/183`; PostgREST `api` only proven by positive/negative HTTP; zero uncovered domain FKs; rollback-only two-backend table-level invitation concurrency passed. The seventh no-MFA permanent non-anonymous identity migration is prepared but unapplied and does not assert verified email/phone ownership; real email/phone/Admin, Storage and rendered-browser personas remain open |
 | Candidate Auth browser contract | Exact head `4e5208a729f9dfb13068dc9521871da74a7de8db` passed Quality Gate `29582671453`; Chrome `150.0.7871.114` completed the focused Playwright mock journey `1/1` in `24.3 s`. The runner constructs a fake public-key-shaped value, uses no real credential or hosted identity and has no Supabase write path. Vercel `dpl_DzLXYYmip3N6CazkW3gXpUG34Sib` is rejected after runtime 500 middleware failures; real Auth/RLS/Admin personas remain open |
 | Responsive/keyboard browser evidence | Exact head `e203e895406817497f339fccf1d04da377a7bc65` passed Quality Gate `29584919107`; Chrome `150.0.7871.114` completed `5/5` in `41.5 s` across desktop/tablet/390px layout and overflow checks plus a 390px keyboard-only demo → Workspace → authenticated profile journey. Axe/Lighthouse, deep product/print journeys and real email/phone personas remain pending |
 | Accessibility/deep-keyboard browser evidence | Exact head `5d7af89ac2ead5b4df545e2f1810d5966c22cd0e` passed Quality Gate `29587485235`; Chrome `150.0.7871.114` completed `6/6` in `41.6 s`. Axe reported `0` serious/critical findings on Landing Hub, unified login, Workspace setup, analysis dashboard and printable report; the Tab/Enter-only path switches Map-first to Criteria-first, selects a candidate, runs analysis, exports and focuses print. Preview `dpl_HhpTExvknfLRhMNqxXunUvXZQorF` is healthy. Projects/Explore Axe, comparison/project paths, visual regression, Lighthouse/Core Web Vitals and real users remain pending |

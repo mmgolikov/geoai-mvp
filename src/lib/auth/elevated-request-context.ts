@@ -4,7 +4,7 @@ export type ElevatedRequestContext =
   | {
       ok: true;
       context: RequestAuthContext & { verified: true };
-      assuranceLevel: "verified_identity";
+      assuranceLevel: "permanent_identity";
     }
   | {
       ok: false;
@@ -21,6 +21,6 @@ export async function createElevatedRequestContext(request: Request): Promise<El
   return {
     ok: true,
     context: context as RequestAuthContext & { verified: true },
-    assuranceLevel: "verified_identity"
+    assuranceLevel: "permanent_identity"
   };
 }
