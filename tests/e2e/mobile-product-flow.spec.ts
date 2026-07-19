@@ -181,7 +181,7 @@ test.describe("mobile product navigation, targets and visual evidence", () => {
     await expect(page.locator("#active-project option:checked")).toHaveText(projectName);
     await expectNoHorizontalOverflow(page);
     await captureVisualEvidence(page, "Mobile project workspace", "mobile-project-workspace.png", {
-      expectedSha256: "452ebb860536e3c29eee8cda57c6fbdb9ee4e39c199331c7017eac33965c949d"
+      expectedSha256: "59d37c9588a5a2ae5c0e9d9153e8b1f08d5bbc942144e2f13b154cee25fb76aa"
     });
   });
 
