@@ -1,4 +1,9 @@
+import { createHash } from "node:crypto";
+import fs from "node:fs/promises";
+import path from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
+
+const visualDirectory = path.join(process.cwd(), "artifacts", "mobile-visual-evidence");
 
 async function signInDemo(page: Page, nextPath: "/workspace") {
   await page.goto(`/login?next=${encodeURIComponent(nextPath)}&intent=demo`);
@@ -25,6 +30,25 @@ async function expectMinimumTargetSize(label: string, locator: Locator, minimum 
   expect(box, `${label} must have a rendered box`).not.toBeNull();
   expect(box?.width ?? 0, `${label} width`).toBeGreaterThanOrEqual(minimum);
   expect(box?.height ?? 0, `${label} height`).toBeGreaterThanOrEqual(minimum);
+}
+
+async function captureAcceptedNavigationEvidence(page: Page) {
+  await page.evaluate(() => document.querySelector("nextjs-portal")?.remove());
+  await page.evaluate(async () => document.fonts.ready);
+  await fs.mkdir(visualDirectory, { recursive: true });
+  const fileName = "mobile-product-navigation.png";
+  const filePath = path.join(visualDirectory, fileName);
+  const image = await page.screenshot({
+    animations: "disabled",
+    caret: "hide",
+    path: filePath
+  });
+  const sha256 = createHash("sha256").update(image).digest("hex");
+  expect(
+    sha256,
+    "Mobile product navigation screenshot hash must match the accepted Figma-aligned palette evidence"
+  ).toBe("fe4671ce5358bb605ed41068bb3a30fe84abf5a66daecddb1aa4f72ffee688e7");
+  console.log(`[visual] Mobile product navigation: ${fileName} sha256:${sha256}`);
 }
 
 async function openMobileNavigation(page: Page) {
@@ -58,13 +82,7 @@ test.describe("global product navigation", () => {
     ] as Array<[string, Locator]>) await expectMinimumTargetSize(label, locator);
     await expect(workspaceLink).toHaveAttribute("aria-current", "page");
 
-    await page.evaluate(() => document.querySelector("nextjs-portal")?.remove());
-    await page.evaluate(async () => document.fonts.ready);
-    await expect(page).toHaveScreenshot("mobile-product-navigation.png", {
-      animations: "disabled",
-      caret: "hide",
-      maxDiffPixelRatio: 0.01
-    });
+    await captureAcceptedNavigationEvidence(page);
 
     await projectsLink.click();
     await expect(page).toHaveURL((url) => url.pathname === "/projects");
