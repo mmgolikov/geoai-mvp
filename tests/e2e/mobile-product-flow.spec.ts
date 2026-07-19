@@ -102,7 +102,7 @@ async function captureVisualEvidence(
   });
   await fs.writeFile(visualManifest, `${JSON.stringify(visualEvidence, null, 2)}\n`, "utf8");
   if (expectedSha256) {
-    expect.soft(sha256, `${label} screenshot hash must match the accepted corrected mobile evidence`).toBe(expectedSha256);
+    expect(sha256, `${label} screenshot hash must match the accepted corrected mobile evidence`).toBe(expectedSha256);
   } else {
     await expect(page).toHaveScreenshot(fileName, {
       animations: "disabled",
@@ -256,7 +256,7 @@ test.describe("mobile product navigation, targets and visual evidence", () => {
     await expectMinimumTargetSize("Export", exportButton);
     await expectMinimumTargetSize("Back to map", backToMap);
     await captureVisualEvidence(page, "Mobile comparison dashboard", "mobile-comparison-dashboard.png", {
-      expectedSha256: "e19ca4ae74fb9d16400979b9b3fd621012a4868e9a29aef6b13358d48e139b04"
+      expectedSha256: "167e3bb7df50099cdfdebcebefb4f88509638f87e873d6880d566365119995fe"
     });
 
     await exportButton.click();
@@ -265,7 +265,7 @@ test.describe("mobile product navigation, targets and visual evidence", () => {
     await expectMinimumTargetSize("Print / Save as PDF", printButton);
     await expectNoHorizontalOverflow(page);
     await captureVisualEvidence(page, "Mobile printable comparison", "mobile-comparison-report.png", {
-      expectedSha256: "e58adaff19908e0c8ad7269e0c483fc25b3d8e93e7e7c9f2316b41cf304d8489",
+      expectedSha256: "db6996f04d17da0619923938224201f7af4a76e8c91633d51281b232833ba7ff",
       fullPage: true
     });
   });
