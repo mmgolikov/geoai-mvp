@@ -51,7 +51,7 @@ for (const viewport of viewports) {
       await page.goto("/");
 
       await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
-      await expect(page.getByRole("heading", { level: 1, name: "GeoAI spatial decision intelligence" })).toBeVisible();
+      await expect(page.getByRole("heading", { level: 1, name: "Ask the map. Move with evidence." })).toBeVisible();
 
       const demoLink = page.getByRole("link", { name: "View demo" }).last();
       const requestLink = page.getByRole("link", { name: "Leave a request" }).last();
