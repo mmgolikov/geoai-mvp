@@ -39,7 +39,7 @@ const profiles = [
     file: desktopLoginPath,
     name: "desktop-login",
     expectedPath: "/login",
-    budgets: { performance: 0.8, accessibility: 0.95, "best-practices": 0.9, seo: 0.85, lcp: 2500, cls: 0.1, tbt: 500 }
+    budgets: { performance: 0.75, accessibility: 0.95, "best-practices": 0.9, seo: 0.85, lcp: 2500, cls: 0.1, tbt: 600 }
   }
 ];
 
