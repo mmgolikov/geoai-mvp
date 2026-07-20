@@ -67,7 +67,7 @@ test.describe("public Auth signup containment", () => {
       await route.fulfill({ status: 200, contentType: "application/json", body: "{}" });
     });
 
-    await page.goto("/login?next=%2Fworkspace&intent=request");
+    await page.goto("/login?next=%2Fworkspace");
     await page.getByLabel("Email or phone").fill("existing.user@example.com");
     await page.getByRole("button", { name: "Send sign-in link" }).click();
     await expect(page.getByText("Check your email and open the GeoAI sign-in link.", { exact: true })).toBeVisible();

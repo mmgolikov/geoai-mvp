@@ -1,12 +1,13 @@
 # GeoAI Full System Audit — 2026-07-16
 
-Status: Active audit record; remediation branch is unreleased
-Last verified: 2026-07-19
+Status: Active audit record; PR #97 remediation is released
+Last verified: 2026-07-20
 Owner: GeoAI Engineering / Governance
 Authority: Current full-system findings, remediation and residual risk
 Successor: None; any replacement must update `DOCUMENTATION_INDEX.md`
 Audit mode: critical, multi-agent, evidence-led; no independent-reviewer approval claim
-Released baseline: PR #87 / `2999e7e857989baf53ce58ecfed63550b5896be0`
+Released baseline: merged PR #97 / `b915a831d5e5b28eab5fd26ac86059820e7e4a32` / `dpl_ERVqZPD5GAGDLjAVhMcPF2HT5Br7` / https://geoai-mvp.vercel.app / `public_demo_prototype`
+Machine authority: [CURRENT_RELEASE_RECEIPT.json](CURRENT_RELEASE_RECEIPT.json)
 Navigation: [Confluence Hub](https://geoaimvp.atlassian.net/wiki/spaces/PH/overview) · [Documentation Index](DOCUMENTATION_INDEX.md) · [Current Release State](CURRENT_RELEASE_STATE.md) · [Codex Backlog](CODEX_BACKLOG_2026_07_16.md) · [Supabase containment runbook](SUPABASE_DATA_API_CONTAINMENT_RUNBOOK_2026_07_16.md)
 Confluence authority: [09.13 Full System Audit — 2026-07-16](https://geoaimvp.atlassian.net/wiki/spaces/PH/pages/12320972) · GitHub execution: [#96](https://github.com/mmgolikov/geoai-mvp/issues/96)
 
@@ -18,7 +19,7 @@ The audit removed the organisational dependency on unavailable independent revie
 
 Post-audit implementation has now closed two isolated rehearsal increments. Free project `bkmfcjzalcvdsdvyxpgi` passes `183/183` hosted SQL personas, including forward lifecycle remediation, exposes only the 14-RPC `api` schema through PostgREST, denies `public` over HTTP and has zero uncovered domain foreign keys. Two independent backend sessions also passed rollback-only table-level invitation create→accept and create→revoke lock-order checks without residual rows or deadlocks. This is strong SQL/API-boundary and table-level concurrency evidence, but not authenticated RPC/HTTP email/phone/Admin, Storage, development or Production certification. [Machine receipt](SUPABASE_AUTH_REHEARSAL_RECEIPT_2026_07_16.json).
 
-Current unreleased Auth product decision: one simple existing-user-only email-or-phone sign-in screen, no MFA, no user-entered invitation token, and a browser-only mock demo using `demo@geoai.space` / `111111`. Both OTP paths set `shouldCreateUser: false`; phone also requires an owner-configured SMS provider. Future registration requires a separate approved invitation/server policy. A seventh migration replaces Admin AAL2 with a permanent non-anonymous identity contract that does not assert verified email/phone ownership, but it is prepared only and has not been applied to rehearsal, development or Production.
+Current Auth product decision: one simple existing-user-only email-or-phone sign-in screen, no MFA, no user-entered invitation token, and a browser-only mock demo using `demo@geoai.space` / `111111`. Both OTP paths set `shouldCreateUser: false`; phone also requires an owner-configured SMS provider. Future registration requires a separate approved invitation/server policy. A seventh migration replaces Admin AAL2 with a permanent non-anonymous identity contract that does not assert verified email/phone ownership, but it is prepared only and has not been applied to rehearsal, development or Production.
 
 ## Evidence scope
 
@@ -35,13 +36,14 @@ No Production deployment, development/Production Supabase migration/apply, secre
 
 ## Verified released state
 
-Operational warning: the released PR #87 public demo still permits shared server-side user state and the released `/explore` route can present incorrect Preview/open-context source semantics despite the fail-closed source-pack API. Until Draft PR #97 is merged and deployed, use Production only with built-in synthetic/demo fixtures; do not enter or upload user/client AOIs, CSV, GeoJSON, filenames, evidence or dynamic report/package data. The containment described below is candidate behavior, not a live Production fix.
+Operational warning: PR #97 containment is released, but the public demo remains browser-local and fixture-bounded. Use only built-in synthetic/demo fixtures; do not enter or upload confidential, regulated, sensitive or client-protected AOIs, CSV, GeoJSON, filenames, evidence or dynamic report/package data. Protected persistence and real sources remain blocked.
 
 | Control | Evidence | Result |
 | --- | --- | --- |
-| GitHub release | PR #87, merge `2999e7e857989baf53ce58ecfed63550b5896be0` | Released |
+| GitHub release | PR #97, merge `b915a831d5e5b28eab5fd26ac86059820e7e4a32` | Released |
 | Exact-main quality | Run `29456624801`, 18/18; artifact `8359607780` | Passed |
-| Vercel Production | `dpl_EAXREH31JKznnGbQYEU8bNqTqagN`, exact merge SHA | READY |
+| Vercel Production | `dpl_ERVqZPD5GAGDLjAVhMcPF2HT5Br7`, https://geoai-mvp.vercel.app, exact merge SHA | READY |
+| Product stage | `public_demo_prototype` | Released public-demo prototype; protected operation blocked |
 | Production data plane | `demo_only`, `local_fallback`, soft access; no Production Supabase | Public demo only |
 | Production source pack | HTTP 503, activation false, zero sources | Fail-closed |
 | Development Supabase | Separate ref `pphdqkurxneyagvnnjdt`; 20 public tables, RLS on 19; 10 applied migrations; zero Auth users; candidate containment ledger count zero | Live Data API exposure remains; not security certification |
@@ -51,7 +53,7 @@ Operational warning: the released PR #87 public demo still permits shared server
 
 | Plane | Verified truth | What must not be inferred |
 | --- | --- | --- |
-| Released Production | PR #87 exact SHA/deployment above; no Production Supabase; source pack 503/disabled/zero | Candidate containment, sanitized routes and browser isolation are not live |
+| Released Production | PR #97 exact SHA/deployment above; no Production Supabase; source pack 503/disabled/zero | Containment, sanitized routes and browser isolation are released; protected operation is not active |
 | Live development Supabase | Direct Data API exposure described below; all seven candidate migrations unapplied | Development schema/RLS is not Auth/RBAC/Storage certification and is not Production |
 | Isolated Free rehearsal | Ref `bkmfcjzalcvdsdvyxpgi`; first six candidate migrations and API-only operator applied; hosted `183/183`; positive/negative PostgREST HTTP evidence; zero uncovered domain FKs; rollback-only two-backend table-level invitation concurrency. Seventh no-MFA permanent-identity migration unapplied | Does not prove authenticated RPC/HTTP concurrency, real email/phone/Admin, Storage, development upgrade/drift or Production |
 | Unreleased audit candidate | Head `e999c5a07d3ced6c95f2eb44f6a5f03a9c17caea`, tree `73b7c198813d6aede795b8b186bd4d58e741b181`; run `29500488408` success; DB clean/rehearsal/second 71/71; Preview `dpl_CY7oNavQwu5ddkhRRLaR3FWTd3d9` READY | Live-derived upgrade/drift, apply/Data API containment, credential evacuation, live JWT/Storage/source personas and browser quality remain required |
@@ -168,7 +170,7 @@ These changes implement the local request-scoped email/phone Auth, Admin and sim
 
 The original audit worktree passed a clean dependency install (using an isolated npm cache), all then-current repository gates, `npm audit`, the Next.js production build, built-runtime API/guard probes, the security-header probe and critical route smoke checks. That point-in-time evidence is retained only for chronology.
 
-Head `e999c5a07d3ced6c95f2eb44f6a5f03a9c17caea` (tree `73b7c198813d6aede795b8b186bd4d58e741b181`) passed run `29500488408`; app and DB jobs succeeded and two evidence artifacts preserve quality/database receipts. Preview `dpl_CY7oNavQwu5ddkhRRLaR3FWTd3d9` is READY on the exact head. Its matrix returned expected 200 routes, 503 disabled/zero source pack, 400 invalid climate and CSP/HSTS/nosniff/frame-DENY headers; body sizes remain 5,164/4,411/18,284/5,164/8,221/4,292 B. Browser/mobile/keyboard/print evidence remains unclaimed. Production remains PR #87, and none of these GitHub/Vercel receipts applies Supabase, rotates credentials or activates Auth, Storage or providers; rehearsal database evidence is recorded separately.
+Historical head `e999c5a07d3ced6c95f2eb44f6a5f03a9c17caea` (tree `73b7c198813d6aede795b8b186bd4d58e741b181`) passed run `29500488408`; app and DB jobs succeeded and two evidence artifacts preserve quality/database receipts. Preview `dpl_CY7oNavQwu5ddkhRRLaR3FWTd3d9` was READY on the exact head. Its matrix returned expected 200 routes, 503 disabled/zero source pack, 400 invalid climate and CSP/HSTS/nosniff/frame-DENY headers; body sizes were 5,164/4,411/18,284/5,164/8,221/4,292 B. Current Production authority is the machine receipt above. None of these GitHub/Vercel receipts applies Supabase, rotates credentials or activates Auth, Storage or providers; rehearsal database evidence is recorded separately.
 
 Exact pre-simplification Auth-rehearsal head `8e0039260f4cf201b230288b6b02c48d2955600e` (tree `4c4f007e74f189bf5acdb5de66f352cf9cd59edb`) passed Quality Gate run `29534323096`: application job `87741880884` and database job `87741880992` succeeded, with artifacts `8389906783` and `8389970353`. Preview `dpl_66rk4tVny9TmPjo7BKona5Xo1p1b` was READY. Hosted session/status evidence proved requested/effective `supabase_auth`, hard enforcement, `allowDemoPublic:false`, no anonymous demo identity and private/no-store responses; the Auth client bundles contained no legacy anon/service-role runtime names, and no Auth-route runtime error cluster was observed. This closed ENV-01 for that non-Production Preview integration, but it predates the simplified email/phone/demo decision. Real email/phone, Admin/onboarding and rendered-browser personas remain unclaimed AUTH-01 evidence.
 

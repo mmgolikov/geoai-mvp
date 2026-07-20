@@ -1,7 +1,7 @@
 # GeoAI Current Release State
 
 Status: Canonical repository release snapshot
-Last verified: 2026-07-19
+Last verified: 2026-07-20
 Owner: GeoAI Release Engineering
 Authority: Exact released and candidate runtime evidence
 Successor: None; any replacement must update `DOCUMENTATION_INDEX.md`
@@ -12,11 +12,11 @@ Navigation: [Documentation Index](DOCUMENTATION_INDEX.md) · [Full System Audit]
 
 | Item | Verified state |
 | --- | --- |
-| GitHub release | PR [#87](https://github.com/mmgolikov/geoai-mvp/pull/87), merged |
-| `main` SHA | `2999e7e857989baf53ce58ecfed63550b5896be0` |
-| Exact-main Quality | Run `29456624801`, 18/18 steps passed |
-| Evidence artifact | `8359607780` |
-| Vercel Production | `dpl_EAXREH31JKznnGbQYEU8bNqTqagN`, READY on exact SHA |
+| GitHub release | PR [#97](https://github.com/mmgolikov/geoai-mvp/pull/97), merged |
+| `main` SHA | `b915a831d5e5b28eab5fd26ac86059820e7e4a32` |
+| Machine authority | [CURRENT_RELEASE_RECEIPT.json](CURRENT_RELEASE_RECEIPT.json) |
+| Vercel Production | `dpl_ERVqZPD5GAGDLjAVhMcPF2HT5Br7`, READY at https://geoai-mvp.vercel.app on exact SHA |
+| Product stage | `public_demo_prototype` |
 | Production mode | Public demo, `demo_only`, `local_fallback`, soft access |
 | Production Supabase | Not configured |
 | Production source pack | HTTP 503, disabled, activation not allowed, zero sources |
@@ -32,7 +32,7 @@ Two independent hosted PostgreSQL sessions also completed canonical organization
 
 Supabase advisors still report managed PostGIS/public-schema findings and intentional RLS-with-no-policy deny-all tables; they are recorded rather than mislabeled as removed. The HTTP schema boundary isolates managed `public` without changing PostGIS ACL or enabling RLS on `spatial_ref_sys`. Performance has zero unindexed-FK findings; remaining findings are unused-index INFO on a near-empty rehearsal. Storage remains four buckets with zero object policies. The authoritative receipt is [SUPABASE_AUTH_REHEARSAL_RECEIPT_2026_07_16.json](SUPABASE_AUTH_REHEARSAL_RECEIPT_2026_07_16.json).
 
-The current working tree supersedes the earlier MFA-heavy candidate with one simple login surface and a personal account at `/profile`. The landing header and hero expose `View demo` and `Leave a request`; both enter `/login` with a bounded `/workspace` return instead of linking directly into the product. Once a browser session is saved, the login screen immediately continues to Workspace. Shared product navigation renders a circular profile icon that is highlighted when authenticated and opens `/profile`; otherwise it opens `/login`. A new client-rendered gate on `/workspace`, `/projects`, `/explore` and `/profile` waits for browser session resolution in `supabase_auth`, preserves the browser-only mock demo, and redirects a resolved anonymous visitor to `/login` with a bounded return path; `demo_public` remains unchanged and `disabled` fails closed. This gate prevents protected product UI from rendering after hydration without a session but is not server-side route authorization. Public email and phone OTP are existing-user-only (`shouldCreateUser: false`); email sends a PKCE sign-in link, an existing password remains supported, and phone sends/verifies an SMS code only after an external SMS provider is configured. Future registration requires a separate approved invitation/server policy. `demo@geoai.space` / `111111` creates browser-only sample state that never creates a Supabase user or authorizes protected APIs or Admin. The profile supports full name, region, editable contact phone, browser-local photo, registered-email confirmation, password change and default B2B/B2C role propagation into Workspace and Projects. User-editable preferences are presentation-only and never authorize server access. The oversized demo caveat is removed from the top of the profile, while the compact demo and browser-local storage limitations remain lower on the page. Sign-in phone change remains disabled pending a safe flow, and avatar Storage remains blocked. `/register` and `/mfa` redirect to `/login`, the callback defaults to `/workspace`, and onboarding hides the invitation token while retaining fragment-to-HttpOnly-cookie staging and SHA-256-only database handoff. Application Admin requests require a permanent non-anonymous identity without MFA; that boundary does not assert verified email or phone ownership. Migration `20260716213214_simplify_auth_remove_mfa_requirement.sql` prepares the equivalent database override but has not been applied to rehearsal, development or Production. Exact route-gate functional head `77ac593b51d43a62ddc89656dbae735378cab69f` passed Quality Gate `29579739837`; exact Preview `dpl_6Er5tTEesM2V6RA7ZQD8eR5VYJpQ` is READY. The landing, login, four gated routes, health and activation status returned 200; all four gated-route HTML responses contain the neutral `Restoring your session…` shell and omit their product content. No exact-deployment build error or error/fatal runtime log was found. This is implementation/static/hosted-HTTP evidence, not rendered-browser or real-user Auth activation: the hydrated redirect and saved-session restoration, real profile/email/password/phone confirmation/session/logout, banned/deleted/unconfirmed/anonymous denial, rendered-browser Admin/Onboarding/Profile, authenticated RPC concurrency, resource-specific Admin pagination, first real owner, SMS delivery, protected Storage, development apply, real sources and Production remain open.
+The released product has one simple login surface and a personal account at `/profile`. The landing `View demo` action enters `/login` with a bounded `/workspace` return; commercial request actions enter `/request-access`, which formats an unsent brief in React memory and remains public even when a demo session exists. Once a browser session is saved, the login screen immediately continues to Workspace. Shared product navigation renders a circular profile icon that is highlighted when authenticated and opens `/profile`; otherwise it opens `/login`. A client-rendered gate on `/workspace`, `/projects`, `/explore` and `/profile` waits for browser session resolution in `supabase_auth`, preserves the browser-only mock demo, and redirects a resolved anonymous visitor to `/login` with a bounded return path; `demo_public` remains unchanged and `disabled` fails closed. This gate prevents protected product UI from rendering after hydration without a session but is not server-side route authorization. Public email and phone OTP are existing-user-only (`shouldCreateUser: false`); email sends a PKCE sign-in link, an existing password remains supported, and phone sends/verifies an SMS code only after an external SMS provider is configured. Future registration requires a separate approved invitation/server policy. `demo@geoai.space` / `111111` creates browser-only sample state that never creates a Supabase user or authorizes protected APIs or Admin. The profile supports full name, region, editable contact phone, browser-local photo, registered-email confirmation, password change and default B2B/B2C role propagation into Workspace and Projects. User-editable preferences are presentation-only and never authorize server access. Sign-in phone change remains disabled pending a safe flow, and avatar Storage remains blocked. `/register` and `/mfa` redirect to `/login`, the callback defaults to `/workspace`, and onboarding hides the invitation token while retaining fragment-to-HttpOnly-cookie staging and SHA-256-only database handoff. Application Admin requests require a permanent non-anonymous identity without MFA; that boundary does not assert verified email or phone ownership. Migration `20260716213214_simplify_auth_remove_mfa_requirement.sql` prepares the equivalent database override but has not been applied to rehearsal, development or Production. Protected repositories, real-user personas, SMS delivery, Storage, development apply and real sources remain open.
 
 The permanent Chrome/Playwright contract now proves the browser-only mock journey: direct guest Workspace query to bounded login, demo credential selection, automatic return, authenticated profile highlight, reload and direct Projects/Explore/Profile restoration, logout cleanup and renewed login gating. CI starts an isolated `supabase_auth` development server against the allowlisted rehearsal origin but constructs a fake publishable-key-shaped value at runtime. No real credential, hosted identity, database write, migration or environment change is involved. This journey does not close real email/phone/RLS/Admin personas. Its functional Vercel deployment is excluded after middleware 500s. The subsequent exact evidence-control head `0f22f4c194b422f12ab1e65b14d3577e4de11341` deployed as READY `dpl_2YXvVKVHox3YTCwcm7oe3mhC4MNV`; landing, Workspace, bounded login, health and activation status returned 200 with CSP/HSTS/`nosniff`, and no error/fatal runtime log was found.
 
@@ -50,7 +50,7 @@ The global-navigation/deep-performance increment raises the suite to twelve test
 
 | Candidate receipt | Verified value |
 | --- | --- |
-| Functional head | `80645d64662699bd646f96718d300df5d2b84f5f`, Draft PR #97; `main` unchanged |
+| Historical functional head | `80645d64662699bd646f96718d300df5d2b84f5f`, incorporated into merged PR #97 |
 | Git tree | `0fb7982f3a9cbd40366a84fdfb715a083ba26cde` |
 | GitHub Quality Gate | Run `29611412924`, success |
 | Application job | `87986721079`, success; Chrome, visual regression, four Lighthouse audits, production build and route/API smoke passed |
@@ -69,7 +69,7 @@ The global-navigation/deep-performance increment raises the suite to twelve test
 
 | Candidate receipt | Verified value |
 | --- | --- |
-| Functional accessibility head | `5d7af89ac2ead5b4df545e2f1810d5966c22cd0e`, Draft PR #97; `main` unchanged |
+| Historical functional accessibility head | `5d7af89ac2ead5b4df545e2f1810d5966c22cd0e`, incorporated into merged PR #97 |
 | Git tree | `d475cb83599881143e0a3552673efbe3ceca409d` |
 | GitHub Quality Gate | Run `29587485235`, success |
 | Application job | `87907969862`, success; static contracts, Chrome, production build and required route/API smoke passed |
@@ -86,7 +86,7 @@ The global-navigation/deep-performance increment raises the suite to twelve test
 
 | Candidate receipt | Verified value |
 | --- | --- |
-| Functional responsive-browser head | `e203e895406817497f339fccf1d04da377a7bc65`, Draft PR #97; `main` unchanged |
+| Historical functional responsive-browser head | `e203e895406817497f339fccf1d04da377a7bc65`, incorporated into merged PR #97 |
 | Git tree | `9db55f91e5469cd0bf6a4018c1926f267ad29759` |
 | GitHub Quality Gate | Run `29584919107`, success |
 | Application job | `87899412639`, success; browser, production build and required route/API smoke passed |
@@ -101,7 +101,7 @@ The global-navigation/deep-performance increment raises the suite to twelve test
 
 | Candidate receipt | Verified value |
 | --- | --- |
-| Functional browser-contract head | `4e5208a729f9dfb13068dc9521871da74a7de8db`, Draft PR #97; `main` unchanged |
+| Historical functional browser-contract head | `4e5208a729f9dfb13068dc9521871da74a7de8db`, incorporated into merged PR #97 |
 | Git tree | `6cabf73c27cc3f0ecf47bc29b6f5abecbfcdc8c8` |
 | GitHub Quality Gate | Run `29582671453`, success |
 | Application job | `87891896641`, success; static E2E wiring, production build and required route/API smoke passed |
@@ -114,7 +114,7 @@ The global-navigation/deep-performance increment raises the suite to twelve test
 
 ## Immediate Production operating restriction
 
-The released PR #87 public demo does **not** isolate user-created server state. Until Draft PR #97 is merged and deployed, do not enter or upload any user, client, confidential or decision-sensitive AOI, CSV, GeoJSON, filename, evidence or report/package data in Production. Use only the built-in synthetic/demo fixtures. The released `/explore` route also has a known runtime-environment wiring defect: the source-pack API is fail-closed, but the UI can present Preview/open-context source semantics. Do not treat the released Production source UI boundary as fully verified.
+The PR #97 containment baseline is released, but public operation remains browser-local and fixture-bounded. Do not enter or upload confidential, regulated, sensitive or client-protected AOI, CSV, GeoJSON, filename, evidence or report/package data. Use only the built-in synthetic/demo fixtures. Protected persistence, real sources and confidential pilot operation remain blocked.
 
 ## Released source scope
 
@@ -143,7 +143,7 @@ The review-only Storage owner-path policy no longer evaluates direct caller join
 
 | Candidate receipt | Verified value |
 | --- | --- |
-| Functional route-gate head | `77ac593b51d43a62ddc89656dbae735378cab69f`, Draft PR #97; `main` unchanged |
+| Historical functional route-gate head | `77ac593b51d43a62ddc89656dbae735378cab69f`, incorporated into merged PR #97 |
 | Git tree | `5c5bb6cd2583fb4b38979b85a235ff29d5829bbe` |
 | GitHub Quality Gate | Run `29579739837`, success |
 | Application job | `87882308363`, success |
@@ -158,7 +158,7 @@ The review-only Storage owner-path policy no longer evaluates direct caller join
 
 | Candidate receipt | Verified value |
 | --- | --- |
-| Functional profile head | `232fb532db1e5bc1dcf134ca1d616e4506f682f0`, Draft PR #97; `main` unchanged |
+| Historical functional profile head | `232fb532db1e5bc1dcf134ca1d616e4506f682f0`, incorporated into merged PR #97 |
 | Git tree | `b934593da661ad8bc717fc535506206f1fbfd1cf` |
 | GitHub Quality Gate | Run `29572587381`, success |
 | Application job | `87859597854`, success |
@@ -169,7 +169,7 @@ The review-only Storage owner-path policy no longer evaluates direct caller join
 | Hosted HTTP matrix | `/profile`, `/login`, `/workspace`, `/api/health` and `/api/platform/activation-status` returned 200; CSP, HSTS and `nosniff` are present; no exact-deployment error/fatal runtime logs were observed |
 | Browser evidence | The narrow Auth mock-session desktop/mobile/keyboard journeys above are claimed. Axe/Lighthouse, deep product/print and real email/phone/Admin/Profile personas remain unclaimed; HTTP responses alone are not browser-interaction evidence. |
 
-The 2026-07-16 full-system audit is an unreleased [Draft PR #97](https://github.com/mmgolikov/geoai-mvp/pull/97) candidate. It adds project-scoped browser-only public-demo artifacts under a versioned demo-only namespace with Auth-transition cleanup; browser-local analysis/scoring; 403-before-body server generation/mutation containment; strict CSV/GeoJSON/AOI quotas and revalidation; fail-closed unknown-project/canonical report ID handling; summary-only public report-package collections; server-evidence-receipt and validation-attestation gates; a manifest-driven private/no-store boundary for all project/identity GET responses; `/explore` environment wiring; and regression controls. User-uploaded/user-drawn raw content, geometry and derived coordinates remain local. The canonical AOI validator rejects non-finite/out-of-WGS84 coordinates, wrong tuple arity and unsupported antimeridian crossings; its 11-persona adversarial contract covers one representative Dubai polygon and ten negative cases. Public diagnostics are static/sanitized and withhold infrastructure inventories. Anonymous source routes use bounded, explicit allowlisted `compact_public_v1` DTOs only (`contractVersion: 1.3`, manifest `1.6`, `liveRegistryIncluded:false`) and statically import the reviewed manifest plus compact quality totals rather than deep snapshots; per-source zero/count/use truth is contract-tested. Exact Preview UTF-8 sizes are data-sources 5,164 B, readiness 4,411 B, manifest 18,284 B, sources 5,164 B, status 8,221 B and source-lineage 4,292 B. Lazy-loading the Workspace comparison, express-result and report-preview surfaces reduced the local production-build First Load JS measure from 252 kB to 218 kB (approximately 13.5% gzip); browser flows and Core Web Vitals remain unverified. `/demo` is a 307 redirect to `/workspace`. None of this changes Production, applies Supabase migrations, changes external credentials or activates providers.
+The 2026-07-16 full-system audit was merged as [PR #97](https://github.com/mmgolikov/geoai-mvp/pull/97) and is the current released containment baseline. It adds project-scoped browser-only public-demo artifacts under a versioned demo-only namespace with Auth-transition cleanup; browser-local analysis/scoring; 403-before-body server generation/mutation containment; strict CSV/GeoJSON/AOI quotas and revalidation; fail-closed unknown-project/canonical report ID handling; summary-only public report-package collections; server-evidence-receipt and validation-attestation gates; a manifest-driven private/no-store boundary for all project/identity GET responses; `/explore` environment wiring; and regression controls. User-uploaded/user-drawn raw content, geometry and derived coordinates remain local. The canonical AOI validator rejects non-finite/out-of-WGS84 coordinates, wrong tuple arity and unsupported antimeridian crossings; its 11-persona adversarial contract covers one representative Dubai polygon and ten negative cases. Public diagnostics are static/sanitized and withhold infrastructure inventories. Anonymous source routes use bounded, explicit allowlisted `compact_public_v1` DTOs only (`contractVersion: 1.3`, manifest `1.6`, `liveRegistryIncluded:false`) and statically import the reviewed manifest plus compact quality totals rather than deep snapshots; per-source zero/count/use truth is contract-tested. `/demo` is a 307 redirect to `/workspace`. This release did not apply Supabase migrations, change external credentials or activate providers.
 
 Candidate application code no longer imports or needs a service-role credential/direct database URL and disables public Supabase repositories before AUTH-01. It accepts only modern `sb_publishable_` keys, ignores `.env.operator`, statically scans tracked files for key/DB/private-key shapes and requires project/SHA/migration-tree-bound operator receipts. A privileged development Supabase credential was observed across historical public Preview deployments. On 2026-07-16 the owner confirmed removal of the Vercel `SUPABASE_SERVICE_ROLE_KEY` and legacy public anon variable, Shared-scope review, disablement of development legacy `anon`/`service_role` keys, and Preview-only rehearsal configuration using the exact rehearsal URL plus a modern publishable key, `supabase_auth`, hard enforcement and public-demo denial. No value was recorded. Deployment `dpl_G5vcKVQCHypacP9foGpAJ4Egwu5k` independently returns hard Supabase Auth mode with demo access denied and hosts the exact personal-profile functional head. This closes [ENV-01](CODEX_BACKLOG_2026_07_16.md#env-01--public-vercel-credential-evacuation-and-rotation) for non-Production Preview integration. Real email/phone/Admin/Profile browser personas remain AUTH-01 work.
 

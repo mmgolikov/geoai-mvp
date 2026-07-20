@@ -1,13 +1,19 @@
 # Changelog
 
 Status: Active chronological change authority
-Last verified: 2026-07-19
+Last verified: 2026-07-20
 Owner: GeoAI Release Engineering
 Authority: Chronological released/unreleased change record; runtime truth remains `docs/CURRENT_RELEASE_STATE.md`
 Successor: None; any replacement must update `docs/DOCUMENTATION_INDEX.md`
 Navigation: [Documentation Index](docs/DOCUMENTATION_INDEX.md) · [Current Release State](docs/CURRENT_RELEASE_STATE.md) · [Full System Audit](docs/FULL_SYSTEM_AUDIT_2026_07_16.md) · [Codex Backlog](docs/CODEX_BACKLOG_2026_07_16.md)
 
-## Unreleased — Full system audit and pre-Auth containment
+## Unreleased — CR 09.22 public funnel and release truth
+
+- Separated commercial request actions into `/request-access`; the five-field form prepares a plain-text brief in React memory and does not transmit or persist contact data. The browser-local demo keeps its bounded Login-to-Workspace path, and the legacy request intent redirects to the public request route.
+- Added canonical [`docs/CURRENT_RELEASE_RECEIPT.json`](docs/CURRENT_RELEASE_RECEIPT.json) for merged PR #97, `main` `b915a831d5e5b28eab5fd26ac86059820e7e4a32`, Production `dpl_ERVqZPD5GAGDLjAVhMcPF2HT5Br7` at https://geoai-mvp.vercel.app and stage `public_demo_prototype`. Active authorities now consume that truth; fixture tests reject stale and unsafe release claims.
+- Added permanent responsive, Axe, keyboard, no-mutation, no-storage and final-route Lighthouse checks. No Supabase, Auth-provider, Storage, environment, secret, real-source, Figma or Production change is included.
+
+## Released — Full system audit and pre-Auth containment (PR #97)
 
 ### Simplified Auth product decision
 
@@ -22,7 +28,7 @@ Navigation: [Documentation Index](docs/DOCUMENTATION_INDEX.md) · [Current Relea
 - Added `/profile` with full name, region, contact phone, browser-local photo, registered-email change, password change and default B2B/B2C role selection. Workspace and Projects consume these defaults unless an explicit URL context is present; user-editable preference metadata never authorizes server access.
 - Added optional real email/password sign-in so a password created from the profile is usable, while retaining email-link sign-in and the exact browser-only demo credentials. Public email/phone OTP registration is now disabled; direct sign-in-phone change remains disabled pending a safe provider/backend flow; avatar upload remains browser-local until STORAGE-01.
 - Added `test:user-profile`; exact functional head `232fb532db1e5bc1dcf134ca1d616e4506f682f0` passed Quality Gate `29572587381`, and Vercel Preview `dpl_G5vcKVQCHypacP9foGpAJ4Egwu5k` is READY with hosted 200 responses for `/profile`, `/login`, `/workspace`, health and activation status. No live Supabase project, Storage policy, Production deployment or migration was changed.
-- Restored `View demo` and `Leave a request` actions in the landing header and hero. Both enter the unified login/registration screen with a bounded `/workspace` return instead of bypassing Auth; once a browser session is saved, the login screen immediately continues to Workspace.
+- Historically restored `View demo` and `Leave a request` through the bounded Auth screen. CR 09.22 later separates commercial requests into `/request-access` while preserving the demo Login-to-Workspace path.
 - Replaced the shared text account action with a circular profile icon. The icon is visibly highlighted for an authenticated session, opens `/profile` when signed in and opens `/login` otherwise. The oversized browser-only demo caveat was removed from the top of the personal account while the compact demo/storage limitations remain visible lower in the page.
 - Exact functional head `bdb7f0629c39838e2e3451925825699df7f84fc0` passed Quality Gate `29576709336`; both application and isolated database-replay jobs succeeded. Vercel Preview `dpl_HNLx2RCVTYKjnHvxhi8mEoHpLgfa` is READY and returned 200 for the landing, both intent-specific login URLs, profile, Workspace, health and activation status. Hosted HTML contains both landing actions and their bounded Auth targets; no exact-deployment build or runtime error/fatal log was found. Rendered-browser interaction remains unclaimed.
 - Replaced the separate registration, MFA and technical invitation flow with one `/login` experience for existing-user email, phone and demo access. Public email and phone OTP do not create users; phone OTP code paths still require an external SMS provider.
@@ -98,7 +104,7 @@ Navigation: [Documentation Index](docs/DOCUMENTATION_INDEX.md) · [Current Relea
 
 ### Scope boundary
 
-- Every item above is an unreleased Draft PR #97 candidate until merge and deployment; Production remains on PR #87 and retains its documented public-state/source-UI warnings.
+- The items above were the pre-merge PR #97 audit package and are now incorporated into the released baseline recorded in `docs/CURRENT_RELEASE_RECEIPT.json`.
 - No Production deployment or promotion.
 - No development/Production Supabase migration or Auth/hard-mode activation; all database writes in this change were confined to the authorized Free rehearsal.
 - No real provider, geometry, imagery, persistence or source-dependent scoring activation.

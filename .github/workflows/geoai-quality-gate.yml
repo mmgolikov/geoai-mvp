@@ -247,6 +247,18 @@ jobs:
           set -euo pipefail
           npm run test:documentation-current-truth | tee artifacts/documentation-current-truth-check.txt
 
+      - name: Documentation current-truth fixture checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:documentation-current-truth-fixtures | tee artifacts/documentation-current-truth-fixtures.txt
+
+      - name: Public request boundary checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:public-request-contract | tee artifacts/public-request-contract-check.txt
+
       - name: Documentation lifecycle manifest
         shell: bash
         run: |
@@ -318,6 +330,13 @@ jobs:
 
           google-chrome --version | tee artifacts/google-chrome-version.txt
           npm run test:e2e:auth-session | tee artifacts/auth-session-e2e.txt
+          npx lighthouse 'http://127.0.0.1:3100/login?next=/workspace&intent=demo' \
+            --quiet \
+            --preset=desktop \
+            --output=json \
+            --output-path=artifacts/lighthouse-desktop-login.json \
+            --only-categories=performance,accessibility,best-practices,seo \
+            --chrome-flags="--headless --no-sandbox --disable-dev-shm-usage --disable-gpu"
 
       - name: Build
         shell: bash
@@ -368,6 +387,8 @@ jobs:
             "/projects"
             "/explore"
             "/login"
+            "/request-access"
+            "/login?next=/workspace&intent=request"
             "/register"
             "/mfa"
             "/onboarding"
@@ -387,11 +408,13 @@ jobs:
           expected_status["/register"]="307"
           expected_status["/mfa"]="307"
           expected_status["/demo"]="307"
+          expected_status["/login?next=/workspace&intent=request"]="307"
 
           declare -A expected_location
           expected_location["/register"]="/login"
           expected_location["/mfa"]="/login"
           expected_location["/demo"]="/workspace"
+          expected_location["/login?next=/workspace&intent=request"]="/request-access"
 
           for route in "${routes[@]}"; do
             code=$(curl --silent --show-error --max-time 20 --output /dev/null --write-out '%{http_code}' "http://127.0.0.1:3000${route}")

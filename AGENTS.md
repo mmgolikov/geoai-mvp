@@ -1,7 +1,7 @@
 # Codex Workflow Instructions
 
 Status: Active coding-agent operating authority
-Last verified: 2026-07-19
+Last verified: 2026-07-20
 Owner: GeoAI Engineering
 Authority: Current Codex/agent operating rules
 Successor: None; any replacement must update `docs/DOCUMENTATION_INDEX.md`
@@ -16,12 +16,12 @@ GeoAI helps users decide where to build, buy, invest, monitor, insure, reconstru
 Repo: https://github.com/mmgolikov/geoai-mvp
 Production: https://geoai-mvp.vercel.app
 Vercel team/project: geoaidev / geoai-mvp
-Current `main`: PR #87 merge `2999e7e857989baf53ce58ecfed63550b5896be0`.
-Current Production: deployment `dpl_EAXREH31JKznnGbQYEU8bNqTqagN`, READY on the exact merge SHA.
-Released scope: public-demo source truth/safety foundation plus fixed, bounded Preview context; the Production source pack is fail-closed (`503`, disabled, zero sources).
+Current release receipt: [`docs/CURRENT_RELEASE_RECEIPT.json`](docs/CURRENT_RELEASE_RECEIPT.json).
+Current `main`: merged PR #97 at `b915a831d5e5b28eab5fd26ac86059820e7e4a32`.
+Current Production: deployment `dpl_ERVqZPD5GAGDLjAVhMcPF2HT5Br7`, READY at https://geoai-mvp.vercel.app on the exact merge SHA.
+Released stage: `public_demo_prototype`; public demo and browser-local deterministic workflows are active. The Production source pack is fail-closed (`503`, disabled, zero sources).
 Production status: public demo, synthetic/local fallback and soft access with Production Supabase not configured. Real geometry, real-source persistence, protected client data and B2B/B2C activation are not authorized.
-Released-runtime warning: PR #87 does not isolate user-created server state, and `/explore` can present incorrect Preview/open-context source semantics despite the fail-closed source API. Until Draft PR #97 is merged and deployed, Production is built-in-fixture-only: never enter or upload user/client AOIs, CSV, GeoJSON, filenames, evidence or dynamic package data.
-Audit candidate: Draft PR #97 adds containment and route-wiring fixes, but its behavior is not Production truth until merge and deployment.
+Released-runtime boundary: PR #97 containment and route-wiring fixes are released, but the public demo remains browser-local and fixture-bounded. Never enter or upload confidential, regulated, sensitive or client-protected information. Protected persistence, real sources and confidential pilot operation remain blocked.
 Next delivery controls, in dependency order: development Data API/identity decision and canonical migration replay/RLS; fresh exact-head ENV-01 Preview/negative evidence after owner-confirmed Vercel evacuation and development legacy-key disablement; request-scoped Auth/RBAC hosted personas; protected Storage; explicit source visibility/custody; observability; and current architecture publication.
 Spatial B2B gate: GitHub Issue #80 remains open; delivery, distribution, attribution, retention and rollback decisions are not approved.
 Supabase development remains `geoai-dev`, ref `pphdqkurxneyagvnnjdt`, separate from Production and unchanged by current work. The only executed candidate target is Free rehearsal `geoai-auth-rehearsal`, ref `bkmfcjzalcvdsdvyxpgi`, eu-west-1. It carries six applied candidate migrations plus one Data API operator entry; hosted pgTAP passes `183/183`; PostgREST exposes only the 14-RPC `api` schema and HTTP denies `public`; all 29 GeoAI domain tables have RLS and uncovered domain FKs are zero. A seventh migration is now prepared but unapplied: it implements the owner decision to remove MFA/AAL2 from the MVP while retaining a permanent non-anonymous identity, role, RLS, concurrency and audit controls. That contract does not assert verified email or phone ownership. The application candidate uses one existing-user-only email/phone login surface, redirects `/register` and `/mfa` to `/login`, and provides a browser-only mock demo account `demo@geoai.space`; the public demo password is intentionally non-authoritative and must never grant Admin, protected API or customer-data access. Public email and phone OTP must keep `shouldCreateUser: false`; future registration requires a separately approved invitation/server policy. Phone code transport still requires an external SMS provider. Real HTTP email/phone/browser/Admin/Storage personas, resource-specific Admin pagination, development upgrade/drift certification and Production activation remain open. Four Storage buckets still have zero object policies. Never create a duplicate rehearsal, change managed PostGIS ACL/RLS blindly, or apply the seventh migration to rehearsal/development/Production by inference. Authoritative receipt: `docs/SUPABASE_AUTH_REHEARSAL_RECEIPT_2026_07_16.json`. SOURCE-02 remains an unsigned authorization-none correlation claim with empty registry, no fetch/env/secrets/persistence or atomic reservation writer; real sources remain blocked.

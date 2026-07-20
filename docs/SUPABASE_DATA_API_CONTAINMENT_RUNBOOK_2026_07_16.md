@@ -1,12 +1,14 @@
 # Supabase Data API Containment — Operator Prerequisite
 
 Status: Development draft/not apply-ready; owner path executed and evidenced on isolated rehearsal only
-Last verified: 2026-07-16
+Last verified: 2026-07-20
 Owner: GeoAI Database / Security Operations
 Authority: Current mandatory operator decision and evidence procedure before DB/Auth/Storage activation
 Successor: None; any replacement must update `DOCUMENTATION_INDEX.md`, `CURRENT_RELEASE_STATE.md` and the Confluence Hub
 Depends on: DB-01 / GitHub #85
 Navigation: [Confluence Hub](https://geoaimvp.atlassian.net/wiki/spaces/PH/overview) · [Documentation Index](DOCUMENTATION_INDEX.md) · [Current Release State](CURRENT_RELEASE_STATE.md) · [Full System Audit](FULL_SYSTEM_AUDIT_2026_07_16.md) · [Codex Backlog](CODEX_BACKLOG_2026_07_16.md#db-01--canonical-migration-replay-and-rls-evidence)
+
+Release context: merged PR #97 at `b915a831d5e5b28eab5fd26ac86059820e7e4a32` is the `public_demo_prototype` Production baseline. This operator runbook remains unapplied to development/Production; see [CURRENT_RELEASE_RECEIPT.json](CURRENT_RELEASE_RECEIPT.json).
 
 ## Why this is a separate operator gate
 
