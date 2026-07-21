@@ -79,6 +79,10 @@ for (const marker of [
   "AxeBuilder",
   "mutationRequests",
   "storageSnapshot",
+  "expectHeaderDoesNotOverlap",
+  "-top.png",
+  "-generated.png",
+  "Generated request brief",
   'page.keyboard.press("Tab")',
   "navigator.clipboard.readText()",
   'maxRedirects: 0',
@@ -211,15 +215,18 @@ for (const marker of [
   '{ name: "tablet-768", width: 768, height: 1024 }',
   '{ name: "mobile-390", width: 390, height: 844 }',
   "commercial-visual-evidence",
-  "expectedSha256ByFile",
+  "canonical-post-stabilization-capture",
+  "stabilizationDelayMs",
+  "scrollbar-width: none",
   "expectNoHorizontalOverflow(page)",
+  'reducedMotion: "reduce"',
   'page.clock.setFixedTime(new Date("2026-07-19T09:00:00.000Z"))',
   'name: "Ask the map. Move with evidence."',
   'name: "Sign in to GeoAI"',
   'name: "Your profile"',
-  '"landing-desktop-1440.png"',
-  '"login-tablet-768.png"',
-  '"profile-mobile-390.png"'
+  "landing-${viewport.name}.png",
+  "login-${viewport.name}.png",
+  "profile-${viewport.name}.png"
 ]) requireText(commercialAlignmentVisualSpec, marker, `Commercial Landing/Account visual flow is missing ${marker}`);
 
 for (const marker of [
@@ -286,4 +293,4 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-console.log("Auth/session E2E contract passed: bounded guest redirects, browser-only demo restoration, authenticated route navigation, logout re-gating, desktop/tablet/390px layout checks, serious/critical Axe scans, strict mobile and nine-screen commercial visual evidence, Lighthouse budgets, keyboard-only browser-local project save/open and analysis/comparison-to-print journeys are wired into normal CI without live credentials; a separately approved rehearsal-only real email/password persona can be run read-only from a trusted terminal.");
+console.log("Auth/session E2E contract passed: bounded guest redirects, browser-only demo restoration, authenticated route navigation, logout re-gating, desktop/tablet/390px layout checks, non-overlapping request top/generated evidence, serious/critical Axe scans, strict mobile and canonical commercial visual evidence, Lighthouse budgets, keyboard-only browser-local project save/open and analysis/comparison-to-print journeys are wired into normal CI without live credentials; a separately approved rehearsal-only real email/password persona can be run read-only from a trusted terminal.");

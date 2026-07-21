@@ -22,6 +22,53 @@ async function expectNoHorizontalOverflow(page: Page) {
   expect(overflow).toBe(0);
 }
 
+async function stabilizeEvidenceCapture(page: Page) {
+  await page.addStyleTag({
+    content: `
+      *, *::before, *::after {
+        animation-duration: 0s !important;
+        animation-delay: 0s !important;
+        transition-duration: 0s !important;
+        transition-delay: 0s !important;
+        scroll-behavior: auto !important;
+      }
+    `
+  });
+  await page.evaluate(() => document.querySelector("nextjs-portal")?.remove());
+  await page.evaluate(async () => document.fonts.ready);
+}
+
+async function expectHeaderDoesNotOverlap(page: Page, target: Locator, label: string) {
+  await target.scrollIntoViewIfNeeded();
+  await page.evaluate(() => document.querySelector("nextjs-portal")?.remove());
+  const metrics = await target.evaluate((element) => {
+    const header = document.querySelector("header");
+    const headerRect = header?.getBoundingClientRect();
+    const targetRect = element.getBoundingClientRect();
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const visibleWidth = Math.max(0, Math.min(targetRect.right, viewportWidth) - Math.max(targetRect.left, 0));
+    const visibleHeight = Math.max(0, Math.min(targetRect.bottom, viewportHeight) - Math.max(targetRect.top, 0));
+    const intersectionWidth = headerRect
+      ? Math.max(0, Math.min(headerRect.right, targetRect.right) - Math.max(headerRect.left, targetRect.left))
+      : 0;
+    const intersectionHeight = headerRect
+      ? Math.max(0, Math.min(headerRect.bottom, targetRect.bottom) - Math.max(headerRect.top, targetRect.top))
+      : 0;
+    return {
+      visibleWidth,
+      visibleHeight,
+      headerIntersectionPx: Math.round(intersectionWidth * intersectionHeight),
+      targetTop: Math.round(targetRect.top),
+      headerBottom: Math.round(headerRect?.bottom ?? 0)
+    };
+  });
+  expect(metrics.visibleWidth, `${label} must have visible width`).toBeGreaterThan(0);
+  expect(metrics.visibleHeight, `${label} must have visible height`).toBeGreaterThan(0);
+  expect(metrics.headerIntersectionPx, `${label} must not be obscured by sticky navigation`).toBe(0);
+  expect(metrics.targetTop, `${label} should not sit under sticky navigation`).toBeGreaterThanOrEqual(metrics.headerBottom);
+}
+
 async function storageSnapshot(page: Page): Promise<StorageSnapshot> {
   return page.evaluate(() => ({
     local: Object.fromEntries(Array.from({ length: localStorage.length }, (_, index) => localStorage.key(index)).filter(Boolean).map((key) => [key as string, localStorage.getItem(key as string) ?? ""])),
@@ -61,10 +108,14 @@ for (const viewport of viewports) {
 
       await page.evaluate(() => localStorage.setItem("geoai-mock-demo-session-v1", "active"));
       await page.goto("/request-access");
+      await stabilizeEvidenceCapture(page);
       await expect(page).toHaveURL((url) => url.pathname === "/request-access");
-      await expect(page.getByRole("heading", { level: 1, name: "Prepare a bounded request brief." })).toBeVisible();
+      const requestHeading = page.getByRole("heading", { level: 1, name: "Prepare a bounded request brief." });
+      await expect(requestHeading).toBeVisible();
       await expect(page.getByText(requiredCaveat, { exact: true })).toBeVisible();
       await expectNoHorizontalOverflow(page);
+      await expectHeaderDoesNotOverlap(page, requestHeading, "Request heading");
+      await page.screenshot({ path: path.join(evidenceDir, `${viewport.name}-top.png`), animations: "disabled", caret: "hide" });
 
       const before = await storageSnapshot(page);
       const accessibility = await new AxeBuilder({ page }).analyze();
@@ -91,12 +142,31 @@ for (const viewport of viewports) {
       await expectMinimumTarget(page.getByRole("button", { name: "Copy request brief" }), "Copy request brief");
       await expectMinimumTarget(page.getByRole("link", { name: "Open demo instead" }), "Open demo instead");
       await expectNoHorizontalOverflow(page);
+      const generatedHeading = page.getByRole("heading", { level: 2, name: "Request brief" });
+      await generatedHeading.scrollIntoViewIfNeeded();
+      await page.screenshot({ path: path.join(evidenceDir, `${viewport.name}-generated.png`), animations: "disabled", caret: "hide" });
+      const generatedAccessibility = await new AxeBuilder({ page }).analyze();
+      const generatedBlockingViolations = generatedAccessibility.violations.filter((violation) => ["serious", "critical"].includes(violation.impact ?? ""));
+      expect(generatedBlockingViolations).toEqual([]);
+      for (const [label, locator] of [
+        ["Organization field", page.getByLabel("Organization")],
+        ["Work email field", page.getByLabel("Work email")],
+        ["Use case field", page.getByLabel("Use case / decision to support")],
+        ["Geography field", page.getByLabel("Geography / AOI description")],
+        ["Optional note field", page.getByLabel("Optional note")],
+        ["Prepare request brief button", page.getByRole("button", { name: "Prepare request brief" })],
+        ["Generated request brief", generated],
+        ["Copy request brief button", page.getByRole("button", { name: "Copy request brief" })],
+        ["Open demo instead link", page.getByRole("link", { name: "Open demo instead" })]
+      ] as const) {
+        await expectHeaderDoesNotOverlap(page, locator, label);
+      }
       expect(await storageSnapshot(page)).toEqual(before);
       expect(mutationRequests).toEqual([]);
 
-      await page.screenshot({ path: path.join(evidenceDir, `${viewport.name}.png`), fullPage: true });
       fs.writeFileSync(path.join(evidenceDir, `${viewport.name}-axe.json`), `${JSON.stringify(accessibility, null, 2)}\n`);
-      fs.writeFileSync(path.join(evidenceDir, `${viewport.name}-manifest.json`), `${JSON.stringify({ viewport, mutationRequests, storageUnchanged: true, horizontalOverflowPx: 0, seriousCriticalAxeViolations: 0 }, null, 2)}\n`);
+      fs.writeFileSync(path.join(evidenceDir, `${viewport.name}-generated-axe.json`), `${JSON.stringify(generatedAccessibility, null, 2)}\n`);
+      fs.writeFileSync(path.join(evidenceDir, `${viewport.name}-manifest.json`), `${JSON.stringify({ viewport, screenshots: [`${viewport.name}-top.png`, `${viewport.name}-generated.png`], mutationRequests, storageUnchanged: true, horizontalOverflowPx: 0, seriousCriticalAxeViolations: 0 }, null, 2)}\n`);
     });
   });
 }

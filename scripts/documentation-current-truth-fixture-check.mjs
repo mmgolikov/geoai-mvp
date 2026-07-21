@@ -16,7 +16,7 @@ if (passing.failures.length > 0) {
 }
 
 const stale = validateCurrentReleaseTruth({ root: fixture("stale"), ...options });
-for (const marker of ["obsolete main SHA", "rollback deployment", "Draft or unreleased", "missing canonical released main SHA"]) {
+for (const marker of ["obsolete main SHA", "rollback deployment", "Draft or unreleased", "missing canonical released main SHA", "one pre-existing user"]) {
   if (!stale.failures.some((failure) => failure.includes(marker))) {
     console.error(`Stale release-truth fixture did not produce the expected failure: ${marker}`);
     process.exit(1);

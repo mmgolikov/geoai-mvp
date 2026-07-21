@@ -75,6 +75,26 @@ export function validateReleaseReceipt(receipt, relativePath = currentReleaseRec
   } else if (!receipt.caveats.includes(requiredReleaseCaveat)) {
     failures.push(`${relativePath}: required data-honesty caveat is missing`);
   }
+  if (receipt?.hostedSupabaseState !== undefined) {
+    const hosted = receipt.hostedSupabaseState;
+    const development = hosted?.development;
+    const rehearsal = hosted?.authRehearsal;
+    if (development?.migrationLedgerEntries !== 10) failures.push(`${relativePath}: development hosted migration ledger count must be 10`);
+    if (development?.confirmedAuthUsers !== 0) failures.push(`${relativePath}: development hosted confirmed Auth user count must be 0`);
+    if (rehearsal?.migrationLedgerEntries !== 18) failures.push(`${relativePath}: Auth rehearsal hosted migration ledger count must be 18`);
+    if (rehearsal?.confirmedAuthUsers !== 1) failures.push(`${relativePath}: Auth rehearsal hosted confirmed Auth user count must be 1`);
+    if (rehearsal?.preExistingConfirmedAuthUsers !== 1) failures.push(`${relativePath}: Auth rehearsal must record one pre-existing confirmed Auth user`);
+    if (rehearsal?.usersCreatedByCurrentChange !== 0) failures.push(`${relativePath}: current change must not create rehearsal Auth users`);
+    for (const field of [
+      "pgtapTransactionsCreateResidualUsers",
+      "preExistingUserHasProjectMembershipAuthority",
+      "preExistingUserHasTenantAuthority",
+      "preExistingUserHasProtectedResourceAuthority",
+      "realUserBrowserPersonaExecutedByCurrentChange"
+    ]) {
+      if (rehearsal?.[field] !== false) failures.push(`${relativePath}: ${field} must be false`);
+    }
+  }
   const maturityStatements = [receipt?.releaseType, receipt?.productStage, ...(Array.isArray(receipt?.caveats) ? receipt.caveats : [])].join("\n");
   if (/(?:production|pilot)[ -]?ready/i.test(maturityStatements)) {
     failures.push(`${relativePath}: receipt must not claim Production or pilot readiness`);
@@ -109,6 +129,22 @@ export function validateCurrentReleaseTruth({
     pushMatches(failures, relativePath, content, /Production\s+remains\s+(?:on\s+)?PR\s+#87/gi, "Production is released from merged PR #97, not PR #87");
     pushMatches(failures, relativePath, content, /(?:Current\s+`?main`?|Release\s+authority|Released\s+baseline)[^\n]*2999e7e857989baf53ce58ecfed63550b5896be0/gi, "current release statement uses the obsolete main SHA");
     pushMatches(failures, relativePath, content, /(?:Current\s+Production|Vercel\s+Production)[^\n]*dpl_EAXREH31JKznnGbQYEU8bNqTqagN/gi, "current Production statement uses the rollback deployment as current");
+    if (receipt.hostedSupabaseState?.authRehearsal?.confirmedAuthUsers === 1) {
+      pushMatches(
+        failures,
+        relativePath,
+        content,
+        /(?:rehearsal|auth[- ]?rehearsal|bkmfcjzalcvdsdvyxpgi)[^\n]{0,160}(?:zero|0)\s+confirmed\s+Auth\s+users/gi,
+        "active authority claims zero hosted rehearsal confirmed Auth users while the receipt records one pre-existing user"
+      );
+      pushMatches(
+        failures,
+        relativePath,
+        content,
+        /(?:rehearsal|auth[- ]?rehearsal|bkmfcjzalcvdsdvyxpgi)[^\n]{0,160}auth\.users\s*=\s*0/gi,
+        "active authority claims zero hosted rehearsal auth.users while the receipt records one pre-existing user"
+      );
+    }
   }
 
   for (const relativePath of releaseFactDocPaths) {
