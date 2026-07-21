@@ -1,12 +1,12 @@
 # GeoAI Data and Source Strategy
 
 Status: Active baseline
-Last verified: 2026-07-16
+Last verified: 2026-07-20
 Owner: GeoAI Data / Engineering
 Authority: Current source, custody and evidence policy
 Successor: None; any replacement must update `DOCUMENTATION_INDEX.md`
-Released baseline: PR #87 / `2999e7e857989baf53ce58ecfed63550b5896be0`
-Unreleased implementation scope: audit worktree / Draft PR #97 candidate; candidate controls do not describe Production until merge and deploy
+Released baseline: merged PR #97 / `b915a831d5e5b28eab5fd26ac86059820e7e4a32` / Production `dpl_ERVqZPD5GAGDLjAVhMcPF2HT5Br7` at https://geoai-mvp.vercel.app / `public_demo_prototype`
+Machine authority: [CURRENT_RELEASE_RECEIPT.json](CURRENT_RELEASE_RECEIPT.json)
 Navigation: [Confluence Hub](https://geoaimvp.atlassian.net/wiki/spaces/PH/overview) · [Documentation Index](DOCUMENTATION_INDEX.md) · [Current Release State](CURRENT_RELEASE_STATE.md) · [Architecture](architecture.md) · [Full System Audit](FULL_SYSTEM_AUDIT_2026_07_16.md) · [Codex Backlog](CODEX_BACKLOG_2026_07_16.md)
 
 ## Operating principle
@@ -29,7 +29,7 @@ The isolated Free Auth rehearsal now proves the SOURCE-01 schema can coexist wit
 | Overture/OSM geometry | Deferred | Contract/design work only | Activated Product geometry |
 | WorldPop/OpenAQ/administrative samples | Sample/manual/readiness | Caveated source catalog context | Connected or decision-grade evidence |
 
-Production source-pack API execution is disabled and returns HTTP 503 with zero active sources. The released `/explore` route nevertheless has a known UI/runtime-environment wiring defect that can present Preview/open-context source semantics; the audit candidate fixes it by resolving the runtime server-side. Treat the API as fail-closed but the released source UI boundary as unverified until Draft PR #97 is merged and deployed. No current source influences deterministic scores.
+Production source-pack API execution is disabled and returns HTTP 503 with zero active sources. PR #97 released the server-resolved `/explore` runtime-environment boundary. No current source influences deterministic scores, and no real source is activated.
 
 Candidate local/Preview provider execution requires all of: explicit flag, server-only operator token of at least 32 characters and matching request authorization. Production remains disabled. Provider fetches are constrained to fixed HTTPS hosts, reject redirects and cancel non-success/oversized bodies. NASA pairs must align on valid in-period dates and parameter ranges; Copernicus requires the exact collection, strict UTC in-period datetime and 0–100 cloud cover; Overpass requires exactly three finite non-negative count values. This narrows SSRF, accidental activation, semantic corruption and single-response memory risk but is not distributed quota/circuit evidence.
 

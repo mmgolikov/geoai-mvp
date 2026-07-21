@@ -5,7 +5,8 @@ const [
   mobilePath = "artifacts/lighthouse-mobile.json",
   desktopPath = "artifacts/lighthouse-desktop.json",
   mobileProjectsPath = "artifacts/lighthouse-mobile-projects.json",
-  desktopExplorePath = "artifacts/lighthouse-desktop-explore.json"
+  desktopExplorePath = "artifacts/lighthouse-desktop-explore.json",
+  desktopLoginPath = "artifacts/lighthouse-desktop-login.json"
 ] = process.argv.slice(2);
 const failures = [];
 
@@ -13,22 +14,32 @@ const profiles = [
   {
     file: mobilePath,
     name: "mobile-landing",
+    expectedPath: "/",
     budgets: { performance: 0.7, accessibility: 0.95, "best-practices": 0.9, seo: 0.85, lcp: 4000, cls: 0.1, tbt: 350 }
   },
   {
     file: desktopPath,
-    name: "desktop-login",
+    name: "desktop-workspace",
+    expectedPath: "/workspace",
     budgets: { performance: 0.8, accessibility: 0.95, "best-practices": 0.9, seo: 0.85, lcp: 2500, cls: 0.1, tbt: 250 }
   },
   {
     file: mobileProjectsPath,
     name: "mobile-projects",
+    expectedPath: "/projects",
     budgets: { performance: 0.6, accessibility: 0.95, "best-practices": 0.9, seo: 0.8, lcp: 5000, cls: 0.1, tbt: 500 }
   },
   {
     file: desktopExplorePath,
     name: "desktop-explore",
+    expectedPath: "/explore",
     budgets: { performance: 0.65, accessibility: 0.95, "best-practices": 0.9, seo: 0.8, lcp: 4000, cls: 0.1, tbt: 400 }
+  },
+  {
+    file: desktopLoginPath,
+    name: "desktop-login",
+    expectedPath: "/login",
+    budgets: { performance: 0.75, accessibility: 0.95, "best-practices": 0.9, seo: 0.85, lcp: 2500, cls: 0.1, tbt: 600 }
   }
 ];
 
@@ -74,6 +85,13 @@ for (const profile of profiles) {
   };
   summaries.push(summary);
 
+  try {
+    const finalUrl = new URL(summary.url);
+    if (finalUrl.pathname !== profile.expectedPath) failures.push(`${profile.name} finished on ${finalUrl.pathname}; expected ${profile.expectedPath}`);
+  } catch {
+    failures.push(`${profile.name} has no valid final URL`);
+  }
+
   for (const [category, minimum] of Object.entries({
     performance: profile.budgets.performance,
     accessibility: profile.budgets.accessibility,
@@ -108,4 +126,4 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-console.log("Lighthouse budgets passed for entry surfaces plus the mobile Projects and desktop Explore deep routes.");
+console.log("Lighthouse budgets and final-route attribution passed for Landing, Workspace, Login, mobile Projects and desktop Explore.");

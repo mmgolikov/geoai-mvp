@@ -1,11 +1,10 @@
 import { readFileSync, existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import process from "node:process";
+import { validateCurrentReleaseTruth } from "./release-truth-validator.mjs";
 
 const root = process.cwd();
-const exactMain = "2999e7e857989baf53ce58ecfed63550b5896be0";
-const productionDeployment = "dpl_EAXREH31JKznnGbQYEU8bNqTqagN";
-const minimumVerificationDate = "2026-07-16";
+const minimumVerificationDate = "2026-07-20";
 
 const activeDocs = [
   "README.md",
@@ -305,15 +304,8 @@ try {
   failures.push(`${confluenceChg19ReceiptPath}: invalid JSON`);
 }
 
-for (const relativePath of releaseFactDocs) {
-  const content = read(relativePath);
-  if (!content.includes(exactMain)) {
-    failures.push(`${relativePath}: exact released main SHA is missing`);
-  }
-  if (!content.includes(productionDeployment)) {
-    failures.push(`${relativePath}: current Production deployment is missing`);
-  }
-}
+const releaseTruth = validateCurrentReleaseTruth({ root, activeDocPaths: activeDocs, releaseFactDocPaths: releaseFactDocs });
+failures.push(...releaseTruth.failures);
 
 const index = read("docs/DOCUMENTATION_INDEX.md");
 for (const requiredLink of activeDocs.filter((path) => path !== "docs/DOCUMENTATION_INDEX.md")) {
@@ -321,16 +313,6 @@ for (const requiredLink of activeDocs.filter((path) => path !== "docs/DOCUMENTAT
   if (!index.includes(`(${relativeLink})`) && !index.includes(`(${relativeLink}#`)) {
     failures.push(`docs/DOCUMENTATION_INDEX.md: missing navigation link to ${relativeLink}`);
   }
-}
-
-const changeRequest = read("docs/CR_DEV8_001_CONTROLLED_OPEN_CONTEXT_SOURCE_CONNECTION_PACK_V1.md");
-if (!changeRequest.includes(exactMain) || /Actual merge .*not performed/i.test(changeRequest) || /Status \| Owner-accepted for merge/.test(changeRequest)) {
-  failures.push("docs/CR_DEV8_001_CONTROLLED_OPEN_CONTEXT_SOURCE_CONNECTION_PACK_V1.md: release disposition is stale");
-}
-
-const changeQa = read("docs/CR_DEV8_001_QA_CHECKLIST.md");
-if (!changeQa.includes(exactMain) || /PR may be marked Ready/i.test(changeQa)) {
-  failures.push("docs/CR_DEV8_001_QA_CHECKLIST.md: post-merge evidence is stale");
 }
 
 const supersededSnapshot = read("docs/CURRENT_RELEASE_STATE_2026_07_15.md");
@@ -344,4 +326,4 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-console.log(`Documentation current-truth contract passed: ${activeDocs.length} active authorities, release SHA/deployment aligned, local links resolved.`);
+console.log(`Documentation current-truth contract passed: ${activeDocs.length} active authorities agree with docs/CURRENT_RELEASE_RECEIPT.json; local links resolved.`);

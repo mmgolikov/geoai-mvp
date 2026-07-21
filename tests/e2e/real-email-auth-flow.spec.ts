@@ -78,7 +78,7 @@ test.describe("approved real email Auth persona", () => {
     await page.goto("/");
     await page.evaluate((key) => window.localStorage.removeItem(key), mockSessionKey);
 
-    await page.goto("/login?next=%2Fworkspace&intent=request");
+    await page.goto("/login?next=%2Fworkspace");
     await page.getByLabel("Email or phone").fill(realEmail);
     await page.getByLabel("Password").fill(realPassword);
     await page.getByRole("button", { name: "Sign in", exact: true }).click();

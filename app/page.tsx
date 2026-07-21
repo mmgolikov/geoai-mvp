@@ -81,10 +81,10 @@ function LandingHeader() {
 
         <div className="flex items-center gap-2 sm:gap-3">
           <Link
-            href="/login?next=/workspace&intent=request"
+            href="/request-access"
             className="hidden h-12 items-center justify-center rounded-control border border-brand bg-white px-5 text-sm font-semibold text-brand transition hover:bg-surface md:inline-flex"
           >
-            Leave a request
+            Prepare request brief
           </Link>
           <Link
             href="/login?next=/workspace&intent=demo"
@@ -228,8 +228,8 @@ function HeroSection() {
             <Link href="/login?next=/workspace&intent=demo" className="inline-flex h-[52px] items-center justify-center rounded-control bg-brand px-6 text-sm font-semibold text-white shadow-sm transition hover:bg-[#0854dd]">
               View demo
             </Link>
-            <Link href="/login?next=/workspace&intent=request" className="inline-flex h-[52px] items-center justify-center rounded-control border border-brand bg-white px-6 text-sm font-semibold text-brand transition hover:bg-surface">
-              Leave a request
+            <Link href="/request-access" className="inline-flex h-[52px] items-center justify-center rounded-control border border-brand bg-white px-6 text-sm font-semibold text-brand transition hover:bg-surface">
+              Prepare request brief
             </Link>
           </div>
           <div className="mt-7 grid gap-2">
@@ -402,7 +402,7 @@ function FAQ() {
 
 function Conversion() {
   return (
-    <section className="overflow-hidden bg-brand py-16 text-white sm:py-20"><div className="mx-auto grid max-w-[1320px] gap-10 px-5 sm:px-8 lg:grid-cols-[1fr_620px] lg:px-0"><div><p className="text-xs font-semibold uppercase tracking-[0.12em] text-white/75">Start a pilot</p><h2 className="mt-3 max-w-lg text-4xl font-semibold tracking-[-0.03em] sm:text-5xl">Bring one decision and one place.</h2><p className="mt-5 max-w-xl text-sm leading-7 text-white/75">We’ll map the workflow, evidence boundary, data requirements and approval path.</p><ul className="mt-6 grid gap-2 text-sm text-white/90"><li>• Use-case framing and target area</li><li>• Evidence plan and known gaps</li><li>• Decision dashboard</li><li>• Recommended approval route</li></ul></div><div className="rounded-panel bg-white p-6 text-ink shadow-panel sm:p-8"><p className="text-xs font-bold uppercase text-brand">Request a pilot</p><h3 className="mt-3 text-2xl font-semibold">Start with a bounded access request.</h3><p className="mt-3 text-sm leading-6 text-muted">Use the account request route to confirm your organization, decision type and geography. Do not include confidential, personal or sensitive information in the public request.</p><div className="mt-6 grid gap-3 sm:grid-cols-2">{["Organization", "Work email", "Primary use case", "Geography / AOI"].map((item) => <div key={item} className="rounded-xl border border-line bg-surface px-4 py-3"><span className="text-[10px] font-bold uppercase text-muted">{item}</span><p className="mt-1 text-sm text-ink">Provided after secure access</p></div>)}</div><Link href="/login?next=/workspace&intent=request" className="mt-6 inline-flex h-12 w-full items-center justify-center rounded-control bg-brand px-5 text-sm font-semibold text-white">Leave a request</Link></div></div></section>
+    <section className="overflow-hidden bg-brand py-16 text-white sm:py-20"><div className="mx-auto grid max-w-[1320px] gap-10 px-5 sm:px-8 lg:grid-cols-[1fr_620px] lg:px-0"><div><p className="text-xs font-semibold uppercase tracking-[0.12em] text-white/75">Start a pilot</p><h2 className="mt-3 max-w-lg text-4xl font-semibold tracking-[-0.03em] sm:text-5xl">Bring one decision and one place.</h2><p className="mt-5 max-w-xl text-sm leading-7 text-white/75">Prepare the workflow, evidence boundary, data requirements and approval path for an approved contact channel.</p><ul className="mt-6 grid gap-2 text-sm text-white/90"><li>• Use-case framing and target area</li><li>• Evidence plan and known gaps</li><li>• Decision dashboard</li><li>• Recommended approval route</li></ul></div><div className="rounded-panel bg-white p-6 text-ink shadow-panel sm:p-8"><p className="text-xs font-bold uppercase text-brand">Prepare a pilot request</p><h3 className="mt-3 text-2xl font-semibold">Start with a bounded request brief.</h3><p className="mt-3 text-sm leading-6 text-muted">Format your organization, decision type and geography locally. No request backend is connected, so the page sends nothing. Do not include confidential, regulated, sensitive or client-protected information.</p><div className="mt-6 grid gap-3 sm:grid-cols-2">{["Organization", "Work email", "Use case / decision", "Geography / AOI"].map((item) => <div key={item} className="rounded-xl border border-line bg-surface px-4 py-3"><span className="text-[10px] font-bold uppercase text-muted">{item}</span><p className="mt-1 text-sm text-ink">Formatted locally</p></div>)}</div><Link href="/request-access" className="mt-6 inline-flex h-12 w-full items-center justify-center rounded-control bg-brand px-5 text-sm font-semibold text-white">Prepare request brief</Link></div></div></section>
   );
 }
 
