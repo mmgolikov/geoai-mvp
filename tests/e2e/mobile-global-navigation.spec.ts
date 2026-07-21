@@ -4,9 +4,20 @@ import path from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
 const visualDirectory = path.join(process.cwd(), "artifacts", "mobile-visual-evidence");
+const acceptedNavigationHashesByPlatform: Partial<Record<NodeJS.Platform, string>> = {
+  darwin: "cd7a7ff5d54c8c1cecfaa1b68ba5704eb984f7ac6311326745efa8efaca341fa",
+  linux: "20cb723f848542d80aa7a79ff1850c0526db692c937466b04b5d8e45335dc9ea"
+};
 
 async function signInDemo(page: Page, nextPath: "/workspace") {
   await page.goto(`/login?next=${encodeURIComponent(nextPath)}&intent=demo`);
+  const redirected = await page.waitForURL((url) => url.pathname === nextPath, { timeout: 3000 }).then(
+    () => true,
+    () => false
+  );
+  if (redirected) {
+    return;
+  }
   await page.getByRole("button", { name: "Use demo credentials" }).click();
   await page.getByRole("button", { name: "Open demo" }).click();
   await expect(page).toHaveURL((url) => url.pathname === nextPath);
@@ -44,10 +55,12 @@ async function captureAcceptedNavigationEvidence(page: Page) {
     path: filePath
   });
   const sha256 = createHash("sha256").update(image).digest("hex");
+  const expectedSha256 = acceptedNavigationHashesByPlatform[process.platform];
+  expect(expectedSha256, `Mobile product navigation has no accepted baseline for ${process.platform}`).toBeTruthy();
   expect(
     sha256,
-    "Mobile product navigation screenshot hash must match the accepted accessible Figma-aligned palette evidence"
-  ).toBe("cd7a7ff5d54c8c1cecfaa1b68ba5704eb984f7ac6311326745efa8efaca341fa");
+    `Mobile product navigation screenshot hash must match the accepted ${process.platform} evidence`
+  ).toBe(expectedSha256);
   console.log(`[visual] Mobile product navigation: ${fileName} sha256:${sha256}`);
 }
 
