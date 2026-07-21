@@ -17,6 +17,14 @@ const visualDirectory = path.join(process.cwd(), "artifacts", "mobile-visual-evi
 const visualManifest = path.join(visualDirectory, "manifest.json");
 const visualEvidence: VisualEvidence[] = [];
 
+type PlatformVisualHashes = Partial<Record<NodeJS.Platform, string>>;
+
+function platformVisualHash(hashes: PlatformVisualHashes) {
+  const expectedSha256 = hashes[process.platform];
+  expect(expectedSha256, `Visual evidence has no accepted baseline for ${process.platform}`).toBeTruthy();
+  return expectedSha256;
+}
+
 async function expectNoHorizontalOverflow(page: Page) {
   const metrics = await page.evaluate(() => {
     const scrollingElement = document.scrollingElement ?? document.documentElement;
@@ -72,7 +80,7 @@ async function captureVisualEvidence(
   page: Page,
   label: string,
   fileName: string,
-  options: { expectedSha256?: string; fullPage?: boolean; skipPixelBaseline?: boolean } = {}
+  options: { expectedSha256?: string | PlatformVisualHashes; fullPage?: boolean; skipPixelBaseline?: boolean } = {}
 ) {
   const { expectedSha256, fullPage = false, skipPixelBaseline = false } = options;
   await page.evaluate(() => {
@@ -104,7 +112,8 @@ async function captureVisualEvidence(
   if (skipPixelBaseline) {
     expect(image.length, `${label} screenshot must be captured for evidence`).toBeGreaterThan(0);
   } else if (expectedSha256) {
-    expect(sha256, `${label} screenshot hash must match the accepted corrected mobile evidence`).toBe(expectedSha256);
+    const resolvedSha256 = typeof expectedSha256 === "string" ? expectedSha256 : platformVisualHash(expectedSha256);
+    expect(sha256, `${label} screenshot hash must match the accepted corrected mobile evidence`).toBe(resolvedSha256);
   } else {
     await expect(page).toHaveScreenshot(fileName, {
       animations: "disabled",
@@ -190,7 +199,10 @@ test.describe("mobile product navigation, targets and visual evidence", () => {
     await expect(page.locator("#active-project option:checked")).toHaveText(projectName);
     await expectNoHorizontalOverflow(page);
     await captureVisualEvidence(page, "Mobile project workspace", "mobile-project-workspace.png", {
-      expectedSha256: "f9fd468d741d6a6eb48e8f1844ae85dcf508e7a855fe65d1dbec0c26d7634094"
+      expectedSha256: {
+        darwin: "f9fd468d741d6a6eb48e8f1844ae85dcf508e7a855fe65d1dbec0c26d7634094",
+        linux: "59d37c9588a5a2ae5c0e9d9153e8b1f08d5bbc942144e2f13b154cee25fb76aa"
+      }
     });
   });
 
@@ -235,7 +247,10 @@ test.describe("mobile product navigation, targets and visual evidence", () => {
     await expect(scenarioSetupDisclosure).not.toHaveAttribute("open", "");
 
     await captureVisualEvidence(page, "Mobile explore setup", "mobile-explore-setup.png", {
-      expectedSha256: "9ac42072106d8532198eadd0e5e8804d9bd68fb3d968dea2e327c7be7d69d814"
+      expectedSha256: {
+        darwin: "9ac42072106d8532198eadd0e5e8804d9bd68fb3d968dea2e327c7be7d69d814",
+        linux: "ffd8f87cd669ac795cf684daca176f80aadd2606892a2a4b98a94cbf9c88e34c"
+      }
     });
 
     await criteriaFirst.click();
@@ -265,7 +280,10 @@ test.describe("mobile product navigation, targets and visual evidence", () => {
     await expectMinimumTargetSize("Export", exportButton);
     await expectMinimumTargetSize("Back to map", backToMap);
     await captureVisualEvidence(page, "Mobile comparison dashboard", "mobile-comparison-dashboard.png", {
-      expectedSha256: "491d205d2e858cdeda416f367a89729b620cf1d211a54d0622d96d5fa0eec54a"
+      expectedSha256: {
+        darwin: "491d205d2e858cdeda416f367a89729b620cf1d211a54d0622d96d5fa0eec54a",
+        linux: "167e3bb7df50099cdfdebcebefb4f88509638f87e873d6880d566365119995fe"
+      }
     });
 
     await exportButton.click();
@@ -274,7 +292,10 @@ test.describe("mobile product navigation, targets and visual evidence", () => {
     await expectMinimumTargetSize("Print / Save as PDF", printButton);
     await expectNoHorizontalOverflow(page);
     await captureVisualEvidence(page, "Mobile printable comparison", "mobile-comparison-report.png", {
-      expectedSha256: "37486623e3be701c53c590a62a2db4fd1def5d70a7420b6e1c2f244d1a3c5561",
+      expectedSha256: {
+        darwin: "37486623e3be701c53c590a62a2db4fd1def5d70a7420b6e1c2f244d1a3c5561",
+        linux: "db6996f04d17da0619923938224201f7af4a76e8c91633d51281b232833ba7ff"
+      },
       fullPage: true
     });
   });
