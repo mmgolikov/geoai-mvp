@@ -348,7 +348,7 @@ jobs:
           fi
 
           google-chrome --version | tee artifacts/google-chrome-version.txt
-          npx playwright test tests/e2e/mobile-product-flow.spec.ts --update-snapshots --retries=0 | tee artifacts/auth-session-e2e.txt
+          npm run test:e2e:auth-session -- --grep "mobile product navigation, targets and visual evidence" --update-snapshots --retries=0 | tee artifacts/auth-session-e2e.txt
           npx lighthouse 'http://127.0.0.1:3100/login?next=/workspace&intent=demo' \
             --quiet \
             --preset=desktop \
