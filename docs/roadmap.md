@@ -1,11 +1,11 @@
 # GeoAI Delivery Roadmap
 
 Status: Active
-Last verified: 2026-07-20
+Last verified: 2026-07-21
 Owner: GeoAI Product / Engineering
 Authority: Current dependency-ordered delivery plan
 Successor: None; any replacement must update `DOCUMENTATION_INDEX.md`
-Current release: merged PR #97 at `b915a831d5e5b28eab5fd26ac86059820e7e4a32`; Production `dpl_ERVqZPD5GAGDLjAVhMcPF2HT5Br7` at https://geoai-mvp.vercel.app; stage `public_demo_prototype`; [machine receipt](CURRENT_RELEASE_RECEIPT.json)
+Current release: merged PR #106 at `cc8f9ebcf3989fab4a3c4eac9be9dfb8da786a7b`; Production `dpl_6RC2ohEdLBjiV82k758tFMkaDB9X` at https://geoai-mvp.vercel.app; rollback `dpl_ERVqZPD5GAGDLjAVhMcPF2HT5Br7`; stage `public_demo_prototype`; [machine receipt](CURRENT_RELEASE_RECEIPT.json)
 Navigation: [Confluence Hub](https://geoaimvp.atlassian.net/wiki/spaces/PH/overview) · [Documentation Index](DOCUMENTATION_INDEX.md) · [Current Release State](CURRENT_RELEASE_STATE.md) · [Full System Audit](FULL_SYSTEM_AUDIT_2026_07_16.md) · [Codex Backlog](CODEX_BACKLOG_2026_07_16.md)
 
 GeoAI remains a public demo prototype. Production is `demo_only`, `local_fallback`, soft access and has no Production Supabase connection. The source pack is fail-closed in Production. No Production-ready or pilot-ready maturity claim is supported.

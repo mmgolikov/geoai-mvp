@@ -95,6 +95,33 @@ export function validateReleaseReceipt(receipt, relativePath = currentReleaseRec
       if (rehearsal?.[field] !== false) failures.push(`${relativePath}: ${field} must be false`);
     }
   }
+  if (receipt?.lifecycle !== undefined) {
+    const lifecycle = receipt.lifecycle;
+    if (lifecycle?.authorityScope !== "current_operational_release_authority") {
+      failures.push(`${relativePath}: lifecycle.authorityScope must be current_operational_release_authority`);
+    }
+    if (!Number.isFinite(Date.parse(lifecycle?.currentAsOf ?? ""))) {
+      failures.push(`${relativePath}: lifecycle.currentAsOf must be an ISO-8601 timestamp`);
+    }
+    if (lifecycle?.supersedesReceiptForPullRequest !== undefined && !Number.isInteger(lifecycle.supersedesReceiptForPullRequest)) {
+      failures.push(`${relativePath}: lifecycle.supersedesReceiptForPullRequest must be an integer when present`);
+    }
+  }
+  if (receipt?.githubEvidence !== undefined) {
+    const githubEvidence = receipt.githubEvidence;
+    for (const field of ["postMergeQualityGateRunId", "staticApiDataHonestyJobId", "databaseReplayJobId", "qualityArtifactId", "databaseArtifactId"]) {
+      if (!Number.isInteger(githubEvidence?.[field]) || githubEvidence[field] < 1) failures.push(`${relativePath}: githubEvidence.${field} must be a positive integer`);
+    }
+    for (const field of ["qualityArtifactDigest", "databaseArtifactDigest"]) {
+      if (!/^sha256:[a-f0-9]{64}$/.test(githubEvidence?.[field] ?? "")) failures.push(`${relativePath}: githubEvidence.${field} must be an exact SHA-256 digest`);
+    }
+  }
+  if (receipt?.vercelEvidence !== undefined) {
+    const vercelEvidence = receipt.vercelEvidence;
+    if (vercelEvidence?.productionAlias !== receipt.productionUrl) failures.push(`${relativePath}: vercelEvidence.productionAlias must match productionUrl`);
+    if (vercelEvidence?.status !== "READY") failures.push(`${relativePath}: vercelEvidence.status must be READY`);
+    if (vercelEvidence?.target !== "production") failures.push(`${relativePath}: vercelEvidence.target must be production`);
+  }
   const maturityStatements = [receipt?.releaseType, receipt?.productStage, ...(Array.isArray(receipt?.caveats) ? receipt.caveats : [])].join("\n");
   if (/(?:production|pilot)[ -]?ready/i.test(maturityStatements)) {
     failures.push(`${relativePath}: receipt must not claim Production or pilot readiness`);
@@ -126,9 +153,18 @@ export function validateCurrentReleaseTruth({
     const content = readText(root, relativePath, failures);
     if (!content) continue;
     pushMatches(failures, relativePath, content, /(?:Draft\s+PR\s+#97|PR\s+#97[^\n]*(?:Draft|unreleased)|unreleased[^\n]*PR\s+#97)/gi, "PR #97 is merged and must not be described as Draft or unreleased");
-    pushMatches(failures, relativePath, content, /Production\s+remains\s+(?:on\s+)?PR\s+#87/gi, "Production is released from merged PR #97, not PR #87");
+    pushMatches(failures, relativePath, content, /Production\s+remains\s+(?:on\s+)?PR\s+#87/gi, `Production is released from merged PR #${receipt.mergedPullRequest}, not PR #87`);
     pushMatches(failures, relativePath, content, /(?:Current\s+`?main`?|Release\s+authority|Released\s+baseline)[^\n]*2999e7e857989baf53ce58ecfed63550b5896be0/gi, "current release statement uses the obsolete main SHA");
     pushMatches(failures, relativePath, content, /(?:Current\s+Production|Vercel\s+Production)[^\n]*dpl_EAXREH31JKznnGbQYEU8bNqTqagN/gi, "current Production statement uses the rollback deployment as current");
+    if (receipt.mergedPullRequest > 97) {
+      pushMatches(
+        failures,
+        relativePath,
+        content,
+        /(?:Current\s+(?:release|`?main`?)|Release\s+authority|Released\s+baseline)[^\n]*(?:PR\s+#97|b915a831d5e5b28eab5fd26ac86059820e7e4a32)/gi,
+        "active authority treats the PR #97 release tuple as current after a newer machine receipt"
+      );
+    }
     if (receipt.hostedSupabaseState?.authRehearsal?.confirmedAuthUsers === 1) {
       pushMatches(
         failures,

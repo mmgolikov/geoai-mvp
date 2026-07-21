@@ -3,14 +3,14 @@
 Use this checklist before demos, Vercel deployments, and milestone checkpoints.
 
 Status: Active checklist
-Last verified: 2026-07-20
+Last verified: 2026-07-21
 Owner: GeoAI Engineering / QA
 Authority: Current verification and release-gate criteria
 Successor: None; any replacement must update `DOCUMENTATION_INDEX.md`
 Current authority: [Current Release State](CURRENT_RELEASE_STATE.md)
 Navigation: [Documentation Index](DOCUMENTATION_INDEX.md) · [Current Release State](CURRENT_RELEASE_STATE.md) · [Full System Audit](FULL_SYSTEM_AUDIT_2026_07_16.md) · [Codex Backlog](CODEX_BACKLOG_2026_07_16.md) · [Confluence Hub](https://geoaimvp.atlassian.net/wiki/spaces/PH/overview)
 
-This checklist verifies the merged PR #97 public-demo baseline at `b915a831d5e5b28eab5fd26ac86059820e7e4a32`, Production `dpl_ERVqZPD5GAGDLjAVhMcPF2HT5Br7` at https://geoai-mvp.vercel.app and stage `public_demo_prototype`; see the [machine receipt](CURRENT_RELEASE_RECEIPT.json). Use only built-in synthetic fixtures and do not enter/upload confidential, regulated, sensitive or client-protected AOIs, CSV, GeoJSON, filenames, evidence or dynamic package data. Protected persistence and real sources remain blocked.
+This checklist verifies the merged PR #106 public-demo baseline at `cc8f9ebcf3989fab4a3c4eac9be9dfb8da786a7b`, Production `dpl_6RC2ohEdLBjiV82k758tFMkaDB9X` at https://geoai-mvp.vercel.app, rollback `dpl_ERVqZPD5GAGDLjAVhMcPF2HT5Br7` and stage `public_demo_prototype`; see the [machine receipt](CURRENT_RELEASE_RECEIPT.json). Use only built-in synthetic fixtures and do not enter/upload confidential, regulated, sensitive or client-protected AOIs, CSV, GeoJSON, filenames, evidence or dynamic package data. Protected persistence and real sources remain blocked.
 
 Exact-head receipt: head `80645d64662699bd646f96718d300df5d2b84f5f`, tree `0fb7982f3a9cbd40366a84fdfb715a083ba26cde`; run `29611412924`, app job `87986721079` and DB job `87986721050` succeeded. Quality artifact `8418943293` and database artifact `8418941261` preserve separate receipts. Preview `dpl_94eRMRsM8NJR2hdmYE1zLLbiQE8b` is READY at `https://geoai-ln4ohqv5m-geoaidev.vercel.app`. Browser evidence is bounded to the mock session and declared routes/viewports/lab profiles; real-user authorization and field telemetry remain separate gates.
 

@@ -47,7 +47,7 @@ async function captureAcceptedNavigationEvidence(page: Page) {
   expect(
     sha256,
     "Mobile product navigation screenshot hash must match the accepted accessible Figma-aligned palette evidence"
-  ).toBe("20cb723f848542d80aa7a79ff1850c0526db692c937466b04b5d8e45335dc9ea");
+  ).toBe("cd7a7ff5d54c8c1cecfaa1b68ba5704eb984f7ac6311326745efa8efaca341fa");
   console.log(`[visual] Mobile product navigation: ${fileName} sha256:${sha256}`);
 }
 

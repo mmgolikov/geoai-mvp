@@ -1,12 +1,13 @@
 # GeoAI Full System Audit — 2026-07-16
 
 Status: Active audit record; PR #97 remediation is released
-Last verified: 2026-07-20
+Last verified: 2026-07-21
 Owner: GeoAI Engineering / Governance
 Authority: Current full-system findings, remediation and residual risk
 Successor: None; any replacement must update `DOCUMENTATION_INDEX.md`
 Audit mode: critical, multi-agent, evidence-led; no independent-reviewer approval claim
-Released baseline: merged PR #97 / `b915a831d5e5b28eab5fd26ac86059820e7e4a32` / `dpl_ERVqZPD5GAGDLjAVhMcPF2HT5Br7` / https://geoai-mvp.vercel.app / `public_demo_prototype`
+Current operational release: merged PR #106 / `cc8f9ebcf3989fab4a3c4eac9be9dfb8da786a7b` / `dpl_6RC2ohEdLBjiV82k758tFMkaDB9X` / https://geoai-mvp.vercel.app / `public_demo_prototype`
+Historical audit release: merged PR #97 / `b915a831d5e5b28eab5fd26ac86059820e7e4a32` / rollback deployment `dpl_ERVqZPD5GAGDLjAVhMcPF2HT5Br7`
 Machine authority: [CURRENT_RELEASE_RECEIPT.json](CURRENT_RELEASE_RECEIPT.json)
 Navigation: [Confluence Hub](https://geoaimvp.atlassian.net/wiki/spaces/PH/overview) · [Documentation Index](DOCUMENTATION_INDEX.md) · [Current Release State](CURRENT_RELEASE_STATE.md) · [Codex Backlog](CODEX_BACKLOG_2026_07_16.md) · [Supabase containment runbook](SUPABASE_DATA_API_CONTAINMENT_RUNBOOK_2026_07_16.md)
 Confluence authority: [09.13 Full System Audit — 2026-07-16](https://geoaimvp.atlassian.net/wiki/spaces/PH/pages/12320972) · GitHub execution: [#96](https://github.com/mmgolikov/geoai-mvp/issues/96)
@@ -36,13 +37,14 @@ No Production deployment, development/Production Supabase migration/apply, secre
 
 ## Verified released state
 
-Operational warning: PR #97 containment is released, but the public demo remains browser-local and fixture-bounded. Use only built-in synthetic/demo fixtures; do not enter or upload confidential, regulated, sensitive or client-protected AOIs, CSV, GeoJSON, filenames, evidence or dynamic report/package data. Protected persistence and real sources remain blocked.
+Operational warning: PR #97 containment and PR #106 public-funnel/release-truth corrections are released, but the public demo remains browser-local and fixture-bounded. Use only built-in synthetic/demo fixtures; do not enter or upload confidential, regulated, sensitive or client-protected AOIs, CSV, GeoJSON, filenames, evidence or dynamic report/package data. Protected persistence and real sources remain blocked.
 
 | Control | Evidence | Result |
 | --- | --- | --- |
-| GitHub release | PR #97, merge `b915a831d5e5b28eab5fd26ac86059820e7e4a32` | Released |
-| Exact-main quality | Run `29456624801`, 18/18; artifact `8359607780` | Passed |
-| Vercel Production | `dpl_ERVqZPD5GAGDLjAVhMcPF2HT5Br7`, https://geoai-mvp.vercel.app, exact merge SHA | READY |
+| GitHub release | PR #106, merge `cc8f9ebcf3989fab4a3c4eac9be9dfb8da786a7b` | Released |
+| Exact-main quality | Post-merge push Quality Gate `29835520415`; jobs `88650735580` and `88650735754`; artifacts `8497283837` / `8497226028` | Passed |
+| Vercel Production | `dpl_6RC2ohEdLBjiV82k758tFMkaDB9X`, https://geoai-mvp.vercel.app, exact merge SHA | READY |
+| Rollback | `dpl_ERVqZPD5GAGDLjAVhMcPF2HT5Br7` | Previous PR #97 deployment retained as rollback |
 | Product stage | `public_demo_prototype` | Released public-demo prototype; protected operation blocked |
 | Production data plane | `demo_only`, `local_fallback`, soft access; no Production Supabase | Public demo only |
 | Production source pack | HTTP 503, activation false, zero sources | Fail-closed |
@@ -53,7 +55,7 @@ Operational warning: PR #97 containment is released, but the public demo remains
 
 | Plane | Verified truth | What must not be inferred |
 | --- | --- | --- |
-| Released Production | PR #97 exact SHA/deployment above; no Production Supabase; source pack 503/disabled/zero | Containment, sanitized routes and browser isolation are released; protected operation is not active |
+| Released Production | PR #106 exact SHA/deployment above; no Production Supabase; source pack 503/disabled/zero | Containment, sanitized routes, public-funnel separation and browser isolation are released; protected operation is not active |
 | Live development Supabase | Direct Data API exposure described below; all seven candidate migrations unapplied | Development schema/RLS is not Auth/RBAC/Storage certification and is not Production |
 | Isolated Free rehearsal | Ref `bkmfcjzalcvdsdvyxpgi`; first six candidate migrations and API-only operator applied; hosted `183/183`; positive/negative PostgREST HTTP evidence; zero uncovered domain FKs; rollback-only two-backend table-level invitation concurrency. Seventh no-MFA permanent-identity migration unapplied | Does not prove authenticated RPC/HTTP concurrency, real email/phone/Admin, Storage, development upgrade/drift or Production |
 | Unreleased audit candidate | Head `e999c5a07d3ced6c95f2eb44f6a5f03a9c17caea`, tree `73b7c198813d6aede795b8b186bd4d58e741b181`; run `29500488408` success; DB clean/rehearsal/second 71/71; Preview `dpl_CY7oNavQwu5ddkhRRLaR3FWTd3d9` READY | Live-derived upgrade/drift, apply/Data API containment, credential evacuation, live JWT/Storage/source personas and browser quality remain required |

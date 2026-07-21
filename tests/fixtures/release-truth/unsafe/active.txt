@@ -1,1 +1,1 @@
-Current release: PR #97, `b915a831d5e5b28eab5fd26ac86059820e7e4a32`, `dpl_ERVqZPD5GAGDLjAVhMcPF2HT5Br7`, https://geoai-mvp.vercel.app, `public_demo_prototype`.
+Current release: PR #106, `cc8f9ebcf3989fab4a3c4eac9be9dfb8da786a7b`, `dpl_6RC2ohEdLBjiV82k758tFMkaDB9X`, https://geoai-mvp.vercel.app, `public_demo_prototype`.

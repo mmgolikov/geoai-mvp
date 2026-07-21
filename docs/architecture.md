@@ -1,11 +1,11 @@
 # GeoAI Implemented Architecture
 
 Status: Active implementation baseline
-Last verified: 2026-07-20
+Last verified: 2026-07-21
 Owner: GeoAI Engineering
 Authority: Current implemented architecture and trust boundaries
 Successor: None; any replacement must update `DOCUMENTATION_INDEX.md`
-Released baseline: `main` `b915a831d5e5b28eab5fd26ac86059820e7e4a32` (merged PR #97), Production `dpl_ERVqZPD5GAGDLjAVhMcPF2HT5Br7` at https://geoai-mvp.vercel.app, stage `public_demo_prototype`
+Released baseline: `main` `cc8f9ebcf3989fab4a3c4eac9be9dfb8da786a7b` (merged PR #106), Production `dpl_6RC2ohEdLBjiV82k758tFMkaDB9X` at https://geoai-mvp.vercel.app, rollback `dpl_ERVqZPD5GAGDLjAVhMcPF2HT5Br7`, stage `public_demo_prototype`
 Machine authority: [CURRENT_RELEASE_RECEIPT.json](CURRENT_RELEASE_RECEIPT.json)
 Maturity: public demo prototype; not Production-ready or pilot-ready
 Navigation: [Confluence Hub](https://geoaimvp.atlassian.net/wiki/spaces/PH/overview) · [Documentation Index](DOCUMENTATION_INDEX.md) · [Current Release State](CURRENT_RELEASE_STATE.md) · [Full System Audit](FULL_SYSTEM_AUDIT_2026_07_16.md) · [Data Strategy](data-strategy.md) · [Roadmap](roadmap.md) · [Codex Backlog](CODEX_BACKLOG_2026_07_16.md)

@@ -1,13 +1,35 @@
 {
-  "schemaVersion": "1.0",
-  "verifiedAt": "2026-07-19T19:57:48Z",
+  "schemaVersion": "1.1",
+  "verifiedAt": "2026-07-21T14:45:00Z",
   "releaseType": "production_public_demo",
   "productStage": "public_demo_prototype",
-  "mergedPullRequest": 97,
-  "mainSha": "b915a831d5e5b28eab5fd26ac86059820e7e4a32",
-  "productionDeploymentId": "dpl_ERVqZPD5GAGDLjAVhMcPF2HT5Br7",
+  "mergedPullRequest": 106,
+  "mainSha": "cc8f9ebcf3989fab4a3c4eac9be9dfb8da786a7b",
+  "productionDeploymentId": "dpl_6RC2ohEdLBjiV82k758tFMkaDB9X",
   "productionUrl": "https://geoai-mvp.vercel.app",
-  "rollbackDeploymentId": "dpl_EAXREH31JKznnGbQYEU8bNqTqagN",
+  "rollbackDeploymentId": "dpl_ERVqZPD5GAGDLjAVhMcPF2HT5Br7",
+  "lifecycle": {
+    "authorityScope": "current_operational_release_authority",
+    "currentAsOf": "2026-07-21T14:45:00Z",
+    "supersedesReceiptForPullRequest": 97
+  },
+  "githubEvidence": {
+    "postMergeQualityGateRunId": 29835520415,
+    "staticApiDataHonestyJobId": 88650735580,
+    "databaseReplayJobId": 88650735754,
+    "qualityArtifactId": 8497283837,
+    "qualityArtifactName": "geoai-quality-evidence-29835520415",
+    "qualityArtifactDigest": "sha256:858bb64b06d76ed222966fc715c8432112a8ac74915bfd281250666e48359653",
+    "databaseArtifactId": 8497226028,
+    "databaseArtifactName": "geoai-database-evidence-29835520415",
+    "databaseArtifactDigest": "sha256:dcd9958e72421fca60fb62adca2a001020e40b34fe2f8b38737061300e85898a"
+  },
+  "vercelEvidence": {
+    "productionAlias": "https://geoai-mvp.vercel.app",
+    "deploymentUrl": "https://geoai-15h7r8l4k-geoaidev.vercel.app",
+    "target": "production",
+    "status": "READY"
+  },
   "publicDemoActive": true,
   "confidentialPilotReady": false,
   "protectedStorageActive": false,

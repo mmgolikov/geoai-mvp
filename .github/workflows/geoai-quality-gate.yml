@@ -253,6 +253,12 @@ jobs:
           set -euo pipefail
           npm run test:documentation-current-truth-fixtures | tee artifacts/documentation-current-truth-fixtures.txt
 
+      - name: System stabilization audit checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:system-stabilization-audit | tee artifacts/system-stabilization-audit-check.txt
+
       - name: Public request boundary checks
         shell: bash
         run: |

@@ -1,7 +1,7 @@
 # GeoAI Documentation Index
 
 Status: Active navigation authority
-Last verified: 2026-07-20
+Last verified: 2026-07-21
 Owner: GeoAI Documentation Governance
 Authority: Sole repository navigation and lifecycle precedence
 Successor: None; any replacement must update this file and the Confluence Hub atomically
@@ -19,6 +19,7 @@ This index is the repository entry point for current documentation. If a version
 | Release/runtime truth | [Current Release State](CURRENT_RELEASE_STATE.md) | Exact GitHub SHA, CI, Vercel, Supabase and source activation state |
 | Machine release receipt | [Current Release Receipt](CURRENT_RELEASE_RECEIPT.json) | Canonical released PR, SHA, deployment, product stage and activation booleans |
 | Full critical assessment | [Full System Audit — 2026-07-16](FULL_SYSTEM_AUDIT_2026_07_16.md) | Findings, fixes, residual risks and go/no-go boundaries |
+| Stabilization audit | [System Stabilization Audit v2 — 2026-07-21](SYSTEM_STABILIZATION_AUDIT_V2_2026_07_21.md) | Current PR #106 release-authority, post-merge CI, Production smoke, stale authority reconciliation and protected-pilot backlog |
 | Implemented system | [Architecture](architecture.md) | What the code does now and where trust boundaries stop |
 | Data/source rules | [Data Strategy](data-strategy.md) | Source rights, custody, evidence and activation sequence |
 | Delivery order | [Roadmap](roadmap.md) | P0/P1/P2 dependencies before Auth, Admin and real sources |
@@ -40,10 +41,11 @@ The following facts must agree across the Hub, release state, architecture, road
 
 | Fact | Current value |
 | --- | --- |
-| Released PR | GitHub PR #97, merged |
-| Released `main` | `b915a831d5e5b28eab5fd26ac86059820e7e4a32` |
+| Released PR | GitHub PR #106, merged |
+| Released `main` | `cc8f9ebcf3989fab4a3c4eac9be9dfb8da786a7b` |
 | Canonical receipt | [CURRENT_RELEASE_RECEIPT.json](CURRENT_RELEASE_RECEIPT.json) |
-| Vercel Production | `dpl_ERVqZPD5GAGDLjAVhMcPF2HT5Br7`, READY at https://geoai-mvp.vercel.app on exact SHA |
+| Vercel Production | `dpl_6RC2ohEdLBjiV82k758tFMkaDB9X`, READY at https://geoai-mvp.vercel.app on exact SHA |
+| Rollback deployment | `dpl_ERVqZPD5GAGDLjAVhMcPF2HT5Br7` |
 | Product mode | `public_demo_prototype`; browser-local demo active; protected/confidential operation blocked |
 | Production database | Supabase not configured |
 | Production source pack | HTTP 503; disabled; zero sources |
@@ -56,17 +58,17 @@ The following facts must agree across the Hub, release state, architecture, road
 | Global navigation/mobile visual/Lighthouse browser evidence | Exact head `80645d64662699bd646f96718d300df5d2b84f5f` passed Quality Gate `29611412924`; Chrome completed `12/12` in `1.7m`, the five 390px product baselines plus one 430×932 navigation baseline matched, used primary controls met 40px, direct 834×1112 navigation passed and all nine Axe surfaces stayed at zero. Lighthouse passed mobile landing, desktop login, mobile Projects (`0.97`) and desktop Explore (`1.00`) budgets. Preview `dpl_94eRMRsM8NJR2hdmYE1zLLbiQE8b` is healthy. Field Core Web Vitals, broader device/route coverage and real users remain pending |
 | Maturity | Not Production-ready and not pilot-ready |
 
-The full-system audit was merged as PR #97 and is the current released public-demo baseline. [Current Release State](CURRENT_RELEASE_STATE.md) and the [machine receipt](CURRENT_RELEASE_RECEIPT.json) are the repository release authorities. This does not authorize a new merge, Production deployment, Supabase apply, secret change, Auth activation, real source connection or geometry publication.
+The full-system audit was merged as PR #97 and remains historical containment evidence. PR #106 is the current released public-demo tuple. [Current Release State](CURRENT_RELEASE_STATE.md) and the [machine receipt](CURRENT_RELEASE_RECEIPT.json) are the repository release authorities. This does not authorize a new merge, Production deployment, Supabase apply, secret change, Auth activation, real source connection or geometry publication.
 
 The newer isolated rehearsal receipt supersedes the earlier statement that runtime pgTAP, Data API containment and all concurrency evidence were wholly unexecuted: pgTAP/API containment and rollback-only table-level invitation concurrency are now executed only on the Free rehearsal. Authenticated RPC/HTTP concurrency remains open. The receipt does not change the older GitHub exact-head evidence, the separate development project or Production.
 
-Historical pre-merge evidence head `80645d64662699bd646f96718d300df5d2b84f5f`, tree `0fb7982f3a9cbd40366a84fdfb715a083ba26cde`, passed Quality Gate `29611412924`. Application job `87986721079` passed static contracts, Chrome `12/12`, nine zero-finding Axe surfaces, six visual baselines, production build/route smoke and four Lighthouse budgets; DB job `87986721050` passed clean and synthetic-upgrade `183/183` suites. Quality/database artifacts are `8418943293` / `8418941261`. Preview `dpl_94eRMRsM8NJR2hdmYE1zLLbiQE8b` was READY and its eight-route matrix returned 200. Current Production authority is the receipt above. Real email/phone/RLS/Admin/Storage/source personas, field Core Web Vitals and live development apply remain open.
+Historical PR #97 browser/accessibility evidence, including head `80645d64662699bd646f96718d300df5d2b84f5f`, remains preserved as scoped containment evidence. Current post-merge authority is PR #106 / `cc8f9ebcf3989fab4a3c4eac9be9dfb8da786a7b` / `dpl_6RC2ohEdLBjiV82k758tFMkaDB9X`, with Quality Gate `29835520415` and artifacts `8497283837` / `8497226028`. Real email/phone/RLS/Admin/Storage/source personas, field Core Web Vitals and live development apply remain open.
 
 The personal-account increment at functional head `232fb532db1e5bc1dcf134ca1d616e4506f682f0` added `/profile`, browser-local preferences/avatar and registered-email/password actions. Its historical landing/Auth follow-up at `bdb7f0629c39838e2e3451925825699df7f84fc0` restored both entry actions through Auth. CR 09.22 now keeps `View demo` on bounded Login-to-Workspace and routes commercial requests to the separate `/request-access` React-memory brief. None of these paths uses preferences for authorization, enables verified sign-in-phone mutation or protected Storage; real-user Auth/profile actions remain pending.
 
 The published follow-up at functional head `77ac593b51d43a62ddc89656dbae735378cab69f` adds a resolved-session client gate to Workspace, Projects, Explore and Profile in `supabase_auth`: it restores the saved browser session before rendering, sends resolved anonymous visitors to the unified login with a bounded return path, preserves public-demo behavior and fails closed when Auth is disabled. Quality Gate `29579739837` passed; Preview `dpl_6Er5tTEesM2V6RA7ZQD8eR5VYJpQ` is READY, and hosted HTTP shows only the restoration shell on all four gated routes. It is not server authorization and does not activate Product repositories, RLS, Storage or real user personas. The later exact Playwright suites prove the hydrated mock-session redirect/restoration path; real-user session evidence remains pending.
 
-Immediate released-runtime restriction: PR #97 containment is released, but the public demo remains browser-local and fixture-bounded. Do not enter confidential, regulated, sensitive or client-protected AOIs, CSV, GeoJSON, filenames, evidence or dynamic package data. Protected persistence and real sources remain blocked.
+Immediate released-runtime restriction: PR #97 containment and PR #106 public-funnel/release-truth corrections are released, but the public demo remains browser-local and fixture-bounded. Do not enter confidential, regulated, sensitive or client-protected AOIs, CSV, GeoJSON, filenames, evidence or dynamic package data. Protected persistence and real sources remain blocked.
 
 ## Topic navigation
 
@@ -74,7 +76,8 @@ Immediate released-runtime restriction: PR #97 containment is released, but the 
 
 The machine-readable [Confluence sync map](CONFLUENCE_SYNC_MAP.json) is the complete synchronization contract for the 28-page active/supporting operational authority set, not for every historical page in the space. CHG-19 supersedes CHG-18 for the final local-only Auth/Admin candidate, rollback-only table-level concurrency evidence and corrected 220 kB route baseline while preserving the released PR #87/Production boundary. Direct read-back passed 28/28 with exactly one CHG-19 marker pair, no CHG-16/CHG-17/CHG-18 marker and a recorded SHA-256 for every current body; see the [CHG-19 receipt](CONFLUENCE_CHG19_RECEIPT.json). The legitimate post-CHG-18 design-page v49 edit was explicitly rebased without changing its design/navigation content and became CHG-19 v50. The prior [CHG-18 receipt](CONFLUENCE_CHG18_RECEIPT.json) remains immutable evidence of the previous state. `CR-DEV8-001` (`12320810`) remains historical released evidence and points to Current Delivery State as successor. The other 226 pages remain historical/scoped cleanup inventory under DOCS-01; synchronizing the operational set does not silently certify them as current.
 
-Hub is the operational snapshot; Home is the stable charter. Every evidence change must update Hub plus every affected mapped page after the exact candidate SHA/CI/deployment is final. Hub must directly link GitHub PR #97, execution program #96, the repository Codex backlog, Production/Vercel, Supabase containment, release state, audit, work packages, risks, decisions, security and pilot readiness.
+Hub is the operational snapshot; Home is the stable charter. Every evidence change must update Hub plus every affected mapped page after the exact candidate SHA/CI/deployment is final. Hub must directly link current release PR #106, execution program #96, CR 09.23 issue #107, the repository Codex backlog, Production/Vercel, Supabase containment, release state, audit, work packages, risks, decisions, security and pilot readiness.
+Historical audit PR #97 remains scoped containment evidence and must not be used as the current release tuple.
 
 ### Product and UX
 

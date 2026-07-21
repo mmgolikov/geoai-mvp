@@ -1,7 +1,7 @@
 # GeoAI Current Release State
 
 Status: Canonical repository release snapshot
-Last verified: 2026-07-20
+Last verified: 2026-07-21
 Owner: GeoAI Release Engineering
 Authority: Exact released and candidate runtime evidence
 Successor: None; any replacement must update `DOCUMENTATION_INDEX.md`
@@ -12,15 +12,25 @@ Navigation: [Documentation Index](DOCUMENTATION_INDEX.md) · [Full System Audit]
 
 | Item | Verified state |
 | --- | --- |
-| GitHub release | PR [#97](https://github.com/mmgolikov/geoai-mvp/pull/97), merged |
-| `main` SHA | `b915a831d5e5b28eab5fd26ac86059820e7e4a32` |
+| GitHub release | PR [#106](https://github.com/mmgolikov/geoai-mvp/pull/106), merged |
+| `main` SHA | `cc8f9ebcf3989fab4a3c4eac9be9dfb8da786a7b` |
 | Machine authority | [CURRENT_RELEASE_RECEIPT.json](CURRENT_RELEASE_RECEIPT.json) |
-| Vercel Production | `dpl_ERVqZPD5GAGDLjAVhMcPF2HT5Br7`, READY at https://geoai-mvp.vercel.app on exact SHA |
+| Vercel Production | `dpl_6RC2ohEdLBjiV82k758tFMkaDB9X`, READY at https://geoai-mvp.vercel.app on exact SHA |
+| Rollback deployment | `dpl_ERVqZPD5GAGDLjAVhMcPF2HT5Br7` |
 | Product stage | `public_demo_prototype` |
 | Production mode | Public demo, `demo_only`, `local_fallback`, soft access |
 | Production Supabase | Not configured |
 | Production source pack | HTTP 503, disabled, activation not allowed, zero sources |
 | Product maturity | Not Production-ready; not pilot-ready |
+
+## Post-merge CI and Production evidence
+
+PR #106 merged CR 09.22 public-funnel and release-truth corrections into `main` at `cc8f9ebcf3989fab4a3c4eac9be9dfb8da786a7b`. The post-merge `push` Quality Gate [run `29835520415`](https://github.com/mmgolikov/geoai-mvp/actions/runs/29835520415) passed on that exact SHA: application/static/API/data-honesty job `88650735580` and database-replay job `88650735754` both succeeded. Evidence artifacts are `8497283837` (`geoai-quality-evidence-29835520415`, digest `sha256:858bb64b06d76ed222966fc715c8432112a8ac74915bfd281250666e48359653`) and `8497226028` (`geoai-database-evidence-29835520415`, digest `sha256:dcd9958e72421fca60fb62adca2a001020e40b34fe2f8b38737061300e85898a`).
+
+Vercel Production inspection resolves https://geoai-mvp.vercel.app to deployment `dpl_6RC2ohEdLBjiV82k758tFMkaDB9X`, READY, exact deployment URL `https://geoai-15h7r8l4k-geoaidev.vercel.app`, target `production`. The previous PR #97 deployment `dpl_ERVqZPD5GAGDLjAVhMcPF2HT5Br7` is now rollback, not current Production. External route smoke returned HTTP 200 for `/`, `/workspace`, `/projects`, `/explore`, `/api/health`, `/api/db/health`, `/api/platform/activation-status`, `/api/pilot-backend/status`, `/reports/seeded-analysis-dubai-marina-report/print` and `/reports/seeded-comparison-dubai-shortlist-report/print`. Deployment-scoped Vercel logs in the checked window showed info-level requests and no error/fatal entries.
+
+The authority lifecycle decision is recorded in [Release Authority Lifecycle Decision](RELEASE_AUTHORITY_LIFECYCLE_DECISION.md).
+The historical PR #97 full-system audit remains valid as containment evidence, but it is no longer the current release tuple.
 
 ## Isolated Free rehearsal — current candidate evidence
 
@@ -169,7 +179,7 @@ The review-only Storage owner-path policy no longer evaluates direct caller join
 | Hosted HTTP matrix | `/profile`, `/login`, `/workspace`, `/api/health` and `/api/platform/activation-status` returned 200; CSP, HSTS and `nosniff` are present; no exact-deployment error/fatal runtime logs were observed |
 | Browser evidence | The narrow Auth mock-session desktop/mobile/keyboard journeys above are claimed. Axe/Lighthouse, deep product/print and real email/phone/Admin/Profile personas remain unclaimed; HTTP responses alone are not browser-interaction evidence. |
 
-The 2026-07-16 full-system audit was merged as [PR #97](https://github.com/mmgolikov/geoai-mvp/pull/97) and is the current released containment baseline. It adds project-scoped browser-only public-demo artifacts under a versioned demo-only namespace with Auth-transition cleanup; browser-local analysis/scoring; 403-before-body server generation/mutation containment; strict CSV/GeoJSON/AOI quotas and revalidation; fail-closed unknown-project/canonical report ID handling; summary-only public report-package collections; server-evidence-receipt and validation-attestation gates; a manifest-driven private/no-store boundary for all project/identity GET responses; `/explore` environment wiring; and regression controls. User-uploaded/user-drawn raw content, geometry and derived coordinates remain local. The canonical AOI validator rejects non-finite/out-of-WGS84 coordinates, wrong tuple arity and unsupported antimeridian crossings; its 11-persona adversarial contract covers one representative Dubai polygon and ten negative cases. Public diagnostics are static/sanitized and withhold infrastructure inventories. Anonymous source routes use bounded, explicit allowlisted `compact_public_v1` DTOs only (`contractVersion: 1.3`, manifest `1.6`, `liveRegistryIncluded:false`) and statically import the reviewed manifest plus compact quality totals rather than deep snapshots; per-source zero/count/use truth is contract-tested. `/demo` is a 307 redirect to `/workspace`. This release did not apply Supabase migrations, change external credentials or activate providers.
+The 2026-07-16 full-system audit was merged as [PR #97](https://github.com/mmgolikov/geoai-mvp/pull/97) and is historical released containment evidence, not the current release tuple. It adds project-scoped browser-only public-demo artifacts under a versioned demo-only namespace with Auth-transition cleanup; browser-local analysis/scoring; 403-before-body server generation/mutation containment; strict CSV/GeoJSON/AOI quotas and revalidation; fail-closed unknown-project/canonical report ID handling; summary-only public report-package collections; server-evidence-receipt and validation-attestation gates; a manifest-driven private/no-store boundary for all project/identity GET responses; `/explore` environment wiring; and regression controls. User-uploaded/user-drawn raw content, geometry and derived coordinates remain local. The canonical AOI validator rejects non-finite/out-of-WGS84 coordinates, wrong tuple arity and unsupported antimeridian crossings; its 11-persona adversarial contract covers one representative Dubai polygon and ten negative cases. Public diagnostics are static/sanitized and withhold infrastructure inventories. Anonymous source routes use bounded, explicit allowlisted `compact_public_v1` DTOs only (`contractVersion: 1.3`, manifest `1.6`, `liveRegistryIncluded:false`) and statically import the reviewed manifest plus compact quality totals rather than deep snapshots; per-source zero/count/use truth is contract-tested. `/demo` is a 307 redirect to `/workspace`. This release did not apply Supabase migrations, change external credentials or activate providers.
 
 Candidate application code no longer imports or needs a service-role credential/direct database URL and disables public Supabase repositories before AUTH-01. It accepts only modern `sb_publishable_` keys, ignores `.env.operator`, statically scans tracked files for key/DB/private-key shapes and requires project/SHA/migration-tree-bound operator receipts. A privileged development Supabase credential was observed across historical public Preview deployments. On 2026-07-16 the owner confirmed removal of the Vercel `SUPABASE_SERVICE_ROLE_KEY` and legacy public anon variable, Shared-scope review, disablement of development legacy `anon`/`service_role` keys, and Preview-only rehearsal configuration using the exact rehearsal URL plus a modern publishable key, `supabase_auth`, hard enforcement and public-demo denial. No value was recorded. Deployment `dpl_G5vcKVQCHypacP9foGpAJ4Egwu5k` independently returns hard Supabase Auth mode with demo access denied and hosts the exact personal-profile functional head. This closes [ENV-01](CODEX_BACKLOG_2026_07_16.md#env-01--public-vercel-credential-evacuation-and-rotation) for non-Production Preview integration. Real email/phone/Admin/Profile browser personas remain AUTH-01 work.
 

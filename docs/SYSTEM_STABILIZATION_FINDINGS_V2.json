@@ -1,0 +1,108 @@
+{
+  "schemaVersion": "2.0",
+  "generatedAt": "2026-07-21T14:45:00Z",
+  "controlIssue": 107,
+  "auditBranch": "audit/cr-09-23-system-stabilization-v2",
+  "auditStartingHead": "e3b8327cdc939d0dc989f9157076a82dde63a81a",
+  "releasedMainSha": "cc8f9ebcf3989fab4a3c4eac9be9dfb8da786a7b",
+  "production": {
+    "url": "https://geoai-mvp.vercel.app",
+    "deploymentId": "dpl_6RC2ohEdLBjiV82k758tFMkaDB9X",
+    "deploymentUrl": "https://geoai-15h7r8l4k-geoaidev.vercel.app",
+    "status": "READY",
+    "rollbackDeploymentId": "dpl_ERVqZPD5GAGDLjAVhMcPF2HT5Br7"
+  },
+  "qualityGate": {
+    "runId": 29835520415,
+    "event": "push",
+    "headSha": "cc8f9ebcf3989fab4a3c4eac9be9dfb8da786a7b",
+    "conclusion": "success",
+    "applicationJobId": 88650735580,
+    "databaseReplayJobId": 88650735754,
+    "qualityArtifact": {
+      "id": 8497283837,
+      "name": "geoai-quality-evidence-29835520415",
+      "digest": "sha256:858bb64b06d76ed222966fc715c8432112a8ac74915bfd281250666e48359653"
+    },
+    "databaseArtifact": {
+      "id": 8497226028,
+      "name": "geoai-database-evidence-29835520415",
+      "digest": "sha256:dcd9958e72421fca60fb62adca2a001020e40b34fe2f8b38737061300e85898a"
+    }
+  },
+  "routeSmoke": [
+    { "route": "/", "status": 200 },
+    { "route": "/workspace", "status": 200 },
+    { "route": "/projects", "status": 200 },
+    { "route": "/explore", "status": 200 },
+    { "route": "/api/health", "status": 200 },
+    { "route": "/api/db/health", "status": 200 },
+    { "route": "/api/platform/activation-status", "status": 200 },
+    { "route": "/api/pilot-backend/status", "status": 200 },
+    { "route": "/reports/seeded-analysis-dubai-marina-report/print", "status": 200 },
+    { "route": "/reports/seeded-comparison-dubai-shortlist-report/print", "status": 200 }
+  ],
+  "hostedSupabaseReadOnly": {
+    "development": {
+      "projectRef": "pphdqkurxneyagvnnjdt",
+      "migrationLedgerEntries": 10,
+      "confirmedAuthUsers": 0,
+      "writePerformed": false
+    },
+    "authRehearsal": {
+      "projectRef": "bkmfcjzalcvdsdvyxpgi",
+      "migrationLedgerEntries": 18,
+      "confirmedAuthUsers": 1,
+      "preExistingConfirmedAuthUsers": 1,
+      "usersCreatedByCurrentChange": 0,
+      "preExistingUserHasProjectMembershipAuthority": false,
+      "preExistingUserHasTenantAuthority": false,
+      "preExistingUserHasProtectedResourceAuthority": false,
+      "realUserBrowserPersonaExecutedByCurrentChange": false,
+      "writePerformed": false
+    }
+  },
+  "findings": [
+    {
+      "id": "REL-01",
+      "severity": "P0",
+      "status": "fixed_on_audit_branch",
+      "summary": "Active release authorities pointed to PR #97 and Production deployment dpl_ERV after PR #106 had merged.",
+      "evidence": ["docs/CURRENT_RELEASE_RECEIPT.json", "docs/CURRENT_RELEASE_STATE.md", "docs/DOCUMENTATION_INDEX.md"],
+      "remediation": "Updated current machine receipt and active authority top-level release facts to PR #106 / cc8f9... / dpl_6RC..."
+    },
+    {
+      "id": "OPS-01",
+      "severity": "P1",
+      "status": "open",
+      "summary": "The GitHub workflow uses mutable action tags such as actions/checkout@v4, setup-node@v4 and upload-artifact@v4.",
+      "evidence": [".github/workflows/geoai-quality-gate.yml"],
+      "remediation": "Track in protected-pilot readiness backlog; pinning requires a separate CI hardening package."
+    },
+    {
+      "id": "DOCS-01",
+      "severity": "P1",
+      "status": "partial",
+      "summary": "Issue #96 and long-tail Confluence/documentation authority still include historical baselines and require reconciliation.",
+      "evidence": ["GitHub issue #96", "docs/DOCUMENTATION_INDEX.md"],
+      "remediation": "Record current-state distinction and retain DOCS-01 as open backlog."
+    },
+    {
+      "id": "AUTH-01",
+      "severity": "P0",
+      "status": "open",
+      "summary": "Real email/phone/RLS/Admin personas remain unexecuted and no protected request-scoped Product authority is active.",
+      "evidence": ["GitHub issue #88", "docs/CODEX_BACKLOG_2026_07_16.md"],
+      "remediation": "Keep protected pilot blocked until DB-01, ENV-01 and real personas pass."
+    },
+    {
+      "id": "DB-01",
+      "severity": "P0",
+      "status": "open",
+      "summary": "Local clean replay and synthetic upgrade pass, but development upgrade/drift/apply and live personas remain unproven.",
+      "evidence": ["GitHub issue #85", "Quality Gate 29835520415"],
+      "remediation": "Run owner-approved target-derived replay and development containment before protected activation."
+    }
+  ],
+  "dataHonestyCaveat": "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
+}

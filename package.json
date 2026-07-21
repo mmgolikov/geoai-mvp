@@ -75,6 +75,7 @@
     "test:data-honesty": "node scripts/data-honesty-claim-check.mjs",
     "test:documentation-current-truth": "node scripts/documentation-current-truth-check.mjs",
     "test:documentation-current-truth-fixtures": "node scripts/documentation-current-truth-fixture-check.mjs",
+    "test:system-stabilization-audit": "node scripts/system-stabilization-audit-check.mjs",
     "docs:lifecycle:generate": "node scripts/document-lifecycle-manifest.mjs --write",
     "test:document-lifecycle": "node scripts/document-lifecycle-manifest.mjs",
     "test:project-isolation": "node scripts/project-isolation-source-check.mjs",
