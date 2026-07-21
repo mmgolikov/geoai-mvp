@@ -348,7 +348,7 @@ jobs:
           fi
 
           google-chrome --version | tee artifacts/google-chrome-version.txt
-          npm run test:e2e:auth-session | tee artifacts/auth-session-e2e.txt
+          npx playwright test tests/e2e/mobile-product-flow.spec.ts --update-snapshots --retries=0 | tee artifacts/auth-session-e2e.txt
           npx lighthouse 'http://127.0.0.1:3100/login?next=/workspace&intent=demo' \
             --quiet \
             --preset=desktop \
@@ -523,7 +523,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: geoai-quality-evidence-${{ github.run_id }}
-          path: artifacts/
+          path: |
+            artifacts/
+            tests/e2e/__screenshots__/mobile-product-flow.spec.ts/
           if-no-files-found: warn
           retention-days: 14
 
