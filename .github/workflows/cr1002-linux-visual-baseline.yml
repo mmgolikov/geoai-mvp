@@ -1,0 +1,65 @@
+name: CR 10.02 Linux visual baseline capture
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CI: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
+      NEXT_PUBLIC_AUTH_MODE: supabase_auth
+      NEXT_PUBLIC_SUPABASE_URL: https://bkmfcjzalcvdsdvyxpgi.supabase.co
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_geoai_ci_browser_contract_only
+      GEOAI_ACCESS_ENFORCEMENT_MODE: hard
+      GEOAI_ALLOW_DEMO_PUBLIC: "false"
+      GEOAI_E2E_BASE_URL: http://127.0.0.1:3100
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Start app and capture canonical Linux snapshots
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run dev -- -p 3100 > /tmp/geoai-cr1002-baseline-next.log 2>&1 &
+          APP_PID=$!
+          trap 'kill "$APP_PID" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 90); do
+            if curl --fail --silent http://127.0.0.1:3100/login > /dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          google-chrome --version | tee chrome-version.txt
+          npx playwright test tests/e2e/mobile-product-flow.spec.ts --update-snapshots --retries=0
+          cp /tmp/geoai-cr1002-baseline-next.log cr1002-baseline-next.log
+          git rev-parse HEAD > tested-commit-sha.txt
+
+      - name: Upload Linux baseline evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: cr1002-linux-visual-baselines-${{ github.run_id }}
+          path: |
+            tests/e2e/__screenshots__/mobile-product-flow.spec.ts
+            artifacts/mobile-visual-evidence
+            chrome-version.txt
+            tested-commit-sha.txt
+            cr1002-baseline-next.log
+          retention-days: 7
+          if-no-files-found: error
