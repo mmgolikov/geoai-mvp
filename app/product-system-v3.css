@@ -1,0 +1,23 @@
+.geoai-v32 {
+  --geoai-ink: #06122e;
+  --geoai-muted: #4d6694;
+  --geoai-line: #ccdef5;
+  --geoai-surface: #f4f9ff;
+  --geoai-brand: #064fcf;
+  --geoai-accent: #06717a;
+  --geoai-personal: #5b48d8;
+  --geoai-risk: #a63f00;
+  --geoai-product-header: 64px;
+  --geoai-control-minimum: 40px;
+  --geoai-touch-target: 44px;
+  --geoai-radius-control: 12px;
+  --geoai-radius-action: 14px;
+  --geoai-radius-card: 16px;
+  --geoai-radius-panel: 24px;
+  font-family: var(--font-geist), Geist, Arial, sans-serif;
+  letter-spacing: 0;
+}
+
+.geoai-v32 :focus-visible {
+  outline-color: var(--geoai-brand);
+}

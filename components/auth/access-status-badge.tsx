@@ -22,9 +22,9 @@ export function AccessStatusBadge() {
       aria-label={label}
       title={label}
       data-authenticated={isAuthenticated ? "true" : "false"}
-      className={`relative inline-flex h-10 w-10 shrink-0 items-center justify-center overflow-visible rounded-full border transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 ${
+      className={`geoai-v32 relative inline-flex h-10 w-10 shrink-0 items-center justify-center overflow-visible rounded-full border transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 ${
         isAuthenticated
-          ? "border-brand bg-[#e8f3f2] text-brand shadow-[0_0_0_3px_rgba(46,128,126,0.14)] hover:bg-[#dceceb]"
+          ? "border-brand bg-surface text-brand ring-4 ring-brand/10 hover:bg-brand/10"
           : "border-line bg-white text-muted hover:border-brand hover:text-brand"
       }`}
     >
@@ -44,7 +44,7 @@ export function AccessStatusBadge() {
       {isAuthenticated ? (
         <span
           aria-hidden="true"
-          className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white bg-[#2d8a68]"
+          className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white bg-accent"
         />
       ) : null}
     </Link>

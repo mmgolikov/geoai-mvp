@@ -7,6 +7,13 @@ Authority: Chronological released/unreleased change record; runtime truth remain
 Successor: None; any replacement must update `docs/DOCUMENTATION_INDEX.md`
 Navigation: [Documentation Index](docs/DOCUMENTATION_INDEX.md) · [Current Release State](docs/CURRENT_RELEASE_STATE.md) · [Full System Audit](docs/FULL_SYSTEM_AUDIT_2026_07_16.md) · [Codex Backlog](docs/CODEX_BACKLOG_2026_07_16.md)
 
+## Unreleased — CR 10.02 Design Foundation and Shared Shell
+
+- Added a scoped Product System v3.2 token contract, founder-approved 32 px identity asset, 64 px shared Product header and responsive Workspace / Projects / Explore navigation adapter. The shared shell preserves existing profile/access authority, active-route behavior, mobile Escape/outside-click closure and focus restoration.
+- Added bounded Button, StatusChip, SegmentSwitch and ValidationCaveat primitives for later separately approved migrations. Existing page bodies and page-local controls are not migrated or recolored.
+- Added permanent design-authority/token drift checks plus deterministic shell-only Chromium/Axe evidence at 1440, 1024, 768 and 390 px. Page 90 and Page 99 are explicitly excluded as implementation authorities.
+- This is a Draft candidate only. It changes no Auth/API/Supabase/Storage/source/runtime environment, does not authorize merge or Production, and does not claim Production-ready or pilot-ready status.
+
 ## Unreleased — CR 09.22 public funnel and release truth
 
 - Separated commercial request actions into `/request-access`; the five-field form prepares a plain-text brief in React memory and does not transmit or persist contact data. The browser-local demo keeps its bounded Login-to-Workspace path, and the legacy request intent redirects to the public request route.

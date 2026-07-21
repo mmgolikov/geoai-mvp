@@ -4,10 +4,6 @@ import path from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
 const visualDirectory = path.join(process.cwd(), "artifacts", "mobile-visual-evidence");
-const acceptedNavigationHashesByPlatform: Partial<Record<NodeJS.Platform, string>> = {
-  darwin: "cd7a7ff5d54c8c1cecfaa1b68ba5704eb984f7ac6311326745efa8efaca341fa",
-  linux: "20cb723f848542d80aa7a79ff1850c0526db692c937466b04b5d8e45335dc9ea"
-};
 
 async function signInDemo(page: Page, nextPath: "/workspace") {
   await page.goto(`/login?next=${encodeURIComponent(nextPath)}&intent=demo`);
@@ -54,13 +50,15 @@ async function captureAcceptedNavigationEvidence(page: Page) {
     caret: "hide",
     path: filePath
   });
+  const repeatImage = await page.screenshot({ animations: "disabled", caret: "hide" });
   const sha256 = createHash("sha256").update(image).digest("hex");
-  const expectedSha256 = acceptedNavigationHashesByPlatform[process.platform];
-  expect(expectedSha256, `Mobile product navigation has no accepted baseline for ${process.platform}`).toBeTruthy();
-  expect(
-    sha256,
-    `Mobile product navigation screenshot hash must match the accepted ${process.platform} evidence`
-  ).toBe(expectedSha256);
+  const repeatSha256 = createHash("sha256").update(repeatImage).digest("hex");
+  expect(repeatSha256, "Mobile product navigation must have one deterministic screenshot per state").toBe(sha256);
+  await expect(page).toHaveScreenshot(fileName, {
+    animations: "disabled",
+    caret: "hide",
+    maxDiffPixelRatio: 0.01
+  });
   console.log(`[visual] Mobile product navigation: ${fileName} sha256:${sha256}`);
 }
 

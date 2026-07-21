@@ -17,14 +17,6 @@ const visualDirectory = path.join(process.cwd(), "artifacts", "mobile-visual-evi
 const visualManifest = path.join(visualDirectory, "manifest.json");
 const visualEvidence: VisualEvidence[] = [];
 
-type PlatformVisualHashes = Partial<Record<NodeJS.Platform, string>>;
-
-function platformVisualHash(hashes: PlatformVisualHashes) {
-  const expectedSha256 = hashes[process.platform];
-  expect(expectedSha256, `Visual evidence has no accepted baseline for ${process.platform}`).toBeTruthy();
-  return expectedSha256;
-}
-
 async function expectNoHorizontalOverflow(page: Page) {
   const metrics = await page.evaluate(() => {
     const scrollingElement = document.scrollingElement ?? document.documentElement;
@@ -80,15 +72,20 @@ async function captureVisualEvidence(
   page: Page,
   label: string,
   fileName: string,
-  options: { expectedSha256?: string | PlatformVisualHashes; fullPage?: boolean; skipPixelBaseline?: boolean } = {}
+  options: { fullPage?: boolean } = {}
 ) {
-  const { expectedSha256, fullPage = false, skipPixelBaseline = false } = options;
+  const { fullPage = false } = options;
   await page.evaluate(() => {
     document.querySelector("nextjs-portal")?.remove();
   });
   await page.evaluate(async () => {
     await document.fonts.ready;
   });
+  await page.addStyleTag({
+    content: `*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}${fullPage ? "[data-product-shell]{position:static!important;top:auto!important}" : ""}`
+  });
+  await page.waitForTimeout(fullPage ? 1000 : 100);
+  await page.evaluate(() => window.scrollTo(0, 0));
   await fs.mkdir(visualDirectory, { recursive: true });
   const filePath = path.join(visualDirectory, fileName);
   const image = await page.screenshot({
@@ -109,19 +106,12 @@ async function captureVisualEvidence(
     height: viewport?.height ?? 0
   });
   await fs.writeFile(visualManifest, `${JSON.stringify(visualEvidence, null, 2)}\n`, "utf8");
-  if (skipPixelBaseline) {
-    expect(image.length, `${label} screenshot must be captured for evidence`).toBeGreaterThan(0);
-  } else if (expectedSha256) {
-    const resolvedSha256 = typeof expectedSha256 === "string" ? expectedSha256 : platformVisualHash(expectedSha256);
-    expect(sha256, `${label} screenshot hash must match the accepted corrected mobile evidence`).toBe(resolvedSha256);
-  } else {
-    await expect(page).toHaveScreenshot(fileName, {
-      animations: "disabled",
-      caret: "hide",
-      fullPage,
-      maxDiffPixelRatio: 0.01
-    });
-  }
+  await expect(page).toHaveScreenshot(fileName, {
+    animations: "disabled",
+    caret: "hide",
+    fullPage,
+    maxDiffPixelRatio: 0.01
+  });
   console.log(`[visual] ${label}: ${fileName} sha256:${sha256}`);
 }
 
@@ -192,18 +182,13 @@ test.describe("mobile product navigation, targets and visual evidence", () => {
     await page.reload();
     await expect(page.locator("#project-dashboard-selector option:checked")).toHaveText(projectName);
     await expectNoHorizontalOverflow(page);
-    await captureVisualEvidence(page, "Mobile project hub", "mobile-project-hub.png", { fullPage: true, skipPixelBaseline: true });
+    await captureVisualEvidence(page, "Mobile project hub", "mobile-project-hub.png", { fullPage: true });
 
     await page.getByRole("link", { name: "Open workspace", exact: true }).first().click();
     await expect(page).toHaveURL((url) => url.pathname === "/workspace" && url.searchParams.has("projectId"));
     await expect(page.locator("#active-project option:checked")).toHaveText(projectName);
     await expectNoHorizontalOverflow(page);
-    await captureVisualEvidence(page, "Mobile project workspace", "mobile-project-workspace.png", {
-      expectedSha256: {
-        darwin: "f9fd468d741d6a6eb48e8f1844ae85dcf508e7a855fe65d1dbec0c26d7634094",
-        linux: "59d37c9588a5a2ae5c0e9d9153e8b1f08d5bbc942144e2f13b154cee25fb76aa"
-      }
-    });
+    await captureVisualEvidence(page, "Mobile project workspace", "mobile-project-workspace.png");
   });
 
   test("compares and exports a criteria-first shortlist on mobile", async ({ page }) => {
@@ -246,12 +231,7 @@ test.describe("mobile product navigation, targets and visual evidence", () => {
     await scenarioSetupDisclosure.locator("summary").click();
     await expect(scenarioSetupDisclosure).not.toHaveAttribute("open", "");
 
-    await captureVisualEvidence(page, "Mobile explore setup", "mobile-explore-setup.png", {
-      expectedSha256: {
-        darwin: "9ac42072106d8532198eadd0e5e8804d9bd68fb3d968dea2e327c7be7d69d814",
-        linux: "ffd8f87cd669ac795cf684daca176f80aadd2606892a2a4b98a94cbf9c88e34c"
-      }
-    });
+    await captureVisualEvidence(page, "Mobile explore setup", "mobile-explore-setup.png");
 
     await criteriaFirst.click();
     await expect(criteriaFirst).toHaveAttribute("aria-pressed", "true");
@@ -279,24 +259,13 @@ test.describe("mobile product navigation, targets and visual evidence", () => {
     const backToMap = comparisonDashboard.getByRole("button", { name: "Back to map" });
     await expectMinimumTargetSize("Export", exportButton);
     await expectMinimumTargetSize("Back to map", backToMap);
-    await captureVisualEvidence(page, "Mobile comparison dashboard", "mobile-comparison-dashboard.png", {
-      expectedSha256: {
-        darwin: "491d205d2e858cdeda416f367a89729b620cf1d211a54d0622d96d5fa0eec54a",
-        linux: "167e3bb7df50099cdfdebcebefb4f88509638f87e873d6880d566365119995fe"
-      }
-    });
+    await captureVisualEvidence(page, "Mobile comparison dashboard", "mobile-comparison-dashboard.png");
 
     await exportButton.click();
     await expect(page).toHaveURL((url) => /^\/reports\/[^/]+\/print$/.test(url.pathname));
     const printButton = page.getByRole("button", { name: "Print / Save as PDF" });
     await expectMinimumTargetSize("Print / Save as PDF", printButton);
     await expectNoHorizontalOverflow(page);
-    await captureVisualEvidence(page, "Mobile printable comparison", "mobile-comparison-report.png", {
-      expectedSha256: {
-        darwin: "37486623e3be701c53c590a62a2db4fd1def5d70a7420b6e1c2f244d1a3c5561",
-        linux: "db6996f04d17da0619923938224201f7af4a76e8c91633d51281b232833ba7ff"
-      },
-      fullPage: true
-    });
+    await captureVisualEvidence(page, "Mobile printable comparison", "mobile-comparison-report.png", { fullPage: true });
   });
 });

@@ -1,0 +1,46 @@
+{
+  "schemaVersion": "1.0",
+  "designSystemVersion": "Product System v3.2 — Founder Approved Design Baseline",
+  "figmaFileKey": "TAzDqOvRCw1mQGMU3Y4S9H",
+  "approvalDate": "2026-07-21",
+  "approver": "Maxim Golikov — Founder, GeoAI",
+  "baselineSha": "d788ea4ddeecc719b5ffcecdd6aab8539cc9b755",
+  "documentationBranchSha": "82641b4f848230ce0b277ec3da92c785fa5cb98e",
+  "implementationBranch": "design/cr-10-02-foundation-shared-shell",
+  "controlIssue": "https://github.com/mmgolikov/geoai-mvp/issues/110",
+  "confluenceChangeRequest": "https://geoaimvp.atlassian.net/wiki/spaces/PH/pages/15794308",
+  "implementationStatus": "implemented_on_branch_pending_draft_review",
+  "canonicalNodes": {
+    "approvalRecord": "1797:2",
+    "executablePrototype": "1482:2",
+    "componentLibrary": "1672:17867",
+    "runtimeAlignment": "1749:21157",
+    "button": "202:68",
+    "statusChip": "203:24",
+    "segmentSwitch": "204:73",
+    "validationCaveat": "205:41",
+    "topNavigation": "219:425",
+    "identityFamily": "468:84",
+    "identityNavigation32": "468:57",
+    "desktopNavigation": ["219:356", "219:368", "219:380", "1733:186"],
+    "tabletNavigation": ["1755:472", "1755:497", "1755:522", "1755:547"],
+    "mobileNavigation": ["219:392", "219:403", "219:414", "1733:199"]
+  },
+  "identityApproval": {
+    "option": 1,
+    "approvedForImplementation": true,
+    "approvedForPreview": true,
+    "futurePublicRuntimeRequiresSeparateReleaseApproval": true,
+    "githubComment": "https://github.com/mmgolikov/geoai-mvp/issues/110#issuecomment-5038543289"
+  },
+  "excludedAuthorities": [
+    { "name": "Page 90", "implementationAuthority": false },
+    { "name": "Page 99", "implementationAuthority": false }
+  ],
+  "affectedRoutes": ["/workspace", "/projects", "/explore", "/request-access", "/profile"],
+  "bodyScreenMigrationAuthorized": false,
+  "figmaWritesAuthorized": false,
+  "codeConnectWritesAuthorized": false,
+  "mergeAuthorized": false,
+  "productionAuthorized": false
+}

@@ -1,0 +1,25 @@
+{
+  "schemaVersion": "1.0",
+  "designSystemVersion": "Product System v3.2",
+  "canonicalSource": "src/design-system/tokens.ts",
+  "cssScope": ".geoai-v32",
+  "globalBodyMigration": false,
+  "tokens": [
+    { "name": "color.ink", "value": "#06122e", "semanticRole": "Primary Product text", "tailwindMapping": "colors.ink", "cssMapping": "--geoai-ink", "migrationStatus": "canonical", "legacyAliasStatus": "navy remains temporarily mapped to ink" },
+    { "name": "color.muted", "value": "#4d6694", "semanticRole": "Secondary Product text", "tailwindMapping": "colors.muted", "cssMapping": "--geoai-muted", "migrationStatus": "canonical", "legacyAliasStatus": "existing muted alias retained" },
+    { "name": "color.line", "value": "#ccdef5", "semanticRole": "Product divider and border", "tailwindMapping": "colors.line", "cssMapping": "--geoai-line", "migrationStatus": "canonical", "legacyAliasStatus": "existing line alias retained" },
+    { "name": "color.surface", "value": "#f4f9ff", "semanticRole": "Active and supporting surface", "tailwindMapping": "colors.surface", "cssMapping": "--geoai-surface", "migrationStatus": "canonical", "legacyAliasStatus": "existing surface alias retained" },
+    { "name": "color.brand", "value": "#064fcf", "semanticRole": "Brand, focus and spatial state", "tailwindMapping": "colors.brand", "cssMapping": "--geoai-brand", "migrationStatus": "canonical", "legacyAliasStatus": "existing brand alias retained" },
+    { "name": "color.accent", "value": "#06717a", "semanticRole": "Primary Product action", "tailwindMapping": "colors.accent", "cssMapping": "--geoai-accent", "migrationStatus": "canonical", "legacyAliasStatus": "existing accent alias retained" },
+    { "name": "color.personal", "value": "#5b48d8", "semanticRole": "Personal and account context", "tailwindMapping": "colors.personal", "cssMapping": "--geoai-personal", "migrationStatus": "canonical", "legacyAliasStatus": "existing personal alias retained" },
+    { "name": "color.risk", "value": "#a63f00", "semanticRole": "Risk and validation", "tailwindMapping": "colors.risk", "cssMapping": "--geoai-risk", "migrationStatus": "canonical", "legacyAliasStatus": "existing risk alias retained" },
+    { "name": "dimension.header", "value": "64px", "semanticRole": "Shared Product header height", "tailwindMapping": "height.product-header", "cssMapping": "--geoai-product-header", "migrationStatus": "canonical", "legacyAliasStatus": "h-16 remains supported outside the shell" },
+    { "name": "dimension.desktopControlMinimum", "value": "40px", "semanticRole": "Desktop and tablet actionable minimum", "tailwindMapping": "minHeight.action", "cssMapping": "--geoai-control-minimum", "migrationStatus": "canonical", "legacyAliasStatus": "min-h-10 remains supported" },
+    { "name": "dimension.primaryTouchTarget", "value": "44px", "semanticRole": "Primary touch target", "tailwindMapping": "minHeight.touch", "cssMapping": "--geoai-touch-target", "migrationStatus": "canonical", "legacyAliasStatus": "min-h-11 remains supported" },
+    { "name": "radius.control", "value": "12px", "semanticRole": "Navigation and compact control radius", "tailwindMapping": "borderRadius.control", "cssMapping": "--geoai-radius-control", "migrationStatus": "canonical", "legacyAliasStatus": "existing rounded-control retained" },
+    { "name": "radius.action", "value": "14px", "semanticRole": "Primary action radius", "tailwindMapping": "borderRadius.action", "cssMapping": "--geoai-radius-action", "migrationStatus": "canonical", "legacyAliasStatus": "new bounded alias" },
+    { "name": "radius.card", "value": "16px", "semanticRole": "Product card radius", "tailwindMapping": "borderRadius.card", "cssMapping": "--geoai-radius-card", "migrationStatus": "canonical", "legacyAliasStatus": "legacy rounded-2xl remains supported" },
+    { "name": "radius.panel", "value": "24px", "semanticRole": "Large panel radius", "tailwindMapping": "borderRadius.panel", "cssMapping": "--geoai-radius-panel", "migrationStatus": "canonical", "legacyAliasStatus": "existing rounded-panel retained" },
+    { "name": "typography.product", "value": "var(--font-geist), Geist, Arial, sans-serif", "semanticRole": "Bounded Product System typography", "tailwindMapping": "fontFamily.product", "cssMapping": "font-family on .geoai-v32", "migrationStatus": "canonical_scoped", "legacyAliasStatus": "unrelated body typography is unchanged" }
+  ]
+}
