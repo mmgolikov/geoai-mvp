@@ -2,7 +2,8 @@ import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 export const requiredReleaseCaveat = "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.";
-export const currentReleaseReceiptPath = "docs/CURRENT_RELEASE_RECEIPT.json";
+export const releaseAuthorityPolicyPath = "docs/RELEASE_AUTHORITY_POLICY.json";
+export const lastVerifiedReleaseSnapshotPath = "docs/LAST_VERIFIED_RELEASE_SNAPSHOT.json";
 export const defaultReleaseFactDocs = [
   "docs/DOCUMENTATION_INDEX.md",
   "docs/CURRENT_RELEASE_STATE.md",
@@ -15,10 +16,21 @@ export const defaultReleaseFactDocs = [
 function readText(root, relativePath, failures) {
   const absolutePath = resolve(root, relativePath);
   if (!existsSync(absolutePath)) {
-    failures.push(`${relativePath}: required release-truth file is missing`);
+    failures.push(`${relativePath}: required release-authority file is missing`);
     return "";
   }
   return readFileSync(absolutePath, "utf8");
+}
+
+function parseJson(root, relativePath, failures) {
+  const content = readText(root, relativePath, failures);
+  if (!content) return null;
+  try {
+    return JSON.parse(content);
+  } catch {
+    failures.push(`${relativePath}: invalid JSON`);
+    return null;
+  }
 }
 
 function lineNumberAt(content, index) {
@@ -31,171 +43,96 @@ function pushMatches(failures, relativePath, content, expression, message) {
   }
 }
 
-export function validateReleaseReceipt(receipt, relativePath = currentReleaseReceiptPath) {
+export function validateReleaseAuthorityPolicy(policy, relativePath = releaseAuthorityPolicyPath) {
   const failures = [];
-  const requiredFields = [
-    "schemaVersion",
-    "verifiedAt",
-    "releaseType",
-    "productStage",
-    "mergedPullRequest",
-    "mainSha",
-    "productionDeploymentId",
-    "productionUrl",
-    "rollbackDeploymentId",
-    "publicDemoActive",
-    "confidentialPilotReady",
-    "protectedStorageActive",
-    "realSourcesActive",
-    "caveats"
-  ];
+  if (policy?.schemaVersion !== "1.0") failures.push(`${relativePath}: schemaVersion must be 1.0`);
+  if (policy?.authorityType !== "repository_release_policy") failures.push(`${relativePath}: authorityType must be repository_release_policy`);
+  if (policy?.repositoryRole !== "policy_schema_and_historical_evidence") failures.push(`${relativePath}: repository role must be policy/schema plus historical evidence`);
+  if (policy?.currentOperationalAuthority !== "external_post_release_evidence") failures.push(`${relativePath}: current operational authority must be external post-release evidence`);
+  const capabilities = policy?.repositoryCiCapabilities;
+  if (capabilities?.queriesLiveGithubState !== false || capabilities?.queriesLiveVercelState !== false || capabilities?.mayDeclareCurrentOperationalRuntime !== false) {
+    failures.push(`${relativePath}: repository CI must explicitly deny live GitHub/Vercel queries and current-runtime declarations`);
+  }
+  const precedence = policy?.authorityPrecedence;
+  if (!Array.isArray(precedence) || precedence.at(-1) !== "repository_historical_snapshot" || !precedence.includes("vercel_production_alias")) {
+    failures.push(`${relativePath}: authority precedence must put repository snapshots last and include Vercel Production alias`);
+  }
+  const requiredFields = policy?.requiredPostReleaseEvidenceFields;
+  for (const field of ["verifiedAt", "mergedPullRequest", "mainSha", "qualityGateRunId", "productionDeploymentId", "productionUrl", "routeSmoke", "runtimeLogInspection", "dataHonestyCaveat"]) {
+    if (!Array.isArray(requiredFields) || !requiredFields.includes(field)) failures.push(`${relativePath}: required post-release field missing: ${field}`);
+  }
+  if (policy?.snapshotRules?.requiredAuthorityType !== "historical_last_verified_snapshot" || policy?.snapshotRules?.mustNeverBeLabelledCurrent !== true || policy?.snapshotRules?.externalReceiptMaySupersede !== true) {
+    failures.push(`${relativePath}: historical/current lifecycle rules are incomplete`);
+  }
+  if (policy?.requiredCaveat !== requiredReleaseCaveat) failures.push(`${relativePath}: required caveat mismatch`);
+  const forbiddenClaims = policy?.maturityClaimsForbidden;
+  if (!Array.isArray(forbiddenClaims) || !forbiddenClaims.includes("production-ready") || !forbiddenClaims.includes("pilot-ready")) {
+    failures.push(`${relativePath}: maturity claim prohibitions are incomplete`);
+  }
+  return failures;
+}
 
-  for (const field of requiredFields) {
-    if (!(field in (receipt ?? {}))) failures.push(`${relativePath}: missing required field ${field}`);
+export function validateHistoricalReleaseSnapshot(snapshot, relativePath = lastVerifiedReleaseSnapshotPath) {
+  const failures = [];
+  if (snapshot?.schemaVersion !== "1.0") failures.push(`${relativePath}: schemaVersion must be 1.0`);
+  if (snapshot?.authorityType !== "historical_last_verified_snapshot" || snapshot?.snapshotLabel !== "historical_last_verified_snapshot") {
+    failures.push(`${relativePath}: historical snapshot must never be labelled current`);
   }
-  if (!/^\d+\.\d+$/.test(receipt?.schemaVersion ?? "")) failures.push(`${relativePath}: schemaVersion must use major.minor format`);
-  if (!Number.isFinite(Date.parse(receipt?.verifiedAt ?? ""))) failures.push(`${relativePath}: verifiedAt must be an ISO-8601 timestamp`);
-  if (receipt?.releaseType !== "production_public_demo") failures.push(`${relativePath}: releaseType must be production_public_demo`);
-  if (receipt?.productStage !== "public_demo_prototype") failures.push(`${relativePath}: productStage must be public_demo_prototype`);
-  if (!Number.isInteger(receipt?.mergedPullRequest) || receipt.mergedPullRequest < 1) failures.push(`${relativePath}: mergedPullRequest must be a positive integer`);
-  if (!/^[a-f0-9]{40}$/.test(receipt?.mainSha ?? "")) failures.push(`${relativePath}: mainSha must be an exact 40-character lowercase Git SHA`);
+  if (snapshot?.currentOperationalAuthority !== false) failures.push(`${relativePath}: historical snapshot cannot claim current operational authority`);
+  if (snapshot?.supersededWhenNewerReleaseExists !== true) failures.push(`${relativePath}: newer external release evidence must supersede the snapshot`);
+  if (snapshot?.repositoryCiQueriedLiveGithub !== false || snapshot?.repositoryCiQueriedLiveVercel !== false) {
+    failures.push(`${relativePath}: repository CI cannot claim that it queried GitHub or Vercel live state`);
+  }
+  if (!Number.isFinite(Date.parse(snapshot?.verifiedAt ?? ""))) failures.push(`${relativePath}: verifiedAt must be ISO-8601`);
+  if (!Number.isInteger(snapshot?.mergedPullRequest) || snapshot.mergedPullRequest < 1) failures.push(`${relativePath}: mergedPullRequest must be positive`);
+  if (!/^[a-f0-9]{40}$/.test(snapshot?.mainSha ?? "")) failures.push(`${relativePath}: mainSha must be an exact lowercase SHA`);
   for (const field of ["productionDeploymentId", "rollbackDeploymentId"]) {
-    if (!/^dpl_[A-Za-z0-9]{24,32}$/.test(receipt?.[field] ?? "")) failures.push(`${relativePath}: ${field} must be an exact Vercel deployment ID`);
+    if (!/^dpl_[A-Za-z0-9]{24,32}$/.test(snapshot?.[field] ?? "")) failures.push(`${relativePath}: ${field} must be an exact Vercel deployment ID`);
   }
-  if (!/^https:\/\/[a-z0-9.-]+\.vercel\.app\/?$/.test(receipt?.productionUrl ?? "")) failures.push(`${relativePath}: productionUrl must be an HTTPS vercel.app URL`);
-  for (const field of ["publicDemoActive", "confidentialPilotReady", "protectedStorageActive", "realSourcesActive"]) {
-    if (typeof receipt?.[field] !== "boolean") failures.push(`${relativePath}: ${field} must be boolean`);
-  }
-  if (receipt?.publicDemoActive !== true) failures.push(`${relativePath}: the released public demo must remain active`);
+  if (!/^https:\/\/[a-z0-9.-]+\.vercel\.app\/?$/.test(snapshot?.productionUrl ?? "")) failures.push(`${relativePath}: productionUrl must be a Vercel HTTPS URL`);
+  if (snapshot?.productStage !== "public_demo_prototype" || snapshot?.publicDemoActive !== true) failures.push(`${relativePath}: historical public-demo stage mismatch`);
   for (const field of ["confidentialPilotReady", "protectedStorageActive", "realSourcesActive"]) {
-    if (receipt?.[field] !== false) failures.push(`${relativePath}: ${field} must remain false for the current release`);
+    if (snapshot?.[field] !== false) failures.push(`${relativePath}: ${field} must remain false`);
   }
-  if (!Array.isArray(receipt?.caveats) || receipt.caveats.length === 0 || receipt.caveats.some((value) => typeof value !== "string" || !value.trim())) {
-    failures.push(`${relativePath}: caveats must be a non-empty string array`);
-  } else if (!receipt.caveats.includes(requiredReleaseCaveat)) {
-    failures.push(`${relativePath}: required data-honesty caveat is missing`);
-  }
-  if (receipt?.hostedSupabaseState !== undefined) {
-    const hosted = receipt.hostedSupabaseState;
-    const development = hosted?.development;
-    const rehearsal = hosted?.authRehearsal;
-    if (development?.migrationLedgerEntries !== 10) failures.push(`${relativePath}: development hosted migration ledger count must be 10`);
-    if (development?.confirmedAuthUsers !== 0) failures.push(`${relativePath}: development hosted confirmed Auth user count must be 0`);
-    if (rehearsal?.migrationLedgerEntries !== 18) failures.push(`${relativePath}: Auth rehearsal hosted migration ledger count must be 18`);
-    if (rehearsal?.confirmedAuthUsers !== 1) failures.push(`${relativePath}: Auth rehearsal hosted confirmed Auth user count must be 1`);
-    if (rehearsal?.preExistingConfirmedAuthUsers !== 1) failures.push(`${relativePath}: Auth rehearsal must record one pre-existing confirmed Auth user`);
-    if (rehearsal?.usersCreatedByCurrentChange !== 0) failures.push(`${relativePath}: current change must not create rehearsal Auth users`);
-    for (const field of [
-      "pgtapTransactionsCreateResidualUsers",
-      "preExistingUserHasProjectMembershipAuthority",
-      "preExistingUserHasTenantAuthority",
-      "preExistingUserHasProtectedResourceAuthority",
-      "realUserBrowserPersonaExecutedByCurrentChange"
-    ]) {
-      if (rehearsal?.[field] !== false) failures.push(`${relativePath}: ${field} must be false`);
-    }
-  }
-  if (receipt?.lifecycle !== undefined) {
-    const lifecycle = receipt.lifecycle;
-    if (lifecycle?.authorityScope !== "current_operational_release_authority") {
-      failures.push(`${relativePath}: lifecycle.authorityScope must be current_operational_release_authority`);
-    }
-    if (!Number.isFinite(Date.parse(lifecycle?.currentAsOf ?? ""))) {
-      failures.push(`${relativePath}: lifecycle.currentAsOf must be an ISO-8601 timestamp`);
-    }
-    if (lifecycle?.supersedesReceiptForPullRequest !== undefined && !Number.isInteger(lifecycle.supersedesReceiptForPullRequest)) {
-      failures.push(`${relativePath}: lifecycle.supersedesReceiptForPullRequest must be an integer when present`);
-    }
-  }
-  if (receipt?.githubEvidence !== undefined) {
-    const githubEvidence = receipt.githubEvidence;
-    for (const field of ["postMergeQualityGateRunId", "staticApiDataHonestyJobId", "databaseReplayJobId", "qualityArtifactId", "databaseArtifactId"]) {
-      if (!Number.isInteger(githubEvidence?.[field]) || githubEvidence[field] < 1) failures.push(`${relativePath}: githubEvidence.${field} must be a positive integer`);
-    }
-    for (const field of ["qualityArtifactDigest", "databaseArtifactDigest"]) {
-      if (!/^sha256:[a-f0-9]{64}$/.test(githubEvidence?.[field] ?? "")) failures.push(`${relativePath}: githubEvidence.${field} must be an exact SHA-256 digest`);
-    }
-  }
-  if (receipt?.vercelEvidence !== undefined) {
-    const vercelEvidence = receipt.vercelEvidence;
-    if (vercelEvidence?.productionAlias !== receipt.productionUrl) failures.push(`${relativePath}: vercelEvidence.productionAlias must match productionUrl`);
-    if (vercelEvidence?.status !== "READY") failures.push(`${relativePath}: vercelEvidence.status must be READY`);
-    if (vercelEvidence?.target !== "production") failures.push(`${relativePath}: vercelEvidence.target must be production`);
-  }
-  const maturityStatements = [receipt?.releaseType, receipt?.productStage, ...(Array.isArray(receipt?.caveats) ? receipt.caveats : [])].join("\n");
-  if (/(?:production|pilot)[ -]?ready/i.test(maturityStatements)) {
-    failures.push(`${relativePath}: receipt must not claim Production or pilot readiness`);
-  }
+  if (!Array.isArray(snapshot?.caveats) || !snapshot.caveats.includes(requiredReleaseCaveat)) failures.push(`${relativePath}: required caveat missing`);
+  const maturityText = [snapshot?.productStage, ...(snapshot?.caveats ?? [])].join("\n");
+  if (/(?:production|pilot)[ -]?ready/i.test(maturityText)) failures.push(`${relativePath}: snapshot must not claim Production or pilot readiness`);
   return failures;
 }
 
 export function validateCurrentReleaseTruth({
   root = process.cwd(),
-  receiptPath = currentReleaseReceiptPath,
+  policyPath = releaseAuthorityPolicyPath,
+  snapshotPath = lastVerifiedReleaseSnapshotPath,
   activeDocPaths,
   releaseFactDocPaths = defaultReleaseFactDocs
 } = {}) {
   const failures = [];
-  const receiptContent = readText(root, receiptPath, failures);
-  let receipt = null;
-  if (receiptContent) {
-    try {
-      receipt = JSON.parse(receiptContent);
-      failures.push(...validateReleaseReceipt(receipt, receiptPath));
-    } catch {
-      failures.push(`${receiptPath}: invalid JSON`);
-    }
-  }
-  if (!receipt) return { receipt: null, failures };
+  const policy = parseJson(root, policyPath, failures);
+  const snapshot = parseJson(root, snapshotPath, failures);
+  if (policy) failures.push(...validateReleaseAuthorityPolicy(policy, policyPath));
+  if (snapshot) failures.push(...validateHistoricalReleaseSnapshot(snapshot, snapshotPath));
+  if (!policy || !snapshot) return { policy, snapshot, failures };
 
   const docs = activeDocPaths ?? releaseFactDocPaths;
   for (const relativePath of docs) {
     const content = readText(root, relativePath, failures);
     if (!content) continue;
-    pushMatches(failures, relativePath, content, /(?:Draft\s+PR\s+#97|PR\s+#97[^\n]*(?:Draft|unreleased)|unreleased[^\n]*PR\s+#97)/gi, "PR #97 is merged and must not be described as Draft or unreleased");
-    pushMatches(failures, relativePath, content, /Production\s+remains\s+(?:on\s+)?PR\s+#87/gi, `Production is released from merged PR #${receipt.mergedPullRequest}, not PR #87`);
-    pushMatches(failures, relativePath, content, /(?:Current\s+`?main`?|Release\s+authority|Released\s+baseline)[^\n]*2999e7e857989baf53ce58ecfed63550b5896be0/gi, "current release statement uses the obsolete main SHA");
-    pushMatches(failures, relativePath, content, /(?:Current\s+Production|Vercel\s+Production)[^\n]*dpl_EAXREH31JKznnGbQYEU8bNqTqagN/gi, "current Production statement uses the rollback deployment as current");
-    if (receipt.mergedPullRequest > 97) {
-      pushMatches(
-        failures,
-        relativePath,
-        content,
-        /(?:Current\s+(?:release|`?main`?)|Release\s+authority|Released\s+baseline)[^\n]*(?:PR\s+#97|b915a831d5e5b28eab5fd26ac86059820e7e4a32)/gi,
-        "active authority treats the PR #97 release tuple as current after a newer machine receipt"
-      );
-    }
-    if (receipt.hostedSupabaseState?.authRehearsal?.confirmedAuthUsers === 1) {
-      pushMatches(
-        failures,
-        relativePath,
-        content,
-        /(?:rehearsal|auth[- ]?rehearsal|bkmfcjzalcvdsdvyxpgi)[^\n]{0,160}(?:zero|0)\s+confirmed\s+Auth\s+users/gi,
-        "active authority claims zero hosted rehearsal confirmed Auth users while the receipt records one pre-existing user"
-      );
-      pushMatches(
-        failures,
-        relativePath,
-        content,
-        /(?:rehearsal|auth[- ]?rehearsal|bkmfcjzalcvdsdvyxpgi)[^\n]{0,160}auth\.users\s*=\s*0/gi,
-        "active authority claims zero hosted rehearsal auth.users while the receipt records one pre-existing user"
-      );
+    pushMatches(failures, relativePath, content, /current_operational_release_authority/gi, "repository content must not label a committed snapshot current operational authority");
+    pushMatches(failures, relativePath, content, /(?:Current\s+(?:release|`?main`?|Production)|Release\s+authority|Current\s+operational\s+release)[^\n]*(?:PR\s+#106|cc8f9ebcf3989fab4a3c4eac9be9dfb8da786a7b|dpl_6RC2ohEdLBjiV82k758tFMkaDB9X)/gi, "historical PR #106 snapshot is labelled current");
+    pushMatches(failures, relativePath, content, /repository\s+CI[^\n]{0,160}(?:queried|verified live)[^\n]{0,80}(?:GitHub|Vercel)/gi, "repository CI cannot claim live runtime queries");
+    if (snapshot.hostedSupabaseState?.authRehearsal?.confirmedAuthUsers === 1) {
+      pushMatches(failures, relativePath, content, /(?:rehearsal|auth[- ]?rehearsal|bkmfcjzalcvdsdvyxpgi)[^\n]{0,160}(?:zero|0)\s+confirmed\s+Auth\s+users/gi, "active authority contradicts the historical hosted rehearsal count");
     }
   }
 
   for (const relativePath of releaseFactDocPaths) {
     const content = readText(root, relativePath, failures);
     if (!content) continue;
-    for (const [value, label] of [
-      [receipt.mainSha, "released main SHA"],
-      [receipt.productionDeploymentId, "Production deployment ID"],
-      [receipt.productionUrl, "Production URL"],
-      [`PR #${receipt.mergedPullRequest}`, "merged pull request"],
-      [receipt.productStage, "product stage"]
-    ]) {
-      if (!content.includes(String(value))) failures.push(`${relativePath}: missing canonical ${label} from ${receiptPath}`);
-    }
+    if (!content.includes("RELEASE_AUTHORITY_POLICY.json")) failures.push(`${relativePath}: missing release-authority policy link/reference`);
+    if (!content.includes("LAST_VERIFIED_RELEASE_SNAPSHOT.json")) failures.push(`${relativePath}: missing historical snapshot link/reference`);
+    if (!/external post-release|external runtime|live authority is external/i.test(content)) failures.push(`${relativePath}: missing external current-runtime authority statement`);
   }
 
-  return { receipt, failures };
+  return { policy, snapshot, failures };
 }

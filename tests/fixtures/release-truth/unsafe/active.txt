@@ -1,1 +1,1 @@
-Current release: PR #106, `cc8f9ebcf3989fab4a3c4eac9be9dfb8da786a7b`, `dpl_6RC2ohEdLBjiV82k758tFMkaDB9X`, https://geoai-mvp.vercel.app, `public_demo_prototype`.
+Policy: RELEASE_AUTHORITY_POLICY.json. Historical evidence: LAST_VERIFIED_RELEASE_SNAPSHOT.json. Live authority is external post-release evidence.

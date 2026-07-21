@@ -1,6 +1,12 @@
 {
-  "schemaVersion": "1.1",
+  "schemaVersion": "1.0",
+  "authorityType": "historical_last_verified_snapshot",
+  "snapshotLabel": "historical_last_verified_snapshot",
   "verifiedAt": "2026-07-21T14:45:00Z",
+  "supersededWhenNewerReleaseExists": true,
+  "currentOperationalAuthority": false,
+  "repositoryCiQueriedLiveGithub": false,
+  "repositoryCiQueriedLiveVercel": false,
   "releaseType": "production_public_demo",
   "productStage": "public_demo_prototype",
   "mergedPullRequest": 106,
@@ -8,11 +14,6 @@
   "productionDeploymentId": "dpl_6RC2ohEdLBjiV82k758tFMkaDB9X",
   "productionUrl": "https://geoai-mvp.vercel.app",
   "rollbackDeploymentId": "dpl_ERVqZPD5GAGDLjAVhMcPF2HT5Br7",
-  "lifecycle": {
-    "authorityScope": "current_operational_release_authority",
-    "currentAsOf": "2026-07-21T14:45:00Z",
-    "supersedesReceiptForPullRequest": 97
-  },
   "githubEvidence": {
     "postMergeQualityGateRunId": 29835520415,
     "staticApiDataHonestyJobId": 88650735580,
@@ -28,7 +29,8 @@
     "productionAlias": "https://geoai-mvp.vercel.app",
     "deploymentUrl": "https://geoai-15h7r8l4k-geoaidev.vercel.app",
     "target": "production",
-    "status": "READY"
+    "status": "READY",
+    "inspectedAt": "2026-07-21T14:45:00Z"
   },
   "publicDemoActive": true,
   "confidentialPilotReady": false,
@@ -56,6 +58,8 @@
     }
   },
   "caveats": [
-    "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
+    "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.",
+    "Public demo only; protected data, confidential pilot, real sources and protected Storage remain blocked.",
+    "Historical snapshot only. Query external GitHub, Vercel and Project Hub post-release evidence for current operational runtime authority."
   ]
 }

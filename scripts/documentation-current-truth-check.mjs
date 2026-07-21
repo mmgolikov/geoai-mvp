@@ -326,4 +326,4 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-console.log(`Documentation current-truth contract passed: ${activeDocs.length} active authorities agree with docs/CURRENT_RELEASE_RECEIPT.json; local links resolved.`);
+console.log(`Documentation current-truth contract passed: ${activeDocs.length} active authorities follow the stable release policy and historical snapshot boundary; local links resolved.`);

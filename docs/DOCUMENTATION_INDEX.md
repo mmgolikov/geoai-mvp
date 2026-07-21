@@ -17,9 +17,10 @@ This index is the repository entry point for current documentation. If a version
 | --- | --- | --- |
 | Repository overview | [README](../README.md) | Supported prototype features, setup, routes and current public-demo restrictions |
 | Release/runtime truth | [Current Release State](CURRENT_RELEASE_STATE.md) | Exact GitHub SHA, CI, Vercel, Supabase and source activation state |
-| Machine release receipt | [Current Release Receipt](CURRENT_RELEASE_RECEIPT.json) | Canonical released PR, SHA, deployment, product stage and activation booleans |
+| Release authority policy | [Release Authority Policy](RELEASE_AUTHORITY_POLICY.json) | Stable schema, precedence and post-release evidence requirements; no exact runtime tuple |
+| Last verified release snapshot | [Historical Last Verified Snapshot](LAST_VERIFIED_RELEASE_SNAPSHOT.json) | Historical PR/SHA/deployment evidence, superseded when newer external release evidence exists |
 | Full critical assessment | [Full System Audit — 2026-07-16](FULL_SYSTEM_AUDIT_2026_07_16.md) | Findings, fixes, residual risks and go/no-go boundaries |
-| Stabilization audit | [System Stabilization Audit v2 — 2026-07-21](SYSTEM_STABILIZATION_AUDIT_V2_2026_07_21.md) | Current PR #106 release-authority, post-merge CI, Production smoke, stale authority reconciliation and protected-pilot backlog |
+| Stabilization audit | [System Stabilization Audit v2 — 2026-07-21](SYSTEM_STABILIZATION_AUDIT_V2_2026_07_21.md) | Historical PR #106 release snapshot, post-merge CI, Production smoke, stale authority reconciliation and protected-pilot backlog |
 | Implemented system | [Architecture](architecture.md) | What the code does now and where trust boundaries stop |
 | Data/source rules | [Data Strategy](data-strategy.md) | Source rights, custody, evidence and activation sequence |
 | Delivery order | [Roadmap](roadmap.md) | P0/P1/P2 dependencies before Auth, Admin and real sources |
@@ -43,7 +44,8 @@ The following facts must agree across the Hub, release state, architecture, road
 | --- | --- |
 | Released PR | GitHub PR #106, merged |
 | Released `main` | `cc8f9ebcf3989fab4a3c4eac9be9dfb8da786a7b` |
-| Canonical receipt | [CURRENT_RELEASE_RECEIPT.json](CURRENT_RELEASE_RECEIPT.json) |
+| Repository release policy | [RELEASE_AUTHORITY_POLICY.json](RELEASE_AUTHORITY_POLICY.json) |
+| Historical snapshot | [LAST_VERIFIED_RELEASE_SNAPSHOT.json](LAST_VERIFIED_RELEASE_SNAPSHOT.json) |
 | Vercel Production | `dpl_6RC2ohEdLBjiV82k758tFMkaDB9X`, READY at https://geoai-mvp.vercel.app on exact SHA |
 | Rollback deployment | `dpl_ERVqZPD5GAGDLjAVhMcPF2HT5Br7` |
 | Product mode | `public_demo_prototype`; browser-local demo active; protected/confidential operation blocked |
@@ -58,11 +60,11 @@ The following facts must agree across the Hub, release state, architecture, road
 | Global navigation/mobile visual/Lighthouse browser evidence | Exact head `80645d64662699bd646f96718d300df5d2b84f5f` passed Quality Gate `29611412924`; Chrome completed `12/12` in `1.7m`, the five 390px product baselines plus one 430×932 navigation baseline matched, used primary controls met 40px, direct 834×1112 navigation passed and all nine Axe surfaces stayed at zero. Lighthouse passed mobile landing, desktop login, mobile Projects (`0.97`) and desktop Explore (`1.00`) budgets. Preview `dpl_94eRMRsM8NJR2hdmYE1zLLbiQE8b` is healthy. Field Core Web Vitals, broader device/route coverage and real users remain pending |
 | Maturity | Not Production-ready and not pilot-ready |
 
-The full-system audit was merged as PR #97 and remains historical containment evidence. PR #106 is the current released public-demo tuple. [Current Release State](CURRENT_RELEASE_STATE.md) and the [machine receipt](CURRENT_RELEASE_RECEIPT.json) are the repository release authorities. This does not authorize a new merge, Production deployment, Supabase apply, secret change, Auth activation, real source connection or geometry publication.
+The full-system audit was merged as PR #97 and remains historical containment evidence. PR #106 is the last externally verified public-demo snapshot. [Current Release State](CURRENT_RELEASE_STATE.md), the [release policy](RELEASE_AUTHORITY_POLICY.json) and [historical snapshot](LAST_VERIFIED_RELEASE_SNAPSHOT.json) govern repository interpretation. Live authority is external post-release GitHub/Vercel/Project Hub evidence. This does not authorize a new merge, Production deployment, Supabase apply, secret change, Auth activation, real source connection or geometry publication.
 
 The newer isolated rehearsal receipt supersedes the earlier statement that runtime pgTAP, Data API containment and all concurrency evidence were wholly unexecuted: pgTAP/API containment and rollback-only table-level invitation concurrency are now executed only on the Free rehearsal. Authenticated RPC/HTTP concurrency remains open. The receipt does not change the older GitHub exact-head evidence, the separate development project or Production.
 
-Historical PR #97 browser/accessibility evidence, including head `80645d64662699bd646f96718d300df5d2b84f5f`, remains preserved as scoped containment evidence. Current post-merge authority is PR #106 / `cc8f9ebcf3989fab4a3c4eac9be9dfb8da786a7b` / `dpl_6RC2ohEdLBjiV82k758tFMkaDB9X`, with Quality Gate `29835520415` and artifacts `8497283837` / `8497226028`. Real email/phone/RLS/Admin/Storage/source personas, field Core Web Vitals and live development apply remain open.
+Historical PR #97 browser/accessibility evidence, including head `80645d64662699bd646f96718d300df5d2b84f5f`, remains preserved as scoped containment evidence. The last externally verified snapshot is PR #106 / `cc8f9ebcf3989fab4a3c4eac9be9dfb8da786a7b` / `dpl_6RC2ohEdLBjiV82k758tFMkaDB9X`, with Quality Gate `29835520415` and artifacts `8497283837` / `8497226028`. Real email/phone/RLS/Admin/Storage/source personas, field Core Web Vitals and live development apply remain open.
 
 The personal-account increment at functional head `232fb532db1e5bc1dcf134ca1d616e4506f682f0` added `/profile`, browser-local preferences/avatar and registered-email/password actions. Its historical landing/Auth follow-up at `bdb7f0629c39838e2e3451925825699df7f84fc0` restored both entry actions through Auth. CR 09.22 now keeps `View demo` on bounded Login-to-Workspace and routes commercial requests to the separate `/request-access` React-memory brief. None of these paths uses preferences for authorization, enables verified sign-in-phone mutation or protected Storage; real-user Auth/profile actions remain pending.
 
@@ -76,7 +78,7 @@ Immediate released-runtime restriction: PR #97 containment and PR #106 public-fu
 
 The machine-readable [Confluence sync map](CONFLUENCE_SYNC_MAP.json) is the complete synchronization contract for the 28-page active/supporting operational authority set, not for every historical page in the space. CHG-19 supersedes CHG-18 for the final local-only Auth/Admin candidate, rollback-only table-level concurrency evidence and corrected 220 kB route baseline while preserving the released PR #87/Production boundary. Direct read-back passed 28/28 with exactly one CHG-19 marker pair, no CHG-16/CHG-17/CHG-18 marker and a recorded SHA-256 for every current body; see the [CHG-19 receipt](CONFLUENCE_CHG19_RECEIPT.json). The legitimate post-CHG-18 design-page v49 edit was explicitly rebased without changing its design/navigation content and became CHG-19 v50. The prior [CHG-18 receipt](CONFLUENCE_CHG18_RECEIPT.json) remains immutable evidence of the previous state. `CR-DEV8-001` (`12320810`) remains historical released evidence and points to Current Delivery State as successor. The other 226 pages remain historical/scoped cleanup inventory under DOCS-01; synchronizing the operational set does not silently certify them as current.
 
-Hub is the operational snapshot; Home is the stable charter. Every evidence change must update Hub plus every affected mapped page after the exact candidate SHA/CI/deployment is final. Hub must directly link current release PR #106, execution program #96, CR 09.23 issue #107, the repository Codex backlog, Production/Vercel, Supabase containment, release state, audit, work packages, risks, decisions, security and pilot readiness.
+Hub is the operational snapshot; Home is the stable charter. Every evidence change must update Hub plus every affected mapped page after the exact candidate SHA/CI/deployment is final. Hub must directly link the last externally verified PR #106 snapshot, execution program #96, CR 09.23 issue #107, the repository Codex backlog, Production/Vercel, Supabase containment, release state, audit, work packages, risks, decisions, security and pilot readiness.
 Historical audit PR #97 remains scoped containment evidence and must not be used as the current release tuple.
 
 ### Product and UX

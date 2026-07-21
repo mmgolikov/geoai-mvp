@@ -1,20 +1,21 @@
 # GeoAI Current Release State
 
-Status: Canonical repository release snapshot
+Status: Active release guidance with a historical last-verified snapshot
 Last verified: 2026-07-21
 Owner: GeoAI Release Engineering
-Authority: Exact released and candidate runtime evidence
+Authority: Repository release policy and interpretation of external runtime evidence
 Successor: None; any replacement must update `DOCUMENTATION_INDEX.md`
 Operational dashboard: [Confluence Project Hub](https://geoaimvp.atlassian.net/wiki/spaces/PH/overview)
 Navigation: [Documentation Index](DOCUMENTATION_INDEX.md) · [Full System Audit](FULL_SYSTEM_AUDIT_2026_07_16.md) · [Architecture](architecture.md) · [Data Strategy](data-strategy.md) · [QA Checklist](qa-checklist.md) · [Codex Backlog](CODEX_BACKLOG_2026_07_16.md)
 
-## Released authority
+## Last externally verified release snapshot
 
 | Item | Verified state |
 | --- | --- |
 | GitHub release | PR [#106](https://github.com/mmgolikov/geoai-mvp/pull/106), merged |
 | `main` SHA | `cc8f9ebcf3989fab4a3c4eac9be9dfb8da786a7b` |
-| Machine authority | [CURRENT_RELEASE_RECEIPT.json](CURRENT_RELEASE_RECEIPT.json) |
+| Repository policy/schema | [RELEASE_AUTHORITY_POLICY.json](RELEASE_AUTHORITY_POLICY.json) |
+| Historical snapshot | [LAST_VERIFIED_RELEASE_SNAPSHOT.json](LAST_VERIFIED_RELEASE_SNAPSHOT.json) |
 | Vercel Production | `dpl_6RC2ohEdLBjiV82k758tFMkaDB9X`, READY at https://geoai-mvp.vercel.app on exact SHA |
 | Rollback deployment | `dpl_ERVqZPD5GAGDLjAVhMcPF2HT5Br7` |
 | Product stage | `public_demo_prototype` |
@@ -23,14 +24,16 @@ Navigation: [Documentation Index](DOCUMENTATION_INDEX.md) · [Full System Audit]
 | Production source pack | HTTP 503, disabled, activation not allowed, zero sources |
 | Product maturity | Not Production-ready; not pilot-ready |
 
-## Post-merge CI and Production evidence
+The live authority is external post-release evidence: GitHub default-branch and merge state, GitHub Deployments or Production environment, the Vercel Production alias and the Project Hub post-release receipt. The tuple below is historical point-in-time evidence and is superseded whenever those external authorities record a newer release.
+
+## Historical post-merge CI and Production evidence
 
 PR #106 merged CR 09.22 public-funnel and release-truth corrections into `main` at `cc8f9ebcf3989fab4a3c4eac9be9dfb8da786a7b`. The post-merge `push` Quality Gate [run `29835520415`](https://github.com/mmgolikov/geoai-mvp/actions/runs/29835520415) passed on that exact SHA: application/static/API/data-honesty job `88650735580` and database-replay job `88650735754` both succeeded. Evidence artifacts are `8497283837` (`geoai-quality-evidence-29835520415`, digest `sha256:858bb64b06d76ed222966fc715c8432112a8ac74915bfd281250666e48359653`) and `8497226028` (`geoai-database-evidence-29835520415`, digest `sha256:dcd9958e72421fca60fb62adca2a001020e40b34fe2f8b38737061300e85898a`).
 
 Vercel Production inspection resolves https://geoai-mvp.vercel.app to deployment `dpl_6RC2ohEdLBjiV82k758tFMkaDB9X`, READY, exact deployment URL `https://geoai-15h7r8l4k-geoaidev.vercel.app`, target `production`. The previous PR #97 deployment `dpl_ERVqZPD5GAGDLjAVhMcPF2HT5Br7` is now rollback, not current Production. External route smoke returned HTTP 200 for `/`, `/workspace`, `/projects`, `/explore`, `/api/health`, `/api/db/health`, `/api/platform/activation-status`, `/api/pilot-backend/status`, `/reports/seeded-analysis-dubai-marina-report/print` and `/reports/seeded-comparison-dubai-shortlist-report/print`. Deployment-scoped Vercel logs in the checked window showed info-level requests and no error/fatal entries.
 
-The authority lifecycle decision is recorded in [Release Authority Lifecycle Decision](RELEASE_AUTHORITY_LIFECYCLE_DECISION.md).
-The historical PR #97 full-system audit remains valid as containment evidence, but it is no longer the current release tuple.
+The authority lifecycle decision is recorded in [Release Authority Lifecycle Decision](RELEASE_AUTHORITY_LIFECYCLE_DECISION.md). Repository CI validates schema and historical/current distinction; it does not claim to query live GitHub or Vercel state.
+The historical PR #97 full-system audit remains valid as containment evidence, while the PR #106 tuple is only the last externally verified repository snapshot.
 
 ## Isolated Free rehearsal — current candidate evidence
 

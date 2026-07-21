@@ -3,34 +3,47 @@
 Status: Active release-governance decision
 Last verified: 2026-07-21
 Owner: GeoAI Release Engineering
-Authority: Current release-authority lifecycle model for repository docs and machine receipts
+Authority: Merge-safe release-authority lifecycle model
 Successor: None; any replacement must update `DOCUMENTATION_INDEX.md`
-Navigation: [Documentation Index](DOCUMENTATION_INDEX.md) · [Current Release State](CURRENT_RELEASE_STATE.md) · [System Stabilization Audit v2](SYSTEM_STABILIZATION_AUDIT_V2_2026_07_21.md) · [Current Release Receipt](CURRENT_RELEASE_RECEIPT.json)
+Navigation: [Documentation Index](DOCUMENTATION_INDEX.md) · [Current Release State](CURRENT_RELEASE_STATE.md) · [Release Authority Policy](RELEASE_AUTHORITY_POLICY.json) · [Historical Last Verified Snapshot](LAST_VERIFIED_RELEASE_SNAPSHOT.json)
 
 ## Decision
 
-`docs/CURRENT_RELEASE_RECEIPT.json` remains the current machine-readable release authority, but it must be updated after each merge-to-main plus Production alias verification. Dated receipts, PR bodies and historical release notes remain evidence only and must not be cited as current runtime truth unless the Documentation Index and Current Release State explicitly say so.
+GeoAI separates three concepts:
 
-CR 09.23 updates the receipt from the stale PR #97 tuple to the current PR #106 tuple:
+1. `RELEASE_AUTHORITY_POLICY.json` is stable repository policy and schema. It contains no exact future Production tuple.
+2. `LAST_VERIFIED_RELEASE_SNAPSHOT.json` is historical point-in-time evidence. It is explicitly `historical_last_verified_snapshot` and is superseded whenever newer external release evidence exists.
+3. Current operational runtime authority is external post-deployment evidence: GitHub default-branch/merge state, GitHub Deployments or Production environment, the Vercel Production alias and the Project Hub post-release receipt.
 
-| Field | Current authority |
-| --- | --- |
-| Released PR | PR #106 |
-| `main` SHA | `cc8f9ebcf3989fab4a3c4eac9be9dfb8da786a7b` |
-| Production deployment | `dpl_6RC2ohEdLBjiV82k758tFMkaDB9X` |
-| Production URL | https://geoai-mvp.vercel.app |
-| Rollback deployment | `dpl_ERVqZPD5GAGDLjAVhMcPF2HT5Br7` |
-| Product stage | `public_demo_prototype` |
+Repository CI validates the policy, schema, lifecycle, caveats and historical/current distinction. It cannot claim that it queried live GitHub or Vercel state, and it cannot declare a committed pre-merge SHA or deployment to be future current Production.
 
-## Lifecycle Rules
+## Authority Precedence
 
-1. After a PR merges to `main`, query GitHub Actions for a `push` Quality Gate on the exact merge SHA.
-2. Query Vercel for the Production alias and exact deployment ID.
-3. Run or record route smoke for the declared release routes.
-4. Update `CURRENT_RELEASE_RECEIPT.json`, `CURRENT_RELEASE_STATE.md`, `DOCUMENTATION_INDEX.md`, README, AGENTS, roadmap, QA checklist and backlog where those files state current runtime facts.
-5. Keep historical PR and audit evidence intact, but label it historical or scoped.
-6. Never use a rollback deployment as current Production.
-7. Never use a closed PR body as current authority after a newer merged PR unless the receipt still points to that PR.
+| Precedence | Authority | Role |
+| ---: | --- | --- |
+| 1 | GitHub default branch and merge state | Establishes what has actually merged |
+| 2 | GitHub Deployment / Production environment | Binds release workflow evidence to a commit |
+| 3 | Vercel Production alias | Identifies the currently served Production deployment |
+| 4 | Project Hub post-release receipt | Records owner-reviewed cross-system evidence |
+| 5 | Repository historical snapshot | Preserves the last verified point in time only |
+
+An external post-release receipt may supersede the committed snapshot without editing validator source. A later repository change may refresh the historical snapshot for convenience, but freshness is not required for CI correctness and does not create live authority.
+
+## Post-Release Receipt Contract
+
+The external receipt must record: verification timestamp, merged PR, exact main SHA, exact post-merge Quality Gate run, Production deployment ID and URL, READY state, route smoke, runtime log inspection and the required data-honesty caveat. The policy schema defines these fields without pinning any exact release tuple.
+
+## Permanent CI Contract
+
+Permanent CI must reject:
+
+- a historical snapshot labelled current;
+- repository-CI claims of live GitHub/Vercel inspection;
+- missing policy/snapshot lifecycle fields;
+- Production-ready or pilot-ready language;
+- missing required caveat.
+
+Fixtures prove that a historical snapshot passes, the same shape labelled current fails, a future main merge needs no validator-source edit, false live-query claims fail, and an external receipt may supersede the repository snapshot.
 
 ## Non-Authorizations
 

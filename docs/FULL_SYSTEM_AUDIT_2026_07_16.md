@@ -6,9 +6,9 @@ Owner: GeoAI Engineering / Governance
 Authority: Current full-system findings, remediation and residual risk
 Successor: None; any replacement must update `DOCUMENTATION_INDEX.md`
 Audit mode: critical, multi-agent, evidence-led; no independent-reviewer approval claim
-Current operational release: merged PR #106 / `cc8f9ebcf3989fab4a3c4eac9be9dfb8da786a7b` / `dpl_6RC2ohEdLBjiV82k758tFMkaDB9X` / https://geoai-mvp.vercel.app / `public_demo_prototype`
+Last externally verified release snapshot: merged PR #106 / `cc8f9ebcf3989fab4a3c4eac9be9dfb8da786a7b` / `dpl_6RC2ohEdLBjiV82k758tFMkaDB9X` / https://geoai-mvp.vercel.app / `public_demo_prototype`
 Historical audit release: merged PR #97 / `b915a831d5e5b28eab5fd26ac86059820e7e4a32` / rollback deployment `dpl_ERVqZPD5GAGDLjAVhMcPF2HT5Br7`
-Machine authority: [CURRENT_RELEASE_RECEIPT.json](CURRENT_RELEASE_RECEIPT.json)
+Release policy/schema: [RELEASE_AUTHORITY_POLICY.json](RELEASE_AUTHORITY_POLICY.json) · Historical snapshot: [LAST_VERIFIED_RELEASE_SNAPSHOT.json](LAST_VERIFIED_RELEASE_SNAPSHOT.json) · Live authority is external post-release evidence.
 Navigation: [Confluence Hub](https://geoaimvp.atlassian.net/wiki/spaces/PH/overview) · [Documentation Index](DOCUMENTATION_INDEX.md) · [Current Release State](CURRENT_RELEASE_STATE.md) · [Codex Backlog](CODEX_BACKLOG_2026_07_16.md) · [Supabase containment runbook](SUPABASE_DATA_API_CONTAINMENT_RUNBOOK_2026_07_16.md)
 Confluence authority: [09.13 Full System Audit — 2026-07-16](https://geoaimvp.atlassian.net/wiki/spaces/PH/pages/12320972) · GitHub execution: [#96](https://github.com/mmgolikov/geoai-mvp/issues/96)
 

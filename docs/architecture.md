@@ -6,7 +6,7 @@ Owner: GeoAI Engineering
 Authority: Current implemented architecture and trust boundaries
 Successor: None; any replacement must update `DOCUMENTATION_INDEX.md`
 Released baseline: `main` `cc8f9ebcf3989fab4a3c4eac9be9dfb8da786a7b` (merged PR #106), Production `dpl_6RC2ohEdLBjiV82k758tFMkaDB9X` at https://geoai-mvp.vercel.app, rollback `dpl_ERVqZPD5GAGDLjAVhMcPF2HT5Br7`, stage `public_demo_prototype`
-Machine authority: [CURRENT_RELEASE_RECEIPT.json](CURRENT_RELEASE_RECEIPT.json)
+Release policy/schema: [RELEASE_AUTHORITY_POLICY.json](RELEASE_AUTHORITY_POLICY.json) · Historical snapshot: [LAST_VERIFIED_RELEASE_SNAPSHOT.json](LAST_VERIFIED_RELEASE_SNAPSHOT.json) · Live authority is external post-release evidence.
 Maturity: public demo prototype; not Production-ready or pilot-ready
 Navigation: [Confluence Hub](https://geoaimvp.atlassian.net/wiki/spaces/PH/overview) · [Documentation Index](DOCUMENTATION_INDEX.md) · [Current Release State](CURRENT_RELEASE_STATE.md) · [Full System Audit](FULL_SYSTEM_AUDIT_2026_07_16.md) · [Data Strategy](data-strategy.md) · [Roadmap](roadmap.md) · [Codex Backlog](CODEX_BACKLOG_2026_07_16.md)
 

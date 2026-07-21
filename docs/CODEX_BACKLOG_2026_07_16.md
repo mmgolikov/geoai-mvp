@@ -9,7 +9,7 @@ Priority rule: complete P0 in dependency order before real sources, Auth/RBAC/Ad
 Navigation: [Confluence Hub](https://geoaimvp.atlassian.net/wiki/spaces/PH/overview) · [Documentation Index](DOCUMENTATION_INDEX.md) · [Current Release State](CURRENT_RELEASE_STATE.md) · [Full System Audit](FULL_SYSTEM_AUDIT_2026_07_16.md) · [Roadmap](roadmap.md) · [Supabase containment runbook](SUPABASE_DATA_API_CONTAINMENT_RUNBOOK_2026_07_16.md)
 GitHub execution program: [#96](https://github.com/mmgolikov/geoai-mvp/issues/96)
 
-Current release authority: merged PR #106 at `cc8f9ebcf3989fab4a3c4eac9be9dfb8da786a7b`, Production `dpl_6RC2ohEdLBjiV82k758tFMkaDB9X` at https://geoai-mvp.vercel.app, rollback `dpl_ERVqZPD5GAGDLjAVhMcPF2HT5Br7`, stage `public_demo_prototype`; see [CURRENT_RELEASE_RECEIPT.json](CURRENT_RELEASE_RECEIPT.json). CR 09.22 closes #104/#105 and only the public-funnel/release-truth slice of #94; the broader long-tail remains open.
+Last externally verified release snapshot: merged PR #106 at `cc8f9ebcf3989fab4a3c4eac9be9dfb8da786a7b`, Production `dpl_6RC2ohEdLBjiV82k758tFMkaDB9X` at https://geoai-mvp.vercel.app, rollback `dpl_ERVqZPD5GAGDLjAVhMcPF2HT5Br7`, stage `public_demo_prototype`; see [RELEASE_AUTHORITY_POLICY.json](RELEASE_AUTHORITY_POLICY.json) and [LAST_VERIFIED_RELEASE_SNAPSHOT.json](LAST_VERIFIED_RELEASE_SNAPSHOT.json). Live authority is external post-release evidence. CR 09.22 closes #104/#105 and only the public-funnel/release-truth slice of #94; the broader long-tail remains open.
 
 Independent reviewer approval is not an acceptance criterion in this phase. Each task closes on reproducible technical evidence and explicit owner-controlled external actions where applicable.
 

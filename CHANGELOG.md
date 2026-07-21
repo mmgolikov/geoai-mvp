@@ -10,7 +10,7 @@ Navigation: [Documentation Index](docs/DOCUMENTATION_INDEX.md) · [Current Relea
 ## Unreleased — CR 09.22 public funnel and release truth
 
 - Separated commercial request actions into `/request-access`; the five-field form prepares a plain-text brief in React memory and does not transmit or persist contact data. The browser-local demo keeps its bounded Login-to-Workspace path, and the legacy request intent redirects to the public request route.
-- Added canonical [`docs/CURRENT_RELEASE_RECEIPT.json`](docs/CURRENT_RELEASE_RECEIPT.json) for merged PR #97, `main` `b915a831d5e5b28eab5fd26ac86059820e7e4a32`, Production `dpl_ERVqZPD5GAGDLjAVhMcPF2HT5Br7` at https://geoai-mvp.vercel.app and stage `public_demo_prototype`. Active authorities now consume that truth; fixture tests reject stale and unsafe release claims.
+- Added the then-canonical release receipt for merged PR #97, `main` `b915a831d5e5b28eab5fd26ac86059820e7e4a32`, Production `dpl_ERVqZPD5GAGDLjAVhMcPF2HT5Br7` at https://geoai-mvp.vercel.app and stage `public_demo_prototype`. That historical receipt was later superseded by the stable [release-authority policy](docs/RELEASE_AUTHORITY_POLICY.json) and [last verified historical snapshot](docs/LAST_VERIFIED_RELEASE_SNAPSHOT.json).
 - Added permanent responsive, Axe, keyboard, no-mutation, no-storage and final-route Lighthouse checks. No Supabase, Auth-provider, Storage, environment, secret, real-source, Figma or Production change is included.
 
 ## Released — Full system audit and pre-Auth containment (PR #97)
@@ -104,7 +104,7 @@ Navigation: [Documentation Index](docs/DOCUMENTATION_INDEX.md) · [Current Relea
 
 ### Scope boundary
 
-- The items above were the pre-merge PR #97 audit package and are now incorporated into the released baseline recorded in `docs/CURRENT_RELEASE_RECEIPT.json`.
+- The items above were the pre-merge PR #97 audit package and were incorporated into its released baseline. Current repository interpretation follows the stable release-authority policy and last verified historical snapshot.
 - No Production deployment or promotion.
 - No development/Production Supabase migration or Auth/hard-mode activation; all database writes in this change were confined to the authorized Free rehearsal.
 - No real provider, geometry, imagery, persistence or source-dependent scoring activation.

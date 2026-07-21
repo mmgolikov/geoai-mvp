@@ -1,0 +1,1 @@
+Policy: RELEASE_AUTHORITY_POLICY.json. Historical evidence: LAST_VERIFIED_RELEASE_SNAPSHOT.json. External post-release receipt records PR #999 and a future main SHA without any validator-source change.

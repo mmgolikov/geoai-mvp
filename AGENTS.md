@@ -16,9 +16,10 @@ GeoAI helps users decide where to build, buy, invest, monitor, insure, reconstru
 Repo: https://github.com/mmgolikov/geoai-mvp
 Production: https://geoai-mvp.vercel.app
 Vercel team/project: geoaidev / geoai-mvp
-Current release receipt: [`docs/CURRENT_RELEASE_RECEIPT.json`](docs/CURRENT_RELEASE_RECEIPT.json).
-Current `main`: merged PR #106 at `cc8f9ebcf3989fab4a3c4eac9be9dfb8da786a7b`.
-Current Production: deployment `dpl_6RC2ohEdLBjiV82k758tFMkaDB9X`, READY at https://geoai-mvp.vercel.app on the exact merge SHA.
+Release policy/schema: [`docs/RELEASE_AUTHORITY_POLICY.json`](docs/RELEASE_AUTHORITY_POLICY.json). Historical evidence: [`docs/LAST_VERIFIED_RELEASE_SNAPSHOT.json`](docs/LAST_VERIFIED_RELEASE_SNAPSHOT.json).
+Last externally verified `main` snapshot: merged PR #106 at `cc8f9ebcf3989fab4a3c4eac9be9dfb8da786a7b`.
+Last externally verified Production snapshot: deployment `dpl_6RC2ohEdLBjiV82k758tFMkaDB9X`, READY at https://geoai-mvp.vercel.app on the exact merge SHA.
+Live operational authority is external post-release evidence from GitHub default-branch/deployment state, the Vercel Production alias and the Project Hub receipt. Repository snapshots are historical and are superseded when newer release evidence exists.
 Rollback deployment: `dpl_ERVqZPD5GAGDLjAVhMcPF2HT5Br7`.
 Released stage: `public_demo_prototype`; public demo and browser-local deterministic workflows are active. The Production source pack is fail-closed (`503`, disabled, zero sources).
 Production status: public demo, synthetic/local fallback and soft access with Production Supabase not configured. Real geometry, real-source persistence, protected client data and B2B/B2C activation are not authorized.
