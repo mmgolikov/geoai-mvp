@@ -1,12 +1,12 @@
 # GeoAI Data and Source Strategy
 
 Status: Active baseline
-Last verified: 2026-07-20
+Last verified: 2026-07-21
 Owner: GeoAI Data / Engineering
 Authority: Current source, custody and evidence policy
 Successor: None; any replacement must update `DOCUMENTATION_INDEX.md`
-Released baseline: merged PR #97 / `b915a831d5e5b28eab5fd26ac86059820e7e4a32` / Production `dpl_ERVqZPD5GAGDLjAVhMcPF2HT5Br7` at https://geoai-mvp.vercel.app / `public_demo_prototype`
-Machine authority: [CURRENT_RELEASE_RECEIPT.json](CURRENT_RELEASE_RECEIPT.json)
+Released baseline: merged PR #106 / `cc8f9ebcf3989fab4a3c4eac9be9dfb8da786a7b` / Production `dpl_6RC2ohEdLBjiV82k758tFMkaDB9X` at https://geoai-mvp.vercel.app / rollback `dpl_ERVqZPD5GAGDLjAVhMcPF2HT5Br7` / `public_demo_prototype`
+Release policy/schema: [RELEASE_AUTHORITY_POLICY.json](RELEASE_AUTHORITY_POLICY.json) · Historical snapshot: [LAST_VERIFIED_RELEASE_SNAPSHOT.json](LAST_VERIFIED_RELEASE_SNAPSHOT.json) · Live authority is external post-release evidence.
 Navigation: [Confluence Hub](https://geoaimvp.atlassian.net/wiki/spaces/PH/overview) · [Documentation Index](DOCUMENTATION_INDEX.md) · [Current Release State](CURRENT_RELEASE_STATE.md) · [Architecture](architecture.md) · [Full System Audit](FULL_SYSTEM_AUDIT_2026_07_16.md) · [Codex Backlog](CODEX_BACKLOG_2026_07_16.md)
 
 ## Operating principle

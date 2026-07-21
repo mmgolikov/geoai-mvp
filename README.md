@@ -1,14 +1,14 @@
 # GeoAI MVP
 
 Status: Active repository overview
-Last verified: 2026-07-20
+Last verified: 2026-07-21
 Owner: GeoAI Engineering
 Authority: Current repository/product behavior and local setup
 Successor: None; any replacement must update `docs/DOCUMENTATION_INDEX.md`
 
 GeoAI is a Next.js spatial decision intelligence MVP for evaluating Dubai real estate, infrastructure, construction, and climate-risk scenarios. The current release is a public demo prototype, not a production-ready or pilot-ready product. It uses Mapbox, synthetic/demo geospatial layers, deterministic scoring, bounded source-context contracts, comparison dashboards, and print-friendly report previews.
 
-Release authority is merged PR #97 at `b915a831d5e5b28eab5fd26ac86059820e7e4a32`, deployed as `dpl_ERVqZPD5GAGDLjAVhMcPF2HT5Br7` at https://geoai-mvp.vercel.app. The canonical machine authority is [`docs/CURRENT_RELEASE_RECEIPT.json`](docs/CURRENT_RELEASE_RECEIPT.json). The released stage is `public_demo_prototype`: browser-local demo behavior is active, while protected persistence, confidential pilot operation and real sources remain blocked. Do not enter confidential, regulated, sensitive or client-protected information.
+The last externally verified release snapshot records merged PR #106 at `cc8f9ebcf3989fab4a3c4eac9be9dfb8da786a7b`, deployment `dpl_6RC2ohEdLBjiV82k758tFMkaDB9X` at https://geoai-mvp.vercel.app and rollback `dpl_ERVqZPD5GAGDLjAVhMcPF2HT5Br7`. See the stable [`docs/RELEASE_AUTHORITY_POLICY.json`](docs/RELEASE_AUTHORITY_POLICY.json) and historical [`docs/LAST_VERIFIED_RELEASE_SNAPSHOT.json`](docs/LAST_VERIFIED_RELEASE_SNAPSHOT.json). Live authority is external post-release GitHub/Vercel/Project Hub evidence, which supersedes repository snapshots. The evidenced stage is `public_demo_prototype`: browser-local demo behavior is active, while protected persistence, confidential pilot operation and real sources remain blocked. Do not enter confidential, regulated, sensitive or client-protected information.
 
 The historical Pilot UX v3.6 label describes the current workspace-first and criteria-first design lineage; it is not Product SemVer or evidence of client/pilot approval. The current released build is identified by its Git commit and deployment ID. Outputs remain screening hypotheses requiring official/client validation.
 
@@ -215,11 +215,13 @@ See [Repository Mode & Fallback Consistency v2.0.2](docs/REPOSITORY_MODE_FALLBAC
 - [Confluence Project Hub](https://geoaimvp.atlassian.net/wiki/spaces/PH/overview)
 - [Current Release State](docs/CURRENT_RELEASE_STATE.md)
 - [Documentation Index](docs/DOCUMENTATION_INDEX.md)
+- [System Stabilization Audit v2 — 2026-07-21](docs/SYSTEM_STABILIZATION_AUDIT_V2_2026_07_21.md)
 - [Full System Audit — 2026-07-16](docs/FULL_SYSTEM_AUDIT_2026_07_16.md)
 - [Supabase Data API Containment Runbook — rehearsal executed; development draft](docs/SUPABASE_DATA_API_CONTAINMENT_RUNBOOK_2026_07_16.md)
-- Current `main`: merged PR #97 at `b915a831d5e5b28eab5fd26ac86059820e7e4a32`.
-- Current Production: `dpl_ERVqZPD5GAGDLjAVhMcPF2HT5Br7`, READY at https://geoai-mvp.vercel.app on that exact SHA.
-- Product stage: `public_demo_prototype`; canonical receipt: [`docs/CURRENT_RELEASE_RECEIPT.json`](docs/CURRENT_RELEASE_RECEIPT.json).
+- Last externally verified `main` snapshot: merged PR #106 at `cc8f9ebcf3989fab4a3c4eac9be9dfb8da786a7b`.
+- Last externally verified Production snapshot: `dpl_6RC2ohEdLBjiV82k758tFMkaDB9X`, READY at https://geoai-mvp.vercel.app on that exact SHA.
+- Rollback deployment: `dpl_ERVqZPD5GAGDLjAVhMcPF2HT5Br7`.
+- Product stage in the historical snapshot: `public_demo_prototype`; policy: [`docs/RELEASE_AUTHORITY_POLICY.json`](docs/RELEASE_AUTHORITY_POLICY.json); snapshot: [`docs/LAST_VERIFIED_RELEASE_SNAPSHOT.json`](docs/LAST_VERIFIED_RELEASE_SNAPSHOT.json). External post-release evidence is the live authority.
 - Current functional/evidence head: `80645d64662699bd646f96718d300df5d2b84f5f`, tree `0fb7982f3a9cbd40366a84fdfb715a083ba26cde`; Quality Gate run `29611412924`, app job `87986721079` and DB job `87986721050` succeeded. Quality artifact `8418943293` (`sha256:3112ace57e3b6c7e020c0d19dbc737cc7bfa148564b7e8a636e1fd77f1aa6619`) and database artifact `8418941261` (`sha256:b30a4df40f2840a4f4b5bc8528beb2076eef95e0d7700345e03c37c8878005a7`) preserve the receipts.
 - Last fully evidenced functional Preview: `dpl_94eRMRsM8NJR2hdmYE1zLLbiQE8b`, READY on that exact head at [geoai-ln4ohqv5m-geoaidev.vercel.app](https://geoai-ln4ohqv5m-geoaidev.vercel.app). Mock Auth, global product navigation at 430px/834px, deep keyboard paths, six visual-regression baselines and entry plus Projects/Explore Lighthouse budgets are browser-proven; all nine scanned surfaces have zero serious/critical Axe findings. Field Core Web Vitals, broader device/route coverage and real-user personas remain unclaimed.
 - Production remains a synthetic/local-fallback public demo with soft access and no Production Supabase. The source pack is fail-closed (`503`, disabled, zero sources). Real geometry, real-source persistence, protected client data and B2B/B2C activation are blocked.

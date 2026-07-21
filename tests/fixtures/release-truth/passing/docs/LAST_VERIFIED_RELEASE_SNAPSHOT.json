@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "1.0",
+  "authorityType": "historical_last_verified_snapshot",
+  "snapshotLabel": "historical_last_verified_snapshot",
+  "verifiedAt": "2026-07-21T14:45:00Z",
+  "supersededWhenNewerReleaseExists": true,
+  "currentOperationalAuthority": false,
+  "repositoryCiQueriedLiveGithub": false,
+  "repositoryCiQueriedLiveVercel": false,
+  "productStage": "public_demo_prototype",
+  "mergedPullRequest": 106,
+  "mainSha": "cc8f9ebcf3989fab4a3c4eac9be9dfb8da786a7b",
+  "productionDeploymentId": "dpl_6RC2ohEdLBjiV82k758tFMkaDB9X",
+  "productionUrl": "https://geoai-mvp.vercel.app",
+  "rollbackDeploymentId": "dpl_ERVqZPD5GAGDLjAVhMcPF2HT5Br7",
+  "publicDemoActive": true,
+  "confidentialPilotReady": false,
+  "protectedStorageActive": false,
+  "realSourcesActive": false,
+  "caveats": ["Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."]
+}

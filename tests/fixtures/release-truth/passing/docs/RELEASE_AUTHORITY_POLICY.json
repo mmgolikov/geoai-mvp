@@ -1,0 +1,12 @@
+{
+  "schemaVersion": "1.0",
+  "authorityType": "repository_release_policy",
+  "repositoryRole": "policy_schema_and_historical_evidence",
+  "currentOperationalAuthority": "external_post_release_evidence",
+  "authorityPrecedence": ["github_default_branch_and_merge_state", "vercel_production_alias", "repository_historical_snapshot"],
+  "repositoryCiCapabilities": {"queriesLiveGithubState": false, "queriesLiveVercelState": false, "mayDeclareCurrentOperationalRuntime": false},
+  "requiredPostReleaseEvidenceFields": ["verifiedAt", "mergedPullRequest", "mainSha", "qualityGateRunId", "productionDeploymentId", "productionUrl", "routeSmoke", "runtimeLogInspection", "dataHonestyCaveat"],
+  "snapshotRules": {"requiredAuthorityType": "historical_last_verified_snapshot", "mustNeverBeLabelledCurrent": true, "externalReceiptMaySupersede": true},
+  "maturityClaimsForbidden": ["production-ready", "pilot-ready"],
+  "requiredCaveat": "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
+}

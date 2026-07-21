@@ -20,7 +20,7 @@ jobs:
   quality-gate:
     name: Static, API and data-honesty checks
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 40
     env:
       CI: "true"
       NEXT_TELEMETRY_DISABLED: "1"
@@ -42,6 +42,13 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Install physical PDF inspection tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --yes poppler-utils
 
       - name: Production dependency audit
         shell: bash
@@ -253,6 +260,12 @@ jobs:
           set -euo pipefail
           npm run test:documentation-current-truth-fixtures | tee artifacts/documentation-current-truth-fixtures.txt
 
+      - name: API route inventory source contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:api-route-inventory | tee artifacts/api-route-inventory-source-check.txt
+
       - name: Public request boundary checks
         shell: bash
         run: |
@@ -379,6 +392,7 @@ jobs:
 
           GEOAI_TEST_BASE_URL=http://127.0.0.1:3000 npm run test:api-contract | tee artifacts/api-contract-check.txt
           GEOAI_TEST_BASE_URL=http://127.0.0.1:3000 npm run test:security-headers | tee artifacts/security-header-check.txt
+          GEOAI_TEST_BASE_URL=http://127.0.0.1:3000 npm run test:api-route-inventory | tee artifacts/api-route-inventory-runtime-check.txt
 
           : > artifacts/route-smoke.txt
           routes=(
@@ -470,7 +484,25 @@ jobs:
             --output-path=artifacts/lighthouse-desktop-explore.json \
             --only-categories=performance,accessibility,best-practices,seo \
             --chrome-flags="--headless --no-sandbox --disable-dev-shm-usage --disable-gpu"
+          npx lighthouse http://127.0.0.1:3000/request-access \
+            --quiet \
+            --preset=desktop \
+            --output=json \
+            --output-path=artifacts/lighthouse-desktop-request-access.json \
+            --only-categories=performance,accessibility,best-practices,seo \
+            --chrome-flags="--headless --no-sandbox --disable-dev-shm-usage --disable-gpu"
+          npx lighthouse http://127.0.0.1:3000/profile \
+            --quiet \
+            --preset=desktop \
+            --output=json \
+            --output-path=artifacts/lighthouse-desktop-profile.json \
+            --only-categories=performance,accessibility,best-practices,seo \
+            --chrome-flags="--headless --no-sandbox --disable-dev-shm-usage --disable-gpu"
           npm run test:lighthouse-budget | tee artifacts/lighthouse-budget-check.txt
+
+          GEOAI_PDF_BASE_URL=http://127.0.0.1:3000 npm run evidence:pdf-print | tee artifacts/pdf-print-check.txt
+          cp /tmp/geoai-next.log artifacts/pdf-print-evidence/next-application.log
+          npm run test:system-stabilization-audit | tee artifacts/system-stabilization-audit-check.txt
 
       - name: Preserve application log
         if: always()

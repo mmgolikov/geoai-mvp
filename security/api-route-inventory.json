@@ -1,0 +1,2637 @@
+{
+  "schemaVersion": "1.0",
+  "generatedFrom": [
+    "app/api/**/route.ts",
+    "security/api-route-access.json"
+  ],
+  "routeCount": 66,
+  "fieldContract": [
+    "route",
+    "classification",
+    "methods",
+    "cachePolicy",
+    "requestSizeLimitBytes",
+    "positiveResponse",
+    "negativeStatusMatrix",
+    "diagnosticExposure"
+  ],
+  "limitations": [
+    "A null requestSizeLimitBytes value is an explicit finding: the route uses request.json() or equivalent without the shared bounded reader.",
+    "Positive and negative matrices are contract expectations; scripts/api-contract-check.mjs and this check provide bounded runtime coverage, not every authenticated persona."
+  ],
+  "routes": {
+    "/api/admin": {
+      "route": "/api/admin",
+      "sourcePath": "app/api/admin/route.ts",
+      "classification": "organization_admin",
+      "methods": {
+        "GET": {
+          "access": "org_admin",
+          "cachePolicy": {
+            "required": "private_no_store_required",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 0,
+          "requestSizeLimitStatus": "not_applicable",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            401,
+            403,
+            404,
+            405,
+            413
+          ],
+          "diagnosticExposure": "authenticated_minimum_necessary_no_secret_or_inventory_leak"
+        },
+        "POST": {
+          "access": "org_admin",
+          "cachePolicy": {
+            "required": "no_store_required",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": null,
+          "requestSizeLimitStatus": "unbounded_or_framework_default_review_required",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200,
+              201
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            400,
+            401,
+            403,
+            404,
+            405
+          ],
+          "diagnosticExposure": "authenticated_minimum_necessary_no_secret_or_inventory_leak"
+        }
+      }
+    },
+    "/api/ai/decision-score": {
+      "route": "/api/ai/decision-score",
+      "sourcePath": "app/api/ai/decision-score/route.ts",
+      "classification": "project_scoped",
+      "methods": {
+        "GET": {
+          "access": "public_demo",
+          "cachePolicy": {
+            "required": "private_no_store_required",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 0,
+          "requestSizeLimitStatus": "not_applicable",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            401,
+            403,
+            404,
+            405,
+            413,
+            503
+          ],
+          "diagnosticExposure": "authenticated_minimum_necessary_no_secret_or_inventory_leak"
+        },
+        "POST": {
+          "access": "project",
+          "cachePolicy": {
+            "required": "no_store_required",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 98304,
+          "requestSizeLimitStatus": "explicit_read_bounded_json",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200,
+              201
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            400,
+            401,
+            403,
+            404,
+            405,
+            413,
+            503
+          ],
+          "diagnosticExposure": "authenticated_minimum_necessary_no_secret_or_inventory_leak"
+        }
+      }
+    },
+    "/api/analysis-runs": {
+      "route": "/api/analysis-runs",
+      "sourcePath": "app/api/analysis-runs/route.ts",
+      "classification": "project_scoped",
+      "methods": {
+        "GET": {
+          "access": "project",
+          "cachePolicy": {
+            "required": "private_no_store_required",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 0,
+          "requestSizeLimitStatus": "not_applicable",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            401,
+            403,
+            404,
+            405,
+            413,
+            503
+          ],
+          "diagnosticExposure": "authenticated_minimum_necessary_no_secret_or_inventory_leak"
+        },
+        "POST": {
+          "access": "project",
+          "cachePolicy": {
+            "required": "no_store_required",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 786432,
+          "requestSizeLimitStatus": "explicit_read_bounded_json",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200,
+              201
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            400,
+            401,
+            403,
+            404,
+            405,
+            413,
+            503
+          ],
+          "diagnosticExposure": "authenticated_minimum_necessary_no_secret_or_inventory_leak"
+        }
+      }
+    },
+    "/api/analyze": {
+      "route": "/api/analyze",
+      "sourcePath": "app/api/analyze/route.ts",
+      "classification": "project_scoped",
+      "methods": {
+        "POST": {
+          "access": "project",
+          "cachePolicy": {
+            "required": "no_store_required",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 131072,
+          "requestSizeLimitStatus": "explicit_read_bounded_json",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200,
+              201
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            400,
+            401,
+            403,
+            404,
+            405,
+            413,
+            503
+          ],
+          "diagnosticExposure": "authenticated_minimum_necessary_no_secret_or_inventory_leak"
+        }
+      }
+    },
+    "/api/aois/[id]": {
+      "route": "/api/aois/[id]",
+      "sourcePath": "app/api/aois/[id]/route.ts",
+      "classification": "project_scoped",
+      "methods": {
+        "DELETE": {
+          "access": "project",
+          "cachePolicy": {
+            "required": "no_store_required",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": null,
+          "requestSizeLimitStatus": "unbounded_or_framework_default_review_required",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            400,
+            401,
+            403,
+            404,
+            405,
+            503
+          ],
+          "diagnosticExposure": "authenticated_minimum_necessary_no_secret_or_inventory_leak"
+        },
+        "GET": {
+          "access": "project",
+          "cachePolicy": {
+            "required": "private_no_store_required",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 0,
+          "requestSizeLimitStatus": "not_applicable",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            401,
+            403,
+            404,
+            405,
+            413,
+            503
+          ],
+          "diagnosticExposure": "authenticated_minimum_necessary_no_secret_or_inventory_leak"
+        },
+        "PATCH": {
+          "access": "project",
+          "cachePolicy": {
+            "required": "no_store_required",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": null,
+          "requestSizeLimitStatus": "unbounded_or_framework_default_review_required",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            400,
+            401,
+            403,
+            404,
+            405,
+            503
+          ],
+          "diagnosticExposure": "authenticated_minimum_necessary_no_secret_or_inventory_leak"
+        }
+      }
+    },
+    "/api/aois": {
+      "route": "/api/aois",
+      "sourcePath": "app/api/aois/route.ts",
+      "classification": "project_scoped",
+      "methods": {
+        "GET": {
+          "access": "project",
+          "cachePolicy": {
+            "required": "private_no_store_required",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 0,
+          "requestSizeLimitStatus": "not_applicable",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            401,
+            403,
+            404,
+            405,
+            413,
+            503
+          ],
+          "diagnosticExposure": "authenticated_minimum_necessary_no_secret_or_inventory_leak"
+        },
+        "POST": {
+          "access": "project",
+          "cachePolicy": {
+            "required": "no_store_required",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": null,
+          "requestSizeLimitStatus": "unbounded_or_framework_default_review_required",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200,
+              201
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            400,
+            401,
+            403,
+            404,
+            405,
+            503
+          ],
+          "diagnosticExposure": "authenticated_minimum_necessary_no_secret_or_inventory_leak"
+        }
+      }
+    },
+    "/api/auth/logout": {
+      "route": "/api/auth/logout",
+      "sourcePath": "app/api/auth/logout/route.ts",
+      "classification": "identity_mutation",
+      "methods": {
+        "POST": {
+          "access": "identity_mutation",
+          "cachePolicy": {
+            "required": "no_store_required",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": null,
+          "requestSizeLimitStatus": "unbounded_or_framework_default_review_required",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200,
+              201
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            400,
+            401,
+            403,
+            405,
+            503
+          ],
+          "diagnosticExposure": "authenticated_minimum_necessary_no_secret_or_inventory_leak"
+        }
+      }
+    },
+    "/api/auth/session": {
+      "route": "/api/auth/session",
+      "sourcePath": "app/api/auth/session/route.ts",
+      "classification": "identity_session",
+      "methods": {
+        "GET": {
+          "access": "identity",
+          "cachePolicy": {
+            "required": "private_no_store_required",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 0,
+          "requestSizeLimitStatus": "not_applicable",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            401,
+            403,
+            405,
+            413
+          ],
+          "diagnosticExposure": "authenticated_minimum_necessary_no_secret_or_inventory_leak"
+        }
+      }
+    },
+    "/api/comparison-sets": {
+      "route": "/api/comparison-sets",
+      "sourcePath": "app/api/comparison-sets/route.ts",
+      "classification": "project_scoped",
+      "methods": {
+        "DELETE": {
+          "access": "project",
+          "cachePolicy": {
+            "required": "no_store_required",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 786432,
+          "requestSizeLimitStatus": "explicit_read_bounded_json",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            400,
+            401,
+            403,
+            404,
+            405,
+            413,
+            503
+          ],
+          "diagnosticExposure": "authenticated_minimum_necessary_no_secret_or_inventory_leak"
+        },
+        "GET": {
+          "access": "project",
+          "cachePolicy": {
+            "required": "private_no_store_required",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 0,
+          "requestSizeLimitStatus": "not_applicable",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            401,
+            403,
+            404,
+            405,
+            413,
+            503
+          ],
+          "diagnosticExposure": "authenticated_minimum_necessary_no_secret_or_inventory_leak"
+        },
+        "POST": {
+          "access": "project",
+          "cachePolicy": {
+            "required": "no_store_required",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 786432,
+          "requestSizeLimitStatus": "explicit_read_bounded_json",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200,
+              201
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            400,
+            401,
+            403,
+            404,
+            405,
+            413,
+            503
+          ],
+          "diagnosticExposure": "authenticated_minimum_necessary_no_secret_or_inventory_leak"
+        }
+      }
+    },
+    "/api/context/accessibility": {
+      "route": "/api/context/accessibility",
+      "sourcePath": "app/api/context/accessibility/route.ts",
+      "classification": "public_sanitized",
+      "methods": {
+        "GET": {
+          "access": "public_demo",
+          "cachePolicy": {
+            "required": "public_sanitized_explicit_or_runtime_verified",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 0,
+          "requestSizeLimitStatus": "not_applicable",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            405,
+            413
+          ],
+          "diagnosticExposure": "compact_sanitized_public_contract"
+        }
+      }
+    },
+    "/api/context/air-quality": {
+      "route": "/api/context/air-quality",
+      "sourcePath": "app/api/context/air-quality/route.ts",
+      "classification": "public_sanitized",
+      "methods": {
+        "GET": {
+          "access": "public_demo",
+          "cachePolicy": {
+            "required": "public_sanitized_explicit_or_runtime_verified",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 0,
+          "requestSizeLimitStatus": "not_applicable",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            405,
+            413
+          ],
+          "diagnosticExposure": "compact_sanitized_public_contract"
+        }
+      }
+    },
+    "/api/context/climate": {
+      "route": "/api/context/climate",
+      "sourcePath": "app/api/context/climate/route.ts",
+      "classification": "public_sanitized",
+      "methods": {
+        "GET": {
+          "access": "public_demo",
+          "cachePolicy": {
+            "required": "public_sanitized_explicit_or_runtime_verified",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 0,
+          "requestSizeLimitStatus": "not_applicable",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            405,
+            413
+          ],
+          "diagnosticExposure": "compact_sanitized_public_contract"
+        },
+        "POST": {
+          "access": "public_demo",
+          "cachePolicy": {
+            "required": "no_store_required",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 16384,
+          "requestSizeLimitStatus": "explicit_read_bounded_json",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200,
+              201
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            400,
+            405,
+            413
+          ],
+          "diagnosticExposure": "compact_sanitized_public_contract"
+        }
+      }
+    },
+    "/api/context/demographics": {
+      "route": "/api/context/demographics",
+      "sourcePath": "app/api/context/demographics/route.ts",
+      "classification": "public_sanitized",
+      "methods": {
+        "GET": {
+          "access": "public_demo",
+          "cachePolicy": {
+            "required": "public_sanitized_explicit_or_runtime_verified",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 0,
+          "requestSizeLimitStatus": "not_applicable",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            405,
+            413
+          ],
+          "diagnosticExposure": "compact_sanitized_public_contract"
+        }
+      }
+    },
+    "/api/context/market": {
+      "route": "/api/context/market",
+      "sourcePath": "app/api/context/market/route.ts",
+      "classification": "public_sanitized",
+      "methods": {
+        "POST": {
+          "access": "public_demo",
+          "cachePolicy": {
+            "required": "no_store_required",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 16384,
+          "requestSizeLimitStatus": "explicit_read_bounded_json",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200,
+              201
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            400,
+            405,
+            413
+          ],
+          "diagnosticExposure": "compact_sanitized_public_contract"
+        }
+      }
+    },
+    "/api/context/satellite-availability": {
+      "route": "/api/context/satellite-availability",
+      "sourcePath": "app/api/context/satellite-availability/route.ts",
+      "classification": "public_sanitized",
+      "methods": {
+        "GET": {
+          "access": "public_demo",
+          "cachePolicy": {
+            "required": "public_sanitized_explicit_or_runtime_verified",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 0,
+          "requestSizeLimitStatus": "not_applicable",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            405,
+            413
+          ],
+          "diagnosticExposure": "compact_sanitized_public_contract"
+        }
+      }
+    },
+    "/api/context/solar-energy": {
+      "route": "/api/context/solar-energy",
+      "sourcePath": "app/api/context/solar-energy/route.ts",
+      "classification": "public_sanitized",
+      "methods": {
+        "GET": {
+          "access": "public_demo",
+          "cachePolicy": {
+            "required": "public_sanitized_explicit_or_runtime_verified",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 0,
+          "requestSizeLimitStatus": "not_applicable",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            405,
+            413
+          ],
+          "diagnosticExposure": "compact_sanitized_public_contract"
+        }
+      }
+    },
+    "/api/context/spatial": {
+      "route": "/api/context/spatial",
+      "sourcePath": "app/api/context/spatial/route.ts",
+      "classification": "public_sanitized",
+      "methods": {
+        "GET": {
+          "access": "public_demo",
+          "cachePolicy": {
+            "required": "public_sanitized_explicit_or_runtime_verified",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 0,
+          "requestSizeLimitStatus": "not_applicable",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            405,
+            413
+          ],
+          "diagnosticExposure": "compact_sanitized_public_contract"
+        }
+      }
+    },
+    "/api/data-room/assets/[id]": {
+      "route": "/api/data-room/assets/[id]",
+      "sourcePath": "app/api/data-room/assets/[id]/route.ts",
+      "classification": "project_scoped",
+      "methods": {
+        "DELETE": {
+          "access": "project",
+          "cachePolicy": {
+            "required": "no_store_required",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 131072,
+          "requestSizeLimitStatus": "explicit_read_bounded_json",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            400,
+            401,
+            403,
+            404,
+            405,
+            413,
+            503
+          ],
+          "diagnosticExposure": "authenticated_minimum_necessary_no_secret_or_inventory_leak"
+        },
+        "PATCH": {
+          "access": "project",
+          "cachePolicy": {
+            "required": "no_store_required",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 131072,
+          "requestSizeLimitStatus": "explicit_read_bounded_json",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            400,
+            401,
+            403,
+            404,
+            405,
+            413,
+            503
+          ],
+          "diagnosticExposure": "authenticated_minimum_necessary_no_secret_or_inventory_leak"
+        }
+      }
+    },
+    "/api/data-room/assets": {
+      "route": "/api/data-room/assets",
+      "sourcePath": "app/api/data-room/assets/route.ts",
+      "classification": "project_scoped",
+      "methods": {
+        "POST": {
+          "access": "project",
+          "cachePolicy": {
+            "required": "no_store_required",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 196608,
+          "requestSizeLimitStatus": "explicit_read_bounded_json",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200,
+              201
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            400,
+            401,
+            403,
+            404,
+            405,
+            413,
+            503
+          ],
+          "diagnosticExposure": "authenticated_minimum_necessary_no_secret_or_inventory_leak"
+        }
+      }
+    },
+    "/api/data-room/checklist/[id]": {
+      "route": "/api/data-room/checklist/[id]",
+      "sourcePath": "app/api/data-room/checklist/[id]/route.ts",
+      "classification": "project_scoped",
+      "methods": {
+        "PATCH": {
+          "access": "project",
+          "cachePolicy": {
+            "required": "no_store_required",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 98304,
+          "requestSizeLimitStatus": "explicit_read_bounded_json",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            400,
+            401,
+            403,
+            404,
+            405,
+            413,
+            503
+          ],
+          "diagnosticExposure": "authenticated_minimum_necessary_no_secret_or_inventory_leak"
+        }
+      }
+    },
+    "/api/data-room/checklist": {
+      "route": "/api/data-room/checklist",
+      "sourcePath": "app/api/data-room/checklist/route.ts",
+      "classification": "project_scoped",
+      "methods": {
+        "POST": {
+          "access": "project",
+          "cachePolicy": {
+            "required": "no_store_required",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 131072,
+          "requestSizeLimitStatus": "explicit_read_bounded_json",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200,
+              201
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            400,
+            401,
+            403,
+            404,
+            405,
+            413,
+            503
+          ],
+          "diagnosticExposure": "authenticated_minimum_necessary_no_secret_or_inventory_leak"
+        }
+      }
+    },
+    "/api/data-room": {
+      "route": "/api/data-room",
+      "sourcePath": "app/api/data-room/route.ts",
+      "classification": "project_scoped",
+      "methods": {
+        "GET": {
+          "access": "project",
+          "cachePolicy": {
+            "required": "private_no_store_required",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 0,
+          "requestSizeLimitStatus": "not_applicable",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            401,
+            403,
+            404,
+            405,
+            413,
+            503
+          ],
+          "diagnosticExposure": "authenticated_minimum_necessary_no_secret_or_inventory_leak"
+        },
+        "POST": {
+          "access": "project",
+          "cachePolicy": {
+            "required": "no_store_required",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 8192,
+          "requestSizeLimitStatus": "explicit_read_bounded_json",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200,
+              201
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            400,
+            401,
+            403,
+            404,
+            405,
+            413,
+            503
+          ],
+          "diagnosticExposure": "authenticated_minimum_necessary_no_secret_or_inventory_leak"
+        }
+      }
+    },
+    "/api/data-sources/readiness": {
+      "route": "/api/data-sources/readiness",
+      "sourcePath": "app/api/data-sources/readiness/route.ts",
+      "classification": "public_sanitized",
+      "methods": {
+        "GET": {
+          "access": "public_demo",
+          "cachePolicy": {
+            "required": "public_sanitized_explicit_or_runtime_verified",
+            "declaredDirectives": [
+              "public, s-maxage=300, stale-while-revalidate=600"
+            ],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 0,
+          "requestSizeLimitStatus": "not_applicable",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            405,
+            413
+          ],
+          "diagnosticExposure": "compact_sanitized_public_contract"
+        }
+      }
+    },
+    "/api/data-sources": {
+      "route": "/api/data-sources",
+      "sourcePath": "app/api/data-sources/route.ts",
+      "classification": "public_sanitized",
+      "methods": {
+        "GET": {
+          "access": "public_demo",
+          "cachePolicy": {
+            "required": "public_sanitized_explicit_or_runtime_verified",
+            "declaredDirectives": [
+              "public, s-maxage=300, stale-while-revalidate=600"
+            ],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 0,
+          "requestSizeLimitStatus": "not_applicable",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            405,
+            413
+          ],
+          "diagnosticExposure": "compact_sanitized_public_contract"
+        }
+      }
+    },
+    "/api/db/health": {
+      "route": "/api/db/health",
+      "sourcePath": "app/api/db/health/route.ts",
+      "classification": "public_sanitized",
+      "methods": {
+        "GET": {
+          "access": "public_demo",
+          "cachePolicy": {
+            "required": "public_sanitized_explicit_or_runtime_verified",
+            "declaredDirectives": [
+              "private, no-store, max-age=0"
+            ],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 0,
+          "requestSizeLimitStatus": "not_applicable",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            405,
+            413
+          ],
+          "diagnosticExposure": "compact_sanitized_public_contract"
+        }
+      }
+    },
+    "/api/demo-objects": {
+      "route": "/api/demo-objects",
+      "sourcePath": "app/api/demo-objects/route.ts",
+      "classification": "public_sanitized",
+      "methods": {
+        "GET": {
+          "access": "public_demo",
+          "cachePolicy": {
+            "required": "public_sanitized_explicit_or_runtime_verified",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 0,
+          "requestSizeLimitStatus": "not_applicable",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            405,
+            413
+          ],
+          "diagnosticExposure": "compact_sanitized_public_contract"
+        }
+      }
+    },
+    "/api/external-data/climate-context": {
+      "route": "/api/external-data/climate-context",
+      "sourcePath": "app/api/external-data/climate-context/route.ts",
+      "classification": "public_sanitized",
+      "methods": {
+        "GET": {
+          "access": "public_demo",
+          "cachePolicy": {
+            "required": "public_sanitized_explicit_or_runtime_verified",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 0,
+          "requestSizeLimitStatus": "not_applicable",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            405,
+            413
+          ],
+          "diagnosticExposure": "compact_sanitized_public_contract"
+        }
+      }
+    },
+    "/api/external-data/manifest": {
+      "route": "/api/external-data/manifest",
+      "sourcePath": "app/api/external-data/manifest/route.ts",
+      "classification": "public_sanitized",
+      "methods": {
+        "GET": {
+          "access": "public_demo",
+          "cachePolicy": {
+            "required": "public_sanitized_explicit_or_runtime_verified",
+            "declaredDirectives": [
+              "public, s-maxage=300, stale-while-revalidate=600"
+            ],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 0,
+          "requestSizeLimitStatus": "not_applicable",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            405,
+            413
+          ],
+          "diagnosticExposure": "compact_sanitized_public_contract"
+        }
+      }
+    },
+    "/api/external-data/market-metrics": {
+      "route": "/api/external-data/market-metrics",
+      "sourcePath": "app/api/external-data/market-metrics/route.ts",
+      "classification": "public_sanitized",
+      "methods": {
+        "GET": {
+          "access": "public_demo",
+          "cachePolicy": {
+            "required": "public_sanitized_explicit_or_runtime_verified",
+            "declaredDirectives": [
+              "public, s-maxage=300, stale-while-revalidate=600"
+            ],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 0,
+          "requestSizeLimitStatus": "not_applicable",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            405,
+            413
+          ],
+          "diagnosticExposure": "compact_sanitized_public_contract"
+        }
+      }
+    },
+    "/api/external-data/satellite-availability": {
+      "route": "/api/external-data/satellite-availability",
+      "sourcePath": "app/api/external-data/satellite-availability/route.ts",
+      "classification": "public_sanitized",
+      "methods": {
+        "GET": {
+          "access": "public_demo",
+          "cachePolicy": {
+            "required": "public_sanitized_explicit_or_runtime_verified",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 0,
+          "requestSizeLimitStatus": "not_applicable",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            405,
+            413
+          ],
+          "diagnosticExposure": "compact_sanitized_public_contract"
+        }
+      }
+    },
+    "/api/external-data/source-connection-pack": {
+      "route": "/api/external-data/source-connection-pack",
+      "sourcePath": "app/api/external-data/source-connection-pack/route.ts",
+      "classification": "operator_only",
+      "methods": {
+        "GET": {
+          "access": "operator",
+          "cachePolicy": {
+            "required": "private_no_store_required",
+            "declaredDirectives": [
+              "no-store",
+              "private, no-store"
+            ],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 0,
+          "requestSizeLimitStatus": "not_applicable",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            401,
+            403,
+            405,
+            413,
+            503
+          ],
+          "diagnosticExposure": "operator_authenticated_minimum_necessary"
+        }
+      }
+    },
+    "/api/external-data/sources": {
+      "route": "/api/external-data/sources",
+      "sourcePath": "app/api/external-data/sources/route.ts",
+      "classification": "public_sanitized",
+      "methods": {
+        "GET": {
+          "access": "public_demo",
+          "cachePolicy": {
+            "required": "public_sanitized_explicit_or_runtime_verified",
+            "declaredDirectives": [
+              "public, s-maxage=300, stale-while-revalidate=600"
+            ],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 0,
+          "requestSizeLimitStatus": "not_applicable",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            405,
+            413
+          ],
+          "diagnosticExposure": "compact_sanitized_public_contract"
+        }
+      }
+    },
+    "/api/external-data/status": {
+      "route": "/api/external-data/status",
+      "sourcePath": "app/api/external-data/status/route.ts",
+      "classification": "public_sanitized",
+      "methods": {
+        "GET": {
+          "access": "public_demo",
+          "cachePolicy": {
+            "required": "public_sanitized_explicit_or_runtime_verified",
+            "declaredDirectives": [
+              "public, s-maxage=300, stale-while-revalidate=600"
+            ],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 0,
+          "requestSizeLimitStatus": "not_applicable",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            405,
+            413
+          ],
+          "diagnosticExposure": "compact_sanitized_public_contract"
+        }
+      }
+    },
+    "/api/health": {
+      "route": "/api/health",
+      "sourcePath": "app/api/health/route.ts",
+      "classification": "public_sanitized",
+      "methods": {
+        "GET": {
+          "access": "public_demo",
+          "cachePolicy": {
+            "required": "public_sanitized_explicit_or_runtime_verified",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 0,
+          "requestSizeLimitStatus": "not_applicable",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            405,
+            413
+          ],
+          "diagnosticExposure": "compact_sanitized_public_contract"
+        }
+      }
+    },
+    "/api/known-limitations": {
+      "route": "/api/known-limitations",
+      "sourcePath": "app/api/known-limitations/route.ts",
+      "classification": "public_sanitized",
+      "methods": {
+        "GET": {
+          "access": "public_demo",
+          "cachePolicy": {
+            "required": "public_sanitized_explicit_or_runtime_verified",
+            "declaredDirectives": [
+              "private, no-store, max-age=0"
+            ],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 0,
+          "requestSizeLimitStatus": "not_applicable",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            405,
+            413
+          ],
+          "diagnosticExposure": "compact_sanitized_public_contract"
+        }
+      }
+    },
+    "/api/market-metrics": {
+      "route": "/api/market-metrics",
+      "sourcePath": "app/api/market-metrics/route.ts",
+      "classification": "public_sanitized",
+      "methods": {
+        "GET": {
+          "access": "public_demo",
+          "cachePolicy": {
+            "required": "public_sanitized_explicit_or_runtime_verified",
+            "declaredDirectives": [
+              "public, s-maxage=300, stale-while-revalidate=600"
+            ],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 0,
+          "requestSizeLimitStatus": "not_applicable",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            405,
+            413
+          ],
+          "diagnosticExposure": "compact_sanitized_public_contract"
+        }
+      }
+    },
+    "/api/onboarding/invitation": {
+      "route": "/api/onboarding/invitation",
+      "sourcePath": "app/api/onboarding/invitation/route.ts",
+      "classification": "identity_mutation",
+      "methods": {
+        "POST": {
+          "access": "identity_mutation",
+          "cachePolicy": {
+            "required": "no_store_required",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": null,
+          "requestSizeLimitStatus": "unbounded_or_framework_default_review_required",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200,
+              201
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            400,
+            401,
+            403,
+            405,
+            503
+          ],
+          "diagnosticExposure": "authenticated_minimum_necessary_no_secret_or_inventory_leak"
+        }
+      }
+    },
+    "/api/onboarding/invitation/stage": {
+      "route": "/api/onboarding/invitation/stage",
+      "sourcePath": "app/api/onboarding/invitation/stage/route.ts",
+      "classification": "identity_mutation",
+      "methods": {
+        "POST": {
+          "access": "identity_mutation",
+          "cachePolicy": {
+            "required": "no_store_required",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": null,
+          "requestSizeLimitStatus": "unbounded_or_framework_default_review_required",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200,
+              201
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            400,
+            401,
+            403,
+            405,
+            503
+          ],
+          "diagnosticExposure": "authenticated_minimum_necessary_no_secret_or_inventory_leak"
+        }
+      }
+    },
+    "/api/open-geodata": {
+      "route": "/api/open-geodata",
+      "sourcePath": "app/api/open-geodata/route.ts",
+      "classification": "public_sanitized",
+      "methods": {
+        "GET": {
+          "access": "public_demo",
+          "cachePolicy": {
+            "required": "public_sanitized_explicit_or_runtime_verified",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 0,
+          "requestSizeLimitStatus": "not_applicable",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            405,
+            413
+          ],
+          "diagnosticExposure": "compact_sanitized_public_contract"
+        }
+      }
+    },
+    "/api/pilot-backend/status": {
+      "route": "/api/pilot-backend/status",
+      "sourcePath": "app/api/pilot-backend/status/route.ts",
+      "classification": "public_sanitized",
+      "methods": {
+        "GET": {
+          "access": "public_demo",
+          "cachePolicy": {
+            "required": "public_sanitized_explicit_or_runtime_verified",
+            "declaredDirectives": [
+              "private, no-store, max-age=0"
+            ],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 0,
+          "requestSizeLimitStatus": "not_applicable",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            405,
+            413
+          ],
+          "diagnosticExposure": "compact_sanitized_public_contract"
+        }
+      }
+    },
+    "/api/pilot-workflow/client-inputs/[id]": {
+      "route": "/api/pilot-workflow/client-inputs/[id]",
+      "sourcePath": "app/api/pilot-workflow/client-inputs/[id]/route.ts",
+      "classification": "project_scoped",
+      "methods": {
+        "PATCH": {
+          "access": "project",
+          "cachePolicy": {
+            "required": "no_store_required",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": null,
+          "requestSizeLimitStatus": "unbounded_or_framework_default_review_required",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            400,
+            401,
+            403,
+            404,
+            405,
+            503
+          ],
+          "diagnosticExposure": "authenticated_minimum_necessary_no_secret_or_inventory_leak"
+        }
+      }
+    },
+    "/api/pilot-workflow/deliverables/[id]": {
+      "route": "/api/pilot-workflow/deliverables/[id]",
+      "sourcePath": "app/api/pilot-workflow/deliverables/[id]/route.ts",
+      "classification": "project_scoped",
+      "methods": {
+        "PATCH": {
+          "access": "project",
+          "cachePolicy": {
+            "required": "no_store_required",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": null,
+          "requestSizeLimitStatus": "unbounded_or_framework_default_review_required",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            400,
+            401,
+            403,
+            404,
+            405,
+            503
+          ],
+          "diagnosticExposure": "authenticated_minimum_necessary_no_secret_or_inventory_leak"
+        }
+      }
+    },
+    "/api/pilot-workflow": {
+      "route": "/api/pilot-workflow",
+      "sourcePath": "app/api/pilot-workflow/route.ts",
+      "classification": "project_scoped",
+      "methods": {
+        "GET": {
+          "access": "project",
+          "cachePolicy": {
+            "required": "private_no_store_required",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 0,
+          "requestSizeLimitStatus": "not_applicable",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            401,
+            403,
+            404,
+            405,
+            413,
+            503
+          ],
+          "diagnosticExposure": "authenticated_minimum_necessary_no_secret_or_inventory_leak"
+        },
+        "PATCH": {
+          "access": "project",
+          "cachePolicy": {
+            "required": "no_store_required",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": null,
+          "requestSizeLimitStatus": "unbounded_or_framework_default_review_required",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            400,
+            401,
+            403,
+            404,
+            405,
+            503
+          ],
+          "diagnosticExposure": "authenticated_minimum_necessary_no_secret_or_inventory_leak"
+        },
+        "POST": {
+          "access": "project",
+          "cachePolicy": {
+            "required": "no_store_required",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": null,
+          "requestSizeLimitStatus": "unbounded_or_framework_default_review_required",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200,
+              201
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            400,
+            401,
+            403,
+            404,
+            405,
+            503
+          ],
+          "diagnosticExposure": "authenticated_minimum_necessary_no_secret_or_inventory_leak"
+        }
+      }
+    },
+    "/api/platform/activation-status": {
+      "route": "/api/platform/activation-status",
+      "sourcePath": "app/api/platform/activation-status/route.ts",
+      "classification": "public_sanitized",
+      "methods": {
+        "GET": {
+          "access": "public_demo",
+          "cachePolicy": {
+            "required": "public_sanitized_explicit_or_runtime_verified",
+            "declaredDirectives": [
+              "private, no-store, max-age=0"
+            ],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 0,
+          "requestSizeLimitStatus": "not_applicable",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            405,
+            413
+          ],
+          "diagnosticExposure": "compact_sanitized_public_contract"
+        }
+      }
+    },
+    "/api/projects": {
+      "route": "/api/projects",
+      "sourcePath": "app/api/projects/route.ts",
+      "classification": "project_scoped",
+      "methods": {
+        "GET": {
+          "access": "project",
+          "cachePolicy": {
+            "required": "private_no_store_required",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 0,
+          "requestSizeLimitStatus": "not_applicable",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            401,
+            403,
+            404,
+            405,
+            413,
+            503
+          ],
+          "diagnosticExposure": "authenticated_minimum_necessary_no_secret_or_inventory_leak"
+        },
+        "POST": {
+          "access": "project",
+          "cachePolicy": {
+            "required": "no_store_required",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": null,
+          "requestSizeLimitStatus": "unbounded_or_framework_default_review_required",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200,
+              201
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            400,
+            401,
+            403,
+            404,
+            405,
+            503
+          ],
+          "diagnosticExposure": "authenticated_minimum_necessary_no_secret_or_inventory_leak"
+        }
+      }
+    },
+    "/api/report-packages/[id]/export": {
+      "route": "/api/report-packages/[id]/export",
+      "sourcePath": "app/api/report-packages/[id]/export/route.ts",
+      "classification": "project_scoped",
+      "methods": {
+        "GET": {
+          "access": "project",
+          "cachePolicy": {
+            "required": "private_no_store_required",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 0,
+          "requestSizeLimitStatus": "not_applicable",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            401,
+            403,
+            404,
+            405,
+            413,
+            503
+          ],
+          "diagnosticExposure": "authenticated_minimum_necessary_no_secret_or_inventory_leak"
+        }
+      }
+    },
+    "/api/report-packages/[id]/json": {
+      "route": "/api/report-packages/[id]/json",
+      "sourcePath": "app/api/report-packages/[id]/json/route.ts",
+      "classification": "project_scoped",
+      "methods": {
+        "GET": {
+          "access": "project",
+          "cachePolicy": {
+            "required": "private_no_store_required",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 0,
+          "requestSizeLimitStatus": "not_applicable",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            401,
+            403,
+            404,
+            405,
+            413,
+            503
+          ],
+          "diagnosticExposure": "authenticated_minimum_necessary_no_secret_or_inventory_leak"
+        }
+      }
+    },
+    "/api/report-packages/[id]/print": {
+      "route": "/api/report-packages/[id]/print",
+      "sourcePath": "app/api/report-packages/[id]/print/route.ts",
+      "classification": "project_scoped",
+      "methods": {
+        "GET": {
+          "access": "project",
+          "cachePolicy": {
+            "required": "private_no_store_required",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 0,
+          "requestSizeLimitStatus": "not_applicable",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            401,
+            403,
+            404,
+            405,
+            413,
+            503
+          ],
+          "diagnosticExposure": "authenticated_minimum_necessary_no_secret_or_inventory_leak"
+        }
+      }
+    },
+    "/api/report-packages/[id]": {
+      "route": "/api/report-packages/[id]",
+      "sourcePath": "app/api/report-packages/[id]/route.ts",
+      "classification": "project_scoped",
+      "methods": {
+        "GET": {
+          "access": "project",
+          "cachePolicy": {
+            "required": "private_no_store_required",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 0,
+          "requestSizeLimitStatus": "not_applicable",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            401,
+            403,
+            404,
+            405,
+            413,
+            503
+          ],
+          "diagnosticExposure": "authenticated_minimum_necessary_no_secret_or_inventory_leak"
+        },
+        "PATCH": {
+          "access": "project",
+          "cachePolicy": {
+            "required": "no_store_required",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": null,
+          "requestSizeLimitStatus": "unbounded_or_framework_default_review_required",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            400,
+            401,
+            403,
+            404,
+            405,
+            503
+          ],
+          "diagnosticExposure": "authenticated_minimum_necessary_no_secret_or_inventory_leak"
+        }
+      }
+    },
+    "/api/report-packages": {
+      "route": "/api/report-packages",
+      "sourcePath": "app/api/report-packages/route.ts",
+      "classification": "project_scoped",
+      "methods": {
+        "GET": {
+          "access": "project",
+          "cachePolicy": {
+            "required": "private_no_store_required",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 0,
+          "requestSizeLimitStatus": "not_applicable",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            401,
+            403,
+            404,
+            405,
+            413,
+            503
+          ],
+          "diagnosticExposure": "authenticated_minimum_necessary_no_secret_or_inventory_leak"
+        },
+        "POST": {
+          "access": "project",
+          "cachePolicy": {
+            "required": "no_store_required",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": null,
+          "requestSizeLimitStatus": "unbounded_or_framework_default_review_required",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200,
+              201
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            400,
+            401,
+            403,
+            404,
+            405,
+            503
+          ],
+          "diagnosticExposure": "authenticated_minimum_necessary_no_secret_or_inventory_leak"
+        }
+      }
+    },
+    "/api/reports": {
+      "route": "/api/reports",
+      "sourcePath": "app/api/reports/route.ts",
+      "classification": "project_scoped",
+      "methods": {
+        "GET": {
+          "access": "project",
+          "cachePolicy": {
+            "required": "private_no_store_required",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 0,
+          "requestSizeLimitStatus": "not_applicable",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            401,
+            403,
+            404,
+            405,
+            413,
+            503
+          ],
+          "diagnosticExposure": "authenticated_minimum_necessary_no_secret_or_inventory_leak"
+        },
+        "POST": {
+          "access": "project",
+          "cachePolicy": {
+            "required": "no_store_required",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 786432,
+          "requestSizeLimitStatus": "explicit_read_bounded_json",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200,
+              201
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            400,
+            401,
+            403,
+            404,
+            405,
+            413,
+            503
+          ],
+          "diagnosticExposure": "authenticated_minimum_necessary_no_secret_or_inventory_leak"
+        }
+      }
+    },
+    "/api/security/rls-readiness": {
+      "route": "/api/security/rls-readiness",
+      "sourcePath": "app/api/security/rls-readiness/route.ts",
+      "classification": "public_sanitized",
+      "methods": {
+        "GET": {
+          "access": "public_demo",
+          "cachePolicy": {
+            "required": "public_sanitized_explicit_or_runtime_verified",
+            "declaredDirectives": [
+              "private, no-store, max-age=0"
+            ],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 0,
+          "requestSizeLimitStatus": "not_applicable",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            405,
+            413
+          ],
+          "diagnosticExposure": "compact_sanitized_public_contract"
+        }
+      }
+    },
+    "/api/source-lineage": {
+      "route": "/api/source-lineage",
+      "sourcePath": "app/api/source-lineage/route.ts",
+      "classification": "public_sanitized",
+      "methods": {
+        "GET": {
+          "access": "public_demo",
+          "cachePolicy": {
+            "required": "public_sanitized_explicit_or_runtime_verified",
+            "declaredDirectives": [
+              "public, s-maxage=300, stale-while-revalidate=600"
+            ],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 0,
+          "requestSizeLimitStatus": "not_applicable",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            405,
+            413
+          ],
+          "diagnosticExposure": "compact_sanitized_public_contract"
+        }
+      }
+    },
+    "/api/storage/evidence-files/[id]/download": {
+      "route": "/api/storage/evidence-files/[id]/download",
+      "sourcePath": "app/api/storage/evidence-files/[id]/download/route.ts",
+      "classification": "project_scoped",
+      "methods": {
+        "GET": {
+          "access": "project",
+          "cachePolicy": {
+            "required": "private_no_store_required",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 0,
+          "requestSizeLimitStatus": "not_applicable",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            401,
+            403,
+            404,
+            405,
+            413,
+            503
+          ],
+          "diagnosticExposure": "authenticated_minimum_necessary_no_secret_or_inventory_leak"
+        }
+      }
+    },
+    "/api/storage/evidence-files/[id]": {
+      "route": "/api/storage/evidence-files/[id]",
+      "sourcePath": "app/api/storage/evidence-files/[id]/route.ts",
+      "classification": "project_scoped",
+      "methods": {
+        "DELETE": {
+          "access": "project",
+          "cachePolicy": {
+            "required": "no_store_required",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": null,
+          "requestSizeLimitStatus": "unbounded_or_framework_default_review_required",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            400,
+            401,
+            403,
+            404,
+            405,
+            503
+          ],
+          "diagnosticExposure": "authenticated_minimum_necessary_no_secret_or_inventory_leak"
+        }
+      }
+    },
+    "/api/storage/evidence-files/[id]/signed-url-test": {
+      "route": "/api/storage/evidence-files/[id]/signed-url-test",
+      "sourcePath": "app/api/storage/evidence-files/[id]/signed-url-test/route.ts",
+      "classification": "project_scoped",
+      "methods": {
+        "POST": {
+          "access": "project",
+          "cachePolicy": {
+            "required": "no_store_required",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": null,
+          "requestSizeLimitStatus": "unbounded_or_framework_default_review_required",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200,
+              201
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            400,
+            401,
+            403,
+            404,
+            405,
+            503
+          ],
+          "diagnosticExposure": "authenticated_minimum_necessary_no_secret_or_inventory_leak"
+        }
+      }
+    },
+    "/api/storage/evidence-files": {
+      "route": "/api/storage/evidence-files",
+      "sourcePath": "app/api/storage/evidence-files/route.ts",
+      "classification": "project_scoped",
+      "methods": {
+        "GET": {
+          "access": "project",
+          "cachePolicy": {
+            "required": "private_no_store_required",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 0,
+          "requestSizeLimitStatus": "not_applicable",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            401,
+            403,
+            404,
+            405,
+            413,
+            503
+          ],
+          "diagnosticExposure": "authenticated_minimum_necessary_no_secret_or_inventory_leak"
+        },
+        "POST": {
+          "access": "project",
+          "cachePolicy": {
+            "required": "no_store_required",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": null,
+          "requestSizeLimitStatus": "unbounded_or_framework_default_review_required",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200,
+              201
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            400,
+            401,
+            403,
+            404,
+            405,
+            503
+          ],
+          "diagnosticExposure": "authenticated_minimum_necessary_no_secret_or_inventory_leak"
+        }
+      }
+    },
+    "/api/storage/evidence-files/upload-intent": {
+      "route": "/api/storage/evidence-files/upload-intent",
+      "sourcePath": "app/api/storage/evidence-files/upload-intent/route.ts",
+      "classification": "project_scoped",
+      "methods": {
+        "POST": {
+          "access": "project",
+          "cachePolicy": {
+            "required": "no_store_required",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": null,
+          "requestSizeLimitStatus": "unbounded_or_framework_default_review_required",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200,
+              201
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            400,
+            401,
+            403,
+            404,
+            405,
+            503
+          ],
+          "diagnosticExposure": "authenticated_minimum_necessary_no_secret_or_inventory_leak"
+        }
+      }
+    },
+    "/api/storage/health": {
+      "route": "/api/storage/health",
+      "sourcePath": "app/api/storage/health/route.ts",
+      "classification": "public_sanitized",
+      "methods": {
+        "GET": {
+          "access": "public_demo",
+          "cachePolicy": {
+            "required": "public_sanitized_explicit_or_runtime_verified",
+            "declaredDirectives": [
+              "private, no-store, max-age=0"
+            ],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 0,
+          "requestSizeLimitStatus": "not_applicable",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            405,
+            413
+          ],
+          "diagnosticExposure": "compact_sanitized_public_contract"
+        }
+      }
+    },
+    "/api/uploaded-datasets": {
+      "route": "/api/uploaded-datasets",
+      "sourcePath": "app/api/uploaded-datasets/route.ts",
+      "classification": "project_scoped",
+      "methods": {
+        "DELETE": {
+          "access": "project",
+          "cachePolicy": {
+            "required": "no_store_required",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": null,
+          "requestSizeLimitStatus": "unbounded_or_framework_default_review_required",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            400,
+            401,
+            403,
+            404,
+            405,
+            503
+          ],
+          "diagnosticExposure": "authenticated_minimum_necessary_no_secret_or_inventory_leak"
+        },
+        "GET": {
+          "access": "project",
+          "cachePolicy": {
+            "required": "private_no_store_required",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 0,
+          "requestSizeLimitStatus": "not_applicable",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            401,
+            403,
+            404,
+            405,
+            413,
+            503
+          ],
+          "diagnosticExposure": "authenticated_minimum_necessary_no_secret_or_inventory_leak"
+        },
+        "POST": {
+          "access": "project",
+          "cachePolicy": {
+            "required": "no_store_required",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": null,
+          "requestSizeLimitStatus": "unbounded_or_framework_default_review_required",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200,
+              201
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            400,
+            401,
+            403,
+            404,
+            405,
+            503
+          ],
+          "diagnosticExposure": "authenticated_minimum_necessary_no_secret_or_inventory_leak"
+        }
+      }
+    },
+    "/api/validation/connectors": {
+      "route": "/api/validation/connectors",
+      "sourcePath": "app/api/validation/connectors/route.ts",
+      "classification": "public_sanitized",
+      "methods": {
+        "GET": {
+          "access": "public_demo",
+          "cachePolicy": {
+            "required": "public_sanitized_explicit_or_runtime_verified",
+            "declaredDirectives": [
+              "public, s-maxage=300, stale-while-revalidate=600"
+            ],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 0,
+          "requestSizeLimitStatus": "not_applicable",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            405,
+            413
+          ],
+          "diagnosticExposure": "compact_sanitized_public_contract"
+        }
+      }
+    },
+    "/api/validation/evidence/[id]/reviews/[reviewId]": {
+      "route": "/api/validation/evidence/[id]/reviews/[reviewId]",
+      "sourcePath": "app/api/validation/evidence/[id]/reviews/[reviewId]/route.ts",
+      "classification": "project_scoped",
+      "methods": {
+        "PATCH": {
+          "access": "project",
+          "cachePolicy": {
+            "required": "no_store_required",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": null,
+          "requestSizeLimitStatus": "unbounded_or_framework_default_review_required",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            400,
+            401,
+            403,
+            404,
+            405,
+            503
+          ],
+          "diagnosticExposure": "authenticated_minimum_necessary_no_secret_or_inventory_leak"
+        }
+      }
+    },
+    "/api/validation/evidence/[id]/reviews": {
+      "route": "/api/validation/evidence/[id]/reviews",
+      "sourcePath": "app/api/validation/evidence/[id]/reviews/route.ts",
+      "classification": "project_scoped",
+      "methods": {
+        "GET": {
+          "access": "project",
+          "cachePolicy": {
+            "required": "private_no_store_required",
+            "declaredDirectives": [
+              "private, no-store, max-age=0"
+            ],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 0,
+          "requestSizeLimitStatus": "not_applicable",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            401,
+            403,
+            404,
+            405,
+            413,
+            503
+          ],
+          "diagnosticExposure": "authenticated_minimum_necessary_no_secret_or_inventory_leak"
+        },
+        "POST": {
+          "access": "project",
+          "cachePolicy": {
+            "required": "no_store_required",
+            "declaredDirectives": [
+              "private, no-store, max-age=0"
+            ],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": null,
+          "requestSizeLimitStatus": "unbounded_or_framework_default_review_required",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200,
+              201
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            400,
+            401,
+            403,
+            404,
+            405,
+            503
+          ],
+          "diagnosticExposure": "authenticated_minimum_necessary_no_secret_or_inventory_leak"
+        }
+      }
+    },
+    "/api/validation/evidence/[id]": {
+      "route": "/api/validation/evidence/[id]",
+      "sourcePath": "app/api/validation/evidence/[id]/route.ts",
+      "classification": "project_scoped",
+      "methods": {
+        "DELETE": {
+          "access": "project",
+          "cachePolicy": {
+            "required": "no_store_required",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": null,
+          "requestSizeLimitStatus": "unbounded_or_framework_default_review_required",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            400,
+            401,
+            403,
+            404,
+            405,
+            503
+          ],
+          "diagnosticExposure": "authenticated_minimum_necessary_no_secret_or_inventory_leak"
+        },
+        "PATCH": {
+          "access": "project",
+          "cachePolicy": {
+            "required": "no_store_required",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": null,
+          "requestSizeLimitStatus": "unbounded_or_framework_default_review_required",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            400,
+            401,
+            403,
+            404,
+            405,
+            503
+          ],
+          "diagnosticExposure": "authenticated_minimum_necessary_no_secret_or_inventory_leak"
+        }
+      }
+    },
+    "/api/validation/evidence": {
+      "route": "/api/validation/evidence",
+      "sourcePath": "app/api/validation/evidence/route.ts",
+      "classification": "project_scoped",
+      "methods": {
+        "POST": {
+          "access": "project",
+          "cachePolicy": {
+            "required": "no_store_required",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": null,
+          "requestSizeLimitStatus": "unbounded_or_framework_default_review_required",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200,
+              201
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            400,
+            401,
+            403,
+            404,
+            405,
+            503
+          ],
+          "diagnosticExposure": "authenticated_minimum_necessary_no_secret_or_inventory_leak"
+        }
+      }
+    },
+    "/api/validation": {
+      "route": "/api/validation",
+      "sourcePath": "app/api/validation/route.ts",
+      "classification": "project_scoped",
+      "methods": {
+        "GET": {
+          "access": "project",
+          "cachePolicy": {
+            "required": "private_no_store_required",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 0,
+          "requestSizeLimitStatus": "not_applicable",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            401,
+            403,
+            404,
+            405,
+            413,
+            503
+          ],
+          "diagnosticExposure": "authenticated_minimum_necessary_no_secret_or_inventory_leak"
+        }
+      }
+    }
+  }
+}

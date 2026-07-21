@@ -14,6 +14,7 @@ const projectComparisonAccessibilitySpec = read("tests/e2e/accessibility-project
 const mobileProductSpec = read("tests/e2e/mobile-product-flow.spec.ts");
 const mobileGlobalNavigationSpec = read("tests/e2e/mobile-global-navigation.spec.ts");
 const commercialAlignmentVisualSpec = read("tests/e2e/commercial-alignment-visual.spec.ts");
+const systemResilienceSpec = read("tests/e2e/system-resilience-flow.spec.ts");
 const productNavigation = read("components/product-navigation.tsx");
 const lighthouseBudgetScript = read("scripts/lighthouse-budget-check.mjs");
 const workflow = read(".github/workflows/geoai-quality-gate.yml");
@@ -31,7 +32,7 @@ if (packageJson.devDependencies?.["@playwright/test"] !== "1.61.1") {
 if (packageJson.devDependencies?.["@axe-core/playwright"] !== "4.12.1") {
   failures.push("@axe-core/playwright must stay exactly pinned to 4.12.1");
 }
-if (packageJson.scripts?.["test:e2e:auth-session"] !== "playwright test tests/e2e/auth-session-flow.spec.ts tests/e2e/auth-responsive-flow.spec.ts tests/e2e/public-request-flow.spec.ts tests/e2e/accessibility-workspace-flow.spec.ts tests/e2e/accessibility-project-comparison-flow.spec.ts tests/e2e/mobile-product-flow.spec.ts tests/e2e/mobile-global-navigation.spec.ts tests/e2e/commercial-alignment-visual.spec.ts") {
+if (packageJson.scripts?.["test:e2e:auth-session"] !== "playwright test tests/e2e/auth-session-flow.spec.ts tests/e2e/auth-responsive-flow.spec.ts tests/e2e/public-request-flow.spec.ts tests/e2e/accessibility-workspace-flow.spec.ts tests/e2e/accessibility-project-comparison-flow.spec.ts tests/e2e/mobile-product-flow.spec.ts tests/e2e/mobile-global-navigation.spec.ts tests/e2e/commercial-alignment-visual.spec.ts tests/e2e/system-resilience-flow.spec.ts") {
   failures.push("The focused Auth/session, responsive, accessibility and commercial visual Playwright command is missing");
 }
 if (packageJson.scripts?.["test:e2e:auth-real-persona"] !== "playwright test tests/e2e/real-email-auth-flow.spec.ts") {
@@ -40,7 +41,7 @@ if (packageJson.scripts?.["test:e2e:auth-real-persona"] !== "playwright test tes
 if (packageJson.devDependencies?.lighthouse !== "13.4.0") {
   failures.push("Lighthouse must stay exactly pinned to 13.4.0");
 }
-if (packageJson.scripts?.["test:lighthouse-budget"] !== "node scripts/lighthouse-budget-check.mjs artifacts/lighthouse-mobile.json artifacts/lighthouse-desktop.json artifacts/lighthouse-mobile-projects.json artifacts/lighthouse-desktop-explore.json artifacts/lighthouse-desktop-login.json") {
+if (packageJson.scripts?.["test:lighthouse-budget"] !== "node scripts/lighthouse-budget-check.mjs artifacts/lighthouse-mobile.json artifacts/lighthouse-desktop.json artifacts/lighthouse-mobile-projects.json artifacts/lighthouse-desktop-explore.json artifacts/lighthouse-desktop-login.json artifacts/lighthouse-desktop-request-access.json artifacts/lighthouse-desktop-profile.json") {
   failures.push("The Lighthouse budget command is missing");
 }
 
@@ -230,6 +231,17 @@ for (const marker of [
 ]) requireText(commercialAlignmentVisualSpec, marker, `Commercial Landing/Account visual flow is missing ${marker}`);
 
 for (const marker of [
+  "{malformed-json",
+  "geoai-public-demo-v999",
+  "256 * 1024 + 1",
+  "localStorage\", { configurable: true",
+  "sessionStorage\", { configurable: true",
+  "navigator, \"clipboard\"",
+  "repeated request actions",
+  "unrelated-user-key"
+]) requireText(systemResilienceSpec, marker, `System resilience browser flow is missing ${marker}`);
+
+for (const marker of [
   'aria-label="Primary product navigation"',
   'aria-label="Mobile product navigation"',
   'aria-controls="mobile-product-navigation-menu"',
@@ -247,12 +259,17 @@ for (const marker of [
   'name: "desktop-explore"',
   'name: "desktop-workspace"',
   'name: "desktop-login"',
+  'name: "desktop-request-access"',
+  'name: "desktop-profile"',
   'expectedPath: "/workspace"',
   'expectedPath: "/login"',
   'accessibility: 0.95',
   '"largest-contentful-paint"',
   '"cumulative-layout-shift"',
-  '"total-blocking-time"'
+  '"total-blocking-time"',
+  "transferredJsBytes",
+  "decodedJsBytes",
+  "mapboxContribution"
 ]) requireText(lighthouseBudgetScript, marker, `Lighthouse budget contract is missing ${marker}`);
 
 const browserStepStart = workflow.indexOf("- name: Browser Auth/session flow");
@@ -283,6 +300,8 @@ for (const marker of [
   "artifacts/lighthouse-mobile-projects.json",
   "artifacts/lighthouse-desktop-explore.json",
   "artifacts/lighthouse-desktop-login.json",
+  "artifacts/lighthouse-desktop-request-access.json",
+  "artifacts/lighthouse-desktop-profile.json",
   "--preset=desktop",
   "npm run test:lighthouse-budget"
 ]) requireText(workflow, marker, `Quality Gate Lighthouse step is missing ${marker}`);
