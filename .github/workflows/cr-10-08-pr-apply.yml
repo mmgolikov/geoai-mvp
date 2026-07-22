@@ -56,19 +56,44 @@ jobs:
           node-version: 22
           cache: npm
 
-      - name: Verify and push CR 10.08
+      - name: Verify CR 10.08
+        id: verify
         if: env.already_applied != 'true'
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -uo pipefail
+          {
+            npm ci &&
+            npm run docs:lifecycle:generate &&
+            npm run lint &&
+            npm run test:design-foundation &&
+            npm run test:auth-session-e2e-contract &&
+            npm run test:data-honesty &&
+            git diff --check
+          } > artifacts/cr-10-08-verify.log 2>&1
+          status=$?
+          cat artifacts/cr-10-08-verify.log
+          exit "$status"
+
+      - name: Upload verification diagnostic
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cr-10-08-verify-diagnostic-${{ github.run_id }}
+          path: artifacts/cr-10-08-verify.log
+          if-no-files-found: ignore
+          retention-days: 2
+
+      - name: Fail when verification did not pass
+        if: steps.verify.outcome == 'failure'
+        run: exit 1
+
+      - name: Commit and push CR 10.08
+        if: env.already_applied != 'true' && steps.verify.outcome == 'success'
         shell: bash
         run: |
           set -euo pipefail
-          npm ci
-          npm run docs:lifecycle:generate
-          npm run lint
-          npm run test:design-foundation
-          npm run test:auth-session-e2e-contract
-          npm run test:data-honesty
-          git diff --check
-
           git config user.name "GeoAI Delivery OS"
           git config user.email "actions@users.noreply.github.com"
           git add \
