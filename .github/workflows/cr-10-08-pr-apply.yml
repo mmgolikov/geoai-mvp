@@ -90,34 +90,53 @@ jobs:
         run: exit 1
 
       - name: Commit and push CR 10.08
+        id: publish
         if: env.already_applied != 'true' && steps.verify.outcome == 'success'
+        continue-on-error: true
         shell: bash
         run: |
-          set -euo pipefail
-          git config user.name "GeoAI Delivery OS"
-          git config user.email "actions@users.noreply.github.com"
-          git add \
-            app/explore/page.tsx \
-            app/workspace/page.tsx \
-            app/page.tsx \
-            components/product-navigation.tsx \
-            components/workspace-shell.tsx \
-            tests/e2e/auth-session-flow.spec.ts \
-            tests/e2e/accessibility-project-comparison-flow.spec.ts \
-            tests/e2e/design-foundation-shell.spec.ts \
-            tests/e2e/mobile-global-navigation.spec.ts \
-            tests/e2e/mobile-product-flow.spec.ts \
-            tests/e2e/route-body-invariance.spec.ts \
-            tests/e2e/workspace-consolidation.spec.ts \
-            scripts/auth-session-e2e-contract-check.mjs \
-            scripts/design-foundation-contract-check.mjs \
-            scripts/lighthouse-budget-check.mjs \
-            package.json \
-            .github/workflows/geoai-quality-gate.yml \
-            docs/WORKSPACE_CONSOLIDATION_CR_10_08_2026_07_23.md \
-            docs/RUNTIME_DESIGN_RECOVERY_PROGRAM_2026_07_22.json \
-            docs/DOCUMENT_LIFECYCLE_MANIFEST.json \
-            docs/DOCUMENT_ARCHIVE_INDEX.md
+          set -uo pipefail
+          {
+            git restore .github/workflows/geoai-quality-gate.yml
+            git config user.name "GeoAI Delivery OS"
+            git config user.email "actions@users.noreply.github.com"
+            git add \
+              app/explore/page.tsx \
+              app/workspace/page.tsx \
+              app/page.tsx \
+              components/product-navigation.tsx \
+              components/workspace-shell.tsx \
+              tests/e2e/auth-session-flow.spec.ts \
+              tests/e2e/accessibility-project-comparison-flow.spec.ts \
+              tests/e2e/design-foundation-shell.spec.ts \
+              tests/e2e/mobile-global-navigation.spec.ts \
+              tests/e2e/mobile-product-flow.spec.ts \
+              tests/e2e/route-body-invariance.spec.ts \
+              tests/e2e/workspace-consolidation.spec.ts \
+              scripts/auth-session-e2e-contract-check.mjs \
+              scripts/design-foundation-contract-check.mjs \
+              scripts/lighthouse-budget-check.mjs \
+              package.json \
+              docs/WORKSPACE_CONSOLIDATION_CR_10_08_2026_07_23.md \
+              docs/RUNTIME_DESIGN_RECOVERY_PROGRAM_2026_07_22.json \
+              docs/DOCUMENT_LIFECYCLE_MANIFEST.json \
+              docs/DOCUMENT_ARCHIVE_INDEX.md
+            git commit -m "feat: consolidate candidate search into Workspace"
+            git push origin HEAD:recovery/runtime-design-migration-v1
+          } > artifacts/cr-10-08-publish.log 2>&1
+          status=$?
+          cat artifacts/cr-10-08-publish.log
+          exit "$status"
 
-          git commit -m "feat: consolidate candidate search into Workspace"
-          git push origin HEAD:recovery/runtime-design-migration-v1
+      - name: Upload publish diagnostic
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cr-10-08-publish-diagnostic-${{ github.run_id }}
+          path: artifacts/cr-10-08-publish.log
+          if-no-files-found: ignore
+          retention-days: 2
+
+      - name: Fail when publish did not pass
+        if: steps.publish.outcome == 'failure'
+        run: exit 1
