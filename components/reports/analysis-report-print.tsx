@@ -45,7 +45,7 @@ function formatPerimeter(perimeterM?: number) {
     : `${Math.round(perimeterM).toLocaleString()} m`;
 }
 
-const requiredDataCaveat = "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.";
+const requiredDataCaveat = "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning, engineering, insurance or valuation conclusion.";
 
 export function AnalysisReportPrint({ report }: { report: AnalysisReportDeliverable }) {
   const scoreRows = scoreSummaryRows(report.scoreSummary);
@@ -60,60 +60,84 @@ export function AnalysisReportPrint({ report }: { report: AnalysisReportDelivera
   const decisionDetail = dashboardModel?.decisionDetail ?? report.executiveMemo;
   const confidenceLabel = dashboardModel?.confidenceLabel ?? report.analysis?.confidenceLevel ?? "Medium";
   const suitabilityScore = dashboardModel ? `${dashboardModel.primaryScore}/100` : "Not available";
+  const recommendedNextAction = dashboardModel?.recommendedNextAction ?? report.nextActions[0] ?? "Validate sources";
+  const analysisModeLabel = report.analysis?.analysisMode === "openai" ? "AI-generated" : "Sample/open fallback";
   const dashboardDrivers = dashboardModel?.drivers.map((item) => item.detail) ?? report.keyFindings;
   const dashboardRisks = dashboardModel?.risks.map((item) => item.detail) ?? report.risks;
   const distinctLimitations = report.limitations.filter((item, index, items) =>
     item.trim().toLowerCase() !== requiredDataCaveat.toLowerCase() && items.indexOf(item) === index
   );
+  const validationRequirement = clientPilotPackage?.validationRequirements[0]
+    ?? "Validate market, planning and site evidence against agreed official or client-approved sources.";
 
   return (
     <article className="geoai-print-report">
-      <PrintPage>
+      <PrintPage className="geoai-print-cover-page">
         <ReportHeader
           title="GeoAI Analysis Report"
           subtitle={report.subtitle}
-          badge="Screening report"
+          badge="Screening decision brief"
         />
+
+        <div className="geoai-print-top-grid">
+          <PrintSection title="Site Context Map">
+            {report.mapSnapshot ? (
+              <>
+                <ReportMapSnapshot snapshot={report.mapSnapshot} />
+                <p className="geoai-print-note">Captured from the saved GeoAI workspace context. Review the recorded attribution and capture timestamp before distribution.</p>
+              </>
+            ) : (
+              <>
+                <ReportPrintMap
+                  title={targetLabel}
+                  subtitle="Site / AOI screening context"
+                  coordinates={formatCoordinate(report.coordinates)}
+                  geometryLabel={report.analysisTarget?.geometry?.type ?? spatialContext?.geometryType ?? "Point selection"}
+                />
+                <p className="geoai-print-note">Schematic context only; no rendered basemap capture was stored with this report. Official map, planning and cadastral validation required.</p>
+              </>
+            )}
+          </PrintSection>
+
+          <section className="geoai-print-executive avoid-break" data-report-section="Executive Decision">
+            <h2>Executive Decision</h2>
+            <p data-report-field="rationale">{decisionSummary}</p>
+            {decisionDetail !== decisionSummary ? <p className="geoai-print-note">{decisionDetail}</p> : null}
+            <div className="geoai-print-action-callout" data-report-field="next-action">
+              <span>Recommended next action</span>
+              <strong>{recommendedNextAction}</strong>
+            </div>
+            <div className="geoai-print-mini-grid">
+              <PrintCard label="Suitability" value={suitabilityScore} field="suitability" />
+              <PrintCard label="Confidence" value={confidenceLabel} field="confidence" />
+              <PrintCard label="Validation" value="Required" field="validation" />
+              <PrintCard label="Analysis mode" value={analysisModeLabel} />
+            </div>
+          </section>
+        </div>
 
         <div className="geoai-print-meta-grid">
           <PrintCard label="Selected target" value={targetLabel} field="target" />
           <PrintCard label="Scenario" value={scenarioLabel} field="scenario" />
-          <PrintCard label="Suitability" value={suitabilityScore} field="suitability" />
           <PrintCard label="Decision posture" value={decisionPosture} field="decision-posture" />
-          <PrintCard label="Confidence" value={confidenceLabel} field="confidence" />
-          <PrintCard label="Validation state" value="Validation required" field="validation" />
           <PrintCard label="Coordinates" value={formatCoordinate(report.coordinates)} field="coordinates" />
           <PrintCard label="Saved report timestamp" value={formatDate(report.createdAt)} />
           <PrintCard label="Generated by" value={report.generatedBy} />
         </div>
 
-        <div className="geoai-print-top-grid">
-          <PrintSection title={report.mapSnapshot ? "Captured Map Context" : "Map Context Fallback"}>
-            {report.mapSnapshot ? (
-              <ReportMapSnapshot snapshot={report.mapSnapshot} />
-            ) : (
-              <>
-                <ReportPrintMap
-                  title={targetLabel}
-                  subtitle="Schematic object / AOI screening context"
-                  coordinates={formatCoordinate(report.coordinates)}
-                  geometryLabel={report.analysisTarget?.geometry?.type ?? spatialContext?.geometryType ?? "Point selection"}
-                />
-                <p className="geoai-print-note">Fallback schematic only; no rendered map capture was saved with this report. Official validation required.</p>
-              </>
-            )}
-          </PrintSection>
-
-          <PrintSection title="Executive Memo">
-            <p data-report-field="rationale">{decisionSummary}</p>
-            {decisionDetail !== decisionSummary ? <p className="geoai-print-note">{decisionDetail}</p> : null}
-            <div className="geoai-print-mini-grid">
-              <PrintCard label="Confidence" value={confidenceLabel} />
-              <PrintCard label="Validation" value="Validation required" />
-              <PrintCard label="Recommended next action" value={dashboardModel?.recommendedNextAction ?? report.nextActions[0] ?? "Validate sources"} field="next-action" />
-              <PrintCard label="Analysis mode" value={report.analysis?.analysisMode === "openai" ? "AI-generated" : "Sample/open fallback"} />
-            </div>
-          </PrintSection>
+        <div className="geoai-print-provenance-strip avoid-break">
+          <div>
+            <span>Project</span>
+            <strong>{report.analysis?.project?.name ?? report.projectKey}</strong>
+          </div>
+          <div>
+            <span>Evidence state</span>
+            <strong>Screening evidence; source validation remains open</strong>
+          </div>
+          <div>
+            <span>Distribution boundary</span>
+            <strong>Review caveats and source lineage before external use</strong>
+          </div>
         </div>
 
         {demoNarrative ? (
@@ -122,24 +146,35 @@ export function AnalysisReportPrint({ report }: { report: AnalysisReportDelivera
               <p>{demoNarrative.decisionQuestion}</p>
             </PrintSection>
             <PrintSection title="Validation Next Action">
-              <p>{clientPilotPackage.validationRequirements[0]}</p>
+              <p>{validationRequirement}</p>
               <p className="geoai-print-note">{demoNarrative.caveat}</p>
             </PrintSection>
           </div>
         ) : null}
-
       </PrintPage>
 
       <PrintPage>
-        <div className="geoai-print-two-col">
-          <PrintSection title="Score Overview">
-            <div className="geoai-print-score-grid">
-              {scoreRows.map((score) => (
-                <PrintCard key={score.label} label={score.label} value={`${score.value}/100`} />
-              ))}
-            </div>
-          </PrintSection>
+        <PrintSection title="Score Overview">
+          <div className="geoai-print-score-grid">
+            {scoreRows.map((score) => (
+              <PrintCard key={score.label} label={score.label} value={`${score.value}/100`} />
+            ))}
+          </div>
+        </PrintSection>
 
+        <div className="geoai-print-two-col">
+          <PrintSection title="Key Decision Drivers">
+            <PrintList items={dashboardDrivers.slice(0, 4)} />
+          </PrintSection>
+          <PrintSection title="Risk & Constraints">
+            <PrintList items={dashboardRisks.slice(0, 4)} />
+          </PrintSection>
+        </div>
+
+        <div className="geoai-print-two-col">
+          <PrintSection title="Opportunities">
+            <PrintList items={(report.opportunities.length > 0 ? report.opportunities : report.keyFindings).slice(0, 4)} />
+          </PrintSection>
           <PrintSection title="Market / Spatial Context">
             <div className="geoai-print-mini-grid">
               <PrintCard label="Market basis" value={report.analysis?.marketContext?.areaName ?? "Sample/open context"} />
@@ -152,44 +187,28 @@ export function AnalysisReportPrint({ report }: { report: AnalysisReportDelivera
 
         {report.selectedAoi ? (
           <PrintSection title={`${userDrawnAoiSourceLabel(report.selectedAoi)} Details`}>
-            <div className="geoai-print-mini-grid">
+            <div className="geoai-print-score-grid">
               <PrintCard label="Geometry" value="Polygon" />
               <PrintCard label="Area" value={formatArea(report.selectedAoi.measurements.areaSqM)} />
               <PrintCard label="Perimeter" value={formatPerimeter(report.selectedAoi.measurements.perimeterM)} />
               <PrintCard label="Vertices" value={String(report.selectedAoi.measurements.vertexCount)} />
               <PrintCard label="Source" value={userDrawnAoiSourceCode(report.selectedAoi)} />
-              <PrintCard label="Status" value="official validation required" />
+              <PrintCard label="Status" value="Official validation required" />
             </div>
             <p className="geoai-print-note">{report.selectedAoi.limitations[0]}</p>
           </PrintSection>
         ) : null}
 
-        <div className="geoai-print-two-col">
-          <PrintSection title="Key Findings">
-            <PrintList items={dashboardDrivers.slice(0, 3)} />
-          </PrintSection>
-
-          <PrintSection title="Risk & Constraints">
-            <PrintList items={dashboardRisks.slice(0, 3)} />
-          </PrintSection>
-        </div>
-
-        <div className="geoai-print-two-col">
-          <PrintSection title="Opportunities">
-            <PrintList items={(report.opportunities.length > 0 ? report.opportunities : report.keyFindings).slice(0, 4)} />
-          </PrintSection>
-
-          <PrintSection title="Screening Signals / Source Basis">
-            <PrintList
-              items={[
-                "Screening output uses deterministic scores and Data Foundation source-readiness fields.",
-                "Source basis should be reviewed by group, data mode, confidence and next validation step.",
-                "Market signals require validation against agreed market snapshots or customer-approved data.",
-                "Spatial and geometry context is screening-level unless validated by authorized sources."
-              ]}
-            />
-          </PrintSection>
-        </div>
+        <PrintSection title="Screening Signals / Source Basis">
+          <PrintList
+            items={[
+              "Screening output uses deterministic scores and Data Foundation source-readiness fields.",
+              "Source basis must be reviewed by group, data mode, confidence and next validation step.",
+              "Market signals require validation against agreed market snapshots or client-approved data.",
+              "Spatial and geometry context remains screening-level unless validated by authorized sources."
+            ]}
+          />
+        </PrintSection>
       </PrintPage>
 
       <PrintPage>
@@ -199,7 +218,6 @@ export function AnalysisReportPrint({ report }: { report: AnalysisReportDelivera
           <PrintSection title="Validation Checklist">
             <PrintList items={report.validationChecklist} />
           </PrintSection>
-
           <PrintSection title="Recommended Next Actions">
             <PrintList items={report.nextActions.slice(0, 6)} ordered />
           </PrintSection>
