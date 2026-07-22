@@ -39,6 +39,7 @@ Local corrective evidence passed on 2026-07-22:
 
 - `npm run lint`, production `npm run build`, Product System v3.2 drift contract, Auth/session wiring contract, data-honesty scan, secret-hygiene scan, documentation truth/lifecycle checks and API inventory `66/66`;
 - the permanent component-token contract passes with 16 unchanged semantic tokens and five structured compatibility adapters;
+- the first exact-head CI retry exposed newly published high-severity advisory `GHSA-f88m-g3jw-g9cj` through Next.js optional `sharp <0.35.0`; the lockfile now pins the compatible transitive override `sharp 0.35.3`, and production-only `npm audit` returns zero vulnerabilities without changing Next.js;
 - targeted Chromium corrective checks pass `2/2` with zero retries: 29 primitive states and route-body invariance `20/20`;
 - the existing shell evidence remains 21 canonical states across `1440×900`, `1024×900`, `768×1024` and `390×844` with zero serious/critical Axe findings;
 - 20 normalized body-only images below the shared header have equal SHA-256 hashes across Workspace, Projects, Explore, Request Access and Profile at the four declared viewports;
