@@ -1,9 +1,9 @@
 {
-  "schemaVersion": "1.0",
+  "schemaVersion": "1.1",
   "status": "active_implementation_authority_for_draft_branch",
-  "lastVerified": "2026-07-22",
+  "lastVerified": "2026-07-23",
   "owner": "GeoAI Founder / GeoAI Delivery OS",
-  "title": "GeoAI Runtime Design Recovery Program — CR 10.03 to CR 10.07",
+  "title": "GeoAI Runtime Design Recovery Program — CR 10.03 to CR 10.08",
   "repository": "mmgolikov/geoai-mvp",
   "base": {
     "branch": "main",
@@ -18,7 +18,10 @@
     "prototypeNode": "1482:2",
     "runtimeAlignmentNode": "1749:21157",
     "accessibilityCorrectionNode": "1819:11",
-    "excludedAuthorities": ["Page 90", "Page 99"],
+    "excludedAuthorities": [
+      "Page 90",
+      "Page 99"
+    ],
     "foundationRegistry": "docs/DESIGN_SYSTEM_V3_2_AUTHORITY_REGISTRY.json",
     "foundationBoundaryPreserved": true,
     "runtimeBodyMigrationAuthorization": {
@@ -29,9 +32,17 @@
       "productionAuthorized": false,
       "figmaWritesAuthorized": false,
       "supabaseMutationAuthorized": false
+    },
+    "workspaceConsolidationAuthorization": {
+      "approvedBy": "GeoAI Founder",
+      "approvedInConversationOn": "2026-07-23",
+      "decision": "Workspace is the single canonical Product surface; retire the visible Explore destination and preserve /explore only as a compatibility entry.",
+      "scope": "Draft branch and Vercel Preview only",
+      "mergeAuthorized": false,
+      "productionAuthorized": false
     }
   },
-  "executiveFinding": "PR #111 released Product System v3.2.1 foundation, shared shell, tokens and primitives while intentionally preserving route bodies through a 20-case invariance contract. The current Production therefore does not represent full Figma screen migration. Runtime recovery must replace body invariance with route-specific Figma parity and product-quality acceptance.",
+  "executiveFinding": "PR #111 released Product System v3.2.1 foundation, shared shell, tokens and primitives while intentionally preserving route bodies through a 20-case invariance contract. The current Production therefore does not represent full Figma screen migration. Runtime recovery must replace body invariance with route-specific Figma parity and product-quality acceptance. Workspace and Explore also duplicate the same WorkspaceShell; Workspace is now the canonical Product destination for both map-first and criteria-first workflows.",
   "mandatoryCaveat": "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning, engineering, insurance or valuation conclusion.",
   "semanticColorPolicy": {
     "brandBlue": "Brand identity, shared shell, navigation, information structure and focus boundaries.",
@@ -47,12 +58,24 @@
       "priority": "P0",
       "problem": "The commercial landing includes a validation strip that overlaps body copy and exposes internal validation language as a primary marketing visual.",
       "businessReason": "The public landing must communicate GeoAI value clearly, preserve data honesty and feel production-grade without internal workflow artefacts.",
-      "users": ["UAE developer and investor prospects", "government and enterprise buyers", "pilot stakeholders", "investors"],
-      "affectedRoutes": ["/", "/request-access", "/login"],
+      "users": [
+        "UAE developer and investor prospects",
+        "government and enterprise buyers",
+        "pilot stakeholders",
+        "investors"
+      ],
+      "affectedRoutes": [
+        "/",
+        "/request-access",
+        "/login"
+      ],
       "dataImpact": "None. Public copy and navigation only; no data transmission or persistence change.",
       "designImpact": "Remove overlapping validation overlay, retain commercial hierarchy, preserve approved shared shell and identity, and keep caveats in bounded legal/data-honesty positions.",
       "engineeringImpact": "Landing CSS/body correction, regression contract and responsive verification.",
-      "risks": ["Removing all caveats would weaken data honesty", "Changing public routes could break request/demo funnels"],
+      "risks": [
+        "Removing all caveats would weaken data honesty",
+        "Changing public routes could break request/demo funnels"
+      ],
       "acceptance": [
         "No validation/caution element overlaps commercial copy at desktop, tablet or mobile widths.",
         "The landing retains one meaningful h1 and all current commercial anchors and request/demo routes.",
@@ -66,12 +89,24 @@
       "priority": "P0",
       "problem": "Workspace retains shell-only alignment; scenario copy is clamped and a large validation disclosure competes with the primary workflow.",
       "businessReason": "The map-first and criteria-first workspace is the core product proof and must match the spatial, evidence-driven Figma composition.",
-      "users": ["development directors", "investment analysts", "government land teams", "portfolio managers"],
-      "affectedRoutes": ["/workspace", "/explore"],
+      "users": [
+        "development directors",
+        "investment analysts",
+        "government land teams",
+        "portfolio managers"
+      ],
+      "affectedRoutes": [
+        "/workspace",
+        "/workspace?mode=explore",
+        "/explore compatibility entry"
+      ],
       "dataImpact": "No source, persistence, scoring or authority change. Existing deterministic browser-local behavior is preserved.",
       "designImpact": "Preserve map-dominant composition, make scenario text fully readable, reduce validation disclosure to a compact decision-context note, and use spatial teal for analytical emphasis.",
       "engineeringImpact": "Scoped workspace presentation layer, route-specific regression tests and Figma-node traceability.",
-      "risks": ["Presentation changes could obscure existing controls", "A global CSS fix could unintentionally affect other routes"],
+      "risks": [
+        "Presentation changes could obscure existing controls",
+        "A global CSS fix could unintentionally affect other routes"
+      ],
       "acceptance": [
         "Scenario title and subtitle render without one-line clipping.",
         "The former expandable Validation caveat does not occupy the primary setup card.",
@@ -85,12 +120,24 @@
       "priority": "P1",
       "problem": "Analysis and comparison surfaces are functionally complete but not yet accepted as Figma-parity decision screens.",
       "businessReason": "Decision screens must answer what happens, why it matters, risk, impact, next action and evidence in one reviewable hierarchy.",
-      "users": ["analysts", "development directors", "investment committees", "public-sector reviewers"],
-      "affectedRoutes": ["/workspace analysis state", "/workspace comparison state", "/reports"],
+      "users": [
+        "analysts",
+        "development directors",
+        "investment committees",
+        "public-sector reviewers"
+      ],
+      "affectedRoutes": [
+        "/workspace analysis state",
+        "/workspace comparison state",
+        "/reports"
+      ],
       "dataImpact": "No new claims or live integrations. Existing sample/open and user-provided contexts remain visibly distinguished.",
       "designImpact": "One primary takeaway per screen, evidence lineage visible, teal analytical hierarchy, amber only for validation gaps and no unsupported readiness claims.",
       "engineeringImpact": "ExpressDashboard, ComparisonDashboard and evidence/source components migrate under route-specific acceptance.",
-      "risks": ["Cosmetic score emphasis could imply certified valuation", "Evidence visibility could be reduced by over-simplification"],
+      "risks": [
+        "Cosmetic score emphasis could imply certified valuation",
+        "Evidence visibility could be reduced by over-simplification"
+      ],
       "acceptance": [
         "Primary decision posture, score, confidence, validation state and next action are visible without scrolling on desktop.",
         "Source lineage and validation gaps remain accessible and honest.",
@@ -104,12 +151,24 @@
       "priority": "P0",
       "problem": "The current A4 report collapses grids into single columns under print media, creates sparse pages and presents a schematic fallback as a missing map.",
       "businessReason": "Reports are client-facing deliverables and must be executive-grade, evidence-aware and printable without appearing like a raw browser dump.",
-      "users": ["client decision makers", "investment committees", "government reviewers", "pilot sponsors"],
-      "affectedRoutes": ["/reports/[id]/print", "/report-packages/[id]/print", "Workspace report preview"],
+      "users": [
+        "client decision makers",
+        "investment committees",
+        "government reviewers",
+        "pilot sponsors"
+      ],
+      "affectedRoutes": [
+        "/reports/[id]/print",
+        "/report-packages/[id]/print",
+        "Workspace report preview"
+      ],
       "dataImpact": "No new data source. Captured map snapshots remain preferred; fallback remains explicitly schematic and non-official.",
       "designImpact": "Restore multi-column A4 composition, create a clear executive summary, make the map the visual anchor, reduce repeated caveats and improve page density.",
       "engineeringImpact": "Print media overrides, report component restructuring, improved context map fallback and PDF regression checks.",
-      "risks": ["Fallback visual could be mistaken for an official map", "Print pagination can vary by browser"],
+      "risks": [
+        "Fallback visual could be mistaken for an official map",
+        "Print pagination can vary by browser"
+      ],
       "acceptance": [
         "A4 print forces three-column metadata and score grids and two-column executive sections regardless of print viewport width.",
         "The first page contains an executive summary and a dominant captured or explicitly schematic site-context map.",
@@ -124,12 +183,19 @@
       "priority": "P1",
       "problem": "Blue and teal/green are used inconsistently across commercial, spatial and analytical contexts, while validation amber is over-prominent in some screens.",
       "businessReason": "A stable semantic palette improves comprehension, trust, accessibility and Figma-to-code consistency.",
-      "users": ["all Product and report users"],
-      "affectedRoutes": ["all public and Product routes", "reports and print"],
+      "users": [
+        "all Product and report users"
+      ],
+      "affectedRoutes": [
+        "all public and Product routes",
+        "reports and print"
+      ],
       "dataImpact": "None.",
       "designImpact": "Apply the semantic color policy in this program without changing approved foundation tokens.",
       "engineeringImpact": "Route-scoped aliases and component usage normalization; no token foundation rewrite.",
-      "risks": ["Changing semantic colors globally could break accessibility or state meaning"],
+      "risks": [
+        "Changing semantic colors globally could break accessibility or state meaning"
+      ],
       "acceptance": [
         "Brand blue structures the shell and information hierarchy.",
         "Spatial teal leads maps, analytical actions and evidence-positive states.",
@@ -137,6 +203,44 @@
         "Pressed/hover states do not switch semantic hue families.",
         "Contrast and focus-visible evidence remain compliant."
       ]
+    },
+    {
+      "id": "CR-10.08",
+      "title": "Workspace Consolidation and Explore Retirement",
+      "priority": "P0",
+      "problem": "Workspace and Explore expose the same WorkspaceShell and decision workflow, creating duplicate Product destinations, navigation choices, QA journeys and commercial terminology.",
+      "businessReason": "GeoAI needs one clear operating model: Workspace contains map-first and criteria-first screening, candidate search, comparison, decision dashboards, evidence and reports.",
+      "users": [
+        "all Product users",
+        "UAE prospects",
+        "pilot stakeholders",
+        "investors and client reviewers"
+      ],
+      "affectedRoutes": [
+        "/",
+        "/workspace",
+        "/workspace?mode=explore",
+        "/projects",
+        "/explore compatibility entry"
+      ],
+      "dataImpact": "None. No source, scoring, persistence, report, Supabase, Auth, RLS, Storage or environment change.",
+      "designImpact": "Remove Explore from landing and Product navigation; use Workspace as the only visible operating surface; retain Criteria-first as an interaction mode.",
+      "engineeringImpact": "Update navigation registry, Workspace heading, legacy route behavior and E2E/visual/accessibility contracts. Keep internal explore-prefixed implementation identifiers temporarily to avoid a broad functional refactor.",
+      "risks": [
+        "Legacy bookmarks may break",
+        "Candidate-search functionality could be mistaken as removed",
+        "Shared-shell visual baselines will change"
+      ],
+      "acceptance": [
+        "No visible Explore Product navigation item exists on desktop, tablet or mobile.",
+        "Landing contains no Explore platform CTA.",
+        "Workspace is the only visible operating surface for map-first and criteria-first workflows.",
+        "Criteria-first candidate search, comparison, dashboard and export work from /workspace.",
+        "/explore is compatibility-only and forwards users to /workspace?mode=explore.",
+        "Workspace heading remains Workspace location screening in all entry states.",
+        "Shared-shell accessibility, target-size, focus and overflow checks remain green."
+      ],
+      "sourceDocument": "docs/WORKSPACE_CONSOLIDATION_CR_10_08_2026_07_23.md"
     }
   ],
   "releaseGovernance": {
