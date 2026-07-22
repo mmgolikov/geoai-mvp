@@ -1,4 +1,4 @@
-name: Sync CR 10.08 Quality Gate — PR
+name: Export CR 10.08 Quality Gate — PR
 
 on:
   pull_request:
@@ -6,11 +6,10 @@ on:
       - main
 
 permissions:
-  actions: write
-  contents: write
+  contents: read
 
 jobs:
-  sync:
+  export:
     if: github.head_ref == 'recovery/runtime-design-migration-v1'
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -32,16 +31,10 @@ jobs:
           grep -F 'lighthouse-desktop-workspace-criteria.json' .github/workflows/geoai-quality-gate.yml
           git diff --check
 
-      - name: Commit and push Quality Gate sync
-        shell: bash
-        run: |
-          set -euo pipefail
-          if git diff --quiet -- .github/workflows/geoai-quality-gate.yml; then
-            echo "Quality Gate sync is already present."
-            exit 0
-          fi
-          git config user.name "GeoAI Delivery OS"
-          git config user.email "actions@users.noreply.github.com"
-          git add .github/workflows/geoai-quality-gate.yml
-          git commit -m "ci: align Quality Gate with Workspace consolidation"
-          git push origin HEAD:recovery/runtime-design-migration-v1
+      - name: Export verified workflow file
+        uses: actions/upload-artifact@v4
+        with:
+          name: cr-10-08-quality-workflow-${{ github.run_id }}
+          path: .github/workflows/geoai-quality-gate.yml
+          if-no-files-found: error
+          retention-days: 2
