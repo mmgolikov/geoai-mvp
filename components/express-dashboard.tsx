@@ -135,7 +135,7 @@ export function ExpressDashboard({
       data-dashboard-longitude={analysis.point.longitude}
     >
       <div className="flex h-full w-full min-w-0 flex-col">
-        {/* Dashboard viewport contract: first overview must fit within workspace height and align with command panel footer; drill-down content starts below. */}
+        {/* The first overview prioritizes decision posture, score and next action before supporting KPI drill-down. */}
         <section className="flex h-full min-h-0 shrink-0 flex-col gap-2 p-3">
           <header className="grid shrink-0 gap-1.5 rounded-lg border border-line bg-white p-2 shadow-sm lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
             <div className="min-w-0">
@@ -207,13 +207,13 @@ export function ExpressDashboard({
               <div className="min-h-0 flex-1 overflow-y-auto pr-1 [scrollbar-width:thin]">
                 <div className="grid items-stretch gap-2 lg:grid-cols-2" data-dashboard-decision-pair>
                   <article
-                    className="grid h-full min-h-[252px] grid-rows-[auto_minmax(0,1fr)_auto] rounded-md border border-[#d6c391] bg-[#fff9e8] p-3"
+                    className="grid h-full min-h-[220px] grid-rows-[auto_minmax(0,1fr)_auto] rounded-md border border-[#d6c391] bg-[#fff9e8] p-3"
                     data-dashboard-card="decision-posture"
                   >
                     <TextSafeValue wrap="normal" className="text-xs font-semibold uppercase leading-4 text-[#6f5817]">
                       Decision posture
                     </TextSafeValue>
-                    <div className="flex min-h-0 flex-col justify-center py-3">
+                    <div className="flex min-h-0 flex-col justify-center py-2">
                       <TextSafeValue wrap="normal" className="text-xl font-semibold leading-7 text-ink" data-dashboard-value="decision-posture">
                         {dashboardModel.decisionPosture}
                       </TextSafeValue>
@@ -223,7 +223,7 @@ export function ExpressDashboard({
                     </div>
                     {showDecisionDetail ? (
                       <details className="rounded-md border border-[#ead28a] bg-white px-3" data-dashboard-control="full-rationale">
-                        <summary className="flex h-9 cursor-pointer list-none items-center text-[11px] font-semibold uppercase leading-4 text-[#6f5817]">
+                        <summary className="flex h-8 cursor-pointer list-none items-center text-[11px] font-semibold uppercase leading-4 text-[#6f5817]">
                           Full rationale
                         </summary>
                         <TextSafeValue className="mt-2 border-t border-line pt-2 text-xs leading-5 text-muted">
@@ -241,14 +241,44 @@ export function ExpressDashboard({
                     validationLabel="Validation required"
                   />
                 </div>
-                <TextSafeValue className="mt-2 text-xs leading-5 text-muted xl:text-sm">
-                  {summaryPreview}
-                </TextSafeValue>
-                {analysis.analysisNotice ? (
-                  <TextSafeValue className="mt-2 rounded-md border border-line bg-white px-3 py-2 text-xs leading-5 text-muted">
-                    {analysis.analysisNotice}
-                  </TextSafeValue>
-                ) : null}
+
+                <div className="mt-2 grid gap-2 lg:grid-cols-[minmax(0,1fr)_minmax(250px,0.72fr)]" data-dashboard-overview-summary>
+                  <div className="rounded-md border border-line bg-white p-3">
+                    <TextSafeValue className="text-xs leading-5 text-muted xl:text-sm">
+                      {summaryPreview}
+                    </TextSafeValue>
+                    {analysis.analysisNotice ? (
+                      <TextSafeValue className="mt-2 border-t border-line pt-2 text-xs leading-5 text-muted">
+                        {analysis.analysisNotice}
+                      </TextSafeValue>
+                    ) : null}
+                  </div>
+
+                  <div className="rounded-md border border-line bg-white p-3" data-dashboard-card="next-action">
+                    <TextSafeValue wrap="normal" className="text-xs font-semibold uppercase leading-4 text-muted">
+                      Recommended next action
+                    </TextSafeValue>
+                    <TextSafeValue className="mt-1 text-sm font-semibold leading-5 text-ink" data-dashboard-value="next-action">
+                      {dashboardModel.recommendedNextAction}
+                    </TextSafeValue>
+                    <div className="mt-2 grid gap-1.5">
+                      {secondaryActions.map((item) => (
+                        <TextSafeValue key={item.id} className="rounded-md bg-surface px-2 py-1 text-xs leading-5 text-muted">
+                          {item.label}
+                        </TextSafeValue>
+                      ))}
+                    </div>
+                    <details className="mt-2 rounded-md border border-line bg-surface px-3 py-1.5">
+                      <summary className="cursor-pointer list-none text-[11px] font-semibold uppercase leading-4 text-muted">
+                        Action details
+                      </summary>
+                      <TextSafeValue className="mt-2 border-t border-line pt-2 text-xs leading-5 text-muted">
+                        {primaryAction?.detail ?? dashboardModel.recommendedNextActionDetail}
+                      </TextSafeValue>
+                    </details>
+                  </div>
+                </div>
+
                 <div
                   className="mt-2 grid gap-2"
                   style={{ gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))" }}
@@ -275,29 +305,6 @@ export function ExpressDashboard({
                     items={dashboardModel.risks.slice(0, 3)}
                     emptyLabel="No risk signals were generated for this screening run."
                   />
-                </div>
-                <div className="mt-2 rounded-md border border-line bg-white p-3">
-                  <TextSafeValue wrap="normal" className="text-xs font-semibold uppercase leading-4 text-muted">
-                    Recommended next action
-                  </TextSafeValue>
-                  <TextSafeValue className="mt-1 text-sm font-semibold leading-5 text-ink" data-dashboard-value="next-action">
-                    {dashboardModel.recommendedNextAction}
-                  </TextSafeValue>
-                  <div className="mt-2 grid gap-2 md:grid-cols-2">
-                    {secondaryActions.map((item) => (
-                      <TextSafeValue key={item.id} className="rounded-md bg-surface px-2 py-1.5 text-xs leading-5 text-muted">
-                        {item.label}
-                      </TextSafeValue>
-                    ))}
-                  </div>
-                  <details className="mt-2 rounded-md border border-line bg-surface px-3 py-2">
-                    <summary className="cursor-pointer list-none text-[11px] font-semibold uppercase leading-4 text-muted">
-                      Action details
-                    </summary>
-                    <TextSafeValue className="mt-2 border-t border-line pt-2 text-xs leading-5 text-muted">
-                      {primaryAction?.detail ?? dashboardModel.recommendedNextActionDetail}
-                    </TextSafeValue>
-                  </details>
                 </div>
               </div>
             </section>
