@@ -1,4 +1,4 @@
-name: Apply CR 10.08 Workspace Consolidation — PR
+name: Sync CR 10.08 Quality Gate — PR
 
 on:
   pull_request:
@@ -6,13 +6,14 @@ on:
       - main
 
 permissions:
+  actions: write
   contents: write
 
 jobs:
-  apply:
+  sync:
     if: github.head_ref == 'recovery/runtime-design-migration-v1'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 10
     steps:
       - name: Checkout exact Draft branch
         uses: actions/checkout@v4
@@ -21,122 +22,26 @@ jobs:
           fetch-depth: 1
           show-progress: false
 
-      - name: Apply bounded source patch
-        id: patch
-        continue-on-error: true
+      - name: Apply and verify Quality Gate sync
         shell: bash
         run: |
-          set -uo pipefail
-          mkdir -p artifacts
-          python3 scripts/apply-cr-10-08-workspace-consolidation.py > artifacts/cr-10-08-patch.log 2>&1
-          status=$?
-          cat artifacts/cr-10-08-patch.log
-          if grep -q "already applied" artifacts/cr-10-08-patch.log; then
-            echo "already_applied=true" >> "$GITHUB_ENV"
+          set -euo pipefail
+          python3 scripts/apply-cr-10-08-quality-workflow.py
+          grep -F 'expected_status["/explore"]="307"' .github/workflows/geoai-quality-gate.yml
+          grep -F 'expected_location["/explore"]="/workspace"' .github/workflows/geoai-quality-gate.yml
+          grep -F 'lighthouse-desktop-workspace-criteria.json' .github/workflows/geoai-quality-gate.yml
+          git diff --check
+
+      - name: Commit and push Quality Gate sync
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- .github/workflows/geoai-quality-gate.yml; then
+            echo "Quality Gate sync is already present."
+            exit 0
           fi
-          exit "$status"
-
-      - name: Upload patch diagnostic
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: cr-10-08-patch-diagnostic-${{ github.run_id }}
-          path: artifacts/cr-10-08-patch.log
-          if-no-files-found: ignore
-          retention-days: 2
-
-      - name: Fail when source patch did not apply
-        if: steps.patch.outcome == 'failure'
-        run: exit 1
-
-      - name: Set up Node.js
-        if: env.already_applied != 'true'
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-
-      - name: Verify CR 10.08
-        id: verify
-        if: env.already_applied != 'true'
-        continue-on-error: true
-        shell: bash
-        run: |
-          set -uo pipefail
-          {
-            npm ci &&
-            npm run docs:lifecycle:generate &&
-            npm run lint &&
-            npm run test:design-foundation &&
-            npm run test:auth-session-e2e-contract &&
-            npm run test:data-honesty &&
-            git diff --check
-          } > artifacts/cr-10-08-verify.log 2>&1
-          status=$?
-          cat artifacts/cr-10-08-verify.log
-          exit "$status"
-
-      - name: Upload verification diagnostic
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: cr-10-08-verify-diagnostic-${{ github.run_id }}
-          path: artifacts/cr-10-08-verify.log
-          if-no-files-found: ignore
-          retention-days: 2
-
-      - name: Fail when verification did not pass
-        if: steps.verify.outcome == 'failure'
-        run: exit 1
-
-      - name: Commit and push CR 10.08
-        id: publish
-        if: env.already_applied != 'true' && steps.verify.outcome == 'success'
-        continue-on-error: true
-        shell: bash
-        run: |
-          set -uo pipefail
-          {
-            git restore .github/workflows/geoai-quality-gate.yml
-            git config user.name "GeoAI Delivery OS"
-            git config user.email "actions@users.noreply.github.com"
-            git add \
-              app/explore/page.tsx \
-              app/workspace/page.tsx \
-              app/page.tsx \
-              components/product-navigation.tsx \
-              components/workspace-shell.tsx \
-              tests/e2e/auth-session-flow.spec.ts \
-              tests/e2e/accessibility-project-comparison-flow.spec.ts \
-              tests/e2e/design-foundation-shell.spec.ts \
-              tests/e2e/mobile-global-navigation.spec.ts \
-              tests/e2e/mobile-product-flow.spec.ts \
-              tests/e2e/route-body-invariance.spec.ts \
-              tests/e2e/workspace-consolidation.spec.ts \
-              scripts/auth-session-e2e-contract-check.mjs \
-              scripts/design-foundation-contract-check.mjs \
-              scripts/lighthouse-budget-check.mjs \
-              package.json \
-              docs/WORKSPACE_CONSOLIDATION_CR_10_08_2026_07_23.md \
-              docs/RUNTIME_DESIGN_RECOVERY_PROGRAM_2026_07_22.json \
-              docs/DOCUMENT_LIFECYCLE_MANIFEST.json \
-              docs/DOCUMENT_ARCHIVE_INDEX.md
-            git commit -m "feat: consolidate candidate search into Workspace"
-            git push origin HEAD:recovery/runtime-design-migration-v1
-          } > artifacts/cr-10-08-publish.log 2>&1
-          status=$?
-          cat artifacts/cr-10-08-publish.log
-          exit "$status"
-
-      - name: Upload publish diagnostic
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: cr-10-08-publish-diagnostic-${{ github.run_id }}
-          path: artifacts/cr-10-08-publish.log
-          if-no-files-found: ignore
-          retention-days: 2
-
-      - name: Fail when publish did not pass
-        if: steps.publish.outcome == 'failure'
-        run: exit 1
+          git config user.name "GeoAI Delivery OS"
+          git config user.email "actions@users.noreply.github.com"
+          git add .github/workflows/geoai-quality-gate.yml
+          git commit -m "ci: align Quality Gate with Workspace consolidation"
+          git push origin HEAD:recovery/runtime-design-migration-v1
