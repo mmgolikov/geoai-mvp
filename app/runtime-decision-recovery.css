@@ -1,0 +1,102 @@
+/* CR 10.05 / 10.07 — decision intelligence and semantic color recovery. */
+
+[data-dashboard-analysis-id],
+[data-dashboard-comparison-id] {
+  --geoai-analysis: #087f8c;
+  --geoai-analysis-dark: #055f68;
+  --geoai-analysis-soft: #e8f7fa;
+  --geoai-analysis-line: rgba(8, 127, 140, 0.28);
+  --geoai-validation: #a63f00;
+}
+
+/* Spatial/analytical actions stay teal instead of changing semantic hue by state. */
+[data-dashboard-analysis-id] .bg-brand,
+[data-dashboard-comparison-id] .bg-brand {
+  background-color: var(--geoai-analysis) !important;
+}
+
+[data-dashboard-analysis-id] button.bg-brand:hover,
+[data-dashboard-comparison-id] button.bg-brand:hover {
+  background-color: var(--geoai-analysis-dark) !important;
+}
+
+[data-dashboard-analysis-id] .text-brand,
+[data-dashboard-comparison-id] .text-brand {
+  color: var(--geoai-analysis-dark) !important;
+}
+
+[data-dashboard-analysis-id] .focus\:border-brand:focus,
+[data-dashboard-comparison-id] .focus\:border-brand:focus,
+[data-dashboard-analysis-id] .hover\:border-brand:hover,
+[data-dashboard-comparison-id] .hover\:border-brand:hover {
+  border-color: var(--geoai-analysis) !important;
+}
+
+[data-dashboard-analysis-id] header > div:first-child > div:first-child > span:first-of-type,
+[data-dashboard-comparison-id] header h1 + span {
+  border: 1px solid var(--geoai-analysis-line);
+  background: var(--geoai-analysis-soft) !important;
+  color: var(--geoai-analysis-dark) !important;
+}
+
+/* Full evidence basis is readable; it is no longer forced into a clipped utility row. */
+[data-dashboard-analysis-id] [data-dashboard-evidence-row] {
+  display: -webkit-box;
+  overflow: visible !important;
+  white-space: normal !important;
+  text-overflow: clip !important;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+/* Decision posture is an analytical conclusion, not a validation warning. */
+[data-dashboard-analysis-id] [data-dashboard-card="decision-posture"] {
+  border-color: var(--geoai-analysis-line) !important;
+  background: linear-gradient(145deg, #ffffff, var(--geoai-analysis-soft)) !important;
+  box-shadow: inset 4px 0 0 var(--geoai-analysis);
+}
+
+[data-dashboard-analysis-id] [data-dashboard-card="decision-posture"] > :first-child,
+[data-dashboard-analysis-id] [data-dashboard-card="decision-posture"] summary {
+  color: var(--geoai-analysis-dark) !important;
+}
+
+[data-dashboard-analysis-id] [data-dashboard-card="decision-posture"] details {
+  border-color: var(--geoai-analysis-line) !important;
+}
+
+[data-dashboard-analysis-id] [data-dashboard-value="decision-posture"],
+[data-dashboard-analysis-id] [data-dashboard-value="next-action"] {
+  color: var(--geoai-analysis-dark) !important;
+}
+
+[data-dashboard-analysis-id] [data-dashboard-value="next-action"] {
+  font-size: 1rem;
+  line-height: 1.4;
+}
+
+[data-dashboard-analysis-id] section:has([data-dashboard-value="next-action"]) {
+  border-color: var(--geoai-analysis-line) !important;
+  box-shadow: inset 4px 0 0 var(--geoai-analysis);
+}
+
+/* Comparison winner and score hierarchy follow spatial intelligence semantics. */
+[data-dashboard-comparison-id] section:has(> div [data-dashboard-value="next-action"]),
+[data-dashboard-comparison-id] section:has(h2 + div) {
+  border-color: rgba(204, 222, 245, 0.9);
+}
+
+[data-dashboard-comparison-id] h2 + p,
+[data-dashboard-comparison-id] header p {
+  text-wrap: pretty;
+}
+
+[data-dashboard-comparison-id] [role="region"][aria-label="Comparison table"]:focus-visible {
+  outline-color: var(--geoai-analysis) !important;
+}
+
+/* Amber remains reserved for actual validation/caution content. */
+[data-dashboard-analysis-id] [data-validation-status],
+[data-dashboard-comparison-id] [data-validation-status] {
+  color: var(--geoai-validation);
+}
