@@ -70,8 +70,10 @@ requireCondition(
   "Workspace must use one canonical public heading in every interaction state."
 );
 requireCondition(
-  analysisPanel.includes("Criteria-first") && analysisPanel.includes("Map-first"),
-  "Map-first and Criteria-first must remain available inside the Workspace command panel."
+  analysisPanel.includes('const canonicalInteractionModeOrder: InteractionMode[] = ["criteria_first", "map_first"];') &&
+    analysisPanel.includes("getExploreModeLabel") &&
+    analysisPanel.includes("onExploreInteractionModeChange"),
+  "Map-first and Criteria-first must remain registered and selectable inside the Workspace command panel."
 );
 requireCondition(
   workspace.includes("Compare Candidates") && workspace.includes("Find redevelopment zones"),
