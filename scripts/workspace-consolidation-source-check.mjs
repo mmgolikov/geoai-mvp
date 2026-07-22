@@ -26,10 +26,11 @@ async function collectSourceFiles(relativeDirectory) {
   return files;
 }
 
-const [landing, navigation, workspace, exploreCompatibility] = await Promise.all([
+const [landing, navigation, workspace, analysisPanel, exploreCompatibility] = await Promise.all([
   read("app/page.tsx"),
   read("components/product-navigation.tsx"),
   read("components/workspace-shell.tsx"),
+  read("components/analysis-panel.tsx"),
   read("app/explore/page.tsx")
 ]);
 
@@ -69,8 +70,8 @@ requireCondition(
   "Workspace must use one canonical public heading in every interaction state."
 );
 requireCondition(
-  workspace.includes('name: "Criteria-first"') || workspace.includes('"Criteria-first"'),
-  "Criteria-first must remain available inside Workspace."
+  analysisPanel.includes("Criteria-first") && analysisPanel.includes("Map-first"),
+  "Map-first and Criteria-first must remain available inside the Workspace command panel."
 );
 requireCondition(
   workspace.includes("Compare Candidates") && workspace.includes("Find redevelopment zones"),
@@ -117,7 +118,7 @@ const evidence = {
   compatibilityRoute: "/explore",
   compatibilityDestination: "/workspace",
   criteriaFirstPreserved: true,
-  checkedFiles: activeSourceFiles.length + 4,
+  checkedFiles: activeSourceFiles.length + 5,
   findings,
   activeViolations,
   checkedAt: new Date().toISOString()
