@@ -18,6 +18,7 @@ concurrency:
 
 jobs:
   quality-gate:
+    if: github.event_name != 'workflow_dispatch'
     name: Static, API and data-honesty checks
     runs-on: ubuntu-latest
     timeout-minutes: 40
@@ -528,6 +529,7 @@ jobs:
           retention-days: 14
 
   database-replay:
+    if: github.event_name != 'workflow_dispatch'
     name: Supabase clean replay, synthetic upgrade rehearsal and pgTAP personas
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -614,3 +616,84 @@ jobs:
           path: artifacts/database/
           if-no-files-found: warn
           retention-days: 14
+
+  route-body-baseline-capture:
+    if: github.event_name == 'workflow_dispatch'
+    name: Temporary CR 10.02 route-body Linux baseline
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CI: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
+      NEXT_PUBLIC_AUTH_MODE: supabase_auth
+      NEXT_PUBLIC_SUPABASE_URL: https://bkmfcjzalcvdsdvyxpgi.supabase.co
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_geoai_ci_browser_contract_only
+      GEOAI_ACCESS_ENFORCEMENT_MODE: hard
+      GEOAI_ALLOW_DEMO_PUBLIC: "false"
+      GEOAI_E2E_BASE_URL: http://127.0.0.1:3101
+      ROUTE_BODY_BASELINE_SHA: d788ea4ddeecc719b5ffcecdd6aab8539cc9b755
+      UPDATE_ROUTE_BODY_BASELINES: "1"
+
+    steps:
+      - name: Checkout evidence harness
+        uses: actions/checkout@v4
+
+      - name: Checkout authorized pre-shell baseline
+        uses: actions/checkout@v4
+        with:
+          ref: d788ea4ddeecc719b5ffcecdd6aab8539cc9b755
+          path: baseline
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install harness dependencies
+        run: npm ci
+
+      - name: Install baseline dependencies
+        working-directory: baseline
+        run: npm ci
+
+      - name: Capture canonical Linux body baselines
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd baseline
+          npm run dev -- -p 3101 > /tmp/geoai-cr1002-body-baseline-next.log 2>&1 &
+          APP_PID=$!
+          cd ..
+          trap 'kill "$APP_PID" 2>/dev/null || true' EXIT
+
+          READY=0
+          for attempt in $(seq 1 90); do
+            if curl --fail --silent --show-error http://127.0.0.1:3101/login > /dev/null; then
+              READY=1
+              break
+            fi
+            if ! kill -0 "$APP_PID" 2>/dev/null; then
+              cat /tmp/geoai-cr1002-body-baseline-next.log
+              exit 1
+            fi
+            sleep 1
+          done
+          test "$READY" = "1"
+
+          mkdir -p artifacts/cr1002-route-body-baseline
+          google-chrome --version | tee artifacts/cr1002-route-body-baseline/chrome-version.txt
+          git rev-parse HEAD | tee artifacts/cr1002-route-body-baseline/harness-commit-sha.txt
+          git -C baseline rev-parse HEAD | tee artifacts/cr1002-route-body-baseline/baseline-commit-sha.txt
+          npx playwright test tests/e2e/route-body-invariance.spec.ts --retries=0 | tee artifacts/cr1002-route-body-baseline/playwright.txt
+          cp /tmp/geoai-cr1002-body-baseline-next.log artifacts/cr1002-route-body-baseline/next-application.log
+
+      - name: Upload canonical Linux baseline
+        uses: actions/upload-artifact@v4
+        with:
+          name: cr1002-route-body-linux-baseline-${{ github.run_id }}
+          path: |
+            tests/e2e/__screenshots__/route-body-invariance/
+            artifacts/cr1002-route-body-baseline/
+          retention-days: 14
+          if-no-files-found: error
