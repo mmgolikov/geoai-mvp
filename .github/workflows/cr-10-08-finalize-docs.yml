@@ -1,0 +1,53 @@
+name: Finalize CR 10.08 Documentation
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    if: github.head_ref == 'recovery/runtime-design-migration-v1'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout Draft branch
+        uses: actions/checkout@v4
+        with:
+          ref: recovery/runtime-design-migration-v1
+          fetch-depth: 1
+          show-progress: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Verify source guard and regenerate lifecycle manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci
+          npm run test:workspace-consolidation-source
+          npm run docs:lifecycle:generate
+          npm run test:document-lifecycle
+          npm run lint
+          git diff --check
+
+      - name: Commit generated documentation state
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "GeoAI Delivery OS"
+          git config user.email "actions@users.noreply.github.com"
+          git add docs/DOCUMENT_LIFECYCLE_MANIFEST.json docs/DOCUMENT_ARCHIVE_INDEX.md
+          if git diff --cached --quiet; then
+            echo "Lifecycle documents are already current."
+            exit 0
+          fi
+          git commit -m "docs: synchronize CR 10.08 lifecycle manifest"
+          git push origin HEAD:recovery/runtime-design-migration-v1
