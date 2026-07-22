@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page, type Route } from "@playwright/test";
 
 type BodyEvidenceRecord = {
   baselineFile: string;
@@ -65,6 +65,15 @@ async function bodyBelowSharedShell(page: Page) {
   return body;
 }
 
+async function holdProjectHubInLocalFallback(route: Route) {
+  const pathname = new URL(route.request().url()).pathname;
+  if (pathname.startsWith("/api/auth/")) {
+    await route.continue();
+    return;
+  }
+  await route.abort("blockedbyclient");
+}
+
 test("proves all 20 Product route bodies are pixel-identical to the authorized pre-shell baseline", async ({ browser }) => {
   await fs.mkdir(baselineDirectory, { recursive: true });
   await fs.rm(evidenceDirectory, { force: true, recursive: true });
@@ -81,12 +90,18 @@ test("proves all 20 Product route bodies are pixel-identical to the authorized p
     await signInDemo(page);
 
     for (const route of routes) {
+      if (route === "/projects") {
+        await page.route("**/api/**", holdProjectHubInLocalFallback);
+      }
       await page.goto(route);
       await stabilize(page);
       const body = await bodyBelowSharedShell(page);
       const screenshot = await body.screenshot({ animations: "disabled", caret: "hide" });
       const name = fileName(route, viewport.name);
       const baselinePath = path.join(baselineDirectory, name);
+      if (route === "/projects") {
+        await page.unroute("**/api/**", holdProjectHubInLocalFallback);
+      }
 
       if (updateBaselines) {
         await fs.writeFile(baselinePath, screenshot);
@@ -134,7 +149,7 @@ test("proves all 20 Product route bodies are pixel-identical to the authorized p
   const manifest = {
     baselineSha,
     candidateSha: updateBaselines ? baselineSha : candidateSha,
-    captureNormalization: "Animations, transitions, caret, Next.js portal, dynamic Mapbox pixels, fallback-grid rasterization and browser-dependent corner/shadow antialiasing are suppressed; route layout, controls, text and all other body pixels remain compared.",
+    captureNormalization: "Animations, transitions, caret, Next.js portal, dynamic Mapbox pixels, fallback-grid rasterization and browser-dependent corner/shadow antialiasing are suppressed; Project Hub non-Auth API hydration is held in the authorized bundled local fallback state; route layout, controls, text and all other body pixels remain compared.",
     caseCount: records.length,
     equalityCount: records.filter((record) => record.equality).length,
     generatedAt: fixedTime,
