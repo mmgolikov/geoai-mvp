@@ -35,29 +35,41 @@ const harness = (content, width = 360) => renderToStaticMarkup(h(
   h("div", { "data-evidence-id": true }, content)
 ));
 
-for (const [state, props, label] of [
-  ["primary-default", {}, "Run analysis"],
-  ["primary-hover", {}, "Run analysis"],
-  ["primary-focus", {}, "Run analysis"],
-  ["primary-disabled", { disabled: true }, "Run analysis"],
-  ["primary-loading", { isLoading: true, loadingLabel: "Analyzing" }, "Run analysis"],
-  ["primary-touch", { size: "touch" }, "Run analysis"],
-  ["primary-touch-loading", { size: "touch", isLoading: true, loadingLabel: "Analyzing" }, "Run analysis"],
-  ["secondary-default", { variant: "secondary" }, "View evidence"],
-  ["secondary-focus", { variant: "secondary" }, "View evidence"],
-  ["quiet-default", { variant: "quiet" }, "Back"],
-  ["quiet-hover", { variant: "quiet" }, "Back"]
-]) output[`button-${state}`] = harness(h(Button, props, label));
+for (const variant of ["primary", "secondary", "quiet"]) {
+  for (const size of ["desktop", "touch"]) {
+    for (const state of ["default", "hover", "focus", "disabled", "loading"]) {
+      const props = {
+        disabled: state === "disabled",
+        isLoading: state === "loading",
+        loadingLabel: "Analyzing",
+        size,
+        variant
+      };
+      const label = variant === "primary" ? "Run analysis" : variant === "secondary" ? "View evidence" : "Back";
+      output[`button-${variant}-${size}-${state}`] = harness(h(Button, props, label));
+    }
+  }
+}
 
 for (const tone of ["neutral", "spatial", "validation", "critical"]) {
   for (const size of ["compact", "default"]) output[`status-chip-${tone}-${size}`] = harness(h(StatusChip, { size, tone }, tone.toUpperCase()));
 }
 
 const segmentOptions = [{ label: "B2B", value: "b2b" }, { label: "B2C", value: "b2c" }];
-output["segment-switch-desktop-active"] = harness(h(SegmentSwitch, { ariaLabel: "Audience", onChange: () => undefined, options: segmentOptions, value: "b2b" }));
-output["segment-switch-desktop-focus"] = output["segment-switch-desktop-active"];
-output["segment-switch-desktop-disabled-selected"] = harness(h(SegmentSwitch, { ariaLabel: "Audience", disabled: true, onChange: () => undefined, options: segmentOptions, value: "b2b" }));
-output["segment-switch-touch-active"] = harness(h(SegmentSwitch, { ariaLabel: "Audience", size: "touch", onChange: () => undefined, options: segmentOptions, value: "b2c" }));
+for (const size of ["desktop", "touch"]) {
+  for (const active of ["left", "right"]) {
+    for (const state of ["default", "focus", "disabled"]) {
+      output[`segment-switch-${size}-${active}-${state}`] = harness(h(SegmentSwitch, {
+        ariaLabel: "Audience",
+        disabled: state === "disabled",
+        onChange: () => undefined,
+        options: segmentOptions,
+        size,
+        value: active === "left" ? "b2b" : "b2c"
+      }));
+    }
+  }
+}
 
 for (const tone of ["validation", "critical"]) {
   for (const mode of ["compact", "full"]) {

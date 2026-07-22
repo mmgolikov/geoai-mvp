@@ -1,11 +1,34 @@
 {
-  "schemaVersion": "1.0",
-  "designSystemVersion": "Product System v3.2 component compatibility",
+  "schemaVersion": "1.1",
+  "designSystemVersion": "Product System v3.2.1 — Accessibility Correction",
   "figmaFileKey": "TAzDqOvRCw1mQGMU3Y4S9H",
+  "approvalDate": "2026-07-22",
+  "approver": "Maxim Golikov — Founder, GeoAI",
   "canonicalSource": "src/design-system/tokens.ts#productSystemV32ComponentTokens",
   "semanticBaselineManifest": "docs/DESIGN_FOUNDATION_TOKEN_MANIFEST_V3_2.json",
   "semanticBaselineUnchanged": true,
   "globalBodyMigration": false,
+  "evidenceContract": {
+    "axeSeriousCriticalMaximum": 0,
+    "deterministicCapturesPerState": 2,
+    "expectedStateCount": 56,
+    "requiresClippingPass": true,
+    "requiresComputedStyles": true,
+    "requiresSha256": true
+  },
+  "accessibilityCorrection": {
+    "figmaNode": "1819:11",
+    "primitive": { "inactiveText": "#606f83", "disabledText": "#667587" },
+    "aliases": {
+      "color/text/inactive": "primitive/inactive-text",
+      "color/text/disabled": "primitive/disabled-text",
+      "inactiveText": "color/text/inactive",
+      "disabledText": "color/text/disabled",
+      "chip/text/neutral": "inactiveText",
+      "segmented/text/default": "inactiveText",
+      "segmented/text/disabled": "disabledText"
+    }
+  },
   "components": {
     "button": {
       "figmaNode": "202:68",
@@ -26,18 +49,43 @@
         "radius": "14px",
         "loadingIndicator": "14px"
       },
-      "states": ["primary-default", "primary-hover", "primary-focus", "primary-disabled", "primary-loading", "secondary-default", "secondary-focus", "quiet-default", "quiet-hover"]
+      "typography": {
+        "fontFamily": "var(--font-geist), Geist, Arial, sans-serif",
+        "fontSize": "14px",
+        "fontWeight": 600,
+        "letterSpacing": "0px",
+        "lineHeight": "20px",
+        "whiteSpace": "nowrap"
+      },
+      "variantAxes": {
+        "style": ["primary", "secondary", "quiet"],
+        "size": ["desktop", "touch"],
+        "state": ["default", "hover", "focus", "disabled", "loading"]
+      },
+      "expectedStateCount": 30
     },
     "statusChip": {
       "figmaNode": "203:24",
       "color": {
-        "neutral": { "background": "#eef2f6", "border": "#dde3ea", "text": "#667587" },
+        "neutral": { "background": "#eef2f6", "border": "#dde3ea", "text": "#606f83" },
         "spatial": { "background": "#eaf2ff", "border": "#bfd3f4", "text": "#1769e0" },
         "validation": { "background": "#fff5e0", "border": "#e8c77b", "text": "#a85d00" },
         "critical": { "background": "#fff0f0", "border": "#dfa69a", "text": "#9f3412" }
       },
       "geometry": { "compactHeight": "24px", "defaultHeight": "28px" },
-      "states": ["neutral", "spatial", "validation", "critical"]
+      "typography": {
+        "fontFamily": "var(--font-geist), Geist, Arial, sans-serif",
+        "fontSize": "12px",
+        "fontWeight": 500,
+        "letterSpacing": "0.2px",
+        "lineHeight": "16px",
+        "whiteSpace": "nowrap"
+      },
+      "variantAxes": {
+        "tone": ["neutral", "spatial", "validation", "critical"],
+        "size": ["compact", "default"]
+      },
+      "expectedStateCount": 8
     },
     "segmentSwitch": {
       "figmaNode": "204:73",
@@ -46,7 +94,8 @@
         "containerBorder": "#dde3ea",
         "activeOption": "#087f8c",
         "focusBoundary": "#1769e0",
-        "inactiveAndDisabledText": "#667587",
+        "inactiveText": "#606f83",
+        "disabledText": "#667587",
         "disabledSelectedFill": "#dde3ea"
       },
       "geometry": {
@@ -57,7 +106,20 @@
         "touchWidth": "320px",
         "touchHeight": "52px"
       },
-      "states": ["active", "focus", "disabled-selected"]
+      "typography": {
+        "fontFamily": "var(--font-geist), Geist, Arial, sans-serif",
+        "fontSize": "12px",
+        "fontWeight": 600,
+        "letterSpacing": "0.2px",
+        "lineHeight": "16px",
+        "whiteSpace": "nowrap"
+      },
+      "variantAxes": {
+        "active": ["left", "right"],
+        "size": ["desktop", "touch"],
+        "state": ["default", "focus", "disabled"]
+      },
+      "expectedStateCount": 12
     },
     "validationCaveat": {
       "figmaNode": "205:41",
@@ -65,9 +127,20 @@
         "validation": { "background": "#fff5e0", "border": "#e8c77b", "text": "#7a4600" },
         "critical": { "background": "#fff0f0", "border": "#dfa69a", "text": "#9f3412" }
       },
-      "geometry": { "compactHeight": "44px", "fullMinimumHeight": "88px", "radius": "14px" },
+      "geometry": { "compactHeight": "44px", "fullMinimumHeight": "88px", "marker": "8px", "radius": "14px" },
       "label": { "validation": "VALIDATION REQUIRED", "critical": "BLOCKING ISSUE" },
-      "requiredCaveat": "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
+      "typography": {
+        "fontFamily": "var(--font-geist), Geist, Arial, sans-serif",
+        "compactBody": { "fontSize": "12px", "fontWeight": 500, "letterSpacing": "0px", "lineHeight": "18px" },
+        "fullLabel": { "fontSize": "10px", "fontWeight": 600, "letterSpacing": "0.6px", "lineHeight": "14px" },
+        "fullBody": { "fontSize": "14px", "fontWeight": 500, "letterSpacing": "0px", "lineHeight": "22px" }
+      },
+      "requiredCaveat": "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.",
+      "variantAxes": {
+        "tone": ["validation", "critical"],
+        "mode": ["compact", "full"]
+      },
+      "expectedStateCount": 4
     },
     "authenticatedProfileBadge": {
       "figmaNode": "219:425",
@@ -79,7 +152,9 @@
       "geometry": { "width": "40px", "height": "40px" },
       "persistentOuterHalo": false,
       "focusRingOnlyWhenFocusVisible": true,
-      "authenticatedIndicator": true
+      "authenticatedIndicator": true,
+      "variantAxes": { "state": ["default", "focus"] },
+      "expectedStateCount": 2
     }
   }
 }

@@ -1,8 +1,8 @@
-# CR 10.02 — Design Foundation and Shared Shell
+# CR 10.02 — Product System v3.2.1 Design Foundation and Shared Shell
 
 Status: **Approved for bounded implementation**  
 Owner approval: Maxim Golikov, Founder, GeoAI  
-Approval date: 2026-07-21  
+Approval date: 2026-07-22
 Control issue: GitHub #110  
 Implementation branch: `design/cr-10-02-foundation-shared-shell`
 
@@ -20,14 +20,27 @@ Stop if the branch does not start from this exact SHA.
 
 - Figma file: `https://www.figma.com/design/TAzDqOvRCw1mQGMU3Y4S9H/GeoAI`
 - File key: `TAzDqOvRCw1mQGMU3Y4S9H`
-- Approved version: **Product System v3.2 — Founder Approved Design Baseline**
+- Approved version: **Product System v3.2.1 — Accessibility Correction**
 - Start Here / approval record: `1797:2`
+- Accessibility correction receipt: `1819:11`
 - Executable prototype authority: `1482:2`
 - Product Component Library: `1672:17867`
 - Runtime alignment reference: `1749:21157`
 - Design approver: Maxim Golikov — Founder, GeoAI
 
 Never implement from Page 90 or Page 99.
+
+### 2.1 Accessibility correction
+
+Product System v3.2.1 supersedes v3.2 only for enabled inactive text. No Axe/WCAG exception, opacity workaround or computed-style workaround is authorized.
+
+- `primitive/inactive-text`: `#606f83`
+- `primitive/disabled-text`: `#667587`
+- neutral StatusChip enabled text: `#606f83` on `#eef2f6` (`4.55:1`)
+- enabled inactive SegmentSwitch text: `#606f83`
+- disabled SegmentSwitch text: `#667587`
+
+The enabled inactive and disabled values are separate tokens and require separate permanent assertions. StatusChip `203:24`, SegmentSwitch `204:73`, the 16-token semantic baseline, exact engineering baseline and bounded CR scope are otherwise unchanged.
 
 ## 3. Founder identity decision
 
@@ -45,7 +58,7 @@ The current audited Product has stable behavior but a historically evolved visua
 
 ## 5. Business reason
 
-Create the minimum controlled foundation needed for subsequent screen-by-screen migration to Product System v3.2 without changing business logic, browser-local public-demo containment, API/security contracts, source-lineage caveats or protected-pilot gates.
+Create the minimum controlled foundation needed for subsequent screen-by-screen migration to Product System v3.2.1 without changing business logic, browser-local public-demo containment, API/security contracts, source-lineage caveats or protected-pilot gates.
 
 ## 6. Authorized scope
 
@@ -128,7 +141,7 @@ Add permanent evidence for:
 
 ### 6.5 Component compatibility and independent-review evidence
 
-The approved 16 semantic/design tokens remain unchanged. Exact state values that differ from the broad semantic layer are implemented in a separate machine-readable component-compatibility contract for:
+The approved 16 semantic/design tokens remain unchanged. Exact state values, including the v3.2.1 separation of enabled inactive `#606f83` and disabled `#667587`, are implemented in a separate machine-readable component-compatibility contract for:
 
 - Button `202:68`;
 - StatusChip `203:24`;
@@ -193,7 +206,7 @@ Shell/profile presentation must not authorize protected APIs.
 
 ### Traceability
 
-- Every visible change references Product System v3.2 and exact Figma nodes.
+- Every visible change references Product System v3.2.1 and exact Figma nodes.
 - No Page 90/Page 99 source is used.
 - No undocumented visual deviation exists.
 - Identity approval is referenced in implementation receipts.
@@ -218,6 +231,8 @@ Shell/profile presentation must not authorize protected APIs.
 
 - APIs are typed and documented.
 - Required default/focus/disabled/loading states are represented.
+- Permanent evidence covers exactly 56 approved states: Button 30, StatusChip 8, SegmentSwitch 12, ValidationCaveat 4 and authenticated profile badge 2.
+- Enabled inactive and disabled text are asserted independently against receipt `1819:11`.
 - Decision-critical text is not truncated.
 - No duplicate canonical implementation is introduced.
 - Old-to-new component mapping and deprecation path are documented.

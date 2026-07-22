@@ -41,7 +41,7 @@ GeoAI remains a public demo prototype. Production is `demo_only`, `local_fallbac
 
 ## P2 — product and design quality
 
-1. Complete CR 10.02 founder review on the bounded Product System v3.2 token/shared-shell candidate. The approved foundation covers only the semantic tokens, identity, shared header/navigation, four primitives and permanent evidence; page-body migrations require separate Change Requests and must not use Page 90 or Page 99.
+1. Complete CR 10.02 founder review on the bounded Product System v3.2.1 token/shared-shell candidate. The approved foundation covers only the unchanged semantic baseline, accessibility-corrected component tokens, identity, shared header/navigation, four primitives and permanent evidence; page-body migrations require separate Change Requests and must not use Page 90 or Page 99.
 2. Resolve the live UX/a11y/performance audit backlog.
 3. Define and implement the missing criteria-first wireflow and empty/stub product documents.
 4. Modularize Workspace, Project Dashboard, Map and Analysis surfaces with regression coverage.

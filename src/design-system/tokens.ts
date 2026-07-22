@@ -28,7 +28,20 @@ export const productSystemV32Tokens = {
 } as const;
 
 export const productSystemV32ComponentTokens = {
-  version: "Product System v3.2 component compatibility",
+  version: "Product System v3.2.1 accessibility correction",
+  accessibilityCorrection: {
+    figmaNode: "1819:11",
+    primitive: { inactiveText: "#606f83", disabledText: "#667587" },
+    aliases: {
+      "color/text/inactive": "primitive/inactive-text",
+      "color/text/disabled": "primitive/disabled-text",
+      inactiveText: "color/text/inactive",
+      disabledText: "color/text/disabled",
+      "chip/text/neutral": "inactiveText",
+      "segmented/text/default": "inactiveText",
+      "segmented/text/disabled": "disabledText"
+    }
+  },
   button: {
     figmaNode: "202:68",
     color: {
@@ -47,17 +60,33 @@ export const productSystemV32ComponentTokens = {
       minimumWidth: "140px",
       radius: "14px",
       loadingIndicator: "14px"
+    },
+    typography: {
+      fontFamily: "var(--font-geist), Geist, Arial, sans-serif",
+      fontSize: "14px",
+      fontWeight: 600,
+      letterSpacing: "0px",
+      lineHeight: "20px",
+      whiteSpace: "nowrap"
     }
   },
   statusChip: {
     figmaNode: "203:24",
     color: {
-      neutral: { background: "#eef2f6", border: "#dde3ea", text: "#667587" },
+      neutral: { background: "#eef2f6", border: "#dde3ea", text: "#606f83" },
       spatial: { background: "#eaf2ff", border: "#bfd3f4", text: "#1769e0" },
       validation: { background: "#fff5e0", border: "#e8c77b", text: "#a85d00" },
       critical: { background: "#fff0f0", border: "#dfa69a", text: "#9f3412" }
     },
-    geometry: { compactHeight: "24px", defaultHeight: "28px" }
+    geometry: { compactHeight: "24px", defaultHeight: "28px" },
+    typography: {
+      fontFamily: "var(--font-geist), Geist, Arial, sans-serif",
+      fontSize: "12px",
+      fontWeight: 500,
+      letterSpacing: "0.2px",
+      lineHeight: "16px",
+      whiteSpace: "nowrap"
+    }
   },
   segmentSwitch: {
     figmaNode: "204:73",
@@ -66,7 +95,8 @@ export const productSystemV32ComponentTokens = {
       containerBorder: "#dde3ea",
       activeOption: "#087f8c",
       focusBoundary: "#1769e0",
-      inactiveAndDisabledText: "#667587",
+      inactiveText: "#606f83",
+      disabledText: "#667587",
       disabledSelectedFill: "#dde3ea"
     },
     geometry: {
@@ -76,6 +106,14 @@ export const productSystemV32ComponentTokens = {
       desktopHeight: "44px",
       touchWidth: "320px",
       touchHeight: "52px"
+    },
+    typography: {
+      fontFamily: "var(--font-geist), Geist, Arial, sans-serif",
+      fontSize: "12px",
+      fontWeight: 600,
+      letterSpacing: "0.2px",
+      lineHeight: "16px",
+      whiteSpace: "nowrap"
     }
   },
   validationCaveat: {
@@ -84,8 +122,14 @@ export const productSystemV32ComponentTokens = {
       validation: { background: "#fff5e0", border: "#e8c77b", text: "#7a4600" },
       critical: { background: "#fff0f0", border: "#dfa69a", text: "#9f3412" }
     },
-    geometry: { compactHeight: "44px", fullMinimumHeight: "88px", radius: "14px" },
-    label: { validation: "VALIDATION REQUIRED", critical: "BLOCKING ISSUE" }
+    geometry: { compactHeight: "44px", fullMinimumHeight: "88px", marker: "8px", radius: "14px" },
+    label: { validation: "VALIDATION REQUIRED", critical: "BLOCKING ISSUE" },
+    typography: {
+      compactBody: { fontSize: "12px", fontWeight: 500, letterSpacing: "0px", lineHeight: "18px" },
+      fullLabel: { fontSize: "10px", fontWeight: 600, letterSpacing: "0.6px", lineHeight: "14px" },
+      fullBody: { fontSize: "14px", fontWeight: 500, letterSpacing: "0px", lineHeight: "22px" },
+      fontFamily: "var(--font-geist), Geist, Arial, sans-serif"
+    }
   },
   authenticatedProfileBadge: {
     figmaNode: "219:425",

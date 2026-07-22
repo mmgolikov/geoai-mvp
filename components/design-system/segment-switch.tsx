@@ -41,15 +41,15 @@ export function SegmentSwitch<T extends string>({
             disabled={disabled}
             aria-pressed={isActive}
             onClick={() => onChange(option.value)}
-            className={`min-w-0 rounded-[10px] px-3 text-[19px] font-bold leading-5 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1769e0] focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:text-[#667587] ${
+            className={`min-w-0 whitespace-nowrap rounded-[10px] px-3 text-[12px] font-semibold leading-4 !tracking-[0.2px] transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1769e0] focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:text-[#667587] ${
               isActive
                 ? disabled
                   ? "bg-[#dde3ea] text-[#667587]"
                   : "bg-[#087f8c] text-white"
-                : "text-[#667587] hover:bg-white disabled:hover:bg-transparent"
+                : "text-[var(--geoai-component-inactive-text)] hover:bg-white disabled:text-[var(--geoai-component-disabled-text)] disabled:hover:bg-transparent"
             }`}
           >
-            <span className="block [overflow-wrap:anywhere]">{option.label}</span>
+            <span className="block whitespace-nowrap">{option.label}</span>
           </button>
         );
       })}

@@ -27,8 +27,12 @@ export function ValidationCaveat({
       role="note"
       className={`geoai-v32 flex rounded-[14px] border ${mode === "full" ? "min-h-[88px] flex-col items-start justify-center gap-2 p-4" : "h-11 items-center gap-2.5 px-3"} ${toneClasses} ${className}`}
     >
-      <strong className="shrink-0 text-[10px] font-semibold tracking-[0.08em]">{label}</strong>
-      <p className={`m-0 min-w-0 text-xs font-medium leading-[18px] [overflow-wrap:anywhere] ${mode === "compact" ? "whitespace-nowrap" : ""}`}>{message}</p>
+      {mode === "compact" ? (
+        <span data-semantic-marker aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full bg-current" />
+      ) : (
+        <strong data-caveat-label className="shrink-0 text-[10px] font-semibold leading-[14px] !tracking-[0.6px]">{label}</strong>
+      )}
+      <p data-caveat-message className={`m-0 min-w-0 font-medium [overflow-wrap:anywhere] ${mode === "compact" ? "whitespace-nowrap text-[12px] leading-[18px] tracking-[0px]" : "text-[14px] leading-[22px] tracking-[0px]"}`}>{message}</p>
     </div>
   );
 }

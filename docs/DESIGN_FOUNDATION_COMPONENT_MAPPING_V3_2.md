@@ -1,7 +1,9 @@
-# Product System v3.2 Component Mapping
+# Product System v3.2.1 Component Mapping
 
 Status: Implementation mapping for CR 10.02
-Authority: GitHub issue #110 and Figma Product System v3.2
+Authority: GitHub issue #110 and Figma Product System v3.2.1 accessibility receipt `1819:11`
+
+Enabled inactive text uses `#606f83`; disabled text remains separately `#667587`. The correction applies to neutral StatusChip `203:24` and SegmentSwitch `204:73` without changing component ownership or migration scope.
 Baseline: `d788ea4ddeecc719b5ffcecdd6aab8539cc9b755`
 Branch: `design/cr-10-02-foundation-shared-shell`
 

@@ -1,8 +1,8 @@
 {
   "schemaVersion": "1.0",
-  "designSystemVersion": "Product System v3.2 — Founder Approved Design Baseline",
+  "designSystemVersion": "Product System v3.2.1 — Accessibility Correction",
   "figmaFileKey": "TAzDqOvRCw1mQGMU3Y4S9H",
-  "approvalDate": "2026-07-21",
+  "approvalDate": "2026-07-22",
   "approver": "Maxim Golikov — Founder, GeoAI",
   "baselineSha": "d788ea4ddeecc719b5ffcecdd6aab8539cc9b755",
   "documentationBranchSha": "82641b4f848230ce0b277ec3da92c785fa5cb98e",
@@ -12,6 +12,7 @@
   "implementationStatus": "implemented_on_branch_pending_draft_review",
   "canonicalNodes": {
     "approvalRecord": "1797:2",
+    "accessibilityCorrectionReceipt": "1819:11",
     "executablePrototype": "1482:2",
     "componentLibrary": "1672:17867",
     "runtimeAlignment": "1749:21157",
