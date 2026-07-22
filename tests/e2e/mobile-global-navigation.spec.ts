@@ -45,18 +45,31 @@ async function captureAcceptedNavigationEvidence(page: Page) {
   await fs.mkdir(visualDirectory, { recursive: true });
   const fileName = "mobile-product-navigation.png";
   const filePath = path.join(visualDirectory, fileName);
+  const viewport = page.viewportSize();
+  if (!viewport) throw new Error("Mobile navigation evidence requires a fixed viewport.");
+
+  // Capture only the stable shared-shell/menu state. The map body below the menu
+  // may repaint asynchronously and is covered by separate Workspace visual evidence.
+  const clip = {
+    x: 0,
+    y: 0,
+    width: viewport.width,
+    height: Math.min(viewport.height, 260)
+  };
   const image = await page.screenshot({
     animations: "disabled",
     caret: "hide",
+    clip,
     path: filePath
   });
-  const repeatImage = await page.screenshot({ animations: "disabled", caret: "hide" });
+  const repeatImage = await page.screenshot({ animations: "disabled", caret: "hide", clip });
   const sha256 = createHash("sha256").update(image).digest("hex");
   const repeatSha256 = createHash("sha256").update(repeatImage).digest("hex");
   expect(repeatSha256, "Mobile product navigation must have one deterministic screenshot per state").toBe(sha256);
   await expect(page).toHaveScreenshot(fileName, {
     animations: "disabled",
     caret: "hide",
+    clip,
     maxDiffPixelRatio: 0.01
   });
   console.log(`[visual] Mobile product navigation: ${fileName} sha256:${sha256}`);
