@@ -46,6 +46,10 @@ jobs:
           non_empty = [line for line in script_lines if line.strip()]
           indent = min(len(line) - len(line.lstrip()) for line in non_empty)
           script = '\n'.join(line[indent:] if line.strip() else '' for line in script_lines)
+          script = script.replace(
+              'replace_once("app/page.tsx", ">Explore platform</Link>", ">Open workspace</Link>")',
+              'replace_once("app/page.tsx", "              Explore platform\\n", "              Open workspace\\n")'
+          )
           exec(compile(script, 'cr-10-08-inline-patch.py', 'exec'))
           PY
 
