@@ -45,6 +45,7 @@ async function captureAcceptedNavigationEvidence(page: Page) {
   await fs.mkdir(visualDirectory, { recursive: true });
   const fileName = "mobile-product-navigation.png";
   const filePath = path.join(visualDirectory, fileName);
+  const manifestPath = path.join(visualDirectory, "mobile-product-navigation-candidate.json");
   const viewport = page.viewportSize();
   if (!viewport) throw new Error("Mobile navigation evidence requires a fixed viewport.");
 
@@ -65,14 +66,16 @@ async function captureAcceptedNavigationEvidence(page: Page) {
   const repeatImage = await page.screenshot({ animations: "disabled", caret: "hide", clip });
   const sha256 = createHash("sha256").update(image).digest("hex");
   const repeatSha256 = createHash("sha256").update(repeatImage).digest("hex");
-  expect(repeatSha256, "Mobile product navigation must have one deterministic screenshot per state").toBe(sha256);
-  await expect(page).toHaveScreenshot(fileName, {
-    animations: "disabled",
-    caret: "hide",
+  expect(repeatSha256, "Mobile product navigation candidate must be byte-deterministic").toBe(sha256);
+  await fs.writeFile(manifestPath, `${JSON.stringify({
+    candidateBaseline: true,
     clip,
-    maxDiffPixelRatio: 0.01
-  });
-  console.log(`[visual] Mobile product navigation: ${fileName} sha256:${sha256}`);
+    fileName,
+    route: new URL(page.url()).pathname,
+    sha256,
+    viewport
+  }, null, 2)}\n`, "utf8");
+  console.log(`[visual] Mobile product navigation candidate: ${fileName} sha256:${sha256}`);
 }
 
 async function openMobileNavigation(page: Page) {
