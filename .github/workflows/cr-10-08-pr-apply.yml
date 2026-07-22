@@ -42,9 +42,8 @@ jobs:
           start = next(index for index, line in enumerate(workflow) if line.strip() == "python3 <<'PY'")
           end = next(index for index in range(start + 1, len(workflow)) if workflow[index].strip() == 'PY')
           script_lines = workflow[start + 1:end]
-          non_empty = [line for line in script_lines if line.strip()]
-          indent = min(len(line) - len(line.lstrip()) for line in non_empty)
-          script = '\n'.join(line[indent:] if line.strip() else '' for line in script_lines)
+          indent = len(script_lines[0]) - len(script_lines[0].lstrip())
+          script = '\n'.join(line[indent:] if len(line) >= indent else line for line in script_lines)
           script = script.replace(
               'replace_once("app/page.tsx", ">Explore platform</Link>", ">Open workspace</Link>")',
               'replace_once("app/page.tsx", "              Explore platform\\n", "              Open workspace\\n")'
