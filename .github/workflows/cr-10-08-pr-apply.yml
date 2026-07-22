@@ -1,0 +1,86 @@
+name: Apply CR 10.08 Workspace Consolidation — PR
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.head_ref == 'recovery/runtime-design-migration-v1'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact Draft branch
+        uses: actions/checkout@v4
+        with:
+          ref: recovery/runtime-design-migration-v1
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Apply, verify and push CR 10.08
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if grep -q 'redirect("/workspace")' app/explore/page.tsx; then
+            echo "CR 10.08 implementation is already applied on the exact branch head."
+            exit 0
+          fi
+
+          python3 <<'PY'
+          from pathlib import Path
+
+          workflow = Path('.github/workflows/cr-10-08-apply.yml').read_text(encoding='utf-8').splitlines()
+          start = next(index for index, line in enumerate(workflow) if line.strip() == "python3 <<'PY'")
+          end = next(index for index in range(start + 1, len(workflow)) if workflow[index].strip() == 'PY')
+          script_lines = workflow[start + 1:end]
+          non_empty = [line for line in script_lines if line.strip()]
+          indent = min(len(line) - len(line.lstrip()) for line in non_empty)
+          script = '\n'.join(line[indent:] if line.strip() else '' for line in script_lines)
+          exec(compile(script, 'cr-10-08-inline-patch.py', 'exec'))
+          PY
+
+          npm ci
+          npm run docs:lifecycle:generate
+          npm run lint
+          npm run test:design-foundation
+          npm run test:auth-session-e2e-contract
+          npm run test:data-honesty
+          git diff --check
+
+          git config user.name "GeoAI Delivery OS"
+          git config user.email "actions@users.noreply.github.com"
+          git add \
+            app/explore/page.tsx \
+            app/workspace/page.tsx \
+            app/page.tsx \
+            components/product-navigation.tsx \
+            components/workspace-shell.tsx \
+            tests/e2e/auth-session-flow.spec.ts \
+            tests/e2e/accessibility-project-comparison-flow.spec.ts \
+            tests/e2e/design-foundation-shell.spec.ts \
+            tests/e2e/mobile-global-navigation.spec.ts \
+            tests/e2e/mobile-product-flow.spec.ts \
+            tests/e2e/route-body-invariance.spec.ts \
+            tests/e2e/workspace-consolidation.spec.ts \
+            scripts/auth-session-e2e-contract-check.mjs \
+            scripts/design-foundation-contract-check.mjs \
+            scripts/lighthouse-budget-check.mjs \
+            package.json \
+            .github/workflows/geoai-quality-gate.yml \
+            docs/WORKSPACE_CONSOLIDATION_CR_10_08_2026_07_23.md \
+            docs/RUNTIME_DESIGN_RECOVERY_PROGRAM_2026_07_22.json \
+            docs/DOCUMENT_LIFECYCLE_MANIFEST.json \
+            docs/DOCUMENT_ARCHIVE_INDEX.md
+
+          git commit -m "feat: consolidate candidate search into Workspace"
+          git push origin HEAD:recovery/runtime-design-migration-v1
