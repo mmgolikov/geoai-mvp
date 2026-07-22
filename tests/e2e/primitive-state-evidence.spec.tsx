@@ -299,7 +299,7 @@ test("renders the permanent Product System v3.2 primitive state matrix", async (
   const records: EvidenceRecord[] = [];
   for (const item of [...buttonCases, ...chipCases, ...segmentCases, ...caveatCases, ...profileCases]) records.push(await captureState(page, item));
 
-  const testedCommit = process.env.GITHUB_SHA ?? execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+  const testedCommit = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
   await fs.writeFile(path.join(evidenceDirectory, "manifest.json"), `${JSON.stringify({
     axeSeriousCritical: 0,
     componentTokenManifest: "docs/DESIGN_FOUNDATION_COMPONENT_TOKEN_MANIFEST_V3_2.json",

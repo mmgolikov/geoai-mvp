@@ -80,7 +80,7 @@ test("proves all 20 Product route bodies are pixel-identical to the authorized p
   await fs.mkdir(path.join(evidenceDirectory, "baseline"), { recursive: true });
   await fs.mkdir(path.join(evidenceDirectory, "candidate"), { recursive: true });
 
-  const candidateSha = process.env.GITHUB_SHA ?? execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+  const candidateSha = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
   const records: BodyEvidenceRecord[] = [];
 
   for (const viewport of viewports) {
