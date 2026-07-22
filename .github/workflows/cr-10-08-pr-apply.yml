@@ -46,7 +46,7 @@ jobs:
           script = '\n'.join(line[indent:] if len(line) >= indent else line for line in script_lines)
           script = script.replace(
               'replace_once("app/page.tsx", ">Explore platform</Link>", ">Open workspace</Link>")',
-              'replace_once("app/page.tsx", "              Explore platform\\n", "              Open workspace\\n")'
+              'replace_once("app/page.tsx", "Explore platform", "Open workspace")'
           )
           exec(compile(script, 'cr-10-08-inline-patch.py', 'exec'))
           PY
