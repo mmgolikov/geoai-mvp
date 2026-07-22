@@ -30,7 +30,7 @@ export function SegmentSwitch<T extends string>({
       aria-disabled={disabled || undefined}
       role="group"
       data-figma-node="204:73"
-      className={`geoai-v32 grid w-full max-w-[320px] grid-cols-2 gap-1 rounded-action border border-line bg-surface p-1 ${size === "touch" ? "min-h-[52px]" : "min-h-11"} ${className}`}
+      className={`geoai-v32 grid max-w-full grid-cols-2 gap-1 rounded-[14px] border border-[#dde3ea] bg-[#eef2f6] p-1 ${size === "touch" ? "h-[52px] w-[320px]" : "h-11 w-[300px]"} ${className}`}
     >
       {options.map((option) => {
         const isActive = option.value === value;
@@ -41,8 +41,12 @@ export function SegmentSwitch<T extends string>({
             disabled={disabled}
             aria-pressed={isActive}
             onClick={() => onChange(option.value)}
-            className={`min-w-0 rounded-control px-3 text-xs font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:text-muted ${
-              isActive && !disabled ? "bg-accent text-white" : "text-muted hover:bg-white"
+            className={`min-w-0 rounded-[10px] px-3 text-[19px] font-bold leading-5 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1769e0] focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:text-[#667587] ${
+              isActive
+                ? disabled
+                  ? "bg-[#dde3ea] text-[#667587]"
+                  : "bg-[#087f8c] text-white"
+                : "text-[#667587] hover:bg-white disabled:hover:bg-transparent"
             }`}
           >
             <span className="block [overflow-wrap:anywhere]">{option.label}</span>

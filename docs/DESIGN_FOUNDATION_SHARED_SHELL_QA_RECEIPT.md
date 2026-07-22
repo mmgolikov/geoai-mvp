@@ -12,7 +12,8 @@ Starting documentation head: `82641b4f848230ce0b277ec3da92c785fa5cb98e`
 - approved 32 px identity in the shared Product shell;
 - adapted `TopNavigation`, `ProductNavigation`, and `AccessStatusBadge`;
 - bounded Button, StatusChip, SegmentSwitch, and ValidationCaveat primitives;
-- permanent token/design contract and shell-only Playwright evidence.
+- separate exact component-compatibility tokens for Figma nodes `202:68`, `203:24`, `204:73`, `205:41`, and `219:425`, without changing the 16 semantic tokens;
+- permanent structured token/design contract, shell evidence, non-public primitive-state evidence, and route-body invariance evidence.
 
 Workspace, Projects, Explore, Request Access, and Profile bodies are not migrated. Auth, API, Supabase, Storage, sources, maps, dashboards, reports, and print behavior are unchanged.
 
@@ -27,14 +28,20 @@ Workspace, Projects, Explore, Request Access, and Profile bodies are not migrate
 - zero serious/critical Axe findings on covered shell states;
 - repository-owned identity asset hash and exact Figma node traceability;
 - Page 90 and Page 99 excluded from implementation authority.
+- exact Button, StatusChip, SegmentSwitch, ValidationCaveat, and authenticated-profile state/geometry contracts;
+- deterministic 29-state primitive matrix with exact bounds, visible focus, disabled/loading behavior, no clipping, and zero serious/critical Axe findings;
+- machine-readable `20/20` body-only equality manifest for five routes at four viewports, with the baseline/candidate hashes and reproducible commands;
+- the body-only capture suppresses the shared shell and browser-dependent dynamic map, corner, and shadow raster effects while retaining route layout, controls, text, and all other body pixels.
 
 ## Evidence status
 
-Local candidate evidence passed on 2026-07-21:
+Local corrective evidence passed on 2026-07-22:
 
 - `npm run lint`, production `npm run build`, Product System v3.2 drift contract, Auth/session wiring contract, data-honesty scan, secret-hygiene scan, documentation truth/lifecycle checks and API inventory `66/66`;
-- Chromium `25/25` with zero flaky retries; the shell evidence includes 21 canonical states across `1440×900`, `1024×900`, `768×1024` and `390×844`, with zero serious/critical Axe findings;
-- 20 body-only images below the shared header are byte-identical before/after across Workspace, Projects, Explore, Request Access and Profile at the four declared viewports;
+- the permanent component-token contract passes with 16 unchanged semantic tokens and five structured compatibility adapters;
+- targeted Chromium corrective checks pass `2/2` with zero retries: 29 primitive states and route-body invariance `20/20`;
+- the existing shell evidence remains 21 canonical states across `1440×900`, `1024×900`, `768×1024` and `390×844` with zero serious/critical Axe findings;
+- 20 normalized body-only images below the shared header have equal SHA-256 hashes across Workspace, Projects, Explore, Request Access and Profile at the four declared viewports;
 - API contract, security headers and ten-route local HTTP smoke passed in `demo_public` mode;
 - physical print evidence passed for 12 PDFs and 82 rendered page rasters;
 - read-only hosted counts before commit remained development `10` migrations / `0` Auth users and rehearsal `18` migrations / `1` pre-existing Auth user. No identifying user data was read.

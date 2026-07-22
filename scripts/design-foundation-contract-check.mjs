@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { isDeepStrictEqual } from "node:util";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -11,9 +12,15 @@ const expect = (condition, message) => { if (!condition) failures.push(message);
 
 const registry = json("docs/DESIGN_SYSTEM_V3_2_AUTHORITY_REGISTRY.json");
 const manifest = json("docs/DESIGN_FOUNDATION_TOKEN_MANIFEST_V3_2.json");
+const componentManifest = json("docs/DESIGN_FOUNDATION_COMPONENT_TOKEN_MANIFEST_V3_2.json");
 const shell = read("components/top-navigation.tsx");
 const navigation = read("components/product-navigation.tsx");
 const accessStatus = read("components/auth/access-status-badge.tsx");
+const accessStatusVisual = read("components/auth/access-status-badge-visual.tsx");
+const button = read("components/design-system/button.tsx");
+const statusChip = read("components/design-system/status-chip.tsx");
+const segmentSwitch = read("components/design-system/segment-switch.tsx");
+const validationCaveat = read("components/design-system/validation-caveat.tsx");
 const tokenSource = read("src/design-system/tokens.ts");
 const tailwind = read("tailwind.config.ts");
 const scopedCss = read("app/product-system-v3.css");
@@ -59,12 +66,99 @@ expect(manifest.canonicalSource === "src/design-system/tokens.ts" && manifest.gl
 expect(tailwind.includes('import { productSystemV32Tokens } from "./src/design-system/tokens"') && tailwind.includes("...v32.color"), "Tailwind is not synchronized with the canonical token source.");
 expect(layout.includes('import { Geist } from "next/font/google"') && layout.includes('variable: "--font-geist"'), "Scoped Geist loading is missing.");
 
+const expectedComponentTokens = {
+  button: {
+    figmaNode: "202:68",
+    color: {
+      primaryDefault: "#087f8c",
+      primaryHover: "#006c78",
+      focusAndSecondary: "#1769e0",
+      disabledBackground: "#eef2f6",
+      disabledText: "#667587",
+      quietHover: "#e8f7fa",
+      secondaryBackground: "#ffffff"
+    },
+    geometry: {
+      desktopHeight: "40px",
+      touchHeight: "44px",
+      width: "140px",
+      minimumWidth: "140px",
+      radius: "14px",
+      loadingIndicator: "14px"
+    },
+    states: ["primary-default", "primary-hover", "primary-focus", "primary-disabled", "primary-loading", "secondary-default", "secondary-focus", "quiet-default", "quiet-hover"]
+  },
+  statusChip: {
+    figmaNode: "203:24",
+    color: {
+      neutral: { background: "#eef2f6", border: "#dde3ea", text: "#667587" },
+      spatial: { background: "#eaf2ff", border: "#bfd3f4", text: "#1769e0" },
+      validation: { background: "#fff5e0", border: "#e8c77b", text: "#a85d00" },
+      critical: { background: "#fff0f0", border: "#dfa69a", text: "#9f3412" }
+    },
+    geometry: { compactHeight: "24px", defaultHeight: "28px" },
+    states: ["neutral", "spatial", "validation", "critical"]
+  },
+  segmentSwitch: {
+    figmaNode: "204:73",
+    color: {
+      containerBackground: "#eef2f6",
+      containerBorder: "#dde3ea",
+      activeOption: "#087f8c",
+      focusBoundary: "#1769e0",
+      inactiveAndDisabledText: "#667587",
+      disabledSelectedFill: "#dde3ea"
+    },
+    geometry: {
+      optionRadius: "10px",
+      outerRadius: "14px",
+      desktopWidth: "300px",
+      desktopHeight: "44px",
+      touchWidth: "320px",
+      touchHeight: "52px"
+    },
+    states: ["active", "focus", "disabled-selected"]
+  },
+  validationCaveat: {
+    figmaNode: "205:41",
+    color: {
+      validation: { background: "#fff5e0", border: "#e8c77b", text: "#7a4600" },
+      critical: { background: "#fff0f0", border: "#dfa69a", text: "#9f3412" }
+    },
+    geometry: { compactHeight: "44px", fullMinimumHeight: "88px", radius: "14px" },
+    label: { validation: "VALIDATION REQUIRED", critical: "BLOCKING ISSUE" },
+    requiredCaveat: "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
+  },
+  authenticatedProfileBadge: {
+    figmaNode: "219:425",
+    color: { background: "#e8f3f2", borderAndInitials: "#064fcf", focusBoundary: "#1769e0" },
+    geometry: { width: "40px", height: "40px" },
+    persistentOuterHalo: false,
+    focusRingOnlyWhenFocusVisible: true,
+    authenticatedIndicator: true
+  }
+};
+
+expect(componentManifest.schemaVersion === "1.0", "Component-token manifest schema drifted.");
+expect(componentManifest.canonicalSource === "src/design-system/tokens.ts#productSystemV32ComponentTokens", "Component-token canonical source drifted.");
+expect(componentManifest.semanticBaselineManifest === "docs/DESIGN_FOUNDATION_TOKEN_MANIFEST_V3_2.json" && componentManifest.semanticBaselineUnchanged === true, "Component tokens must preserve the approved semantic baseline.");
+expect(componentManifest.globalBodyMigration === false, "Component compatibility tokens must not authorize body migration.");
+expect(isDeepStrictEqual(componentManifest.components, expectedComponentTokens), "Structured component-token manifest drifted from the approved Figma adapter contract.");
+
+const componentScalarValues = [...new Set(JSON.stringify(expectedComponentTokens).match(/#[0-9a-f]{6}|\d+px|\d+:\d+/g) ?? [])];
+for (const value of componentScalarValues) expect(tokenSource.includes(`"${value}"`), `Canonical component token source is missing ${value}.`);
+expect(button.includes("h-[14px] w-[14px]") && button.includes("aria-busy={isLoading || undefined}") && button.includes("disabled={disabled || isLoading}"), "Button loading geometry or native state contract drifted.");
+expect(statusChip.includes('size === "default" ? "h-7 px-3" : "h-6"'), "StatusChip exact compact/default geometry drifted.");
+expect(segmentSwitch.includes('bg-[#dde3ea] text-[#667587]') && segmentSwitch.includes("h-[52px] w-[320px]") && segmentSwitch.includes("h-11 w-[300px]"), "SegmentSwitch disabled-selected or geometry contract drifted.");
+expect(validationCaveat.includes('role="note"') && validationCaveat.includes("VALIDATION REQUIRED") && validationCaveat.includes("BLOCKING ISSUE") && validationCaveat.includes("h-11") && validationCaveat.includes("min-h-[88px]"), "ValidationCaveat semantics or geometry drifted.");
+expect(accessStatusVisual.includes('bg-[#e8f3f2]') && accessStatusVisual.includes('focus-visible:ring-[#1769e0]') && !accessStatusVisual.includes("ring-4 ring-brand/10") && accessStatusVisual.includes("data-authenticated-indicator"), "Authenticated profile badge default/focus distinction drifted.");
+
 expect(shell.includes('data-product-shell') && shell.includes('data-figma-node="219:425"') && shell.includes('h-product-header') && shell.includes('shrink-0'), "The non-shrinking 64 px traced Product shell contract is missing.");
 expect(shell.includes("IdentitySymbol") && !shell.includes(">\n              G\n"), "The approved identity has not replaced the improvised shell mark.");
 for (const href of ["/workspace", "/projects", "/explore"]) expect(navigation.includes(`href: "${href}"`), `Missing ${href} navigation.`);
 expect(navigation.includes('aria-current={isCurrent ? "page" : undefined}'), "Active-route semantics are missing.");
 expect(navigation.includes("h-10") && navigation.includes("min-h-11"), "Approved navigation target sizes are missing.");
-expect(navigation.includes("focus-visible:ring-brand") && shell.includes("focus-visible:ring-brand") && accessStatus.includes("focus-visible:ring-brand"), "Brand focus semantics are incomplete.");
+expect(navigation.includes("focus-visible:ring-brand") && shell.includes("focus-visible:ring-brand") && accessStatusVisual.includes("focus-visible:ring-[#1769e0]"), "Approved semantic and component-compatibility focus semantics are incomplete.");
 expect(navigation.includes('aria-label="Primary product navigation"') && navigation.includes('aria-label="Mobile product navigation"'), "Navigation landmarks are incomplete.");
 expect(navigation.includes("triggerRef.current?.focus()") && navigation.includes('event.key === "Escape"'), "Mobile Escape/focus restoration is missing.");
 
@@ -90,4 +184,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log(`Product System v3.2 design foundation contract passed: ${Object.keys(expectedTokens).length} tokens, one canonical navigation, five traced primitives/identity, 64 px shell, and Page 90/Page 99 excluded.`);
+console.log(`Product System v3.2 design foundation contract passed: ${Object.keys(expectedTokens).length} unchanged semantic tokens, ${Object.keys(expectedComponentTokens).length} structured component adapters, one canonical navigation, five traced primitives/identity, 64 px shell, and Page 90/Page 99 excluded.`);

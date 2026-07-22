@@ -16,24 +16,19 @@ export function ValidationCaveat({
   ...props
 }: ValidationCaveatProps) {
   const toneClasses = tone === "critical"
-    ? "border-risk/40 bg-risk/15 text-risk"
-    : "border-risk/25 bg-risk/10 text-risk";
+    ? "border-[#dfa69a] bg-[#fff0f0] text-[#9f3412]"
+    : "border-[#e8c77b] bg-[#fff5e0] text-[#7a4600]";
+  const label = tone === "critical" ? "BLOCKING ISSUE" : "VALIDATION REQUIRED";
 
   return (
     <div
       {...props}
       data-figma-node="205:41"
       role="note"
-      className={`geoai-v32 flex min-h-11 items-start rounded-action border ${mode === "full" ? "flex-col gap-2 p-4" : "gap-2.5 px-3 py-2.5"} ${toneClasses} ${className}`}
+      className={`geoai-v32 flex rounded-[14px] border ${mode === "full" ? "min-h-[88px] flex-col items-start justify-center gap-2 p-4" : "h-11 items-center gap-2.5 px-3"} ${toneClasses} ${className}`}
     >
-      {mode === "full" ? (
-        <strong className="text-[10px] font-semibold uppercase tracking-[0.08em]">
-          {tone === "critical" ? "Blocking issue" : "Validation required"}
-        </strong>
-      ) : (
-        <span aria-hidden="true" className="mt-[5px] h-2 w-2 shrink-0 rounded-full bg-current" />
-      )}
-      <p className="m-0 min-w-0 text-xs font-medium leading-[18px] [overflow-wrap:anywhere]">{message}</p>
+      <strong className="shrink-0 text-[10px] font-semibold tracking-[0.08em]">{label}</strong>
+      <p className={`m-0 min-w-0 text-xs font-medium leading-[18px] [overflow-wrap:anywhere] ${mode === "compact" ? "whitespace-nowrap" : ""}`}>{message}</p>
     </div>
   );
 }

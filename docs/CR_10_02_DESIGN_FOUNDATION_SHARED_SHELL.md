@@ -126,6 +126,20 @@ Add permanent evidence for:
 - zero serious/critical Axe findings on covered shell surfaces;
 - visual artifacts suitable for founder review.
 
+### 6.5 Component compatibility and independent-review evidence
+
+The approved 16 semantic/design tokens remain unchanged. Exact state values that differ from the broad semantic layer are implemented in a separate machine-readable component-compatibility contract for:
+
+- Button `202:68`;
+- StatusChip `203:24`;
+- SegmentSwitch `204:73`;
+- ValidationCaveat `205:41`;
+- authenticated profile state within TopNavigation `219:425`.
+
+Permanent evidence uses imported source components in a test-only server-rendered harness. It does not add an application route or API. The Quality Gate must publish deterministic state screenshots and a manifest with node, state, bounds and SHA-256 for each primitive state.
+
+Route-body invariance is measured below the shared shell for Workspace, Projects, Explore, Request Access and Profile at `1440×900`, `1024×900`, `768×1024` and `390×844`. The baseline is `d788ea4ddeecc719b5ffcecdd6aab8539cc9b755`; any normalized body-image hash mismatch fails the Quality Gate. Capture normalization suppresses the shared shell, animation, dynamic map raster pixels and browser-dependent corner/shadow antialiasing only; route layout, controls, text and all other body pixels remain compared.
+
 ## 7. Affected routes
 
 Only the shared shell on:

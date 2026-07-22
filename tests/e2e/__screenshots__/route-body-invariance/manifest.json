@@ -1,0 +1,351 @@
+{
+  "baselineSha": "d788ea4ddeecc719b5ffcecdd6aab8539cc9b755",
+  "candidateSha": "d788ea4ddeecc719b5ffcecdd6aab8539cc9b755",
+  "captureNormalization": "Animations, transitions, caret, Next.js portal, dynamic Mapbox pixels, fallback-grid rasterization and browser-dependent corner/shadow antialiasing are suppressed; route layout, controls, text and all other body pixels remain compared.",
+  "caseCount": 20,
+  "equalityCount": 20,
+  "generatedAt": "2026-07-21T12:00:00.000Z",
+  "mode": "baseline-capture",
+  "records": [
+    {
+      "baselineFile": "tests/e2e/__screenshots__/route-body-invariance/desktop-1440-workspace.png",
+      "baselineImageHash": "cfb9aa306c70bd31d7534ae8b01d1889500a07cee6d90b1f5d1bc01b9b6118fa",
+      "baselineSha": "d788ea4ddeecc719b5ffcecdd6aab8539cc9b755",
+      "bodyBoundary": "first element sibling after the canonical top-level Product header",
+      "candidateFile": "not-applicable-during-baseline-capture",
+      "candidateImageHash": "cfb9aa306c70bd31d7534ae8b01d1889500a07cee6d90b1f5d1bc01b9b6118fa",
+      "candidateSha": "d788ea4ddeecc719b5ffcecdd6aab8539cc9b755",
+      "equality": true,
+      "reproducibleCaptureCommand": "UPDATE_ROUTE_BODY_BASELINES=1 ROUTE_BODY_BASELINE_SHA=d788ea4ddeecc719b5ffcecdd6aab8539cc9b755 GEOAI_E2E_BASE_URL=http://127.0.0.1:3101 npx playwright test tests/e2e/route-body-invariance.spec.ts --retries=0",
+      "route": "/workspace",
+      "viewport": {
+        "name": "desktop-1440",
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "baselineFile": "tests/e2e/__screenshots__/route-body-invariance/desktop-1440-projects.png",
+      "baselineImageHash": "7c72fe4807a923b897f6338c3a58ebb68aacaae183bad2687ef4bf46e2c608cf",
+      "baselineSha": "d788ea4ddeecc719b5ffcecdd6aab8539cc9b755",
+      "bodyBoundary": "first element sibling after the canonical top-level Product header",
+      "candidateFile": "not-applicable-during-baseline-capture",
+      "candidateImageHash": "7c72fe4807a923b897f6338c3a58ebb68aacaae183bad2687ef4bf46e2c608cf",
+      "candidateSha": "d788ea4ddeecc719b5ffcecdd6aab8539cc9b755",
+      "equality": true,
+      "reproducibleCaptureCommand": "UPDATE_ROUTE_BODY_BASELINES=1 ROUTE_BODY_BASELINE_SHA=d788ea4ddeecc719b5ffcecdd6aab8539cc9b755 GEOAI_E2E_BASE_URL=http://127.0.0.1:3101 npx playwright test tests/e2e/route-body-invariance.spec.ts --retries=0",
+      "route": "/projects",
+      "viewport": {
+        "name": "desktop-1440",
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "baselineFile": "tests/e2e/__screenshots__/route-body-invariance/desktop-1440-explore.png",
+      "baselineImageHash": "cfb9aa306c70bd31d7534ae8b01d1889500a07cee6d90b1f5d1bc01b9b6118fa",
+      "baselineSha": "d788ea4ddeecc719b5ffcecdd6aab8539cc9b755",
+      "bodyBoundary": "first element sibling after the canonical top-level Product header",
+      "candidateFile": "not-applicable-during-baseline-capture",
+      "candidateImageHash": "cfb9aa306c70bd31d7534ae8b01d1889500a07cee6d90b1f5d1bc01b9b6118fa",
+      "candidateSha": "d788ea4ddeecc719b5ffcecdd6aab8539cc9b755",
+      "equality": true,
+      "reproducibleCaptureCommand": "UPDATE_ROUTE_BODY_BASELINES=1 ROUTE_BODY_BASELINE_SHA=d788ea4ddeecc719b5ffcecdd6aab8539cc9b755 GEOAI_E2E_BASE_URL=http://127.0.0.1:3101 npx playwright test tests/e2e/route-body-invariance.spec.ts --retries=0",
+      "route": "/explore",
+      "viewport": {
+        "name": "desktop-1440",
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "baselineFile": "tests/e2e/__screenshots__/route-body-invariance/desktop-1440-request-access.png",
+      "baselineImageHash": "76852d235fb9502a53e1b5d01651d7fa19c5693effa8fd5fa032d1e498ba28d2",
+      "baselineSha": "d788ea4ddeecc719b5ffcecdd6aab8539cc9b755",
+      "bodyBoundary": "first element sibling after the canonical top-level Product header",
+      "candidateFile": "not-applicable-during-baseline-capture",
+      "candidateImageHash": "76852d235fb9502a53e1b5d01651d7fa19c5693effa8fd5fa032d1e498ba28d2",
+      "candidateSha": "d788ea4ddeecc719b5ffcecdd6aab8539cc9b755",
+      "equality": true,
+      "reproducibleCaptureCommand": "UPDATE_ROUTE_BODY_BASELINES=1 ROUTE_BODY_BASELINE_SHA=d788ea4ddeecc719b5ffcecdd6aab8539cc9b755 GEOAI_E2E_BASE_URL=http://127.0.0.1:3101 npx playwright test tests/e2e/route-body-invariance.spec.ts --retries=0",
+      "route": "/request-access",
+      "viewport": {
+        "name": "desktop-1440",
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "baselineFile": "tests/e2e/__screenshots__/route-body-invariance/desktop-1440-profile.png",
+      "baselineImageHash": "9643e1a1018d609586fa911ed5ea6c352175e0f189c4d94ee9f541df9cd32e02",
+      "baselineSha": "d788ea4ddeecc719b5ffcecdd6aab8539cc9b755",
+      "bodyBoundary": "first element sibling after the canonical top-level Product header",
+      "candidateFile": "not-applicable-during-baseline-capture",
+      "candidateImageHash": "9643e1a1018d609586fa911ed5ea6c352175e0f189c4d94ee9f541df9cd32e02",
+      "candidateSha": "d788ea4ddeecc719b5ffcecdd6aab8539cc9b755",
+      "equality": true,
+      "reproducibleCaptureCommand": "UPDATE_ROUTE_BODY_BASELINES=1 ROUTE_BODY_BASELINE_SHA=d788ea4ddeecc719b5ffcecdd6aab8539cc9b755 GEOAI_E2E_BASE_URL=http://127.0.0.1:3101 npx playwright test tests/e2e/route-body-invariance.spec.ts --retries=0",
+      "route": "/profile",
+      "viewport": {
+        "name": "desktop-1440",
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "baselineFile": "tests/e2e/__screenshots__/route-body-invariance/desktop-1024-workspace.png",
+      "baselineImageHash": "a29fee13142d342556c0b1fb36180d7fa97c9c877cc15de876daa6ad062fb66b",
+      "baselineSha": "d788ea4ddeecc719b5ffcecdd6aab8539cc9b755",
+      "bodyBoundary": "first element sibling after the canonical top-level Product header",
+      "candidateFile": "not-applicable-during-baseline-capture",
+      "candidateImageHash": "a29fee13142d342556c0b1fb36180d7fa97c9c877cc15de876daa6ad062fb66b",
+      "candidateSha": "d788ea4ddeecc719b5ffcecdd6aab8539cc9b755",
+      "equality": true,
+      "reproducibleCaptureCommand": "UPDATE_ROUTE_BODY_BASELINES=1 ROUTE_BODY_BASELINE_SHA=d788ea4ddeecc719b5ffcecdd6aab8539cc9b755 GEOAI_E2E_BASE_URL=http://127.0.0.1:3101 npx playwright test tests/e2e/route-body-invariance.spec.ts --retries=0",
+      "route": "/workspace",
+      "viewport": {
+        "name": "desktop-1024",
+        "width": 1024,
+        "height": 900
+      }
+    },
+    {
+      "baselineFile": "tests/e2e/__screenshots__/route-body-invariance/desktop-1024-projects.png",
+      "baselineImageHash": "a2522fc585bc1fee3ab2acd2dd3e1120cbf573973d6f3ed520938169c5f155b7",
+      "baselineSha": "d788ea4ddeecc719b5ffcecdd6aab8539cc9b755",
+      "bodyBoundary": "first element sibling after the canonical top-level Product header",
+      "candidateFile": "not-applicable-during-baseline-capture",
+      "candidateImageHash": "a2522fc585bc1fee3ab2acd2dd3e1120cbf573973d6f3ed520938169c5f155b7",
+      "candidateSha": "d788ea4ddeecc719b5ffcecdd6aab8539cc9b755",
+      "equality": true,
+      "reproducibleCaptureCommand": "UPDATE_ROUTE_BODY_BASELINES=1 ROUTE_BODY_BASELINE_SHA=d788ea4ddeecc719b5ffcecdd6aab8539cc9b755 GEOAI_E2E_BASE_URL=http://127.0.0.1:3101 npx playwright test tests/e2e/route-body-invariance.spec.ts --retries=0",
+      "route": "/projects",
+      "viewport": {
+        "name": "desktop-1024",
+        "width": 1024,
+        "height": 900
+      }
+    },
+    {
+      "baselineFile": "tests/e2e/__screenshots__/route-body-invariance/desktop-1024-explore.png",
+      "baselineImageHash": "a29fee13142d342556c0b1fb36180d7fa97c9c877cc15de876daa6ad062fb66b",
+      "baselineSha": "d788ea4ddeecc719b5ffcecdd6aab8539cc9b755",
+      "bodyBoundary": "first element sibling after the canonical top-level Product header",
+      "candidateFile": "not-applicable-during-baseline-capture",
+      "candidateImageHash": "a29fee13142d342556c0b1fb36180d7fa97c9c877cc15de876daa6ad062fb66b",
+      "candidateSha": "d788ea4ddeecc719b5ffcecdd6aab8539cc9b755",
+      "equality": true,
+      "reproducibleCaptureCommand": "UPDATE_ROUTE_BODY_BASELINES=1 ROUTE_BODY_BASELINE_SHA=d788ea4ddeecc719b5ffcecdd6aab8539cc9b755 GEOAI_E2E_BASE_URL=http://127.0.0.1:3101 npx playwright test tests/e2e/route-body-invariance.spec.ts --retries=0",
+      "route": "/explore",
+      "viewport": {
+        "name": "desktop-1024",
+        "width": 1024,
+        "height": 900
+      }
+    },
+    {
+      "baselineFile": "tests/e2e/__screenshots__/route-body-invariance/desktop-1024-request-access.png",
+      "baselineImageHash": "a2b015fb65d05dd32f363bde57312bd10a46ac387c7b126d6c053b962e92f3e4",
+      "baselineSha": "d788ea4ddeecc719b5ffcecdd6aab8539cc9b755",
+      "bodyBoundary": "first element sibling after the canonical top-level Product header",
+      "candidateFile": "not-applicable-during-baseline-capture",
+      "candidateImageHash": "a2b015fb65d05dd32f363bde57312bd10a46ac387c7b126d6c053b962e92f3e4",
+      "candidateSha": "d788ea4ddeecc719b5ffcecdd6aab8539cc9b755",
+      "equality": true,
+      "reproducibleCaptureCommand": "UPDATE_ROUTE_BODY_BASELINES=1 ROUTE_BODY_BASELINE_SHA=d788ea4ddeecc719b5ffcecdd6aab8539cc9b755 GEOAI_E2E_BASE_URL=http://127.0.0.1:3101 npx playwright test tests/e2e/route-body-invariance.spec.ts --retries=0",
+      "route": "/request-access",
+      "viewport": {
+        "name": "desktop-1024",
+        "width": 1024,
+        "height": 900
+      }
+    },
+    {
+      "baselineFile": "tests/e2e/__screenshots__/route-body-invariance/desktop-1024-profile.png",
+      "baselineImageHash": "b915ae967a06b044f2bf76671989677671e8fb153199a66a31c2f6256b32b275",
+      "baselineSha": "d788ea4ddeecc719b5ffcecdd6aab8539cc9b755",
+      "bodyBoundary": "first element sibling after the canonical top-level Product header",
+      "candidateFile": "not-applicable-during-baseline-capture",
+      "candidateImageHash": "b915ae967a06b044f2bf76671989677671e8fb153199a66a31c2f6256b32b275",
+      "candidateSha": "d788ea4ddeecc719b5ffcecdd6aab8539cc9b755",
+      "equality": true,
+      "reproducibleCaptureCommand": "UPDATE_ROUTE_BODY_BASELINES=1 ROUTE_BODY_BASELINE_SHA=d788ea4ddeecc719b5ffcecdd6aab8539cc9b755 GEOAI_E2E_BASE_URL=http://127.0.0.1:3101 npx playwright test tests/e2e/route-body-invariance.spec.ts --retries=0",
+      "route": "/profile",
+      "viewport": {
+        "name": "desktop-1024",
+        "width": 1024,
+        "height": 900
+      }
+    },
+    {
+      "baselineFile": "tests/e2e/__screenshots__/route-body-invariance/tablet-768-workspace.png",
+      "baselineImageHash": "07619bbe4ffe1c44c885c2e05af9001591cfbba282f1a7910d6af621c20583a2",
+      "baselineSha": "d788ea4ddeecc719b5ffcecdd6aab8539cc9b755",
+      "bodyBoundary": "first element sibling after the canonical top-level Product header",
+      "candidateFile": "not-applicable-during-baseline-capture",
+      "candidateImageHash": "07619bbe4ffe1c44c885c2e05af9001591cfbba282f1a7910d6af621c20583a2",
+      "candidateSha": "d788ea4ddeecc719b5ffcecdd6aab8539cc9b755",
+      "equality": true,
+      "reproducibleCaptureCommand": "UPDATE_ROUTE_BODY_BASELINES=1 ROUTE_BODY_BASELINE_SHA=d788ea4ddeecc719b5ffcecdd6aab8539cc9b755 GEOAI_E2E_BASE_URL=http://127.0.0.1:3101 npx playwright test tests/e2e/route-body-invariance.spec.ts --retries=0",
+      "route": "/workspace",
+      "viewport": {
+        "name": "tablet-768",
+        "width": 768,
+        "height": 1024
+      }
+    },
+    {
+      "baselineFile": "tests/e2e/__screenshots__/route-body-invariance/tablet-768-projects.png",
+      "baselineImageHash": "a038950655b09ea05045f6d3ef666b51b36994e43f3118e60a78e194e389af9a",
+      "baselineSha": "d788ea4ddeecc719b5ffcecdd6aab8539cc9b755",
+      "bodyBoundary": "first element sibling after the canonical top-level Product header",
+      "candidateFile": "not-applicable-during-baseline-capture",
+      "candidateImageHash": "a038950655b09ea05045f6d3ef666b51b36994e43f3118e60a78e194e389af9a",
+      "candidateSha": "d788ea4ddeecc719b5ffcecdd6aab8539cc9b755",
+      "equality": true,
+      "reproducibleCaptureCommand": "UPDATE_ROUTE_BODY_BASELINES=1 ROUTE_BODY_BASELINE_SHA=d788ea4ddeecc719b5ffcecdd6aab8539cc9b755 GEOAI_E2E_BASE_URL=http://127.0.0.1:3101 npx playwright test tests/e2e/route-body-invariance.spec.ts --retries=0",
+      "route": "/projects",
+      "viewport": {
+        "name": "tablet-768",
+        "width": 768,
+        "height": 1024
+      }
+    },
+    {
+      "baselineFile": "tests/e2e/__screenshots__/route-body-invariance/tablet-768-explore.png",
+      "baselineImageHash": "07619bbe4ffe1c44c885c2e05af9001591cfbba282f1a7910d6af621c20583a2",
+      "baselineSha": "d788ea4ddeecc719b5ffcecdd6aab8539cc9b755",
+      "bodyBoundary": "first element sibling after the canonical top-level Product header",
+      "candidateFile": "not-applicable-during-baseline-capture",
+      "candidateImageHash": "07619bbe4ffe1c44c885c2e05af9001591cfbba282f1a7910d6af621c20583a2",
+      "candidateSha": "d788ea4ddeecc719b5ffcecdd6aab8539cc9b755",
+      "equality": true,
+      "reproducibleCaptureCommand": "UPDATE_ROUTE_BODY_BASELINES=1 ROUTE_BODY_BASELINE_SHA=d788ea4ddeecc719b5ffcecdd6aab8539cc9b755 GEOAI_E2E_BASE_URL=http://127.0.0.1:3101 npx playwright test tests/e2e/route-body-invariance.spec.ts --retries=0",
+      "route": "/explore",
+      "viewport": {
+        "name": "tablet-768",
+        "width": 768,
+        "height": 1024
+      }
+    },
+    {
+      "baselineFile": "tests/e2e/__screenshots__/route-body-invariance/tablet-768-request-access.png",
+      "baselineImageHash": "2d357c4b8cd4b5cbf29c9383a9b018bbdabed5f3031746e86af8d67977f6bfc2",
+      "baselineSha": "d788ea4ddeecc719b5ffcecdd6aab8539cc9b755",
+      "bodyBoundary": "first element sibling after the canonical top-level Product header",
+      "candidateFile": "not-applicable-during-baseline-capture",
+      "candidateImageHash": "2d357c4b8cd4b5cbf29c9383a9b018bbdabed5f3031746e86af8d67977f6bfc2",
+      "candidateSha": "d788ea4ddeecc719b5ffcecdd6aab8539cc9b755",
+      "equality": true,
+      "reproducibleCaptureCommand": "UPDATE_ROUTE_BODY_BASELINES=1 ROUTE_BODY_BASELINE_SHA=d788ea4ddeecc719b5ffcecdd6aab8539cc9b755 GEOAI_E2E_BASE_URL=http://127.0.0.1:3101 npx playwright test tests/e2e/route-body-invariance.spec.ts --retries=0",
+      "route": "/request-access",
+      "viewport": {
+        "name": "tablet-768",
+        "width": 768,
+        "height": 1024
+      }
+    },
+    {
+      "baselineFile": "tests/e2e/__screenshots__/route-body-invariance/tablet-768-profile.png",
+      "baselineImageHash": "615a27149992dcabb46998d043226982b742e8c518d2a06705fb8275a246246c",
+      "baselineSha": "d788ea4ddeecc719b5ffcecdd6aab8539cc9b755",
+      "bodyBoundary": "first element sibling after the canonical top-level Product header",
+      "candidateFile": "not-applicable-during-baseline-capture",
+      "candidateImageHash": "615a27149992dcabb46998d043226982b742e8c518d2a06705fb8275a246246c",
+      "candidateSha": "d788ea4ddeecc719b5ffcecdd6aab8539cc9b755",
+      "equality": true,
+      "reproducibleCaptureCommand": "UPDATE_ROUTE_BODY_BASELINES=1 ROUTE_BODY_BASELINE_SHA=d788ea4ddeecc719b5ffcecdd6aab8539cc9b755 GEOAI_E2E_BASE_URL=http://127.0.0.1:3101 npx playwright test tests/e2e/route-body-invariance.spec.ts --retries=0",
+      "route": "/profile",
+      "viewport": {
+        "name": "tablet-768",
+        "width": 768,
+        "height": 1024
+      }
+    },
+    {
+      "baselineFile": "tests/e2e/__screenshots__/route-body-invariance/mobile-390-workspace.png",
+      "baselineImageHash": "c44c628c4e826dee30c32cd094aa67963b1ab999362cf667ff85e8f657adf0f9",
+      "baselineSha": "d788ea4ddeecc719b5ffcecdd6aab8539cc9b755",
+      "bodyBoundary": "first element sibling after the canonical top-level Product header",
+      "candidateFile": "not-applicable-during-baseline-capture",
+      "candidateImageHash": "c44c628c4e826dee30c32cd094aa67963b1ab999362cf667ff85e8f657adf0f9",
+      "candidateSha": "d788ea4ddeecc719b5ffcecdd6aab8539cc9b755",
+      "equality": true,
+      "reproducibleCaptureCommand": "UPDATE_ROUTE_BODY_BASELINES=1 ROUTE_BODY_BASELINE_SHA=d788ea4ddeecc719b5ffcecdd6aab8539cc9b755 GEOAI_E2E_BASE_URL=http://127.0.0.1:3101 npx playwright test tests/e2e/route-body-invariance.spec.ts --retries=0",
+      "route": "/workspace",
+      "viewport": {
+        "name": "mobile-390",
+        "width": 390,
+        "height": 844
+      }
+    },
+    {
+      "baselineFile": "tests/e2e/__screenshots__/route-body-invariance/mobile-390-projects.png",
+      "baselineImageHash": "d0fab172e8165a81ff99b7573d3d32bed50349064374fd3e68c46a668b5c53ea",
+      "baselineSha": "d788ea4ddeecc719b5ffcecdd6aab8539cc9b755",
+      "bodyBoundary": "first element sibling after the canonical top-level Product header",
+      "candidateFile": "not-applicable-during-baseline-capture",
+      "candidateImageHash": "d0fab172e8165a81ff99b7573d3d32bed50349064374fd3e68c46a668b5c53ea",
+      "candidateSha": "d788ea4ddeecc719b5ffcecdd6aab8539cc9b755",
+      "equality": true,
+      "reproducibleCaptureCommand": "UPDATE_ROUTE_BODY_BASELINES=1 ROUTE_BODY_BASELINE_SHA=d788ea4ddeecc719b5ffcecdd6aab8539cc9b755 GEOAI_E2E_BASE_URL=http://127.0.0.1:3101 npx playwright test tests/e2e/route-body-invariance.spec.ts --retries=0",
+      "route": "/projects",
+      "viewport": {
+        "name": "mobile-390",
+        "width": 390,
+        "height": 844
+      }
+    },
+    {
+      "baselineFile": "tests/e2e/__screenshots__/route-body-invariance/mobile-390-explore.png",
+      "baselineImageHash": "c44c628c4e826dee30c32cd094aa67963b1ab999362cf667ff85e8f657adf0f9",
+      "baselineSha": "d788ea4ddeecc719b5ffcecdd6aab8539cc9b755",
+      "bodyBoundary": "first element sibling after the canonical top-level Product header",
+      "candidateFile": "not-applicable-during-baseline-capture",
+      "candidateImageHash": "c44c628c4e826dee30c32cd094aa67963b1ab999362cf667ff85e8f657adf0f9",
+      "candidateSha": "d788ea4ddeecc719b5ffcecdd6aab8539cc9b755",
+      "equality": true,
+      "reproducibleCaptureCommand": "UPDATE_ROUTE_BODY_BASELINES=1 ROUTE_BODY_BASELINE_SHA=d788ea4ddeecc719b5ffcecdd6aab8539cc9b755 GEOAI_E2E_BASE_URL=http://127.0.0.1:3101 npx playwright test tests/e2e/route-body-invariance.spec.ts --retries=0",
+      "route": "/explore",
+      "viewport": {
+        "name": "mobile-390",
+        "width": 390,
+        "height": 844
+      }
+    },
+    {
+      "baselineFile": "tests/e2e/__screenshots__/route-body-invariance/mobile-390-request-access.png",
+      "baselineImageHash": "61ee5776ce5adf89ae8b13ed431c0b96ce87d815066bb16e570234fe7754c7f5",
+      "baselineSha": "d788ea4ddeecc719b5ffcecdd6aab8539cc9b755",
+      "bodyBoundary": "first element sibling after the canonical top-level Product header",
+      "candidateFile": "not-applicable-during-baseline-capture",
+      "candidateImageHash": "61ee5776ce5adf89ae8b13ed431c0b96ce87d815066bb16e570234fe7754c7f5",
+      "candidateSha": "d788ea4ddeecc719b5ffcecdd6aab8539cc9b755",
+      "equality": true,
+      "reproducibleCaptureCommand": "UPDATE_ROUTE_BODY_BASELINES=1 ROUTE_BODY_BASELINE_SHA=d788ea4ddeecc719b5ffcecdd6aab8539cc9b755 GEOAI_E2E_BASE_URL=http://127.0.0.1:3101 npx playwright test tests/e2e/route-body-invariance.spec.ts --retries=0",
+      "route": "/request-access",
+      "viewport": {
+        "name": "mobile-390",
+        "width": 390,
+        "height": 844
+      }
+    },
+    {
+      "baselineFile": "tests/e2e/__screenshots__/route-body-invariance/mobile-390-profile.png",
+      "baselineImageHash": "68108274401bc9afca719a32fde11f0cc0b66dcfd7ce7b25b191e1569a2ad961",
+      "baselineSha": "d788ea4ddeecc719b5ffcecdd6aab8539cc9b755",
+      "bodyBoundary": "first element sibling after the canonical top-level Product header",
+      "candidateFile": "not-applicable-during-baseline-capture",
+      "candidateImageHash": "68108274401bc9afca719a32fde11f0cc0b66dcfd7ce7b25b191e1569a2ad961",
+      "candidateSha": "d788ea4ddeecc719b5ffcecdd6aab8539cc9b755",
+      "equality": true,
+      "reproducibleCaptureCommand": "UPDATE_ROUTE_BODY_BASELINES=1 ROUTE_BODY_BASELINE_SHA=d788ea4ddeecc719b5ffcecdd6aab8539cc9b755 GEOAI_E2E_BASE_URL=http://127.0.0.1:3101 npx playwright test tests/e2e/route-body-invariance.spec.ts --retries=0",
+      "route": "/profile",
+      "viewport": {
+        "name": "mobile-390",
+        "width": 390,
+        "height": 844
+      }
+    }
+  ]
+}
