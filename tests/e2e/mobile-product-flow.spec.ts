@@ -4,6 +4,7 @@ import path from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
 type VisualEvidence = {
+  candidateBaseline: boolean;
   fullPage: boolean;
   height: number;
   label: string;
@@ -72,9 +73,9 @@ async function captureVisualEvidence(
   page: Page,
   label: string,
   fileName: string,
-  options: { fullPage?: boolean } = {}
+  options: { candidateBaseline?: boolean; fullPage?: boolean } = {}
 ) {
-  const { fullPage = false } = options;
+  const { candidateBaseline = false, fullPage = false } = options;
   await page.evaluate(() => {
     document.querySelector("nextjs-portal")?.remove();
   });
@@ -95,9 +96,22 @@ async function captureVisualEvidence(
     path: filePath
   });
   const sha256 = createHash("sha256").update(image).digest("hex");
+  if (candidateBaseline) {
+    const repeatImage = await page.screenshot({ animations: "disabled", caret: "hide", fullPage });
+    const repeatSha256 = createHash("sha256").update(repeatImage).digest("hex");
+    expect(repeatSha256, `${label} candidate baseline must be byte-deterministic`).toBe(sha256);
+  } else {
+    await expect(page).toHaveScreenshot(fileName, {
+      animations: "disabled",
+      caret: "hide",
+      fullPage,
+      maxDiffPixelRatio: 0.01
+    });
+  }
   const viewport = page.viewportSize();
   visualEvidence.push({
     label,
+    candidateBaseline,
     fullPage,
     path: path.relative(process.cwd(), filePath),
     route: `${new URL(page.url()).pathname}${new URL(page.url()).search}`,
@@ -106,13 +120,7 @@ async function captureVisualEvidence(
     height: viewport?.height ?? 0
   });
   await fs.writeFile(visualManifest, `${JSON.stringify(visualEvidence, null, 2)}\n`, "utf8");
-  await expect(page).toHaveScreenshot(fileName, {
-    animations: "disabled",
-    caret: "hide",
-    fullPage,
-    maxDiffPixelRatio: 0.01
-  });
-  console.log(`[visual] ${label}: ${fileName} sha256:${sha256}`);
+  console.log(`[visual] ${label}: ${fileName} sha256:${sha256}${candidateBaseline ? " candidate-baseline" : ""}`);
 }
 
 async function signInDemo(page: Page, nextPath: "/projects" | "/explore") {
@@ -188,7 +196,7 @@ test.describe("mobile product navigation, targets and visual evidence", () => {
     await expect(page).toHaveURL((url) => url.pathname === "/workspace" && url.searchParams.has("projectId"));
     await expect(page.locator("#active-project option:checked")).toHaveText(projectName);
     await expectNoHorizontalOverflow(page);
-    await captureVisualEvidence(page, "Mobile project workspace", "mobile-project-workspace.png");
+    await captureVisualEvidence(page, "Mobile project workspace", "mobile-project-workspace.png", { candidateBaseline: true });
   });
 
   test("compares and exports a criteria-first shortlist on mobile", async ({ page }) => {
@@ -231,7 +239,7 @@ test.describe("mobile product navigation, targets and visual evidence", () => {
     await scenarioSetupDisclosure.locator("summary").click();
     await expect(scenarioSetupDisclosure).not.toHaveAttribute("open", "");
 
-    await captureVisualEvidence(page, "Mobile explore setup", "mobile-explore-setup.png");
+    await captureVisualEvidence(page, "Mobile explore setup", "mobile-explore-setup.png", { candidateBaseline: true });
 
     await criteriaFirst.click();
     await expect(criteriaFirst).toHaveAttribute("aria-pressed", "true");
@@ -259,13 +267,13 @@ test.describe("mobile product navigation, targets and visual evidence", () => {
     const backToMap = comparisonDashboard.getByRole("button", { name: "Back to map" });
     await expectMinimumTargetSize("Export", exportButton);
     await expectMinimumTargetSize("Back to map", backToMap);
-    await captureVisualEvidence(page, "Mobile comparison dashboard", "mobile-comparison-dashboard.png");
+    await captureVisualEvidence(page, "Mobile comparison dashboard", "mobile-comparison-dashboard.png", { candidateBaseline: true });
 
     await exportButton.click();
     await expect(page).toHaveURL((url) => /^\/reports\/[^/]+\/print$/.test(url.pathname));
     const printButton = page.getByRole("button", { name: "Print / Save as PDF" });
     await expectMinimumTargetSize("Print / Save as PDF", printButton);
     await expectNoHorizontalOverflow(page);
-    await captureVisualEvidence(page, "Mobile printable comparison", "mobile-comparison-report.png", { fullPage: true });
+    await captureVisualEvidence(page, "Mobile printable comparison", "mobile-comparison-report.png", { candidateBaseline: true, fullPage: true });
   });
 });
