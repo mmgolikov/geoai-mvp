@@ -428,12 +428,14 @@ jobs:
           expected_status["/register"]="307"
           expected_status["/mfa"]="307"
           expected_status["/demo"]="307"
+          expected_status["/explore"]="307"
           expected_status["/login?next=/workspace&intent=request"]="307"
 
           declare -A expected_location
           expected_location["/register"]="/login"
           expected_location["/mfa"]="/login"
           expected_location["/demo"]="/workspace"
+          expected_location["/explore"]="/workspace"
           expected_location["/login?next=/workspace&intent=request"]="/request-access"
 
           for route in "${routes[@]}"; do
@@ -483,11 +485,11 @@ jobs:
             --output-path=artifacts/lighthouse-mobile-projects.json \
             --only-categories=performance,accessibility,best-practices,seo \
             --chrome-flags="--headless --no-sandbox --disable-dev-shm-usage --disable-gpu"
-          npx lighthouse http://127.0.0.1:3000/explore \
+          npx lighthouse http://127.0.0.1:3000/workspace \
             --quiet \
             --preset=desktop \
             --output=json \
-            --output-path=artifacts/lighthouse-desktop-explore.json \
+            --output-path=artifacts/lighthouse-desktop-workspace-criteria.json \
             --only-categories=performance,accessibility,best-practices,seo \
             --chrome-flags="--headless --no-sandbox --disable-dev-shm-usage --disable-gpu"
           npx lighthouse http://127.0.0.1:3000/request-access \
