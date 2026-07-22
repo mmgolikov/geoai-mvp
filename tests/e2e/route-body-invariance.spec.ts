@@ -133,9 +133,30 @@ test("workspace scenario context is readable and validation stays secondary", as
 
 test("analysis report restores the A4 grid and deliberate site-context hierarchy", async ({ page }) => {
   await page.clock.setFixedTime(new Date(fixedTime));
-  await page.emulateMedia({ media: "print" });
-  await page.goto("/reports/seeded-analysis-dubai-marina-report/print");
+  await signInDemo(page);
+  await page.goto("/workspace");
 
+  const criteriaFirst = page.getByRole("button", { name: "Criteria-first" });
+  await criteriaFirst.click();
+  await expect(criteriaFirst).toHaveAttribute("aria-pressed", "true");
+
+  await page.getByRole("button", { name: "Find redevelopment zones" }).click();
+  const candidateSearchCard = page.getByText("Candidate Search", { exact: true }).locator("..").locator("..");
+  const firstCandidate = candidateSearchCard.locator("button").first();
+  await expect(firstCandidate).toBeVisible();
+  await firstCandidate.click();
+
+  const analyzeSelected = page.getByRole("button", { name: "Analyze Selected" });
+  await expect(analyzeSelected).toBeEnabled();
+  await analyzeSelected.click();
+
+  const dashboard = page.locator("section[data-dashboard-analysis-id]");
+  await expect(dashboard).toBeVisible();
+  await dashboard.getByRole("button", { name: "Export", exact: true }).click();
+  await expect(page).toHaveURL((url) => /^\/reports\/[^/]+\/print$/.test(url.pathname));
+  const reportPath = new URL(page.url()).pathname;
+
+  await page.emulateMedia({ media: "print" });
   await expect(page.getByRole("heading", { name: "GeoAI Analysis Report" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Site Context Map" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Executive Decision" })).toBeVisible();
@@ -157,7 +178,7 @@ test("analysis report restores the A4 grid and deliberate site-context hierarchy
   await page.screenshot({ path: screenshot, fullPage: true, animations: "disabled", caret: "hide" });
   await fs.writeFile(path.join(evidenceDirectory, "report-manifest.json"), `${JSON.stringify({
     fixedTime,
-    route: "/reports/seeded-analysis-dubai-marina-report/print",
+    route: reportPath,
     metaColumns,
     topColumns,
     screenshot: path.relative(process.cwd(), screenshot)
