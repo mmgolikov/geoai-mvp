@@ -21,7 +21,7 @@ The separate **Explore** Product destination is retired because it renders the s
 
 Criteria-first candidate search, shortlist comparison and candidate dashboards remain fully available inside Workspace. The capability is not removed; only the duplicate Product destination and label are removed.
 
-The legacy `/explore` path remains temporarily as a compatibility entry that forwards users to `/workspace?mode=explore`. It must not appear in Product navigation, landing copy, current screen inventories or release claims as a separate Product module.
+The legacy `/explore` path remains temporarily as a compatibility entry that forwards users to `/workspace`. It must not appear in Product navigation, landing copy, current screen inventories or release claims as a separate Product module.
 
 ## Problem
 
@@ -68,14 +68,14 @@ A single Workspace reduces navigation ambiguity, improves onboarding and makes t
 ### Workspace
 
 - `/workspace` is the canonical route.
-- The screen heading remains `Workspace location screening` in both default and criteria-first entry states.
+- The screen heading remains `Workspace location screening`; Criteria-first is selected inside the same route.
 - Map-first and Criteria-first remain first-class interaction modes inside Workspace.
 - Candidate search, shortlist comparison, individual dashboards, evidence and reports remain unchanged.
 
 ### Legacy route
 
 - `/explore` is not deleted abruptly.
-- It becomes a compatibility-only entry that forwards to `/workspace?mode=explore` after hydration.
+- It becomes a compatibility-only entry that forwards to `/workspace` after hydration.
 - The compatibility page uses Workspace terminology and carries no separate Explore navigation or product claim.
 - Route removal may be considered only after telemetry/bookmark review and a separate Change Request.
 
@@ -113,7 +113,7 @@ None.
 
 | Risk | Control |
 | --- | --- |
-| Existing bookmarks to `/explore` break | Compatibility forwarding to `/workspace?mode=explore` |
+| Existing bookmarks to `/explore` break | Compatibility forwarding to `/workspace` |
 | Candidate-search functionality is accidentally removed | Acceptance tests exercise Criteria-first inside Workspace |
 | Navigation change invalidates visual baselines | Changed shell/menu states use deterministic candidate evidence and SHA-256 receipts |
 | Current route inventory treats `/explore` as a Product route | Current documentation labels it compatibility-only; a later route-removal CR can delete it |
@@ -126,7 +126,7 @@ None.
 2. Landing contains no `Explore platform` CTA.
 3. Workspace is the only visible operating surface for map-first and criteria-first workflows.
 4. Criteria-first candidate search, shortlist comparison, candidate dashboard and export still work from `/workspace`.
-5. `/workspace?mode=explore` opens Workspace with criteria-first setup available and the heading `Workspace location screening`.
+5. Criteria-first can be selected directly inside `/workspace`, with the heading `Workspace location screening`.
 6. `/explore` forwards to the canonical Workspace criteria-first entry without exposing a duplicate Product screen.
 7. Product navigation retains accessible names, focus states, minimum target sizes and no horizontal overflow.
 8. No data-honesty language or source-lineage behavior is weakened.
@@ -166,9 +166,8 @@ None.
 | Route / entry | Status | Purpose |
 | --- | --- | --- |
 | `/workspace` | Canonical Product screen | Map-first and criteria-first spatial decision workflow |
-| `/workspace?mode=explore` | Canonical Workspace state | Criteria-first initial setup inside Workspace |
 | `/projects` | Canonical Product screen | Project Hub and saved decision work |
-| `/explore` | Compatibility-only | Forward legacy links to canonical Workspace state |
+| `/explore` | Compatibility-only | Forward legacy links to `/workspace` |
 
 ## Release note draft
 

@@ -3,9 +3,9 @@
   "lastVerified": "2026-07-16",
   "authority": "docs/DOCUMENTATION_INDEX.md",
   "counts": {
-    "markdownDocuments": 140,
+    "markdownDocuments": 141,
     "activeAuthorities": 12,
-    "nonActiveDocuments": 128
+    "nonActiveDocuments": 129
   },
   "documents": {
     "AGENTS.md": {
@@ -735,6 +735,12 @@
       "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
     },
     "docs/VALIDATION_GOVERNANCE_OFFICIAL_CONNECTOR_READINESS_V25.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/WORKSPACE_CONSOLIDATION_CR_10_08_2026_07_23.md": {
       "lifecycle": "historical_or_scoped_reference",
       "currentAuthority": false,
       "successor": "docs/DOCUMENTATION_INDEX.md",

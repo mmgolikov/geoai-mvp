@@ -73,7 +73,8 @@ test("records the founder-authorized runtime body migration boundary", async () 
     "CR-10.04",
     "CR-10.05",
     "CR-10.06",
-    "CR-10.07"
+    "CR-10.07",
+    "CR-10.08"
   ]);
 });
 

@@ -15,6 +15,7 @@ const mobileProductSpec = read("tests/e2e/mobile-product-flow.spec.ts");
 const mobileGlobalNavigationSpec = read("tests/e2e/mobile-global-navigation.spec.ts");
 const commercialAlignmentVisualSpec = read("tests/e2e/commercial-alignment-visual.spec.ts");
 const systemResilienceSpec = read("tests/e2e/system-resilience-flow.spec.ts");
+const workspaceConsolidationSpec = read("tests/e2e/workspace-consolidation.spec.ts");
 const productNavigation = read("components/product-navigation.tsx");
 const lighthouseBudgetScript = read("scripts/lighthouse-budget-check.mjs");
 const workflow = read(".github/workflows/geoai-quality-gate.yml");
@@ -32,7 +33,7 @@ if (packageJson.devDependencies?.["@playwright/test"] !== "1.61.1") {
 if (packageJson.devDependencies?.["@axe-core/playwright"] !== "4.12.1") {
   failures.push("@axe-core/playwright must stay exactly pinned to 4.12.1");
 }
-if (packageJson.scripts?.["test:e2e:auth-session"] !== "playwright test tests/e2e/auth-session-flow.spec.ts tests/e2e/auth-responsive-flow.spec.ts tests/e2e/public-request-flow.spec.ts tests/e2e/accessibility-workspace-flow.spec.ts tests/e2e/accessibility-project-comparison-flow.spec.ts tests/e2e/mobile-product-flow.spec.ts tests/e2e/mobile-global-navigation.spec.ts tests/e2e/commercial-alignment-visual.spec.ts tests/e2e/system-resilience-flow.spec.ts tests/e2e/design-foundation-shell.spec.ts tests/e2e/primitive-state-evidence.spec.tsx tests/e2e/route-body-invariance.spec.ts") {
+if (packageJson.scripts?.["test:e2e:auth-session"] !== "playwright test tests/e2e/auth-session-flow.spec.ts tests/e2e/auth-responsive-flow.spec.ts tests/e2e/public-request-flow.spec.ts tests/e2e/accessibility-workspace-flow.spec.ts tests/e2e/accessibility-project-comparison-flow.spec.ts tests/e2e/mobile-product-flow.spec.ts tests/e2e/mobile-global-navigation.spec.ts tests/e2e/commercial-alignment-visual.spec.ts tests/e2e/system-resilience-flow.spec.ts tests/e2e/design-foundation-shell.spec.ts tests/e2e/primitive-state-evidence.spec.tsx tests/e2e/route-body-invariance.spec.ts tests/e2e/workspace-consolidation.spec.ts") {
   failures.push("The focused Auth/session, responsive, accessibility and commercial visual Playwright command is missing");
 }
 if (packageJson.scripts?.["test:e2e:auth-real-persona"] !== "playwright test tests/e2e/real-email-auth-flow.spec.ts") {
@@ -41,7 +42,7 @@ if (packageJson.scripts?.["test:e2e:auth-real-persona"] !== "playwright test tes
 if (packageJson.devDependencies?.lighthouse !== "13.4.0") {
   failures.push("Lighthouse must stay exactly pinned to 13.4.0");
 }
-if (packageJson.scripts?.["test:lighthouse-budget"] !== "node scripts/lighthouse-budget-check.mjs artifacts/lighthouse-mobile.json artifacts/lighthouse-desktop.json artifacts/lighthouse-mobile-projects.json artifacts/lighthouse-desktop-explore.json artifacts/lighthouse-desktop-login.json artifacts/lighthouse-desktop-request-access.json artifacts/lighthouse-desktop-profile.json") {
+if (packageJson.scripts?.["test:lighthouse-budget"] !== "node scripts/lighthouse-budget-check.mjs artifacts/lighthouse-mobile.json artifacts/lighthouse-desktop.json artifacts/lighthouse-mobile-projects.json artifacts/lighthouse-desktop-workspace-criteria.json artifacts/lighthouse-desktop-login.json artifacts/lighthouse-desktop-request-access.json artifacts/lighthouse-desktop-profile.json") {
   failures.push("The Lighthouse budget command is missing");
 }
 
@@ -168,7 +169,7 @@ for (const marker of [
   'name: "Project name"',
   "local-projects-v1",
   'name: "Open workspace"',
-  'signInDemoWithKeyboard(page, "/explore")',
+  'signInDemoWithKeyboard(page, "/workspace")',
   'name: "Compare Candidates"',
   "section[data-dashboard-comparison-id]",
   'name: "GeoAI Comparison Report"',
@@ -186,7 +187,7 @@ for (const marker of [
   'page.clock.setFixedTime(new Date("2026-07-17T16:23:00.000Z"))',
   '"mobile-project-hub.png"',
   '"mobile-project-workspace.png"',
-  '"mobile-explore-setup.png"',
+  '"mobile-workspace-criteria-setup.png"',
   '"mobile-comparison-dashboard.png"',
   '"mobile-comparison-report.png"',
   'name: "Comparison table"',
@@ -248,15 +249,25 @@ for (const marker of [
   'aria-current={isCurrent ? "page" : undefined}',
   'href: "/workspace"',
   'href: "/projects"',
-  'href: "/explore"',
   "triggerRef.current?.focus()"
 ]) requireText(productNavigation, marker, `Product navigation component is missing ${marker}`);
+
+
+for (const marker of [
+  'canonicalProductRoute: "/workspace"',
+  'compatibilityRoute: "/explore"',
+  'name: "Criteria-first"',
+  'name: "Compare Candidates"',
+  'name: /Explore/'
+]) requireText(workspaceConsolidationSpec, marker, `Workspace consolidation flow is missing ${marker}`);
+if (!workspaceConsolidationSpec.includes("toHaveCount(0)")) failures.push("Workspace consolidation must assert that Explore is absent from visible navigation");
+if (productNavigation.includes('href: "/explore"') || productNavigation.includes('label: "Explore"')) failures.push("Explore must not remain a visible Product navigation destination");
 
 for (const marker of [
   "lighthouse-budget-summary.json",
   'performance: 0.7',
   'name: "mobile-projects"',
-  'name: "desktop-explore"',
+  'name: "desktop-workspace-criteria"',
   'name: "desktop-workspace"',
   'name: "desktop-login"',
   'name: "desktop-request-access"',
@@ -298,7 +309,7 @@ for (const marker of [
   "artifacts/lighthouse-mobile.json",
   "artifacts/lighthouse-desktop.json",
   "artifacts/lighthouse-mobile-projects.json",
-  "artifacts/lighthouse-desktop-explore.json",
+  "artifacts/lighthouse-desktop-workspace-criteria.json",
   "artifacts/lighthouse-desktop-login.json",
   "artifacts/lighthouse-desktop-request-access.json",
   "artifacts/lighthouse-desktop-profile.json",

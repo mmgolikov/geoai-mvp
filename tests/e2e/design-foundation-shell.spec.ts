@@ -77,7 +77,7 @@ async function captureDeterministic(page: Page, locator: Locator, label: string,
   });
 }
 
-async function expectShell(page: Page, viewportWidth: number, activeLabel?: "Workspace" | "Projects" | "Explore") {
+async function expectShell(page: Page, viewportWidth: number, activeLabel?: "Workspace" | "Projects") {
   const shell = page.locator("[data-product-shell]");
   await expect(shell).toBeVisible();
   const shellBox = await shell.boundingBox();
@@ -105,7 +105,7 @@ async function expectShell(page: Page, viewportWidth: number, activeLabel?: "Wor
     const navigation = shell.getByRole("navigation", { name: "Primary product navigation" });
     await expect(navigation).toBeVisible();
     await expect(shell.getByRole("button", { name: "Open product navigation" })).toBeHidden();
-    for (const label of ["Workspace", "Projects", "Explore"]) {
+    for (const label of ["Workspace", "Projects"]) {
       await expectMinimumTarget(navigation.getByRole("link", { name: label, exact: true }), `${label} navigation`, 40);
     }
     if (activeLabel) await expect(navigation.getByRole("link", { name: activeLabel, exact: true })).toHaveAttribute("aria-current", "page");
@@ -127,7 +127,7 @@ async function expectShell(page: Page, viewportWidth: number, activeLabel?: "Wor
 
 test.describe.configure({ mode: "serial" });
 
-test("proves the responsive Product System v3.2 shell without migrating route bodies", async ({ browser }) => {
+test("proves the responsive Product System v3.2 shell with the consolidated Product IA", async ({ browser }) => {
   evidence.length = 0;
   await fs.rm(evidenceDirectory, { force: true, recursive: true });
 
@@ -146,7 +146,6 @@ test("proves the responsive Product System v3.2 shell without migrating route bo
     for (const route of [
       { href: "/workspace", label: "Workspace" as const },
       { href: "/projects", label: "Projects" as const },
-      { href: "/explore", label: "Explore" as const },
       { href: "/profile", label: undefined }
     ]) {
       await page.goto(route.href);
@@ -162,7 +161,7 @@ test("proves the responsive Product System v3.2 shell without migrating route bo
       await trigger.click();
       const menu = page.getByRole("navigation", { name: "Mobile product navigation" });
       await expect(menu).toBeVisible();
-      for (const label of ["Workspace", "Projects", "Explore"]) await expectMinimumTarget(menu.getByRole("link", { name: new RegExp(label) }), `${label} mobile navigation`, 44);
+      for (const label of ["Workspace", "Projects"]) await expectMinimumTarget(menu.getByRole("link", { name: new RegExp(label) }), `${label} mobile navigation`, 44);
       const menuBox = await menu.boundingBox();
       expect(menuBox?.x ?? -1).toBeGreaterThanOrEqual(0);
       expect((menuBox?.x ?? 0) + (menuBox?.width ?? viewport.width + 1)).toBeLessThanOrEqual(viewport.width);
@@ -183,6 +182,6 @@ test("proves the responsive Product System v3.2 shell without migrating route bo
     await context.close();
   }
 
-  expect(evidence).toHaveLength(21);
+  expect(evidence).toHaveLength(17);
   await fs.writeFile(path.join(evidenceDirectory, "manifest.json"), `${JSON.stringify({ testedAt: "2026-07-21T12:00:00.000Z", evidence }, null, 2)}\n`);
 });

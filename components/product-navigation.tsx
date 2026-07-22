@@ -6,9 +6,8 @@ import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
 
 const productRoutes = [
-  { href: "/workspace", label: "Workspace", description: "Screen locations and assets" },
-  { href: "/projects", label: "Projects", description: "Open saved decision work" },
-  { href: "/explore", label: "Explore", description: "Find and compare candidates" }
+  { href: "/workspace", label: "Workspace", description: "Screen, search and compare locations" },
+  { href: "/projects", label: "Projects", description: "Open saved decision work" }
 ] as const;
 
 function isCurrentRoute(pathname: string, href: string) {

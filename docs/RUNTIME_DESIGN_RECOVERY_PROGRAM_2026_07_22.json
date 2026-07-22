@@ -97,7 +97,6 @@
       ],
       "affectedRoutes": [
         "/workspace",
-        "/workspace?mode=explore",
         "/explore compatibility entry"
       ],
       "dataImpact": "No source, persistence, scoring or authority change. Existing deterministic browser-local behavior is preserved.",
@@ -219,7 +218,6 @@
       "affectedRoutes": [
         "/",
         "/workspace",
-        "/workspace?mode=explore",
         "/projects",
         "/explore compatibility entry"
       ],
@@ -236,8 +234,8 @@
         "Landing contains no Explore platform CTA.",
         "Workspace is the only visible operating surface for map-first and criteria-first workflows.",
         "Criteria-first candidate search, comparison, dashboard and export work from /workspace.",
-        "/explore is compatibility-only and forwards users to /workspace?mode=explore.",
-        "Workspace heading remains Workspace location screening in all entry states.",
+        "/explore is compatibility-only and forwards users to /workspace.",
+        "Workspace heading remains Workspace location screening in all interaction states.",
         "Shared-shell accessibility, target-size, focus and overflow checks remain green."
       ],
       "sourceDocument": "docs/WORKSPACE_CONSOLIDATION_CR_10_08_2026_07_23.md"

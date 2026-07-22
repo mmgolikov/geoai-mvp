@@ -77,7 +77,7 @@ async function tabUntilLocator(
   throw new Error(`Keyboard focus did not reach '${label}' after ${maximumTabs} Tab presses.`);
 }
 
-async function signInDemoWithKeyboard(page: Page, nextPath: "/projects" | "/explore") {
+async function signInDemoWithKeyboard(page: Page, nextPath: "/projects" | "/workspace") {
   await page.goto(`/login?next=${encodeURIComponent(nextPath)}&intent=demo`);
   await expect(page.getByRole("heading", { level: 1, name: "Sign in to GeoAI" })).toBeVisible();
 
@@ -145,9 +145,9 @@ test.describe("accessible browser-local project and comparison journeys", () => 
   });
 
   test("compares criteria-first candidates and opens a printable report without a pointer", async ({ page }) => {
-    await signInDemoWithKeyboard(page, "/explore");
+    await signInDemoWithKeyboard(page, "/workspace");
     await expect(page.getByRole("button", { name: "Criteria-first" })).toBeVisible();
-    await recordAccessibilityResult(page, "Explore setup");
+    await recordAccessibilityResult(page, "Workspace criteria-first setup");
 
     const criteriaFirst = page.getByRole("button", { name: "Criteria-first" });
     await tabUntilLocator(page, criteriaFirst, { maximumTabs: 100 });

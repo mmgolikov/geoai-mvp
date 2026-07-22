@@ -37,11 +37,13 @@ test.describe("authenticated product route session", () => {
     );
     await expectAuthenticatedProfileControl(page);
 
-    for (const route of ["/projects", "/explore"]) {
-      await page.goto(route);
-      await expect(page).toHaveURL((url) => url.pathname === route);
-      await expectAuthenticatedProfileControl(page);
-    }
+    await page.goto("/projects");
+    await expect(page).toHaveURL((url) => url.pathname === "/projects");
+    await expectAuthenticatedProfileControl(page);
+
+    await page.goto("/explore");
+    await expect(page).toHaveURL((url) => url.pathname === "/workspace");
+    await expectAuthenticatedProfileControl(page);
 
     await page.goto("/profile");
     await expect(page.getByRole("heading", { name: "Your profile" })).toBeVisible();

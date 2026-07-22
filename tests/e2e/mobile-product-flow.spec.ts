@@ -123,7 +123,7 @@ async function captureVisualEvidence(
   console.log(`[visual] ${label}: ${fileName} sha256:${sha256}${candidateBaseline ? " candidate-baseline" : ""}`);
 }
 
-async function signInDemo(page: Page, nextPath: "/projects" | "/explore") {
+async function signInDemo(page: Page, nextPath: "/projects" | "/workspace") {
   await page.goto(`/login?next=${encodeURIComponent(nextPath)}&intent=demo`);
   const redirected = await page.waitForURL((url) => url.pathname === nextPath, { timeout: 3000 }).then(
     () => true,
@@ -190,7 +190,7 @@ test.describe("mobile product navigation, targets and visual evidence", () => {
     await page.reload();
     await expect(page.locator("#project-dashboard-selector option:checked")).toHaveText(projectName);
     await expectNoHorizontalOverflow(page);
-    await captureVisualEvidence(page, "Mobile project hub", "mobile-project-hub.png", { fullPage: true });
+    await captureVisualEvidence(page, "Mobile project hub", "mobile-project-hub.png", { candidateBaseline: true, fullPage: true });
 
     await page.getByRole("link", { name: "Open workspace", exact: true }).first().click();
     await expect(page).toHaveURL((url) => url.pathname === "/workspace" && url.searchParams.has("projectId"));
@@ -201,7 +201,7 @@ test.describe("mobile product navigation, targets and visual evidence", () => {
 
   test("compares and exports a criteria-first shortlist on mobile", async ({ page }) => {
     await page.clock.setFixedTime(new Date("2026-07-17T16:23:00.000Z"));
-    await signInDemo(page, "/explore");
+    await signInDemo(page, "/workspace");
     await expectNoHorizontalOverflow(page);
 
     const criteriaFirst = page.getByRole("button", { name: "Criteria-first" });
@@ -239,7 +239,7 @@ test.describe("mobile product navigation, targets and visual evidence", () => {
     await scenarioSetupDisclosure.locator("summary").click();
     await expect(scenarioSetupDisclosure).not.toHaveAttribute("open", "");
 
-    await captureVisualEvidence(page, "Mobile explore setup", "mobile-explore-setup.png", { candidateBaseline: true });
+    await captureVisualEvidence(page, "Mobile Workspace criteria-first setup", "mobile-workspace-criteria-setup.png", { candidateBaseline: true });
 
     await criteriaFirst.click();
     await expect(criteriaFirst).toHaveAttribute("aria-pressed", "true");
