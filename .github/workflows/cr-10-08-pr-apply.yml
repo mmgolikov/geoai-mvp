@@ -19,20 +19,16 @@ jobs:
         with:
           ref: recovery/runtime-design-migration-v1
           fetch-depth: 1
+          show-progress: false
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-
-      - name: Apply, verify and push CR 10.08
+      - name: Apply bounded source patch
         shell: bash
         run: |
           set -euo pipefail
 
           if grep -q 'redirect("/workspace")' app/explore/page.tsx; then
             echo "CR 10.08 implementation is already applied on the exact branch head."
+            echo "already_applied=true" >> "$GITHUB_ENV"
             exit 0
           fi
 
@@ -53,6 +49,18 @@ jobs:
           exec(compile(script, 'cr-10-08-inline-patch.py', 'exec'))
           PY
 
+      - name: Set up Node.js
+        if: env.already_applied != 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Verify and push CR 10.08
+        if: env.already_applied != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
           npm ci
           npm run docs:lifecycle:generate
           npm run lint
