@@ -152,7 +152,15 @@ test("analysis report restores the A4 grid and deliberate site-context hierarchy
 
   const dashboard = page.locator("section[data-dashboard-analysis-id]");
   await expect(dashboard).toBeVisible();
-  await dashboard.getByRole("button", { name: "Export", exact: true }).click();
+  const decisionPosture = dashboard.locator('[data-dashboard-card="decision-posture"]');
+  const nextAction = dashboard.locator('[data-dashboard-value="next-action"]');
+  const exportButton = dashboard.getByRole("button", { name: "Export", exact: true });
+  await expect(decisionPosture).toBeInViewport();
+  await expect(nextAction).toBeInViewport();
+  const exportBackground = await exportButton.evaluate((element) => getComputedStyle(element).backgroundColor);
+  expect(exportBackground).toBe("rgb(8, 127, 140)");
+
+  await exportButton.click();
   await expect(page).toHaveURL((url) => /^\/reports\/[^/]+\/print$/.test(url.pathname));
   const reportPath = new URL(page.url()).pathname;
 
@@ -179,6 +187,7 @@ test("analysis report restores the A4 grid and deliberate site-context hierarchy
   await fs.writeFile(path.join(evidenceDirectory, "report-manifest.json"), `${JSON.stringify({
     fixedTime,
     route: reportPath,
+    exportBackground,
     metaColumns,
     topColumns,
     screenshot: path.relative(process.cwd(), screenshot)
