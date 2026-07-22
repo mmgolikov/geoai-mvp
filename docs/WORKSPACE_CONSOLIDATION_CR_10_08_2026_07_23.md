@@ -5,35 +5,36 @@
 | Field | Value |
 | --- | --- |
 | Change Request | CR-10.08 |
-| Status | Approved for Draft branch and Vercel Preview implementation |
+| Status | Implemented in Draft; exact-head release verification required |
 | Date | 2026-07-23 |
 | Owner | GeoAI Founder / GeoAI Delivery OS |
 | Repository | `mmgolikov/geoai-mvp` |
 | Branch | `recovery/runtime-design-migration-v1` |
 | Draft PR | `#112` |
 | Production impact | None without a separate release approval |
+| Verification record | Exact-head CI, Preview and artifact receipt are recorded in Draft PR #112 and the linked Confluence authority after successful completion |
 
 ## Executive decision
 
-GeoAI will use **Workspace** as the single canonical Product surface for both map-first and criteria-first spatial decision workflows.
+GeoAI uses **Workspace** as the single canonical Product surface for both map-first and criteria-first spatial decision workflows.
 
-The separate **Explore** Product destination is retired because it renders the same `WorkspaceShell`, differs primarily by its initial interaction mode, and creates avoidable duplication in the landing narrative, desktop navigation, mobile navigation, accessibility journeys, visual evidence and route governance.
+The separate **Explore** Product destination is retired because it rendered the same `WorkspaceShell`, differed primarily by its initial interaction mode, and created avoidable duplication in the landing narrative, desktop navigation, mobile navigation, accessibility journeys, visual evidence and route governance.
 
 Criteria-first candidate search, shortlist comparison and candidate dashboards remain fully available inside Workspace. The capability is not removed; only the duplicate Product destination and label are removed.
 
-The legacy `/explore` path remains temporarily as a compatibility entry that forwards users to `/workspace`. It must not appear in Product navigation, landing copy, current screen inventories or release claims as a separate Product module.
+The legacy `/explore` path remains temporarily as a compatibility entry that performs a server-side redirect to `/workspace`. It must not appear in Product navigation, landing copy, current screen inventories or release claims as a separate Product module.
 
 ## Problem
 
-Workspace and Explore currently expose substantially the same system:
+Workspace and Explore previously exposed substantially the same system:
 
-- both routes render `WorkspaceShell`;
-- Explore only sets `initialExploreMode`;
-- both contain map-first and criteria-first controls;
-- both lead to candidate search, comparison, decision dashboards and reports;
-- the separate navigation label suggests two products where there is one decision workflow.
+- both routes rendered `WorkspaceShell`;
+- Explore only enabled a different initial interaction state;
+- both contained map-first and criteria-first controls;
+- both led to candidate search, comparison, decision dashboards and reports;
+- the separate navigation label suggested two products where there was one decision workflow.
 
-This duplication increases cognitive load, fragments QA evidence, creates redundant route and accessibility contracts and weakens the commercial narrative.
+This duplication increased cognitive load, fragmented QA evidence, created redundant route and accessibility contracts and weakened the commercial narrative.
 
 ## Business reason
 
@@ -75,8 +76,8 @@ A single Workspace reduces navigation ambiguity, improves onboarding and makes t
 ### Legacy route
 
 - `/explore` is not deleted abruptly.
-- It becomes a compatibility-only entry that forwards to `/workspace` after hydration.
-- The compatibility page uses Workspace terminology and carries no separate Explore navigation or product claim.
+- It is a compatibility-only server redirect to `/workspace`.
+- It renders no separate Product shell, Workspace implementation, navigation or Product claim.
 - Route removal may be considered only after telemetry/bookmark review and a separate Change Request.
 
 ## Data impact
@@ -97,27 +98,28 @@ None.
 - fewer navigation choices;
 - clearer commercial and onboarding narrative;
 - no loss of analytical functionality;
-- compatibility state is secondary and non-promotional.
+- compatibility route is non-promotional and invisible in Product navigation.
 
 ## Engineering impact
 
 - update `ProductNavigation` route registry;
-- normalize Workspace heading for criteria-first entry;
-- replace the `/explore` Product page with a compatibility forwarder;
+- normalize the Workspace heading for every interaction state;
+- replace the `/explore` Product page with a server-side compatibility redirect;
 - update landing CTA copy;
-- update navigation, accessibility and mobile E2E contracts;
+- update navigation, accessibility, Auth, spatial and mobile E2E contracts;
 - update exact-head visual evidence policy for intentionally changed shared navigation;
-- retain current internal `explore*` implementation identifiers temporarily to avoid a broad functional refactor. These identifiers are implementation details, not Product labels.
+- retain current internal `explore*` implementation identifiers temporarily to avoid a broad functional refactor. These identifiers are implementation details, not Product labels;
+- add a permanent source guard that rejects visible `/explore` links, duplicate Product-shell rendering and retired public Explore labels while allowing internal technical identifiers.
 
 ## Risks and controls
 
 | Risk | Control |
 | --- | --- |
-| Existing bookmarks to `/explore` break | Compatibility forwarding to `/workspace` |
-| Candidate-search functionality is accidentally removed | Acceptance tests exercise Criteria-first inside Workspace |
+| Existing bookmarks to `/explore` break | Server-side compatibility redirect to `/workspace` |
+| Candidate-search functionality is accidentally removed | Acceptance tests exercise Criteria-first, candidate search and comparison inside Workspace |
 | Navigation change invalidates visual baselines | Changed shell/menu states use deterministic candidate evidence and SHA-256 receipts |
-| Current route inventory treats `/explore` as a Product route | Current documentation labels it compatibility-only; a later route-removal CR can delete it |
-| Redirect creates an authentication loop | Compatibility forwarding occurs inside the existing authenticated route boundary and targets the canonical Workspace route |
+| Current route inventory treats `/explore` as a Product route | Current documentation and source guard label it compatibility-only; a later route-removal CR can delete it |
+| Redirect bypasses authentication governance | The server redirect lands on canonical `/workspace`, where the existing resolved-session route gate remains authoritative |
 | Internal identifiers cause confusion | Public UI and current documentation use Workspace terminology; internal names are recorded as temporary technical debt |
 
 ## UX acceptance criteria
@@ -127,20 +129,21 @@ None.
 3. Workspace is the only visible operating surface for map-first and criteria-first workflows.
 4. Criteria-first candidate search, shortlist comparison, candidate dashboard and export still work from `/workspace`.
 5. Criteria-first can be selected directly inside `/workspace`, with the heading `Workspace location screening`.
-6. `/explore` forwards to the canonical Workspace criteria-first entry without exposing a duplicate Product screen.
+6. `/explore` redirects to canonical `/workspace` without exposing a duplicate Product screen.
 7. Product navigation retains accessible names, focus states, minimum target sizes and no horizontal overflow.
 8. No data-honesty language or source-lineage behavior is weakened.
 
 ## Engineering acceptance criteria
 
 1. `productRoutes` contains exactly Workspace and Projects.
-2. `/explore` no longer imports or renders `WorkspaceShell` as a separate Product page.
-3. The compatibility entry has a canonical Workspace action and automatic client-side replacement.
-4. Workspace receives one consistent public heading regardless of initial interaction mode.
+2. `/explore` no longer imports or renders `WorkspaceShell`, `AuthenticatedRouteGate` or Product navigation as a separate screen.
+3. The compatibility entry performs a server-side redirect to `/workspace`.
+4. Workspace receives one consistent public heading regardless of interaction mode.
 5. E2E journeys use `/workspace` for criteria-first comparison.
 6. Shared-shell evidence expects two Product destinations.
-7. Existing route smoke remains compatible while `/explore` is retained.
-8. TypeScript, build, accessibility, data-honesty, route smoke and report checks remain green.
+7. Route smoke expects `/explore` to return `307` with Location `/workspace`.
+8. A permanent source guard rejects visible Explore navigation/landing regressions and duplicate route rendering.
+9. TypeScript, build, accessibility, data-honesty, route smoke and report checks remain green.
 
 ## QA checklist
 
@@ -152,11 +155,12 @@ None.
 - [ ] `/workspace` criteria-first flow passes.
 - [ ] Candidate search and comparison pass.
 - [ ] Analysis and comparison export pass.
-- [ ] `/explore` compatibility entry forwards correctly in a browser.
-- [ ] Compatibility entry returns a stable non-error HTTP response for existing route smoke.
+- [ ] `/explore` compatibility redirect resolves to `/workspace` in a browser.
+- [ ] Route smoke records `/explore` as `307` with Location `/workspace`.
 - [ ] Keyboard navigation and Escape/outside-close behavior pass.
 - [ ] Axe serious/critical findings remain zero on critical screens.
 - [ ] No horizontal overflow at 390, 430, 768, 834 and 1440 widths.
+- [ ] Permanent Workspace-consolidation source guard passes.
 - [ ] Exact-head Vercel Preview is READY.
 - [ ] Exact-head GitHub Quality Gate is successful.
 - [ ] Production remains unchanged unless separately approved.
@@ -167,11 +171,11 @@ None.
 | --- | --- | --- |
 | `/workspace` | Canonical Product screen | Map-first and criteria-first spatial decision workflow |
 | `/projects` | Canonical Product screen | Project Hub and saved decision work |
-| `/explore` | Compatibility-only | Forward legacy links to `/workspace` |
+| `/explore` | Compatibility-only | Server-side redirect of legacy links to `/workspace` |
 
 ## Release note draft
 
-**Workspace consolidation:** GeoAI now presents one canonical Workspace for map-first and criteria-first screening. Candidate search and comparison remain available inside Workspace. The duplicate Explore navigation destination has been retired. Existing `/explore` links are preserved through a compatibility forwarder.
+**Workspace consolidation:** GeoAI now presents one canonical Workspace for map-first and criteria-first screening. Candidate search and comparison remain available inside Workspace. The duplicate Explore navigation destination has been retired. Existing `/explore` links are preserved through a compatibility redirect.
 
 ## Rollback
 
