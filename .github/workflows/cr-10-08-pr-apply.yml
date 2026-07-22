@@ -22,17 +22,20 @@ jobs:
           show-progress: false
 
       - name: Apply bounded source patch
+        id: patch
+        continue-on-error: true
         shell: bash
         run: |
-          set -euo pipefail
+          set -uo pipefail
+          mkdir -p artifacts
 
           if grep -q 'redirect("/workspace")' app/explore/page.tsx; then
-            echo "CR 10.08 implementation is already applied on the exact branch head."
+            echo "CR 10.08 implementation is already applied on the exact branch head." | tee artifacts/cr-10-08-patch.log
             echo "already_applied=true" >> "$GITHUB_ENV"
             exit 0
           fi
 
-          python3 <<'PY'
+          python3 <<'PY' > artifacts/cr-10-08-patch.log 2>&1
           from pathlib import Path
 
           workflow = Path('.github/workflows/cr-10-08-apply.yml').read_text(encoding='utf-8').splitlines()
@@ -48,6 +51,22 @@ jobs:
           )
           exec(compile(script, 'cr-10-08-inline-patch.py', 'exec'))
           PY
+          status=$?
+          cat artifacts/cr-10-08-patch.log
+          exit "$status"
+
+      - name: Upload patch diagnostic
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cr-10-08-patch-diagnostic-${{ github.run_id }}
+          path: artifacts/cr-10-08-patch.log
+          if-no-files-found: ignore
+          retention-days: 2
+
+      - name: Fail when source patch did not apply
+        if: steps.patch.outcome == 'failure'
+        run: exit 1
 
       - name: Set up Node.js
         if: env.already_applied != 'true'
