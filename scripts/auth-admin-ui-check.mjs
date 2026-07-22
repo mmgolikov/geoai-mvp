@@ -67,13 +67,15 @@ assert(login.includes("Sign in to GeoAI") && login.includes("sign-in only") && l
 assert(navigation.includes("AccessStatusBadge") && accessBadgeVisual.includes('data-authenticated={isAuthenticated ? "true" : "false"}') && accessBadge.includes('isAuthenticated ? "/profile" : "/login"'), "Product navigation must expose a highlighted profile icon that opens the personal account");
 assert(provider.includes("isSessionResolved") && provider.includes("finally") && provider.includes("setIsSessionResolved(true)"), "AuthProvider must resolve the browser session before protected product UI renders");
 assert(routeGate.includes('authStatus.effectiveMode === "demo_public"') && routeGate.includes("return children"), "Public demo mode must preserve direct product access");
-assert(routeGate.includes("!isSessionResolved") && routeGate.includes("!isAuthenticated"), "Supabase-auth product routes must wait for session resolution and reject anonymous rendering");
-assert(routeGate.includes("getSafeAuthRedirectPath(requestedPath") && routeGate.includes('router.replace(`/login?next=${encodeURIComponent(next)}`)'), "Anonymous product routes must use a bounded same-origin login continuation");
+assert(routeGate.includes("!isSessionResolved") && routeGate.includes("!isAuthenticated"), "Supabase-auth Product routes must wait for session resolution and reject anonymous rendering");
+assert(routeGate.includes("getSafeAuthRedirectPath(requestedPath") && routeGate.includes('router.replace(`/login?next=${encodeURIComponent(next)}`)'), "Anonymous Product routes must use a bounded same-origin login continuation");
 assert(!routeGate.includes("getSession(") && !routeGate.includes("user_metadata") && !routeGate.includes("SUPABASE_"), "Client route gate must not invent session authority or consume privileged/user-editable data");
-for (const [name, page] of [["Workspace", workspacePage], ["Projects", projectsPage], ["Explore", explorePage], ["Profile", profilePage]]) {
+for (const [name, page] of [["Workspace", workspacePage], ["Projects", projectsPage], ["Profile", profilePage]]) {
   assert(page.includes("AuthenticatedRouteGate") && page.includes("<AuthenticatedRouteGate>"), `${name} route is not wrapped in the resolved-session gate`);
 }
-assert(redirectPath.includes('"/explore"') && redirectPath.includes('"/profile"'), "Explore and Profile must be valid bounded post-login destinations");
+assert(explorePage.includes('redirect("/workspace")'), "Explore compatibility entry must redirect to canonical Workspace");
+assert(!explorePage.includes("WorkspaceShell") && !explorePage.includes("AuthenticatedRouteGate"), "Explore compatibility entry must not render a duplicate Product screen or auth shell");
+assert(redirectPath.includes('"/explore"') && redirectPath.includes('"/profile"'), "Explore compatibility and Profile must remain valid bounded post-login destinations");
 assert(adminRoute.includes("privateNoStoreJson") && onboardingRoute.includes("privateNoStoreJson"), "Authenticated Admin APIs must be private no-store");
 assert(adminUi.includes("initial-only") && adminUi.includes("capped at 25"), "Admin UI must disclose bounded initial-only snapshot pagination");
 
@@ -89,4 +91,4 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-console.log("Auth/Admin UI contract passed: resolved-session route gating, bounded existing-user login, permanent-identity same-origin APIs, api-only RPCs, invisible hashed invitation handoff, invitation-only onboarding and no MFA dependency are wired.");
+console.log("Auth/Admin UI contract passed: resolved-session route gating, canonical Workspace consolidation, bounded legacy Explore forwarding, existing-user login, permanent-identity same-origin APIs, api-only RPCs, invisible hashed invitation handoff, invitation-only onboarding and no MFA dependency are wired.");
