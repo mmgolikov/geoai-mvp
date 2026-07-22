@@ -28,17 +28,41 @@ jobs:
           cache: npm
 
       - name: Verify source guard and regenerate lifecycle manifest
+        id: verify
+        continue-on-error: true
         shell: bash
         run: |
-          set -euo pipefail
-          npm ci
-          npm run test:workspace-consolidation-source
-          npm run docs:lifecycle:generate
-          npm run test:document-lifecycle
-          npm run lint
-          git diff --check
+          set -uo pipefail
+          mkdir -p artifacts
+          {
+            npm ci &&
+            npm run test:workspace-consolidation-source &&
+            npm run docs:lifecycle:generate &&
+            npm run test:document-lifecycle &&
+            npm run lint &&
+            git diff --check
+          } > artifacts/cr-10-08-finalize.log 2>&1
+          status=$?
+          cat artifacts/cr-10-08-finalize.log
+          exit "$status"
+
+      - name: Upload finalization diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cr-10-08-finalize-diagnostic-${{ github.run_id }}
+          path: |
+            artifacts/cr-10-08-finalize.log
+            artifacts/workspace-consolidation-source-check.json
+          if-no-files-found: warn
+          retention-days: 2
+
+      - name: Fail when finalization verification did not pass
+        if: steps.verify.outcome == 'failure'
+        run: exit 1
 
       - name: Commit generated documentation state
+        if: steps.verify.outcome == 'success'
         shell: bash
         run: |
           set -euo pipefail
