@@ -27,6 +27,12 @@ This page describes the current released public-demo implementation and its stil
 | Sources | Compact bundled public manifest, bounded operator source-pack contract, SOURCE-01 custody draft and provider-neutral SOURCE-02 `reserve_or_replay` claim v1 | SOURCE-02 ships an empty registry and has no fetch/env/secrets/persistence or atomic pre-fetch reservation writer; its unsigned claim authorizes nothing, Production is denied and no real geometry/assets/persistence or score impact exists |
 | Operations | Successful exact-snapshot Quality Gate/artifact, CI `database-replay` clean start/reset/71-assertion pgTAP receipt, static custody checker and READY Vercel Preview with HTTP negative matrix | Upgrade replay, live JWT/Auth/RLS/Storage/source personas, browser evidence, distributed tracing and certified audit remain open |
 
+## Product System v3.2.1 candidate boundary
+
+CR 10.02 introduces a scoped `.geoai-v32` semantic token layer and adapts the existing `TopNavigation` / `ProductNavigation` / `AccessStatusBadge` runtime composition into one 64 px Product shell. Product System v3.2.1 receipt `1819:11` adds a component-only accessibility correction: enabled inactive text is `#606f83`, while disabled text remains separately `#667587`; no Axe/WCAG exception is permitted. `src/design-system/tokens.ts` is the typed canonical token source; Tailwind consumes that source, while `app/product-system-v3.css` exposes matching variables only under the shell/primitives scope. Geist is loaded through `next/font` and applied only inside that scope, so non-shell route bodies retain their existing typography and presentation.
+
+The approved 32 px identity is a repository-owned Figma export with a pinned SHA-256. Button, StatusChip, SegmentSwitch and ValidationCaveat are typed migration primitives, but existing page-local controls and `SafeBadge` remain in place until separately approved body migrations. A static drift contract and shell-only Playwright/Axe suite enforce exact node traceability, token values, one navigation landmark, responsive target sizes, deterministic captures and no body migration. This candidate changes no route, session, authorization, API, persistence or source trust boundary and is not released until separately merged and promoted.
+
 ## Request and trust boundaries
 
 ```text

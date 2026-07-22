@@ -1,4 +1,7 @@
 import type { Config } from "tailwindcss";
+import { productSystemV32Tokens } from "./src/design-system/tokens";
+
+const v32 = productSystemV32Tokens;
 
 const config: Config = {
   content: [
@@ -9,23 +12,28 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        ink: "#06122e",
-        muted: "#4d6694",
-        line: "#ccdef5",
-        surface: "#f4f9ff",
-        brand: "#064fcf",
-        accent: "#06717a",
-        personal: "#5b48d8",
-        risk: "#a63f00",
-        navy: "#06122e"
+        ...v32.color,
+        navy: v32.color.ink
+      },
+      fontFamily: {
+        product: ["var(--font-geist)", "Geist", "Arial", "sans-serif"]
       },
       boxShadow: {
         soft: "0 18px 60px rgba(11, 23, 51, 0.10)",
         panel: "0 16px 40px rgba(11, 23, 51, 0.16)"
       },
       borderRadius: {
-        control: "12px",
-        panel: "24px"
+        control: v32.radius.control,
+        action: v32.radius.action,
+        card: v32.radius.card,
+        panel: v32.radius.panel
+      },
+      height: {
+        "product-header": v32.dimension.header
+      },
+      minHeight: {
+        "action": v32.dimension.desktopControlMinimum,
+        "touch": v32.dimension.primaryTouchTarget
       }
     }
   },

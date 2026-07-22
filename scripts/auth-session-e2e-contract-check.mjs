@@ -32,7 +32,7 @@ if (packageJson.devDependencies?.["@playwright/test"] !== "1.61.1") {
 if (packageJson.devDependencies?.["@axe-core/playwright"] !== "4.12.1") {
   failures.push("@axe-core/playwright must stay exactly pinned to 4.12.1");
 }
-if (packageJson.scripts?.["test:e2e:auth-session"] !== "playwright test tests/e2e/auth-session-flow.spec.ts tests/e2e/auth-responsive-flow.spec.ts tests/e2e/public-request-flow.spec.ts tests/e2e/accessibility-workspace-flow.spec.ts tests/e2e/accessibility-project-comparison-flow.spec.ts tests/e2e/mobile-product-flow.spec.ts tests/e2e/mobile-global-navigation.spec.ts tests/e2e/commercial-alignment-visual.spec.ts tests/e2e/system-resilience-flow.spec.ts") {
+if (packageJson.scripts?.["test:e2e:auth-session"] !== "playwright test tests/e2e/auth-session-flow.spec.ts tests/e2e/auth-responsive-flow.spec.ts tests/e2e/public-request-flow.spec.ts tests/e2e/accessibility-workspace-flow.spec.ts tests/e2e/accessibility-project-comparison-flow.spec.ts tests/e2e/mobile-product-flow.spec.ts tests/e2e/mobile-global-navigation.spec.ts tests/e2e/commercial-alignment-visual.spec.ts tests/e2e/system-resilience-flow.spec.ts tests/e2e/design-foundation-shell.spec.ts tests/e2e/primitive-state-evidence.spec.tsx tests/e2e/route-body-invariance.spec.ts") {
   failures.push("The focused Auth/session, responsive, accessibility and commercial visual Playwright command is missing");
 }
 if (packageJson.scripts?.["test:e2e:auth-real-persona"] !== "playwright test tests/e2e/real-email-auth-flow.spec.ts") {

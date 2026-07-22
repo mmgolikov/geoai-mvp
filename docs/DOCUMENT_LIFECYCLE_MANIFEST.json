@@ -3,9 +3,9 @@
   "lastVerified": "2026-07-16",
   "authority": "docs/DOCUMENTATION_INDEX.md",
   "counts": {
-    "markdownDocuments": 137,
+    "markdownDocuments": 140,
     "activeAuthorities": 12,
-    "nonActiveDocuments": 125
+    "nonActiveDocuments": 128
   },
   "documents": {
     "AGENTS.md": {
@@ -110,6 +110,12 @@
       "successor": "docs/DOCUMENTATION_INDEX.md",
       "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
     },
+    "docs/CR_10_02_DESIGN_FOUNDATION_SHARED_SHELL.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
     "docs/CR_DEV8_001_CONTROLLED_OPEN_CONTEXT_SOURCE_CONNECTION_PACK_V1.md": {
       "lifecycle": "scoped_release_control_evidence",
       "currentAuthority": false,
@@ -177,6 +183,18 @@
       "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
     },
     "docs/DEMO_SCRIPT_V06.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/DESIGN_FOUNDATION_COMPONENT_MAPPING_V3_2.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/DESIGN_FOUNDATION_SHARED_SHELL_QA_RECEIPT.md": {
       "lifecycle": "historical_or_scoped_reference",
       "currentAuthority": false,
       "successor": "docs/DOCUMENTATION_INDEX.md",

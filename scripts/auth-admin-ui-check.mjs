@@ -4,7 +4,7 @@ async function source(path) {
   return fs.promises.readFile(new URL(`../${path}`, import.meta.url), "utf8");
 }
 
-const [adminRoute, onboardingRoute, onboardingStageRoute, invitationCookie, tokenHelper, elevated, adminUi, onboardingUi, callback, redirectPath, landing, navigation, accessBadge, login, provider, routeGate, workspacePage, projectsPage, explorePage, profilePage] = await Promise.all([
+const [adminRoute, onboardingRoute, onboardingStageRoute, invitationCookie, tokenHelper, elevated, adminUi, onboardingUi, callback, redirectPath, landing, navigation, accessBadge, accessBadgeVisual, login, provider, routeGate, workspacePage, projectsPage, explorePage, profilePage] = await Promise.all([
   source("app/api/admin/route.ts"),
   source("app/api/onboarding/invitation/route.ts"),
   source("app/api/onboarding/invitation/stage/route.ts"),
@@ -18,6 +18,7 @@ const [adminRoute, onboardingRoute, onboardingStageRoute, invitationCookie, toke
   source("app/page.tsx"),
   source("components/top-navigation.tsx"),
   source("components/auth/access-status-badge.tsx"),
+  source("components/auth/access-status-badge-visual.tsx"),
   source("components/auth/login-panel.tsx"),
   source("components/auth/auth-provider.tsx"),
   source("components/auth/authenticated-route-gate.tsx"),
@@ -63,7 +64,7 @@ assert(landing.includes('href="/login?next=/workspace&intent=demo"') && landing.
 assert(landing.includes('href="/request-access"') && landing.includes("Prepare request brief"), "Landing must expose the separate public request-brief CTA");
 assert(!landing.includes('href="/workspace"') && !landing.includes('href="/projects"'), "Landing must not bypass the requested authentication funnel");
 assert(login.includes("Sign in to GeoAI") && login.includes("sign-in only") && login.includes("separate approved invitation") && !login.includes("Sign in or create account") && login.includes("window.location.replace(getDestination())") && login.includes("Authorization saved. Opening Workspace"), "Existing-user-only login must not advertise public signup and must immediately continue a saved session to Workspace");
-assert(navigation.includes("AccessStatusBadge") && accessBadge.includes('data-authenticated={isAuthenticated ? "true" : "false"}') && accessBadge.includes('isAuthenticated ? "/profile" : "/login"'), "Product navigation must expose a highlighted profile icon that opens the personal account");
+assert(navigation.includes("AccessStatusBadge") && accessBadgeVisual.includes('data-authenticated={isAuthenticated ? "true" : "false"}') && accessBadge.includes('isAuthenticated ? "/profile" : "/login"'), "Product navigation must expose a highlighted profile icon that opens the personal account");
 assert(provider.includes("isSessionResolved") && provider.includes("finally") && provider.includes("setIsSessionResolved(true)"), "AuthProvider must resolve the browser session before protected product UI renders");
 assert(routeGate.includes('authStatus.effectiveMode === "demo_public"') && routeGate.includes("return children"), "Public demo mode must preserve direct product access");
 assert(routeGate.includes("!isSessionResolved") && routeGate.includes("!isAuthenticated"), "Supabase-auth product routes must wait for session resolution and reject anonymous rendering");

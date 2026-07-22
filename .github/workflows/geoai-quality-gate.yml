@@ -248,6 +248,12 @@ jobs:
           set -euo pipefail
           npm run test:data-honesty | tee artifacts/data-honesty-check.txt
 
+      - name: Product System v3.2 design foundation contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:design-foundation | tee artifacts/design-foundation-contract-check.txt
+
       - name: Documentation current-truth checks
         shell: bash
         run: |

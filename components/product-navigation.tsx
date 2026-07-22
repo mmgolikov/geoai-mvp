@@ -49,7 +49,7 @@ export function ProductNavigation() {
 
   return (
     <>
-      <nav aria-label="Primary product navigation" className="hidden items-center gap-1 sm:flex">
+      <nav aria-label="Primary product navigation" data-figma-node="219:425" className="hidden h-10 items-center gap-1 md:flex">
         {productRoutes.map((route) => {
           const isCurrent = isCurrentRoute(pathname, route.href);
           return (
@@ -57,7 +57,7 @@ export function ProductNavigation() {
               key={route.href}
               href={route.href}
               aria-current={isCurrent ? "page" : undefined}
-              className={`inline-flex min-h-10 items-center rounded-md px-3 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 ${
+              className={`inline-flex h-10 min-w-[84px] items-center justify-center rounded-control px-3 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 ${
                 isCurrent
                   ? "bg-surface text-ink"
                   : "text-muted hover:bg-surface hover:text-ink"
@@ -70,7 +70,7 @@ export function ProductNavigation() {
       </nav>
 
       {isSessionResolved && isAuthenticated ? (
-        <div ref={containerRef} className="relative sm:hidden" data-mobile-product-navigation>
+        <div ref={containerRef} className="relative md:hidden" data-mobile-product-navigation>
           <button
             ref={triggerRef}
             type="button"
@@ -78,9 +78,9 @@ export function ProductNavigation() {
             aria-expanded={isOpen}
             aria-controls="mobile-product-navigation-menu"
             onClick={() => setIsOpen((current) => !current)}
-            className={`inline-flex h-10 w-10 items-center justify-center rounded-md border transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 ${
+            className={`inline-flex h-10 w-10 items-center justify-center rounded-control border transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 ${
               isOpen
-                ? "border-brand bg-[#e8f3f2] text-brand"
+                ? "border-brand bg-surface text-brand"
                 : "border-line bg-white text-muted hover:border-brand hover:text-brand"
             }`}
           >
@@ -104,7 +104,7 @@ export function ProductNavigation() {
             <nav
               id="mobile-product-navigation-menu"
               aria-label="Mobile product navigation"
-              className="absolute right-0 top-[calc(100%+0.75rem)] z-50 w-[min(18rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-line bg-white p-2 shadow-[0_18px_48px_rgba(18,50,65,0.18)]"
+              className="absolute right-0 top-[calc(100%+0.75rem)] z-50 w-[min(18rem,calc(100vw-2rem))] overflow-hidden rounded-card border border-line bg-white p-2 shadow-soft"
             >
               {productRoutes.map((route) => {
                 const isCurrent = isCurrentRoute(pathname, route.href);
@@ -113,15 +113,15 @@ export function ProductNavigation() {
                     key={route.href}
                     href={route.href}
                     aria-current={isCurrent ? "page" : undefined}
-                    className={`flex min-h-12 items-center justify-between gap-4 rounded-lg px-3 py-2 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
+                    className={`flex min-h-11 items-center justify-between gap-4 rounded-control px-3 py-2 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
                       isCurrent
-                        ? "bg-[#e8f3f2] text-brand"
+                        ? "bg-surface text-ink"
                         : "text-ink hover:bg-surface"
                     }`}
                   >
                     <span className="min-w-0">
                       <span className="block text-sm font-semibold">{route.label}</span>
-                      <span className="block truncate text-xs font-medium text-muted">{route.description}</span>
+                      <span className="block text-xs font-medium leading-4 text-muted">{route.description}</span>
                     </span>
                     <svg aria-hidden="true" viewBox="0 0 20 20" className="h-4 w-4 shrink-0 fill-none stroke-current" strokeWidth="1.8">
                       <path d="m7 4 6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
