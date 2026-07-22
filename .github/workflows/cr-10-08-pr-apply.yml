@@ -48,6 +48,11 @@ jobs:
               'replace_once("app/page.tsx", ">Explore platform</Link>", ">Open workspace</Link>")',
               'replace_once("app/page.tsx", "Explore platform", "Open workspace")'
           )
+          nav_start_marker = '# Mobile navigation: Workspace and Projects only; intentional new candidate evidence.'
+          nav_end_marker = '# Criteria-first remains inside Workspace.'
+          nav_start = script.index(nav_start_marker)
+          nav_end = script.index(nav_end_marker, nav_start)
+          script = script[:nav_start] + script[nav_end:]
           exec(compile(script, 'cr-10-08-inline-patch.py', 'exec'))
           PY
           status=$?
