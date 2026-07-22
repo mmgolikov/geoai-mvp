@@ -1,0 +1,618 @@
+name: GeoAI Quality Gate
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: geoai-quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality-gate:
+    name: Static, API and data-honesty checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      CI: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Prepare evidence directory
+        run: mkdir -p artifacts
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install physical PDF inspection tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --yes poppler-utils
+
+      - name: Production dependency audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm audit --omit=dev --audit-level=moderate | tee artifacts/npm-audit.txt
+
+      - name: Record run metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --version | tee artifacts/node-version.txt
+          npm --version | tee artifacts/npm-version.txt
+          git rev-parse HEAD | tee artifacts/tested-commit-sha.txt
+
+      - name: TypeScript check
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run lint | tee artifacts/typescript-check.txt
+
+      - name: Access-decision checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:access-decision | tee artifacts/access-decision-check.txt
+
+      - name: API access-guard checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:api-access-guards | tee artifacts/api-access-guard-check.txt
+
+      - name: Server credential boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:server-credential-boundary | tee artifacts/server-credential-boundary-check.txt
+
+      - name: Secret hygiene
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:secret-hygiene | tee artifacts/secret-hygiene-check.txt
+
+      - name: Readiness evidence boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:readiness-evidence | tee artifacts/readiness-evidence-check.txt
+
+      - name: Auth SSR transport checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:auth-ssr-transport | tee artifacts/auth-ssr-transport-check.txt
+
+      - name: Supabase exact-target checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:supabase-exact-target | tee artifacts/supabase-exact-target-check.txt
+
+      - name: Auth, MFA and Admin UI checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:auth-admin-ui | tee artifacts/auth-admin-ui-check.txt
+
+      - name: Auth session E2E wiring checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:auth-session-e2e-contract | tee artifacts/auth-session-e2e-contract-check.txt
+
+      - name: Auth mutation-origin checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:auth-mutation-origin | tee artifacts/auth-mutation-origin-check.txt
+
+      - name: Request-scoped project read checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:request-scoped-project-read | tee artifacts/request-scoped-project-read-check.txt
+
+      - name: Protected GET cache-boundary checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:private-cache-boundary | tee artifacts/private-cache-boundary-check.txt
+
+      - name: Static RLS-plan checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:rls-plan | tee artifacts/rls-plan-check.txt
+
+      - name: Migration security-surface checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:migration-security-surface | tee artifacts/migration-security-surface-check.txt
+
+      - name: Canonical migration-chain checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:canonical-migration-chain | tee artifacts/canonical-migration-chain-check.txt
+
+      - name: Synthetic upgrade-replay static contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:synthetic-upgrade-replay | tee artifacts/synthetic-upgrade-replay-static-check.txt
+
+      - name: Local Supabase replay contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:supabase-local-contract | tee artifacts/supabase-local-contract-check.txt
+
+      - name: Identity and authorization migration checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:identity-authorization-migration | tee artifacts/identity-authorization-migration-check.txt
+
+      - name: Source custody migration checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:source-custody-migration | tee artifacts/source-custody-migration-check.txt
+
+      - name: Auth/Admin activation migration checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:auth-admin-project-activation-rebuild | tee artifacts/auth-admin-project-activation-rebuild-check.txt
+
+      - name: Foreign-key index hardening checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:foreign-key-index-hardening | tee artifacts/foreign-key-index-hardening-check.txt
+
+      - name: Auth/Admin lifecycle remediation checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:auth-admin-lifecycle-remediation | tee artifacts/auth-admin-lifecycle-remediation-check.txt
+
+      - name: Data API operator checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:data-api-operator | tee artifacts/data-api-operator-check.txt
+
+      - name: Source connector foundation checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:source-connector-foundation | tee artifacts/source-connector-foundation-check.txt
+
+      - name: Workspace-panel source checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:workspace-panel | tee artifacts/workspace-panel-check.txt
+
+      - name: AOI integrity adversarial checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:aoi-integrity | tee artifacts/aoi-integrity-check.txt
+
+      - name: Spatial B1 contract checks
+        shell: bash
+        env:
+          SPATIAL_B1_CONTRACT_EVIDENCE_DIR: artifacts/spatial-b1
+        run: |
+          set -euo pipefail
+          npm run test:spatial-b1 | tee artifacts/spatial-b1-check.txt
+
+      - name: Spatial B2A fallback checks
+        shell: bash
+        env:
+          SPATIAL_B2_EVIDENCE_DIR: artifacts/spatial-b2a
+        run: |
+          set -euo pipefail
+          npm run test:spatial-b2a | tee artifacts/spatial-b2a-check.txt
+
+      - name: Data-honesty claim scan
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:data-honesty | tee artifacts/data-honesty-check.txt
+
+      - name: Product System v3.2 design foundation contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:design-foundation | tee artifacts/design-foundation-contract-check.txt
+
+      - name: Documentation current-truth checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:documentation-current-truth | tee artifacts/documentation-current-truth-check.txt
+
+      - name: Documentation current-truth fixture checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:documentation-current-truth-fixtures | tee artifacts/documentation-current-truth-fixtures.txt
+
+      - name: API route inventory source contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:api-route-inventory | tee artifacts/api-route-inventory-source-check.txt
+
+      - name: Public request boundary checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:public-request-contract | tee artifacts/public-request-contract-check.txt
+
+      - name: Documentation lifecycle manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:document-lifecycle | tee artifacts/document-lifecycle-check.txt
+
+      - name: Project isolation source contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:project-isolation | tee artifacts/project-isolation-check.txt
+
+      - name: Public report-package projection contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:report-package-public-contract | tee artifacts/report-package-public-contract-check.txt
+
+      - name: Runtime status contract checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:runtime-status-contract | tee artifacts/runtime-status-contract-check.txt
+
+      - name: Runtime source-pack contract checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:runtime-source-pack | tee artifacts/runtime-source-pack-check.txt
+
+      - name: Browser Auth/session flow
+        shell: bash
+        env:
+          NEXT_PUBLIC_AUTH_MODE: supabase_auth
+          NEXT_PUBLIC_SUPABASE_URL: https://bkmfcjzalcvdsdvyxpgi.supabase.co
+          E2E_KEY_SUFFIX: geoai_ci_browser_contract_only
+          GEOAI_ACCESS_ENFORCEMENT_MODE: hard
+          GEOAI_ALLOW_DEMO_PUBLIC: "false"
+          GEOAI_E2E_BASE_URL: http://127.0.0.1:3100
+        run: |
+          set -euo pipefail
+          export NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="sb_publishable_${E2E_KEY_SUFFIX}"
+          npm run dev -- -p 3100 > /tmp/geoai-e2e-next.log 2>&1 &
+          APP_PID=$!
+          cleanup() {
+            cp /tmp/geoai-e2e-next.log artifacts/auth-session-e2e-next.log 2>/dev/null || true
+            kill "$APP_PID" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          READY=0
+          for attempt in $(seq 1 90); do
+            if curl --fail --silent --show-error http://127.0.0.1:3100/login > /dev/null; then
+              READY=1
+              break
+            fi
+            if ! kill -0 "$APP_PID" 2>/dev/null; then
+              cat /tmp/geoai-e2e-next.log
+              exit 1
+            fi
+            sleep 1
+          done
+
+          if [ "$READY" -ne 1 ]; then
+            cat /tmp/geoai-e2e-next.log
+            echo "E2E app did not become ready within 90 seconds." >&2
+            exit 1
+          fi
+
+          google-chrome --version | tee artifacts/google-chrome-version.txt
+          npm run test:e2e:auth-session | tee artifacts/auth-session-e2e.txt
+          npx lighthouse 'http://127.0.0.1:3100/login?next=/workspace&intent=demo' \
+            --quiet \
+            --preset=desktop \
+            --output=json \
+            --output-path=artifacts/lighthouse-desktop-login.json \
+            --only-categories=performance,accessibility,best-practices,seo \
+            --chrome-flags="--headless --no-sandbox --disable-dev-shm-usage --disable-gpu"
+
+      - name: Build
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run build | tee artifacts/build.txt
+
+      - name: Vercel output-file tracing contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:vercel-output-tracing | tee artifacts/vercel-output-tracing-check.txt
+
+      - name: Start built app and run API/route smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run start -- -H 127.0.0.1 -p 3000 > /tmp/geoai-next.log 2>&1 &
+          APP_PID=$!
+          trap 'kill "$APP_PID" 2>/dev/null || true' EXIT
+
+          READY=0
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent --show-error http://127.0.0.1:3000/api/health > /dev/null; then
+              READY=1
+              break
+            fi
+            if ! kill -0 "$APP_PID" 2>/dev/null; then
+              cat /tmp/geoai-next.log
+              exit 1
+            fi
+            sleep 1
+          done
+
+          if [ "$READY" -ne 1 ]; then
+            cat /tmp/geoai-next.log
+            echo "Built app did not become ready within 60 seconds." >&2
+            exit 1
+          fi
+
+          GEOAI_TEST_BASE_URL=http://127.0.0.1:3000 npm run test:api-contract | tee artifacts/api-contract-check.txt
+          GEOAI_TEST_BASE_URL=http://127.0.0.1:3000 npm run test:security-headers | tee artifacts/security-header-check.txt
+          GEOAI_TEST_BASE_URL=http://127.0.0.1:3000 npm run test:api-route-inventory | tee artifacts/api-route-inventory-runtime-check.txt
+
+          : > artifacts/route-smoke.txt
+          routes=(
+            "/"
+            "/workspace"
+            "/projects"
+            "/explore"
+            "/login"
+            "/request-access"
+            "/login?next=/workspace&intent=request"
+            "/register"
+            "/mfa"
+            "/onboarding"
+            "/admin"
+            "/demo"
+            "/api/health"
+            "/api/db/health"
+            "/api/platform/activation-status"
+            "/api/pilot-backend/status"
+            "/reports/seeded-analysis-dubai-marina-report/print"
+            "/reports/seeded-comparison-dubai-shortlist-report/print"
+          )
+          declare -A expected_status
+          for route in "${routes[@]}"; do
+            expected_status["$route"]="200"
+          done
+          expected_status["/register"]="307"
+          expected_status["/mfa"]="307"
+          expected_status["/demo"]="307"
+          expected_status["/explore"]="307"
+          expected_status["/login?next=/workspace&intent=request"]="307"
+
+          declare -A expected_location
+          expected_location["/register"]="/login"
+          expected_location["/mfa"]="/login"
+          expected_location["/demo"]="/workspace"
+          expected_location["/explore"]="/workspace"
+          expected_location["/login?next=/workspace&intent=request"]="/request-access"
+
+          for route in "${routes[@]}"; do
+            code=$(curl --silent --show-error --max-time 20 --output /dev/null --write-out '%{http_code}' "http://127.0.0.1:3000${route}")
+            printf '%s\t%s\n' "$code" "$route" | tee -a artifacts/route-smoke.txt
+            if [ "$code" != "${expected_status[$route]}" ]; then
+              echo "Unexpected HTTP status for $route: got $code, expected ${expected_status[$route]}" >&2
+              exit 1
+            fi
+            if [ -n "${expected_location[$route]:-}" ]; then
+              redirect_url=$(curl --silent --show-error --max-time 20 --output /dev/null --write-out '%{redirect_url}' "http://127.0.0.1:3000${route}")
+              if [ "$redirect_url" != "http://127.0.0.1:3000${expected_location[$route]}" ]; then
+                echo "Unexpected redirect for $route: got $redirect_url, expected http://127.0.0.1:3000${expected_location[$route]}" >&2
+                exit 1
+              fi
+            fi
+          done
+
+          auth_smoke_base="http://localhost:3000"
+          admin_code=$(curl --silent --show-error --max-time 20 --output /dev/null --write-out '%{http_code}' -X POST -H "Origin: ${auth_smoke_base}" -H 'Sec-Fetch-Site: same-origin' -H 'Content-Type: application/json' --data '{}' "${auth_smoke_base}/api/admin")
+          invitation_code=$(curl --silent --show-error --max-time 20 --output /dev/null --write-out '%{http_code}' -X POST -H "Origin: ${auth_smoke_base}" -H 'Sec-Fetch-Site: same-origin' -H 'Content-Type: application/json' --data '{}' "${auth_smoke_base}/api/onboarding/invitation")
+          stage_code=$(curl --silent --show-error --max-time 20 --output /dev/null --write-out '%{http_code}' -X POST -H "Origin: ${auth_smoke_base}" -H 'Sec-Fetch-Site: same-origin' -H 'Content-Type: application/json' --data '{"token":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}' "${auth_smoke_base}/api/onboarding/invitation/stage")
+          logout_code=$(curl --silent --show-error --max-time 20 --output /dev/null --write-out '%{http_code}' -X POST -H "Origin: ${auth_smoke_base}" -H 'Sec-Fetch-Site: same-origin' -H 'Content-Type: application/json' --data '{}' "${auth_smoke_base}/api/auth/logout")
+          cross_origin_code=$(curl --silent --show-error --max-time 20 --output /dev/null --write-out '%{http_code}' -X POST -H 'Origin: https://attacker.invalid' -H 'Sec-Fetch-Site: cross-site' -H 'Content-Type: application/json' --data '{}' "${auth_smoke_base}/api/auth/logout")
+          printf '%s\t%s\n' "$admin_code" "/api/admin POST demo-mode denial" "$invitation_code" "/api/onboarding/invitation POST demo-mode denial" "$stage_code" "/api/onboarding/invitation/stage POST demo-mode denial" "$logout_code" "/api/auth/logout POST demo-mode denial" "$cross_origin_code" "/api/auth/logout POST cross-origin denial" | tee -a artifacts/route-smoke.txt
+          if [ "$admin_code" != "401" ] || [ "$invitation_code" != "401" ] || [ "$stage_code" != "503" ] || [ "$logout_code" != "503" ] || [ "$cross_origin_code" != "403" ]; then
+            echo "Auth/Admin demo-mode negative smoke returned an unexpected status." >&2
+            exit 1
+          fi
+
+          npx lighthouse http://127.0.0.1:3000/ \
+            --quiet \
+            --output=json \
+            --output-path=artifacts/lighthouse-mobile.json \
+            --only-categories=performance,accessibility,best-practices,seo \
+            --chrome-flags="--headless --no-sandbox --disable-dev-shm-usage --disable-gpu"
+          npx lighthouse 'http://127.0.0.1:3000/login?next=/workspace&intent=demo' \
+            --quiet \
+            --preset=desktop \
+            --output=json \
+            --output-path=artifacts/lighthouse-desktop.json \
+            --only-categories=performance,accessibility,best-practices,seo \
+            --chrome-flags="--headless --no-sandbox --disable-dev-shm-usage --disable-gpu"
+          npx lighthouse http://127.0.0.1:3000/projects \
+            --quiet \
+            --output=json \
+            --output-path=artifacts/lighthouse-mobile-projects.json \
+            --only-categories=performance,accessibility,best-practices,seo \
+            --chrome-flags="--headless --no-sandbox --disable-dev-shm-usage --disable-gpu"
+          npx lighthouse http://127.0.0.1:3000/workspace \
+            --quiet \
+            --preset=desktop \
+            --output=json \
+            --output-path=artifacts/lighthouse-desktop-workspace-criteria.json \
+            --only-categories=performance,accessibility,best-practices,seo \
+            --chrome-flags="--headless --no-sandbox --disable-dev-shm-usage --disable-gpu"
+          npx lighthouse http://127.0.0.1:3000/request-access \
+            --quiet \
+            --preset=desktop \
+            --output=json \
+            --output-path=artifacts/lighthouse-desktop-request-access.json \
+            --only-categories=performance,accessibility,best-practices,seo \
+            --chrome-flags="--headless --no-sandbox --disable-dev-shm-usage --disable-gpu"
+          npx lighthouse http://127.0.0.1:3000/profile \
+            --quiet \
+            --preset=desktop \
+            --output=json \
+            --output-path=artifacts/lighthouse-desktop-profile.json \
+            --only-categories=performance,accessibility,best-practices,seo \
+            --chrome-flags="--headless --no-sandbox --disable-dev-shm-usage --disable-gpu"
+          npm run test:lighthouse-budget | tee artifacts/lighthouse-budget-check.txt
+
+          GEOAI_PDF_BASE_URL=http://127.0.0.1:3000 npm run evidence:pdf-print | tee artifacts/pdf-print-check.txt
+          cp /tmp/geoai-next.log artifacts/pdf-print-evidence/next-application.log
+          npm run test:system-stabilization-audit | tee artifacts/system-stabilization-audit-check.txt
+
+      - name: Preserve application log
+        if: always()
+        shell: bash
+        run: |
+          if [ -f /tmp/geoai-next.log ]; then
+            cp /tmp/geoai-next.log artifacts/next-runtime.log
+          fi
+
+      - name: Upload release evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: geoai-quality-evidence-${{ github.run_id }}
+          path: artifacts/
+          if-no-files-found: warn
+          retention-days: 14
+
+  database-replay:
+    name: Supabase clean replay, synthetic upgrade rehearsal and pgTAP personas
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CI: "true"
+      SUPABASE_TELEMETRY_DISABLED: "true"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Prepare database evidence directory
+        run: mkdir -p artifacts/database
+
+      - name: Install pinned dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci | tee artifacts/database/npm-ci.txt
+
+      - name: Verify pinned Supabase CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx supabase --version | tee artifacts/database/supabase-cli-version.txt
+          test "$(npx supabase --version)" = "2.109.1"
+          git rev-parse HEAD | tee artifacts/database/tested-commit-sha.txt
+          cp supabase/migration-ledger-baseline.json artifacts/database/migration-ledger-baseline.json
+
+      - name: Start local Supabase and apply canonical migrations
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run supabase:local:start | tee artifacts/database/clean-start.txt
+
+      - name: Prove deterministic clean reset
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run supabase:local:reset | tee artifacts/database/clean-reset.txt
+
+      - name: Run clean-replay database persona tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run supabase:test:db | tee artifacts/database/clean-replay-pgtap.txt
+
+      - name: Synthetic ledger-prefix upgrade rehearsal (not live-clone certification)
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run supabase:test:synthetic-upgrade-replay | tee artifacts/database/synthetic-upgrade-rehearsal.txt
+
+      - name: Run synthetic-upgrade database persona tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run supabase:test:db | tee artifacts/database/synthetic-upgrade-pgtap.txt
+
+      - name: Stop local Supabase
+        if: always()
+        shell: bash
+        run: |
+          set -o pipefail
+          if [ -x node_modules/.bin/supabase ]; then
+            npm run supabase:local:stop | tee artifacts/database/stop.txt
+          else
+            echo "Supabase stop skipped because the pinned CLI was not installed." | tee artifacts/database/stop.txt
+          fi
+
+      - name: Upload database replay evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: geoai-database-evidence-${{ github.run_id }}
+          path: artifacts/database/
+          if-no-files-found: warn
+          retention-days: 14
