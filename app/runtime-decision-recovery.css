@@ -75,9 +75,14 @@
   line-height: 1.4;
 }
 
-[data-dashboard-analysis-id] section:has([data-dashboard-value="next-action"]) {
+[data-dashboard-analysis-id] [data-dashboard-card="next-action"] {
   border-color: var(--geoai-analysis-line) !important;
+  background: linear-gradient(145deg, #ffffff, var(--geoai-analysis-soft)) !important;
   box-shadow: inset 4px 0 0 var(--geoai-analysis);
+}
+
+[data-dashboard-analysis-id] [data-dashboard-card="next-action"] details {
+  border-color: var(--geoai-analysis-line) !important;
 }
 
 /* Comparison winner and score hierarchy follow spatial intelligence semantics. */
