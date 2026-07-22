@@ -28,35 +28,12 @@ jobs:
         run: |
           set -uo pipefail
           mkdir -p artifacts
-
-          if grep -q 'redirect("/workspace")' app/explore/page.tsx; then
-            echo "CR 10.08 implementation is already applied on the exact branch head." | tee artifacts/cr-10-08-patch.log
-            echo "already_applied=true" >> "$GITHUB_ENV"
-            exit 0
-          fi
-
-          python3 <<'PY' > artifacts/cr-10-08-patch.log 2>&1
-          from pathlib import Path
-
-          workflow = Path('.github/workflows/cr-10-08-apply.yml').read_text(encoding='utf-8').splitlines()
-          start = next(index for index, line in enumerate(workflow) if line.strip() == "python3 <<'PY'")
-          end = next(index for index in range(start + 1, len(workflow)) if workflow[index].strip() == 'PY')
-          script_lines = workflow[start + 1:end]
-          indent = len(script_lines[0]) - len(script_lines[0].lstrip())
-          script = '\n'.join(line[indent:] if len(line) >= indent else line for line in script_lines)
-          script = script.replace(
-              'replace_once("app/page.tsx", ">Explore platform</Link>", ">Open workspace</Link>")',
-              'replace_once("app/page.tsx", "Explore platform", "Open workspace")'
-          )
-          nav_start_marker = '# Mobile navigation: Workspace and Projects only; intentional new candidate evidence.'
-          nav_end_marker = '# Criteria-first remains inside Workspace.'
-          nav_start = script.index(nav_start_marker)
-          nav_end = script.index(nav_end_marker, nav_start)
-          script = script[:nav_start] + script[nav_end:]
-          exec(compile(script, 'cr-10-08-inline-patch.py', 'exec'))
-          PY
+          python3 scripts/apply-cr-10-08-workspace-consolidation.py > artifacts/cr-10-08-patch.log 2>&1
           status=$?
           cat artifacts/cr-10-08-patch.log
+          if grep -q "already applied" artifacts/cr-10-08-patch.log; then
+            echo "already_applied=true" >> "$GITHUB_ENV"
+          fi
           exit "$status"
 
       - name: Upload patch diagnostic
