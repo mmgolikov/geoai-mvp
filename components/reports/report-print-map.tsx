@@ -16,9 +16,9 @@ function stablePercent(value: string, axis: "x" | "y", index: number) {
 }
 
 const comparisonMarkerSlots = [
-  { left: 28, top: 27 },
-  { left: 70, top: 8 },
-  { left: 63, top: 46 }
+  { left: 28, top: 29 },
+  { left: 70, top: 19 },
+  { left: 63, top: 52 }
 ];
 
 function formatPoint(point: AnalysisReportDeliverable["coordinates"]) {
@@ -34,13 +34,34 @@ export function ReportPrintMap({
   comparison
 }: ReportPrintMapProps) {
   const items = comparison?.comparedItems ?? [];
+  const coordinateText = coordinates ?? (
+    items.length > 0
+      ? items.map((item) => formatPoint(item.coordinates)).join(" / ")
+      : "Selected geometry context"
+  );
 
   return (
-    <div className="geoai-print-map avoid-break">
-      <div className="geoai-print-map-grid" />
-      <div className="geoai-print-zone geoai-print-zone-a" />
-      <div className="geoai-print-zone geoai-print-zone-b" />
-      <div className="geoai-print-zone geoai-print-zone-c" />
+    <div
+      className="geoai-print-map avoid-break"
+      role="img"
+      aria-label={`Schematic site context for ${title}. ${coordinateText}. Official validation required.`}
+    >
+      <div className="geoai-print-map-water" aria-hidden="true" />
+      <div className="geoai-print-map-district geoai-print-map-district-a" aria-hidden="true" />
+      <div className="geoai-print-map-district geoai-print-map-district-b" aria-hidden="true" />
+      <div className="geoai-print-map-district geoai-print-map-district-c" aria-hidden="true" />
+      <div className="geoai-print-map-road geoai-print-map-road-a" aria-hidden="true" />
+      <div className="geoai-print-map-road geoai-print-map-road-b" aria-hidden="true" />
+      <div className="geoai-print-map-road geoai-print-map-road-c" aria-hidden="true" />
+      <div className="geoai-print-map-grid" aria-hidden="true" />
+      <div className="geoai-print-zone geoai-print-zone-a" aria-hidden="true" />
+      <div className="geoai-print-zone geoai-print-zone-b" aria-hidden="true" />
+      <div className="geoai-print-zone geoai-print-zone-c" aria-hidden="true" />
+
+      <span className="geoai-print-map-status">Schematic · not official</span>
+      <span className="geoai-print-map-north" aria-hidden="true">N<br />↑</span>
+      <span className="geoai-print-map-scale" aria-hidden="true">1 km context</span>
+
       {items.length > 0 ? (
         items.map((item, index) => {
           const slot = comparisonMarkerSlots[index];
@@ -64,12 +85,13 @@ export function ReportPrintMap({
           <strong>{title}</strong>
         </div>
       )}
+
       <div className="geoai-print-map-caption">
         <div>
           <strong>{subtitle}</strong>
-          <span>{coordinates ?? (items.length > 0 ? items.map((item) => formatPoint(item.coordinates)).join(" / ") : "Selected geometry context")}</span>
+          <span>{coordinateText}</span>
         </div>
-        <em>{geometryLabel ?? "Point / polygon context shown as print-safe schematic fallback"}</em>
+        <em>{geometryLabel ?? "Screening geometry context; official map and cadastral validation required"}</em>
       </div>
     </div>
   );
