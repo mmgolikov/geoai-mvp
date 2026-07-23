@@ -8,10 +8,12 @@ async function read(relativePath) {
   return fs.readFile(path.join(root, relativePath), "utf8");
 }
 
-const [landing, panel, css, packageJson] = await Promise.all([
+const [landing, panel, css, correctionCss, layout, packageJson] = await Promise.all([
   read("app/page.tsx"),
   read("components/analysis-panel.tsx"),
   read("app/runtime-design-recovery.css"),
+  read("app/founder-ux-runtime-correction.css"),
+  read("app/layout.tsx"),
   read("package.json").then(JSON.parse)
 ]);
 
@@ -59,7 +61,7 @@ requireCondition(
 requireCondition(
   !panel.includes("Validation caveat") &&
     !panel.includes("exploreRequiredCaveat"),
-  "Primary Workspace scenario context must not contain the caveat disclosure, truncation or line clamp."
+  "Primary Workspace scenario context must not contain the caveat disclosure."
 );
 requireCondition(
   panel.includes('className="grid grid-cols-1 gap-2"') &&
@@ -73,12 +75,19 @@ requireCondition(
   "Workspace selected audience, active interaction mode and primary CTA must share one spatial-teal family."
 );
 requireCondition(
+  layout.includes('import "./founder-ux-runtime-correction.css";') &&
+    correctionCss.includes("button.bg-brand:not(:disabled)") &&
+    correctionCss.includes('[data-interaction-mode][aria-pressed="true"]') &&
+    correctionCss.includes("transition-property: opacity, box-shadow, transform !important;"),
+  "Workspace selected primary controls must resolve immediately to exact spatial teal without transient blue/grey color interpolation."
+);
+requireCondition(
   packageJson.dependencies?.next === "15.5.21",
   "Next.js must resolve to patched Maintenance LTS version 15.5.21."
 );
 
 const evidence = {
-  schemaVersion: "1.0",
+  schemaVersion: "1.1",
   status: failures.length === 0 ? "pass" : "fail",
   figmaAuthorities: {
     landing: "1495:23",
