@@ -127,7 +127,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          git checkout HEAD -- .github/workflows/apply-founder-ux-runtime-correction.yml .github/workflows/execute-founder-ux-runtime-correction.yml
+          git checkout HEAD -- .github/workflows/geoai-quality-gate.yml .github/workflows/apply-founder-ux-runtime-correction.yml .github/workflows/execute-founder-ux-runtime-correction.yml
           git config user.name "GeoAI Delivery OS"
           git config user.email "actions@users.noreply.github.com"
           git add -A
