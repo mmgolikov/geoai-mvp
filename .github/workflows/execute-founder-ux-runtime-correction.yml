@@ -70,15 +70,25 @@ jobs:
           rm .github/workflows/apply-founder-ux-runtime-correction.yml
           rm .github/workflows/execute-founder-ux-runtime-correction.yml
 
-      - name: Verify bounded correction before publication
+      - name: Founder UX source contract
         shell: bash
-        run: |
-          set -euo pipefail
-          npm run test:founder-ux-runtime-correction
-          npm run test:document-lifecycle
-          npm run lint
-          npm audit --omit=dev --audit-level=moderate
-          git diff --check
+        run: npm run test:founder-ux-runtime-correction
+
+      - name: Documentation lifecycle contract
+        shell: bash
+        run: npm run test:document-lifecycle
+
+      - name: TypeScript contract
+        shell: bash
+        run: npm run lint
+
+      - name: Production dependency audit
+        shell: bash
+        run: npm audit --omit=dev --audit-level=moderate
+
+      - name: Diff integrity
+        shell: bash
+        run: git diff --check
 
       - name: Commit and push corrected Draft head
         shell: bash
