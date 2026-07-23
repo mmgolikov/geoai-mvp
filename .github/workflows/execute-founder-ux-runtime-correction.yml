@@ -1,0 +1,91 @@
+name: Execute Founder UX Runtime Correction
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+concurrency:
+  group: founder-ux-runtime-correction
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    if: github.head_ref == 'recovery/runtime-design-migration-v1'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout Draft branch
+        uses: actions/checkout@v4
+        with:
+          ref: recovery/runtime-design-migration-v1
+          fetch-depth: 1
+          show-progress: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Recover bounded correction script
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64
+          import pathlib
+          import re
+          import zlib
+          workflow = pathlib.Path('.github/workflows/apply-founder-ux-runtime-correction.yml').read_text(encoding='utf-8')
+          match = re.search(r'payload = "([A-Za-z0-9+/=]+)"', workflow)
+          if not match:
+              raise SystemExit('Embedded correction payload not found')
+          pathlib.Path('/tmp/apply-founder-ux-runtime-correction.py').write_bytes(
+              zlib.decompress(base64.b64decode(match.group(1)))
+          )
+          PY
+          python3 -m py_compile /tmp/apply-founder-ux-runtime-correction.py
+
+      - name: Download repository-owned Figma cockpit exports
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p public/design
+          curl --fail --location --retry 3 --output public/design/landing-geoai-cockpit-desktop-v18.png "https://www.figma.com/api/mcp/asset/7227eedf-93ba-44bf-886e-9f0eef87f853"
+          curl --fail --location --retry 3 --output public/design/landing-geoai-cockpit-tablet-v18.png "https://www.figma.com/api/mcp/asset/151f6ca2-84b4-4fb2-bcb7-474c7fc6e76d"
+          curl --fail --location --retry 3 --output public/design/landing-geoai-cockpit-mobile-v18.png "https://www.figma.com/api/mcp/asset/522e61d6-9aa1-4e5e-a85e-12f57ee48723"
+          file public/design/landing-geoai-cockpit-*.png
+
+      - name: Apply founder-authorized runtime correction
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 /tmp/apply-founder-ux-runtime-correction.py
+          npm install next@15.5.21 --save-exact
+          npm run docs:lifecycle:generate
+          rm .github/workflows/apply-founder-ux-runtime-correction.yml
+          rm .github/workflows/execute-founder-ux-runtime-correction.yml
+
+      - name: Verify bounded correction before publication
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:founder-ux-runtime-correction
+          npm run test:document-lifecycle
+          npm run lint
+          npm audit --omit=dev --audit-level=moderate
+          git diff --check
+
+      - name: Commit and push corrected Draft head
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "GeoAI Delivery OS"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          git commit -m "fix: apply founder UX runtime authority correction"
+          git push origin HEAD:recovery/runtime-design-migration-v1
