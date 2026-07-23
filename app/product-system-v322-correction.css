@@ -1,0 +1,92 @@
+/*
+ * GeoAI Product System v3.2.2 — CR 10.10
+ * Product-primary teal continuity and label-safe commercial cockpit overlays.
+ */
+
+:root {
+  --geoai-product-primary: #087f8c;
+  --geoai-product-primary-hover: #006c78;
+  --geoai-product-primary-soft: #e5fafa;
+  --geoai-product-focus: #1769e0;
+}
+
+/*
+ * Brand blue remains identity/information/focus.
+ * Authenticated Product primary actions and selected controls stay spatial teal.
+ */
+body:has([data-product-shell]) button.bg-brand:not(:disabled),
+body:has([data-product-shell]) a.bg-brand,
+body:has([data-product-shell]) button[aria-pressed="true"]:not(:disabled) {
+  border-color: var(--geoai-product-primary) !important;
+  background-color: var(--geoai-product-primary) !important;
+  color: #ffffff !important;
+}
+
+body:has([data-product-shell]) button.bg-brand:not(:disabled):hover,
+body:has([data-product-shell]) a.bg-brand:hover,
+body:has([data-product-shell]) button[aria-pressed="true"]:not(:disabled):hover {
+  border-color: var(--geoai-product-primary-hover) !important;
+  background-color: var(--geoai-product-primary-hover) !important;
+  color: #ffffff !important;
+  box-shadow: 0 6px 18px rgba(8, 127, 140, 0.18);
+}
+
+body:has([data-product-shell]) button.border-brand.bg-white:not(:disabled),
+body:has([data-product-shell]) a.border-brand.bg-white {
+  border-color: var(--geoai-product-primary) !important;
+  color: var(--geoai-product-primary) !important;
+}
+
+body:has([data-product-shell]) button.border-brand.bg-white:not(:disabled):hover,
+body:has([data-product-shell]) a.border-brand.bg-white:hover {
+  border-color: var(--geoai-product-primary-hover) !important;
+  background-color: var(--geoai-product-primary-soft) !important;
+  color: var(--geoai-product-primary-hover) !important;
+}
+
+body:has([data-product-shell]) button.bg-personal[aria-pressed="true"]:not(:disabled) {
+  border-color: var(--geoai-product-primary) !important;
+  background-color: var(--geoai-product-primary) !important;
+  color: #ffffff !important;
+}
+
+/* Product print controls follow the same primary-action semantic role. */
+main:has(.geoai-print-report) .print-hidden button.bg-brand:not(:disabled),
+main:has(.geoai-print-report) .print-hidden a.bg-brand {
+  border-color: var(--geoai-product-primary) !important;
+  background-color: var(--geoai-product-primary) !important;
+  color: #ffffff !important;
+}
+
+main:has(.geoai-print-report) .print-hidden button.bg-brand:not(:disabled):hover,
+main:has(.geoai-print-report) .print-hidden a.bg-brand:hover {
+  border-color: var(--geoai-product-primary-hover) !important;
+  background-color: var(--geoai-product-primary-hover) !important;
+}
+
+/*
+ * The repository keeps the approved responsive v1.8 raster exports as the
+ * underlying visual source. This vector correction layer masks the collision-
+ * prone candidate labels and applies the v3.2.2 Product-primary state.
+ */
+[data-landing-cockpit-authority="commercial-v1.8"] {
+  isolation: isolate;
+}
+
+[data-landing-cockpit-authority="commercial-v1.8"]::after {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  content: "";
+  pointer-events: none;
+  background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA4MDQgNTYwIj4KICA8ZyBmb250LWZhbWlseT0iQXJpYWwsIEhlbHZldGljYSwgc2Fucy1zZXJpZiI+CiAgICA8cmVjdCB4PSI3NyIgeT0iMTUyIiB3aWR0aD0iMTM4IiBoZWlnaHQ9IjU0IiByeD0iMTEiIGZpbGw9IiNmZmZmZmYiIGZpbGwtb3BhY2l0eT0iLjk4NSIgc3Ryb2tlPSIjMDc5OGE1IiBzdHJva2Utb3BhY2l0eT0iLjc1Ii8+CiAgICA8Y2lyY2xlIGN4PSI4OS41IiBjeT0iMTYzIiByPSIzLjUiIGZpbGw9IiMwNzk4YTUiLz4KICAgIDx0ZXh0IHg9Ijk5IiB5PSIxNjYiIGZvbnQtc2l6ZT0iOCIgZm9udC13ZWlnaHQ9IjcwMCIgZmlsbD0iIzAwNzQ3YyI+SUxMVVNUUkFUSVZFIDAxPC90ZXh0PgogICAgPHRleHQgeD0iODYiIHk9IjE4MiIgZm9udC1zaXplPSIxMCIgZm9udC13ZWlnaHQ9IjcwMCIgZmlsbD0iIzA4MjI0YiI+QnVzaW5lc3MgQmF5IE5vcnRoPC90ZXh0PgogICAgPHRleHQgeD0iODYiIHk9IjE5NyIgZm9udC1zaXplPSI4IiBmaWxsPSIjNGU2ZDk4Ij43OCDCtyBIaWdoZXN0IGN1cnJlbnQgc2NvcmU8L3RleHQ+CgogICAgPHJlY3QgeD0iNDIwIiB5PSIyOTkiIHdpZHRoPSIxMzIiIGhlaWdodD0iNTQiIHJ4PSIxMCIgZmlsbD0iI2ZmZmZmZiIgZmlsbC1vcGFjaXR5PSIuOTg1IiBzdHJva2U9IiMwZDYxZmEiIHN0cm9rZS1vcGFjaXR5PSIuNzIiLz4KICAgIDxjaXJjbGUgY3g9IjQzMi41IiBjeT0iMzEwIiByPSIzLjUiIGZpbGw9IiMwZDYxZmEiLz4KICAgIDx0ZXh0IHg9IjQ0MiIgeT0iMzEzIiBmb250LXNpemU9IjgiIGZvbnQtd2VpZ2h0PSI3MDAiIGZpbGw9IiMwZDYxZmEiPklMTFVTVFJBVElWRSAwMjwvdGV4dD4KICAgIDx0ZXh0IHg9IjQyOSIgeT0iMzI5IiBmb250LXNpemU9IjEwIiBmb250LXdlaWdodD0iNzAwIiBmaWxsPSIjMDgyMjRiIj5DYW5hbCBEaXN0cmljdDwvdGV4dD4KICAgIDx0ZXh0IHg9IjQyOSIgeT0iMzQ0IiBmb250LXNpemU9IjgiIGZpbGw9IiM0ZTZkOTgiPjcxIMK3IFN0cm9uZyBhY2Nlc3M8L3RleHQ+CgogICAgPHJlY3QgeD0iMzk3IiB5PSIzOTUiIHdpZHRoPSIxNzIiIGhlaWdodD0iNTQiIHJ4PSIxMCIgZmlsbD0iI2ZmZmZmZiIgZmlsbC1vcGFjaXR5PSIuOTg1IiBzdHJva2U9IiMwZDYxZmEiIHN0cm9rZS1vcGFjaXR5PSIuNzIiLz4KICAgIDxjaXJjbGUgY3g9IjQwOS41IiBjeT0iNDA2IiByPSIzLjUiIGZpbGw9IiMwZDYxZmEiLz4KICAgIDx0ZXh0IHg9IjQxOSIgeT0iNDA5IiBmb250LXNpemU9IjgiIGZvbnQtd2VpZ2h0PSI3MDAiIGZpbGw9IiMwZDYxZmEiPklMTFVTVFJBVElWRSAwMzwvdGV4dD4KICAgIDx0ZXh0IHg9IjQwNiIgeT0iNDI1IiBmb250LXNpemU9IjEwIiBmb250LXdlaWdodD0iNzAwIiBmaWxsPSIjMDgyMjRiIj5Eb3dudG93biBFZGdlPC90ZXh0PgogICAgPHRleHQgeD0iNDA2IiB5PSI0NDAiIGZvbnQtc2l6ZT0iOCIgZmlsbD0iIzRlNmQ5OCI+NjYgwrcgTG93ZXIgZXhwb3N1cmU8L3RleHQ+CgogICAgPHJlY3QgeD0iNjAzIiB5PSIxNjIiIHdpZHRoPSI4MSIgaGVpZ2h0PSIyOCIgcng9IjciIGZpbGw9IiMwODdmOGMiLz4KICAgIDx0ZXh0IHg9IjY0My41IiB5PSIxODAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtc2l6ZT0iOSIgZm9udC13ZWlnaHQ9IjcwMCIgZmlsbD0iI2ZmZmZmZiI+QjJCPC90ZXh0PgoKICAgIDxyZWN0IHg9IjYwOSIgeT0iNDQyIiB3aWR0aD0iNTAiIGhlaWdodD0iMzgiIGZpbGw9IiNlNWZhZmEiLz4KICAgIDx0ZXh0IHg9IjYxMCIgeT0iNDcwIiBmb250LXNpemU9IjI4IiBmb250LXdlaWdodD0iNzAwIiBmaWxsPSIjMDg3ZjhjIj43ODwvdGV4dD4KICA8L2c+Cjwvc3ZnPg==");
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
+}
+
+@media (max-width: 1023px) {
+  [data-landing-cockpit-authority="commercial-v1.8"]::after {
+    background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzNTAgNDYwIj4KICA8ZyBmb250LWZhbWlseT0iQXJpYWwsIEhlbHZldGljYSwgc2Fucy1zZXJpZiI+CiAgICA8cmVjdCB4PSIzNiIgeT0iMzEyIiB3aWR0aD0iMjAyIiBoZWlnaHQ9IjIyIiByeD0iNyIgZmlsbD0iI2U1ZmFmYSIvPgogICAgPGNpcmNsZSBjeD0iNTAiIGN5PSIzMjMiIHI9IjQiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzA4N2Y4YyIgc3Ryb2tlLXdpZHRoPSIxLjUiLz4KICAgIDxjaXJjbGUgY3g9IjUwIiBjeT0iMzIxIiByPSIyIiBmaWxsPSIjMDg3ZjhjIi8+CiAgICA8cGF0aCBkPSJNNDYuNSAzMjhjLjgtMy4xIDYuMi0zLjEgNyAwIiBmaWxsPSJub25lIiBzdHJva2U9IiMwODdmOGMiIHN0cm9rZS13aWR0aD0iMS40IiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4KICAgIDx0ZXh0IHg9IjYzIiB5PSIzMjYiIGZvbnQtc2l6ZT0iOCIgZm9udC13ZWlnaHQ9IjcwMCIgZmlsbD0iIzA1NjM2ZSI+QjJCIMK3IERldmVsb3BtZW50IGRpcmVjdG9yPC90ZXh0PgogIDwvZz4KPC9zdmc+");
+  }
+}
