@@ -1,6 +1,9 @@
 name: Apply Mobile Visual Determinism Fix
 
 on:
+  push:
+    branches:
+      - recovery/runtime-design-migration-v1
   pull_request:
     branches:
       - main
@@ -10,7 +13,7 @@ permissions:
 
 jobs:
   patch:
-    if: github.head_ref == 'recovery/runtime-design-migration-v1'
+    if: github.ref == 'refs/heads/recovery/runtime-design-migration-v1' || github.head_ref == 'recovery/runtime-design-migration-v1'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
