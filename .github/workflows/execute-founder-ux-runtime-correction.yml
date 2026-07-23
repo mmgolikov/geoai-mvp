@@ -121,8 +121,9 @@ jobs:
         shell: bash
         run: git diff --check
 
-      - name: Commit and push corrected Draft head
+      - name: Commit corrected Draft tree
         if: steps.guard.outputs.already_applied != 'true'
+        id: correction_commit
         shell: bash
         run: |
           set -euo pipefail
@@ -131,4 +132,22 @@ jobs:
           git config user.email "actions@users.noreply.github.com"
           git add -A
           git commit -m "fix: apply founder UX runtime authority correction"
-          git push origin HEAD:recovery/runtime-design-migration-v1
+          git show --binary --format=fuller HEAD > /tmp/founder-ux-runtime-correction.patch
+          echo "commit_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Upload correction commit patch
+        if: steps.guard.outputs.already_applied != 'true' && always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: founder-ux-runtime-correction-patch-${{ github.run_id }}
+          path: /tmp/founder-ux-runtime-correction.patch
+          if-no-files-found: error
+          retention-days: 2
+
+      - name: Push corrected Draft head
+        if: steps.guard.outputs.already_applied != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin recovery/runtime-design-migration-v1
+          git push --verbose origin HEAD:recovery/runtime-design-migration-v1
