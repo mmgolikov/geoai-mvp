@@ -224,8 +224,16 @@ test("workspace scenario, primary color and overlay safety hold at every declare
       primaryColors.push(color);
     }
 
-    await expectElementUnobstructed(page.getByRole("button", { name: "Add to compare", exact: true }), `${viewport.name} Add to compare`);
     await expectElementUnobstructed(primaryCta, `${viewport.name} primary candidate-search action`);
+    await primaryCta.click();
+    const candidateSearchCard = page.getByText("Candidate Search", { exact: true }).locator("..").locator("..");
+    const firstCandidate = candidateSearchCard.locator("button").first();
+    await expect(firstCandidate).toBeVisible();
+    await firstCandidate.click();
+    await expectElementUnobstructed(
+      page.getByRole("button", { name: "Add to compare", exact: true }),
+      `${viewport.name} Add to compare after candidate selection`
+    );
     await expectNoHorizontalOverflow(page);
 
     await scenarioSection.scrollIntoViewIfNeeded();
