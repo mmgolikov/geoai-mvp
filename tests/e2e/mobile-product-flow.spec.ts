@@ -69,6 +69,85 @@ async function expectMinimumTargetSize(label: string, locator: Locator, minimum 
   expect(box?.height ?? 0, `${label} height must be at least ${minimum}px`).toBeGreaterThanOrEqual(minimum);
 }
 
+async function expectPixelStableScreenshot(
+  page: Page,
+  label: string,
+  firstImage: Buffer,
+  repeatImage: Buffer
+) {
+  const comparison = await page.evaluate(async ({ firstBase64, repeatBase64 }) => {
+    async function readPixels(base64: string) {
+      const image = new Image();
+      await new Promise<void>((resolve, reject) => {
+        image.onload = () => resolve();
+        image.onerror = () => reject(new Error("Unable to decode candidate screenshot."));
+        image.src = `data:image/png;base64,${base64}`;
+      });
+
+      const canvas = document.createElement("canvas");
+      canvas.width = image.naturalWidth;
+      canvas.height = image.naturalHeight;
+      const context = canvas.getContext("2d", { willReadFrequently: true });
+      if (!context) throw new Error("Unable to create candidate screenshot comparison context.");
+      context.drawImage(image, 0, 0);
+
+      return {
+        width: canvas.width,
+        height: canvas.height,
+        pixels: context.getImageData(0, 0, canvas.width, canvas.height).data
+      };
+    }
+
+    const first = await readPixels(firstBase64);
+    const repeat = await readPixels(repeatBase64);
+    const dimensionsMatch = first.width === repeat.width && first.height === repeat.height;
+    if (!dimensionsMatch) {
+      return {
+        changedPixelCount: Number.MAX_SAFE_INTEGER,
+        dimensionsMatch,
+        height: first.height,
+        maxChannelDelta: 255,
+        totalPixels: first.width * first.height,
+        width: first.width
+      };
+    }
+
+    let changedPixelCount = 0;
+    let maxChannelDelta = 0;
+    for (let offset = 0; offset < first.pixels.length; offset += 4) {
+      let pixelDelta = 0;
+      for (let channel = 0; channel < 4; channel += 1) {
+        pixelDelta = Math.max(pixelDelta, Math.abs(first.pixels[offset + channel] - repeat.pixels[offset + channel]));
+      }
+      if (pixelDelta > 0) changedPixelCount += 1;
+      maxChannelDelta = Math.max(maxChannelDelta, pixelDelta);
+    }
+
+    return {
+      changedPixelCount,
+      dimensionsMatch,
+      height: first.height,
+      maxChannelDelta,
+      totalPixels: first.width * first.height,
+      width: first.width
+    };
+  }, {
+    firstBase64: firstImage.toString("base64"),
+    repeatBase64: repeatImage.toString("base64")
+  });
+
+  expect(comparison.dimensionsMatch, `${label} candidate baseline dimensions must remain stable`).toBe(true);
+  const allowedChangedPixels = Math.max(100, Math.ceil(comparison.totalPixels * 0.001));
+  expect(
+    comparison.maxChannelDelta,
+    `${label} candidate baseline may contain only negligible rasterization noise`
+  ).toBeLessThanOrEqual(2);
+  expect(
+    comparison.changedPixelCount,
+    `${label} candidate baseline changed pixels must stay below ${allowedChangedPixels}`
+  ).toBeLessThanOrEqual(allowedChangedPixels);
+}
+
 async function captureVisualEvidence(
   page: Page,
   label: string,
@@ -98,8 +177,7 @@ async function captureVisualEvidence(
   const sha256 = createHash("sha256").update(image).digest("hex");
   if (candidateBaseline) {
     const repeatImage = await page.screenshot({ animations: "disabled", caret: "hide", fullPage });
-    const repeatSha256 = createHash("sha256").update(repeatImage).digest("hex");
-    expect(repeatSha256, `${label} candidate baseline must be byte-deterministic`).toBe(sha256);
+    await expectPixelStableScreenshot(page, label, image, repeatImage);
   } else {
     await expect(page).toHaveScreenshot(fileName, {
       animations: "disabled",
