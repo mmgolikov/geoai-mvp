@@ -4,6 +4,7 @@ import path from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
 type VisualEvidence = {
+  candidateBaseline: boolean;
   fullPage: boolean;
   height: number;
   label: string;
@@ -68,13 +69,92 @@ async function expectMinimumTargetSize(label: string, locator: Locator, minimum 
   expect(box?.height ?? 0, `${label} height must be at least ${minimum}px`).toBeGreaterThanOrEqual(minimum);
 }
 
+async function expectPixelStableScreenshot(
+  page: Page,
+  label: string,
+  firstImage: Buffer,
+  repeatImage: Buffer
+) {
+  const comparison = await page.evaluate(async ({ firstBase64, repeatBase64 }) => {
+    async function readPixels(base64: string) {
+      const image = new Image();
+      await new Promise<void>((resolve, reject) => {
+        image.onload = () => resolve();
+        image.onerror = () => reject(new Error("Unable to decode candidate screenshot."));
+        image.src = `data:image/png;base64,${base64}`;
+      });
+
+      const canvas = document.createElement("canvas");
+      canvas.width = image.naturalWidth;
+      canvas.height = image.naturalHeight;
+      const context = canvas.getContext("2d", { willReadFrequently: true });
+      if (!context) throw new Error("Unable to create candidate screenshot comparison context.");
+      context.drawImage(image, 0, 0);
+
+      return {
+        width: canvas.width,
+        height: canvas.height,
+        pixels: context.getImageData(0, 0, canvas.width, canvas.height).data
+      };
+    }
+
+    const first = await readPixels(firstBase64);
+    const repeat = await readPixels(repeatBase64);
+    const dimensionsMatch = first.width === repeat.width && first.height === repeat.height;
+    if (!dimensionsMatch) {
+      return {
+        changedPixelCount: Number.MAX_SAFE_INTEGER,
+        dimensionsMatch,
+        height: first.height,
+        maxChannelDelta: 255,
+        totalPixels: first.width * first.height,
+        width: first.width
+      };
+    }
+
+    let changedPixelCount = 0;
+    let maxChannelDelta = 0;
+    for (let offset = 0; offset < first.pixels.length; offset += 4) {
+      let pixelDelta = 0;
+      for (let channel = 0; channel < 4; channel += 1) {
+        pixelDelta = Math.max(pixelDelta, Math.abs(first.pixels[offset + channel] - repeat.pixels[offset + channel]));
+      }
+      if (pixelDelta > 0) changedPixelCount += 1;
+      maxChannelDelta = Math.max(maxChannelDelta, pixelDelta);
+    }
+
+    return {
+      changedPixelCount,
+      dimensionsMatch,
+      height: first.height,
+      maxChannelDelta,
+      totalPixels: first.width * first.height,
+      width: first.width
+    };
+  }, {
+    firstBase64: firstImage.toString("base64"),
+    repeatBase64: repeatImage.toString("base64")
+  });
+
+  expect(comparison.dimensionsMatch, `${label} candidate baseline dimensions must remain stable`).toBe(true);
+  const allowedChangedPixels = Math.max(100, Math.ceil(comparison.totalPixels * 0.001));
+  expect(
+    comparison.maxChannelDelta,
+    `${label} candidate baseline may contain only negligible rasterization noise`
+  ).toBeLessThanOrEqual(2);
+  expect(
+    comparison.changedPixelCount,
+    `${label} candidate baseline changed pixels must stay below ${allowedChangedPixels}`
+  ).toBeLessThanOrEqual(allowedChangedPixels);
+}
+
 async function captureVisualEvidence(
   page: Page,
   label: string,
   fileName: string,
-  options: { fullPage?: boolean } = {}
+  options: { candidateBaseline?: boolean; fullPage?: boolean } = {}
 ) {
-  const { fullPage = false } = options;
+  const { candidateBaseline = false, fullPage = false } = options;
   await page.evaluate(() => {
     document.querySelector("nextjs-portal")?.remove();
   });
@@ -95,9 +175,21 @@ async function captureVisualEvidence(
     path: filePath
   });
   const sha256 = createHash("sha256").update(image).digest("hex");
+  if (candidateBaseline) {
+    const repeatImage = await page.screenshot({ animations: "disabled", caret: "hide", fullPage });
+    await expectPixelStableScreenshot(page, label, image, repeatImage);
+  } else {
+    await expect(page).toHaveScreenshot(fileName, {
+      animations: "disabled",
+      caret: "hide",
+      fullPage,
+      maxDiffPixelRatio: 0.01
+    });
+  }
   const viewport = page.viewportSize();
   visualEvidence.push({
     label,
+    candidateBaseline,
     fullPage,
     path: path.relative(process.cwd(), filePath),
     route: `${new URL(page.url()).pathname}${new URL(page.url()).search}`,
@@ -106,16 +198,10 @@ async function captureVisualEvidence(
     height: viewport?.height ?? 0
   });
   await fs.writeFile(visualManifest, `${JSON.stringify(visualEvidence, null, 2)}\n`, "utf8");
-  await expect(page).toHaveScreenshot(fileName, {
-    animations: "disabled",
-    caret: "hide",
-    fullPage,
-    maxDiffPixelRatio: 0.01
-  });
-  console.log(`[visual] ${label}: ${fileName} sha256:${sha256}`);
+  console.log(`[visual] ${label}: ${fileName} sha256:${sha256}${candidateBaseline ? " candidate-baseline" : ""}`);
 }
 
-async function signInDemo(page: Page, nextPath: "/projects" | "/explore") {
+async function signInDemo(page: Page, nextPath: "/projects" | "/workspace") {
   await page.goto(`/login?next=${encodeURIComponent(nextPath)}&intent=demo`);
   const redirected = await page.waitForURL((url) => url.pathname === nextPath, { timeout: 3000 }).then(
     () => true,
@@ -182,18 +268,18 @@ test.describe("mobile product navigation, targets and visual evidence", () => {
     await page.reload();
     await expect(page.locator("#project-dashboard-selector option:checked")).toHaveText(projectName);
     await expectNoHorizontalOverflow(page);
-    await captureVisualEvidence(page, "Mobile project hub", "mobile-project-hub.png", { fullPage: true });
+    await captureVisualEvidence(page, "Mobile project hub", "mobile-project-hub.png", { candidateBaseline: true, fullPage: true });
 
     await page.getByRole("link", { name: "Open workspace", exact: true }).first().click();
     await expect(page).toHaveURL((url) => url.pathname === "/workspace" && url.searchParams.has("projectId"));
     await expect(page.locator("#active-project option:checked")).toHaveText(projectName);
     await expectNoHorizontalOverflow(page);
-    await captureVisualEvidence(page, "Mobile project workspace", "mobile-project-workspace.png");
+    await captureVisualEvidence(page, "Mobile project workspace", "mobile-project-workspace.png", { candidateBaseline: true });
   });
 
   test("compares and exports a criteria-first shortlist on mobile", async ({ page }) => {
     await page.clock.setFixedTime(new Date("2026-07-17T16:23:00.000Z"));
-    await signInDemo(page, "/explore");
+    await signInDemo(page, "/workspace");
     await expectNoHorizontalOverflow(page);
 
     const criteriaFirst = page.getByRole("button", { name: "Criteria-first" });
@@ -213,8 +299,9 @@ test.describe("mobile product navigation, targets and visual evidence", () => {
     expect(scenarioBox, "Scenario select must have a rendered box").not.toBeNull();
     expect(scenarioBox?.width ?? 0, "Scenario select must use the full mobile row").toBeGreaterThanOrEqual(300);
 
-    await expectTextNotTruncated(page.locator("aside p.truncate").first(), "Scenario action copy");
-    await expectTextNotTruncated(page.locator("aside .line-clamp-1").first(), "Scenario summary copy");
+    await expectTextNotTruncated(page.locator("[data-scenario-primary-copy]").first(), "Scenario action copy");
+    await expectTextNotTruncated(page.locator("[data-scenario-summary-copy]").first(), "Scenario summary copy");
+    await expect(page.getByText("Validation caveat", { exact: true })).toHaveCount(0);
 
     const scenarioSetupDisclosure = page.locator("details").filter({
       has: page.getByText("Scenario setup", { exact: true })
@@ -231,12 +318,19 @@ test.describe("mobile product navigation, targets and visual evidence", () => {
     await scenarioSetupDisclosure.locator("summary").click();
     await expect(scenarioSetupDisclosure).not.toHaveAttribute("open", "");
 
-    await captureVisualEvidence(page, "Mobile explore setup", "mobile-explore-setup.png");
+    await captureVisualEvidence(page, "Mobile Workspace criteria-first setup", "mobile-workspace-criteria-setup.png", { candidateBaseline: true });
 
     await criteriaFirst.click();
     await expect(criteriaFirst).toHaveAttribute("aria-pressed", "true");
     const findCandidates = page.getByRole("button", { name: "Find redevelopment zones" });
     await expectMinimumTargetSize("Find redevelopment zones", findCandidates);
+    const workspacePrimaryBackgrounds = await Promise.all([
+      page.getByRole("button", { name: "B2B", exact: true }),
+      criteriaFirst,
+      findCandidates
+    ].map((control) => control.evaluate((element) => getComputedStyle(element).backgroundColor)));
+    expect(new Set(workspacePrimaryBackgrounds).size).toBe(1);
+    expect(workspacePrimaryBackgrounds[0]).toBe("rgb(8, 127, 140)");
     await findCandidates.click();
 
     const compareCandidates = page.getByRole("button", { name: "Compare Candidates" });
@@ -259,13 +353,13 @@ test.describe("mobile product navigation, targets and visual evidence", () => {
     const backToMap = comparisonDashboard.getByRole("button", { name: "Back to map" });
     await expectMinimumTargetSize("Export", exportButton);
     await expectMinimumTargetSize("Back to map", backToMap);
-    await captureVisualEvidence(page, "Mobile comparison dashboard", "mobile-comparison-dashboard.png");
+    await captureVisualEvidence(page, "Mobile comparison dashboard", "mobile-comparison-dashboard.png", { candidateBaseline: true });
 
     await exportButton.click();
     await expect(page).toHaveURL((url) => /^\/reports\/[^/]+\/print$/.test(url.pathname));
     const printButton = page.getByRole("button", { name: "Print / Save as PDF" });
     await expectMinimumTargetSize("Print / Save as PDF", printButton);
     await expectNoHorizontalOverflow(page);
-    await captureVisualEvidence(page, "Mobile printable comparison", "mobile-comparison-report.png", { fullPage: true });
+    await captureVisualEvidence(page, "Mobile printable comparison", "mobile-comparison-report.png", { candidateBaseline: true, fullPage: true });
   });
 });

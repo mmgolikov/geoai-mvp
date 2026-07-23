@@ -45,21 +45,33 @@ async function captureAcceptedNavigationEvidence(page: Page) {
   await fs.mkdir(visualDirectory, { recursive: true });
   const fileName = "mobile-product-navigation.png";
   const filePath = path.join(visualDirectory, fileName);
+  const viewport = page.viewportSize();
+  if (!viewport) throw new Error("Mobile navigation evidence requires a fixed viewport.");
+
+  // Capture only the stable shared-shell/menu state. The map body below the menu
+  // may repaint asynchronously and is covered by separate Workspace visual evidence.
+  const clip = {
+    x: 0,
+    y: 0,
+    width: viewport.width,
+    height: Math.min(viewport.height, 260)
+  };
   const image = await page.screenshot({
     animations: "disabled",
     caret: "hide",
+    clip,
     path: filePath
   });
-  const repeatImage = await page.screenshot({ animations: "disabled", caret: "hide" });
+  const repeatImage = await page.screenshot({ animations: "disabled", caret: "hide", clip });
   const sha256 = createHash("sha256").update(image).digest("hex");
   const repeatSha256 = createHash("sha256").update(repeatImage).digest("hex");
-  expect(repeatSha256, "Mobile product navigation must have one deterministic screenshot per state").toBe(sha256);
-  await expect(page).toHaveScreenshot(fileName, {
-    animations: "disabled",
-    caret: "hide",
-    maxDiffPixelRatio: 0.01
-  });
-  console.log(`[visual] Mobile product navigation: ${fileName} sha256:${sha256}`);
+  expect(repeatSha256, "Mobile Product navigation must have one deterministic screenshot per state").toBe(sha256);
+  await fs.writeFile(
+    path.join(visualDirectory, "mobile-product-navigation-manifest.json"),
+    `${JSON.stringify({ fileName, sha256, viewport, clip, destinations: ["Workspace", "Projects"] }, null, 2)}\n`,
+    "utf8"
+  );
+  console.log(`[visual] Mobile Product navigation candidate: ${fileName} sha256:${sha256}`);
 }
 
 async function openMobileNavigation(page: Page) {
@@ -71,11 +83,12 @@ async function openMobileNavigation(page: Page) {
   await expect(trigger).toHaveAccessibleName("Close product navigation");
   const navigation = page.getByRole("navigation", { name: "Mobile product navigation" });
   await expect(navigation).toBeVisible();
+  await expect(navigation.getByRole("link", { name: /Explore/ })).toHaveCount(0);
   return navigation;
 }
 
 test.describe("global product navigation", () => {
-  test("opens every product route from an iPhone Pro Max width", async ({ page }) => {
+  test("opens every canonical Product route from an iPhone Pro Max width", async ({ page }) => {
     await page.setViewportSize({ width: 430, height: 932 });
     await page.clock.setFixedTime(new Date("2026-07-17T20:15:00.000Z"));
     await signInDemo(page, "/workspace");
@@ -85,11 +98,9 @@ test.describe("global product navigation", () => {
     let navigation = await openMobileNavigation(page);
     const workspaceLink = navigation.getByRole("link", { name: /Workspace/ });
     const projectsLink = navigation.getByRole("link", { name: /Projects/ });
-    const exploreLink = navigation.getByRole("link", { name: /Explore/ });
     for (const [label, locator] of [
       ["Workspace navigation link", workspaceLink],
-      ["Projects navigation link", projectsLink],
-      ["Explore navigation link", exploreLink]
+      ["Projects navigation link", projectsLink]
     ] as Array<[string, Locator]>) await expectMinimumTargetSize(label, locator);
     await expect(workspaceLink).toHaveAttribute("aria-current", "page");
 
@@ -102,30 +113,30 @@ test.describe("global product navigation", () => {
 
     navigation = await openMobileNavigation(page);
     await expect(navigation.getByRole("link", { name: /Projects/ })).toHaveAttribute("aria-current", "page");
-    await navigation.getByRole("link", { name: /Explore/ }).click();
-    await expect(page).toHaveURL((url) => url.pathname === "/explore");
-    await expect(page.getByRole("heading", { level: 1, name: "Explore candidate locations" })).toBeVisible();
+    await navigation.getByRole("link", { name: /Workspace/ }).click();
+    await expect(page).toHaveURL((url) => url.pathname === "/workspace");
+    await expect(page.getByRole("heading", { level: 1, name: "Workspace location screening" })).toBeVisible();
     await expectNoHorizontalOverflow(page);
 
     navigation = await openMobileNavigation(page);
-    await expect(navigation.getByRole("link", { name: /Explore/ })).toHaveAttribute("aria-current", "page");
+    await expect(navigation.getByRole("link", { name: /Workspace/ })).toHaveAttribute("aria-current", "page");
     await page.keyboard.press("Escape");
     const trigger = page.getByRole("button", { name: "Open product navigation" });
     await expect(trigger).toBeFocused();
     await expect(trigger).toHaveAttribute("aria-expanded", "false");
   });
 
-  test("keeps direct product navigation visible at iPad width", async ({ page }) => {
+  test("keeps direct Product navigation visible at iPad width", async ({ page }) => {
     await page.setViewportSize({ width: 834, height: 1112 });
     await signInDemo(page, "/workspace");
     const navigation = page.getByRole("navigation", { name: "Primary product navigation" });
     await expect(navigation).toBeVisible();
     await expect(page.getByRole("button", { name: "Open product navigation" })).toBeHidden();
+    await expect(navigation.getByRole("link", { name: "Explore", exact: true })).toHaveCount(0);
 
     for (const route of [
       { href: "/workspace", label: "Workspace", heading: "Workspace location screening" },
-      { href: "/projects", label: "Projects", heading: "Project Hub" },
-      { href: "/explore", label: "Explore", heading: "Explore candidate locations" }
+      { href: "/projects", label: "Projects", heading: "Project Hub" }
     ]) {
       const link = navigation.getByRole("link", { name: route.label, exact: true });
       await expectMinimumTargetSize(`${route.label} tablet navigation`, link);

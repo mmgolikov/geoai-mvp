@@ -1,0 +1,96 @@
+/*
+ * GeoAI Runtime Design Recovery — CR 10.03 / 10.04 / 10.06 / 10.07 / 10.09
+ * Draft/Preview implementation only. Product System v3.2.1 foundation tokens remain authoritative.
+ */
+
+/* CR 10.03 / 10.09 — commercial process cards are clean in JSX; text remains readable. */
+#product article h3,
+#product article > p {
+  overflow: visible;
+  text-wrap: pretty;
+}
+
+/* CR 10.04 / 10.09 — one exact primary spatial-teal state inside Workspace. */
+main:has(#workspace-map) {
+  --geoai-workspace-primary: #087f8c;
+}
+
+main:has(#workspace-map) button.bg-brand:not(:disabled),
+main:has(#workspace-map) a.bg-brand {
+  border-color: var(--geoai-workspace-primary) !important;
+  background-color: var(--geoai-workspace-primary) !important;
+  color: #ffffff !important;
+}
+
+main:has(#workspace-map) button.bg-brand:not(:disabled):hover,
+main:has(#workspace-map) a.bg-brand:hover {
+  border-color: var(--geoai-workspace-primary) !important;
+  background-color: var(--geoai-workspace-primary) !important;
+  box-shadow: 0 6px 18px rgba(8, 127, 140, 0.18);
+}
+
+main:has(#workspace-map) [data-interaction-mode][aria-pressed="true"] {
+  border-color: var(--geoai-workspace-primary) !important;
+  background-color: var(--geoai-workspace-primary) !important;
+  color: #ffffff !important;
+}
+
+main:has(#workspace-map) [data-interaction-mode][aria-pressed="true"]:hover {
+  border-color: var(--geoai-workspace-primary) !important;
+  background-color: var(--geoai-workspace-primary) !important;
+  box-shadow: 0 6px 18px rgba(8, 127, 140, 0.18);
+}
+
+main:has(#workspace-map) [data-interaction-mode][aria-pressed="false"]:hover {
+  border-color: var(--geoai-workspace-primary) !important;
+  color: var(--geoai-workspace-primary) !important;
+}
+
+[data-workspace-screening-setup] select {
+  min-width: 0;
+  text-overflow: clip;
+}
+
+[data-scenario-primary-copy],
+[data-scenario-summary-copy] {
+  overflow: visible;
+  text-overflow: clip;
+  -webkit-line-clamp: unset;
+}
+
+/* CR 10.06 — report screen hierarchy. */
+.geoai-print-report {
+  --report-brand: #064fcf;
+  --report-spatial: #087f8c;
+  --report-spatial-dark: #055f68;
+  --report-ink: #06122e;
+  --report-muted: #4d6694;
+  --report-line: #ccdef5;
+  --report-surface: #f4f9ff;
+  --report-validation: #a63f00;
+}
+
+.geoai-print-page {
+  max-width: 1040px;
+  border-color: var(--report-line);
+  border-radius: 24px;
+  padding: 34px;
+  box-shadow: 0 24px 70px rgba(6, 18, 46, 0.08);
+}
+
+.geoai-print-header {
+  position: relative;
+  align-items: center;
+  border-bottom-color: var(--report-line);
+  padding-bottom: 20px;
+}
+
+.geoai-print-header::after {
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  left: 0;
+  height: 3px;
+  content: "";
+  background: linear-gradient(90deg, var(--report-brand) 0 34%, var(--report-spatial) 34% 72%, transparent 72%);
+}

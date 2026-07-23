@@ -202,7 +202,8 @@ expect(!primitiveSpec.includes("disableRules") && !primitiveSpec.includes("exclu
 
 expect(shell.includes('data-product-shell') && shell.includes('data-figma-node="219:425"') && shell.includes('h-product-header') && shell.includes('shrink-0'), "The non-shrinking 64 px traced Product shell contract is missing.");
 expect(shell.includes("IdentitySymbol") && !shell.includes(">\n              G\n"), "The approved identity has not replaced the improvised shell mark.");
-for (const href of ["/workspace", "/projects", "/explore"]) expect(navigation.includes(`href: "${href}"`), `Missing ${href} navigation.`);
+for (const href of ["/workspace", "/projects"]) expect(navigation.includes(`href: "${href}"`), `Missing ${href} navigation.`);
+expect(!navigation.includes('href: "/explore"') && !navigation.includes('label: "Explore"'), "Explore must not remain a canonical Product navigation destination.");
 expect(navigation.includes('aria-current={isCurrent ? "page" : undefined}') && navigation.includes('aria-label="Primary product navigation"') && navigation.includes('aria-label="Mobile product navigation"'), "Navigation semantics are incomplete.");
 expect(navigation.includes("triggerRef.current?.focus()") && navigation.includes('event.key === "Escape"'), "Mobile Escape/focus restoration is missing.");
 

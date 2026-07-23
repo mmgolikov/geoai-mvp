@@ -1,0 +1,14 @@
+/* CR 10.03 — current commercial landing section binding. */
+#product > div > div:nth-child(2) > article:nth-child(3) > p.absolute {
+  display: none !important;
+}
+
+#product > div > div:nth-child(2) > article:nth-child(3) {
+  padding-bottom: 1.25rem !important;
+}
+
+#product > div > div:nth-child(2) > article h3,
+#product > div > div:nth-child(2) > article > p:not(.absolute) {
+  overflow: visible;
+  text-wrap: pretty;
+}

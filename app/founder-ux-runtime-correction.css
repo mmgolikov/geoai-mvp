@@ -1,0 +1,11 @@
+/*
+ * GeoAI Founder UX Runtime Correction — CR 10.09
+ * Draft/Preview only. Preserve one exact spatial-teal primary state without
+ * transient blue/grey interpolation during selected-state changes.
+ */
+
+main:has(#workspace-map) button.bg-brand:not(:disabled),
+main:has(#workspace-map) a.bg-brand,
+main:has(#workspace-map) [data-interaction-mode][aria-pressed="true"] {
+  transition-property: opacity, box-shadow, transform !important;
+}

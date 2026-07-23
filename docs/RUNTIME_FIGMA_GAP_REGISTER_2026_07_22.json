@@ -1,0 +1,220 @@
+{
+  "schemaVersion": "1.1",
+  "status": "active_gap_register_for_draft_recovery",
+  "lastVerified": "2026-07-23",
+  "owner": "GeoAI Delivery OS",
+  "baseSha": "ef1314e0ba8024b73f5ed890a80539b4b7c841bb",
+  "figma": {
+    "fileKey": "TAzDqOvRCw1mQGMU3Y4S9H",
+    "currentMaster": "1797:2",
+    "prototype": "1482:2",
+    "runtimeAlignment": "1749:21157",
+    "workspaceCard": "1749:21178",
+    "projectsOutputsCard": "1749:21250",
+    "decisionIntelligenceCard": "1749:21323",
+    "systemDetailCard": "1749:21399",
+    "sharedElementsCard": "1749:21482"
+  },
+  "gaps": [
+    {
+      "id": "RDR-001",
+      "severity": "P0",
+      "surface": "Commercial landing decision flow",
+      "route": "/",
+      "runtimeEvidence": "The Explain step contains an absolute amber validation strip that overlaps the card copy.",
+      "expected": "Commercial process cards remain clean and fully readable; validation disclosures are not used as marketing overlays.",
+      "rootCause": "Foundation release preserved body layout; the overlay predated CR 10.02 and remained pixel-invariant.",
+      "changeRequest": "CR-10.03",
+      "acceptanceEvidence": [
+        "desktop/tablet/mobile screenshot",
+        "no-overlap bounding-box assertion",
+        "commercial copy review"
+      ],
+      "status": "reopened_after_founder_rejected_preview"
+    },
+    {
+      "id": "RDR-002",
+      "severity": "P0",
+      "surface": "Workspace scenario summary",
+      "route": "/workspace",
+      "runtimeEvidence": "Scenario subtitle uses one-line clamping while an expandable Validation caveat occupies primary setup space.",
+      "expected": "Scenario meaning is fully readable; validation remains compact and secondary to target/scenario/action.",
+      "rootCause": "Shell-only migration left the route body unchanged.",
+      "changeRequest": "CR-10.04",
+      "acceptanceEvidence": [
+        "computed line-clamp removal",
+        "validation disclosure hidden from primary setup card",
+        "keyboard regression"
+      ],
+      "status": "reopened_after_founder_rejected_preview"
+    },
+    {
+      "id": "RDR-003",
+      "severity": "P1",
+      "surface": "Workspace map and command composition",
+      "route": "/workspace",
+      "runtimeEvidence": "Runtime is map-dominant but remains an implementation baseline rather than accepted Figma body parity; map visual state and panel proportions differ from the approved prototype family.",
+      "expected": "Map-first and criteria-first flows retain behavior while adopting the approved spatial composition, visual hierarchy and evidence cues.",
+      "rootCause": "Figma runtime-alignment authority explicitly records shared-shell-only alignment.",
+      "changeRequest": "CR-10.04",
+      "acceptanceEvidence": [
+        "Figma node comparison",
+        "390/430/768/834/1440 screenshots",
+        "map/command proportion measurements"
+      ],
+      "status": "reopened_after_founder_rejected_preview"
+    },
+    {
+      "id": "RDR-004",
+      "severity": "P1",
+      "surface": "Decision dashboard and comparison",
+      "route": "/workspace result states",
+      "runtimeEvidence": "Functional dashboard and comparison states exist but have no post-foundation Figma body-parity receipt.",
+      "expected": "One main decision takeaway, drivers, risks, impact, evidence and next action are visually prioritized.",
+      "rootCause": "CR 10.02 prohibited body migration and required route-body invariance.",
+      "changeRequest": "CR-10.05",
+      "acceptanceEvidence": [
+        "desktop/mobile Figma parity review",
+        "Axe",
+        "keyboard analysis/comparison journey",
+        "data honesty review"
+      ],
+      "status": "planned"
+    },
+    {
+      "id": "RDR-005",
+      "severity": "P0",
+      "surface": "Analysis report print layout",
+      "route": "/reports/[id]/print",
+      "runtimeEvidence": "A4 output collapses metadata and score grids into single columns because a max-width media rule overrides the print layout; pages become sparse and card-heavy.",
+      "expected": "Three-column metadata and score grids, two-column executive sections and bounded page density on A4.",
+      "rootCause": "Screen-width responsive CSS remains active under the narrow print viewport and is not overridden by later print rules.",
+      "changeRequest": "CR-10.06",
+      "acceptanceEvidence": [
+        "generated PDF",
+        "page count",
+        "computed print grid columns",
+        "split-card checks"
+      ],
+      "status": "planned"
+    },
+    {
+      "id": "RDR-006",
+      "severity": "P0",
+      "surface": "Report map context",
+      "route": "/reports/[id]/print",
+      "runtimeEvidence": "When no canvas capture is available, the report labels the section Map Context Fallback and shows a generic grid/zone schematic that reads as a missing map.",
+      "expected": "Captured workspace map is preferred; fallback is a deliberate, clearly labelled schematic site-context diagram with coordinate, geometry and non-official status.",
+      "rootCause": "Report snapshot is optional and fallback design is utilitarian rather than client-grade.",
+      "changeRequest": "CR-10.06",
+      "acceptanceEvidence": [
+        "captured-map branch",
+        "schematic-fallback branch",
+        "attribution/caveat presence",
+        "PDF visual review"
+      ],
+      "status": "planned"
+    },
+    {
+      "id": "RDR-007",
+      "severity": "P1",
+      "surface": "Semantic color use",
+      "route": "all",
+      "runtimeEvidence": "Blue, teal and amber do not yet have a consistently enforced route-level meaning; amber validation can dominate primary commercial/product content.",
+      "expected": "Blue structures brand/system UI, teal leads spatial/analytical actions, amber is bounded to validation and red to blocking risk.",
+      "rootCause": "Foundation tokens were approved without a full body migration and route-level semantic usage policy.",
+      "changeRequest": "CR-10.07",
+      "acceptanceEvidence": [
+        "component inventory",
+        "computed style checks",
+        "contrast/focus verification",
+        "cross-route visual review"
+      ],
+      "status": "reopened_after_founder_rejected_preview"
+    },
+    {
+      "id": "RDR-008",
+      "severity": "P0",
+      "surface": "Release and documentation truth",
+      "route": "governance",
+      "runtimeEvidence": "Active repository release documents still describe PR #106 and stale Figma node 169:2 even though current Production is PR #111/main ef1314e0 and current master is 1797:2.",
+      "expected": "Current Release State, Roadmap, Backlog, QA and Project Hub distinguish foundation release from body migration and point to current external evidence.",
+      "rootCause": "Repository snapshots were not synchronized after the latest foundation release.",
+      "changeRequest": "Recovery program governance",
+      "acceptanceEvidence": [
+        "active-doc cross-check",
+        "Project Hub read-back",
+        "exact PR/CI/Preview receipts"
+      ],
+      "status": "planned_after_exact_head_receipts"
+    },
+    {
+      "id": "RDR-009",
+      "severity": "P0",
+      "surface": "Commercial identity",
+      "route": "/",
+      "runtimeEvidence": "Rejected Preview uses a hand-built alternate mark.",
+      "expected": "Repository-owned founder-approved IdentitySymbol in header and footer.",
+      "rootCause": "Landing body did not reuse the shared identity component.",
+      "changeRequest": "CR-10.09",
+      "acceptanceEvidence": [
+        "source contract",
+        "desktop/tablet/mobile screenshots"
+      ],
+      "status": "implementation_in_progress"
+    },
+    {
+      "id": "RDR-010",
+      "severity": "P0",
+      "surface": "Commercial hero cockpit",
+      "route": "/",
+      "runtimeEvidence": "Rejected Preview uses an ad hoc live satellite composition.",
+      "expected": "Canonical responsive cockpit exports from Figma nodes 1495:53, 1495:725 and 1495:1144.",
+      "rootCause": "Approximate runtime reconstruction replaced direct design authority.",
+      "changeRequest": "CR-10.09",
+      "acceptanceEvidence": [
+        "repository asset provenance",
+        "responsive screenshots",
+        "Figma comparison"
+      ],
+      "status": "implementation_in_progress"
+    },
+    {
+      "id": "RDR-011",
+      "severity": "P0",
+      "surface": "Workspace primary controls",
+      "route": "/workspace",
+      "runtimeEvidence": "Audience and primary CTA are blue while active interaction mode is teal.",
+      "expected": "One spatial-teal primary family for selected audience, active interaction mode and primary CTA.",
+      "rootCause": "CR 10.07 override targeted only interaction-mode controls.",
+      "changeRequest": "CR-10.09",
+      "acceptanceEvidence": [
+        "computed style equality",
+        "responsive screenshots"
+      ],
+      "status": "implementation_in_progress"
+    },
+    {
+      "id": "RDR-012",
+      "severity": "P0",
+      "surface": "Workspace Scenario and validation placement",
+      "route": "/workspace",
+      "runtimeEvidence": "Scenario remains clipped and Validation caveat remains in the primary setup card.",
+      "expected": "Full-width readable Scenario and no primary-card Validation caveat.",
+      "rootCause": "CSS masking did not replace the underlying JSX structure.",
+      "changeRequest": "CR-10.09",
+      "acceptanceEvidence": [
+        "source contract",
+        "390/768/1440 browser checks"
+      ],
+      "status": "implementation_in_progress"
+    }
+  ],
+  "nonClaims": [
+    "No Production-ready or pilot-ready claim.",
+    "No official parcel, zoning, cadastral, ownership or valuation claim.",
+    "No live DLD, GeoDubai or protected-data integration claim.",
+    "No Figma production-authority mutation.",
+    "No Supabase, Auth, Storage or source mutation."
+  ]
+}

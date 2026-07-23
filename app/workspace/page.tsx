@@ -1,11 +1,16 @@
+import type { Metadata } from "next";
 import { AuthenticatedRouteGate } from "@/components/auth/authenticated-route-gate";
 import { TopNavigation } from "@/components/top-navigation";
 import { WorkspaceShell } from "@/components/workspace-shell";
 import { createSpatialSourceRequest } from "@/src/lib/spatial-b2/source-mode";
 
+export const metadata: Metadata = {
+  title: "GeoAI Workspace",
+  description: "Map-first and criteria-first spatial decision intelligence workspace."
+};
+
 type WorkspacePageProps = {
   searchParams?: Promise<{
-    mode?: string;
     spatialMode?: string;
   }>;
 };
@@ -22,10 +27,7 @@ export default async function WorkspacePage({ searchParams }: WorkspacePageProps
     <AuthenticatedRouteGate>
       <main className="flex min-h-screen flex-col bg-surface">
         <TopNavigation />
-        <WorkspaceShell
-          initialExploreMode={params?.mode === "explore"}
-          spatialSourceRequest={spatialSourceRequest}
-        />
+        <WorkspaceShell spatialSourceRequest={spatialSourceRequest} />
       </main>
     </AuthenticatedRouteGate>
   );

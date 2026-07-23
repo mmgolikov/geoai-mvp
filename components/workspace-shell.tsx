@@ -2731,7 +2731,7 @@ export function WorkspaceShell({
             candidateSearchStatus={candidateSearchStatus}
             selectedExploreCandidateId={selectedExploreCandidateId}
             exploreSetupDefaultOpen={initialExploreMode}
-            workspaceHeading={initialExploreMode ? "Explore candidate locations" : "Workspace location screening"}
+            workspaceHeading="Workspace location screening"
             onExploreAudienceChange={changeExploreAudience}
             onExploreRoleChange={changeExploreRole}
             onExploreScenarioChange={changeExploreScenario}

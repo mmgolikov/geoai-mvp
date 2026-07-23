@@ -5,7 +5,7 @@ const defaults = [
   "artifacts/lighthouse-mobile.json",
   "artifacts/lighthouse-desktop.json",
   "artifacts/lighthouse-mobile-projects.json",
-  "artifacts/lighthouse-desktop-explore.json",
+  "artifacts/lighthouse-desktop-workspace-criteria.json",
   "artifacts/lighthouse-desktop-login.json",
   "artifacts/lighthouse-desktop-request-access.json",
   "artifacts/lighthouse-desktop-profile.json"
@@ -18,7 +18,7 @@ const profiles = [
   { file: inputs[0], name: "mobile-landing", expectedPath: "/", budgets: { ...baseBudgets, performance: 0.7, lcp: 4000, tbt: 350, transferredJs: 900_000, decodedJs: 2_500_000, routeFirstLoadJs: 500_000 } },
   { file: inputs[1], name: "desktop-workspace", expectedPath: "/workspace", budgets: { ...baseBudgets, performance: 0.8, lcp: 2500, tbt: 250, transferredJs: 1_200_000, decodedJs: 3_500_000, routeFirstLoadJs: 2_000_000 } },
   { file: inputs[2], name: "mobile-projects", expectedPath: "/projects", budgets: { ...baseBudgets, performance: 0.6, lcp: 5000, tbt: 500, transferredJs: 1_200_000, decodedJs: 3_500_000, routeFirstLoadJs: 1_000_000 } },
-  { file: inputs[3], name: "desktop-explore", expectedPath: "/explore", budgets: { ...baseBudgets, performance: 0.65, lcp: 4000, tbt: 400, transferredJs: 1_300_000, decodedJs: 4_000_000, routeFirstLoadJs: 2_000_000 } },
+  { file: inputs[3], name: "desktop-workspace-criteria", expectedPath: "/workspace", budgets: { ...baseBudgets, performance: 0.65, lcp: 4000, tbt: 400, transferredJs: 1_300_000, decodedJs: 4_000_000, routeFirstLoadJs: 2_000_000 } },
   { file: inputs[4], name: "desktop-login", expectedPath: "/login", budgets: { ...baseBudgets, performance: 0.75, lcp: 2500, tbt: 600, transferredJs: 3_000_000, decodedJs: 13_000_000, routeFirstLoadJs: 500_000 }, evidenceMode: "ci_auth_dev_server" },
   { file: inputs[5], name: "desktop-request-access", expectedPath: "/request-access", budgets: { ...baseBudgets, performance: 0.75, lcp: 3000, tbt: 400, transferredJs: 900_000, decodedJs: 2_500_000, routeFirstLoadJs: 500_000 } },
   { file: inputs[6], name: "desktop-profile", expectedPath: "/profile", budgets: { ...baseBudgets, accessibility: 0.9, performance: 0.65, lcp: 3500, tbt: 500, transferredJs: 1_000_000, decodedJs: 3_000_000, routeFirstLoadJs: 500_000 }, evidenceMode: "public_demo_built_app" }

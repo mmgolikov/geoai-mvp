@@ -1,163 +1,314 @@
-import { createHash } from "node:crypto";
-import { execFileSync } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { expect, test, type Page, type Route } from "@playwright/test";
+import { expect, test, type Browser, type Locator, type Page } from "@playwright/test";
 
-type BodyEvidenceRecord = {
-  baselineFile: string;
-  baselineImageHash: string;
-  baselineSha: string;
-  bodyBoundary: string;
-  candidateFile: string;
-  candidateImageHash: string;
-  candidateSha: string;
-  equality: boolean;
-  reproducibleCaptureCommand: string;
-  route: string;
-  viewport: { height: number; name: string; width: number };
-};
-
-const baselineSha = process.env.ROUTE_BODY_BASELINE_SHA ?? "d788ea4ddeecc719b5ffcecdd6aab8539cc9b755";
-const updateBaselines = process.env.UPDATE_ROUTE_BODY_BASELINES === "1";
-const baselineDirectory = path.join(process.cwd(), "tests", "e2e", "__screenshots__", "route-body-invariance");
-const evidenceDirectory = path.join(process.cwd(), "artifacts", "design-foundation-body-invariance");
-const routes = ["/workspace", "/projects", "/explore", "/request-access", "/profile"] as const;
+const evidenceDirectory = path.join(process.cwd(), "artifacts", "runtime-design-recovery");
+const fixedTime = "2026-07-22T20:30:00.000Z";
+const workspacePrimaryColor = "rgb(8, 127, 140)";
 const viewports = [
   { name: "desktop-1440", width: 1440, height: 900 },
-  { name: "desktop-1024", width: 1024, height: 900 },
+  { name: "tablet-834", width: 834, height: 1112 },
   { name: "tablet-768", width: 768, height: 1024 },
+  { name: "mobile-430", width: 430, height: 932 },
   { name: "mobile-390", width: 390, height: 844 }
 ] as const;
-const fixedTime = "2026-07-21T12:00:00.000Z";
 
-function sha256(buffer: Buffer) {
-  return createHash("sha256").update(buffer).digest("hex");
+async function prepareEvidenceDirectory() {
+  await fs.mkdir(evidenceDirectory, { recursive: true });
 }
 
-function fileName(route: string, viewport: string) {
-  return `${viewport}-${route.slice(1).replaceAll("/", "-")}.png`;
+async function signInDemo(page: Page, next = "/workspace") {
+  await page.goto(`/login?next=${encodeURIComponent(next)}&intent=demo`);
+  const redirected = await page.waitForURL((url) => url.pathname === next, { timeout: 3000 }).then(() => true, () => false);
+  if (redirected) return;
+  await page.getByRole("button", { name: "Use demo credentials" }).click();
+  await page.getByRole("button", { name: "Open demo" }).click();
+  await expect(page).toHaveURL((url) => url.pathname === next);
 }
 
-async function stabilize(page: Page) {
-  await page.addStyleTag({
-    content: "*,*::before,*::after{animation:none!important;backdrop-filter:none!important;border-radius:0!important;box-shadow:none!important;caret-color:transparent!important;filter:none!important;scroll-behavior:auto!important;transition:none!important}nextjs-portal{display:none!important}.mapboxgl-canvas{visibility:hidden!important}[data-spatial-runtime-environment]>.absolute.inset-0{background-color:#eef3f6!important;background-image:none!important}[data-product-shell],body header:first-of-type{visibility:hidden!important;position:static!important}"
+async function expectNoHorizontalOverflow(page: Page) {
+  const overflow = await page.evaluate(() => ({
+    body: document.body.scrollWidth - document.body.clientWidth,
+    document: document.documentElement.scrollWidth - document.documentElement.clientWidth
+  }));
+  expect(overflow.body, "Body must not overflow horizontally").toBeLessThanOrEqual(1);
+  expect(overflow.document, "Document must not overflow horizontally").toBeLessThanOrEqual(1);
+}
+
+async function expectElementUnobstructed(locator: Locator, label: string) {
+  await expect(locator, `${label} must be visible`).toBeVisible();
+  await locator.scrollIntoViewIfNeeded();
+  const result = await locator.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    const x = Math.min(window.innerWidth - 1, Math.max(0, rect.left + rect.width / 2));
+    const y = Math.min(window.innerHeight - 1, Math.max(0, rect.top + rect.height / 2));
+    const stack = document.elementsFromPoint(x, y);
+    const topInteractive = stack.find((candidate) => {
+      const style = getComputedStyle(candidate);
+      return style.display !== "none" && style.visibility !== "hidden" && style.pointerEvents !== "none";
+    });
+    return {
+      height: rect.height,
+      topTag: topInteractive?.tagName ?? null,
+      topText: topInteractive?.textContent?.trim().slice(0, 80) ?? null,
+      unobstructed: Boolean(topInteractive && (topInteractive === element || element.contains(topInteractive))),
+      width: rect.width,
+      x,
+      y
+    };
   });
-  await page.evaluate(async () => document.fonts.ready);
-  await page.waitForTimeout(150);
+  expect(result.width, `${label} must have a measurable width`).toBeGreaterThan(0);
+  expect(result.height, `${label} must have a measurable height`).toBeGreaterThan(0);
+  expect(
+    result.unobstructed,
+    `${label} is covered at (${result.x}, ${result.y}) by ${result.topTag ?? "unknown"}: ${result.topText ?? "no text"}`
+  ).toBe(true);
 }
 
-async function signInDemo(page: Page) {
-  await page.goto("/login?next=/workspace&intent=demo");
-  const redirected = await page.waitForURL((url) => url.pathname === "/workspace", { timeout: 3000 }).then(() => true, () => false);
-  if (!redirected) {
-    await page.getByRole("button", { name: "Use demo credentials" }).click();
-    await page.getByRole("button", { name: "Open demo" }).click();
-    await expect(page).toHaveURL((url) => url.pathname === "/workspace");
-  }
+function expectedCockpitAsset(width: number) {
+  if (width <= 639) return "/design/landing-geoai-cockpit-mobile-v18.png";
+  if (width <= 1023) return "/design/landing-geoai-cockpit-tablet-v18.png";
+  return "/design/landing-geoai-cockpit-desktop-v18.png";
 }
 
-async function bodyBelowSharedShell(page: Page) {
-  const shell = page.locator("[data-product-shell], header").first();
-  await expect(shell).toBeAttached();
-  const body = shell.locator("xpath=following-sibling::*[1]");
-  await expect(body, "Route body must be the first element sibling below the shared shell").toBeVisible();
-  return body;
+async function newPage(browser: Browser, viewport: { width: number; height: number }) {
+  const context = await browser.newContext({ colorScheme: "light", reducedMotion: "reduce", viewport });
+  const page = await context.newPage();
+  await page.clock.setFixedTime(new Date(fixedTime));
+  return { context, page };
 }
 
-async function holdProjectHubInLocalFallback(route: Route) {
-  const pathname = new URL(route.request().url()).pathname;
-  if (pathname.startsWith("/api/auth/")) {
-    await route.continue();
-    return;
-  }
-  await route.abort("blockedbyclient");
-}
-
-test("proves all 20 Product route bodies are pixel-identical to the authorized pre-shell baseline", async ({ browser }) => {
-  await fs.mkdir(baselineDirectory, { recursive: true });
+test.beforeAll(async () => {
   await fs.rm(evidenceDirectory, { force: true, recursive: true });
-  await fs.mkdir(path.join(evidenceDirectory, "baseline"), { recursive: true });
-  await fs.mkdir(path.join(evidenceDirectory, "candidate"), { recursive: true });
+  await prepareEvidenceDirectory();
+});
 
-  const candidateSha = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
-  const records: BodyEvidenceRecord[] = [];
+test("records the founder-authorized runtime body migration boundary", async () => {
+  const program = JSON.parse(await fs.readFile(
+    path.join(process.cwd(), "docs", "RUNTIME_DESIGN_RECOVERY_PROGRAM_2026_07_22.json"),
+    "utf8"
+  )) as {
+    authority?: {
+      runtimeBodyMigrationAuthorization?: {
+        approvedBy?: string;
+        scope?: string;
+        mergeAuthorized?: boolean;
+        productionAuthorized?: boolean;
+        figmaWritesAuthorized?: boolean;
+        supabaseMutationAuthorized?: boolean;
+      };
+    };
+    changeRequests?: Array<{ id?: string }>;
+  };
+  const authorization = program.authority?.runtimeBodyMigrationAuthorization;
+  expect(authorization?.approvedBy).toBe("GeoAI Founder");
+  expect(authorization?.scope).toBe("Draft branch and Vercel Preview only");
+  expect(authorization?.mergeAuthorized).toBe(false);
+  expect(authorization?.productionAuthorized).toBe(false);
+  expect(authorization?.figmaWritesAuthorized).toBe(false);
+  expect(authorization?.supabaseMutationAuthorized).toBe(false);
+  expect(program.changeRequests?.map((item) => item.id)).toEqual([
+    "CR-10.03",
+    "CR-10.04",
+    "CR-10.05",
+    "CR-10.06",
+    "CR-10.07",
+    "CR-10.08",
+    "CR-10.09"
+  ]);
+});
 
+test("commercial landing uses the responsive Figma cockpit and keeps primary actions unobstructed", async ({ browser }) => {
+  const records = [];
   for (const viewport of viewports) {
-    const context = await browser.newContext({ colorScheme: "light", reducedMotion: "reduce", viewport });
-    const page = await context.newPage();
-    await page.clock.setFixedTime(new Date(fixedTime));
-    await signInDemo(page);
+    const { context, page } = await newPage(browser, viewport);
+    await page.goto("/");
+    await page.evaluate(async () => document.fonts.ready);
 
-    for (const route of routes) {
-      if (route === "/projects") {
-        await page.route("**/api/**", holdProjectHubInLocalFallback);
-      }
-      await page.goto(route);
-      await stabilize(page);
-      const body = await bodyBelowSharedShell(page);
-      const screenshot = await body.screenshot({ animations: "disabled", caret: "hide" });
-      const name = fileName(route, viewport.name);
-      const baselinePath = path.join(baselineDirectory, name);
-      if (route === "/projects") {
-        await page.unroute("**/api/**", holdProjectHubInLocalFallback);
-      }
+    const internalValidationOverlay = page.getByText("Validation gap · official confirmation required", { exact: true });
+    await expect(internalValidationOverlay).toHaveCount(0);
 
-      if (updateBaselines) {
-        await fs.writeFile(baselinePath, screenshot);
-        records.push({
-          baselineFile: path.relative(process.cwd(), baselinePath),
-          baselineImageHash: sha256(screenshot),
-          baselineSha,
-          bodyBoundary: "first element sibling after the canonical top-level Product header",
-          candidateFile: "not-applicable-during-baseline-capture",
-          candidateImageHash: sha256(screenshot),
-          candidateSha: baselineSha,
-          equality: true,
-          reproducibleCaptureCommand: `UPDATE_ROUTE_BODY_BASELINES=1 ROUTE_BODY_BASELINE_SHA=${baselineSha} GEOAI_E2E_BASE_URL=http://127.0.0.1:3101 npx playwright test tests/e2e/route-body-invariance.spec.ts --retries=0`,
-          route,
-          viewport
-        });
-        continue;
-      }
+    const cockpitImage = page.locator('[data-landing-cockpit-authority="commercial-v1.8"] img').first();
+    await expect(cockpitImage).toBeVisible();
+    const cockpitMetrics = await cockpitImage.evaluate((element) => {
+      const image = element as HTMLImageElement;
+      return {
+        complete: image.complete,
+        currentPath: new URL(image.currentSrc || image.src, window.location.href).pathname,
+        naturalHeight: image.naturalHeight,
+        naturalWidth: image.naturalWidth
+      };
+    });
+    expect(cockpitMetrics.complete, `${viewport.name} cockpit image must finish loading`).toBe(true);
+    expect(cockpitMetrics.naturalWidth, `${viewport.name} cockpit image must have intrinsic width`).toBeGreaterThan(0);
+    expect(cockpitMetrics.naturalHeight, `${viewport.name} cockpit image must have intrinsic height`).toBeGreaterThan(0);
+    expect(cockpitMetrics.currentPath).toBe(expectedCockpitAsset(viewport.width));
+    const cockpitBox = await cockpitImage.boundingBox();
+    expect(cockpitBox).not.toBeNull();
+    expect(cockpitBox?.width ?? 0, `${viewport.name} cockpit must remain legible`).toBeGreaterThanOrEqual(300);
+    expect(cockpitBox?.width ?? 0, `${viewport.name} cockpit must fit the viewport`).toBeLessThanOrEqual(viewport.width);
 
-      const baseline = await fs.readFile(baselinePath);
-      const baselineHash = sha256(baseline);
-      const candidateHash = sha256(screenshot);
-      const equality = baselineHash === candidateHash;
-      const baselineEvidencePath = path.join(evidenceDirectory, "baseline", name);
-      const candidateEvidencePath = path.join(evidenceDirectory, "candidate", name);
-      await Promise.all([fs.writeFile(baselineEvidencePath, baseline), fs.writeFile(candidateEvidencePath, screenshot)]);
-      records.push({
-        baselineFile: path.relative(process.cwd(), baselineEvidencePath),
-        baselineImageHash: baselineHash,
-        baselineSha,
-        bodyBoundary: "first element sibling after the canonical top-level Product header",
-        candidateFile: path.relative(process.cwd(), candidateEvidencePath),
-        candidateImageHash: candidateHash,
-        candidateSha,
-        equality,
-        reproducibleCaptureCommand: "GEOAI_E2E_BASE_URL=http://127.0.0.1:3100 npx playwright test tests/e2e/route-body-invariance.spec.ts --retries=0",
-        route,
-        viewport
-      });
-      expect(candidateHash, `${route} at ${viewport.width}x${viewport.height} must match baseline ${baselineSha}`).toBe(baselineHash);
-    }
+    const hero = page.locator("main > section").first();
+    const viewDemo = hero.getByRole("link", { name: "View demo", exact: true });
+    await expectElementUnobstructed(viewDemo, `${viewport.name} View demo`);
+
+    const heading = page.getByRole("heading", { name: "Make the reasoning visible" });
+    await expect(heading).toBeVisible();
+    const card = heading.locator("xpath=ancestor::article[1]");
+    const cardBox = await card.boundingBox();
+    const copyBox = await card.locator("p").first().boundingBox();
+    expect(cardBox).not.toBeNull();
+    expect(copyBox).not.toBeNull();
+    expect((copyBox?.y ?? 0) + (copyBox?.height ?? 0)).toBeLessThanOrEqual((cardBox?.y ?? 0) + (cardBox?.height ?? 0) - 12);
+
+    await expectNoHorizontalOverflow(page);
+    const screenshot = path.join(evidenceDirectory, `landing-${viewport.name}.png`);
+    await page.screenshot({ path: screenshot, fullPage: true, animations: "disabled", caret: "hide" });
+    records.push({
+      cockpitAsset: cockpitMetrics.currentPath,
+      route: "/",
+      viewport,
+      screenshot: path.relative(process.cwd(), screenshot)
+    });
     await context.close();
   }
+  await fs.writeFile(path.join(evidenceDirectory, "landing-manifest.json"), `${JSON.stringify({ fixedTime, records }, null, 2)}\n`);
+});
 
-  const manifest = {
-    baselineSha,
-    candidateSha: updateBaselines ? baselineSha : candidateSha,
-    captureNormalization: "Animations, transitions, caret, Next.js portal, dynamic Mapbox pixels, fallback-grid rasterization and browser-dependent corner/shadow antialiasing are suppressed; Project Hub non-Auth API hydration is held in the authorized bundled local fallback state; route layout, controls, text and all other body pixels remain compared.",
-    caseCount: records.length,
-    equalityCount: records.filter((record) => record.equality).length,
-    generatedAt: fixedTime,
-    mode: updateBaselines ? "baseline-capture" : "candidate-comparison",
-    records
-  };
-  const manifestPath = updateBaselines ? path.join(baselineDirectory, "manifest.json") : path.join(evidenceDirectory, "manifest.json");
-  await fs.writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
-  expect(records).toHaveLength(20);
-  expect(records.every((record) => record.equality)).toBe(true);
+test("workspace scenario, primary color and overlay safety hold at every declared viewport", async ({ browser }) => {
+  const records = [];
+  for (const viewport of viewports) {
+    const { context, page } = await newPage(browser, viewport);
+    await signInDemo(page);
+    await page.goto("/workspace");
+
+    const scenarioSection = page.locator("[data-workspace-screening-setup]").first();
+    await expect(scenarioSection).toBeVisible();
+    const scenarioSelect = scenarioSection.getByLabel("Scenario");
+    await expect(scenarioSelect).toBeVisible();
+    const scenarioBox = await scenarioSelect.boundingBox();
+    expect(scenarioBox).not.toBeNull();
+    expect(scenarioBox?.width ?? 0, `${viewport.name} Scenario must remain readable`).toBeGreaterThanOrEqual(300);
+
+    const primaryCopy = scenarioSection.locator("[data-scenario-primary-copy]").first();
+    const summaryCopy = scenarioSection.locator("[data-scenario-summary-copy]").first();
+    await expect(primaryCopy).toBeVisible();
+    await expect(summaryCopy).toBeVisible();
+    const copyMetrics = await summaryCopy.evaluate((element) => ({
+      clientHeight: element.clientHeight,
+      lineClamp: getComputedStyle(element).webkitLineClamp,
+      scrollHeight: element.scrollHeight,
+      textOverflow: getComputedStyle(element).textOverflow,
+      whiteSpace: getComputedStyle(element).whiteSpace
+    }));
+    expect(["none", "unset", "0", ""], `Scenario subtitle must not be one-line clamped; received '${copyMetrics.lineClamp}'`).toContain(copyMetrics.lineClamp);
+    expect(copyMetrics.scrollHeight).toBeLessThanOrEqual(copyMetrics.clientHeight + 1);
+    expect(copyMetrics.textOverflow).not.toBe("ellipsis");
+    expect(copyMetrics.whiteSpace).not.toBe("nowrap");
+    await expect(page.getByText("Validation caveat", { exact: true })).toHaveCount(0);
+
+    const selectedAudience = page.getByRole("button", { name: "B2B", exact: true }).first();
+    await selectedAudience.click();
+    await expect(selectedAudience).toHaveAttribute("aria-pressed", "true");
+    const criteriaFirst = page.getByRole("button", { name: "Criteria-first", exact: true });
+    await criteriaFirst.click();
+    await expect(criteriaFirst).toHaveAttribute("aria-pressed", "true");
+    const primaryCta = page.getByRole("button", { name: "Find redevelopment zones", exact: true });
+    await expect(primaryCta).toBeEnabled();
+
+    const primaryControls = [selectedAudience, criteriaFirst, primaryCta];
+    const primaryColors = [];
+    for (const control of primaryControls) {
+      const color = await control.evaluate((element) => getComputedStyle(element).backgroundColor);
+      expect(color).toBe(workspacePrimaryColor);
+      primaryColors.push(color);
+    }
+
+    await expectElementUnobstructed(primaryCta, `${viewport.name} primary candidate-search action`);
+    await primaryCta.click();
+    const candidateSearchCard = page.getByText("Candidate Search", { exact: true }).locator("..").locator("..");
+    const firstCandidate = candidateSearchCard.locator("button").first();
+    await expect(firstCandidate).toBeVisible();
+    await firstCandidate.click();
+    await expectElementUnobstructed(
+      page.getByRole("button", { name: "Add to compare", exact: true }),
+      `${viewport.name} Add to compare after candidate selection`
+    );
+    await expectNoHorizontalOverflow(page);
+
+    await scenarioSection.scrollIntoViewIfNeeded();
+    const screenshot = path.join(evidenceDirectory, `workspace-${viewport.name}.png`);
+    await page.screenshot({ path: screenshot, fullPage: true, animations: "disabled", caret: "hide" });
+    records.push({
+      primaryColors,
+      route: "/workspace",
+      viewport,
+      screenshot: path.relative(process.cwd(), screenshot)
+    });
+    await context.close();
+  }
+  await fs.writeFile(path.join(evidenceDirectory, "workspace-manifest.json"), `${JSON.stringify({ fixedTime, records }, null, 2)}\n`);
+});
+
+test("analysis report restores the A4 grid and deliberate site-context hierarchy", async ({ page }) => {
+  await page.clock.setFixedTime(new Date(fixedTime));
+  await signInDemo(page);
+  await page.goto("/workspace");
+
+  const criteriaFirst = page.getByRole("button", { name: "Criteria-first" });
+  await criteriaFirst.click();
+  await expect(criteriaFirst).toHaveAttribute("aria-pressed", "true");
+
+  await page.getByRole("button", { name: "Find redevelopment zones" }).click();
+  const candidateSearchCard = page.getByText("Candidate Search", { exact: true }).locator("..").locator("..");
+  const firstCandidate = candidateSearchCard.locator("button").first();
+  await expect(firstCandidate).toBeVisible();
+  await firstCandidate.click();
+
+  const analyzeSelected = page.getByRole("button", { name: "Analyze Selected" });
+  await expect(analyzeSelected).toBeEnabled();
+  await analyzeSelected.click();
+
+  const dashboard = page.locator("section[data-dashboard-analysis-id]");
+  await expect(dashboard).toBeVisible();
+  const decisionPosture = dashboard.locator('[data-dashboard-card="decision-posture"]');
+  const nextAction = dashboard.locator('[data-dashboard-value="next-action"]');
+  const exportButton = dashboard.getByRole("button", { name: "Export", exact: true });
+  await expect(decisionPosture).toBeInViewport();
+  await expect(nextAction).toBeInViewport();
+  const exportBackground = await exportButton.evaluate((element) => getComputedStyle(element).backgroundColor);
+  expect(exportBackground).toBe(workspacePrimaryColor);
+
+  await exportButton.click();
+  await expect(page).toHaveURL((url) => /^\/reports\/[^/]+\/print$/.test(url.pathname));
+  const reportPath = new URL(page.url()).pathname;
+
+  await page.emulateMedia({ media: "print" });
+  await expect(page.getByRole("heading", { name: "GeoAI Analysis Report" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Site Context Map" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Executive Decision" })).toBeVisible();
+  await expect(page.getByText("Map Context Fallback", { exact: true })).toHaveCount(0);
+
+  const metaColumns = await page.locator(".geoai-print-meta-grid").first().evaluate((element) =>
+    getComputedStyle(element).gridTemplateColumns.split(" ").filter(Boolean).length
+  );
+  const topColumns = await page.locator(".geoai-print-top-grid").first().evaluate((element) =>
+    getComputedStyle(element).gridTemplateColumns.split(" ").filter(Boolean).length
+  );
+  expect(metaColumns).toBeGreaterThanOrEqual(3);
+  expect(topColumns).toBeGreaterThanOrEqual(2);
+
+  await expect(page.locator(".geoai-print-map, [data-report-map-snapshot]").first()).toBeVisible();
+  await expectNoHorizontalOverflow(page);
+
+  const screenshot = path.join(evidenceDirectory, "analysis-report-print.png");
+  await page.screenshot({ path: screenshot, fullPage: true, animations: "disabled", caret: "hide" });
+  await fs.writeFile(path.join(evidenceDirectory, "report-manifest.json"), `${JSON.stringify({
+    fixedTime,
+    route: reportPath,
+    exportBackground,
+    metaColumns,
+    topColumns,
+    screenshot: path.relative(process.cwd(), screenshot)
+  }, null, 2)}\n`);
 });

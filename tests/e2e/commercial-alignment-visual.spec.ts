@@ -113,6 +113,15 @@ test.describe("commercial Landing and Account visual acceptance", () => {
 
       await page.goto("/");
       await expect(page.getByRole("heading", { level: 1, name: "Ask the map. Move with evidence." })).toBeVisible();
+      await expect(page.locator('header img[src="/brand/geoai-identity-symbol-32.svg"]')).toBeVisible();
+      const landingCockpit = page.locator('img[alt="GeoAI illustrative screening cockpit"]');
+      await expect(landingCockpit).toBeVisible();
+      const cockpitDimensions = await landingCockpit.evaluate((image) => ({
+        naturalHeight: (image as HTMLImageElement).naturalHeight,
+        naturalWidth: (image as HTMLImageElement).naturalWidth
+      }));
+      expect(cockpitDimensions.naturalWidth).toBeGreaterThanOrEqual(350);
+      expect(cockpitDimensions.naturalHeight).toBeGreaterThanOrEqual(460);
       await expectNoHorizontalOverflow(page);
       await captureCommercialVisual(page, `${viewport.name} Landing`, `landing-${viewport.name}.png`);
 

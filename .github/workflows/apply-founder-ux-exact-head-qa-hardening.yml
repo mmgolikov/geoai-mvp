@@ -1,0 +1,350 @@
+name: Apply Founder UX Exact-Head QA Hardening
+
+on:
+  push:
+    branches:
+      - recovery/runtime-design-migration-v1
+
+permissions:
+  contents: write
+
+concurrency:
+  group: founder-ux-exact-head-qa-hardening
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    if: github.event.head_commit.message == 'chore: queue founder UX exact-head QA hardening'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout Draft branch
+        uses: actions/checkout@v4
+        with:
+          ref: recovery/runtime-design-migration-v1
+          fetch-depth: 1
+          show-progress: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Apply permanent founder UX QA hardening
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          package_path = Path('package.json')
+          package = json.loads(package_path.read_text(encoding='utf-8'))
+          package['scripts']['test:design-foundation'] = (
+              'node scripts/design-foundation-contract-check.mjs && '
+              'node scripts/founder-ux-runtime-correction-check.mjs'
+          )
+          package_path.write_text(json.dumps(package, indent=2) + '\n', encoding='utf-8')
+
+          spec = r'''import fs from "node:fs/promises";
+          import path from "node:path";
+          import { expect, test, type Browser, type Page } from "@playwright/test";
+
+          const evidenceDirectory = path.join(process.cwd(), "artifacts", "runtime-design-recovery");
+          const fixedTime = "2026-07-23T10:30:00.000Z";
+          const viewports = [
+            { name: "desktop-1440", width: 1440, height: 900, cockpitAsset: "landing-geoai-cockpit-desktop-v18.png" },
+            { name: "tablet-834", width: 834, height: 1112, cockpitAsset: "landing-geoai-cockpit-tablet-v18.png" },
+            { name: "tablet-768", width: 768, height: 1024, cockpitAsset: "landing-geoai-cockpit-tablet-v18.png" },
+            { name: "mobile-430", width: 430, height: 932, cockpitAsset: "landing-geoai-cockpit-mobile-v18.png" },
+            { name: "mobile-390", width: 390, height: 844, cockpitAsset: "landing-geoai-cockpit-mobile-v18.png" }
+          ] as const;
+
+          async function prepareEvidenceDirectory() {
+            await fs.mkdir(evidenceDirectory, { recursive: true });
+          }
+
+          async function signInDemo(page: Page, next = "/workspace") {
+            await page.goto(`/login?next=${encodeURIComponent(next)}&intent=demo`);
+            const redirected = await page.waitForURL((url) => url.pathname === next, { timeout: 3000 }).then(() => true, () => false);
+            if (redirected) return;
+            await page.getByRole("button", { name: "Use demo credentials" }).click();
+            await page.getByRole("button", { name: "Open demo" }).click();
+            await expect(page).toHaveURL((url) => url.pathname === next);
+          }
+
+          async function expectNoHorizontalOverflow(page: Page) {
+            const overflow = await page.evaluate(() => ({
+              body: document.body.scrollWidth - document.body.clientWidth,
+              document: document.documentElement.scrollWidth - document.documentElement.clientWidth
+            }));
+            expect(overflow.body, "Body must not overflow horizontally").toBeLessThanOrEqual(1);
+            expect(overflow.document, "Document must not overflow horizontally").toBeLessThanOrEqual(1);
+          }
+
+          async function newPage(browser: Browser, viewport: { width: number; height: number }) {
+            const context = await browser.newContext({ colorScheme: "light", reducedMotion: "reduce", viewport });
+            const page = await context.newPage();
+            await page.clock.setFixedTime(new Date(fixedTime));
+            return { context, page };
+          }
+
+          async function getPrimaryCandidateSearchAction(page: Page) {
+            const candidates = page.getByRole("button").filter({
+              hasText: /Find redevelopment zones|Search candidate zones|Search candidates/i
+            });
+            const action = candidates.last();
+            await expect(action).toBeVisible();
+            return action;
+          }
+
+          async function expectTopmostAtCenter(page: Page, selector: string) {
+            const unobstructed = await page.locator(selector).evaluate((element) => {
+              const rect = element.getBoundingClientRect();
+              const x = Math.min(window.innerWidth - 1, Math.max(0, rect.left + rect.width / 2));
+              const y = Math.min(window.innerHeight - 1, Math.max(0, rect.top + rect.height / 2));
+              const top = document.elementFromPoint(x, y);
+              return Boolean(top && (top === element || element.contains(top)));
+            });
+            expect(unobstructed, `${selector} must be the topmost application element at its centre`).toBe(true);
+          }
+
+          test.beforeAll(async () => {
+            await fs.rm(evidenceDirectory, { force: true, recursive: true });
+            await prepareEvidenceDirectory();
+          });
+
+          test("records the founder-authorized runtime body migration boundary", async () => {
+            const program = JSON.parse(await fs.readFile(
+              path.join(process.cwd(), "docs", "RUNTIME_DESIGN_RECOVERY_PROGRAM_2026_07_22.json"),
+              "utf8"
+            )) as {
+              authority?: {
+                runtimeBodyMigrationAuthorization?: {
+                  approvedBy?: string;
+                  scope?: string;
+                  mergeAuthorized?: boolean;
+                  productionAuthorized?: boolean;
+                  figmaWritesAuthorized?: boolean;
+                  supabaseMutationAuthorized?: boolean;
+                };
+              };
+              changeRequests?: Array<{ id?: string }>;
+            };
+            const authorization = program.authority?.runtimeBodyMigrationAuthorization;
+            expect(authorization?.approvedBy).toBe("GeoAI Founder");
+            expect(authorization?.scope).toBe("Draft branch and Vercel Preview only");
+            expect(authorization?.mergeAuthorized).toBe(false);
+            expect(authorization?.productionAuthorized).toBe(false);
+            expect(authorization?.figmaWritesAuthorized).toBe(false);
+            expect(authorization?.supabaseMutationAuthorized).toBe(false);
+            expect(program.changeRequests?.map((item) => item.id)).toEqual([
+              "CR-10.03",
+              "CR-10.04",
+              "CR-10.05",
+              "CR-10.06",
+              "CR-10.07",
+              "CR-10.08"
+            ]);
+          });
+
+          test("landing uses the approved identity and responsive Figma cockpit without obstructed copy", async ({ browser }) => {
+            const records = [];
+            for (const viewport of viewports) {
+              const { context, page } = await newPage(browser, viewport);
+              await page.goto("/");
+              await page.evaluate(async () => document.fonts.ready);
+
+              await expect(page.getByRole("heading", { level: 1, name: "Ask the map. Move with evidence." })).toBeVisible();
+              const identity = page.locator('header img[src*="/brand/geoai-identity-symbol-32.svg"]:visible').first();
+              await expect(identity).toBeVisible();
+              const cockpit = page.locator('img[src*="landing-geoai-cockpit"]:visible').first();
+              await expect(cockpit).toBeVisible();
+              const cockpitState = await cockpit.evaluate((element) => {
+                const image = element as HTMLImageElement;
+                return { currentSrc: image.currentSrc || image.src, naturalWidth: image.naturalWidth, naturalHeight: image.naturalHeight };
+              });
+              expect(cockpitState.currentSrc).toContain(viewport.cockpitAsset);
+              expect(cockpitState.naturalWidth).toBeGreaterThan(0);
+              expect(cockpitState.naturalHeight).toBeGreaterThan(0);
+
+              await expect(page.getByText("Validation gap · official confirmation required", { exact: true })).toHaveCount(0);
+              const reasoning = page.getByRole("heading", { name: "Make the reasoning visible" });
+              await expect(reasoning).toBeVisible();
+              const card = reasoning.locator("xpath=ancestor::article[1]");
+              const cardBox = await card.boundingBox();
+              const copyBox = await card.locator("p").first().boundingBox();
+              expect(cardBox).not.toBeNull();
+              expect(copyBox).not.toBeNull();
+              expect((copyBox?.y ?? 0) + (copyBox?.height ?? 0)).toBeLessThanOrEqual((cardBox?.y ?? 0) + (cardBox?.height ?? 0) - 12);
+              await expectNoHorizontalOverflow(page);
+
+              const screenshot = path.join(evidenceDirectory, `landing-${viewport.name}.png`);
+              await page.screenshot({ path: screenshot, fullPage: true, animations: "disabled", caret: "hide" });
+              records.push({ route: "/", viewport, cockpit: cockpitState.currentSrc, screenshot: path.relative(process.cwd(), screenshot) });
+              await context.close();
+            }
+            await fs.writeFile(path.join(evidenceDirectory, "landing-manifest.json"), `${JSON.stringify({ fixedTime, records }, null, 2)}\n`);
+          });
+
+          test("workspace keeps Scenario readable, removes the primary caveat and uses one spatial-teal action family", async ({ browser }) => {
+            const records = [];
+            for (const viewport of viewports) {
+              const { context, page } = await newPage(browser, viewport);
+              await signInDemo(page);
+
+              const criteriaFirst = page.getByRole("button", { name: "Criteria-first", exact: true });
+              await criteriaFirst.click();
+              await expect(criteriaFirst).toHaveAttribute("aria-pressed", "true");
+
+              const setup = page.locator("section:has(#custom-query)").first();
+              await expect(setup).toBeVisible();
+              const roleSelect = setup.locator("label").filter({ hasText: /^Role/ }).locator("select").first();
+              const scenarioSelect = setup.locator("label").filter({ hasText: /^Scenario/ }).locator("select").first();
+              await expect(roleSelect).toBeVisible();
+              await expect(scenarioSelect).toBeVisible();
+              const roleBox = await roleSelect.boundingBox();
+              const scenarioBox = await scenarioSelect.boundingBox();
+              expect(roleBox).not.toBeNull();
+              expect(scenarioBox).not.toBeNull();
+              expect(Math.abs((roleBox?.x ?? 0) - (scenarioBox?.x ?? 0))).toBeLessThanOrEqual(2);
+              expect(Math.abs((roleBox?.width ?? 0) - (scenarioBox?.width ?? 0))).toBeLessThanOrEqual(2);
+              expect(scenarioBox?.width ?? 0).toBeGreaterThanOrEqual(280);
+              const selectedScenario = await scenarioSelect.evaluate((element) => {
+                const select = element as HTMLSelectElement;
+                const selected = select.selectedOptions.item(0);
+                return selected?.textContent?.trim() ?? "";
+              });
+              expect(selectedScenario.length).toBeGreaterThan(12);
+              await expect(setup.getByText("Validation caveat", { exact: true })).toHaveCount(0);
+
+              const audience = page.getByRole("button", { name: "B2B", exact: true });
+              await expect(audience).toHaveAttribute("aria-pressed", "true");
+              const primaryAction = await getPrimaryCandidateSearchAction(page);
+              await primaryAction.evaluate((element) => element.setAttribute("data-founder-primary-action", "true"));
+              const colors = await Promise.all([audience, criteriaFirst, primaryAction].map((locator) =>
+                locator.evaluate((element) => getComputedStyle(element).backgroundColor)
+              ));
+              expect(colors).toEqual(["rgb(8, 127, 140)", "rgb(8, 127, 140)", "rgb(8, 127, 140)"]);
+              await expectTopmostAtCenter(page, '[data-founder-primary-action="true"]');
+              await expectNoHorizontalOverflow(page);
+
+              const screenshot = path.join(evidenceDirectory, `workspace-${viewport.name}.png`);
+              await page.screenshot({ path: screenshot, fullPage: true, animations: "disabled", caret: "hide" });
+              records.push({ route: "/workspace", viewport, selectedScenario, colors, screenshot: path.relative(process.cwd(), screenshot) });
+              await context.close();
+            }
+            await fs.writeFile(path.join(evidenceDirectory, "workspace-manifest.json"), `${JSON.stringify({ fixedTime, records }, null, 2)}\n`);
+          });
+
+          test("legacy Explore remains compatibility-only", async ({ browser }) => {
+            const { context, page } = await newPage(browser, viewports[0]);
+            await signInDemo(page);
+            await page.goto("/explore");
+            await expect(page).toHaveURL((url) => url.pathname === "/workspace");
+            await expectNoHorizontalOverflow(page);
+            await context.close();
+          });
+
+          test("analysis report restores the A4 grid and deliberate site-context hierarchy", async ({ page }) => {
+            await page.clock.setFixedTime(new Date(fixedTime));
+            await signInDemo(page);
+
+            const criteriaFirst = page.getByRole("button", { name: "Criteria-first", exact: true });
+            await criteriaFirst.click();
+            await expect(criteriaFirst).toHaveAttribute("aria-pressed", "true");
+
+            const candidateSearch = await getPrimaryCandidateSearchAction(page);
+            await candidateSearch.click();
+            const candidateSearchCard = page.getByText("Candidate Search", { exact: true }).locator("..").locator("..");
+            const firstCandidate = candidateSearchCard.locator("button").first();
+            await expect(firstCandidate).toBeVisible();
+            await firstCandidate.click();
+
+            const analyzeSelected = page.getByRole("button", { name: "Analyze Selected", exact: true });
+            await expect(analyzeSelected).toBeEnabled();
+            await analyzeSelected.click();
+
+            const dashboard = page.locator("section[data-dashboard-analysis-id]");
+            await expect(dashboard).toBeVisible();
+            await expect(dashboard.locator('[data-dashboard-card="decision-posture"]')).toBeInViewport();
+            await expect(dashboard.locator('[data-dashboard-value="next-action"]')).toBeInViewport();
+            const exportButton = dashboard.getByRole("button", { name: "Export", exact: true });
+            const exportBackground = await exportButton.evaluate((element) => getComputedStyle(element).backgroundColor);
+            expect(exportBackground).toBe("rgb(8, 127, 140)");
+
+            await exportButton.click();
+            await expect(page).toHaveURL((url) => /^\/reports\/[^/]+\/print$/.test(url.pathname));
+            const reportPath = new URL(page.url()).pathname;
+            await page.emulateMedia({ media: "print" });
+            await expect(page.getByRole("heading", { name: "GeoAI Analysis Report" })).toBeVisible();
+            await expect(page.getByRole("heading", { name: "Site Context Map" })).toBeVisible();
+            await expect(page.getByRole("heading", { name: "Executive Decision" })).toBeVisible();
+            await expect(page.getByText("Map Context Fallback", { exact: true })).toHaveCount(0);
+
+            const metaColumns = await page.locator(".geoai-print-meta-grid").first().evaluate((element) =>
+              getComputedStyle(element).gridTemplateColumns.split(" ").filter(Boolean).length
+            );
+            const topColumns = await page.locator(".geoai-print-top-grid").first().evaluate((element) =>
+              getComputedStyle(element).gridTemplateColumns.split(" ").filter(Boolean).length
+            );
+            expect(metaColumns).toBeGreaterThanOrEqual(3);
+            expect(topColumns).toBeGreaterThanOrEqual(2);
+            await expect(page.locator(".geoai-print-map, [data-report-map-snapshot]").first()).toBeVisible();
+            await expectNoHorizontalOverflow(page);
+
+            const screenshot = path.join(evidenceDirectory, "analysis-report-print.png");
+            await page.screenshot({ path: screenshot, fullPage: true, animations: "disabled", caret: "hide" });
+            await fs.writeFile(path.join(evidenceDirectory, "report-manifest.json"), `${JSON.stringify({
+              fixedTime,
+              route: reportPath,
+              exportBackground,
+              metaColumns,
+              topColumns,
+              screenshot: path.relative(process.cwd(), screenshot)
+            }, null, 2)}\n`);
+          });
+          '''
+          spec = '\n'.join(line[10:] if line.startswith('          ') else line for line in spec.splitlines()) + '\n'
+          Path('tests/e2e/route-body-invariance.spec.ts').write_text(spec, encoding='utf-8')
+
+          doc_path = Path('docs/FOUNDER_UX_RUNTIME_CORRECTION_CR_10_09_2026_07_23.md')
+          doc = doc_path.read_text(encoding='utf-8')
+          marker = '## Permanent exact-head QA integration'
+          if marker not in doc:
+              doc += '''\n\n## Permanent exact-head QA integration\n\nThe correction is protected by the repository's permanent Quality Gate rather than a temporary workflow. `test:design-foundation` now chains the founder UX runtime source contract, while `tests/e2e/route-body-invariance.spec.ts` verifies the approved identity and responsive Figma cockpit, five declared viewports, full-width Role/Scenario controls, absence of the primary `Validation caveat`, one spatial-teal action family, overlay safety, `/explore` compatibility forwarding and the report/print hierarchy.\n\nThe browser evidence remains Draft/Preview-only. Passing CI does not authorize merge or Production promotion.\n'''
+              doc_path.write_text(doc, encoding='utf-8')
+          PY
+
+      - name: Install pinned dependencies
+        run: npm ci
+
+      - name: Regenerate documentation lifecycle manifest
+        run: npm run docs:lifecycle:generate
+
+      - name: Verify founder UX source and permanent design contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:founder-ux-runtime-correction
+          npm run test:design-foundation
+          npm run test:document-lifecycle
+
+      - name: Verify TypeScript and browser test discovery
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run lint
+          npx playwright test tests/e2e/route-body-invariance.spec.ts --list
+          git diff --check
+
+      - name: Commit and push permanent QA hardening
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "GeoAI Delivery OS"
+          git config user.email "actions@users.noreply.github.com"
+          git add package.json tests/e2e/route-body-invariance.spec.ts docs/FOUNDER_UX_RUNTIME_CORRECTION_CR_10_09_2026_07_23.md docs/DOCUMENT_LIFECYCLE_MANIFEST.json
+          git commit -m "test: harden founder UX exact-head acceptance"
+          git push origin HEAD:recovery/runtime-design-migration-v1

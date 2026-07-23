@@ -246,7 +246,7 @@ const uploadedDatasetRoute = fs.readFileSync(path.join(process.cwd(), "app/api/u
 const evidenceUploadRoute = fs.readFileSync(path.join(process.cwd(), "app/api/storage/evidence-files/route.ts"), "utf8");
 const modalHook = fs.readFileSync(path.join(process.cwd(), "components/use-accessible-modal.ts"), "utf8");
 assert(workspacePage.includes("createSpatialSourceRequest"), "Workspace source request must be resolved on the server");
-assert(explorePage.includes("createSpatialSourceRequest") && explorePage.includes("spatialSourceRequest={spatialSourceRequest}"), "Explore source request must be resolved and wired on the server");
+assert(explorePage.includes('redirect("/workspace")') && !explorePage.includes("WorkspaceShell"), "Explore compatibility entry must redirect to canonical Workspace without duplicating the spatial shell");
 assert(/spatialSourceRequest:\s*SpatialSourceRequest/.test(workspaceShell) && !workspaceShell.includes("defaultSpatialSourceRequest"), "WorkspaceShell must require a server-resolved source request and have no development fallback");
 assert(!/localStorage[^\n]*spatial/i.test(mapClient), "No localStorage spatial source-mode bypass may exist");
 assert(!/[?&]spatialMode=.*open_context_preview/.test(mapClient), "Map client must not construct an open-mode URL bypass");
