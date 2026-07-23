@@ -1,0 +1,107 @@
+name: GeoAI Responsive Visual QA
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: geoai-responsive-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  responsive-qa:
+    name: Responsive screenshots and interaction evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      CI: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Prepare evidence directory
+        run: mkdir -p artifacts/responsive-qa
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript check
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+      - name: Run responsive visual QA
+        shell: bash
+        run: |
+          set -euo pipefail
+          CHROME_BIN="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          if [ -z "$CHROME_BIN" ]; then
+            echo "Chrome/Chromium executable was not found on the runner." >&2
+            exit 1
+          fi
+          export CHROME_BIN
+
+          npm run start -- -H 127.0.0.1 -p 3000 > /tmp/geoai-responsive-next.log 2>&1 &
+          APP_PID=$!
+          trap 'kill "$APP_PID" 2>/dev/null || true' EXIT
+
+          READY=0
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent --show-error http://127.0.0.1:3000/api/health > /dev/null; then
+              READY=1
+              break
+            fi
+            if ! kill -0 "$APP_PID" 2>/dev/null; then
+              cat /tmp/geoai-responsive-next.log
+              exit 1
+            fi
+            sleep 1
+          done
+
+          if [ "$READY" -ne 1 ]; then
+            cat /tmp/geoai-responsive-next.log
+            echo "Built app did not become ready within 60 seconds." >&2
+            exit 1
+          fi
+
+          # The raw renderer may exit non-zero on provisional P0 findings.
+          # Preserve its evidence and let the reconciliation step determine the
+          # final status from the complete interaction and screenshot package.
+          set +e
+          GEOAI_TEST_BASE_URL=http://127.0.0.1:3000 node scripts/responsive-visual-qa-v2.mjs
+          RAW_QA_EXIT=$?
+          set -e
+          echo "Raw responsive QA exit code: ${RAW_QA_EXIT}"
+
+          node scripts/responsive-qa-postprocess.mjs
+
+      - name: Preserve application log
+        if: always()
+        shell: bash
+        run: |
+          if [ -f /tmp/geoai-responsive-next.log ]; then
+            cp /tmp/geoai-responsive-next.log artifacts/responsive-qa/next-runtime.log
+          fi
+
+      - name: Upload responsive QA evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: geoai-responsive-evidence-${{ github.run_id }}
+          path: artifacts/responsive-qa/
+          if-no-files-found: warn
+          retention-days: 14
