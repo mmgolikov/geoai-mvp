@@ -89,13 +89,14 @@
     "test:runtime-source-pack": "node scripts/runtime-source-pack-contract-check.mjs",
     "test:vercel-output-tracing": "node scripts/vercel-output-tracing-check.mjs",
     "start": "next start",
-    "lint": "tsc --noEmit --pretty false"
+    "lint": "tsc --noEmit --pretty false",
+    "test:founder-ux-runtime-correction": "node scripts/founder-ux-runtime-correction-check.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.3",
     "@supabase/supabase-js": "^2.110.6",
     "mapbox-gl": "^3.26.0",
-    "next": "^15.5.20",
+    "next": "15.5.21",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"
   },

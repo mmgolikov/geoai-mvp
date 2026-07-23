@@ -1,51 +1,55 @@
 /*
- * GeoAI Runtime Design Recovery — CR 10.03 / 10.04 / 10.06 / 10.07
+ * GeoAI Runtime Design Recovery — CR 10.03 / 10.04 / 10.06 / 10.07 / 10.09
  * Draft/Preview implementation only. Product System v3.2.1 foundation tokens remain authoritative.
  */
 
-/* CR 10.03 — the commercial workflow must never carry an overlapping validation overlay. */
-#workflow article:nth-of-type(3) > p.absolute {
-  display: none !important;
-}
-
-#workflow article:nth-of-type(3) {
-  padding-bottom: 1.5rem !important;
-}
-
-#workflow article h3,
-#workflow article > p:not(.absolute) {
+/* CR 10.03 / 10.09 — commercial process cards are clean in JSX; text remains readable. */
+#product article h3,
+#product article > p {
   overflow: visible;
   text-wrap: pretty;
 }
 
-/* CR 10.04 — keep scenario meaning readable and move validation out of primary setup chrome. */
-main:has(#workspace-map) section:has(#custom-query) .line-clamp-1 {
-  display: block !important;
-  overflow: visible !important;
-  -webkit-box-orient: initial !important;
-  -webkit-line-clamp: unset !important;
-  text-wrap: pretty;
+/* CR 10.04 / 10.09 — one primary spatial-teal family inside Workspace. */
+main:has(#workspace-map) {
+  --geoai-workspace-primary: #087f8c;
+  --geoai-workspace-primary-hover: #066d76;
 }
 
-main:has(#workspace-map) section:has(#custom-query) details:first-of-type {
-  display: none !important;
+main:has(#workspace-map) button.bg-brand:not(:disabled),
+main:has(#workspace-map) a.bg-brand {
+  border-color: var(--geoai-workspace-primary) !important;
+  background-color: var(--geoai-workspace-primary) !important;
+  color: #ffffff !important;
 }
 
-main:has(#workspace-map) section:has(#custom-query) > div:nth-of-type(2) {
-  border-color: rgba(8, 127, 140, 0.22) !important;
-  background: linear-gradient(135deg, rgba(232, 247, 250, 0.84), rgba(244, 249, 255, 0.96)) !important;
-  padding: 0.65rem !important;
+main:has(#workspace-map) button.bg-brand:not(:disabled):hover,
+main:has(#workspace-map) a.bg-brand:hover {
+  border-color: var(--geoai-workspace-primary-hover) !important;
+  background-color: var(--geoai-workspace-primary-hover) !important;
 }
 
 main:has(#workspace-map) [data-interaction-mode][aria-pressed="true"] {
-  border-color: #087f8c !important;
-  background: #087f8c !important;
+  border-color: var(--geoai-workspace-primary) !important;
+  background-color: var(--geoai-workspace-primary) !important;
   color: #ffffff !important;
 }
 
 main:has(#workspace-map) [data-interaction-mode][aria-pressed="false"]:hover {
-  border-color: #087f8c !important;
-  color: #06717a !important;
+  border-color: var(--geoai-workspace-primary) !important;
+  color: var(--geoai-workspace-primary) !important;
+}
+
+[data-workspace-screening-setup] select {
+  min-width: 0;
+  text-overflow: clip;
+}
+
+[data-scenario-primary-copy],
+[data-scenario-summary-copy] {
+  overflow: visible;
+  text-overflow: clip;
+  -webkit-line-clamp: unset;
 }
 
 /* CR 10.06 — report screen hierarchy. */

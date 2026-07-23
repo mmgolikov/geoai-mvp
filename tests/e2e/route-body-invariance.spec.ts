@@ -74,7 +74,8 @@ test("records the founder-authorized runtime body migration boundary", async () 
     "CR-10.05",
     "CR-10.06",
     "CR-10.07",
-    "CR-10.08"
+    "CR-10.08",
+    "CR-10.09"
   ]);
 });
 
@@ -86,7 +87,7 @@ test("commercial landing keeps the decision-flow copy unobstructed", async ({ br
     await page.evaluate(async () => document.fonts.ready);
 
     const internalValidationOverlay = page.getByText("Validation gap · official confirmation required", { exact: true });
-    await expect(internalValidationOverlay).toBeHidden();
+    await expect(internalValidationOverlay).toHaveCount(0);
 
     const heading = page.getByRole("heading", { name: "Make the reasoning visible" });
     await expect(heading).toBeVisible();
@@ -115,13 +116,29 @@ test("workspace scenario context is readable and validation stays secondary", as
 
     const scenarioSection = page.locator("section:has(#custom-query)").first();
     await expect(scenarioSection).toBeVisible();
-    const subtitle = scenarioSection.locator(".line-clamp-1").first();
-    await expect(subtitle).toBeVisible();
-    const clamp = await subtitle.evaluate((element) => getComputedStyle(element).webkitLineClamp);
-    expect(["none", "unset", "0", ""], `Scenario subtitle must not be one-line clamped; received '${clamp}'`).toContain(clamp);
+    const scenarioSelect = scenarioSection.getByLabel("Scenario");
+    await expect(scenarioSelect).toBeVisible();
+    const scenarioBox = await scenarioSelect.boundingBox();
+    expect(scenarioBox).not.toBeNull();
+    expect(scenarioBox?.width ?? 0).toBeGreaterThanOrEqual(300);
 
-    const primaryValidationDisclosure = scenarioSection.locator("details").first();
-    await expect(primaryValidationDisclosure).toBeHidden();
+    const primaryCopy = scenarioSection.locator("[data-scenario-primary-copy]").first();
+    const summaryCopy = scenarioSection.locator("[data-scenario-summary-copy]").first();
+    await expect(primaryCopy).toBeVisible();
+    await expect(summaryCopy).toBeVisible();
+    const copyMetrics = await summaryCopy.evaluate((element) => ({
+      clientHeight: element.clientHeight,
+      lineClamp: getComputedStyle(element).webkitLineClamp,
+      scrollHeight: element.scrollHeight,
+      textOverflow: getComputedStyle(element).textOverflow,
+      whiteSpace: getComputedStyle(element).whiteSpace
+    }));
+    expect(["none", "unset", "0", ""], `Scenario subtitle must not be one-line clamped; received '${copyMetrics.lineClamp}'`).toContain(copyMetrics.lineClamp);
+    expect(copyMetrics.scrollHeight).toBeLessThanOrEqual(copyMetrics.clientHeight + 1);
+    expect(copyMetrics.textOverflow).not.toBe("ellipsis");
+    expect(copyMetrics.whiteSpace).not.toBe("nowrap");
+
+    await expect(page.getByText("Validation caveat", { exact: true })).toHaveCount(0);
     await expectNoHorizontalOverflow(page);
 
     const screenshot = path.join(evidenceDirectory, `workspace-${viewport.name}.png`);

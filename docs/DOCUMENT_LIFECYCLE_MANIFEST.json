@@ -3,9 +3,9 @@
   "lastVerified": "2026-07-16",
   "authority": "docs/DOCUMENTATION_INDEX.md",
   "counts": {
-    "markdownDocuments": 141,
+    "markdownDocuments": 142,
     "activeAuthorities": 12,
-    "nonActiveDocuments": 129
+    "nonActiveDocuments": 130
   },
   "documents": {
     "AGENTS.md": {
@@ -231,6 +231,12 @@
       "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
     },
     "docs/FINAL_DEMO_AUDIT_V061.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/FOUNDER_UX_RUNTIME_CORRECTION_CR_10_09_2026_07_23.md": {
       "lifecycle": "historical_or_scoped_reference",
       "currentAuthority": false,
       "successor": "docs/DOCUMENTATION_INDEX.md",

@@ -299,8 +299,9 @@ test.describe("mobile product navigation, targets and visual evidence", () => {
     expect(scenarioBox, "Scenario select must have a rendered box").not.toBeNull();
     expect(scenarioBox?.width ?? 0, "Scenario select must use the full mobile row").toBeGreaterThanOrEqual(300);
 
-    await expectTextNotTruncated(page.locator("aside p.truncate").first(), "Scenario action copy");
-    await expectTextNotTruncated(page.locator("aside .line-clamp-1").first(), "Scenario summary copy");
+    await expectTextNotTruncated(page.locator("[data-scenario-primary-copy]").first(), "Scenario action copy");
+    await expectTextNotTruncated(page.locator("[data-scenario-summary-copy]").first(), "Scenario summary copy");
+    await expect(page.getByText("Validation caveat", { exact: true })).toHaveCount(0);
 
     const scenarioSetupDisclosure = page.locator("details").filter({
       has: page.getByText("Scenario setup", { exact: true })
@@ -323,6 +324,13 @@ test.describe("mobile product navigation, targets and visual evidence", () => {
     await expect(criteriaFirst).toHaveAttribute("aria-pressed", "true");
     const findCandidates = page.getByRole("button", { name: "Find redevelopment zones" });
     await expectMinimumTargetSize("Find redevelopment zones", findCandidates);
+    const workspacePrimaryBackgrounds = await Promise.all([
+      page.getByRole("button", { name: "B2B", exact: true }),
+      criteriaFirst,
+      findCandidates
+    ].map((control) => control.evaluate((element) => getComputedStyle(element).backgroundColor)));
+    expect(new Set(workspacePrimaryBackgrounds).size).toBe(1);
+    expect(workspacePrimaryBackgrounds[0]).toBe("rgb(8, 127, 140)");
     await findCandidates.click();
 
     const compareCandidates = page.getByRole("button", { name: "Compare Candidates" });

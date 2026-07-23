@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { AccessStatusBadge } from "@/components/auth/access-status-badge";
-import { LandingHeroMap } from "@/components/landing-hero-map";
+import { IdentitySymbol } from "@/components/design-system/identity-symbol";
 
 const decisionStages = [
   ["01", "Ask", "Define the place, area or criteria behind the decision."],
@@ -43,22 +43,12 @@ const faqs = [
   ]
 ] as const;
 
-function BrandMark({ compact = false }: { compact?: boolean }) {
-  return (
-    <span className={`relative inline-flex shrink-0 items-center justify-center ${compact ? "h-9 w-9" : "h-10 w-10"}`} aria-hidden="true">
-      <span className="absolute inset-[7px] rounded-full bg-accent" />
-      <span className="absolute left-0 top-[5px] h-[30px] w-[14px] rounded-l-full border-[3px] border-r-0 border-brand" />
-      <span className="absolute right-0 top-[5px] h-[30px] w-[14px] rounded-r-full border-[3px] border-l-0 border-brand" />
-    </span>
-  );
-}
-
 function LandingHeader() {
   return (
     <header className="sticky top-0 z-40 border-b border-line bg-white/95 backdrop-blur-xl">
       <div className="mx-auto flex h-[76px] max-w-[1320px] items-center justify-between px-5 sm:px-8 lg:px-0">
         <Link href="/" className="flex min-w-0 items-center gap-3 rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-4">
-          <BrandMark />
+          <span className="flex h-10 w-10 items-center justify-center"><IdentitySymbol /></span>
           <span className="min-w-0">
             <span className="block text-xl font-bold leading-6 tracking-[-0.02em] text-ink">GeoAI</span>
             <span className="block truncate text-[11px] font-medium text-muted">Spatial decision intelligence</span>
@@ -108,107 +98,39 @@ function BenefitIcon({ tone, children }: { tone: "blue" | "teal" | "orange"; chi
   return <span className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-sm font-bold ${toneClass}`}>{children}</span>;
 }
 
-function MapCandidate({ number, className }: { number: string; className: string }) {
-  return (
-    <span className={`absolute z-20 inline-flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-brand text-xs font-bold text-white shadow-lg ${className}`}>
-      {number}
-    </span>
-  );
-}
-
-function SiteCard({ kicker, title, note, className, selected = false }: { kicker: string; title: string; note: string; className: string; selected?: boolean }) {
-  return (
-    <div className={`absolute z-20 min-w-[128px] rounded-[10px] border bg-white/95 px-2.5 py-2 shadow-[0_5px_12px_rgba(5,31,71,0.16)] backdrop-blur ${selected ? "border-accent" : "border-brand/55"} ${className}`}>
-      <p className={`text-[8px] font-bold uppercase tracking-[0.05em] ${selected ? "text-accent" : "text-brand"}`}>{kicker}</p>
-      <p className="mt-0.5 text-[10px] font-semibold text-ink">{title}</p>
-      <p className="mt-0.5 text-[8px] text-muted">{note}</p>
-    </div>
-  );
-}
-
 function HeroCockpit() {
   return (
-    <div className="relative overflow-hidden rounded-panel border border-line bg-white p-3 shadow-panel sm:p-4">
-      <div className="grid min-h-[560px] gap-3 lg:grid-cols-[minmax(0,1fr)_202px]">
-        <div className="relative min-h-[430px] overflow-hidden rounded-[18px] border border-line bg-[#dceaf2] lg:min-h-0">
-          <LandingHeroMap />
-          <div className="absolute inset-x-4 top-4 z-20 flex h-12 items-center gap-2 rounded-[12px] border border-line bg-white/95 px-3 shadow-sm backdrop-blur">
-            <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-brand" />
-            <span className="min-w-0 flex-1 text-[9px] font-semibold leading-3 text-ink sm:text-[10px]">
-              Screen redevelopment candidates using access, market, climate and environmental signals
-            </span>
-            <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px] bg-brand text-lg font-semibold text-white">→</span>
-          </div>
-
-          <div className="absolute left-3 top-[90px] z-20 grid gap-1 rounded-[11px] border border-line bg-white/95 p-1 shadow-sm">
-            {["＋", "−", "⌖", "◇", "≡"].map((item, index) => (
-              <span key={item} className={`inline-flex h-8 w-8 items-center justify-center rounded-lg text-sm font-semibold ${index === 2 ? "bg-[#e8f2ff] text-brand" : "text-muted"}`}>{item}</span>
-            ))}
-          </div>
-
-          <MapCandidate number="1" className="left-[18%] top-[18%] bg-accent" />
-          <MapCandidate number="2" className="right-[19%] top-[38%]" />
-          <MapCandidate number="3" className="bottom-[22%] left-[37%]" />
-          <SiteCard selected kicker="Vacant site 01" title="Business Bay North" note="78 · Best overall fit" className="left-[10%] top-[28%]" />
-          <SiteCard kicker="Vacant site 02" title="Canal District" note="71 · Strong access" className="right-[3%] top-[51%]" />
-          <SiteCard kicker="Vacant site 03" title="Downtown Edge" note="66 · Lower exposure" className="bottom-[10%] right-[4%] hidden sm:block" />
-
-          <div className="absolute bottom-3 left-3 z-20 w-[210px] rounded-[11px] border border-line bg-white/95 px-3 py-2 shadow-sm backdrop-blur">
-            <p className="text-[8px] font-bold uppercase text-muted">Composite suitability</p>
-            <p className="mt-1 text-xs font-semibold text-ink">Selected candidate · 78</p>
-            <div className="mt-2 h-1.5 rounded-full bg-gradient-to-r from-[#d1e8f5] via-accent to-brand" />
-          </div>
-          <p className="absolute bottom-3 right-3 z-20 max-w-[190px] text-right text-[8px] leading-3 text-white/90">
-            Visual marketing overlay; not an official parcel or cadastral boundary.
-          </p>
-        </div>
-
-        <aside className="flex min-h-[430px] flex-col rounded-[18px] border border-line bg-white p-3 shadow-sm lg:min-h-0">
-          <p className="text-[8px] font-bold uppercase tracking-[0.08em] text-brand">Workspace command</p>
-          <div className="mt-2 inline-flex h-6 items-center gap-2 rounded-lg bg-[#e5fafa] px-2 text-[8px] font-bold uppercase text-accent">
-            <span className="h-1.5 w-1.5 rounded-full bg-accent" /> Workspace ready
-          </div>
-          <h2 className="mt-3 text-xl font-semibold leading-6 text-ink">Candidate screening</h2>
-          <p className="mt-1 text-[10px] text-muted">Business Bay redevelopment</p>
-
-          <div className="mt-3 grid grid-cols-2 rounded-[9px] bg-[#ebf5fc] p-[3px] text-center text-[9px] font-bold">
-            <span className="rounded-[7px] bg-brand py-2 text-white">B2B</span>
-            <span className="py-2 text-muted">B2C</span>
-          </div>
-
-          <div className="mt-2 rounded-[9px] border border-line bg-surface px-2.5 py-2">
-            <p className="text-[8px] font-bold uppercase text-muted">Role</p>
-            <p className="mt-0.5 text-[9px] font-medium text-ink">Development director</p>
-          </div>
-          {[
-            ["Project", "Business Bay redevelopment"],
-            ["Scenario", "Site strategy · redevelopment"],
-            ["Evidence", "Connected project evidence"]
-          ].map(([label, value]) => (
-            <div key={label} className="mt-2 rounded-[10px] border border-line bg-surface px-2.5 py-2">
-              <p className="text-[8px] font-bold uppercase text-muted">{label}</p>
-              <p className={`mt-0.5 text-[9px] ${label === "Evidence" ? "text-accent" : "text-ink"}`}>{value}</p>
-            </div>
-          ))}
-
-          <div className="mt-2 rounded-[10px] border border-accent/45 bg-[#e5fafa] px-2.5 py-2">
-            <p className="text-[8px] font-bold uppercase text-accent">Selected candidate 01</p>
-            <div className="mt-1 flex items-center gap-2">
-              <span className="font-mono text-3xl font-semibold text-brand">78</span>
-              <span>
-                <strong className="block text-[9px] uppercase text-ink">Conditional</strong>
-                <span className="block text-[8px] text-muted">composite suitability</span>
-              </span>
-            </div>
-            <p className="mt-1 text-[8px] text-muted">Strong access and market fit.</p>
-          </div>
-
-          <div className="mt-auto inline-flex min-h-6 items-center gap-2 rounded-lg bg-[#ebf5ff] px-2 text-[8px] font-bold text-[#2e619e]">
-            <span className="h-1.5 w-1.5 rounded-full bg-risk" /> Approval requirements tracked
-          </div>
-        </aside>
-      </div>
-    </div>
+    <figure
+      data-figma-node="1495:53"
+      data-landing-cockpit-authority="commercial-v1.8"
+      className="relative mx-auto w-full max-w-[804px]"
+    >
+      <picture>
+        <source
+          media="(max-width: 639px)"
+          srcSet="/design/landing-geoai-cockpit-mobile-v18.png"
+        />
+        <source
+          media="(max-width: 1023px)"
+          srcSet="/design/landing-geoai-cockpit-tablet-v18.png"
+        />
+        {/* Repository-owned export of the founder-approved commercial cockpit. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          alt="GeoAI illustrative screening cockpit"
+          src="/design/landing-geoai-cockpit-desktop-v18.png"
+          width="804"
+          height="560"
+          fetchPriority="high"
+          decoding="async"
+          className="mx-auto block h-auto w-full max-w-[350px] lg:max-w-[804px]"
+        />
+      </picture>
+      <figcaption className="sr-only">
+        Illustrative screening visual using public and open context. It is not parcel,
+        zoning, cadastral, ownership or valuation evidence.
+      </figcaption>
+    </figure>
   );
 }
 
@@ -282,7 +204,6 @@ function DecisionFlow() {
               <p className={`mt-5 text-xs font-bold uppercase tracking-[0.12em] ${index === 4 ? "text-white/80" : "text-brand"}`}>{title}</p>
               <h3 className="mt-5 text-xl font-semibold leading-7">{index === 0 ? "Define the decision" : index === 1 ? "Use relevant signals" : index === 2 ? "Make the reasoning visible" : index === 3 ? "Carry context forward" : "Decision-support outcome"}</h3>
               <p className={`mt-3 text-sm leading-6 ${index === 4 ? "text-white/80" : "text-muted"}`}>{copy}</p>
-              {index === 2 ? <p className="absolute inset-x-5 bottom-5 rounded-xl bg-[#fff2de] px-3 py-2 text-xs font-semibold text-risk">Validation gap · official confirmation required</p> : null}
             </article>
           ))}
         </div>
@@ -408,7 +329,7 @@ function Conversion() {
 
 function Footer() {
   return (
-    <footer className="bg-ink py-12 text-white"><div className="mx-auto max-w-[1320px] px-5 sm:px-8 lg:px-0"><div className="grid gap-10 md:grid-cols-[1.4fr_repeat(4,1fr)]"><div><BrandMark /><p className="mt-5 max-w-xs text-sm leading-6 text-white/65">Spatial decision intelligence<br />From spatial questions to evidence-aware next actions.</p></div>{[["Product", ["Workspace", "Projects", "Reports"]], ["Use cases", ["Site strategy", "Risk review", "Infrastructure", "Public sector"]], ["Evidence", ["Source lineage", "Data status", "Validation boundary"]], ["Company", ["About", "Contact", "Privacy"]]].map(([title, items]) => <div key={String(title)}><h3 className="text-xs font-bold uppercase text-white/50">{String(title)}</h3><div className="mt-4 grid gap-3 text-sm text-white/75">{(items as string[]).map((item) => <span key={item}>{item}</span>)}</div></div>)}</div><div className="mt-10 flex flex-col gap-3 border-t border-white/15 pt-6 text-xs text-white/50 sm:flex-row sm:items-center sm:justify-between"><p>© 2026 GeoAI. All rights reserved.</p><p>Terms · Privacy · Accessibility · Evidence-aware decision support</p></div></div></footer>
+    <footer className="bg-ink py-12 text-white"><div className="mx-auto max-w-[1320px] px-5 sm:px-8 lg:px-0"><div className="grid gap-10 md:grid-cols-[1.4fr_repeat(4,1fr)]"><div><span className="flex h-10 w-10 items-center justify-center"><IdentitySymbol /></span><p className="mt-5 max-w-xs text-sm leading-6 text-white/65">Spatial decision intelligence<br />From spatial questions to evidence-aware next actions.</p></div>{[["Product", ["Workspace", "Projects", "Reports"]], ["Use cases", ["Site strategy", "Risk review", "Infrastructure", "Public sector"]], ["Evidence", ["Source lineage", "Data status", "Validation boundary"]], ["Company", ["About", "Contact", "Privacy"]]].map(([title, items]) => <div key={String(title)}><h3 className="text-xs font-bold uppercase text-white/50">{String(title)}</h3><div className="mt-4 grid gap-3 text-sm text-white/75">{(items as string[]).map((item) => <span key={item}>{item}</span>)}</div></div>)}</div><div className="mt-10 flex flex-col gap-3 border-t border-white/15 pt-6 text-xs text-white/50 sm:flex-row sm:items-center sm:justify-between"><p>© 2026 GeoAI. All rights reserved.</p><p>Terms · Privacy · Accessibility · Evidence-aware decision support</p></div></div></footer>
   );
 }
 

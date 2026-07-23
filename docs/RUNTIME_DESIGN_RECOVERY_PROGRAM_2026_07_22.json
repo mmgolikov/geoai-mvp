@@ -1,9 +1,9 @@
 {
-  "schemaVersion": "1.1",
+  "schemaVersion": "1.2",
   "status": "active_implementation_authority_for_draft_branch",
   "lastVerified": "2026-07-23",
   "owner": "GeoAI Founder / GeoAI Delivery OS",
-  "title": "GeoAI Runtime Design Recovery Program — CR 10.03 to CR 10.08",
+  "title": "GeoAI Runtime Design Recovery Program \u2014 CR 10.03 to CR 10.09",
   "repository": "mmgolikov/geoai-mvp",
   "base": {
     "branch": "main",
@@ -40,16 +40,25 @@
       "scope": "Draft branch and Vercel Preview only",
       "mergeAuthorized": false,
       "productionAuthorized": false
+    },
+    "founderUxCorrectionAuthorization": {
+      "approvedBy": "GeoAI Founder",
+      "approvedInConversationOn": "2026-07-23",
+      "decision": "Reject the current Preview and correct identity, canonical landing cockpit, Workspace primary color, Scenario readability and primary-card validation placement.",
+      "scope": "Draft branch and Vercel Preview only",
+      "mergeAuthorized": false,
+      "productionAuthorized": false
     }
   },
-  "executiveFinding": "PR #111 released Product System v3.2.1 foundation, shared shell, tokens and primitives while intentionally preserving route bodies through a 20-case invariance contract. The current Production therefore does not represent full Figma screen migration. Runtime recovery must replace body invariance with route-specific Figma parity and product-quality acceptance. Workspace and Explore also duplicate the same WorkspaceShell; Workspace is now the canonical Product destination for both map-first and criteria-first workflows.",
+  "executiveFinding": "PR #111 released Product System v3.2.1 foundation, shared shell, tokens and primitives while intentionally preserving route bodies through a 20-case invariance contract. The current Production therefore does not represent full Figma screen migration. Runtime recovery must replace body invariance with route-specific Figma parity and product-quality acceptance. Workspace and Explore also duplicate the same WorkspaceShell; Workspace is now the canonical Product destination for both map-first and criteria-first workflows. Founder review rejected the first recovery Preview because the landing identity and cockpit were approximate, primary Workspace controls mixed blue and teal, Scenario remained clipped and the primary-card Validation caveat remained visible.",
   "mandatoryCaveat": "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning, engineering, insurance or valuation conclusion.",
   "semanticColorPolicy": {
     "brandBlue": "Brand identity, shared shell, navigation, information structure and focus boundaries.",
     "spatialTeal": "Map interaction, spatial intelligence, analytical emphasis, evidence-positive states and primary product actions.",
     "validationAmber": "Validation gaps and official confirmation requirements only inside decision and evidence contexts; never as a commercial landing overlay.",
     "criticalRed": "True blocking, failure or material risk states only.",
-    "interactionRule": "Hover, pressed and focus states remain inside the same semantic hue family; interaction must not change the meaning of a control."
+    "interactionRule": "Hover, pressed and focus states remain inside the same semantic hue family; interaction must not change the meaning of a control.",
+    "workspacePrimary": "Selected audience, active interaction mode and primary task CTA use one spatial-teal family inside Workspace."
   },
   "changeRequests": [
     {
@@ -239,6 +248,42 @@
         "Shared-shell accessibility, target-size, focus and overflow checks remain green."
       ],
       "sourceDocument": "docs/WORKSPACE_CONSOLIDATION_CR_10_08_2026_07_23.md"
+    },
+    {
+      "id": "CR-10.09",
+      "title": "Founder UX Runtime Authority Correction",
+      "priority": "P0",
+      "problem": "Founder review rejected the first recovery Preview because landing identity and cockpit diverged from approved Figma authority and primary Workspace controls remained inconsistent or clipped.",
+      "businessReason": "The commercial landing and Workspace must demonstrate approved GeoAI identity and a coherent, readable decision workflow before founder acceptance.",
+      "users": [
+        "all Product users",
+        "UAE prospects",
+        "pilot stakeholders",
+        "founder reviewers"
+      ],
+      "affectedRoutes": [
+        "/",
+        "/workspace",
+        "/projects",
+        "/explore compatibility entry"
+      ],
+      "dataImpact": "None. No source, scoring, persistence, Supabase, Auth, RLS, Storage, environment or secret change.",
+      "designImpact": "Use approved identity and responsive Figma cockpit exports; use one spatial-teal Workspace primary family; make Scenario readable; remove the primary-card Validation caveat.",
+      "engineeringImpact": "Landing, AnalysisPanel, route-scoped CSS, repository assets, security patch, source contract and responsive E2E evidence.",
+      "risks": [
+        "Static illustrative visual could be mistaken for live data",
+        "Scenario or color consistency could regress",
+        "Security patch could change build output"
+      ],
+      "acceptance": [
+        "Landing header and footer use IdentitySymbol.",
+        "Landing uses approved responsive cockpit exports from Figma nodes 1495:53, 1495:725 and 1495:1144.",
+        "Role and Scenario are full-width and scenario meaning is unclipped.",
+        "Primary Workspace setup contains no Validation caveat disclosure.",
+        "Selected audience, interaction mode and primary CTA resolve to one spatial-teal family.",
+        "Next.js resolves to patched 15.5.21 and the exact-head Quality Gate passes."
+      ],
+      "sourceDocument": "docs/FOUNDER_UX_RUNTIME_CORRECTION_CR_10_09_2026_07_23.md"
     }
   ],
   "releaseGovernance": {
