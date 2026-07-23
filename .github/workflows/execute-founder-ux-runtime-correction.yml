@@ -25,13 +25,25 @@ jobs:
           fetch-depth: 1
           show-progress: false
 
+      - name: Detect already-applied correction
+        id: guard
+        shell: bash
+        run: |
+          if [ -f scripts/founder-ux-runtime-correction-check.mjs ]; then
+            echo "already_applied=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "already_applied=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Set up Node.js
+        if: steps.guard.outputs.already_applied != 'true'
         uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
 
       - name: Recover bounded correction script
+        if: steps.guard.outputs.already_applied != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -51,6 +63,7 @@ jobs:
           python3 -m py_compile /tmp/apply-founder-ux-runtime-correction.py
 
       - name: Download repository-owned Figma cockpit exports
+        if: steps.guard.outputs.already_applied != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -61,6 +74,7 @@ jobs:
           file public/design/landing-geoai-cockpit-*.png
 
       - name: Apply founder-authorized runtime correction
+        if: steps.guard.outputs.already_applied != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -81,33 +95,38 @@ jobs:
           PY
           npm install next@15.5.21 --save-exact
           npm run docs:lifecycle:generate
-          rm .github/workflows/apply-founder-ux-runtime-correction.yml
-          rm .github/workflows/execute-founder-ux-runtime-correction.yml
 
       - name: Founder UX source contract
+        if: steps.guard.outputs.already_applied != 'true'
         shell: bash
         run: npm run test:founder-ux-runtime-correction
 
       - name: Documentation lifecycle contract
+        if: steps.guard.outputs.already_applied != 'true'
         shell: bash
         run: npm run test:document-lifecycle
 
       - name: TypeScript contract
+        if: steps.guard.outputs.already_applied != 'true'
         shell: bash
         run: npm run lint
 
       - name: Production dependency audit
+        if: steps.guard.outputs.already_applied != 'true'
         shell: bash
         run: npm audit --omit=dev --audit-level=moderate
 
       - name: Diff integrity
+        if: steps.guard.outputs.already_applied != 'true'
         shell: bash
         run: git diff --check
 
       - name: Commit and push corrected Draft head
+        if: steps.guard.outputs.already_applied != 'true'
         shell: bash
         run: |
           set -euo pipefail
+          git checkout HEAD -- .github/workflows/apply-founder-ux-runtime-correction.yml .github/workflows/execute-founder-ux-runtime-correction.yml
           git config user.name "GeoAI Delivery OS"
           git config user.email "actions@users.noreply.github.com"
           git add -A
