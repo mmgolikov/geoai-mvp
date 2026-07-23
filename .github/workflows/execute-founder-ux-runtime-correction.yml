@@ -71,26 +71,8 @@ jobs:
           rm .github/workflows/execute-founder-ux-runtime-correction.yml
 
       - name: Founder UX source contract
-        id: founder_contract
-        continue-on-error: true
         shell: bash
-        run: npm run test:founder-ux-runtime-correction | tee artifacts/founder-ux-runtime-correction-console.txt
-
-      - name: Upload founder UX correction diagnostics
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: founder-ux-runtime-correction-diagnostics-${{ github.run_id }}
-          path: |
-            artifacts/founder-ux-runtime-correction-check.json
-            artifacts/founder-ux-runtime-correction-console.txt
-          if-no-files-found: error
-          retention-days: 2
-
-      - name: Fail when founder UX source contract did not pass
-        if: steps.founder_contract.outcome != 'success'
-        shell: bash
-        run: exit 1
+        run: npm run test:founder-ux-runtime-correction
 
       - name: Documentation lifecycle contract
         shell: bash
