@@ -9,6 +9,7 @@ import "./workspace-copy-safety.css";
 import "./runtime-design-recovery.css";
 import "./runtime-design-recovery-landing.css";
 import "./runtime-decision-recovery.css";
+import "./founder-ux-runtime-correction.css";
 
 export const metadata: Metadata = {
   title: "GeoAI",
