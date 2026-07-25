@@ -1,0 +1,44 @@
+name: Trigger CR 10.10 Patch V3
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-cr-10-10-v3
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    if: github.event.pull_request.head.ref == 'fix/unified-teal-and-cockpit-labels'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/unified-teal-and-cockpit-labels
+          fetch-depth: 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Execute hardened CR 10.10 patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          lines = Path('.github/workflows/apply-cr-10-10-v2.yml').read_text(encoding='utf-8').splitlines()
+          start = next(i for i, line in enumerate(lines) if line.strip() == 'run: |') + 1
+          script = '\n'.join(line[10:] if line.startswith('          ') else line for line in lines[start:]) + '\n'
+          script = script.replace(
+              'git rm .github/workflows/apply-cr-10-10.yml .github/workflows/apply-cr-10-10-pr.yml .github/workflows/apply-cr-10-10-v2.yml',
+              'git rm -f --ignore-unmatch .github/workflows/apply-cr-10-10.yml .github/workflows/apply-cr-10-10-pr.yml .github/workflows/apply-cr-10-10-v2.yml .github/workflows/apply-cr-10-10-trigger.yml .github/workflows/apply-cr-10-10-trigger-v3.yml'
+          )
+          Path('/tmp/apply-cr-10-10-v3.sh').write_text(script, encoding='utf-8')
+          PY
+          bash /tmp/apply-cr-10-10-v3.sh
