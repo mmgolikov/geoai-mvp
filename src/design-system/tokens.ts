@@ -1,25 +1,15 @@
 export const productSystemV32Tokens = {
-  version: "Product System v3.2.2",
+  version: "Product System v3.2",
   figmaFileKey: "TAzDqOvRCw1mQGMU3Y4S9H",
-  figmaMasterNode: "1797:2",
   color: {
     ink: "#06122e",
     muted: "#4d6694",
     line: "#ccdef5",
     surface: "#f4f9ff",
     brand: "#064fcf",
-    "product-primary": "#087f8c",
-    "product-primary-hover": "#006c78",
-    "product-primary-soft": "#e5fafa",
     accent: "#06717a",
     personal: "#5b48d8",
     risk: "#a63f00"
-  },
-  semanticPolicy: {
-    brand: "Identity, commercial structure, informational hierarchy, links and focus boundaries.",
-    productPrimary: "Authenticated Product primary actions and selected controls across Workspace, analysis, Projects, Profile and Product report actions.",
-    validation: "Official/client validation gaps and caution only.",
-    critical: "True blocking, failure or material-risk states only."
   },
   dimension: {
     header: "64px",
@@ -38,18 +28,7 @@ export const productSystemV32Tokens = {
 } as const;
 
 export const productSystemV32ComponentTokens = {
-  version: "Product System v3.2.2 product-primary and cockpit correction",
-  correction: {
-    changeRequest: "CR 10.10",
-    figmaMasterNode: "1797:2",
-    figmaReceiptNode: "1825:11",
-    cockpitNodes: {
-      desktop: "1495:53",
-      tablet: "1495:725",
-      mobile: "1495:1144"
-    },
-    rule: "Product primary and selected controls stay #087F8C across authenticated Product states; brand blue is not a Product primary fill."
-  },
+  version: "Product System v3.2.1 accessibility correction",
   accessibilityCorrection: {
     figmaNode: "1819:11",
     primitive: { inactiveText: "#606f83", disabledText: "#667587" },
@@ -115,7 +94,6 @@ export const productSystemV32ComponentTokens = {
       containerBackground: "#eef2f6",
       containerBorder: "#dde3ea",
       activeOption: "#087f8c",
-      activeOptionHover: "#006c78",
       focusBoundary: "#1769e0",
       inactiveText: "#606f83",
       disabledText: "#667587",
@@ -153,16 +131,6 @@ export const productSystemV32ComponentTokens = {
       fontFamily: "var(--font-geist), Geist, Arial, sans-serif"
     }
   },
-  cockpit: {
-    authority: "commercial-v1.9",
-    labelPolicy: {
-      eyebrow: "One line; abbreviated as ILLUSTRATIVE 01/02/03 where space is constrained.",
-      title: "Dedicated line below the eyebrow; never overlaps score copy.",
-      score: "Dedicated third line with fixed vertical separation."
-    },
-    selectedControl: "#087f8c",
-    selectedControlSoft: "#e5fafa"
-  },
   authenticatedProfileBadge: {
     figmaNode: "219:425",
     color: {
@@ -176,6 +144,54 @@ export const productSystemV32ComponentTokens = {
   }
 } as const;
 
+/**
+ * Product System v3.2.2 is a bounded semantic correction layered on top of the
+ * immutable v3.2 / v3.2.1 foundation above. It does not expand the approved
+ * 16-token foundation manifest or rewrite the 56-state primitive contract.
+ */
+export const productSystemV322CorrectionTokens = {
+  version: "Product System v3.2.2 — Product Primary Teal & Cockpit Label Correction",
+  changeRequest: "CR 10.10",
+  figma: {
+    fileKey: "TAzDqOvRCw1mQGMU3Y4S9H",
+    masterNode: "1797:2",
+    receiptNode: "1825:11",
+    cockpitNodes: {
+      desktop: "1495:53",
+      tablet: "1495:725",
+      mobile: "1495:1144"
+    }
+  },
+  color: {
+    productPrimary: "#087f8c",
+    productPrimaryHover: "#006c78",
+    productPrimarySoft: "#e5fafa",
+    focusBoundary: "#1769e0"
+  },
+  semanticPolicy: {
+    brand: "Identity, commercial structure, informational hierarchy, links and focus boundaries.",
+    productPrimary: "Authenticated Product primary actions and selected controls across Workspace, analysis, Projects, Profile and Product report actions.",
+    validation: "Official/client validation gaps and caution only.",
+    critical: "True blocking, failure or material-risk states only."
+  },
+  cockpit: {
+    runtimeBaseAuthority: "commercial-v1.8",
+    correctionLayer: "product-system-v3.2.2",
+    labelPolicy: {
+      eyebrow: "One line; abbreviated as ILLUSTRATIVE 01/02/03 where space is constrained.",
+      title: "Dedicated line below the eyebrow; never overlaps score copy.",
+      score: "Dedicated third line with fixed vertical separation."
+    }
+  },
+  releaseBoundary: {
+    mergeAuthorized: false,
+    productionAuthorized: false,
+    supabaseMutationAuthorized: false,
+    environmentOrSecretMutationAuthorized: false
+  }
+} as const;
+
 export type ProductSystemV32Tokens = typeof productSystemV32Tokens;
 export type ProductSystemColor = keyof ProductSystemV32Tokens["color"];
 export type ProductSystemV32ComponentTokens = typeof productSystemV32ComponentTokens;
+export type ProductSystemV322CorrectionTokens = typeof productSystemV322CorrectionTokens;
