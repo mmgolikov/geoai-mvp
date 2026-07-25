@@ -50,6 +50,24 @@ body:has([data-product-shell]) button.bg-personal[aria-pressed="true"]:not(:disa
   color: #ffffff !important;
 }
 
+/*
+ * Project Hub exposes Create project as the third and only button in the
+ * first-card action row. It is a primary creation action even though the
+ * released component still carries the legacy secondary utility classes.
+ */
+body:has([data-product-shell]) main > div > section:first-child .grid.min-w-\[260px\] > .flex.flex-wrap.gap-2 > button:not(:disabled) {
+  border-color: var(--geoai-product-primary) !important;
+  background-color: var(--geoai-product-primary) !important;
+  color: #ffffff !important;
+}
+
+body:has([data-product-shell]) main > div > section:first-child .grid.min-w-\[260px\] > .flex.flex-wrap.gap-2 > button:not(:disabled):hover {
+  border-color: var(--geoai-product-primary-hover) !important;
+  background-color: var(--geoai-product-primary-hover) !important;
+  color: #ffffff !important;
+  box-shadow: 0 6px 18px rgba(8, 127, 140, 0.18);
+}
+
 /* Product print controls follow the same primary-action semantic role. */
 main:has(.geoai-print-report) .print-hidden button.bg-brand:not(:disabled),
 main:has(.geoai-print-report) .print-hidden a.bg-brand {
