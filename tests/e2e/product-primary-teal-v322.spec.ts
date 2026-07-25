@@ -31,8 +31,31 @@ async function expectNoHorizontalOverflow(page: Page) {
   expect(overflow.document).toBeLessThanOrEqual(1);
 }
 
+function textY(svg: string, text: string) {
+  const escaped = text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = svg.match(new RegExp(`<text[^>]*y="([0-9.]+)"[^>]*>${escaped}<\\/text>`));
+  expect(match, `SVG text must exist: ${text}`).not.toBeNull();
+  return Number(match?.[1]);
+}
+
 test.beforeAll(async () => {
   await fs.mkdir(evidenceDirectory, { recursive: true });
+});
+
+test("v3.2.2 remains a bounded correction over the immutable v3.2/v3.2.1 foundation", async () => {
+  const tokenSource = await fs.readFile(path.join(process.cwd(), "src", "design-system", "tokens.ts"), "utf8");
+
+  expect(tokenSource).toContain('version: "Product System v3.2"');
+  expect(tokenSource).toContain('version: "Product System v3.2.1 accessibility correction"');
+  expect(tokenSource).toContain("export const productSystemV322CorrectionTokens");
+  expect(tokenSource).toContain('version: "Product System v3.2.2 — Product Primary Teal & Cockpit Label Correction"');
+  expect(tokenSource).toContain('receiptNode: "1825:11"');
+  expect(tokenSource).toContain('runtimeBaseAuthority: "commercial-v1.8"');
+  expect(tokenSource).toContain('productPrimary: "#087f8c"');
+  expect(tokenSource).toContain('productPrimaryHover: "#006c78"');
+  expect(tokenSource).toContain('productPrimarySoft: "#e5fafa"');
+  expect(tokenSource).toContain("mergeAuthorized: false");
+  expect(tokenSource).toContain("productionAuthorized: false");
 });
 
 test("commercial cockpit correction keeps label lines separated and selected state teal", async ({ page }) => {
@@ -50,26 +73,44 @@ test("commercial cockpit correction keeps label lines separated and selected sta
   expect(responsiveSvg).toContain("B2B · Development director");
   expect(responsiveSvg).toContain('fill="#e5fafa"');
 
-  await page.setViewportSize({ width: 1440, height: 900 });
-  await page.goto("/");
-  await page.evaluate(async () => document.fonts.ready);
-  const cockpit = page.locator('[data-landing-cockpit-authority="commercial-v1.8"]');
-  await expect(cockpit).toBeVisible();
-  const overlay = await cockpit.evaluate((element) => ({
-    backgroundImage: getComputedStyle(element, "::after").backgroundImage,
-    pointerEvents: getComputedStyle(element, "::after").pointerEvents,
-    zIndex: getComputedStyle(element, "::after").zIndex
-  }));
-  expect(overlay.backgroundImage).toContain("data:image/svg+xml;base64");
-  expect(overlay.pointerEvents).toBe("none");
-  expect(Number(overlay.zIndex)).toBeGreaterThanOrEqual(2);
-  await expectNoHorizontalOverflow(page);
-  await page.screenshot({
-    path: path.join(evidenceDirectory, "landing-cockpit-desktop.png"),
-    fullPage: true,
-    animations: "disabled",
-    caret: "hide"
-  });
+  for (const [eyebrow, title, score] of [
+    ["ILLUSTRATIVE 01", "Business Bay North", "78 · Highest current score"],
+    ["ILLUSTRATIVE 02", "Canal District", "71 · Strong access"],
+    ["ILLUSTRATIVE 03", "Downtown Edge", "66 · Lower exposure"]
+  ] as const) {
+    const eyebrowY = textY(desktopSvg, eyebrow);
+    const titleY = textY(desktopSvg, title);
+    const scoreY = textY(desktopSvg, score);
+    expect(titleY - eyebrowY, `${eyebrow} title line separation`).toBeGreaterThanOrEqual(13);
+    expect(scoreY - titleY, `${eyebrow} score line separation`).toBeGreaterThanOrEqual(13);
+  }
+
+  for (const viewport of [
+    { name: "desktop", width: 1440, height: 900 },
+    { name: "tablet", width: 834, height: 1112 },
+    { name: "mobile", width: 430, height: 932 }
+  ]) {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await page.goto("/");
+    await page.evaluate(async () => document.fonts.ready);
+    const cockpit = page.locator('[data-landing-cockpit-authority="commercial-v1.8"]');
+    await expect(cockpit).toBeVisible();
+    const overlay = await cockpit.evaluate((element) => ({
+      backgroundImage: getComputedStyle(element, "::after").backgroundImage,
+      pointerEvents: getComputedStyle(element, "::after").pointerEvents,
+      zIndex: getComputedStyle(element, "::after").zIndex
+    }));
+    expect(overlay.backgroundImage).toContain("data:image/svg+xml;base64");
+    expect(overlay.pointerEvents).toBe("none");
+    expect(Number(overlay.zIndex)).toBeGreaterThanOrEqual(2);
+    await expectNoHorizontalOverflow(page);
+    await page.screenshot({
+      path: path.join(evidenceDirectory, `landing-cockpit-${viewport.name}.png`),
+      fullPage: true,
+      animations: "disabled",
+      caret: "hide"
+    });
+  }
 });
 
 test("Product primary and selected controls remain teal from Workspace through analysis", async ({ page }) => {
