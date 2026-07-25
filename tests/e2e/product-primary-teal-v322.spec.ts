@@ -142,6 +142,9 @@ test("Product primary and selected controls remain teal from Workspace through a
 
   const dashboard = page.locator("section[data-dashboard-analysis-id]");
   await expect(dashboard).toBeVisible();
+  // The dashboard replaces the clicked action in-place. Move the pointer away so
+  // computed-style assertions read the approved default state, not its teal hover.
+  await page.mouse.move(1, 1);
   await expectProductPrimary(page.getByRole("button", { name: "B2B", exact: true }).first(), "Analysis selected B2B");
   await expectProductPrimary(page.getByRole("button", { name: "Criteria-first", exact: true }), "Analysis selected mode");
   await expectProductPrimary(dashboard.getByRole("button", { name: "Export", exact: true }), "Analysis Export action");
