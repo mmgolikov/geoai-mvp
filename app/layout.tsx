@@ -10,6 +10,7 @@ import "./runtime-design-recovery.css";
 import "./runtime-design-recovery-landing.css";
 import "./runtime-decision-recovery.css";
 import "./founder-ux-runtime-correction.css";
+import "./product-system-v322-correction.css";
 
 export const metadata: Metadata = {
   title: "GeoAI",

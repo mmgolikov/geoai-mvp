@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Locator, type Page } from "@playwright/test";
+import "./product-primary-teal-v322.spec";
 
 type EvidenceRecord = {
   axeSeriousCritical: number;
