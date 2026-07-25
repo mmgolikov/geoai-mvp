@@ -1,0 +1,288 @@
+name: Apply CR 10.10 V2
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-cr-10-10-v2
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    if: github.event.pull_request.head.ref == 'fix/unified-teal-and-cockpit-labels'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/unified-teal-and-cockpit-labels
+          fetch-depth: 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Apply correction
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 --output public/design/landing-geoai-cockpit-desktop-v19.png 'https://www.figma.com/api/mcp/asset/6a959440-663c-45ad-a3a8-9e3ba2612706'
+          cp public/design/landing-geoai-cockpit-desktop-v19.png public/design/landing-geoai-cockpit-tablet-v19.png
+          cp public/design/landing-geoai-cockpit-desktop-v19.png public/design/landing-geoai-cockpit-mobile-v19.png
+
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          # Landing exact authority.
+          p = Path('app/page.tsx')
+          text = p.read_text(encoding='utf-8')
+          for old, new in [
+              ('commercial-v1.8', 'commercial-v1.9-label-safe'),
+              ('landing-geoai-cockpit-mobile-v18.png', 'landing-geoai-cockpit-mobile-v19.png'),
+              ('landing-geoai-cockpit-tablet-v18.png', 'landing-geoai-cockpit-tablet-v19.png'),
+              ('landing-geoai-cockpit-desktop-v18.png', 'landing-geoai-cockpit-desktop-v19.png'),
+              ('width="804"\n          height="560"', 'width="884"\n          height="640"')
+          ]:
+              text = text.replace(old, new)
+          p.write_text(text, encoding='utf-8')
+
+          # Component-level Product System authority; the v3.2 semantic baseline stays unchanged.
+          p = Path('src/design-system/tokens.ts')
+          text = p.read_text(encoding='utf-8')
+          text = text.replace(
+              'version: "Product System v3.2.1 accessibility correction",\n  accessibilityCorrection:',
+              'version: "Product System v3.2.2 unified product-action and cockpit-label correction",\n  productPrimaryCorrection: {\n    figmaNode: "1825:11",\n    cockpitNode: "1495:53",\n    default: "#087f8c",\n    hover: "#006c78",\n    soft: "#e5fafa",\n    brandBlueRole: "identity, links, information and focus"\n  },\n  accessibilityCorrection:'
+          )
+          p.write_text(text, encoding='utf-8')
+
+          # Runtime semantic aliases. Enabled filled actions and selected segments resolve to teal;
+          # disabled controls retain their existing neutral utilities.
+          p = Path('app/product-system-v3.css')
+          text = p.read_text(encoding='utf-8')
+          if '--geoai-product-action: #087f8c' not in text:
+              text = ':root {\n  --geoai-product-action: #087f8c;\n  --geoai-product-action-hover: #006c78;\n  --geoai-product-action-soft: #e5fafa;\n}\n\n' + text
+              text += '''
+
+/* Product System v3.2.2 — one Product primary/selected action family.
+   Brand blue remains identity, links, information and focus. */
+:where(button, a).bg-brand:not(:disabled),
+:where(button, a).bg-personal:not(:disabled) {
+  background-color: var(--geoai-product-action) !important;
+}
+
+:where(button, a).bg-brand:not(:disabled):hover,
+:where(button, a).bg-personal:not(:disabled):hover {
+  background-color: var(--geoai-product-action-hover) !important;
+}
+
+:where(button, a)[aria-pressed="true"].border-brand,
+:where(button, a)[aria-pressed="true"].border-personal {
+  border-color: var(--geoai-product-action) !important;
+}
+'''
+          p.write_text(text, encoding='utf-8')
+
+          # Authority registry.
+          p = Path('docs/DESIGN_SYSTEM_V3_2_AUTHORITY_REGISTRY.json')
+          registry = json.loads(p.read_text(encoding='utf-8'))
+          registry['schemaVersion'] = '1.1'
+          registry['designSystemVersion'] = 'Product System v3.2.2 — Unified Product Actions and Cockpit Label Correction'
+          registry['approvalDate'] = '2026-07-23'
+          registry['implementationBranch'] = 'fix/unified-teal-and-cockpit-labels'
+          registry['implementationStatus'] = 'founder_authorized_implementation_candidate'
+          registry['canonicalNodes']['productPrimaryCorrectionReceipt'] = '1825:11'
+          registry['canonicalNodes']['commercialCockpit'] = '1495:53'
+          registry['figmaWritesAuthorized'] = True
+          registry['affectedRoutes'] = ['/', '/workspace', '/projects', '/profile', '/reports', '/explore']
+          p.write_text(json.dumps(registry, indent=2) + '\n', encoding='utf-8')
+
+          # Component-token manifest.
+          p = Path('docs/DESIGN_FOUNDATION_COMPONENT_TOKEN_MANIFEST_V3_2.json')
+          manifest = json.loads(p.read_text(encoding='utf-8'))
+          manifest['schemaVersion'] = '1.2'
+          manifest['designSystemVersion'] = 'Product System v3.2.2 — Unified Product Actions and Cockpit Label Correction'
+          manifest['approvalDate'] = '2026-07-23'
+          manifest['productPrimaryCorrection'] = {
+              'figmaNode': '1825:11',
+              'cockpitNode': '1495:53',
+              'default': '#087f8c',
+              'hover': '#006c78',
+              'soft': '#e5fafa',
+              'brandBlueRole': 'identity, links, information and focus',
+              'affectedSurfaces': ['Workspace', 'analysis', 'Projects', 'Profile', 'Product reports']
+          }
+          p.write_text(json.dumps(manifest, indent=2) + '\n', encoding='utf-8')
+
+          # Keep the foundation checker aligned to the new component correction while preserving
+          # the 16-token semantic baseline and the prior accessibility correction.
+          p = Path('scripts/design-foundation-contract-check.mjs')
+          text = p.read_text(encoding='utf-8')
+          text = text.replace(
+              'registry.designSystemVersion === "Product System v3.2.1 — Accessibility Correction"',
+              'registry.designSystemVersion === "Product System v3.2.2 — Unified Product Actions and Cockpit Label Correction"'
+          )
+          text = text.replace(
+              'expect(registry.canonicalNodes?.accessibilityCorrectionReceipt === "1819:11", "Accessibility correction receipt traceability is incomplete.");',
+              'expect(registry.canonicalNodes?.accessibilityCorrectionReceipt === "1819:11", "Accessibility correction receipt traceability is incomplete.");\nexpect(registry.canonicalNodes?.productPrimaryCorrectionReceipt === "1825:11" && registry.canonicalNodes?.commercialCockpit === "1495:53", "Product-primary correction traceability is incomplete.");'
+          )
+          text = text.replace(
+              'registry.bodyScreenMigrationAuthorized === false && registry.figmaWritesAuthorized === false && registry.codeConnectWritesAuthorized === false',
+              'registry.bodyScreenMigrationAuthorized === false && registry.figmaWritesAuthorized === true && registry.codeConnectWritesAuthorized === false'
+          )
+          text = text.replace('componentManifest.schemaVersion === "1.1"', 'componentManifest.schemaVersion === "1.2"')
+          text = text.replace(
+              'componentManifest.designSystemVersion === "Product System v3.2.1 — Accessibility Correction"',
+              'componentManifest.designSystemVersion === "Product System v3.2.2 — Unified Product Actions and Cockpit Label Correction"'
+          )
+          text = text.replace(
+              'componentManifest.approvalDate === "2026-07-22"',
+              'componentManifest.approvalDate === "2026-07-23"'
+          )
+          text = text.replace(
+              'expect(isDeepStrictEqual(componentManifest.accessibilityCorrection, expectedAccessibilityCorrection), "Accessibility correction token separation drifted.");',
+              'expect(isDeepStrictEqual(componentManifest.accessibilityCorrection, expectedAccessibilityCorrection), "Accessibility correction token separation drifted.");\nexpect(isDeepStrictEqual(componentManifest.productPrimaryCorrection, { figmaNode: "1825:11", cockpitNode: "1495:53", default: "#087f8c", hover: "#006c78", soft: "#e5fafa", brandBlueRole: "identity, links, information and focus", affectedSurfaces: ["Workspace", "analysis", "Projects", "Profile", "Product reports"] }), "Product-primary correction manifest drifted.");'
+          )
+          text = text.replace(
+              'tokenSource.includes(\'version: "Product System v3.2.1 accessibility correction"\') && tokenSource.includes(\'figmaNode: "1819:11"\')',
+              'tokenSource.includes(\'version: "Product System v3.2.2 unified product-action and cockpit-label correction"\') && tokenSource.includes(\'figmaNode: "1819:11"\') && tokenSource.includes(\'figmaNode: "1825:11"\') && tokenSource.includes(\'cockpitNode: "1495:53"\')'
+          )
+          text = text.replace('"Canonical v3.2.1 accessibility authority is missing."', '"Canonical v3.2.2 component correction authority is missing."')
+          p.write_text(text, encoding='utf-8')
+
+          # Source contract.
+          Path('scripts/unified-product-action-contract-check.mjs').write_text(r'''import fs from "node:fs";
+const read = (path) => fs.readFileSync(path, "utf8");
+const tokens = read("src/design-system/tokens.ts");
+const css = read("app/product-system-v3.css");
+const landing = read("app/page.tsx");
+const failures = [];
+const check = (ok, message) => { if (!ok) failures.push(message); };
+check(tokens.includes('version: "Product System v3.2.2 unified product-action and cockpit-label correction"'), "Component correction version missing");
+check(tokens.includes('figmaNode: "1825:11"') && tokens.includes('cockpitNode: "1495:53"'), "Figma correction nodes missing");
+check(tokens.includes('default: "#087f8c"') && tokens.includes('hover: "#006c78"'), "Product primary tokens missing");
+check(css.includes('--geoai-product-action: #087f8c'), "Runtime action alias missing");
+check(css.includes(':where(button, a).bg-brand:not(:disabled)'), "Blue-filled actions are not normalized");
+check(css.includes(':where(button, a).bg-personal:not(:disabled)'), "Personal selected actions are not normalized");
+check(landing.includes('commercial-v1.9-label-safe'), "Label-safe cockpit authority missing");
+for (const name of ["desktop", "tablet", "mobile"]) {
+  check(landing.includes(`landing-geoai-cockpit-${name}-v19.png`), `${name} v1.9 cockpit reference missing`);
+  const path = `public/design/landing-geoai-cockpit-${name}-v19.png`;
+  check(fs.existsSync(path) && fs.statSync(path).size > 500000, `${name} cockpit export missing or invalid`);
+}
+check(!landing.includes('landing-geoai-cockpit-desktop-v18.png'), "Rejected v1.8 cockpit still active");
+if (failures.length) { console.error(failures.map((x) => `- ${x}`).join("\n")); process.exit(1); }
+console.log("Product System v3.2.2 unified Product actions and cockpit labels: PASS");
+''', encoding='utf-8')
+
+          # Browser acceptance.
+          Path('tests/e2e/unified-product-actions.spec.ts').write_text(r'''import { expect, test, type Locator, type Page } from "@playwright/test";
+const teal = "rgb(8, 127, 140)";
+async function signInDemo(page: Page, next = "/workspace") {
+  await page.goto(`/login?next=${encodeURIComponent(next)}&intent=demo`);
+  const redirected = await page.waitForURL((url) => url.pathname === next, { timeout: 3000 }).then(() => true, () => false);
+  if (redirected) return;
+  await page.getByRole("button", { name: "Use demo credentials" }).click();
+  await page.getByRole("button", { name: "Open demo" }).click();
+  await expect(page).toHaveURL((url) => url.pathname === next);
+}
+async function expectTeal(locator: Locator, label: string) {
+  await expect(locator, `${label} visible`).toBeVisible();
+  expect(await locator.evaluate((el) => getComputedStyle(el).backgroundColor), `${label} is teal`).toBe(teal);
+}
+test("primary and selected Product actions stay teal", async ({ page }) => {
+  await signInDemo(page);
+  await expectTeal(page.getByRole("button", { name: "B2B", exact: true }).first(), "Workspace B2B");
+  await expectTeal(page.getByRole("button", { name: "Map-first", exact: true }), "Workspace Map-first");
+  await page.getByRole("button", { name: "Criteria-first", exact: true }).click();
+  const search = page.getByRole("button", { name: /Find redevelopment zones|Search candidate zones|Search candidates/i }).last();
+  await expectTeal(search, "Workspace search");
+  await search.click();
+  const card = page.getByText("Candidate Search", { exact: true }).locator("..").locator("..");
+  await card.locator("button").first().click();
+  const analyze = page.getByRole("button", { name: "Analyze Selected", exact: true });
+  await expect(analyze).toBeEnabled();
+  await analyze.click();
+  await expect(page.locator("section[data-dashboard-analysis-id]")).toBeVisible();
+  await expectTeal(page.getByRole("button", { name: "Export", exact: true }), "Analysis Export");
+  await expectTeal(page.getByRole("button", { name: "B2B", exact: true }).first(), "Analysis B2B");
+  await expectTeal(page.getByRole("button", { name: "Criteria-first", exact: true }), "Analysis Criteria-first");
+  await page.goto("/projects");
+  await expectTeal(page.getByRole("button", { name: "B2B", exact: true }).first(), "Projects B2B");
+  await expectTeal(page.getByRole("link", { name: "Open workspace", exact: true }).first(), "Projects Open workspace");
+  await page.goto("/profile");
+  await expectTeal(page.getByRole("link", { name: "Open workspace", exact: true }), "Profile Open workspace");
+  await expectTeal(page.getByRole("button", { name: "B2B", exact: true }), "Profile B2B");
+  await expectTeal(page.getByRole("button", { name: "Save profile", exact: true }), "Profile Save profile");
+});
+test("landing uses label-safe cockpit v1.9", async ({ browser }) => {
+  for (const viewport of [{ width: 1440, height: 900, asset: "desktop-v19" }, { width: 834, height: 1112, asset: "tablet-v19" }, { width: 390, height: 844, asset: "mobile-v19" }]) {
+    const context = await browser.newContext({ viewport });
+    const page = await context.newPage();
+    await page.goto("/");
+    const image = page.locator('[data-landing-cockpit-authority="commercial-v1.9-label-safe"] img').first();
+    await expect(image).toBeVisible();
+    const state = await image.evaluate((el) => { const img = el as HTMLImageElement; return { src: img.currentSrc || img.src, w: img.naturalWidth, h: img.naturalHeight }; });
+    expect(state.src).toContain(viewport.asset);
+    expect(state.w).toBeGreaterThanOrEqual(800);
+    expect(state.h).toBeGreaterThanOrEqual(580);
+    await context.close();
+  }
+});
+''', encoding='utf-8')
+
+          # Package scripts.
+          p = Path('package.json')
+          package = json.loads(p.read_text(encoding='utf-8'))
+          package['scripts']['test:unified-product-actions'] = 'node scripts/unified-product-action-contract-check.mjs'
+          package['scripts']['test:design-foundation'] = 'node scripts/design-foundation-contract-check.mjs && node scripts/founder-ux-runtime-correction-check.mjs && node scripts/unified-product-action-contract-check.mjs'
+          if 'tests/e2e/unified-product-actions.spec.ts' not in package['scripts']['test:e2e:auth-session']:
+              package['scripts']['test:e2e:auth-session'] += ' tests/e2e/unified-product-actions.spec.ts'
+          p.write_text(json.dumps(package, indent=2) + '\n', encoding='utf-8')
+
+          # Formal CR and recovery program.
+          cr = Path('docs/UNIFIED_PRODUCT_ACTION_AND_COCKPIT_LABEL_FIX_CR_10_10_2026_07_23.md')
+          cr.write_text('''# CR 10.10 — Unified Product Actions and Cockpit Label Safety\n\n## Document control\n\n- **Status:** Draft implementation / Preview only\n- **Owner:** GeoAI Founder / GeoAI Delivery OS\n- **Figma:** master `1797:2`; receipt `1825:11`; cockpit `1495:53`\n- **Branch:** `fix/unified-teal-and-cockpit-labels`\n\n## Problem\n\nCockpit candidate labels collide. Product primary and selected controls revert from spatial teal to blue or purple in analysis, Projects and Profile.\n\n## Business reason\n\nOne semantic action family is required for coherent enterprise UX and reliable design-to-code handoff.\n\n## Affected surfaces\n\nLanding cockpit, Workspace setup and analysis, Projects, Profile, Product report actions and Product System contracts.\n\n## Data impact\n\nNone. No source, scoring, persistence, Supabase, Auth, RLS, Storage, secret or environment change.\n\n## Design impact\n\nProduct primary `#087F8C`; hover `#006C78`; soft `#E5FAFA`. Brand blue `#064FCF` remains identity, links, information and focus. Cockpit uses label-safe Figma v1.9.\n\n## Acceptance\n\n1. No cockpit label collision on desktop, tablet or mobile.\n2. Enabled filled Product actions and selected segments compute to `rgb(8, 127, 140)` across Workspace, analysis, Projects and Profile.\n3. Hover stays in the teal family.\n4. Disabled controls remain neutral.\n5. Brand and validation semantics remain unchanged.\n6. Quality, accessibility and data-honesty gates remain green.\n\n## Release boundary\n\nPreview is not Production. Merge and Production promotion require a separate release decision.\n\n> Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning, engineering, insurance or valuation conclusion.\n''', encoding='utf-8')
+
+          p = Path('docs/RUNTIME_DESIGN_RECOVERY_PROGRAM_2026_07_22.json')
+          recovery = json.loads(p.read_text(encoding='utf-8'))
+          recovery['schemaVersion'] = '1.3'
+          recovery['title'] = 'GeoAI Runtime Design Recovery Program — CR 10.03 to CR 10.10'
+          recovery['lastVerified'] = '2026-07-23'
+          recovery['authority']['productPrimaryCorrectionNode'] = '1825:11'
+          recovery['authority']['productPrimaryCorrectionAuthorization'] = {
+              'approvedBy': 'GeoAI Founder', 'approvedInConversationOn': '2026-07-23',
+              'decision': 'One spatial-teal Product primary/selected action family and label-safe cockpit v1.9.',
+              'scope': 'Draft branch and Vercel Preview only', 'mergeAuthorized': False,
+              'productionAuthorized': False, 'figmaWritesAuthorized': True
+          }
+          if not any(item.get('id') == 'CR-10.10' for item in recovery['changeRequests']):
+              recovery['changeRequests'].append({
+                  'id': 'CR-10.10', 'title': 'Unified Product Actions and Cockpit Label Safety', 'priority': 'P0',
+                  'problem': 'Cockpit labels collide and Product actions revert to blue/purple.',
+                  'businessReason': 'One semantic action family is required.',
+                  'users': ['all Product users', 'founder reviewers', 'design and engineering handoff teams'],
+                  'affectedRoutes': ['/', '/workspace', '/projects', '/profile', '/reports'],
+                  'dataImpact': 'None.', 'designImpact': 'Primary #087F8C; hover #006C78; cockpit v1.9 label-safe.',
+                  'engineeringImpact': 'Runtime aliases, exact exports and regression contracts.',
+                  'risks': ['Brand/action semantics could be conflated', 'Disabled controls could appear enabled'],
+                  'acceptance': ['No label collisions', 'All Product primary/selected controls use #087F8C', 'Brand blue remains structural', 'Quality Gate passes'],
+                  'sourceDocument': str(cr)
+              })
+          p.write_text(json.dumps(recovery, indent=2) + '\n', encoding='utf-8')
+          PY
+
+          git rm .github/workflows/apply-cr-10-10.yml .github/workflows/apply-cr-10-10-pr.yml .github/workflows/apply-cr-10-10-v2.yml
+          npm ci
+          npm run docs:lifecycle:generate
+          npm run lint
+          npm run test:design-foundation
+          git config user.name 'GeoAI Delivery OS'
+          git config user.email 'actions@users.noreply.github.com'
+          git add -A
+          git commit -m 'fix: unify Product actions and cockpit labels'
+          git push origin HEAD:fix/unified-teal-and-cockpit-labels
