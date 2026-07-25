@@ -17,8 +17,11 @@ async function signInDemo(page: Page, next = "/workspace") {
 
 async function expectProductPrimary(locator: Locator, label: string) {
   await expect(locator, `${label} must be visible`).toBeVisible();
+  await expect.poll(
+    () => locator.evaluate((element) => getComputedStyle(element).backgroundColor),
+    { message: `${label} must settle on Product-primary teal after CSS transitions`, timeout: 2000 }
+  ).toBe(productPrimary);
   const background = await locator.evaluate((element) => getComputedStyle(element).backgroundColor);
-  expect(background, `${label} must use Product-primary teal`).toBe(productPrimary);
   expect(background, `${label} must not revert to brand blue`).not.toBe(brandBlue);
 }
 
