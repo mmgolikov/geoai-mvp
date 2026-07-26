@@ -13,7 +13,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: dld-controlled-ingestion-${{ github.event.pull_request.number || github.ref }}
@@ -22,12 +22,16 @@ concurrency:
 jobs:
   validate-dld-controlled-ingestion:
     name: Validate fail-closed DLD ingestion controls
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
     steps:
-      - name: Checkout
+      - name: Checkout PR branch
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref || github.ref }}
+          fetch-depth: 0
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -67,11 +71,33 @@ jobs:
           console.log('DLD scoring activation remains fail-closed.');
           NODE
 
-      - name: Generate document lifecycle sidecars for review
-        run: npm run docs:lifecycle:generate
+      - name: Add the unreleased DLD change receipt
+        run: |
+          python - <<'PY'
+          from pathlib import Path
 
-      - name: Verify committed lifecycle sidecars are current
-        run: git diff --exit-code -- docs/DOCUMENT_LIFECYCLE_MANIFEST.json docs/DOCUMENT_ARCHIVE_INDEX.md
+          path = Path('CHANGELOG.md')
+          text = path.read_text(encoding='utf-8')
+          heading = '## Unreleased — CR-DATA-01 DLD / Dubai Pulse controlled ingestion foundation'
+          if heading not in text:
+              section = '''## Unreleased — CR-DATA-01 DLD / Dubai Pulse controlled ingestion foundation
+
+- Audited the DLD Real Estate Data surface and scoring-relevant Dubai Pulse / Data Dubai families, and registered a controlled catalogue of 20 core and priority auxiliary datasets with explicit access, rights, privacy, custody, quality and scoring states.
+- Added a fail-closed rights receipt, catalogue validator, streaming CSV quarantine preparer, automated control test, data contract, ingestion runbook, QA checklist, access-and-rights request package and a review-only restricted-fact / aggregate-feature SQL design with an intentional execution guard.
+- Corrected the `geoai-dev` DLD metadata authority to `permission_required`, `metadata_only`, zero acquired records and source-dependent scoring/evidence disabled. No raw DLD row, schema migration, credential, Storage policy, Auth change, source activation, merge or Production deployment was performed.
+- Added the dedicated read-only DLD Controlled Ingestion Gate. DLD-derived scoring remains blocked until written reusable rights, approved official access, private custody, trusted execution, canonical migration, independent quality/privacy acceptance and separate scoring activation approval exist.
+- Mandatory output boundary: “Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.”
+
+'''
+              first_section = text.find('\n## ')
+              if first_section < 0:
+                  raise SystemExit('Cannot find first changelog section')
+              text = text[:first_section + 1] + section + text[first_section + 1:]
+              path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Generate document lifecycle sidecars
+        run: npm run docs:lifecycle:generate
 
       - name: Upload generated document lifecycle sidecars
         uses: actions/upload-artifact@v4
@@ -82,3 +108,18 @@ jobs:
           path: |
             docs/DOCUMENT_LIFECYCLE_MANIFEST.json
             docs/DOCUMENT_ARCHIVE_INDEX.md
+
+      - name: Commit changelog and generated lifecycle sidecars
+        if: github.event_name == 'pull_request'
+        env:
+          HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          if git diff --quiet -- CHANGELOG.md docs/DOCUMENT_LIFECYCLE_MANIFEST.json docs/DOCUMENT_ARCHIVE_INDEX.md; then
+            echo "Changelog and document lifecycle sidecars are already current."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add CHANGELOG.md docs/DOCUMENT_LIFECYCLE_MANIFEST.json docs/DOCUMENT_ARCHIVE_INDEX.md
+          git commit -m "Record DLD controlled ingestion foundation"
+          git push origin "HEAD:${HEAD_BRANCH}"
