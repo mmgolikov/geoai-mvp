@@ -13,7 +13,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: dld-controlled-ingestion-${{ github.event.pull_request.number || github.ref }}
@@ -22,16 +22,12 @@ concurrency:
 jobs:
   validate-dld-controlled-ingestion:
     name: Validate fail-closed DLD ingestion controls
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
     steps:
-      - name: Checkout PR branch
+      - name: Checkout
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.ref || github.ref }}
-          fetch-depth: 0
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -71,8 +67,11 @@ jobs:
           console.log('DLD scoring activation remains fail-closed.');
           NODE
 
-      - name: Generate document lifecycle sidecars
+      - name: Generate document lifecycle sidecars for review
         run: npm run docs:lifecycle:generate
+
+      - name: Verify committed lifecycle sidecars are current
+        run: git diff --exit-code -- docs/DOCUMENT_LIFECYCLE_MANIFEST.json docs/DOCUMENT_ARCHIVE_INDEX.md
 
       - name: Upload generated document lifecycle sidecars
         uses: actions/upload-artifact@v4
@@ -83,18 +82,3 @@ jobs:
           path: |
             docs/DOCUMENT_LIFECYCLE_MANIFEST.json
             docs/DOCUMENT_ARCHIVE_INDEX.md
-
-      - name: Commit generated lifecycle sidecars to the Draft PR branch
-        if: github.event_name == 'pull_request'
-        env:
-          HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
-        run: |
-          if git diff --quiet -- docs/DOCUMENT_LIFECYCLE_MANIFEST.json docs/DOCUMENT_ARCHIVE_INDEX.md; then
-            echo "Document lifecycle sidecars are already current."
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add docs/DOCUMENT_LIFECYCLE_MANIFEST.json docs/DOCUMENT_ARCHIVE_INDEX.md
-          git commit -m "Refresh document lifecycle manifest"
-          git push origin "HEAD:${HEAD_BRANCH}"
