@@ -1,0 +1,37 @@
+{
+  "receiptVersion": "1.0",
+  "sourceGroup": "DLD / Dubai Pulse / Data Dubai",
+  "status": "approved_demo_only",
+  "approvedAt": "2026-07-26",
+  "approvedBy": "GeoAI Founder",
+  "approvalBasis": "Founder attests that all required official permissions for parsing the source data for the GeoAI demo have been obtained and that the approved parsing does not violate source rights.",
+  "scope": {
+    "geography": "Dubai",
+    "datasets": "all DLD / Dubai Pulse datasets registered in dld_dubai_pulse_dataset_catalog.v1.json",
+    "permittedUses": [
+      "official_download_or_approved_api_acquisition",
+      "parse_all_rows",
+      "schema_and_quality_profiling",
+      "private_demo_processing",
+      "normalization",
+      "privacy_minimized_aggregation",
+      "demo_only_source_backed_scoring",
+      "demo_only_dashboard_and_report_evidence"
+    ],
+    "prohibitedUses": [
+      "public_raw_data_redistribution",
+      "production_activation_without_separate_approval",
+      "ownership_or_title_verification_claim",
+      "official_parcel_or_cadastral_claim",
+      "certified_valuation_claim",
+      "zoning_or_planning_approval_claim"
+    ]
+  },
+  "specialConditions": {
+    "residentialSaleIndex": "Permitted only within the specifically approved demo scope; no general commercial or Production use is inferred.",
+    "personalAndContactFields": "May be parsed for source-quality validation but must not be persisted in Product-facing tables or outputs.",
+    "production": "not_authorized",
+    "merge": "not_authorized"
+  },
+  "requiredCaveat": "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
+}
