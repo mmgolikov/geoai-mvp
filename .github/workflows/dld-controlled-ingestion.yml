@@ -1,0 +1,125 @@
+name: DLD Controlled Ingestion Gate
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/dld-controlled-ingestion.yml"
+      - "data/external/catalog/dld_*.json"
+      - "scripts/dld/**"
+      - "docs/CR_DATA_01_DLD_DUBAI_PULSE_CONTROLLED_INGESTION_V1.md"
+      - "docs/DLD_*.md"
+      - "docs/sql/DLD_SCORING_FOUNDATION_V1_REVIEW_ONLY.sql"
+      - "supabase/migrations/*dld*"
+      - "package.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dld-controlled-ingestion-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-dld-controlled-ingestion:
+    name: Validate controlled DLD demo ingestion boundaries
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Verify JavaScript syntax
+        run: |
+          node --check scripts/dld/dld-catalog-check.mjs
+          node --check scripts/dld/prepare-dld-snapshot.mjs
+          node --check scripts/dld/dld-controlled-ingestion-check.mjs
+          node --check scripts/dld/fetch-dld-demo-snapshots-v2.mjs
+
+      - name: Validate DLD source catalogue
+        run: npm run dld:catalog:check
+
+      - name: Run DLD controlled-ingestion contract
+        run: npm run test:dld-controlled-ingestion
+
+      - name: Validate official demo permission receipt
+        run: |
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const path = 'data/external/catalog/dld_demo_permission_receipt.2026-07-26.json';
+          const receipt = JSON.parse(fs.readFileSync(path, 'utf8'));
+          if (receipt.status !== 'approved_demo_only') throw new Error('Demo permission is not approved_demo_only');
+          const permitted = new Set(receipt.scope?.permittedUses ?? []);
+          for (const use of ['official_download_or_approved_api_acquisition','parse_all_rows','normalization','privacy_minimized_aggregation','demo_only_source_backed_scoring']) {
+            if (!permitted.has(use)) throw new Error(`Demo permission is missing ${use}`);
+          }
+          if (receipt.specialConditions?.production !== 'not_authorized') throw new Error('Production must remain not authorized');
+          if (receipt.specialConditions?.merge !== 'not_authorized') throw new Error('Merge must remain not authorized');
+          console.log('Official DLD demo parsing permission is recorded with Production and merge excluded.');
+          NODE
+
+      - name: Prove review-only SQL remains guarded
+        run: grep -F "REVIEW ONLY: approved migration required" docs/sql/DLD_SCORING_FOUNDATION_V1_REVIEW_ONLY.sql
+
+      - name: Validate executable DLD migration allowlist and fail-closed access
+        run: |
+          expected="supabase/migrations/20260726153000_dld_demo_ingestion_foundation_v1.sql"
+          mapfile -t migrations < <(find supabase/migrations -maxdepth 1 -type f -iname '*dld*' | sort)
+          if [ "${#migrations[@]}" -ne 1 ] || [ "${migrations[0]}" != "$expected" ]; then
+            printf 'Unexpected executable DLD migration set:\n%s\n' "${migrations[*]}" >&2
+            exit 1
+          fi
+          grep -F "create schema if not exists geoai_dld_private" "$expected"
+          grep -F "create schema if not exists geoai_dld_feature" "$expected"
+          grep -F "revoke all on schema geoai_dld_private from public, anon, authenticated, service_role" "$expected"
+          grep -F "revoke all on schema geoai_dld_feature from public, anon, authenticated, service_role" "$expected"
+          grep -F "alter table geoai_dld_private.ingestion_runs enable row level security" "$expected"
+          grep -F "alter table geoai_dld_feature.scoring_features enable row level security" "$expected"
+          grep -F "Runtime scoring activation requires a separate approved change" "$expected"
+          if grep -Eiq '^\s*(grant|create policy)\b' "$expected"; then
+            echo "DLD demo schemas must not add Product grants or RLS policies in this migration" >&2
+            exit 1
+          fi
+
+      - name: Prove general source activation is closed and demo scope is explicit
+        run: |
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const catalog = JSON.parse(fs.readFileSync('data/external/catalog/dld_dubai_pulse_dataset_catalog.v1.json', 'utf8'));
+          const permission = JSON.parse(fs.readFileSync('data/external/catalog/dld_demo_permission_receipt.2026-07-26.json', 'utf8'));
+          if (catalog.scoringAllowed !== false || catalog.evidenceUsedAllowed !== false || catalog.bulkAcquisitionAllowed !== false) {
+            throw new Error('General DLD activation flags must remain false');
+          }
+          const generallyActive = catalog.datasets.filter((dataset) => dataset.scoringStatus === 'approved_aggregate_only');
+          if (generallyActive.length !== 0) throw new Error(`Expected zero generally active DLD datasets, found ${generallyActive.length}`);
+          const index = catalog.datasets.find((dataset) => dataset.datasetId === 'dld_residential_sale_index-open');
+          if (!index || !String(index.rightsStatus).includes('commercial_use_prohibited') || !String(index.scoringStatus).includes('blocked')) {
+            throw new Error('General RPPI commercial-use restriction is not encoded');
+          }
+          if (permission.specialConditions?.residentialSaleIndex !== 'Permitted only within the specifically approved demo scope; no general commercial or Production use is inferred.') {
+            throw new Error('RPPI demo-only exception is not explicit');
+          }
+          console.log('General DLD activation remains closed; explicit demo-only parsing and scoring scope is recorded.');
+          NODE
+
+      - name: Generate document lifecycle sidecars for review
+        run: npm run docs:lifecycle:generate
+
+      - name: Verify committed lifecycle sidecars are current
+        run: git diff --exit-code -- docs/DOCUMENT_LIFECYCLE_MANIFEST.json docs/DOCUMENT_ARCHIVE_INDEX.md
+
+      - name: Upload generated document lifecycle sidecars
+        uses: actions/upload-artifact@v4
+        with:
+          name: dld-document-lifecycle-sidecars
+          if-no-files-found: error
+          retention-days: 7
+          path: |
+            docs/DOCUMENT_LIFECYCLE_MANIFEST.json
+            docs/DOCUMENT_ARCHIVE_INDEX.md

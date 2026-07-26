@@ -1,0 +1,13 @@
+{
+  "datasetId": "dld_residential_sale_index-open",
+  "status": "pending",
+  "approvedAt": null,
+  "approvedBy": null,
+  "termsReference": null,
+  "permittedUses": [],
+  "accessMethod": null,
+  "attribution": null,
+  "redistributionAllowed": false,
+  "expiryAt": null,
+  "notes": "Do not change status to approved without written dataset-owner/legal approval covering private persistence, transformation and aggregate internal scoring."
+}
