@@ -1,6 +1,11 @@
 name: DLD Controlled Ingestion Gate
 
 on:
+  push:
+    branches:
+      - "agent/dld-controlled-ingestion-foundation-v1"
+    paths:
+      - ".github/workflows/dld-controlled-ingestion.yml"
   pull_request:
     paths:
       - ".github/workflows/dld-controlled-ingestion.yml"
@@ -22,15 +27,15 @@ concurrency:
 jobs:
   validate-dld-controlled-ingestion:
     name: Validate fail-closed DLD ingestion controls
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
     steps:
-      - name: Checkout PR branch
+      - name: Checkout source branch
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.ref || github.ref }}
+          ref: ${{ github.event.pull_request.head.ref || github.ref_name }}
           fetch-depth: 0
 
       - name: Set up Node.js
@@ -110,9 +115,8 @@ jobs:
             docs/DOCUMENT_ARCHIVE_INDEX.md
 
       - name: Commit changelog and generated lifecycle sidecars
-        if: github.event_name == 'pull_request'
         env:
-          HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
+          HEAD_BRANCH: ${{ github.event.pull_request.head.ref || github.ref_name }}
         run: |
           if git diff --quiet -- CHANGELOG.md docs/DOCUMENT_LIFECYCLE_MANIFEST.json docs/DOCUMENT_ARCHIVE_INDEX.md; then
             echo "Changelog and document lifecycle sidecars are already current."
