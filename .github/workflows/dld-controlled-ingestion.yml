@@ -7,7 +7,7 @@ on:
       - "data/external/catalog/dld_*.json"
       - "scripts/dld/**"
       - "docs/CR_DATA_01_DLD_DUBAI_PULSE_CONTROLLED_INGESTION_V1.md"
-      - "docs/DLD_DUBAI_PULSE_*.md"
+      - "docs/DLD_*.md"
       - "docs/sql/DLD_SCORING_FOUNDATION_V1_REVIEW_ONLY.sql"
       - "package.json"
   workflow_dispatch:
