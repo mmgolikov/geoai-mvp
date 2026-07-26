@@ -8,7 +8,7 @@ const CAVEAT = "Screening hypothesis; official validation required; not a legal,
 const REQUIRED_USES = ["persist_private_raw", "transform", "internal_scoring_aggregate"];
 const FIELDS = {
   area: ["area_name_en", "area_name", "community", "community_name", "master_project_en", "project_name_en", "location"],
-  date: ["transaction_date", "instance_date", "procedure_date", "contract_start_date", "valuation_date", "registration_date", "completion_date", "license_start_date", "start_date", "date"],
+  date: ["transaction_date", "instance_date", "procedure_date", "contract_start_date", "valuation_date", "registration_date", "completion_date", "license_start_date", "start_date", "observation_period", "index_date", "date"],
   amount: ["actual_worth", "transaction_value", "property_total_value", "contract_amount", "annual_amount", "valuation_amount", "actual_value", "amount", "value_aed"],
   size: ["procedure_area", "actual_area", "property_size", "transaction_size", "area_sqm", "property_size_sqm", "property_size_sqft", "area_sqft"]
 };
@@ -25,14 +25,26 @@ const number = (value) => {
   const parsed = Number(cleaned);
   return Number.isFinite(parsed) ? parsed : null;
 };
+const validDateParts = (year, monthNumber, day = 1) => {
+  if (year < 1900 || year > 2200 || monthNumber < 1 || monthNumber > 12 || day < 1 || day > 31) return false;
+  const parsed = new Date(Date.UTC(year, monthNumber - 1, day));
+  return parsed.getUTCFullYear() === year && parsed.getUTCMonth() === monthNumber - 1 && parsed.getUTCDate() === day;
+};
 const month = (value) => {
   const text = String(value ?? "").trim();
-  let match = text.match(/^(\d{4})[-/.](\d{1,2})/);
-  if (match) return `${match[1]}-${String(Number(match[2])).padStart(2, "0")}`;
+  let match = text.match(/^(\d{4})[-/.](\d{1,2})(?:[-/.](\d{1,2}))?/);
+  if (match) {
+    const year = Number(match[1]), monthNumber = Number(match[2]), day = Number(match[3] ?? 1);
+    return validDateParts(year, monthNumber, day) ? `${year}-${String(monthNumber).padStart(2, "0")}` : null;
+  }
   match = text.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})/);
-  if (match) return `${match[3]}-${String(Number(match[2])).padStart(2, "0")}`;
+  if (match) {
+    const day = Number(match[1]), monthNumber = Number(match[2]), year = Number(match[3]);
+    return validDateParts(year, monthNumber, day) ? `${year}-${String(monthNumber).padStart(2, "0")}` : null;
+  }
   const parsed = new Date(text);
-  return Number.isNaN(parsed.getTime()) ? null : `${parsed.getUTCFullYear()}-${String(parsed.getUTCMonth() + 1).padStart(2, "0")}`;
+  if (Number.isNaN(parsed.getTime()) || parsed.getUTCFullYear() < 1900 || parsed.getUTCFullYear() > 2200) return null;
+  return `${parsed.getUTCFullYear()}-${String(parsed.getUTCMonth() + 1).padStart(2, "0")}`;
 };
 const csv = (value) => /[",\r\n]/.test(String(value ?? "")) ? `"${String(value ?? "").replace(/"/g, '""')}"` : String(value ?? "");
 
@@ -74,12 +86,10 @@ async function* rows(path, hash) {
 }
 
 const datasetId = arg("dataset"), file = arg("file"), receiptPath = arg("rights-receipt");
-const catalogPath = arg("catalog", CATALOG), outArg = arg("out-dir"), maxArg = arg("max-rows");
-const maxRows = maxArg ? Number(maxArg) : Infinity;
+const catalogPath = arg("catalog", CATALOG), outArg = arg("out-dir");
 if (!datasetId || !file || !receiptPath) stop("required: --dataset --file --rights-receipt");
 if (/^https?:\/\//i.test(file)) stop("use a local file acquired through the approved operator process");
 if (!existsSync(file)) stop(`file not found: ${file}`);
-if (maxArg && (!Number.isFinite(maxRows) || maxRows <= 0)) stop("--max-rows must be positive");
 
 const catalog = json(catalogPath), dataset = catalog.datasets?.find((item) => item.datasetId === datasetId);
 if (!dataset) stop(`unregistered dataset: ${datasetId}`);
@@ -110,7 +120,6 @@ try {
       amountField = pick(headers, FIELDS.amount); sizeField = pick(headers, FIELDS.size);
       continue;
     }
-    if (count >= maxRows) break;
     count += 1; if (values.length !== headers.length) malformed += 1;
     const record = {};
     headers.forEach((name, index) => {
@@ -148,7 +157,10 @@ const output = [...groups.values()].sort((a, b) => a.area.localeCompare(b.area) 
 }));
 writeFileSync(`${out}/aggregate_feature_input.csv`, `${[columns.join(","), ...output.map((v) => columns.map((c) => csv(v[c])).join(","))].join("\n")}\n`);
 save(`${out}/schema.json`, { generatedAt, datasetId, sourceHeaders, normalizedHeaders: headers, detectedFields: { areaField, dateField, amountField, sizeField }, columnProfile: profile });
-const status = malformed ? "quarantined_with_schema_issues" : "quarantined_pending_acceptance";
-save(`${out}/quality.json`, { generatedAt, datasetId, status, sourceFileName: basename(file), sourceFileByteSize: stat.size, contentSha256: digest, rowCount: count, aggregateRowCount: output.length, malformedRows: malformed, unknownAreaRows: unknownArea, unknownMonthRows: unknownMonth, minMonth: minMonth ?? null, maxMonth: maxMonth ?? null, scoringAllowed: false, evidenceUsedAllowed: false, caveat: CAVEAT });
-save(`${out}/release_manifest.json`, { manifestVersion: "1.0", generatedAt, datasetId, provider: catalog.provider, sourceFileName: basename(file), sourceFileByteSize: stat.size, contentSha256: digest, rowCount: count, rightsReceipt: { approvedAt: receipt.approvedAt, approvedBy: receipt.approvedBy, termsReference: receipt.termsReference, permittedUses: receipt.permittedUses, expiryAt: receipt.expiryAt ?? null }, custodyStatus: dataset.custodyStatus, processingStatus: status, releaseStatus: "quarantined", outputs: ["schema.json", "quality.json", "aggregate_feature_input.csv"], rawRowsPersistedByThisScript: false, scoringAllowed: false, nextRequiredGate: "quality acceptance, immutable release receipt and approved database load", caveat: CAVEAT });
+const unknownAreaRate = unknownArea / count, unknownMonthRate = unknownMonth / count;
+const structuralIssues = malformed > 0 || !areaField || !dateField || unknownAreaRate > 0.05 || unknownMonthRate > 0.05;
+const status = structuralIssues ? "quarantined_with_schema_issues" : "quarantined_pending_acceptance";
+const aggregateMethod = "Quarantine-only simple averages; production medians, percentiles and scenario features require an approved feature pipeline.";
+save(`${out}/quality.json`, { generatedAt, datasetId, status, sourceFileName: basename(file), sourceFileByteSize: stat.size, sourceFileFullyHashed: true, contentSha256: digest, rowCount: count, aggregateRowCount: output.length, malformedRows: malformed, unknownAreaRows: unknownArea, unknownAreaRate, unknownMonthRows: unknownMonth, unknownMonthRate, minMonth: minMonth ?? null, maxMonth: maxMonth ?? null, aggregateMethod, scoringAllowed: false, evidenceUsedAllowed: false, caveat: CAVEAT });
+save(`${out}/release_manifest.json`, { manifestVersion: "1.0", generatedAt, datasetId, provider: catalog.provider, sourceFileName: basename(file), sourceFileByteSize: stat.size, sourceFileFullyHashed: true, contentSha256: digest, rowCount: count, rightsReceipt: { approvedAt: receipt.approvedAt, approvedBy: receipt.approvedBy, termsReference: receipt.termsReference, permittedUses: receipt.permittedUses, expiryAt: receipt.expiryAt ?? null }, custodyStatus: dataset.custodyStatus, processingStatus: status, releaseStatus: "quarantined", outputs: ["schema.json", "quality.json", "aggregate_feature_input.csv"], aggregateMethod, rawRowsPersistedByThisScript: false, scoringAllowed: false, nextRequiredGate: "quality acceptance, immutable release receipt and approved database load", caveat: CAVEAT });
 console.log(JSON.stringify({ status, datasetId, outDir: out, rowCount: count, aggregateRowCount: output.length, contentSha256: digest, scoringAllowed: false }, null, 2));
