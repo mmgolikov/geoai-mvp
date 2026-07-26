@@ -7,6 +7,7 @@ import { dirname } from "node:path";
 
 const nativeFetch = globalThis.fetch;
 const requestTimeoutMs = Number(process.env.DLD_REQUEST_TIMEOUT_MS ?? 15000);
+const skipCatalogueDiscovery = process.env.DLD_SKIP_CATALOGUE_DISCOVERY !== "false";
 const catalogPath = "data/external/catalog/dld_dubai_pulse_dataset_catalog.v1.json";
 const overridesPath = "data/external/catalog/dld_download_endpoint_overrides.v1.json";
 const runtimeCatalogPath = "artifacts/dld_demo_catalog.runtime.json";
@@ -34,9 +35,15 @@ if (!process.argv.some((value) => value.startsWith("--catalog="))) {
   process.argv.push(`--catalog=${runtimeCatalogPath}`);
 }
 
-globalThis.fetch = (input, init = {}) => nativeFetch(input, {
-  ...init,
-  signal: init.signal ?? AbortSignal.timeout(requestTimeoutMs),
-});
+globalThis.fetch = (input, init = {}) => {
+  const accept = String(init.headers?.accept ?? init.headers?.Accept ?? "");
+  if (skipCatalogueDiscovery && accept === "text/html") {
+    return Promise.resolve(new Response("", { status: 404 }));
+  }
+  return nativeFetch(input, {
+    ...init,
+    signal: init.signal ?? AbortSignal.timeout(requestTimeoutMs),
+  });
+};
 
 await import("./fetch-dld-demo-snapshots-v2.mjs");
