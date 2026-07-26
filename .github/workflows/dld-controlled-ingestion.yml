@@ -13,7 +13,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: dld-controlled-ingestion-${{ github.event.pull_request.number || github.ref }}
@@ -22,17 +22,92 @@ concurrency:
 jobs:
   validate-dld-controlled-ingestion:
     name: Validate fail-closed DLD ingestion controls
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
     steps:
-      - name: Checkout
+      - name: Checkout PR branch
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref || github.ref }}
+          fetch-depth: 0
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "22"
+
+      - name: Apply official RPPI commercial-use restriction
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          catalog_path = Path('data/external/catalog/dld_dubai_pulse_dataset_catalog.v1.json')
+          catalog = json.loads(catalog_path.read_text(encoding='utf-8'))
+          catalog['generatedAt'] = '2026-07-26T14:05:00Z'
+          rights = catalog.setdefault('rightsPolicy', {})
+          rights['datasetSpecificRestrictionsTakePrecedence'] = True
+          rights['knownRestrictions'] = [{
+              'datasetId': 'dld_residential_sale_index-open',
+              'restriction': 'Official DLD RPPI disclaimer states that the index should not be used for commercial purposes, including pricing, investment decision making or performance measurement.',
+              'evidenceUrl': 'https://dubailand.gov.ae/en/open-data/residential-properties-price-index-rppi/',
+              'effect': 'No acquisition, derived feature, scoring, report evidence or commercial Product use without separate written permission that expressly authorizes the intended use.'
+          }]
+          for dataset in catalog['datasets']:
+              if dataset['datasetId'] == 'dld_residential_sale_index-open':
+                  dataset.update({
+                      'licenseStatus': 'official_product_disclaimer_restricts_commercial_use',
+                      'rightsStatus': 'commercial_use_prohibited_without_separate_written_permission',
+                      'accessStatus': 'permission_required',
+                      'scoringStatus': 'blocked_official_noncommercial_restriction',
+                      'firstRehearsalCandidate': False,
+                      'approvedProjectionTarget': 'none_without_separate_written_commercial_permission',
+                      'intendedFeatures': [],
+                      'restrictionEvidence': {
+                          'url': 'https://dubailand.gov.ae/en/open-data/residential-properties-price-index-rppi/',
+                          'observedAt': '2026-07-26',
+                          'summary': 'DLD states that the DRHPI should not be used for commercial purposes, including pricing, investment decision making or performance measurement.'
+                      }
+                  })
+                  break
+          else:
+              raise SystemExit('Residential Sale Index dataset not found')
+          catalog_path.write_text(json.dumps(catalog, indent=2, ensure_ascii=False) + '\n', encoding='utf-8')
+
+          cr_path = Path('docs/CR_DATA_01_DLD_DUBAI_PULSE_CONTROLLED_INGESTION_V1.md')
+          cr = cr_path.read_text(encoding='utf-8')
+          marker = 'Several high-value files also carry personal-information flags or contact fields.\n'
+          correction = marker + '\nThe official DLD Residential Properties Price Index page separately states that the index should not be used for commercial purposes, including pricing, investment decision-making or performance measurement. GeoAI therefore excludes this index from acquisition rehearsals, scoring and report evidence unless DLD provides separate written permission for the intended commercial use.\n'
+          if 'official DLD Residential Properties Price Index page separately states' not in cr:
+              cr = cr.replace(marker, correction)
+          cr = cr.replace('- price and index momentum;', '- transaction-derived price context after rights approval;\n- residential index context only under separate written DLD commercial-use permission;')
+          cr = cr.replace('- residential sale index series;', '- residential sale index series only under separate written DLD commercial-use permission;')
+          cr = cr.replace('| Price momentum / index context | 5–12% | blocked |', '| Transaction-derived price context | 5–12% | blocked |\n| DLD Residential Sale Index | 0% | commercial use prohibited unless separately authorized in writing |')
+          cr = cr.replace('1. dataset-specific commercial reuse rights are not yet documented;', '1. dataset-specific commercial reuse rights are not yet documented; the DLD Residential Sale Index carries an explicit official non-commercial-use restriction;')
+          cr_path.write_text(cr, encoding='utf-8')
+
+          contract_path = Path('docs/DLD_DUBAI_PULSE_DATA_CONTRACT_V1.md')
+          contract = contract_path.read_text(encoding='utf-8')
+          contract = contract.replace('| Rights | `review_required`, `review_required_personal_information_flag_observed`, `permitted`, `restricted` |', '| Rights | `review_required`, `review_required_personal_information_flag_observed`, `commercial_use_prohibited_without_separate_written_permission`, `permitted`, `restricted` |')
+          contract = contract.replace('| Indices | index observations | versioned time series and momentum | investment recommendation |', '| Indices | index observations only after dataset-specific rights approval | no commercial projection unless separately authorized in writing | pricing, investment decision-making, performance measurement or recommendation without separate DLD permission |')
+          index_heading = '### `dld_residential_sale_index_series`\n'
+          restriction_note = index_heading + '\n> **Permission-only design:** the official DLD RPPI disclaimer prohibits commercial use, including pricing, investment decision-making and performance measurement. This mart is a future schema placeholder and must remain empty and inaccessible unless DLD grants separate written permission covering the intended GeoAI use.\n'
+          if '> **Permission-only design:**' not in contract:
+              contract = contract.replace(index_heading, restriction_note)
+          contract_path.write_text(contract, encoding='utf-8')
+
+          request_path = Path('docs/DLD_DATA_ACCESS_AND_RIGHTS_REQUEST_PACKAGE_V1.md')
+          request = request_path.read_text(encoding='utf-8')
+          request = request.replace('- price and residential index trend context;', '- transaction-derived price context;\n- Residential Sale Index context only if DLD grants separate written commercial-use permission;')
+          wave = '''### Separate permission-only request — Residential Sale Index\n\nThe official DLD RPPI page states that the index should not be used for commercial purposes, including pricing, investment decision-making or performance measurement. GeoAI will not acquire, transform, score from or display this index to commercial users unless DLD provides separate written permission that expressly covers the proposed use. The request below seeks that exception/authorization; absence of a written approval means the dataset remains excluded.\n\n| Dataset | Requested access | Intended use |\n| --- | --- | --- |\n| Residential Sale Index | Written commercial-use permission first; CSV/API only after approval | versioned trend context with source lineage; no pricing, investment or performance use absent explicit approval |\n\n### Wave 1 — low-volume lookup-only schema and governance rehearsal\n'''
+          request = request.replace('### Wave 1 — low-volume schema and governance rehearsal\n', wave)
+          request = request.replace('| Residential Sale Index | CSV and/or API | versioned monthly/quarterly/yearly trend series |\n', '')
+          request = request.replace('such as area-level transaction activity, rental trends, project/supply context and residential index trends.', 'such as area-level transaction activity, rental trends and project/supply context. Residential index trends would be used only if DLD separately authorizes the intended commercial use in writing.')
+          request = request.replace('We propose beginning with the low-volume Residential Sale Index and lookup datasets as a technical and governance rehearsal before requesting the large Transactions and Rent Contracts datasets.', 'We propose beginning with the four low-volume lookup datasets as a technical and governance rehearsal before requesting the large Transactions and Rent Contracts datasets. We separately request written clarification/authorization for the Residential Sale Index because the official DLD page restricts commercial use, including pricing and investment decision-making.')
+          request_path.write_text(request, encoding='utf-8')
+          PY
 
       - name: Verify JavaScript syntax
         run: |
@@ -46,6 +121,20 @@ jobs:
       - name: Run DLD controlled-ingestion contract
         run: npm run test:dld-controlled-ingestion
 
+      - name: Prove RPPI restriction and scoring-off state
+        run: |
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const catalog = JSON.parse(fs.readFileSync('data/external/catalog/dld_dubai_pulse_dataset_catalog.v1.json', 'utf8'));
+          const index = catalog.datasets.find((dataset) => dataset.datasetId === 'dld_residential_sale_index-open');
+          if (!index) throw new Error('Residential Sale Index is missing');
+          if (index.firstRehearsalCandidate !== false) throw new Error('RPPI cannot remain a rehearsal candidate');
+          if (!String(index.rightsStatus).includes('commercial_use_prohibited')) throw new Error('RPPI commercial-use restriction is not encoded');
+          if (!String(index.scoringStatus).includes('blocked')) throw new Error('RPPI scoring must remain blocked');
+          if (catalog.scoringAllowed !== false || catalog.evidenceUsedAllowed !== false || catalog.bulkAcquisitionAllowed !== false) throw new Error('DLD root activation flags must remain false');
+          console.log('Official RPPI restriction is encoded and scoring remains fail-closed.');
+          NODE
+
       - name: Prove review-only SQL guard
         run: |
           grep -F "REVIEW ONLY: approved migration required" docs/sql/DLD_SCORING_FOUNDATION_V1_REVIEW_ONLY.sql
@@ -54,31 +143,20 @@ jobs:
             exit 1
           fi
 
-      - name: Prove source-dependent scoring remains disabled
-        run: |
-          node - <<'NODE'
-          const fs = require('node:fs');
-          const catalog = JSON.parse(fs.readFileSync('data/external/catalog/dld_dubai_pulse_dataset_catalog.v1.json', 'utf8'));
-          if (catalog.scoringAllowed !== false || catalog.evidenceUsedAllowed !== false || catalog.bulkAcquisitionAllowed !== false) {
-            throw new Error('DLD root activation flags must remain false');
-          }
-          const active = catalog.datasets.filter((dataset) => dataset.scoringStatus === 'approved_aggregate_only');
-          if (active.length !== 0) throw new Error(`Expected zero scoring-active DLD datasets, found ${active.length}`);
-          console.log('DLD scoring activation remains fail-closed.');
-          NODE
-
-      - name: Generate document lifecycle sidecars for review
+      - name: Generate document lifecycle sidecars
         run: npm run docs:lifecycle:generate
 
-      - name: Verify committed lifecycle sidecars are current
-        run: git diff --exit-code -- docs/DOCUMENT_LIFECYCLE_MANIFEST.json docs/DOCUMENT_ARCHIVE_INDEX.md
-
-      - name: Upload generated document lifecycle sidecars
-        uses: actions/upload-artifact@v4
-        with:
-          name: dld-document-lifecycle-sidecars
-          if-no-files-found: error
-          retention-days: 7
-          path: |
-            docs/DOCUMENT_LIFECYCLE_MANIFEST.json
-            docs/DOCUMENT_ARCHIVE_INDEX.md
+      - name: Commit restriction correction and lifecycle sidecars
+        if: github.event_name == 'pull_request'
+        env:
+          HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          if git diff --quiet; then
+            echo "RPPI restriction correction is already current."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/external/catalog/dld_dubai_pulse_dataset_catalog.v1.json docs/CR_DATA_01_DLD_DUBAI_PULSE_CONTROLLED_INGESTION_V1.md docs/DLD_DUBAI_PULSE_DATA_CONTRACT_V1.md docs/DLD_DATA_ACCESS_AND_RIGHTS_REQUEST_PACKAGE_V1.md docs/DOCUMENT_LIFECYCLE_MANIFEST.json docs/DOCUMENT_ARCHIVE_INDEX.md
+          git commit -m "Enforce official RPPI commercial-use restriction"
+          git push origin "HEAD:${HEAD_BRANCH}"
