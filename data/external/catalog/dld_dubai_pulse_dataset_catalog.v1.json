@@ -1,6 +1,6 @@
 {
   "catalogVersion": "1.0",
-  "generatedAt": "2026-07-26T13:30:00Z",
+  "generatedAt": "2026-07-26T14:05:00Z",
   "status": "catalog_audited_rights_review_required",
   "catalogCompleteness": "verified_core_and_priority_auxiliary_datasets_pending_authenticated_catalog_reconciliation",
   "owner": "GeoAI Data / Engineering",
@@ -27,6 +27,15 @@
       "WAF bypass",
       "unapproved scraping of website-rendered results",
       "loading raw source rows into a public Data API table"
+    ],
+    "datasetSpecificRestrictionsTakePrecedence": true,
+    "knownRestrictions": [
+      {
+        "datasetId": "dld_residential_sale_index-open",
+        "restriction": "Official DLD RPPI disclaimer states that the index should not be used for commercial purposes, including pricing, investment decision making or performance measurement.",
+        "evidenceUrl": "https://dubailand.gov.ae/en/open-data/residential-properties-price-index-rppi/",
+        "effect": "No acquisition, derived feature, scoring, report evidence or commercial Product use without separate written permission that expressly authorizes the intended use."
+      }
     ]
   },
   "activationRule": {
@@ -360,22 +369,21 @@
       "catalogPath": "/data/dld-transactions/dld_residential_sale_index-open",
       "downloadPath": "/dataset/342a48fc-6499-40b4-9323-b9c0a536f57f/resource/ec4bef3f-d995-4487-9ec3-f7bd2d3788eb/download/residential_sale_index.csv",
       "apiPath": "https://api.dubaipulse.gov.ae/open/dld/dld_residential_sale_index-open-api",
-      "licenseStatus": "not_specified",
-      "rightsStatus": "review_required",
+      "licenseStatus": "official_product_disclaimer_restricts_commercial_use",
+      "rightsStatus": "commercial_use_prohibited_without_separate_written_permission",
       "accessStatus": "permission_required",
       "custodyStatus": "none",
       "qualityStatus": "not_acquired",
-      "scoringStatus": "blocked",
+      "scoringStatus": "blocked_official_noncommercial_restriction",
       "piiRisk": "low",
-      "firstRehearsalCandidate": true,
-      "approvedProjectionTarget": "index_time_series",
-      "intendedFeatures": [
-        "monthly_residential_sale_index",
-        "quarterly_residential_sale_index",
-        "yearly_residential_sale_index",
-        "villa_unit_index_split",
-        "index_momentum"
-      ]
+      "firstRehearsalCandidate": false,
+      "approvedProjectionTarget": "none_without_separate_written_commercial_permission",
+      "intendedFeatures": [],
+      "restrictionEvidence": {
+        "url": "https://dubailand.gov.ae/en/open-data/residential-properties-price-index-rppi/",
+        "observedAt": "2026-07-26",
+        "summary": "DLD states that the DRHPI should not be used for commercial purposes, including pricing, investment decision making or performance measurement."
+      }
     },
     {
       "datasetId": "dld_lkp_areas-open",
@@ -429,7 +437,9 @@
       "piiRisk": "low",
       "firstRehearsalCandidate": true,
       "approvedProjectionTarget": "market_type_dimension",
-      "intendedFeatures": ["primary_secondary_market_mapping"]
+      "intendedFeatures": [
+        "primary_secondary_market_mapping"
+      ]
     },
     {
       "datasetId": "dld_lkp_transaction_groups-open",
@@ -454,7 +464,9 @@
       "piiRisk": "low",
       "firstRehearsalCandidate": true,
       "approvedProjectionTarget": "transaction_group_dimension",
-      "intendedFeatures": ["transaction_group_mapping"]
+      "intendedFeatures": [
+        "transaction_group_mapping"
+      ]
     },
     {
       "datasetId": "dld_lkp_transaction_procedures-open",

@@ -17,6 +17,8 @@ DLD data is a priority source family for the UAE real-estate and development int
 
 The DLD website provides current-period form-based downloads and uses CAPTCHA. Historical and larger extracts are directed to Dubai Pulse / Data Dubai, where observed resources require permission or API credentials and commonly state `License not specified`. Several high-value files also carry personal-information flags or contact fields.
 
+The official DLD Residential Properties Price Index page separately states that the index should not be used for commercial purposes, including pricing, investment decision-making or performance measurement. GeoAI therefore excludes this index from acquisition rehearsals, scoring and report evidence unless DLD provides separate written permission for the intended commercial use.
+
 GeoAI will therefore use a **controlled, fail-closed acquisition path**:
 
 1. catalogue and classify every source family;
@@ -38,7 +40,8 @@ The development database previously described DLD as `manual_import_ready`, but 
 Rights-cleared DLD snapshots can support:
 
 - area-level transaction activity and liquidity;
-- price and index momentum;
+- transaction-derived price context after rights approval;
+- residential index context only under separate written DLD commercial-use permission;
 - rental demand and rent momentum;
 - project pipeline and supply context;
 - property-stock and development context;
@@ -98,7 +101,7 @@ Only approved area/time/project aggregates are eligible for scoring, for example
 - project/supply snapshots;
 - property-stock mix;
 - valuation context;
-- residential sale index series;
+- residential sale index series only under separate written DLD commercial-use permission;
 - source freshness and quality penalties.
 
 ### Product projection
@@ -110,7 +113,8 @@ Product APIs receive bounded aggregate DTOs with source release IDs, method vers
 | Signal family | Proposed model contribution | Current status |
 | --- | ---: | --- |
 | Market activity / liquidity | 8–15% | blocked |
-| Price momentum / index context | 5–12% | blocked |
+| Transaction-derived price context | 5–12% | blocked |
+| DLD Residential Sale Index | 0% | commercial use prohibited unless separately authorized in writing |
 | Rental demand / rent momentum | 5–12% | blocked |
 | Project / supply context | 5–10% | blocked |
 | Valuation context | 0–8% | context-only after method review |
@@ -146,7 +150,7 @@ This was a metadata correction only. No schema migration, credential, Production
 
 ## Risks
 
-1. dataset-specific commercial reuse rights are not yet documented;
+1. dataset-specific commercial reuse rights are not yet documented; the DLD Residential Sale Index carries an explicit official non-commercial-use restriction;
 2. downloads and APIs may require account approval and credentials;
 3. transaction, rent and unit files are large and require streaming/bulk loading;
 4. some datasets expose personal, contract or contact-related fields;

@@ -20,7 +20,8 @@ GeoAI intends to use DLD / Data Dubai datasets to create source-backed, explaina
 - development site screening;
 - candidate area and project comparison;
 - market activity and liquidity context;
-- price and residential index trend context;
+- transaction-derived price context;
+- Residential Sale Index context only if DLD grants separate written commercial-use permission;
 - rental demand and rent trend context;
 - project pipeline and supply context;
 - property-stock mix and development context;
@@ -72,11 +73,18 @@ GeoAI proposes the following controls:
 
 ## Requested datasets
 
-### Wave 1 — low-volume schema and governance rehearsal
+### Separate permission-only request — Residential Sale Index
+
+The official DLD RPPI page states that the index should not be used for commercial purposes, including pricing, investment decision-making or performance measurement. GeoAI will not acquire, transform, score from or display this index to commercial users unless DLD provides separate written permission that expressly covers the proposed use. The request below seeks that exception/authorization; absence of a written approval means the dataset remains excluded.
 
 | Dataset | Requested access | Intended use |
 | --- | --- | --- |
-| Residential Sale Index | CSV and/or API | versioned monthly/quarterly/yearly trend series |
+| Residential Sale Index | Written commercial-use permission first; CSV/API only after approval | versioned trend context with source lineage; no pricing, investment or performance use absent explicit approval |
+
+### Wave 1 — low-volume lookup-only schema and governance rehearsal
+
+| Dataset | Requested access | Intended use |
+| --- | --- | --- |
 | Area lookup | CSV and/or API | bilingual source-area dimension and controlled mapping |
 | Market types lookup | CSV and/or API | primary/secondary market classification |
 | Transaction groups lookup | CSV and/or API | sale/mortgage/gift/other classification |
@@ -157,7 +165,7 @@ Dear Dubai Land Department / Data Dubai Team,
 
 GeoAI is developing a B2B/B2G spatial decision intelligence platform for real-estate development, site screening, asset monitoring and source-backed analytics. We would like to request controlled access to the DLD datasets listed in the attached access package.
 
-Our intended use is to store approved source snapshots privately, normalize them in restricted systems and generate privacy-minimized aggregate indicators such as area-level transaction activity, rental trends, project/supply context and residential index trends. Raw source records, personal/contact fields, credentials and storage paths would not be exposed through public Product interfaces or redistributed.
+Our intended use is to store approved source snapshots privately, normalize them in restricted systems and generate privacy-minimized aggregate indicators such as area-level transaction activity, rental trends and project/supply context. Residential index trends would be used only if DLD separately authorizes the intended commercial use in writing. Raw source records, personal/contact fields, credentials and storage paths would not be exposed through public Product interfaces or redistributed.
 
 We request written clarification of the applicable dataset licenses and permission to use the approved datasets for private persistence, transformation, derived aggregate indicators and internal/commercial pilot scoring. We also request confirmation of attribution, retention, privacy, API-rate, schema-change and data-residency requirements.
 
@@ -165,7 +173,7 @@ GeoAI will display source lineage, snapshot date, freshness, confidence and the 
 
 “Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.”
 
-We propose beginning with the low-volume Residential Sale Index and lookup datasets as a technical and governance rehearsal before requesting the large Transactions and Rent Contracts datasets.
+We propose beginning with the four low-volume lookup datasets as a technical and governance rehearsal before requesting the large Transactions and Rent Contracts datasets. We separately request written clarification/authorization for the Residential Sale Index because the official DLD page restricts commercial use, including pricing and investment decision-making.
 
 Please advise on the appropriate account, permission, API package, agreement and technical onboarding process.
 

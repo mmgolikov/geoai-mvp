@@ -26,7 +26,7 @@ Every output must retain the source release, method version, observation period,
 | Dimension | Allowed states |
 | --- | --- |
 | Access | `permission_required`, `catalog_reconciliation_required`, `granted_or_public_download_verified` |
-| Rights | `review_required`, `review_required_personal_information_flag_observed`, `permitted`, `restricted` |
+| Rights | `review_required`, `review_required_personal_information_flag_observed`, `commercial_use_prohibited_without_separate_written_permission`, `permitted`, `restricted` |
 | Custody | `none`, `approved_private` |
 | Quality | `not_acquired`, `quarantined`, `accepted`, `rejected` |
 | Scoring | `blocked`, `blocked_*`, `approved_aggregate_only` |
@@ -46,7 +46,7 @@ Every output must retain the source release, method version, observation period,
 | Buildings | restricted building facts | area building-stock and morphology aggregates | official building approval/status conclusions |
 | Units | restricted unit facts | area unit-stock/type/usage aggregates | unit ownership or public row-level exposure |
 | Brokers / developers / offices | registration facts | counts, concentration and license-status aggregates | phone, fax, email, webpage or personal contact fields |
-| Indices | index observations | versioned time series and momentum | investment recommendation |
+| Indices | index observations only after dataset-specific rights approval | no commercial projection unless separately authorized in writing | pricing, investment decision-making, performance measurement or recommendation without separate DLD permission |
 | Lookups | controlled dimensions | keys and bilingual labels | unsupported geometry joins |
 | Licenses / permits | restricted licensing facts | area/time activity aggregates | legal compliance conclusion |
 
@@ -192,6 +192,8 @@ caveat
 ```
 
 ### `dld_residential_sale_index_series`
+
+> **Permission-only design:** the official DLD RPPI disclaimer prohibits commercial use, including pricing, investment decision-making and performance measurement. This mart is a future schema placeholder and must remain empty and inaccessible unless DLD grants separate written permission covering the intended GeoAI use.
 
 ```text
 observation_period
