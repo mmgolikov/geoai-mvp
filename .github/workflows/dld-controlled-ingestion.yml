@@ -1,0 +1,68 @@
+name: DLD Controlled Ingestion Gate
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/dld-controlled-ingestion.yml"
+      - "data/external/catalog/dld_*.json"
+      - "scripts/dld/**"
+      - "docs/CR_DATA_01_DLD_DUBAI_PULSE_CONTROLLED_INGESTION_V1.md"
+      - "docs/DLD_DUBAI_PULSE_*.md"
+      - "docs/sql/DLD_SCORING_FOUNDATION_V1_REVIEW_ONLY.sql"
+      - "package.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dld-controlled-ingestion-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-dld-controlled-ingestion:
+    name: Validate fail-closed DLD ingestion controls
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Verify JavaScript syntax
+        run: |
+          node --check scripts/dld/dld-catalog-check.mjs
+          node --check scripts/dld/prepare-dld-snapshot.mjs
+          node --check scripts/dld/dld-controlled-ingestion-check.mjs
+
+      - name: Validate DLD source catalogue
+        run: npm run dld:catalog:check
+
+      - name: Run DLD controlled-ingestion contract
+        run: npm run test:dld-controlled-ingestion
+
+      - name: Prove review-only SQL guard
+        run: |
+          grep -F "REVIEW ONLY: approved migration required" docs/sql/DLD_SCORING_FOUNDATION_V1_REVIEW_ONLY.sql
+          if find supabase/migrations -maxdepth 1 -type f -iname '*dld*' | grep -q .; then
+            echo "Unexpected executable DLD migration found in supabase/migrations" >&2
+            exit 1
+          fi
+
+      - name: Prove source-dependent scoring remains disabled
+        run: |
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const catalog = JSON.parse(fs.readFileSync('data/external/catalog/dld_dubai_pulse_dataset_catalog.v1.json', 'utf8'));
+          if (catalog.scoringAllowed !== false || catalog.evidenceUsedAllowed !== false || catalog.bulkAcquisitionAllowed !== false) {
+            throw new Error('DLD root activation flags must remain false');
+          }
+          const active = catalog.datasets.filter((dataset) => dataset.scoringStatus === 'approved_aggregate_only');
+          if (active.length !== 0) throw new Error(`Expected zero scoring-active DLD datasets, found ${active.length}`);
+          console.log('DLD scoring activation remains fail-closed.');
+          NODE
