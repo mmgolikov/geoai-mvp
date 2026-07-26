@@ -1,0 +1,31 @@
+{
+  "version": "1.0",
+  "observedAt": "2026-07-26",
+  "purpose": "Verified official CSV download endpoints used by the approved GeoAI demo ingestion worker before slower catalogue discovery fallbacks.",
+  "overrides": {
+    "dld_lkp_areas-open": {
+      "packageId": "ffbae7e9-f18f-40ff-9ef2-5eac7bb3bd85",
+      "resourceId": "9fd1b434-a1c3-4041-962d-e2108a19fa6b",
+      "downloadPath": "https://www.dubaipulse.gov.ae/dataset/ffbae7e9-f18f-40ff-9ef2-5eac7bb3bd85/resource/9fd1b434-a1c3-4041-962d-e2108a19fa6b/download/lkp_areas.csv"
+    },
+    "dld_lkp_market_types-open": {
+      "packageId": "40a004e0-beb0-401b-b60b-f49c8eedb301",
+      "resourceId": "230a56bc-5913-4e07-9a39-7596fdddfd44",
+      "downloadPath": "https://www.dubaipulse.gov.ae/dataset/40a004e0-beb0-401b-b60b-f49c8eedb301/resource/230a56bc-5913-4e07-9a39-7596fdddfd44/download/lkp_market_types.csv"
+    },
+    "dld_lkp_transaction_groups-open": {
+      "resourceId": "30e8756c-9c7d-468e-8f73-6b1cae7d5f17",
+      "downloadPath": "https://www.dubaipulse.gov.ae/dataset/dld_lkp_transaction_groups-open/resource/30e8756c-9c7d-468e-8f73-6b1cae7d5f17/download/lkp_transaction_groups.csv"
+    },
+    "dld_lkp_transaction_procedures-open": {
+      "packageId": "3e0dcedc-009f-4648-a16a-071269324189",
+      "resourceId": "ca2160dc-9576-48ec-8404-9178e798161f",
+      "downloadPath": "https://www.dubaipulse.gov.ae/dataset/3e0dcedc-009f-4648-a16a-071269324189/resource/ca2160dc-9576-48ec-8404-9178e798161f/download/lkp_transaction_procedures.csv"
+    },
+    "dld_projects-open": {
+      "packageId": "0b782e64-5950-4507-8f6e-02a0c30c7054",
+      "resourceId": "db35b0cd-d291-4dde-b176-9b8d5765c7d9",
+      "downloadPath": "https://www.dubaipulse.gov.ae/dataset/0b782e64-5950-4507-8f6e-02a0c30c7054/resource/db35b0cd-d291-4dde-b176-9b8d5765c7d9/download/projects.csv"
+    }
+  }
+}
