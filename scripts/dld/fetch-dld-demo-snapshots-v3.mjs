@@ -22,10 +22,19 @@ if (!existsSync(catalogPath) || !existsSync(overridesPath)) {
 const catalog = JSON.parse(readFileSync(catalogPath, "utf8"));
 const endpointAuthority = JSON.parse(readFileSync(overridesPath, "utf8"));
 const overrides = endpointAuthority.overrides ?? {};
-catalog.datasets = (catalog.datasets ?? []).map((dataset) => ({
-  ...dataset,
-  ...(overrides[dataset.datasetId] ?? {}),
-}));
+catalog.datasets = (catalog.datasets ?? []).map((dataset) => {
+  const override = overrides[dataset.datasetId];
+  if (!override) return dataset;
+  return {
+    ...dataset,
+    ...override,
+    // When a verified absolute endpoint exists, do not expand dozens of legacy
+    // package/resource permutations after it. An unavailable endpoint must fail
+    // explicitly and move on to the next dataset.
+    packageId: null,
+    resourceId: null,
+  };
+});
 catalog.endpointOverrideVersion = endpointAuthority.version;
 catalog.endpointOverrideObservedAt = endpointAuthority.observedAt;
 mkdirSync(dirname(runtimeCatalogPath), { recursive: true });
