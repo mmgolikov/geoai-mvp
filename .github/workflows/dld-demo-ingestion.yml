@@ -1,0 +1,62 @@
+name: DLD Demo Ingestion
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/dld-demo-ingestion.yml"
+      - "data/external/catalog/dld_dubai_pulse_dataset_catalog.v1.json"
+      - "data/external/catalog/dld_demo_permission_receipt.2026-07-26.json"
+      - "scripts/dld/fetch-dld-demo-snapshots-v2.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dld-demo-ingestion-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ingest-demo-snapshots:
+    name: Fetch and parse approved DLD demo snapshots
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      DLD_DATASET_FILTER: >-
+        dld_lkp_areas-open,
+        dld_lkp_market_types-open,
+        dld_lkp_transaction_groups-open,
+        dld_lkp_transaction_procedures-open,
+        dld_projects-open
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Verify ingestion script syntax
+        run: node --check scripts/dld/fetch-dld-demo-snapshots-v2.mjs
+
+      - name: Fetch and parse approved DLD demo snapshots
+        run: node scripts/dld/fetch-dld-demo-snapshots-v2.mjs
+
+      - name: Display ingestion manifest
+        if: always()
+        run: |
+          if [ -f artifacts/dld-demo-ingestion/manifest.json ]; then
+            cat artifacts/dld-demo-ingestion/manifest.json
+          fi
+
+      - name: Upload demo ingestion package
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dld-demo-ingestion-smoke
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 6
+          path: artifacts/dld-demo-ingestion
