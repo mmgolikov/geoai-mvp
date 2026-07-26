@@ -66,3 +66,16 @@ jobs:
           if (active.length !== 0) throw new Error(`Expected zero scoring-active DLD datasets, found ${active.length}`);
           console.log('DLD scoring activation remains fail-closed.');
           NODE
+
+      - name: Generate document lifecycle sidecars for review
+        run: npm run docs:lifecycle:generate
+
+      - name: Upload generated document lifecycle sidecars
+        uses: actions/upload-artifact@v4
+        with:
+          name: dld-document-lifecycle-sidecars
+          if-no-files-found: error
+          retention-days: 7
+          path: |
+            docs/DOCUMENT_LIFECYCLE_MANIFEST.json
+            docs/DOCUMENT_ARCHIVE_INDEX.md
