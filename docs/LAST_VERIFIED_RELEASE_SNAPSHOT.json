@@ -2,7 +2,7 @@
   "schemaVersion": "1.0",
   "authorityType": "historical_last_verified_snapshot",
   "snapshotLabel": "historical_last_verified_snapshot",
-  "verifiedAt": "2026-07-31T21:00:00Z",
+  "verifiedAt": "2026-07-31T21:10:00Z",
   "supersededWhenNewerReleaseExists": true,
   "currentOperationalAuthority": false,
   "repositoryCiQueriedLiveGithub": false,
@@ -53,22 +53,24 @@
       "status": "ACTIVE_HEALTHY",
       "postgresVersion": "17.6.1.141",
       "migrationLedgerEntries": 12,
-      "latestMigration": "20260729213222",
+      "latestMigration": "20260726152858",
+      "latestMigrationName": "dld_demo_http_client_v1a",
       "publicBaseTables": 20,
-      "confirmedAuthUsers": 3,
-      "sourceRegistrySnapshotRows": 8,
-      "externalDataSnapshotRows": 8,
+      "confirmedAuthUsers": 0,
+      "sourceRegistrySnapshotRows": 5,
+      "externalDataSnapshotRows": 5,
       "dldFoundationTables": 7,
       "dldEstimatedPayloadRows": 0,
+      "dldRlsEnabledOnAllTables": true,
+      "dldPolicyCountPerTable": 0,
       "dldOfficialOrLiveIntegration": false,
-      "authority": "read_only_hosted_schema_and_count_audit"
+      "authority": "read_only_hosted_ledger_catalog_and_count_audit"
     },
     "authRehearsal": {
       "projectRef": "bkmfcjzalcvdsdvyxpgi",
       "region": "eu-west-1",
       "status": "ACTIVE_HEALTHY",
-      "confirmedAuthUsers": 1,
-      "authority": "historical_confirmed_count_plus_current_project_status"
+      "authority": "current_project_status_only"
     }
   },
   "designAuthority": {
@@ -103,11 +105,12 @@
   "openDecisions": [
     "Fresh route and visual QA are required before a new release decision.",
     "Supabase advisor finding for public.spatial_ref_sys requires explicit owner/security review; no automatic remediation is authorised.",
+    "Seven DLD tables are RLS-enabled with zero policies; persona, grant and policy design require explicit security review.",
     "DLD access, licensing, lineage and payload ingestion remain unconfirmed."
   ],
   "caveats": [
     "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.",
     "Public demo only; protected data, confidential pilot, real sources and protected Storage remain blocked.",
-    "Historical snapshot only. Query external GitHub, Vercel and Project Hub post-release evidence for current operational runtime authority."
+    "Historical snapshot only. Query external GitHub, Vercel, Supabase and Project Hub evidence for current operational authority."
   ]
 }
