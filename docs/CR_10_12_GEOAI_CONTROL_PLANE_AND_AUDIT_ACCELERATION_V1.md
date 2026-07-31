@@ -5,7 +5,7 @@
 **Prepared:** 2026-07-31  
 **Confluence authority:** page `22052867`  
 **Scope:** Governance, source authority, delta audits, machine-readable registry, non-destructive QA  
-**Protected actions:** No merge, Production deployment, Supabase migration, authentication enforcement, secret or environment-variable change is authorised by this CR.
+**Protected actions:** No merge, Production deployment, Supabase migration, authentication enforcement, RLS/grant/function/Storage change, secret or environment-variable change is authorised by this CR.
 
 ## 1. Problem
 
@@ -15,7 +15,7 @@ This creates four risks:
 
 1. agents repeatedly read large documents instead of checking deltas;
 2. candidate branches can be confused with released state;
-3. stale documentation can override newer deployment evidence;
+3. stale documentation can override newer primary-source evidence;
 4. source, design and data claims can be repeated without a current evidence timestamp.
 
 ## 2. Business reason
@@ -47,7 +47,7 @@ Documentation and metadata only.
 
 - No source payload is ingested.
 - No Supabase schema or data is changed.
-- Existing DLD foundation remains metadata/table-contract only with zero payload rows.
+- Existing DLD foundation remains development schema/table-contract only with zero policies and zero payload rows.
 - The registry records source readiness, environment IDs, verified facts and validation boundaries.
 
 Mandatory product wording remains:
@@ -81,15 +81,15 @@ This CR introduces:
 
 The validator performs no network writes and requires no secrets. Daily and weekly timing is handled by the existing task scheduler, which is updated separately rather than duplicated in GitHub Actions.
 
-## 8. Source audit — verified 2026-07-31
+## 8. Source audit — final primary-source reconciliation 2026-07-31
 
 | Source | Verified state | Authority use | Finding |
 |---|---|---|---|
 | GitHub | `main` at `7f323c…`; PR #113 merged; PR #118 Draft/open at `3c27d97a…`; Moscow pilot branch separate; PR #120 Draft/open | code, PR and branch truth | repository release snapshot was stale |
 | Vercel | Production alias `geoai-mvp.vercel.app` resolves to deployment `dpl_4yBHCo1eZ7N6GYQWGAg1EdQGwFTE`; SHA `7f323c…`; state READY; zero runtime errors returned for the previous seven days | runtime/deployment truth | Production matches `main`; Previews remain non-production |
-| Supabase | `geoai-dev` healthy; 12 migrations; 20 public base tables; 8 source-registry rows; 8 external-snapshot rows; seven zero-row DLD tables in isolated schemas; one RLS policy per DLD table | schema/data truth | `public.spatial_ref_sys` security advisory requires an owner decision, not automatic remediation |
+| Supabase | `geoai-dev` healthy; 12 migrations; latest `20260726152858 dld_demo_http_client_v1a`; 20 public base tables; 5 source-registry rows; 5 external-snapshot rows; zero Auth users; seven zero-row DLD tables in isolated schemas; RLS enabled and zero policies on all seven | schema/data truth | intermediate 8/8, 3-user and one-policy claims were superseded by repeated final physical ledger/catalog queries |
 | Figma | file and authority nodes accessible | design intent and approval truth | node-level registry can replace repeated full-file discovery |
-| Confluence | Project Home, Current Delivery and Governance are the decision/operating narrative authorities | operational narrative and decision truth | stale deployment/policy statements required controlled correction |
+| Confluence | Project Home, Current Delivery and Governance are the decision/operating narrative authorities | operational narrative and decision truth | stale deployment/data statements require controlled correction |
 
 ### Active candidates, not released state
 
@@ -99,9 +99,9 @@ The validator performs no network writes and requires no secrets. Daily and week
 
 ## 9. Source authority and conflict rule
 
-1. Runtime state: Vercel deployment evidence.
+1. Runtime state: Vercel alias/deployment evidence.
 2. Code/merge state: GitHub PR, branch and commit evidence.
-3. Database state: Supabase schema, migration ledger and row-level evidence.
+3. Database state: repeated Supabase physical migration-ledger, catalog and row-count evidence.
 4. Design state: approved Figma authority nodes and receipts.
 5. Decision and operating narrative: Confluence.
 6. Registry and snapshot: derived indexes; never allowed to override a fresher primary source.
@@ -117,23 +117,25 @@ When sources disagree, the primary source wins and the derived document is marke
 | Scheduled audit causes unauthorised writes | prompts prohibit merge/deploy/migration/auth/secrets and require existing approval |
 | Full audits remain expensive | daily delta mode; deep weekly audit only |
 | False data-source claims | mandatory caveat and explicit `official_validation_required` flag |
+| DLD tables inaccessible or unsafe | zero policies are surfaced as an explicit persona/security decision; no automatic activation |
 | PostGIS advisory remediated incorrectly | record as an owner/security decision; no automatic SQL change |
 
 ## 11. Acceptance criteria
 
 - [x] Current Production SHA, PR and Vercel alias-resolved deployment are consistent across registry, release state and snapshot.
 - [x] Active DLD, Moscow pilot and control-plane branches are classified as candidates, not Production.
-- [x] Supabase physical schemas, migration count, source-state counts, policy counts and zero-row DLD foundation are represented accurately.
+- [x] Supabase physical migration ledger, source-state counts, zero-user count, table names, zero-policy and zero-payload DLD boundaries are represented accurately.
+- [x] Intermediate contradictory data findings are explicitly superseded rather than hidden.
 - [x] Figma and Confluence canonical IDs are recorded.
 - [x] Exact data-honesty wording is present.
 - [x] A dependency-free validator fails on authority drift and candidate/Production confusion.
 - [x] Daily and weekly audit procedures are separated.
-- [x] Confluence CR and governance authority are updated.
 - [x] No protected action is executed.
 - [ ] CI checks pass at the final PR head.
+- [ ] Confluence final correction receipt is complete.
 - [ ] Founder review and merge approval.
 - [ ] Post-merge first scheduled-run review.
 
 ## 12. Approval requested
 
-Approve merge of Draft PR #120 only after final checks pass. Production deployment or promotion, if later required, remains a separate founder decision and must use fresh release evidence.
+Approve merge of Draft PR #120 only after final checks pass and the final Confluence correction receipt is complete. Production deployment or promotion, if later required, remains a separate founder decision and must use fresh release evidence.
