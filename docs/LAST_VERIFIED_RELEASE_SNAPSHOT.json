@@ -2,7 +2,7 @@
   "schemaVersion": "1.1",
   "authorityType": "historical_last_verified_snapshot",
   "snapshotLabel": "last_verified_release_snapshot_2026_07_31",
-  "verifiedAt": "2026-07-31T19:59:00Z",
+  "verifiedAt": "2026-07-31T20:22:00Z",
   "supersededWhenNewerReleaseExists": true,
   "currentOperationalAuthority": false,
   "repositoryCiQueriedLiveGithub": false,
@@ -85,12 +85,18 @@
       "name": "DLD controlled ingestion foundation v1",
       "pullRequest": 118,
       "branch": "agent/dld-controlled-ingestion-foundation-v1",
-      "headSha": "703f37691efb341d14c988383ad785bfda1c5044"
+      "headSha": "3c27d97a87b1d8fda7c1aeee543ea594dbfcd00d"
     },
     {
       "name": "Rosimushchestvo Moscow pilot v1",
       "branch": "pilot/rosimushchestvo-moscow-v1",
       "headShaPrefix": "c735200c"
+    },
+    {
+      "name": "GeoAI Control Plane and Audit Acceleration v1",
+      "pullRequest": 120,
+      "branch": "ops/geoai-control-plane-v1",
+      "classification": "documentation_candidate_not_production"
     }
   ],
   "openDecisions": [
