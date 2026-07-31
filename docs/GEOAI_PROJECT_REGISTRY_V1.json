@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0.0",
   "registry_version": "2026-07-31",
-  "verified_at": "2026-07-31T21:00:00Z",
+  "verified_at": "2026-07-31T21:10:00Z",
   "purpose": "Compact derived authority index for GeoAI delivery agents. Primary sources always override this registry when fresher evidence exists.",
   "delivery_timezone": "Europe/Amsterdam",
   "evidence_timezone": "UTC",
@@ -58,11 +58,11 @@
       "status": "ACTIVE_HEALTHY",
       "postgres_version": "17.6.1.141",
       "migration_count": 12,
-      "latest_migration": "20260729213222",
+      "latest_migration": "20260726152858",
       "public_base_table_count": 20,
-      "source_registry_snapshot_count": 8,
-      "external_data_snapshot_count": 8,
-      "auth_user_count": 3,
+      "source_registry_snapshot_count": 5,
+      "external_data_snapshot_count": 5,
+      "auth_user_count": 0,
       "dld_foundation": {
         "payload_ingestion_status": "not_ingested",
         "official_or_live_integration": false,
@@ -72,22 +72,28 @@
           "geoai_dld_private"
         ],
         "tables": [
-          "geoai_dld_feature.dld_assets",
-          "geoai_dld_feature.dld_transactions",
-          "geoai_dld_private.dld_asset_addresses",
-          "geoai_dld_private.dld_source_documents",
-          "geoai_dld_private.dld_transaction_parties",
-          "geoai_dld_private.dld_transaction_prices",
-          "geoai_dld_private.dld_transaction_source_links"
+          "geoai_dld_feature.area_month_metrics",
+          "geoai_dld_feature.category_metrics",
+          "geoai_dld_feature.scoring_features",
+          "geoai_dld_private.areas",
+          "geoai_dld_private.dataset_releases",
+          "geoai_dld_private.ingestion_runs",
+          "geoai_dld_private.sanitized_records"
         ],
         "rls_enabled_on_all_tables": true,
-        "policy_count_per_table": 1
+        "policy_count_per_table": 0
       },
       "open_security_decisions": [
         {
           "finding": "RLS disabled on public.spatial_ref_sys",
-          "source": "Supabase security advisor",
+          "source": "Supabase security advisor and physical catalog check",
           "classification": "owner_security_decision_required",
+          "automatic_remediation_authorised": false
+        },
+        {
+          "finding": "Seven DLD tables have RLS enabled but zero policies",
+          "source": "Supabase physical catalog check",
+          "classification": "security_and_persona_review_required",
           "automatic_remediation_authorised": false
         }
       ]
@@ -107,7 +113,7 @@
       "pull_request": 118,
       "branch": "agent/dld-controlled-ingestion-foundation-v1",
       "verified_head_sha": "3c27d97a87b1d8fda7c1aeee543ea594dbfcd00d",
-      "data_boundary": "metadata, table contracts and validation harness; zero source payload rows; not an official or live DLD integration"
+      "data_boundary": "development schema/table contracts only; zero policies and zero payload rows; not an official or live DLD integration"
     },
     {
       "name": "Rosimushchestvo Moscow pilot v1",
