@@ -1,13 +1,18 @@
 {
   "schemaVersion": "1.0",
   "authorityType": "historical_last_verified_snapshot",
-  "snapshotLabel": "historical_last_verified_snapshot",
-  "verifiedAt": "2026-07-31T21:10:00Z",
+  "snapshotLabel": "goal0_pre_correction_external_readback",
+  "verifiedAt": "2026-07-31T23:00:00Z",
   "supersededWhenNewerReleaseExists": true,
   "currentOperationalAuthority": false,
   "repositoryCiQueriedLiveGithub": false,
   "repositoryCiQueriedLiveVercel": false,
+  "repositoryCiQueriedLiveSupabase": false,
+  "repositoryCiQueriedLiveFigma": false,
+  "repositoryCiQueriedLiveConfluence": false,
+  "repositoryCiQueriedLiveGoogleDrive": false,
   "verificationPerformedExternally": true,
+  "verificationPhase": "pre_correction_source_audit",
   "releaseType": "production_public_demo",
   "productStage": "public_demo_prototype",
   "mergedPullRequest": 113,
@@ -27,10 +32,12 @@
   },
   "githubEvidence": {
     "postMergeQualityGateRunId": 30157607614,
-    "staticApiDataHonestyJobId": 89677949250,
-    "databaseReplayJobId": 89677949264,
     "mergeStateVerifiedExternally": true,
-    "defaultBranchShaVerifiedExternally": true
+    "defaultBranchShaVerifiedExternally": true,
+    "controlPlaneParentSha": "e255a94450e3fe359a3cd0ad2050107f6d851bb5",
+    "controlPlaneParentQualityGateRunId": 30665626588,
+    "controlPlaneParentAuditRunId": 30665626676,
+    "parentRunsAreNotPostCorrectionEvidence": true
   },
   "vercelEvidence": {
     "productionAlias": "https://geoai-mvp.vercel.app",
@@ -38,7 +45,10 @@
     "target": "production",
     "status": "READY",
     "sourceShaMatchesMain": true,
-    "inspectedAt": "2026-07-31T21:00:00Z",
+    "controlPlanePreviewDeploymentId": "dpl_2zJYuUiMLf6Dn264stqysiikDxKA",
+    "controlPlanePreviewSourceSha": "e255a94450e3fe359a3cd0ad2050107f6d851bb5",
+    "moscowPreviewDeploymentId": "dpl_DNqStSdLGqt5FiK6ZJXAGY4t19Gm",
+    "moscowPreviewSourceSha": "722e5166f37168ddaa8ccb7bf83bfcb6c9681b4e",
     "freshVisualQaExecuted": false
   },
   "publicDemoActive": true,
@@ -75,13 +85,26 @@
   },
   "designAuthority": {
     "fileKey": "TAzDqOvRCw1mQGMU3Y4S9H",
-    "executableStartHere": "1797:2",
-    "executablePrototype": "1482:2",
-    "runtimeAlignment": "1749:21157",
-    "correctionReceipts": [
+    "verifiedNodes": [
+      "1797:2",
+      "1482:2",
+      "1749:21157",
       "1819:11",
       "1825:11"
-    ]
+    ],
+    "absentNodes": [
+      "1670:2",
+      "1673:2"
+    ],
+    "metrics": {
+      "prototypeScreens": 68,
+      "prototypeScreenDefinition": "Direct child FRAME names beginning 'Prototype /' under 1482:2; two non-screen frames excluded.",
+      "componentSets": 35,
+      "componentVariants": 368,
+      "componentMetricAuthorityPage": "68:3",
+      "authoredReactions": 114,
+      "reactionDefinition": "Authored descendants of 1482:2 only; instance-expanded node IDs beginning with 'I' excluded."
+    }
   },
   "activeCandidatesNotProduction": [
     {
@@ -91,19 +114,55 @@
       "headSha": "3c27d97a87b1d8fda7c1aeee543ea594dbfcd00d"
     },
     {
-      "name": "Rosimushchestvo Moscow pilot v1",
-      "branch": "pilot/rosimushchestvo-moscow-v1",
-      "headShaPrefix": "c735200c"
+      "name": "Rosimushchestvo Moscow prototype v1",
+      "m0Branch": "pilot/rosimushchestvo-moscow-v1",
+      "m0HeadSha": "bd90887c8de10b5ffa85ed6b8adfa1d93f70d316",
+      "implementationBranch": "pilot/rosimushchestvo-moscow-v1-dev",
+      "implementationHeadSha": "722e5166f37168ddaa8ccb7bf83bfcb6c9681b4e",
+      "aheadBy": 2,
+      "behindBy": 0,
+      "previewOnly": true,
+      "merged": false,
+      "production": false
     },
     {
       "name": "GeoAI Control Plane and Audit Acceleration v1",
       "pullRequest": 120,
       "branch": "ops/geoai-control-plane-v1",
+      "sourceParentSha": "e255a94450e3fe359a3cd0ad2050107f6d851bb5",
       "classification": "documentation_candidate_not_production"
     }
   ],
+  "driveAuthority": {
+    "folderId": "1WarJNNQN7kRS3m73bpsHHXOx2pE-9_hO",
+    "classification": "supporting_uncontrolled_artifact_storage",
+    "duplicateAuthorityDetected": false,
+    "directFiles": 2,
+    "archiveCategoryFolders": 7,
+    "archiveCategoryFoldersVerifiedEmpty": true
+  },
+  "internalControlPlaneValidation": {
+    "scope": "repository schema, boundary and cross-file consistency only",
+    "queriesLiveExternalSystems": false,
+    "provesExternalTruth": false,
+    "automaticMergeRecommendation": false
+  },
+  "externalTruthGate": {
+    "status": "pending_post_correction_exact_head_readback",
+    "requiredSystems": [
+      "github",
+      "vercel",
+      "supabase",
+      "figma",
+      "confluence",
+      "google_drive"
+    ],
+    "requiredBeforeFounderMergeReview": true,
+    "satisfiedByGreenInternalCheck": false
+  },
   "openDecisions": [
-    "Fresh route and visual QA are required before a new release decision.",
+    "A new exact-head Quality Gate and control-plane audit are required after the single correction commit.",
+    "A fresh six-system external Truth Gate is required after those checks; this snapshot cannot satisfy that future gate.",
     "Supabase advisor finding for public.spatial_ref_sys requires explicit owner/security review; no automatic remediation is authorised.",
     "Seven DLD tables are RLS-enabled with zero policies; persona, grant and policy design require explicit security review.",
     "DLD access, licensing, lineage and payload ingestion remain unconfirmed."
@@ -111,6 +170,6 @@
   "caveats": [
     "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.",
     "Public demo only; protected data, confidential pilot, real sources and protected Storage remain blocked.",
-    "Historical snapshot only. Query external GitHub, Vercel, Supabase and Project Hub evidence for current operational authority."
+    "Historical derived snapshot only. Query primary systems and direct Confluence page versions for current operational truth."
   ]
 }

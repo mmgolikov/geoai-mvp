@@ -1,8 +1,8 @@
 {
   "schema_version": "1.0.0",
-  "registry_version": "2026-07-31",
-  "verified_at": "2026-07-31T21:10:00Z",
-  "purpose": "Compact derived authority index for GeoAI delivery agents. Primary sources always override this registry when fresher evidence exists.",
+  "registry_version": "2026-07-31-goal0-external-truth-correction",
+  "verified_at": "2026-07-31T23:00:00Z",
+  "purpose": "Compact derived authority index for GeoAI delivery agents. It records the latest pre-correction source audit but does not prove live external truth. Fresher primary-source evidence always overrides it.",
   "delivery_timezone": "Europe/Amsterdam",
   "evidence_timezone": "UTC",
   "data_honesty": {
@@ -28,14 +28,16 @@
     "supabase_schema_and_data",
     "figma_approved_design",
     "confluence_decisions_and_operating_narrative",
+    "google_drive_supporting_artifacts_only",
     "derived_registry_and_snapshots"
   ],
   "environments": {
     "production": {
-      "classification": "released",
+      "classification": "released_public_demo",
       "github": {
         "repository": "mmgolikov/geoai-mvp",
         "default_branch": "main",
+        "release_branch": "release/production",
         "merged_pull_request": 113,
         "commit_sha": "7f323c4227f2409f3fe2d4d68be48a30176f4e2a"
       },
@@ -47,6 +49,7 @@
         "alias": "geoai-mvp.vercel.app",
         "deployment_id": "dpl_4yBHCo1eZ7N6GYQWGAg1EdQGwFTE",
         "deployment_state": "READY",
+        "target": "production",
         "runtime_errors_last_7d": 0
       }
     },
@@ -113,47 +116,87 @@
       "pull_request": 118,
       "branch": "agent/dld-controlled-ingestion-foundation-v1",
       "verified_head_sha": "3c27d97a87b1d8fda7c1aeee543ea594dbfcd00d",
-      "data_boundary": "development schema/table contracts only; zero policies and zero payload rows; not an official or live DLD integration"
+      "data_boundary": "Development fail-closed foundation only; zero DLD payload rows; no official/live integration or scoring activation."
     },
     {
-      "name": "Rosimushchestvo Moscow pilot v1",
-      "classification": "preview_candidate_not_production",
+      "name": "Rosimushchestvo Moscow prototype v1",
+      "classification": "separate_prototype_preview_not_production",
       "pull_request": null,
-      "branch": "pilot/rosimushchestvo-moscow-v1",
-      "verified_head_sha_prefix": "c735200c",
-      "data_boundary": "separate Moscow pilot candidate; preview evidence only; no customer logo; generated or sample data must be labelled"
+      "m0_authority": {
+        "branch": "pilot/rosimushchestvo-moscow-v1",
+        "head_sha": "bd90887c8de10b5ffa85ed6b8adfa1d93f70d316",
+        "scope": "documentation_only_m0"
+      },
+      "implementation_prototype": {
+        "branch": "pilot/rosimushchestvo-moscow-v1-dev",
+        "head_sha": "722e5166f37168ddaa8ccb7bf83bfcb6c9681b4e",
+        "base_sha": "bd90887c8de10b5ffa85ed6b8adfa1d93f70d316",
+        "ahead_by": 2,
+        "behind_by": 0,
+        "changed_files": 22,
+        "vercel_preview_deployment_id": "dpl_DNqStSdLGqt5FiK6ZJXAGY4t19Gm",
+        "vercel_preview_state": "READY",
+        "merged": false,
+        "production": false
+      },
+      "data_boundary": "Separate prototype stream; Preview only; not official, customer-approved, pilot-ready or Production."
     },
     {
       "name": "GeoAI Control Plane and Audit Acceleration v1",
       "classification": "documentation_candidate_not_production",
       "pull_request": 120,
       "branch": "ops/geoai-control-plane-v1",
-      "head_sha_at_pr_open": "69020fd70a8e00eeef7d59990bf30a17854923e5",
-      "data_boundary": "documentation, derived registry, read-only validator and operating prompts only; no protected action authorised"
+      "source_parent_sha": "e255a94450e3fe359a3cd0ad2050107f6d851bb5",
+      "status": "draft_hold",
+      "data_boundary": "Documentation, derived registry and dependency-free internal consistency checks only; no protected action authorised.",
+      "post_correction_exact_head_receipt_required": true
     }
   ],
   "design_authority": {
     "provider": "Figma",
     "file_key": "TAzDqOvRCw1mQGMU3Y4S9H",
-    "nodes": {
+    "verified_nodes": {
       "executable_start_here": "1797:2",
       "executable_prototype": "1482:2",
       "runtime_alignment": "1749:21157",
       "accessibility_correction_receipt": "1819:11",
-      "product_system_correction_receipt": "1825:11",
-      "delivery_cockpit": "1495:53",
-      "component_authorities": [
-        "1670:2",
-        "1673:2"
-      ]
+      "product_system_correction_receipt": "1825:11"
+    },
+    "absent_nodes": [
+      "1670:2",
+      "1673:2"
+    ],
+    "metrics": {
+      "prototype_screens": {
+        "value": 68,
+        "authority_node": "1482:2",
+        "definition": "Direct child FRAME nodes whose names start with 'Prototype /'; excludes 1482:3 and 1492:2."
+      },
+      "component_sets": {
+        "value": 35,
+        "authority_page": "68:3",
+        "definition": "All COMPONENT_SET nodes on the current canonical Product Design System page."
+      },
+      "component_variants": {
+        "value": 368,
+        "authority_page": "68:3",
+        "definition": "All COMPONENT nodes on the current canonical Product Design System page."
+      },
+      "authored_reactions": {
+        "value": 114,
+        "authority_node": "1482:2",
+        "definition": "Sum of reactions on descendants whose node IDs do not begin with 'I'; instance-expanded duplicates are excluded."
+      }
     },
     "full_file_read_default": false,
-    "preferred_read_scope": "affected node, section or component only"
+    "preferred_read_scope": "affected node, page, section or component only",
+    "runtime_implementation_proven_by_figma": false
   },
   "confluence_authority": {
     "cloud_id": "8671019f-f899-4452-a153-9c96cc5eec31",
     "space_key": "PH",
     "space_id": "98311",
+    "search_snippet_rule": "Discovery only. Direct current-page fetch, returned version and body are authoritative because search snippets may lag.",
     "pages": {
       "project_home": "98509",
       "current_delivery_state": "2097153",
@@ -161,8 +204,19 @@
       "change_log": "98732",
       "artifact_registry": "1343521",
       "agent_operating_mode": "786457",
-      "control_plane_change_request": "22052867"
+      "control_plane_change_request": "22052867",
+      "integrated_operating_baseline": "22118490",
+      "core_mvp_boundary": "22053095"
     }
+  },
+  "google_drive": {
+    "classification": "supporting_uncontrolled_artifact_storage",
+    "folder_id": "1WarJNNQN7kRS3m73bpsHHXOx2pE-9_hO",
+    "direct_files": 2,
+    "archive_category_folders": 7,
+    "archive_category_folders_verified_empty": true,
+    "duplicate_authority_detected": false,
+    "decision_authority": false
   },
   "repository_authority_files": {
     "current_release_state": "docs/CURRENT_RELEASE_STATE.md",
@@ -172,6 +226,26 @@
     "delta_protocol": "docs/GEOAI_SOURCE_AUDIT_AND_DELTA_PROTOCOL_V1.md",
     "mcp_contracts": "docs/GEOAI_MCP_TOOL_CONTRACTS_V1.md",
     "audit_runbook": "docs/GEOAI_AUTOMATED_QA_AND_AUDIT_RUNBOOK_V1.md"
+  },
+  "internal_validation": {
+    "scope": "schema, boundary and cross-file consistency checks over repository content",
+    "queries_live_external_systems": false,
+    "proves_external_truth": false,
+    "automatic_merge_recommendation": false
+  },
+  "external_truth_gate": {
+    "status": "unverified_for_post_correction_exact_head",
+    "required_systems": [
+      "github",
+      "vercel",
+      "supabase",
+      "figma",
+      "confluence",
+      "google_drive"
+    ],
+    "fresh_direct_readback_required": true,
+    "required_before_founder_merge_review": true,
+    "green_internal_check_satisfies_gate": false
   },
   "freshness_policy": {
     "production_and_open_prs_ttl_hours": 24,
@@ -184,7 +258,9 @@
     "merge": false,
     "production_deploy": false,
     "supabase_migration": false,
+    "supabase_data_mutation": false,
     "auth_hard_enforcement": false,
-    "secrets_or_environment_variables": false
+    "secrets_or_environment_variables": false,
+    "figma_mutation": false
   }
 }

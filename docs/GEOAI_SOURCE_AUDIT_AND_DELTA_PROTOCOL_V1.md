@@ -1,157 +1,114 @@
 # GeoAI Source Audit and Delta Protocol v1
 
-**Status:** Proposed  
+**Status:** Proposed / Goal 0 correction candidate  
 **Effective after approval:** 2026-08-01  
 **Delivery timezone:** Europe/Amsterdam  
 **Evidence timestamps:** UTC
 
 ## 1. Objective
 
-Reduce repeated discovery and full-workspace reads while preserving evidence quality, data honesty and founder-controlled release gates.
+Reduce repeated discovery while preserving evidence quality, data honesty and Founder-controlled release gates.
 
 The protocol separates:
 
-- **daily delta audit** — compact, exception-driven and based on version keys;
-- **weekly deep audit** — complete cross-system reconciliation and governance review;
-- **release audit** — explicit candidate-to-production evidence package, never inferred from a Preview.
+- **daily delta audit** — compact, exception-driven version-key comparison;
+- **weekly deep audit** — complete six-system reconciliation;
+- **release audit** — exact candidate evidence and direct external Truth Gate;
+- **repository internal check** — schema, boundary and cross-file consistency only.
 
 ## 2. Mandatory starting point
 
-Every operational agent must begin with:
+Read:
 
 1. `docs/GEOAI_PROJECT_REGISTRY_V1.json`;
 2. `docs/CURRENT_RELEASE_STATE.md`;
 3. `docs/LAST_VERIFIED_RELEASE_SNAPSHOT.json`;
 4. the applicable Change Request and approval record.
 
-Primary sources must be queried only for objects that are stale, changed, missing, contradictory or required by the requested action.
+These are derived starting indexes. Query primary systems whenever evidence is stale, changed, missing, contradictory, decision-critical or required for a protected action.
 
-## 3. Version keys by source
+## 3. Version keys
 
 | Source | Fast version key | Deep evidence |
 |---|---|---|
-| GitHub | default-branch SHA; open PR head SHA; merge state | PR body, checks, changed files, review threads and commit history |
-| Vercel | production deployment ID and Git SHA; candidate deployment ID | build state, logs, aliases, route smoke and runtime errors |
-| Supabase | migration count/latest version; table/row fingerprints; advisor count | migration ledger, schema/table/RLS/policies, source-state rows and validation SQL |
-| Figma | file key plus approved node IDs and documented authority version | affected node metadata, variables, components, prototype states and receipts |
-| Confluence | page ID plus updated timestamp/version | complete content, hierarchy, decisions, links and change-log reconciliation |
+| GitHub | default/release branch SHA; PR/branch head; merge state | body/comments, checks, files, reviews, commit graph |
+| Vercel | Production deployment/SHA/target; Preview deployment/SHA | aliases, logs, route/visual/runtime evidence |
+| Supabase | project status; migration count/latest; table/policy/row fingerprints | ledger, catalog, read-only SQL, advisors |
+| Figma | file key, node/page IDs and defined metric authority | direct node/page metadata, components, reactions and receipts |
+| Confluence | page ID and current version | direct current-page body, hierarchy, decisions and links |
+| Google Drive | folder/file ID, modified time and classification | direct folder contents, file metadata and duplicate-authority review |
 
-## 4. Daily delta audit
+## 4. Delta audit
 
-### 4.1 Read compact authorities
+1. Read compact derived authorities.
+2. Compare live version keys.
+3. Deep-read only changed, expired, contradictory or decision-critical domains.
+4. Report exact deltas, stale derived files, incomplete sources and the next safe action.
+5. Do not rewrite documents only to refresh timestamps.
 
-Read the registry, current release state and verified snapshot first. Do not enumerate an entire workspace by default.
+## 5. Weekly and release external Truth Gate
 
-### 4.2 Compare version keys
+Reconcile all six systems:
 
-Check:
+1. GitHub;
+2. Vercel;
+3. Supabase;
+4. Figma;
+5. Confluence;
+6. Google Drive.
 
-- current `main` SHA and open PR head SHAs;
-- current Production deployment ID/SHA/state;
-- latest Supabase migration and source-state counts;
-- updated timestamps of canonical Confluence pages;
-- Figma authority only when its recorded node/version changed or design work is active.
+For a release candidate, perform the external Truth Gate **after** exact-head checks. Record the exact candidate head, check run IDs, Preview identity, Production identity, database state, design allow-list/metrics, direct Confluence versions and Drive classification.
 
-### 4.3 Escalate only changed sources
+A gate is incomplete if any required system cannot be directly verified. A green repository validator never substitutes for this read-back.
 
-Deep-read a source when:
+## 6. Conflict rules
 
-- its version key changed;
-- a required field is missing;
-- primary sources conflict;
-- a protected action is requested;
-- the evidence TTL expired;
-- a client/investor claim depends on that source.
+### Production
 
-### 4.4 Produce an exception report
+Vercel deployment evidence determines what is running. GitHub determines source and merge state. Preview cannot be promoted by wording.
 
-A daily audit should report only:
+### Database
 
-- verified changes;
-- stale derived documents;
-- conflicting evidence;
-- new risks/advisories;
-- decisions required;
-- exact safe next action.
+Supabase physical ledger/catalog/query evidence determines state. Migration files do not prove application.
 
-No-change audits should be brief and should not rewrite documentation merely to refresh timestamps.
+### Design
 
-## 5. Weekly deep audit
+Direct Figma authority nodes/pages determine intent. Runtime code/screenshots determine implementation. Design approval does not prove parity.
 
-The weekly audit must reconcile all canonical sources:
+### Decisions and Confluence search safety
 
-1. Confluence structure, current pages, change log and artifact registry;
-2. GitHub branches, PRs, merged state, documentation and automation checks;
-3. Vercel Production and relevant Previews, logs and route evidence;
-4. Supabase projects, migration ledger, tables, RLS, source state, payload counts and advisors;
-5. Figma authority graph, approved versions, components and runtime alignment;
-6. repository registry, release snapshot and policy consistency;
-7. data-honesty language across current product/docs/materials.
+Confluence direct current-page version/body records decisions. Rovo search snippets may lag after an update and are discovery-only. Never use a stale search snippet to overwrite a newer direct page.
 
-The weekly output must contain:
+### Drive
 
-- executive status;
-- current released baseline;
-- active candidate matrix;
-- source and design readiness;
-- risks and owner decisions;
-- documentation drift;
-- recommended next actions;
-- evidence references and timestamps.
+Drive is supporting artifact storage unless a specific controlled artifact is registered. It must not become a duplicate decision authority.
 
-## 6. Conflict-resolution rules
+### Derived files
 
-### 6.1 Production
+Registry, snapshot, policy and CI output are indexes/checks. Fresher primary evidence wins.
 
-Vercel deployment evidence determines what is running. GitHub determines whether the corresponding code is merged. A Confluence or repository statement cannot promote a Preview to Production.
+## 7. Internal validator boundary
 
-### 6.2 Database
+The repository validator checks:
 
-Supabase physical schema, migration ledger and query evidence determine database state. Migration files alone do not prove application.
+- parse/schema requirements;
+- local cross-file equality;
+- release/candidate and protected-action boundaries;
+- exact data-honesty wording;
+- explicit Figma/Moscow derived values;
+- external Truth Gate requirements.
 
-### 6.3 Design
+It does not query providers or prove current truth. It must output `EXTERNAL TRUTH: UNVERIFIED` unless a separate fresh direct-read receipt exists. It cannot recommend merge.
 
-Approved Figma authority nodes determine design intent. Runtime screenshots and code determine implementation. A design approval does not prove runtime alignment without evidence.
-
-### 6.4 Decisions
-
-Confluence records approvals and operating decisions. A technical state change without the required approval is reported as a governance breach, not silently normalised.
-
-### 6.5 Derived documents
-
-The registry and snapshots are indexes. When stale, update them after verifying the primary source; never use them to override it.
-
-## 7. Cache and freshness policy
-
-Cache identifiers and immutable evidence where safe:
-
-- repository, project, file, page and node IDs;
-- merged commit SHAs and deployment IDs;
-- migration versions;
-- approval record IDs.
-
-Do not cache as current truth beyond its TTL:
-
-- open PR states;
-- Production aliases/deployments;
-- source payload counts;
-- runtime errors;
-- security advisors;
-- mutable Confluence page content.
-
-Default TTLs are defined in the registry. A protected action always requires fresh evidence regardless of TTL.
-
-## 8. Evidence record format
-
-Each finding must contain:
+## 8. Evidence format
 
 ```json
 {
-  "source": "github|vercel|supabase|figma|confluence",
+  "source": "github|vercel|supabase|figma|confluence|google_drive",
   "object_id": "stable identifier",
-  "environment": "production|preview|development|rehearsal",
+  "environment": "production|preview|development|rehearsal|supporting",
   "verified_at": "ISO-8601 UTC timestamp",
-  "version_key": "SHA, deployment ID, migration version, page version or node authority",
+  "version_key": "SHA, deployment ID, migration, page version, node/page ID or file/folder ID",
   "finding": "plain-language verified result",
   "confidence": "verified|partially_verified|unverified",
   "action_required": false
@@ -160,30 +117,22 @@ Each finding must contain:
 
 ## 9. Write and approval boundaries
 
-A scheduled or ad-hoc audit may read and prepare documentation. It must not, without explicit approval:
+Without explicit approval, no audit may:
 
-- merge a pull request;
-- deploy or promote Production;
-- apply a Supabase migration or mutate source data;
-- change authentication/hard enforcement;
-- add or modify secrets/environment variables;
-- approve official/legal/cadastral/zoning/planning/valuation conclusions.
+- merge, mark ready or enable auto-merge;
+- deploy/promote/rollback Production;
+- mutate Supabase data/schema/Auth/RLS/grants/functions/Storage;
+- change secrets/environment variables;
+- edit Figma;
+- activate sources or scoring;
+- publish official/legal/cadastral/zoning/planning/valuation conclusions.
 
 ## 10. Data-honesty gate
 
-Any site, object, parcel, score, value or scenario output based on sample, open, generated, metadata-only or user-provided data must preserve this statement:
-
 > Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.
 
-An audit must fail when a current product or client-facing artifact presents an unsupported source as official, live, verified or guaranteed.
+Unsupported official/live/verified/approved/guaranteed claims fail the audit.
 
-## 11. Agent completion rule
+## 11. Completion rule
 
-An agent is not complete when it has only produced prose. Completion requires:
-
-- source evidence obtained;
-- conflicts resolved or explicitly escalated;
-- affected registry/snapshot/docs updated on a reviewable branch or approved system;
-- validator/QA result recorded;
-- protected actions left untouched unless separately approved;
-- next decision stated in one sentence.
+Completion requires source evidence, explicit contradictions or gate incompleteness, reviewable corrections, internal QA result, external Truth Gate status, protected-action record and one exact next decision.

@@ -1,141 +1,141 @@
 # CR 10.12 — GeoAI Control Plane and Audit Acceleration v1
 
-**Status:** Proposed / implemented on dedicated branch `ops/geoai-control-plane-v1` and Draft PR #120  
+**Status:** Implemented candidate / HOLD — Goal 0 external-truth correction authorised  
 **Owner:** GeoAI Founder  
 **Prepared:** 2026-07-31  
 **Confluence authority:** page `22052867`  
-**Scope:** Governance, source authority, delta audits, machine-readable registry, non-destructive QA  
-**Protected actions:** No merge, Production deployment, Supabase migration, authentication enforcement, RLS/grant/function/Storage change, secret or environment-variable change is authorised by this CR.
+**Branch / PR:** `ops/geoai-control-plane-v1` / Draft PR #120  
+**Correction parent:** `e255a94450e3fe359a3cd0ad2050107f6d851bb5`  
+**Scope:** Governance, source authority, delta audits, machine-readable registry and dependency-free internal QA  
+**Protected actions:** No merge, ready-for-review transition, auto-merge, Production action, Supabase mutation, authentication/RLS/grant/function/Storage change, secret/environment change or Figma mutation is authorised.
 
 ## 1. Problem
 
-GeoAI delivery state is distributed across Confluence, GitHub, Vercel, Supabase and Figma. Agents currently need multiple discovery and reconciliation calls before they can answer basic operational questions. Repository release documents also drifted behind the actual Production state: `main` and Production are on PR #113 / SHA `7f323c4227f2409f3fe2d4d68be48a30176f4e2a`, while the previous repository snapshot still described PR #106.
+GeoAI delivery state is distributed across Confluence, GitHub, Vercel, Supabase, Figma and Google Drive. The current control-plane candidate correctly records the released Production and Supabase tuple, but its remaining Moscow and Figma registry entries are stale. Its repository validator also checks agreement among local files; it does not query or prove live external truth.
 
-This creates four risks:
-
-1. agents repeatedly read large documents instead of checking deltas;
-2. candidate branches can be confused with released state;
-3. stale documentation can override newer primary-source evidence;
-4. source, design and data claims can be repeated without a current evidence timestamp.
+A green local check over mutually consistent derived files can therefore coexist with a wrong external claim. That is a release-governance blocker.
 
 ## 2. Business reason
 
-A dependable control plane reduces audit time, supports faster B2B/B2G pilot preparation, and protects client and investor materials from unsupported claims. It also creates an enterprise-grade evidence chain for release decisions without weakening founder approval gates.
+A dependable control plane reduces audit time and protects B2B/B2G, client and investor materials from unsupported claims. It must accelerate delivery without weakening Founder approval gates or presenting internal consistency as external evidence.
 
-## 3. Users
+## 3. Users and affected surfaces
 
 - GeoAI Founder and release approver;
-- product, design and engineering agents;
-- delivery and QA owners;
+- product, design, engineering, data and QA agents;
 - enterprise/B2G proposal and pilot teams;
-- future MCP/control-plane implementers.
+- repository authority files, PR evidence, Confluence operational pages and scheduled audits.
 
-## 4. Affected product screens
+No runtime screen, application feature or protected data system is changed.
 
-No runtime screen is changed. The control plane references, but does not modify, the approved Figma and runtime authorities.
+## 4. Data impact
 
-Operationally affected surfaces:
-
-- Confluence Project Home, Current Delivery State, Governance and Agent Operating Mode;
-- GitHub release authority documents and pull-request checks;
-- scheduled daily and weekly audits;
-- future agent handoffs.
-
-## 5. Data impact
-
-Documentation and metadata only.
+Documentation, derived metadata and read-only validation only.
 
 - No source payload is ingested.
-- No Supabase schema or data is changed.
-- Existing DLD foundation remains development schema/table-contract only with zero policies and zero payload rows.
-- The registry records source readiness, environment IDs, verified facts and validation boundaries.
-
-Mandatory product wording remains:
+- No Supabase schema, data, Auth, RLS, grant, function or Storage state is changed.
+- `geoai-dev` remains a development foundation with 12 migrations, five source-registry rows, five external snapshots and zero Auth users.
+- Seven DLD tables remain RLS-enabled, zero-policy and zero-row. This is fail-closed metadata/schema readiness, not a live official integration.
 
 > Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.
 
-## 6. Design impact
+## 5. Design impact
 
-No Figma write is included. The registry records the verified authority graph:
+No Figma write is included. Direct read-only verification established the authority allow-list:
 
-- file: `TAzDqOvRCw1mQGMU3Y4S9H`;
 - executable Start Here: `1797:2`;
 - executable prototype: `1482:2`;
 - runtime alignment: `1749:21157`;
-- correction receipts: `1819:11`, `1825:11`;
-- delivery cockpit: `1495:53`.
+- accessibility correction receipt: `1819:11`;
+- Product System correction receipt: `1825:11`.
 
-Design-to-code work must continue to use affected nodes/components rather than rereading the whole file.
+Nodes `1670:2` and `1673:2` are absent and must not be treated as authorities.
 
-## 7. Engineering impact
+Audited metric definitions:
 
-This CR introduces:
+- **68 prototype screens:** direct child `FRAME` nodes under `1482:2` whose names begin `Prototype /`; `1482:3` and `1492:2` are excluded as non-screen frames;
+- **35 component sets / 368 variants:** all `COMPONENT_SET` / `COMPONENT` nodes on canonical Product Design System page `68:3`;
+- **114 authored reactions:** reactions on descendants of `1482:2` whose IDs do not begin with `I`; instance-expanded duplicate reactions are excluded.
 
-1. `docs/GEOAI_PROJECT_REGISTRY_V1.json` — compact machine-readable authority index;
-2. `docs/GEOAI_SOURCE_AUDIT_AND_DELTA_PROTOCOL_V1.md` — daily delta and weekly deep-audit protocol;
-3. `docs/GEOAI_MCP_TOOL_CONTRACTS_V1.md` — high-level GeoAI control-plane tool contracts;
-4. `docs/GEOAI_AUTOMATED_QA_AND_AUDIT_RUNBOOK_V1.md` — operational runbook;
-5. `scripts/geoai-control-plane-check.mjs` — dependency-free consistency validator;
-6. `.github/workflows/geoai-control-plane-audit.yml` — read-only pull-request/manual check;
-7. concise current release authority and refreshed verified snapshot.
+Figma approval remains design intent only and does not prove runtime implementation.
 
-The validator performs no network writes and requires no secrets. Daily and weekly timing is handled by the existing task scheduler, which is updated separately rather than duplicated in GitHub Actions.
+## 6. Engineering impact
 
-## 8. Source audit — final primary-source reconciliation 2026-07-31
+This CR maintains:
 
-| Source | Verified state | Authority use | Finding |
-|---|---|---|---|
-| GitHub | `main` at `7f323c…`; PR #113 merged; PR #118 Draft/open at `3c27d97a…`; Moscow pilot branch separate; PR #120 Draft/open | code, PR and branch truth | repository release snapshot was stale |
-| Vercel | Production alias `geoai-mvp.vercel.app` resolves to deployment `dpl_4yBHCo1eZ7N6GYQWGAg1EdQGwFTE`; SHA `7f323c…`; state READY; zero runtime errors returned for the previous seven days | runtime/deployment truth | Production matches `main`; Previews remain non-production |
-| Supabase | `geoai-dev` healthy; 12 migrations; latest `20260726152858 dld_demo_http_client_v1a`; 20 public base tables; 5 source-registry rows; 5 external-snapshot rows; zero Auth users; seven zero-row DLD tables in isolated schemas; RLS enabled and zero policies on all seven | schema/data truth | intermediate 8/8, 3-user and one-policy claims were superseded by repeated final physical ledger/catalog queries |
-| Figma | file and authority nodes accessible | design intent and approval truth | node-level registry can replace repeated full-file discovery |
-| Confluence | Project Home, Current Delivery and Governance are the decision/operating narrative authorities | operational narrative and decision truth | stale deployment/data statements require controlled correction |
+1. `docs/GEOAI_PROJECT_REGISTRY_V1.json`;
+2. `docs/GEOAI_SOURCE_AUDIT_AND_DELTA_PROTOCOL_V1.md`;
+3. `docs/GEOAI_MCP_TOOL_CONTRACTS_V1.md`;
+4. `docs/GEOAI_AUTOMATED_QA_AND_AUDIT_RUNBOOK_V1.md`;
+5. `scripts/geoai-control-plane-check.mjs`;
+6. `.github/workflows/geoai-control-plane-audit.yml`;
+7. current release policy/snapshot surfaces;
+8. generated lifecycle sidecars.
 
-### Active candidates, not released state
+The validator is dependency-free and read-only. It validates repository schema, boundaries and cross-file consistency. It does **not** query GitHub, Vercel, Supabase, Figma, Confluence or Google Drive; it cannot certify external truth or recommend merge.
 
-- DLD controlled ingestion foundation: PR #118, branch `agent/dld-controlled-ingestion-foundation-v1`, current head `3c27d97a87b1d8fda7c1aeee543ea594dbfcd00d`.
-- Rosimushchestvo Moscow pilot: branch `pilot/rosimushchestvo-moscow-v1`, verified head prefix `c735200c`; separate Preview/candidate only.
-- Control Plane and Audit Acceleration: PR #120, branch `ops/geoai-control-plane-v1`; documentation/validator candidate only.
+## 7. Fresh source audit — 2026-07-31 23:00 UTC cutoff
 
-## 9. Source authority and conflict rule
+| Source | Direct verified state | Correction |
+|---|---|---|
+| GitHub | `main` and `release/production` at `7f323c4227f2409f3fe2d4d68be48a30176f4e2a`; PR #120 branch still at parent `e255a94450e3fe359a3cd0ad2050107f6d851bb5`; PR #118 at `3c27d97a87b1d8fda7c1aeee543ea594dbfcd00d` | Preserve released tuple and HOLD |
+| Vercel | Production `dpl_4yBHCo1eZ7N6GYQWGAg1EdQGwFTE`; PR #120 Preview `dpl_2zJYuUiMLf6Dn264stqysiikDxKA`; Moscow Preview `dpl_DNqStSdLGqt5FiK6ZJXAGY4t19Gm` | Preview remains non-Production |
+| Supabase | `geoai-dev` ACTIVE_HEALTHY; 12 migrations; latest `20260726152858`; 5/5 registry; zero Auth; DLD seven tables / zero rows / zero policies | Preserve fail-closed boundary |
+| Figma | Five valid authority nodes; `1670:2` and `1673:2` absent; metrics 68 / 35 / 368 / 114 under explicit definitions | Replace stale node/metric registry |
+| Confluence | Direct pages are current authority; search snippets may lag. Active pages still state that the Moscow dev branch is absent | Correct by direct page version after exact-head evidence |
+| Google Drive | GeoAI folder contains two uncontrolled PDFs plus Archive; seven category folders are empty | Supporting storage only; no duplicate authority |
+| Moscow | M0 branch/head `pilot/rosimushchestvo-moscow-v1` / `bd90887c8de10b5ffa85ed6b8adfa1d93f70d316`; dev branch exists at `722e5166f37168ddaa8ccb7bf83bfcb6c9681b4e`, ahead 2 / behind 0, 22 files | Record as separate Preview prototype, unmerged and non-Production |
 
-1. Runtime state: Vercel alias/deployment evidence.
-2. Code/merge state: GitHub PR, branch and commit evidence.
-3. Database state: repeated Supabase physical migration-ledger, catalog and row-count evidence.
-4. Design state: approved Figma authority nodes and receipts.
-5. Decision and operating narrative: Confluence.
-6. Registry and snapshot: derived indexes; never allowed to override a fresher primary source.
+## 8. Authority and conflict rules
 
-When sources disagree, the primary source wins and the derived document is marked stale in the same audit.
+1. Vercel determines deployed runtime identity.
+2. GitHub determines code, branch, PR, commit and check identity.
+3. Supabase physical ledger/catalog/query evidence determines database state.
+4. Figma direct node/page reads determine approved design intent.
+5. Confluence direct current-page version/body records decisions and operational narrative.
+6. Google Drive is supporting artifact storage only.
+7. Registry, snapshot and CI output are derived; fresher primary evidence overrides them.
 
-## 10. Risks and controls
+Rovo search results are discovery aids. They may lag after updates and must never overwrite a newer direct current-page fetch/version/body.
 
-| Risk | Control |
-|---|---|
-| Registry becomes another stale document | TTL warnings, primary-source timestamps and automated cross-file consistency checks |
-| Candidate mistaken for Production | explicit environment classification and validator prohibition |
-| Scheduled audit causes unauthorised writes | prompts prohibit merge/deploy/migration/auth/secrets and require existing approval |
-| Full audits remain expensive | daily delta mode; deep weekly audit only |
-| False data-source claims | mandatory caveat and explicit `official_validation_required` flag |
-| DLD tables inaccessible or unsafe | zero policies are surfaced as an explicit persona/security decision; no automatic activation |
-| PostGIS advisory remediated incorrectly | record as an owner/security decision; no automatic SQL change |
+## 9. Validator and Truth Gate boundary
 
-## 11. Acceptance criteria
+The repository check may pass only when local schemas, values and prohibited boundaries are internally consistent. Its output must state:
 
-- [x] Current Production SHA, PR and Vercel alias-resolved deployment are consistent across registry, release state and snapshot.
-- [x] Active DLD, Moscow pilot and control-plane branches are classified as candidates, not Production.
-- [x] Supabase physical migration ledger, source-state counts, zero-user count, table names, zero-policy and zero-payload DLD boundaries are represented accurately.
-- [x] Intermediate contradictory data findings are explicitly superseded rather than hidden.
-- [x] Figma and Confluence canonical IDs are recorded.
-- [x] Exact data-honesty wording is present.
-- [x] A dependency-free validator fails on authority drift and candidate/Production confusion.
-- [x] Daily and weekly audit procedures are separated.
-- [x] No protected action is executed.
-- [ ] CI checks pass at the final PR head.
-- [ ] Confluence final correction receipt is complete.
-- [ ] Founder review and merge approval.
-- [ ] Post-merge first scheduled-run review.
+- external evidence is unverified;
+- six-system direct read-back is still required;
+- a green result is not a merge recommendation or approval.
 
-## 12. Approval requested
+After the single correction commit, both PR-triggered checks must succeed on the same exact new head. Then GitHub, Vercel, Supabase, Figma, Confluence and Google Drive must be read again. Goal 0 can return to Founder merge review only if that external Truth Gate has zero P0 contradictions.
 
-Approve merge of Draft PR #120 only after final checks pass and the final Confluence correction receipt is complete. Production deployment or promotion, if later required, remains a separate founder decision and must use fresh release evidence.
+## 10. Acceptance criteria
+
+- [x] Production and Supabase tuple reverified without mutation.
+- [x] Moscow branch graph reverified at M0 `bd90887...` and dev `722e516...`, ahead 2 / behind 0.
+- [x] Figma allow-list and metric definitions reverified directly.
+- [x] Drive classified as supporting-only with no duplicate authority.
+- [x] Rovo direct-page safety rule documented.
+- [ ] Ten source/control files corrected in one atomic commit from exact parent `e255a944...`.
+- [ ] Lifecycle sidecars regenerated and verified.
+- [ ] New exact-head `GeoAI Quality Gate` succeeds.
+- [ ] New exact-head `GeoAI control-plane audit` succeeds.
+- [ ] Fresh six-system external Truth Gate reports zero P0 contradictions.
+- [ ] PR body/comment and Confluence factual receipts reflect the new exact head.
+- [ ] Founder / GeoAI Main decides whether to merge.
+
+## 11. Non-authorisations
+
+This CR does not authorise:
+
+- merge, ready-for-review or auto-merge;
+- Production deploy, promotion or rollback;
+- Vercel project/domain/environment/secret changes;
+- Supabase migration, SQL mutation, RLS/Auth/grant/function/Storage/source activation;
+- DLD payload ingestion or scoring activation;
+- Figma mutation;
+- modification of the Rosimushchestvo branches;
+- any official, customer-approved, pilot-ready or Production-ready claim.
+
+## 12. Decision
+
+Keep Draft PR #120 on HOLD. Publish exactly one scoped correction commit, obtain two new exact-head green checks, complete a fresh six-system external read-back and only then return the candidate to Founder / GeoAI Main for a merge decision.

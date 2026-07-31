@@ -2,7 +2,7 @@
   "schemaVersion": "1.0",
   "authorityType": "repository_release_policy",
   "policyOwner": "GeoAI Release Engineering",
-  "lastReviewedAt": "2026-07-31T20:35:00Z",
+  "lastReviewedAt": "2026-07-31T23:00:00Z",
   "repositoryRole": "policy_schema_and_historical_evidence",
   "currentOperationalAuthority": "external_post_release_evidence",
   "productionActionRequiresExplicitApproval": true,
@@ -12,8 +12,8 @@
     "vercel_production_alias",
     "supabase_physical_schema_migration_and_data_state",
     "figma_approved_design_authority",
-    "confluence_approval_and_operating_narrative",
-    "project_hub_post_release_receipt",
+    "confluence_direct_current_page_and_approval_record",
+    "google_drive_supporting_artifacts_only",
     "repository_historical_snapshot"
   ],
   "derivedAuthorityFiles": {
@@ -27,9 +27,35 @@
     "validatesPolicyAndSnapshotSchema": true,
     "validatesHistoricalCurrentDistinction": true,
     "validatesCrossFileReleaseConsistency": true,
+    "validatesInternalBoundaries": true,
     "queriesLiveGithubState": false,
     "queriesLiveVercelState": false,
-    "mayDeclareCurrentOperationalRuntime": false
+    "queriesLiveSupabaseState": false,
+    "queriesLiveFigmaState": false,
+    "queriesLiveConfluenceState": false,
+    "queriesLiveGoogleDriveState": false,
+    "validatesExternalTruth": false,
+    "mayDeclareCurrentOperationalRuntime": false,
+    "mayRecommendMergeAutomatically": false
+  },
+  "externalTruthGate": {
+    "requiredSystems": [
+      "github",
+      "vercel",
+      "supabase",
+      "figma",
+      "confluence",
+      "google_drive"
+    ],
+    "freshDirectReadbackRequired": true,
+    "requiredAfterExactHeadChecks": true,
+    "requiredBeforeFounderMergeReview": true,
+    "greenRepositoryCiSatisfiesGate": false
+  },
+  "confluenceReadSafety": {
+    "searchSnippetsAreDiscoveryOnly": true,
+    "searchSnippetsMayLag": true,
+    "directCurrentPageVersionAndBodyAreAuthoritative": true
   },
   "requiredPostReleaseEvidenceFields": [
     "verifiedAt",
@@ -54,14 +80,20 @@
     "previewIsProduction": false,
     "readyDeploymentProvesRouteAndVisualQa": false,
     "mergedCodeProvesVerifiedDeployment": false,
-    "migrationFileProvesAppliedSchema": false
+    "migrationFileProvesAppliedSchema": false,
+    "figmaApprovalProvesRuntimeImplementation": false,
+    "internalConsistencyProvesExternalTruth": false
   },
   "protectedActions": [
     "merge",
+    "mark_pr_ready",
+    "enable_auto_merge",
     "production_deploy_or_promotion",
+    "production_rollback",
     "supabase_migration_or_data_mutation",
-    "auth_hard_enforcement",
-    "secret_or_environment_variable_change"
+    "auth_rls_grant_function_or_storage_change",
+    "secret_or_environment_variable_change",
+    "figma_mutation"
   ],
   "maturityClaimsForbidden": [
     "production-ready",

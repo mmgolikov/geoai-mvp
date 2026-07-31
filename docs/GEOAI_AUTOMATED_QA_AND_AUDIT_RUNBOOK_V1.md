@@ -1,21 +1,20 @@
 # GeoAI Automated QA and Audit Runbook v1
 
-**Status:** Proposed  
+**Status:** Proposed / Goal 0 correction candidate  
 **Delivery timezone:** Europe/Amsterdam  
 **Evidence timezone:** UTC  
 **Default mode:** read-only and exception-driven
 
 ## 1. Operating model
 
-GeoAI uses three audit layers:
-
-| Layer | Cadence | Purpose | Default depth |
+| Layer | Cadence | Purpose | Evidence boundary |
 |---|---|---|---|
-| Daily control-plane audit | Every day at 07:00 | detect changes, contradictions and urgent risks | delta only |
-| Weekly governance audit | Monday at 07:00 | complete source, documentation and release review | deep |
-| Release gate audit | on explicit request | candidate GO/NO-GO decision | candidate-specific deep audit |
+| Daily control-plane audit | Every day at 07:00 | detect deltas and contradictions | fresh version keys plus scoped direct reads |
+| Weekly governance audit | Monday at 07:00 | complete six-system reconciliation | deep external read-back |
+| Release gate audit | on explicit request | candidate GO/NO-GO package | exact candidate head plus direct external evidence |
+| Repository control-plane check | PR/manual | validate local schemas and cross-file boundaries | internal consistency only |
 
-The cadence is unchanged from the previous operating model. Delivery is aligned to the founder's current timezone. All source timestamps and evidence manifests use UTC.
+The repository control-plane check is not an external Truth Gate. A green job cannot prove live GitHub, Vercel, Supabase, Figma, Confluence or Google Drive state and cannot recommend merge.
 
 ## 2. Daily audit procedure
 
@@ -24,154 +23,148 @@ The cadence is unchanged from the previous operating model. Delivery is aligned 
 - `docs/GEOAI_PROJECT_REGISTRY_V1.json`;
 - `docs/CURRENT_RELEASE_STATE.md`;
 - `docs/LAST_VERIFIED_RELEASE_SNAPSHOT.json`;
-- current GitHub `main` SHA and open PR heads;
-- current Vercel Production deployment ID/SHA/state;
-- latest Supabase migration/source-state/advisor fingerprints;
-- update timestamps of canonical Confluence pages;
-- Figma authority only when changed or actively affected.
+- current GitHub default branch and active PR/branch heads;
+- current Vercel Production deployment and relevant Preview identities;
+- latest Supabase migration/source/advisor fingerprints;
+- direct current versions of canonical Confluence pages;
+- affected Figma authority nodes when changed or active;
+- registered Drive supporting folder when artifact authority could drift.
 
 ### Checks
 
-1. Production SHA equals the repository release baseline.
-2. Production deployment ID and state match the verified snapshot.
-3. Candidate branches are not labelled as released.
-4. Open PR/branch heads changed or remained stable.
-5. Supabase migration count/latest version and source-state counts changed or remained stable.
-6. DLD payload remains explicitly separate from metadata/table-contract readiness.
-7. New security advisors are surfaced.
-8. Canonical Confluence pages are not older than contradictory primary-source evidence.
-9. Exact data-honesty wording is present in current authority documents.
-10. Protected actions remain unexecuted without approval.
+1. Production deployment SHA equals the released GitHub baseline.
+2. Preview/candidate branches are not labelled released or Production.
+3. Open PR and prototype branch heads changed or remained stable.
+4. Supabase physical ledger, RLS/policy and row-count boundaries changed or remained stable.
+5. DLD payload remains separate from metadata/schema readiness.
+6. Figma node allow-list and metric definitions remain current when affected.
+7. Direct Confluence page version/body does not conflict with primary systems.
+8. Rovo search snippets are used only for discovery, never as overwrite authority.
+9. Drive remains supporting storage and does not duplicate the decision authority.
+10. Protected actions remain unexecuted without explicit approval.
+11. Exact data-honesty wording remains present.
 
 ### Output
 
-- changes since the previous audit;
-- blockers or contradictions;
-- owner decisions required;
-- documentation patches prepared or applied under existing approval;
-- one-sentence next action.
+- exact changed/unchanged version keys;
+- blockers and severity;
+- incomplete providers;
+- owner decisions;
+- documents/pages updated under current approval;
+- protected actions not taken;
+- exact next action.
 
-When nothing changed, do not perform full rewrites. Record a compact no-change result.
-
-## 3. Weekly audit procedure
-
-### Confluence
-
-- verify Project Home, Current Delivery State, Governance & Change Log, Change Log, Artifact Registry and Agent Operating Mode;
-- check hierarchy, broken/duplicate authorities and stale page references;
-- confirm approved Change Requests and release decisions are linked.
+## 3. Weekly six-system audit
 
 ### GitHub
 
-- inspect default branch, open/draft PRs, active branches, merged state and review/check status;
-- validate registry/current-state/snapshot consistency;
-- review automated audit failures and documentation drift;
-- identify branches that need archival, PR creation or explicit owner disposition.
+Inspect default/release branches, open/draft PRs, active prototype branches, exact heads, merge state, changed files, reviews and checks.
 
 ### Vercel
 
-- verify Production alias, deployment ID, source SHA, state and recent runtime errors;
-- inspect only relevant Previews;
-- require route/visual evidence for release decisions;
-- distinguish successful build from successful release QA.
+Verify Production alias/deployment/target/SHA, relevant Preview deployment identities, build/runtime evidence and route/visual receipts. READY is not route or visual QA.
 
 ### Supabase
 
-- verify projects and regions;
-- inspect migration ledger and current physical schema;
-- check RLS/policy state, source registry, external snapshots and payload counts;
-- review security/performance advisors;
-- record remediation decisions but do not apply migrations without approval.
+Verify project/region/status, migration ledger, schema/table/RLS/policies, Auth users, source metadata, exact payload counts and advisors. Record remediation decisions; never apply them automatically.
 
 ### Figma
 
-- verify canonical file and authority nodes;
-- read affected sections/components rather than the full file by default;
-- confirm executable prototype, runtime alignment and correction receipts;
-- identify design/runtime drift and missing Codex handoff evidence.
+Direct-read the canonical file and affected authority nodes/pages. Define screen, component and reaction metrics explicitly. Figma approval does not prove runtime parity.
+
+### Confluence
+
+Direct-fetch Project Home, Current Delivery, Governance, Change Log, active CRs and evidence pages. Use returned page versions/bodies as authority. Search snippets may lag and are discovery-only.
+
+### Google Drive
+
+Inspect the registered supporting folder and relevant artifact locations. Confirm whether files are controlled deliverables, uncontrolled support, empty placeholders or duplicate authorities.
 
 ### Data honesty
 
-Search current UI copy, reports and client/investor materials for unsupported terms including official/live/verified/approved/cadastral/zoning/valuation/pilot-ready/production-ready. Validate evidence or replace with bounded wording.
+Search current UI, reports, documentation and client/investor materials for unsupported official/live/verified/approved/cadastral/zoning/valuation/pilot-ready/production-ready claims.
 
-## 4. Document QA
+## 4. Internal control-plane check
 
-For DOCX, PPTX, PDF and XLSX artifacts:
+The dependency-free check may validate:
 
-1. preserve source/template hierarchy and formatting requirements;
-2. render the final artifact;
-3. inspect every page/sheet/slide for overflow, clipping, overlap, broken tables, empty imbalance and unreadable typography;
-4. verify numbers, units, labels, caveats and source lineage;
-5. repair and rerender until checks pass;
-6. retain editable source and final export where required;
-7. record artifact path/version and QA result in the Artifact Registry.
+- JSON parse/schema expectations;
+- release/candidate separation;
+- equal values across registry, snapshot, policy and current-state files;
+- exact caveat;
+- Figma allow-list and metric definitions;
+- Moscow branch graph recorded in derived files;
+- protected-action boundaries;
+- requirement for a six-system external Truth Gate.
 
-A generated file is not complete until its rendered result is checked.
+It may not:
 
-## 5. Product and release QA
+- call provider APIs;
+- certify current external state;
+- infer visual/runtime/data correctness;
+- recommend merge;
+- authorise protected actions.
 
-Required release evidence:
+Its successful output must explicitly say external truth is unverified.
 
-- founder-approved CR and acceptance criteria;
-- exact candidate branch/PR/head SHA;
-- successful build and checks;
-- relevant Preview deployment ID;
-- route smoke results;
-- visual QA for affected states and breakpoints;
+## 5. Release gate evidence
+
+Required:
+
+- Founder-approved CR and acceptance criteria;
+- exact candidate branch/PR/head;
+- exact-head checks and run IDs;
+- exact-head Preview identity;
+- route and visual evidence for affected behavior;
 - data-honesty QA;
-- documentation sync;
+- six-system external Truth Gate;
+- documentation receipt;
 - rollback point;
-- explicit merge/deploy decision.
+- explicit Founder merge/release decision.
 
-Preview is never Production. A merge is not a verified deployment. A READY deployment is not sufficient proof of route, visual or data correctness.
+Preview is never Production. Merge is not verified deployment. A green internal check is not external truth.
 
-## 6. Current known owner decisions
+## 6. Current known decisions
 
-1. `public.spatial_ref_sys` appears in the Supabase security advisor with RLS disabled. Because it is the PostGIS spatial reference metadata table, remediation must be explicitly reviewed rather than automatically applied.
-2. DLD source payload access, licensing, lineage and ingestion remain unconfirmed; existing state is metadata/table-contract readiness only.
-3. The Moscow Rosimushchestvo pilot branch remains a separate candidate and requires its own CR, source audit, QA and approval path.
-4. This control-plane branch must be reviewed before merge; no Production action is authorised by this runbook.
+1. `public.spatial_ref_sys` RLS remediation requires a dedicated security decision; no automatic SQL.
+2. DLD access, rights, custody, quality, ingestion and scoring remain unapproved.
+3. Moscow M0 authority is `bd90887c...`; the separate dev prototype exists at `722e516...`, ahead 2 / behind 0, Preview-only and unmerged.
+4. PR #120 remains Draft/HOLD until one correction commit, two new exact-head checks and a fresh six-system read-back.
+5. Production and Figma remain unchanged by this task.
 
 ## 7. Failure handling
 
 | Failure | Response |
 |---|---|
-| provider timeout/rate limit | bounded retry; retain partial verified evidence; report incomplete source |
+| provider timeout/rate limit | bounded retry; retain partial verified evidence; mark gate incomplete |
 | permission/auth failure | stop that write path; report exact missing permission |
-| source conflict | use primary-source order; mark derived document stale; prepare correction |
+| source conflict | primary source wins; mark derived surface stale; correct under approval |
+| stale Rovo snippet | direct-fetch current page/version/body; never overwrite from snippet |
 | missing visual evidence | report missing; do not infer pass |
-| stale registry | refresh affected domain and regenerate derived documents |
-| validator failure | block merge recommendation until resolved |
+| internal validator failure | block progression and inspect scoped source issue |
+| internal validator green but external source missing | keep external Truth Gate incomplete |
 | protected action without approval | refuse execution and prepare decision package only |
 
-## 8. Escalation severity
+## 8. Severity
 
-- **P0:** unauthorised Production/database/auth/security change; active customer-data exposure.
-- **P1:** Production unavailable, wrong release active, official-data claim without evidence, critical security advisory.
-- **P2:** candidate QA failure, documentation/registry drift, stale source lineage, broken report/export.
-- **P3:** formatting, navigation, low-risk metadata or housekeeping issue.
+- **P0:** unauthorised Production/database/auth/security change, active customer-data exposure, or current authority causing an unsafe release decision.
+- **P1:** Production unavailable/wrong release, unsupported official-data claim, critical security finding.
+- **P2:** candidate QA failure, documentation/registry drift, stale lineage or broken report/export.
+- **P3:** formatting, navigation or low-risk metadata.
 
 ## 9. Completion evidence
 
-Every audit must end with:
+Every audit records:
 
-- audit type and time;
-- primary version keys;
-- changed/unchanged domains;
-- verified findings and confidence;
-- risks and owner decisions;
+- audit type/time and exact version keys;
+- per-system direct/derived/unverified status;
+- contradictions and severity;
 - files/pages updated;
-- validator result;
+- internal validator result;
+- external Truth Gate result or incompleteness;
 - protected actions not taken;
-- next scheduled or decision-triggered step.
+- next decision.
 
 ## 10. Rollback
 
-This control plane changes documentation, validation code and scheduled prompts only. Rollback is:
-
-1. disable or restore the prior automation prompt/schedule;
-2. revert the control-plane commit/PR;
-3. restore previous authority documents from Git history;
-4. record the rollback in Confluence Change Log.
-
-No database or runtime rollback is required unless a later, separately approved release includes additional changes.
+This branch changes documentation and validation only. Rollback is a Git revert plus Confluence Change Log receipt. No database/runtime rollback is required because no protected system is changed.
