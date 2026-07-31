@@ -154,10 +154,11 @@ if (registry && snapshot) {
   for (const key of [
     "project_home",
     "current_delivery_state",
-    "governance_and_change_log",
+    "governance",
     "change_log",
     "artifact_registry",
     "agent_operating_mode",
+    "control_plane_change_request",
   ]) {
     requireString(confluencePages[key], `Confluence page ${key}`);
   }
@@ -188,6 +189,11 @@ if (policy) {
     fail("Release policy must require explicit Production action approval");
   } else {
     pass("Release policy preserves explicit Production approval");
+  }
+  if (policy.requiredCaveat !== EXACT_CAVEAT) {
+    fail("Release policy required caveat is missing or altered");
+  } else {
+    pass("Release policy caveat is exact");
   }
 }
 
