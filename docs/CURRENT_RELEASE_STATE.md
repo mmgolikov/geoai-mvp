@@ -22,7 +22,7 @@ GeoAI Production is a public demo prototype. It is **not** a confidential-pilot,
 | Production commit | `7f323c4227f2409f3fe2d4d68be48a30176f4e2a` |
 | Release Quality Gate | run `30157607614`, SUCCESS; included built-app API/route smoke |
 | Vercel team / project | `geoaidev` / `geoai-mvp` |
-| Production deployment | `dpl_4yBH4WUUf6GYTemFdSdAxUJQYgsC` |
+| Production deployment | `dpl_4yBHCo1eZ7N6GYQWGAg1EdQGwFTE` |
 | Deployment state | READY; exact Git SHA matches `main` |
 | Production alias | `geoai-mvp.vercel.app` |
 | Registered rollback point | `dpl_5JeKmSRVNTuHsLTRjfVdwTvH9Jbi` |
