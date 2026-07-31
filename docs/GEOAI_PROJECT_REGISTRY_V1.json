@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0.0",
   "registry_version": "2026-07-31",
-  "verified_at": "2026-07-31T19:59:00Z",
+  "verified_at": "2026-07-31T20:22:00Z",
   "purpose": "Compact derived authority index for GeoAI delivery agents. Primary sources always override this registry when fresher evidence exists.",
   "delivery_timezone": "Europe/Amsterdam",
   "evidence_timezone": "UTC",
@@ -106,7 +106,7 @@
       "classification": "preview_candidate_not_production",
       "pull_request": 118,
       "branch": "agent/dld-controlled-ingestion-foundation-v1",
-      "verified_head_sha": "703f37691efb341d14c988383ad785bfda1c5044",
+      "verified_head_sha": "3c27d97a87b1d8fda7c1aeee543ea594dbfcd00d",
       "data_boundary": "metadata, table contracts and validation harness; zero source payload rows; not an official or live DLD integration"
     },
     {
