@@ -1,65 +1,106 @@
 {
-  "schemaVersion": "1.0",
+  "schemaVersion": "1.1",
   "authorityType": "historical_last_verified_snapshot",
-  "snapshotLabel": "historical_last_verified_snapshot",
-  "verifiedAt": "2026-07-21T14:45:00Z",
+  "snapshotLabel": "last_verified_release_snapshot_2026_07_31",
+  "verifiedAt": "2026-07-31T19:59:00Z",
   "supersededWhenNewerReleaseExists": true,
   "currentOperationalAuthority": false,
   "repositoryCiQueriedLiveGithub": false,
   "repositoryCiQueriedLiveVercel": false,
+  "verificationPerformedExternally": true,
   "releaseType": "production_public_demo",
   "productStage": "public_demo_prototype",
-  "mergedPullRequest": 106,
-  "mainSha": "cc8f9ebcf3989fab4a3c4eac9be9dfb8da786a7b",
-  "productionDeploymentId": "dpl_6RC2ohEdLBjiV82k758tFMkaDB9X",
+  "mergedPullRequest": 113,
+  "mainSha": "7f323c4227f2409f3fe2d4d68be48a30176f4e2a",
+  "productionDeploymentId": "dpl_4yBH4WUUf6GYTemFdSdAxUJQYgsC",
   "productionUrl": "https://geoai-mvp.vercel.app",
-  "rollbackDeploymentId": "dpl_ERVqZPD5GAGDLjAVhMcPF2HT5Br7",
+  "release": {
+    "pull_request": 113,
+    "commit_sha": "7f323c4227f2409f3fe2d4d68be48a30176f4e2a",
+    "deployment_id": "dpl_4yBH4WUUf6GYTemFdSdAxUJQYgsC",
+    "deployment_state": "READY",
+    "production_alias": "geoai-mvp.vercel.app",
+    "source_branch": "main",
+    "verified_at": "2026-07-31T19:59:00Z"
+  },
   "githubEvidence": {
-    "postMergeQualityGateRunId": 29835520415,
-    "staticApiDataHonestyJobId": 88650735580,
-    "databaseReplayJobId": 88650735754,
-    "qualityArtifactId": 8497283837,
-    "qualityArtifactName": "geoai-quality-evidence-29835520415",
-    "qualityArtifactDigest": "sha256:858bb64b06d76ed222966fc715c8432112a8ac74915bfd281250666e48359653",
-    "databaseArtifactId": 8497226028,
-    "databaseArtifactName": "geoai-database-evidence-29835520415",
-    "databaseArtifactDigest": "sha256:dcd9958e72421fca60fb62adca2a001020e40b34fe2f8b38737061300e85898a"
+    "mergeStateVerified": true,
+    "defaultBranchShaVerified": true,
+    "verificationBasis": "live connected GitHub read on 2026-07-31",
+    "freshPostMergeQualityGateFetched": false,
+    "evidenceGap": "PR #113 historical test and visual evidence was not re-downloaded during this control-plane audit"
   },
   "vercelEvidence": {
     "productionAlias": "https://geoai-mvp.vercel.app",
-    "deploymentUrl": "https://geoai-15h7r8l4k-geoaidev.vercel.app",
+    "deploymentId": "dpl_4yBH4WUUf6GYTemFdSdAxUJQYgsC",
     "target": "production",
     "status": "READY",
-    "inspectedAt": "2026-07-21T14:45:00Z"
+    "sourceShaMatchesMain": true,
+    "runtimeErrorsLast7d": 0,
+    "inspectedAt": "2026-07-31T19:59:00Z",
+    "freshRouteSmokeExecuted": false,
+    "freshVisualQaExecuted": false
   },
   "publicDemoActive": true,
   "confidentialPilotReady": false,
   "protectedStorageActive": false,
-  "realSourcesActive": false,
+  "officialSourceIntegrationActive": false,
+  "realSourcePayloadsConfirmedActive": false,
   "hostedSupabaseState": {
     "development": {
       "projectRef": "pphdqkurxneyagvnnjdt",
-      "migrationLedgerEntries": 10,
-      "confirmedAuthUsers": 0,
-      "authority": "read_only_hosted_count"
+      "region": "eu-west-1",
+      "status": "ACTIVE_HEALTHY",
+      "postgresVersion": "17.6.1.141",
+      "migrationLedgerEntries": 12,
+      "latestMigration": "20260729213222",
+      "publicBaseTables": 20,
+      "confirmedAuthUsers": 3,
+      "sourceRegistrySnapshotRows": 8,
+      "externalDataSnapshotRows": 8,
+      "dldFoundationTables": 7,
+      "dldEstimatedPayloadRows": 0,
+      "dldOfficialOrLiveIntegration": false,
+      "authority": "read_only_hosted_schema_and_count_audit"
     },
     "authRehearsal": {
       "projectRef": "bkmfcjzalcvdsdvyxpgi",
-      "migrationLedgerEntries": 18,
-      "confirmedAuthUsers": 1,
-      "preExistingConfirmedAuthUsers": 1,
-      "usersCreatedByCurrentChange": 0,
-      "pgtapTransactionsCreateResidualUsers": false,
-      "preExistingUserHasProjectMembershipAuthority": false,
-      "preExistingUserHasTenantAuthority": false,
-      "preExistingUserHasProtectedResourceAuthority": false,
-      "realUserBrowserPersonaExecutedByCurrentChange": false,
-      "authority": "read_only_hosted_count_without_identifying_user_data"
+      "region": "eu-west-1",
+      "status": "ACTIVE_HEALTHY",
+      "authority": "project_status_only_in_current_audit"
     }
   },
+  "designAuthority": {
+    "fileKey": "TAzDqOvRCw1mQGMU3Y4S9H",
+    "executableStartHere": "1797:2",
+    "executablePrototype": "1482:2",
+    "runtimeAlignment": "1749:21157",
+    "correctionReceipts": [
+      "1819:11",
+      "1825:11"
+    ]
+  },
+  "activeCandidatesNotProduction": [
+    {
+      "name": "DLD controlled ingestion foundation v1",
+      "pullRequest": 118,
+      "branch": "agent/dld-controlled-ingestion-foundation-v1",
+      "headSha": "703f37691efb341d14c988383ad785bfda1c5044"
+    },
+    {
+      "name": "Rosimushchestvo Moscow pilot v1",
+      "branch": "pilot/rosimushchestvo-moscow-v1",
+      "headShaPrefix": "c735200c"
+    }
+  ],
+  "openDecisions": [
+    "Fresh route and visual smoke are required before a new release decision.",
+    "Supabase advisor finding for public.spatial_ref_sys requires explicit owner/security review; no automatic remediation is authorised.",
+    "DLD access, licensing, lineage and payload ingestion remain unconfirmed."
+  ],
   "caveats": [
     "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.",
-    "Public demo only; protected data, confidential pilot, real sources and protected Storage remain blocked.",
-    "Historical snapshot only. Query external GitHub, Vercel and Project Hub post-release evidence for current operational runtime authority."
+    "Public demo only; confidential pilot, official source payloads and protected production data remain unverified or blocked.",
+    "This is a derived last-verified snapshot. Query primary sources before any protected action."
   ]
 }
