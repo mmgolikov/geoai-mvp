@@ -116,6 +116,14 @@
       "branch": "pilot/rosimushchestvo-moscow-v1",
       "verified_head_sha_prefix": "c735200c",
       "data_boundary": "separate Moscow pilot candidate; preview evidence only; no customer logo; generated or sample data must be labelled"
+    },
+    {
+      "name": "GeoAI Control Plane and Audit Acceleration v1",
+      "classification": "documentation_candidate_not_production",
+      "pull_request": 120,
+      "branch": "ops/geoai-control-plane-v1",
+      "head_sha_at_pr_open": "69020fd70a8e00eeef7d59990bf30a17854923e5",
+      "data_boundary": "documentation, derived registry, read-only validator and operating prompts only; no protected action authorised"
     }
   ],
   "design_authority": {
@@ -138,14 +146,16 @@
   },
   "confluence_authority": {
     "cloud_id": "8671019f-f899-4452-a153-9c96cc5eec31",
+    "space_key": "PH",
+    "space_id": "98311",
     "pages": {
       "project_home": "98509",
       "current_delivery_state": "2097153",
-      "governance_and_change_log": "131206",
+      "governance": "294937",
       "change_log": "98732",
       "artifact_registry": "1343521",
       "agent_operating_mode": "786457",
-      "documentation_versioning_standard": "131214"
+      "control_plane_change_request": "22052867"
     }
   },
   "repository_authority_files": {
