@@ -26,9 +26,9 @@ GeoAI Production is a public demo prototype. It is **not** a confidential-pilot,
 
 | Workstream | Branch / PR | Verified boundary |
 |---|---|---|
-| DLD controlled ingestion foundation v1 | PR #118; `agent/dld-controlled-ingestion-foundation-v1`; head `703f37691efb341d14c988383ad785bfda1c5044` | Preview candidate. Metadata, isolated schemas, table contracts and validation harness only; zero source payload rows; not an official or live DLD integration. |
+| DLD controlled ingestion foundation v1 | PR #118; `agent/dld-controlled-ingestion-foundation-v1`; current head `3c27d97a87b1d8fda7c1aeee543ea594dbfcd00d` | Preview candidate. Metadata, isolated schemas, table contracts and validation harness only; zero source payload rows; not an official or live DLD integration. |
 | Rosimushchestvo Moscow pilot v1 | `pilot/rosimushchestvo-moscow-v1`; head prefix `c735200c` | Separate Preview candidate. Not merged, not Production and not customer-approved. Sample/generated data must be labelled. |
-| Control Plane and Audit Acceleration v1 | `ops/geoai-control-plane-v1` | Documentation, registry and read-only validation only. No protected action authorised. |
+| Control Plane and Audit Acceleration v1 | PR #120; `ops/geoai-control-plane-v1` | Documentation, registry and read-only validation only. No protected action authorised. |
 
 ## Data foundation
 
