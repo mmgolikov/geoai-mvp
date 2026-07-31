@@ -1,8 +1,8 @@
 {
-  "schemaVersion": "1.1",
+  "schemaVersion": "1.0",
   "authorityType": "historical_last_verified_snapshot",
-  "snapshotLabel": "last_verified_release_snapshot_2026_07_31",
-  "verifiedAt": "2026-07-31T20:22:00Z",
+  "snapshotLabel": "historical_last_verified_snapshot",
+  "verifiedAt": "2026-07-31T20:35:00Z",
   "supersededWhenNewerReleaseExists": true,
   "currentOperationalAuthority": false,
   "repositoryCiQueriedLiveGithub": false,
@@ -12,23 +12,25 @@
   "productStage": "public_demo_prototype",
   "mergedPullRequest": 113,
   "mainSha": "7f323c4227f2409f3fe2d4d68be48a30176f4e2a",
+  "qualityGateRunId": 30157607614,
   "productionDeploymentId": "dpl_4yBH4WUUf6GYTemFdSdAxUJQYgsC",
   "productionUrl": "https://geoai-mvp.vercel.app",
-  "release": {
-    "pull_request": 113,
-    "commit_sha": "7f323c4227f2409f3fe2d4d68be48a30176f4e2a",
-    "deployment_id": "dpl_4yBH4WUUf6GYTemFdSdAxUJQYgsC",
-    "deployment_state": "READY",
-    "production_alias": "geoai-mvp.vercel.app",
-    "source_branch": "main",
-    "verified_at": "2026-07-31T19:59:00Z"
+  "productionStatus": "READY",
+  "rollbackDeploymentId": "dpl_5JeKmSRVNTuHsLTRjfVdwTvH9Jbi",
+  "routeSmoke": {
+    "historicalReleaseEvidence": "Quality Gate 30157607614 completed successfully, including built-app API/route smoke.",
+    "freshControlPlaneAuditExecuted": false
+  },
+  "runtimeLogInspection": {
+    "inspectedAt": "2026-07-31T19:59:00Z",
+    "runtimeErrorsLast7d": 0
   },
   "githubEvidence": {
-    "mergeStateVerified": true,
-    "defaultBranchShaVerified": true,
-    "verificationBasis": "live connected GitHub read on 2026-07-31",
-    "freshPostMergeQualityGateFetched": false,
-    "evidenceGap": "PR #113 historical test and visual evidence was not re-downloaded during this control-plane audit"
+    "postMergeQualityGateRunId": 30157607614,
+    "staticApiDataHonestyJobId": 89677949250,
+    "databaseReplayJobId": 89677949264,
+    "mergeStateVerifiedExternally": true,
+    "defaultBranchShaVerifiedExternally": true
   },
   "vercelEvidence": {
     "productionAlias": "https://geoai-mvp.vercel.app",
@@ -36,16 +38,14 @@
     "target": "production",
     "status": "READY",
     "sourceShaMatchesMain": true,
-    "runtimeErrorsLast7d": 0,
     "inspectedAt": "2026-07-31T19:59:00Z",
-    "freshRouteSmokeExecuted": false,
     "freshVisualQaExecuted": false
   },
   "publicDemoActive": true,
   "confidentialPilotReady": false,
   "protectedStorageActive": false,
+  "realSourcesActive": false,
   "officialSourceIntegrationActive": false,
-  "realSourcePayloadsConfirmedActive": false,
   "hostedSupabaseState": {
     "development": {
       "projectRef": "pphdqkurxneyagvnnjdt",
@@ -67,7 +67,8 @@
       "projectRef": "bkmfcjzalcvdsdvyxpgi",
       "region": "eu-west-1",
       "status": "ACTIVE_HEALTHY",
-      "authority": "project_status_only_in_current_audit"
+      "confirmedAuthUsers": 1,
+      "authority": "historical_confirmed_count_plus_current_project_status"
     }
   },
   "designAuthority": {
@@ -100,13 +101,13 @@
     }
   ],
   "openDecisions": [
-    "Fresh route and visual smoke are required before a new release decision.",
+    "Fresh route and visual QA are required before a new release decision.",
     "Supabase advisor finding for public.spatial_ref_sys requires explicit owner/security review; no automatic remediation is authorised.",
     "DLD access, licensing, lineage and payload ingestion remain unconfirmed."
   ],
   "caveats": [
     "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.",
-    "Public demo only; confidential pilot, official source payloads and protected production data remain unverified or blocked.",
-    "This is a derived last-verified snapshot. Query primary sources before any protected action."
+    "Public demo only; protected data, confidential pilot, real sources and protected Storage remain blocked.",
+    "Historical snapshot only. Query external GitHub, Vercel and Project Hub post-release evidence for current operational runtime authority."
   ]
 }
