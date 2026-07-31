@@ -35,7 +35,7 @@ External GitHub, Vercel and Project Hub post-release evidence remains the curren
 
 | Workstream | Branch / PR | Verified boundary |
 |---|---|---|
-| DLD controlled ingestion foundation v1 | PR #118; `agent/dld-controlled-ingestion-foundation-v1`; current head `3c27d97a87b1d8fda7c1aeee543ea594dbfcd00d` | Preview candidate. Required DLD and Quality workflows failed. Metadata, isolated schemas, table contracts and validation harness only; zero source payload rows; not an official or live DLD integration. |
+| DLD controlled ingestion foundation v1 | PR #118; `agent/dld-controlled-ingestion-foundation-v1`; current head `3c27d97a87b1d8fda7c1aeee543ea594dbfcd00d` | Preview candidate. Required DLD and Quality workflows failed. Development schema/table contracts only; seven DLD tables have RLS enabled, zero policies and zero payload rows; not an official or live DLD integration. |
 | Rosimushchestvo Moscow pilot v1 | `pilot/rosimushchestvo-moscow-v1`; head prefix `c735200c` | Separate Preview candidate. Not merged, not Production and not customer-approved. Sample/generated data must be labelled. |
 | Control Plane and Audit Acceleration v1 | PR #120; `ops/geoai-control-plane-v1` | Documentation, registry and read-only validation only. No protected action authorised. |
 
@@ -46,21 +46,30 @@ External GitHub, Vercel and Project Hub post-release evidence remains the curren
 - project ref: `pphdqkurxneyagvnnjdt`;
 - region/status: `eu-west-1` / `ACTIVE_HEALTHY`;
 - PostgreSQL: `17.6.1.141`;
-- migration ledger: 12 entries; latest `20260729213222`;
+- migration ledger: 12 entries; latest `20260726152858 dld_demo_http_client_v1a`;
+- preceding DLD migration: `20260726151724 dld_demo_ingestion_foundation_v1`;
 - public base tables: 20;
-- source-registry snapshot rows: 8;
-- external-data snapshot rows: 8;
-- confirmed auth users: 3.
+- source-registry snapshot rows: 5;
+- external-data snapshot rows: 5;
+- confirmed Auth users: 0.
 
-DLD foundation tables are present in `geoai_dld_feature` and `geoai_dld_private`. All seven are RLS-enabled with one policy each and currently have an estimated zero payload rows. Physical schema readiness does not prove source access, licensing, lineage, snapshot ingestion or official integration.
+DLD foundation tables are present in `geoai_dld_feature` and `geoai_dld_private`:
+
+- `area_month_metrics`, `category_metrics`, `scoring_features`;
+- `areas`, `dataset_releases`, `ingestion_runs`, `sanitized_records`.
+
+All seven have RLS enabled, zero policies and estimated zero payload rows. This means the current foundation is closed by default but has no accepted persona/policy semantics. Physical schema readiness does not prove source access, licensing, lineage, snapshot ingestion, scoring activation or official integration.
 
 ### `geoai-auth-rehearsal`
 
-Project ref `bkmfcjzalcvdsdvyxpgi`; rehearsal-only environment; not Production authority. Historical verified count is one confirmed Auth user; no identifying user data is recorded here.
+Project ref `bkmfcjzalcvdsdvyxpgi`; rehearsal-only environment; not Production authority. No identifying user data is recorded here.
 
-### Open security decision
+### Open security decisions
 
-Supabase security advisor reports RLS disabled on `public.spatial_ref_sys`. This is recorded for explicit owner/security review. No automatic SQL remediation or migration is authorised.
+- Supabase security advisor and physical catalog report RLS disabled on `public.spatial_ref_sys`.
+- Seven DLD tables have RLS enabled but zero policies; explicit persona, grant and policy review is required before any access activation.
+
+No automatic SQL remediation, migration or access change is authorised.
 
 ## Design authority — read-only verification
 
@@ -99,6 +108,7 @@ This authority does not permit:
 - Production deployment, promotion or rollback;
 - Supabase migration or source-data mutation;
 - authentication/hard-enforcement change;
+- RLS, grant, function or Storage change;
 - secret or environment-variable change.
 
 ## Next decision
