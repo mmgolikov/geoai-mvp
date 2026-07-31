@@ -166,11 +166,29 @@ if (registry && snapshot) {
   }
 
   const supabase = registry.environments?.supabase_development;
+  const snapshotSupabase = snapshot.hostedSupabaseState?.development;
   if ((supabase?.migration_count ?? 0) < 1) fail("Supabase migration_count must be positive");
   if ((supabase?.source_registry_snapshot_count ?? 0) < 1) fail("Supabase source registry must not be empty");
   if ((supabase?.external_data_snapshot_count ?? 0) < 1) fail("Supabase external snapshot registry must not be empty");
-  requireEqual(supabase?.dld_foundation?.estimated_payload_rows, 0, "DLD payload row boundary");
-  requireEqual(supabase?.dld_foundation?.official_or_live_integration, false, "DLD official/live integration boundary");
+
+  requireEqual(snapshotSupabase?.migrationLedgerEntries, supabase?.migration_count, "Supabase migration count");
+  requireEqual(snapshotSupabase?.latestMigration, supabase?.latest_migration, "Supabase latest migration");
+  requireEqual(snapshotSupabase?.publicBaseTables, supabase?.public_base_table_count, "Supabase public table count");
+  requireEqual(snapshotSupabase?.confirmedAuthUsers, supabase?.auth_user_count, "Supabase Auth user count");
+  requireEqual(snapshotSupabase?.sourceRegistrySnapshotRows, supabase?.source_registry_snapshot_count, "Supabase source-registry count");
+  requireEqual(snapshotSupabase?.externalDataSnapshotRows, supabase?.external_data_snapshot_count, "Supabase external-snapshot count");
+  requireEqual(snapshotSupabase?.dldFoundationTables, supabase?.dld_foundation?.tables?.length, "DLD table count");
+  requireEqual(snapshotSupabase?.dldRlsEnabledOnAllTables, supabase?.dld_foundation?.rls_enabled_on_all_tables, "DLD RLS boundary");
+  requireEqual(snapshotSupabase?.dldPolicyCountPerTable, supabase?.dld_foundation?.policy_count_per_table, "DLD policy-count boundary");
+  requireEqual(snapshotSupabase?.dldEstimatedPayloadRows, supabase?.dld_foundation?.estimated_payload_rows, "DLD payload row boundary");
+  requireEqual(snapshotSupabase?.dldOfficialOrLiveIntegration, supabase?.dld_foundation?.official_or_live_integration, "DLD official/live integration boundary");
+
+  requireMarkdownValue(current, "Supabase latest migration", supabase?.latest_migration);
+  requireMarkdownValue(current, "Supabase source-registry count", supabase?.source_registry_snapshot_count);
+  requireMarkdownValue(current, "Supabase external-snapshot count", supabase?.external_data_snapshot_count);
+  requireMarkdownValue(current, "Supabase Auth user count", supabase?.auth_user_count);
+  requireMarkdownValue(current, "DLD zero-policy boundary", "zero policies");
+  requireMarkdownValue(current, "DLD zero-payload boundary", "zero payload rows");
 
   const verifiedAtMs = Date.parse(registry.verified_at);
   if (Number.isNaN(verifiedAtMs)) {
