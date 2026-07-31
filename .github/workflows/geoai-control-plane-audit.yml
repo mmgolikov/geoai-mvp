@@ -7,6 +7,12 @@ on:
       - "docs/CURRENT_RELEASE_STATE.md"
       - "docs/LAST_VERIFIED_RELEASE_SNAPSHOT.json"
       - "docs/RELEASE_AUTHORITY_POLICY.json"
+      - "docs/CR_10_12_GEOAI_CONTROL_PLANE_AND_AUDIT_ACCELERATION_V1.md"
+      - "docs/GEOAI_SOURCE_AUDIT_AND_DELTA_PROTOCOL_V1.md"
+      - "docs/GEOAI_MCP_TOOL_CONTRACTS_V1.md"
+      - "docs/GEOAI_AUTOMATED_QA_AND_AUDIT_RUNBOOK_V1.md"
+      - "docs/DOCUMENT_LIFECYCLE_MANIFEST.json"
+      - "docs/DOCUMENT_ARCHIVE_INDEX.md"
       - "scripts/geoai-control-plane-check.mjs"
       - ".github/workflows/geoai-control-plane-audit.yml"
   workflow_dispatch:
@@ -20,7 +26,7 @@ concurrency:
 
 jobs:
   validate-authority:
-    name: Validate release and source authority
+    name: Validate release, source and document authority
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -34,3 +40,19 @@ jobs:
 
       - name: Run dependency-free control-plane check
         run: node scripts/geoai-control-plane-check.mjs
+
+      - name: Generate documentation lifecycle sidecars
+        run: npm run docs:lifecycle:generate
+
+      - name: Upload generated lifecycle sidecars
+        uses: actions/upload-artifact@v4
+        with:
+          name: geoai-control-plane-document-lifecycle-${{ github.run_id }}
+          path: |
+            docs/DOCUMENT_LIFECYCLE_MANIFEST.json
+            docs/DOCUMENT_ARCHIVE_INDEX.md
+          if-no-files-found: error
+          retention-days: 3
+
+      - name: Verify generated lifecycle sidecars are committed
+        run: git diff --exit-code -- docs/DOCUMENT_LIFECYCLE_MANIFEST.json docs/DOCUMENT_ARCHIVE_INDEX.md
