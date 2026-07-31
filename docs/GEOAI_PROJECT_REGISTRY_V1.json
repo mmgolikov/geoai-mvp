@@ -1,0 +1,174 @@
+{
+  "schema_version": "1.0.0",
+  "registry_version": "2026-07-31",
+  "verified_at": "2026-07-31T19:59:00Z",
+  "purpose": "Compact derived authority index for GeoAI delivery agents. Primary sources always override this registry when fresher evidence exists.",
+  "delivery_timezone": "Europe/Amsterdam",
+  "evidence_timezone": "UTC",
+  "data_honesty": {
+    "official_validation_required": true,
+    "mandatory_statement": "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.",
+    "prohibited_unverified_claims": [
+      "official parcel",
+      "official zoning",
+      "cadastral validation",
+      "ownership verification",
+      "certified valuation",
+      "approved site",
+      "guaranteed best use",
+      "live DLD integration",
+      "live GeoDubai integration",
+      "production-ready",
+      "pilot-ready"
+    ]
+  },
+  "authority_order": [
+    "vercel_runtime",
+    "github_code_and_merge",
+    "supabase_schema_and_data",
+    "figma_approved_design",
+    "confluence_decisions_and_operating_narrative",
+    "derived_registry_and_snapshots"
+  ],
+  "environments": {
+    "production": {
+      "classification": "released",
+      "github": {
+        "repository": "mmgolikov/geoai-mvp",
+        "default_branch": "main",
+        "merged_pull_request": 113,
+        "commit_sha": "7f323c4227f2409f3fe2d4d68be48a30176f4e2a"
+      },
+      "vercel": {
+        "team_slug": "geoaidev",
+        "team_id": "team_MNxcLOOPgdHPt6fnfMGXODFx",
+        "project_name": "geoai-mvp",
+        "project_id": "prj_LE41wkaiRUgZgOynkkeixGbesJvp",
+        "alias": "geoai-mvp.vercel.app",
+        "deployment_id": "dpl_4yBH4WUUf6GYTemFdSdAxUJQYgsC",
+        "deployment_state": "READY",
+        "runtime_errors_last_7d": 0
+      }
+    },
+    "supabase_development": {
+      "classification": "development_data_foundation",
+      "project_name": "geoai-dev",
+      "project_ref": "pphdqkurxneyagvnnjdt",
+      "region": "eu-west-1",
+      "status": "ACTIVE_HEALTHY",
+      "postgres_version": "17.6.1.141",
+      "migration_count": 12,
+      "latest_migration": "20260729213222",
+      "public_base_table_count": 20,
+      "source_registry_snapshot_count": 8,
+      "external_data_snapshot_count": 8,
+      "auth_user_count": 3,
+      "dld_foundation": {
+        "payload_ingestion_status": "not_ingested",
+        "official_or_live_integration": false,
+        "estimated_payload_rows": 0,
+        "schemas": [
+          "geoai_dld_feature",
+          "geoai_dld_private"
+        ],
+        "tables": [
+          "geoai_dld_feature.dld_assets",
+          "geoai_dld_feature.dld_transactions",
+          "geoai_dld_private.dld_asset_addresses",
+          "geoai_dld_private.dld_source_documents",
+          "geoai_dld_private.dld_transaction_parties",
+          "geoai_dld_private.dld_transaction_prices",
+          "geoai_dld_private.dld_transaction_source_links"
+        ],
+        "rls_enabled_on_all_tables": true,
+        "policy_count_per_table": 1
+      },
+      "open_security_decisions": [
+        {
+          "finding": "RLS disabled on public.spatial_ref_sys",
+          "source": "Supabase security advisor",
+          "classification": "owner_security_decision_required",
+          "automatic_remediation_authorised": false
+        }
+      ]
+    },
+    "supabase_auth_rehearsal": {
+      "classification": "rehearsal_only",
+      "project_name": "geoai-auth-rehearsal",
+      "project_ref": "bkmfcjzalcvdsdvyxpgi",
+      "region": "eu-west-1",
+      "status": "ACTIVE_HEALTHY"
+    }
+  },
+  "active_candidates": [
+    {
+      "name": "DLD controlled ingestion foundation v1",
+      "classification": "preview_candidate_not_production",
+      "pull_request": 118,
+      "branch": "agent/dld-controlled-ingestion-foundation-v1",
+      "verified_head_sha": "703f37691efb341d14c988383ad785bfda1c5044",
+      "data_boundary": "metadata, table contracts and validation harness; zero source payload rows; not an official or live DLD integration"
+    },
+    {
+      "name": "Rosimushchestvo Moscow pilot v1",
+      "classification": "preview_candidate_not_production",
+      "pull_request": null,
+      "branch": "pilot/rosimushchestvo-moscow-v1",
+      "verified_head_sha_prefix": "c735200c",
+      "data_boundary": "separate Moscow pilot candidate; preview evidence only; no customer logo; generated or sample data must be labelled"
+    }
+  ],
+  "design_authority": {
+    "provider": "Figma",
+    "file_key": "TAzDqOvRCw1mQGMU3Y4S9H",
+    "nodes": {
+      "executable_start_here": "1797:2",
+      "executable_prototype": "1482:2",
+      "runtime_alignment": "1749:21157",
+      "accessibility_correction_receipt": "1819:11",
+      "product_system_correction_receipt": "1825:11",
+      "delivery_cockpit": "1495:53",
+      "component_authorities": [
+        "1670:2",
+        "1673:2"
+      ]
+    },
+    "full_file_read_default": false,
+    "preferred_read_scope": "affected node, section or component only"
+  },
+  "confluence_authority": {
+    "cloud_id": "8671019f-f899-4452-a153-9c96cc5eec31",
+    "pages": {
+      "project_home": "98509",
+      "current_delivery_state": "2097153",
+      "governance_and_change_log": "131206",
+      "change_log": "98732",
+      "artifact_registry": "1343521",
+      "agent_operating_mode": "786457",
+      "documentation_versioning_standard": "131214"
+    }
+  },
+  "repository_authority_files": {
+    "current_release_state": "docs/CURRENT_RELEASE_STATE.md",
+    "verified_snapshot": "docs/LAST_VERIFIED_RELEASE_SNAPSHOT.json",
+    "release_policy": "docs/RELEASE_AUTHORITY_POLICY.json",
+    "control_plane_change_request": "docs/CR_10_12_GEOAI_CONTROL_PLANE_AND_AUDIT_ACCELERATION_V1.md",
+    "delta_protocol": "docs/GEOAI_SOURCE_AUDIT_AND_DELTA_PROTOCOL_V1.md",
+    "mcp_contracts": "docs/GEOAI_MCP_TOOL_CONTRACTS_V1.md",
+    "audit_runbook": "docs/GEOAI_AUTOMATED_QA_AND_AUDIT_RUNBOOK_V1.md"
+  },
+  "freshness_policy": {
+    "production_and_open_prs_ttl_hours": 24,
+    "supabase_schema_and_advisors_ttl_hours": 24,
+    "confluence_current_state_ttl_hours": 24,
+    "figma_authority_registry_ttl_hours": 168,
+    "weekly_full_audit_required": true
+  },
+  "protected_actions": {
+    "merge": false,
+    "production_deploy": false,
+    "supabase_migration": false,
+    "auth_hard_enforcement": false,
+    "secrets_or_environment_variables": false
+  }
+}
