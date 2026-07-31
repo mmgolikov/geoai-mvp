@@ -1,19 +1,30 @@
 {
-  "schemaVersion": "1.0",
+  "schemaVersion": "1.1",
   "authorityType": "repository_release_policy",
   "policyOwner": "GeoAI Release Engineering",
-  "repositoryRole": "policy_schema_and_historical_evidence",
-  "currentOperationalAuthority": "external_post_release_evidence",
+  "lastReviewedAt": "2026-07-31T19:59:00Z",
+  "repositoryRole": "policy_schema_derived_registry_and_historical_evidence",
+  "currentOperationalAuthority": "external_primary_source_evidence",
+  "productionActionRequiresExplicitApproval": true,
   "authorityPrecedence": [
-    "github_default_branch_and_merge_state",
-    "github_deployments_or_production_environment",
-    "vercel_production_alias",
-    "project_hub_post_release_receipt",
-    "repository_historical_snapshot"
+    "vercel_runtime_and_production_alias",
+    "github_default_branch_merge_and_commit_state",
+    "supabase_physical_schema_migration_and_data_state",
+    "figma_approved_design_authority",
+    "confluence_approval_and_operating_narrative",
+    "repository_derived_registry_and_historical_snapshot"
   ],
+  "derivedAuthorityFiles": {
+    "projectRegistry": "docs/GEOAI_PROJECT_REGISTRY_V1.json",
+    "currentReleaseState": "docs/CURRENT_RELEASE_STATE.md",
+    "verifiedSnapshot": "docs/LAST_VERIFIED_RELEASE_SNAPSHOT.json",
+    "deltaProtocol": "docs/GEOAI_SOURCE_AUDIT_AND_DELTA_PROTOCOL_V1.md",
+    "auditRunbook": "docs/GEOAI_AUTOMATED_QA_AND_AUDIT_RUNBOOK_V1.md"
+  },
   "repositoryCiCapabilities": {
-    "validatesPolicyAndSnapshotSchema": true,
+    "validatesPolicyRegistryAndSnapshotSchema": true,
     "validatesHistoricalCurrentDistinction": true,
+    "validatesCrossFileReleaseConsistency": true,
     "queriesLiveGithubState": false,
     "queriesLiveVercelState": false,
     "mayDeclareCurrentOperationalRuntime": false
@@ -22,7 +33,7 @@
     "verifiedAt",
     "mergedPullRequest",
     "mainSha",
-    "qualityGateRunId",
+    "qualityGateRunIdOrExplicitEvidenceGap",
     "productionDeploymentId",
     "productionUrl",
     "productionStatus",
@@ -33,10 +44,24 @@
   "snapshotRules": {
     "requiredAuthorityType": "historical_last_verified_snapshot",
     "supersededWhenNewerReleaseExists": true,
-    "mustNeverBeLabelledCurrent": true,
+    "mustNeverOverrideFresherPrimaryEvidence": true,
+    "currentOperationalAuthority": false,
     "externalReceiptMaySupersede": true
   },
-  "maturityClaimsForbidden": [
+  "environmentRules": {
+    "previewIsProduction": false,
+    "readyDeploymentProvesRouteAndVisualQa": false,
+    "mergedCodeProvesVerifiedDeployment": false,
+    "migrationFileProvesAppliedSchema": false
+  },
+  "protectedActions": [
+    "merge",
+    "production_deploy_or_promotion",
+    "supabase_migration_or_data_mutation",
+    "auth_hard_enforcement",
+    "secret_or_environment_variable_change"
+  ],
+  "maturityClaimsForbiddenWithoutEvidence": [
     "production-ready",
     "pilot-ready"
   ],
