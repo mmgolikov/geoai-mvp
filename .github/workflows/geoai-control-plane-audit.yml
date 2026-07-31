@@ -1,0 +1,36 @@
+name: GeoAI control-plane audit
+
+on:
+  pull_request:
+    paths:
+      - "docs/GEOAI_PROJECT_REGISTRY_V1.json"
+      - "docs/CURRENT_RELEASE_STATE.md"
+      - "docs/LAST_VERIFIED_RELEASE_SNAPSHOT.json"
+      - "docs/RELEASE_AUTHORITY_POLICY.json"
+      - "scripts/geoai-control-plane-check.mjs"
+      - ".github/workflows/geoai-control-plane-audit.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: geoai-control-plane-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-authority:
+    name: Validate release and source authority
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Run dependency-free control-plane check
+        run: node scripts/geoai-control-plane-check.mjs
