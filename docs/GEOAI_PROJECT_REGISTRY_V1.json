@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0.0",
   "registry_version": "2026-07-31",
-  "verified_at": "2026-07-31T20:22:00Z",
+  "verified_at": "2026-07-31T21:00:00Z",
   "purpose": "Compact derived authority index for GeoAI delivery agents. Primary sources always override this registry when fresher evidence exists.",
   "delivery_timezone": "Europe/Amsterdam",
   "evidence_timezone": "UTC",
@@ -45,7 +45,7 @@
         "project_name": "geoai-mvp",
         "project_id": "prj_LE41wkaiRUgZgOynkkeixGbesJvp",
         "alias": "geoai-mvp.vercel.app",
-        "deployment_id": "dpl_4yBH4WUUf6GYTemFdSdAxUJQYgsC",
+        "deployment_id": "dpl_4yBHCo1eZ7N6GYQWGAg1EdQGwFTE",
         "deployment_state": "READY",
         "runtime_errors_last_7d": 0
       }
