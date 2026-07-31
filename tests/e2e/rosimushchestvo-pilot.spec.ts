@@ -171,10 +171,13 @@ test("@p0 propagates the custom scenario into passport and preserves queued acti
 
 test("@p1 enforces 2–4 comparison contract and keeps selection order", async ({ page }) => {
   await page.goto(route);
+  await page.getByLabel("Минимальная площадь, м²").fill("2000");
+  await page.locator('[data-testid="role-select"]').selectOption({ label: "Аналитик данных" });
+  await page.locator('[data-testid="asset-list"] [data-asset-id="DEMO-RF-MSK-014"]').getByRole("button", { name: /Открыть паспорт/i }).click();
   const compareButton = page.locator('[data-testid="compare-button"]');
   await expect(compareButton).toBeDisabled();
   for (const id of ["DEMO-RF-MSK-001", "DEMO-RF-MSK-006"]) {
-    await page.getByRole("checkbox", { name: new RegExp(`сравн.*${id}`, "i") }).check();
+    await page.locator(`[data-testid="asset-list"] [data-asset-id="${id}"]`).getByRole("checkbox").check();
   }
   await expect(page.locator('[data-testid="compare-count"]')).toContainText("Выбрано 2 из 4");
   await expect(compareButton).toBeEnabled();
@@ -183,14 +186,62 @@ test("@p1 enforces 2–4 comparison contract and keeps selection order", async (
   await expect.poll(() => ids(page, '[data-testid="comparison-view"] [data-asset-id]', "data-asset-id"))
     .toEqual(["DEMO-RF-MSK-001", "DEMO-RF-MSK-006"]);
 
+  await page.locator('[data-testid="comparison-view"]').getByRole("button", { name: "Удалить DEMO-RF-MSK-001 из сравнения" }).click();
+  await expect(page.locator('[data-testid="comparison-view"]')).toHaveCount(0);
+  await expect(page.locator('[data-testid="compare-count"]')).toContainText("Выбрано 1 из 4");
+  await page.locator('[data-testid="asset-list"] [data-asset-id="DEMO-RF-MSK-001"]').getByRole("checkbox").check();
+  await compareButton.click();
+  await expect.poll(() => ids(page, '[data-testid="comparison-view"] [data-asset-id]', "data-asset-id"))
+    .toEqual(["DEMO-RF-MSK-006", "DEMO-RF-MSK-001"]);
+
   await page.getByRole("button", { name: /Вернуться в портфель/i }).click();
   for (const id of ["DEMO-RF-MSK-012", "DEMO-RF-MSK-021"]) {
-    await page.getByRole("checkbox", { name: new RegExp(`сравн.*${id}`, "i") }).check();
+    await page.locator(`[data-testid="asset-list"] [data-asset-id="${id}"]`).getByRole("checkbox").check();
   }
   await expect(page.locator('[data-testid="compare-count"]')).toContainText("Выбрано 4 из 4");
-  const fifth = page.getByRole("checkbox", { name: /сравн.*DEMO-RF-MSK-033/i });
+  const fifth = page.locator('[data-testid="asset-list"] [data-asset-id="DEMO-RF-MSK-033"]').getByRole("checkbox");
   await expect(fifth).toBeDisabled();
   await expect(page.getByText("Можно сравнить не более 4 объектов", { exact: true })).toBeVisible();
+  await expect(page.getByLabel("Минимальная площадь, м²")).toHaveValue("2000");
+  await expect(page.locator('[data-testid="role-select"]')).toHaveValue("Аналитик данных");
+  await expect(page.locator('[data-testid="asset-list"] [data-asset-id="DEMO-RF-MSK-014"]')).toHaveAttribute("data-selected", "true");
+});
+
+test("@p1 exposes eight role views without resetting query state or canonical order", async ({ page }) => {
+  await page.goto(route);
+  const roleSelect = page.locator('[data-testid="role-select"]');
+  await expect(roleSelect.locator("option")).toHaveCount(8);
+  await page.locator('[data-testid="main-query-button"]').click();
+  const canonicalOrder = await ids(page, "[data-main-result-id]", "data-main-result-id");
+  await page.getByLabel("Минимальная площадь, м²").fill("2000");
+
+  await roleSelect.selectOption({ label: "Территориальное управление" });
+  await expect(page.getByLabel("Минимальная площадь, м²")).toHaveValue("2000");
+  await expect(page.locator('[data-testid="block-map"]')).toHaveCSS("order", "1");
+  await expect.poll(() => ids(page, "[data-main-result-id]", "data-main-result-id")).toEqual(canonicalOrder);
+
+  await roleSelect.selectOption({ label: "Аналитик данных" });
+  await expect(page.locator('[data-testid="block-evidence"]')).toHaveCSS("order", "1");
+  await expect(page.getByLabel("Минимальная площадь, м²")).toHaveValue("2000");
+
+  await roleSelect.selectOption({ label: "Эксперт по реализации / оценке" });
+  await expect(page.locator('[data-testid="block-query"]')).toHaveCSS("order", "1");
+  await expect(page.getByLabel("Минимальная площадь, м²")).toHaveValue("2000");
+});
+
+test("@p1 distinguishes four modelled and five future capability scenarios", async ({ page }) => {
+  await page.goto(route);
+  await expect(page.locator('[data-testid="modelled-capabilities"] article')).toHaveCount(4);
+  await expect(page.locator('[data-testid="future-capabilities"] article')).toHaveCount(5);
+  await expect(page.locator('[data-testid="future-capabilities"] strong')).toHaveText([
+    "Не моделируется в prototype v1",
+    "Не моделируется в prototype v1",
+    "Не моделируется в prototype v1",
+    "Не моделируется в prototype v1",
+    "Не моделируется в prototype v1"
+  ]);
+  await page.locator('[data-testid="custom-query-submit"]').click();
+  await expect(page.locator('[data-testid="custom-matches"]')).toContainText("Следующий шаг");
 });
 
 test("@p1 exposes exactly ten honest source receipts", async ({ page }) => {

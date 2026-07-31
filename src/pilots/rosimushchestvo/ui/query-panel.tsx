@@ -1,6 +1,8 @@
 "use client";
 
 import type { CustomQuery, CustomQueryResult, MainQueryResult } from "../domain";
+import type { CapabilityScenarioId } from "../data";
+import { evaluateScenario } from "../engine";
 import { archetypeLabels, scenarioGroupLabels } from "./formatters";
 import styles from "./pilot.module.css";
 
@@ -15,6 +17,7 @@ interface QueryPanelProps {
   onSelectAsset: (assetId: MainQueryResult["selectedIds"][number]) => void;
   forceZeroResults?: boolean;
   activeScenarioLabel: string;
+  activeScenario: CapabilityScenarioId;
 }
 
 function optionalNumber(rawValue: string): number | null {
@@ -31,7 +34,8 @@ export function QueryPanel({
   onRunCustomQuery,
   onSelectAsset,
   forceZeroResults = false,
-  activeScenarioLabel
+  activeScenarioLabel,
+  activeScenario
 }: QueryPanelProps) {
   const updateQuery = <Key extends keyof CustomQuery>(key: Key, value: CustomQuery[Key]) => {
     onCustomQueryChange({ ...customQuery, [key]: value });
@@ -188,9 +192,9 @@ export function QueryPanel({
       {!forceZeroResults && customResult ? (
         <div className={styles.customResults} aria-live="polite">
           <p className={styles.customScenarioContext}>Активный сценарий результата: <strong>{activeScenarioLabel}</strong></p>
-          <ResultGroup title="Соответствуют" tone="positive" testId="custom-matches" rowAttribute="data-custom-match-id" items={customResult.groups.matches} onSelectAsset={onSelectAsset} />
-          <ResultGroup title="Требуют подтверждения" tone="warning" testId="custom-confirmation" rowAttribute="data-custom-confirmation-id" items={customResult.groups.requires_confirmation} onSelectAsset={onSelectAsset} />
-          <ResultGroup title="Не соответствуют" tone="neutral" items={customResult.groups.does_not_match} onSelectAsset={onSelectAsset} collapsed />
+          <ResultGroup title="Соответствуют" tone="positive" testId="custom-matches" rowAttribute="data-custom-match-id" items={customResult.groups.matches} onSelectAsset={onSelectAsset} activeScenario={activeScenario} />
+          <ResultGroup title="Требуют подтверждения" tone="warning" testId="custom-confirmation" rowAttribute="data-custom-confirmation-id" items={customResult.groups.requires_confirmation} onSelectAsset={onSelectAsset} activeScenario={activeScenario} />
+          <ResultGroup title="Не соответствуют" tone="neutral" items={customResult.groups.does_not_match} onSelectAsset={onSelectAsset} activeScenario={activeScenario} collapsed />
         </div>
       ) : null}
     </section>
@@ -205,17 +209,20 @@ interface ResultGroupProps {
   items: CustomQueryResult["groups"]["matches"];
   onSelectAsset: QueryPanelProps["onSelectAsset"];
   collapsed?: boolean;
+  activeScenario: CapabilityScenarioId;
 }
 
-function ResultGroup({ title, tone, testId, rowAttribute, items, onSelectAsset, collapsed = false }: ResultGroupProps) {
+function ResultGroup({ title, tone, testId, rowAttribute, items, onSelectAsset, activeScenario, collapsed = false }: ResultGroupProps) {
   const content = (
     <div className={styles.customResultRows} data-testid={testId}>
       {items.length === 0 ? <p>По заданным условиям объекты не найдены.</p> : items.map(({ asset, reasons }) => {
         const rowProps = rowAttribute ? { [rowAttribute]: asset.id } : {};
+        const assessment = evaluateScenario(asset, activeScenario);
         return (
           <button key={asset.id} type="button" {...rowProps} onClick={() => onSelectAsset(asset.id)}>
             <span><strong>{asset.title}</strong><small>{asset.id}</small></span>
-            <span>{reasons.join("; ")}</span>
+            <span><em>{scenarioGroupLabels[assessment.group]}</em>{reasons.join("; ")}</span>
+            <span className={styles.customNextAction}><small>Следующий шаг</small>{assessment.nextAction}</span>
             <span aria-hidden="true">→</span>
           </button>
         );

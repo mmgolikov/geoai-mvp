@@ -14,21 +14,31 @@ import {
   type ScenarioAssessment,
   type SourceCatalogueEntry
 } from "../domain";
-import { CAPABILITY_SCENARIOS, DEMO_ASSETS, ROLE_CONFIGURATIONS, SOURCE_CATALOGUE } from "../data";
+import { CAPABILITY_SCENARIOS, DEMO_ASSETS, FUTURE_CAPABILITY_SCENARIOS, ROLE_CONFIGURATIONS, SOURCE_CATALOGUE } from "../data";
 import type { CapabilityScenarioId } from "../data";
 import { evaluateCustomQuery, evaluateMainQuery, evaluateScenario, getAssetById, validateCustomQuery } from "../engine";
 import { AssetPassport } from "./asset-passport";
 import { AssetPortfolio } from "./asset-portfolio";
+import { ComparisonView } from "./comparison-view";
 import { accessStatusLabels, freshnessLabels } from "./formatters";
 import { PilotMap } from "./pilot-map";
 import { QueryPanel } from "./query-panel";
 import styles from "./pilot.module.css";
 
-const P0_ROLES: OwnerRole[] = [
-  "Руководитель / центральный аппарат",
-  "Куратор объекта / портфеля",
-  "Аналитик данных"
-];
+const ALL_ROLES: OwnerRole[] = ROLE_CONFIGURATIONS.map((configuration) => configuration.role);
+
+type PresentationBlock = "kpi" | "map" | "query" | "passport" | "evidence" | "queue";
+
+const ROLE_BLOCK_ORDER: Record<OwnerRole, PresentationBlock[]> = {
+  "Руководитель / центральный аппарат": ["kpi", "map", "query", "passport", "evidence", "queue"],
+  "Территориальное управление": ["map", "queue", "kpi", "passport", "query", "evidence"],
+  "Куратор объекта / портфеля": ["passport", "queue", "kpi", "map", "query", "evidence"],
+  "Реестровый / правовой эксперт": ["passport", "evidence", "queue", "kpi", "map", "query"],
+  "Эксперт по реализации / оценке": ["query", "passport", "kpi", "map", "evidence", "queue"],
+  "Инспектор / мониторинг": ["passport", "map", "queue", "evidence", "kpi", "query"],
+  "Аналитик данных": ["evidence", "query", "passport", "kpi", "map", "queue"],
+  "Аудитор / наблюдатель": ["evidence", "passport", "query", "kpi", "map", "queue"]
+};
 
 const ALLOWED_DEMO_STATES = new Set<DemoState>([
   "normal",
@@ -133,15 +143,8 @@ function safelyWriteStoredQueue(queue: StoredDemoAction[]): void {
   }
 }
 
-function pickP0Sources() {
-  const fixture = SOURCE_CATALOGUE.find((source) => source.integrationStatus === "fixture_only");
-  const permission = SOURCE_CATALOGUE.find((source) => source.sourceAccessStatus === "permission_required");
-  const unavailable = SOURCE_CATALOGUE.find((source) => source.sourceAccessStatus === "unavailable");
-  return [fixture, permission, unavailable].filter((source): source is NonNullable<typeof source> => Boolean(source));
-}
-
 export function RosimushchestvoPilotShell() {
-  const [role, setRole] = useState<OwnerRole>(P0_ROLES[0]);
+  const [role, setRole] = useState<OwnerRole>(ALL_ROLES[0]);
   const [activeScenario, setActiveScenario] = useState<CapabilityScenarioId>("engagement");
   const [selectedAssetId, setSelectedAssetId] = useState<DemoAsset["id"]>("DEMO-RF-MSK-001");
   const [unknownObject, setUnknownObject] = useState(false);
@@ -153,6 +156,8 @@ export function RosimushchestvoPilotShell() {
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [queue, setQueue] = useState<StoredDemoAction[]>([]);
   const [queueReady, setQueueReady] = useState(false);
+  const [comparisonIds, setComparisonIds] = useState<DemoAsset["id"][]>([]);
+  const [comparisonOpen, setComparisonOpen] = useState(false);
   const queueSectionRef = useRef<HTMLElement | null>(null);
 
   const assessmentByAsset = useMemo(() => {
@@ -164,8 +169,10 @@ export function RosimushchestvoPilotShell() {
   const selectedAsset = getAssetById(selectedAssetId) ?? DEMO_ASSETS[0];
   const selectedAssessment = assessmentByAsset.get(selectedAsset.id) ?? evaluateScenario(selectedAsset, activeScenario);
   const roleConfiguration = ROLE_CONFIGURATIONS.find((configuration) => configuration.role === role) ?? ROLE_CONFIGURATIONS[0];
-  const visibleSources = useMemo(pickP0Sources, []);
   const activeScenarioLabel = CAPABILITY_SCENARIOS.find((scenario) => scenario.id === activeScenario)?.label ?? "Предварительная проработка вовлечения";
+  const presentationOrder = ROLE_BLOCK_ORDER[role];
+  const blockOrder = (block: PresentationBlock) => presentationOrder.indexOf(block) + 1;
+  const comparisonAssets = comparisonIds.map((assetId) => getAssetById(assetId)).filter((asset): asset is DemoAsset => Boolean(asset));
 
   useEffect(() => {
     const parameters = new URLSearchParams(window.location.search);
@@ -258,9 +265,25 @@ export function RosimushchestvoPilotShell() {
     ]);
   };
 
+  const toggleComparison = useCallback((assetId: DemoAsset["id"]) => {
+    const next = comparisonIds.includes(assetId)
+      ? comparisonIds.filter((id) => id !== assetId)
+      : comparisonIds.length >= 4
+        ? comparisonIds
+        : [...comparisonIds, assetId];
+    setComparisonIds(next);
+    if (next.length < 2) setComparisonOpen(false);
+  }, [comparisonIds]);
+
+  const removeComparison = (assetId: DemoAsset["id"]) => {
+    const next = comparisonIds.filter((id) => id !== assetId);
+    setComparisonIds(next);
+    if (next.length < 2) setComparisonOpen(false);
+  };
+
   const resetDemo = () => {
     if (!window.confirm("Сбросить запросы, выбранный объект и демонстрационную очередь?")) return;
-    setRole(P0_ROLES[0]);
+    setRole(ALL_ROLES[0]);
     setActiveScenario("engagement");
     setSelectedAssetId("DEMO-RF-MSK-001");
     setUnknownObject(false);
@@ -269,6 +292,8 @@ export function RosimushchestvoPilotShell() {
     setCustomQuery(DEFAULT_CUSTOM_QUERY);
     setValidationErrors([]);
     setQueue([]);
+    setComparisonIds([]);
+    setComparisonOpen(false);
     safelyRemoveStoredQueue();
     window.history.replaceState(null, "", window.location.pathname);
     setDemoState("normal");
@@ -312,7 +337,7 @@ export function RosimushchestvoPilotShell() {
           <div className={styles.roleControl}>
             <label htmlFor="rosim-role">Режим представления</label>
             <select id="rosim-role" name="role" data-testid="role-select" value={role} onChange={(event) => setRole(event.target.value as OwnerRole)}>
-              {P0_ROLES.map((roleName) => <option key={roleName} value={roleName}>{roleName}</option>)}
+              {ALL_ROLES.map((roleName) => <option key={roleName} value={roleName}>{roleName}</option>)}
             </select>
             <small>Демонстрационный режим представления; не является механизмом разграничения доступа или RBAC.</small>
           </div>
@@ -324,7 +349,45 @@ export function RosimushchestvoPilotShell() {
           <div><span>Приоритет действия</span><strong>{roleConfiguration.actionPriority}</strong></div>
         </section>
 
-        <section className={styles.kpiSection} aria-labelledby="portfolio-kpi-title">
+        <section className={styles.compareToolbar} aria-label="Управление сравнением">
+          <div>
+            <span data-testid="compare-count">Выбрано {comparisonIds.length} из 4</span>
+            <div className={styles.compareSelectionOrder}>
+              {comparisonIds.length === 0 ? <small>Выберите объекты в списке или паспорте.</small> : comparisonIds.map((assetId, index) => (
+                <button key={assetId} type="button" onClick={() => toggleComparison(assetId)} aria-label={`Удалить ${assetId} из сравнения`}>
+                  <span>{index + 1}</span>{assetId}<b aria-hidden="true">×</b>
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            {comparisonIds.length >= 4 ? <p>Можно сравнить не более 4 объектов</p> : <p>Порядок выбора будет сохранён.</p>}
+            <button
+              type="button"
+              className={styles.primaryButton}
+              data-testid="compare-button"
+              disabled={comparisonIds.length < 2}
+              onClick={() => setComparisonOpen(true)}
+            >
+              Сравнить
+            </button>
+          </div>
+        </section>
+
+        <div className={styles.orderedContent} data-presentation-priority={roleConfiguration.firstBlock}>
+        {comparisonOpen ? (
+          <div className={styles.comparisonBlock} style={{ order: 0 }}>
+            <ComparisonView
+              assets={comparisonAssets}
+              assessments={assessmentByAsset}
+              activeScenarioLabel={activeScenarioLabel}
+              onRemove={removeComparison}
+              onBack={() => setComparisonOpen(false)}
+            />
+          </div>
+        ) : (
+          <>
+        <section className={styles.kpiSection} style={{ order: blockOrder("kpi") }} data-testid="block-kpi" aria-labelledby="portfolio-kpi-title">
           <div className={styles.sectionHeadingCompact}>
             <div><p className={styles.eyebrow}>Портфель</p><h2 id="portfolio-kpi-title">Контрольная панель</h2></div>
             <p className={styles.lineageNote}>Источник KPI: локальный синтетический набор rosim-moscow-demo-v1; расчёт — прямой подсчёт записей.</p>
@@ -337,11 +400,12 @@ export function RosimushchestvoPilotShell() {
           </div>
         </section>
 
-        <div className={styles.portfolioGrid}>
+        <div className={styles.portfolioGrid} style={{ order: blockOrder("map") }} data-testid="block-map">
           <PilotMap assets={DEMO_ASSETS} selectedAssetId={selectedAsset.id} onSelect={selectAsset} forceError={demoState === "map-error"} />
-          <AssetPortfolio assets={DEMO_ASSETS} selectedAssetId={selectedAsset.id} assessments={assessmentByAsset} onSelect={selectAsset} />
+          <AssetPortfolio assets={DEMO_ASSETS} selectedAssetId={selectedAsset.id} assessments={assessmentByAsset} onSelect={selectAsset} comparisonIds={comparisonIds} onToggleComparison={toggleComparison} />
         </div>
 
+        <div className={styles.queryBlock} style={{ order: blockOrder("query") }} data-testid="block-query">
         <QueryPanel
           customQuery={customQuery}
           customResult={customResult}
@@ -356,6 +420,7 @@ export function RosimushchestvoPilotShell() {
           onSelectAsset={selectAsset}
           forceZeroResults={demoState === "zero-results"}
           activeScenarioLabel={activeScenarioLabel}
+          activeScenario={activeScenario}
         />
 
         <section className={styles.capabilitiesSection} aria-labelledby="capabilities-title">
@@ -363,7 +428,7 @@ export function RosimushchestvoPilotShell() {
             <div><p className={styles.eyebrow}>Сценарии P0</p><h2 id="capabilities-title">Моделируемые возможности</h2></div>
             <span className={styles.neutralBadge}>4 детерминированных сценария</span>
           </div>
-          <div className={styles.capabilityGrid}>
+          <div className={styles.capabilityGrid} data-testid="modelled-capabilities">
             {CAPABILITY_SCENARIOS.map((scenario, index) => (
               <article key={scenario.id}>
                 <span>{String(index + 1).padStart(2, "0")}</span>
@@ -372,8 +437,18 @@ export function RosimushchestvoPilotShell() {
               </article>
             ))}
           </div>
+          <div className={styles.futureCapabilityGrid} data-testid="future-capabilities">
+            {FUTURE_CAPABILITY_SCENARIOS.map((scenario) => (
+              <article key={scenario.id} data-capability-id={scenario.id}>
+                <div><h3>{scenario.label}</h3><p>{scenario.purpose}</p></div>
+                <strong>{scenario.statusLabel}</strong>
+              </article>
+            ))}
+          </div>
         </section>
+        </div>
 
+        <div className={styles.passportBlock} style={{ order: blockOrder("passport") }} data-testid="block-passport">
         {unknownObject ? (
           <section className={styles.notFoundState} role="status">
             <span aria-hidden="true">?</span>
@@ -385,14 +460,24 @@ export function RosimushchestvoPilotShell() {
             asset={selectedAsset}
             assessment={selectedAssessment}
             activeScenarioLabel={activeScenarioLabel}
+            roleActionPriority={roleConfiguration.actionPriority}
             onAddAction={addSelectedAction}
             actionAlreadyQueued={queue.some((action) => action.objectId === selectedAsset.id && action.actionType === selectedAssessment.actionType)}
+            comparisonSelected={comparisonIds.includes(selectedAsset.id)}
+            comparisonDisabled={comparisonIds.length >= 4 && !comparisonIds.includes(selectedAsset.id)}
+            comparisonOrder={comparisonIds.includes(selectedAsset.id) ? comparisonIds.indexOf(selectedAsset.id) + 1 : null}
+            onToggleComparison={() => toggleComparison(selectedAsset.id)}
           />
         )}
+        </div>
+          </>
+        )}
 
-        <EvidenceCatalogue sources={visibleSources} demoState={demoState} />
+        <div className={styles.evidenceBlock} style={{ order: blockOrder("evidence") }} data-testid="block-evidence">
+          <EvidenceCatalogue sources={SOURCE_CATALOGUE} demoState={demoState} />
+        </div>
 
-        <section className={styles.queueSection} data-testid="action-queue" ref={queueSectionRef} aria-labelledby="queue-title">
+        <section className={styles.queueSection} style={{ order: blockOrder("queue") }} data-testid="action-queue" ref={queueSectionRef} aria-labelledby="queue-title">
           <div className={styles.sectionHeadingCompact}>
             <div>
               <p className={styles.eyebrow}>Следующие шаги</p>
@@ -425,6 +510,7 @@ export function RosimushchestvoPilotShell() {
             </div>
           )}
         </section>
+        </div>
       </div>
     </main>
   );

@@ -17,11 +17,27 @@ interface AssetPassportProps {
   asset: DemoAsset;
   assessment: ScenarioAssessment;
   activeScenarioLabel: string;
+  roleActionPriority: string;
   onAddAction: () => void;
   actionAlreadyQueued: boolean;
+  comparisonSelected: boolean;
+  comparisonDisabled: boolean;
+  comparisonOrder: number | null;
+  onToggleComparison: () => void;
 }
 
-export function AssetPassport({ asset, assessment, activeScenarioLabel, onAddAction, actionAlreadyQueued }: AssetPassportProps) {
+export function AssetPassport({
+  asset,
+  assessment,
+  activeScenarioLabel,
+  roleActionPriority,
+  onAddAction,
+  actionAlreadyQueued,
+  comparisonSelected,
+  comparisonDisabled,
+  comparisonOrder,
+  onToggleComparison
+}: AssetPassportProps) {
   const hasScenarioChangingConflict = asset.conflicts.some((conflict) => conflict.scenarioChanging);
 
   return (
@@ -40,6 +56,16 @@ export function AssetPassport({ asset, assessment, activeScenarioLabel, onAddAct
       <p className={styles.activeScenario} data-testid="active-scenario">
         <span aria-hidden="true">◎</span> Активный сценарий: <strong>{activeScenarioLabel}</strong>
       </p>
+      <label className={styles.passportCompareCheck}>
+        <input
+          type="checkbox"
+          checked={comparisonSelected}
+          disabled={comparisonDisabled}
+          onChange={onToggleComparison}
+          aria-label={`Добавить текущий объект ${asset.id} к сопоставлению`}
+        />
+        <span>{comparisonSelected ? `Объект выбран для сравнения №${comparisonOrder}` : "Добавить объект к сравнению"}</span>
+      </label>
 
       <p className={styles.syntheticCallout}>
         <span aria-hidden="true">◇</span> Синтетическая запись; не является сведением RFI или ЕГРН. Условная точка в пределах округа; не является адресом или границей объекта.
@@ -165,6 +191,7 @@ export function AssetPassport({ asset, assessment, activeScenarioLabel, onAddAct
           <p className={styles.cardKicker}>Следующий проверяемый шаг</p>
           <h3>{assessment.nextAction}</h3>
           <p>Ответственный режим: {assessment.ownerRole} · срок: {assessment.dueInBusinessDays} раб. дн. · достоверность интерпретации: {confidenceLabels[assessment.confidence]}.</p>
+          <p className={styles.roleActionEmphasis}>Акцент текущего режима: {roleActionPriority}.</p>
           <small>Метод: детерминированная сценарная группировка; версия правил: {assessment.ruleVersion}; входы: показанные оси, наблюдения, конфликты, блокирующие факторы и пропуски.</small>
         </div>
         <button type="button" className={styles.primaryButton} onClick={onAddAction}>

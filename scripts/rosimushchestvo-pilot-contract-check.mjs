@@ -380,6 +380,17 @@ try {
       8,
       "all role configurations must be unique"
     );
+    assert.deepEqual(
+      data.FUTURE_CAPABILITY_SCENARIOS.map((scenario) => scenario.id),
+      ["public_social_transfer", "redevelopment", "construction_obligations", "maintenance_capex", "property_lot"]
+    );
+    assert.ok(
+      data.FUTURE_CAPABILITY_SCENARIOS.every(
+        (scenario) =>
+          scenario.status === "not_modelled_in_prototype_v1" &&
+          scenario.statusLabel === "Не моделируется в prototype v1"
+      )
+    );
   }
 
   console.log(`rosimushchestvo pilot contract (${phase}): PASS`);

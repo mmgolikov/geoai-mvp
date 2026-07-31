@@ -9,9 +9,11 @@ interface AssetPortfolioProps {
   selectedAssetId: DemoAsset["id"];
   assessments: Map<DemoAsset["id"], ScenarioAssessment>;
   onSelect: (assetId: DemoAsset["id"]) => void;
+  comparisonIds: DemoAsset["id"][];
+  onToggleComparison: (assetId: DemoAsset["id"]) => void;
 }
 
-export function AssetPortfolio({ assets, selectedAssetId, assessments, onSelect }: AssetPortfolioProps) {
+export function AssetPortfolio({ assets, selectedAssetId, assessments, onSelect, comparisonIds, onToggleComparison }: AssetPortfolioProps) {
   return (
     <section className={styles.listPanel} aria-labelledby="asset-list-title">
       <div className={styles.sectionHeadingCompact}>
@@ -68,6 +70,16 @@ export function AssetPortfolio({ assets, selectedAssetId, assessments, onSelect 
                     <span aria-hidden="true">→</span> {scenarioGroupLabels[assessment.group]}
                   </p>
                 ) : null}
+                <label className={styles.compareCheck}>
+                  <input
+                    type="checkbox"
+                    checked={comparisonIds.includes(asset.id)}
+                    disabled={comparisonIds.length >= 4 && !comparisonIds.includes(asset.id)}
+                    onChange={() => onToggleComparison(asset.id)}
+                    aria-label={`Сравнить ${asset.id}`}
+                  />
+                  <span>{comparisonIds.includes(asset.id) ? `Выбран №${comparisonIds.indexOf(asset.id) + 1}` : "Добавить к сравнению"}</span>
+                </label>
                 <p className={styles.syntheticLabel}>Синтетическая запись; не является сведением RFI или ЕГРН.</p>
               </article>
             );
