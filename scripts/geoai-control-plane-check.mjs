@@ -91,10 +91,12 @@ if (registry && snapshot) {
   requireString(github?.commit_sha, "registry production commit SHA");
   requireString(vercel?.deployment_id, "registry production deployment ID");
 
-  requireEqual(snapshot.release?.commit_sha, github?.commit_sha, "production commit SHA");
-  requireEqual(snapshot.release?.pull_request, github?.merged_pull_request, "production pull request");
-  requireEqual(snapshot.release?.deployment_id, vercel?.deployment_id, "production deployment ID");
-  requireEqual(snapshot.release?.deployment_state, vercel?.deployment_state, "production deployment state");
+  requireEqual(snapshot.mainSha, github?.commit_sha, "production commit SHA");
+  requireEqual(snapshot.mergedPullRequest, github?.merged_pull_request, "production pull request");
+  requireEqual(snapshot.productionDeploymentId, vercel?.deployment_id, "production deployment ID");
+  requireEqual(snapshot.productionStatus, vercel?.deployment_state, "production deployment state");
+  requireEqual(snapshot.currentOperationalAuthority, false, "historical snapshot current-authority boundary");
+  requireEqual(snapshot.realSourcesActive, false, "historical snapshot real-source boundary");
 
   requireMarkdownValue(current, "production commit SHA", github?.commit_sha);
   requireMarkdownValue(current, "production pull request", `#${github?.merged_pull_request}`);
@@ -185,6 +187,9 @@ if (registry && snapshot) {
 }
 
 if (policy) {
+  requireEqual(policy.schemaVersion, "1.0", "release policy schema version");
+  requireEqual(policy.repositoryRole, "policy_schema_and_historical_evidence", "release policy repository role");
+  requireEqual(policy.currentOperationalAuthority, "external_post_release_evidence", "release policy current authority boundary");
   if (policy.productionActionRequiresExplicitApproval !== true) {
     fail("Release policy must require explicit Production action approval");
   } else {
