@@ -86,7 +86,7 @@ The validator performs no network writes and requires no secrets. Daily and week
 | Source | Verified state | Authority use | Finding |
 |---|---|---|---|
 | GitHub | `main` at `7f323c…`; PR #113 merged; PR #118 Draft/open at `3c27d97a…`; Moscow pilot branch separate; PR #120 Draft/open | code, PR and branch truth | repository release snapshot was stale |
-| Vercel | Production deployment `dpl_4yBH4WUUf6GYTemFdSdAxUJQYgsC`; SHA `7f323c…`; zero runtime errors returned for the previous seven days | runtime/deployment truth | Production matches `main`; Previews remain non-production |
+| Vercel | Production alias `geoai-mvp.vercel.app` resolves to deployment `dpl_4yBHCo1eZ7N6GYQWGAg1EdQGwFTE`; SHA `7f323c…`; state READY; zero runtime errors returned for the previous seven days | runtime/deployment truth | Production matches `main`; Previews remain non-production |
 | Supabase | `geoai-dev` healthy; 12 migrations; 20 public base tables; 8 source-registry rows; 8 external-snapshot rows; seven zero-row DLD tables in isolated schemas; one RLS policy per DLD table | schema/data truth | `public.spatial_ref_sys` security advisory requires an owner decision, not automatic remediation |
 | Figma | file and authority nodes accessible | design intent and approval truth | node-level registry can replace repeated full-file discovery |
 | Confluence | Project Home, Current Delivery and Governance are the decision/operating narrative authorities | operational narrative and decision truth | stale deployment/policy statements required controlled correction |
@@ -121,7 +121,7 @@ When sources disagree, the primary source wins and the derived document is marke
 
 ## 11. Acceptance criteria
 
-- [x] Current Production SHA, PR and Vercel deployment are consistent across registry, release state and snapshot.
+- [x] Current Production SHA, PR and Vercel alias-resolved deployment are consistent across registry, release state and snapshot.
 - [x] Active DLD, Moscow pilot and control-plane branches are classified as candidates, not Production.
 - [x] Supabase physical schemas, migration count, source-state counts, policy counts and zero-row DLD foundation are represented accurately.
 - [x] Figma and Confluence canonical IDs are recorded.
