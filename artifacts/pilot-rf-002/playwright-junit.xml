@@ -1,0 +1,18 @@
+<testsuites id="" name="" tests="7" failures="0" skipped="0" errors="0" time="18.077985">
+<testsuite name="rosimushchestvo-pilot.spec.ts" timestamp="2026-08-01T16:35:45.460Z" hostname="" tests="7" failures="0" skipped="0" time="16.429" errors="0">
+<testcase name="@p0 exact taxonomy, defaults, Escape, focus and behavior" classname="rosimushchestvo-pilot.spec.ts" time="0.894">
+</testcase>
+<testcase name="@p0 golden path, comparison, evidence, saved state, report Back and Print" classname="rosimushchestvo-pilot.spec.ts" time="1.786">
+</testcase>
+<testcase name="@p0 approved runtime states and map fallback" classname="rosimushchestvo-pilot.spec.ts" time="0.869">
+</testcase>
+<testcase name="@p0 all roles and scenarios alter visible manifest" classname="rosimushchestvo-pilot.spec.ts" time="1.975">
+</testcase>
+<testcase name="@p0 runtime data-honesty gate" classname="rosimushchestvo-pilot.spec.ts" time="0.795">
+</testcase>
+<testcase name="@p0 six viewport Playwright/Axe/screenshot matrix" classname="rosimushchestvo-pilot.spec.ts" time="4.897">
+</testcase>
+<testcase name="@p0 decision screen Playwright/Axe/screenshot matrix" classname="rosimushchestvo-pilot.spec.ts" time="5.213">
+</testcase>
+</testsuite>
+</testsuites>

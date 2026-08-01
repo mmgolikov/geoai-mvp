@@ -1,0 +1,54 @@
+{
+  "schema_version": "1.0",
+  "pilot": "PILOT-RF-002",
+  "issue": "DEV-002 #138",
+  "date_utc": "2026-08-01",
+  "branch": "pilot/rosimushchestvo-federal-v2-dev",
+  "rollback_commit": "722e5166f37168ddaa8ccb7bf83bfcb6c9681b4e",
+  "verified_implementation_commit": "bded140e89487f508e0c0ae6b03fdec31c2b6816",
+  "authority": {
+    "name": "Implementation Baseline v1.0",
+    "figma_section": "11",
+    "root_node": "1849:23"
+  },
+  "gates": {
+    "dependency_integrity": { "status": "pass", "command": "npm ci", "packages": 283 },
+    "typecheck_lint": { "status": "pass", "command": "npm run lint" },
+    "production_build": { "status": "pass", "command": "npm run build", "static_pages": 67 },
+    "pilot_contract": { "status": "pass", "records": 2400, "moscow": 320, "federal_districts": 8, "subjects": 41, "roles": 11, "scenarios": 8, "sources": 4 },
+    "data_honesty": { "status": "pass", "scanned_files": 356, "findings": 0 },
+    "playwright": { "status": "pass", "tests": 7, "failures": 0, "junit": "artifacts/pilot-rf-002/playwright-junit.xml" },
+    "axe": { "status": "pass", "serious": 0, "critical": 0 },
+    "runtime_overflow": { "status": "pass", "horizontal_document": 0, "clipped_non_map_nodes": 0 },
+    "console": { "status": "pass", "errors": 0 },
+    "visual_review": { "status": "pass", "unresolved_deviations": 0 },
+    "secret_hygiene": { "status": "pass", "tracked_paths": 832 }
+  },
+  "screenshots": [
+    { "name": "Workspace 1440x900", "path": "artifacts/pilot-rf-002/screenshots/workspace-1440x900.png", "width": 1440, "height": 900 },
+    { "name": "Results 1280x800", "path": "artifacts/pilot-rf-002/screenshots/results-1280x800.png", "width": 1280, "height": 800 },
+    { "name": "Workspace 1024x768", "path": "artifacts/pilot-rf-002/screenshots/workspace-1024x768.png", "width": 1024, "height": 768 },
+    { "name": "Results 768x1024", "path": "artifacts/pilot-rf-002/screenshots/results-768x1024.png", "width": 768, "height": 1024 },
+    { "name": "Workspace 393x852", "path": "artifacts/pilot-rf-002/screenshots/workspace-393x852.png", "width": 393, "height": 852 },
+    { "name": "Results 430x932", "path": "artifacts/pilot-rf-002/screenshots/results-430x932.png", "width": 430, "height": 932 },
+    { "name": "Comparison desktop", "path": "artifacts/pilot-rf-002/screenshots/comparison-desktop-1440x900.png", "width": 1440, "height": 900 },
+    { "name": "Comparison mobile", "path": "artifacts/pilot-rf-002/screenshots/comparison-mobile-393x852.png", "width": 393, "height": 852 },
+    { "name": "Object desktop", "path": "artifacts/pilot-rf-002/screenshots/object-dashboard-desktop-1440x900.png", "width": 1440, "height": 900 },
+    { "name": "Object mobile", "path": "artifacts/pilot-rf-002/screenshots/object-dashboard-mobile-430x932.png", "width": 430, "height": 932 },
+    { "name": "Evidence", "path": "artifacts/pilot-rf-002/screenshots/evidence-768x1024.png", "width": 768, "height": 1024 },
+    { "name": "Projects", "path": "artifacts/pilot-rf-002/screenshots/projects-1280x800.png", "width": 1280, "height": 800 },
+    { "name": "Printable report", "path": "artifacts/pilot-rf-002/screenshots/printable-report.png", "width": 794, "height": 1223 },
+    { "name": "Contact sheet", "path": "artifacts/pilot-rf-002/screenshots/contact-sheet.png", "width": 1115, "height": 1480 }
+  ],
+  "safety": {
+    "pr": false,
+    "merge": false,
+    "main_changed": false,
+    "preview_deployment": false,
+    "production_deployment": false,
+    "supabase_operation": false,
+    "env_or_secret_change": false
+  },
+  "release_claim": "none",
+  "next_gate": "Founder review of branch-level implementation evidence; Preview requires separate approval"
+}

@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
-import { RosimushchestvoPilotShell } from "@/src/pilots/rosimushchestvo/ui/pilot-shell";
+import { ImplementationBaselineShell } from "@/src/pilots/rosimushchestvo/ui/implementation-baseline-shell";
 
 export const metadata: Metadata = {
-  title: "GeoAI · Росимущество: Москва · Prototype v1",
-  description: "Изолированный демонстрационный контур предварительного анализа синтетического портфеля объектов Москвы.",
+  title: "GeoAI — Федеральное имущество",
+  description: "Демонстрационный контур предварительного анализа федерального имущества.",
   robots: {
     index: false,
     follow: false,
@@ -15,5 +15,5 @@ export const metadata: Metadata = {
 };
 
 export default function RosimushchestvoPilotPage() {
-  return <RosimushchestvoPilotShell />;
+  return <ImplementationBaselineShell />;
 }

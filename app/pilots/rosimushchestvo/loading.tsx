@@ -1,4 +1,4 @@
-import styles from "@/src/pilots/rosimushchestvo/ui/pilot.module.css";
+import styles from "@/src/pilots/rosimushchestvo/ui/implementation-baseline.module.css";
 
 export default function RosimushchestvoPilotLoading() {
   return (
