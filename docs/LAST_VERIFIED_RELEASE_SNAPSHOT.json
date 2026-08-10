@@ -1,8 +1,8 @@
 {
   "schemaVersion": "1.0",
   "authorityType": "historical_last_verified_snapshot",
-  "snapshotLabel": "historical_last_verified_snapshot",
-  "verifiedAt": "2026-08-10T04:26:10Z",
+  "snapshotLabel": "weekly_verified_pre_refresh_snapshot",
+  "verifiedAt": "2026-08-10T05:30:00Z",
   "supersededWhenNewerReleaseExists": true,
   "currentOperationalAuthority": false,
   "repositoryCiQueriedLiveGithub": false,
@@ -28,7 +28,7 @@
     "maturityBoundary": "Public-demo runtime reachability only; not protected-pilot acceptance."
   },
   "runtimeLogInspection": {
-    "inspectedAt": "2026-08-10T04:26:10Z",
+    "inspectedAt": "2026-08-10T05:30:00Z",
     "runtimeErrorsLast7d": 0
   },
   "githubEvidence": {
@@ -36,12 +36,13 @@
     "mergeStateVerifiedExternally": true,
     "defaultBranchShaVerifiedExternally": true,
     "mainBranchProtected": false,
-    "controlPlanePrePatchHeadSha": "a95b9d14dfce8b1d524ee4608ea552411a3966df",
-    "controlPlanePrePatchQualityGateRunId": 31354904093,
-    "controlPlanePrePatchQualityGateConclusion": "failure_production_dependency_audit",
-    "controlPlanePrePatchDatabaseReplayConclusion": "success",
-    "controlPlanePrePatchRunId": 31354904116,
-    "controlPlanePrePatchConclusion": "failure_internal_consistency",
+    "controlPlaneVerifiedPreRefreshHeadSha": "66c9349b5ad11023a991933293846d84444774bd",
+    "controlPlanePreRefreshQualityGateRunId": 31356383237,
+    "controlPlanePreRefreshQualityGateConclusion": "failure_production_dependency_audit",
+    "controlPlanePreRefreshDatabaseReplayJobId": 93356795693,
+    "controlPlanePreRefreshDatabaseReplayConclusion": "success",
+    "controlPlanePreRefreshRunId": 31356383236,
+    "controlPlanePreRefreshConclusion": "success",
     "newExactHeadChecksRequiredAfterDocumentationPatch": true
   },
   "vercelEvidence": {
@@ -50,13 +51,15 @@
     "target": "production",
     "status": "READY",
     "sourceShaMatchesMain": true,
-    "controlPlanePreviewDeploymentId": "dpl_8E5gcHmcXaaBAg5mtsLSQZRKWBTm",
-    "controlPlanePreviewSourceSha": "a95b9d14dfce8b1d524ee4608ea552411a3966df",
+    "controlPlanePreviewDeploymentId": "dpl_EcA6EFpDenQp9TxycJPXWeL4dkZ5",
+    "controlPlanePreviewSourceSha": "66c9349b5ad11023a991933293846d84444774bd",
+    "controlPlanePreviewState": "READY",
     "moscowPreviewDeploymentId": "dpl_DNqStSdLGqt5FiK6ZJXAGY4t19Gm",
     "moscowPreviewSourceSha": "722e5166f37168ddaa8ccb7bf83bfcb6c9681b4e",
     "federalV2PreviewDeploymentId": "dpl_9YtXAAQGQGr1WVWw1nT8fH5QPt7k",
     "federalV2PreviewSourceSha": "a9ac367b556a6127a138c02793b33e2b97972ff9",
-    "freshVisualQaExecuted": false
+    "freshVisualQaExecuted": false,
+    "postRefreshPreviewReceiptRequired": true
   },
   "publicDemoActive": true,
   "confidentialPilotReady": false,
@@ -70,7 +73,7 @@
       "status": "INACTIVE",
       "postgresVersion": "17.6.1.141",
       "freshPhysicalReadbackSucceeded": false,
-      "freshPhysicalReadbackFailure": "read-only SQL connection timeout",
+      "freshPhysicalReadbackFailure": "physical/migration read-back unavailable",
       "physicalCountsAuthority": "last_successful_physical_audit_only_not_current",
       "migrationLedgerEntries": 12,
       "latestMigration": "20260726152858",
@@ -91,7 +94,7 @@
       "region": "eu-west-1",
       "status": "ACTIVE_HEALTHY",
       "freshPhysicalReadbackSucceeded": false,
-      "freshPhysicalReadbackFailure": "read-only SQL connection timeout; advisor endpoint reported hibernation",
+      "freshPhysicalReadbackFailure": "physical read-back unavailable; advisor endpoint reported hibernation",
       "managementDatabasePlaneConsistency": "unresolved",
       "authority": "current_management_metadata_only"
     }
@@ -140,10 +143,13 @@
       "name": "GeoAI Control Plane and Audit Acceleration v1",
       "pullRequest": 120,
       "branch": "ops/geoai-control-plane-v1",
-      "prePatchHeadSha": "a95b9d14dfce8b1d524ee4608ea552411a3966df",
-      "prePatchQualityGateRunId": 31354904093,
-      "prePatchControlPlaneRunId": 31354904116,
-      "classification": "documentation_candidate_not_production"
+      "verifiedPreRefreshHeadSha": "66c9349b5ad11023a991933293846d84444774bd",
+      "preRefreshQualityGateRunId": 31356383237,
+      "preRefreshQualityGateConclusion": "failure_production_dependency_audit",
+      "preRefreshControlPlaneRunId": 31356383236,
+      "preRefreshControlPlaneConclusion": "success",
+      "preRefreshPreviewDeploymentId": "dpl_EcA6EFpDenQp9TxycJPXWeL4dkZ5",
+      "classification": "documentation_candidate_hold_post_refresh_exact_head_receipt_required"
     }
   ],
   "driveAuthority": {
@@ -157,7 +163,7 @@
     "artifactsFolderDirectFiles": 0
   },
   "dependencySecurity": {
-    "qualityGateRunId": 31354904093,
+    "qualityGateRunId": 31356383237,
     "auditConclusion": "failure",
     "severity": "moderate",
     "package": "next",
@@ -169,8 +175,9 @@
     "queriesLiveExternalSystems": false,
     "provesExternalTruth": false,
     "automaticMergeRecommendation": false,
-    "prePatchExactHeadRunId": 31354904116,
-    "prePatchExactHeadConclusion": "failure"
+    "verifiedPreRefreshExactHeadRunId": 31356383236,
+    "verifiedPreRefreshExactHeadConclusion": "success",
+    "postRefreshExactHeadReceiptRequired": true
   },
   "externalTruthGate": {
     "status": "partial_supabase_physical_readback_unavailable",
@@ -179,7 +186,7 @@
     "satisfiedByGreenInternalCheck": false
   },
   "openDecisions": [
-    "New exact-head Quality Gate and Control Plane Audit are required after this documentation patch.",
+    "New exact-head Quality Gate, Control Plane Audit and Preview receipt are required after this documentation refresh.",
     "Production dependency audit reports one moderate Next.js advisory; dependency remediation requires a separate owner decision.",
     "Fresh Supabase physical database read-back is required before the six-system Truth Gate can be treated as complete.",
     "Development project management status is INACTIVE; no wake or mutation is authorised by this audit.",
