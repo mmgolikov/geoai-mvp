@@ -1,8 +1,8 @@
 {
   "schemaVersion": "1.0",
   "authorityType": "historical_last_verified_snapshot",
-  "snapshotLabel": "goal0_pre_correction_external_readback",
-  "verifiedAt": "2026-07-31T23:00:00Z",
+  "snapshotLabel": "historical_last_verified_snapshot",
+  "verifiedAt": "2026-08-10T04:00:00Z",
   "supersededWhenNewerReleaseExists": true,
   "currentOperationalAuthority": false,
   "repositoryCiQueriedLiveGithub": false,
@@ -12,7 +12,7 @@
   "repositoryCiQueriedLiveConfluence": false,
   "repositoryCiQueriedLiveGoogleDrive": false,
   "verificationPerformedExternally": true,
-  "verificationPhase": "pre_correction_source_audit",
+  "verificationPhase": "weekly_cross_system_primary_source_audit",
   "releaseType": "production_public_demo",
   "productStage": "public_demo_prototype",
   "mergedPullRequest": 113,
@@ -23,21 +23,24 @@
   "productionStatus": "READY",
   "rollbackDeploymentId": "dpl_5JeKmSRVNTuHsLTRjfVdwTvH9Jbi",
   "routeSmoke": {
-    "historicalReleaseEvidence": "Quality Gate 30157607614 completed successfully, including built-app API/route smoke.",
-    "freshControlPlaneAuditExecuted": false
+    "historicalReleaseEvidence": "Quality Gate 30157607614 completed successfully for the released baseline.",
+    "freshWeeklyEndpointReadback": true,
+    "maturityBoundary": "Public-demo runtime reachability only; not protected-pilot acceptance."
   },
   "runtimeLogInspection": {
-    "inspectedAt": "2026-07-31T19:59:00Z",
+    "inspectedAt": "2026-08-10T04:00:00Z",
     "runtimeErrorsLast7d": 0
   },
   "githubEvidence": {
     "postMergeQualityGateRunId": 30157607614,
     "mergeStateVerifiedExternally": true,
     "defaultBranchShaVerifiedExternally": true,
-    "controlPlaneParentSha": "e255a94450e3fe359a3cd0ad2050107f6d851bb5",
-    "controlPlaneParentQualityGateRunId": 30665626588,
-    "controlPlaneParentAuditRunId": 30665626676,
-    "parentRunsAreNotPostCorrectionEvidence": true
+    "controlPlanePreAuditHeadSha": "34b818ad0a6cd867c3b3f4627c17ee1f03f82e31",
+    "controlPlanePreAuditQualityGateRunId": 30673892071,
+    "controlPlanePreAuditQualityGateConclusion": "failure_documentation_current_truth",
+    "controlPlanePreAuditRunId": 30673892088,
+    "controlPlanePreAuditConclusion": "success",
+    "newExactHeadChecksRequiredAfterDocumentationPatch": true
   },
   "vercelEvidence": {
     "productionAlias": "https://geoai-mvp.vercel.app",
@@ -45,10 +48,12 @@
     "target": "production",
     "status": "READY",
     "sourceShaMatchesMain": true,
-    "controlPlanePreviewDeploymentId": "dpl_2zJYuUiMLf6Dn264stqysiikDxKA",
-    "controlPlanePreviewSourceSha": "e255a94450e3fe359a3cd0ad2050107f6d851bb5",
+    "controlPlanePreviewDeploymentId": "dpl_3Q3pUZuNs4Ky2m2t42JJqAoPfuHG",
+    "controlPlanePreviewSourceSha": "34b818ad0a6cd867c3b3f4627c17ee1f03f82e31",
     "moscowPreviewDeploymentId": "dpl_DNqStSdLGqt5FiK6ZJXAGY4t19Gm",
     "moscowPreviewSourceSha": "722e5166f37168ddaa8ccb7bf83bfcb6c9681b4e",
+    "federalV2PreviewDeploymentId": "dpl_9YtXAAQGQGr1WVWw1nT8fH5QPt7k",
+    "federalV2PreviewSourceSha": "a9ac367b556a6127a138c02793b33e2b97972ff9",
     "freshVisualQaExecuted": false
   },
   "publicDemoActive": true,
@@ -60,8 +65,11 @@
     "development": {
       "projectRef": "pphdqkurxneyagvnnjdt",
       "region": "eu-west-1",
-      "status": "ACTIVE_HEALTHY",
+      "status": "INACTIVE",
       "postgresVersion": "17.6.1.141",
+      "freshPhysicalReadbackSucceeded": false,
+      "freshPhysicalReadbackFailure": "read-only SQL connection timeout",
+      "physicalCountsAuthority": "last_successful_physical_audit_only_not_current",
       "migrationLedgerEntries": 12,
       "latestMigration": "20260726152858",
       "latestMigrationName": "dld_demo_http_client_v1a",
@@ -74,72 +82,74 @@
       "dldRlsEnabledOnAllTables": true,
       "dldPolicyCountPerTable": 0,
       "dldOfficialOrLiveIntegration": false,
-      "authority": "read_only_hosted_ledger_catalog_and_count_audit"
+      "authority": "management_plane_current_plus_last_successful_physical_audit"
     },
     "authRehearsal": {
       "projectRef": "bkmfcjzalcvdsdvyxpgi",
       "region": "eu-west-1",
       "status": "ACTIVE_HEALTHY",
-      "authority": "current_project_status_only"
+      "freshPhysicalReadbackSucceeded": false,
+      "freshPhysicalReadbackFailure": "read-only SQL connection timeout; advisor endpoint reported hibernation",
+      "managementDatabasePlaneConsistency": "unresolved",
+      "authority": "current_management_metadata_only"
     }
   },
   "designAuthority": {
     "fileKey": "TAzDqOvRCw1mQGMU3Y4S9H",
-    "verifiedNodes": [
-      "1797:2",
-      "1482:2",
-      "1749:21157",
-      "1819:11",
-      "1825:11"
-    ],
-    "absentNodes": [
-      "1670:2",
-      "1673:2"
-    ],
-    "metrics": {
-      "prototypeScreens": 68,
-      "prototypeScreenDefinition": "Direct child FRAME names beginning 'Prototype /' under 1482:2; two non-screen frames excluded.",
-      "componentSets": 35,
-      "componentVariants": 368,
-      "componentMetricAuthorityPage": "68:3",
-      "authoredReactions": 114,
-      "reactionDefinition": "Authored descendants of 1482:2 only; instance-expanded node IDs beginning with 'I' excluded."
-    }
+    "freshDirectVerifiedNodes": ["1797:2", "1495:53"],
+    "historicalAuthorityAllowList": ["1797:2", "1482:2", "1749:21157", "1819:11", "1825:11"],
+    "independentFullAllowListReadbackCompleted": false,
+    "runtimeImplementationProvenByFigma": false
   },
   "activeCandidatesNotProduction": [
     {
       "name": "DLD controlled ingestion foundation v1",
       "pullRequest": 118,
       "branch": "agent/dld-controlled-ingestion-foundation-v1",
-      "headSha": "3c27d97a87b1d8fda7c1aeee543ea594dbfcd00d"
+      "headSha": "3c27d97a87b1d8fda7c1aeee543ea594dbfcd00d",
+      "prNarrativeDrift": true
     },
     {
       "name": "Rosimushchestvo Moscow prototype v1",
-      "m0Branch": "pilot/rosimushchestvo-moscow-v1",
-      "m0HeadSha": "bd90887c8de10b5ffa85ed6b8adfa1d93f70d316",
       "implementationBranch": "pilot/rosimushchestvo-moscow-v1-dev",
       "implementationHeadSha": "722e5166f37168ddaa8ccb7bf83bfcb6c9681b4e",
-      "aheadBy": 2,
-      "behindBy": 0,
+      "previewDeploymentId": "dpl_DNqStSdLGqt5FiK6ZJXAGY4t19Gm",
       "previewOnly": true,
       "merged": false,
       "production": false
     },
     {
+      "name": "Rosimushchestvo Federal v2 prototype",
+      "implementationBranch": "pilot/rosimushchestvo-federal-v2-dev",
+      "implementationHeadSha": "a9ac367b556a6127a138c02793b33e2b97972ff9",
+      "previewDeploymentId": "dpl_9YtXAAQGQGr1WVWw1nT8fH5QPt7k",
+      "previewOnly": true,
+      "merged": false,
+      "production": false
+    },
+    {
+      "name": "Architecture rendering package",
+      "pullRequest": 84,
+      "branch": "dev7-architecture-rendering-exact-mapping-v1",
+      "headSha": "ace74cd1e0ab4736e8560c730267a43d43134aa7",
+      "classification": "draft_render_package_hold"
+    },
+    {
       "name": "GeoAI Control Plane and Audit Acceleration v1",
       "pullRequest": 120,
       "branch": "ops/geoai-control-plane-v1",
-      "sourceParentSha": "e255a94450e3fe359a3cd0ad2050107f6d851bb5",
+      "preAuditHeadSha": "34b818ad0a6cd867c3b3f4627c17ee1f03f82e31",
       "classification": "documentation_candidate_not_production"
     }
   ],
   "driveAuthority": {
     "folderId": "1WarJNNQN7kRS3m73bpsHHXOx2pE-9_hO",
-    "classification": "supporting_uncontrolled_artifact_storage",
+    "classification": "supporting_noncanonical_storage",
     "duplicateAuthorityDetected": false,
-    "directFiles": 2,
-    "archiveCategoryFolders": 7,
-    "archiveCategoryFoldersVerifiedEmpty": true
+    "directFiles": 3,
+    "directChildFolders": 8,
+    "artifactsFolderId": "1Gfglggg6NgJyGEdo7hFZsSDuT-a2OJ3Z",
+    "artifactsFolderDirectFiles": 0
   },
   "internalControlPlaneValidation": {
     "scope": "repository schema, boundary and cross-file consistency only",
@@ -148,24 +158,18 @@
     "automaticMergeRecommendation": false
   },
   "externalTruthGate": {
-    "status": "pending_post_correction_exact_head_readback",
-    "requiredSystems": [
-      "github",
-      "vercel",
-      "supabase",
-      "figma",
-      "confluence",
-      "google_drive"
-    ],
+    "status": "partial_supabase_physical_readback_unavailable",
+    "requiredSystems": ["github", "vercel", "supabase", "figma", "confluence", "google_drive"],
     "requiredBeforeFounderMergeReview": true,
     "satisfiedByGreenInternalCheck": false
   },
   "openDecisions": [
-    "A new exact-head Quality Gate and control-plane audit are required after the single correction commit.",
-    "A fresh six-system external Truth Gate is required after those checks; this snapshot cannot satisfy that future gate.",
-    "Supabase advisor finding for public.spatial_ref_sys requires explicit owner/security review; no automatic remediation is authorised.",
-    "Seven DLD tables are RLS-enabled with zero policies; persona, grant and policy design require explicit security review.",
-    "DLD access, licensing, lineage and payload ingestion remain unconfirmed."
+    "New exact-head Quality Gate and Control Plane Audit are required after this documentation patch.",
+    "Fresh Supabase physical database read-back is required before the six-system Truth Gate can be treated as complete.",
+    "Development project management status is INACTIVE; no wake or mutation is authorised by this audit.",
+    "Rehearsal management metadata and advisor/database-plane status are inconsistent and require later read-only reconciliation.",
+    "PR #84 render package requires current-main mapping, named review and controlled publication before promotion.",
+    "PR #118 body/head drift must be reconciled without source activation."
   ],
   "caveats": [
     "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.",
