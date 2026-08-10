@@ -2,7 +2,7 @@
   "schemaVersion": "1.0",
   "authorityType": "historical_last_verified_snapshot",
   "snapshotLabel": "historical_last_verified_snapshot",
-  "verifiedAt": "2026-08-10T04:00:00Z",
+  "verifiedAt": "2026-08-10T04:26:10Z",
   "supersededWhenNewerReleaseExists": true,
   "currentOperationalAuthority": false,
   "repositoryCiQueriedLiveGithub": false,
@@ -28,18 +28,20 @@
     "maturityBoundary": "Public-demo runtime reachability only; not protected-pilot acceptance."
   },
   "runtimeLogInspection": {
-    "inspectedAt": "2026-08-10T04:00:00Z",
+    "inspectedAt": "2026-08-10T04:26:10Z",
     "runtimeErrorsLast7d": 0
   },
   "githubEvidence": {
     "postMergeQualityGateRunId": 30157607614,
     "mergeStateVerifiedExternally": true,
     "defaultBranchShaVerifiedExternally": true,
-    "controlPlanePreAuditHeadSha": "34b818ad0a6cd867c3b3f4627c17ee1f03f82e31",
-    "controlPlanePreAuditQualityGateRunId": 30673892071,
-    "controlPlanePreAuditQualityGateConclusion": "failure_documentation_current_truth",
-    "controlPlanePreAuditRunId": 30673892088,
-    "controlPlanePreAuditConclusion": "success",
+    "mainBranchProtected": false,
+    "controlPlanePrePatchHeadSha": "a95b9d14dfce8b1d524ee4608ea552411a3966df",
+    "controlPlanePrePatchQualityGateRunId": 31354904093,
+    "controlPlanePrePatchQualityGateConclusion": "failure_production_dependency_audit",
+    "controlPlanePrePatchDatabaseReplayConclusion": "success",
+    "controlPlanePrePatchRunId": 31354904116,
+    "controlPlanePrePatchConclusion": "failure_internal_consistency",
     "newExactHeadChecksRequiredAfterDocumentationPatch": true
   },
   "vercelEvidence": {
@@ -48,8 +50,8 @@
     "target": "production",
     "status": "READY",
     "sourceShaMatchesMain": true,
-    "controlPlanePreviewDeploymentId": "dpl_3Q3pUZuNs4Ky2m2t42JJqAoPfuHG",
-    "controlPlanePreviewSourceSha": "34b818ad0a6cd867c3b3f4627c17ee1f03f82e31",
+    "controlPlanePreviewDeploymentId": "dpl_8E5gcHmcXaaBAg5mtsLSQZRKWBTm",
+    "controlPlanePreviewSourceSha": "a95b9d14dfce8b1d524ee4608ea552411a3966df",
     "moscowPreviewDeploymentId": "dpl_DNqStSdLGqt5FiK6ZJXAGY4t19Gm",
     "moscowPreviewSourceSha": "722e5166f37168ddaa8ccb7bf83bfcb6c9681b4e",
     "federalV2PreviewDeploymentId": "dpl_9YtXAAQGQGr1WVWw1nT8fH5QPt7k",
@@ -138,7 +140,9 @@
       "name": "GeoAI Control Plane and Audit Acceleration v1",
       "pullRequest": 120,
       "branch": "ops/geoai-control-plane-v1",
-      "preAuditHeadSha": "34b818ad0a6cd867c3b3f4627c17ee1f03f82e31",
+      "prePatchHeadSha": "a95b9d14dfce8b1d524ee4608ea552411a3966df",
+      "prePatchQualityGateRunId": 31354904093,
+      "prePatchControlPlaneRunId": 31354904116,
       "classification": "documentation_candidate_not_production"
     }
   ],
@@ -147,15 +151,26 @@
     "classification": "supporting_noncanonical_storage",
     "duplicateAuthorityDetected": false,
     "directFiles": 3,
-    "directChildFolders": 8,
+    "directChildFolders": 2,
+    "observedDirectChildren": ["Telegram", "00_Карта источников.md", "GeoAI_Dubai_Investor_Deck_v5_final (1).pdf", "GeoAI.pdf", "Archive"],
     "artifactsFolderId": "1Gfglggg6NgJyGEdo7hFZsSDuT-a2OJ3Z",
     "artifactsFolderDirectFiles": 0
+  },
+  "dependencySecurity": {
+    "qualityGateRunId": 31354904093,
+    "auditConclusion": "failure",
+    "severity": "moderate",
+    "package": "next",
+    "advisory": "GHSA-ggv3-7p47-pfv8",
+    "automaticRemediationAuthorised": false
   },
   "internalControlPlaneValidation": {
     "scope": "repository schema, boundary and cross-file consistency only",
     "queriesLiveExternalSystems": false,
     "provesExternalTruth": false,
-    "automaticMergeRecommendation": false
+    "automaticMergeRecommendation": false,
+    "prePatchExactHeadRunId": 31354904116,
+    "prePatchExactHeadConclusion": "failure"
   },
   "externalTruthGate": {
     "status": "partial_supabase_physical_readback_unavailable",
@@ -165,9 +180,11 @@
   },
   "openDecisions": [
     "New exact-head Quality Gate and Control Plane Audit are required after this documentation patch.",
+    "Production dependency audit reports one moderate Next.js advisory; dependency remediation requires a separate owner decision.",
     "Fresh Supabase physical database read-back is required before the six-system Truth Gate can be treated as complete.",
     "Development project management status is INACTIVE; no wake or mutation is authorised by this audit.",
     "Rehearsal management metadata and advisor/database-plane status are inconsistent and require later read-only reconciliation.",
+    "The default main branch is not protected; release-governance hardening requires a separate owner decision.",
     "PR #84 render package requires current-main mapping, named review and controlled publication before promotion.",
     "PR #118 body/head drift must be reconciled without source activation."
   ],
