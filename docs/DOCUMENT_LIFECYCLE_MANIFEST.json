@@ -3,9 +3,9 @@
   "lastVerified": "2026-07-16",
   "authority": "docs/DOCUMENTATION_INDEX.md",
   "counts": {
-    "markdownDocuments": 142,
+    "markdownDocuments": 146,
     "activeAuthorities": 12,
-    "nonActiveDocuments": 130
+    "nonActiveDocuments": 134
   },
   "documents": {
     "AGENTS.md": {
@@ -111,6 +111,12 @@
       "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
     },
     "docs/CR_10_02_DESIGN_FOUNDATION_SHARED_SHELL.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/CR_10_12_GEOAI_CONTROL_PLANE_AND_AUDIT_ACCELERATION_V1.md": {
       "lifecycle": "historical_or_scoped_reference",
       "currentAuthority": false,
       "successor": "docs/DOCUMENTATION_INDEX.md",
@@ -247,6 +253,24 @@
       "currentAuthority": true,
       "successor": null,
       "rule": "Must carry Status, Last verified, Owner, Authority and Successor fields and be updated with affected behavior."
+    },
+    "docs/GEOAI_AUTOMATED_QA_AND_AUDIT_RUNBOOK_V1.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/GEOAI_MCP_TOOL_CONTRACTS_V1.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/GEOAI_SOURCE_AUDIT_AND_DELTA_PROTOCOL_V1.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
     },
     "docs/GOVERNANCE_STALE_PR_CLEANUP_2026_07_07.md": {
       "lifecycle": "historical_or_scoped_reference",

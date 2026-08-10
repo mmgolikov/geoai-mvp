@@ -1,0 +1,177 @@
+{
+  "schema_version": "1.0.0",
+  "registry_version": "2026-08-10-weekly-governance-refresh-v3",
+  "verified_at": "2026-08-10T05:30:00Z",
+  "purpose": "Compact derived authority index for GeoAI delivery agents. Primary-source evidence always overrides this registry; unavailable physical read-back remains explicitly unresolved.",
+  "delivery_timezone": "Europe/Amsterdam",
+  "evidence_timezone": "UTC",
+  "data_honesty": {
+    "official_validation_required": true,
+    "mandatory_statement": "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.",
+    "prohibited_unverified_claims": ["official parcel", "official zoning", "cadastral validation", "ownership verification", "certified valuation", "approved site", "guaranteed best use", "live DLD integration", "live GeoDubai integration", "production-ready", "pilot-ready"]
+  },
+  "authority_order": ["vercel_runtime", "github_code_and_merge", "supabase_schema_and_data", "figma_approved_design", "confluence_decisions_and_operating_narrative", "google_drive_supporting_artifacts_only", "derived_registry_and_snapshots"],
+  "environments": {
+    "production": {
+      "classification": "released_public_demo",
+      "github": {
+        "repository": "mmgolikov/geoai-mvp",
+        "default_branch": "main",
+        "release_branch": "release/production",
+        "merged_pull_request": 113,
+        "commit_sha": "7f323c4227f2409f3fe2d4d68be48a30176f4e2a",
+        "main_protected": false
+      },
+      "vercel": {
+        "team_slug": "geoaidev",
+        "team_id": "team_MNxcLOOPgdHPt6fnfMGXODFx",
+        "project_name": "geoai-mvp",
+        "project_id": "prj_LE41wkaiRUgZgOynkkeixGbesJvp",
+        "alias": "geoai-mvp.vercel.app",
+        "deployment_id": "dpl_4yBHCo1eZ7N6GYQWGAg1EdQGwFTE",
+        "deployment_state": "READY",
+        "target": "production",
+        "runtime_errors_last_7d": 0
+      }
+    },
+    "supabase_development": {
+      "classification": "development_data_foundation",
+      "project_name": "geoai-dev",
+      "project_ref": "pphdqkurxneyagvnnjdt",
+      "region": "eu-west-1",
+      "status": "INACTIVE",
+      "postgres_version": "17.6.1.141",
+      "fresh_physical_readback_succeeded": false,
+      "fresh_physical_readback_failure": "read-only physical/migration read-back unavailable on 2026-08-10",
+      "physical_counts_authority": "last_successful_physical_audit_only_not_current",
+      "migration_count": 12,
+      "latest_migration": "20260726152858",
+      "public_base_table_count": 20,
+      "source_registry_snapshot_count": 5,
+      "external_data_snapshot_count": 5,
+      "auth_user_count": 0,
+      "dld_foundation": {
+        "payload_ingestion_status": "last_verified_not_ingested_physical_state_not_fresh",
+        "official_or_live_integration": false,
+        "estimated_payload_rows": 0,
+        "schemas": ["geoai_dld_feature", "geoai_dld_private"],
+        "tables": ["geoai_dld_feature.area_month_metrics", "geoai_dld_feature.category_metrics", "geoai_dld_feature.scoring_features", "geoai_dld_private.areas", "geoai_dld_private.dataset_releases", "geoai_dld_private.ingestion_runs", "geoai_dld_private.sanitized_records"],
+        "rls_enabled_on_all_tables": true,
+        "policy_count_per_table": 0
+      },
+      "open_security_decisions": [
+        {"finding": "Fresh physical security/catalog read-back unavailable because the project is INACTIVE and database read-back did not complete", "classification": "protected_pilot_blocker", "automatic_remediation_authorised": false},
+        {"finding": "Last successful physical audit found RLS disabled on public.spatial_ref_sys and seven DLD tables with RLS enabled but zero policies", "classification": "historical_open_security_evidence_requires_fresh_recheck", "automatic_remediation_authorised": false}
+      ]
+    },
+    "supabase_auth_rehearsal": {
+      "classification": "rehearsal_only",
+      "project_name": "geoai-auth-rehearsal",
+      "project_ref": "bkmfcjzalcvdsdvyxpgi",
+      "region": "eu-west-1",
+      "status": "ACTIVE_HEALTHY",
+      "fresh_physical_readback_succeeded": false,
+      "fresh_physical_readback_failure": "database read-back unavailable; advisor endpoint reported hibernated state",
+      "management_database_plane_consistency": "unresolved"
+    }
+  },
+  "active_candidates": [
+    {
+      "name": "DLD controlled ingestion foundation v1",
+      "classification": "preview_candidate_not_production",
+      "pull_request": 118,
+      "branch": "agent/dld-controlled-ingestion-foundation-v1",
+      "verified_head_sha": "3c27d97a87b1d8fda7c1aeee543ea594dbfcd00d",
+      "pr_narrative_head_drift": true,
+      "data_boundary": "Development foundation only; current physical payload state could not be freshly read because Supabase development is inactive; no official/live integration or scoring activation is accepted."
+    },
+    {
+      "name": "Rosimushchestvo Moscow prototype v1",
+      "classification": "separate_prototype_preview_not_production",
+      "pull_request": null,
+      "m0_authority": {"branch": "pilot/rosimushchestvo-moscow-v1", "head_sha": "bd90887c8de10b5ffa85ed6b8adfa1d93f70d316", "scope": "documentation_only_m0"},
+      "implementation_prototype": {"branch": "pilot/rosimushchestvo-moscow-v1-dev", "head_sha": "722e5166f37168ddaa8ccb7bf83bfcb6c9681b4e", "base_sha": "bd90887c8de10b5ffa85ed6b8adfa1d93f70d316", "ahead_by": 2, "behind_by": 0, "changed_files": 22, "vercel_preview_deployment_id": "dpl_DNqStSdLGqt5FiK6ZJXAGY4t19Gm", "vercel_preview_state": "READY", "merged": false, "production": false},
+      "data_boundary": "Separate prototype stream; Preview only; not official, customer-approved, pilot-ready or Production."
+    },
+    {
+      "name": "Rosimushchestvo Federal v2 prototype",
+      "classification": "separate_prototype_preview_not_production",
+      "pull_request": null,
+      "branch": "pilot/rosimushchestvo-federal-v2-dev",
+      "verified_head_sha": "a9ac367b556a6127a138c02793b33e2b97972ff9",
+      "vercel_preview_deployment_id": "dpl_9YtXAAQGQGr1WVWw1nT8fH5QPt7k",
+      "vercel_preview_state": "READY",
+      "data_boundary": "Separate federal prototype stream; Preview only; not Production, official or pilot-ready."
+    },
+    {
+      "name": "Architecture rendering package",
+      "classification": "artifact_review_candidate_not_production",
+      "pull_request": 84,
+      "branch": "dev7-architecture-rendering-exact-mapping-v1",
+      "verified_head_sha": "ace74cd1e0ab4736e8560c730267a43d43134aa7",
+      "data_boundary": "Source and committed SVG render package exists; Draft/HOLD; current-main mapping, named acceptance and controlled publication remain open."
+    },
+    {
+      "name": "GeoAI Control Plane and Audit Acceleration v1",
+      "classification": "documentation_candidate_not_production",
+      "pull_request": 120,
+      "branch": "ops/geoai-control-plane-v1",
+      "pre_patch_verified_head_sha": "66c9349b5ad11023a991933293846d84444774bd",
+      "status": "draft_hold_quality_gate_failed_post_refresh_receipt_required",
+      "latest_control_plane_audit": {"run_id": 31356383236, "conclusion": "success"},
+      "latest_quality_gate": {"run_id": 31356383237, "conclusion": "failure_production_dependency_audit", "database_replay_job_id": 93356795693, "database_replay_conclusion": "success"},
+      "preview": {"deployment_id": "dpl_EcA6EFpDenQp9TxycJPXWeL4dkZ5", "state": "READY", "source_sha": "66c9349b5ad11023a991933293846d84444774bd"},
+      "dependency_blocker": {"severity": "moderate", "package": "next", "advisory": "GHSA-ggv3-7p47-pfv8"},
+      "data_boundary": "Documentation, derived registry and dependency-free internal consistency checks only; no protected action authorised.",
+      "post_patch_exact_head_receipt_required": true
+    }
+  ],
+  "design_authority": {
+    "provider": "Figma",
+    "file_key": "TAzDqOvRCw1mQGMU3Y4S9H",
+    "verified_nodes": {"executable_start_here": "1797:2", "executable_prototype": "1482:2", "runtime_alignment": "1749:21157", "accessibility_correction_receipt": "1819:11", "product_system_correction_receipt": "1825:11"},
+    "fresh_direct_readback": {"successful_nodes": ["1797:2", "1495:53"], "full_allow_list_independently_read": false, "note": "1797:2 was directly reverified; connector did not return independent metadata for every requested authority node in this run."},
+    "affected_visual_nodes": {"hero_geoai_cockpit": "1495:53"},
+    "absent_nodes": ["1670:2", "1673:2"],
+    "metrics": {"prototype_screens": {"value": 68, "authority_node": "1482:2", "definition": "Direct child FRAME nodes whose names start with 'Prototype /'; excludes 1482:3 and 1492:2."}, "component_sets": {"value": 35, "authority_page": "68:3", "definition": "All COMPONENT_SET nodes on the current canonical Product Design System page."}, "component_variants": {"value": 368, "authority_page": "68:3", "definition": "All COMPONENT nodes on the current canonical Product Design System page."}, "authored_reactions": {"value": 114, "authority_node": "1482:2", "definition": "Sum of reactions on descendants whose node IDs do not begin with 'I'; instance-expanded duplicates are excluded."}},
+    "full_file_read_default": false,
+    "preferred_read_scope": "affected node, page, section or component only",
+    "runtime_implementation_proven_by_figma": false
+  },
+  "confluence_authority": {
+    "cloud_id": "8671019f-f899-4452-a153-9c96cc5eec31",
+    "space_key": "PH",
+    "space_id": "98311",
+    "search_snippet_rule": "Discovery only. Direct current-page fetch, returned version and body are authoritative because search snippets may lag.",
+    "pages": {"project_home": "98509", "current_delivery_state": "2097153", "governance": "294937", "change_log": "98732", "artifact_registry": "1343521", "agent_operating_mode": "786457", "control_plane_change_request": "22052867", "integrated_operating_baseline": "22118490", "core_mvp_boundary": "22053095"}
+  },
+  "google_drive": {
+    "classification": "supporting_noncanonical_artifact_storage",
+    "folder_id": "1WarJNNQN7kRS3m73bpsHHXOx2pE-9_hO",
+    "direct_files": 3,
+    "direct_child_folders": 2,
+    "observed_direct_children": ["Telegram", "00_Карта источников.md", "GeoAI_Dubai_Investor_Deck_v5_final (1).pdf", "GeoAI.pdf", "Archive"],
+    "artifacts_folder_id": "1Gfglggg6NgJyGEdo7hFZsSDuT-a2OJ3Z",
+    "artifacts_folder_direct_files": 0,
+    "duplicate_authority_detected": false,
+    "decision_authority": false
+  },
+  "repository_governance": {
+    "main_branch_protected": false,
+    "main_required_status_checks_enforced": false,
+    "classification": "release_governance_risk_requires_owner_decision"
+  },
+  "dependency_security": {
+    "latest_quality_gate_run_id": 31356383237,
+    "production_dependency_audit": "failed",
+    "severity": "moderate",
+    "package": "next",
+    "advisory": "GHSA-ggv3-7p47-pfv8",
+    "remediation_authorised_by_this_audit": false
+  },
+  "repository_authority_files": {"current_release_state": "docs/CURRENT_RELEASE_STATE.md", "verified_snapshot": "docs/LAST_VERIFIED_RELEASE_SNAPSHOT.json", "release_policy": "docs/RELEASE_AUTHORITY_POLICY.json", "control_plane_change_request": "docs/CR_10_12_GEOAI_CONTROL_PLANE_AND_AUDIT_ACCELERATION_V1.md", "delta_protocol": "docs/GEOAI_SOURCE_AUDIT_AND_DELTA_PROTOCOL_V1.md", "mcp_contracts": "docs/GEOAI_MCP_TOOL_CONTRACTS_V1.md", "audit_runbook": "docs/GEOAI_AUTOMATED_QA_AND_AUDIT_RUNBOOK_V1.md"},
+  "internal_validation": {"scope": "schema, boundary and cross-file consistency checks over repository content", "queries_live_external_systems": false, "proves_external_truth": false, "automatic_merge_recommendation": false, "latest_exact_head_run_id": 31356383236, "latest_exact_head_conclusion": "success_pre_refresh_head_only", "post_refresh_exact_head_receipt_required": true},
+  "external_truth_gate": {"status": "partial_supabase_physical_readback_unavailable", "required_systems": ["github", "vercel", "supabase", "figma", "confluence", "google_drive"], "fresh_direct_readback_required": true, "required_before_founder_merge_review": true, "green_internal_check_satisfies_gate": false},
+  "freshness_policy": {"production_and_open_prs_ttl_hours": 24, "supabase_schema_and_advisors_ttl_hours": 24, "confluence_current_state_ttl_hours": 24, "figma_authority_registry_ttl_hours": 168, "weekly_full_audit_required": true},
+  "protected_actions": {"merge": false, "production_deploy": false, "supabase_migration": false, "supabase_data_mutation": false, "auth_hard_enforcement": false, "secrets_or_environment_variables": false, "figma_mutation": false}
+}

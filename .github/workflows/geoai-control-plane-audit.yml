@@ -1,0 +1,64 @@
+name: GeoAI control-plane audit
+
+on:
+  pull_request:
+    paths:
+      - "docs/GEOAI_PROJECT_REGISTRY_V1.json"
+      - "docs/CURRENT_RELEASE_STATE.md"
+      - "docs/LAST_VERIFIED_RELEASE_SNAPSHOT.json"
+      - "docs/RELEASE_AUTHORITY_POLICY.json"
+      - "docs/CR_10_12_GEOAI_CONTROL_PLANE_AND_AUDIT_ACCELERATION_V1.md"
+      - "docs/GEOAI_SOURCE_AUDIT_AND_DELTA_PROTOCOL_V1.md"
+      - "docs/GEOAI_MCP_TOOL_CONTRACTS_V1.md"
+      - "docs/GEOAI_AUTOMATED_QA_AND_AUDIT_RUNBOOK_V1.md"
+      - "docs/DOCUMENT_LIFECYCLE_MANIFEST.json"
+      - "docs/DOCUMENT_ARCHIVE_INDEX.md"
+      - "scripts/geoai-control-plane-check.mjs"
+      - ".github/workflows/geoai-control-plane-audit.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: geoai-control-plane-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-internal-consistency:
+    name: Validate internal control-plane consistency
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Run dependency-free internal consistency check
+        run: node scripts/geoai-control-plane-check.mjs
+
+      - name: Declare external Truth Gate boundary
+        run: |
+          echo "::warning::This green job validates repository schema, boundaries and cross-file consistency only."
+          echo "::warning::GitHub, Vercel, Supabase, Figma, Confluence and Google Drive remain externally unverified until a fresh direct read-back receipt is recorded."
+          echo "::warning::This workflow cannot recommend or authorise merge."
+
+      - name: Generate documentation lifecycle sidecars
+        run: npm run docs:lifecycle:generate
+
+      - name: Upload generated lifecycle sidecars
+        uses: actions/upload-artifact@v4
+        with:
+          name: geoai-control-plane-document-lifecycle-${{ github.run_id }}
+          path: |
+            docs/DOCUMENT_LIFECYCLE_MANIFEST.json
+            docs/DOCUMENT_ARCHIVE_INDEX.md
+          if-no-files-found: error
+          retention-days: 3
+
+      - name: Verify generated lifecycle sidecars are committed
+        run: git diff --exit-code -- docs/DOCUMENT_LIFECYCLE_MANIFEST.json docs/DOCUMENT_ARCHIVE_INDEX.md
