@@ -3,8 +3,8 @@
 Status: Active derived release authority — PR #120 HOLD  
 Last verified: 2026-08-10  
 Owner: GeoAI Release Engineering  
-Authority: Live authority is external post-release primary-source evidence. This document is a concise derived index and cannot replace fresh GitHub, Vercel, Supabase, Figma, Confluence or Google Drive read-back.  
-Successor: None — fresher primary evidence supersedes this file until it is refreshed.
+Authority: Live authority is external primary-source evidence. This document is a concise derived index and cannot replace fresh GitHub, Vercel, Supabase, Figma, Confluence or Google Drive read-back.  
+Successor: Fresher primary evidence supersedes this file until it is refreshed.
 
 Repository lifecycle policy: [`RELEASE_AUTHORITY_POLICY.json`](RELEASE_AUTHORITY_POLICY.json)  
 Historical/derived snapshot: [`LAST_VERIFIED_RELEASE_SNAPSHOT.json`](LAST_VERIFIED_RELEASE_SNAPSHOT.json)  
@@ -12,7 +12,7 @@ Machine-readable index: [`GEOAI_PROJECT_REGISTRY_V1.json`](GEOAI_PROJECT_REGISTR
 
 ## Executive status
 
-GeoAI Production remains a **released public demo prototype**. It is not a protected/confidential pilot, official-source service, production-ready or pilot-ready decision system.
+GeoAI Production remains a **released public demo prototype**. It is not a protected/confidential pilot, official-source service, production-ready decision system or enterprise deployment.
 
 | Item | Verified state — 2026-08-10 |
 |---|---|
@@ -24,11 +24,12 @@ GeoAI Production remains a **released public demo prototype**. It is not a prote
 | Production state / alias | READY / `geoai-mvp.vercel.app` |
 | Production source SHA | `7f323c4227f2409f3fe2d4d68be48a30176f4e2a`, exact match to `main` |
 | Runtime errors | No Vercel runtime errors returned for the checked 7-day interval |
-| Control-plane pre-patch evidence | PR #120, Draft / HOLD; verified head `a95b9d14dfce8b1d524ee4608ea552411a3966df` |
-| Pre-patch PR #120 Control Plane Audit | `31354904116` — FAILURE at dependency-free internal consistency check |
-| Pre-patch PR #120 Quality Gate | `31354904093` — FAILURE at Production dependency audit; Supabase replay/persona job SUCCESS |
-| Pre-patch PR #120 Preview | `dpl_8E5gcHmcXaaBAg5mtsLSQZRKWBTm`, READY Preview on `a95b9d14dfce8b1d524ee4608ea552411a3966df` |
-| Post-patch evidence | This documentation correction creates a new candidate head; new exact-head CI and Preview receipts are required before any review decision |
+| PR #120 verified pre-refresh head | `66c9349b5ad11023a991933293846d84444774bd` |
+| PR #120 Control Plane Audit | `31356383236` — **SUCCESS** |
+| PR #120 Quality Gate | `31356383237` — **FAILURE** at `Production dependency audit` |
+| PR #120 DB replay/personas | job `93356795693` — **SUCCESS** |
+| PR #120 Preview | `dpl_EcA6EFpDenQp9TxycJPXWeL4dkZ5` — READY on exact source SHA `66c9349b5ad11023a991933293846d84444774bd` |
+| Post-refresh evidence | This docs-only refresh creates a new candidate head; new exact-head CI and Preview receipt are required before any review decision |
 
 ## Production runtime
 
@@ -43,31 +44,33 @@ This is public-demo runtime evidence only. It does not prove protected Auth, ten
 | DLD controlled ingestion foundation v1 | PR #118; branch `agent/dld-controlled-ingestion-foundation-v1`; head `3c27d97a87b1d8fda7c1aeee543ea594dbfcd00d` | Draft foundation; PR narrative contains older-head drift; no accepted source/evidence/scoring activation. |
 | Rosimushchestvo Moscow prototype v1 | `pilot/rosimushchestvo-moscow-v1-dev`; head `722e5166f37168ddaa8ccb7bf83bfcb6c9681b4e`; Preview `dpl_DNqStSdLGqt5FiK6ZJXAGY4t19Gm` READY | Separate Preview-only prototype; unmerged; not Production or pilot-ready. |
 | Rosimushchestvo Federal v2 prototype | `pilot/rosimushchestvo-federal-v2-dev`; head `a9ac367b556a6127a138c02793b33e2b97972ff9`; Preview `dpl_9YtXAAQGQGr1WVWw1nT8fH5QPt7k` READY | Separate Preview-only prototype; not Production, official or pilot-ready. |
-| Architecture rendering package | PR #84; branch `dev7-architecture-rendering-exact-mapping-v1`; head `ace74cd1e0ab4736e8560c730267a43d43134aa7` | Draft/HOLD; committed source + SVG render package exists, but named current-main acceptance/publication is not proven. |
-| Control Plane and Audit Acceleration v1 | PR #120; branch `ops/geoai-control-plane-v1` | Documentation, derived registry and internal consistency only; Draft/HOLD. |
+| Architecture rendering package | PR #84; branch `dev7-architecture-rendering-exact-mapping-v1`; head `ace74cd1e0ab4736e8560c730267a43d43134aa7` | Draft/HOLD; committed source + SVG render package exists, but current-main acceptance/publication is not proven. |
+| Control Plane and Audit Acceleration v1 | PR #120; branch `ops/geoai-control-plane-v1`; verified pre-refresh head `66c9349b5ad11023a991933293846d84444774bd` | Documentation/control-plane candidate only; Draft/HOLD; Quality Gate failed; this refresh requires a new exact-head receipt. |
 
-## PR #120 exact-head gate status before this patch
+## PR #120 verified pre-refresh receipt
 
-The verified pre-patch head `a95b9d14dfce8b1d524ee4608ea552411a3966df` is not releasable evidence:
+The exact pre-refresh head `66c9349b5ad11023a991933293846d84444774bd` is **not releasable evidence**:
 
-- Control Plane Audit `31354904116` failed at the dependency-free internal consistency check. External Truth Gate and lifecycle sidecar steps were skipped.
-- Quality Gate `31354904093` failed at `Production dependency audit`. The database clean replay, deterministic reset, synthetic upgrade rehearsal and persona tests passed.
-- The dependency audit reported one **moderate** Next.js advisory, `GHSA-ggv3-7p47-pfv8`. Dependency remediation is not authorised by this documentation audit.
-- Because the static job stopped at dependency audit, TypeScript/access/security/data-honesty/documentation/build/runtime/browser stages did not execute on that exact head.
+- Control Plane Audit `31356383236` completed **SUCCESS**. This proves repository-side schema, boundary and cross-file consistency only.
+- Quality Gate `31356383237` completed **FAILURE** at `Production dependency audit`.
+- The dependency audit reports one **moderate** Next.js advisory, `GHSA-ggv3-7p47-pfv8`.
+- Because the static Quality Gate stops at that dependency step, downstream TypeScript/access/security/data-honesty/documentation/build/runtime/browser stages did not execute on that exact head.
+- The database clean-replay/synthetic-upgrade/persona job `93356795693` completed **SUCCESS**.
+- Preview `dpl_EcA6EFpDenQp9TxycJPXWeL4dkZ5` is READY and bound to exact source SHA `66c9349b5ad11023a991933293846d84444774bd`; it is not Production.
 
-The internal control-plane validator checks repository schema, boundary and cross-file consistency. It does **not** query live external systems, prove external truth or authorise merge.
+Dependency remediation is outside this audit. The internal control-plane validator does **not** query all live external systems, prove external truth or authorise merge.
 
 ## Supabase state — current management plane and physical-readback limitation
 
 ### Development — `pphdqkurxneyagvnnjdt`
 
-Current Supabase project metadata reports `geoai-dev`, region `eu-west-1`, status **INACTIVE**, PostgreSQL metadata `17.6.1.141`. Fresh read-only SQL did not complete, so current migration/schema/RLS/policy/grant/source/payload/Storage/Auth physical truth cannot be certified in this audit.
+Current Supabase project metadata reports `geoai-dev`, region `eu-west-1`, status **INACTIVE**, PostgreSQL metadata `17.6.1.141`. Fresh migration-ledger/physical read-back did not complete, so current migration/schema/RLS/policy/grant/source/payload/Storage/Auth physical truth cannot be certified in this audit.
 
 The last successful physical audit remains historical evidence only: migration count **12**, latest migration **`20260726152858`**, source-registry count **5**, external-snapshot count **5**, Supabase Auth user count **0**, seven DLD foundation tables, **zero payload rows**, RLS enabled on those seven tables and **zero policies**. These historical values are retained solely for cross-file consistency and are not promoted to current physical truth while fresh read-back is unavailable.
 
 ### Auth rehearsal — `bkmfcjzalcvdsdvyxpgi`
 
-Management metadata reports `ACTIVE_HEALTHY`, while the security-advisor endpoint reported the project as hibernated and read-only SQL did not complete. This management/database-plane inconsistency remains unresolved. No wake, migration, grant/policy, Auth, Storage or data mutation was performed.
+Management metadata reports `ACTIVE_HEALTHY`, while the security-advisor endpoint reported the project as hibernated and physical read-back did not complete. This management/database-plane inconsistency remains unresolved. No wake, migration, grant/policy, Auth, Storage or data mutation was performed.
 
 **Protected pilot remains NO-GO until current physical database evidence is available and accepted.**
 
@@ -75,13 +78,13 @@ Management metadata reports `ACTIVE_HEALTHY`, while the security-advisor endpoin
 
 Canonical file: `TAzDqOvRCw1mQGMU3Y4S9H`.
 
-Fresh direct metadata verification confirmed node `1797:2` as the Product System v3.2.2 Candidate / founder-approved visual baseline with Engineering/Codex gate CLOSED. The historical authority allow-list remains `1797:2`, `1482:2`, `1749:21157`, `1819:11`, `1825:11`; this audit does not claim a complete independent node-by-node read-back where the connector did not return a fresh response.
+Fresh direct metadata verification confirmed node `1797:2` as the Product System v3.2.2 founder-approved visual baseline with Engineering/Codex gate CLOSED. Canonical authority references remain `1797:2`, `1482:2`, `1749:21157`, `1819:11`, `1825:11`, with affected visual node `1495:53`. This run does not claim a complete independent node-by-node read-back where the connector did not return fresh metadata.
 
 Figma intent and founder visual approval are not runtime implementation, merge or release evidence.
 
 ## Google Drive supporting storage
 
-Direct read-back of GeoAI root `1WarJNNQN7kRS3m73bpsHHXOx2pE-9_hO` returned exactly five direct children:
+Fresh direct read-back of GeoAI root `1WarJNNQN7kRS3m73bpsHHXOx2pE-9_hO` returned exactly five direct children:
 
 - folder `Telegram`;
 - file `00_Карта источников.md`;
@@ -89,17 +92,17 @@ Direct read-back of GeoAI root `1WarJNNQN7kRS3m73bpsHHXOx2pE-9_hO` returned exac
 - file `GeoAI.pdf`;
 - folder `Archive`.
 
-Therefore the fresh root count is **3 direct files and 2 direct child folders**, not the previous derived value of eight folders. Historical `Artifacts` folder `1Gfglggg6NgJyGEdo7hFZsSDuT-a2OJ3Z` contains **0 direct files**.
+Fresh root count is therefore **3 direct files and 2 direct child folders**. The registered `Artifacts` folder `1Gfglggg6NgJyGEdo7hFZsSDuT-a2OJ3Z` exists and contains **0 direct files**.
 
 Drive remains supporting non-canonical storage. No accepted current rendered BPMN/UML/C4/ERD/wireflow/data-lineage publication package is proven there.
 
 ## Artifact state
 
-PR #84 proves that committed source and SVG renders exist in GitHub review history. It remains Draft/HOLD and is not accepted as current architecture authority because current-main mapping, named independent review and controlled publication are open. The historical Drive `Artifacts` folder is empty.
+PR #84 proves that committed source and SVG renders exist in GitHub review history. It remains Draft/HOLD and is not accepted as current architecture authority because current-main mapping, named independent review and controlled publication remain open. The registered Drive `Artifacts` folder is empty.
 
 ## Repository governance boundary
 
-The GitHub API reports `main` with `protected: false`, protection disabled and no required status checks enforced at the branch-protection level. This is a release-governance risk, not an authorisation to change repository settings.
+The GitHub API reports `main` with protection disabled and no required status checks enforced at branch-protection level. This is a release-governance risk, not an authorisation to change repository settings.
 
 ## Current maturity boundaries
 
@@ -121,4 +124,4 @@ No merge, PR close, ready-for-review, auto-merge, Production deployment/promotio
 
 ## Next decision
 
-Keep PR #120 Draft/HOLD. Re-run exact-head Control Plane Audit and Quality Gate for the new documentation-patch head. The six-system Truth Gate remains **partial** because fresh Supabase physical read-back is unavailable. Founder merge review must not treat a derived registry or green internal CI as a substitute for missing external evidence.
+Keep PR #120 Draft/HOLD. This docs-only refresh moves the branch beyond the verified pre-refresh SHA `66c9349b5ad11023a991933293846d84444774bd`; the **new branch head requires its own exact-head Control Plane Audit, Quality Gate and Preview receipt**. The six-system Truth Gate remains partial because fresh Supabase physical read-back is unavailable. Founder merge review must not treat derived registry consistency as a substitute for missing external evidence.
