@@ -120,8 +120,8 @@ function extractPolygonFeature(parsed: unknown): { geometry: GeoJSON.Polygon; pr
 
 export function sourceTypeLabel(sourceType: AoiSourceType) {
   if (sourceType === "uploaded_geojson") return "Uploaded GeoJSON";
-  if (sourceType === "demo_object") return "Sample geometry";
-  if (sourceType === "imported_sample") return "Imported sample";
+  if (sourceType === "demo_object") return "Illustrative local geometry";
+  if (sourceType === "imported_sample") return "Imported illustrative geometry";
   return "Drawn AOI";
 }
 

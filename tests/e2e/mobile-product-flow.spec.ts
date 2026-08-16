@@ -210,12 +210,12 @@ async function signInDemo(page: Page, nextPath: "/projects" | "/workspace") {
   if (redirected) {
     return;
   }
-  await page.getByRole("button", { name: "Use demo credentials" }).click();
+  await page.getByRole("button", { name: "Use guided access" }).click();
   await expect(page.getByLabel("Email or phone")).toHaveValue("demo@geoai.space");
   await expect(page.getByLabel("Password")).toHaveValue("111111");
-  await page.getByRole("button", { name: "Open demo" }).click();
+  await page.getByRole("button", { name: "Open guided workspace" }).click();
   await expect(page).toHaveURL((url) => url.pathname === nextPath);
-  await expect(page.getByRole("link", { name: "Open demo profile" })).toHaveAttribute("data-authenticated", "true");
+  await expect(page.getByRole("link", { name: "Open guided workspace profile" })).toHaveAttribute("data-authenticated", "true");
 }
 
 test.describe.configure({ mode: "serial" });
@@ -237,7 +237,7 @@ test.describe("mobile product navigation, targets and visual evidence", () => {
 
     const controls: Array<[string, Locator]> = [
       ["GeoAI home", page.locator('header a[href="/"]').first()],
-      ["Authenticated profile", page.getByRole("link", { name: "Open demo profile" })],
+      ["Authenticated profile", page.getByRole("link", { name: "Open guided workspace profile" })],
       ["B2B segment", page.getByRole("button", { name: "B2B", exact: true })],
       ["B2C segment", page.getByRole("button", { name: "B2C", exact: true })],
       ["Project selector", page.locator("#project-dashboard-selector")],
@@ -277,6 +277,35 @@ test.describe("mobile product navigation, targets and visual evidence", () => {
     await captureVisualEvidence(page, "Mobile project workspace", "mobile-project-workspace.png", { candidateBaseline: true });
   });
 
+  test("selects a map point by keyboard and opens the mobile result", async ({ page }) => {
+    await page.clock.setFixedTime(new Date("2026-07-17T16:23:00.000Z"));
+    await signInDemo(page, "/workspace");
+    await expectNoHorizontalOverflow(page);
+
+    await page.getByRole("button", { name: "Open map" }).click();
+    const mapPicker = page.locator('[role="dialog"][aria-labelledby="mobile-map-picker-title"]');
+    await expect(mapPicker).toBeVisible();
+    await expect(mapPicker.getByRole("button", { name: "Back to workflow" })).toBeVisible();
+
+    const mapRegion = mapPicker.getByRole("region", { name: /Interactive map workspace/ });
+    await mapRegion.focus();
+    await expect(mapRegion).toBeFocused();
+    await mapRegion.press("Enter");
+
+    const runAnalysis = mapPicker.getByRole("button", { name: "Run Express Analysis" });
+    await expect(runAnalysis).toBeEnabled();
+    await runAnalysis.click();
+
+    await expect(mapPicker).toBeHidden();
+    const resultSummary = page.locator("[data-mobile-result-summary]");
+    await expect(resultSummary).toBeVisible();
+    await expect(resultSummary.getByText("Decision posture", { exact: true })).toBeVisible();
+    await expect(resultSummary.getByText("Suitability", { exact: true })).toBeVisible();
+    await expect(resultSummary.getByText("Next action", { exact: true })).toBeVisible();
+    await expect(page.locator("[data-dashboard-analysis-id]")).toBeVisible();
+    await expectNoHorizontalOverflow(page);
+  });
+
   test("compares and exports a criteria-first shortlist on mobile", async ({ page }) => {
     await page.clock.setFixedTime(new Date("2026-07-17T16:23:00.000Z"));
     await signInDemo(page, "/workspace");
@@ -285,7 +314,7 @@ test.describe("mobile product navigation, targets and visual evidence", () => {
     const criteriaFirst = page.getByRole("button", { name: "Criteria-first" });
     const scenarioSelect = page.getByLabel("Scenario");
     for (const [label, locator] of [
-      ["Authenticated profile", page.getByRole("link", { name: "Open demo profile" })],
+      ["Authenticated profile", page.getByRole("link", { name: "Open guided workspace profile" })],
       ["B2B audience", page.getByRole("button", { name: "B2B", exact: true })],
       ["B2C audience", page.getByRole("button", { name: "B2C", exact: true })],
       ["Active project", page.locator("#active-project")],

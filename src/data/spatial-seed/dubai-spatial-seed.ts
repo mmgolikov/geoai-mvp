@@ -17,14 +17,14 @@ type SeedFeatureInput = {
 function source(registrySourceId = "synthetic-demo-layers") {
   return {
     id: `spatial-${registrySourceId}`,
-    name: registrySourceId === "synthetic-demo-layers" ? "Synthetic Dubai Spatial Seed" : "Future spatial source placeholder",
+    name: registrySourceId === "synthetic-demo-layers" ? "Illustrative Dubai spatial context" : "Future spatial source placeholder",
     registrySourceId,
     sourceStatus: registrySourceId === "synthetic-demo-layers" ? "mock" : "planned",
     ingestionMode: registrySourceId === "synthetic-demo-layers" ? "seed_geojson" : "api_ready",
     confidenceLevel: registrySourceId === "synthetic-demo-layers" ? "demo" : "medium",
     limitationNote:
       registrySourceId === "synthetic-demo-layers"
-        ? "Seed/demo geometry for MVP demonstration only."
+        ? "Illustrative local geometry for screening workflow validation only."
         : "Future source placeholder; geometry is not connected yet."
   } as const;
 }
@@ -56,7 +56,7 @@ function feature(input: SeedFeatureInput): SpatialFeature {
       centroid: { latitude: 0, longitude: 0 },
       scenarioRelevance: input.scenarioRelevance,
       limitations: [
-        "Seed/demo geometry only; not an official GIS, parcel, planning, or risk boundary.",
+        "Illustrative local geometry only; not an official GIS, parcel, planning, or risk boundary.",
         "Geometry requires validation against official or customer-provided spatial datasets."
       ],
       metadata: input.metadata ?? {}
@@ -68,7 +68,7 @@ function feature(input: SeedFeatureInput): SpatialFeature {
 export const seedSpatialDatasets: SpatialDataset[] = [
   {
     id: "synthetic-development-zones",
-    name: "Sample Growth / Pipeline Signals",
+    name: "Illustrative Growth / Pipeline Signals",
     category: "development_zone",
     layerId: "developmentZones",
     layerName: "Growth / Pipeline Signals",
@@ -104,7 +104,7 @@ export const seedSpatialDatasets: SpatialDataset[] = [
   },
   {
     id: "synthetic-premium-real-estate",
-    name: "Sample Market Signal Areas",
+    name: "Illustrative Market Signal Areas",
     category: "premium_real_estate",
     layerId: "premiumRealEstateAreas",
     layerName: "Market Signal Areas",
@@ -140,7 +140,7 @@ export const seedSpatialDatasets: SpatialDataset[] = [
   },
   {
     id: "synthetic-infrastructure-nodes",
-    name: "Sample Spatial Anchors",
+    name: "Illustrative Spatial Anchors",
     category: "infrastructure_node",
     layerId: "infrastructureNodes",
     layerName: "Spatial Anchors",
@@ -162,10 +162,10 @@ export const seedSpatialDatasets: SpatialDataset[] = [
   },
   {
     id: "synthetic-construction-sites",
-    name: "Synthetic Construction Monitoring Sites",
+    name: "Illustrative Construction Monitoring Targets",
     category: "construction_site",
     layerId: "constructionSites",
-    layerName: "Construction Sites",
+    layerName: "Illustrative Monitoring Targets",
     mapType: "point",
     color: "#8a5a13",
     source: source(),
@@ -177,7 +177,7 @@ export const seedSpatialDatasets: SpatialDataset[] = [
   },
   {
     id: "synthetic-coastal-flood",
-    name: "Synthetic Coastal / Flood Exposure Zones",
+    name: "Illustrative Coastal / Flood Exposure Zones",
     category: "coastal_flood_risk",
     layerId: "coastalFloodRiskZones",
     layerName: "Coastal / Flood Risk Zones",
@@ -192,7 +192,7 @@ export const seedSpatialDatasets: SpatialDataset[] = [
   },
   {
     id: "synthetic-heat-exposure",
-    name: "Synthetic Heat Exposure Zones",
+    name: "Illustrative Heat Exposure Zones",
     category: "heat_risk",
     layerId: "heatRiskZones",
     layerName: "Heat Risk Zones",
@@ -206,7 +206,7 @@ export const seedSpatialDatasets: SpatialDataset[] = [
   },
   {
     id: "synthetic-transport-corridors",
-    name: "Synthetic Transport Corridors",
+    name: "Illustrative Transport Corridors",
     category: "transport_corridor",
     layerId: "transportCorridors",
     layerName: "Transport Corridors",
@@ -221,7 +221,7 @@ export const seedSpatialDatasets: SpatialDataset[] = [
   },
   {
     id: "synthetic-asset-boundaries",
-    name: "Synthetic Selected AOI Examples",
+    name: "Illustrative Selected AOI Examples",
     category: "asset_boundary",
     layerId: "assetParcelObjects",
     layerName: "Selected AOI Examples",
@@ -229,8 +229,8 @@ export const seedSpatialDatasets: SpatialDataset[] = [
     color: "#6d5dfc",
     source: source(),
     features: [
-      feature({ id: "asset-business-bay-block", name: "Business Bay sample AOI", category: "asset_boundary", subtype: "Sample area of interest", geometry: polygon([[55.2675, 25.1815], [55.2745, 25.1805], [55.2762, 25.1868], [55.2692, 25.1882], [55.2675, 25.1815]]), scenarioRelevance: ["realEstateDevelopment", "investmentSiteSelection"] }),
-      feature({ id: "asset-marina-waterfront", name: "Marina Waterfront sample AOI", category: "asset_boundary", subtype: "Sample area of interest", geometry: polygon([[55.1375, 25.079], [55.1458, 25.0778], [55.148, 25.0848], [55.1396, 25.086], [55.1375, 25.079]]), scenarioRelevance: ["realEstateDevelopment", "investmentSiteSelection", "climateRisk"] })
+      feature({ id: "asset-business-bay-block", name: "Business Bay illustrative AOI", category: "asset_boundary", subtype: "Illustrative area of interest", geometry: polygon([[55.2675, 25.1815], [55.2745, 25.1805], [55.2762, 25.1868], [55.2692, 25.1882], [55.2675, 25.1815]]), scenarioRelevance: ["realEstateDevelopment", "investmentSiteSelection"] }),
+      feature({ id: "asset-marina-waterfront", name: "Marina Waterfront illustrative AOI", category: "asset_boundary", subtype: "Illustrative area of interest", geometry: polygon([[55.1375, 25.079], [55.1458, 25.0778], [55.148, 25.0848], [55.1396, 25.086], [55.1375, 25.079]]), scenarioRelevance: ["realEstateDevelopment", "investmentSiteSelection", "climateRisk"] })
     ]
   },
   {

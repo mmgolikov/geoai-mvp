@@ -28,8 +28,8 @@ export function scoreSignalsFromMarketMetrics(match: MarketMetricsMatch): Market
     marketSupport,
     dataConfidence: tinySample ? "low" : match.metrics.dataConfidence,
     sampleSizeNote: tinySample
-      ? "Transaction sample is below 5 records, so liquidity and demand proxies are capped for conservative scoring."
-      : "Imported metrics provide broader sample support for market scoring."
+      ? "Fewer than 5 transaction records are available, so liquidity and demand proxies are capped for conservative scoring."
+      : "Imported metrics provide broader record coverage for market scoring."
   };
 }
 
@@ -67,14 +67,14 @@ export function enrichAnalysisWithMarketMetrics(analysis: ExpressAnalysis, match
         `imported-market-metrics-${match.matchedAreaName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
         "dubai-pulse-dld-apis",
         "Imported DLD / Dubai Pulse-style market metrics",
-        `Local ingestion pipeline source: data/normalized/market_area_metrics.json. Used for market context and scenario scoring for ${match.matchedAreaName}. Sample/manual import; validate against official DLD / Dubai Pulse datasets before underwriting or development decisions.`,
+        `Local ingestion pipeline source: data/normalized/market_area_metrics.json. Used for market context and scenario scoring for ${match.matchedAreaName}. Local/manual import; validate against official DLD / Dubai Pulse datasets before underwriting or development decisions.`,
         match.confidence
       )
     : null;
   const signals = scoreSignalsFromMarketMetrics(match);
   const summarySuffix = match.importedMetricsUsed && match.metrics
-    ? ` Imported market metrics for ${match.matchedAreaName} were available from the local DLD/Dubai Pulse-style ingestion prototype and used to support liquidity and demand proxy scoring. These metrics remain sample/manual-import derived and require official validation before underwriting.`
-    : ` No imported market metrics were matched to this selection; the memo uses seed_static sample context and should be validated against official DLD/Dubai Pulse datasets.`;
+    ? ` Imported market metrics for ${match.matchedAreaName} were available from the controlled local DLD/Dubai Pulse-style ingestion path and used to support liquidity and demand proxy scoring. These metrics are locally imported, non-official records and require official validation before underwriting.`
+    : ` No imported market metrics were matched to this selection; the memo uses illustrative local context and should be validated against official DLD/Dubai Pulse datasets.`;
 
   return {
     ...analysis,
@@ -88,7 +88,7 @@ export function enrichAnalysisWithMarketMetrics(analysis: ExpressAnalysis, match
       : analysis.keyFactors,
     risks: match.importedMetricsUsed
       ? [
-          "Imported market metrics are sample/manual-import derived and require official DLD / Dubai Pulse validation before investment decisions.",
+          "Imported market metrics are local/manual-import records and require official DLD / Dubai Pulse validation before investment decisions.",
           ...analysis.risks
         ].slice(0, 5)
       : analysis.risks,

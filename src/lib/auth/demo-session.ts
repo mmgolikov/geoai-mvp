@@ -9,10 +9,10 @@ export const demoUser: GeoAIUser = {
   id: "demo-user-geoai",
   email: "demo@geoai.space",
   phone: null,
-  name: "GeoAI Demo User",
+  name: "GeoAI Guided Access User",
   isDemoUser: true,
   profile: {
-    fullName: "GeoAI Demo User",
+    fullName: "GeoAI Guided Access User",
     region: "Dubai / UAE",
     defaultAudience: "b2b",
     defaultRole: "developer",
@@ -23,7 +23,7 @@ export const demoUser: GeoAIUser = {
 
 export const demoOrganization: GeoAIOrganization = {
   id: "demo-org-geoai",
-  name: "GeoAI Demo Organization",
+  name: "GeoAI Guided Access Organization",
   mode: "demo"
 };
 
@@ -38,6 +38,6 @@ export function createDemoProjectMembership(projectKey = "all-demo-projects"): G
     role: demoProjectRole,
     status: "active",
     source: "demo_seed",
-    caveat: "Demo sample membership only; production access control requires Supabase Auth, RLS and deployment governance."
+    caveat: "Browser-local guided access membership only; protected access requires Supabase Auth, RLS and deployment governance."
   };
 }

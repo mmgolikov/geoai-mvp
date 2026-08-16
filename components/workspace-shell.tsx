@@ -14,6 +14,7 @@ import {
   getDemoNarrativeForGuidedDemo
 } from "@/src/data/demo-narratives";
 import { demoProjects, getDemoProject } from "@/src/data/demo-projects";
+import { seededDemoReportRecords } from "@/src/data/demo-report-seeds";
 import {
   createGuidedDemoComparisonItems,
   createGuidedDemoDatasets,
@@ -24,6 +25,7 @@ import {
 import { createComparisonItem, createMockComparison } from "@/src/lib/mock-comparison";
 import { analysisScenarios, createMockExpressAnalysis } from "@/src/lib/mock-express-analysis";
 import { deriveDecisionPosture } from "@/src/lib/decision-posture";
+import { createDeterministicDecisionScore } from "@/src/lib/ai/decision-scoring-fallback";
 import { createSourceLineageSnapshot } from "@/src/lib/source-lineage-snapshot";
 import { generateExploreCandidates } from "@/src/lib/explore/candidates";
 import {
@@ -93,6 +95,7 @@ import {
 } from "@/src/lib/uploaded-data";
 import type { GeoAIProject } from "@/src/lib/db/types";
 import { upsertBrowserProjectArtifact } from "@/src/lib/browser-project-artifacts";
+import { readBrowserComparisonRecord, writeBrowserComparisonRecord } from "@/src/lib/comparison-restore";
 import type {
   AnalysisScenarioId,
   AnalysisHistoryItem,
@@ -283,7 +286,7 @@ function withMarketContext(analysis: ExpressAnalysis, marketContext: MarketConte
     ],
     limitations: [
       marketMetricsMatch.importedMetricsUsed
-        ? "Imported sample metrics demonstrate the market-data workflow and require official DLD / Dubai Pulse validation before investment decisions."
+        ? "Imported screening metrics demonstrate the market-data workflow and require official DLD / Dubai Pulse validation before investment decisions."
         : marketMetricsMatch.note,
       ...marketContext.limitations
     ]
@@ -300,7 +303,7 @@ function withMarketContext(analysis: ExpressAnalysis, marketContext: MarketConte
         ? `Market context: ${marketContext.areaName}`
         : `Market validation source: ${source?.name ?? sourceId}`,
       index === 0
-        ? `${marketContext.sourceMode ?? "seed_static"} market context matched to ${marketContext.areaName}. ${marketContext.dataQualityNotes?.[0] ?? "Current values are sample/open indices, not official market data."}`
+        ? `${marketContext.sourceMode ?? "seed_static"} market context matched to ${marketContext.areaName}. ${marketContext.dataQualityNotes?.[0] ?? "Current values are screening indices from public/open or local context, not official market data."}`
         : `Planned validation source for market, planning, infrastructure, or geospatial context related to ${marketContext.areaName}.`,
       index === 0 ? "demo" : "medium"
     );
@@ -334,7 +337,7 @@ function withOpenGeodataContext(analysis: ExpressAnalysis): ExpressAnalysis {
     "open-geodata-baseline-context",
     "osm-geofabrik-baseline",
     "Open geospatial baseline context",
-    "OSM / Geofabrik-style snapshot or sample fallback provides indicative road, POI, anchor and accessibility context. Not official GIS; attribution and validation are required before production use.",
+    "OSM / Geofabrik-style snapshot or local fallback provides indicative road, POI, anchor and accessibility context. Not official GIS; attribution and validation are required before operational use.",
     "medium"
   );
   const openContextNotes = [
@@ -348,7 +351,7 @@ function withOpenGeodataContext(analysis: ExpressAnalysis): ExpressAnalysis {
       ? `Nearby open-baseline anchors: ${nearbyPoi.map(({ item }) => item.name).join(", ")}.`
       : null
   ].filter((item): item is string => Boolean(item));
-  const openContextLimitation = "Open geospatial baseline fixtures are OSM-style sample context, not official GIS, parcel, zoning, planning or transport authority evidence.";
+  const openContextLimitation = "Open geospatial baseline records provide local screening context, not official GIS, parcel, zoning, planning or transport authority evidence.";
 
   return {
     ...analysis,
@@ -548,8 +551,17 @@ function readProjectKeyFromUrl(projects: GeoAIProject[]) {
 
 function hasExplicitWorkspaceContext() {
   const params = new URLSearchParams(window.location.search);
-  return ["projectKey", "projectId", "guidedDemo", "demoNarrativeId", "openAnalysis"]
+  return ["projectKey", "projectId", "guidedDemo", "demoNarrativeId", "openAnalysis", "openComparison"]
     .some((key) => params.has(key));
+}
+
+function readSeededComparison(comparisonId: string, projectKey: string) {
+  for (const record of seededDemoReportRecords) {
+    if (record.reportType !== "comparison" || record.projectKey !== projectKey) continue;
+    const payload = record.reportPayload as { comparisonJson?: ComparisonResult };
+    if (payload.comparisonJson?.id === comparisonId) return payload.comparisonJson;
+  }
+  return null;
 }
 
 function writeActiveProjectKey(projectKey: string) {
@@ -651,6 +663,21 @@ function createCandidateSearchSignature({
   settingsSignature: string;
 }) {
   return `${scenarioId}:${query}:${settingsSignature}`;
+}
+
+function stableReportKeyHash(value: string) {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(16).padStart(8, "0");
+}
+
+function createBoundedReportKey(mode: "analysis" | "comparison", projectKey: string, resultId: string) {
+  const raw = `${mode}-report-${projectKey}-${resultId}`;
+  if (raw.length <= 240) return raw;
+  return `${raw.slice(0, 231)}-${stableReportKeyHash(raw)}`;
 }
 
 function getCandidateSearchActionLabel(scenarioId: ExploreScenarioId, status: CandidateSearchStatus) {
@@ -895,9 +922,7 @@ export function WorkspaceShell({
     setSelectedScenario(nextAnalysisScenario);
     setCandidateSearchStatus(nextScenario.defaultInteractionMode === "criteria_first" ? "ready" : "idle");
 
-    if (nextAnalysisScenario === "customQuery" && customQuery.trim().length === 0) {
-      setCustomQuery(nextScenario.sampleQueries[0]);
-    }
+    setCustomQuery(nextAnalysisScenario === "customQuery" ? nextScenario.sampleQueries[0] : "");
   }
 
   function applyExploreDefaultsForProject(project: GeoAIProject) {
@@ -915,9 +940,7 @@ export function WorkspaceShell({
     setSelectedScenario(nextAnalysisScenario);
     setCandidateSearchStatus(nextScenario.defaultInteractionMode === "criteria_first" ? "ready" : "idle");
 
-    if (nextAnalysisScenario === "customQuery" && customQuery.trim().length === 0) {
-      setCustomQuery(nextScenario.sampleQueries[0]);
-    }
+    setCustomQuery(nextAnalysisScenario === "customQuery" ? nextScenario.sampleQueries[0] : "");
   }
 
   function clearWorkspaceResultState() {
@@ -938,6 +961,8 @@ export function WorkspaceShell({
     setComparisonMessage(null);
     setMarketContext(null);
     setAoiMessage(null);
+    setComparisonItems([]);
+    setCustomQuery("");
   }
 
   function loadGuidedDemo(presetId: string, includeComparisonSites = false) {
@@ -947,7 +972,7 @@ export function WorkspaceShell({
     const demoSelection = createGuidedDemoSelection(preset);
     const nextProject = projects.find((project) => project.projectKey === preset.projectKey) ?? getDemoProject(preset.projectKey);
     if (!nextProject) {
-      setAnalysisError("The requested guided-demo project is unavailable; no substitute project was selected.");
+      setAnalysisError("The requested guided workflow project is unavailable; no substitute project was selected.");
       return;
     }
 
@@ -979,7 +1004,7 @@ export function WorkspaceShell({
     setLastComparedState(null);
     setReportPreview(null);
     setAnalysisError(null);
-    setComparisonMessage(includeComparisonSites ? "Sample comparison sites loaded. Click Compare when ready." : null);
+    setComparisonMessage(includeComparisonSites ? "Screening comparison sites loaded. Click Compare when ready." : null);
     setIsAnalyzing(false);
     setMarketContext(null);
     setActiveGuidedDemoId(preset.id);
@@ -991,7 +1016,7 @@ export function WorkspaceShell({
     }
 
     setUploadedDataMessage(
-      `${preset.title} loaded with local demo CSV metrics and demo GeoJSON screening sites. Not official; validation required.`
+      `${preset.title} loaded with browser-local CSV metrics and GeoJSON screening sites. Not official; validation required.`
     );
   }
 
@@ -1077,7 +1102,7 @@ export function WorkspaceShell({
     ) {
       const restoredProject = requestedAnalysis.project ?? getDemoProject(restoreRequest?.projectKey ?? projectKey);
       if (!restoredProject) {
-        setAnalysisError("The requested analysis project is unavailable; another demo project was not substituted.");
+        setAnalysisError("The requested analysis project is unavailable; another project was not substituted.");
         clearOpenAnalysisRequest();
         return;
       }
@@ -1122,6 +1147,37 @@ export function WorkspaceShell({
   }, []);
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const comparisonId = params.get("openComparison");
+    if (!comparisonId) return;
+
+    const requestedProjectKey = params.get("projectKey") ?? readProjectKeyFromUrl(projects);
+    if (!requestedProjectKey || requestedProjectKey !== activeProject.projectKey) return;
+
+    const restoredComparison = readBrowserComparisonRecord(requestedProjectKey, comparisonId)
+      ?? readSeededComparison(comparisonId, requestedProjectKey);
+    if (!restoredComparison || restoredComparison.project?.projectKey !== requestedProjectKey) {
+      setAnalysisError("The requested comparison could not be restored for this project.");
+      return;
+    }
+
+    setComparison(restoredComparison);
+    setComparisonItems(restoredComparison.items.map((item) => item.item));
+    setCustomQuery(restoredComparison.customQuery ?? "");
+    setAnalysis(null);
+    setComparisonReturn(null);
+    setLastAnalyzedState(null);
+    setLastComparedState(null);
+    setReportPreview(null);
+    setComparisonMessage("Saved comparison restored for this project.");
+    setAnalysisError(null);
+
+    params.delete("openComparison");
+    const nextSearch = params.toString();
+    window.history.replaceState(null, "", `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ""}`);
+  }, [activeProject.projectKey, projects]);
+
+  useEffect(() => {
     const requestedProjectKey = readProjectKeyFromUrl(demoProjects);
     const localProjects = mergeProjectsWithLocal(demoProjects);
     const explicitContext = hasExplicitWorkspaceContext();
@@ -1134,7 +1190,7 @@ export function WorkspaceShell({
     let isMounted = true;
 
     if (!resolvedLocalProject && storedProjectKey !== localProject.projectKey) {
-      setAnalysisError(`Project '${storedProjectKey}' is unavailable. The invalid key was cleared and the workspace reset to the default public demo.`);
+      setAnalysisError(`Project '${storedProjectKey}' is unavailable. The invalid key was cleared and the workspace reset to the default public workspace.`);
       clearActiveProjectKey();
       const nextUrl = new URL(window.location.href);
       nextUrl.searchParams.delete("projectKey");
@@ -1469,18 +1525,19 @@ export function WorkspaceShell({
     setLastAnalyzedState(null);
     setLastComparedState(null);
     setReportPreview(null);
+    setComparisonItems([]);
   }
 
   function changeExploreAudience(audience: ExploreAudience) {
     const currentProjectMatchesAudience = getProjectSegment(activeProject) === audience;
     const nextProject = currentProjectMatchesAudience ? activeProject : getDefaultProjectForAudience(projects, audience);
 
+    clearWorkspaceResultState();
     applyExploreDefaultsForAudience(audience);
     if (nextProject.projectKey !== activeProject.projectKey) {
       setActiveProject(nextProject);
       writeActiveProjectKey(nextProject.projectKey);
     }
-    clearWorkspaceResultState();
   }
 
   function changeExploreRole(role: ExploreRole) {
@@ -1514,9 +1571,8 @@ export function WorkspaceShell({
     setSelectedScenario(nextAnalysisScenario);
     setAnalysisError(null);
     setComparisonMessage(null);
-    if (nextAnalysisScenario === "customQuery" && customQuery.trim().length === 0) {
-      setCustomQuery(nextScenario.sampleQueries[0]);
-    }
+    setComparisonItems([]);
+    setCustomQuery(nextAnalysisScenario === "customQuery" ? nextScenario.sampleQueries[0] : "");
   }
 
   function changeExploreScenario(scenarioId: ExploreScenarioId) {
@@ -1548,9 +1604,8 @@ export function WorkspaceShell({
     setSelectedScenario(nextAnalysisScenario);
     setAnalysisError(null);
     setComparisonMessage(null);
-    if (nextAnalysisScenario === "customQuery" && customQuery.trim().length === 0) {
-      setCustomQuery(nextScenario.sampleQueries[0]);
-    }
+    setComparisonItems([]);
+    setCustomQuery(nextAnalysisScenario === "customQuery" ? nextScenario.sampleQueries[0] : "");
   }
 
   function changeExploreInteractionMode(mode: InteractionMode) {
@@ -1867,7 +1922,9 @@ export function WorkspaceShell({
     const itemSelectedAoi = item.selectedAoi ?? null;
     const scenario = analysisScenarios.find((scenarioItem) => scenarioItem.id === item.scenarioId) ?? analysisScenarios[0];
     const uploadedDataContext = buildUploadedDataContext(scopedUploadedDatasets, item.point, itemSelectedObject);
-    const candidateAnalysis = withUploadedDataContext(
+    const activeComparison = comparison ?? comparisonReturn;
+    const activeScorecard = activeComparison?.items.find((scorecard) => scorecard.item.id === item.id) ?? null;
+    const baseCandidateAnalysis = withUploadedDataContext(
       withOpenGeodataContext({
         ...createMockExpressAnalysis(
           item.point,
@@ -1879,7 +1936,9 @@ export function WorkspaceShell({
         project: activeProject,
         analysisMode: "mock_fallback",
         confidenceLevel: "medium",
-        analysisNotice: "Opened from the criteria-first shortlist. Uses deterministic screening context; official validation required.",
+        analysisNotice: activeScorecard
+          ? `Opened from the criteria-first shortlist. The shortlist comparison score of ${activeScorecard.overallScore}/100 is preserved in this decision view; official validation required.`
+          : "Opened from the criteria-first shortlist. Uses deterministic screening context; official validation required.",
         generatedAt: new Date().toISOString(),
         analysisTarget: itemSelectedAoi
           ? {
@@ -1908,7 +1967,25 @@ export function WorkspaceShell({
       }),
       uploadedDataContext
     );
-    const activeComparison = comparison ?? comparisonReturn;
+    const candidateAnalysis = activeScorecard
+      ? {
+          ...baseCandidateAnalysis,
+          aiDecisionScore: {
+            ...createDeterministicDecisionScore({
+              projectKey: activeProject.projectKey,
+              target: baseCandidateAnalysis.analysisTarget,
+              scenarioId: item.scenarioId,
+              scenarioLabel: scenario.label,
+              customQuery,
+              deterministicScores: activeScorecard.scores,
+              validationGaps: baseCandidateAnalysis.limitations,
+              evidence: baseCandidateAnalysis.evidence
+            }),
+            suitabilityScore: activeScorecard.overallScore,
+            riskScore: Math.max(activeScorecard.scores.overallRisk, activeScorecard.scores.climateHeatRisk)
+          }
+        }
+      : baseCandidateAnalysis;
     const activeCandidateId = itemSelectedObject?.analysisTarget?.id ?? itemSelectedObject?.id.replace(/^explore-/, "") ?? null;
 
     setSelectedPoint(item.point);
@@ -2037,6 +2114,7 @@ export function WorkspaceShell({
 
   async function persistComparisonSet(comparisonResult: ComparisonResult) {
     const createdAt = new Date().toISOString();
+    writeBrowserComparisonRecord(activeProject.projectKey, comparisonResult);
     upsertBrowserProjectArtifact({
       id: `${activeProject.projectKey}-${comparisonResult.id}`,
       projectId: activeProject.id,
@@ -2051,6 +2129,10 @@ export function WorkspaceShell({
 
   function createAnalysisReportPayload(analysisResult: ExpressAnalysis) {
     const marketMetrics = createMarketMetricsMetadata(analysisResult);
+    const sourceLineage = createSourceLineageSnapshot({
+      evidence: analysisResult.evidence,
+      uploadedDatasets: scopedUploadedDatasets
+    });
 
     return {
       analysisRunId: analysisResult.id,
@@ -2077,6 +2159,7 @@ export function WorkspaceShell({
       ],
       dueDiligenceChecklist: analysisResult.nextActions,
       evidenceSourceReadiness: analysisResult.evidence,
+      sourceLineage,
       uploadedDataContext: analysisResult.uploadedDataContext ?? null,
       limitations: analysisResult.limitations ?? [],
       mapSnapshot,
@@ -2085,6 +2168,10 @@ export function WorkspaceShell({
   }
 
   function createComparisonReportPayload(comparisonResult: ComparisonResult) {
+    const sourceLineage = createSourceLineageSnapshot({
+      evidence: comparisonResult.evidence,
+      uploadedDatasets: scopedUploadedDatasets
+    });
     return {
       title: "Site Comparison Investment Memo",
       project: activeProject,
@@ -2124,8 +2211,9 @@ export function WorkspaceShell({
       ],
       dueDiligenceChecklist: comparisonResult.nextActions,
       evidenceSourceReadiness: comparisonResult.evidence,
+      sourceLineage,
       limitations: [
-        "Comparison uses deterministic sample scoring and structured evidence readiness, not a validated underwriting model."
+        "Comparison uses deterministic screening scoring and structured evidence readiness, not a validated underwriting model."
       ],
       generatedAt: new Date().toISOString()
     };
@@ -2133,6 +2221,10 @@ export function WorkspaceShell({
 
   function createPrintableSessionReport(mode: "analysis" | "comparison", reportKey: string) {
     if (mode === "analysis" && analysis) {
+      const sourceLineage = createSourceLineageSnapshot({
+        evidence: analysis.evidence,
+        uploadedDatasets: scopedUploadedDatasets
+      });
       return {
         id: reportKey,
         projectId: activeProject.id ?? null,
@@ -2141,12 +2233,17 @@ export function WorkspaceShell({
         title: "Express Analysis / Investment Memo",
         scenario: analysis.title,
         targetLabel: analysis.selectedAoi?.name ?? analysis.selectedObject?.name ?? "Custom map selection",
+        sourceLineage,
         reportPayload: createAnalysisReportPayload(analysis),
         createdAt: new Date().toISOString()
       };
     }
 
     if (mode === "comparison" && comparison) {
+      const sourceLineage = createSourceLineageSnapshot({
+        evidence: comparison.evidence,
+        uploadedDatasets: scopedUploadedDatasets
+      });
       return {
         id: reportKey,
         projectId: activeProject.id ?? null,
@@ -2155,6 +2252,7 @@ export function WorkspaceShell({
         title: "Site Comparison Investment Memo",
         scenario: "Comparison",
         targetLabel: comparison.items.map((item) => item.item.name).join(", "),
+        sourceLineage,
         reportPayload: createComparisonReportPayload(comparison),
         createdAt: new Date().toISOString()
       };
@@ -2165,9 +2263,9 @@ export function WorkspaceShell({
 
   async function persistReport(mode: "analysis" | "comparison") {
     const reportKey = mode === "analysis" && analysis
-      ? `analysis-report-${activeProject.projectKey}-${analysis.id}`
+      ? createBoundedReportKey("analysis", activeProject.projectKey, analysis.id)
       : mode === "comparison" && comparison
-        ? `comparison-report-${activeProject.projectKey}-${comparison.id}`
+        ? createBoundedReportKey("comparison", activeProject.projectKey, comparison.id)
         : null;
 
     if (!reportKey) {
@@ -2248,8 +2346,8 @@ export function WorkspaceShell({
 
     setActiveProject(nextProject);
     writeActiveProjectKey(nextProject.projectKey);
-    applyExploreDefaultsForProject(nextProject);
     clearWorkspaceResultState();
+    applyExploreDefaultsForProject(nextProject);
   }
 
   function activateProject(project: GeoAIProject) {
@@ -2260,8 +2358,8 @@ export function WorkspaceShell({
     });
     setActiveProject(project);
     writeActiveProjectKey(project.projectKey);
-    applyExploreDefaultsForProject(project);
     clearWorkspaceResultState();
+    applyExploreDefaultsForProject(project);
   }
 
   function createProject(input: LocalProjectInput) {
@@ -2489,7 +2587,7 @@ export function WorkspaceShell({
       analysisNotice: "Deterministic browser-local analysis. Uploaded datasets, AOI details, and their derived coordinates were not sent to a server or AI.",
       limitations: Array.from(new Set([
         ...(deterministicAnalysis.limitations ?? []),
-        "Narrative and scoring are generated locally from deterministic sample/open context.",
+        "Narrative and scoring are generated locally from deterministic screening and public/open context.",
         "Official parcel, planning, transaction, imagery, and risk data are not connected yet."
       ])),
       generatedAt: new Date().toISOString()
@@ -2629,9 +2727,21 @@ export function WorkspaceShell({
       <div
         aria-hidden={isMobileMapPickerOpen ? true : undefined}
         inert={isMobileMapPickerOpen ? true : undefined}
-        className="grid min-h-[calc(100svh-4rem)] shrink-0 grid-cols-1 lg:h-[calc(100vh-4rem)] lg:min-h-0 lg:grid-cols-[minmax(0,1fr)_380px] lg:overflow-hidden"
+        data-workspace-surface={hasResultSurface ? "result" : "setup"}
+        className={`grid min-h-[calc(100svh-4rem)] shrink-0 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_380px] ${
+          hasResultSurface
+            ? "lg:h-[calc(100vh-4rem)] lg:min-h-0 lg:overflow-hidden"
+            : "lg:min-h-[calc(100vh-4rem)] lg:items-start"
+        }`}
       >
-        <div className={`${hasResultSurface ? "order-1" : "order-2 lg:order-1"} min-h-0 lg:h-full`}>
+        <div
+          data-workspace-result-surface={hasResultSurface ? "active" : undefined}
+          className={`${
+            hasResultSurface
+              ? "order-1 lg:col-span-2 lg:h-full"
+              : "order-2 lg:sticky lg:top-16 lg:order-1 lg:h-[calc(100vh-4rem)]"
+          } min-h-0`}
+        >
           {reportPreview === "analysis" && analysis ? (
             <ReportPreview key={`report-${analysis.id}`} mode="analysis" analysis={analysis} mapSnapshot={mapSnapshot} onBack={() => setReportPreview(null)} />
           ) : reportPreview === "comparison" && comparison ? (
@@ -2695,78 +2805,80 @@ export function WorkspaceShell({
             </div>
           )}
         </div>
-        <div ref={workflowPanelRef} className={`${hasResultSurface ? "order-2" : "order-1"} min-h-0 min-w-0 lg:order-2 lg:h-full`}>
-          <AnalysisPanel
-            selectedPoint={selectedPoint}
-            selectedObject={selectedObject}
-            selectedAoi={selectedAoi}
-            projects={projectSelectorProjects}
-            activeProject={activeProject}
-            selectedScenario={selectedScenario}
-            customQuery={customQuery}
-            isAnalyzing={isAnalyzing}
-            analysisError={analysisError}
-            comparisonItems={comparisonItems}
-            comparisonMessage={comparisonMessage}
-            analysisHistory={analysisHistory}
-            analysisHistorySource={analysisHistorySource}
-            hasResult={analysis !== null || comparison !== null}
-            currentAnalysis={analysis}
-            analysisMode={analysis?.analysisMode}
-            marketMetricsMatch={analysis?.marketMetricsMatch}
-            backendStatus={backendStatus}
-            marketContext={marketContext}
-            isMarketContextLoading={isMarketContextLoading}
-            uploadedDatasets={scopedUploadedDatasets}
-            uploadedDataMessage={uploadedDataMessage}
-            projectAois={projectAois}
-            aoiDraftName={aoiDraftName}
-            aoiMessage={aoiMessage}
-            exploreAudience={selectedExploreAudience}
-            exploreRole={selectedExploreRole}
-            exploreScenarioId={selectedExploreScenario}
-            exploreInteractionMode={exploreInteractionMode}
-            exploreFilters={exploreFilters}
-            exploreCandidates={visibleExploreCandidates}
-            candidateSearchStatus={candidateSearchStatus}
-            selectedExploreCandidateId={selectedExploreCandidateId}
-            exploreSetupDefaultOpen={initialExploreMode}
-            workspaceHeading="Workspace location screening"
-            onExploreAudienceChange={changeExploreAudience}
-            onExploreRoleChange={changeExploreRole}
-            onExploreScenarioChange={changeExploreScenario}
-            onExploreInteractionModeChange={changeExploreInteractionMode}
-            onExploreFilterChange={updateExploreFilter}
-            onExploreCandidateSelect={selectExploreCandidate}
-            onCreateProject={createProject}
-            onProjectChange={changeActiveProject}
-            onCustomQueryChange={(query) => {
-              setCustomQuery(query);
-              setAnalysisError(null);
-            }}
-            primaryCtaLabel={primaryCtaState.label}
-            primaryCtaDisabled={primaryCtaState.disabled}
-            onPrimaryCta={primaryCtaState.action}
-            onAddToComparison={addSelectionToComparison}
-            onRemoveComparisonItem={removeComparisonItem}
-            onRunComparison={runComparison}
-            onOpenHistoryItem={openHistoryItem}
-            onClearAnalysisHistory={clearAnalysisHistory}
-            onUploadDataset={uploadDataset}
-            onImportAoiGeojson={importAoiGeojson}
-            onAoiDraftNameChange={setAoiDraftName}
-            onSaveSelectedAoi={saveSelectedAoi}
-            onOpenSavedAoi={openSavedAoi}
-            onRenameSavedAoi={renameSavedAoi}
-            onDeleteSavedAoi={deleteSavedAoi}
-            onExportSelectedAoi={exportSelectedAoi}
-            onExportSavedAoi={exportSavedAoi}
-            onRemoveUploadedDataset={removeUploadedDataset}
-            onClearUploadedDatasets={clearUploadedDatasets}
-            onToggleUploadedDataset={toggleUploadedDataset}
-            onOpenMap={openMapFromPanel}
-          />
-        </div>
+        {!hasResultSurface ? (
+          <div ref={workflowPanelRef} data-workspace-setup-surface className="order-1 min-h-0 min-w-0 lg:order-2">
+            <AnalysisPanel
+              selectedPoint={selectedPoint}
+              selectedObject={selectedObject}
+              selectedAoi={selectedAoi}
+              projects={projectSelectorProjects}
+              activeProject={activeProject}
+              selectedScenario={selectedScenario}
+              customQuery={customQuery}
+              isAnalyzing={isAnalyzing}
+              analysisError={analysisError}
+              comparisonItems={comparisonItems}
+              comparisonMessage={comparisonMessage}
+              analysisHistory={analysisHistory}
+              analysisHistorySource={analysisHistorySource}
+              hasResult={analysis !== null || comparison !== null}
+              currentAnalysis={analysis}
+              analysisMode={analysis?.analysisMode}
+              marketMetricsMatch={analysis?.marketMetricsMatch}
+              backendStatus={backendStatus}
+              marketContext={marketContext}
+              isMarketContextLoading={isMarketContextLoading}
+              uploadedDatasets={scopedUploadedDatasets}
+              uploadedDataMessage={uploadedDataMessage}
+              projectAois={projectAois}
+              aoiDraftName={aoiDraftName}
+              aoiMessage={aoiMessage}
+              exploreAudience={selectedExploreAudience}
+              exploreRole={selectedExploreRole}
+              exploreScenarioId={selectedExploreScenario}
+              exploreInteractionMode={exploreInteractionMode}
+              exploreFilters={exploreFilters}
+              exploreCandidates={visibleExploreCandidates}
+              candidateSearchStatus={candidateSearchStatus}
+              selectedExploreCandidateId={selectedExploreCandidateId}
+              exploreSetupDefaultOpen={initialExploreMode}
+              workspaceHeading="Workspace location screening"
+              onExploreAudienceChange={changeExploreAudience}
+              onExploreRoleChange={changeExploreRole}
+              onExploreScenarioChange={changeExploreScenario}
+              onExploreInteractionModeChange={changeExploreInteractionMode}
+              onExploreFilterChange={updateExploreFilter}
+              onExploreCandidateSelect={selectExploreCandidate}
+              onCreateProject={createProject}
+              onProjectChange={changeActiveProject}
+              onCustomQueryChange={(query) => {
+                setCustomQuery(query);
+                setAnalysisError(null);
+              }}
+              primaryCtaLabel={primaryCtaState.label}
+              primaryCtaDisabled={primaryCtaState.disabled}
+              onPrimaryCta={primaryCtaState.action}
+              onAddToComparison={addSelectionToComparison}
+              onRemoveComparisonItem={removeComparisonItem}
+              onRunComparison={runComparison}
+              onOpenHistoryItem={openHistoryItem}
+              onClearAnalysisHistory={clearAnalysisHistory}
+              onUploadDataset={uploadDataset}
+              onImportAoiGeojson={importAoiGeojson}
+              onAoiDraftNameChange={setAoiDraftName}
+              onSaveSelectedAoi={saveSelectedAoi}
+              onOpenSavedAoi={openSavedAoi}
+              onRenameSavedAoi={renameSavedAoi}
+              onDeleteSavedAoi={deleteSavedAoi}
+              onExportSelectedAoi={exportSelectedAoi}
+              onExportSavedAoi={exportSavedAoi}
+              onRemoveUploadedDataset={removeUploadedDataset}
+              onClearUploadedDatasets={clearUploadedDatasets}
+              onToggleUploadedDataset={toggleUploadedDataset}
+              onOpenMap={openMapFromPanel}
+            />
+          </div>
+        ) : null}
       </div>
       {isMobileMapPickerOpen ? (
         <section
@@ -2820,7 +2932,7 @@ export function WorkspaceShell({
             <p className="text-xs leading-5 text-muted" aria-live="polite">
               {selectedPoint
                 ? "Selection ready. Run analysis now or return to the workflow to review settings."
-                : "Tap the map to select a point, object, AOI, or candidate before running analysis."}
+                : "Tap the map, or focus it and press Enter or Space, to select a point before running analysis."}
             </p>
             <div className="mt-2 flex flex-col gap-2 sm:flex-row">
               <button

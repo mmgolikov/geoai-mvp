@@ -21,7 +21,7 @@ export const officialConnectorReadiness: OfficialConnectorReadiness[] = [
     currentStatus: "manual_snapshot_ready",
     credentialRequired: false,
     agreementRequired: false,
-    currentImplementation: "Manual/sample snapshot ingestion with source/date/category validation.",
+    currentImplementation: "Manual illustrative snapshot ingestion with source/date/category validation.",
     whatItCanSupport: ["Transaction/rent/project/valuation category snapshot context if manually downloaded/imported."],
     whatItCannotSupport: ["Live ownership verification", "Official parcel boundary", "Zoning approval", "Certified valuation"],
     allowedClaims: ["DLD public snapshot context indicates...", "Manual snapshot evidence requires source/date review."],

@@ -56,7 +56,7 @@ export function getSpatialContext(point: SelectedPoint) {
       "osm-geofabrik-open-pois",
       "overture-maps-open-buildings"
     ], "sample_fallback"),
-    dataConfidenceSummary: "Open spatial context is sample/open snapshot context, not official municipal GIS.",
+    dataConfidenceSummary: "Open spatial context comes from illustrative local/public-open snapshots, not official municipal GIS.",
     validationRequired: validationRequiredNote()
   };
 }
@@ -80,7 +80,7 @@ export function getAccessibilityContext(point: SelectedPoint) {
           matchDistanceKm: Number(accessibility.distanceKm.toFixed(2))
         }
       : {
-          areaName: "Dubai sample context",
+          areaName: "Dubai illustrative local context",
           index: 58,
           nearestMajorRoadKm: nearestRoad ? Number(nearestRoad.distanceKm.toFixed(2)) : null,
           nearestAirportKm: null,
@@ -89,7 +89,7 @@ export function getAccessibilityContext(point: SelectedPoint) {
         },
     poiCountNearby: nearbyPoi.length,
     sourceLineage: buildContextLineage(["osm-geofabrik-open-roads", "osm-geofabrik-open-pois"], "sample_fallback"),
-    dataConfidenceSummary: "Accessibility is a screening proxy from open/sample roads and POIs.",
+    dataConfidenceSummary: "Accessibility is a screening proxy from illustrative local/public-open roads and POIs.",
     validationRequired: validationRequiredNote()
   };
 }
@@ -115,13 +115,13 @@ export function getDemographicContext(point: SelectedPoint) {
     point,
     demographicContext: nearest
       ? {
-          areaName: String(nearest.feature.properties?.areaName ?? "UAE sample area"),
+          areaName: String(nearest.feature.properties?.areaName ?? "UAE illustrative local area"),
           populationDensityProxy: nearest.feature.properties?.populationDensityProxy ?? "sample",
           distanceKm: Number(nearest.distanceKm.toFixed(2)),
           confidence: nearest.feature.properties?.confidence ?? "sample"
         }
       : {
-          areaName: "No WorldPop sample match",
+          areaName: "No WorldPop context match",
           populationDensityProxy: "unavailable"
         },
     sourceLineage: buildContextLineage(["worldpop-demographics"], "sample_fallback"),

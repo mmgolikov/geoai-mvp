@@ -1,16 +1,17 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { externalDataCaveat } from "@/src/lib/external-data/source-registry";
-import { normalizeSourceDataMode, type SourceDataMode } from "@/src/lib/external-data/source-modes";
+import {
+  ILLUSTRATIVE_LOCAL_SCREENING_CONTEXT_LABEL,
+  normalizeSourceDataMode,
+  sourcePresentationLabel,
+  sourceValidationStatusFor,
+  type SourceDataMode,
+  type SourceValidationStatus
+} from "@/src/lib/external-data/source-modes";
 import { normalizeSourceStatus, sourceStatusPriority, type SourceStatus } from "@/src/lib/external-data/source-status";
 
-export type SourceQualityValidationStatus =
-  | "sample-only"
-  | "snapshot-not-live"
-  | "manual-import-ready"
-  | "api-context"
-  | "token-or-permission-required"
-  | "planned-validation";
+export type SourceQualityValidationStatus = SourceValidationStatus;
 
 export type SnapshotQualityItem = {
   sourceGroupId: string;
@@ -29,6 +30,7 @@ export type SnapshotQualityItem = {
   status: SourceStatus;
   confidence: "medium" | "low" | "requires-validation";
   validationStatus: SourceQualityValidationStatus;
+  presentationLabel: string;
   caveat: string;
   nextValidationStep: string;
   qualityNotes: string[];
@@ -46,6 +48,7 @@ export type SourceQualityGroup = {
   licenseNote: string;
   confidence: "medium" | "low" | "requires-validation";
   validationStatus: SourceQualityValidationStatus;
+  presentationLabel: string;
   caveat: string;
   nextValidationStep: string;
   snapshots: SnapshotQualityItem[];
@@ -53,9 +56,10 @@ export type SourceQualityGroup = {
 
 export type SourceQualityManifest = {
   version: "1.3";
-  generatedAt: string;
+  generatedAt: string | null;
   mode: "local_normalized_snapshot_quality";
   source: "normalized_local_files";
+  presentationLabel: typeof ILLUSTRATIVE_LOCAL_SCREENING_CONTEXT_LABEL;
   caveat: string;
   groups: SourceQualityGroup[];
 };
@@ -177,26 +181,11 @@ function numberOrNull(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
-function extractDateFromPath(path: string | null | undefined) {
-  const match = String(path ?? "").match(/(?:^|_)(\d{4})(\d{2})(\d{2})(?:\.|_|$)/);
-  if (!match) return null;
-  return `${match[1]}-${match[2]}-${match[3]}`;
-}
-
 function confidenceFor(status: SourceStatus, hasRecords: boolean): SnapshotQualityItem["confidence"] {
   if (status === "snapshot_available") return "medium";
   if (status === "connected") return "medium";
   if (status === "sample_fallback" && hasRecords) return "low";
   return "requires-validation";
-}
-
-function validationStatusFor(status: SourceStatus): SourceQualityValidationStatus {
-  if (status === "snapshot_available") return "snapshot-not-live";
-  if (status === "sample_fallback") return "sample-only";
-  if (status === "manual_import_ready") return "manual-import-ready";
-  if (status === "connected") return "api-context";
-  if (status === "permission_required" || status === "token_required") return "token-or-permission-required";
-  return "planned-validation";
 }
 
 function dataModeFor(status: SourceStatus) {
@@ -219,7 +208,9 @@ function bestStatus(statuses: SourceStatus[], fallback: SourceStatus) {
 }
 
 function compactFiles(values: Array<string | null | undefined>) {
-  return Array.from(new Set(values.filter((value): value is string => Boolean(value))));
+  return Array.from(new Set(values.filter(
+    (value): value is string => Boolean(value) && existsSync(join(process.cwd(), value as string))
+  )));
 }
 
 function groupFromSnapshots(
@@ -233,19 +224,22 @@ function groupFromSnapshots(
   const totalRecords = recordCounts.length > 0 ? recordCounts.reduce((sum, value) => sum + value, 0) : null;
   const totalFeatures = featureCounts.length > 0 ? featureCounts.reduce((sum, value) => sum + value, 0) : null;
   const hasRows = Boolean((totalRecords ?? 0) > 0 || (totalFeatures ?? 0) > 0);
+  const dataMode = dataModeFor(status);
+  const validationStatus = sourceValidationStatusFor(status);
 
   return {
     sourceGroupId,
     sourceGroupName: groupNames[sourceGroupId],
     status,
-    dataMode: dataModeFor(status),
+    dataMode,
     recordCount: totalRecords,
     featureCount: totalFeatures,
     generatedAt: newestDate(snapshots.map((snapshot) => snapshot.generatedAt)),
     extractedAt: newestDate(snapshots.map((snapshot) => snapshot.extractedAt)),
     licenseNote: licenseNotes[sourceGroupId],
     confidence: confidenceFor(status, hasRows),
-    validationStatus: validationStatusFor(status),
+    validationStatus,
+    presentationLabel: sourcePresentationLabel({ dataMode, status, validationStatus }),
     caveat: externalDataCaveat,
     nextValidationStep: nextValidationSteps[sourceGroupId],
     snapshots
@@ -271,12 +265,17 @@ function buildDldGroup(): SourceQualityGroup {
       recordCount,
       featureCount: null,
       generatedAt: quality?.generatedAt ?? null,
-      extractedAt: extractDateFromPath(item.inputFile),
+      extractedAt: null,
       licenseNote: licenseNotes[dldGroupId],
       dataMode: dataModeFor(status),
       status,
       confidence: confidenceFor(status, hasRows),
-      validationStatus: validationStatusFor(status),
+      validationStatus: sourceValidationStatusFor(status),
+      presentationLabel: sourcePresentationLabel({
+        dataMode: dataModeFor(status),
+        status,
+        validationStatus: sourceValidationStatusFor(status)
+      }),
       caveat: externalDataCaveat,
       nextValidationStep: nextValidationSteps[dldGroupId],
       qualityNotes: Array.isArray(item.qualityNotes) ? item.qualityNotes : []
@@ -305,12 +304,17 @@ function buildOsmGroup(): SourceQualityGroup {
       recordCount: featureCount,
       featureCount,
       generatedAt: quality?.generatedAt ?? null,
-      extractedAt: extractDateFromPath(quality?.inputFile),
+      extractedAt: null,
       licenseNote: licenseNotes[osmGroupId],
       dataMode: dataModeFor(status),
       status,
       confidence: confidenceFor(status, hasRows),
-      validationStatus: validationStatusFor(status),
+      validationStatus: sourceValidationStatusFor(status),
+      presentationLabel: sourcePresentationLabel({
+        dataMode: dataModeFor(status),
+        status,
+        validationStatus: sourceValidationStatusFor(status)
+      }),
       caveat: externalDataCaveat,
       nextValidationStep: nextValidationSteps[osmGroupId],
       qualityNotes: []
@@ -346,7 +350,12 @@ function buildOvertureGroup(): SourceQualityGroup {
       dataMode: dataModeFor(itemStatus),
       status: itemStatus,
       confidence: confidenceFor(itemStatus, hasRows),
-      validationStatus: validationStatusFor(itemStatus),
+      validationStatus: sourceValidationStatusFor(itemStatus),
+      presentationLabel: sourcePresentationLabel({
+        dataMode: dataModeFor(itemStatus),
+        status: itemStatus,
+        validationStatus: sourceValidationStatusFor(itemStatus)
+      }),
       caveat: externalDataCaveat,
       nextValidationStep: nextValidationSteps[overtureGroupId],
       qualityNotes: []
@@ -375,6 +384,11 @@ function buildClimateGroup(): SourceQualityGroup {
     status,
     confidence: "requires-validation",
     validationStatus: "token-or-permission-required",
+    presentationLabel: sourcePresentationLabel({
+      dataMode: "permission_required",
+      status,
+      validationStatus: "token-or-permission-required"
+    }),
     caveat: externalDataCaveat,
     nextValidationStep: nextValidationSteps[climateGroupId],
     qualityNotes: ["Static registry state is not runtime success. Open-Meteo live access is disabled; NASA POWER is available only through the fixed Preview source pack."]
@@ -390,7 +404,6 @@ function buildCopernicusGroup(): SourceQualityGroup {
   const sceneCount = Array.isArray(metadata?.collections)
     ? metadata.collections.reduce((sum, item) => sum + (typeof item.sceneCount === "number" ? item.sceneCount : 0), 0)
     : null;
-  const latestSceneDate = newestDate(metadata?.collections?.map((item) => item.latestSceneDate) ?? []);
   const snapshot: SnapshotQualityItem = {
     sourceGroupId: copernicusGroupId,
     sourceGroupName: groupNames[copernicusGroupId],
@@ -402,12 +415,17 @@ function buildCopernicusGroup(): SourceQualityGroup {
     recordCount: sceneCount,
     featureCount: null,
     generatedAt: metadata?.generatedAt ?? null,
-    extractedAt: latestSceneDate,
+    extractedAt: null,
     licenseNote: licenseNotes[copernicusGroupId],
     dataMode: dataModeFor(status),
     status,
     confidence: confidenceFor(status, Boolean(sceneCount && sceneCount > 0)),
-    validationStatus: validationStatusFor(status),
+    validationStatus: sourceValidationStatusFor(status),
+    presentationLabel: sourcePresentationLabel({
+      dataMode: dataModeFor(status),
+      status,
+      validationStatus: sourceValidationStatusFor(status)
+    }),
     caveat: externalDataCaveat,
     nextValidationStep: nextValidationSteps[copernicusGroupId],
     qualityNotes: [metadata?.limitation ?? "Metadata availability only; no imagery download or raster analytics connected."]
@@ -417,20 +435,22 @@ function buildCopernicusGroup(): SourceQualityGroup {
 }
 
 export function buildSourceQualityManifest(): SourceQualityManifest {
-  const generatedAt = new Date().toISOString();
+  const groups = [
+    buildDldGroup(),
+    buildOsmGroup(),
+    buildOvertureGroup(),
+    buildClimateGroup(),
+    buildCopernicusGroup()
+  ];
+  const generatedAt = newestDate(groups.map((group) => group.generatedAt));
 
   return {
     version: "1.3",
     generatedAt,
     mode: "local_normalized_snapshot_quality",
     source: "normalized_local_files",
+    presentationLabel: ILLUSTRATIVE_LOCAL_SCREENING_CONTEXT_LABEL,
     caveat: externalDataCaveat,
-    groups: [
-      buildDldGroup(),
-      buildOsmGroup(),
-      buildOvertureGroup(),
-      buildClimateGroup(),
-      buildCopernicusGroup()
-    ]
+    groups
   };
 }

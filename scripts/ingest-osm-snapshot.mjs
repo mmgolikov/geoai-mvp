@@ -98,7 +98,7 @@ if (!existsSync(inputFile)) {
     generatedAt,
     status: "unavailable",
     inputFile,
-    message: "No OSM / Geofabrik GeoJSON snapshot found. Sample/demo fallback remains active.",
+    message: "No OSM / Geofabrik GeoJSON snapshot found. Illustrative local fallback remains active.",
     caveat
   };
   writeFileSync(qualityPath, JSON.stringify(report, null, 2));

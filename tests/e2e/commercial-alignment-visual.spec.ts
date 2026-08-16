@@ -88,8 +88,8 @@ async function captureCommercialVisual(page: Page, label: string, fileName: stri
 
 async function openDemoProfile(page: Page) {
   await page.goto("/login?next=/workspace&intent=demo");
-  await page.getByRole("button", { name: "Use demo credentials" }).click();
-  await page.getByRole("button", { name: "Open demo" }).click();
+  await page.getByRole("button", { name: "Use guided access" }).click();
+  await page.getByRole("button", { name: "Open guided workspace" }).click();
   await expect(page).toHaveURL((url) => url.pathname === "/workspace");
   await page.goto("/profile");
   await expect(page.getByRole("heading", { level: 1, name: "Your profile" })).toBeVisible();
@@ -112,16 +112,16 @@ test.describe("commercial Landing and Account visual acceptance", () => {
       await page.clock.setFixedTime(new Date("2026-07-19T09:00:00.000Z"));
 
       await page.goto("/");
-      await expect(page.getByRole("heading", { level: 1, name: "Ask the map. Move with evidence." })).toBeVisible();
+      await expect(page.getByRole("heading", { level: 1, name: "GeoAI Real Estate Decision Intelligence" })).toBeVisible();
       await expect(page.locator('header img[src="/brand/geoai-identity-symbol-32.svg"]')).toBeVisible();
-      const landingCockpit = page.locator('img[alt="GeoAI illustrative screening cockpit"]');
+      const landingCockpit = page.locator('img[alt="GeoAI GCC real estate decision dashboard with map, screening result, evidence drivers and next action"]');
       await expect(landingCockpit).toBeVisible();
       const cockpitDimensions = await landingCockpit.evaluate((image) => ({
         naturalHeight: (image as HTMLImageElement).naturalHeight,
         naturalWidth: (image as HTMLImageElement).naturalWidth
       }));
-      expect(cockpitDimensions.naturalWidth).toBeGreaterThanOrEqual(350);
-      expect(cockpitDimensions.naturalHeight).toBeGreaterThanOrEqual(460);
+      expect(cockpitDimensions.naturalWidth).toBeGreaterThanOrEqual(1400);
+      expect(cockpitDimensions.naturalHeight).toBeGreaterThanOrEqual(900);
       await expectNoHorizontalOverflow(page);
       await captureCommercialVisual(page, `${viewport.name} Landing`, `landing-${viewport.name}.png`);
 

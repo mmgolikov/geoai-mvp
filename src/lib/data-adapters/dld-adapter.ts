@@ -11,7 +11,7 @@ export const dldAdapter: DataAdapter = {
     return plannedAdapterResponse(
       this.sourceId,
       this.integrationStatus,
-      "DLD adapter is planned. No live API call is made in the MVP."
+      "DLD adapter is planned. No live API call is made in the current controlled implementation."
     );
   }
 };

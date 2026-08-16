@@ -39,14 +39,14 @@ export function getEffectiveAuthMode(): GeoAIAuthMode {
 export function authModeToLabel(mode: GeoAIAuthMode) {
   if (mode === "supabase_auth") return "Supabase Auth";
   if (mode === "disabled") return "Auth disabled";
-  return "Public demo";
+  return "Browser-local guided access";
 }
 
 export function authModeToCaveat(mode: GeoAIAuthMode, requestedMode = mode) {
   if (requestedMode === "supabase_auth" && mode === "disabled") {
     return hasSupabasePublicConfig()
       ? `${requestAuthKernelStatus.reason} Access fails closed instead of synthesizing a profile, organization or membership.`
-      : "Supabase Auth was requested but public configuration is incomplete; access fails closed instead of falling back to a demo identity.";
+      : "Supabase Auth was requested but public configuration is incomplete; access fails closed instead of falling back to browser-local guided access.";
   }
 
   if (mode === "supabase_auth") {
@@ -54,10 +54,10 @@ export function authModeToCaveat(mode: GeoAIAuthMode, requestedMode = mode) {
   }
 
   if (mode === "disabled") {
-    return "Authentication is disabled; no demo identity is synthesized. Select demo_public explicitly for public screening access.";
+    return "Authentication is disabled; no browser-local guided identity is synthesized. Select demo_public explicitly for browser-local guided access.";
   }
 
-  return "Public demo access is enabled; official validation and production access control are not configured.";
+  return "Browser-local guided access is enabled. It does not authorize protected server resources; official validation and production access control are not configured.";
 }
 
 export function getAuthModeStatus(): AuthModeStatus {

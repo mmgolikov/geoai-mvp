@@ -23,19 +23,6 @@
   }
 }
 
-@media (max-width: 400px) {
-  /*
-   * At the controlled 390x844 viewport even the compact primary action covers
-   * the lower part of Custom Query. Keep this action block in normal flow on
-   * the narrowest screens; the same primary action is also available in the
-   * contextual selection card, so the workflow remains reachable by scroll.
-   */
-  aside > section.sticky.bottom-0 {
-    position: static;
-    box-shadow: none;
-  }
-}
-
 @media (min-width: 1024px) {
   /*
    * The Workspace switches to its split map/panel layout at the lg breakpoint.

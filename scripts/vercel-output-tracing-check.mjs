@@ -7,7 +7,8 @@ const publicSourceFiles = [
   "data/external/normalized/external_data_manifest.json",
   "data/normalized/dld_source_quality.json",
   "data/normalized/osm_source_quality.json",
-  "data/normalized/overture_source_quality.json"
+  "data/normalized/overture_source_quality.json",
+  "data/external/samples/copernicus_sentinel_metadata_sample.json"
 ];
 const requirements = {
   ".next/server/app/api/context/spatial/route.js.nft.json": [

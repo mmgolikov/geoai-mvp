@@ -16,7 +16,7 @@ export type ReportDeliverable = {
   targetLabel: string;
   targetGeometry: unknown;
   createdAt: string;
-  generatedBy: "GeoAI Screening MVP";
+  generatedBy: "GeoAI Decision Intelligence";
   decisionPosture: string;
   scoreSummary: unknown;
   keyFindings: string[];
@@ -89,9 +89,9 @@ const fallbackLineage: SourceLineageSnapshot = {
   capturedAt: new Date(0).toISOString(),
   demoSources: [
     {
-      id: "sample-open-workspace",
-      name: "GeoAI sample/open workspace context",
-      note: "Sample/offline context used for screening narrative and report layout."
+      id: "illustrative-open-workspace",
+      name: "GeoAI illustrative local and public/open context",
+      note: "Illustrative local and public/open context used for screening narrative and report layout."
     }
   ],
   uploadedSources: [],
@@ -104,14 +104,14 @@ const fallbackLineage: SourceLineageSnapshot = {
     }
   ],
   disclaimers: [
-    "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.",
-    "Saved report uses sample/open/local/uploaded source lineage unless explicitly validated.",
-    "Live official parcel, planning, cadastral, title, ownership and zoning validation is not provided by this MVP.",
+    "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.",
+    "Saved report uses illustrative local, public/open or user-provided source lineage unless explicitly validated.",
+    "Live official parcel, planning, cadastral, title, ownership and zoning validation is not provided.",
     "GeoAI supports screening and decision preparation, not final legal, cadastral or valuation approval."
   ]
 };
 
-const releaseCaveat = "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.";
+const releaseCaveat = "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.";
 
 const scoreKeys: ScoreKey[] = [
   "developmentPotential",
@@ -365,7 +365,7 @@ export function normalizeReportDeliverable(record: unknown): AnalysisReportDeliv
   const decisionPosture = isObject(payload)
     ? asString(payload.decisionPosture, typedRecord.decisionPosture ?? typedRecord.decision_posture ?? "Requires official validation")
     : typedRecord.decisionPosture ?? typedRecord.decision_posture ?? "Requires official validation";
-  const dataHonestyNote = "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion. Browser print/save as PDF deliverable based on MVP screening context; this is not production-ready or pilot-ready evidence.";
+  const dataHonestyNote = "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion. Browser print/save as PDF deliverable based on illustrative local, public/open or user-provided screening context.";
 
   if (reportType === "comparison") {
     const comparison = readComparisonPayload(payload);
@@ -387,7 +387,7 @@ export function normalizeReportDeliverable(record: unknown): AnalysisReportDeliv
       targetLabel: comparedItems.map((item) => item.name).join(", ") || "Compared sites",
       targetGeometry: null,
       createdAt,
-      generatedBy: "GeoAI Screening MVP",
+      generatedBy: "GeoAI Decision Intelligence",
       decisionPosture,
       scoreSummary: isObject(payload) ? payload.scoreOverview ?? comparison?.items ?? null : comparison?.items ?? null,
       keyFindings: sharedOpportunities,
@@ -445,7 +445,7 @@ export function normalizeReportDeliverable(record: unknown): AnalysisReportDeliv
     targetLabel,
     targetGeometry: analysis?.analysisTarget?.geometry ?? selectedAoi?.geometry ?? selectedObject?.analysisTarget?.geometry ?? null,
     createdAt,
-    generatedBy: "GeoAI Screening MVP",
+    generatedBy: "GeoAI Decision Intelligence",
     decisionPosture,
     scoreSummary,
     keyFindings,
@@ -461,7 +461,7 @@ export function normalizeReportDeliverable(record: unknown): AnalysisReportDeliv
     selectedObject,
     selectedAoi,
     analysisTarget: analysis?.analysisTarget ?? selectedObject?.analysisTarget ?? selectedAoiTarget,
-    executiveMemo: analysis?.summary ?? "This saved report contains a GeoAI MVP screening memo. Generate a fresh analysis for richer narrative detail and source-specific scoring context.",
+    executiveMemo: analysis?.summary ?? "This saved report contains a GeoAI screening memo. Generate a fresh analysis for richer narrative detail and source-specific scoring context.",
     opportunities: analysis?.opportunities ?? [],
     limitations: analysis?.limitations ?? (isObject(payload) ? asArrayOfStrings(payload.limitations) : []),
     customQueryAnswer

@@ -179,7 +179,7 @@ function AnalysisPrintable({
   analysis: ExpressAnalysis;
   mapSnapshot?: ReportMapSnapshot | null;
 }) {
-  const analysisMode = analysis.analysisMode === "openai" ? "AI-generated" : "Sample/open fallback";
+  const analysisMode = analysis.analysisMode === "openai" ? "AI-generated" : "Deterministic local screening";
   const dashboardModel = buildDashboardModel(analysis);
   const siteName = dashboardModel.targetLabel;
   const coordinates = formatCoordinate(analysis.point.latitude, analysis.point.longitude);
@@ -208,7 +208,7 @@ function AnalysisPrintable({
         <PrintCard><strong>Scenario</strong><span>{analysis.title}</span></PrintCard>
         <PrintCard><strong>Project</strong><span>{analysis.project?.name ?? "Dubai Investment Screening"}</span></PrintCard>
         <PrintCard><strong>Client type</strong><span>{analysis.project?.clientType?.replace(/_/g, " ") ?? "fund"}</span></PrintCard>
-        <PrintCard><strong>Data mode</strong><span>{analysis.project?.dataMode?.replace(/_/g, " ") ?? "sample/open"}</span></PrintCard>
+        <PrintCard><strong>Data mode</strong><span>{analysis.project?.dataMode?.replace(/demo normalized/gi, "illustrative local screening").replace(/_/g, " ") ?? "illustrative local screening"}</span></PrintCard>
         <PrintCard><strong>Generated</strong><span>{formatDate(analysis.generatedAt)}</span></PrintCard>
         <PrintCard><strong>Suitability</strong><span>{dashboardModel.primaryScore}/100</span></PrintCard>
         <PrintCard><strong>Confidence</strong><span>{dashboardModel.confidenceLabel}</span></PrintCard>
@@ -286,8 +286,8 @@ function AnalysisPrintable({
           </div>
           <p>
             {marketMetricsMatch?.importedMetricsUsed
-              ? "Imported sample metrics demonstrate the market-data workflow and require official DLD / Dubai Pulse validation before investment decisions."
-              : "Seed_static demo metrics used because imported market metrics did not match this selection."}
+              ? "Imported snapshot metrics support the market-data workflow and require official DLD / Dubai Pulse validation before investment decisions."
+              : "Local screening metrics were used because imported market metrics did not match this selection."}
           </p>
         </PrintSection>
       ) : null}
@@ -340,9 +340,9 @@ function AnalysisPrintable({
 
       <PrintSection title="Data Confidence / Validation Path">
         <div className="print-score-grid">
-          <PrintCard><strong>Used in prototype</strong><span>Synthetic demo layers, seed_static context and deterministic scoring.</span></PrintCard>
+          <PrintCard><strong>Current screening basis</strong><span>Illustrative local layers, public/open context and deterministic scoring.</span></PrintCard>
           <PrintCard><strong>Official validation</strong><span>DLD, Dubai Pulse and Dubai Municipality / GeoDubai should validate conclusions.</span></PrintCard>
-          <PrintCard><strong>DLD / Dubai Pulse ingestion</strong><span>{ingestionReport.marketMetricCount} sample market areas available for validation workflow and conservative matched scoring.</span></PrintCard>
+          <PrintCard><strong>DLD / Dubai Pulse ingestion</strong><span>{ingestionReport.marketMetricCount} local market areas available for validation workflow and conservative matched scoring.</span></PrintCard>
           <PrintCard><strong>Validation integration path</strong><span>Adapter stubs define the next path for permitted official, open, licensed and customer data.</span></PrintCard>
         </div>
       </PrintSection>
@@ -368,7 +368,7 @@ function AnalysisPrintable({
           {requiredDataCaveat}
         </p>
         <p>
-          Current MVP output demonstrates the decision workflow using sample/open indicators. Any controlled client use should validate conclusions against agreed DLD, Dubai Pulse, Dubai Municipality / GeoDubai, customer and/or licensed datasets.
+          This screening output uses local and public/open indicators. Any client use should validate conclusions against agreed DLD, Dubai Pulse, Dubai Municipality / GeoDubai, customer and/or licensed datasets.
         </p>
         {analysis.limitations?.map((item, index) => <p key={createStableKey("print-analysis-limitation", item, index)}>{item}</p>)}
       </PrintSection>
@@ -456,7 +456,7 @@ function ComparisonPrintable({ comparison }: { comparison: ComparisonResult }) {
           {requiredDataCaveat}
         </p>
         <p>
-          Current MVP output demonstrates the decision workflow using sample/open indicators. Any controlled client use should validate conclusions against agreed DLD, Dubai Pulse, Dubai Municipality / GeoDubai, customer and/or licensed datasets.
+          This screening output uses local and public/open indicators. Any client use should validate conclusions against agreed DLD, Dubai Pulse, Dubai Municipality / GeoDubai, customer and/or licensed datasets.
         </p>
       </PrintSection>
     </article>

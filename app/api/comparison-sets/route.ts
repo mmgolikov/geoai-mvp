@@ -64,7 +64,7 @@ export async function GET(request: Request) {
       item: result.data,
       access,
       error: result.error,
-      dataHonesty: "Saved comparison sets are demo/local until source validation is completed."
+      dataHonesty: "Saved comparison sets use illustrative local screening context until source validation is completed."
     });
   }
 
@@ -137,7 +137,7 @@ export async function POST(request: Request) {
     item: result.data,
     access,
     error: result.error,
-    message: result.mode === "supabase" ? "Comparison set persisted." : "Comparison set kept in local fallback; server-side demo storage is not durable."
+    message: result.mode === "supabase" ? "Comparison set persisted." : "Comparison set kept in browser/local fallback; shared server storage is not durable."
   });
 }
 

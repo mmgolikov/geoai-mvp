@@ -221,7 +221,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       createFallbackStructuredAnalysis(
         body,
-        "AI analysis is temporarily unavailable. Using deterministic sample/open fallback."
+        "AI analysis is temporarily unavailable. Using deterministic illustrative local/public-open screening context."
       )
     );
   }

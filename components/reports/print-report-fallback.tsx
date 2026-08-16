@@ -47,7 +47,7 @@ export function PrintReportFallback({ reportId }: PrintReportFallbackProps) {
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">Printable deliverable</p>
             <h2 className="mt-1 text-xl font-semibold text-ink">{report.title}</h2>
-            <p className="mt-1 text-sm leading-6 text-muted">Loaded from saved browser/sample fallback; official validation required.</p>
+            <p className="mt-1 text-sm leading-6 text-muted">Loaded from saved browser or illustrative local context; official validation required.</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <Link
@@ -77,7 +77,7 @@ export function PrintReportFallback({ reportId }: PrintReportFallbackProps) {
         <h1 className="mt-3 text-3xl font-semibold">{checked ? "Report unavailable" : "Preparing printable report"}</h1>
         <p className="mt-3 text-sm leading-6 text-muted">
           {checked
-            ? "This report id is not available in saved browser data or seeded demo reports. Return to the workspace or project dashboard to generate a fresh memo."
+            ? "This report id is not available in saved browser data or prepared local screening reports. Return to the workspace or project dashboard to generate a fresh memo."
             : "Checking saved report payload and local session fallback."}
         </p>
         <div className="mt-6 flex flex-wrap gap-3">

@@ -11,7 +11,7 @@ export const satelliteAdapter: DataAdapter = {
     return plannedAdapterResponse(
       this.sourceId,
       this.integrationStatus,
-      "Satellite adapter is planned. Sentinel/Landsat/commercial imagery are not called in the MVP."
+      "Satellite adapter is planned. Sentinel/Landsat/commercial imagery are not called in the current controlled implementation."
     );
   }
 };

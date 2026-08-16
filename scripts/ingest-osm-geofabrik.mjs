@@ -55,7 +55,7 @@ const defaultManifestSources = [
     lastUpdated: null,
     availableFiles: [],
     usedInAnalysis: false,
-    disclaimer: "Planned official validation source; not connected in this demo."
+    disclaimer: "Planned official validation source; not connected in this environment."
   },
   {
     id: "dld-api-gateway-validation",
@@ -63,7 +63,7 @@ const defaultManifestSources = [
     lastUpdated: null,
     availableFiles: [],
     usedInAnalysis: false,
-    disclaimer: "Enterprise validation/integration path; not connected in this demo."
+    disclaimer: "Enterprise validation/integration path; not connected in this environment."
   }
 ];
 

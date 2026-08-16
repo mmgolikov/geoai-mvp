@@ -109,8 +109,8 @@ export function createMarketAreaMetrics(
       rentalDemandProxy,
       dataConfidence,
       sourceSummary: areaTransactions.length < 5
-        ? "Derived from a tiny synthetic sample CSV fixture; liquidity and demand proxies are capped and require official DLD / Dubai Pulse validation."
-        : `Derived from synthetic sample CSV fixtures for DLD / Dubai Pulse ingestion prototype. Record confidence: ${confidenceForArea([...areaTransactions, ...areaRents, ...areaProjects])}.`
+        ? "Derived from fewer than 5 illustrative local records; liquidity and demand proxies are capped and require official DLD / Dubai Pulse validation."
+        : `Derived from illustrative local records used for controlled DLD / Dubai Pulse ingestion validation. Record confidence: ${confidenceForArea([...areaTransactions, ...areaRents, ...areaProjects])}.`
     };
   });
 }

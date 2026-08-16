@@ -118,10 +118,10 @@ function formatCoordinate(latitude: number, longitude: number) {
 }
 
 function formatDataModeLabel(value?: string | null, separator = " ") {
-  return (value ?? "sample_open")
+  return (value ?? "local_screening")
     .replace(/_/g, separator)
-    .replace(/\bdemo normalized\b/gi, "sample/open")
-    .replace(/\bdemo-normalized\b/gi, "sample/open");
+    .replace(/\bdemo normalized\b/gi, "illustrative local screening")
+    .replace(/\bdemo-normalized\b/gi, "illustrative local screening");
 }
 
 function formatSourceQualityLabel(value?: string | null) {
@@ -172,8 +172,8 @@ function ExternalDataLineageSection({
     ...(comparison?.evidence.map((item) => item.sourceId) ?? [])
   ]);
   const marketBasis = analysis?.marketMetricsMatch?.importedMetricsUsed || analysis?.marketContext?.importedMarketMetrics?.importedMetricsUsed
-    ? "sample/manual market metrics matched; validate against DLD / Dubai Pulse snapshot or official exports"
-    : "sample fallback unless a local/public DLD / Dubai Pulse snapshot is loaded";
+    ? "manual snapshot metrics matched; validate against DLD / Dubai Pulse snapshot or official exports"
+    : "local screening context unless a permitted DLD / Dubai Pulse snapshot is loaded";
   const usedRows = [
     {
       source: sourceById("dld-dubai-pulse-transactions"),
@@ -182,8 +182,8 @@ function ExternalDataLineageSection({
     {
       source: sourceById("osm-geofabrik-baseline"),
       note: evidenceSourceIds.has("open-geodata-baseline-sample")
-        ? "Access/context basis: existing OSM-style sample baseline; real OSM / Geofabrik prepared baseline can replace it when loaded."
-        : "Access/context basis: open geospatial baseline when available; otherwise demo open-geodata fallback."
+        ? "Access/context basis: existing OSM-style local baseline; a prepared OSM / Geofabrik baseline can replace it when loaded."
+        : "Access/context basis: open geospatial baseline when available; otherwise local geospatial context."
     },
     isClimateScenario
       ? {
@@ -201,11 +201,11 @@ function ExternalDataLineageSection({
   const plannedRows = [
     {
       source: sourceById("geodubai-municipality-validation"),
-      note: "Planned official GIS/planning validation source; not connected in this demo."
+      note: "Planned official GIS and planning validation source; not connected in the current runtime."
     },
     {
       source: sourceById("dld-api-gateway-validation"),
-      note: "Planned enterprise validation path for official DLD workflows; not connected in this demo."
+      note: "Planned enterprise validation path for official DLD workflows; not connected in the current runtime."
     }
   ].filter((item): item is { source: NonNullable<ReturnType<typeof sourceById>>; note: string } => Boolean(item.source));
 
@@ -516,7 +516,7 @@ function createPrintableComparisonRecord(comparison: ComparisonResult) {
       dueDiligenceChecklist: comparison.nextActions,
       evidenceSourceReadiness: comparison.evidence,
       limitations: [
-        "Comparison uses deterministic sample scoring and structured evidence readiness, not a validated underwriting model."
+        "Comparison uses deterministic screening scores and structured evidence readiness, not a validated underwriting model."
       ],
       generatedAt: new Date().toISOString()
     },
@@ -552,9 +552,9 @@ function AnalysisReport({
   mapSnapshot?: ReportMapSnapshot | null;
   onBack: () => void;
 }) {
-  const analysisBadge = analysis.analysisMode === "openai" ? "AI analysis" : "Sample/open fallback";
-  const analysisModeLabel = analysis.analysisMode === "openai" ? "AI-generated" : "Sample/open fallback";
-  const dataLimitation = analysis.limitations?.[0] ?? "Structured evidence context with deterministic sample scoring.";
+  const analysisBadge = analysis.analysisMode === "openai" ? "AI analysis" : "Deterministic screening";
+  const analysisModeLabel = analysis.analysisMode === "openai" ? "AI-generated" : "Deterministic local screening";
+  const dataLimitation = analysis.limitations?.[0] ?? "Structured evidence context with deterministic screening scores.";
   const decisionPosture = deriveDecisionPosture(analysis);
   const decisionRationale = deriveDecisionRationale(analysis);
   const marketMetricsMatch = analysis.marketContext?.importedMarketMetrics ?? analysis.marketMetricsMatch;
@@ -822,12 +822,12 @@ function AnalysisReport({
                       <p className="mt-1 text-ink">
                         {importedMetric.rentalRecordCount} records / {importedMetric.medianRentPerSqm?.toLocaleString("en-US") ?? "-"} AED/sqm
                       </p>
-                      <p className="mt-2 leading-6 text-muted">Sample/manual import; not live official market data.</p>
+                      <p className="mt-2 leading-6 text-muted">Manual snapshot import; not live official market data.</p>
                     </div>
                     <div className="rounded-md bg-white p-4">
                       <span className="font-semibold text-muted">Pipeline proxy</span>
                       <p className="mt-1 text-ink">{importedMetric.projectCount} projects / {importedMetric.pipelineProxy}/100</p>
-                      <p className="mt-2 leading-6 text-muted">Pipeline pressure proxy from imported sample project rows.</p>
+                      <p className="mt-2 leading-6 text-muted">Pipeline pressure proxy from imported local project rows.</p>
                     </div>
                   </>
                 ) : null}
@@ -875,10 +875,10 @@ function AnalysisReport({
                 </div>
               </div>
               <p className="mt-4 text-sm leading-6 text-muted">
-                Note: {marketMetricsMatch?.note ?? analysis.marketContext.dataQualityNotes?.[0] ?? "Current values are sample/open screening indices and not official market data."}
+                Note: {marketMetricsMatch?.note ?? analysis.marketContext.dataQualityNotes?.[0] ?? "Current values are local and public/open screening indices, not official market data."}
                 {" "}
                 {marketMetricsMatch?.importedMetricsUsed
-                  ? "Imported sample metrics are used to demonstrate the market-data workflow. Validate against official DLD / Dubai Pulse datasets before investment decisions."
+                  ? "Imported snapshot metrics support the market-data workflow. Validate against official DLD / Dubai Pulse datasets before investment decisions."
                   : analysis.marketContext.dataQualityNotes?.[1] ?? analysis.marketContext.limitations[0]}
               </p>
             </div>
@@ -989,8 +989,8 @@ function AnalysisReport({
           <EvidenceSourceCards evidence={analysis.evidence} />
           <div className="mt-4 rounded-md border border-line bg-surface p-4 text-sm leading-6 text-muted">
             <span className="font-semibold text-ink">DLD / Dubai Pulse ingestion readiness:</span>{" "}
-            {ingestionReport.marketMetricCount} imported sample market areas are available for validation workflow.
-            These sample/manual CSV metrics support conservative scoring when matched and are not a live official data connection.
+            {ingestionReport.marketMetricCount} imported local market areas are available for the validation workflow.
+            These manual snapshot metrics support conservative scoring when matched and are not a live official data connection.
           </div>
         </Section>
 
@@ -1042,7 +1042,7 @@ function AnalysisReport({
         <Section title="Data Honesty">
           <p className="text-sm leading-6 text-muted">{requiredDataCaveat}</p>
           <p className="mt-2 text-sm leading-6 text-muted">
-            This report is an MVP screening output using sample/open, local snapshot, uploaded or validation-required context. It does not claim live official integration, production readiness or pilot readiness.
+            This report uses local snapshots, public/open sources, uploaded inputs and validation-required context. It does not claim live official integration or decision-grade validation.
           </p>
         </Section>
         </div>
@@ -1158,7 +1158,7 @@ function ComparisonReport({ comparison, onBack }: { comparison: ComparisonResult
         <Section title="Map Context">
           <MapContextCard
             title="Comparison Map Context"
-            subtitle="Selected locations / assets in synthetic Dubai context"
+            subtitle="Selected locations / assets in illustrative local Dubai context"
             comparison={comparison}
             reportMode
           />
@@ -1263,7 +1263,7 @@ function ComparisonReport({ comparison, onBack }: { comparison: ComparisonResult
         <Section title="Data Honesty">
           <p className="text-sm leading-6 text-muted">{requiredDataCaveat}</p>
           <p className="mt-2 text-sm leading-6 text-muted">
-            This comparison is an MVP screening output using sample/open, local snapshot, uploaded or validation-required context. It does not claim live official integration, production readiness or pilot readiness.
+            This comparison uses local snapshots, public/open sources, uploaded inputs and validation-required context. It does not claim live official integration or decision-grade validation.
           </p>
         </Section>
         </div>

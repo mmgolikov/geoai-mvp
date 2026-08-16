@@ -117,6 +117,6 @@ export async function getSchemaReadinessSummary(): Promise<SchemaReadinessSummar
         ? "The api.healthcheck allowlist is reachable; base-table and PostGIS readiness still require isolated DB-01 replay evidence. Local fallback remains active."
         : status === "configured_unavailable"
           ? "Supabase env is configured, but api.healthcheck is unavailable or unhealthy. Local fallback remains active."
-          : "A valid Supabase URL/publishable key is not configured. GeoAI is running in local/demo mode."
+          : "A valid Supabase URL/publishable key is not configured. GeoAI is running with browser-local illustrative context."
   };
 }

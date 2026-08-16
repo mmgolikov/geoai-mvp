@@ -40,6 +40,17 @@ function stablePointId(point: SelectedPoint) {
   return `${point.latitude.toFixed(5)}-${point.longitude.toFixed(5)}`;
 }
 
+function marketBasisLabel(sourceMode: string | undefined) {
+  const mode = sourceMode?.trim().toLowerCase() ?? "";
+  if (/imported/.test(mode)) return "illustrative local market context";
+  if (!mode || /sample|demo|fallback|seed|synthetic|fixture|local/.test(mode)) {
+    return "illustrative local screening context";
+  }
+  if (/open/.test(mode)) return "public/open context";
+  if (/user|customer/.test(mode)) return "user-provided context";
+  return "source context under validation";
+}
+
 function recommendedUseForItem(item: ComparisonItem) {
   if (item.selectedAoi) return `${userDrawnAoiSourceLabel(item.selectedAoi)} screening and official validation workflow`;
   if (item.selectedObject?.layerId === "premiumRealEstateAreas") return "Premium mixed-use or residential investment";
@@ -185,16 +196,16 @@ export function createMockComparison(items: ComparisonItem[], customQuery = ""):
     items: scorecards,
     winner,
     whyPreferred:
-      `${winner.item.name} has the strongest demo risk-adjusted profile, with an overall score of ${winner.overallScore}. ` +
+      `${winner.item.name} has the strongest screening risk-adjusted profile, with an overall score of ${winner.overallScore}. ` +
       `It combines ${winner.scores.investmentAttractiveness}/100 investment attractiveness, ${winner.scores.accessibility}/100 accessibility, and ${winner.scores.infrastructureReadiness}/100 infrastructure readiness while keeping key concerns manageable for early diligence. ` +
-      `${winner.marketMetricsMatch?.importedMetricsUsed ? `Imported sample market metrics matched ${winner.marketMetricsMatch.matchedAreaName} and support liquidity/demand proxy interpretation.` : "This option relies on seed/demo market fallback and requires imported market validation."}${queryContext}`,
+      `${winner.marketMetricsMatch?.importedMetricsUsed ? `Illustrative local market context matched ${winner.marketMetricsMatch.matchedAreaName} and supports liquidity and demand proxy interpretation.` : "This option relies on illustrative local market context and requires current market validation."}${queryContext}`,
     whenAnotherMayBeBetter: runnerUp
       ? `${runnerUp.item.name} may be preferable if the priority shifts toward ${runnerUp.recommendedUse.toLowerCase()} or if its open diligence items clear faster than the current best option.`
       : "Another option may be better if official land-use, title, infrastructure, or risk checks materially change the assumptions.",
     sharedOpportunities: [
       importedSupportItems.length > 0
-        ? `${importedSupportItems.length} option(s) have imported sample market metrics available for liquidity, rental demand and pipeline validation.`
-        : "Imported market metrics were not matched to the selected options; use seed_static context until official datasets are connected.",
+        ? `${importedSupportItems.length} shortlisted ${importedSupportItems.length === 1 ? "option has" : "options have"} illustrative local market metrics available for liquidity, rental demand and pipeline screening.`
+        : "Area-specific illustrative market metrics were not matched to the selected options; general local context remains active until current market evidence is validated.",
       "Use the selected locations as a short-list for structured investor or planning review.",
       "Compare land-use, access, infrastructure, and climate assumptions before deeper spend.",
       "Create a consistent scoring memo that can be reused for additional candidate sites.",
@@ -202,7 +213,7 @@ export function createMockComparison(items: ComparisonItem[], customQuery = ""):
     ],
     differentiatedRisks: [
       ...scorecards.map((item) =>
-        `${item.item.name}: market data basis ${item.marketMetricsMatch?.sourceMode ?? "seed_static"} / ${item.marketMetricsMatch?.confidence ?? "low"} confidence.`
+        `${item.item.name}: market data basis ${marketBasisLabel(item.marketMetricsMatch?.sourceMode)} / ${item.marketMetricsMatch?.confidence ?? "low"} confidence.`
       ).slice(0, 3),
       `${winner.item.name}: ${winner.keyConcern}.`,
       ...riskierItems.slice(0, 2).map((item) => `${item.item.name}: ${item.keyConcern}.`),
@@ -221,7 +232,7 @@ export function createMockComparison(items: ComparisonItem[], customQuery = ""):
         "comparison-map-selections",
         "synthetic-demo-layers",
         "Comparison map selections",
-        "Selected points and demo objects used as the comparison set."
+        "Selected points and screening objects used as the comparison set."
       ),
       createEvidenceItem(
         "comparison-scenarios",
@@ -246,17 +257,17 @@ export function createMockComparison(items: ComparisonItem[], customQuery = ""):
       createEvidenceItem(
         "comparison-mock-model",
         "synthetic-demo-layers",
-        "Mock comparison scoring model",
-        "Deterministic local comparison model used for MVP demonstration."
+        "Deterministic comparison model",
+        "Deterministic local comparison model used for screening workflow support."
       ),
       createEvidenceItem(
         "comparison-imported-market-metrics",
-        "dubai-pulse-dld-apis",
-        "Imported market metrics readiness",
+        "demo-market-context-seed",
+        "Illustrative market context",
         importedSupportItems.length > 0
-          ? "Local DLD / Dubai Pulse-style ingestion metrics used for matched comparison market context. Sample/manual import; official validation required."
-          : "Imported market metrics are available but did not match all selected comparison items.",
-        "medium"
+          ? "Illustrative local market metrics support matched comparison context; current licensed or official/client evidence remains required."
+          : "Illustrative local market metrics are available but did not match all selected comparison items.",
+        "low"
       )
     ]
   };

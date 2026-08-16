@@ -35,7 +35,7 @@ export async function getSafeAuthSessionSummary(request: Request) {
       organization: demoOrganization,
       projectRole: demoProjectRole,
       membership: createDemoProjectMembership(),
-      warnings: ["Public demo access is not a Supabase-authenticated session."]
+      warnings: ["Browser-local guided access is not a Supabase-authenticated session and does not authorize protected server resources."]
     };
   }
 
@@ -53,7 +53,7 @@ export async function getSafeAuthSessionSummary(request: Request) {
       organization: null,
       projectRole: null,
       membership: null,
-      warnings: ["Authentication is disabled; no demo identity was synthesized."]
+      warnings: ["Authentication is disabled; no browser-local guided identity was synthesized."]
     };
   }
 

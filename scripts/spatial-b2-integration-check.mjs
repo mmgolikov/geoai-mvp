@@ -253,10 +253,10 @@ assert(!/[?&]spatialMode=.*open_context_preview/.test(mapClient), "Map client mu
 assert(mapClient.includes("removeControlledFixtureLayerFromMap"), "Activation synchronization must remove obsolete controlled fixture layers and sources");
 assert(mapClient.includes("syncOpenGeodataVisibility"), "Local fixture visibility must synchronize with the existing map");
 assert(!/>OSM</.test(mapClient), "Legacy local fixture must not be labelled as OSM");
-assert(mapClient.includes("local fixture") && mapClient.includes("OSM-style sample"), "Legacy fixture must use approved local-fixture wording");
+assert(mapClient.includes("illustrative local") && !mapClient.includes(">Synthetic<"), "Local screening context must use customer-facing illustrative wording without raw fixture labels");
 assert(!mapClient.includes("console.error ="), "Map runtime must not monkeypatch global console.error observability");
 assert(mapClient.includes("!mapReady") && mapClient.includes("Map did not become ready in time"), "Map watchdog must fail over when readiness stalls, not only when construction fails");
-assert(mapClient.includes("Select sample map center"), "Fallback map must expose a keyboard-operable point-selection control");
+assert(mapClient.includes("Select default map center"), "Fallback map must expose a keyboard-operable point-selection control");
 assert(landingMap.includes("attributionControl: true"), "Landing Mapbox attribution must be visible through the native control");
 assert(reportMapPreview.includes("attributionControl: true"), "Live report Mapbox preview must expose native attribution");
 assert(!workspaceShell.includes("/api/uploaded-datasets") && !workspaceShell.includes("/api/aois"), "Public-demo uploads and AOIs must remain browser-local");

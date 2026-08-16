@@ -32,21 +32,15 @@ requireCondition(
   "Landing must use IdentitySymbol and must not use the approximate BrandMark or LandingHeroMap."
 );
 
-for (const asset of [
-  "public/design/landing-geoai-cockpit-desktop-v18.png",
-  "public/design/landing-geoai-cockpit-tablet-v18.png",
-  "public/design/landing-geoai-cockpit-mobile-v18.png"
-]) {
+for (const asset of ["public/design/gcc-decision-cockpit-v1.png"]) {
   const stat = await fs.stat(path.join(root, asset));
   requireCondition(stat.size > 150000, `${asset} must be a repository-owned Figma cockpit export.`);
 }
 
 requireCondition(
-  landing.includes('data-figma-node="1495:53"') &&
-    landing.includes("/design/landing-geoai-cockpit-desktop-v18.png") &&
-    landing.includes("/design/landing-geoai-cockpit-tablet-v18.png") &&
-    landing.includes("/design/landing-geoai-cockpit-mobile-v18.png"),
-  "Landing cockpit must trace to Figma node 1495:53 and use responsive approved exports."
+  landing.includes('data-figma-node="1957:12"') &&
+    landing.includes("/design/gcc-decision-cockpit-v1.png"),
+  "Landing cockpit must trace to candidate Figma node 1957:12 and use the repository-owned GCC decision export."
 );
 requireCondition(
   !landing.includes("Validation gap · official confirmation required"),
@@ -90,12 +84,13 @@ const evidence = {
   schemaVersion: "1.1",
   status: failures.length === 0 ? "pass" : "fail",
   figmaAuthorities: {
-    landing: "1495:23",
-    desktopCockpit: "1495:53",
-    tabletCockpit: "1495:725",
-    mobileCockpit: "1495:1144",
-    criteriaDesktop: "1540:499",
-    criteriaMobile: "1540:964"
+    authorityBoard: "1956:12",
+    landing: "1957:11",
+    desktopCockpit: "1957:12",
+    tabletCockpit: "1957:721",
+    mobileCockpit: "1957:1146",
+    criteriaDesktop: "1957:23419",
+    criteriaMobile: "1957:23639"
   },
   findings,
   checkedAt: new Date().toISOString()

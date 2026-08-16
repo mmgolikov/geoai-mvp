@@ -11,8 +11,12 @@ const files = {
   provider: source("components/auth/auth-provider.tsx"),
   login: source("components/auth/login-panel.tsx"),
   badge: source("components/auth/access-status-badge.tsx"),
+  badgeVisual: source("components/auth/access-status-badge-visual.tsx"),
+  browserDemoStorage: source("src/lib/browser-demo-storage.ts"),
   workspace: source("components/workspace-shell.tsx"),
   projects: source("components/project-dashboard/project-dashboard.tsx"),
+  comparison: source("components/comparison-dashboard.tsx"),
+  seededReports: source("src/data/demo-report-seeds.ts"),
   localStore: source("src/lib/auth/profile-local-store.ts"),
   preferences: source("src/lib/auth/profile-preferences.ts"),
   session: source("src/lib/auth/session-summary.ts")
@@ -43,7 +47,7 @@ expect(files.provider.includes("saveProfile") && files.provider.includes("reques
 expect(files.provider.includes("signInWithPassword") && files.login.includes("passwordSelected"), "A changed real-user password cannot be used by the login UI");
 expect(files.login.includes("normalizedIdentifier === mockDemoEmail") && !files.login.includes("mockDemoEmail || password.length"), "Any password must not be treated as mock-demo authority");
 expect(files.badge.includes('isAuthenticated ? "/profile" : "/login"'), "Authenticated account control does not open the profile");
-expect(files.badge.includes('data-authenticated={isAuthenticated ? "true" : "false"}') && files.badge.includes("Open your profile"), "Profile icon does not expose a visible authenticated state");
+expect(files.badge.includes("Open your profile") && files.badgeVisual.includes('data-authenticated={isAuthenticated ? "true" : "false"}'), "Profile icon does not expose a visible authenticated state");
 expect(files.login.includes("window.location.replace(getDestination())"), "Saved authorization does not continue directly to Workspace");
 expect(!files.panel.includes("Demo profile changes stay in this browser."), "Large demo caveat still occupies the top of the personal account");
 expect(files.workspace.includes("user?.profile.defaultAudience") && files.workspace.includes("user?.profile.defaultRole"), "Workspace does not consume profile defaults");
@@ -51,7 +55,17 @@ expect(files.workspace.includes("hasExplicitWorkspaceContext"), "Workspace profi
 expect(files.projects.includes("user?.profile.defaultAudience") && files.projects.includes("getExploreRolesByAudience(projectAudienceDraft)"), "Projects does not consume the full profile audience/role contract");
 expect(files.preferences.includes("geoai_profile") && files.preferences.includes("contact_phone"), "Real-user UX preferences are not namespaced in Auth metadata");
 expect(!files.session.includes("user_metadata") && files.session.includes("readGeoAIUserProfile(null"), "Server session authority must not consume user-editable metadata");
-expect(files.panel.includes("Two-factor authentication is not part of the current MVP flow."), "Profile reintroduced an MFA dependency or omitted the product decision");
+expect(files.panel.includes("Two-factor authentication is not part of this sign-in flow."), "Profile reintroduced an MFA dependency or omitted the product decision");
+expect(files.provider.includes("const serverSessionPrepared = await prepareServerSessionForGuidedAccess()") && files.provider.includes("if (!serverSessionPrepared)"), "Guided access can start without a fail-closed server-session preparation check");
+expect(files.provider.includes("const serverSessionPrepared = await prepareServerSessionForGuidedAccess()") && files.provider.includes("if (!serverSessionPrepared) return;"), "Failed server-session preparation can still replace the current UI session");
+expect(!files.provider.includes("finally {\n        setSession(createAnonymousSession())"), "Logout still clears the UI session regardless of server response");
+expect(files.browserDemoStorage.includes("guidedProfileStorageKey") && files.browserDemoStorage.includes("geoai-user-profile-v1:demo-user-geoai"), "Guided profile PII is not cleared with browser-local sign-out storage");
+expect(/const homeBuyerCreekHarbourAnalysis = makeAnalysis\([\s\S]*?scenarioId: "customQuery"/.test(files.seededReports), "Home-buyer seeded analysis can restore a B2B scenario");
+expect(/const familyRelocationTownSquareAnalysis = makeAnalysis\([\s\S]*?scenarioId: "customQuery"/.test(files.seededReports), "Family-relocation seeded analysis can restore a B2B scenario");
+expect((files.seededReports.match(/\n\s+comparison: (?:seededDemoComparison|developerComparison|bankComparison|homeBuyerComparison|familyRelocationComparison),/g) ?? []).length === 5, "Seeded comparison summaries do not retain their full ComparisonResult payloads");
+expect((files.seededReports.match(/\n\s+segment: .*metadata.*segment.*metadata.*audience/g) ?? []).length === 5, "Seeded comparison summaries are not explicitly project/segment scoped");
+expect(files.comparison.includes("Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."), "Comparison dashboard omits the exact required caveat");
+expect(files.comparison.includes("sourceModeLabel") && !files.comparison.includes("marketMatch?.sourceMode ??") && !/imported_sample|fallback_demo/.test(files.comparison), "Comparison dashboard can expose raw source-mode enums");
 
 if (failures.length) {
   console.error("User profile contract failed:");

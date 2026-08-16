@@ -74,7 +74,7 @@ function fallbackMatch(context: MarketMetricSelectionContext): MarketMetricsMatc
       sourceMode: "seed_static",
       importedMetricsUsed: false,
       metrics: null,
-      note: "Seed_static demo metrics used because imported market metrics did not match this selection."
+      note: "Illustrative local metrics are used because no imported market metrics matched this selection."
     };
   }
 
@@ -99,7 +99,7 @@ export function findBestMarketMetricMatch(context: MarketMetricSelectionContext)
   if (exactCandidate) {
     const exact = getMarketMetricsByArea(exactCandidate);
     if (exact) {
-      return metricMatch(exact.areaName, "exact", "high", `Imported sample metrics matched exactly to ${exact.areaName}.`);
+      return metricMatch(exact.areaName, "exact", "high", `Locally imported screening metrics matched exactly to ${exact.areaName}.`);
     }
   }
 
@@ -108,7 +108,7 @@ export function findBestMarketMetricMatch(context: MarketMetricSelectionContext)
     if (normalizedText.includes(normalizeAreaName(alias))) {
       const metric = getMarketMetricsByArea(areaName);
       if (metric) {
-        return metricMatch(metric.areaName, "alias", "medium", `Imported sample metrics matched by alias to ${metric.areaName}.`);
+        return metricMatch(metric.areaName, "alias", "medium", `Locally imported screening metrics matched by alias to ${metric.areaName}.`);
       }
     }
   }
@@ -118,7 +118,7 @@ export function findBestMarketMetricMatch(context: MarketMetricSelectionContext)
     return normalizedText.includes(area) || area.split(" ").some((part) => part.length > 4 && normalizedText.includes(part));
   });
   if (partial) {
-    return metricMatch(partial.areaName, "partial", "medium", `Imported sample metrics partially matched to ${partial.areaName}.`);
+    return metricMatch(partial.areaName, "partial", "medium", `Locally imported screening metrics partially matched to ${partial.areaName}.`);
   }
 
   if (context.point) {
@@ -130,7 +130,7 @@ export function findBestMarketMetricMatch(context: MarketMetricSelectionContext)
     if (nearest && nearest.distance <= 12) {
       const metric = getMarketMetricsByArea(nearest.name);
       if (metric) {
-        return metricMatch(metric.areaName, "partial", nearest.distance <= 5 ? "medium" : "low", `Imported sample metrics matched by nearest seed area to ${metric.areaName}.`);
+        return metricMatch(metric.areaName, "partial", nearest.distance <= 5 ? "medium" : "low", `Locally imported screening metrics matched by nearest configured area to ${metric.areaName}.`);
       }
     }
   }

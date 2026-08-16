@@ -15,9 +15,9 @@ const demoProjectKeys = [
 ];
 
 const placeholderTitles = [
-  "Sample validation placeholder: ownership/title evidence required",
-  "Sample validation placeholder: zoning/planning evidence required",
-  "Sample validation placeholder: market comparable evidence required"
+  "Validation gap: ownership/title evidence required",
+  "Validation gap: zoning/planning evidence required",
+  "Validation gap: market comparable evidence required"
 ];
 
 function nowIso() {
@@ -44,7 +44,7 @@ export function createDemoValidationEvidence(projectKey: string): ValidationEvid
     linkedDataRoomAssetIds: [],
     linkedEvidenceFileIds: [],
     sourceCategory: index === 2 ? "broker_comparable" : "client_uploaded_document",
-    sourceName: "GeoAI sample validation placeholder",
+    sourceName: "GeoAI validation requirement",
     accessMode: "planned_validation",
     validationStatus: "evidence_requested",
     confidence: "unknown",

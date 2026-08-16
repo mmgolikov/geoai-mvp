@@ -108,6 +108,6 @@ export async function POST(request: Request) {
     item: result.data,
     access,
     error: result.error,
-    dataHonesty: "Data room assets are local/demo metadata only; official validation and durable storage are not connected."
+    dataHonesty: "Data room assets are illustrative local metadata only; official validation and durable storage are not connected."
   }, { status: result.ok ? 201 : 200 });
 }

@@ -2,7 +2,7 @@
   "name": "geoai-mvp",
   "version": "0.1.0",
   "private": true,
-  "description": "GeoAI MVP skeleton for spatial decision intelligence.",
+  "description": "GeoAI GCC real estate decision intelligence platform.",
   "scripts": {
     "dev": "WATCHPACK_POLLING=true CHOKIDAR_USEPOLLING=true next dev -H 127.0.0.1",
     "dev:turbo": "WATCHPACK_POLLING=true CHOKIDAR_USEPOLLING=true next dev -H 127.0.0.1 --turbopack",
@@ -90,7 +90,14 @@
     "test:vercel-output-tracing": "node scripts/vercel-output-tracing-check.mjs",
     "start": "next start",
     "lint": "tsc --noEmit --pretty false",
-    "test:founder-ux-runtime-correction": "node scripts/founder-ux-runtime-correction-check.mjs"
+    "test:founder-ux-runtime-correction": "node scripts/founder-ux-runtime-correction-check.mjs",
+    "test:gcc-scenarios": "node scripts/gcc-scenario-contract-check.mjs",
+    "test:gcc-workspace-flow": "node scripts/gcc-workspace-flow-check.mjs",
+    "test:gcc-project-hub": "node scripts/gcc-project-hub-contract-check.mjs",
+    "test:map-lifecycle": "node scripts/map-lifecycle-regression-check.mjs",
+    "test:source-provenance": "node scripts/source-provenance-invariants-check.mjs",
+    "test:source-readiness": "node scripts/source-readiness-contract-check.mjs",
+    "test:decision-result-parity": "node scripts/decision-result-parity-check.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.3",
@@ -109,7 +116,7 @@
     "@types/react-dom": "^19.2.3",
     "autoprefixer": "^10.5.3",
     "lighthouse": "13.4.0",
-    "postcss": "^8.5.19",
+    "postcss": "^8.5.26",
     "supabase": "2.109.1",
     "tailwindcss": "^3.4.19",
     "typescript": "^5.9.3"

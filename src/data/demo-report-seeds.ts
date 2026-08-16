@@ -47,7 +47,7 @@ function demoObject(id: string, name: string, layerName: string, layerId: Select
   return {
     id,
     name,
-    type: "Sample project asset",
+    type: "Illustrative screening asset",
     layerId,
     layerName,
     geometryType: "polygon",
@@ -155,7 +155,7 @@ const homeBuyerCreekHarbourAnalysis = makeAnalysis({
   id: "seeded-analysis-creek-harbour-home-fit",
   title: "Creek Harbour Waterfront Fit",
   point: points.creekHarbour,
-  scenarioId: "investmentSiteSelection",
+  scenarioId: "customQuery",
   project: homeBuyerProject,
   customQuery: "Review neighborhood fit and source limitations for a household shortlist.",
   selectedObject: creekHarbourObject
@@ -165,7 +165,7 @@ const familyRelocationTownSquareAnalysis = makeAnalysis({
   id: "seeded-analysis-town-square-relocation",
   title: "Town Square Family Relocation Context",
   point: points.townSquare,
-  scenarioId: "climateRisk",
+  scenarioId: "customQuery",
   project: familyRelocationProject,
   customQuery: "Review commute, comfort, amenities and validation steps for a family relocation shortlist.",
   selectedObject: townSquareObject
@@ -177,7 +177,7 @@ const familyRelocationDubaiHillsAnalysis = makeAnalysis({
   point: points.dubaiHills,
   scenarioId: "customQuery",
   project: familyRelocationProject,
-  customQuery: "Compare family relocation fit using sample/open context and explicit official-validation gaps.",
+  customQuery: "Compare family relocation fit using local and public/open context with explicit official-validation gaps.",
   selectedObject: dubaiHillsObject
 });
 
@@ -200,12 +200,12 @@ const bankComparisonItems = [
 
 const homeBuyerComparisonItems = [
   createComparisonItem(points.dubaiHills, dubaiHillsObject, "customQuery"),
-  createComparisonItem(points.creekHarbour, creekHarbourObject, "investmentSiteSelection"),
+  createComparisonItem(points.creekHarbour, creekHarbourObject, "customQuery"),
   createComparisonItem(points.jvcJvt, jvcJvtObject, "customQuery")
 ];
 
 const familyRelocationComparisonItems = [
-  createComparisonItem(points.townSquare, townSquareObject, "climateRisk"),
+  createComparisonItem(points.townSquare, townSquareObject, "customQuery"),
   createComparisonItem(points.dubaiHills, dubaiHillsObject, "customQuery"),
   createComparisonItem(points.creekHarbour, creekHarbourObject, "customQuery")
 ];
@@ -246,7 +246,7 @@ function analysisReportPayload(analysis: ExpressAnalysis, title: string) {
     runKey: analysis.id,
     project: analysis.project,
     title,
-    selectedSite: analysis.selectedObject?.name ?? "Sample selected site",
+    selectedSite: analysis.selectedObject?.name ?? "Selected screening site",
     selectedObject: analysis.selectedObject ?? null,
     coordinates: analysis.point,
     scenario: analysis.title,
@@ -290,12 +290,12 @@ function comparisonReportPayload(comparison: ComparisonResult, title: string) {
     keyValueDrivers: comparison.sharedOpportunities,
     criticalConstraints: comparison.differentiatedRisks,
     dataGaps: [
-      "Financial assumptions, official land-use validation, and customer requirements are not connected in the seeded demo."
+      "Financial assumptions, official land-use validation, and customer requirements are not connected in the current screening runtime."
     ],
     dueDiligenceChecklist: comparison.nextActions,
     evidenceSourceReadiness: comparison.evidence,
     limitations: [
-      "Seeded comparison uses deterministic sample scoring and structured evidence readiness, not a validated underwriting model."
+      "The comparison uses deterministic screening scores and structured evidence readiness, not a validated underwriting model."
     ],
     generatedAt: createdAt
   };
@@ -346,25 +346,25 @@ export const seededDemoReportRecords = [
     "seeded-analysis-dubai-marina-report",
     seededDemoAnalysis,
     "Investment Screening Memo",
-    "Dubai Investment Screening / sample-offline evidence; official validation required."
+    "Dubai Investment Screening / local screening evidence; official validation required."
   ),
   comparisonReportRecord(
     "seeded-comparison-dubai-shortlist-report",
     seededDemoComparison,
     "Dubai Marina vs Business Bay vs Dubai South Comparison Memo",
-    "Investment shortlist comparison / sample-offline evidence; official validation required."
+    "Investment shortlist comparison / local screening evidence; official validation required."
   ),
   analysisReportRecord(
     "seeded-analysis-dubai-south-development-report",
     developerDubaiSouthAnalysis,
     "Development Screening Memo",
-    "Developer Land Pipeline / sample planning context; official validation required."
+    "Developer Land Pipeline / local planning context; official validation required."
   ),
   comparisonReportRecord(
     "seeded-comparison-developer-pipeline-report",
     developerComparison,
     "Dubai South vs JVC/JVT vs MBR City Development Memo",
-    "Developer pipeline comparison / sample evidence; official validation required."
+    "Developer pipeline comparison / local screening evidence; official validation required."
   ),
   analysisReportRecord(
     "seeded-analysis-mbr-collateral-report",
@@ -382,25 +382,25 @@ export const seededDemoReportRecords = [
     "seeded-analysis-dubai-hills-home-fit-report",
     homeBuyerDubaiHillsAnalysis,
     "Home Buyer Neighborhood Fit Memo",
-    "Home Buyer Neighborhood Fit / sample-open context; official validation required."
+    "Home Buyer Neighborhood Fit / local and public/open context; official validation required."
   ),
   comparisonReportRecord(
     "seeded-comparison-home-buyer-neighborhoods-report",
     homeBuyerComparison,
     "Dubai Hills vs Creek Harbour vs JVC/JVT Neighborhood Fit Memo",
-    "B2C home-buyer comparison / sample-open context; official validation required."
+    "B2C home-buyer comparison / local and public/open context; official validation required."
   ),
   analysisReportRecord(
     "seeded-analysis-town-square-relocation-report",
     familyRelocationTownSquareAnalysis,
     "Family Relocation Area Review Memo",
-    "Family Relocation Area Review / sample-open context; official validation required."
+    "Family Relocation Area Review / local and public/open context; official validation required."
   ),
   comparisonReportRecord(
     "seeded-comparison-family-relocation-areas-report",
     familyRelocationComparison,
     "Town Square vs Dubai Hills vs Creek Harbour Relocation Memo",
-    "B2C relocation comparison / sample-open context; official validation required."
+    "B2C relocation comparison / local and public/open context; official validation required."
   )
 ];
 
@@ -434,7 +434,7 @@ export const seededDemoRecentAnalyses = [
       ? "Screening only; validate before decisions"
     : "Proceed with conditions",
   confidence: "medium" as const,
-  dataConfidence: "Sample example / sample-offline",
+  dataConfidence: "Illustrative local screening context",
   source: "local" as const,
   analysis
 }));
@@ -445,44 +445,54 @@ export const seededDemoComparisonSummaries = [
     reportId: "seeded-comparison-dubai-shortlist-report",
     projectId: seededDemoComparison.project?.id ?? null,
     projectKey: seededDemoComparison.project?.projectKey ?? null,
+    segment: seededDemoComparison.project?.metadata?.segment ?? seededDemoComparison.project?.metadata?.audience ?? "b2b",
+    comparison: seededDemoComparison,
     title: "Dubai Marina vs Business Bay vs Dubai South",
     createdAt,
-    sourceSummary: `Best option: ${seededDemoComparison.winner.item.name}. Sample example / official validation required.`
+    sourceSummary: `Best option: ${seededDemoComparison.winner.item.name}. Local screening context / official validation required.`
   },
   {
     id: developerComparison.id,
     reportId: "seeded-comparison-developer-pipeline-report",
     projectId: developerComparison.project?.id ?? null,
     projectKey: developerComparison.project?.projectKey ?? null,
+    segment: developerComparison.project?.metadata?.segment ?? developerComparison.project?.metadata?.audience ?? "b2b",
+    comparison: developerComparison,
     title: "Dubai South vs JVC/JVT vs MBR City",
     createdAt,
-    sourceSummary: `Best option: ${developerComparison.winner.item.name}. Sample example / official validation required.`
+    sourceSummary: `Best option: ${developerComparison.winner.item.name}. Local screening context / official validation required.`
   },
   {
     id: bankComparison.id,
     reportId: "seeded-comparison-bank-collateral-report",
     projectId: bankComparison.project?.id ?? null,
     projectKey: bankComparison.project?.projectKey ?? null,
+    segment: bankComparison.project?.metadata?.segment ?? bankComparison.project?.metadata?.audience ?? "b2b",
+    comparison: bankComparison,
     title: "MBR City vs Business Bay Collateral Context",
     createdAt,
-    sourceSummary: `Best option: ${bankComparison.winner.item.name}. Sample example / official validation required.`
+    sourceSummary: `Best option: ${bankComparison.winner.item.name}. Local screening context / official validation required.`
   },
   {
     id: homeBuyerComparison.id,
     reportId: "seeded-comparison-home-buyer-neighborhoods-report",
     projectId: homeBuyerComparison.project?.id ?? null,
     projectKey: homeBuyerComparison.project?.projectKey ?? null,
+    segment: homeBuyerComparison.project?.metadata?.segment ?? homeBuyerComparison.project?.metadata?.audience ?? "b2c",
+    comparison: homeBuyerComparison,
     title: "Dubai Hills vs Creek Harbour vs JVC/JVT Neighborhood Fit",
     createdAt,
-    sourceSummary: `Best option: ${homeBuyerComparison.winner.item.name}. Sample/open context only / official validation required.`
+    sourceSummary: `Best option: ${homeBuyerComparison.winner.item.name}. Local and public/open context / official validation required.`
   },
   {
     id: familyRelocationComparison.id,
     reportId: "seeded-comparison-family-relocation-areas-report",
     projectId: familyRelocationComparison.project?.id ?? null,
     projectKey: familyRelocationComparison.project?.projectKey ?? null,
+    segment: familyRelocationComparison.project?.metadata?.segment ?? familyRelocationComparison.project?.metadata?.audience ?? "b2c",
+    comparison: familyRelocationComparison,
     title: "Town Square vs Dubai Hills vs Creek Harbour Relocation Context",
     createdAt,
-    sourceSummary: `Best option: ${familyRelocationComparison.winner.item.name}. Sample/open context only / official validation required.`
+    sourceSummary: `Best option: ${familyRelocationComparison.winner.item.name}. Local and public/open context / official validation required.`
   }
 ];

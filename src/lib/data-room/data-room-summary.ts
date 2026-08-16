@@ -402,7 +402,7 @@ function defaultChecklist(project: GeoAIProject): ValidationChecklistItem[] {
   return [
     checklistTemplate(project, "Validate DLD / Dubai Pulse transaction and rental evidence", "market", "high", "Confirm imported/snapshot market evidence against official DLD/Dubai Pulse access paths."),
     checklistTemplate(project, "Validate ownership and title outside GeoAI", "ownership", "high", "GeoAI does not verify ownership, title or legal standing."),
-    checklistTemplate(project, "Validate zoning and planning with official sources", "zoning", "high", "Planning and zoning conclusions require official validation outside this demo."),
+    checklistTemplate(project, "Validate zoning and planning with official sources", "zoning", "high", "Planning and zoning conclusions require official validation outside this screening workflow."),
     checklistTemplate(project, "Confirm pipeline and absorption assumptions", "market", "medium", "Review pipeline, liquidity and absorption assumptions with client-approved evidence."),
     checklistTemplate(project, "Confirm climate and insurance implications", "climate", "medium", "Use official/licensed climate and insurance evidence where required.")
   ];
@@ -450,8 +450,8 @@ function createDeliverables(project: GeoAIProject, assets: DataRoomAsset[], chec
     deliverable(project, "comparison_memo", "Comparison memo", comparisonAvailable ? "generated" : "planned", comparisonAvailable ? "Validate assumptions before presenting as recommendation." : "Compare two or three shortlisted sites."),
     deliverable(project, "investment_memo", project.clientType === "bank" ? "Collateral / investment memo" : "Investment memo", reportIds.length > 0 ? "generated" : "planned", reportIds.length > 0 ? "Export and review official validation gaps." : "Generate an exportable report.", { linkedReportIds: reportIds }),
     deliverable(project, "validation_checklist", "Validation checklist", validationCompleted ? "in_progress" : "validation_required", "Mark client/official validation items as they move through review."),
-    deliverable(project, "source_lineage_pack", "Source lineage pack", "in_progress", "Replace demo/sample evidence with client-approved or official validated sources."),
-    deliverable(project, "data_room_summary", "Client data room summary", assets.length > 0 ? "in_progress" : "planned", "Use this page as the lightweight pilot evidence index.")
+    deliverable(project, "source_lineage_pack", "Source lineage pack", "in_progress", "Replace illustrative local evidence with client-approved or officially validated sources."),
+    deliverable(project, "data_room_summary", "Client data room summary", assets.length > 0 ? "in_progress" : "planned", "Use this page as the controlled engagement evidence index.")
   ];
 }
 
@@ -517,7 +517,7 @@ export async function buildClientDataRoom(input: {
         },
         label: "Project unavailable",
         storageMode: "browser_local",
-        storageNote: "No server-side project was resolved; no demo project was substituted.",
+        storageNote: "No server-side project was resolved; no local screening project was substituted.",
         validationNote: dataRoomRequiredCaveat,
         latestAssets: [],
         checklistStatus: { completed: 0, required: 0, inReview: 0, blocked: 0, total: 0 }
@@ -528,7 +528,7 @@ export async function buildClientDataRoom(input: {
         allowedLabels: ["browser-local project", "project unavailable", "validation required"],
         forbiddenClaims: ["demo project fallback", "durable project state", "official validation"]
       },
-      error: "Unknown project. Data Room did not substitute another demo project."
+      error: "Unknown project. Data Room did not substitute another local screening project."
     };
   }
   const projectKey = project.projectKey;
@@ -635,7 +635,7 @@ export async function buildClientDataRoom(input: {
       storageMode: includeStoredState ? "local_fallback" : "browser_local",
       storageNote: includeStoredState
         ? "Local development fallback; durable storage not configured."
-        : "Public-demo user state is browser-local; shared server reads and writes are disabled.",
+        : "Public user state is browser-local; shared server reads and writes are disabled.",
       validationNote: dataRoomRequiredCaveat,
       latestAssets: assets.slice(0, 3),
       checklistStatus: summarizeChecklist(checklist)
@@ -647,11 +647,11 @@ export async function buildClientDataRoom(input: {
         "client-provided data",
         "uploaded metadata",
         "user-provided AOI",
-        "local/sample fallback",
+        "illustrative local fallback",
         "validation required",
         "planned official validation",
         "screening evidence package",
-        "pilot data room foundation",
+        "controlled engagement data room foundation",
         "permission required"
       ],
       forbiddenClaims: [

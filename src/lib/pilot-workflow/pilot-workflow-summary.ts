@@ -92,7 +92,7 @@ function mapClientType(clientType: ProjectClientType): PilotClientType {
 function templateForProject(project: GeoAIProject): ProjectTemplate {
   if (project.projectKey === "developer-land-pipeline-demo" || project.clientType === "developer") {
     return {
-      title: "Developer Land Pipeline Pilot",
+      title: "Developer Land Pipeline Engagement",
       clientType: "developer",
       useCase: "development_site_selection",
       decisionQuestion: "Which land plots or districts should be prioritized for development feasibility review?",
@@ -120,7 +120,7 @@ function templateForProject(project: GeoAIProject): ProjectTemplate {
 
   if (project.projectKey === "bank-asset-review-demo" || project.clientType === "bank") {
     return {
-      title: "Bank Asset Review Pilot",
+      title: "Bank Asset Review Engagement",
       clientType: "bank",
       useCase: "asset_portfolio_review",
       decisionQuestion: "Which collateral or portfolio assets require deeper risk review or monitoring?",
@@ -146,7 +146,7 @@ function templateForProject(project: GeoAIProject): ProjectTemplate {
   }
 
   return {
-    title: "Fund Investment Screening Pilot",
+    title: "Fund Investment Screening Engagement",
     clientType: mapClientType(project.clientType),
     useCase: "investment_screening",
     decisionQuestion: "Which Dubai locations deserve deeper underwriting before capital is committed?",
@@ -302,7 +302,7 @@ function calculateReadiness(input: {
       label: "Configured workflow",
       maxScore: 10,
       score: input.workflow.pilotStage !== "draft" ? 10 : 4,
-      note: input.workflow.pilotStage !== "draft" ? "Pilot workflow is configured for this project." : "Pilot workflow still needs configuration."
+      note: input.workflow.pilotStage !== "draft" ? "Controlled engagement workflow is configured for this project." : "Controlled engagement workflow still needs configuration."
     },
     {
       id: "aoi-availability",
@@ -406,7 +406,7 @@ export async function buildPilotWorkflowSummary(input: {
       deliverables: [],
       readiness: null,
       dataHonesty,
-      error: "Unknown project. Pilot workflow is scoped to known GeoAI sample projects."
+      error: "Unknown project. Controlled engagement workflow is scoped to known GeoAI local screening projects."
     };
   }
 

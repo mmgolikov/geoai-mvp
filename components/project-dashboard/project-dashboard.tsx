@@ -375,9 +375,18 @@ function pilotDisplayLabel(value: string) {
     .replace(/\bDeveloper Land Pipeline Demo\b/g, "Developer Land Pipeline")
     .replace(/\bBank Asset Review Demo\b/g, "Bank Asset Review")
     .replace(/\bDemo Enterprise Report Pack\b/g, "Enterprise Report Pack")
-    .replace(/\bDemo example\b/g, "Sample example")
-    .replace(/\bdemo-normalized\b/gi, "sample/open")
-    .replace(/\bdemo\/local\b/gi, "sample/local");
+    .replace(/\bDemo example\b/g, "Illustrative screening example")
+    .replace(/\bdemo-normalized\b/gi, "local screening context")
+    .replace(/\bdemo\/local\b/gi, "local screening context")
+    .replace(/\bsample\/open\b/gi, "public/open context")
+    .replace(/\bsample\/local\b/gi, "illustrative local screening context")
+    .replace(/\bsample fallback\b/gi, "illustrative local screening context")
+    .replace(/\bpublic demo\b/gi, "browser-local mode")
+    .replace(/\bsample\b/gi, "illustrative screening");
+}
+
+function projectSourceDataModeLabel(value: string) {
+  return value === "sample_fallback" ? "Illustrative local screening context" : sourceDataModeLabel(value);
 }
 
 function formatTimestamp(value?: string) {
@@ -704,8 +713,8 @@ function createInitialMarketMetrics(): MarketMetricsSummary {
       sourceMode: "sample_fallback",
       count: areas.length,
       availableAreaNames: areas.map((area) => area.areaName ?? "Unknown area"),
-      fallbackStatus: "Snapshot sample records available - manual/offline import; not live official data.",
-      message: "Bundled snapshot sample records are available for screening context."
+      fallbackStatus: "Local snapshot records available - manual/offline import; not live official data.",
+      message: "Bundled snapshot records are available for screening context."
     };
   }
 
@@ -835,6 +844,11 @@ function seededReportIdForAnalysis(analysisId: string) {
   return record?.id;
 }
 
+function comparisonRestoreId(id: string, projectKey: string) {
+  const projectPrefix = `${projectKey}-`;
+  return id.startsWith(projectPrefix) ? id.slice(projectPrefix.length) : id;
+}
+
 function localHistoryToRows(items: AnalysisHistoryItem[], projectKey: string): RecentAnalysisRow[] {
   const scoped = items.filter((item) => belongsToProject(item, projectKey));
 
@@ -845,7 +859,7 @@ function localHistoryToRows(items: AnalysisHistoryItem[], projectKey: string): R
     timestamp: item.timestamp,
     decisionPosture: item.recommendation || deriveDecisionPosture(item.analysis),
     confidence: item.confidenceLevel ?? item.analysis.confidenceLevel ?? "medium",
-    dataConfidence: item.dataConfidenceLevel ?? "Sample/open",
+    dataConfidence: item.dataConfidenceLevel ?? "Local screening context",
     source: item.source ?? "local",
     reportId: undefined,
     analysis: item.analysis,
@@ -874,7 +888,7 @@ function persistedRowsToRecent(items: PersistedAnalysisRun[]): RecentAnalysisRow
       timestamp: item.created_at ?? item.createdAt ?? analysis?.generatedAt ?? new Date().toISOString(),
       decisionPosture: item.decision_posture ?? item.decisionPosture ?? (analysis ? deriveDecisionPosture(analysis) : "Requires official validation"),
       confidence: item.confidence_level ?? analysis?.confidenceLevel ?? "medium",
-      dataConfidence: item.data_confidence_level ?? analysis?.marketContext?.confidenceLevel ?? "Sample/open",
+      dataConfidence: item.data_confidence_level ?? analysis?.marketContext?.confidenceLevel ?? "Local screening context",
       source: "DB" as const,
       reportId: undefined,
       analysis,
@@ -895,14 +909,14 @@ function ProjectBadge({ children }: { children: React.ReactNode }) {
   );
 }
 
-function KpiCard({ label, value, note, valueKind = "numeric" }: { label: string; value: string | number; note: string; valueKind?: "numeric" | "text" }) {
+function ProjectSummaryMetric({ label, value, note }: { label: string; value: string | number; note: string }) {
   return (
-    <div className="flex h-full min-h-[148px] flex-col rounded-lg border border-line bg-white p-4 shadow-sm">
-      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">{label}</p>
-      <div className="flex flex-1 items-center py-3">
-        <p className={`break-words font-semibold text-ink ${valueKind === "text" ? "text-xl leading-6" : "text-3xl leading-none"}`}>{value}</p>
+    <div className="flex min-h-[104px] min-w-0 flex-col justify-between gap-3 bg-white px-4 py-3 sm:px-5">
+      <div className="flex items-baseline justify-between gap-3">
+        <p className="min-w-0 text-xs font-semibold uppercase tracking-[0.14em] text-muted">{label}</p>
+        <p className="shrink-0 text-2xl font-semibold leading-none text-ink">{value}</p>
       </div>
-      <p className="border-t border-line pt-3 text-sm leading-5 text-muted">{note}</p>
+      <p className="text-sm leading-5 text-muted">{note}</p>
     </div>
   );
 }
@@ -947,7 +961,7 @@ function getNextActions(project: GeoAIProject, importedMetricsCount: number) {
   if (scenario === "investmentSiteSelection") {
     return [
       "Validate official DLD transaction and rental comps for the shortlist area.",
-      "Review pipeline / absorption risk against imported sample metrics.",
+      "Review pipeline / absorption risk against imported screening metrics.",
       ...common
     ];
   }
@@ -963,7 +977,7 @@ function getNextActions(project: GeoAIProject, importedMetricsCount: number) {
   if (scenario === "climateRisk") {
     return [
       "Validate flood, coastal and heat exposure with official or licensed layers.",
-      "Add resilience requirements to the pilot data checklist.",
+      "Add resilience requirements to the validation data checklist.",
       ...common
     ];
   }
@@ -972,7 +986,7 @@ function getNextActions(project: GeoAIProject, importedMetricsCount: number) {
     importedMetricsCount > 0
       ? "Review imported market areas and flag which can be validated with official sources."
       : "Run DLD / Dubai Pulse ingestion fixtures or connect validated market inputs.",
-    "Prepare pilot data requirements for customer assets and official source access.",
+    "Prepare controlled-engagement data requirements for customer assets and official source access.",
     ...common
   ];
 }
@@ -1029,14 +1043,17 @@ export function ProjectDashboard() {
       : storedProject?.projectKey
         ?? nextProjects.find((project) => getProjectSegment(project) === preferredSegment)?.projectKey
         ?? demoProjects[0].projectKey;
+    const selectedProject = nextProjects.find((project) => project.projectKey === nextActiveProjectKey || project.id === nextActiveProjectKey);
     setProjects(nextProjects);
-    setActiveProjectKey(nextActiveProjectKey);
+    setActiveProjectKey(selectedProject?.projectKey ?? nextActiveProjectKey);
     setActiveProjectSegment(
-      explicitContext
-        ? readActiveProjectSegment(nextActiveProjectKey)
-        : storedProject
-          ? getProjectSegment(storedProject)
-          : preferredSegment
+      selectedProject
+        ? getProjectSegment(selectedProject)
+        : explicitContext
+          ? readActiveProjectSegment(nextActiveProjectKey)
+          : storedProject
+            ? getProjectSegment(storedProject)
+            : preferredSegment
     );
     setProjectAudienceDraft(preferredSegment);
     setProjectRoleDraft(preferredRole);
@@ -1249,16 +1266,18 @@ export function ProjectDashboard() {
     () => projects.filter((project) => getProjectSegment(project) === activeProjectSegment),
     [activeProjectSegment, projects]
   );
-  const projectOptions = useMemo(() => {
-    if (visibleProjects.some((project) => project.projectKey === activeProject.projectKey)) {
-      return visibleProjects;
-    }
+  const projectOptions = visibleProjects;
 
-    return [
-      activeProject,
-      ...visibleProjects.filter((project) => project.projectKey !== activeProject.projectKey)
-    ];
-  }, [activeProject, visibleProjects]);
+  useEffect(() => {
+    const selectedProject = projects.find((project) => project.projectKey === activeProjectKey);
+    if (selectedProject && getProjectSegment(selectedProject) === activeProjectSegment) return;
+
+    const matchingProject = projects.find((project) => getProjectSegment(project) === activeProjectSegment);
+    if (!matchingProject || matchingProject.projectKey === activeProjectKey) return;
+
+    setActiveProjectKey(matchingProject.projectKey);
+    writeActiveProjectKey(matchingProject.projectKey);
+  }, [activeProjectKey, activeProjectSegment, projects]);
   const localRows = useMemo(() => localHistoryToRows(localHistory, activeProject.projectKey), [activeProject.projectKey, localHistory]);
   const scopedDbHistory = dbHistory.filter((item) => belongsToProject(item, activeProject.projectKey));
   const scopedSavedReports = savedReports.filter((item) => belongsToProject(item, activeProject.projectKey));
@@ -1462,10 +1481,10 @@ export function ProjectDashboard() {
       }))
     : projectReadinessRows;
   const demoMarketAreas = Math.max(marketMetrics?.availableAreaNames?.length ?? 0, 6);
-  const dataConfidence = dldSnapshotAvailable ? "Snapshot + fallback" : "Sample fallback";
+  const dataConfidence = dldSnapshotAvailable ? "Local snapshot context" : "Local screening context";
   const dataConfidenceNote = dldSnapshotAvailable
     ? "DLD/Dubai Pulse and OSM snapshots are available for screening context; official validation required."
-    : "Sample/open fallbacks are active; official validation required before decisions.";
+    : "Local and public/open context is active; official validation is required before decisions.";
   const persistenceMode = repositoryModeToLabel(dbHealth?.repositoryMode ?? projectsMode);
   const nextActions = getNextActions(activeProject, dldRecordCount);
   const pilotPackage = getPilotPackageForProject(activeProject.projectKey, activeProject.clientType);
@@ -1512,7 +1531,7 @@ export function ProjectDashboard() {
   async function addValidationEvidencePlaceholder() {
     setValidationMessage(null);
     if (!serverMutationsEnabled) {
-      setValidationMessage("Validation evidence writes are disabled in the public demo. Sign-in and project access enforcement must be verified first.");
+      setValidationMessage("Validation evidence writes are disabled in browser-local mode. Sign-in and project access enforcement must be verified first.");
       return;
     }
 
@@ -1544,7 +1563,7 @@ export function ProjectDashboard() {
 
   async function createReviewDecision(decision: string) {
     if (!serverMutationsEnabled) {
-      setValidationMessage("Review decisions are disabled in the public demo. Verified identity and project-scoped access are required.");
+      setValidationMessage("Review decisions are disabled in browser-local mode. Verified identity and project-scoped access are required.");
       return;
     }
 
@@ -1563,7 +1582,7 @@ export function ProjectDashboard() {
         projectKey: activeProject.projectKey,
         decision,
         evidenceFileId: linkedFile?.id,
-        reviewerName: "GeoAI sample reviewer",
+        reviewerName: "GeoAI screening reviewer",
         reviewerRole: "screening reviewer",
         notes: decision === "reject"
           ? "Evidence is insufficient for screening use; replacement evidence is required."
@@ -1614,7 +1633,7 @@ export function ProjectDashboard() {
       if (!response.ok) return;
       setPilotWorkflow(await response.json() as PilotWorkflowSummary);
     } catch {
-      setPilotWorkflowMessage("Pilot workflow summary is temporarily unavailable.");
+      setPilotWorkflowMessage("Validation workflow summary is temporarily unavailable.");
     }
   }
 
@@ -1631,7 +1650,7 @@ export function ProjectDashboard() {
 
   async function createProjectReportPackage() {
     if (!serverMutationsEnabled) {
-      setReportPackageMessage("Server report packages are disabled in the public demo. Use browser-local report export until verified sign-in is connected.");
+      setReportPackageMessage("Server report packages are disabled in browser-local mode. Use browser-local report export until verified sign-in is connected.");
       return;
     }
 
@@ -1669,13 +1688,13 @@ export function ProjectDashboard() {
 
   async function registerDataRoomFile(file: File) {
     if (!serverMutationsEnabled) {
-      setDataRoomMessage("Evidence-file writes are disabled in the public demo. Upload CSV or GeoJSON in the workspace for project-scoped browser-local use.");
+      setDataRoomMessage("Evidence-file writes are disabled in browser-local mode. Upload CSV or GeoJSON in the workspace for project-scoped browser-local use.");
       return;
     }
 
     const maxFileSize = storageHealth?.maxFileSizeBytes ?? 5 * 1024 * 1024;
     if (file.size > maxFileSize) {
-      setDataRoomMessage("Keep evidence uploads under the 5 MB MVP limit.");
+      setDataRoomMessage("Keep evidence uploads under the 5 MB upload limit.");
       return;
     }
 
@@ -1724,7 +1743,7 @@ export function ProjectDashboard() {
 
   async function updatePilotInputStatus(item: ClientInputItem, status: ClientInputStatus) {
     if (!serverMutationsEnabled) {
-      setPilotWorkflowMessage("Pilot input writes are disabled until verified sign-in and project-scoped authorization are active.");
+      setPilotWorkflowMessage("Workflow input writes are disabled until verified sign-in and project-scoped authorization are active.");
       return;
     }
 
@@ -1962,14 +1981,20 @@ export function ProjectDashboard() {
           </div>
         </section>
 
-        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <KpiCard label="Analyses" value={recentRows.length} note={recentRows.length > 0 ? "Recent runs for this project." : "No analyses yet."} />
-          <KpiCard label="Saved AOIs" value={scopedProjectAois.length} note={scopedProjectAois.length > 0 ? "Reusable screening areas." : "No saved AOIs yet."} />
-          <KpiCard label="Comparisons" value={comparisonRows.length} note={comparisonRows.length > 0 ? "Saved comparison sets." : "No comparisons yet."} />
-          <KpiCard label="Reports" value={reportRows.length + packageRows.length} note={reportRows.length + packageRows.length > 0 ? "Reports available for review." : "No reports yet."} />
+        <section
+          aria-label="Project work summary"
+          data-project-summary-strip
+          className="overflow-hidden rounded-lg border border-line bg-white shadow-sm"
+        >
+          <div className="grid gap-px bg-line sm:grid-cols-2 xl:grid-cols-4">
+            <ProjectSummaryMetric label="Analyses" value={recentRows.length} note={recentRows.length > 0 ? "Recent project runs" : "Ready for the first run"} />
+            <ProjectSummaryMetric label="Saved AOIs" value={scopedProjectAois.length} note={scopedProjectAois.length > 0 ? "Reusable screening areas" : "No screening areas saved"} />
+            <ProjectSummaryMetric label="Comparisons" value={comparisonRows.length} note={comparisonRows.length > 0 ? "Saved decision sets" : "No comparison sets saved"} />
+            <ProjectSummaryMetric label="Reports" value={reportRows.length + packageRows.length} note={reportRows.length + packageRows.length > 0 ? "Available for review" : "No reports generated"} />
+          </div>
         </section>
 
-        <section className="grid gap-5 lg:grid-cols-2">
+        <section data-primary-project-work className="grid gap-5 lg:grid-cols-2">
           <Panel title="Recent analyses">
             {recentRows.length > 0 ? (
               <div className="grid gap-3">
@@ -2022,37 +2047,66 @@ export function ProjectDashboard() {
           <Panel title="Comparisons">
             {comparisonRows.length > 0 ? (
               <div className="grid gap-3">
-                {comparisonRows.slice(0, 4).map((comparison) => (
-                  <Link
-                    key={comparison.id}
-                    href={openWorkspaceHref}
-                    onClick={() => writeActiveProjectKey(activeProject.projectKey)}
-                    className="rounded-md border border-line bg-surface p-4 transition hover:border-brand"
-                  >
-                    <p className="safe-line-1 font-semibold text-ink">{comparison.title}</p>
-                    <p className="mt-1 text-sm leading-5 text-muted">{formatTimestamp(comparison.createdAt ?? undefined)}</p>
-                    <p className="mt-2 line-clamp-2 text-xs leading-5 text-muted">{comparison.sourceSummary ?? "Saved comparison; validation required."}</p>
-                  </Link>
-                ))}
+                {comparisonRows.slice(0, 4).map((comparison) => {
+                  const comparisonReportId = comparison.reportId
+                    ?? (comparison.id === "seeded-comparison-dubai-shortlist"
+                      ? "seeded-comparison-dubai-shortlist-report"
+                      : comparison.id);
+
+                  return (
+                    <article key={comparison.id} className="rounded-md border border-line bg-surface p-4">
+                      <p className="safe-line-1 font-semibold text-ink">{comparison.title}</p>
+                      <p className="mt-1 text-sm leading-5 text-muted">{formatTimestamp(comparison.createdAt ?? undefined)}</p>
+                      <p className="mt-2 line-clamp-2 text-xs leading-5 text-muted">{pilotDisplayLabel(comparison.sourceSummary ?? "Saved comparison; validation required.")}</p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <Link
+                          href={`/workspace?projectId=${encodeURIComponent(activeProject.id ?? activeProject.projectKey)}&projectKey=${encodeURIComponent(activeProject.projectKey)}&openComparison=${encodeURIComponent(comparisonRestoreId(comparison.id, activeProject.projectKey))}`}
+                          onClick={() => writeActiveProjectKey(activeProject.projectKey)}
+                          className="inline-flex h-8 items-center rounded-md border border-line bg-white px-3 text-xs font-semibold text-ink transition hover:border-brand"
+                        >
+                          Open comparison
+                        </Link>
+                        <Link
+                          href={`/reports/${encodeURIComponent(comparisonReportId)}/print`}
+                          className="inline-flex h-8 items-center rounded-md bg-brand px-3 text-xs font-semibold text-white transition hover:bg-[#113f50]"
+                        >
+                          Export memo
+                        </Link>
+                      </div>
+                    </article>
+                  );
+                })}
               </div>
             ) : (
               <EmptyState title="No comparisons yet" text="Add two or more targets in the workspace to compare options." href={openWorkspaceHref} action="Compare targets" />
             )}
           </Panel>
 
-          <Panel title="Reports">
+          <Panel title="Reports" subtitle="Review-ready screening memo previews remain connected to the workspace result and report flow.">
             {reportRows.length + packageRows.length > 0 ? (
               <div className="grid gap-3">
-                {reportRows.slice(0, 3).map((report) => (
-                  <Link
-                    key={report.id}
-                    href={`/reports/${encodeURIComponent(report.id)}/print`}
-                    className="rounded-md border border-line bg-surface p-4 transition hover:border-brand"
-                  >
-                    <p className="safe-line-1 font-semibold text-ink">{pilotDisplayLabel(report.title)}</p>
-                    <p className="mt-1 text-sm leading-5 text-muted">{formatTimestamp(report.createdAt ?? undefined)}</p>
-                  </Link>
-                ))}
+                {reportRows.slice(0, 3).map((report) => {
+                  const compactMetadata = normalizeCompactReportMetadata({
+                    scenario: report.scenario,
+                    targetLabel: report.targetLabel,
+                    reportType: report.reportType,
+                    projectKey: report.projectKey
+                  });
+
+                  return (
+                    <Link
+                      key={report.id}
+                      href={`/reports/${encodeURIComponent(report.id)}/print`}
+                      className="rounded-md border border-line bg-surface p-4 transition hover:border-brand"
+                    >
+                      <p className="safe-line-1 font-semibold text-ink">{pilotDisplayLabel(report.title)}</p>
+                      {compactMetadata.length > 0 ? (
+                        <p className="mt-1 line-clamp-1 text-xs leading-5 text-muted">{compactMetadata.map(pilotDisplayLabel).join(" / ")}</p>
+                      ) : null}
+                      <p className="mt-1 text-sm leading-5 text-muted">{formatTimestamp(report.createdAt ?? undefined)}</p>
+                    </Link>
+                  );
+                })}
                 {packageRows.slice(0, 2).map((pkg) => (
                   <Link
                     key={pkg.id}
@@ -2067,6 +2121,20 @@ export function ProjectDashboard() {
             ) : (
               <EmptyState title="No reports yet" text="Run an analysis and export a report to populate this project." href={openWorkspaceHref} action="Run analysis" />
             )}
+            <div className="mt-3 flex flex-col gap-2 border-t border-line pt-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-xs leading-5 text-muted">
+                {reportPackageMessage ?? "Server report packages require verified sign-in and project-scoped authorization; browser print remains available."}
+              </p>
+              <button
+                type="button"
+                onClick={() => void createProjectReportPackage()}
+                disabled={!serverMutationsEnabled}
+                title={!serverMutationsEnabled ? "Requires verified sign-in and project-scoped authorization" : undefined}
+                className="inline-flex h-9 shrink-0 items-center justify-center rounded-md border border-line bg-white px-3 text-xs font-semibold text-ink transition hover:border-brand disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Create report package
+              </button>
+            </div>
           </Panel>
 
           <Panel title="Project files / evidence">
@@ -2098,6 +2166,66 @@ export function ProjectDashboard() {
               >
                 Add file
               </button>
+            </div>
+          </Panel>
+        </section>
+
+        <section id="data-readiness" data-canonical-source-lineage>
+          <Panel title="Data Readiness / Source Lineage" subtitle="Source group readiness for screening workflows. Validation is required before decisions.">
+            <div className="grid gap-4">
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                <div className="rounded-md border border-line bg-surface p-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Groups</p>
+                  <p className="mt-2 text-2xl font-semibold text-ink">{externalDataStatus?.summary?.totalGroups ?? sourceLineageRows.length}</p>
+                </div>
+                <div className="rounded-md border border-line bg-surface p-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Snapshots</p>
+                  <p className="mt-2 text-2xl font-semibold text-ink">{externalDataStatus?.summary?.snapshotGroups ?? 0}</p>
+                </div>
+                <div className="rounded-md border border-line bg-surface p-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">API context</p>
+                  <p className="mt-2 text-2xl font-semibold text-ink">{externalDataStatus?.summary?.apiContextGroups ?? 0}</p>
+                </div>
+                <div className="rounded-md border border-line bg-surface p-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Local context</p>
+                  <p className="mt-2 text-2xl font-semibold text-ink">{externalDataStatus?.summary?.fallbackGroups ?? 0}</p>
+                </div>
+              </div>
+              <div className="overflow-hidden rounded-md border border-line">
+                <div className="hidden grid-cols-[1.4fr_0.7fr_0.8fr_0.7fr_0.7fr_1.4fr] gap-3 bg-surface px-3 py-2 text-xs font-semibold uppercase tracking-[0.1em] text-muted xl:grid">
+                  <span>Source group</span>
+                  <span>Status</span>
+                  <span>Data mode</span>
+                  <span>Records</span>
+                  <span>Confidence</span>
+                  <span>Next validation step</span>
+                </div>
+                <div className="divide-y divide-line">
+                  {sourceLineageRows.slice(0, 5).map((source) => (
+                    <div key={`visible-${source.sourceId}`} className="grid gap-2 bg-white px-3 py-3 text-sm xl:grid-cols-[1.4fr_0.7fr_0.8fr_0.7fr_0.7fr_1.4fr] xl:items-start xl:gap-3">
+                      <div className="min-w-0">
+                        <p className="font-semibold text-ink">{source.source}</p>
+                        <p className="mt-1 text-xs leading-5 text-muted">{source.caveat || requiredDataCaveat}</p>
+                      </div>
+                      <span className="w-fit rounded-full bg-surface px-2 py-1 text-xs font-semibold text-brand">{source.currentStatus}</span>
+                      <span className="text-xs font-semibold text-muted">
+                        {source.dataMode ? projectSourceDataModeLabel(source.dataMode) : "n/a"}
+                        {source.validationStatus ? <span className="mt-1 block font-normal leading-4">Quality: {source.validationStatus.replace(/-/g, " ")}</span> : null}
+                      </span>
+                      <span className="text-xs font-semibold text-ink">{formatRecordCount(source.recordCount)}</span>
+                      <span className="text-xs font-semibold text-muted">{source.confidence ? formatLabel(source.confidence) : "n/a"}</span>
+                      <p className="min-w-0 break-words text-xs leading-5 text-muted">{source.nextValidationStep ?? "Validate source lineage with official/client-approved evidence."}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="rounded-md border border-line bg-surface p-4">
+                <p className="font-semibold text-ink">Supabase / PostGIS</p>
+                <p className="mt-1 text-sm leading-5 text-muted">
+                  {dbHealth?.message ?? getSupabaseFallbackMessage(false)}
+                </p>
+              </div>
+              <p className="text-xs leading-5 text-muted">{externalDataStatus?.summary?.caveat ?? requiredDataCaveat}</p>
             </div>
           </Panel>
         </section>
@@ -2168,7 +2296,7 @@ export function ProjectDashboard() {
               )}
             </Panel>
 
-            <Panel title="Client Data Room" subtitle="Project-scoped pilot evidence package linking AOIs, uploads, analyses, reports, comparisons and validation tasks.">
+            <Panel title="Client Data Room" subtitle="Project-scoped evidence package linking AOIs, uploads, analyses, reports, comparisons and validation tasks.">
               <div className="grid gap-4">
                 <div className="flex flex-col gap-3 rounded-md border border-line bg-surface p-4 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0">
@@ -2181,10 +2309,10 @@ export function ProjectDashboard() {
                       </span>
                     </div>
                     <p className="mt-2 text-sm leading-6 text-muted">
-                      {dataRoom?.summary.storageNote ?? "Local/sample fallback; durable storage not configured."}
+                      {pilotDisplayLabel(dataRoom?.summary.storageNote ?? "Local screening context; durable storage not configured.")}
                     </p>
                     <p className="mt-1 text-xs leading-5 text-muted">
-                      {dataRoom?.dataHonesty.caveat ?? "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."}
+                      {dataRoom?.dataHonesty.caveat ?? requiredDataCaveat}
                     </p>
                   </div>
                   <div className="flex shrink-0 flex-wrap gap-2">
@@ -2232,7 +2360,7 @@ export function ProjectDashboard() {
 
                 {!serverMutationsEnabled ? (
                   <p className="rounded-md border border-line bg-[#fff9e8] px-3 py-2 text-xs leading-5 text-[#6f5817]">
-                    Public demo containment is active: server evidence, checklist, review and package writes are disabled before any network request. Project AOIs, CSV/GeoJSON uploads, analyses and report summaries remain browser-local.
+                    Browser-local containment is active: server evidence, checklist, review and package writes are disabled before any network request. Project AOIs, CSV/GeoJSON uploads, analyses and report summaries remain browser-local.
                   </p>
                 ) : null}
 
@@ -2273,7 +2401,7 @@ export function ProjectDashboard() {
                         ))
                       ) : (
                         <p className="rounded-md border border-dashed border-line bg-surface p-3 text-sm leading-6 text-muted">
-                          Add AOIs, uploaded datasets or reports to build a client pilot data room.
+                          Add AOIs, uploaded datasets or reports to build a client evidence room.
                         </p>
                       )}
                     </div>
@@ -2328,7 +2456,7 @@ export function ProjectDashboard() {
               </div>
             </Panel>
 
-            <Panel title="Pilot Workflow" subtitle="Workflow readiness for client review. This is not investment, legal, planning or valuation readiness.">
+            <Panel title="Validation Workflow" subtitle="Workflow readiness for client review. This is not investment, legal, planning or valuation readiness.">
               {pilotWorkflow?.workflow && pilotWorkflow.readiness ? (
                 <div className="grid gap-4">
                   <div className="rounded-md border border-line bg-surface p-4">
@@ -2469,234 +2597,43 @@ export function ProjectDashboard() {
                 </div>
               ) : (
                 <EmptyState
-                  title={serverMutationsEnabled ? "Pilot workflow unavailable" : "Pilot workflow writes locked"}
+                  title={serverMutationsEnabled ? "Validation workflow unavailable" : "Validation workflow writes locked"}
                   text={serverMutationsEnabled
                     ? "The workflow summary could not be loaded for this project. The Data Room and workspace remain available."
-                    : "The public demo keeps project work browser-local. Verified sign-in and project-scoped authorization are required before server workflow data can be loaded or changed."}
+                    : "Browser-local mode keeps project work on this device. Verified sign-in and project-scoped authorization are required before server workflow data can be loaded or changed."}
                   href={openWorkspaceHref}
                   action="Open workspace"
                 />
               )}
             </Panel>
 
-            <Panel title="Project Activity / Recent Analyses" subtitle="Analysis runs are scoped to the active project when project metadata is available.">
-              {recentRows.length > 0 ? (
-                <div className="grid gap-3">
-                  {recentRows.map((item) => (
-                    <article key={item.id} className="rounded-md border border-line bg-surface p-4">
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                        <div className="min-w-0">
-                          <h3 className="safe-line-1 font-semibold text-ink">{item.title}</h3>
-                          <p className="safe-line-1 mt-1 text-sm leading-5 text-muted">{item.scenarioLabel} / {formatTimestamp(item.timestamp)}</p>
-                        </div>
-                        <div className="flex shrink-0 items-center justify-end gap-2">
-                          <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
-                            {item.customQuery ? (
-                              <span className="safe-line-1 max-w-[150px] rounded-full bg-[#fff9e8] px-2 py-1 text-[11px] font-semibold text-[#6f5817]">
-                                Custom query analysis
-                              </span>
-                            ) : null}
-                            <span className="safe-line-1 max-w-[92px] rounded-full bg-white px-3 py-1 text-xs font-semibold text-brand">
-                              {item.source}
-                            </span>
-                          </div>
-                          <Link
-                            href={item.canOpenAnalysis && item.analysis
-                              ? `/workspace?openAnalysis=${encodeURIComponent(item.analysis.id)}&projectId=${encodeURIComponent(item.projectId ?? activeProject.id ?? item.projectKey ?? activeProject.projectKey)}&projectKey=${encodeURIComponent(item.projectKey ?? activeProject.projectKey)}`
-                              : openWorkspaceHref}
-                            onClick={() => {
-                              writeActiveProjectKey(item.projectKey ?? activeProject.projectKey);
-                              writeOpenAnalysisRequest(item);
-                            }}
-                            className="inline-flex h-8 shrink-0 items-center rounded-md border border-line bg-white px-3 text-xs font-semibold text-ink transition hover:border-brand"
-                          >
-                            {item.canOpenAnalysis ? "Open analysis" : "Open workspace"}
-                          </Link>
-                        </div>
-                      </div>
-                      <div className="mt-3 grid gap-2 text-sm md:grid-cols-3">
-                        <div className="rounded-md bg-white p-3">
-                          <span className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Posture</span>
-                          <p className="mt-1 font-semibold text-ink">{item.decisionPosture}</p>
-                        </div>
-                        <div className="rounded-md bg-white p-3">
-                          <span className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Confidence</span>
-                          <p className="mt-1 font-semibold capitalize text-ink">{item.confidence}</p>
-                        </div>
-                        <div className="rounded-md bg-white p-3">
-                          <span className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Data basis</span>
-                          <p className="mt-1 font-semibold text-ink">{item.dataConfidence}</p>
-                        </div>
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              ) : (
-                <EmptyState
-                  title="No analyses yet"
-                  text="Run Express Analysis in the workspace to populate this project activity feed."
-                  href={openWorkspaceHref}
-                  action="Open workspace"
-                />
-              )}
-            </Panel>
-
-            <Panel title="Reports / Memos" subtitle="Review-ready screening memo previews remain connected to the workspace result and report flow.">
-              {reportRows.length > 0 ? (
-                <div className="grid gap-3">
-                  {reportRows.slice(0, 5).map((report) => {
-                    const compactMetadata = normalizeCompactReportMetadata({
-                      scenario: report.scenario,
-                      targetLabel: report.targetLabel,
-                      reportType: report.reportType,
-                      projectKey: report.projectKey
-                    });
-
-                    return (
-                      <article key={report.id} className="rounded-md border border-line bg-surface p-4">
-                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                          <div className="min-w-0">
-                            <h3 className="break-words font-semibold text-ink">{pilotDisplayLabel(report.title)}</h3>
-                            <p className="mt-1 text-sm text-muted">
-                              {formatTimestamp(report.createdAt ?? undefined)}
-                              {report.reportType ? ` / ${formatLabel(report.reportType)}` : ""}
-                            </p>
-                            {compactMetadata.length > 0 ? (
-                              <p className="mt-1 break-words text-xs leading-5 text-muted">
-                                {compactMetadata.join(" / ")}
-                              </p>
-                            ) : null}
-                            {scopedSavedReports.length === 0 ? (
-                              <span className="mt-2 inline-flex rounded-full bg-white px-2 py-1 text-[11px] font-semibold text-brand">
-                                Sample example
-                              </span>
-                            ) : null}
-                          </div>
-                          <Link
-                            href={`/reports/${encodeURIComponent(report.id)}/print`}
-                            className="inline-flex h-9 shrink-0 items-center justify-center rounded-md border border-line bg-white px-3 text-sm font-semibold text-ink transition hover:border-brand"
-                          >
-                            Export report
-                          </Link>
-                        </div>
-                        <p className="mt-2 text-sm leading-5 text-muted">{pilotDisplayLabel(report.sourceSummary ?? "Saved with sample/local source lineage; official validation required.")}</p>
-                      </article>
-                    );
-                  })}
-                </div>
-              ) : (
-                <EmptyState
-                  title="No saved reports yet"
-                  text="Run an analysis and export a memo to populate this project. Saved reports remain demo/local until official validation is connected."
-                  href={openWorkspaceHref}
-                  action="Generate new memo"
-                />
-              )}
-            </Panel>
-
-            <Panel title="Enterprise Report Packages" subtitle="Structured browser-print packages for client/investor review. Generated does not mean officially validated.">
-              <div className="grid gap-3">
-                <div className="flex flex-col gap-3 rounded-md border border-line bg-surface p-4 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="rounded-full bg-brand px-3 py-1 text-xs font-semibold text-white">
-                        {packageRows.length} package{packageRows.length === 1 ? "" : "s"}
-                      </span>
-                      <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-brand">
-                        browser print / JSON
-                      </span>
-                    </div>
-                    <p className="mt-2 text-sm leading-6 text-muted">
-                      Combines memo, AOI factsheet, source lineage, validation governance, evidence review, Data Room and pilot workflow summaries.
-                    </p>
-                    <p className="mt-1 text-xs leading-5 text-muted">
-                      Report packages are decision-support deliverables, not certified valuation, legal, zoning, planning, cadastral or ownership conclusions.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      void createProjectReportPackage();
-                    }}
-                    disabled={!serverMutationsEnabled}
-                    title={!serverMutationsEnabled ? "Requires verified sign-in and project-scoped authorization" : undefined}
-                    className="inline-flex h-9 shrink-0 items-center justify-center rounded-md bg-brand px-3 text-xs font-semibold text-white transition hover:bg-[#113f50] disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    Create package
-                  </button>
-                </div>
-
-                {reportPackageMessage ? (
-                  <p className="rounded-md border border-line bg-white px-3 py-2 text-xs leading-5 text-muted">{reportPackageMessage}</p>
-                ) : null}
-
-                <div className="grid gap-3 md:grid-cols-2">
-                  {packageRows.slice(0, 4).map((pkg) => (
-                    <article key={pkg.id} className="rounded-md border border-line bg-surface p-3">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="safe-line-1 text-sm font-semibold text-ink">{pilotDisplayLabel(pkg.title)}</p>
-                          <p className="mt-1 text-xs leading-5 text-muted">
-                            {formatDataRoomLabel(pkg.packageType)} / {formatDataRoomLabel(pkg.status)} / {formatTimestamp(pkg.generatedAt)}
-                          </p>
-                          <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted">{pkg.caveat}</p>
-                        </div>
-                        <span className="shrink-0 rounded-full bg-white px-2 py-1 text-[10px] font-semibold text-brand">
-                          {pkg.version}
-                        </span>
-                      </div>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        <Link
-                          href={`/api/report-packages/${encodeURIComponent(pkg.packageKey)}`}
-                          className="inline-flex h-8 items-center rounded-md border border-line bg-white px-2 text-xs font-semibold text-ink transition hover:border-brand"
-                        >
-                          Open package
-                        </Link>
-                        <Link
-                          href={pkg.printablePath}
-                          className="inline-flex h-8 items-center rounded-md bg-brand px-2 text-xs font-semibold text-white transition hover:bg-[#113f50]"
-                        >
-                          Print package
-                        </Link>
-                        <Link
-                          href={pkg.jsonPath}
-                          className="inline-flex h-8 items-center rounded-md border border-line bg-white px-2 text-xs font-semibold text-ink transition hover:border-brand"
-                        >
-                          Export JSON
-                        </Link>
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              </div>
-            </Panel>
           </div>
 
           <div className="grid content-start gap-5">
-            <Panel title="Pilot Brief" subtitle="Use this project as a controlled screening narrative, not as validated production evidence.">
+            <Panel title="Decision Brief" subtitle="Use this project as a controlled screening narrative, not as validated operational evidence.">
               <div className="grid gap-3">
                 <div className="rounded-md bg-surface p-3">
                   <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Purpose</p>
                   <p className="mt-1 text-sm leading-6 text-ink">
-                    {getProjectMetadataText(activeProject, "demoPurpose", "Frame GeoAI screening, memo and comparison workflows.")}
+                    {pilotDisplayLabel(getProjectMetadataText(activeProject, "demoPurpose", "Frame GeoAI screening, memo and comparison workflows."))}
                   </p>
                 </div>
                 <div className="rounded-md bg-surface p-3">
                   <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Data status</p>
                   <p className="mt-1 text-sm leading-6 text-ink">
-                    {getProjectMetadataText(activeProject, "dataStatus", "Sample/open and offline data; official validation required.")}
+                    {pilotDisplayLabel(getProjectMetadataText(activeProject, "dataStatus", "Public/open and local context; official validation required."))}
                   </p>
                 </div>
                 <div className="rounded-md bg-surface p-3">
                   <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Recommended next action</p>
                   <p className="mt-1 text-sm leading-6 text-ink">
-                    {getProjectMetadataText(activeProject, "recommendedNextAction", "Agree pilot data sources and validation path before operational use.")}
+                    {pilotDisplayLabel(getProjectMetadataText(activeProject, "recommendedNextAction", "Agree source inputs and the validation path before operational use."))}
                   </p>
                 </div>
               </div>
             </Panel>
 
-            <Panel title="Client Validation Package" subtitle="Future client work package framing for the active sample project.">
+            <Panel title="Client Validation Package" subtitle="Future client work package framing for the active screening project.">
               <div className="grid gap-3">
                 <div className="rounded-md border border-line bg-surface p-3">
                   <div className="flex items-start justify-between gap-3">
@@ -2941,7 +2878,7 @@ export function ProjectDashboard() {
                     Open Data Room
                   </a>
                 </div>
-                <p className="text-xs leading-5 text-muted">{validationSummary?.caveat ?? "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."}</p>
+                <p className="text-xs leading-5 text-muted">{validationSummary?.caveat ?? requiredDataCaveat}</p>
               </div>
             </Panel>
 
@@ -2950,7 +2887,7 @@ export function ProjectDashboard() {
                 <div className="rounded-md border border-line bg-surface p-4">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold text-ink">{formatDataRoomLabel(storageHealth?.provider ?? "protected_storage_unavailable_to_public_demo")}</p>
+                      <p className="text-sm font-semibold text-ink">{pilotDisplayLabel(formatDataRoomLabel(storageHealth?.provider ?? "protected_storage_unavailable_to_public_demo"))}</p>
                       <p className="mt-1 text-xs leading-5 text-muted">
                         {storageRuntimeSummary({
                           configured: storageHealth?.configured === true,
@@ -3015,50 +2952,6 @@ export function ProjectDashboard() {
               </div>
             </Panel>
 
-            <Panel title="Comparison Shortlist" subtitle="Saved comparison sets from the map workspace.">
-              {comparisonRows.length > 0 ? (
-                <div className="grid gap-3">
-                  {comparisonRows.slice(0, 4).map((comparison) => {
-                    const comparisonReportId =
-                      comparison.reportId
-                        ?? (comparison.id === "seeded-comparison-dubai-shortlist"
-                          ? "seeded-comparison-dubai-shortlist-report"
-                          : comparison.id);
-
-                    return (
-                    <article key={comparison.id} className="rounded-md border border-line bg-surface p-4">
-                      <h3 className="font-semibold text-ink">{comparison.title}</h3>
-                      <p className="mt-1 text-sm text-muted">{formatTimestamp(comparison.createdAt ?? undefined)}</p>
-                      <p className="mt-2 text-sm leading-5 text-muted">{comparison.sourceSummary ?? "Saved comparison; official validation required."}</p>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        <Link
-                          href={openWorkspaceHref}
-                          onClick={() => writeActiveProjectKey(activeProject.projectKey)}
-                          className="inline-flex h-9 items-center justify-center rounded-md border border-line bg-white px-3 text-sm font-semibold text-ink transition hover:border-brand"
-                        >
-                          Open comparison
-                        </Link>
-                        <Link
-                          href={`/reports/${encodeURIComponent(comparisonReportId)}/print`}
-                          className="inline-flex h-9 items-center justify-center rounded-md bg-brand px-3 text-sm font-semibold text-white transition hover:bg-[#113f50]"
-                        >
-                          Export memo
-                        </Link>
-                      </div>
-                    </article>
-                    );
-                  })}
-                </div>
-              ) : (
-                <EmptyState
-                  title="No saved comparison sets yet"
-                  text="Open the workspace, select 2-3 points or screening objects, then compare selected sites."
-                  href={openWorkspaceHref}
-                  action="Compare sites"
-                />
-              )}
-            </Panel>
-
             <Panel title="Recommended Next Actions">
               <ol className="grid gap-2">
                 {nextActions.slice(0, 5).map((action, index) => (
@@ -3076,65 +2969,6 @@ export function ProjectDashboard() {
           </div>
         </details>
 
-        <section id="data-readiness">
-          <Panel title="Data Readiness / Source Lineage" subtitle="Source group readiness for screening workflows. Validation is required before decisions.">
-            <div className="grid gap-4">
-              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-                <div className="rounded-md border border-line bg-surface p-3">
-                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Groups</p>
-                  <p className="mt-2 text-2xl font-semibold text-ink">{externalDataStatus?.summary?.totalGroups ?? sourceLineageRows.length}</p>
-                </div>
-                <div className="rounded-md border border-line bg-surface p-3">
-                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Snapshots</p>
-                  <p className="mt-2 text-2xl font-semibold text-ink">{externalDataStatus?.summary?.snapshotGroups ?? 0}</p>
-                </div>
-                <div className="rounded-md border border-line bg-surface p-3">
-                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">API context</p>
-                  <p className="mt-2 text-2xl font-semibold text-ink">{externalDataStatus?.summary?.apiContextGroups ?? 0}</p>
-                </div>
-                <div className="rounded-md border border-line bg-surface p-3">
-                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Fallbacks</p>
-                  <p className="mt-2 text-2xl font-semibold text-ink">{externalDataStatus?.summary?.fallbackGroups ?? 0}</p>
-                </div>
-              </div>
-              <div className="overflow-hidden rounded-md border border-line">
-                <div className="hidden grid-cols-[1.4fr_0.7fr_0.8fr_0.7fr_0.7fr_1.4fr] gap-3 bg-surface px-3 py-2 text-xs font-semibold uppercase tracking-[0.1em] text-muted xl:grid">
-                  <span>Source group</span>
-                  <span>Status</span>
-                  <span>Data mode</span>
-                  <span>Records</span>
-                  <span>Confidence</span>
-                  <span>Next validation step</span>
-                </div>
-                <div className="divide-y divide-line">
-                  {sourceLineageRows.slice(0, 5).map((source) => (
-                    <div key={`visible-${source.sourceId}`} className="grid gap-2 bg-white px-3 py-3 text-sm xl:grid-cols-[1.4fr_0.7fr_0.8fr_0.7fr_0.7fr_1.4fr] xl:items-start xl:gap-3">
-                      <div className="min-w-0">
-                        <p className="font-semibold text-ink">{source.source}</p>
-                        <p className="mt-1 text-xs leading-5 text-muted">{source.caveat || requiredDataCaveat}</p>
-                      </div>
-                      <span className="w-fit rounded-full bg-surface px-2 py-1 text-xs font-semibold text-brand">{source.currentStatus}</span>
-                      <span className="text-xs font-semibold text-muted">
-                        {source.dataMode ? sourceDataModeLabel(source.dataMode) : "n/a"}
-                        {source.validationStatus ? <span className="mt-1 block font-normal leading-4">Quality: {source.validationStatus.replace(/-/g, " ")}</span> : null}
-                      </span>
-                      <span className="text-xs font-semibold text-ink">{formatRecordCount(source.recordCount)}</span>
-                      <span className="text-xs font-semibold text-muted">{source.confidence ? formatLabel(source.confidence) : "n/a"}</span>
-                      <p className="min-w-0 break-words text-xs leading-5 text-muted">{source.nextValidationStep ?? "Validate source lineage with official/client-approved evidence."}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div className="rounded-md border border-line bg-surface p-4">
-                <p className="font-semibold text-ink">Supabase / PostGIS</p>
-                <p className="mt-1 text-sm leading-5 text-muted">
-                  {dbHealth?.message ?? getSupabaseFallbackMessage(false)}
-                </p>
-              </div>
-              <p className="text-xs leading-5 text-muted">{externalDataStatus?.summary?.caveat ?? requiredDataCaveat}</p>
-            </div>
-          </Panel>
-        </section>
       </div>
     </main>
   );

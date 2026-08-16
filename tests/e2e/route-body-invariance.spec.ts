@@ -21,8 +21,8 @@ async function signInDemo(page: Page, next = "/workspace") {
   await page.goto(`/login?next=${encodeURIComponent(next)}&intent=demo`);
   const redirected = await page.waitForURL((url) => url.pathname === next, { timeout: 3000 }).then(() => true, () => false);
   if (redirected) return;
-  await page.getByRole("button", { name: "Use demo credentials" }).click();
-  await page.getByRole("button", { name: "Open demo" }).click();
+  await page.getByRole("button", { name: "Use guided access" }).click();
+  await page.getByRole("button", { name: "Open guided workspace" }).click();
   await expect(page).toHaveURL((url) => url.pathname === next);
 }
 
@@ -65,10 +65,8 @@ async function expectElementUnobstructed(locator: Locator, label: string) {
   ).toBe(true);
 }
 
-function expectedCockpitAsset(width: number) {
-  if (width <= 639) return "/design/landing-geoai-cockpit-mobile-v18.png";
-  if (width <= 1023) return "/design/landing-geoai-cockpit-tablet-v18.png";
-  return "/design/landing-geoai-cockpit-desktop-v18.png";
+function expectedCockpitAsset() {
+  return "/design/gcc-decision-cockpit-v1.png";
 }
 
 async function newPage(browser: Browser, viewport: { width: number; height: number }) {
@@ -128,7 +126,7 @@ test("commercial landing uses the responsive Figma cockpit and keeps primary act
     const internalValidationOverlay = page.getByText("Validation gap · official confirmation required", { exact: true });
     await expect(internalValidationOverlay).toHaveCount(0);
 
-    const cockpitImage = page.locator('[data-landing-cockpit-authority="commercial-v1.8"] img').first();
+    const cockpitImage = page.locator('img[data-landing-cockpit-authority="gcc-real-estate-v1"]').first();
     await expect(cockpitImage).toBeVisible();
     const cockpitMetrics = await cockpitImage.evaluate((element) => {
       const image = element as HTMLImageElement;
@@ -142,15 +140,15 @@ test("commercial landing uses the responsive Figma cockpit and keeps primary act
     expect(cockpitMetrics.complete, `${viewport.name} cockpit image must finish loading`).toBe(true);
     expect(cockpitMetrics.naturalWidth, `${viewport.name} cockpit image must have intrinsic width`).toBeGreaterThan(0);
     expect(cockpitMetrics.naturalHeight, `${viewport.name} cockpit image must have intrinsic height`).toBeGreaterThan(0);
-    expect(cockpitMetrics.currentPath).toBe(expectedCockpitAsset(viewport.width));
+    expect(cockpitMetrics.currentPath).toBe(expectedCockpitAsset());
     const cockpitBox = await cockpitImage.boundingBox();
     expect(cockpitBox).not.toBeNull();
     expect(cockpitBox?.width ?? 0, `${viewport.name} cockpit must remain legible`).toBeGreaterThanOrEqual(300);
     expect(cockpitBox?.width ?? 0, `${viewport.name} cockpit must fit the viewport`).toBeLessThanOrEqual(viewport.width);
 
     const hero = page.locator("main > section").first();
-    const viewDemo = hero.getByRole("link", { name: "View demo", exact: true });
-    await expectElementUnobstructed(viewDemo, `${viewport.name} View demo`);
+    const viewDemo = hero.getByRole("link", { name: "Open workspace", exact: true });
+    await expectElementUnobstructed(viewDemo, `${viewport.name} Open workspace`);
 
     const heading = page.getByRole("heading", { name: "Make the reasoning visible" });
     await expect(heading).toBeVisible();

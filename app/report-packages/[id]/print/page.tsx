@@ -313,7 +313,7 @@ export default async function ReportPackagePrintPage({ params }: ReportPackagePr
           <div className="mx-auto max-w-[920px] rounded-lg border border-[#d9e1e7] bg-white p-6">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#195266]">Report package</p>
             <h1 className="mt-2 text-2xl font-semibold">Verified project access required</h1>
-            <p className="mt-2 text-sm leading-6 text-[#5e7180]">Dynamic server report packages are unavailable in public-demo mode.</p>
+            <p className="mt-2 text-sm leading-6 text-[#5e7180]">Dynamic server report packages are unavailable in browser-local mode.</p>
             <Link href="/projects" className="mt-4 inline-flex h-10 items-center rounded-md border border-[#d9e1e7] bg-white px-4 text-sm font-semibold">Back</Link>
           </div>
         </main>

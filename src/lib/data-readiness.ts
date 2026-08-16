@@ -5,18 +5,18 @@ export type ImportedMetricReadiness = {
 
 export function getImportedMetricsReadinessMessage({ count, hasProjectMatch }: ImportedMetricReadiness) {
   if (count <= 0) {
-    return "No sample metrics available yet; seed fallback remains available.";
+    return "No imported snapshot metrics are available; illustrative local context remains available.";
   }
 
   if (hasProjectMatch === false) {
-    return "Sample metrics available, but no project-level area match yet; seed fallback used for this card.";
+    return "Imported snapshot metrics are available, but no project-level area match exists; illustrative local context is used for this card.";
   }
 
-  return "Sample metrics available - manual/offline import; not live official data.";
+  return "Manual snapshot metrics are available; they are not live official data.";
 }
 
 export function getSupabaseFallbackMessage(configured?: boolean) {
   return configured
     ? "Supabase/PostGIS configured; availability depends on project database access."
-    : "Local/sample fallback; Supabase/PostGIS not configured.";
+    : "Illustrative local fallback; Supabase/PostGIS not configured.";
 }

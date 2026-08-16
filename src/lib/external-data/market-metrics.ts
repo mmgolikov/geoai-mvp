@@ -41,7 +41,7 @@ export type CompactPublicMarketMetricsResponse = {
   sourceMode: "sample_fallback";
   source: {
     id: "sample-market-area-metrics";
-    name: "GeoAI bundled sample market metrics";
+    name: "GeoAI illustrative local market metrics";
     status: "sample_fallback";
     sourceType: "sample-open";
     disclaimer: string;
@@ -75,21 +75,21 @@ export function getCompactPublicMarketMetrics(): CompactPublicMarketMetricsRespo
     sourceMode: "sample_fallback",
     source: {
       id: "sample-market-area-metrics",
-      name: "GeoAI bundled sample market metrics",
+      name: "GeoAI illustrative local market metrics",
       status: "sample_fallback",
       sourceType: "sample-open",
-      disclaimer: "Bundled sample/offline metrics only; no live or imported official market snapshot is exposed publicly."
+      disclaimer: "Illustrative local metrics only; no live or imported official market snapshot is exposed publicly."
     },
     count: availableAreaNames.length,
     availableAreaNames,
     fallbackUsed: true,
     liveSnapshotIncluded: false,
     diagnosticsWithheld: true,
-    message: "Using the reviewed bundled sample market-area catalog. Operator snapshots remain outside the public API.",
+    message: "Using the reviewed illustrative local market-area catalog. Operator snapshots remain outside the public API.",
     caveat: requiredCaveat,
     quality: {
       status: "bundled_reviewed_sample",
-      warnings: ["Sample fallback only; official/customer-approved market validation is required."]
+      warnings: ["Illustrative local fallback only; official/customer-approved market validation is required."]
     }
   };
 }
@@ -131,13 +131,13 @@ export function readExternalMarketMetrics(): ExternalMarketMetricsResponse {
         availableAreaNames: areas.map((area) => typeof area === "object" && area !== null && "areaName" in area ? String(area.areaName) : "Unknown area"),
         fallbackUsed: sourceMode === "sample_fallback",
         message: sourceMode === "sample_fallback"
-          ? "Using bundled DLD / Dubai Pulse-style sample snapshot records. Manual import is ready; this is not live official data."
+          ? "Using bundled illustrative DLD / Dubai Pulse-style snapshot records. Manual import is ready; this is not live official data."
           : "Using imported DLD / Dubai Pulse market snapshot. This is not a live official transactional feed.",
         caveat: requiredCaveat,
         quality: {
           lastUpdated: parsed.generatedAt ?? null,
           dateRange: areas.map((area) => area.sourceDate).filter(Boolean).join(" to ") || null,
-          warnings: parsed.quality?.notes ?? (sourceMode === "sample_fallback" ? ["Bundled sample fallback records are active."] : [])
+          warnings: parsed.quality?.notes ?? (sourceMode === "sample_fallback" ? ["Bundled illustrative local records are active."] : [])
         }
       };
     } catch {
@@ -185,21 +185,21 @@ export function readExternalMarketMetrics(): ExternalMarketMetricsResponse {
     sourceMode: "sample_fallback",
     source: {
       id: "sample-market-area-metrics",
-      name: "GeoAI sample market metrics fallback",
+      name: "GeoAI illustrative local market metrics",
       status: "sample_fallback",
       sourceType: "sample-open",
-      disclaimer: "Sample/manual offline imports only; no live official DLD or Dubai Pulse integration is connected."
+      disclaimer: "Illustrative local/manual imports only; no live official DLD or Dubai Pulse integration is connected."
     },
     count: sampleMetrics.length,
     areas: sampleMetrics,
     availableAreaNames: sampleMetrics.map((metric) => metric.areaName),
     fallbackUsed: true,
-    message: "Real DLD / Dubai Pulse snapshot not found. Existing sample market metrics fallback is active.",
+    message: "Validated DLD / Dubai Pulse snapshot not found. Illustrative local market context is active.",
     caveat: requiredCaveat,
     quality: {
       lastUpdated: null,
       dateRange: null,
-      warnings: ["Sample fallback only; manual snapshot import required for client/official validation."]
+      warnings: ["Illustrative local fallback only; manual snapshot import required for client/official validation."]
     }
   };
 }

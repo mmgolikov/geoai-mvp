@@ -623,13 +623,20 @@ body {
   .geoai-print-meta-grid,
   .geoai-print-score-grid,
   .geoai-print-source-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 6px;
   }
 
   .geoai-print-top-grid,
   .geoai-print-two-col {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
     margin-top: 8px;
+  }
+
+  .geoai-print-mini-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
   }
 
   .geoai-print-card,
@@ -647,6 +654,23 @@ body {
 
   .geoai-print-map {
     min-height: 148px;
+  }
+
+  .geoai-print-map-snapshot img {
+    height: 178px !important;
+    object-fit: cover;
+    object-position: center;
+  }
+
+  .geoai-print-map-snapshot figcaption {
+    padding: 5px 7px !important;
+  }
+
+  .geoai-print-map-snapshot figcaption,
+  .geoai-print-map-snapshot figcaption p,
+  .geoai-print-map-snapshot figcaption a {
+    font-size: 8px !important;
+    line-height: 1.3 !important;
   }
 
   .geoai-print-marker strong {

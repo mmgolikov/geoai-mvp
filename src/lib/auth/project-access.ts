@@ -130,7 +130,7 @@ export function requireProjectAccess({
   const reason = allowed
     ? accessDecision.reason
     : serverMutationBlocked
-      ? "Server mutations are disabled until request-scoped Auth, membership and RLS are verified; keep public-demo user state in the browser."
+      ? "Browser-local guided access does not authorize protected server resources. Server mutations remain disabled until request-scoped Auth, membership and RLS are verified."
       : accessDecision.allowed
       ? "Project membership does not allow this action."
       : accessDecision.reason;

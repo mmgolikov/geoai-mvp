@@ -3,13 +3,57 @@ export const exploreRequiredCaveat =
 
 export type ExploreAudience = "b2c" | "b2b";
 
+export type GccMarketId = "ae" | "sa" | "qa" | "om";
+
+export type GccMarketSourceReadiness =
+  | "local_open_context_only"
+  | "metadata_only_no_data";
+
+export type GccMarketDefinition = {
+  id: GccMarketId;
+  countryCode: "AE" | "SA" | "QA" | "OM";
+  countryName: string;
+  regions: string[];
+  sourceReadiness: GccMarketSourceReadiness;
+  enabledForScreening: boolean;
+  sourceStatement: string;
+  caveat: string;
+};
+
+export type GccRealEstateDecisionId =
+  | "b2b_development_site_screening"
+  | "b2b_redevelopment_renovation"
+  | "b2b_acquisition_investment"
+  | "b2b_commercial_hospitality"
+  | "b2b_portfolio_asset_review"
+  | "b2c_ready_home_purchase"
+  | "b2c_off_plan_purchase"
+  | "b2c_investment_property"
+  | "b2c_rent_relocation"
+  | "b2c_overseas_buyer"
+  | "b2c_tourism_context";
+
+export type GccRealEstateDecisionDefinition = {
+  id: GccRealEstateDecisionId;
+  audience: ExploreAudience;
+  label: string;
+  description: string;
+  priority: "primary" | "secondary";
+  preferredScenarioId: ExploreScenarioId;
+  supportedRoleHints: ExploreRole[];
+  marketIds: GccMarketId[];
+  sourceStatement: string;
+  caveat: string;
+};
+
 export type B2CRole =
   | "tourist"
   | "resident_expat"
   | "home_buyer"
   | "renter"
   | "investor_buyer"
-  | "family_relocation";
+  | "family_relocation"
+  | "overseas_buyer";
 
 export type B2BRole =
   | "developer"

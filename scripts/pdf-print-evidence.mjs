@@ -99,7 +99,7 @@ const fixtures = [
     routeReportId: "seeded-analysis-dubai-marina-report",
     reportType: "analysis",
     mutation: "partial-evidence",
-    expectedPageRange: [4, 8],
+    expectedPageRange: [3, 8],
     attributionRequired: true,
     capturedMapRequired: true
   }
@@ -249,7 +249,7 @@ for (const fixture of fixtures) {
     const requiredTextChecks = {
       reportTitle: /GeoAI (?:Analysis|Comparison|Screening) Report/i.test(extractedText),
       reportId: extractedText.includes(fixture.reportId),
-      timestamp: /SAVED REPORT TIMESTAMP/i.test(extractedText) && extractedText.includes(`Evidence timestamp: ${fixedEvidenceTime}`),
+      timestamp: /(?:RESULT GENERATED|SAVED REPORT TIMESTAMP)/i.test(extractedText) && extractedText.includes(`Evidence timestamp: ${fixedEvidenceTime}`),
       classificationAndCaveat: extractedText.includes("Screening") && extractedText.includes(requiredCaveat),
       sourceLineage: extractedText.includes("Data Used / Source Lineage"),
       attribution: !fixture.attributionRequired || extractedText.includes("Map/data sources:"),

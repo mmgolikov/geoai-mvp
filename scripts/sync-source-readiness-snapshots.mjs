@@ -1,12 +1,47 @@
 #!/usr/bin/env node
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { createClient } from "@supabase/supabase-js";
+import ts from "typescript";
 
 const caveat = "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.";
-const dryRun = process.argv.includes("--dry-run");
+const illustrativeLabel = "Illustrative local screening context";
 const writeRequested = process.argv.includes("--write");
+const nonDryRunRequested = process.argv.includes("--non-dry-run");
+const dryRun = process.argv.includes("--dry-run") || !writeRequested || !nonDryRunRequested;
 const strict = process.argv.includes("--strict") || process.env.GEOAI_SOURCE_READINESS_SYNC_STRICT?.trim().toLowerCase() === "true";
 const generatedAt = new Date().toISOString();
+
+async function loadTypeScriptModule(relativePath) {
+  const source = readFileSync(new URL(relativePath, import.meta.url), "utf8");
+  const result = ts.transpileModule(source, {
+    fileName: relativePath,
+    reportDiagnostics: true,
+    compilerOptions: {
+      module: ts.ModuleKind.ESNext,
+      target: ts.ScriptTarget.ES2022,
+      strict: true
+    }
+  });
+  const errors = (result.diagnostics ?? []).filter(
+    (diagnostic) => diagnostic.category === ts.DiagnosticCategory.Error
+  );
+  if (errors.length > 0) {
+    throw new Error(
+      `Unable to load ${relativePath}: ${errors.map((diagnostic) => ts.flattenDiagnosticMessageText(diagnostic.messageText, " ")).join("; ")}`
+    );
+  }
+  return import(`data:text/javascript;base64,${Buffer.from(result.outputText).toString("base64")}`);
+}
+
+const {
+  SOURCE_PROVENANCE_CONTRACT_VERSION,
+  deriveSourceConfidence,
+  evaluateSourceReleaseGate
+} = await loadTypeScriptModule("../src/lib/external-data/source-provenance-contract.ts");
+const { validateSourceReleaseProvenance } = await loadTypeScriptModule(
+  "../src/lib/external-data/source-provenance-invariants.ts"
+);
 
 function readJson(path, fallback = null) {
   if (!existsSync(path)) return fallback;
@@ -69,12 +104,6 @@ function numberOrNull(value) {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
-function extractDateFromPath(path) {
-  const match = String(path ?? "").match(/(?:^|_)(\d{4})(\d{2})(\d{2})(?:\.|_|$)/);
-  if (!match) return null;
-  return `${match[1]}-${match[2]}-${match[3]}`;
-}
-
 function validationStatusFor(status) {
   const normalized = normalizeStatus(status);
   if (normalized === "snapshot_available") return "snapshot-not-live";
@@ -83,6 +112,19 @@ function validationStatusFor(status) {
   if (normalized === "connected") return "api-context";
   if (normalized === "permission_required" || normalized === "token_required") return "token-or-permission-required";
   return "planned-validation";
+}
+
+function presentationLabelFor(status, dataMode = modeFromStatus(status), validationStatus = validationStatusFor(status)) {
+  const rawValues = [status, dataMode, validationStatus]
+    .map((value) => String(value ?? "").trim().toLowerCase().replace(/-/g, "_"));
+  if (rawValues.some((value) => value === "sample_fallback" || value === "sample_only")) {
+    return illustrativeLabel;
+  }
+  if (dataMode === "api_context") return "Bounded screening API context";
+  if (dataMode === "imported_snapshot") return "Local snapshot screening context";
+  if (dataMode === "manual_import_ready") return "Local source import awaiting validation";
+  if (dataMode === "permission_required") return "Source access pending approval";
+  return "Source validation pending";
 }
 
 function confidenceFor(status, hasRecords, fallback) {
@@ -103,10 +145,11 @@ function newestDate(values) {
 }
 
 function sourceQualityGroup({ sourceGroupId, sourceGroupName, status, dataMode, recordCount, featureCount, generatedAt: groupGeneratedAt, extractedAt, licenseNote, confidence, validationStatus, nextValidationStep, snapshots }) {
+  const normalizedStatus = normalizeStatus(status);
   return {
     sourceGroupId,
     sourceGroupName,
-    status: normalizeStatus(status),
+    status: normalizedStatus,
     dataMode,
     recordCount,
     featureCount,
@@ -115,9 +158,13 @@ function sourceQualityGroup({ sourceGroupId, sourceGroupName, status, dataMode, 
     licenseNote,
     confidence,
     validationStatus,
+    presentationLabel: presentationLabelFor(normalizedStatus, dataMode, validationStatus),
     caveat,
     nextValidationStep,
-    snapshots
+    snapshots: snapshots.map((snapshot) => ({
+      ...snapshot,
+      presentationLabel: presentationLabelFor(snapshot.status, snapshot.dataMode, snapshot.validationStatus)
+    }))
   };
 }
 
@@ -157,7 +204,7 @@ const dldQualitySnapshots = Object.entries(dldQuality.categories ?? {}).map(([ca
     recordCount,
     featureCount: null,
     generatedAt: dldQuality.generatedAt ?? null,
-    extractedAt: extractDateFromPath(item.inputFile),
+    extractedAt: null,
     licenseNote: "DLD / Dubai Pulse public/open snapshot terms, attribution and redistribution limits must be confirmed per file before external use.",
     dataMode: modeFromStatus(status),
     status,
@@ -192,7 +239,7 @@ const osmQualitySnapshots = Object.entries(osmQuality.categories ?? {}).map(([ca
     recordCount: featureCount,
     featureCount,
     generatedAt: osmQuality.generatedAt ?? null,
-    extractedAt: extractDateFromPath(osmQuality.inputFile),
+    extractedAt: null,
     licenseNote: "OSM / Geofabrik open geospatial context requires ODbL attribution, extract date tracking and compliance review.",
     dataMode: modeFromStatus(status),
     status,
@@ -252,7 +299,7 @@ const copernicusSnapshots = [{
   recordCount: copernicusSceneCount,
   featureCount: null,
   generatedAt: copernicusMetadata.generatedAt ?? null,
-  extractedAt: newestDate((copernicusMetadata.collections ?? []).map((item) => item.latestSceneDate)),
+  extractedAt: null,
   licenseNote: "Copernicus / Sentinel metadata and imagery use requires mission/product terms review and token/query lineage before analytics.",
   dataMode: modeFromStatus(copernicusStatus),
   status: copernicusStatus,
@@ -262,12 +309,19 @@ const copernicusSnapshots = [{
   nextValidationStep: copernicusNextValidationStep,
   qualityNotes: [copernicusMetadata.limitation ?? "Metadata availability only; no imagery download or raster analytics connected."]
 }];
+const sourceQualityGeneratedAt = newestDate([
+  ...dldQualitySnapshots.map((item) => item.generatedAt),
+  ...osmQualitySnapshots.map((item) => item.generatedAt),
+  ...overtureSnapshots.map((item) => item.generatedAt),
+  ...copernicusSnapshots.map((item) => item.generatedAt)
+]);
 
 const sourceQualityManifest = {
   version: "1.3",
-  generatedAt,
+  generatedAt: sourceQualityGeneratedAt,
   mode: "local_normalized_snapshot_quality",
   source: "normalized_local_files",
+  presentationLabel: illustrativeLabel,
   caveat,
   groups: [
     sourceQualityGroup({
@@ -369,6 +423,249 @@ const sourceQualityManifest = {
 };
 const sourceQualityByGroup = new Map(sourceQualityManifest.groups.map((group) => [group.sourceGroupId, group]));
 
+const sourceOrigins = {
+  "dld-dubai-pulse-public-real-estate": {
+    originUrl: "https://dubailand.gov.ae/en/open-data/real-estate-data/",
+    originHost: "dubailand.gov.ae",
+    attributionNote: "Attribution and redistribution terms have not been approved for this local artifact."
+  },
+  "osm-geofabrik-open-geospatial": {
+    originUrl: "https://download.geofabrik.de/asia/gcc-states.html",
+    originHost: "download.geofabrik.de",
+    attributionNote: "OpenStreetMap and Geofabrik attribution must be approved and attached before external use."
+  },
+  "overture-maps-open-context": {
+    originUrl: "https://docs.overturemaps.org/getting-data/",
+    originHost: "docs.overturemaps.org",
+    attributionNote: "Overture attribution and downstream obligations must be approved and attached before external use."
+  },
+  "copernicus-sentinel-metadata": {
+    originUrl: "https://dataspace.copernicus.eu/",
+    originHost: "dataspace.copernicus.eu",
+    attributionNote: "Copernicus product attribution and use terms must be approved before external use."
+  }
+};
+
+function sha256(value) {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+function canonicalTimestamp(value) {
+  if (typeof value !== "string" || !Number.isFinite(Date.parse(value))) return null;
+  return new Date(Date.parse(value)).toISOString() === value ? value : null;
+}
+
+function mediaTypeFor(path) {
+  if (path.endsWith(".geojson")) return "application/geo+json";
+  if (path.endsWith(".csv")) return "text/csv";
+  if (path.endsWith(".json")) return "application/json";
+  return "application/octet-stream";
+}
+
+function observedCounts(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return { recordCount: null, featureCount: null, parsed: false };
+  }
+  if (Array.isArray(value.records)) return { recordCount: value.records.length, featureCount: null, parsed: true };
+  if (Array.isArray(value.features)) return { recordCount: null, featureCount: value.features.length, parsed: true };
+  if (Array.isArray(value.areas)) return { recordCount: value.areas.length, featureCount: null, parsed: true };
+  if (Array.isArray(value.collections)) {
+    return {
+      recordCount: value.collections.reduce(
+        (sum, item) => sum + (typeof item?.sceneCount === "number" && Number.isSafeInteger(item.sceneCount) && item.sceneCount >= 0 ? item.sceneCount : 0),
+        0
+      ),
+      featureCount: null,
+      parsed: true
+    };
+  }
+  return {
+    recordCount: numberOrNull(value.recordCount),
+    featureCount: numberOrNull(value.featureCount),
+    parsed: numberOrNull(value.recordCount) !== null || numberOrNull(value.featureCount) !== null
+  };
+}
+
+function provenanceDataMode(snapshot) {
+  if (snapshot.status === "sample_fallback") return "sample_fallback";
+  if (snapshot.status !== "snapshot_available") return "metadata_only";
+  if (snapshot.sourceGroupId === "osm-geofabrik-open-geospatial" || snapshot.sourceGroupId === "overture-maps-open-context") {
+    return "open_snapshot";
+  }
+  return "local_snapshot";
+}
+
+function buildProvenanceRelease(snapshot) {
+  const origin = sourceOrigins[snapshot.sourceGroupId];
+  if (!origin || !snapshot.filePath || !existsSync(snapshot.filePath)) return null;
+
+  const bytes = readFileSync(snapshot.filePath);
+  let artifact = null;
+  try {
+    artifact = JSON.parse(bytes.toString("utf8"));
+  } catch {
+    artifact = null;
+  }
+  const counts = observedCounts(artifact);
+  const declaredCount = snapshot.featureCount ?? snapshot.recordCount;
+  const observedCount = counts.featureCount ?? counts.recordCount;
+  const countMatches = declaredCount === null || observedCount === null || declaredCount === observedCount;
+  const contentSha256 = sha256(bytes);
+  const dataMode = provenanceDataMode(snapshot);
+  const releaseGeneratedAt = canonicalTimestamp(artifact?.generatedAt ?? snapshot.generatedAt);
+  const blockers = unique([
+    "Reusable rights and attribution review is not recorded for this artifact.",
+    "Immutable custody receipt is not recorded for this artifact.",
+    "Source extraction timestamp is not recorded for this artifact.",
+    dataMode === "sample_fallback" ? "Repository artifact is limited to screening context." : null,
+    !counts.parsed ? "Observed record or feature count could not be derived from the artifact." : null,
+    !countMatches ? "Declared record or feature count does not match artifact content." : null
+  ]);
+  const dimensions = {
+    sourceIdentity: "partial",
+    artifactIntegrity: "verified",
+    temporalLineage: releaseGeneratedAt ? "partial" : "unverified",
+    rights: "unverified",
+    schema: typeof artifact?.version === "string" ? "partial" : "unverified",
+    content: counts.parsed && countMatches ? "verified" : counts.parsed ? "partial" : "unverified",
+    custody: "unverified"
+  };
+  const rights = {
+    status: "unreviewed",
+    licenseId: null,
+    licenseUrl: null,
+    licenseNote: snapshot.licenseNote,
+    attributionNote: origin.attributionNote,
+    reviewedAt: null,
+    permittedUses: [],
+    prohibitedUses: ["source-backed decision scoring", "external publication", "official validation claim"]
+  };
+  const freshness = {
+    status: "unknown",
+    referenceTimestamp: null,
+    evaluatedAt: null,
+    maximumAgeDays: null,
+    ageDays: null,
+    policyId: null
+  };
+  const custodyReceipt = {
+    status: "not_recorded",
+    receiptId: null,
+    receiptSha256: null,
+    recordedAt: null,
+    repository: null
+  };
+  const validationStatus = "unverified";
+  const confidence = deriveSourceConfidence({
+    dataMode,
+    rights,
+    validationStatus,
+    freshness,
+    custodyReceipt,
+    dimensions
+  });
+  const release = {
+    contractVersion: SOURCE_PROVENANCE_CONTRACT_VERSION,
+    releaseId: `${snapshot.sourceId}.${contentSha256.slice(0, 16)}`,
+    releaseVersion: typeof artifact?.version === "string" ? artifact.version : contentSha256.slice(0, 16),
+    schemaVersion: typeof artifact?.version === "string" ? `geoai-normalized-${artifact.version}` : "unversioned",
+    sourceGroupId: snapshot.sourceGroupId,
+    sourceGroupName: snapshot.sourceGroupName,
+    sourceId: snapshot.sourceId,
+    sourceName: snapshot.sourceName,
+    originUrl: origin.originUrl,
+    originHost: origin.originHost,
+    artifact: {
+      path: snapshot.filePath,
+      mediaType: mediaTypeFor(snapshot.filePath),
+      contentSha256,
+      sourceUriSha256: null,
+      schemaSha256: null,
+      byteCount: bytes.byteLength,
+      recordCount: counts.recordCount,
+      featureCount: counts.featureCount
+    },
+    generatedAt: releaseGeneratedAt,
+    extractedAt: null,
+    publishedAt: null,
+    rights,
+    dataMode,
+    confidence,
+    validationStatus,
+    caveat,
+    nextValidationStep: snapshot.nextValidationStep,
+    blockers,
+    freshness,
+    custodyReceipt
+  };
+  const validation = validateSourceReleaseProvenance(release);
+  return {
+    release,
+    valid: validation.valid,
+    violations: validation.violations,
+    gate: evaluateSourceReleaseGate(release, validation.valid)
+  };
+}
+
+function buildProvenanceGroup(group) {
+  const releases = group.snapshots.map(buildProvenanceRelease).filter(Boolean);
+  const validReleaseCount = releases.filter((entry) => entry.valid).length;
+  const screeningReleaseCount = releases.filter((entry) => entry.gate.screeningContextAvailable).length;
+  const decisionEligibleReleaseCount = releases.filter((entry) => entry.gate.decisionUse === "allowed").length;
+  return {
+    sourceGroupId: group.sourceGroupId,
+    sourceGroupName: group.sourceGroupName,
+    generatedAt: newestDate(releases.map((entry) => entry.release.generatedAt)),
+    releaseCount: releases.length,
+    validReleaseCount,
+    screeningReleaseCount,
+    decisionEligibleReleaseCount,
+    qualityState: decisionEligibleReleaseCount > 0
+      ? "validated_snapshot"
+      : screeningReleaseCount > 0
+        ? "screening_context"
+        : releases.length > 0
+          ? "blocked"
+          : "no_release",
+    confidence: releases.some((entry) => entry.release.confidence.level === "high")
+      ? "high"
+      : releases.some((entry) => entry.release.confidence.level === "medium")
+        ? "medium"
+        : releases.some((entry) => entry.release.confidence.level === "low")
+          ? "low"
+          : "insufficient",
+    evidence: {
+      hashesComplete: releases.length > 0 && releases.every((entry) => /^[0-9a-f]{64}$/.test(entry.release.artifact.contentSha256)),
+      countsComplete: releases.length > 0 && releases.every((entry) => entry.release.artifact.recordCount !== null || entry.release.artifact.featureCount !== null),
+      rightsComplete: releases.length > 0 && releases.every((entry) => entry.release.rights.status === "approved"),
+      custodyComplete: releases.length > 0 && releases.every((entry) => entry.release.custodyReceipt.status === "immutable_receipt_recorded")
+    },
+    blockers: unique([
+      ...releases.flatMap((entry) => [
+        ...entry.gate.blockers,
+        ...entry.violations.map((violation) => `${violation.path}: ${violation.message}`)
+      ]),
+      releases.length === 0 ? "No local normalized artifact is recorded for this source group." : null
+    ]),
+    nextValidationStep: group.nextValidationStep,
+    caveat,
+    releases
+  };
+}
+
+const sourceProvenanceManifest = {
+  contractVersion: SOURCE_PROVENANCE_CONTRACT_VERSION,
+  mode: "strict_local_provenance",
+  source: "repository_normalized_files",
+  presentationLabel: illustrativeLabel,
+  generatedAt: sourceQualityGeneratedAt,
+  caveat,
+  groups: sourceQualityManifest.groups.map(buildProvenanceGroup)
+};
+const sourceProvenanceByGroup = new Map(
+  sourceProvenanceManifest.groups.map((group) => [group.sourceGroupId, group])
+);
+
 const sourceGroups = [
   {
     source_id: "dld-dubai-pulse-public-real-estate",
@@ -456,26 +753,59 @@ const sourceGroups = [
     confidence: "requires-validation",
     nextValidationStep: copernicusNextValidationStep
   }
-].map((group) => ({
-  ...group,
-  source_mode: modeFromStatus(group.connection_status),
-  data_quality_tier: group.confidence,
-  caveat,
-  sourceQuality: sourceQualityByGroup.get(group.source_id),
-  quality: {
-    confidence: group.confidence,
-    recordCount: group.record_count,
-    generatedAt,
-    sourceQuality: sourceQualityByGroup.get(group.source_id)
-  },
-  lineage: {
-    sourceIds: group.sourceIds,
-    availableFiles: group.files,
-    nextValidationStep: group.nextValidationStep,
+].map((group) => {
+  const sourceQuality = sourceQualityByGroup.get(group.source_id);
+  const sourceProvenance = sourceProvenanceByGroup.get(group.source_id);
+  const files = group.files.filter((path) => existsSync(path));
+  const evidenceAllowsDecision = Boolean(sourceProvenance?.decisionEligibleReleaseCount);
+  const requestedStatus = normalizeStatus(group.connection_status);
+  const connectionStatus =
+    (requestedStatus === "snapshot_available" || requestedStatus === "connected") && !evidenceAllowsDecision
+      ? "manual_import_ready"
+      : requestedStatus;
+  const sourceMode = !evidenceAllowsDecision && (requestedStatus === "snapshot_available" || requestedStatus === "connected")
+    ? "planned_validation"
+    : modeFromStatus(connectionStatus);
+  const confidence = sourceProvenance?.confidence === "insufficient"
+    ? "requires-validation"
+    : sourceProvenance?.confidence ?? group.confidence;
+  const validationStatus = sourceQuality?.validationStatus ?? validationStatusFor(connectionStatus);
+  const presentationLabel = presentationLabelFor(connectionStatus, sourceMode, validationStatus);
+
+  return {
+    ...group,
+    normalized_path: group.normalized_path && existsSync(group.normalized_path) ? group.normalized_path : null,
+    files,
+    record_count: sourceProvenance?.evidence.countsComplete ? group.record_count : null,
+    connection_status: connectionStatus,
+    source_mode: sourceMode,
+    validation_status: validationStatus,
+    presentation_label: presentationLabel,
+    data_quality_tier: confidence,
     caveat,
-    sourceQuality: sourceQualityByGroup.get(group.source_id)
-  }
-}));
+    sourceQuality,
+    sourceProvenance,
+    quality: {
+      confidence,
+      validationStatus,
+      presentationLabel,
+      recordCount: sourceProvenance?.evidence.countsComplete ? group.record_count : null,
+      generatedAt: sourceQuality?.generatedAt ?? null,
+      sourceQuality,
+      sourceProvenance
+    },
+    lineage: {
+      sourceIds: group.sourceIds,
+      availableFiles: files,
+      nextValidationStep: group.nextValidationStep,
+      caveat,
+      validationStatus,
+      presentationLabel,
+      sourceQuality,
+      sourceProvenance
+    }
+  };
+});
 
 function toSourceRow(group) {
   return {
@@ -511,6 +841,7 @@ function toExternalSnapshotRow(group) {
       sourceIds: group.sourceIds,
       availableFiles: group.files,
       sourceQuality: group.sourceQuality,
+      sourceProvenance: group.sourceProvenance,
       nextValidationStep: group.nextValidationStep,
       caveat
     },
@@ -546,11 +877,17 @@ async function main() {
   const legacyDatabaseWriterQuarantined = true;
   const sourceRows = sourceGroups.map(toSourceRow);
   const externalRows = sourceGroups.map(toExternalSnapshotRow);
-  const canWrite = writeRequested && !dryRun && Boolean(url && operatorSecretKey) && !legacyDatabaseWriterQuarantined;
+  const canWrite =
+    writeRequested &&
+    nonDryRunRequested &&
+    !dryRun &&
+    Boolean(url && operatorSecretKey) &&
+    !legacyDatabaseWriterQuarantined;
 
   if (!canWrite) {
     const blockers = [
-      !writeRequested && !dryRun ? "Pass --write to perform Supabase writes; without it this command only previews rows." : null,
+      !writeRequested ? "Pass --write to request a database write; without it this command is dry-run only." : null,
+      !nonDryRunRequested ? "Pass --non-dry-run together with --write to leave dry-run mode." : null,
       legacyDatabaseWriterQuarantined ? "Legacy mutable source-snapshot writes are quarantined until SOURCE-01 immutable custody and rights gates are implemented." : null,
       !url || !operatorSecretKey ? "Trusted operator Supabase URL/secret are required for writes." : null
     ].filter(Boolean);
@@ -560,17 +897,26 @@ async function main() {
       synced: false,
       mode: dryRun ? "dry_run" : writeRequested ? "write_quarantined_source_01" : "preview_write_flag_required",
       writeRequested,
+      nonDryRunRequested,
+      preparedAt: generatedAt,
+      generatedAt: sourceQualityGeneratedAt,
       sourceRegistryRows: sourceRows.length,
       externalSnapshotRows: externalRows.length,
       sourceQuality: sourceQualityManifest,
+      sourceProvenance: sourceProvenanceManifest,
       sources: sourceRows.map((row) => ({
         sourceId: row.source_id,
         sourceName: row.source_name,
         status: row.connection_status,
         sourceMode: row.source_mode,
+        validationStatus: row.quality.validationStatus,
+        presentationLabel: row.quality.presentationLabel,
         recordCount: row.record_count,
         confidence: row.data_quality_tier,
-        validationStatus: row.quality.sourceQuality?.validationStatus,
+        qualityState: row.quality.sourceProvenance?.qualityState,
+        decisionUse: row.quality.sourceProvenance?.decisionEligibleReleaseCount > 0 ? "allowed" : "blocked",
+        evidence: row.quality.sourceProvenance?.evidence,
+        blockers: row.quality.sourceProvenance?.blockers ?? [],
         caveat: row.caveat,
         nextValidationStep: row.lineage.nextValidationStep
       })),
@@ -581,6 +927,8 @@ async function main() {
         access_mode: row.access_mode,
         connection_status: row.connection_status,
         source_mode: row.source_mode,
+        validation_status: row.quality.validationStatus,
+        presentation_label: row.quality.presentationLabel,
         data_quality_tier: row.data_quality_tier,
         record_count: row.record_count,
         quality: row.quality,
@@ -600,7 +948,7 @@ async function main() {
       blockers,
       caveat
     }, null, 2));
-    process.exit(!dryRun && writeRequested && strict ? 1 : 0);
+    process.exit(writeRequested && nonDryRunRequested && strict ? 1 : 0);
   }
 
   const client = createClient(url, operatorSecretKey, {

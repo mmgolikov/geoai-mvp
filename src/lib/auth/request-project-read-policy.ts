@@ -155,7 +155,7 @@ export function evaluateRequestProjectReadPrerequisites(input: {
     return denial(
       "auth_mode_inactive",
       401,
-      "Supabase Auth must be the effective mode; public demo and disabled modes never fall back to protected reads."
+      "Supabase Auth must be the effective mode; browser-local guided access and disabled modes never fall back to protected reads."
     );
   }
 

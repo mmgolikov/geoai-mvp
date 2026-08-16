@@ -39,7 +39,7 @@ export const pilotDataRequirements: Record<PilotClientType, PilotDataRequirement
     recommended: [
       "Comparable transaction snapshots",
       "Internal underwriting assumptions",
-      "Advisor notes approved for pilot use",
+      "Advisor notes approved for controlled engagement use",
       "Target hold-period assumptions"
     ],
     notRequiredForDemo: [

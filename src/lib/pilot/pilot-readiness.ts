@@ -55,8 +55,8 @@ export function calculatePilotReadiness(input: PilotReadinessInput): PilotReadin
 
   const nextActions = [
     !input.targetSitesProvided ? "Upload or confirm 3-10 target sites/assets." : null,
-    !input.geometryAvailable ? "Provide coordinates or GeoJSON boundaries for pilot assets." : null,
-    !input.marketDataAvailable ? "Load customer-approved market snapshots or sample metrics." : null,
+    !input.geometryAvailable ? "Provide coordinates or GeoJSON boundaries for engagement assets." : null,
+    !input.marketDataAvailable ? "Load customer-approved market snapshots or illustrative local metrics." : null,
     !input.validationSourcesIdentified ? "Agree official/customer validation sources before decision use." : null,
     !input.reportsGenerated ? "Generate at least one memo/report preview." : null,
     !input.comparisonGenerated ? "Compare shortlisted sites or assets." : null,
@@ -67,7 +67,7 @@ export function calculatePilotReadiness(input: PilotReadinessInput): PilotReadin
     score,
     readinessLabel,
     missingItems,
-    nextActions: nextActions.length > 0 ? nextActions : ["Review pilot outputs with the client and confirm validation sign-off."],
+    nextActions: nextActions.length > 0 ? nextActions : ["Review controlled engagement outputs with the client and confirm validation sign-off."],
     dimensions
   };
 }

@@ -70,11 +70,15 @@ export type SourceLineageItem = {
 
 export const externalDataCaveat = publicDataCaveat;
 
-const legacyIdAliases: Record<string, string> = {
-  "dld-dubai-pulse-transactions": "dld-dubai-pulse-public-transactions",
-  "osm-geofabrik-baseline": "osm-geofabrik-open-roads",
-  "copernicus-sentinel-catalog": "copernicus-sentinel-metadata"
+const preferredSourceIdAliases: Record<string, string> = {
+  "dld-dubai-pulse-public-transactions": "dld-dubai-pulse-transactions",
+  "osm-geofabrik-open-roads": "osm-geofabrik-baseline",
+  "copernicus-sentinel-metadata": "copernicus-sentinel-catalog"
 };
+
+export function resolveExternalDataSourceId(id: string) {
+  return preferredSourceIdAliases[id] ?? id;
+}
 
 function confidenceFromTier(tier: PublicSourceCatalogItem["dataQualityTier"]): ExternalDataSource["confidence"] {
   if (tier === "snapshot" || tier === "open-context" || tier === "screening") return "medium";
@@ -149,32 +153,18 @@ function toExternalSource(source: PublicSourceCatalogItem): ExternalDataSource {
   };
 }
 
-const legacyExternalSources: ExternalDataSource[] = [
-  {
-    ...toExternalSource(publicSourceCatalog.find((source) => source.id === "dld-dubai-pulse-public-transactions")!),
-    id: "dld-dubai-pulse-transactions",
-    name: "DLD / Dubai Pulse public snapshot"
-  },
-  {
-    ...toExternalSource(publicSourceCatalog.find((source) => source.id === "osm-geofabrik-open-roads")!),
-    id: "osm-geofabrik-baseline",
-    name: "OSM / Geofabrik open snapshot"
-  },
-  {
-    ...toExternalSource(publicSourceCatalog.find((source) => source.id === "copernicus-sentinel-metadata")!),
-    id: "copernicus-sentinel-catalog",
-    name: "Copernicus / Sentinel metadata availability"
-  }
-];
-
-export const externalDataSources: ExternalDataSource[] = [
-  ...legacyExternalSources,
-  ...publicSourceCatalog.map(toExternalSource)
-];
+export const externalDataSources: ExternalDataSource[] = Array.from(
+  new Map(
+    publicSourceCatalog
+      .map(toExternalSource)
+      .map((source) => ({ ...source, id: resolveExternalDataSourceId(source.id) }))
+      .map((source) => [source.id, source] as const)
+  ).values()
+);
 
 export function getExternalDataSource(id: string) {
-  const resolvedId = legacyIdAliases[id] ?? id;
-  return externalDataSources.find((source) => source.id === id || source.id === resolvedId) ?? null;
+  const resolvedId = resolveExternalDataSourceId(id);
+  return externalDataSources.find((source) => source.id === resolvedId) ?? null;
 }
 
 export function getExternalDataSourcesByCategory(category: ExternalDataSource["category"]) {

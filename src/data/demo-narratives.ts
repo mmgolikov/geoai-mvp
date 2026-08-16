@@ -1,7 +1,7 @@
 import type { GuidedDemoPresetId } from "@/src/data/guided-demo";
 
 export const geoaiReleaseCaveat =
-  "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.";
+  "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.";
 
 export type DemoNarrativeStep = {
   number: number;
@@ -52,16 +52,16 @@ export const demoNarratives: DemoNarrative[] = [
         route: "/demo",
         userAction: "Start the fund narrative.",
         whatToSay: "This walkthrough is framed around a fund screening shortlisted Dubai locations.",
-        whatGeoAIProves: "The product can package a specific buyer workflow, not just a generic map demo.",
+        whatGeoAIProves: "The product packages a specific buyer workflow rather than a generic map experience.",
         expectedVisibleResult: "Fund narrative card opens the prepared workspace."
       },
       {
         number: 2,
         screen: "workspace",
         route: "/workspace?demoNarrativeId=fund-investment-screening&projectId=dubai-investment-screening-demo",
-        userAction: "Load the Dubai Marina guided demo and review the selected polygon.",
+        userAction: "Load the Dubai Marina guided workflow and review the selected polygon.",
         whatToSay: "The first step is selecting an investable site or area and showing its evidence status.",
-        whatGeoAIProves: "Map selection, source confidence and sample/open spatial context flow into the command panel.",
+        whatGeoAIProves: "Map selection, source confidence and local/public-open spatial context flow into the command panel.",
         expectedVisibleResult: "Dubai Marina site selected with scenario and command panel ready."
       },
       {
@@ -77,7 +77,7 @@ export const demoNarratives: DemoNarrative[] = [
         number: 4,
         screen: "workspace",
         route: "/workspace",
-        userAction: "Add demo sites and compare.",
+        userAction: "Add candidate sites and compare.",
         whatToSay: "The decision is rarely one site in isolation; comparison makes trade-offs visible.",
         whatGeoAIProves: "GeoAI can rank 2-3 candidate sites with consistent scoring and a clear recommendation.",
         expectedVisibleResult: "Comparison dashboard with winner, risks and next actions."
@@ -88,15 +88,15 @@ export const demoNarratives: DemoNarrative[] = [
         route: "/reports/seeded-analysis-dubai-marina-report/print",
         userAction: "Open the printable memo.",
         whatToSay: "The output is a diligence starter pack, not a final investment conclusion.",
-        whatGeoAIProves: "The demo produces a shareable memo with source lineage and validation checklist.",
+        whatGeoAIProves: "The workflow produces a shareable memo with source lineage and validation checklist.",
         expectedVisibleResult: "Printable report with Back, Print / Save as PDF and no report-not-found state."
       }
     ],
     dataStory: [
-      "DLD / Dubai Pulse snapshot is represented as sample market-area records for workflow demonstration.",
+      "DLD / Dubai Pulse context is represented by local market-area snapshot records pending official validation.",
       "OSM / Geofabrik-style snapshot provides open baseline context.",
       "Open-Meteo climate context is screening-level and fallback-safe.",
-      "Official ownership, parcel, zoning, planning and valuation validation remains outside the demo."
+      "Official ownership, parcel, zoning, planning and valuation validation remains outside the current runtime."
     ],
     managementOutput: [
       "Investment screening memo",
@@ -104,7 +104,7 @@ export const demoNarratives: DemoNarrative[] = [
       "Evidence confidence summary",
       "Next due diligence checklist"
     ],
-    pilotBridge: "A 2-4 week pilot can load the client's target locations, agreed market snapshots and investment memo template to test screening discipline before underwriting.",
+    pilotBridge: "A controlled engagement can load client target locations, agreed market snapshots and an investment memo template to test screening discipline before underwriting.",
     caveat: geoaiReleaseCaveat
   },
   {
@@ -134,7 +134,7 @@ export const demoNarratives: DemoNarrative[] = [
         screen: "workspace",
         route: "/workspace?demoNarrativeId=developer-land-pipeline&projectId=developer-land-pipeline-demo",
         userAction: "Review the selected Dubai South growth node.",
-        whatToSay: "This polygon is a synthetic growth-area fixture, not an official parcel or zoning boundary.",
+        whatToSay: "This polygon is illustrative local screening geometry, not an official parcel or zoning boundary.",
         whatGeoAIProves: "GeoAI keeps geometry confidence and limitations visible while still supporting screening.",
         expectedVisibleResult: "Selected growth node with scenario set to real estate development."
       },
@@ -152,16 +152,16 @@ export const demoNarratives: DemoNarrative[] = [
         screen: "projects",
         route: "/projects?projectKey=developer-land-pipeline-demo",
         userAction: "Open the project dashboard.",
-        whatToSay: "A pilot would use the client's candidate site list and validation workflow.",
-        whatGeoAIProves: "GeoAI can frame a client pilot package around active project state.",
-        expectedVisibleResult: "Developer project dashboard with pilot bridge and data readiness."
+        whatToSay: "A controlled engagement would use the client's candidate site list and validation workflow.",
+        whatGeoAIProves: "GeoAI can frame a client work package around active project state.",
+        expectedVisibleResult: "Developer project dashboard with engagement path and data readiness."
       }
     ],
     dataStory: [
-      "Sample geometries are synthetic and show workflow readiness only.",
+      "Illustrative local geometries support workflow validation only.",
       "Open baseline context supports access and surrounding-area discussion.",
       "Official planning, utility and parcel evidence must be validated by authorized sources.",
-      "Customer-uploaded GIS or feasibility files can become pilot inputs."
+      "Customer-uploaded GIS or feasibility files can become controlled engagement inputs."
     ],
     managementOutput: [
       "Development potential memo",
@@ -169,7 +169,7 @@ export const demoNarratives: DemoNarrative[] = [
       "Infrastructure and planning validation checklist",
       "Comparison view for alternative land areas"
     ],
-    pilotBridge: "A 3-6 week pilot can ingest a developer's candidate land list, customer-approved GIS layers and planning assumptions to produce a repeatable site-screening workflow.",
+    pilotBridge: "A controlled engagement can ingest a developer's candidate land list, customer-approved GIS layers and planning assumptions to produce a repeatable site-screening workflow.",
     caveat: geoaiReleaseCaveat
   },
   {
@@ -199,7 +199,7 @@ export const demoNarratives: DemoNarrative[] = [
         screen: "workspace",
         route: "/workspace?demoNarrativeId=bank-asset-review&projectId=bank-asset-review-demo",
         userAction: "Review the selected Business Bay asset area.",
-        whatToSay: "The selected object is a demo screening geometry and its evidence confidence is visible.",
+        whatToSay: "The selected object is illustrative screening geometry and its evidence confidence is visible.",
         whatGeoAIProves: "GeoAI keeps collateral context separate from validated legal or valuation evidence.",
         expectedVisibleResult: "Selected asset review object and command panel context."
       },
@@ -223,10 +223,10 @@ export const demoNarratives: DemoNarrative[] = [
       }
     ],
     dataStory: [
-      "Sample/offline market and geospatial context supports only screening-level interpretation.",
-      "Customer-approved asset metadata is expected for a real pilot.",
-      "Legal title, ownership, valuation and regulatory review stay outside the MVP.",
-      "Source lineage distinguishes sample/open context from planned official validation."
+      "Local market and geospatial context supports only screening-level interpretation.",
+      "Customer-approved asset metadata is expected for a controlled engagement.",
+      "Legal title, ownership, valuation and regulatory review stay outside the current runtime.",
+      "Source lineage distinguishes local/public-open context from planned official validation."
     ],
     managementOutput: [
       "Collateral context memo",
@@ -234,7 +234,7 @@ export const demoNarratives: DemoNarrative[] = [
       "Evidence-gap register",
       "Recommended validation and monitoring actions"
     ],
-    pilotBridge: "A 3-5 week pilot can load selected asset locations, customer-approved collateral metadata and lender memo requirements to test review triage.",
+    pilotBridge: "A controlled engagement can load selected asset locations, customer-approved collateral metadata and lender memo requirements to test review triage.",
     caveat: geoaiReleaseCaveat
   }
 ];

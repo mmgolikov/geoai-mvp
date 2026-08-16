@@ -18,7 +18,7 @@ export type SpatialSourceRequest = {
 export const defaultSpatialProductSourceMode: SpatialProductSourceMode = "synthetic_fallback";
 
 export const spatialProductSourceModeLabels: Record<SpatialProductSourceMode, string> = {
-  synthetic_fallback: "Sample/demo",
+  synthetic_fallback: "Illustrative local",
   open_context_preview: "Open-context",
   licensed_provider: "Licensed provider",
   client_validated: "Client validated",

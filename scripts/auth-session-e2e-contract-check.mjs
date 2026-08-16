@@ -57,8 +57,8 @@ for (const route of ["/workspace?segment=b2b", "/projects", "/explore", "/profil
   requireText(spec, route, `Browser flow must cover ${route}`);
 }
 for (const marker of [
-  "Use demo credentials",
-  "Open demo profile",
+  "Use guided access",
+  "Open guided workspace profile",
   "geoai-mock-demo-session-v1",
   "page.reload()",
   "Sign out",
@@ -144,10 +144,10 @@ for (const marker of [
   '{ name: "mobile-390", width: 390, height: 844 }',
   "expectNoHorizontalOverflow(page)",
   "Primary mobile controls must have a rendered box",
-  'control.href === "/login?next=/workspace&intent=demo"',
-  'control.text === "Use demo credentials"',
-  'control.text === "Open demo"',
-  'control.label === "Open demo profile"'
+  'control.href === "/login?next=/workspace"',
+  'control.text === "Use guided access"',
+  'control.text === "Open guided workspace"',
+  'control.label === "Open guided workspace profile"'
 ]) requireText(responsiveSpec, marker, `Responsive/keyboard browser flow is missing ${marker}`);
 
 for (const marker of [
@@ -223,7 +223,7 @@ for (const marker of [
   "expectNoHorizontalOverflow(page)",
   'reducedMotion: "reduce"',
   'page.clock.setFixedTime(new Date("2026-07-19T09:00:00.000Z"))',
-  'name: "Ask the map. Move with evidence."',
+  'name: "GeoAI Real Estate Decision Intelligence"',
   'name: "Sign in to GeoAI"',
   'name: "Your profile"',
   "landing-${viewport.name}.png",
@@ -323,4 +323,4 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-console.log("Auth/session E2E contract passed: bounded guest redirects, browser-only demo restoration, authenticated route navigation, logout re-gating, desktop/tablet/390px layout checks, non-overlapping request top/generated evidence, serious/critical Axe scans, strict mobile and canonical commercial visual evidence, Lighthouse budgets, keyboard-only browser-local project save/open and analysis/comparison-to-print journeys are wired into normal CI without live credentials; a separately approved rehearsal-only real email/password persona can be run read-only from a trusted terminal.");
+console.log("Auth/session E2E contract passed: bounded guest redirects, browser-local guided access restoration, authenticated route navigation, logout re-gating, desktop/tablet/390px layout checks, non-overlapping request top/generated evidence, serious/critical Axe scans, strict mobile and canonical commercial visual evidence, Lighthouse budgets, keyboard-only browser-local project save/open and analysis/comparison-to-print journeys are wired into normal CI without live credentials; a separately approved rehearsal-only real email/password persona can be run read-only from a trusted terminal.");

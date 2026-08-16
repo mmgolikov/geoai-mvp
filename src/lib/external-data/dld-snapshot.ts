@@ -17,11 +17,15 @@ type DldSnapshotArea = {
   trend?: "rising" | "stable" | "cooling";
   confidence?: MarketContextConfidence | string;
   sourceDate?: string;
+  sourceFile?: string;
   limitations?: string[];
 };
 
 type DldSnapshot = {
   generatedAt?: string;
+  source?: {
+    status?: string;
+  };
   areas?: DldSnapshotArea[];
 };
 
@@ -65,11 +69,14 @@ export function findDldMarketSnapshotForArea(areaName: string): MarketAreaAggreg
 
   const priceIndex = clampIndex(area.medianPriceIndex ?? area.priceIndex, 60);
   const transactionCount = Math.max(0, Number(area.transactionCount ?? 0));
+  const illustrativeFallback =
+    snapshot.source?.status === "sample_fallback" ||
+    /(?:^|[\\/_-])(?:samples?|fixtures?)(?:[\\/_-]|$)/i.test(area.sourceFile ?? "");
 
   return {
     areaName: area.areaName,
     normalizedAreaName: normalizeAreaName(area.areaName),
-    sourceMode: "dld_dubai_pulse_snapshot",
+    sourceMode: illustrativeFallback ? "seed_static" : "dld_dubai_pulse_snapshot",
     recordCount: transactionCount,
     activityIndex: priceIndex,
     rentalDemandIndex: clampIndex(area.rentalDemandIndex, 55),
@@ -77,10 +84,12 @@ export function findDldMarketSnapshotForArea(areaName: string): MarketAreaAggreg
     developmentPipelineIndex: clampIndex(area.developmentPipelineIndex, 58),
     riskIndex: clampIndex(area.riskIndex, 58),
     trend: area.trend ?? "stable",
-    confidence: confidence(area.confidence),
-    sourceIds: ["dld-dubai-pulse-transactions"],
+    confidence: illustrativeFallback ? "low" : confidence(area.confidence),
+    sourceIds: [illustrativeFallback ? "demo-market-context-seed" : "dld-dubai-pulse-transactions"],
     dataQualityNotes: [
-      `DLD / Dubai Pulse snapshot matched ${area.sourceAreaName ?? area.areaName}; not a live feed.`,
+      illustrativeFallback
+        ? `Illustrative local market context matched ${area.sourceAreaName ?? area.areaName}; no DLD / Dubai Pulse artifact is asserted.`
+        : `DLD / Dubai Pulse snapshot matched ${area.sourceAreaName ?? area.areaName}; not a live feed.`,
       ...(area.limitations ?? [])
     ]
   };

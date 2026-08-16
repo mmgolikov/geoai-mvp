@@ -11,7 +11,7 @@ const variantClass: Record<SafeBadgeVariant, string> = {
 };
 
 const shortLabels: Record<string, string> = {
-  "demo prototype": "Sample",
+  "demo prototype": "Illustrative",
   "layers active": "Layers",
   "planned validation": "Planned",
   "official validation required": "Validation",
@@ -33,7 +33,7 @@ export function SafeBadge({
   return (
     <span
       className={`inline-flex max-w-[112px] shrink-0 items-center justify-center truncate rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] ${variantClass[variant]} ${className}`}
-      title={typeof children === "string" ? children : undefined}
+      title={typeof text === "string" ? text : undefined}
     >
       {text}
     </span>

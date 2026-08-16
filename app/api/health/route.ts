@@ -12,6 +12,6 @@ export function GET() {
       : process.env.VERCEL_ENV === "preview"
         ? "vercel_preview"
         : "local_development",
-    dataStatus: "Sample/open and offline data only; live official integrations are not connected."
+    dataStatus: "Illustrative local/public-open screening context only; live official integrations are not connected."
   });
 }

@@ -1,4 +1,7 @@
-import { externalDataSources } from "@/src/lib/external-data/source-registry";
+import {
+  externalDataSources,
+  resolveExternalDataSourceId
+} from "@/src/lib/external-data/source-registry";
 import type { RuntimeSourceObservation } from "@/src/lib/external-data/runtime-source-contract";
 import type { SourceLineageSnapshot } from "@/src/lib/project-workspace-types";
 
@@ -28,8 +31,15 @@ export function createSourceLineageSnapshot(input: SnapshotInput = {}): SourceLi
   const evidence = input.evidence ?? [];
   const uploadedDatasets = input.uploadedDatasets ?? [];
   const runtimeObservations = input.runtimeObservations ?? [];
-  const evidenceSourceIds = new Set(evidence.map((item) => item.sourceId).filter(Boolean));
-  const runtimeBySourceId = new Map(runtimeObservations.map((item) => [item.sourceId, item]));
+  const evidenceSourceIds = new Set(
+    evidence
+      .map((item) => item.sourceId)
+      .filter((sourceId): sourceId is string => Boolean(sourceId))
+      .map(resolveExternalDataSourceId)
+  );
+  const runtimeBySourceId = new Map(
+    runtimeObservations.map((item) => [resolveExternalDataSourceId(item.sourceId), item])
+  );
 
   return {
     capturedAt: new Date().toISOString(),
@@ -39,7 +49,7 @@ export function createSourceLineageSnapshot(input: SnapshotInput = {}): SourceLi
       .map((item) => ({
         id: item.id,
         name: item.title ?? item.sourceId ?? item.id,
-        note: item.description ?? "Sample/open evidence source."
+        note: item.description ?? "Illustrative local/public-open evidence source."
       })),
     uploadedSources: uploadedDatasets.map((dataset) => ({
       id: dataset.id,
@@ -80,7 +90,7 @@ export function createSourceLineageSnapshot(input: SnapshotInput = {}): SourceLi
       })),
     disclaimers: [
       "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.",
-      "Saved object uses demo/sample/local/uploaded source lineage unless explicitly validated.",
+      "Saved object uses illustrative local, public/open, or uploaded source lineage unless explicitly validated.",
       "Live official DLD, Dubai Pulse, GeoDubai, parcel, zoning, cadastral and ownership integrations are not connected.",
       "Official validation is required before real decisions."
     ]

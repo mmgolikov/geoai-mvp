@@ -63,37 +63,18 @@ function CandidateDashboardSwitcher({ navigation }: { navigation: CandidateDashb
   );
 }
 
-function formatScenarioLabel(value: string) {
-  return value
-    .replace(/([A-Z])/g, " $1")
-    .replace(/_/g, " ")
-    .trim()
-    .toLowerCase();
-}
-
-function createExecutivePreview(analysis: ExpressAnalysis) {
-  const subject = analysis.selectedObject?.name ?? "the selected location";
-  const area = analysis.marketContext?.areaName;
-  const scenario = formatScenarioLabel(analysis.scenarioId);
-  const importedMetricsUsed = analysis.marketMetricsMatch?.importedMetricsUsed || analysis.marketContext?.importedMarketMetrics?.importedMetricsUsed;
-  const sourceBasis = importedMetricsUsed ? "imported sample metrics and spatial context" : "sample/open spatial and market context";
-  const place = area && !subject.toLowerCase().includes(area.toLowerCase())
-    ? `${subject} in ${area}`
-    : subject;
-
-  if (analysis.customQuerySummary) {
-    return `${analysis.customQuerySummary} ${analysis.customQueryAnswer?.confidenceNote ?? "This remains a screening interpretation and requires official validation before decision-grade use."}`;
-  }
-
-  if (analysis.scenarioId === "climateRisk") {
-    return `This ${scenario} screening frames ${place} through heat, coastal exposure and resilience requirements using ${sourceBasis}. The site remains conditional until official risk layers, infrastructure assumptions and mitigation requirements are validated.`;
-  }
-
-  if (analysis.scenarioId === "constructionMonitoring") {
-    return `This ${scenario} screening positions ${place} as a monitoring candidate using ${sourceBasis}. The recommendation remains conditional until site status, progress evidence and update cadence are validated.`;
-  }
-
-  return `This ${scenario} screening highlights ${place} using ${sourceBasis}. The opportunity remains conditional until official land-use, transaction comps, infrastructure and planning constraints are validated.`;
+function formatGeneratedAt(value: string) {
+  if (!value || value === "Not recorded") return "Time not recorded";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Time not recorded";
+  return new Intl.DateTimeFormat("en", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "UTC"
+  }).format(date);
 }
 
 export function ExpressDashboard({
@@ -104,14 +85,10 @@ export function ExpressDashboard({
 }: ExpressDashboardProps) {
   const dashboardRef = useRef<HTMLElement | null>(null);
   const dashboardModel = buildDashboardModel(analysis);
-  const analysisBadge = analysis.analysisMode === "openai" ? "AI analysis" : "Sample/open context";
-  const dataLimitation = analysis.limitations?.[0] ?? "Structured evidence context with deterministic sample scoring.";
-  const fullEvidenceText = `${analysisBadge} / ${dataLimitation} Official validation required before decision-grade use.`;
-  const compactEvidenceBasis = analysis.marketMetricsMatch?.importedMetricsUsed || analysis.marketContext?.importedMarketMetrics?.importedMetricsUsed
-    ? "Imported sample metrics"
-    : "Open geospatial baseline";
-  const compactEvidenceText = `${analysisBadge} · ${compactEvidenceBasis} · official validation required`;
-  const summaryPreview = createExecutivePreview(analysis);
+  const decisionResult = dashboardModel.decisionResult;
+  const fullEvidenceText = `${decisionResult.sourceBasis.label}. ${decisionResult.caveat}`;
+  const compactEvidenceText = `${decisionResult.sourceBasis.label} · ${formatGeneratedAt(decisionResult.generatedAt)}`;
+  const summaryPreview = decisionResult.decision.rationale;
 
   useEffect(() => {
     dashboardRef.current?.scrollTo({ top: 0, left: 0 });
@@ -120,38 +97,35 @@ export function ExpressDashboard({
   const primaryAction = dashboardModel.actions[0];
   const secondaryActions = dashboardModel.actions.slice(1, 3);
   const showDecisionDetail = dashboardModel.decisionDetail !== dashboardModel.decisionSummary;
-  const evidenceModule = dashboardModel.modules.find((module) => module.type === "evidence_summary");
-  const dashboardModules = [
-    ...dashboardModel.modules.filter((module) => module.type !== "evidence_summary").slice(0, 5),
-    ...(evidenceModule ? [evidenceModule] : [])
-  ];
+  const dashboardModules = dashboardModel.modules.filter((module) => module.type !== "evidence_summary").slice(0, 5);
 
   return (
     <section
       ref={dashboardRef}
       className="h-full min-h-0 overflow-y-auto bg-surface [scrollbar-width:thin]"
       data-dashboard-analysis-id={analysis.id}
-      data-dashboard-latitude={analysis.point.latitude}
-      data-dashboard-longitude={analysis.point.longitude}
+      data-dashboard-latitude={decisionResult.coordinates?.latitude ?? analysis.point.latitude}
+      data-dashboard-longitude={decisionResult.coordinates?.longitude ?? analysis.point.longitude}
+      data-decision-contract-version={decisionResult.contractVersion}
     >
       <div className="flex h-full w-full min-w-0 flex-col">
         {/* The first overview prioritizes decision posture, score and next action before supporting KPI drill-down. */}
         <section className="flex h-full min-h-0 shrink-0 flex-col gap-2 p-3">
-          <header className="grid shrink-0 gap-1.5 rounded-lg border border-line bg-white p-2 shadow-sm lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
+          <header className="grid shrink-0 gap-2 rounded-lg border border-line bg-white p-3 shadow-sm lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-3">
                 <TextSafeValue as="h1" className="text-xl font-semibold leading-7 text-ink lg:text-2xl" data-dashboard-value="target">
-                  {analysis.title}
+                  {decisionResult.target.label}
                 </TextSafeValue>
                 <span className="rounded-full bg-[#eaf3f1] px-3 py-1 text-xs font-semibold text-brand" data-dashboard-value="scenario">
-                  {dashboardModel.scenarioLabel}
+                  {decisionResult.scenario.label}
                 </span>
                 <TextSafeValue as="span" className="rounded-full bg-surface px-3 py-1 text-xs font-semibold text-muted">
-                  {dashboardModel.targetLabel}
+                  {decisionResult.target.type}
                 </TextSafeValue>
               </div>
-              <TextSafeValue className="mt-1 text-sm font-medium text-muted">
-                {analysis.subtitle}
+              <TextSafeValue className="mt-1 text-sm font-medium text-muted" data-dashboard-value="decision-question">
+                {decisionResult.decisionQuestion}
               </TextSafeValue>
               <p
                 className="mt-0.5 truncate text-xs leading-4 text-muted"
@@ -175,26 +149,50 @@ export function ExpressDashboard({
                 onClick={onBackToMap}
                 className="inline-flex h-9 items-center justify-center rounded-md border border-line bg-white px-3 text-sm font-semibold text-ink transition hover:border-brand"
               >
-                Back to setup
+                Edit criteria
               </button>
             </div>
           </header>
 
           {candidateNavigation ? <CandidateDashboardSwitcher navigation={candidateNavigation} /> : null}
 
+          <section
+            className="grid shrink-0 grid-cols-2 gap-2 sm:grid-cols-3 xl:hidden"
+            aria-label="Decision result summary"
+            data-mobile-result-summary
+          >
+            <article className="min-w-0 rounded-md border border-[#d6c391] bg-[#fff9e8] p-3">
+              <p className="text-[10px] font-semibold uppercase text-[#6f5817]">Decision posture</p>
+              <TextSafeValue className="mt-1 text-sm font-semibold leading-5 text-ink">
+                {decisionResult.decision.posture}
+              </TextSafeValue>
+            </article>
+            <article className="min-w-0 rounded-md border border-line bg-white p-3">
+              <p className="text-[10px] font-semibold uppercase text-muted">Suitability</p>
+              <p className="mt-1 text-xl font-semibold leading-5 text-brand">{decisionResult.primaryScore ?? "N/A"}</p>
+              <p className="mt-1 text-[11px] leading-4 text-muted">{decisionResult.confidence.label} confidence</p>
+            </article>
+            <article className="col-span-2 min-w-0 rounded-md border border-line bg-white p-3 sm:col-span-1">
+              <p className="text-[10px] font-semibold uppercase text-muted">Next action</p>
+              <TextSafeValue className="mt-1 text-sm font-semibold leading-5 text-ink">
+                {decisionResult.nextAction.label}
+              </TextSafeValue>
+            </article>
+          </section>
+
           <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_minmax(0,1fr)] items-stretch gap-3 xl:grid-cols-[minmax(0,1.15fr)_minmax(480px,0.85fr)] xl:grid-rows-none">
             <MapContextCard
-              title="Map Context"
+              title="Site context"
               subtitle={
                 analysis.selectedAoi
-                  ? `${userDrawnAoiSourceLabel(analysis.selectedAoi)} with surrounding Dubai context`
+                  ? `${userDrawnAoiSourceLabel(analysis.selectedAoi)} with surrounding market context`
                   : analysis.analysisTarget?.type === "user-drawn-aoi"
-                  ? "User-drawn AOI with surrounding Dubai context"
+                  ? "User-defined AOI with surrounding market context"
                   : analysis.analysisTarget?.type === "uploaded-feature"
-                  ? "Uploaded screening geometry with surrounding Dubai context"
+                  ? "User-provided screening geometry with surrounding market context"
                   : analysis.analysisTarget?.type === "demo-feature"
-                    ? "Sample/open screening geometry with surrounding Dubai context"
-                    : "Selected point with surrounding Dubai context"
+                    ? "Illustrative local screening geometry with surrounding public/open context"
+                    : "Selected point with surrounding market context"
               }
               selectedPoint={analysis.point}
               selectedObject={analysis.selectedObject ?? null}
@@ -215,10 +213,10 @@ export function ExpressDashboard({
                     </TextSafeValue>
                     <div className="flex min-h-0 flex-col justify-center py-2">
                       <TextSafeValue wrap="normal" className="text-xl font-semibold leading-7 text-ink" data-dashboard-value="decision-posture">
-                        {dashboardModel.decisionPosture}
+                        {decisionResult.decision.posture}
                       </TextSafeValue>
                       <TextSafeValue className="mt-2 text-sm leading-5 text-muted" data-dashboard-value="rationale">
-                        {dashboardModel.decisionSummary}
+                        {decisionResult.decision.rationale}
                       </TextSafeValue>
                     </div>
                     {showDecisionDetail ? (
@@ -227,18 +225,18 @@ export function ExpressDashboard({
                           Full rationale
                         </summary>
                         <TextSafeValue className="mt-2 border-t border-line pt-2 text-xs leading-5 text-muted">
-                          {dashboardModel.decisionDetail}
+                          {decisionResult.decision.detail}
                         </TextSafeValue>
                       </details>
                     ) : null}
                   </article>
                   <BiScoreGauge
-                    score={dashboardModel.primaryScore}
+                    score={decisionResult.primaryScore ?? 0}
                     label="Suitability"
-                    summary={`${dashboardModel.confidenceLabel} confidence; validation required before decision-grade use.`}
-                    detail={dashboardModel.decisionDetail}
-                    confidenceLabel={dashboardModel.confidenceLabel}
-                    validationLabel="Validation required"
+                    summary={`${decisionResult.confidence.label} · ${decisionResult.validation.status}`}
+                    detail={decisionResult.confidence.basis}
+                    confidenceLabel={decisionResult.confidence.label}
+                    validationLabel={decisionResult.validation.status}
                   />
                 </div>
 
@@ -247,11 +245,6 @@ export function ExpressDashboard({
                     <TextSafeValue className="text-xs leading-5 text-muted xl:text-sm">
                       {summaryPreview}
                     </TextSafeValue>
-                    {analysis.analysisNotice ? (
-                      <TextSafeValue className="mt-2 border-t border-line pt-2 text-xs leading-5 text-muted">
-                        {analysis.analysisNotice}
-                      </TextSafeValue>
-                    ) : null}
                   </div>
 
                   <div className="rounded-md border border-line bg-white p-3" data-dashboard-card="next-action">
@@ -259,7 +252,7 @@ export function ExpressDashboard({
                       Recommended next action
                     </TextSafeValue>
                     <TextSafeValue className="mt-1 text-sm font-semibold leading-5 text-ink" data-dashboard-value="next-action">
-                      {dashboardModel.recommendedNextAction}
+                      {decisionResult.nextAction.label}
                     </TextSafeValue>
                     <div className="mt-2 grid gap-1.5">
                       {secondaryActions.map((item) => (
@@ -273,7 +266,7 @@ export function ExpressDashboard({
                         Action details
                       </summary>
                       <TextSafeValue className="mt-2 border-t border-line pt-2 text-xs leading-5 text-muted">
-                        {primaryAction?.detail ?? dashboardModel.recommendedNextActionDetail}
+                        {primaryAction?.detail ?? decisionResult.nextAction.detail}
                       </TextSafeValue>
                     </details>
                   </div>
@@ -320,6 +313,31 @@ export function ExpressDashboard({
               evidence={analysis.evidence}
             />
           ))}
+          <section className="rounded-lg border border-line bg-white p-4 shadow-sm" data-dashboard-source-basis>
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,0.7fr)_minmax(0,1.3fr)]">
+              <div className="min-w-0">
+                <TextSafeValue className="text-xs font-semibold uppercase leading-4 text-muted">
+                  Source basis
+                </TextSafeValue>
+                <TextSafeValue as="h2" className="mt-1 text-lg font-semibold leading-6 text-ink">
+                  {decisionResult.sourceBasis.label}
+                </TextSafeValue>
+                <TextSafeValue className="mt-2 text-xs leading-5 text-muted">
+                  {decisionResult.confidence.basis}
+                </TextSafeValue>
+              </div>
+              <ul className="grid gap-2 sm:grid-cols-2">
+                {decisionResult.sourceBasis.items.map((item, index) => (
+                  <li key={`${item}-${index}`} className="rounded-md border border-line bg-surface px-3 py-2 text-xs leading-5 text-muted">
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <p className="mt-4 border-t border-line pt-3 text-xs leading-5 text-muted" data-dashboard-value="caveat">
+              {decisionResult.caveat}
+            </p>
+          </section>
         </section>
       </div>
     </section>

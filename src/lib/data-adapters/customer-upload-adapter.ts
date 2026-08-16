@@ -11,7 +11,7 @@ export const customerUploadAdapter: DataAdapter = {
     return plannedAdapterResponse(
       this.sourceId,
       this.integrationStatus,
-      "Customer upload adapter is future/pilot work. No files are uploaded or processed in this MVP task."
+      "Customer upload adapter is planned future work. No files are uploaded or processed in the current controlled implementation."
     );
   }
 };

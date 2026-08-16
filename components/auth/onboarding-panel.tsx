@@ -68,7 +68,7 @@ export function OnboardingPanel() {
   const title = tokenStaged
     ? "Join your GeoAI project"
     : isDemo
-      ? "Your demo is ready"
+      ? "Your guided workspace is ready"
       : isAuthenticated
         ? "Welcome to GeoAI"
         : "Start with GeoAI";
@@ -92,7 +92,7 @@ export function OnboardingPanel() {
               </p>
             ) : isDemo ? (
               <p className="mt-2 text-sm leading-6 text-muted">
-                The demo account cannot join private projects. Sign out and use an approved existing Supabase account.
+                Browser-local guided access cannot join private projects and does not authorize protected server resources. Sign out and use an approved existing Supabase account.
               </p>
             ) : (
               <p className="mt-2 text-sm leading-6 text-muted">
@@ -106,7 +106,7 @@ export function OnboardingPanel() {
                 </Link>
               ) : isDemo ? (
                 <button type="button" onClick={() => void signOut()} className="inline-flex h-10 items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white transition hover:bg-[#113f50]">
-                  Sign out of demo
+                  Sign out of guided access
                 </button>
               ) : (
                 <button type="button" disabled={pending} onClick={() => void acceptInvitation()} className="inline-flex h-10 items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white transition hover:bg-[#113f50] disabled:opacity-60">
@@ -123,10 +123,10 @@ export function OnboardingPanel() {
               <h2 className="text-lg font-semibold text-ink">Open the workspace</h2>
               <p className="mt-2 text-sm leading-6 text-muted">
                 {isDemo
-                  ? "Explore the sample GeoAI workflow with demonstration projects and browser-only data."
+                  ? "Explore the guided GeoAI workflow with browser-local data. This access does not authorize protected server resources."
                   : isAuthenticated
                     ? "Your account is ready. Assigned projects will appear automatically."
-                    : "Sign in by email, phone or use the ready demo account."}
+                    : "Sign in by email or phone, or use browser-local guided access."}
               </p>
               <Link href={isAuthenticated ? "/workspace" : "/login"} className="mt-4 inline-flex h-10 items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-white transition hover:bg-[#113f50]">
                 {isAuthenticated ? "Open workspace" : "Sign in"}

@@ -13,6 +13,20 @@ import { privateNoStoreJson } from "@/src/lib/http/private-no-store";
 
 export const runtime = "nodejs";
 
+const requiredCaveat = "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.";
+
+function withPresentationMetadata(project: (typeof demoProjects)[number]) {
+  return {
+    ...project,
+    presentation: {
+      status: "screening",
+      dataMode: "illustrative_local_context",
+      provenanceLabel: "Illustrative local screening context",
+      caveat: requiredCaveat
+    }
+  };
+}
+
 function isProjectInput(value: unknown): value is ProjectInput {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return false;
@@ -32,7 +46,8 @@ export async function GET() {
     return privateNoStoreJson({
       ok: true,
       ...repositoryModeFields("demo_seed"),
-      items: demoProjects,
+      items: demoProjects.map(withPresentationMetadata),
+      caveat: requiredCaveat,
       access,
       error: null
     });
@@ -89,6 +104,6 @@ export async function POST(request: Request) {
     error: result.error,
     message: result.mode === "supabase" && result.ok
       ? "Project saved."
-      : "Project available as local sample context; Supabase is not configured or unavailable."
+      : "Project available in illustrative local screening context; Supabase is not configured or unavailable."
   });
 }

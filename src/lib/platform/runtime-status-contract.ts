@@ -118,8 +118,8 @@ export function buildRuntimeExecutiveStatus(input: RuntimeExecutiveStatusInput):
       value: input.canRunDemoWorkflow ? "Available" : "Blocked",
       note: input.canRunDemoWorkflow
         ? input.repositoryMode === "local_fallback"
-          ? "Controlled sample/open workflow is available in local/demo fallback mode."
-          : "Controlled demo workflow is available in this runtime."
+          ? "Controlled illustrative local/public-open workflow is available in browser-local fallback mode."
+          : "Controlled guided workflow is available in this runtime."
         : "The controlled public demo workflow is unavailable."
     },
     {
@@ -150,7 +150,7 @@ export function buildRuntimeExecutiveStatus(input: RuntimeExecutiveStatusInput):
           ? "Local/demo fallback"
           : "Supabase runtime",
       note: input.repositoryMode === "browser_local"
-        ? "User-created public-demo state remains in this browser and is not durable or shared."
+        ? "User-created guided workspace state remains in this browser and is not durable or shared."
         : input.repositoryMode === "local_fallback"
           ? "This runtime is not using durable Production Supabase persistence."
           : "Repository mode must be interpreted with schema, access and environment evidence."
@@ -209,7 +209,7 @@ export function buildRuntimeExecutiveStatus(input: RuntimeExecutiveStatusInput):
         ? input.hardAccessVerified
           ? "Hard access is backed by the recorded Auth, membership and RLS gates for this environment."
           : "Hard access is requested but security evidence is incomplete; confidential access remains blocked."
-        : "Soft public-demo access remains the supported mode."
+        : "Soft browser-local guided access remains the supported mode."
     },
     {
       label: "RLS",

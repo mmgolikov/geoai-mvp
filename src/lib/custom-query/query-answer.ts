@@ -121,7 +121,7 @@ function sourceBasisFor(target: string, scenarioId: AnalysisScenarioId) {
   return [
     `Selected target: ${target}.`,
     `Scenario lens: ${scenarioLabel(scenarioId)}.`,
-    "Basis: deterministic sample scores, selected geometry, source-lineage cards, market seed/import context where available, and open/sample spatial context.",
+    "Basis: deterministic illustrative screening scores, selected geometry, source-lineage cards, local/import context where available, and public/open spatial context.",
     "Not included: official parcel, title, ownership, zoning, FAR, cadastral, valuation or live approval evidence."
   ];
 }
@@ -308,7 +308,7 @@ function buildFallbackAnswer(
       reasoning: [
         "Risk queries require evidence depth rather than higher-confidence narrative.",
         "Climate, access, title and planning risks can materially change feasibility.",
-        "Sample/source-lineage context can prioritize checks but cannot certify exposure."
+        "Illustrative source-lineage context can prioritize checks but cannot certify exposure."
       ],
       keyRisks: [
         "Official planning, cadastral, title and ownership evidence is not connected.",
@@ -351,7 +351,7 @@ function buildFallbackAnswer(
       : `The query is answered as a screening hypothesis for ${target}; official/customer-approved validation sources are required before decisions.`,
     recommendation: ru ? "Рекомендация: использовать ответ как memo layer and validation checklist." : "Recommendation: use the answer as a memo layer and validation checklist.",
     reasoning: ["The custom query reframes the scenario around the user's decision question.", "Current evidence can prioritize next checks but not certify legal, zoning, title or valuation conclusions."],
-    keyRisks: ["The user question may require evidence not connected in this MVP.", "Sample/open context should not be treated as official validation."],
+    keyRisks: ["The user question may require evidence not connected in the current runtime.", "Illustrative local/public-open context should not be treated as official validation."],
     validationNeeded,
     nextActions: ["Define screening criteria.", "Collect official/customer-approved evidence.", "Re-run the analysis when validation evidence is available."],
     sourceBasis: basis,
@@ -424,7 +424,7 @@ export function createComparisonCustomQueryAnswer(args: {
       ? `Рекомендация: использовать ${winner.item.name} as lead option and keep ${runnerUp?.item.name ?? "the runner-up"} as alternative until validation closes.`
       : `Recommendation: use ${winner.item.name} as the lead option and keep ${runnerUp?.item.name ?? "the runner-up"} as the alternative until validation closes.`,
     reasoning: [
-      `${winner.item.name} has the highest overall demo comparison score (${winner.overallScore}/100).`,
+      `${winner.item.name} has the highest overall illustrative screening score (${winner.overallScore}/100).`,
       runnerUp ? `${runnerUp.item.name} may be preferable if the decision priority shifts toward ${runnerUp.recommendedUse.toLowerCase()}.` : "Another option may be better if validation changes the assumptions.",
       "The custom query is treated as a decision layer on top of the existing winner/recommendation rather than a replacement for it."
     ],

@@ -1,6 +1,7 @@
 "use client";
 
 import { DataMaturityBadge, SourceStatusBadge } from "@/components/data-readiness";
+import { getDataMaturityDefinition, getSourceMaturity } from "@/src/data/data-maturity";
 import { getDataSourceById } from "@/src/data/data-source-registry";
 import type { EvidenceItem } from "@/src/types/data-source";
 
@@ -11,8 +12,8 @@ type EvidenceSourceCardsProps = {
 
 function sourceTypeLabel(sourceType: EvidenceItem["sourceType"]) {
   const labels: Record<EvidenceItem["sourceType"], string> = {
-    mock: "Sample",
-    demo: "Sample",
+    mock: "Illustrative local context",
+    demo: "Illustrative local context",
     open_data: "Open data",
     open_geospatial: "Open geo",
     official: "Validation source",
@@ -32,7 +33,7 @@ function statusTone(status: EvidenceItem["sourceStatus"]) {
 
 function reliabilityLabel(value?: string) {
   if (!value) return "validation required";
-  return value === "demo" ? "sample" : value;
+  return value === "demo" || value === "sample" ? "illustrative screening" : value;
 }
 
 export function EvidenceSourceCards({ evidence, compact = false }: EvidenceSourceCardsProps) {
@@ -60,7 +61,7 @@ export function EvidenceSourceCards({ evidence, compact = false }: EvidenceSourc
               <p>{source?.provider ?? "Source provider unavailable"}</p>
               <p className="mt-2">{source?.usageInGeoAI ?? "Evidence source context for current or planned validation."}</p>
               <p className="mt-2">
-                Source quality: {source?.maturityLevel ? source.maturityLevel.replace(/_/g, " ") : "sample/open"} / confidence {reliabilityLabel(source?.reliabilityLevel ?? item.confidence)}.
+                Source quality: {source ? getDataMaturityDefinition(getSourceMaturity(source)).label : "Local/public-open context"} / confidence {reliabilityLabel(source?.reliabilityLevel ?? item.confidence)}.
               </p>
               <p className="mt-2">
                 Next validation: {source?.recommendedNextStep ?? "Validate source lineage with client-approved or authorized evidence before decisions."}

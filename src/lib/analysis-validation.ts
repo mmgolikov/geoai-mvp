@@ -71,7 +71,7 @@ function normalizeCustomQueryAnswer(value: unknown): CustomQueryAnswer | undefin
 
 export function createFallbackStructuredAnalysis(
   request: AnalyzeRequest,
-  notice = "OpenAI is not configured. Using deterministic sample/open fallback."
+  notice = "OpenAI is not configured. Using deterministic illustrative local/public-open screening context."
 ): StructuredAnalysisResult {
   const mock = createMockExpressAnalysis(
     request.point,
@@ -109,7 +109,7 @@ export function createFallbackStructuredAnalysis(
     })),
     confidence_level: "medium",
     limitations: [
-      "Narrative content is generated from deterministic sample/open screening context.",
+      "Narrative content is generated from deterministic illustrative local/public-open screening context.",
       "Official parcel, planning, transaction, imagery, and risk data are not connected yet."
     ],
     custom_query_answer: mock.customQueryAnswer,
@@ -203,7 +203,7 @@ export function validateStructuredAnalysis(value: unknown): Omit<StructuredAnaly
     evidence_notes: evidenceNotes,
     confidence_level: normalizeEnum(value.confidence_level, confidenceLevels, "medium"),
     limitations: normalizeStringArray(value.limitations, [
-      "Analysis is limited by the currently connected demo and planned data sources."
+      "Analysis is limited by the currently available illustrative local/public-open and planned data sources."
     ]),
     custom_query_answer: normalizeCustomQueryAnswer(value.custom_query_answer),
     notice: asString(value.notice) || undefined

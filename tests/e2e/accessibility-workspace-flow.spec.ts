@@ -81,14 +81,14 @@ async function tabUntilLocator(
   throw new Error(`Keyboard focus did not reach '${label}' after ${maximumTabs} ${key} presses.`);
 }
 
-async function useDemoCredentialsWithKeyboard(page: Page) {
-  const demoCredentials = page.getByRole("button", { name: "Use demo credentials" });
+async function useGuidedAccessWithKeyboard(page: Page) {
+  const demoCredentials = page.getByRole("button", { name: "Use guided access" });
   await tabUntilLocator(page, demoCredentials, { maximumTabs: 40 });
   await page.keyboard.press("Enter");
   await expect(page.getByLabel("Email or phone")).toHaveValue("demo@geoai.space");
   await expect(page.getByLabel("Password")).toHaveValue("111111");
 
-  const openDemo = page.getByRole("button", { name: "Open demo" });
+  const openDemo = page.getByRole("button", { name: "Open guided workspace" });
   await tabUntilLocator(page, openDemo, { maximumTabs: 20 });
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL((url) => url.pathname === "/workspace");
@@ -99,17 +99,17 @@ test.describe("accessible critical screens and keyboard-only workspace journey",
     const evidence: AccessibilityResult[] = [];
 
     await page.goto("/");
-    await expect(page.getByRole("heading", { level: 1, name: "Ask the map. Move with evidence." })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "GeoAI Real Estate Decision Intelligence" })).toBeVisible();
     await recordAccessibilityResult(page, "Landing hub", evidence);
 
-    const demoLink = page.getByRole("link", { name: "View demo" }).last();
-    await tabUntilLocator(page, demoLink, { maximumTabs: 40 });
+    const workspaceLink = page.getByRole("link", { name: "Open workspace" }).last();
+    await tabUntilLocator(page, workspaceLink, { maximumTabs: 40 });
     await page.keyboard.press("Enter");
     await expect(page.getByRole("heading", { level: 1, name: "Sign in to GeoAI" })).toBeVisible();
     await recordAccessibilityResult(page, "Unified login", evidence);
 
-    await useDemoCredentialsWithKeyboard(page);
-    await expect(page.getByRole("link", { name: "Open demo profile" })).toHaveAttribute("data-authenticated", "true");
+    await useGuidedAccessWithKeyboard(page);
+    await expect(page.getByRole("link", { name: "Open guided workspace profile" })).toHaveAttribute("data-authenticated", "true");
     await recordAccessibilityResult(page, "Workspace setup", evidence);
 
     const criteriaFirst = page.getByRole("button", { name: "Criteria-first" });

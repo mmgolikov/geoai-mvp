@@ -142,8 +142,8 @@ assert(/find\([\s\S]*?\)\s*\?\?\s*null/.test(demoResolver), "Unknown non-empty d
 assert(!/endsWith\("-demo"\)/.test(demoProjects), "Demo identity must not trust an arbitrary key suffix");
 
 assert(dataRoom.includes("requestedIdentity ? null : getDemoProject(null)"), "Data Room must not substitute another project for an unknown identity");
-assert(dataRoom.includes("Data Room did not substitute another demo project"), "Data Room missing explicit unknown-project result");
-assert(packageBuilder.includes("report package generation did not substitute a demo project"), "Report package builder must fail closed on an unknown project");
+assert(dataRoom.includes("Data Room did not substitute another local screening project"), "Data Room missing explicit unknown-project result");
+assert(packageBuilder.includes("report package generation did not substitute a local screening project"), "Report package builder must fail closed on an unknown project");
 assert(!packageBuilder.includes("?? getDemoProject(input.projectKey)"), "Report package builder still falls back to a demo project");
 assert(packageRepository.includes("seededPackageDefinitions.filter((item) => item.projectKey === projectKey)"), "Unknown report-package project identity must produce no seed definition");
 assert(packageRepository.includes("seededPackageDefinitions.find((item) => item.packageKey === idOrKey)"), "Report-package lookup must resolve a canonical seed directly without rebuilding every project");

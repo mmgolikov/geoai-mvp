@@ -23,8 +23,31 @@ const commonForbiddenClaims = [
 function source(item: Omit<PublicSourceCatalogItem, "caveat" | "forbiddenClaims"> & {
   forbiddenClaims?: string[];
 }): PublicSourceCatalogItem {
+  const illustrativeFallback = item.connectionStatus === "sample_fallback";
+  const subject = item.id.split("-").at(-1)?.replace(/_/g, " ") ?? item.category.replace(/-/g, " ");
+
   return {
     ...item,
+    ...(illustrativeFallback
+      ? {
+          name: `Illustrative local ${subject} context`,
+          provider: "GeoAI illustrative local context",
+          accessMode: "manual-snapshot" as const,
+          licenseNote: "Illustrative local records; no external provider license, attribution or origin is asserted for this artifact.",
+          updateCadence: "Static local fallback",
+          dataQualityTier: "sample" as const,
+          officialClaimAllowed: false,
+          allowedUse: [
+            "illustrative local screening context",
+            "workflow and schema validation",
+            "source-lineage gap disclosure"
+          ],
+          limitations: [
+            "Illustrative local fallback only; no provider-derived artifact or immutable provider receipt is present.",
+            ...item.limitations
+          ]
+        }
+      : {}),
     caveat: publicDataCaveat,
     forbiddenClaims: item.forbiddenClaims ?? commonForbiddenClaims
   };
@@ -179,7 +202,7 @@ export const publicSourceCatalog: PublicSourceCatalogItem[] = [
     dataQualityTier: "requires-validation",
     officialClaimAllowed: false,
     allowedUse: ["planned official validation roadmap"],
-    limitations: ["Rental Index, Brokers, Ejari, Trakheesi and Mollak APIs are not connected in this MVP."]
+    limitations: ["Rental Index, Brokers, Ejari, Trakheesi and Mollak APIs are not connected in this environment."]
   }),
   source({
     id: "osm-geofabrik-open-roads",
@@ -295,7 +318,7 @@ export const publicSourceCatalog: PublicSourceCatalogItem[] = [
     accessMode: "open-api",
     connectionStatus: "planned",
     licenseNote: "NASA POWER citation guidance applies; commercial-use rights confirmation remains required before Production activation.",
-    updateCadence: "Fixed public demo query in local/Preview runtime only",
+    updateCadence: "Fixed bounded query in local/Preview runtime only",
     dataQualityTier: "screening",
     officialClaimAllowed: false,
     allowedUse: ["solar radiation, wind and energy screening context"],
@@ -310,7 +333,7 @@ export const publicSourceCatalog: PublicSourceCatalogItem[] = [
     accessMode: "open-api",
     connectionStatus: "sample_fallback",
     licenseNote: "OpenAQ API terms and source attribution apply.",
-    updateCadence: "On-demand API context with sample fallback",
+    updateCadence: "On-demand API context with illustrative local fallback",
     dataQualityTier: "screening",
     officialClaimAllowed: false,
     allowedUse: ["screening-level air quality context"],
@@ -340,7 +363,7 @@ export const publicSourceCatalog: PublicSourceCatalogItem[] = [
     accessMode: "open-api",
     connectionStatus: "planned",
     licenseNote: "Copernicus Data Space terms apply; this path is public STAC catalogue metadata only. Downloads, processing and protected products remain separately gated.",
-    updateCadence: "Fixed public demo catalogue query in local/Preview runtime only",
+    updateCadence: "Fixed bounded catalogue query in local/Preview runtime only",
     dataQualityTier: "requires-validation",
     officialClaimAllowed: false,
     allowedUse: ["satellite availability planning", "future remote-sensing lineage"],
@@ -350,7 +373,7 @@ export const publicSourceCatalog: PublicSourceCatalogItem[] = [
     id: "osm-overpass-count-context",
     name: "OpenStreetMap Overpass count-only context",
     provider: "OpenStreetMap contributors / Overpass API",
-    geography: "Fixed Downtown Dubai public demo AOI",
+    geography: "Fixed Downtown Dubai screening AOI",
     category: "spatial",
     accessMode: "open-api",
     connectionStatus: "planned",
@@ -388,7 +411,7 @@ export const publicSourceCatalog: PublicSourceCatalogItem[] = [
     updateCadence: "Manual optional snapshot",
     dataQualityTier: "requires-validation",
     officialClaimAllowed: false,
-    allowedUse: ["optional demo administrative context only"],
+    allowedUse: ["optional illustrative administrative context only"],
     limitations: ["License caveat and non-official boundary status must remain visible."]
   }),
   source({
@@ -404,7 +427,7 @@ export const publicSourceCatalog: PublicSourceCatalogItem[] = [
     dataQualityTier: "requires-validation",
     officialClaimAllowed: false,
     allowedUse: ["validation roadmap", "source gap disclosure"],
-    limitations: ["Planned official validation only; not connected in this demo."]
+    limitations: ["Planned official validation only; not connected in this environment."]
   })
 ];
 

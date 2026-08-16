@@ -31,6 +31,22 @@ const tableScores: ScoreKey[] = [
   "overallRisk"
 ];
 
+const requiredDataCaveat =
+  "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.";
+
+function sourceModeLabel(value: string | undefined) {
+  const mode = value?.trim().toLowerCase() ?? "";
+  if (!mode || /sample|demo|fallback|seed|synthetic|fixture|local/.test(mode)) {
+    return "Illustrative local screening context";
+  }
+  if (/open/.test(mode)) return "Public/open context";
+  if (/user|customer/.test(mode)) return "User-provided context";
+  if (/licensed|commercial/.test(mode)) return "Licensed context";
+  if (/snapshot|imported/.test(mode)) return "Imported snapshot context";
+  if (/manual/.test(mode)) return "Manual import context";
+  return "Source context under validation";
+}
+
 function formatCoordinate(latitude: number, longitude: number) {
   return `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
 }
@@ -158,10 +174,10 @@ function ComparisonCard({
       <div className="border-b border-line py-4">
         <p className="text-xs font-semibold uppercase leading-4 text-muted">Market data basis</p>
         <TextSafeValue className="mt-2 text-sm font-semibold leading-5 text-ink">
-          {marketMatch?.matchedAreaName ?? "Sample/open context"} / {marketMatch?.sourceMode ?? "seed_static"}
+          {marketMatch?.matchedAreaName ?? "Local/public-open context"} / {sourceModeLabel(marketMatch?.sourceMode)}
         </TextSafeValue>
         <TextSafeValue className="mt-1 text-xs leading-5 text-muted">
-          {metric ? `Liquidity ${metric.liquidityIndex}, demand ${metric.rentalDemandProxy}, pipeline ${metric.pipelineProxy}` : "Imported metrics not matched."}
+          {metric ? `Liquidity ${metric.liquidityIndex}, demand ${metric.rentalDemandProxy}, pipeline ${metric.pipelineProxy}` : "No area-specific illustrative market metrics matched."}
         </TextSafeValue>
       </div>
 
@@ -169,7 +185,7 @@ function ComparisonCard({
         <p className="text-xs font-semibold uppercase leading-4 text-muted">Recommended use</p>
         <details className="mt-2 rounded-md border border-line bg-surface px-3 py-2">
           <summary className="cursor-pointer list-none text-sm font-semibold leading-5 text-ink">
-            Recommended use
+            View use rationale
           </summary>
           <TextSafeValue className="mt-2 border-t border-line pt-2 text-sm leading-6 text-muted">
             {scorecard.recommendedUse}
@@ -229,6 +245,7 @@ export function ComparisonDashboard({
             <p className="mt-1 text-sm font-medium text-muted">
               {scenarioLabel} / average shortlist score {averageScore}/100 / official validation required
             </p>
+            <p className="mt-1 text-xs leading-5 text-muted">{requiredDataCaveat}</p>
           </div>
           <div className="flex shrink-0 items-center justify-start gap-2 lg:justify-end">
             <button
@@ -254,7 +271,7 @@ export function ComparisonDashboard({
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0">
                 <h2 className="text-lg font-semibold text-ink">Ranked shortlist decision</h2>
-                <p className="mt-1 text-sm text-muted">Best option based on deterministic sample/open scoring</p>
+                <p className="mt-1 text-sm text-muted">Best option based on deterministic screening scores</p>
               </div>
               <TextSafeValue as="span" className="max-w-full whitespace-normal break-words rounded-md bg-[#eaf3f1] px-3 py-1 text-sm font-semibold text-brand lg:rounded-full">
                 Best option: {comparison.winner.item.name}
@@ -296,7 +313,7 @@ export function ComparisonDashboard({
             <DecisionSummaryBox
               className="mt-3"
               decision={`Proceed with ${comparison.winner.item.name} as the strongest screened option, subject to official validation.`}
-              reason={`Strongest sample/open risk-adjusted score and readiness signal. Trade-off: ${primaryTradeoff}.`}
+              reason={`Strongest screening risk-adjusted score and readiness signal. Trade-off: ${primaryTradeoff}.`}
               validationNeed={primaryValidationNeed}
               nextAction={primaryNextAction}
             />
@@ -327,7 +344,7 @@ export function ComparisonDashboard({
                     {formatCoordinate(scorecard.item.point.latitude, scorecard.item.point.longitude)}
                   </TextSafeValue>
                   <TextSafeValue className="mt-2 text-xs leading-5 text-muted">
-                    Market basis: {scorecard.marketMetricsMatch?.matchedAreaName ?? "Sample/open context"} / {scorecard.marketMetricsMatch?.sourceMode ?? "seed_static"} / {scorecard.marketMetricsMatch?.confidence ?? "low"} confidence
+                    Market basis: {scorecard.marketMetricsMatch?.matchedAreaName ?? "Local/public-open context"} / {sourceModeLabel(scorecard.marketMetricsMatch?.sourceMode)} / {scorecard.marketMetricsMatch?.confidence ?? "low"} confidence
                   </TextSafeValue>
                   <div className="mt-3">
                     <ComparisonScoreBar scoreKey="investmentAttractiveness" value={scorecard.scores.investmentAttractiveness} compact />

@@ -248,6 +248,18 @@ jobs:
           set -euo pipefail
           npm run test:data-honesty | tee artifacts/data-honesty-check.txt
 
+      - name: GCC product, decision and source-readiness contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:gcc-scenarios | tee artifacts/gcc-scenario-contract-check.txt
+          npm run test:gcc-workspace-flow | tee artifacts/gcc-workspace-flow-check.txt
+          npm run test:gcc-project-hub | tee artifacts/gcc-project-hub-contract-check.txt
+          npm run test:map-lifecycle | tee artifacts/map-lifecycle-regression-check.txt
+          npm run test:source-provenance | tee artifacts/source-provenance-invariants-check.txt
+          npm run test:source-readiness | tee artifacts/source-readiness-contract-check.txt
+          npm run test:decision-result-parity | tee artifacts/decision-result-parity-check.txt
+
       - name: Product System v3.2 design foundation contract
         shell: bash
         run: |

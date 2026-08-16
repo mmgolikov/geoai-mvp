@@ -7,7 +7,7 @@ export const demoProjects: GeoAIProject[] = [
     id: null,
     projectKey: "dubai-investment-screening-demo",
     name: "Dubai Investment Screening",
-    description: "Fund / family office pilot screening workspace for Dubai site screening, comparison, evidence confidence and investment memo workflow using sample/open data.",
+    description: "Fund and family office workspace for Dubai opportunity screening, comparison, evidence confidence and investment memo preparation.",
     geography: "Dubai / UAE",
     clientType: "fund",
     primaryScenario: "investmentSiteSelection",
@@ -18,7 +18,7 @@ export const demoProjects: GeoAIProject[] = [
       segment: "b2b",
       default: true,
       demoPurpose: "Compare coastal and growth-area opportunities before underwriting.",
-      dataStatus: "Local sample context and open-data style signals; official validation required.",
+      dataStatus: "Local screening context and public/open signals; official validation required.",
       recommendedNextAction: "Validate official market, parcel and planning evidence before investment decisions.",
       caveat: dataHonestyCaveat
     }
@@ -27,7 +27,7 @@ export const demoProjects: GeoAIProject[] = [
     id: null,
     projectKey: "developer-land-pipeline-demo",
     name: "Developer Land Pipeline",
-    description: "Developer / master developer pilot screening workspace for land pipeline screening, infrastructure context and planning validation checklist.",
+    description: "Developer and master-developer workspace for land pipeline screening, infrastructure context and planning validation checklists.",
     geography: "Dubai / UAE",
     clientType: "developer",
     primaryScenario: "realEstateDevelopment",
@@ -37,7 +37,7 @@ export const demoProjects: GeoAIProject[] = [
       audience: "b2b",
       segment: "b2b",
       demoPurpose: "Screen development potential and identify validation gaps.",
-      dataStatus: "Local sample GeoJSON and CSV context; not official boundaries or planning data.",
+      dataStatus: "Local screening GeoJSON and CSV context; not official boundaries or planning data.",
       recommendedNextAction: "Request land-use, infrastructure and constraint confirmation from agreed validation sources.",
       caveat: dataHonestyCaveat
     }
@@ -46,7 +46,7 @@ export const demoProjects: GeoAIProject[] = [
     id: null,
     projectKey: "bank-asset-review-demo",
     name: "Bank Asset Review",
-    description: "Bank / lender pilot screening workspace for collateral context, market confidence, spatial exposure and evidence trail review.",
+    description: "Bank and lender workspace for collateral context, market confidence, spatial exposure and evidence-trail review.",
     geography: "Dubai / UAE",
     clientType: "bank",
     primaryScenario: "assetPortfolioIntelligence",
@@ -56,7 +56,7 @@ export const demoProjects: GeoAIProject[] = [
       audience: "b2b",
       segment: "b2b",
       demoPurpose: "Review collateral context and evidence gaps for a lender-ready summary.",
-      dataStatus: "Sample/offline metrics and screening spatial context; no live official integration.",
+      dataStatus: "Local screening metrics and spatial context; no live official integration.",
       recommendedNextAction: "Validate source lineage and risk assumptions before credit or collateral decisions.",
       caveat: dataHonestyCaveat
     }
@@ -65,7 +65,7 @@ export const demoProjects: GeoAIProject[] = [
     id: null,
     projectKey: "home-buyer-neighborhood-demo",
     name: "Home Buyer Neighborhood Fit",
-    description: "B2C demo screening workspace for a household comparing Dubai neighborhood fit, access, comfort and validation gaps using sample/open context.",
+    description: "Household workspace for comparing Dubai neighborhood fit, access, comfort and validation gaps.",
     geography: "Dubai / UAE",
     clientType: "demo",
     primaryScenario: "customQuery",
@@ -75,8 +75,8 @@ export const demoProjects: GeoAIProject[] = [
       audience: "b2c",
       segment: "b2c",
       role: "home_buyer",
-      demoPurpose: "Compare sample neighborhoods for lifestyle fit before personal due diligence.",
-      dataStatus: "Local sample/open context only; not official property, parcel, ownership, zoning or valuation evidence.",
+      demoPurpose: "Compare neighborhoods for lifestyle fit before personal due diligence.",
+      dataStatus: "Local and public/open screening context only; not official property, parcel, ownership, zoning or valuation evidence.",
       recommendedNextAction: "Validate listings, legal/title, service charges, school/access needs and official planning context before decisions.",
       caveat: dataHonestyCaveat
     }
@@ -85,7 +85,7 @@ export const demoProjects: GeoAIProject[] = [
     id: null,
     projectKey: "family-relocation-area-demo",
     name: "Family Relocation Area Review",
-    description: "B2C demo screening workspace for relocation area comparison, commute, amenities and heat/climate context using sample/open data.",
+    description: "Household relocation workspace for comparing commute, amenities, comfort and heat/climate context across Dubai areas.",
     geography: "Dubai / UAE",
     clientType: "demo",
     primaryScenario: "climateRisk",
@@ -96,7 +96,7 @@ export const demoProjects: GeoAIProject[] = [
       segment: "b2c",
       role: "family_relocation",
       demoPurpose: "Review neighborhood trade-offs for a family relocation shortlist.",
-      dataStatus: "Sample/open context only; not official planning, school catchment, legal, ownership or valuation evidence.",
+      dataStatus: "Local and public/open screening context only; not official planning, school catchment, legal, ownership or valuation evidence.",
       recommendedNextAction: "Validate commute, school, services, building/legal and official municipality context before household decisions.",
       caveat: dataHonestyCaveat
     }
