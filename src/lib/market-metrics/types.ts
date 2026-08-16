@@ -15,12 +15,20 @@ export type MarketMetricMatchType =
   | "seed_fallback"
   | "generic_fallback";
 
+export type MarketMetricsReleaseGate = Readonly<{
+  structurallyValid: boolean;
+  screeningContextAvailable: boolean;
+  decisionUse: "allowed" | "blocked";
+  blockers: readonly string[];
+}>;
+
 export type MarketMetricsMatch = {
   matchedAreaName: string;
   matchType: MarketMetricMatchType;
   confidence: "high" | "medium" | "low";
   sourceMode: MarketMetricsSourceMode;
   importedMetricsUsed: boolean;
+  releaseGate: MarketMetricsReleaseGate;
   metrics: MarketAreaMetric | null;
   note: string;
 };

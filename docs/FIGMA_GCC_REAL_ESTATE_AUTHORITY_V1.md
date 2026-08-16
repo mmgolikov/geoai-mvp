@@ -65,6 +65,14 @@ Existing canonical Product System nodes remain historical foundation and were no
 - comparison print page 1: `1957:26461`
 - comparison print page 2: `1957:26553`
 
+### System states
+
+- section: `1961:1059`
+- loading desktop: `1961:1060`
+- empty desktop: `1961:1177`
+- error desktop: `1961:1294`
+- partial-evidence desktop: `1957:24727`
+
 ## Design decisions
 
 - Landing makes GCC real-estate decision support the first-viewport offer.
@@ -82,6 +90,9 @@ Existing canonical Product System nodes remain historical foundation and were no
 - Workspace mobile rendered at 390x844.
 - Project Hub rendered at 1440x960.
 - Analysis print rendered at 794x1123.
+- Loading, empty and error states rendered as independent 1440x964 frames; partial evidence remains a separate 1440x964 frame.
+- Immutable state export: [`system-states-candidate.png`](evidence/figma-gcc-real-estate-v1/system-states-candidate.png), 4780x1280, SHA-256 `fee1f2d765949e6b63d5c4672bed17ff8229d68f4bd0e916abf0db49c4ed7c14`.
+- Machine-readable receipt: [`system-states-manifest.json`](evidence/figma-gcc-real-estate-v1/system-states-manifest.json).
 - Presentation-sensitive copy scan found only negative statements that explicitly deny live official integration.
 
 This page remains `CANDIDATE` until founder review. Runtime implementation may use its bounded screen composition under the approved CR, but the page must not be described as the canonical released design before approval.

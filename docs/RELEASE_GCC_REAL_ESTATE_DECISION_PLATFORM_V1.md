@@ -36,8 +36,9 @@ Local candidate validation completed on 2026-08-16:
 
 - lint and production build passed;
 - API contract, data-honesty, documentation-current-truth and document-lifecycle checks passed;
-- GCC scenario, Workspace, Project Hub, decision-result parity, source-provenance, source-readiness and map-lifecycle contracts passed;
-- 37 of 37 Playwright/Chromium scenarios passed across the declared mobile, tablet and desktop viewports, with zero accepted-route console errors and zero serious/critical Axe findings;
+- GCC scenario, Workspace, Project Hub, decision-result parity, legacy-analysis hydration, source-provenance, source-use truth, source-readiness and map-lifecycle contracts passed;
+- 38 of 38 Playwright/Chromium scenarios passed with retries disabled, zero skipped/error cases, zero accepted-route console errors and zero serious/critical Axe findings;
+- the permanent responsive harness captured 25 Product screenshots across 390x844, 430x932, 768x1024, 1366x768 and 1440x900 with zero horizontal overflow and zero unexpected console/page errors;
 - 12 Chromium-generated PDFs produced 62 physical pages; page rendering, extracted text, dimensions, blank-page, clipping, overlap and orphan-heading assertions passed;
 - the source-readiness sync dry-run prepared five registry and five external-snapshot rows without writing them;
 - the production dependency audit reported zero vulnerabilities.
@@ -59,6 +60,10 @@ The permanent GitHub Quality Gate, immutable exact-head artifacts, independent r
 - Saudi Arabia, Qatar and Oman remain metadata-only, disabled markets in the current candidate.
 - Protected Auth, membership, storage and confidential workflows remain separately gated.
 - Current normalized local datasets are not sufficient for valuation or statistically representative market conclusions.
+- Local/imported market metrics may be matched for screening context, but the current release gate blocks them from changing decision scores.
+- Persisted legacy analyses are normalized before restore; source-adjusted scores and AI output that cannot satisfy the current provenance gate are withheld pending a fresh analysis.
+- Matched/available source context is kept separate from context actually used in scoring in Dashboard, comparison, preview and printable-report output.
+- Source references describe availability and provenance; only a recorded runtime observation is presented as external data used by a saved result.
 
 ## Release control
 

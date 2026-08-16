@@ -106,7 +106,7 @@ test("historical cockpit correction remains intact while the GCC candidate rende
       naturalWidth: (element as HTMLImageElement).naturalWidth
     }));
     expect(candidate.complete).toBe(true);
-    expect(candidate.currentPath).toBe("/design/gcc-decision-cockpit-v1.png");
+    expect(candidate.currentPath).toBe("/design/gcc-decision-cockpit-v1.webp");
     expect(candidate.figmaNode).toBe("1957:12");
     expect(candidate.naturalWidth).toBeGreaterThanOrEqual(1400);
     expect(candidate.naturalHeight).toBeGreaterThanOrEqual(900);

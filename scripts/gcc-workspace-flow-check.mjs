@@ -75,6 +75,22 @@ for (const marker of [
 ]) {
   assert(workspace.includes(marker), `Mobile full-screen map behavior is missing ${marker}.`);
 }
+assert(
+  workspace.includes('const isMobileCustomQueryBlocked = selectedScenario === "customQuery" && customQuery.trim().length === 0') &&
+    workspace.includes("const canRunMobileMapAnalysis = Boolean(selectedPoint) && !isAnalyzing && !isMobileCustomQueryBlocked") &&
+    workspace.includes('data-custom-query-map-guard={isMobileCustomQueryBlocked ? "blocked" : undefined}'),
+  "An empty Custom Query must disable the mobile map direct-run action."
+);
+assert(
+  workspace.includes("Enter a Custom Query question in the workflow before running analysis. Back to workflow keeps your map selection.") &&
+    workspace.includes('id="mobile-map-action-guidance"') &&
+    workspace.includes('aria-describedby="mobile-map-action-guidance"'),
+  "The disabled mobile map action must expose clear visible and accessible recovery guidance."
+);
+assert(
+  workspace.includes("disabled={!canRunMobileMapAnalysis}") && workspace.includes("Back to workflow"),
+  "The mobile map must retain its declarative action state and Back to workflow recovery path."
+);
 
 assert(
   workspace.includes("project.metadata?.segment ?? project.metadata?.audience"),
@@ -137,6 +153,7 @@ console.log(JSON.stringify({
     "Custom Query visibility",
     "single primary action",
     "mobile full-screen map direct run",
+    "empty Custom Query mobile recovery",
     "keyboard map selection",
     "mobile result continuity",
     "B2B/B2C project alignment",

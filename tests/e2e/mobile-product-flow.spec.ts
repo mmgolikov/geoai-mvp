@@ -69,9 +69,50 @@ async function expectMinimumTargetSize(label: string, locator: Locator, minimum 
   expect(box?.height ?? 0, `${label} height must be at least ${minimum}px`).toBeGreaterThanOrEqual(minimum);
 }
 
-async function expectPixelStableScreenshot(
+async function focusCurrentMapRegion(mapRegion: Locator) {
+  await expect.poll(async () => {
+    await mapRegion.focus().catch(() => undefined);
+    return mapRegion.evaluate((element) => document.activeElement === element).catch(() => false);
+  }, {
+    message: "The current map region must accept keyboard focus after map initialization",
+    timeout: 20_000
+  }).toBe(true);
+}
+
+async function settleVisualMedia(page: Page, fullPage: boolean) {
+  await page.evaluate(async (shouldPrimeFullPage) => {
+    const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    const images = Array.from(document.images);
+    images.forEach((image) => {
+      image.loading = "eager";
+    });
+
+    if (shouldPrimeFullPage) {
+      const step = Math.max(window.innerHeight, 1);
+      for (let offset = 0; offset < document.documentElement.scrollHeight; offset += step) {
+        window.scrollTo(0, offset);
+        await nextFrame();
+      }
+    }
+
+    await Promise.all(images.map(async (image) => {
+      if (!image.complete) {
+        await new Promise<void>((resolve) => {
+          image.addEventListener("load", () => resolve(), { once: true });
+          image.addEventListener("error", () => resolve(), { once: true });
+        });
+      }
+      await image.decode().catch(() => undefined);
+    }));
+
+    window.scrollTo(0, 0);
+    await nextFrame();
+    await nextFrame();
+  }, fullPage);
+}
+
+async function comparePixelScreenshots(
   page: Page,
-  label: string,
   firstImage: Buffer,
   repeatImage: Buffer
 ) {
@@ -114,12 +155,35 @@ async function expectPixelStableScreenshot(
 
     let changedPixelCount = 0;
     let maxChannelDelta = 0;
+    let minX = first.width;
+    let minY = first.height;
+    let maxX = -1;
+    let maxY = -1;
+    const samples: Array<{ x: number; y: number; delta: number; first: number[]; repeat: number[] }> = [];
     for (let offset = 0; offset < first.pixels.length; offset += 4) {
       let pixelDelta = 0;
       for (let channel = 0; channel < 4; channel += 1) {
         pixelDelta = Math.max(pixelDelta, Math.abs(first.pixels[offset + channel] - repeat.pixels[offset + channel]));
       }
-      if (pixelDelta > 0) changedPixelCount += 1;
+      if (pixelDelta > 0) {
+        changedPixelCount += 1;
+        const pixelIndex = offset / 4;
+        const x = pixelIndex % first.width;
+        const y = Math.floor(pixelIndex / first.width);
+        minX = Math.min(minX, x);
+        minY = Math.min(minY, y);
+        maxX = Math.max(maxX, x);
+        maxY = Math.max(maxY, y);
+        if (pixelDelta >= 10 && samples.length < 20) {
+          samples.push({
+            x,
+            y,
+            delta: pixelDelta,
+            first: Array.from(first.pixels.slice(offset, offset + 4)),
+            repeat: Array.from(repeat.pixels.slice(offset, offset + 4))
+          });
+        }
+      }
       maxChannelDelta = Math.max(maxChannelDelta, pixelDelta);
     }
 
@@ -128,6 +192,8 @@ async function expectPixelStableScreenshot(
       dimensionsMatch,
       height: first.height,
       maxChannelDelta,
+      changedBounds: changedPixelCount > 0 ? { minX, minY, maxX, maxY } : null,
+      samples,
       totalPixels: first.width * first.height,
       width: first.width
     };
@@ -136,11 +202,18 @@ async function expectPixelStableScreenshot(
     repeatBase64: repeatImage.toString("base64")
   });
 
+  return comparison;
+}
+
+function expectPixelStableComparison(
+  label: string,
+  comparison: Awaited<ReturnType<typeof comparePixelScreenshots>>
+) {
   expect(comparison.dimensionsMatch, `${label} candidate baseline dimensions must remain stable`).toBe(true);
   const allowedChangedPixels = Math.max(100, Math.ceil(comparison.totalPixels * 0.001));
   expect(
     comparison.maxChannelDelta,
-    `${label} candidate baseline may contain only negligible rasterization noise`
+    `${label} candidate baseline may contain only negligible rasterization noise: ${JSON.stringify(comparison)}`
   ).toBeLessThanOrEqual(2);
   expect(
     comparison.changedPixelCount,
@@ -164,21 +237,45 @@ async function captureVisualEvidence(
   await page.addStyleTag({
     content: `*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}${fullPage ? "[data-product-shell]{position:static!important;top:auto!important}" : ""}`
   });
-  await page.waitForTimeout(fullPage ? 1000 : 100);
-  await page.evaluate(() => window.scrollTo(0, 0));
+  await settleVisualMedia(page, fullPage);
+  await page.waitForTimeout(fullPage ? 250 : 100);
   await fs.mkdir(visualDirectory, { recursive: true });
   const filePath = path.join(visualDirectory, fileName);
-  const image = await page.screenshot({
-    animations: "disabled",
-    caret: "hide",
-    fullPage,
-    path: filePath
-  });
-  const sha256 = createHash("sha256").update(image).digest("hex");
+  let image: Buffer;
   if (candidateBaseline) {
-    const repeatImage = await page.screenshot({ animations: "disabled", caret: "hide", fullPage });
-    await expectPixelStableScreenshot(page, label, image, repeatImage);
+    // Cold full-page captures can re-raster distant text once; require a bounded stable pair.
+    let previousImage = await page.screenshot({ animations: "disabled", caret: "hide", fullPage });
+    let stableComparison: Awaited<ReturnType<typeof comparePixelScreenshots>> | null = null;
+    image = previousImage;
+
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      await page.evaluate(async () => {
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      });
+      const currentImage = await page.screenshot({ animations: "disabled", caret: "hide", fullPage });
+      const comparison = await comparePixelScreenshots(page, previousImage, currentImage);
+      const allowedChangedPixels = Math.max(100, Math.ceil(comparison.totalPixels * 0.001));
+      image = currentImage;
+      stableComparison = comparison;
+      if (
+        comparison.dimensionsMatch &&
+        comparison.maxChannelDelta <= 2 &&
+        comparison.changedPixelCount <= allowedChangedPixels
+      ) {
+        break;
+      }
+      previousImage = currentImage;
+    }
+
+    expect(stableComparison, `${label} candidate baseline comparison must run`).not.toBeNull();
+    expectPixelStableComparison(label, stableComparison!);
+    await fs.writeFile(filePath, image);
   } else {
+    image = await page.screenshot({ animations: "disabled", caret: "hide", fullPage, path: filePath });
+  }
+  const sha256 = createHash("sha256").update(image).digest("hex");
+  if (!candidateBaseline) {
     await expect(page).toHaveScreenshot(fileName, {
       animations: "disabled",
       caret: "hide",
@@ -288,8 +385,7 @@ test.describe("mobile product navigation, targets and visual evidence", () => {
     await expect(mapPicker.getByRole("button", { name: "Back to workflow" })).toBeVisible();
 
     const mapRegion = mapPicker.getByRole("region", { name: /Interactive map workspace/ });
-    await mapRegion.focus();
-    await expect(mapRegion).toBeFocused();
+    await focusCurrentMapRegion(mapRegion);
     await mapRegion.press("Enter");
 
     const runAnalysis = mapPicker.getByRole("button", { name: "Run Express Analysis" });
@@ -303,6 +399,58 @@ test.describe("mobile product navigation, targets and visual evidence", () => {
     await expect(resultSummary.getByText("Suitability", { exact: true })).toBeVisible();
     await expect(resultSummary.getByText("Next action", { exact: true })).toBeVisible();
     await expect(page.locator("[data-dashboard-analysis-id]")).toBeVisible();
+    await expectNoHorizontalOverflow(page);
+  });
+
+  test("keeps an empty Custom Query map selection recoverable", async ({ page }) => {
+    await page.clock.setFixedTime(new Date("2026-07-17T16:23:00.000Z"));
+    await signInDemo(page, "/workspace");
+
+    await page.getByRole("button", { name: "B2C", exact: true }).click();
+    await page.getByLabel("Scenario").selectOption("b2c_point_context");
+    const customQuery = page.getByLabel("Custom Query");
+    await customQuery.fill("");
+
+    await page.getByRole("button", { name: "Open map" }).click();
+    const mapPicker = page.locator('[role="dialog"][aria-labelledby="mobile-map-picker-title"]');
+    const runAnalysis = mapPicker.getByRole("button", { name: "Run Express Analysis" });
+    const backToWorkflow = mapPicker.getByRole("button", { name: "Back to workflow" });
+    const guidance = mapPicker.getByText(
+      "Enter a Custom Query question in the workflow before running analysis. Back to workflow keeps your map selection."
+    );
+
+    await expect(mapPicker).toHaveAttribute("data-custom-query-map-guard", "blocked");
+    await expect(guidance).toBeVisible();
+    await expect(runAnalysis).toBeDisabled();
+    await expect(runAnalysis).toHaveAttribute("aria-describedby", "mobile-map-action-guidance");
+    await expect(backToWorkflow).toBeEnabled();
+
+    const mapRegion = mapPicker.getByRole("region", { name: /Interactive map workspace/ });
+    await focusCurrentMapRegion(mapRegion);
+    await mapRegion.press("Enter");
+    await expect(mapPicker.getByRole("heading", { name: "Custom map selection" })).toBeVisible();
+    await expect(guidance).toBeVisible();
+    await expect(runAnalysis).toBeDisabled();
+
+    await backToWorkflow.click();
+    await expect(mapPicker).toBeHidden();
+    await expect(customQuery).toHaveValue("");
+
+    await page.getByRole("button", { name: "Open map" }).click();
+    await expect(mapPicker.getByRole("heading", { name: "Custom map selection" })).toBeVisible();
+    await expect(guidance).toBeVisible();
+    await expect(runAnalysis).toBeDisabled();
+    await expect(mapPicker.getByRole("button", { name: "Back to workflow" })).toBeEnabled();
+
+    await mapPicker.getByRole("button", { name: "Back to workflow" }).click();
+    await customQuery.fill("Compare daily access and validation needs for this location");
+    await page.getByRole("button", { name: "Open map" }).click();
+    await expect(mapPicker.getByRole("heading", { name: "Custom map selection" })).toBeVisible();
+    await expect(mapPicker).not.toHaveAttribute("data-custom-query-map-guard", "blocked");
+    await expect(runAnalysis).toBeEnabled();
+    await expect(
+      mapPicker.getByText("Selection ready. Run analysis now or return to the workflow to review settings.")
+    ).toBeVisible();
     await expectNoHorizontalOverflow(page);
   });
 

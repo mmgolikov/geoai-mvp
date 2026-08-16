@@ -107,7 +107,7 @@ function HeroSection() {
         data-figma-node="1957:12"
         data-landing-cockpit-authority="gcc-real-estate-v1"
         alt="GeoAI GCC real estate decision dashboard with map, screening result, evidence drivers and next action"
-        src="/design/gcc-decision-cockpit-v1.png"
+        src="/design/gcc-decision-cockpit-v1.webp"
         width="1440"
         height="900"
         fetchPriority="high"

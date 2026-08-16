@@ -42,6 +42,12 @@ import { repositoryModeToLabel, type RepositoryMode } from "@/src/lib/repositori
 import { readBrowserAois, sourceTypeLabel, validationStatusLabel } from "@/src/lib/aoi-library";
 import { readBrowserUploadedDatasets } from "@/src/lib/uploaded-data";
 import { formatArea } from "@/src/lib/polygon-aoi";
+import {
+  legacyAnalysisReanalysisNotice,
+  legacyAnalysisReanalysisPosture,
+  normalizeRestoredAnalysisHistoryItem,
+  normalizeRestoredExpressAnalysis
+} from "@/src/lib/analysis-restore-normalization";
 import type { GeoAIProject } from "@/src/lib/db/types";
 import type { ExternalDataManifestSource } from "@/src/lib/external-data/data-manifest";
 import type { ProjectAoi } from "@/src/types/aoi";
@@ -756,15 +762,17 @@ function createInitialExternalDataStatus(): ExternalDataStatus {
 
 function writeOpenAnalysisRequest(row: RecentAnalysisRow) {
   if (!row.analysis || !isBrowserDemoStorageEnabled()) return;
+  const normalized = normalizeRestoredExpressAnalysis(row.analysis);
+  if (!normalized) return;
 
   try {
     window.localStorage.setItem(openAnalysisRequestStorageKey, JSON.stringify({
-      analysisId: row.analysis.id,
+      analysisId: normalized.analysis.id,
       projectId: row.projectId,
       projectKey: row.projectKey,
       scenarioId: row.scenarioId,
-      customQuery: row.customQuery ?? row.analysis.customQuery ?? "",
-      analysis: row.analysis
+      customQuery: row.customQuery ?? normalized.analysis.customQuery ?? "",
+      analysis: normalized.analysis
     }));
   } catch {
     // Dashboard remains usable even if the restore handoff cannot be written.
@@ -778,8 +786,12 @@ function readLocalHistory() {
     const raw = window.localStorage.getItem(analysisHistoryStorageKey);
     if (!raw) return [];
 
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? (parsed as AnalysisHistoryItem[]) : [];
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
+
+    return parsed
+      .map((item) => normalizeRestoredAnalysisHistoryItem(item)?.item ?? null)
+      .filter((item): item is AnalysisHistoryItem => item !== null);
   } catch {
     return [];
   }
@@ -852,28 +864,43 @@ function comparisonRestoreId(id: string, projectKey: string) {
 function localHistoryToRows(items: AnalysisHistoryItem[], projectKey: string): RecentAnalysisRow[] {
   const scoped = items.filter((item) => belongsToProject(item, projectKey));
 
-  return scoped.slice(0, 6).map((item) => ({
-    id: item.id,
-    title: item.title,
-    scenarioLabel: item.scenarioLabel,
-    timestamp: item.timestamp,
-    decisionPosture: item.recommendation || deriveDecisionPosture(item.analysis),
-    confidence: item.confidenceLevel ?? item.analysis.confidenceLevel ?? "medium",
-    dataConfidence: item.dataConfidenceLevel ?? "Local screening context",
-    source: item.source ?? "local",
-    reportId: undefined,
-    analysis: item.analysis,
-    projectId: item.project?.id ?? item.analysis.project?.id ?? null,
-    projectKey: item.projectKey ?? item.project?.projectKey,
-    scenarioId: item.scenarioId,
-    customQuery: item.analysis.customQuery,
-    canOpenAnalysis: true
-  }));
+  return scoped.slice(0, 6)
+    .map((item): RecentAnalysisRow | null => {
+      const normalized = normalizeRestoredExpressAnalysis(item.analysis);
+      if (!normalized) return null;
+      const analysis = normalized.analysis;
+
+      return {
+        id: item.id,
+        title: item.title,
+        scenarioLabel: item.scenarioLabel,
+        timestamp: item.timestamp,
+        decisionPosture: normalized.requiresReanalysis
+          ? legacyAnalysisReanalysisPosture
+          : item.recommendation || deriveDecisionPosture(analysis),
+        confidence: normalized.requiresReanalysis
+          ? "low"
+          : item.confidenceLevel ?? analysis.confidenceLevel ?? "medium",
+        dataConfidence: normalized.requiresReanalysis
+          ? legacyAnalysisReanalysisNotice
+          : item.dataConfidenceLevel ?? "Local screening context",
+        source: item.source ?? "local",
+        reportId: undefined,
+        analysis,
+        projectId: item.project?.id ?? analysis.project?.id ?? null,
+        projectKey: item.projectKey ?? item.project?.projectKey,
+        scenarioId: analysis.scenarioId,
+        customQuery: analysis.customQuery,
+        canOpenAnalysis: true
+      };
+    })
+    .filter((item): item is RecentAnalysisRow => item !== null);
 }
 
 function persistedRowsToRecent(items: PersistedAnalysisRun[]): RecentAnalysisRow[] {
-  return items.slice(0, 6).map((item) => {
-    const analysis = item.result_json ?? item.result_payload ?? item.payload;
+  return items.slice(0, 6).map((item): RecentAnalysisRow => {
+    const normalized = normalizeRestoredExpressAnalysis(item.result_json ?? item.result_payload ?? item.payload);
+    const analysis = normalized?.analysis;
     const scenarioId = item.scenario_id ?? analysis?.scenarioId;
     const scenarioLabel = scenarioId
       ? formatLabel(scenarioId)
@@ -886,9 +913,13 @@ function persistedRowsToRecent(items: PersistedAnalysisRun[]): RecentAnalysisRow
       title: item.selected_name ?? item.title ?? analysis?.selectedObject?.name ?? analysis?.title ?? "Saved analysis run",
       scenarioLabel,
       timestamp: item.created_at ?? item.createdAt ?? analysis?.generatedAt ?? new Date().toISOString(),
-      decisionPosture: item.decision_posture ?? item.decisionPosture ?? (analysis ? deriveDecisionPosture(analysis) : "Requires official validation"),
-      confidence: item.confidence_level ?? analysis?.confidenceLevel ?? "medium",
-      dataConfidence: item.data_confidence_level ?? analysis?.marketContext?.confidenceLevel ?? "Local screening context",
+      decisionPosture: normalized?.requiresReanalysis
+        ? legacyAnalysisReanalysisPosture
+        : item.decision_posture ?? item.decisionPosture ?? (analysis ? deriveDecisionPosture(analysis) : "Requires official validation"),
+      confidence: normalized?.requiresReanalysis ? "low" : item.confidence_level ?? analysis?.confidenceLevel ?? "medium",
+      dataConfidence: normalized?.requiresReanalysis
+        ? legacyAnalysisReanalysisNotice
+        : item.data_confidence_level ?? analysis?.marketContext?.confidenceLevel ?? "Local screening context",
       source: "DB" as const,
       reportId: undefined,
       analysis,

@@ -204,6 +204,15 @@ function customerFacingText(value: string, fallback = "Screening context") {
   return normalized || fallback;
 }
 
+function identityText(value: string | null | undefined, fallback: string, maxLength = 160) {
+  const normalized = (value ?? "")
+    .replace(/[\u0000-\u001f\u007f]/g, " ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+
+  return normalized ? normalized.slice(0, maxLength) : fallback;
+}
+
 function formatCoordinates(latitude: number, longitude: number) {
   return `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
 }
@@ -534,7 +543,7 @@ function sourceBasisFromNames(
   mode: DecisionResultSourceBasis["mode"],
   label: string
 ): DecisionResultSourceBasis {
-  const items = uniqueText(names.map((name) => customerFacingText(name))).slice(0, 6);
+  const items = uniqueText(names.map((name) => identityText(name, ""))).slice(0, 6);
 
   return {
     mode,
@@ -555,10 +564,10 @@ function evidenceIsIllustrative(item: ExpressAnalysis["evidence"][number]) {
 
 function sourceBasisEvidenceLabel(item: ExpressAnalysis["evidence"][number]) {
   if (item.sourceType === "customer") {
-    return `User-provided context: ${customerFacingText(item.label)}`;
+    return `User-provided context: ${identityText(item.label, "User-provided source")}`;
   }
   if (item.sourceType === "open_data" || item.sourceType === "open_geospatial") {
-    return customerFacingText(item.label, "Public/open context");
+    return identityText(item.label, "Public/open context");
   }
   if (evidenceIsIllustrative(item)) {
     const normalized = item.label.toLowerCase();
@@ -569,7 +578,7 @@ function sourceBasisEvidenceLabel(item: ExpressAnalysis["evidence"][number]) {
     if (normalized.includes("scenario")) return "Illustrative selected-scenario context";
     return ILLUSTRATIVE_LOCAL_CONTEXT;
   }
-  return customerFacingText(item.label);
+  return identityText(item.label, "Screening source");
 }
 
 function sourceBasisForAnalysis(analysis: ExpressAnalysis): DecisionResultSourceBasis {
@@ -630,11 +639,9 @@ function targetTypeForAnalysis(analysis: ExpressAnalysis) {
 function decisionQuestionForAnalysis(analysis: ExpressAnalysis, targetLabel: string, scenarioLabel: string) {
   const query = analysis.customQuery?.trim() ?? "";
   const looksLikeDecisionPrompt = /^(which|what|where|how|should|is|are|does|do|compare|assess|review|identify)\b/i.test(query);
-  return customerFacingText(
-    query && (query.endsWith("?") || looksLikeDecisionPrompt)
-      ? query
-      : `What is the screening posture for ${targetLabel} under ${scenarioLabel.toLowerCase()}?`
-  );
+  return query && (query.endsWith("?") || looksLikeDecisionPrompt)
+    ? identityText(query, "What screening question should be assessed?", 320)
+    : `What is the screening posture for ${targetLabel} under ${scenarioLabel.toLowerCase()}?`;
 }
 
 export function buildDecisionResult(analysis: ExpressAnalysis): DecisionResultContract {
@@ -673,8 +680,9 @@ export function buildDecisionResult(analysis: ExpressAnalysis): DecisionResultCo
   const recommendedNextActionDetail = customerFacingText(
     detailText(actions[0]?.detail ?? actions[0]?.label, "Validate sources before decision use.")
   );
-  const targetLabel = customerFacingText(
-    analysis.selectedAoi?.name ?? analysis.selectedObject?.name ?? analysis.analysisTarget?.label ?? "Map selection"
+  const targetLabel = identityText(
+    analysis.selectedAoi?.name ?? analysis.selectedObject?.name ?? analysis.analysisTarget?.label,
+    "Map selection"
   );
   const targetId = analysis.selectedAoi?.id ?? analysis.selectedObject?.id ?? analysis.analysisTarget?.id ?? analysis.id;
   const point = analysis.selectedAoi?.centroid ?? analysis.selectedObject?.center ?? analysis.point;
@@ -823,7 +831,7 @@ export function buildAnalysisReportDecisionResult(report: AnalysisReportDecision
   );
   const actions = driverItems(report.nextActions, "action", 78, "action");
   const nextAction = shortNextAction(actions);
-  const targetLabel = customerFacingText(report.targetLabel, "Selected site");
+  const targetLabel = identityText(report.targetLabel, "Selected site");
   const scenarioLabel = customerFacingText(report.scenario, "Saved screening");
   const rationale = customerFacingText(report.executiveMemo, "Saved screening result requires validation.");
   const posture = shortDecisionPosture(customerFacingText(report.decisionPosture, "Review required"));
@@ -893,7 +901,7 @@ type ComparisonReportDecisionInput = {
 };
 
 export function buildComparisonDecisionResult(report: ComparisonReportDecisionInput): DecisionResultContract {
-  const winnerLabel = customerFacingText(report.winnerLabel, "Leading screening option");
+  const winnerLabel = identityText(report.winnerLabel, "Leading screening option");
   const winner = report.comparison?.winner;
   const winnerItem = report.comparedItems.find((item) => item.name === report.winnerLabel) ?? report.comparedItems[0];
   const point = winner?.item.point ?? winnerItem?.coordinates ?? null;
@@ -937,7 +945,7 @@ export function buildComparisonDecisionResult(report: ComparisonReportDecisionIn
 
   return freezeDecisionResult({
     resultId: report.id,
-    decisionQuestion: `Compare ${customerFacingText(report.targetLabel, "selected alternatives")} for ${customerFacingText(report.scenario, "the selected scenario").toLowerCase()}.`,
+    decisionQuestion: `Compare ${identityText(report.targetLabel, "selected alternatives")} for ${customerFacingText(report.scenario, "the selected scenario").toLowerCase()}.`,
     target: {
       id: winner?.item.id ?? report.id,
       label: winnerLabel,

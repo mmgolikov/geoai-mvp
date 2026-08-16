@@ -67,7 +67,7 @@ export function SourceLineagePrintSection({ lineage }: { lineage: SourceLineageS
   };
   const groups = [
     {
-      title: "External data used",
+      title: "Runtime-observed external context",
       items: externalSources.map((source) => ({
         name: sourceName(source.name),
         meta: [sourceStatus(source.status), source.dataMode?.replace(/_/g, " "), sourceStatus(source.confidence)].filter(Boolean).join(" / "),
@@ -124,7 +124,7 @@ export function SourceLineagePrintSection({ lineage }: { lineage: SourceLineageS
                 </div>
               ))
             ) : (
-              <p className="geoai-print-muted">No source in this group was used in the saved report payload.</p>
+              <p className="geoai-print-muted">No source in this group is recorded in the saved report payload.</p>
             )}
           </div>
         ))}

@@ -66,7 +66,7 @@ async function expectElementUnobstructed(locator: Locator, label: string) {
 }
 
 function expectedCockpitAsset() {
-  return "/design/gcc-decision-cockpit-v1.png";
+  return "/design/gcc-decision-cockpit-v1.webp";
 }
 
 async function newPage(browser: Browser, viewport: { width: number; height: number }) {

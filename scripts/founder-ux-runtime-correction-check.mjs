@@ -32,14 +32,14 @@ requireCondition(
   "Landing must use IdentitySymbol and must not use the approximate BrandMark or LandingHeroMap."
 );
 
-for (const asset of ["public/design/gcc-decision-cockpit-v1.png"]) {
+for (const asset of ["public/design/gcc-decision-cockpit-v1.webp"]) {
   const stat = await fs.stat(path.join(root, asset));
   requireCondition(stat.size > 150000, `${asset} must be a repository-owned Figma cockpit export.`);
 }
 
 requireCondition(
   landing.includes('data-figma-node="1957:12"') &&
-    landing.includes("/design/gcc-decision-cockpit-v1.png"),
+    landing.includes("/design/gcc-decision-cockpit-v1.webp"),
   "Landing cockpit must trace to candidate Figma node 1957:12 and use the repository-owned GCC decision export."
 );
 requireCondition(

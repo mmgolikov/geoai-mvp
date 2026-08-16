@@ -31,12 +31,6 @@ export function createSourceLineageSnapshot(input: SnapshotInput = {}): SourceLi
   const evidence = input.evidence ?? [];
   const uploadedDatasets = input.uploadedDatasets ?? [];
   const runtimeObservations = input.runtimeObservations ?? [];
-  const evidenceSourceIds = new Set(
-    evidence
-      .map((item) => item.sourceId)
-      .filter((sourceId): sourceId is string => Boolean(sourceId))
-      .map(resolveExternalDataSourceId)
-  );
   const runtimeBySourceId = new Map(
     runtimeObservations.map((item) => [resolveExternalDataSourceId(item.sourceId), item])
   );
@@ -58,7 +52,7 @@ export function createSourceLineageSnapshot(input: SnapshotInput = {}): SourceLi
       note: dataset.notes ?? "Uploaded local dataset metadata; official validation required."
     })),
     externalSources: externalDataSources
-      .filter((source) => evidenceSourceIds.has(source.id) || runtimeBySourceId.has(source.id))
+      .filter((source) => runtimeBySourceId.has(source.id))
       .map((source) => {
         const observation = runtimeBySourceId.get(source.id);
         return {

@@ -8,7 +8,8 @@ const files = {
   dashboard: "components/express-dashboard.tsx",
   analysisReport: "components/reports/analysis-report-print.tsx",
   comparisonReport: "components/reports/comparison-report-print.tsx",
-  reportPrimitives: "components/reports/report-print-primitives.tsx"
+  reportPrimitives: "components/reports/report-print-primitives.tsx",
+  lineage: "src/lib/source-lineage-snapshot.ts"
 };
 
 const source = Object.fromEntries(
@@ -36,6 +37,28 @@ assert(source.model.includes("Object.freeze({"), "Decision-result contract must 
 assert(source.model.includes('const ILLUSTRATIVE_LOCAL_CONTEXT = "Illustrative local screening context";'), "Illustrative provenance label is missing");
 assert(!source.model.includes('value: "Local context"'), "Dashboard evidence KPI must not hide illustrative or imported provenance behind Local context");
 assert(source.model.includes('value: hasOpenContext && hasIllustrativeContext'), "Dashboard evidence KPI must distinguish mixed open and illustrative provenance");
+assert(source.model.includes("function identityText("), "Decision contract must preserve asset and AOI identities without narrative rewrites");
+assert(
+  /const targetLabel = identityText\([\s\S]*?analysis\.selectedAoi\?\.name[\s\S]*?"Map selection"/.test(source.model),
+  "Runtime target identity must use structural sanitization instead of customer-facing narrative rewrites"
+);
+assert(
+  /query && \(query\.endsWith\("\?"\) \|\| looksLikeDecisionPrompt\)[\s\S]*?identityText\(query/.test(source.model),
+  "User-entered decision questions must retain their wording"
+);
+assert(!/const targetLabel = customerFacingText\(\s*analysis\.selectedAoi\?\.name/.test(source.model), "Runtime target identity must not be rewritten as marketing copy");
+assert(
+  /const items = uniqueText\(names\.map\(\(name\) => identityText\(name, ""\)\)\)/.test(source.model),
+  "Uploaded and lineage source identities must use structural sanitization"
+);
+assert(
+  source.model.includes('`User-provided context: ${identityText(item.label, "User-provided source")}`'),
+  "User-provided evidence names must retain their identity"
+);
+assert(
+  !/sourceBasisFromNames[\s\S]*?names\.map\(\(name\) => customerFacingText\(name\)\)/.test(source.model),
+  "Source identity lists must not use narrative term replacement"
+);
 
 const provenanceReplacementLines = source.model
   .split("\n")
@@ -90,6 +113,16 @@ assert(source.reportPrimitives.includes("function SourceLineagePrintSection"), "
 assert(source.reportPrimitives.includes('/(?:synthetic|demo|mock|fixture)/i'), "Printable source-lineage names are not sanitized");
 assert(source.reportPrimitives.includes('"Illustrative local screening context"'), "Printable source-lineage fallback label is missing");
 assert(source.reportPrimitives.includes('return "local snapshot"'), "Printable fallback status is not presented as a bounded local snapshot");
+assert(
+  source.lineage.includes(".filter((source) => runtimeBySourceId.has(source.id))"),
+  "External lineage must be derived only from runtime-observed sources"
+);
+assert(!source.lineage.includes("evidenceSourceIds"), "Evidence references must not be classified as runtime-observed external data");
+assert(
+  source.reportPrimitives.includes('title: "Runtime-observed external context"'),
+  "Printable lineage must distinguish runtime-observed external context"
+);
+assert(!source.reportPrimitives.includes('title: "External data used"'), "Printable lineage must not overstate evidence references as external data used");
 
 const requiredReportReads = [
   "decisionResult.target",

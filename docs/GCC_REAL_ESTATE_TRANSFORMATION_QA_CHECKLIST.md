@@ -67,6 +67,10 @@ Successor: Final exact-head release receipt or a later owner-approved checklist
 - [x] No Preview or Production database write is performed without exact-target, rights, migration, RLS and rollback gates.
 - [x] Source provenance contains source ID/name, file/object identity, rights, attribution, hash, size, counts, timestamps, CRS/bounds where applicable, validation, caveat and next step.
 - [x] Missing custody, rights or integrity evidence fails closed.
+- [x] Local or imported screening metrics cannot change decision scores until the source release gate explicitly permits decision use.
+- [x] Legacy persisted analyses are normalized before restore and cannot bypass the current source-release gate.
+- [x] Matched or available source context is distinguished from context actually used in scoring across comparison, preview and printable reports.
+- [x] Evidence references alone are not presented as runtime-observed external data use.
 - [x] API responses expose consistent source groups, readiness, manifest, lineage, blockers, next actions, caveat and generatedAt.
 - [x] Remote ingestion rejects non-HTTPS, unapproved hosts, redirects, oversized payloads and unsupported content.
 
@@ -79,6 +83,13 @@ Successor: Final exact-head release receipt or a later owner-approved checklist
 - [x] Dependency audit reports zero accepted production vulnerabilities.
 - [x] Map unmount/remount regression produces zero console errors.
 
+## Figma candidate evidence
+
+- [x] Candidate page `1956:11` and authority board `1956:12` remain explicitly `CANDIDATE`.
+- [x] Landing, Workspace, Decision Intelligence, Project Hub and Reports retain exact node mappings.
+- [x] Loading `1961:1060`, empty `1961:1177`, error `1961:1294` and partial-evidence `1957:24727` states are independently reviewable.
+- [x] System-state export and machine-readable SHA-256 receipt are committed under `docs/evidence/figma-gcc-real-estate-v1/`.
+
 ## Automated validation
 
 - [x] `npm audit --omit=dev`
@@ -89,6 +100,7 @@ Successor: Final exact-head release receipt or a later owner-approved checklist
 - [x] `npm run test:documentation-current-truth`
 - [x] `npm run test:document-lifecycle`
 - [x] scenario, result-parity, provenance, map-lifecycle, Workspace and Project Hub checks
+- [x] legacy-analysis hydration, source-use truth and browser-release evidence contracts
 - [x] normalized data validation and source-readiness dry-run
 - [ ] permanent GeoAI Quality Gate on exact final clean head
 
@@ -117,6 +129,8 @@ Routes and flows:
 - [x] zero horizontal overflow and obscured controls
 - [x] Axe serious/critical findings = 0
 - [x] accepted-route browser console errors = 0
+- [x] permanent browser suite records 38 passed, zero failures/skips/errors and retries disabled
+- [x] responsive evidence records 25 screenshots, five required viewports and zero horizontal overflow/unexpected console or page errors
 
 ## Independent critical review
 

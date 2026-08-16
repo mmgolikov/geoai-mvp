@@ -96,6 +96,12 @@ import {
 import type { GeoAIProject } from "@/src/lib/db/types";
 import { upsertBrowserProjectArtifact } from "@/src/lib/browser-project-artifacts";
 import { readBrowserComparisonRecord, writeBrowserComparisonRecord } from "@/src/lib/comparison-restore";
+import {
+  legacyAnalysisReanalysisNotice,
+  legacyAnalysisReanalysisPosture,
+  normalizeRestoredAnalysisHistoryItem,
+  normalizeRestoredExpressAnalysis
+} from "@/src/lib/analysis-restore-normalization";
 import type {
   AnalysisScenarioId,
   AnalysisHistoryItem,
@@ -492,8 +498,12 @@ function readAnalysisHistory() {
       return [];
     }
 
-    const parsed = JSON.parse(storedHistory) as AnalysisHistoryItem[];
-    return Array.isArray(parsed) ? parsed : [];
+    const parsed = JSON.parse(storedHistory) as unknown;
+    if (!Array.isArray(parsed)) return [];
+
+    return parsed
+      .map((item) => normalizeRestoredAnalysisHistoryItem(item)?.item ?? null)
+      .filter((item): item is AnalysisHistoryItem => item !== null);
   } catch {
     return [];
   }
@@ -594,8 +604,19 @@ function readOpenAnalysisRequest() {
   try {
     const raw = window.localStorage.getItem(openAnalysisRequestStorageKey);
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as OpenAnalysisRequest;
-    return parsed && typeof parsed === "object" ? parsed : null;
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+
+    const request = parsed as OpenAnalysisRequest;
+    const normalized = request.analysis
+      ? normalizeRestoredExpressAnalysis(request.analysis)
+      : null;
+    if (request.analysis && !normalized) return null;
+
+    return {
+      ...request,
+      analysis: normalized?.analysis
+    };
   } catch {
     return null;
   }
@@ -753,10 +774,11 @@ function historyItemFromPersistedRun(value: unknown): AnalysisHistoryItem | null
     return null;
   }
 
-  const analysis = value.result_json ?? value.result_payload;
-  if (!analysis?.id || !analysis.point || !analysis.scenarioId) {
+  const normalized = normalizeRestoredExpressAnalysis(value.result_json ?? value.result_payload);
+  if (!normalized) {
     return null;
   }
+  const analysis = normalized.analysis;
 
   const scenario = analysisScenarios.find((item) => item.id === analysis.scenarioId);
   const project = getDemoProject(value.project_key);
@@ -775,7 +797,9 @@ function historyItemFromPersistedRun(value: unknown): AnalysisHistoryItem | null
     source: "DB",
     project,
     projectKey: value.project_key ?? project.projectKey,
-    recommendation: value.decision_posture ?? deriveDecisionPosture(analysis),
+    recommendation: normalized.requiresReanalysis
+      ? legacyAnalysisReanalysisPosture
+      : value.decision_posture ?? deriveDecisionPosture(analysis),
     analysis: {
       ...analysis,
       project
@@ -2375,14 +2399,19 @@ export function WorkspaceShell({
       setAnalysisError("The requested analysis belongs to another project and was not restored.");
       return;
     }
-    const restoredCustomQuery = normalizeQuery(item.analysis.customQuery ?? "");
-    const restoredProject = item.project ?? item.analysis.project ?? getDemoProject(item.projectKey);
+    const normalized = normalizeRestoredExpressAnalysis(item.analysis);
+    if (!normalized) {
+      setAnalysisError("The requested analysis payload is incomplete and was not restored.");
+      return;
+    }
+    const restoredCustomQuery = normalizeQuery(normalized.analysis.customQuery ?? "");
+    const restoredProject = item.project ?? normalized.analysis.project ?? getDemoProject(item.projectKey);
     if (!restoredProject || restoredProject.projectKey !== expectedProjectKey) {
       setAnalysisError(`Project '${item.projectKey ?? "unknown"}' is unavailable; the analysis was not restored into another project.`);
       return;
     }
     const restoredAnalysis = {
-      ...item.analysis,
+      ...normalized.analysis,
       project: restoredProject
     };
 
@@ -2406,18 +2435,20 @@ export function WorkspaceShell({
     setExploreFilters(nextExploreFilters);
     setSelectedExploreCandidateId(null);
     setCustomQuery(restoredCustomQuery);
-    setAnalysis(restoredAnalysis);
-    setLastAnalyzedState({
-      query: restoredCustomQuery,
-      scenarioId: restoredAnalysis.scenarioId,
-      targetSignature: createTargetSignature(restoredAnalysis.point, restoredAnalysis.selectedObject ?? null, restoredAnalysis.selectedAoi ?? null),
-      settingsSignature: createExploreSettingsSignature({
-        audience: nextExploreAudience,
-        role: nextExploreRole,
-        interactionMode: nextExploreScenario.defaultInteractionMode,
-        filters: nextExploreFilters
-      })
-    });
+    setAnalysis(normalized.requiresReanalysis ? null : restoredAnalysis);
+    setLastAnalyzedState(normalized.requiresReanalysis
+      ? null
+      : {
+          query: restoredCustomQuery,
+          scenarioId: restoredAnalysis.scenarioId,
+          targetSignature: createTargetSignature(restoredAnalysis.point, restoredAnalysis.selectedObject ?? null, restoredAnalysis.selectedAoi ?? null),
+          settingsSignature: createExploreSettingsSignature({
+            audience: nextExploreAudience,
+            role: nextExploreRole,
+            interactionMode: nextExploreScenario.defaultInteractionMode,
+            filters: nextExploreFilters
+          })
+        });
     if (restoredProject) {
       setActiveProject(restoredProject);
       writeActiveProjectKey(restoredProject.projectKey);
@@ -2426,7 +2457,7 @@ export function WorkspaceShell({
     setLastComparedState(null);
     setReportPreview(null);
     setComparisonMessage(null);
-    setAnalysisError(null);
+    setAnalysisError(normalized.requiresReanalysis ? legacyAnalysisReanalysisNotice : null);
     setIsAnalyzing(false);
     setMarketContext(restoredAnalysis.marketContext ?? null);
   }
@@ -2719,7 +2750,13 @@ export function WorkspaceShell({
       : selectedPoint
         ? `${selectedPoint.latitude.toFixed(5)}, ${selectedPoint.longitude.toFixed(5)}`
         : "Tap a map point, object, AOI, or candidate.";
-  const canRunMobileMapAnalysis = Boolean(selectedPoint) && !isAnalyzing;
+  const isMobileCustomQueryBlocked = selectedScenario === "customQuery" && customQuery.trim().length === 0;
+  const canRunMobileMapAnalysis = Boolean(selectedPoint) && !isAnalyzing && !isMobileCustomQueryBlocked;
+  const mobileMapActionGuidance = isMobileCustomQueryBlocked
+    ? "Enter a Custom Query question in the workflow before running analysis. Back to workflow keeps your map selection."
+    : selectedPoint
+      ? "Selection ready. Run analysis now or return to the workflow to review settings."
+      : "Tap the map, or focus it and press Enter or Space, to select a point before running analysis.";
   const hasResultSurface = Boolean(reportPreview || comparison || analysis);
 
   return (
@@ -2887,6 +2924,7 @@ export function WorkspaceShell({
           aria-modal="true"
           aria-labelledby="mobile-map-picker-title"
           aria-describedby="mobile-map-picker-description"
+          data-custom-query-map-guard={isMobileCustomQueryBlocked ? "blocked" : undefined}
           tabIndex={-1}
           className="fixed inset-0 z-50 flex flex-col bg-white min-[1367px]:hidden"
         >
@@ -2929,15 +2967,14 @@ export function WorkspaceShell({
             />
           </div>
           <div className="relative z-20 shrink-0 border-t border-line bg-white px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3">
-            <p className="text-xs leading-5 text-muted" aria-live="polite">
-              {selectedPoint
-                ? "Selection ready. Run analysis now or return to the workflow to review settings."
-                : "Tap the map, or focus it and press Enter or Space, to select a point before running analysis."}
+            <p id="mobile-map-action-guidance" className="text-xs leading-5 text-muted" aria-live="polite">
+              {mobileMapActionGuidance}
             </p>
             <div className="mt-2 flex flex-col gap-2 sm:flex-row">
               <button
                 type="button"
                 disabled={!canRunMobileMapAnalysis}
+                aria-describedby="mobile-map-action-guidance"
                 onClick={() => {
                   void runExpressAnalysis({ forceSelectedTarget: true });
                 }}

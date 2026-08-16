@@ -4,6 +4,11 @@ import {
   listImportedMarketMetrics,
   normalizeAreaName
 } from "@/src/lib/market-metrics/loader";
+import {
+  MARKET_METRICS_FALLBACK_RELEASE_GATE,
+  MARKET_METRICS_SAMPLE_RELEASE_GATE,
+  isMarketMetricsDecisionUseAllowed
+} from "@/src/lib/market-metrics/release-gate";
 import type {
   MarketMetricSelectionContext,
   MarketMetricsMatch
@@ -53,14 +58,16 @@ function candidateText(context: MarketMetricSelectionContext) {
 }
 
 function metricMatch(metricAreaName: string, matchType: MarketMetricsMatch["matchType"], confidence: MarketMetricsMatch["confidence"], note: string): MarketMetricsMatch {
+  const releaseGate = MARKET_METRICS_SAMPLE_RELEASE_GATE;
   return {
     matchedAreaName: metricAreaName,
     matchType,
     confidence,
     sourceMode: "imported_sample",
-    importedMetricsUsed: true,
+    importedMetricsUsed: isMarketMetricsDecisionUseAllowed(releaseGate),
+    releaseGate,
     metrics: getMarketMetricsByArea(metricAreaName),
-    note
+    note: `${note} Available as screening context; the current release gate blocks decision scoring.`
   };
 }
 
@@ -73,6 +80,7 @@ function fallbackMatch(context: MarketMetricSelectionContext): MarketMetricsMatc
       confidence: "medium",
       sourceMode: "seed_static",
       importedMetricsUsed: false,
+      releaseGate: MARKET_METRICS_FALLBACK_RELEASE_GATE,
       metrics: null,
       note: "Illustrative local metrics are used because no imported market metrics matched this selection."
     };
@@ -84,6 +92,7 @@ function fallbackMatch(context: MarketMetricSelectionContext): MarketMetricsMatc
     confidence: "low",
     sourceMode: "fallback_demo",
     importedMetricsUsed: false,
+    releaseGate: MARKET_METRICS_FALLBACK_RELEASE_GATE,
     metrics: null,
     note: "No imported market metrics were matched to this selection; general Dubai fallback context is used."
   };

@@ -32,12 +32,73 @@ const {
   assertSourceReleaseProvenance,
   validateSourceReleaseProvenance
 } = await loadTypeScriptModule("../src/lib/external-data/source-provenance-invariants.ts");
+const {
+  MARKET_METRICS_SAMPLE_RELEASE_GATE,
+  isMarketMetricsDecisionUseAllowed
+} = await loadTypeScriptModule("../src/lib/market-metrics/release-gate.ts");
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
 const hash = (character) => character.repeat(64);
+
+assert(
+  MARKET_METRICS_SAMPLE_RELEASE_GATE.screeningContextAvailable === true,
+  "Imported sample metrics must remain available as labelled screening context"
+);
+assert(
+  MARKET_METRICS_SAMPLE_RELEASE_GATE.decisionUse === "blocked",
+  "Imported sample metrics must fail closed for decision use"
+);
+assert(
+  !isMarketMetricsDecisionUseAllowed(MARKET_METRICS_SAMPLE_RELEASE_GATE),
+  "The current imported sample release gate must not permit scoring"
+);
+assert(
+  isMarketMetricsDecisionUseAllowed({
+    structurallyValid: true,
+    screeningContextAvailable: true,
+    decisionUse: "allowed",
+    blockers: []
+  }),
+  "A future explicit, blocker-free release gate should permit scoring"
+);
+assert(
+  !isMarketMetricsDecisionUseAllowed({
+    structurallyValid: true,
+    screeningContextAvailable: true,
+    decisionUse: "allowed",
+    blockers: ["Unresolved release evidence"]
+  }),
+  "A nominally allowed release with blockers must still fail closed"
+);
+assert(
+  !isMarketMetricsDecisionUseAllowed({
+    structurallyValid: false,
+    screeningContextAvailable: true,
+    decisionUse: "allowed",
+    blockers: []
+  }),
+  "A structurally invalid release must fail closed even when marked allowed"
+);
+
+const [marketMetricTypesSource, marketMetricMatcherSource, marketMetricScoringSource] = await Promise.all([
+  readFile(new URL("../src/lib/market-metrics/types.ts", import.meta.url), "utf8"),
+  readFile(new URL("../src/lib/market-metrics/matcher.ts", import.meta.url), "utf8"),
+  readFile(new URL("../src/lib/market-metrics/scoring.ts", import.meta.url), "utf8")
+]);
+
+assert(marketMetricTypesSource.includes("releaseGate: MarketMetricsReleaseGate"), "Market metric matches must carry their release gate");
+assert(!marketMetricMatcherSource.includes("importedMetricsUsed: true"), "Matcher must not hard-code imported sample metrics as used");
+assert(
+  marketMetricMatcherSource.includes("importedMetricsUsed: isMarketMetricsDecisionUseAllowed(releaseGate)"),
+  "Matcher must derive decision use from the explicit release gate"
+);
+assert(
+  /scoreSignalsFromMarketMetrics[\s\S]*?!isMarketMetricsDecisionUseAllowed\(match\.releaseGate\)/.test(marketMetricScoringSource),
+  "Market metric score signals must fail closed unless the attached release gate allows decision use"
+);
 
 function fixture() {
   const confidenceInput = {
