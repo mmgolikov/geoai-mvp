@@ -187,7 +187,7 @@ async function captureSurface(
         };
       })
     : undefined;
-  if (workspaceLayout && viewport.width <= 430) {
+  if (workspaceLayout && viewport.width <= 834) {
     expect(workspaceLayout.customQueryFullyInViewport, `${viewport.name} Custom Query must be fully visible`).toBe(true);
     expect(workspaceLayout.customQueryFooterIntersectionPx, `${viewport.name} Custom Query/footer intersection`).toBe(0);
     expect(workspaceLayout.primaryActionInViewport, `${viewport.name} primary action must remain visible`).toBe(true);
