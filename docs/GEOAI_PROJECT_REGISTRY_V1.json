@@ -1,0 +1,151 @@
+{
+  "schema_version": "1.0.0",
+  "registry_version": "2026-08-17-weekly-governance-refresh",
+  "verified_at": "2026-08-17T04:17:00Z",
+  "purpose": "Derived machine-readable authority index. Fresh primary-source evidence overrides this registry; unavailable physical read-back remains unresolved.",
+  "data_honesty": {
+    "official_validation_required": true,
+    "mandatory_statement": "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
+  },
+  "environments": {
+    "production": {
+      "classification": "released_public_demo",
+      "github": {
+        "repository": "mmgolikov/geoai-mvp",
+        "default_branch": "main",
+        "merged_pull_request": 113,
+        "commit_sha": "7f323c4227f2409f3fe2d4d68be48a30176f4e2a"
+      },
+      "vercel": {
+        "team_slug": "geoaidev",
+        "project_name": "geoai-mvp",
+        "alias": "geoai-mvp.vercel.app",
+        "deployment_id": "dpl_4yBHCo1eZ7N6GYQWGAg1EdQGwFTE",
+        "deployment_state": "READY",
+        "target": "production",
+        "runtime_errors_last_7d": 0
+      },
+      "protected_pilot_ready": false,
+      "enterprise_ready": false
+    },
+    "supabase_development": {
+      "project_name": "geoai-dev",
+      "project_ref": "pphdqkurxneyagvnnjdt",
+      "status": "INACTIVE",
+      "postgres_version": "17.6.1.141",
+      "fresh_physical_readback_succeeded": false,
+      "physical_counts_authority": "unresolved_pending_fresh_readback"
+    },
+    "supabase_auth_rehearsal": {
+      "project_name": "geoai-auth-rehearsal",
+      "project_ref": "bkmfcjzalcvdsdvyxpgi",
+      "status": "ACTIVE_HEALTHY",
+      "postgres_version": "17.6.1.147",
+      "fresh_physical_readback_succeeded": false,
+      "physical_counts_authority": "unresolved_pending_fresh_readback"
+    }
+  },
+  "active_candidates": [
+    {
+      "name": "GCC Real Estate Decision Platform v1",
+      "classification": "preview_candidate_not_production",
+      "pull_request": 143,
+      "branch": "product/gcc-real-estate-decision-platform-v1",
+      "verified_head_sha": "e3932d2e41e81fce23bbf3f244e0d70f35e5c5f9",
+      "quality_gate_conclusion": "success",
+      "preview_deployment_id": "dpl_83h85HSTCeRxRxjSmMxUQDGhzGWX",
+      "preview_state": "READY",
+      "enabled_screening_market": "UAE",
+      "other_market_state": "KSA_Qatar_Oman_metadata_readiness_only",
+      "released": false
+    },
+    {
+      "name": "GeoAI Control Plane and Audit Acceleration v1",
+      "classification": "documentation_candidate_not_production",
+      "pull_request": 120,
+      "branch": "ops/geoai-control-plane-v1",
+      "verified_head_sha": "5d2b330976198a815f27f72ef9047dd730b7b8d0",
+      "control_plane_run_id": 31359774451,
+      "control_plane_conclusion": "success",
+      "quality_gate_run_id": 31359774457,
+      "quality_gate_conclusion": "failure",
+      "status": "draft_hold",
+      "released": false
+    },
+    {
+      "name": "DLD controlled ingestion foundation v1",
+      "classification": "preview_candidate_not_production",
+      "pull_request": 118,
+      "verified_head_sha": "3c27d97a87b1d8fda7c1aeee543ea594dbfcd00d",
+      "pr_narrative_head_drift": true,
+      "rights_and_custody_resolved": false,
+      "released": false
+    },
+    {
+      "name": "Architecture rendering package",
+      "classification": "artifact_review_candidate_not_production",
+      "pull_request": 84,
+      "verified_head_sha": "ace74cd1e0ab4736e8560c730267a43d43134aa7",
+      "published_to_governed_drive_artifacts_folder": false,
+      "released": false
+    }
+  ],
+  "design_authority": {
+    "provider": "Figma",
+    "file_key": "TAzDqOvRCw1mQGMU3Y4S9H",
+    "visual_baseline_node": "1797:2",
+    "candidate_node": "1956:11",
+    "required_control_plane_nodes": ["1797:2", "1482:2", "1749:21157", "1819:11", "1825:11"],
+    "affected_component_node": "1495:53",
+    "runtime_implementation_proven_by_figma": false,
+    "candidate_numeric_source_readiness_claims_verified": false
+  },
+  "confluence_authority": {
+    "cloud_id": "8671019f-f899-4452-a153-9c96cc5eec31",
+    "space_id": "98311",
+    "pages": {
+      "project_home": "98509",
+      "current_delivery_state": "2097153",
+      "governance": "294937",
+      "agent_operating_mode": "786457",
+      "change_log": "98732",
+      "artifact_registry": "1343521",
+      "control_plane_change_request": "22052867",
+      "weekly_audit_2026_08_17": "25722881"
+    }
+  },
+  "google_drive": {
+    "classification": "supporting_noncanonical_artifact_storage",
+    "folder_id": "1WarJNNQN7kRS3m73bpsHHXOx2pE-9_hO",
+    "direct_files": 3,
+    "direct_child_folders": 2,
+    "artifacts_folder_id": "1Gfglggg6NgJyGEdo7hFZsSDuT-a2OJ3Z",
+    "artifacts_folder_direct_files": 0,
+    "decision_authority": false
+  },
+  "internal_validation": {
+    "control_plane_exact_head": "5d2b330976198a815f27f72ef9047dd730b7b8d0",
+    "latest_control_plane_run_id": 31359774451,
+    "latest_control_plane_conclusion": "success",
+    "queries_live_external_systems": false,
+    "proves_external_truth": false,
+    "automatic_merge_recommendation": false
+  },
+  "external_truth_gate": {
+    "status": "not_satisfied_supabase_physical_evidence_incomplete",
+    "required_systems": ["github", "vercel", "supabase", "figma", "confluence", "google_drive"],
+    "fresh_direct_readback_required": true,
+    "green_internal_check_satisfies_gate": false
+  },
+  "protected_actions": {
+    "merge": false,
+    "production_deploy": false,
+    "supabase_migration": false,
+    "supabase_data_mutation": false,
+    "auth_hard_enforcement": false,
+    "grants_policies_functions_storage_mutation": false,
+    "secrets_or_environment_variables": false,
+    "source_activation": false,
+    "figma_mutation": false
+  }
+}

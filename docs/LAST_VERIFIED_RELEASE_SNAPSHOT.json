@@ -1,65 +1,114 @@
 {
   "schemaVersion": "1.0",
   "authorityType": "historical_last_verified_snapshot",
-  "snapshotLabel": "historical_last_verified_snapshot",
-  "verifiedAt": "2026-07-21T14:45:00Z",
+  "snapshotLabel": "weekly_verified_snapshot_2026_08_17",
+  "verifiedAt": "2026-08-17T04:17:00Z",
   "supersededWhenNewerReleaseExists": true,
   "currentOperationalAuthority": false,
-  "repositoryCiQueriedLiveGithub": false,
-  "repositoryCiQueriedLiveVercel": false,
+  "verificationPerformedExternally": true,
+  "verificationPhase": "weekly_cross_system_primary_source_audit",
   "releaseType": "production_public_demo",
   "productStage": "public_demo_prototype",
-  "mergedPullRequest": 106,
-  "mainSha": "cc8f9ebcf3989fab4a3c4eac9be9dfb8da786a7b",
-  "productionDeploymentId": "dpl_6RC2ohEdLBjiV82k758tFMkaDB9X",
+  "mergedPullRequest": 113,
+  "mainSha": "7f323c4227f2409f3fe2d4d68be48a30176f4e2a",
+  "productionDeploymentId": "dpl_4yBHCo1eZ7N6GYQWGAg1EdQGwFTE",
   "productionUrl": "https://geoai-mvp.vercel.app",
-  "rollbackDeploymentId": "dpl_ERVqZPD5GAGDLjAVhMcPF2HT5Br7",
-  "githubEvidence": {
-    "postMergeQualityGateRunId": 29835520415,
-    "staticApiDataHonestyJobId": 88650735580,
-    "databaseReplayJobId": 88650735754,
-    "qualityArtifactId": 8497283837,
-    "qualityArtifactName": "geoai-quality-evidence-29835520415",
-    "qualityArtifactDigest": "sha256:858bb64b06d76ed222966fc715c8432112a8ac74915bfd281250666e48359653",
-    "databaseArtifactId": 8497226028,
-    "databaseArtifactName": "geoai-database-evidence-29835520415",
-    "databaseArtifactDigest": "sha256:dcd9958e72421fca60fb62adca2a001020e40b34fe2f8b38737061300e85898a"
-  },
-  "vercelEvidence": {
-    "productionAlias": "https://geoai-mvp.vercel.app",
-    "deploymentUrl": "https://geoai-15h7r8l4k-geoaidev.vercel.app",
-    "target": "production",
-    "status": "READY",
-    "inspectedAt": "2026-07-21T14:45:00Z"
-  },
+  "productionStatus": "READY",
+  "runtimeErrorsLast7d": 0,
   "publicDemoActive": true,
   "confidentialPilotReady": false,
+  "enterpriseReady": false,
   "protectedStorageActive": false,
   "realSourcesActive": false,
+  "officialSourceIntegrationActive": false,
+  "activeCandidatesNotProduction": [
+    {
+      "name": "GCC Real Estate Decision Platform v1",
+      "pullRequest": 143,
+      "branch": "product/gcc-real-estate-decision-platform-v1",
+      "headSha": "e3932d2e41e81fce23bbf3f244e0d70f35e5c5f9",
+      "qualityGateConclusion": "success",
+      "previewDeploymentId": "dpl_83h85HSTCeRxRxjSmMxUQDGhzGWX",
+      "previewState": "READY",
+      "released": false
+    },
+    {
+      "name": "GeoAI Control Plane and Audit Acceleration v1",
+      "pullRequest": 120,
+      "branch": "ops/geoai-control-plane-v1",
+      "headSha": "5d2b330976198a815f27f72ef9047dd730b7b8d0",
+      "controlPlaneRunId": 31359774451,
+      "controlPlaneConclusion": "success",
+      "qualityGateRunId": 31359774457,
+      "qualityGateConclusion": "failure",
+      "released": false
+    },
+    {
+      "name": "DLD controlled ingestion foundation v1",
+      "pullRequest": 118,
+      "headSha": "3c27d97a87b1d8fda7c1aeee543ea594dbfcd00d",
+      "prNarrativeDrift": true,
+      "rightsAndCustodyResolved": false,
+      "released": false
+    },
+    {
+      "name": "Architecture rendering package",
+      "pullRequest": 84,
+      "headSha": "ace74cd1e0ab4736e8560c730267a43d43134aa7",
+      "governedDrivePublication": false,
+      "released": false
+    }
+  ],
   "hostedSupabaseState": {
     "development": {
       "projectRef": "pphdqkurxneyagvnnjdt",
-      "migrationLedgerEntries": 10,
-      "confirmedAuthUsers": 0,
-      "authority": "read_only_hosted_count"
+      "status": "INACTIVE",
+      "postgresVersion": "17.6.1.141",
+      "freshPhysicalReadbackSucceeded": false,
+      "physicalCountsAuthority": "unresolved_pending_fresh_readback"
     },
     "authRehearsal": {
       "projectRef": "bkmfcjzalcvdsdvyxpgi",
-      "migrationLedgerEntries": 18,
-      "confirmedAuthUsers": 1,
-      "preExistingConfirmedAuthUsers": 1,
-      "usersCreatedByCurrentChange": 0,
-      "pgtapTransactionsCreateResidualUsers": false,
-      "preExistingUserHasProjectMembershipAuthority": false,
-      "preExistingUserHasTenantAuthority": false,
-      "preExistingUserHasProtectedResourceAuthority": false,
-      "realUserBrowserPersonaExecutedByCurrentChange": false,
-      "authority": "read_only_hosted_count_without_identifying_user_data"
+      "status": "ACTIVE_HEALTHY",
+      "postgresVersion": "17.6.1.147",
+      "freshPhysicalReadbackSucceeded": false,
+      "physicalCountsAuthority": "unresolved_pending_fresh_readback"
     }
+  },
+  "designAuthority": {
+    "fileKey": "TAzDqOvRCw1mQGMU3Y4S9H",
+    "visualBaselineNode": "1797:2",
+    "candidateNode": "1956:11",
+    "runtimeImplementationProvenByFigma": false,
+    "candidateNumericSourceReadinessClaimsVerified": false
+  },
+  "driveAuthority": {
+    "folderId": "1WarJNNQN7kRS3m73bpsHHXOx2pE-9_hO",
+    "directFiles": 3,
+    "directChildFolders": 2,
+    "artifactsFolderId": "1Gfglggg6NgJyGEdo7hFZsSDuT-a2OJ3Z",
+    "artifactsFolderDirectFiles": 0,
+    "decisionAuthority": false
+  },
+  "internalControlPlaneValidation": {
+    "scope": "repository schema, boundary and cross-file consistency only",
+    "queriesLiveExternalSystems": false,
+    "provesExternalTruth": false,
+    "automaticMergeRecommendation": false,
+    "exactHead": "5d2b330976198a815f27f72ef9047dd730b7b8d0",
+    "runId": 31359774451,
+    "conclusion": "success",
+    "qualityGateRunId": 31359774457,
+    "qualityGateConclusion": "failure"
+  },
+  "externalTruthGate": {
+    "status": "not_satisfied_supabase_physical_evidence_incomplete",
+    "requiredSystems": ["github", "vercel", "supabase", "figma", "confluence", "google_drive"],
+    "satisfiedByGreenInternalCheck": false
   },
   "caveats": [
     "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.",
-    "Public demo only; protected data, confidential pilot, real sources and protected Storage remain blocked.",
-    "Historical snapshot only. Query external GitHub, Vercel and Project Hub post-release evidence for current operational runtime authority."
+    "Public demo only; protected pilot, enterprise readiness, protected Storage, real sources and official integration remain unproven.",
+    "This is a historical derived snapshot. Query primary systems and current Confluence pages for current operational truth."
   ]
 }
