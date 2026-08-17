@@ -5,10 +5,14 @@ import ts from "typescript";
 
 const root = new URL("../", import.meta.url);
 const deliverablePath = "src/lib/report-deliverables.ts";
+const attributionPath = "src/lib/spatial-b2/attribution.ts";
+const mapSnapshotPath = "src/lib/report-map-snapshot.ts";
 const serverPagePath = "app/reports/[id]/print/page.tsx";
 const browserFallbackPath = "components/reports/print-report-fallback.tsx";
-const [deliverableSource, serverPageSource, browserFallbackSource] = await Promise.all([
+const [deliverableSource, attributionSource, mapSnapshotSource, serverPageSource, browserFallbackSource] = await Promise.all([
   readFile(new URL(deliverablePath, root), "utf8"),
+  readFile(new URL(attributionPath, root), "utf8"),
+  readFile(new URL(mapSnapshotPath, root), "utf8"),
   readFile(new URL(serverPagePath, root), "utf8"),
   readFile(new URL(browserFallbackPath, root), "utf8")
 ]);
@@ -140,9 +144,9 @@ const canonicalComparison = {
   project: canonicalProject
 };
 
-function executeTypeScriptModule(relativePath, dependencies) {
+function executeTypeScriptModule(source, relativePath, dependencies) {
   const absolutePath = path.resolve(new URL(relativePath, root).pathname);
-  const compiled = ts.transpileModule(deliverableSource, {
+  const compiled = ts.transpileModule(source, {
     fileName: absolutePath,
     reportDiagnostics: true,
     compilerOptions: {
@@ -178,7 +182,13 @@ const lineage = {
   plannedValidationSources: [],
   disclaimers: [canonicalCaveat]
 };
-const module = executeTypeScriptModule(deliverablePath, {
+const attributionModule = executeTypeScriptModule(attributionSource, attributionPath, {
+  "@/src/types/spatial-data-v1": { spatialDataRequiredCaveatV1: canonicalCaveat }
+});
+const mapSnapshotModule = executeTypeScriptModule(mapSnapshotSource, mapSnapshotPath, {
+  "@/src/lib/spatial-b2/attribution": attributionModule
+});
+const module = executeTypeScriptModule(deliverableSource, deliverablePath, {
   "@/src/data/demo-projects": { demoProjects: [canonicalProject] },
   "@/src/lib/analysis-restore-authority": {
     createBrowserAnalysisRestoreContext(expectedProject, sourceReference) {
@@ -223,11 +233,7 @@ const module = executeTypeScriptModule(deliverablePath, {
     }
   },
   "@/src/lib/decision-posture": { deriveDecisionPosture: () => "Requires official validation" },
-  "@/src/lib/report-map-snapshot": {
-    normalizeReportMapSnapshot(value) {
-      return value && typeof value === "object" ? structuredClone(value) : null;
-    }
-  },
+  "@/src/lib/report-map-snapshot": mapSnapshotModule,
   "@/src/lib/report-id": {
     isCanonicalReportId(value) {
       return typeof value === "string" && value.length > 0 && value.length <= 240 && /^[a-z0-9][a-z0-9._:-]*$/i.test(value);
@@ -279,7 +285,27 @@ const analysisRecord = {
       height: 358,
       capturedAt: "2026-08-16T00:00:00.000Z",
       targetLabel: "Official Parcel 7",
-      source: "seeded-dashboard-map"
+      source: "seeded-dashboard-map",
+      attribution: {
+        schemaVersion: "spatial-attribution-v2",
+        sourceMode: "synthetic_fallback",
+        basemapMode: "mapbox",
+        compactLabel: forgedStrings[2],
+        basemapAttribution: {
+          id: "mapbox-basemap",
+          kind: "basemap",
+          sourceName: forgedStrings[2],
+          notice: forgedStrings[1]
+        },
+        overlayAttributions: [{
+          id: "geoai-sample-layers",
+          kind: "geoai_overlay",
+          sourceName: forgedStrings[0],
+          notice: forgedStrings[4]
+        }],
+        activeAttributionIds: ["geoai-sample-layers"],
+        caveat: forgedStrings[4]
+      }
     }
   }
 };
@@ -292,6 +318,10 @@ assert.equal(analysisReport.decisionPosture, "Requires official validation");
 assert.equal(analysisReport.scoreSummary.investmentAttractiveness, scores.investmentAttractiveness);
 assert.equal(analysisReport.targetLabel, selectedObject.name);
 assert.equal(analysisReport.mapSnapshot.targetLabel, selectedObject.name);
+assert.equal(analysisReport.mapSnapshot.attribution.compactLabel, "GeoAI illustrative local layers");
+assert.equal(analysisReport.mapSnapshot.attribution.basemapAttribution.sourceName, "Mapbox basemap");
+assert.equal(analysisReport.mapSnapshot.attribution.overlayAttributions[0].sourceName, "GeoAI illustrative local layers");
+assert.equal(analysisReport.mapSnapshot.attribution.caveat, canonicalCaveat);
 assert.deepEqual(
   analysisReport.sourceLineage.uploadedSources.map((source) => source.name),
   ["Used project context.csv"],
@@ -301,6 +331,18 @@ const analysisOutput = JSON.stringify(analysisReport);
 for (const forged of forgedStrings) {
   assert.ok(!analysisOutput.includes(forged), `Persisted analysis field survived canonical rebuilding: ${forged}`);
 }
+
+assert.equal(
+  mapSnapshotModule.normalizeReportMapSnapshot({
+    ...analysisRecord.reportPayload.mapSnapshot,
+    attribution: {
+      ...analysisRecord.reportPayload.mapSnapshot.attribution,
+      sourceMode: "official_validated"
+    }
+  }).attribution,
+  undefined,
+  "Untrusted official-validated attribution mode must fail closed"
+);
 
 const comparisonRecord = {
   id: "canonical-comparison-report",
@@ -375,5 +417,5 @@ assert.doesNotMatch(deliverableSource, /payload\.decisionPosture/);
 assert.doesNotMatch(deliverableSource, /payload\.scoreOverview/);
 
 console.log("Report restore adversarial check passed.");
-console.log("Persisted report presentation, score, posture and lineage fields are ignored and rebuilt from canonical analysis/comparison inputs.");
+console.log("Persisted report presentation, score, posture, lineage and map attribution fields are ignored and rebuilt from canonical inputs.");
 console.log(`Caveat: ${canonicalCaveat}`);

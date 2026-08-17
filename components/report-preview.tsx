@@ -26,6 +26,7 @@ import type { EvidenceReviewSummary } from "@/src/types/evidence-review";
 import type { ReportMapSnapshot } from "@/src/lib/report-map-snapshot";
 import type { MarketMetricsMatch } from "@/src/lib/market-metrics/types";
 import { decodeCanonicalReportPathSegment } from "@/src/lib/report-id";
+import { selectAnalysisUsedUploadedDatasets } from "@/src/lib/analysis-upload-use";
 
 type ReportPreviewProps =
   | {
@@ -195,9 +196,10 @@ function ExternalDataLineageSection({
     ...(analysis?.evidence ?? []),
     ...(comparison?.evidence ?? [])
   ];
+  const usedUploadedDatasets = analysis ? selectAnalysisUsedUploadedDatasets(analysis) : [];
   const recordedLineage = createSourceLineageSnapshot({
     evidence,
-    uploadedDatasets: analysis?.uploadedDataContext?.uploadedDatasets ?? []
+    uploadedDatasets: usedUploadedDatasets
   });
   const marketMetricsMatch = analysis?.marketContext?.importedMarketMetrics ?? analysis?.marketMetricsMatch;
   const marketBasis = hasMarketMetricsDecisionUse(marketMetricsMatch)
@@ -354,17 +356,18 @@ function ExternalDataLineageSection({
 
 function UploadedDataReportSection({ analysis }: { analysis: ExpressAnalysis }) {
   const context = analysis.uploadedDataContext;
+  const usedUploadedDatasets = selectAnalysisUsedUploadedDatasets(analysis);
 
-  if (!context || context.uploadedDatasets.length === 0) {
+  if (!context || usedUploadedDatasets.length === 0) {
     return null;
   }
 
   return (
     <Section title="Source Lineage / Uploaded Data Used">
       <div className="grid gap-3 md:grid-cols-2">
-        {context.uploadedDatasets.map((dataset) => {
+        {usedUploadedDatasets.map((dataset) => {
           const applied = context.appliedMetrics.find((match) => match.datasetId === dataset.id);
-          const available = context.availableButNotApplied.find((match) => match.datasetId === dataset.id);
+          const visible = context.visibleGeojsonLayers.some((match) => match.id === dataset.id);
 
           return (
             <div key={dataset.id} className="rounded-md border border-line bg-surface p-4">
@@ -376,11 +379,11 @@ function UploadedDataReportSection({ analysis }: { analysis: ExpressAnalysis }) 
                   </p>
                 </div>
                 <span className="rounded-full bg-white px-2 py-1 text-xs font-semibold text-muted">
-                  {applied ? "Applied" : available ? "Not applied" : "Visible"}
+                  {applied ? "Applied" : visible ? "Visible context" : "Referenced"}
                 </span>
               </div>
               <p className="mt-3 text-sm leading-6 text-muted">
-                {applied?.note ?? available?.note ?? dataset.notes ?? "Local upload available as validation-required context."}
+                {applied?.note ?? dataset.notes ?? "User-provided input referenced by this screening result."}
               </p>
               <p className="mt-2 text-xs leading-5 text-muted">
                 Confidence: {dataset.confidence.replace(/-/g, " ")}. Official status: {dataset.officialStatus.replace(/-/g, " ")}.
@@ -535,7 +538,7 @@ function createPrintableAnalysisRecord(analysis: ExpressAnalysis) {
     },
     sourceLineage: createSourceLineageSnapshot({
       evidence: analysis.evidence,
-      uploadedDatasets: analysis.uploadedDataContext?.uploadedDatasets ?? []
+      uploadedDatasets: selectAnalysisUsedUploadedDatasets(analysis)
     }),
     createdAt: analysis.generatedAt ?? new Date().toISOString(),
     updatedAt: new Date().toISOString()

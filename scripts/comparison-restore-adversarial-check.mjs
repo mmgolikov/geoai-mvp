@@ -110,8 +110,34 @@ const demoLayerModule = dataModule(`
   });
 `);
 const guidedDemoModule = dataModule(`
-  export const guidedDemoPresets = [];
-  export const createGuidedDemoSelection = () => null;
+  export const guidedDemoPresets = [{
+    id: "dubai-south-development",
+    title: "Dubai South development pipeline",
+    scenarioId: "realEstateDevelopment",
+    selectedAreaLabel: "Dubai South growth corridor",
+    geometryType: "polygon",
+    center: { latitude: 24.8887, longitude: 55.1542 },
+    projectKey: "developer-land-pipeline-demo"
+  }];
+  export const createGuidedDemoSelection = (preset) => ({
+    id: "guided-demo-dubai-south-growth-corridor",
+    name: preset.selectedAreaLabel,
+    type: "Illustrative screening geometry",
+    layerId: "futureCustomerAssets",
+    layerName: "Local screening geometries",
+    geometryType: "polygon",
+    center: preset.center,
+    analysisTarget: {
+      id: "dubai-south-growth-corridor",
+      type: "uploaded-feature",
+      label: preset.selectedAreaLabel,
+      coordinates: preset.center,
+      datasetId: "guided-demo-geojson-sites",
+      datasetName: "Local screening geometries",
+      sourceMode: "sample-fixture",
+      officialStatus: "official-validation-required"
+    }
+  });
 `);
 const seededReportsModule = dataModule(`
   export const seededDemoRecentAnalyses = [];
@@ -657,6 +683,7 @@ assertCriteriaFirstRoundTrip(normalizedCriteria);
 const b2cProject = {
   ...project,
   id: "project-b2c-1",
+  projectKey: "home-buyer-neighborhood-demo",
   clientType: "demo",
   metadata: { segment: "b2c", audience: "b2c", role: "home_buyer" }
 };
@@ -669,6 +696,56 @@ assert.equal(
   ),
   null,
   "B2B criteria-first objects must not resolve inside a B2C project boundary"
+);
+
+const foreignGuidedScenarioId = "realEstateDevelopment";
+const foreignGuidedObject = {
+  id: "guided-demo-dubai-south-growth-corridor",
+  name: "Persisted foreign guided target",
+  type: "Illustrative screening geometry",
+  layerId: "futureCustomerAssets",
+  layerName: "Local screening geometries",
+  geometryType: "polygon",
+  center: { latitude: 24.8887, longitude: 55.1542 }
+};
+const foreignGuidedItem = {
+  id: `object-${foreignGuidedObject.id}-${foreignGuidedScenarioId}`,
+  name: foreignGuidedObject.name,
+  itemType: "object",
+  scenarioId: foreignGuidedScenarioId,
+  scenarioLabel: "Real Estate Development",
+  point: foreignGuidedObject.center,
+  selectedObject: foreignGuidedObject,
+  locationLabel: foreignGuidedObject.name
+};
+const sameScenarioPoint = {
+  id: "point-25.10000-56.00000-realEstateDevelopment",
+  name: "Map point 25.10000, 56.00000",
+  itemType: "point",
+  scenarioId: foreignGuidedScenarioId,
+  scenarioLabel: "Real Estate Development",
+  point: pointB,
+  locationLabel: "Map point / 25.10000, 56.00000"
+};
+const foreignGuidedComparisonId = `comparison-${foreignGuidedItem.id}-${sameScenarioPoint.id}`;
+assert.equal(
+  restoreModule.normalizeRestoredComparison(
+    {
+      ...forged,
+      id: foreignGuidedComparisonId,
+      items: [
+        { ...forgedA, item: foreignGuidedItem },
+        { ...forgedB, item: sameScenarioPoint }
+      ],
+      winner: { ...forgedA, item: foreignGuidedItem },
+      project: structuredClone(b2cProject)
+    },
+    b2cProject.projectKey,
+    foreignGuidedComparisonId,
+    b2cProject
+  ),
+  null,
+  "A guided target owned by a B2B project must not restore inside a B2C project"
 );
 
 const aoiCoordinates = [
@@ -1138,6 +1215,7 @@ console.log("- uploaded target provenance/geometry/dataset identity: validated a
 console.log("- altered geometry and cross-project uploaded dataset: rejected fail-closed");
 console.log("- exact criteria-first explore comparison: canonical browser round-trip restored");
 console.log("- tampered explore layer/score/provenance: discarded; B2B/B2C boundary enforced");
+console.log("- foreign guided-demo target: rejected across project and segment boundaries");
 console.log("- browser and uploaded AOI custody: valid project key/ID round-trips preserved");
 console.log("- foreign or missing AOI project identity: rejected fail-closed without rebinding");
 console.log("- uploaded AOI shifted persisted coordinates or missing canonical registry: rejected fail-closed");

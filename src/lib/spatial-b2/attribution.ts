@@ -175,6 +175,7 @@ export function normalizeSpatialAttributionPayload(value: unknown): SpatialAttri
   const payload = value as Partial<SpatialAttributionPayload>;
   if (
     payload.schemaVersion !== "spatial-attribution-v2" ||
+    (payload.sourceMode !== "synthetic_fallback" && payload.sourceMode !== "open_context_preview") ||
     !["mapbox", "fallback_grid", "none"].includes(payload.basemapMode ?? "") ||
     typeof payload.compactLabel !== "string" ||
     (payload.basemapMode === "mapbox" && !payload.basemapAttribution) ||
@@ -186,5 +187,23 @@ export function normalizeSpatialAttributionPayload(value: unknown): SpatialAttri
     return null;
   }
 
-  return payload as SpatialAttributionPayload;
+  const activeAttributionIds = [...new Set(payload.activeAttributionIds)];
+  if (
+    activeAttributionIds.length > 64 ||
+    activeAttributionIds.some((id) =>
+      typeof id !== "string" ||
+      id.length === 0 ||
+      id.length > 128 ||
+      !spatialAttributionRegistry[id] ||
+      spatialAttributionRegistry[id].kind === "basemap"
+    )
+  ) {
+    return null;
+  }
+
+  return aggregateSpatialAttribution({
+    sourceMode: payload.sourceMode,
+    basemapMode: payload.basemapMode as SpatialBasemapMode,
+    activeAttributionIds
+  });
 }

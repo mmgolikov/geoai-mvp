@@ -48,8 +48,6 @@ const scenarioIds = new Set<AnalysisScenarioId>([
   "customQuery"
 ]);
 
-const guidedDemoSelections = guidedDemoPresets.map(createGuidedDemoSelection);
-
 function comparisonStorageKey(projectKey: string, comparisonId: string) {
   return browserDemoStorageKey(`comparison-v1:${projectKey}:${comparisonId}`);
 }
@@ -114,10 +112,20 @@ function projectBoundaryMatches(value: unknown, expectedProject: GeoAIProject, p
     restoredSegment === expectedSegment;
 }
 
-function findAppOwnedSelection(id: string) {
+function findAppOwnedSelection(
+  id: string,
+  expectedProject: GeoAIProject,
+  scenarioId: AnalysisScenarioId
+) {
   const demoFeature = getDemoFeatureById(id);
   if (demoFeature) return getSelectedDemoObject(demoFeature);
-  return guidedDemoSelections.find((selection) => selection.id === id) ?? null;
+
+  const guidedPreset = guidedDemoPresets.find((preset) =>
+    preset.projectKey === expectedProject.projectKey &&
+    preset.scenarioId === scenarioId &&
+    createGuidedDemoSelection(preset).id === id
+  );
+  return guidedPreset ? createGuidedDemoSelection(guidedPreset) : null;
 }
 
 function findSeededSelection(
@@ -401,7 +409,7 @@ function readSelectedObject(
   const id = readBoundedString(value.id, 1_024);
   if (!id) return null;
 
-  const appOwnedSelection = findAppOwnedSelection(id);
+  const appOwnedSelection = findAppOwnedSelection(id, expectedProject, scenarioId);
   if (appOwnedSelection) return appOwnedSelection;
 
   const seededSelection = findSeededSelection(id, expectedProject, scenarioId);

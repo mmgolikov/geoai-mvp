@@ -30,6 +30,9 @@ assert.match(source.printable, /Evidence \/ Source References/);
 assert.doesNotMatch(source.printable, /conservative matched scoring/);
 
 assert.match(source.preview, /recordedLineage\.externalSources/);
+assert.match(source.preview, /selectAnalysisUsedUploadedDatasets\(analysis\)/);
+assert.doesNotMatch(source.preview, /context\.uploadedDatasets\.map/);
+assert.doesNotMatch(source.preview, /availableButNotApplied\.find/);
 assert.match(source.preview, /Runtime-observed external context/);
 assert.match(source.preview, /Recorded screening \/ reference sources/);
 assert.match(source.preview.toLowerCase(), new RegExp(blockedTruth));
@@ -43,3 +46,4 @@ assert.doesNotMatch(source.ingestion, /conservative matched scoring/);
 console.log("Source-use truth check passed: matched screening context is separated from release-gated scoring use and runtime-observed lineage.");
 
 await import("./comparison-restore-adversarial-check.mjs");
+await import("./analysis-upload-use-adversarial-check.mjs");
