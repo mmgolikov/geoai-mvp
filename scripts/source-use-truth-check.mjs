@@ -27,6 +27,9 @@ assert.doesNotMatch(source.comparison, /filter\(\(item\) => item\.marketMetricsM
 assert.match(source.printable.toLowerCase(), new RegExp(blockedTruth));
 assert.match(source.printable, /Decision-scoring use/);
 assert.match(source.printable, /Evidence \/ Source References/);
+assert.match(source.printable, /selectAnalysisUsedUploadedDatasets\(analysis\)/);
+assert.doesNotMatch(source.printable, /context\.uploadedDatasets\.map/);
+assert.doesNotMatch(source.printable, /availableButNotApplied\.find/);
 assert.doesNotMatch(source.printable, /conservative matched scoring/);
 
 assert.match(source.preview, /recordedLineage\.externalSources/);
@@ -47,3 +50,4 @@ console.log("Source-use truth check passed: matched screening context is separat
 
 await import("./comparison-restore-adversarial-check.mjs");
 await import("./analysis-upload-use-adversarial-check.mjs");
+await import("./print-upload-use-adversarial-check.cjs");

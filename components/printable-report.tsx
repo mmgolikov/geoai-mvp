@@ -9,6 +9,7 @@ import { userDrawnAoiSourceCode, userDrawnAoiSourceLabel } from "@/src/lib/aoi-l
 import { buildDashboardModel } from "@/src/lib/dashboard/dashboard-model";
 import { isMarketMetricsDecisionUseAllowed } from "@/src/lib/market-metrics";
 import { formatArea, formatPerimeter } from "@/src/lib/polygon-aoi";
+import { selectAnalysisUsedUploadedDatasets } from "@/src/lib/analysis-upload-use";
 import type { ReportMapSnapshot } from "@/src/lib/report-map-snapshot";
 import type { MarketMetricsMatch } from "@/src/lib/market-metrics/types";
 import type { ComparisonResult, ExpressAnalysis, ScoreKey } from "@/src/types/geo";
@@ -158,25 +159,26 @@ function EvidenceTable({ evidence }: { evidence: ExpressAnalysis["evidence"] | C
   );
 }
 
-function UploadedDataPrintBlock({ analysis }: { analysis: ExpressAnalysis }) {
+export function UploadedDataPrintBlock({ analysis }: { analysis: ExpressAnalysis }) {
   const context = analysis.uploadedDataContext;
+  const usedUploadedDatasets = selectAnalysisUsedUploadedDatasets(analysis);
 
-  if (!context || context.uploadedDatasets.length === 0) {
+  if (!context || usedUploadedDatasets.length === 0) {
     return null;
   }
 
   return (
     <PrintSection title="Source Lineage / Uploaded Data Used">
       <div className="print-score-grid">
-        {context.uploadedDatasets.map((dataset) => {
+        {usedUploadedDatasets.map((dataset) => {
           const applied = context.appliedMetrics.find((match) => match.datasetId === dataset.id);
-          const available = context.availableButNotApplied.find((match) => match.datasetId === dataset.id);
+          const visible = context.visibleGeojsonLayers.some((match) => match.id === dataset.id);
 
           return (
             <PrintCard key={dataset.id}>
               <strong>{dataset.name}</strong>
-              <span>{dataset.type} / {dataset.sourceMode.replace(/-/g, " ")}</span>
-              <small>{applied?.note ?? available?.note ?? dataset.notes ?? "Local upload available as validation-required context."}</small>
+              <span>{dataset.type} / {dataset.sourceMode.replace(/-/g, " ")} / {applied ? "applied" : visible ? "visible context" : "referenced"}</span>
+              <small>{applied?.note ?? dataset.notes ?? "User-provided input referenced by this screening result."}</small>
               <small>Official status: {dataset.officialStatus.replace(/-/g, " ")} / confidence: {dataset.confidence.replace(/-/g, " ")}</small>
             </PrintCard>
           );
