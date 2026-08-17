@@ -202,7 +202,8 @@ body {
 
 .geoai-print-meta-grid,
 .geoai-print-score-grid,
-.geoai-print-source-grid {
+.geoai-print-source-grid,
+.geoai-print-provenance-strip {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
@@ -529,6 +530,7 @@ body {
   .geoai-print-meta-grid,
   .geoai-print-score-grid,
   .geoai-print-source-grid,
+  .geoai-print-provenance-strip,
   .geoai-print-top-grid,
   .geoai-print-two-col,
   .geoai-print-mini-grid {
@@ -622,7 +624,8 @@ body {
 
   .geoai-print-meta-grid,
   .geoai-print-score-grid,
-  .geoai-print-source-grid {
+  .geoai-print-source-grid,
+  .geoai-print-provenance-strip {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 6px;
   }

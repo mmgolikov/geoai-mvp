@@ -13,7 +13,7 @@
    * unavailable and disabled. Hide only that unavailable action. Once a point
    * is selected the enabled comparison action remains available.
    */
-  aside > section.sticky.bottom-0 > button:first-of-type:disabled {
+  [data-workspace-primary-actions] > button:first-of-type:disabled {
     display: none;
   }
 

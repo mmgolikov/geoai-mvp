@@ -1088,7 +1088,7 @@ export function AnalysisPanel({
 
   return (
     <aside className="flex min-h-0 max-w-full flex-col border-line bg-white max-lg:border-t lg:w-[380px] lg:border-l">
-      <section className="min-w-0 max-w-full overflow-x-hidden p-3 pb-5">
+      <section data-workspace-panel-flow className="min-w-0 max-w-full overflow-x-hidden p-3 pb-5">
         {!hasResult ? <h1 className="sr-only">{workspaceHeading}</h1> : null}
         <div className="grid min-w-0 gap-2">
           <section className="min-w-0 max-w-full overflow-hidden rounded-lg border border-line bg-white p-2">
@@ -1305,6 +1305,27 @@ export function AnalysisPanel({
               </div>
             </details>
 
+            <div className="mt-2 min-w-0">
+              <label
+                htmlFor="custom-query"
+                className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted"
+              >
+                Custom Query
+              </label>
+              <textarea
+                id="custom-query"
+                rows={3}
+                value={customQuery}
+                onChange={(event) => onCustomQueryChange(event.target.value)}
+                placeholder={
+                  hasComparisonReady
+                    ? "Refine this comparison"
+                    : exploreScenario.sampleQueries[0] ?? "Ask a scenario-specific question"
+                }
+                className="mt-1 w-full resize-none rounded-md border border-line bg-surface px-2 py-2 text-xs text-ink outline-none transition placeholder:text-muted/70 focus:border-brand"
+              />
+            </div>
+
             <div className="mt-2 rounded-md border border-line bg-surface p-2">
               <div className="flex items-center justify-between gap-2">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
@@ -1363,26 +1384,6 @@ export function AnalysisPanel({
               )}
             </div>
 
-            <div className="mt-2 min-w-0">
-              <label
-                htmlFor="custom-query"
-                className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted"
-              >
-                Custom Query
-              </label>
-              <textarea
-                id="custom-query"
-                rows={3}
-                value={customQuery}
-                onChange={(event) => onCustomQueryChange(event.target.value)}
-                placeholder={
-                  hasComparisonReady
-                    ? "Refine this comparison"
-                    : exploreScenario.sampleQueries[0] ?? "Ask a scenario-specific question"
-                }
-                className="mt-1 w-full resize-none rounded-md border border-line bg-surface px-2 py-2 text-xs text-ink outline-none transition placeholder:text-muted/70 focus:border-brand"
-              />
-            </div>
           </section>
 
           <details className="order-[20] min-w-0 max-w-full overflow-hidden rounded-lg border border-line bg-white px-3">
@@ -1682,7 +1683,7 @@ export function AnalysisPanel({
 
       </section>
 
-      <section className="sticky bottom-0 z-20 min-w-0 max-w-full flex-shrink-0 border-t border-line bg-white p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-8px_20px_rgba(15,23,42,0.06)] lg:pb-3">
+      <section data-workspace-primary-actions className="sticky bottom-0 z-20 min-w-0 max-w-full flex-shrink-0 border-t border-line bg-white p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-8px_20px_rgba(15,23,42,0.06)] lg:pb-3">
         {primaryCtaDisabled && !hasValidWorkflowTarget ? (
           <p className="mb-2 text-xs leading-5 text-muted">
             {actionUnavailableMessage}

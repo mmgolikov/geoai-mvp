@@ -26,7 +26,7 @@ const clearFlow = functionBody(workspace, "clearWorkspaceResultState", "loadGuid
 const setupStart = panel.indexOf("data-workspace-screening-setup");
 const customQuery = panel.indexOf('htmlFor="custom-query"', setupStart);
 const candidateSearch = panel.indexOf("Candidate Search", setupStart);
-const setupEnd = panel.indexOf("</section>", customQuery);
+const setupEnd = panel.indexOf("</section>", candidateSearch);
 
 assert(
   workspace.includes('data-workspace-surface={hasResultSurface ? "result" : "setup"}'),
@@ -52,8 +52,12 @@ assert(!panel.includes("Active workflow"), "The duplicate Active workflow block 
 assert(!panel.includes("lg:overflow-y-auto"), "The main setup flow must not use an internal vertical scroll container.");
 assert(!panel.includes("[scrollbar-width:thin]"), "The setup panel must rely on page flow rather than a nested scrollbar.");
 assert(
-  customQuery > candidateSearch && customQuery < setupEnd,
-  "Custom Query must remain in the main setup flow after Candidate Search."
+  customQuery > setupStart && customQuery < candidateSearch && candidateSearch < setupEnd,
+  "Custom Query must remain in the main setup flow before optional Candidate Search results."
+);
+assert(
+  panel.includes("data-workspace-panel-flow") && panel.includes("data-workspace-primary-actions"),
+  "The mobile setup flow and sticky action region must expose stable layout measurement hooks."
 );
 assert(
   !panel.includes('setIsExploreSetupOpen(candidateSearchStatus !== "searched")'),

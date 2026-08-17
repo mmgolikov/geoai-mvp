@@ -147,18 +147,9 @@ export function AnalysisReportPrint({ report }: { report: AnalysisReportDelivera
         </div>
 
         <div className="geoai-print-provenance-strip avoid-break">
-          <div>
-            <span>Project</span>
-            <strong>{report.analysis?.project?.name ?? report.title}</strong>
-          </div>
-          <div>
-            <span>Evidence state</span>
-            <strong>{decisionResult.sourceBasis.label}</strong>
-          </div>
-          <div>
-            <span>Distribution boundary</span>
-            <strong>Review caveats and source lineage before external use</strong>
-          </div>
+          <PrintCard label="Project" value={report.analysis?.project?.name ?? report.title} />
+          <PrintCard label="Evidence state" value={decisionResult.sourceBasis.label} />
+          <PrintCard label="Distribution boundary" value="Review caveats and source lineage before external use" />
         </div>
 
         <div className="geoai-print-two-col">
