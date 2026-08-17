@@ -104,10 +104,12 @@ const candidateSearchIndex = panelSource.indexOf("Candidate Search");
 const customQueryIndex = panelSource.indexOf("Custom Query");
 
 assert(scenarioSetupIndex >= 0, "Scenario setup label should render");
-assert(candidateSearchIndex > scenarioSetupIndex, "Candidate Search should render after Scenario setup");
-assert(customQueryIndex > candidateSearchIndex, "Custom Query should render after Candidate Search");
+assert(customQueryIndex > scenarioSetupIndex, "Custom Query should render after Scenario setup");
+assert(candidateSearchIndex > customQueryIndex, "Candidate Search should render after Custom Query");
 assert(panelSource.includes("value={customQuery}"), "Custom Query textarea should preserve customQuery value binding");
 assert(panelSource.includes("onCustomQueryChange(event.target.value)"), "Custom Query textarea should preserve change binding");
+assert(panelSource.includes("data-workspace-panel-flow"), "Workspace panel should expose a stable flow layout hook");
+assert(panelSource.includes("data-workspace-primary-actions"), "Workspace primary actions should expose a stable layout hook");
 assert(!panelSource.includes("Cuscom query"), "Cuscom query typo must not render");
 assert(!panelSource.includes("Custom query"), "Custom Query label should use requested casing");
 assert(!panelSource.includes("Details"), "Project Details control must not render");
