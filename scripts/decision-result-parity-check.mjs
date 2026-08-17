@@ -171,3 +171,6 @@ console.log("Decision-result parity check passed.");
 console.log(`Contract version: 1.0`);
 console.log(`Caveat: ${exactCaveat}`);
 console.log("Surfaces: runtime dashboard, analysis print report, comparison print report");
+
+await import("./print-source-lineage-identity-check.cjs");
+await import("./report-restore-adversarial-check.mjs");

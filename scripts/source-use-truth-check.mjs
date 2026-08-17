@@ -41,3 +41,5 @@ assert.match(source.ingestion, /available as screening context and remain exclud
 assert.doesNotMatch(source.ingestion, /conservative matched scoring/);
 
 console.log("Source-use truth check passed: matched screening context is separated from release-gated scoring use and runtime-observed lineage.");
+
+await import("./comparison-restore-adversarial-check.mjs");

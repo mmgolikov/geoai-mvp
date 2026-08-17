@@ -65,7 +65,102 @@ export function normalizeCompactReportMetadata(input: CompactReportMetadataInput
 }
 
 function strings(value: unknown) {
-  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0) : [];
+  return Array.isArray(value)
+    ? value.flatMap((item) => {
+        const normalized = boundedString(item, 2_000);
+        return normalized ? [normalized] : [];
+      })
+    : [];
+}
+
+function record(value: unknown): Record<string, unknown> | null {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function boundedString(value: unknown, maximum = 320) {
+  if (typeof value !== "string") return null;
+  const normalized = value
+    .replace(/[\u0000-\u001f\u007f]/g, " ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+  return normalized && normalized.length <= maximum ? normalized : null;
+}
+
+function optionalString(value: unknown, maximum = 320) {
+  if (value === undefined || value === null || value === "") return undefined;
+  return boundedString(value, maximum) ?? undefined;
+}
+
+function normalizeDemoSources(value: unknown): SourceLineageSnapshot["demoSources"] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    const source = record(item);
+    const id = boundedString(source?.id);
+    const name = boundedString(source?.name);
+    const note = boundedString(source?.note, 2_000);
+    return id && name && note ? [{ id, name, note }] : [];
+  });
+}
+
+function normalizeUploadedSources(value: unknown): SourceLineageSnapshot["uploadedSources"] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    const source = record(item);
+    const id = boundedString(source?.id);
+    const name = boundedString(source?.name);
+    const type = boundedString(source?.type);
+    const note = boundedString(source?.note, 2_000);
+    return id && name && type && note ? [{ id, name, type, note }] : [];
+  });
+}
+
+function normalizeExternalSources(value: unknown): SourceLineageSnapshot["externalSources"] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    const source = record(item);
+    const id = boundedString(source?.id);
+    const name = boundedString(source?.name);
+    const status = boundedString(source?.status);
+    const disclaimer = boundedString(source?.disclaimer, 2_000);
+    if (!id || !name || !status || !disclaimer) return [];
+    return [{
+      id,
+      name,
+      status,
+      disclaimer,
+      dataMode: optionalString(source?.dataMode),
+      confidence: optionalString(source?.confidence),
+      validationStatus: optionalString(source?.validationStatus),
+      nextValidationStep: optionalString(source?.nextValidationStep, 2_000),
+      queriedAt: source?.queriedAt === null ? null : optionalString(source?.queriedAt),
+      sourceObservedAt: source?.sourceObservedAt === null ? null : optionalString(source?.sourceObservedAt),
+      queryFingerprint: optionalString(source?.queryFingerprint),
+      fallbackReason: source?.fallbackReason === null ? null : optionalString(source?.fallbackReason, 2_000)
+    }];
+  });
+}
+
+function normalizePlannedSources(value: unknown): SourceLineageSnapshot["plannedValidationSources"] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    const source = record(item);
+    const id = boundedString(source?.id);
+    const name = boundedString(source?.name);
+    const disclaimer = boundedString(source?.disclaimer, 2_000);
+    if (!id || !name || !disclaimer) return [];
+    return [{
+      id,
+      name,
+      disclaimer,
+      status: optionalString(source?.status),
+      dataMode: optionalString(source?.dataMode),
+      confidence: optionalString(source?.confidence),
+      validationStatus: optionalString(source?.validationStatus),
+      nextValidationStep: optionalString(source?.nextValidationStep, 2_000)
+    }];
+  });
 }
 
 function dedupeDisclaimers(value: unknown) {
@@ -78,16 +173,17 @@ function dedupeDisclaimers(value: unknown) {
   });
 }
 
-function normalizeSourceLineage(
-  report: AnalysisReportDeliverable | ComparisonReportDeliverable
+export function normalizeSourceLineageForDisplay(
+  value: unknown,
+  fallbackCapturedAt = new Date(0).toISOString()
 ): SourceLineageSnapshot {
-  const lineage = report.sourceLineage as Partial<SourceLineageSnapshot> | null | undefined;
+  const lineage = record(value);
   return {
-    capturedAt: typeof lineage?.capturedAt === "string" ? lineage.capturedAt : report.createdAt,
-    demoSources: Array.isArray(lineage?.demoSources) ? lineage.demoSources : [],
-    uploadedSources: Array.isArray(lineage?.uploadedSources) ? lineage.uploadedSources : [],
-    externalSources: Array.isArray(lineage?.externalSources) ? lineage.externalSources : [],
-    plannedValidationSources: Array.isArray(lineage?.plannedValidationSources) ? lineage.plannedValidationSources : [],
+    capturedAt: boundedString(lineage?.capturedAt) ?? fallbackCapturedAt,
+    demoSources: normalizeDemoSources(lineage?.demoSources),
+    uploadedSources: normalizeUploadedSources(lineage?.uploadedSources),
+    externalSources: normalizeExternalSources(lineage?.externalSources),
+    plannedValidationSources: normalizePlannedSources(lineage?.plannedValidationSources),
     disclaimers: dedupeDisclaimers(lineage?.disclaimers)
   };
 }
@@ -118,7 +214,7 @@ export function normalizeReportForDisplay(
     risks: strings(report.risks),
     nextActions: strings(report.nextActions),
     validationChecklist: strings(report.validationChecklist),
-    sourceLineage: normalizeSourceLineage(report),
+    sourceLineage: normalizeSourceLineageForDisplay(report.sourceLineage, report.createdAt),
     dataHonestyNote: canonicalCaveat
   };
 

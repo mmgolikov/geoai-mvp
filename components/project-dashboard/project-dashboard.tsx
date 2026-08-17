@@ -48,6 +48,7 @@ import {
   normalizeRestoredAnalysisHistoryItem,
   normalizeRestoredExpressAnalysis
 } from "@/src/lib/analysis-restore-normalization";
+import { createBrowserAnalysisRestoreContext } from "@/src/lib/analysis-restore-authority";
 import type { GeoAIProject } from "@/src/lib/db/types";
 import type { ExternalDataManifestSource } from "@/src/lib/external-data/data-manifest";
 import type { ProjectAoi } from "@/src/types/aoi";
@@ -760,16 +761,24 @@ function createInitialExternalDataStatus(): ExternalDataStatus {
   };
 }
 
-function writeOpenAnalysisRequest(row: RecentAnalysisRow) {
+function writeOpenAnalysisRequest(row: RecentAnalysisRow, expectedProject: GeoAIProject) {
   if (!row.analysis || !isBrowserDemoStorageEnabled()) return;
-  const normalized = normalizeRestoredExpressAnalysis(row.analysis);
+  const rowProjectKey = row.projectKey ?? row.analysis.project?.projectKey ?? null;
+  if (rowProjectKey !== expectedProject.projectKey) return;
+  const normalized = normalizeRestoredExpressAnalysis(
+    row.analysis,
+    createBrowserAnalysisRestoreContext(expectedProject, {
+      sourceProjectKey: rowProjectKey,
+      sourceProjectId: row.projectId
+    })
+  );
   if (!normalized) return;
 
   try {
     window.localStorage.setItem(openAnalysisRequestStorageKey, JSON.stringify({
       analysisId: normalized.analysis.id,
-      projectId: row.projectId,
-      projectKey: row.projectKey,
+      projectId: expectedProject.id,
+      projectKey: expectedProject.projectKey,
       scenarioId: row.scenarioId,
       customQuery: row.customQuery ?? normalized.analysis.customQuery ?? "",
       analysis: normalized.analysis
@@ -779,7 +788,22 @@ function writeOpenAnalysisRequest(row: RecentAnalysisRow) {
   }
 }
 
-function readLocalHistory() {
+function findCanonicalHistoryProject(value: unknown, projects: GeoAIProject[]) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const item = value as {
+    projectKey?: string | null;
+    project?: { id?: string | null; projectKey?: string | null } | null;
+    analysis?: { project?: { id?: string | null; projectKey?: string | null } | null } | null;
+  };
+  const projectKey = item.projectKey ?? item.project?.projectKey ?? item.analysis?.project?.projectKey ?? null;
+  const projectId = item.project?.id ?? item.analysis?.project?.id ?? null;
+  const byKey = projectKey ? projects.find((project) => project.projectKey === projectKey) ?? null : null;
+  const byId = projectId ? projects.find((project) => project.id === projectId) ?? null : null;
+  if (byKey && byId && byKey.projectKey !== byId.projectKey) return null;
+  return byKey ?? byId;
+}
+
+function readLocalHistory(projects: GeoAIProject[]) {
   if (!isBrowserDemoStorageEnabled()) return [];
 
   try {
@@ -790,7 +814,14 @@ function readLocalHistory() {
     if (!Array.isArray(parsed)) return [];
 
     return parsed
-      .map((item) => normalizeRestoredAnalysisHistoryItem(item)?.item ?? null)
+      .map((item) => {
+        const expectedProject = findCanonicalHistoryProject(item, projects);
+        if (!expectedProject) return null;
+        return normalizeRestoredAnalysisHistoryItem(
+          item,
+          createBrowserAnalysisRestoreContext(expectedProject)
+        )?.item ?? null;
+      })
       .filter((item): item is AnalysisHistoryItem => item !== null);
   } catch {
     return [];
@@ -861,12 +892,18 @@ function comparisonRestoreId(id: string, projectKey: string) {
   return id.startsWith(projectPrefix) ? id.slice(projectPrefix.length) : id;
 }
 
-function localHistoryToRows(items: AnalysisHistoryItem[], projectKey: string): RecentAnalysisRow[] {
-  const scoped = items.filter((item) => belongsToProject(item, projectKey));
+function localHistoryToRows(items: AnalysisHistoryItem[], expectedProject: GeoAIProject): RecentAnalysisRow[] {
+  const scoped = items.filter((item) => belongsToProject(item, expectedProject.projectKey));
 
   return scoped.slice(0, 6)
     .map((item): RecentAnalysisRow | null => {
-      const normalized = normalizeRestoredExpressAnalysis(item.analysis);
+      const normalized = normalizeRestoredExpressAnalysis(
+        item.analysis,
+        createBrowserAnalysisRestoreContext(expectedProject, {
+          sourceProjectKey: item.projectKey ?? item.project?.projectKey,
+          sourceProjectId: item.project?.id
+        })
+      );
       if (!normalized) return null;
       const analysis = normalized.analysis;
 
@@ -887,8 +924,8 @@ function localHistoryToRows(items: AnalysisHistoryItem[], projectKey: string): R
         source: item.source ?? "local",
         reportId: undefined,
         analysis,
-        projectId: item.project?.id ?? analysis.project?.id ?? null,
-        projectKey: item.projectKey ?? item.project?.projectKey,
+        projectId: expectedProject.id,
+        projectKey: expectedProject.projectKey,
         scenarioId: analysis.scenarioId,
         customQuery: analysis.customQuery,
         canOpenAnalysis: true
@@ -897,9 +934,18 @@ function localHistoryToRows(items: AnalysisHistoryItem[], projectKey: string): R
     .filter((item): item is RecentAnalysisRow => item !== null);
 }
 
-function persistedRowsToRecent(items: PersistedAnalysisRun[]): RecentAnalysisRow[] {
-  return items.slice(0, 6).map((item): RecentAnalysisRow => {
-    const normalized = normalizeRestoredExpressAnalysis(item.result_json ?? item.result_payload ?? item.payload);
+function persistedRowsToRecent(items: PersistedAnalysisRun[], expectedProject: GeoAIProject): RecentAnalysisRow[] {
+  return items.slice(0, 6).map((item): RecentAnalysisRow | null => {
+    const sourceProjectKey = item.project_key ?? item.projectKey ?? null;
+    if (sourceProjectKey !== expectedProject.projectKey) return null;
+    const normalized = normalizeRestoredExpressAnalysis(
+      item.result_json ?? item.result_payload ?? item.payload,
+      createBrowserAnalysisRestoreContext(expectedProject, {
+        sourceProjectKey,
+        sourceProjectId: item.project_id ?? item.projectId
+      })
+    );
+    if (!normalized) return null;
     const analysis = normalized?.analysis;
     const scenarioId = item.scenario_id ?? analysis?.scenarioId;
     const scenarioLabel = scenarioId
@@ -923,13 +969,13 @@ function persistedRowsToRecent(items: PersistedAnalysisRun[]): RecentAnalysisRow
       source: "DB" as const,
       reportId: undefined,
       analysis,
-      projectId: item.project_id ?? item.projectId ?? analysis?.project?.id ?? null,
-      projectKey: item.project_key ?? item.projectKey ?? analysis?.project?.projectKey ?? undefined,
+      projectId: expectedProject.id,
+      projectKey: expectedProject.projectKey,
       scenarioId: item.scenario_id ?? analysis?.scenarioId,
       customQuery: analysis?.customQuery,
       canOpenAnalysis: Boolean(analysis)
     };
-  });
+  }).filter((item): item is RecentAnalysisRow => item !== null);
 }
 
 function ProjectBadge({ children }: { children: React.ReactNode }) {
@@ -1088,7 +1134,7 @@ export function ProjectDashboard() {
     );
     setProjectAudienceDraft(preferredSegment);
     setProjectRoleDraft(preferredRole);
-    setLocalHistory(readLocalHistory());
+    setLocalHistory(readLocalHistory(nextProjects));
     setProjectAois(readBrowserAois());
   }, [user?.id, user?.profile.defaultAudience, user?.profile.defaultRole]);
 
@@ -1309,7 +1355,7 @@ export function ProjectDashboard() {
     setActiveProjectKey(matchingProject.projectKey);
     writeActiveProjectKey(matchingProject.projectKey);
   }, [activeProjectKey, activeProjectSegment, projects]);
-  const localRows = useMemo(() => localHistoryToRows(localHistory, activeProject.projectKey), [activeProject.projectKey, localHistory]);
+  const localRows = useMemo(() => localHistoryToRows(localHistory, activeProject), [activeProject, localHistory]);
   const scopedDbHistory = dbHistory.filter((item) => belongsToProject(item, activeProject.projectKey));
   const scopedSavedReports = savedReports.filter((item) => belongsToProject(item, activeProject.projectKey));
   const scopedSavedComparisons = savedComparisons.filter((item) => belongsToProject(item, activeProject.projectKey));
@@ -2037,7 +2083,7 @@ export function ProjectDashboard() {
                       : openWorkspaceHref}
                     onClick={() => {
                       writeActiveProjectKey(item.projectKey ?? activeProject.projectKey);
-                      writeOpenAnalysisRequest(item);
+                      writeOpenAnalysisRequest(item, activeProject);
                     }}
                     className="rounded-md border border-line bg-surface p-4 transition hover:border-brand"
                   >

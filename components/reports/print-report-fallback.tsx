@@ -6,8 +6,11 @@ import { AnalysisReportPrint } from "@/components/reports/analysis-report-print"
 import { ComparisonReportPrint } from "@/components/reports/comparison-report-print";
 import { PrintButton } from "@/components/reports/print-button";
 import { getSeededDemoReportRecord } from "@/src/data/demo-report-seeds";
+import { demoProjects } from "@/src/data/demo-projects";
 import { browserDemoStorageKey, isBrowserDemoStorageEnabled } from "@/src/lib/browser-demo-storage";
 import { normalizeReportDeliverable, type AnalysisReportDeliverable, type ComparisonReportDeliverable } from "@/src/lib/report-deliverables";
+import { normalizeReportForDisplay } from "@/src/lib/report-display-normalization";
+import { mergeProjectsWithLocal } from "@/src/lib/project-local-store";
 
 type PrintReportFallbackProps = {
   reportId: string;
@@ -27,12 +30,23 @@ export function PrintReportFallback({ reportId }: PrintReportFallbackProps) {
       const localRaw = browserStorageEnabled
         ? window.localStorage.getItem(storageKey)
         : null;
-      const parsed = sessionRaw
+      const seededRecord = getSeededDemoReportRecord(reportId);
+      const parsed = seededRecord ?? (sessionRaw
         ? JSON.parse(sessionRaw)
         : localRaw
           ? JSON.parse(localRaw)
-          : getSeededDemoReportRecord(reportId);
-      setReport(normalizeReportDeliverable(parsed));
+          : null);
+      const mergedProjects = mergeProjectsWithLocal(demoProjects);
+      const demoProjectKeys = new Set(demoProjects.map((project) => project.projectKey));
+      const canonicalProjects = [
+        ...demoProjects,
+        ...mergedProjects.filter((project) => !demoProjectKeys.has(project.projectKey))
+      ];
+      const normalized = normalizeReportDeliverable(parsed, {
+        expectedReportId: reportId,
+        canonicalProjects
+      });
+      setReport(normalized ? normalizeReportForDisplay(normalized) : null);
     } catch {
       setReport(null);
     } finally {

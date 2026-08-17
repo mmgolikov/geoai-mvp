@@ -1,5 +1,13 @@
+import { demoProjects } from "@/src/data/demo-projects";
+import { createBrowserAnalysisRestoreContext, type AnalysisRestoreContext } from "@/src/lib/analysis-restore-authority";
+import { normalizeRestoredExpressAnalysis } from "@/src/lib/analysis-restore-normalization";
+import { normalizeRestoredComparison } from "@/src/lib/comparison-restore";
+import { deriveDecisionPosture } from "@/src/lib/decision-posture";
+import type { GeoAIProject } from "@/src/lib/db/types";
 import type { SourceLineageSnapshot } from "@/src/lib/project-workspace-types";
 import { normalizeReportMapSnapshot, type ReportMapSnapshot } from "@/src/lib/report-map-snapshot";
+import { isCanonicalReportId } from "@/src/lib/report-id";
+import { createSourceLineageSnapshot } from "@/src/lib/source-lineage-snapshot";
 import type { CustomQueryAnswer } from "@/src/lib/custom-query/query-answer";
 import type { AnalysisTarget, ComparisonResult, ExpressAnalysis, ScoreKey, SelectedDemoObject, SelectedPoint, UserDrawnAoi } from "@/src/types/geo";
 
@@ -76,8 +84,11 @@ type ReportRecord = {
   target_label?: string;
   reportPayload?: unknown;
   report_json?: unknown;
+  payload?: unknown;
   sourceLineage?: SourceLineageSnapshot;
   source_lineage?: SourceLineageSnapshot;
+  mapSnapshot?: unknown;
+  map_snapshot?: unknown;
   createdAt?: string;
   created_at?: string;
   generated_at?: string;
@@ -85,33 +96,34 @@ type ReportRecord = {
   decision_posture?: string;
 };
 
-const fallbackLineage: SourceLineageSnapshot = {
-  capturedAt: new Date(0).toISOString(),
-  demoSources: [
-    {
-      id: "illustrative-open-workspace",
-      name: "GeoAI illustrative local and public/open context",
-      note: "Illustrative local and public/open context used for screening narrative and report layout."
-    }
-  ],
-  uploadedSources: [],
-  externalSources: [],
-  plannedValidationSources: [
-    {
-      id: "planned-official-validation",
-      name: "Planned official/customer validation sources",
-      disclaimer: "Official validation sources are planned and not implied as connected by this report."
-    }
-  ],
-  disclaimers: [
-    "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.",
-    "Saved report uses illustrative local, public/open or user-provided source lineage unless explicitly validated.",
-    "Live official parcel, planning, cadastral, title, ownership and zoning validation is not provided.",
-    "GeoAI supports screening and decision preparation, not final legal, cadastral or valuation approval."
-  ]
+const releaseCaveat = "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.";
+
+export type ReportDeliverableNormalizationOptions = {
+  expectedReportId: string;
+  expectedProject?: GeoAIProject | null;
+  canonicalProjects?: readonly GeoAIProject[];
 };
 
-const releaseCaveat = "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.";
+const maximumPresentationCharacters = 320;
+const maximumMapDataUrlCharacters = 8_000_000;
+const forbiddenPersistedClaimPatterns = [
+  /\bcertified\s+valuation\b/i,
+  /\bofficial\s+parcel\b/i,
+  /\bownership\s+verified\b/i,
+  /\bownership\s+verification\b/i,
+  /\bcadastral\s+validation\b/i,
+  /\bofficial\s+zoning\b/i,
+  /\bzoning\s+allows\b/i,
+  /\btitle\s+clear\b/i,
+  /\bapproved\s+site\b/i,
+  /\bguaranteed\s+best\s+use\b/i,
+  /\binvestment\s+guaranteed\b/i,
+  /\blive\s+official\s+dld\b/i,
+  /\blive\s+geodubai\b/i,
+  /\bproduction[- ]ready\b/i,
+  /\bpilot[- ]ready\b/i,
+  /\bofficial[_ -]?validated\b/i
+];
 
 const scoreKeys: ScoreKey[] = [
   "developmentPotential",
@@ -182,290 +194,404 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function asString(value: unknown, fallback: string) {
-  return typeof value === "string" && value.trim().length > 0 ? value : fallback;
-}
-
-function asArrayOfStrings(value: unknown): string[] {
-  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
-}
-
-function asPoint(value: unknown): SelectedPoint | null {
-  if (!isObject(value)) return null;
-  const latitude = value.latitude;
-  const longitude = value.longitude;
-  return typeof latitude === "number" && typeof longitude === "number" ? { latitude, longitude } : null;
-}
-
-function asCustomQueryAnswer(value: unknown): CustomQueryAnswer | null {
-  if (!isObject(value)) return null;
-  const question = asString(value.question, "");
-  const shortAnswer = asString(value.shortAnswer, "");
-  const recommendation = asString(value.recommendation, "");
-
-  if (!question || !shortAnswer || !recommendation) return null;
-
-  return {
-    question,
-    intent: asString(value.intent, "custom") as CustomQueryAnswer["intent"],
-    shortAnswer,
-    recommendation,
-    reasoning: asArrayOfStrings(value.reasoning),
-    keyRisks: asArrayOfStrings(value.keyRisks),
-    validationNeeded: asArrayOfStrings(value.validationNeeded),
-    nextActions: asArrayOfStrings(value.nextActions),
-    sourceBasis: asArrayOfStrings(value.sourceBasis),
-    confidenceNote: asString(value.confidenceNote, "Screening-only response; official validation required.")
-  };
-}
-
 function readPayload(record: ReportRecord) {
-  return record.reportPayload ?? record.report_json ?? {};
+  const payload = record.reportPayload ?? record.report_json ?? record.payload;
+  return isObject(payload) ? payload : null;
 }
 
-function readMapSnapshot(record: ReportRecord, payload: unknown) {
-  const recordSnapshot = (record as ReportRecord & { mapSnapshot?: unknown; map_snapshot?: unknown }).mapSnapshot ??
-    (record as ReportRecord & { map_snapshot?: unknown }).map_snapshot;
-  const payloadSnapshot = isObject(payload) ? payload.mapSnapshot : null;
-  return normalizeReportMapSnapshot(payloadSnapshot ?? recordSnapshot);
+function boundedString(value: unknown, maximum = maximumPresentationCharacters) {
+  if (typeof value !== "string") return null;
+  const normalized = value
+    .replace(/[\u0000-\u001f\u007f]/g, " ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+  return normalized.length > 0 && normalized.length <= maximum ? normalized : null;
 }
 
-function readReportId(record: ReportRecord) {
-  return record.id ?? record.report_key ?? "unsaved-report";
+function hasForbiddenDecisionClaim(value: string) {
+  return forbiddenPersistedClaimPatterns.some((pattern) => pattern.test(value));
 }
 
-function readReportType(record: ReportRecord, payload: unknown): ReportType {
-  const explicitType = record.reportType ?? record.report_type;
-  if (explicitType === "comparison" || explicitType === "analysis") return explicitType;
-  return isObject(payload) && payload.comparisonJson ? "comparison" : "analysis";
+function readSafeDecisionLabel(value: unknown, fallback: string) {
+  const normalized = boundedString(value);
+  if (!normalized || hasForbiddenDecisionClaim(normalized)) return fallback;
+  return normalized;
 }
 
-function readCreatedAt(record: ReportRecord, payload: unknown) {
-  if (isObject(payload) && typeof payload.generatedAt === "string") return payload.generatedAt;
-  return record.createdAt ?? record.created_at ?? record.generated_at ?? new Date().toISOString();
-}
-
-function readSourceLineage(record: ReportRecord) {
-  const sourceLineage = (record.sourceLineage ?? record.source_lineage) as Partial<SourceLineageSnapshot> | null | undefined;
-  const disclaimers = Array.isArray(sourceLineage?.disclaimers) ? sourceLineage.disclaimers : [];
-
-  return {
-    capturedAt: typeof sourceLineage?.capturedAt === "string" ? sourceLineage.capturedAt : fallbackLineage.capturedAt,
-    demoSources: Array.isArray(sourceLineage?.demoSources) ? sourceLineage.demoSources : [],
-    uploadedSources: Array.isArray(sourceLineage?.uploadedSources) ? sourceLineage.uploadedSources : [],
-    externalSources: Array.isArray(sourceLineage?.externalSources) ? sourceLineage.externalSources : [],
-    plannedValidationSources: Array.isArray(sourceLineage?.plannedValidationSources) ? sourceLineage.plannedValidationSources : [],
-    disclaimers: disclaimers.includes(releaseCaveat)
-      ? disclaimers
-      : [releaseCaveat, ...disclaimers]
-  };
-}
-
-function readAnalysisPayload(payload: unknown): ExpressAnalysis | null {
-  if (!isObject(payload)) return null;
-  const candidate = payload.memoJson;
-  if (!isObject(candidate) || !isObject(candidate.scores) || !isObject(candidate.point)) return null;
-
-  const analysis = candidate as unknown as ExpressAnalysis;
-  const aiDecisionScore = isObject(candidate.aiDecisionScore)
-    ? {
-        ...candidate.aiDecisionScore,
-        keyDrivers: asArrayOfStrings(candidate.aiDecisionScore.keyDrivers),
-        keyRisks: asArrayOfStrings(candidate.aiDecisionScore.keyRisks),
-        validationRequired: asArrayOfStrings(candidate.aiDecisionScore.validationRequired)
-      } as ExpressAnalysis["aiDecisionScore"]
-    : undefined;
-
-  return {
-    ...analysis,
-    keyFactors: asArrayOfStrings(candidate.keyFactors),
-    risks: asArrayOfStrings(candidate.risks),
-    opportunities: asArrayOfStrings(candidate.opportunities),
-    nextActions: asArrayOfStrings(candidate.nextActions),
-    limitations: asArrayOfStrings(candidate.limitations),
-    evidence: Array.isArray(candidate.evidence) ? analysis.evidence : [],
-    aiDecisionScore
-  };
-}
-
-function readComparisonPayload(payload: unknown): ComparisonResult | null {
-  if (!isObject(payload)) return null;
-  const candidate = payload.comparisonJson;
-  if (!isObject(candidate) || !Array.isArray(candidate.items)) return null;
-
-  const itemsAreRenderable = candidate.items.every((item) =>
-    isObject(item) && isObject(item.item) && isObject(item.scores)
-  );
-  if (!itemsAreRenderable) return null;
-
-  const comparison = candidate as unknown as ComparisonResult;
-  return {
-    ...comparison,
-    sharedOpportunities: asArrayOfStrings(candidate.sharedOpportunities),
-    differentiatedRisks: asArrayOfStrings(candidate.differentiatedRisks),
-    nextActions: asArrayOfStrings(candidate.nextActions),
-    evidence: Array.isArray(candidate.evidence) ? comparison.evidence : []
-  };
-}
-
-function normalizeComparedItems(payload: unknown, comparison: ComparisonResult | null): ComparisonReportDeliverable["comparedItems"] {
-  if (comparison) {
-    return comparison.items.map((item) => ({
-      name: item.item.name,
-      type: item.item.itemType,
-      coordinates: item.item.point,
-      overallScore: item.overallScore,
-      riskLevel: item.riskLevel,
-      recommendedUse: item.recommendedUse,
-      keyConcern: item.keyConcern
-    }));
-  }
-
-  if (!isObject(payload) || !Array.isArray(payload.comparedItems)) return [];
-
-  return payload.comparedItems.map((item) => {
-    if (!isObject(item)) {
-      return {
-        name: "Compared item",
-        type: "site",
-        coordinates: null,
-        overallScore: null,
-        riskLevel: "Validation required",
-        recommendedUse: "Screening candidate",
-        keyConcern: "Official validation required"
-      };
+function readTimestamp(...values: unknown[]) {
+  for (const value of values) {
+    const candidate = boundedString(value, 64);
+    if (!candidate) continue;
+    const parsed = new Date(candidate);
+    const year = parsed.getUTCFullYear();
+    if (!Number.isNaN(parsed.getTime()) && year >= 2000 && year <= 2100) {
+      return parsed.toISOString();
     }
-
-    return {
-      name: asString(item.name, "Compared item"),
-      type: asString(item.type, "site"),
-      coordinates: asPoint(item.coordinates),
-      overallScore: typeof item.overallScore === "number" ? item.overallScore : null,
-      riskLevel: asString(item.riskLevel, "Validation required"),
-      recommendedUse: asString(item.recommendedUse, "Screening candidate"),
-      keyConcern: asString(item.keyConcern, "Official validation required")
-    };
-  });
+  }
+  return new Date(0).toISOString();
 }
 
-export function normalizeReportDeliverable(record: unknown): AnalysisReportDeliverable | ComparisonReportDeliverable | null {
-  if (!isObject(record)) return null;
+function projectIdsMatch(value: unknown, expectedProject: GeoAIProject) {
+  if (expectedProject.id === null) return value === null || value === undefined;
+  return value === expectedProject.id;
+}
 
-  const typedRecord = record as ReportRecord;
-  const payload = readPayload(typedRecord);
-  const reportType = readReportType(typedRecord, payload);
-  const id = readReportId(typedRecord);
-  const sourceLineage = readSourceLineage(typedRecord);
-  const mapSnapshot = readMapSnapshot(typedRecord, payload);
-  const createdAt = readCreatedAt(typedRecord, payload);
-  const projectId = typedRecord.projectId ?? typedRecord.project_id ?? null;
-  const projectKey = typedRecord.projectKey ?? typedRecord.project_key ?? null;
-  const title = asString(typedRecord.title, isObject(payload) ? asString(payload.title, "GeoAI report") : "GeoAI report");
-  const scenario = isObject(payload) ? asString(payload.scenario, typedRecord.scenario ?? reportType) : typedRecord.scenario ?? reportType;
-  const decisionPosture = isObject(payload)
-    ? asString(payload.decisionPosture, typedRecord.decisionPosture ?? typedRecord.decision_posture ?? "Requires official validation")
-    : typedRecord.decisionPosture ?? typedRecord.decision_posture ?? "Requires official validation";
-  const dataHonestyNote = "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion. Browser print/save as PDF deliverable based on illustrative local, public/open or user-provided screening context.";
+function readProjectIdentity(record: ReportRecord) {
+  const camelKey = boundedString(record.projectKey, 240);
+  const snakeKey = boundedString(record.project_key, 240);
+  if (camelKey && snakeKey && camelKey !== snakeKey) return null;
 
-  if (reportType === "comparison") {
-    const comparison = readComparisonPayload(payload);
-    const comparedItems = normalizeComparedItems(payload, comparison);
-    const winnerLabel = comparison?.winner.item.name ?? decisionPosture.replace(/^Best option:\s*/i, "") ?? comparedItems[0]?.name ?? "Validation required";
-    const sharedOpportunities = comparison?.sharedOpportunities ?? (isObject(payload) ? asArrayOfStrings(payload.keyValueDrivers) : []);
-    const differentiatedRisks = comparison?.differentiatedRisks ?? (isObject(payload) ? asArrayOfStrings(payload.criticalConstraints) : []);
-    const nextActions = comparison?.nextActions ?? (isObject(payload) ? asArrayOfStrings(payload.dueDiligenceChecklist) : []);
-    const customQueryAnswer = comparison?.customQueryAnswer ?? (isObject(payload) ? asCustomQueryAnswer(payload.customQueryAnswer) : null);
+  const hasCamelId = record.projectId !== undefined;
+  const hasSnakeId = record.project_id !== undefined;
+  if (hasCamelId && hasSnakeId && record.projectId !== record.project_id) return null;
 
-    return {
-      id,
-      projectId,
-      projectKey,
-      reportType: "comparison",
-      title,
-      subtitle: `Comparing ${comparedItems.length || 2} selected sites / assets`,
-      scenario,
-      targetLabel: comparedItems.map((item) => item.name).join(", ") || "Compared sites",
-      targetGeometry: null,
-      createdAt,
-      generatedBy: "GeoAI Decision Intelligence",
-      decisionPosture,
-      scoreSummary: isObject(payload) ? payload.scoreOverview ?? comparison?.items ?? null : comparison?.items ?? null,
-      keyFindings: sharedOpportunities,
-      risks: differentiatedRisks,
-      nextActions: nextActions.length > 0 ? nextActions : getScenarioNextActions(scenario),
-      validationChecklist: defaultValidationChecklist,
-      sourceLineage,
-      dataHonestyNote,
-      reportPayload: payload,
-      mapSnapshot,
-      comparison,
-      comparedItems,
-      winnerLabel,
-      alternativeInterpretation: comparison?.whenAnotherMayBeBetter ?? "Another option may be preferred if official validation, capital plan, ownership, or customer-specific constraints change the decision basis.",
-      sharedOpportunities,
-      differentiatedRisks,
-      customQueryAnswer
-    };
+  const projectKey = camelKey ?? snakeKey;
+  if (!projectKey) return null;
+  return {
+    projectKey,
+    projectId: hasCamelId ? record.projectId : record.project_id
+  };
+}
+
+function resolveExpectedProject(
+  record: ReportRecord,
+  options: ReportDeliverableNormalizationOptions
+) {
+  const identity = readProjectIdentity(record);
+  if (!identity) return null;
+
+  const explicitProject = options.expectedProject ?? null;
+  if (explicitProject) {
+    return explicitProject.projectKey === identity.projectKey && projectIdsMatch(identity.projectId, explicitProject)
+      ? explicitProject
+      : null;
   }
 
-  const analysis = readAnalysisPayload(payload);
-  const coordinates = analysis?.point ?? (isObject(payload) ? asPoint(payload.coordinates) : null);
-  const selectedObject = analysis?.selectedObject ?? (isObject(payload) && isObject(payload.selectedObject) ? payload.selectedObject as SelectedDemoObject : null);
-  const selectedAoi = analysis?.selectedAoi ?? (isObject(payload) && isObject(payload.selectedAoi) ? payload.selectedAoi as UserDrawnAoi : null);
-  const targetLabel = selectedAoi?.name ?? analysis?.selectedObject?.name ?? (isObject(payload) ? asString(payload.selectedSite, typedRecord.targetLabel ?? typedRecord.target_label ?? "Selected site") : typedRecord.targetLabel ?? typedRecord.target_label ?? "Selected site");
-  const scoreSummary = analysis?.scores ?? (isObject(payload) ? payload.scoreOverview ?? null : null);
-  const keyFindings = analysis?.keyFactors ?? (isObject(payload) ? asArrayOfStrings(payload.keyValueDrivers) : []);
-  const risks = analysis?.risks ?? (isObject(payload) ? asArrayOfStrings(payload.criticalConstraints) : []);
-  const nextActions = analysis?.nextActions ?? (isObject(payload) ? asArrayOfStrings(payload.dueDiligenceChecklist) : []);
-  const customQueryAnswer = analysis?.customQueryAnswer ?? (isObject(payload) ? asCustomQueryAnswer(payload.customQueryAnswer) : null);
-  const selectedAoiTarget: AnalysisTarget | null = selectedAoi
-    ? {
-        id: selectedAoi.id,
-        type: "user-drawn-aoi",
-        label: selectedAoi.name,
-        coordinates: selectedAoi.centroid,
-        geometry: selectedAoi.geometry,
-        bbox: selectedAoi.bbox,
-        measurements: selectedAoi.measurements,
-        datasetId: "user-drawn-aoi",
-        datasetName: "User-drawn AOI",
-        sourceMode: "user-drawn",
-        officialStatus: "official-validation-required"
-      }
-    : null;
+  const candidates = options.canonicalProjects ?? demoProjects;
+  return candidates.find((project) =>
+    project.projectKey === identity.projectKey && projectIdsMatch(identity.projectId, project)
+  ) ?? null;
+}
+
+function reportIdentityMatches(record: ReportRecord, expectedReportId: string) {
+  if (!isCanonicalReportId(expectedReportId)) return false;
+  const recordIds = [
+    boundedString(record.id, 240),
+    boundedString(record.report_key, 240)
+  ].filter((value): value is string => Boolean(value));
+  return recordIds.includes(expectedReportId);
+}
+
+function readReportType(record: ReportRecord, payload: Record<string, unknown>) {
+  const hasAnalysis = isObject(payload.memoJson);
+  const hasComparison = isObject(payload.comparisonJson);
+  if (hasAnalysis === hasComparison) return null;
+
+  const inferredType: ReportType = hasComparison ? "comparison" : "analysis";
+  if (record.reportType && record.report_type && record.reportType !== record.report_type) return null;
+  const explicitType = record.reportType ?? record.report_type;
+  if (explicitType !== undefined && explicitType !== inferredType) return null;
+  return inferredType;
+}
+
+function createCanonicalSourceLineage(
+  evidence: ExpressAnalysis["evidence"] | ComparisonResult["evidence"],
+  context: AnalysisRestoreContext,
+  createdAt: string,
+  additionalDatasetIds: ReadonlySet<string> = new Set()
+) {
+  const referencedDatasetIds = new Set(additionalDatasetIds);
+  for (const dataset of context.uploadedDatasets ?? []) {
+    const isReferenced = evidence.some((item) =>
+      item.sourceId === `uploaded-local:${dataset.id}` ||
+      item.id === `uploaded-${dataset.id}` ||
+      item.id.startsWith(`uploaded-${dataset.id}-`)
+    );
+    if (isReferenced) referencedDatasetIds.add(dataset.id);
+  }
+  const uploadedDatasets = (context.uploadedDatasets ?? []).filter((dataset) =>
+    dataset.projectKey === context.expectedProject.projectKey &&
+    referencedDatasetIds.has(dataset.id)
+  );
+  return {
+    ...createSourceLineageSnapshot({ evidence, uploadedDatasets }),
+    capturedAt: createdAt
+  };
+}
+
+function analysisDatasetIds(analysis: ExpressAnalysis) {
+  const datasetIds = new Set<string>();
+  for (const match of analysis.uploadedDataContext?.appliedMetrics ?? []) {
+    datasetIds.add(match.datasetId);
+  }
+  for (const dataset of analysis.uploadedDataContext?.visibleGeojsonLayers ?? []) {
+    datasetIds.add(dataset.id);
+  }
+  const selectedDatasetId = analysis.selectedObject?.analysisTarget?.datasetId;
+  if (analysis.selectedObject?.analysisTarget?.sourceMode === "user-uploaded" && selectedDatasetId) {
+    datasetIds.add(selectedDatasetId);
+  }
+  return datasetIds;
+}
+
+function comparisonDatasetIds(comparison: ComparisonResult) {
+  const datasetIds = new Set<string>();
+  for (const scorecard of comparison.items) {
+    const target = scorecard.item.selectedObject?.analysisTarget;
+    if (target?.sourceMode === "user-uploaded" && target.datasetId) {
+      datasetIds.add(target.datasetId);
+    }
+  }
+  return datasetIds;
+}
+
+function readCanonicalMapSnapshot(
+  record: ReportRecord,
+  payload: Record<string, unknown>,
+  targetLabel: string,
+  createdAt: string
+) {
+  const snapshot = normalizeReportMapSnapshot(payload.mapSnapshot ?? record.mapSnapshot ?? record.map_snapshot);
+  if (
+    !snapshot ||
+    snapshot.src.length > maximumMapDataUrlCharacters ||
+    !Number.isInteger(snapshot.width) ||
+    !Number.isInteger(snapshot.height) ||
+    snapshot.width > 8_192 ||
+    snapshot.height > 8_192
+  ) {
+    return null;
+  }
+  return {
+    ...snapshot,
+    capturedAt: readTimestamp(snapshot.capturedAt, createdAt),
+    targetLabel
+  };
+}
+
+function createSelectedAoiTarget(selectedAoi: UserDrawnAoi | null): AnalysisTarget | null {
+  if (!selectedAoi) return null;
+  return {
+    id: selectedAoi.id,
+    type: "user-drawn-aoi",
+    label: selectedAoi.name,
+    coordinates: selectedAoi.centroid,
+    geometry: selectedAoi.geometry,
+    bbox: selectedAoi.bbox,
+    measurements: selectedAoi.measurements,
+    datasetId: "user-drawn-aoi",
+    datasetName: "User-drawn AOI",
+    sourceMode: "user-drawn",
+    officialStatus: "official-validation-required"
+  };
+}
+
+function normalizeAnalysisReport(
+  record: ReportRecord,
+  payload: Record<string, unknown>,
+  expectedProject: GeoAIProject,
+  expectedReportId: string
+): AnalysisReportDeliverable | null {
+  const projectIdentity = readProjectIdentity(record);
+  if (!projectIdentity) return null;
+  const context = createBrowserAnalysisRestoreContext(expectedProject, {
+    sourceProjectKey: projectIdentity.projectKey,
+    sourceProjectId: projectIdentity.projectId ?? null
+  });
+  const normalized = normalizeRestoredExpressAnalysis(payload.memoJson, context);
+  if (!normalized) return null;
+
+  const analysis = normalized.analysis;
+  const selectedObject = analysis.selectedObject ?? null;
+  const selectedAoi = analysis.selectedAoi ?? null;
+  const rawTargetLabel = selectedAoi?.name ?? selectedObject?.name ?? "Custom map selection";
+  const targetLabel = readSafeDecisionLabel(rawTargetLabel, "Selected screening target");
+  if (targetLabel !== rawTargetLabel || readSafeDecisionLabel(expectedProject.name, "Project") !== expectedProject.name) {
+    return null;
+  }
+
+  const scenario = readSafeDecisionLabel(analysis.title, "Screening Analysis");
+  const createdAt = readTimestamp(
+    record.createdAt,
+    record.created_at,
+    record.generated_at,
+    payload.generatedAt,
+    analysis.generatedAt
+  );
+  const sourceLineage = createCanonicalSourceLineage(
+    analysis.evidence,
+    context,
+    createdAt,
+    analysisDatasetIds(analysis)
+  );
+  const mapSnapshot = readCanonicalMapSnapshot(record, payload, targetLabel, createdAt);
+  const selectedAoiTarget = createSelectedAoiTarget(selectedAoi);
+  const analysisTarget = analysis.analysisTarget ?? selectedObject?.analysisTarget ?? selectedAoiTarget;
+  const decisionPosture = deriveDecisionPosture(analysis);
 
   return {
-    id,
-    projectId,
-    projectKey,
+    id: expectedReportId,
+    projectId: expectedProject.id,
+    projectKey: expectedProject.projectKey,
     reportType: "analysis",
-    title,
-    subtitle: analysis?.title ?? scenario,
+    title: "Express Analysis / Investment Memo",
+    subtitle: readSafeDecisionLabel(analysis.subtitle, scenario),
     scenario,
     targetLabel,
-    targetGeometry: analysis?.analysisTarget?.geometry ?? selectedAoi?.geometry ?? selectedObject?.analysisTarget?.geometry ?? null,
+    targetGeometry: analysisTarget?.geometry ?? null,
     createdAt,
     generatedBy: "GeoAI Decision Intelligence",
     decisionPosture,
-    scoreSummary,
-    keyFindings,
-    risks,
-    nextActions: nextActions.length > 0 ? nextActions : getScenarioNextActions(scenario),
+    scoreSummary: analysis.scores,
+    keyFindings: analysis.keyFactors,
+    risks: analysis.risks,
+    nextActions: analysis.nextActions.length > 0 ? analysis.nextActions : getScenarioNextActions(scenario),
     validationChecklist: defaultValidationChecklist,
     sourceLineage,
-    dataHonestyNote,
-    reportPayload: payload,
+    dataHonestyNote: releaseCaveat,
+    reportPayload: {
+      project: expectedProject,
+      memoJson: analysis,
+      mapSnapshot,
+      generatedAt: createdAt
+    },
     mapSnapshot,
-    coordinates,
+    coordinates: analysis.point,
     analysis,
     selectedObject,
     selectedAoi,
-    analysisTarget: analysis?.analysisTarget ?? selectedObject?.analysisTarget ?? selectedAoiTarget,
-    executiveMemo: analysis?.summary ?? "This saved report contains a GeoAI screening memo. Generate a fresh analysis for richer narrative detail and source-specific scoring context.",
-    opportunities: analysis?.opportunities ?? [],
-    limitations: analysis?.limitations ?? (isObject(payload) ? asArrayOfStrings(payload.limitations) : []),
-    customQueryAnswer
+    analysisTarget,
+    executiveMemo: analysis.summary,
+    opportunities: analysis.opportunities,
+    limitations: analysis.limitations ?? [],
+    customQueryAnswer: analysis.customQueryAnswer ?? null
   };
+}
+
+function normalizeComparisonReport(
+  record: ReportRecord,
+  payload: Record<string, unknown>,
+  expectedProject: GeoAIProject,
+  expectedReportId: string
+): ComparisonReportDeliverable | null {
+  const candidate = payload.comparisonJson;
+  if (!isObject(candidate)) return null;
+  const comparisonId = boundedString(candidate.id, 2_048);
+  if (!comparisonId) return null;
+  const comparison = normalizeRestoredComparison(
+    candidate,
+    expectedProject.projectKey,
+    comparisonId,
+    expectedProject
+  );
+  if (!comparison) return null;
+
+  const itemNames = comparison.items.map((item) => item.item.name);
+  if (
+    itemNames.some((name) => readSafeDecisionLabel(name, "Compared screening target") !== name) ||
+    readSafeDecisionLabel(expectedProject.name, "Project") !== expectedProject.name
+  ) {
+    return null;
+  }
+
+  const comparedItems = comparison.items.map((item) => ({
+    name: item.item.name,
+    type: item.item.itemType,
+    coordinates: item.item.point,
+    overallScore: item.overallScore,
+    riskLevel: item.riskLevel,
+    recommendedUse: item.recommendedUse,
+    keyConcern: item.keyConcern
+  }));
+  const targetLabel = itemNames.join(", ");
+  if (!boundedString(targetLabel, 1_024)) return null;
+  const scenario = readSafeDecisionLabel(
+    comparison.items[0]?.item.scenarioLabel,
+    "Screening Comparison"
+  );
+  const createdAt = readTimestamp(
+    record.createdAt,
+    record.created_at,
+    record.generated_at,
+    payload.generatedAt
+  );
+  const projectIdentity = readProjectIdentity(record);
+  if (!projectIdentity) return null;
+  const context = createBrowserAnalysisRestoreContext(expectedProject, {
+    sourceProjectKey: projectIdentity.projectKey,
+    sourceProjectId: projectIdentity.projectId ?? null
+  });
+  const sourceLineage = createCanonicalSourceLineage(
+    comparison.evidence,
+    context,
+    createdAt,
+    comparisonDatasetIds(comparison)
+  );
+  const mapSnapshot = readCanonicalMapSnapshot(record, payload, targetLabel, createdAt);
+  const winnerLabel = comparison.winner.item.name;
+
+  return {
+    id: expectedReportId,
+    projectId: expectedProject.id,
+    projectKey: expectedProject.projectKey,
+    reportType: "comparison",
+    title: "Site Comparison Investment Memo",
+    subtitle: `Comparing ${comparedItems.length} selected sites / assets`,
+    scenario,
+    targetLabel,
+    targetGeometry: null,
+    createdAt,
+    generatedBy: "GeoAI Decision Intelligence",
+    decisionPosture: `Best option: ${winnerLabel}`,
+    scoreSummary: comparison.items,
+    keyFindings: comparison.sharedOpportunities,
+    risks: comparison.differentiatedRisks,
+    nextActions: comparison.nextActions.length > 0 ? comparison.nextActions : getScenarioNextActions(scenario),
+    validationChecklist: defaultValidationChecklist,
+    sourceLineage,
+    dataHonestyNote: releaseCaveat,
+    reportPayload: {
+      project: expectedProject,
+      comparisonJson: comparison,
+      mapSnapshot,
+      generatedAt: createdAt
+    },
+    mapSnapshot,
+    comparison,
+    comparedItems,
+    winnerLabel,
+    alternativeInterpretation: comparison.whenAnotherMayBeBetter,
+    sharedOpportunities: comparison.sharedOpportunities,
+    differentiatedRisks: comparison.differentiatedRisks,
+    customQueryAnswer: comparison.customQueryAnswer ?? null
+  };
+}
+
+export function normalizeReportDeliverable(
+  record: unknown,
+  options: ReportDeliverableNormalizationOptions
+): AnalysisReportDeliverable | ComparisonReportDeliverable | null {
+  try {
+    if (!isObject(record) || !options || !reportIdentityMatches(record, options.expectedReportId)) {
+      return null;
+    }
+
+    const typedRecord = record as ReportRecord;
+    const payload = readPayload(typedRecord);
+    const expectedProject = resolveExpectedProject(typedRecord, options);
+    if (!payload || !expectedProject) return null;
+
+    const reportType = readReportType(typedRecord, payload);
+    if (reportType === "analysis") {
+      return normalizeAnalysisReport(typedRecord, payload, expectedProject, options.expectedReportId);
+    }
+    if (reportType === "comparison") {
+      return normalizeComparisonReport(typedRecord, payload, expectedProject, options.expectedReportId);
+    }
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 export function scoreSummaryRows(scoreSummary: unknown): Array<{ label: string; value: number | string }> {

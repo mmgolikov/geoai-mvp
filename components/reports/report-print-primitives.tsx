@@ -1,4 +1,5 @@
 import type { SourceLineageSnapshot } from "@/src/lib/project-workspace-types";
+import { normalizeSourceLineageForDisplay } from "@/src/lib/report-display-normalization";
 
 export function PrintPage({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return <section className={`geoai-print-page ${className}`}>{children}</section>;
@@ -42,17 +43,27 @@ export function PrintList({
 }
 
 export function SourceLineagePrintSection({ lineage }: { lineage: SourceLineageSnapshot }) {
-  const externalSources = Array.isArray(lineage?.externalSources) ? lineage.externalSources : [];
-  const uploadedSources = Array.isArray(lineage?.uploadedSources) ? lineage.uploadedSources : [];
-  const demoSources = Array.isArray(lineage?.demoSources) ? lineage.demoSources : [];
-  const plannedValidationSources = Array.isArray(lineage?.plannedValidationSources) ? lineage.plannedValidationSources : [];
-  const disclaimers = Array.isArray(lineage?.disclaimers) ? lineage.disclaimers : [];
+  const normalizedLineage = normalizeSourceLineageForDisplay(lineage);
+  const externalSources = normalizedLineage.externalSources;
+  const uploadedSources = normalizedLineage.uploadedSources;
+  const demoSources = normalizedLineage.demoSources;
+  const plannedValidationSources = normalizedLineage.plannedValidationSources;
+  const disclaimers = normalizedLineage.disclaimers;
+  const sourceIdentity = (name: string, fallback: string) => {
+    const normalized = name
+      .replace(/[\u0000-\u001f\u007f]/g, " ")
+      .replace(/\s{2,}/g, " ")
+      .trim();
+
+    return normalized ? normalized.slice(0, 160) : fallback;
+  };
   const sourceName = (name: string) => {
-    if (/^dld[-_].*transaction/i.test(name)) return "Illustrative local transactions context";
-    if (/^(?:osm|geofabrik)[-_].*(?:road|access)/i.test(name)) return "Illustrative local roads and access context";
-    return /(?:synthetic|demo|mock|fixture)/i.test(name)
+    const identity = sourceIdentity(name, "Illustrative local screening context");
+    if (/^dld[-_].*transaction/i.test(identity)) return "Illustrative local transactions context";
+    if (/^(?:osm|geofabrik)[-_].*(?:road|access)/i.test(identity)) return "Illustrative local roads and access context";
+    return /(?:synthetic|demo|mock|fixture)/i.test(identity)
       ? "Illustrative local screening context"
-      : name;
+      : identity;
   };
   const sourceStatus = (status?: string) => {
     if (!status) return null;
@@ -81,7 +92,7 @@ export function SourceLineagePrintSection({ lineage }: { lineage: SourceLineageS
     {
       title: "Uploaded / client data",
       items: uploadedSources.map((source) => ({
-        name: sourceName(source.name),
+        name: sourceIdentity(source.name, "User-provided source"),
         meta: source.type,
         note: source.note
       }))

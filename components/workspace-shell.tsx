@@ -102,6 +102,7 @@ import {
   normalizeRestoredAnalysisHistoryItem,
   normalizeRestoredExpressAnalysis
 } from "@/src/lib/analysis-restore-normalization";
+import { createBrowserAnalysisRestoreContext } from "@/src/lib/analysis-restore-authority";
 import type {
   AnalysisScenarioId,
   AnalysisHistoryItem,
@@ -199,6 +200,7 @@ type PersistedAnalysisRun = {
   confidence_level?: ExpressAnalysis["confidenceLevel"];
   data_confidence_level?: string | null;
   analysis_mode?: ExpressAnalysis["analysisMode"];
+  project_id?: string | null;
   project_key?: string | null;
   project_name?: string | null;
   created_at?: string;
@@ -212,6 +214,32 @@ type OpenAnalysisRequest = {
   customQuery?: string;
   analysis?: ExpressAnalysis;
 };
+
+function findCanonicalRestoreProject(value: unknown, projects: GeoAIProject[]) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const item = value as {
+    projectId?: string | null;
+    project_id?: string | null;
+    projectKey?: string | null;
+    project_key?: string | null;
+    project?: { id?: string | null; projectKey?: string | null } | null;
+    analysis?: { project?: { id?: string | null; projectKey?: string | null } | null } | null;
+  };
+  const projectKey = item.projectKey ??
+    item.project_key ??
+    item.project?.projectKey ??
+    item.analysis?.project?.projectKey ??
+    null;
+  const projectId = item.projectId ??
+    item.project_id ??
+    item.project?.id ??
+    item.analysis?.project?.id ??
+    null;
+  const byKey = projectKey ? projects.find((project) => project.projectKey === projectKey) ?? null : null;
+  const byId = projectId ? projects.find((project) => project.id === projectId) ?? null : null;
+  if (byKey && byId && byKey.projectKey !== byId.projectKey) return null;
+  return byKey ?? byId;
+}
 
 function isProjectSegment(value: unknown): value is ExploreAudience {
   return value === "b2b" || value === "b2c";
@@ -489,7 +517,10 @@ function createHistoryItem(
   };
 }
 
-function readAnalysisHistory() {
+function readAnalysisHistory(
+  projects: GeoAIProject[] = mergeProjectsWithLocal(demoProjects),
+  expectedProject?: GeoAIProject
+) {
   if (!isBrowserDemoStorageEnabled()) return [];
 
   try {
@@ -502,7 +533,14 @@ function readAnalysisHistory() {
     if (!Array.isArray(parsed)) return [];
 
     return parsed
-      .map((item) => normalizeRestoredAnalysisHistoryItem(item)?.item ?? null)
+      .map((item) => {
+        const canonicalProject = expectedProject ?? findCanonicalRestoreProject(item, projects);
+        if (!canonicalProject) return null;
+        return normalizeRestoredAnalysisHistoryItem(
+          item,
+          createBrowserAnalysisRestoreContext(canonicalProject)
+        )?.item ?? null;
+      })
       .filter((item): item is AnalysisHistoryItem => item !== null);
   } catch {
     return [];
@@ -598,7 +636,7 @@ function normalizeQuery(query: string) {
   return query.trim();
 }
 
-function readOpenAnalysisRequest() {
+function readOpenAnalysisRequest(expectedProject: GeoAIProject) {
   if (!isBrowserDemoStorageEnabled()) return null;
 
   try {
@@ -609,7 +647,13 @@ function readOpenAnalysisRequest() {
 
     const request = parsed as OpenAnalysisRequest;
     const normalized = request.analysis
-      ? normalizeRestoredExpressAnalysis(request.analysis)
+      ? normalizeRestoredExpressAnalysis(
+          request.analysis,
+          createBrowserAnalysisRestoreContext(expectedProject, {
+            sourceProjectKey: request.projectKey,
+            sourceProjectId: request.projectId
+          })
+        )
       : null;
     if (request.analysis && !normalized) return null;
 
@@ -769,20 +813,26 @@ function isPersistedAnalysisRun(value: unknown): value is PersistedAnalysisRun {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function historyItemFromPersistedRun(value: unknown): AnalysisHistoryItem | null {
+function historyItemFromPersistedRun(value: unknown, expectedProject: GeoAIProject): AnalysisHistoryItem | null {
   if (!isPersistedAnalysisRun(value)) {
     return null;
   }
 
-  const normalized = normalizeRestoredExpressAnalysis(value.result_json ?? value.result_payload);
+  if (value.project_key && value.project_key !== expectedProject.projectKey) return null;
+
+  const normalized = normalizeRestoredExpressAnalysis(
+    value.result_json ?? value.result_payload,
+    createBrowserAnalysisRestoreContext(expectedProject, {
+      sourceProjectKey: value.project_key ?? expectedProject.projectKey,
+      sourceProjectId: value.project_id
+    })
+  );
   if (!normalized) {
     return null;
   }
   const analysis = normalized.analysis;
 
   const scenario = analysisScenarios.find((item) => item.id === analysis.scenarioId);
-  const project = getDemoProject(value.project_key);
-  if (!project) return null;
 
   return {
     id: value.id ?? value.run_key ?? analysis.id,
@@ -795,14 +845,14 @@ function historyItemFromPersistedRun(value: unknown): AnalysisHistoryItem | null
     confidenceLevel: value.confidence_level ?? analysis.confidenceLevel,
     dataConfidenceLevel: value.data_confidence_level ?? analysis.marketContext?.confidenceLevel,
     source: "DB",
-    project,
-    projectKey: value.project_key ?? project.projectKey,
+    project: expectedProject,
+    projectKey: expectedProject.projectKey,
     recommendation: normalized.requiresReanalysis
       ? legacyAnalysisReanalysisPosture
-      : value.decision_posture ?? deriveDecisionPosture(analysis),
+      : deriveDecisionPosture(analysis),
     analysis: {
       ...analysis,
-      project
+      project: expectedProject
     }
   };
 }
@@ -1111,8 +1161,17 @@ export function WorkspaceShell({
       return;
     }
 
-    const projectKey = params.get("projectKey") ?? readProjectKeyFromUrl(demoProjects);
-    const restoreRequest = readOpenAnalysisRequest();
+    const canonicalProjects = mergeProjectsWithLocal(projects);
+    const projectKey = params.get("projectKey") ?? readProjectKeyFromUrl(canonicalProjects);
+    const expectedProject = projectKey
+      ? canonicalProjects.find((project) => project.projectKey === projectKey) ?? null
+      : null;
+    if (!expectedProject) {
+      setAnalysisError("The requested analysis project is unavailable; another project was not substituted.");
+      clearOpenAnalysisRequest();
+      return;
+    }
+    const restoreRequest = readOpenAnalysisRequest(expectedProject);
     const requestedAnalysis = restoreRequest?.analysis;
     const restoredAnalysisProjectKey = requestedAnalysis?.project?.projectKey ?? restoreRequest?.projectKey ?? null;
     const scenario = analysisScenarios.find((item) => item.id === requestedAnalysis?.scenarioId);
@@ -1124,12 +1183,6 @@ export function WorkspaceShell({
       restoreRequest?.projectKey === projectKey &&
       (requestedAnalysis.id === openAnalysisId || restoreRequest?.analysisId === openAnalysisId)
     ) {
-      const restoredProject = requestedAnalysis.project ?? getDemoProject(restoreRequest?.projectKey ?? projectKey);
-      if (!restoredProject) {
-        setAnalysisError("The requested analysis project is unavailable; another project was not substituted.");
-        clearOpenAnalysisRequest();
-        return;
-      }
       restoreAnalysisDashboard({
         id: `restore-${requestedAnalysis.id}`,
         title: requestedAnalysis.selectedObject?.name ?? requestedAnalysis.title,
@@ -1141,26 +1194,29 @@ export function WorkspaceShell({
         confidenceLevel: requestedAnalysis.confidenceLevel,
         dataConfidenceLevel: requestedAnalysis.marketContext?.confidenceLevel,
         source: "local",
-        project: restoredProject,
-        projectKey: restoredProject.projectKey,
+        project: expectedProject,
+        projectKey: expectedProject.projectKey,
         recommendation: deriveDecisionPosture(requestedAnalysis),
         analysis: {
           ...requestedAnalysis,
           customQuery: restoreRequest?.customQuery ?? requestedAnalysis.customQuery
         }
-      }, projectKey);
+      }, expectedProject);
       clearOpenAnalysisRequest();
       return;
     }
 
-    const historyItem = projectKey ? filterHistoryByProject(readAnalysisHistory(), projectKey).find((item) =>
+    const historyItem = filterHistoryByProject(
+      readAnalysisHistory(canonicalProjects, expectedProject),
+      expectedProject.projectKey
+    ).find((item) =>
       item.id === openAnalysisId ||
       item.analysis.id === openAnalysisId ||
       `${item.analysis.id}-${item.analysis.generatedAt ?? ""}` === openAnalysisId
-    ) : undefined;
+    );
 
-    if (historyItem && projectKey) {
-      restoreAnalysisDashboard(historyItem, projectKey);
+    if (historyItem) {
+      restoreAnalysisDashboard(historyItem, expectedProject);
       clearOpenAnalysisRequest();
     } else {
       setAnalysisError("The requested analysis was not restored because its project identity did not match the URL project.");
@@ -1178,7 +1234,7 @@ export function WorkspaceShell({
     const requestedProjectKey = params.get("projectKey") ?? readProjectKeyFromUrl(projects);
     if (!requestedProjectKey || requestedProjectKey !== activeProject.projectKey) return;
 
-    const restoredComparison = readBrowserComparisonRecord(requestedProjectKey, comparisonId)
+    const restoredComparison = readBrowserComparisonRecord(requestedProjectKey, comparisonId, activeProject)
       ?? readSeededComparison(comparisonId, requestedProjectKey);
     if (!restoredComparison || restoredComparison.project?.projectKey !== requestedProjectKey) {
       setAnalysisError("The requested comparison could not be restored for this project.");
@@ -1261,7 +1317,7 @@ export function WorkspaceShell({
   }, [user?.id, user?.profile.defaultAudience, user?.profile.defaultRole]);
 
   useEffect(() => {
-    const localHistory = readAnalysisHistory();
+    const localHistory = readAnalysisHistory(projects, activeProject);
     setAnalysisHistory(filterHistoryByProject(localHistory, activeProject.projectKey));
     setAnalysisHistorySource("local");
 
@@ -1280,7 +1336,7 @@ export function WorkspaceShell({
         }
 
         const dbHistory = payload.items
-          .map((item) => historyItemFromPersistedRun(item))
+          .map((item) => historyItemFromPersistedRun(item, activeProject))
           .filter((item): item is AnalysisHistoryItem => item !== null)
           .filter((item) => item.projectKey === activeProject.projectKey || item.project?.projectKey === activeProject.projectKey);
 
@@ -1296,7 +1352,7 @@ export function WorkspaceShell({
     return () => {
       isMounted = false;
     };
-  }, [activeProject.projectKey]);
+  }, [activeProject, projects]);
 
   useEffect(() => {
     let isMounted = true;
@@ -2116,7 +2172,7 @@ export function WorkspaceShell({
     const historyItem = createHistoryItem(analysisResult, scenarioLabel, activeProject, analysisHistorySource);
 
     setAnalysisHistory(() => {
-      const storedItems = readAnalysisHistory();
+      const storedItems = readAnalysisHistory(projects);
       const projectItems = [
         historyItem,
         ...filterHistoryByProject(storedItems, activeProject.projectKey)
@@ -2393,25 +2449,26 @@ export function WorkspaceShell({
     activateProject(localProject);
   }
 
-  function restoreAnalysisDashboard(item: AnalysisHistoryItem, expectedProjectKey = activeProject.projectKey) {
+  function restoreAnalysisDashboard(item: AnalysisHistoryItem, expectedProject = activeProject) {
+    const expectedProjectKey = expectedProject.projectKey;
     const itemProjectKey = item.projectKey ?? item.project?.projectKey ?? item.analysis.project?.projectKey ?? null;
     if (!itemProjectKey || itemProjectKey !== expectedProjectKey) {
       setAnalysisError("The requested analysis belongs to another project and was not restored.");
       return;
     }
-    const normalized = normalizeRestoredExpressAnalysis(item.analysis);
-    if (!normalized) {
+    const normalizedItem = normalizeRestoredAnalysisHistoryItem(
+      item,
+      createBrowserAnalysisRestoreContext(expectedProject)
+    );
+    if (!normalizedItem) {
       setAnalysisError("The requested analysis payload is incomplete and was not restored.");
       return;
     }
-    const restoredCustomQuery = normalizeQuery(normalized.analysis.customQuery ?? "");
-    const restoredProject = item.project ?? normalized.analysis.project ?? getDemoProject(item.projectKey);
-    if (!restoredProject || restoredProject.projectKey !== expectedProjectKey) {
-      setAnalysisError(`Project '${item.projectKey ?? "unknown"}' is unavailable; the analysis was not restored into another project.`);
-      return;
-    }
+    const normalized = normalizedItem;
+    const restoredCustomQuery = normalizeQuery(normalized.item.analysis.customQuery ?? "");
+    const restoredProject = expectedProject;
     const restoredAnalysis = {
-      ...normalized.analysis,
+      ...normalized.item.analysis,
       project: restoredProject
     };
 
@@ -2468,7 +2525,7 @@ export function WorkspaceShell({
 
   function clearAnalysisHistory() {
     setAnalysisHistory([]);
-    writeAnalysisHistory(readAnalysisHistory().filter((item) => (item.projectKey ?? item.project?.projectKey) !== activeProject.projectKey));
+    writeAnalysisHistory(readAnalysisHistory(projects).filter((item) => (item.projectKey ?? item.project?.projectKey) !== activeProject.projectKey));
   }
 
   function updateUploadedDatasets(updater: (items: UploadedDataset[]) => UploadedDataset[]) {
