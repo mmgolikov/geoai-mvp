@@ -19,7 +19,7 @@ export function DataMaturityBadge({ source }: { source: DataSource | null }) {
 export function SourceStatusBadge({ source }: { source: DataSource | null }) {
   const status = source?.integrationStatus ?? "planned";
   const label = status === "active_demo"
-    ? "sample active"
+    ? "local context active"
     : status === "official_ready"
       ? "validation path"
       : status.replace(/_/g, " ");
@@ -97,10 +97,10 @@ export function ValidationRequirementList({ evidence }: { evidence: EvidenceItem
       </div>
       <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         {[
-          ["Used in this prototype", "Synthetic sample layers, seed_static market context and deterministic scoring."],
+          ["Current screening basis", "Illustrative local layers, public/open market context and deterministic scoring."],
           ["Required for official validation", "DLD, Dubai Pulse, Dubai Municipality / GeoDubai and official planning evidence."],
           ["Validation integration path", "Connect permitted official/open/customer sources through adapter interfaces and QA checks."],
-          ["Remaining limitations", "Current outputs are sample/open screening context and require validation before underwriting or development decisions."]
+          ["Remaining limitations", "Current outputs use local and public/open screening context and require validation before underwriting or development decisions."]
         ].map(([title, text]) => (
           <div key={title} className="rounded-md border border-line bg-surface p-4">
             <h3 className="text-sm font-semibold text-ink">{title}</h3>

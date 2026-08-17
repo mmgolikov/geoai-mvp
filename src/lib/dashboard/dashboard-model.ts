@@ -47,7 +47,65 @@ export type DashboardInsightModule = {
   defaultOpen?: boolean;
 };
 
+export const DECISION_RESULT_CONTRACT_VERSION = "1.0" as const;
+export const DECISION_RESULT_CAVEAT =
+  "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion." as const;
+
+const ILLUSTRATIVE_LOCAL_CONTEXT = "Illustrative local screening context";
+
+export type DecisionResultCoordinates = Readonly<{
+  latitude: number;
+  longitude: number;
+  label: string;
+}>;
+
+export type DecisionResultSourceBasis = Readonly<{
+  mode: "ai_assisted" | "user_provided" | "public_open" | "local_screening" | "mixed_screening";
+  label: string;
+  items: readonly string[];
+}>;
+
+export type DecisionResultContract = Readonly<{
+  contractVersion: typeof DECISION_RESULT_CONTRACT_VERSION;
+  resultId: string;
+  decisionQuestion: string;
+  target: Readonly<{
+    id: string;
+    label: string;
+    type: string;
+  }>;
+  coordinates: DecisionResultCoordinates | null;
+  scenario: Readonly<{
+    id: string;
+    label: string;
+  }>;
+  decision: Readonly<{
+    posture: string;
+    rationale: string;
+    detail: string;
+  }>;
+  primaryScore: number | null;
+  confidence: Readonly<{
+    label: string;
+    basis: string;
+  }>;
+  validation: Readonly<{
+    status: "Validation required";
+    gaps: readonly DashboardDriver[];
+  }>;
+  drivers: readonly DashboardDriver[];
+  risks: readonly DashboardDriver[];
+  nextAction: Readonly<{
+    label: string;
+    detail: string;
+  }>;
+  sourceBasis: DecisionResultSourceBasis;
+  generatedAt: string;
+  caveat: typeof DECISION_RESULT_CAVEAT;
+}>;
+
 export type DashboardModel = {
+  decisionResult: DecisionResultContract;
   title: string;
   scenarioLabel: string;
   targetLabel: string;
@@ -122,6 +180,74 @@ function sentenceSummary(value: string, fallback: string) {
   return fallback;
 }
 
+function customerFacingText(value: string, fallback = "Screening context") {
+  const normalized = value
+    .replace(/best option/gi, "leading screening option")
+    .replace(/imported[_\s-]+sample/gi, ILLUSTRATIVE_LOCAL_CONTEXT)
+    .replace(/seed[_\s-]+static/gi, ILLUSTRATIVE_LOCAL_CONTEXT)
+    .replace(/sample\s*\/\s*open(?:\s+context)?/gi, "Illustrative public/open screening context")
+    .replace(/sample[-\s]?offline/gi, ILLUSTRATIVE_LOCAL_CONTEXT)
+    .replace(/demo[-\s]?normalized/gi, ILLUSTRATIVE_LOCAL_CONTEXT)
+    .replace(/synthetic[-_\s]?fallback/gi, ILLUSTRATIVE_LOCAL_CONTEXT)
+    .replace(/mock[-_\s]?fallback/gi, ILLUSTRATIVE_LOCAL_CONTEXT)
+    .replace(/(?:sample|demo|mock)[_-](?:feature|fixture|data|record)s?/gi, ILLUSTRATIVE_LOCAL_CONTEXT)
+    .replace(/\bfixtures?\b/gi, ILLUSTRATIVE_LOCAL_CONTEXT)
+    .replace(/\bsamples?\b/gi, ILLUSTRATIVE_LOCAL_CONTEXT)
+    .replace(/\bdemos?\b/gi, ILLUSTRATIVE_LOCAL_CONTEXT)
+    .replace(/\bmocks?\b/gi, ILLUSTRATIVE_LOCAL_CONTEXT)
+    .replace(/\bMVP\b/g, "screening workflow")
+    .replace(/\bpilot\b/gi, "validation phase")
+    .replace(/\breadiness\b/gi, "status")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+
+  return normalized || fallback;
+}
+
+function identityText(value: string | null | undefined, fallback: string, maxLength = 160) {
+  const normalized = (value ?? "")
+    .replace(/[\u0000-\u001f\u007f]/g, " ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+
+  return normalized ? normalized.slice(0, maxLength) : fallback;
+}
+
+function formatCoordinates(latitude: number, longitude: number) {
+  return `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+}
+
+function freezeDrivers(items: DashboardDriver[]) {
+  return Object.freeze(items.map((item) => Object.freeze({ ...item })));
+}
+
+function freezeDecisionResult(input: Omit<DecisionResultContract, "contractVersion" | "caveat">): DecisionResultContract {
+  const coordinates = input.coordinates ? Object.freeze({ ...input.coordinates }) : null;
+  const validationGaps = freezeDrivers([...input.validation.gaps]);
+  const drivers = freezeDrivers([...input.drivers]);
+  const risks = freezeDrivers([...input.risks]);
+  const sourceItems = Object.freeze([...input.sourceBasis.items]);
+
+  return Object.freeze({
+    contractVersion: DECISION_RESULT_CONTRACT_VERSION,
+    resultId: input.resultId,
+    decisionQuestion: input.decisionQuestion,
+    target: Object.freeze({ ...input.target }),
+    coordinates,
+    scenario: Object.freeze({ ...input.scenario }),
+    decision: Object.freeze({ ...input.decision }),
+    primaryScore: input.primaryScore,
+    confidence: Object.freeze({ ...input.confidence }),
+    validation: Object.freeze({ status: "Validation required" as const, gaps: validationGaps }),
+    drivers,
+    risks,
+    nextAction: Object.freeze({ ...input.nextAction }),
+    sourceBasis: Object.freeze({ ...input.sourceBasis, items: sourceItems }),
+    generatedAt: input.generatedAt,
+    caveat: DECISION_RESULT_CAVEAT
+  });
+}
+
 export function detailText(value: string | undefined, fallback: string) {
   const trimmed = value?.trim();
   return trimmed ? trimmed : fallback;
@@ -152,7 +278,8 @@ export function shortConfidenceLabel(value?: string) {
 
   if (normalized === "high") return "High";
   if (normalized === "low") return "Low";
-  return "Medium";
+  if (normalized === "medium") return "Medium";
+  return "Not assessed";
 }
 
 export function shortValidationLabel(count: number) {
@@ -196,9 +323,11 @@ function evidenceKpi(analysis: ExpressAnalysis): DashboardKpi {
     appliedUploadMetrics > 0 ||
     Boolean(analysis.marketMetricsMatch?.importedMetricsUsed) ||
     Boolean(analysis.marketContext?.importedMarketMetrics?.importedMetricsUsed);
-  const hasOpenContext = analysis.evidence.some((item) =>
+  const availableEvidence = analysis.evidence.filter(evidenceSupportsSourceBasis);
+  const hasOpenContext = availableEvidence.some((item) =>
     item.sourceType === "open_data" || item.sourceType === "open_geospatial"
   );
+  const hasIllustrativeContext = availableEvidence.some(evidenceIsIllustrative);
 
   if (userProvidedGeometry) {
     return {
@@ -224,9 +353,9 @@ function evidenceKpi(analysis: ExpressAnalysis): DashboardKpi {
     return {
       id: "evidence",
       label: "Evidence",
-      value: "Imported",
+      value: "Imported metrics",
       tone: "neutral",
-      explanation: "Manual/sample metrics support screening only; official validation required."
+      explanation: "Imported local metrics support screening only; official validation required."
     };
   }
 
@@ -243,9 +372,17 @@ function evidenceKpi(analysis: ExpressAnalysis): DashboardKpi {
   return {
     id: "evidence",
     label: "Evidence",
-    value: hasOpenContext ? "Sample/open" : "Sample",
+    value: hasOpenContext && hasIllustrativeContext
+      ? "Open + illustrative"
+      : hasOpenContext
+        ? "Public/open"
+        : hasIllustrativeContext
+          ? "Illustrative"
+          : "Not recorded",
     tone: "neutral",
-    explanation: "Source lineage is available; official/client validation required."
+    explanation: hasIllustrativeContext
+      ? "Illustrative local screening context is present; official/client validation required."
+      : "Source lineage is available; official/client validation required."
   };
 }
 
@@ -254,6 +391,9 @@ function shortSignalLabel(value: string, type: DashboardDriver["type"], index: n
 
   if (type === "action") {
     if (normalized.includes("compare")) return "Compare alternatives";
+    if (normalized.includes("ownership") || normalized.includes("title") || normalized.includes("encumbrance")) {
+      return "Request title evidence";
+    }
     if (normalized.includes("attach") || normalized.includes("evidence") || normalized.includes("official")) return "Attach evidence";
     if (normalized.includes("checklist") || normalized.includes("valid")) return "Prepare validation";
     if (normalized.includes("memo") || normalized.includes("report")) return "Prepare memo";
@@ -263,6 +403,7 @@ function shortSignalLabel(value: string, type: DashboardDriver["type"], index: n
 
   if (type === "risk") {
     if (normalized.includes("risk score")) return "Risk level";
+    if (normalized.includes("exit") || normalized.includes("liquidity")) return "Test exit liquidity";
     if (normalized.includes("parcel") || normalized.includes("zoning") || normalized.includes("ownership")) return "Official planning gap";
     if (normalized.includes("openai") || normalized.includes("fallback")) return "AI fallback";
     if (normalized.includes("climate") || normalized.includes("heat")) return "Climate exposure";
@@ -301,7 +442,7 @@ function uniqueText(items: string[]) {
 }
 
 function driverItems(items: string[], type: DashboardDriver["type"], baseScore: number, prefix: string) {
-  return uniqueText(items).slice(0, 3).map((item, index) => ({
+  return uniqueText(items.map((item) => customerFacingText(item))).slice(0, 3).map((item, index) => ({
     id: `${prefix}-${index}`,
     label: shortSignalLabel(item, type, index, prefix),
     detail: item,
@@ -397,44 +538,483 @@ function matrixItems(drivers: DashboardDriver[], risks: DashboardDriver[], valid
   return [...driverPoints, ...riskPoints, ...validationPoint].slice(0, 6);
 }
 
-export function buildDashboardModel(analysis: ExpressAnalysis): DashboardModel {
+function sourceBasisFromNames(
+  names: string[],
+  mode: DecisionResultSourceBasis["mode"],
+  label: string
+): DecisionResultSourceBasis {
+  const items = uniqueText(names.map((name) => identityText(name, ""))).slice(0, 6);
+
+  return {
+    mode,
+    label,
+    items: items.length > 0 ? items : [`${label}; source validation remains open.`]
+  };
+}
+
+function evidenceSupportsSourceBasis(item: ExpressAnalysis["evidence"][number]) {
+  if (item.sourceStatus === "planned" || item.sourceStatus === "unavailable") return false;
+  if (item.sourceType === "official" || item.sourceType === "commercial") return false;
+  return true;
+}
+
+function evidenceIsIllustrative(item: ExpressAnalysis["evidence"][number]) {
+  return item.sourceType === "mock" || item.sourceType === "demo" || item.sourceStatus === "mock";
+}
+
+function sourceBasisEvidenceLabel(item: ExpressAnalysis["evidence"][number]) {
+  if (item.sourceType === "customer") {
+    return `User-provided context: ${identityText(item.label, "User-provided source")}`;
+  }
+  if (item.sourceType === "open_data" || item.sourceType === "open_geospatial") {
+    return identityText(item.label, "Public/open context");
+  }
+  if (evidenceIsIllustrative(item)) {
+    const normalized = item.label.toLowerCase();
+    if (normalized.includes("market")) return "Illustrative local market screening context";
+    if (normalized.includes("map") || normalized.includes("spatial") || normalized.includes("geometry")) {
+      return "Illustrative local spatial screening context";
+    }
+    if (normalized.includes("scenario")) return "Illustrative selected-scenario context";
+    return ILLUSTRATIVE_LOCAL_CONTEXT;
+  }
+  return identityText(item.label, "Screening source");
+}
+
+function sourceBasisForAnalysis(analysis: ExpressAnalysis): DecisionResultSourceBasis {
+  const hasUserContext = Boolean(
+    analysis.uploadedDataContext?.uploadedDatasets.length ||
+      analysis.selectedAoi?.sourceType === "uploaded_geojson" ||
+      analysis.analysisTarget?.sourceMode === "user-uploaded"
+  );
+  const availableEvidence = analysis.evidence.filter(evidenceSupportsSourceBasis);
+  const hasOpenContext = availableEvidence.some((item) =>
+    item.sourceType === "open_data" || item.sourceType === "open_geospatial"
+  );
+  const hasIllustrativeContext = availableEvidence.some(evidenceIsIllustrative);
+  const names = availableEvidence.map(sourceBasisEvidenceLabel);
+
+  if (hasUserContext && hasOpenContext && hasIllustrativeContext) {
+    return sourceBasisFromNames(names, "mixed_screening", "User-provided, public/open and illustrative local screening context");
+  }
+  if (hasUserContext && hasOpenContext) {
+    return sourceBasisFromNames(names, "mixed_screening", "User-provided and public/open screening context");
+  }
+  if (hasUserContext && hasIllustrativeContext) {
+    return sourceBasisFromNames(names, "mixed_screening", "User-provided and illustrative local screening context");
+  }
+  if (hasUserContext) {
+    return sourceBasisFromNames(names, "user_provided", "User-provided screening context");
+  }
+  if (hasOpenContext && hasIllustrativeContext) {
+    return sourceBasisFromNames(names, "mixed_screening", "Public/open and illustrative local screening context");
+  }
+  if (hasOpenContext) {
+    return sourceBasisFromNames(names, "public_open", "Public/open screening context");
+  }
+  if (analysis.analysisMode === "openai") {
+    return sourceBasisFromNames(
+      names,
+      "ai_assisted",
+      hasIllustrativeContext
+        ? "AI-assisted interpretation of illustrative local screening context"
+        : "AI-assisted interpretation of screening context"
+    );
+  }
+  return sourceBasisFromNames(
+    names,
+    "local_screening",
+    hasIllustrativeContext ? ILLUSTRATIVE_LOCAL_CONTEXT : "Screening source basis not recorded"
+  );
+}
+
+function targetTypeForAnalysis(analysis: ExpressAnalysis) {
+  if (analysis.selectedAoi) return "Area of interest";
+  if (analysis.selectedObject) return customerFacingText(analysis.selectedObject.type, "Selected asset");
+  if (analysis.analysisTarget?.type === "uploaded-feature") return "User-provided feature";
+  if (analysis.analysisTarget?.type === "user-drawn-aoi") return "Area of interest";
+  return "Selected point";
+}
+
+function decisionQuestionForAnalysis(analysis: ExpressAnalysis, targetLabel: string, scenarioLabel: string) {
+  const query = analysis.customQuery?.trim() ?? "";
+  const looksLikeDecisionPrompt = /^(which|what|where|how|should|is|are|does|do|compare|assess|review|identify)\b/i.test(query);
+  return query && (query.endsWith("?") || looksLikeDecisionPrompt)
+    ? identityText(query, "What screening question should be assessed?", 320)
+    : `What is the screening posture for ${targetLabel} under ${scenarioLabel.toLowerCase()}?`;
+}
+
+export function buildDecisionResult(analysis: ExpressAnalysis): DecisionResultContract {
   const rawDecisionPosture = deriveDecisionPosture(analysis);
   const decisionPosture = shortDecisionPosture(rawDecisionPosture);
-  const decisionRationale = deriveDecisionRationale(analysis);
+  const decisionRationale = customerFacingText(deriveDecisionRationale(analysis));
   const primaryScore = analysis.aiDecisionScore?.suitabilityScore ??
     clampScore((analysis.scores.developmentPotential + analysis.scores.investmentAttractiveness + analysis.scores.accessibility) / 3);
-  const riskScore = analysis.aiDecisionScore?.riskScore ??
-    Math.max(analysis.scores.overallRisk, analysis.scores.climateHeatRisk);
-  const riskLabel = shortRiskLabel(riskScore);
   const drivers = driverItems(
     analysis.aiDecisionScore?.keyDrivers.length ? analysis.aiDecisionScore.keyDrivers : analysis.keyFactors,
     "driver",
     primaryScore,
     "driver"
   );
+  const riskScore = analysis.aiDecisionScore?.riskScore ??
+    Math.max(analysis.scores.overallRisk, analysis.scores.climateHeatRisk);
   const risks = driverItems(
     analysis.aiDecisionScore?.keyRisks.length ? analysis.aiDecisionScore.keyRisks : analysis.risks,
     "risk",
     riskScore,
     "risk"
   );
-  const validationGaps = validationItems(analysis);
+  const openValidationGaps = validationItems(analysis).filter(
+    (item) => item.detail.trim().toLowerCase() !== DECISION_RESULT_CAVEAT.toLowerCase()
+  );
+  const validationGaps = openValidationGaps.length > 0
+    ? openValidationGaps
+    : driverItems(
+        ["Validate source, planning, legal and valuation assumptions before decision use."],
+        "validation",
+        72,
+        "validation"
+      );
   const actions = actionItems(analysis);
-  const hypothesis = scenarioHypothesis(analysis, decisionPosture);
-  const scoreBreakdown = scoreDrivers(analysis);
-  const confidenceLabel = shortConfidenceLabel(analysis.confidenceLevel);
   const recommendedNextAction = shortNextAction(actions);
-  const recommendedNextActionDetail = detailText(actions[0]?.detail ?? actions[0]?.label, "Validate official sources before decision-grade use.");
+  const recommendedNextActionDetail = customerFacingText(
+    detailText(actions[0]?.detail ?? actions[0]?.label, "Validate sources before decision use.")
+  );
+  const targetLabel = identityText(
+    analysis.selectedAoi?.name ?? analysis.selectedObject?.name ?? analysis.analysisTarget?.label,
+    "Map selection"
+  );
+  const targetId = analysis.selectedAoi?.id ?? analysis.selectedObject?.id ?? analysis.analysisTarget?.id ?? analysis.id;
+  const point = analysis.selectedAoi?.centroid ?? analysis.selectedObject?.center ?? analysis.point;
+  const scenarioLabel = scenarioLabels[analysis.scenarioId];
+  const confidenceLabel = shortConfidenceLabel(analysis.confidenceLevel);
   const decisionSummary = sentenceSummary(
     decisionRationale,
-    "Screening signals are mixed; validate official sources before advancing."
+    "Screening signals require source validation before advancing."
   );
-  const decisionDetail = detailText(decisionRationale, "Screening result requires validation.");
-  const targetLabel = analysis.selectedAoi?.name ?? analysis.selectedObject?.name ?? "Map selection";
+
+  return freezeDecisionResult({
+    resultId: analysis.id,
+    decisionQuestion: decisionQuestionForAnalysis(analysis, targetLabel, scenarioLabel),
+    target: {
+      id: targetId,
+      label: targetLabel,
+      type: targetTypeForAnalysis(analysis)
+    },
+    coordinates: {
+      latitude: point.latitude,
+      longitude: point.longitude,
+      label: formatCoordinates(point.latitude, point.longitude)
+    },
+    scenario: {
+      id: analysis.scenarioId,
+      label: scenarioLabel
+    },
+    decision: {
+      posture: decisionPosture,
+      rationale: decisionSummary,
+      detail: decisionRationale
+    },
+    primaryScore,
+    confidence: {
+      label: confidenceLabel,
+      basis: analysis.confidenceLevel
+        ? "Recorded screening confidence; not a validation or assurance grade."
+        : "No explicit confidence assessment was recorded."
+    },
+    validation: {
+      status: "Validation required",
+      gaps: validationGaps
+    },
+    drivers,
+    risks,
+    nextAction: {
+      label: recommendedNextAction,
+      detail: recommendedNextActionDetail
+    },
+    sourceBasis: sourceBasisForAnalysis(analysis),
+    generatedAt: analysis.generatedAt ?? "Not recorded"
+  });
+}
+
+type SourceLineageLike = {
+  demoSources?: readonly { name?: string }[];
+  uploadedSources?: readonly { name?: string }[];
+  externalSources?: readonly { name?: string }[];
+};
+
+function sourceBasisFromLineage(lineage?: SourceLineageLike | null): DecisionResultSourceBasis {
+  const uploadedNames = lineage?.uploadedSources?.map((item) => item.name ?? "User-provided source") ?? [];
+  const externalNames = lineage?.externalSources?.map((item) => item.name ?? "Public/open source") ?? [];
+  const localNames = lineage?.demoSources?.map((item) => {
+    const label = customerFacingText(item.name ?? "", "");
+    return label && !label.toLowerCase().includes("illustrative")
+      ? `${ILLUSTRATIVE_LOCAL_CONTEXT}: ${label}`
+      : label || ILLUSTRATIVE_LOCAL_CONTEXT;
+  }) ?? [];
+  const hasIllustrativeContext = localNames.length > 0;
+
+  if (uploadedNames.length > 0 && externalNames.length > 0) {
+    const label = hasIllustrativeContext
+      ? "User-provided, public/open and illustrative local screening context"
+      : "User-provided and public/open screening context";
+    return sourceBasisFromNames([...uploadedNames, ...externalNames, ...localNames], "mixed_screening", label);
+  }
+  if (uploadedNames.length > 0) {
+    const label = hasIllustrativeContext
+      ? "User-provided and illustrative local screening context"
+      : "User-provided screening context";
+    return sourceBasisFromNames(
+      [...uploadedNames, ...localNames],
+      hasIllustrativeContext ? "mixed_screening" : "user_provided",
+      label
+    );
+  }
+  if (externalNames.length > 0) {
+    const label = hasIllustrativeContext
+      ? "Public/open and illustrative local screening context"
+      : "Public/open screening context";
+    return sourceBasisFromNames(
+      [...externalNames, ...localNames],
+      hasIllustrativeContext ? "mixed_screening" : "public_open",
+      label
+    );
+  }
+  return sourceBasisFromNames(
+    localNames,
+    "local_screening",
+    hasIllustrativeContext ? ILLUSTRATIVE_LOCAL_CONTEXT : "Screening source basis not recorded"
+  );
+}
+
+function primaryScoreFromSummary(value: unknown) {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  const scores = value as Record<string, unknown>;
+  if (typeof scores.suitabilityScore === "number") return clampScore(scores.suitabilityScore);
+
+  const components = [scores.developmentPotential, scores.investmentAttractiveness, scores.accessibility]
+    .filter((score): score is number => typeof score === "number" && Number.isFinite(score));
+  return components.length > 0
+    ? clampScore(components.reduce((total, score) => total + score, 0) / components.length)
+    : null;
+}
+
+export type AnalysisReportDecisionInput = {
+  id: string;
+  targetLabel: string;
+  coordinates: { latitude: number; longitude: number } | null;
+  scenario: string;
+  decisionPosture: string;
+  scoreSummary: unknown;
+  executiveMemo: string;
+  keyFindings: string[];
+  risks: string[];
+  nextActions: string[];
+  validationChecklist: string[];
+  limitations: string[];
+  createdAt: string;
+  sourceLineage: SourceLineageLike;
+  analysis: ExpressAnalysis | null;
+};
+
+export function buildAnalysisReportDecisionResult(report: AnalysisReportDecisionInput): DecisionResultContract {
+  if (report.analysis) return buildDecisionResult(report.analysis);
+
+  const primaryScore = primaryScoreFromSummary(report.scoreSummary);
+  const drivers = driverItems(report.keyFindings, "driver", primaryScore ?? 60, "driver");
+  const risks = driverItems(report.risks, "risk", 64, "risk");
+  const validationGaps = driverItems(
+    report.limitations.length > 0 ? report.limitations : report.validationChecklist,
+    "validation",
+    72,
+    "validation"
+  );
+  const actions = driverItems(report.nextActions, "action", 78, "action");
+  const nextAction = shortNextAction(actions);
+  const targetLabel = identityText(report.targetLabel, "Selected site");
+  const scenarioLabel = customerFacingText(report.scenario, "Saved screening");
+  const rationale = customerFacingText(report.executiveMemo, "Saved screening result requires validation.");
+  const posture = shortDecisionPosture(customerFacingText(report.decisionPosture, "Review required"));
+
+  return freezeDecisionResult({
+    resultId: report.id,
+    decisionQuestion: `Assess ${targetLabel} for ${scenarioLabel.toLowerCase()}.`,
+    target: { id: report.id, label: targetLabel, type: "Saved site / AOI" },
+    coordinates: report.coordinates
+      ? {
+          latitude: report.coordinates.latitude,
+          longitude: report.coordinates.longitude,
+          label: formatCoordinates(report.coordinates.latitude, report.coordinates.longitude)
+        }
+      : null,
+    scenario: { id: "saved-analysis", label: scenarioLabel },
+    decision: {
+      posture,
+      rationale: sentenceSummary(rationale, "Saved screening result requires validation."),
+      detail: rationale
+    },
+    primaryScore,
+    confidence: {
+      label: "Not assessed",
+      basis: "No explicit confidence assessment was recorded with this saved result."
+    },
+    validation: {
+      status: "Validation required",
+      gaps: validationGaps.length > 0
+        ? validationGaps
+        : driverItems(["Validate source and decision assumptions."], "validation", 72, "validation")
+    },
+    drivers,
+    risks,
+    nextAction: {
+      label: nextAction,
+      detail: customerFacingText(actions[0]?.detail ?? "Validate sources before decision use.")
+    },
+    sourceBasis: sourceBasisFromLineage(report.sourceLineage),
+    generatedAt: report.createdAt
+  });
+}
+
+type ComparisonReportDecisionInput = {
+  id: string;
+  scenario: string;
+  targetLabel: string;
+  createdAt: string;
+  decisionPosture: string;
+  winnerLabel: string;
+  alternativeInterpretation: string;
+  sharedOpportunities: string[];
+  differentiatedRisks: string[];
+  nextActions: string[];
+  validationChecklist: string[];
+  sourceLineage: SourceLineageLike;
+  comparedItems: Array<{
+    name: string;
+    coordinates: { latitude: number; longitude: number } | null;
+    overallScore: number | null;
+  }>;
+  comparison: {
+    whyPreferred: string;
+    evidence: ExpressAnalysis["evidence"];
+    winner: { item: { id: string; name: string; point: { latitude: number; longitude: number } }; overallScore: number };
+  } | null;
+};
+
+export function buildComparisonDecisionResult(report: ComparisonReportDecisionInput): DecisionResultContract {
+  const winnerLabel = identityText(report.winnerLabel, "Leading screening option");
+  const winner = report.comparison?.winner;
+  const winnerItem = report.comparedItems.find((item) => item.name === report.winnerLabel) ?? report.comparedItems[0];
+  const point = winner?.item.point ?? winnerItem?.coordinates ?? null;
+  const primaryScore = winner?.overallScore ?? winnerItem?.overallScore ?? null;
+  const drivers = driverItems(report.sharedOpportunities, "driver", primaryScore ?? 60, "driver");
+  const risks = driverItems(
+    report.differentiatedRisks.map((item) =>
+      item.replace(/\s*\/\s*(low|medium|high)\s+confidence/gi, " / validation required")
+    ),
+    "risk",
+    64,
+    "risk"
+  );
+  const validationGaps = driverItems(report.validationChecklist, "validation", 72, "validation");
+  const actions = driverItems(report.nextActions, "action", 78, "action");
+  const rationale = customerFacingText(
+    report.comparison?.whyPreferred ?? report.decisionPosture,
+    "The leading screening option requires comparison and source validation."
+  );
+  const evidence = (report.comparison?.evidence ?? []).filter(evidenceSupportsSourceBasis);
+  const hasOpenContext = evidence.some((item) => item.sourceType === "open_data" || item.sourceType === "open_geospatial");
+  const hasIllustrativeContext = evidence.some(evidenceIsIllustrative);
+  const lineageBasis = sourceBasisFromLineage(report.sourceLineage);
+  const sourceBasis = evidence.length > 0
+    ? sourceBasisFromNames(
+        evidence.map(sourceBasisEvidenceLabel),
+        hasOpenContext && hasIllustrativeContext
+          ? "mixed_screening"
+          : hasOpenContext
+            ? "public_open"
+            : "local_screening",
+        hasOpenContext && hasIllustrativeContext
+          ? "Public/open and illustrative local screening context"
+          : hasOpenContext
+            ? "Public/open screening context"
+            : hasIllustrativeContext
+              ? ILLUSTRATIVE_LOCAL_CONTEXT
+              : "Screening source basis not recorded"
+      )
+    : lineageBasis;
+
+  return freezeDecisionResult({
+    resultId: report.id,
+    decisionQuestion: `Compare ${identityText(report.targetLabel, "selected alternatives")} for ${customerFacingText(report.scenario, "the selected scenario").toLowerCase()}.`,
+    target: {
+      id: winner?.item.id ?? report.id,
+      label: winnerLabel,
+      type: "Leading screening option"
+    },
+    coordinates: point
+      ? { latitude: point.latitude, longitude: point.longitude, label: formatCoordinates(point.latitude, point.longitude) }
+      : null,
+    scenario: { id: "comparison", label: customerFacingText(report.scenario, "Comparison screening") },
+    decision: {
+      posture: "Compare before advancing",
+      rationale: sentenceSummary(rationale, "The leading screening option requires comparison and source validation."),
+      detail: `${rationale} ${customerFacingText(report.alternativeInterpretation)}`.trim()
+    },
+    primaryScore: typeof primaryScore === "number" ? clampScore(primaryScore) : null,
+    confidence: {
+      label: "Not assessed",
+      basis: "Comparison rank is a screening signal, not a confidence or assurance grade."
+    },
+    validation: {
+      status: "Validation required",
+      gaps: validationGaps.length > 0
+        ? validationGaps
+        : driverItems(["Validate source and comparison assumptions."], "validation", 72, "validation")
+    },
+    drivers,
+    risks,
+    nextAction: {
+      label: shortNextAction(actions),
+      detail: customerFacingText(actions[0]?.detail ?? "Validate sources before advancing the shortlist.")
+    },
+    sourceBasis,
+    generatedAt: report.createdAt
+  });
+}
+
+export function buildDashboardModel(analysis: ExpressAnalysis): DashboardModel {
+  const decisionResult = buildDecisionResult(analysis);
+  const decisionPosture = decisionResult.decision.posture;
+  const primaryScore = decisionResult.primaryScore ?? 0;
+  const riskScore = analysis.aiDecisionScore?.riskScore ??
+    Math.max(analysis.scores.overallRisk, analysis.scores.climateHeatRisk);
+  const riskLabel = shortRiskLabel(riskScore);
+  const drivers = [...decisionResult.drivers];
+  const risks = [...decisionResult.risks];
+  const validationGaps = [...decisionResult.validation.gaps];
+  const actions = actionItems(analysis);
+  if (actions.length === 0) {
+    actions.push({
+      id: "action-0",
+      label: decisionResult.nextAction.label,
+      detail: decisionResult.nextAction.detail,
+      score: 78,
+      type: "action"
+    });
+  }
+  const hypothesis = scenarioHypothesis(analysis, decisionPosture);
+  const scoreBreakdown = scoreDrivers(analysis);
+  const confidenceLabel = decisionResult.confidence.label;
+  const recommendedNextAction = decisionResult.nextAction.label;
+  const recommendedNextActionDetail = decisionResult.nextAction.detail;
+  const decisionSummary = decisionResult.decision.rationale;
+  const decisionDetail = decisionResult.decision.detail;
+  const targetLabel = decisionResult.target.label;
 
   return {
-    title: analysis.title,
-    scenarioLabel: scenarioLabels[analysis.scenarioId],
+    decisionResult,
+    title: customerFacingText(analysis.title),
+    scenarioLabel: decisionResult.scenario.label,
     targetLabel,
     decisionPosture,
     decisionSummary,
@@ -472,9 +1052,9 @@ export function buildDashboardModel(analysis: ExpressAnalysis): DashboardModel {
       {
         id: "validation",
         label: "Validation",
-        value: shortValidationLabel(validationGaps.length),
+        value: decisionResult.validation.status,
         numericValue: validationGaps.length,
-        tone: validationGaps.length > 2 ? "warning" : "neutral",
+        tone: "warning",
         explanation: "Open evidence checks."
       },
       {
@@ -498,12 +1078,12 @@ export function buildDashboardModel(analysis: ExpressAnalysis): DashboardModel {
         subtitle: "Scenario hypothesis",
         type: "scenario_hypothesis",
         priority: 1,
-        summary: hypothesis.summary,
+        summary: customerFacingText(hypothesis.summary),
         items: [
           {
             id: "hypothesis-recommended-use",
-            label: shortLabel(hypothesis.recommendedUse, "Recommended use", 42),
-            detail: hypothesis.recommendedUse,
+            label: shortLabel(customerFacingText(hypothesis.recommendedUse), "Recommended use", 42),
+            detail: customerFacingText(hypothesis.recommendedUse),
             type: "driver",
             score: primaryScore
           },
@@ -517,7 +1097,7 @@ export function buildDashboardModel(analysis: ExpressAnalysis): DashboardModel {
         subtitle: "Relevant scenario scores",
         type: "score_bars",
         priority: 2,
-        summary: "Scores are sample/open screening indicators, not validated underwriting metrics.",
+        summary: "Scores are screening indicators, not validated underwriting metrics.",
         items: scoreBreakdown
       },
       {
@@ -549,17 +1129,17 @@ export function buildDashboardModel(analysis: ExpressAnalysis): DashboardModel {
       },
       {
         id: "evidence-summary",
-        title: "Evidence / source appendix",
-        subtitle: "Collapsed source details",
+        title: "Evidence / source basis",
+        subtitle: decisionResult.sourceBasis.label,
         type: "evidence_summary",
         priority: 6,
-        summary: "Source lineage and caveats remain available for review.",
-        items: analysis.evidence.slice(0, 4).map((item, index) => ({
+        summary: DECISION_RESULT_CAVEAT,
+        items: decisionResult.sourceBasis.items.slice(0, 4).map((item, index) => ({
           id: `evidence-${index}`,
-          label: shortLabel(item.label, "Evidence source", 42),
-          detail: item.description,
+          label: shortLabel(item, "Evidence source", 42),
+          detail: item,
           type: "validation",
-          score: item.sourceStatus === "connected" ? 76 : 54
+          score: 54
         }))
       }
     ]

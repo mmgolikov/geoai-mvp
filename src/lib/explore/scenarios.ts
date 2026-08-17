@@ -4,6 +4,8 @@ import type {
   ExploreAudience,
   ExploreFilterConfig,
   ExploreFilters,
+  GccMarketDefinition,
+  GccRealEstateDecisionDefinition,
   ExploreRole,
   ExploreRoleDefinition,
   ExploreScenario,
@@ -13,40 +15,46 @@ import { exploreRequiredCaveat } from "@/src/lib/explore/types";
 
 export const b2cRoles: ExploreRoleDefinition<B2CRole>[] = [
   {
-    id: "tourist",
+    id: "home_buyer",
     audience: "b2c",
-    label: "Tourist",
-    description: "Routes, points of interest and short-stay context."
+    label: "Ready-home buyer",
+    description: "Area fit, access and due-diligence prompts for a completed home purchase."
+  },
+  {
+    id: "investor_buyer",
+    audience: "b2c",
+    label: "Property investor",
+    description: "Demand, price-context and evidence-gap screening for an investment property."
+  },
+  {
+    id: "renter",
+    audience: "b2c",
+    label: "Renter / relocating resident",
+    description: "Commute, services and neighborhood fit for rent or relocation."
   },
   {
     id: "resident_expat",
     audience: "b2c",
     label: "Resident / expat",
-    description: "Lifestyle, access and neighborhood screening."
-  },
-  {
-    id: "home_buyer",
-    audience: "b2c",
-    label: "Home buyer",
-    description: "Residential fit and amenity due diligence prompts."
-  },
-  {
-    id: "renter",
-    audience: "b2c",
-    label: "Renter",
-    description: "Practical commute, services and area-context checks."
-  },
-  {
-    id: "investor_buyer",
-    audience: "b2c",
-    label: "Investor buyer",
-    description: "Sample yield-context and demand-driver screening."
+    description: "Lifestyle, access and neighborhood screening for a residential decision."
   },
   {
     id: "family_relocation",
     audience: "b2c",
     label: "Family relocation",
     description: "Family-oriented access, services and lifestyle checks."
+  },
+  {
+    id: "overseas_buyer",
+    audience: "b2c",
+    label: "Overseas buyer",
+    description: "Remote property shortlist and validation planning without ownership or legal conclusions."
+  },
+  {
+    id: "tourist",
+    audience: "b2c",
+    label: "Tourism context",
+    description: "Secondary routes, points of interest and short-stay context."
   }
 ];
 
@@ -116,14 +124,14 @@ const exploreRoleScenarioIds: Record<ExploreRole, ExploreScenarioId[]> = {
     "b2c_interest_routes"
   ],
   resident_expat: [
-    "b2c_point_context",
     "b2c_residential_context",
-    "b2c_interest_routes"
+    "b2c_point_context",
+    "b2c_new_residential_projects"
   ],
   home_buyer: [
+    "b2c_point_context",
     "b2c_residential_context",
-    "b2c_new_residential_projects",
-    "b2c_point_context"
+    "b2c_new_residential_projects"
   ],
   renter: [
     "b2c_residential_context",
@@ -133,23 +141,28 @@ const exploreRoleScenarioIds: Record<ExploreRole, ExploreScenarioId[]> = {
   investor_buyer: [
     "b2c_new_residential_projects",
     "b2c_residential_context",
-    "b2c_interest_routes"
+    "b2c_point_context"
   ],
   family_relocation: [
     "b2c_residential_context",
     "b2c_point_context",
-    "b2c_interest_routes"
+    "b2c_new_residential_projects"
+  ],
+  overseas_buyer: [
+    "b2c_new_residential_projects",
+    "b2c_residential_context",
+    "b2c_point_context"
   ],
   developer: [
-    "b2b_redevelopment_selected_aoi",
     "b2b_redevelopment_100ha",
+    "b2b_redevelopment_selected_aoi",
     "b2b_lowrise_luxury_residential"
   ],
   real_estate_fund: [
-    "b2b_redevelopment_100ha",
     "b2b_lowrise_luxury_residential",
     "b2b_commercial_real_estate",
-    "b2b_hotel_development"
+    "b2b_hotel_development",
+    "b2b_redevelopment_100ha"
   ],
   bank_lender: [
     "b2b_commercial_real_estate",
@@ -190,7 +203,7 @@ const exploreRoleScenarioIds: Record<ExploreRole, ExploreScenarioId[]> = {
 
 const validationCaveats = [
   exploreRequiredCaveat,
-  "Sample/open context only; customer-approved or authoritative source checks are required before decisions."
+  "Illustrative local and public/open screening context only; customer-approved or authoritative source checks are required before decisions."
 ];
 
 const b2cPropertyCaveat =
@@ -198,6 +211,195 @@ const b2cPropertyCaveat =
 
 const b2bDevelopmentCaveat =
   "Development outputs are screening hypotheses only and do not establish land availability, permitted use or approval readiness.";
+
+const uaeLocalContextStatement =
+  "UAE screening uses bundled local context, user-selected geometry and registered public/open source metadata; it does not assert a live official integration.";
+
+const metadataOnlyStatement =
+  "Scenario metadata only; no country dataset, live source or screening result is available in this release.";
+
+const gccApplicabilityStatement =
+  "GCC market applicability is product metadata, not evidence of country data availability; consult the market readiness record before screening.";
+
+export const gccMarkets: GccMarketDefinition[] = [
+  {
+    id: "ae",
+    countryCode: "AE",
+    countryName: "United Arab Emirates",
+    regions: ["Dubai", "Abu Dhabi"],
+    sourceReadiness: "local_open_context_only",
+    enabledForScreening: true,
+    sourceStatement: gccApplicabilityStatement,
+    caveat: exploreRequiredCaveat
+  },
+  {
+    id: "sa",
+    countryCode: "SA",
+    countryName: "Saudi Arabia",
+    regions: [],
+    sourceReadiness: "metadata_only_no_data",
+    enabledForScreening: false,
+    sourceStatement: metadataOnlyStatement,
+    caveat: exploreRequiredCaveat
+  },
+  {
+    id: "qa",
+    countryCode: "QA",
+    countryName: "Qatar",
+    regions: [],
+    sourceReadiness: "metadata_only_no_data",
+    enabledForScreening: false,
+    sourceStatement: metadataOnlyStatement,
+    caveat: exploreRequiredCaveat
+  },
+  {
+    id: "om",
+    countryCode: "OM",
+    countryName: "Oman",
+    regions: [],
+    sourceReadiness: "metadata_only_no_data",
+    enabledForScreening: false,
+    sourceStatement: metadataOnlyStatement,
+    caveat: exploreRequiredCaveat
+  }
+];
+
+const allGccMarketIds = gccMarkets.map((market) => market.id);
+
+export const gccRealEstateDecisions: GccRealEstateDecisionDefinition[] = [
+  {
+    id: "b2b_development_site_screening",
+    audience: "b2b",
+    label: "Development site screening",
+    description: "Shortlist candidate areas against project format, scale, access, constraints and validation burden.",
+    priority: "primary",
+    preferredScenarioId: "b2b_redevelopment_100ha",
+    supportedRoleHints: ["developer", "real_estate_fund", "government_urban_authority"],
+    marketIds: allGccMarketIds,
+    sourceStatement: gccApplicabilityStatement,
+    caveat: exploreRequiredCaveat
+  },
+  {
+    id: "b2b_redevelopment_renovation",
+    audience: "b2b",
+    label: "Redevelopment and renovation",
+    description: "Screen an existing object or AOI for reuse potential, constraints and next validation work.",
+    priority: "primary",
+    preferredScenarioId: "b2b_redevelopment_selected_aoi",
+    supportedRoleHints: ["developer", "asset_manager", "consultant_broker"],
+    marketIds: allGccMarketIds,
+    sourceStatement: gccApplicabilityStatement,
+    caveat: exploreRequiredCaveat
+  },
+  {
+    id: "b2b_acquisition_investment",
+    audience: "b2b",
+    label: "Acquisition and investment screening",
+    description: "Compare candidate opportunities, demand context, risks and evidence gaps before due diligence.",
+    priority: "primary",
+    preferredScenarioId: "b2b_lowrise_luxury_residential",
+    supportedRoleHints: ["real_estate_fund", "family_office", "asset_manager"],
+    marketIds: allGccMarketIds,
+    sourceStatement: gccApplicabilityStatement,
+    caveat: exploreRequiredCaveat
+  },
+  {
+    id: "b2b_commercial_hospitality",
+    audience: "b2b",
+    label: "Commercial and hospitality development",
+    description: "Screen development formats against demand anchors, access, competition and validation needs.",
+    priority: "primary",
+    preferredScenarioId: "b2b_hotel_development",
+    supportedRoleHints: ["developer", "real_estate_fund", "consultant_broker"],
+    marketIds: allGccMarketIds,
+    sourceStatement: gccApplicabilityStatement,
+    caveat: exploreRequiredCaveat
+  },
+  {
+    id: "b2b_portfolio_asset_review",
+    audience: "b2b",
+    label: "Portfolio and asset review",
+    description: "Prioritize review actions across assets using comparable context, risks and evidence completeness.",
+    priority: "primary",
+    preferredScenarioId: "b2b_commercial_real_estate",
+    supportedRoleHints: ["asset_manager", "real_estate_fund", "bank_lender", "insurer"],
+    marketIds: allGccMarketIds,
+    sourceStatement: gccApplicabilityStatement,
+    caveat: exploreRequiredCaveat
+  },
+  {
+    id: "b2c_ready_home_purchase",
+    audience: "b2c",
+    label: "Ready-home purchase",
+    description: "Compare neighborhood fit, access and validation questions for a completed-home shortlist.",
+    priority: "primary",
+    preferredScenarioId: "b2c_point_context",
+    supportedRoleHints: ["home_buyer", "family_relocation"],
+    marketIds: allGccMarketIds,
+    sourceStatement: gccApplicabilityStatement,
+    caveat: exploreRequiredCaveat
+  },
+  {
+    id: "b2c_off_plan_purchase",
+    audience: "b2c",
+    label: "Off-plan purchase",
+    description: "Structure project discovery and independent validation of status, delivery, amenities and price context.",
+    priority: "primary",
+    preferredScenarioId: "b2c_new_residential_projects",
+    supportedRoleHints: ["home_buyer", "investor_buyer", "overseas_buyer"],
+    marketIds: allGccMarketIds,
+    sourceStatement: gccApplicabilityStatement,
+    caveat: exploreRequiredCaveat
+  },
+  {
+    id: "b2c_investment_property",
+    audience: "b2c",
+    label: "Investment property",
+    description: "Screen demand drivers, cost and yield assumptions, risks and evidence gaps before professional review.",
+    priority: "primary",
+    preferredScenarioId: "b2c_new_residential_projects",
+    supportedRoleHints: ["investor_buyer", "overseas_buyer"],
+    marketIds: allGccMarketIds,
+    sourceStatement: gccApplicabilityStatement,
+    caveat: exploreRequiredCaveat
+  },
+  {
+    id: "b2c_rent_relocation",
+    audience: "b2c",
+    label: "Rent and relocation",
+    description: "Compare commute, daily services, household fit and validation tasks for a rental move.",
+    priority: "primary",
+    preferredScenarioId: "b2c_residential_context",
+    supportedRoleHints: ["renter", "resident_expat", "family_relocation"],
+    marketIds: allGccMarketIds,
+    sourceStatement: gccApplicabilityStatement,
+    caveat: exploreRequiredCaveat
+  },
+  {
+    id: "b2c_overseas_buyer",
+    audience: "b2c",
+    label: "Overseas buyer",
+    description: "Prepare a remote shortlist and explicit legal, ownership, financing and site-validation work plan.",
+    priority: "primary",
+    preferredScenarioId: "b2c_new_residential_projects",
+    supportedRoleHints: ["overseas_buyer"],
+    marketIds: allGccMarketIds,
+    sourceStatement: uaeLocalContextStatement,
+    caveat: exploreRequiredCaveat
+  },
+  {
+    id: "b2c_tourism_context",
+    audience: "b2c",
+    label: "Tourism context",
+    description: "Optional place and route context that remains outside the primary real-estate decision journey.",
+    priority: "secondary",
+    preferredScenarioId: "b2c_tourist_objects_route",
+    supportedRoleHints: ["tourist"],
+    marketIds: ["ae"],
+    sourceStatement: uaeLocalContextStatement,
+    caveat: exploreRequiredCaveat
+  }
+];
 
 function selectFilter(
   id: string,
@@ -262,10 +464,10 @@ function toggleFilter(id: string, label: string, defaultValue = false): ExploreF
 export const exploreScenarios: ExploreScenario[] = [
   {
     id: "b2c_point_context",
-    title: "Point Insight",
-    subtitle: "General information around a selected point with a default 1 km lens.",
+    title: "Ready-home Location Context",
+    subtitle: "Area access, daily-life context and validation questions around a selected home or point.",
     audience: "b2c",
-    purpose: "Screen everyday context, nearby anchors and validation questions for a selected Dubai point.",
+    purpose: "Screen everyday context, nearby anchors and validation questions for a selected UAE home location.",
     defaultRoleHints: ["resident_expat", "home_buyer", "renter"],
     interactionModes: ["map_first", "criteria_first"],
     defaultInteractionMode: "map_first",
@@ -293,10 +495,10 @@ export const exploreScenarios: ExploreScenario[] = [
   },
   {
     id: "b2c_tourist_objects_route",
-    title: "Tourist Objects & Route",
+    title: "Optional Tourism Context",
     subtitle: "Nearby cultural or tourist objects with one to three route options.",
     audience: "b2c",
-    purpose: "Create sample attraction and route cards from an interest, start area and travel mode.",
+    purpose: "Create illustrative attraction and route cards from an interest, start area and travel mode.",
     defaultRoleHints: ["tourist", "resident_expat"],
     interactionModes: ["map_first", "criteria_first"],
     defaultInteractionMode: "criteria_first",
@@ -335,10 +537,10 @@ export const exploreScenarios: ExploreScenario[] = [
   },
   {
     id: "b2c_residential_context",
-    title: "Residential Area Context",
-    subtitle: "Residential clusters, nearby infrastructure and quality-of-life screening.",
+    title: "Rent & Relocation Area Screening",
+    subtitle: "Residential clusters, commute, nearby services and household-fit screening.",
     audience: "b2c",
-    purpose: "Compare sample residential clusters by access, services, lifestyle and validation needs.",
+    purpose: "Compare illustrative residential clusters by access, services, lifestyle and validation needs.",
     defaultRoleHints: ["resident_expat", "home_buyer", "renter", "family_relocation"],
     interactionModes: ["map_first", "criteria_first"],
     defaultInteractionMode: "criteria_first",
@@ -366,8 +568,8 @@ export const exploreScenarios: ExploreScenario[] = [
   },
   {
     id: "b2c_new_residential_projects",
-    title: "Find New Residential Projects",
-    subtitle: "Sample 2024+ project discovery by amenities, height and access filters.",
+    title: "Off-plan & Investment Property Discovery",
+    subtitle: "Project discovery by delivery context, amenities, building scale and access filters.",
     audience: "b2c",
     purpose: "Explore demonstration project cards by declared filters without claiming verified inventory.",
     defaultRoleHints: ["home_buyer", "investor_buyer", "renter"],
@@ -388,19 +590,19 @@ export const exploreScenarios: ExploreScenario[] = [
     scoringModelLabel: "Project discovery fit score",
     resultCardSchemaLabel: "Residential project card",
     openAiPromptContextLabel: "B2C residential project discovery",
-    caveats: [...validationCaveats, b2cPropertyCaveat, "Project status, handover timing and amenities are sample/demo fields in this sprint."],
+    caveats: [...validationCaveats, b2cPropertyCaveat, "Project status, handover timing and amenities are illustrative screening attributes, not provider-verified inventory."],
     sampleQueries: [
       "Find new waterfront residential projects with parking and gym.",
-      "Show sample 2024+ projects near metro access."
+      "Show illustrative 2024+ project profiles near metro access."
     ],
     primaryCTA: "Find projects"
   },
   {
     id: "b2c_interest_routes",
-    title: "Interest-based Tourist Routes",
+    title: "Optional Interest-based Routes",
     subtitle: "Tourist route cards by interest, start area, duration and transport mode.",
     audience: "b2c",
-    purpose: "Generate sample itinerary cards that can later connect to provider and live place data.",
+    purpose: "Generate illustrative itinerary cards that can later connect to provider and live place data.",
     defaultRoleHints: ["tourist", "resident_expat"],
     interactionModes: ["criteria_first", "map_first"],
     defaultInteractionMode: "criteria_first",
@@ -439,7 +641,7 @@ export const exploreScenarios: ExploreScenario[] = [
   },
   {
     id: "b2b_redevelopment_selected_aoi",
-    title: "Redevelopment Potential",
+    title: "Redevelopment & Renovation Screening",
     subtitle: "Evaluate a selected object, point or AOI as a redevelopment screening hypothesis.",
     audience: "b2b",
     purpose: "Frame redevelopment fit, blockers and validation tasks for a user-selected location.",
@@ -470,10 +672,10 @@ export const exploreScenarios: ExploreScenario[] = [
   },
   {
     id: "b2b_redevelopment_100ha",
-    title: "100+ ha Redevelopment Zones",
-    subtitle: "Find large candidate zones by underutilized land proxy, access, growth drivers and risks.",
+    title: "Large Development Site Screening",
+    subtitle: "Find large candidate areas by land-use proxy, access, growth drivers, risks and validation burden.",
     audience: "b2b",
-    purpose: "Create large-zone shortlist hypotheses for strategic screening and validation planning.",
+    purpose: "Create a large-site shortlist hypothesis for development screening and validation planning.",
     defaultRoleHints: ["developer", "government_urban_authority", "infrastructure_operator", "real_estate_fund"],
     interactionModes: ["criteria_first", "map_first"],
     defaultInteractionMode: "criteria_first",
@@ -501,8 +703,8 @@ export const exploreScenarios: ExploreScenario[] = [
   },
   {
     id: "b2b_lowrise_luxury_residential",
-    title: "Low-rise Luxury Residential Zones",
-    subtitle: "Find candidate zones for low-rise premium housing hypotheses.",
+    title: "Residential Acquisition & Investment Screening",
+    subtitle: "Compare candidate areas for low-rise and premium residential investment hypotheses.",
     audience: "b2b",
     purpose: "Screen luxury residential fit by amenity adjacency, access, privacy and validation needs.",
     defaultRoleHints: ["developer", "family_office", "asset_manager", "real_estate_fund"],
@@ -532,7 +734,7 @@ export const exploreScenarios: ExploreScenario[] = [
   },
   {
     id: "b2b_hotel_development",
-    title: "Hotel Development Zones",
+    title: "Commercial & Hospitality Development",
     subtitle: "Find candidate zones for luxury, business, resort, serviced apartment or mid-market formats.",
     audience: "b2b",
     purpose: "Screen hotel-format fit by demand anchors, access and risk/validation workstreams.",
@@ -554,7 +756,7 @@ export const exploreScenarios: ExploreScenario[] = [
     scoringModelLabel: "Hotel format fit score",
     resultCardSchemaLabel: "Hotel zone card",
     openAiPromptContextLabel: "Hotel development screening",
-    caveats: [...validationCaveats, b2bDevelopmentCaveat, "Hospitality demand and operating assumptions are sample context only."],
+    caveats: [...validationCaveats, b2bDevelopmentCaveat, "Hospitality demand and operating assumptions are illustrative screening context only."],
     sampleQueries: [
       "Find business hotel hypotheses near events and offices.",
       "Screen resort-style zones with beach and tourist anchors."
@@ -563,8 +765,8 @@ export const exploreScenarios: ExploreScenario[] = [
   },
   {
     id: "b2b_commercial_real_estate",
-    title: "Commercial Real Estate Zones",
-    subtitle: "Find candidate zones for retail, F&B, office or service commercial formats.",
+    title: "Portfolio & Commercial Asset Review",
+    subtitle: "Compare commercial locations and assets across retail, F&B, office, services or mixed-use formats.",
     audience: "b2b",
     purpose: "Screen commercial format fit by catchment proxy, access and activity anchors.",
     defaultRoleHints: ["developer", "asset_manager", "consultant_broker", "real_estate_fund"],
@@ -585,7 +787,7 @@ export const exploreScenarios: ExploreScenario[] = [
     scoringModelLabel: "Commercial fit score",
     resultCardSchemaLabel: "Commercial zone card",
     openAiPromptContextLabel: "Commercial real estate screening",
-    caveats: [...validationCaveats, b2bDevelopmentCaveat, "Footfall and catchment values are sample proxies until validated with approved evidence."],
+    caveats: [...validationCaveats, b2bDevelopmentCaveat, "Footfall and catchment values are illustrative proxies until validated with approved evidence."],
     sampleQueries: [
       "Find F&B zones with residential and metro catchment.",
       "Screen service commercial nodes near office activity."

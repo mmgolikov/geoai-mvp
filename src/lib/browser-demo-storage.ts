@@ -1,5 +1,6 @@
 export const browserDemoStorageNamespace = "geoai-public-demo-v2";
 export const mockDemoBrowserSessionKey = "geoai-mock-demo-session-v1";
+export const guidedProfileStorageKey = "geoai-user-profile-v1:demo-user-geoai";
 
 const legacyBrowserDemoStorageKeys = [
   "geoai-active-project-key-v1",
@@ -38,7 +39,7 @@ export function clearBrowserDemoStorage() {
           key?.startsWith(`${browserDemoStorageNamespace}:`) ||
           legacyBrowserDemoStoragePrefixes.some((prefix) => key?.startsWith(prefix))
         ));
-      for (const key of [...keys, ...legacyBrowserDemoStorageKeys]) storage.removeItem(key);
+      for (const key of [...keys, ...legacyBrowserDemoStorageKeys, guidedProfileStorageKey]) storage.removeItem(key);
     }
   } catch {
     // Storage can be unavailable in privacy-restricted browsers. The Auth

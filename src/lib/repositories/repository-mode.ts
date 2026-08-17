@@ -7,7 +7,7 @@ export type RepositoryMode =
 
 const localFallbackCaveat = "Local/API fallback is not durable production storage.";
 const browserLocalCaveat = "Browser-local storage is for screening continuity only.";
-const demoSeedCaveat = "Seed records are sample context and require validation.";
+const demoSeedCaveat = "Seed records are illustrative local screening context and require validation.";
 
 export function repositoryModeToLabel(mode: RepositoryMode): string {
   switch (mode) {
@@ -18,7 +18,7 @@ export function repositoryModeToLabel(mode: RepositoryMode): string {
     case "browser_local":
       return "Browser-local";
     case "demo_seed":
-      return "Sample seed";
+      return "Illustrative local context";
     case "disabled":
       return "Not configured";
   }

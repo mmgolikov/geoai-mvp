@@ -12,8 +12,8 @@ export type DataMaturityDefinition = {
 export const dataMaturityModel: DataMaturityDefinition[] = [
   {
     id: "demo_normalized",
-    label: "Sample/open",
-    explanation: "Synthetic or seed data used for screening workflow and product logic.",
+    label: "Illustrative local/public-open",
+    explanation: "Illustrative local or public/open context used for screening workflow and product logic.",
     badgeClassName: "bg-[#eef2f5] text-muted",
     decisionConfidence: "Suitable for screening only; not decision-grade."
   },
@@ -74,18 +74,18 @@ export type SourceReadinessRow = {
 export const sourceReadinessMatrix: SourceReadinessRow[] = [
   {
     sourceId: "synthetic-demo-layers",
-    source: "Synthetic sample layers",
-    category: "Sample",
-    currentStatus: "Active in prototype",
+    source: "Illustrative local screening layers",
+    category: "Illustrative local context",
+    currentStatus: "Active local context",
     usedNow: "Yes",
-    pilotRelevance: "Demonstrates workflow",
+    pilotRelevance: "Supports workflow review",
     validationRole: "Not decision-grade"
   },
   {
     sourceId: "demo-market-context-seed",
-    source: "Sample market context / seed_static",
-    category: "Sample market context",
-    currentStatus: "Active in prototype",
+    source: "Illustrative local market context",
+    category: "Illustrative market context",
+    currentStatus: "Active local context",
     usedNow: "Yes",
     pilotRelevance: "Area-matching workflow",
     validationRole: "Validate with official/commercial sources"
@@ -130,7 +130,7 @@ export const sourceReadinessMatrix: SourceReadinessRow[] = [
     sourceId: "customer-uploaded-documents",
     source: "Customer data",
     category: "Customer",
-    currentStatus: "Future / pilot",
+    currentStatus: "Future / controlled engagement",
     usedNow: "No",
     pilotRelevance: "Portfolio/assets/documents",
     validationRole: "Client upload and access control required"
@@ -162,12 +162,12 @@ export function deriveDataConfidenceLevel(evidence: EvidenceItem[]) {
   }
 
   if (usedSample && hasOfficialPath) {
-    return "Sample/open with official validation path";
+    return "Illustrative local/public-open context with official validation path";
   }
 
   if (sources.some((source) => source.integrationStatus === "official_ready")) {
     return "Validation path available";
   }
 
-  return "Sample/open only";
+  return "Illustrative local/public-open context only";
 }

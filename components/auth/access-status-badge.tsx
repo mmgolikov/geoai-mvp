@@ -10,7 +10,7 @@ export function AccessStatusBadge() {
   const avatar = user?.profile.avatarUrl;
   const label = isAuthenticated
     ? isDemo
-      ? "Open demo profile"
+      ? "Open guided workspace profile"
       : "Open your profile"
     : "Sign in to GeoAI";
 

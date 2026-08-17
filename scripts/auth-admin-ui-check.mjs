@@ -60,7 +60,7 @@ assert(onboardingRoute.includes("onboardingInvitationCookieName") && onboardingR
 assert(callback.includes("exchangeCodeForSession") && redirectPath.includes("approvedAuthDestinations"), "PKCE callback must use a bounded same-origin redirect allowlist");
 assert(!callback.includes(".mfa") && !adminUi.includes("MFA") && !onboardingUi.includes("MFA"), "Current user flows must not expose or require MFA");
 assert(!onboardingUi.includes('type="password"') && !onboardingUi.includes("One-time invitation token"), "Onboarding must not ask users to paste technical invitation tokens");
-assert(landing.includes('href="/login?next=/workspace&intent=demo"') && landing.includes("View demo"), "Landing demo CTA must enter the bounded auth flow before Workspace");
+assert(landing.includes('href="/login?next=/workspace"') && landing.includes("Open workspace"), "Landing workspace CTA must enter the bounded auth flow before Workspace");
 assert(landing.includes('href="/request-access"') && landing.includes("Prepare request brief"), "Landing must expose the separate public request-brief CTA");
 assert(!landing.includes('href="/workspace"') && !landing.includes('href="/projects"'), "Landing must not bypass the requested authentication funnel");
 assert(login.includes("Sign in to GeoAI") && login.includes("sign-in only") && login.includes("separate approved invitation") && !login.includes("Sign in or create account") && login.includes("window.location.replace(getDestination())") && login.includes("Authorization saved. Opening Workspace"), "Existing-user-only login must not advertise public signup and must immediately continue a saved session to Workspace");

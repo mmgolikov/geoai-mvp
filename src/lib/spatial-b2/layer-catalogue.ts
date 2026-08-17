@@ -67,8 +67,8 @@ function syntheticCatalogueEntry(layer: DemoLayer): SpatialLayerCatalogueEntry {
     attributionIds: ["geoai-sample-layers"],
     fallbackLayerKey: layerKey,
     reviewState: "sample_demo",
-    freshnessSummary: "Static GeoAI sample seed; no live source refresh.",
-    dataHonestyLabel: "Sample/demo",
+    freshnessSummary: "Static GeoAI illustrative local screening context; no live source refresh.",
+    dataHonestyLabel: "Illustrative local context",
     killSwitchPolicy: "synthetic_fallback",
     demoLayerId: layer.id
   };

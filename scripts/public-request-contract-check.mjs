@@ -18,7 +18,7 @@ function assert(condition, message) {
 
 assert((landing.match(/href="\/request-access"/g) ?? []).length === 3, "Landing must route all three commercial request CTAs to /request-access");
 assert(!landing.includes("intent=request"), "Landing must not route a commercial request through Login");
-assert(landing.includes('href="/login?next=/workspace&intent=demo"'), "Landing demo CTA must preserve the bounded demo Login path");
+assert(landing.includes('href="/login?next=/workspace"') && landing.includes("Open workspace"), "Landing workspace CTA must preserve the bounded Login path");
 assert(login.includes('intent === "request"') && login.includes('redirect("/request-access")'), "Legacy Login request intent must redirect deterministically to /request-access");
 assert(requestPage.includes("RequestAccessPanel") && !requestPage.includes("AuthenticatedRouteGate"), "Request route must remain public and independent of Auth");
 
@@ -30,7 +30,7 @@ for (const statement of [
   "No approved request backend or public contact destination is connected yet.",
   "No information has been sent. Copy this brief and share it through an approved contact channel.",
   "Copy request brief",
-  "Open demo instead"
+  "Use guided access instead"
 ]) {
   assert(requestPanel.includes(statement), `Request route is missing required boundary copy: ${statement}`);
 }
@@ -66,4 +66,4 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-console.log("Public request contract passed: commercial and demo destinations are separate; the request brief stays in React memory with no request mutation or browser storage path.");
+console.log("Public request contract passed: commercial request and guided workspace destinations are separate; the request brief stays in React memory with no request mutation or browser storage path.");

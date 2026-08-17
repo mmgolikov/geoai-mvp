@@ -248,6 +248,41 @@ jobs:
           set -euo pipefail
           npm run test:data-honesty | tee artifacts/data-honesty-check.txt
 
+      - name: GCC product, decision and source-readiness contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:gcc-scenarios | tee artifacts/gcc-scenario-contract-check.txt
+          npm run test:gcc-workspace-flow | tee artifacts/gcc-workspace-flow-check.txt
+          npm run test:gcc-project-hub | tee artifacts/gcc-project-hub-contract-check.txt
+          npm run test:map-lifecycle | tee artifacts/map-lifecycle-regression-check.txt
+          npm run test:source-provenance | tee artifacts/source-provenance-invariants-check.txt
+          npm run test:source-use-truth | tee artifacts/source-use-truth-check.txt
+          npm run test:legacy-analysis-hydration | tee artifacts/legacy-analysis-hydration-check.txt
+          npm run test:source-readiness | tee artifacts/source-readiness-contract-check.txt
+          npm run test:decision-result-parity | tee artifacts/decision-result-parity-check.txt
+
+      - name: Normalized data validation and source-readiness dry-run
+        shell: bash
+        env:
+          GEOAI_OPERATOR_SUPABASE_URL: ""
+          GEOAI_OPERATOR_SUPABASE_SECRET_KEY: ""
+          GEOAI_SOURCE_READINESS_SYNC_STRICT: "false"
+        run: |
+          set -euo pipefail
+          unset SUPABASE_SERVICE_ROLE_KEY SUPABASE_DB_URL SUPABASE_ACCESS_TOKEN
+          npm run data:status 2>&1 | tee artifacts/data-status.txt
+          npm run validate:external-data 2>&1 | tee artifacts/external-data-validation.txt
+          npm run data:sync-source-readiness -- --dry-run 2>&1 | tee artifacts/source-readiness-dry-run.txt
+          grep -F '"mode": "dry_run"' artifacts/source-readiness-dry-run.txt
+          grep -F '"synced": false' artifacts/source-readiness-dry-run.txt
+          grep -F '"writeRequested": false' artifacts/source-readiness-dry-run.txt
+          if grep -Eiq 'sb_secret_[A-Za-z0-9_-]+|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+|postgres(ql)?://[^[:space:]]+:[^@[:space:]]+@' \
+            artifacts/data-status.txt artifacts/external-data-validation.txt artifacts/source-readiness-dry-run.txt; then
+            echo "Credential-like value detected in normalized-data evidence." >&2
+            exit 1
+          fi
+
       - name: Product System v3.2 design foundation contract
         shell: bash
         run: |
@@ -349,6 +384,7 @@ jobs:
 
           google-chrome --version | tee artifacts/google-chrome-version.txt
           npm run test:e2e:auth-session | tee artifacts/auth-session-e2e.txt
+          npm run test:browser-release-evidence | tee artifacts/browser-release-evidence-check.txt
           npx lighthouse 'http://127.0.0.1:3100/login?next=/workspace&intent=demo' \
             --quiet \
             --preset=desktop \
@@ -465,6 +501,8 @@ jobs:
             echo "Auth/Admin demo-mode negative smoke returned an unexpected status." >&2
             exit 1
           fi
+
+          GEOAI_E2E_BASE_URL=http://127.0.0.1:3000 npm run test:e2e:gcc-release-evidence | tee artifacts/gcc-release-evidence-playwright.txt
 
           npx lighthouse http://127.0.0.1:3000/ \
             --quiet \

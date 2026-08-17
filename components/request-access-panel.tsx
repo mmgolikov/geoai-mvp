@@ -203,7 +203,7 @@ export function RequestAccessPanel() {
                   href="/login?next=/workspace&intent=demo"
                   className="inline-flex min-h-12 items-center justify-center rounded-control border border-brand bg-white px-5 text-sm font-semibold text-brand transition hover:bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
                 >
-                  Open demo instead
+                  Use guided access instead
                 </Link>
               </div>
               {copyStatus ? <p className="mt-3 text-sm text-muted" aria-live="polite">{copyStatus}</p> : null}

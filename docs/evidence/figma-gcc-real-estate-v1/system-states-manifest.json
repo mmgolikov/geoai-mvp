@@ -1,0 +1,52 @@
+{
+  "schemaVersion": "1.0",
+  "capturedAt": "2026-08-16T18:02:59Z",
+  "authorityStatus": "candidate",
+  "figma": {
+    "fileKey": "TAzDqOvRCw1mQGMU3Y4S9H",
+    "pageId": "1956:11",
+    "authorityBoardId": "1956:12",
+    "systemStatesSectionId": "1961:1059",
+    "states": [
+      {
+        "name": "Loading state / Desktop 1440",
+        "nodeId": "1961:1060",
+        "width": 1440,
+        "height": 964
+      },
+      {
+        "name": "Empty state / Desktop 1440",
+        "nodeId": "1961:1177",
+        "width": 1440,
+        "height": 964
+      },
+      {
+        "name": "Error state / Desktop 1440",
+        "nodeId": "1961:1294",
+        "width": 1440,
+        "height": 964
+      },
+      {
+        "name": "Partial evidence / Desktop 1440",
+        "nodeId": "1957:24727",
+        "width": 1440,
+        "height": 964
+      }
+    ]
+  },
+  "export": {
+    "file": "system-states-candidate.png",
+    "pixelWidth": 4780,
+    "pixelHeight": 1280,
+    "sha256": "fee1f2d765949e6b63d5c4672bed17ff8229d68f4bd0e916abf0db49c4ed7c14"
+  },
+  "assertions": {
+    "loadingStatePresent": true,
+    "emptyStatePresent": true,
+    "errorStatePresent": true,
+    "partialEvidenceStatePresent": true,
+    "exactCaveatPresent": true,
+    "authorityPromoted": false
+  },
+  "caveat": "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
+}

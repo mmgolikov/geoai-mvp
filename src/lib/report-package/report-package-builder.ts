@@ -91,7 +91,7 @@ function normalizeReport(record: unknown) {
     payload,
     sourceLineage: asRecord(item.sourceLineage ?? item.source_lineage),
     evidenceAuthority: readString(item.evidenceAuthority) || readString(item.evidence_authority) || readString(payload.evidenceAuthority, "unverified_client_assertion"),
-    sourceSummary: readString(item.sourceSummary, "Saved with sample/local source lineage; official validation required."),
+    sourceSummary: readString(item.sourceSummary, "Saved with illustrative local/public-open source lineage; official validation required."),
     createdAt: readString(item.createdAt) || readString(item.created_at) || readString(item.generated_at)
   };
 }
@@ -114,7 +114,7 @@ function extractScoreRows(report: ReturnType<typeof normalizeReport>) {
   return Object.entries(scores).slice(0, 8).map(([label, value]) => ({
     label,
     value: readNumber(value, 0),
-    note: "Deterministic sample score; official validation required."
+    note: "Deterministic illustrative screening score; official validation required."
   }));
 }
 
@@ -437,7 +437,7 @@ export async function buildReportPackage(
 ): Promise<ReportPackage> {
   const project = demoProjects.find((item) => item.projectKey === input.projectKey || item.id === input.projectId);
   if (!project) {
-    throw new Error(`Unknown project '${input.projectKey}'; report package generation did not substitute a demo project.`);
+    throw new Error(`Unknown project '${input.projectKey}'; report package generation did not substitute a local screening project.`);
   }
   const projectKey = project.projectKey;
   const packageType = projectPackageType(project, input.packageType);
@@ -539,7 +539,7 @@ export async function buildReportPackage(
         recommendedPosture: "Proceed with conditions",
         scenario: selectedReport?.scenario ?? project.primaryScenario,
         selectedArea: selectedReport?.targetLabel ?? project.geography,
-        summary: selectedReport?.sourceSummary ?? "Generated from project-scoped demo/local evidence and validation gaps.",
+        summary: selectedReport?.sourceSummary ?? "Generated from project-scoped illustrative local evidence and validation gaps.",
         topDrivers: executiveDrivers,
         topRisks: executiveRisks,
         validationRequirements: validationSummary.nextActions.slice(0, 3),
@@ -664,10 +664,10 @@ export async function buildReportPackage(
     packageSection({
       order: 10,
       type: "pilot_workflow",
-      title: "Pilot Workflow / Deliverables Summary",
+      title: "Controlled Engagement Workflow / Deliverables Summary",
       summary: pilotWorkflow.readiness
         ? `Workflow readiness ${pilotWorkflow.readiness.score}/100; ${pilotWorkflow.readiness.label}.`
-        : "Pilot workflow summary requires setup.",
+        : "Controlled engagement workflow summary requires setup.",
       status: pilotWorkflow.readiness ? "generated" : "validation_required",
       linkedEntityIds: pilotWorkflow.deliverables?.map((item) => item.id) ?? [],
       content: {
@@ -752,7 +752,7 @@ export async function buildReportPackage(
     status: validationSummary.officialValidatedCount > 0 ? "ready_for_review" : "validation_required",
     version: "v2.8",
     generatedAt,
-    generatedBy: input.generatedBy ?? "GeoAI local/API fallback",
+    generatedBy: input.generatedBy ?? "GeoAI Decision Intelligence",
     linkedAoiIds,
     linkedAnalysisIds,
     linkedReportIds,

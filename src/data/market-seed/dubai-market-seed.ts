@@ -26,7 +26,7 @@ export const dubaiMarketSeedRecords: RawMarketRecord[] = [
     riskIndex: 56,
     trend: "stable",
     confidence: "demo",
-    note: "Prime mixed-use seed context with high demo liquidity and rental demand.",
+    note: "Illustrative prime mixed-use context with assumed liquidity and rental demand; official validation required.",
     updatedAt: "2026-06-17"
   },
   {

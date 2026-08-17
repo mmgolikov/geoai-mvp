@@ -34,11 +34,11 @@ async function signInDemo(page: Page) {
   await page.goto("/login?next=/workspace&intent=demo");
   const redirected = await page.waitForURL((url) => url.pathname === "/workspace", { timeout: 3000 }).then(() => true, () => false);
   if (!redirected) {
-    await page.getByRole("button", { name: "Use demo credentials" }).click();
-    await page.getByRole("button", { name: "Open demo" }).click();
+    await page.getByRole("button", { name: "Use guided access" }).click();
+    await page.getByRole("button", { name: "Open guided workspace" }).click();
     await expect(page).toHaveURL((url) => url.pathname === "/workspace");
   }
-  await expect(page.getByRole("link", { name: "Open demo profile" })).toHaveAttribute("data-authenticated", "true");
+  await expect(page.getByRole("link", { name: "Open guided workspace profile" })).toHaveAttribute("data-authenticated", "true");
 }
 
 async function expectMinimumTarget(locator: Locator, label: string, minimum: number) {

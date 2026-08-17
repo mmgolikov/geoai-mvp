@@ -11,6 +11,20 @@ export const sourceDataModes = [
 
 export type SourceDataMode = (typeof sourceDataModes)[number];
 
+export const sourceValidationStatuses = [
+  "sample-only",
+  "snapshot-not-live",
+  "manual-import-ready",
+  "api-context",
+  "token-or-permission-required",
+  "planned-validation"
+] as const;
+
+export type SourceValidationStatus = (typeof sourceValidationStatuses)[number];
+
+export const ILLUSTRATIVE_LOCAL_SCREENING_CONTEXT_LABEL =
+  "Illustrative local screening context" as const;
+
 export function normalizeSourceDataMode(value: unknown): SourceDataMode {
   const key = String(value ?? "").trim().toLowerCase().replace(/-/g, "_");
 
@@ -30,6 +44,46 @@ export function normalizeSourceDataMode(value: unknown): SourceDataMode {
   return "planned_validation";
 }
 
+export function sourceValidationStatusFor(status: unknown): SourceValidationStatus {
+  const key = String(status ?? "").trim().toLowerCase().replace(/-/g, "_");
+  if (key === "sample_fallback") return "sample-only";
+  if (key === "snapshot_available") return "snapshot-not-live";
+  if (key === "manual_import_ready") return "manual-import-ready";
+  if (key === "connected") return "api-context";
+  if (key === "permission_required" || key === "token_required") return "token-or-permission-required";
+  return "planned-validation";
+}
+
+export function sourcePresentationLabel(input: {
+  dataMode?: unknown;
+  status?: unknown;
+  validationStatus?: unknown;
+}) {
+  const rawValues = [input.dataMode, input.status, input.validationStatus]
+    .map((value) => String(value ?? "").trim().toLowerCase().replace(/-/g, "_"));
+
+  if (rawValues.some((value) => value === "sample_fallback" || value === "sample_only" || value === "demo_seed")) {
+    return ILLUSTRATIVE_LOCAL_SCREENING_CONTEXT_LABEL;
+  }
+
+  switch (normalizeSourceDataMode(input.dataMode ?? input.status)) {
+    case "api_context":
+      return "Bounded screening API context";
+    case "real_snapshot":
+    case "imported_snapshot":
+      return "Local snapshot screening context";
+    case "manual_import_ready":
+      return "Local source import awaiting validation";
+    case "permission_required":
+      return "Source access pending approval";
+    case "planned_validation":
+      return "Source validation pending";
+    case "sample_fallback":
+    case "demo_seed":
+      return ILLUSTRATIVE_LOCAL_SCREENING_CONTEXT_LABEL;
+  }
+}
+
 export function sourceDataModeLabel(mode: unknown) {
   switch (normalizeSourceDataMode(mode)) {
     case "api_context":
@@ -39,7 +93,7 @@ export function sourceDataModeLabel(mode: unknown) {
     case "imported_snapshot":
       return "Imported snapshot";
     case "sample_fallback":
-      return "Sample fallback";
+      return ILLUSTRATIVE_LOCAL_SCREENING_CONTEXT_LABEL;
     case "manual_import_ready":
       return "Manual import ready";
     case "permission_required":
@@ -47,6 +101,6 @@ export function sourceDataModeLabel(mode: unknown) {
     case "planned_validation":
       return "Planned validation";
     case "demo_seed":
-      return "Sample seed";
+      return ILLUSTRATIVE_LOCAL_SCREENING_CONTEXT_LABEL;
   }
 }

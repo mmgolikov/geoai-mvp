@@ -104,7 +104,7 @@ for (const viewport of viewports) {
 
       await page.goto("/");
       await expect(page.locator('a[href="/request-access"]')).toHaveCount(3);
-      await expect(page.getByRole("link", { name: "View demo" }).last()).toHaveAttribute("href", "/login?next=/workspace&intent=demo");
+      await expect(page.getByRole("link", { name: "Open workspace" }).last()).toHaveAttribute("href", "/login?next=/workspace");
 
       await page.evaluate(() => localStorage.setItem("geoai-mock-demo-session-v1", "active"));
       await page.goto("/request-access");
@@ -133,14 +133,14 @@ for (const viewport of viewports) {
       const generated = page.getByLabel("Generated request brief");
       await expect(generated).toHaveValue(/GeoAI Evidence Organization/);
       await expect(page.getByRole("button", { name: "Copy request brief" })).toBeVisible();
-      await expect(page.getByRole("link", { name: "Open demo instead" })).toHaveAttribute("href", "/login?next=/workspace&intent=demo");
+      await expect(page.getByRole("link", { name: "Use guided access instead" })).toHaveAttribute("href", "/login?next=/workspace&intent=demo");
       for (const prohibited of ["Request sent", "Request submitted", "Request received", "We will contact you", "Successfully delivered"]) {
         await expect(page.getByText(prohibited, { exact: true })).toHaveCount(0);
       }
 
       await expectMinimumTarget(page.getByRole("button", { name: "Prepare request brief" }), "Prepare request brief");
       await expectMinimumTarget(page.getByRole("button", { name: "Copy request brief" }), "Copy request brief");
-      await expectMinimumTarget(page.getByRole("link", { name: "Open demo instead" }), "Open demo instead");
+      await expectMinimumTarget(page.getByRole("link", { name: "Use guided access instead" }), "Use guided access instead");
       await expectNoHorizontalOverflow(page);
       const generatedHeading = page.getByRole("heading", { level: 2, name: "Request brief" });
       await generatedHeading.scrollIntoViewIfNeeded();
@@ -157,7 +157,7 @@ for (const viewport of viewports) {
         ["Prepare request brief button", page.getByRole("button", { name: "Prepare request brief" })],
         ["Generated request brief", generated],
         ["Copy request brief button", page.getByRole("button", { name: "Copy request brief" })],
-        ["Open demo instead link", page.getByRole("link", { name: "Open demo instead" })]
+        ["Guided access link", page.getByRole("link", { name: "Use guided access instead" })]
       ] as const) {
         await expectHeaderDoesNotOverlap(page, locator, label);
       }

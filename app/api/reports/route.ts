@@ -63,7 +63,7 @@ function summarizeReport(item: unknown) {
     targetLabel: report.targetLabel ?? payload?.selectedSite ?? null,
     reportType: report.reportType ?? report.report_type ?? "analysis",
     createdAt: report.createdAt ?? report.created_at ?? report.generated_at ?? null,
-    sourceSummary: report.sourceLineage?.disclaimers?.[0] ?? "Saved with local/sample source lineage; official validation required."
+    sourceSummary: report.sourceLineage?.disclaimers?.[0] ?? "Saved with illustrative local source lineage; official validation required."
   };
 }
 
@@ -89,7 +89,7 @@ export async function GET(request: Request) {
         summary: summarizeReport(publicSeed),
         access,
         error: null,
-        dataHonesty: "Immutable seeded report; sample/open context only and official validation required."
+        dataHonesty: "Immutable prepared report; illustrative local/public-open context only and official validation required."
       });
     }
     return privateNoStoreJson({
@@ -128,7 +128,7 @@ export async function GET(request: Request) {
       summary: result.data ? summarizeReport(result.data) : null,
       access,
       error: result.error,
-      dataHonesty: "Saved reports use sample/open/local source lineage unless externally validated."
+      dataHonesty: "Saved reports use illustrative local/public-open source lineage unless externally validated."
     });
   }
 

@@ -26,13 +26,13 @@ export const guidedDemoPresets: GuidedDemoPreset[] = [
     title: "Dubai Marina investment screening",
     clientType: "Fund / family office",
     scenarioId: "investmentSiteSelection",
-    selectedAreaLabel: "Dubai Marina sample pipeline area",
+    selectedAreaLabel: "Dubai Marina coastal investment area",
     geometryType: "polygon",
     center: { latitude: 25.0822, longitude: 55.1431 },
-    featureName: "Dubai Marina sample pipeline area",
+    featureName: "Dubai Marina coastal investment area",
     recommendedDatasets: [
-      "Sample CSV metrics - local sample / not official",
-      "Sample GeoJSON screening sites - local sample / not official boundary"
+      "Local screening metrics - official validation required",
+      "Local screening geometries - not official boundaries"
     ],
     scriptBullets: [
       "Show high-demand coastal asset screening.",
@@ -40,7 +40,7 @@ export const guidedDemoPresets: GuidedDemoPreset[] = [
       "Use the memo to explain validation gaps before underwriting."
     ],
     expectedOutput: "Investment memo + due diligence checklist.",
-    dataHonestyNote: "Uses local demo sample data only. Official DLD / Dubai Pulse / GeoDubai validation is not connected in this demo.",
+    dataHonestyNote: "Uses local and public/open screening context. Official DLD, Dubai Pulse and GeoDubai validation is not connected.",
     projectKey: "dubai-investment-screening-demo",
     pilotPackageId: "fund-investment-screening"
   },
@@ -49,13 +49,13 @@ export const guidedDemoPresets: GuidedDemoPreset[] = [
     title: "Dubai South development pipeline",
     clientType: "Developer / master developer",
     scenarioId: "realEstateDevelopment",
-    selectedAreaLabel: "Dubai South sample growth node",
+    selectedAreaLabel: "Dubai South growth corridor",
     geometryType: "polygon",
     center: { latitude: 24.8887, longitude: 55.1542 },
-    featureName: "Dubai South sample growth node",
+    featureName: "Dubai South growth corridor",
     recommendedDatasets: [
-      "Sample CSV metrics - local sample / not official",
-      "Sample GeoJSON screening sites - local sample / not official boundary"
+      "Local screening metrics - official validation required",
+      "Local screening geometries - not official boundaries"
     ],
     scriptBullets: [
       "Show early-stage development pipeline screening.",
@@ -63,7 +63,7 @@ export const guidedDemoPresets: GuidedDemoPreset[] = [
       "Use comparison to contrast with a mature coastal area."
     ],
     expectedOutput: "Development potential memo + validation checklist.",
-    dataHonestyNote: "The growth polygon is a synthetic demo fixture, not official parcel, zoning or planning geometry.",
+    dataHonestyNote: "The growth polygon is illustrative local screening geometry, not official parcel, zoning or planning geometry.",
     projectKey: "developer-land-pipeline-demo",
     pilotPackageId: "developer-site-screening"
   },
@@ -72,13 +72,13 @@ export const guidedDemoPresets: GuidedDemoPreset[] = [
     title: "Bank asset review / collateral screening",
     clientType: "Bank / lender",
     scenarioId: "investmentSiteSelection",
-    selectedAreaLabel: "Business Bay sample infill area",
+    selectedAreaLabel: "Business Bay infill area",
     geometryType: "polygon",
     center: { latitude: 25.1853, longitude: 55.2685 },
-    featureName: "Business Bay sample infill area",
+    featureName: "Business Bay infill area",
     recommendedDatasets: [
-      "Sample CSV metrics - local sample / not official",
-      "Sample GeoJSON screening sites - local sample / not official boundary"
+      "Local screening metrics - official validation required",
+      "Local screening geometries - not official boundaries"
     ],
     scriptBullets: [
       "Show lender-style collateral context.",
@@ -86,7 +86,7 @@ export const guidedDemoPresets: GuidedDemoPreset[] = [
       "Export a lender-ready review summary."
     ],
     expectedOutput: "Lender-ready review summary.",
-    dataHonestyNote: "Sample/offline metrics and local screening geometries support the demo narrative; they are not official evidence.",
+    dataHonestyNote: "Local screening metrics and illustrative geometries are not official evidence.",
     projectKey: "bank-asset-review-demo",
     pilotPackageId: "bank-asset-review"
   }
@@ -98,10 +98,10 @@ const pipelineSitesSample: GeoJSON.FeatureCollection = {
     {
       type: "Feature",
       properties: {
-        name: "Dubai Marina sample pipeline area",
+        name: "Dubai Marina coastal investment area",
         site_type: "mixed_use_pipeline",
         confidence: "sample",
-        note: "Synthetic polygon for upload workflow testing."
+        note: "Illustrative local polygon for screening workflow validation."
       },
       geometry: {
         type: "Polygon",
@@ -119,10 +119,10 @@ const pipelineSitesSample: GeoJSON.FeatureCollection = {
     {
       type: "Feature",
       properties: {
-        name: "Business Bay sample infill area",
+        name: "Business Bay infill area",
         site_type: "redevelopment_watch",
         confidence: "sample",
-        note: "Synthetic polygon for upload workflow testing."
+        note: "Illustrative local polygon for screening workflow validation."
       },
       geometry: {
         type: "Polygon",
@@ -140,10 +140,10 @@ const pipelineSitesSample: GeoJSON.FeatureCollection = {
     {
       type: "Feature",
       properties: {
-        name: "Dubai South sample growth node",
+        name: "Dubai South growth corridor",
         site_type: "growth_pipeline",
         confidence: "sample",
-        note: "Synthetic polygon for upload workflow testing."
+        note: "Illustrative local polygon for screening workflow validation."
       },
       geometry: {
         type: "Polygon",
@@ -173,7 +173,7 @@ const demoMetricRows: UploadedCsvRow[] = [
       rental_demand_index: 82,
       pipeline_status: "active pipeline",
       confidence: "sample",
-      notes: "Sample user-uploaded metric row for local fallback screening."
+      notes: "Illustrative local metric row for screening; official validation required."
     },
     raw: {
       site_name: "Dubai Marina Waterfront Parcel",
@@ -185,7 +185,7 @@ const demoMetricRows: UploadedCsvRow[] = [
       rental_demand_index: "82",
       pipeline_status: "active pipeline",
       confidence: "sample",
-      notes: "Sample user-uploaded metric row for local fallback screening."
+      notes: "Illustrative local metric row for screening; official validation required."
     }
   },
   {
@@ -199,7 +199,7 @@ const demoMetricRows: UploadedCsvRow[] = [
       rental_demand_index: 78,
       pipeline_status: "redevelopment watch",
       confidence: "sample",
-      notes: "Sample user-uploaded metric row for local fallback screening."
+      notes: "Illustrative local metric row for screening; official validation required."
     },
     raw: {
       site_name: "Business Bay Infill Site",
@@ -211,7 +211,7 @@ const demoMetricRows: UploadedCsvRow[] = [
       rental_demand_index: "78",
       pipeline_status: "redevelopment watch",
       confidence: "sample",
-      notes: "Sample user-uploaded metric row for local fallback screening."
+      notes: "Illustrative local metric row for screening; official validation required."
     }
   },
   {
@@ -225,7 +225,7 @@ const demoMetricRows: UploadedCsvRow[] = [
       rental_demand_index: 61,
       pipeline_status: "early growth",
       confidence: "sample",
-      notes: "Sample user-uploaded metric row for local fallback screening."
+      notes: "Illustrative local metric row for screening; official validation required."
     },
     raw: {
       site_name: "Dubai South Growth Zone",
@@ -237,7 +237,7 @@ const demoMetricRows: UploadedCsvRow[] = [
       rental_demand_index: "61",
       pipeline_status: "early growth",
       confidence: "sample",
-      notes: "Sample user-uploaded metric row for local fallback screening."
+      notes: "Illustrative local metric row for screening; official validation required."
     }
   }
 ];
@@ -257,7 +257,7 @@ function createDemoGeojsonDataset(uploadedAt: string, projectKey: string): Uploa
   return {
     id: `guided-demo-geojson-sites-${projectKey}`,
     projectKey,
-    name: "Sample GeoJSON screening sites",
+    name: "Local screening geometries",
     type: "geojson",
     status: "parsed",
     sourceMode: "sample-fixture",
@@ -265,7 +265,7 @@ function createDemoGeojsonDataset(uploadedAt: string, projectKey: string): Uploa
     featureCount: geojson.features.length,
     confidence: "sample",
     officialStatus: "official-validation-required",
-    notes: "Local demo GeoJSON screening geometries. Synthetic sample boundaries, not official parcel, zoning or planning data.",
+    notes: "Illustrative local screening geometries; not official parcel, zoning or planning boundaries.",
     visible: true,
     geojson
   };
@@ -275,7 +275,7 @@ function createDemoCsvDataset(uploadedAt: string, projectKey: string): UploadedD
   return {
     id: `guided-demo-csv-metrics-${projectKey}`,
     projectKey,
-    name: "Sample CSV metrics",
+    name: "Local screening metrics",
     type: "csv",
     status: "parsed",
     sourceMode: "sample-fixture",
@@ -295,7 +295,7 @@ function createDemoCsvDataset(uploadedAt: string, projectKey: string): UploadedD
     ],
     confidence: "sample",
     officialStatus: "official-validation-required",
-    notes: "Local demo CSV metrics from the sample fixture. Not official DLD / Dubai Pulse data.",
+    notes: "Illustrative local screening metrics; not official DLD or Dubai Pulse data.",
     rows: demoMetricRows
   };
 }
@@ -345,9 +345,9 @@ export function createGuidedDemoSelection(preset: GuidedDemoPreset): SelectedDem
   return {
     id: `guided-demo-${featureId}`,
     name: featureName,
-    type: "Sample screening geometry",
+    type: "Illustrative screening geometry",
     layerId: "futureCustomerAssets",
-    layerName: "Sample GeoJSON screening sites",
+    layerName: "Local screening geometries",
     geometryType: preset.geometryType === "point" ? "point" : "polygon",
     center,
     analysisTarget: {
@@ -359,11 +359,11 @@ export function createGuidedDemoSelection(preset: GuidedDemoPreset): SelectedDem
       properties: {
         ...(feature.properties ?? {}),
         guidedDemoPreset: preset.id,
-        dataMode: "local demo sample",
+        dataMode: "local screening context",
         officialStatus: "official-validation-required"
       },
       datasetId: "guided-demo-geojson-sites",
-      datasetName: "Sample GeoJSON screening sites",
+      datasetName: "Local screening geometries",
       sourceMode: "sample-fixture",
       officialStatus: "official-validation-required"
     }

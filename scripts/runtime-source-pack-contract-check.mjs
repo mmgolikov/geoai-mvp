@@ -184,7 +184,11 @@ assert(workspaceSource.includes("isBrowserLocalSelection(selectedObject, selecte
 assert(workspaceSource.includes("climateContext.status !== \"connected\""), "Only connected climate context may become evidence");
 assert(supabaseRegistrySource.includes("usedInAnalysis: status === \"snapshot_available\" && acquiredSnapshot"), "Registry status alone must not become analysis lineage");
 assert(publicGroupProjector.includes("id: group.id") && publicGroupProjector.includes("validationRequired: true"), "Public source groups must use an explicit DTO allowlist");
-assert(publicManifestProjector.includes("id: source.id") && publicManifestProjector.includes("usedInAnalysis: source.usedInAnalysis"), "Public manifest sources must use an explicit DTO allowlist");
+assert(
+  publicManifestProjector.includes("id: source.id") &&
+    publicManifestProjector.includes("usedInAnalysis: Boolean(source.usedInAnalysis) && provenanceAllowsDecisionUse(source.id)"),
+  "Public manifest sources must use an explicit DTO allowlist and fail-closed provenance gate"
+);
 assert(!publicGroupProjector.includes("...") && !publicManifestProjector.includes("..."), "Public source DTO projectors must not use object spread/rest");
 assert(!publicSourceReadinessSource.includes("map(({ availableFiles"), "Public source projection must not rely on delete-by-rest filtering");
 

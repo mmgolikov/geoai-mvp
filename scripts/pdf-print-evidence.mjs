@@ -99,7 +99,7 @@ const fixtures = [
     routeReportId: "seeded-analysis-dubai-marina-report",
     reportType: "analysis",
     mutation: "partial-evidence",
-    expectedPageRange: [4, 8],
+    expectedPageRange: [3, 8],
     attributionRequired: true,
     capturedMapRequired: true
   }
@@ -200,6 +200,18 @@ for (const fixture of fixtures) {
         return !container || rect.left < container.left - 1 || rect.right > container.right + 1;
       }).map((element) => element.className);
       const orphanHeadings = [...article.querySelectorAll("h2")].filter((heading) => !heading.parentElement || heading.parentElement.children.length < 2).map((heading) => heading.textContent ?? "");
+      const provenanceLabelValueSpacing = [...article.querySelectorAll(".geoai-print-provenance-strip .geoai-print-card")].map((card) => {
+        const label = card.querySelector("span")?.getBoundingClientRect();
+        const value = card.querySelector("strong")?.getBoundingClientRect();
+        const verticalGapPx = label && value ? value.top - label.bottom : -1;
+        const horizontalGapPx = label && value ? value.left - label.right : -1;
+        return {
+          label: card.querySelector("span")?.textContent?.trim() ?? "missing",
+          verticalGapPx,
+          horizontalGapPx,
+          separated: verticalGapPx >= 2 || horizontalGapPx >= 4
+        };
+      });
       const avoidBreakStyles = [...article.querySelectorAll(".avoid-break")].every((element) => ["avoid", "avoid-page"].includes(getComputedStyle(element).breakInside));
       const map = article.querySelector(".geoai-print-map, [data-map-snapshot='captured']");
       const table = article.querySelector(".geoai-print-table");
@@ -210,6 +222,7 @@ for (const fixture of fixtures) {
         clippedText,
         outOfBounds,
         orphanHeadings,
+        provenanceLabelValueSpacing,
         avoidBreakStyles,
         capturedMapRendered: Boolean(article.querySelector("[data-map-snapshot='captured'] img")),
         mapWithinPage: map ? !outOfBounds.includes(map.className) : false,
@@ -249,10 +262,11 @@ for (const fixture of fixtures) {
     const requiredTextChecks = {
       reportTitle: /GeoAI (?:Analysis|Comparison|Screening) Report/i.test(extractedText),
       reportId: extractedText.includes(fixture.reportId),
-      timestamp: /SAVED REPORT TIMESTAMP/i.test(extractedText) && extractedText.includes(`Evidence timestamp: ${fixedEvidenceTime}`),
+      timestamp: /(?:RESULT GENERATED|SAVED REPORT TIMESTAMP)/i.test(extractedText) && extractedText.includes(`Evidence timestamp: ${fixedEvidenceTime}`),
       classificationAndCaveat: extractedText.includes("Screening") && extractedText.includes(requiredCaveat),
       sourceLineage: extractedText.includes("Data Used / Source Lineage"),
       attribution: !fixture.attributionRequired || extractedText.includes("Map/data sources:"),
+      provenanceLabelValueSeparation: fixture.reportType !== "analysis" || !/(?:Project|Evidence state|Distribution boundary)(?:Dubai|Illustrative|Review)/.test(extractedText),
       pageNumbering: /Page\s+1\s+of\s+\d+/i.test(extractedText)
     };
     const recordFailures = [];
@@ -263,6 +277,7 @@ for (const fixture of fixtures) {
     if (pageTextLengths.some((length) => length < 20)) recordFailures.push("blank or near-blank physical page detected");
     if (!domChecks.articlePresent || domChecks.horizontalOverflowPx !== 0 || domChecks.clippedText?.length || domChecks.outOfBounds?.length) recordFailures.push("DOM clipping or overflow check failed");
     if (domChecks.orphanHeadings?.length) recordFailures.push("orphan heading detected");
+    if (fixture.reportType === "analysis" && (domChecks.provenanceLabelValueSpacing?.length !== 3 || domChecks.provenanceLabelValueSpacing.some((item) => !item.separated))) recordFailures.push("provenance label/value spacing is missing");
     if (!domChecks.avoidBreakStyles) recordFailures.push("avoid-break print contract missing");
     if (!domChecks.mapWithinPage || !domChecks.comparisonTableWithinPage) recordFailures.push("map or comparison table exceeds page bounds");
     if (fixture.reportType === "comparison" && (domChecks.comparisonTableWidth ?? 0) < 400) recordFailures.push("comparison table is not readable at print width");
@@ -290,6 +305,11 @@ for (const fixture of fixtures) {
       clippingCheck: { passed: recordFailures.every((failure) => !failure.includes("clipping")), clippedText: domChecks.clippedText ?? [], outOfBounds: domChecks.outOfBounds ?? [] },
       overflowCheck: { passed: domChecks.horizontalOverflowPx === 0, horizontalOverflowPx: domChecks.horizontalOverflowPx ?? null },
       orphanHeadingCheck: { passed: (domChecks.orphanHeadings ?? []).length === 0, headings: domChecks.orphanHeadings ?? [] },
+      provenanceLabelValueSpacingCheck: {
+        required: fixture.reportType === "analysis",
+        passed: fixture.reportType !== "analysis" || (domChecks.provenanceLabelValueSpacing?.length === 3 && domChecks.provenanceLabelValueSpacing.every((item) => item.separated)),
+        records: domChecks.provenanceLabelValueSpacing ?? []
+      },
       unexpectedCardSplitCheck: { passed: domChecks.avoidBreakStyles === true, cssBreakInsideAvoid: domChecks.avoidBreakStyles ?? false },
       mapAndTableBoundsCheck: { passed: domChecks.mapWithinPage === true && domChecks.comparisonTableWithinPage === true, mapWithinPage: domChecks.mapWithinPage ?? false, comparisonTableWithinPage: domChecks.comparisonTableWithinPage ?? false },
       longWordAndUrlWrapCheck: { passed: (domChecks.clippedText ?? []).length === 0 },

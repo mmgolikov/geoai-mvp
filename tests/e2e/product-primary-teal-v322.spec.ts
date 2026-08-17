@@ -10,8 +10,8 @@ async function signInDemo(page: Page, next = "/workspace") {
   await page.goto(`/login?next=${encodeURIComponent(next)}&intent=demo`);
   const redirected = await page.waitForURL((url) => url.pathname === next, { timeout: 3000 }).then(() => true, () => false);
   if (redirected) return;
-  await page.getByRole("button", { name: "Use demo credentials" }).click();
-  await page.getByRole("button", { name: "Open demo" }).click();
+  await page.getByRole("button", { name: "Use guided access" }).click();
+  await page.getByRole("button", { name: "Open guided workspace" }).click();
   await expect(page).toHaveURL((url) => url.pathname === next);
 }
 
@@ -61,7 +61,7 @@ test("v3.2.2 remains a bounded correction over the immutable v3.2/v3.2.1 foundat
   expect(tokenSource).toContain("productionAuthorized: false");
 });
 
-test("commercial cockpit correction keeps label lines separated and selected state teal", async ({ page }) => {
+test("historical cockpit correction remains intact while the GCC candidate renders cleanly", async ({ page }) => {
   const css = await fs.readFile(path.join(process.cwd(), "app", "product-system-v322-correction.css"), "utf8");
   const encodedSvgs = [...css.matchAll(/base64,([^"\)]+)/g)].map((match) => match[1]);
   expect(encodedSvgs.length).toBeGreaterThanOrEqual(2);
@@ -96,16 +96,20 @@ test("commercial cockpit correction keeps label lines separated and selected sta
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     await page.goto("/");
     await page.evaluate(async () => document.fonts.ready);
-    const cockpit = page.locator('[data-landing-cockpit-authority="commercial-v1.8"]');
+    const cockpit = page.locator('img[data-landing-cockpit-authority="gcc-real-estate-v1"]');
     await expect(cockpit).toBeVisible();
-    const overlay = await cockpit.evaluate((element) => ({
-      backgroundImage: getComputedStyle(element, "::after").backgroundImage,
-      pointerEvents: getComputedStyle(element, "::after").pointerEvents,
-      zIndex: getComputedStyle(element, "::after").zIndex
+    const candidate = await cockpit.evaluate((element) => ({
+      complete: (element as HTMLImageElement).complete,
+      currentPath: new URL((element as HTMLImageElement).currentSrc || (element as HTMLImageElement).src).pathname,
+      figmaNode: element.getAttribute("data-figma-node"),
+      naturalHeight: (element as HTMLImageElement).naturalHeight,
+      naturalWidth: (element as HTMLImageElement).naturalWidth
     }));
-    expect(overlay.backgroundImage).toContain("data:image/svg+xml;base64");
-    expect(overlay.pointerEvents).toBe("none");
-    expect(Number(overlay.zIndex)).toBeGreaterThanOrEqual(2);
+    expect(candidate.complete).toBe(true);
+    expect(candidate.currentPath).toBe("/design/gcc-decision-cockpit-v1.webp");
+    expect(candidate.figmaNode).toBe("1957:12");
+    expect(candidate.naturalWidth).toBeGreaterThanOrEqual(1400);
+    expect(candidate.naturalHeight).toBeGreaterThanOrEqual(900);
     await expectNoHorizontalOverflow(page);
     await page.screenshot({
       path: path.join(evidenceDirectory, `landing-cockpit-${viewport.name}.png`),
@@ -122,10 +126,15 @@ test("Product primary and selected controls remain teal from Workspace through a
 
   const selectedAudience = page.getByRole("button", { name: "B2B", exact: true }).first();
   const mapFirst = page.getByRole("button", { name: "Map-first", exact: true });
+  const criteriaFirst = page.getByRole("button", { name: "Criteria-first", exact: true });
   await expectProductPrimary(selectedAudience, "Workspace selected B2B");
+  await expect(criteriaFirst).toHaveAttribute("aria-pressed", "true");
+  await expectProductPrimary(criteriaFirst, "Workspace default Criteria-first");
+
+  await mapFirst.click();
+  await expect(mapFirst).toHaveAttribute("aria-pressed", "true");
   await expectProductPrimary(mapFirst, "Workspace selected Map-first");
 
-  const criteriaFirst = page.getByRole("button", { name: "Criteria-first", exact: true });
   await criteriaFirst.click();
   await expect(criteriaFirst).toHaveAttribute("aria-pressed", "true");
   await expectProductPrimary(criteriaFirst, "Workspace selected Criteria-first");
@@ -145,13 +154,15 @@ test("Product primary and selected controls remain teal from Workspace through a
 
   const dashboard = page.locator("section[data-dashboard-analysis-id]");
   await expect(dashboard).toBeVisible();
-  // The dashboard replaces the clicked action in-place. Move the pointer away so
-  // computed-style assertions read the approved default state, not its teal hover.
+  // The dashboard is the deliberate result state. Verify its primary action,
+  // then return through Edit criteria to prove selected-control continuity.
   await page.mouse.move(1, 1);
+  await expectProductPrimary(dashboard.getByRole("button", { name: "Export", exact: true }), "Analysis Export action");
+
+  await dashboard.getByRole("button", { name: "Edit criteria", exact: true }).click();
   await expectProductPrimary(page.getByRole("button", { name: "B2B", exact: true }).first(), "Analysis selected B2B");
   await expectProductPrimary(page.getByRole("button", { name: "Criteria-first", exact: true }), "Analysis selected mode");
-  await expectProductPrimary(dashboard.getByRole("button", { name: "Export", exact: true }), "Analysis Export action");
-  await expectProductPrimary(page.getByRole("button", { name: "Export Report", exact: true }), "Analysis Export Report action");
+  await expectProductPrimary(page.getByRole("button", { name: "Analyze Selected", exact: true }), "Returned workflow analysis action");
   await expectNoHorizontalOverflow(page);
 
   await page.screenshot({

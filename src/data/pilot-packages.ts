@@ -19,7 +19,7 @@ export type ClientPilotPackage = {
 export const clientPilotPackages: ClientPilotPackage[] = [
   {
     id: "fund-investment-screening",
-    title: "Fund / Family Office Investment Screening Pilot",
+    title: "Fund / Family Office Investment Screening Engagement",
     buyerType: "Fund / family office",
     linkedProjectKey: "dubai-investment-screening-demo",
     duration: "2-4 weeks",
@@ -52,12 +52,12 @@ export const clientPilotPackages: ClientPilotPackage[] = [
       "Legal, tax, ownership or title opinion",
       "Live official DLD or Dubai Pulse integration"
     ],
-    commercialPilotFraming: "Position as a paid decision-screening pilot for investment teams that need a repeatable diligence starter pack before underwriting.",
+    commercialPilotFraming: "Position as a controlled decision-screening engagement for investment teams that need a repeatable diligence starter pack before underwriting.",
     caveat: geoaiReleaseCaveat
   },
   {
     id: "developer-land-pipeline",
-    title: "Developer Land Pipeline Pilot",
+    title: "Developer Land Pipeline Engagement",
     buyerType: "Developer / master developer",
     linkedProjectKey: "developer-land-pipeline-demo",
     duration: "3-6 weeks",
@@ -77,7 +77,7 @@ export const clientPilotPackages: ClientPilotPackage[] = [
     timeline: [
       "Week 1: confirm candidate sites and data permissions",
       "Week 2-3: configure uploaded GIS/CSV context and screening scenarios",
-      "Week 4-6: run shortlist reviews, refine outputs and prepare pilot summary"
+      "Week 4-6: run shortlist reviews, refine outputs and prepare an engagement summary"
     ],
     validationRequirements: [
       "Validate planning and land-use assumptions through authorized municipal or customer-approved sources",
@@ -90,12 +90,12 @@ export const clientPilotPackages: ClientPilotPackage[] = [
       "Legal title confirmation",
       "Certified valuation"
     ],
-    commercialPilotFraming: "Position as a land-pipeline operating pilot for teams deciding which sites deserve deeper feasibility and authority validation.",
+    commercialPilotFraming: "Position as a controlled land-pipeline engagement for teams deciding which sites deserve deeper feasibility and authority validation.",
     caveat: geoaiReleaseCaveat
   },
   {
     id: "bank-asset-review",
-    title: "Bank / Lender Asset Review Pilot",
+    title: "Bank / Lender Asset Review Engagement",
     buyerType: "Bank / lender",
     linkedProjectKey: "bank-asset-review-demo",
     duration: "3-5 weeks",
@@ -128,7 +128,7 @@ export const clientPilotPackages: ClientPilotPackage[] = [
       "Legal title opinion",
       "Regulatory capital calculation"
     ],
-    commercialPilotFraming: "Position as an evidence-triage pilot for lenders who need location-aware collateral review before formal credit or valuation work.",
+    commercialPilotFraming: "Position as a controlled evidence-triage engagement for lenders who need location-aware collateral review before formal credit or valuation work.",
     caveat: geoaiReleaseCaveat
   }
 ];

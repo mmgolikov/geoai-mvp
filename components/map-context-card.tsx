@@ -41,8 +41,8 @@ export function MapContextCard({
     : analysisTarget?.type === "uploaded-feature"
     ? "Selected geometry is user-uploaded screening context; official validation is required before decisions."
     : analysisTarget?.type === "demo-feature"
-      ? "Selected geometry is sample/open context; official validation is required before decisions."
-      : "Sample/open spatial context only. Synthetic geometries are not official GIS, parcel, planning, or risk boundaries.";
+      ? "Selected geometry is illustrative local context; official validation is required before decisions."
+      : "Local and public/open spatial context only. Illustrative geometries are not official GIS, parcel, planning, or risk boundaries.";
   const mapHeightClass = viewportLocked
     ? "min-h-0"
     : compact

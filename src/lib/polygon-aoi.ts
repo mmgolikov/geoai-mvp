@@ -212,7 +212,7 @@ export function validatePolygonVertices(vertices: [number, number][]): PolygonVa
   }
 
   if (measurements.areaSqM > maxAreaSqM) {
-    return { valid: false, message: "AOI is too large for this MVP. Keep it below 500 sq km.", measurements };
+    return { valid: false, message: "AOI is too large for this screening workflow. Keep it below 500 sq km.", measurements };
   }
 
   return { valid: true, message: "Polygon AOI ready for screening.", measurements };
@@ -248,7 +248,7 @@ export function createUserDrawnAoi(vertices: [number, number][], projectId?: str
     limitations: [
       "User-drawn AOI is a screening boundary only and requires official validation.",
       aoiRequiredCaveat,
-      "Area and perimeter are approximate client-side measurements for demo screening."
+      "Area and perimeter are approximate client-side measurements for screening."
     ]
   };
 }

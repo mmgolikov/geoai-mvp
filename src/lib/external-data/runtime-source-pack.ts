@@ -246,7 +246,7 @@ async function getNasaPowerObservation(now: Date): Promise<RuntimeSourceObservat
   const base = {
     sourceId: "nasa-power-solar-energy",
     queryFingerprint,
-    coverage: "Fixed public demo point: Downtown Dubai; coarse model/reanalysis grid context",
+    coverage: "Fixed bounded screening point: Downtown Dubai; coarse model/reanalysis grid context",
     licenseName: "NASA POWER Referencing Guide",
     licenseUrl: "https://power.larc.nasa.gov/docs/referencing/",
     attribution: `Data obtained from NASA Langley Research Center's Prediction Of Worldwide Energy Resources (POWER) project; POWER Daily API, accessed ${accessedOn}.`,
@@ -296,7 +296,7 @@ async function getCopernicusObservation(now: Date): Promise<RuntimeSourceObserva
   const base = {
     sourceId: "copernicus-sentinel-metadata",
     queryFingerprint,
-    coverage: "Fixed public demo AOI: bounded Downtown Dubai catalogue search",
+    coverage: "Fixed bounded screening AOI: Downtown Dubai catalogue search",
     licenseName: "Copernicus Data Space Ecosystem terms and conditions",
     licenseUrl: "https://dataspace.copernicus.eu/terms-and-conditions",
     attribution: serviceInformationNotice,
@@ -342,7 +342,7 @@ async function getOverpassObservation(now: Date): Promise<RuntimeSourceObservati
   const base = {
     sourceId: "osm-overpass-count-context",
     queryFingerprint,
-    coverage: "Fixed public demo AOI: bounded Downtown Dubai count-only query",
+    coverage: "Fixed bounded screening AOI: Downtown Dubai count-only query",
     licenseName: "Open Database License (ODbL)",
     licenseUrl: "https://www.openstreetmap.org/copyright",
     attribution: "Data © OpenStreetMap contributors, available under ODbL 1.0.",

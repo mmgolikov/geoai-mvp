@@ -36,7 +36,7 @@ export async function getAirQualityContext(point: SelectedPoint) {
     sourceId: "openaq-air-quality",
     source: "OpenAQ air-quality context",
     point,
-    nearestContext: "Dubai sample/fallback air-quality screening context",
+    nearestContext: "Dubai illustrative local air-quality screening context",
     measurements: {
       pm25: null,
       pm10: null,
@@ -68,7 +68,7 @@ export function getSatelliteAvailabilityContext() {
     status: sample ? "sample_fallback" : "token_required",
     source: "Copernicus Data Space",
     availableCollections: sample?.collections ?? ["Sentinel-1", "Sentinel-2", "Sentinel-3 / CLMS"].map((name) => ({ name, sceneCount: null })),
-    lastQueryStatus: sample ? "sample metadata available" : "token required or planned",
+    lastQueryStatus: sample ? "illustrative local metadata available" : "token required or planned",
     limitation: sample?.limitation ?? "Metadata path only; no imagery download or raster analytics connected.",
     caveat: externalDataCaveat,
     sourceLineage: buildContextLineage(["copernicus-sentinel-metadata"], sample ? "sample_fallback" : "token_required")

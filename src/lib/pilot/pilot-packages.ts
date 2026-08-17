@@ -19,7 +19,7 @@ export type PilotPackage = {
 export const pilotPackages: PilotPackage[] = [
   {
     id: "developer-site-screening",
-    title: "Developer / Master Developer Site Screening Pilot",
+    title: "Developer / Master Developer Site Screening Engagement",
     clientType: "developer",
     objective: "Screen 3-10 candidate land parcels or development areas for investment, planning and infrastructure readiness.",
     pilotDuration: "2-4 weeks",
@@ -66,11 +66,11 @@ export const pilotPackages: PilotPackage[] = [
       "Certified valuation",
       "Permitting decision or approval"
     ],
-    dataHonestyNote: "Pilot outputs combine uploaded/customer-approved data and sample/open context. Official planning and title validation remains required."
+    dataHonestyNote: "Controlled engagement outputs combine uploaded/customer-approved data and illustrative local/public-open context. Official planning and title validation remains required."
   },
   {
     id: "fund-investment-screening",
-    title: "Fund / Family Office Investment Screening Pilot",
+    title: "Fund / Family Office Investment Screening Engagement",
     clientType: "fund",
     objective: "Compare investable Dubai locations or assets using market context, spatial evidence and risk-adjusted recommendation logic.",
     pilotDuration: "2-4 weeks",
@@ -117,11 +117,11 @@ export const pilotPackages: PilotPackage[] = [
       "Final investment recommendation",
       "Legal or tax advice"
     ],
-    dataHonestyNote: "Pilot analysis is investment-screening support only. Market, ownership and planning claims must be validated before capital decisions."
+    dataHonestyNote: "Controlled engagement analysis supports investment screening only. Market, ownership and planning claims must be validated before capital decisions."
   },
   {
     id: "bank-asset-review",
-    title: "Bank / Lender Asset Review Pilot",
+    title: "Bank / Lender Asset Review Engagement",
     clientType: "bank",
     objective: "Review collateral or financed asset locations for spatial risk, market context, evidence gaps and lender-ready reporting.",
     pilotDuration: "2-4 weeks",
@@ -153,7 +153,7 @@ export const pilotPackages: PilotPackage[] = [
     ],
     successCriteria: [
       "Lender can review priority assets with consistent spatial evidence",
-      "Risk notes distinguish sample/open context from validated data",
+      "Risk notes distinguish illustrative local/public-open context from validated data",
       "Outputs can support a credit review discussion without replacing valuation"
     ],
     validationSources: [
@@ -168,11 +168,11 @@ export const pilotPackages: PilotPackage[] = [
       "Legal title opinion",
       "Regulatory capital calculation"
     ],
-    dataHonestyNote: "Pilot outputs support lender review workflows and evidence triage. They are not credit decisions or certified valuations."
+    dataHonestyNote: "Controlled engagement outputs support lender review workflows and evidence triage. They are not credit decisions or certified valuations."
   },
   {
     id: "government-land-monitoring",
-    title: "Government / Free Zone Land Monitoring Pilot",
+    title: "Government / Free Zone Land Monitoring Engagement",
     clientType: "government",
     objective: "Monitor selected land, district or free zone assets with transparent evidence lineage, change context and validation workflow.",
     pilotDuration: "3-4 weeks",
@@ -184,7 +184,7 @@ export const pilotPackages: PilotPackage[] = [
     ],
     optionalData: [
       "Inspection notes",
-      "Permit or project status snapshots approved for pilot use",
+      "Permit or project status snapshots approved for controlled engagement use",
       "Remote sensing requirements",
       "Stakeholder reporting format"
     ],
@@ -204,7 +204,7 @@ export const pilotPackages: PilotPackage[] = [
     ],
     successCriteria: [
       "Stakeholders can review selected land objects with transparent evidence status",
-      "Sample/open layers are clearly separated from official validation sources",
+      "Illustrative local/public-open layers are clearly separated from official validation sources",
       "Monitoring workflow can be evaluated before production integration"
     ],
     validationSources: [
@@ -219,7 +219,7 @@ export const pilotPackages: PilotPackage[] = [
       "Certified cadastral record",
       "Live government system integration"
     ],
-    dataHonestyNote: "Pilot monitoring is a workflow demonstration until official/customer-approved datasets are connected and validated."
+    dataHonestyNote: "The controlled monitoring engagement remains an evaluation workflow until official/customer-approved datasets are connected and validated."
   }
 ];
 

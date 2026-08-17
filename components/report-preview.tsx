@@ -8,18 +8,25 @@ import { PrintableReport } from "@/components/printable-report";
 import { ValidationGovernanceAppendix } from "@/components/validation-governance-appendix";
 import { getDemoNarrativeByProjectKey } from "@/src/data/demo-narratives";
 import { getClientPilotPackageForProject } from "@/src/data/pilot-packages";
-import { externalDataSources } from "@/src/lib/external-data/source-registry";
+import {
+  externalDataSources,
+  resolveExternalDataSourceId,
+  type ExternalDataSource
+} from "@/src/lib/external-data/source-registry";
 import { sourceStatusToLabel } from "@/src/lib/external-data/source-status";
 import { deriveDecisionPosture, deriveDecisionRationale } from "@/src/lib/decision-posture";
 import { userDrawnAoiSourceCode, userDrawnAoiSourceLabel } from "@/src/lib/aoi-library";
 import { formatArea, formatPerimeter } from "@/src/lib/polygon-aoi";
 import { createSourceLineageSnapshot } from "@/src/lib/source-lineage-snapshot";
+import { isMarketMetricsDecisionUseAllowed } from "@/src/lib/market-metrics";
 import { browserDemoStorageKey, isBrowserDemoStorageEnabled } from "@/src/lib/browser-demo-storage";
 import type { ComparisonResult, ExpressAnalysis, ScoreKey } from "@/src/types/geo";
 import type { EvidenceFileAsset } from "@/src/types/storage";
 import type { EvidenceReviewSummary } from "@/src/types/evidence-review";
 import type { ReportMapSnapshot } from "@/src/lib/report-map-snapshot";
+import type { MarketMetricsMatch } from "@/src/lib/market-metrics/types";
 import { decodeCanonicalReportPathSegment } from "@/src/lib/report-id";
+import { selectAnalysisUsedUploadedDatasets } from "@/src/lib/analysis-upload-use";
 
 type ReportPreviewProps =
   | {
@@ -118,10 +125,10 @@ function formatCoordinate(latitude: number, longitude: number) {
 }
 
 function formatDataModeLabel(value?: string | null, separator = " ") {
-  return (value ?? "sample_open")
+  return (value ?? "local_screening")
     .replace(/_/g, separator)
-    .replace(/\bdemo normalized\b/gi, "sample/open")
-    .replace(/\bdemo-normalized\b/gi, "sample/open");
+    .replace(/\bdemo normalized\b/gi, "illustrative local screening")
+    .replace(/\bdemo-normalized\b/gi, "illustrative local screening");
 }
 
 function formatSourceQualityLabel(value?: string | null) {
@@ -154,8 +161,27 @@ function dedupeTextList(items: string[]) {
 }
 
 function sourceById(id: string) {
-  return externalDataSources.find((source) => source.id === id);
+  const resolvedId = resolveExternalDataSourceId(id);
+  return externalDataSources.find((source) => source.id === resolvedId);
 }
+
+function hasMatchedMarketScreeningContext(match: MarketMetricsMatch | null | undefined) {
+  return Boolean(match?.metrics && match.releaseGate?.screeningContextAvailable);
+}
+
+function hasMarketMetricsDecisionUse(match: MarketMetricsMatch | null | undefined) {
+  return Boolean(
+    match?.metrics &&
+      match.importedMetricsUsed &&
+      isMarketMetricsDecisionUseAllowed(match.releaseGate)
+  );
+}
+
+type LineageDisplayRow = {
+  source: ExternalDataSource;
+  note: string;
+  observedStatus?: string;
+};
 
 function ExternalDataLineageSection({
   analysis,
@@ -166,48 +192,69 @@ function ExternalDataLineageSection({
 }) {
   const [sourceQualityRows, setSourceQualityRows] = useState<SourceLineageQualityRow[]>([]);
   const [sourceQualityCaveat, setSourceQualityCaveat] = useState(requiredDataCaveat);
-  const isClimateScenario = analysis?.scenarioId === "climateRisk";
-  const evidenceSourceIds = new Set([
-    ...(analysis?.evidence.map((item) => item.sourceId) ?? []),
-    ...(comparison?.evidence.map((item) => item.sourceId) ?? [])
-  ]);
-  const marketBasis = analysis?.marketMetricsMatch?.importedMetricsUsed || analysis?.marketContext?.importedMarketMetrics?.importedMetricsUsed
-    ? "sample/manual market metrics matched; validate against DLD / Dubai Pulse snapshot or official exports"
-    : "sample fallback unless a local/public DLD / Dubai Pulse snapshot is loaded";
-  const usedRows = [
-    {
-      source: sourceById("dld-dubai-pulse-transactions"),
-      note: `Market basis: ${marketBasis}. Not a live transactional feed.`
-    },
-    {
-      source: sourceById("osm-geofabrik-baseline"),
-      note: evidenceSourceIds.has("open-geodata-baseline-sample")
-        ? "Access/context basis: existing OSM-style sample baseline; real OSM / Geofabrik prepared baseline can replace it when loaded."
-        : "Access/context basis: open geospatial baseline when available; otherwise demo open-geodata fallback."
-    },
-    isClimateScenario
-      ? {
-          source: sourceById("open-meteo-climate"),
-          note: "Climate basis: Open-Meteo reanalysis context can support climate scenario interpretation when queried; not engineering or insurance-grade."
-        }
-      : null
-  ].filter((item): item is { source: NonNullable<ReturnType<typeof sourceById>>; note: string } => Boolean(item?.source));
+  const evidence = [
+    ...(analysis?.evidence ?? []),
+    ...(comparison?.evidence ?? [])
+  ];
+  const usedUploadedDatasets = analysis ? selectAnalysisUsedUploadedDatasets(analysis) : [];
+  const recordedLineage = createSourceLineageSnapshot({
+    evidence,
+    uploadedDatasets: usedUploadedDatasets
+  });
+  const marketMetricsMatch = analysis?.marketContext?.importedMarketMetrics ?? analysis?.marketMetricsMatch;
+  const marketBasis = hasMarketMetricsDecisionUse(marketMetricsMatch)
+    ? "matched metrics were permitted and used in scoring under the source release gate"
+    : hasMatchedMarketScreeningContext(marketMetricsMatch)
+      ? "metrics matched and are available as screening context, but the source release gate excludes them from scoring"
+      : "no imported market metrics matched; illustrative local screening context remains active";
+  const runtimeObservedRows = recordedLineage.externalSources
+    .map((lineageSource): LineageDisplayRow | null => {
+      const source = sourceById(lineageSource.id);
+      if (!source) return null;
+
+      return {
+        source,
+        observedStatus: lineageSource.status,
+        note: `Recorded runtime observation: ${lineageSource.status}. ${lineageSource.queriedAt ? `Queried at ${lineageSource.queriedAt}.` : "No successful retrieval timestamp is recorded."} ${lineageSource.fallbackReason ? `Fallback: ${lineageSource.fallbackReason}.` : ""}`.trim()
+      };
+    })
+    .filter((item): item is LineageDisplayRow => Boolean(item));
+  const referenceRows = Array.from(
+    new Map(
+      evidence
+        .map((item): LineageDisplayRow | null => {
+          const source = sourceById(item.sourceId);
+          if (!source) return null;
+
+          const basis = source.id === "dld-dubai-pulse-transactions"
+            ? `Market basis: ${marketBasis}.`
+            : "Recorded as a report source reference for illustrative screening context.";
+
+          return {
+            source,
+            note: `${basis} No runtime observation is recorded, so this source is not claimed as external data used in scoring. ${item.description}`
+          };
+        })
+        .filter((item): item is LineageDisplayRow => Boolean(item))
+        .map((item) => [item.source.id, item] as const)
+    ).values()
+  );
   const availableRows = [
     {
       source: sourceById("copernicus-sentinel-catalog"),
       note: "Available as optional connector status only; credentials and imagery analytics pipeline are not configured by default."
     }
-  ].filter((item): item is { source: NonNullable<ReturnType<typeof sourceById>>; note: string } => Boolean(item.source));
+  ].filter((item): item is LineageDisplayRow => Boolean(item.source));
   const plannedRows = [
     {
       source: sourceById("geodubai-municipality-validation"),
-      note: "Planned official GIS/planning validation source; not connected in this demo."
+      note: "Planned official GIS and planning validation source; not connected in the current runtime."
     },
     {
       source: sourceById("dld-api-gateway-validation"),
-      note: "Planned enterprise validation path for official DLD workflows; not connected in this demo."
+      note: "Planned enterprise validation path for official DLD workflows; not connected in the current runtime."
     }
-  ].filter((item): item is { source: NonNullable<ReturnType<typeof sourceById>>; note: string } => Boolean(item.source));
+  ].filter((item): item is LineageDisplayRow => Boolean(item.source));
 
   useEffect(() => {
     let mounted = true;
@@ -230,9 +277,9 @@ function ExternalDataLineageSection({
     };
   }, []);
 
-  const renderRows = (rows: Array<{ source: NonNullable<ReturnType<typeof sourceById>>; note: string }>) => (
+  const renderRows = (rows: LineageDisplayRow[]) => (
     <div className="grid gap-3">
-      {rows.map(({ source, note }) => (
+      {rows.map(({ source, note, observedStatus }) => (
         <div key={source.id} className="rounded-md border border-line bg-white p-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
@@ -240,7 +287,7 @@ function ExternalDataLineageSection({
               <p className="mt-1 text-xs uppercase tracking-[0.12em] text-muted">{source.provider}</p>
             </div>
             <span className="rounded-full bg-surface px-2 py-1 text-xs font-semibold text-brand">
-              {sourceStatusToLabel(source.status)}
+              {sourceStatusToLabel(observedStatus ?? source.status)}
             </span>
           </div>
           <p className="mt-3 text-sm leading-6 text-muted">{note}</p>
@@ -254,7 +301,7 @@ function ExternalDataLineageSection({
   );
 
   return (
-    <Section title="External Data Used In This Memo">
+    <Section title="Source Lineage / External Context">
       <div className="grid gap-4">
         <div>
           <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-muted">Source quality / next validation</h3>
@@ -279,12 +326,22 @@ function ExternalDataLineageSection({
           <p className="mt-3 text-xs leading-5 text-muted">{sourceQualityCaveat}</p>
         </div>
         <div>
-          <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-muted">Used / source basis</h3>
-          <div className="mt-3">{renderRows(usedRows)}</div>
+          <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-muted">Runtime-observed external context</h3>
+          <div className="mt-3">
+            {runtimeObservedRows.length > 0 ? renderRows(runtimeObservedRows) : (
+              <div className="rounded-md border border-line bg-white p-4 text-sm leading-6 text-muted">
+                No external source runtime observation is recorded for this report. Registered or referenced sources below are not claimed as runtime-used data.
+              </div>
+            )}
+          </div>
+        </div>
+        <div>
+          <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-muted">Recorded screening / reference sources</h3>
+          <div className="mt-3">{renderRows(referenceRows)}</div>
         </div>
         <div className="grid gap-4 md:grid-cols-2">
           <div>
-            <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-muted">Available but not used</h3>
+            <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-muted">Registered availability / not observed</h3>
             <div className="mt-3">{renderRows(availableRows)}</div>
           </div>
           <div>
@@ -299,17 +356,18 @@ function ExternalDataLineageSection({
 
 function UploadedDataReportSection({ analysis }: { analysis: ExpressAnalysis }) {
   const context = analysis.uploadedDataContext;
+  const usedUploadedDatasets = selectAnalysisUsedUploadedDatasets(analysis);
 
-  if (!context || context.uploadedDatasets.length === 0) {
+  if (!context || usedUploadedDatasets.length === 0) {
     return null;
   }
 
   return (
     <Section title="Source Lineage / Uploaded Data Used">
       <div className="grid gap-3 md:grid-cols-2">
-        {context.uploadedDatasets.map((dataset) => {
+        {usedUploadedDatasets.map((dataset) => {
           const applied = context.appliedMetrics.find((match) => match.datasetId === dataset.id);
-          const available = context.availableButNotApplied.find((match) => match.datasetId === dataset.id);
+          const visible = context.visibleGeojsonLayers.some((match) => match.id === dataset.id);
 
           return (
             <div key={dataset.id} className="rounded-md border border-line bg-surface p-4">
@@ -321,11 +379,11 @@ function UploadedDataReportSection({ analysis }: { analysis: ExpressAnalysis }) 
                   </p>
                 </div>
                 <span className="rounded-full bg-white px-2 py-1 text-xs font-semibold text-muted">
-                  {applied ? "Applied" : available ? "Not applied" : "Visible"}
+                  {applied ? "Applied" : visible ? "Visible context" : "Referenced"}
                 </span>
               </div>
               <p className="mt-3 text-sm leading-6 text-muted">
-                {applied?.note ?? available?.note ?? dataset.notes ?? "Local upload available as validation-required context."}
+                {applied?.note ?? dataset.notes ?? "User-provided input referenced by this screening result."}
               </p>
               <p className="mt-2 text-xs leading-5 text-muted">
                 Confidence: {dataset.confidence.replace(/-/g, " ")}. Official status: {dataset.officialStatus.replace(/-/g, " ")}.
@@ -480,7 +538,7 @@ function createPrintableAnalysisRecord(analysis: ExpressAnalysis) {
     },
     sourceLineage: createSourceLineageSnapshot({
       evidence: analysis.evidence,
-      uploadedDatasets: analysis.uploadedDataContext?.uploadedDatasets ?? []
+      uploadedDatasets: selectAnalysisUsedUploadedDatasets(analysis)
     }),
     createdAt: analysis.generatedAt ?? new Date().toISOString(),
     updatedAt: new Date().toISOString()
@@ -516,7 +574,7 @@ function createPrintableComparisonRecord(comparison: ComparisonResult) {
       dueDiligenceChecklist: comparison.nextActions,
       evidenceSourceReadiness: comparison.evidence,
       limitations: [
-        "Comparison uses deterministic sample scoring and structured evidence readiness, not a validated underwriting model."
+        "Comparison uses deterministic screening scores and structured evidence readiness, not a validated underwriting model."
       ],
       generatedAt: new Date().toISOString()
     },
@@ -552,13 +610,15 @@ function AnalysisReport({
   mapSnapshot?: ReportMapSnapshot | null;
   onBack: () => void;
 }) {
-  const analysisBadge = analysis.analysisMode === "openai" ? "AI analysis" : "Sample/open fallback";
-  const analysisModeLabel = analysis.analysisMode === "openai" ? "AI-generated" : "Sample/open fallback";
-  const dataLimitation = analysis.limitations?.[0] ?? "Structured evidence context with deterministic sample scoring.";
+  const analysisBadge = analysis.analysisMode === "openai" ? "AI analysis" : "Deterministic screening";
+  const analysisModeLabel = analysis.analysisMode === "openai" ? "AI-generated" : "Deterministic local screening";
+  const dataLimitation = analysis.limitations?.[0] ?? "Structured evidence context with deterministic screening scores.";
   const decisionPosture = deriveDecisionPosture(analysis);
   const decisionRationale = deriveDecisionRationale(analysis);
   const marketMetricsMatch = analysis.marketContext?.importedMarketMetrics ?? analysis.marketMetricsMatch;
   const importedMetric = marketMetricsMatch?.metrics;
+  const matchedMarketScreeningContext = hasMatchedMarketScreeningContext(marketMetricsMatch);
+  const marketMetricsUsedInScoring = hasMarketMetricsDecisionUse(marketMetricsMatch);
   const demoNarrative = getDemoNarrativeByProjectKey(analysis.project?.projectKey);
   const clientPilotPackage = getClientPilotPackageForProject(analysis.project?.projectKey, analysis.project?.clientType);
   const [evidenceFiles, setEvidenceFiles] = useState<EvidenceFileAsset[]>([]);
@@ -804,12 +864,12 @@ function AnalysisReport({
                 {importedMetric ? (
                   <>
                     <div className="rounded-md bg-white p-4">
-                      <span className="font-semibold text-muted">Matched imported area</span>
+                      <span className="font-semibold text-muted">Matched screening area</span>
                       <p className="mt-1 text-ink">{marketMetricsMatch?.matchedAreaName ?? importedMetric.areaName}</p>
                       <p className="mt-2 leading-6 text-muted">{marketMetricsMatch?.matchType ?? "exact"} match from local CSV ingestion output.</p>
                     </div>
                     <div className="rounded-md bg-white p-4">
-                      <span className="font-semibold text-muted">Imported transaction evidence</span>
+                      <span className="font-semibold text-muted">Matched transaction context</span>
                       <p className="mt-1 text-ink">
                         {importedMetric.transactionCount} records / AED {importedMetric.transactionValueAed.toLocaleString("en-US")}
                       </p>
@@ -818,16 +878,16 @@ function AnalysisReport({
                       </p>
                     </div>
                     <div className="rounded-md bg-white p-4">
-                      <span className="font-semibold text-muted">Imported rent evidence</span>
+                      <span className="font-semibold text-muted">Matched rent context</span>
                       <p className="mt-1 text-ink">
                         {importedMetric.rentalRecordCount} records / {importedMetric.medianRentPerSqm?.toLocaleString("en-US") ?? "-"} AED/sqm
                       </p>
-                      <p className="mt-2 leading-6 text-muted">Sample/manual import; not live official market data.</p>
+                      <p className="mt-2 leading-6 text-muted">Manual snapshot import; not live official market data.</p>
                     </div>
                     <div className="rounded-md bg-white p-4">
                       <span className="font-semibold text-muted">Pipeline proxy</span>
                       <p className="mt-1 text-ink">{importedMetric.projectCount} projects / {importedMetric.pipelineProxy}/100</p>
-                      <p className="mt-2 leading-6 text-muted">Pipeline pressure proxy from imported sample project rows.</p>
+                      <p className="mt-2 leading-6 text-muted">Pipeline pressure proxy from imported local project rows.</p>
                     </div>
                   </>
                 ) : null}
@@ -875,11 +935,13 @@ function AnalysisReport({
                 </div>
               </div>
               <p className="mt-4 text-sm leading-6 text-muted">
-                Note: {marketMetricsMatch?.note ?? analysis.marketContext.dataQualityNotes?.[0] ?? "Current values are sample/open screening indices and not official market data."}
+                Note: {marketMetricsMatch?.note ?? analysis.marketContext.dataQualityNotes?.[0] ?? "Current values are local and public/open screening indices, not official market data."}
                 {" "}
-                {marketMetricsMatch?.importedMetricsUsed
-                  ? "Imported sample metrics are used to demonstrate the market-data workflow. Validate against official DLD / Dubai Pulse datasets before investment decisions."
-                  : analysis.marketContext.dataQualityNotes?.[1] ?? analysis.marketContext.limitations[0]}
+                {marketMetricsUsedInScoring
+                  ? "Matched metrics were permitted and used in scoring under the source release gate; official/client validation remains required before decisions."
+                  : matchedMarketScreeningContext
+                    ? "Metrics matched and are available as screening context, but the source release gate excludes them from scoring."
+                    : analysis.marketContext.dataQualityNotes?.[1] ?? analysis.marketContext.limitations[0]}
               </p>
             </div>
           </Section>
@@ -985,12 +1047,12 @@ function AnalysisReport({
           </ul>
         </Section>
 
-        <Section title="Evidence / Data Used">
+        <Section title="Evidence / Source References">
           <EvidenceSourceCards evidence={analysis.evidence} />
           <div className="mt-4 rounded-md border border-line bg-surface p-4 text-sm leading-6 text-muted">
             <span className="font-semibold text-ink">DLD / Dubai Pulse ingestion readiness:</span>{" "}
-            {ingestionReport.marketMetricCount} imported sample market areas are available for validation workflow.
-            These sample/manual CSV metrics support conservative scoring when matched and are not a live official data connection.
+            {ingestionReport.marketMetricCount} imported local market areas are available for the validation workflow.
+            These local snapshot metrics are available as screening context; the current source release gate excludes them from scoring and they are not a live official data connection.
           </div>
         </Section>
 
@@ -1042,7 +1104,7 @@ function AnalysisReport({
         <Section title="Data Honesty">
           <p className="text-sm leading-6 text-muted">{requiredDataCaveat}</p>
           <p className="mt-2 text-sm leading-6 text-muted">
-            This report is an MVP screening output using sample/open, local snapshot, uploaded or validation-required context. It does not claim live official integration, production readiness or pilot readiness.
+            This report uses local snapshots, public/open sources, uploaded inputs and validation-required context. It does not claim live official integration or decision-grade validation.
           </p>
         </Section>
         </div>
@@ -1056,6 +1118,12 @@ function ComparisonReport({ comparison, onBack }: { comparison: ComparisonResult
   const sharedOpportunities = dedupeTextList(comparison.sharedOpportunities);
   const differentiatedRisks = dedupeTextList(comparison.differentiatedRisks);
   const nextActions = dedupeTextList(comparison.nextActions);
+  const matchedScreeningContextCount = comparison.items.filter((item) =>
+    hasMatchedMarketScreeningContext(item.marketMetricsMatch)
+  ).length;
+  const decisionScoringCount = comparison.items.filter((item) =>
+    hasMarketMetricsDecisionUse(item.marketMetricsMatch)
+  ).length;
   const demoNarrative = getDemoNarrativeByProjectKey(comparison.project?.projectKey);
   const clientPilotPackage = getClientPilotPackageForProject(comparison.project?.projectKey, comparison.project?.clientType);
   const [evidenceFiles, setEvidenceFiles] = useState<EvidenceFileAsset[]>([]);
@@ -1158,7 +1226,7 @@ function ComparisonReport({ comparison, onBack }: { comparison: ComparisonResult
         <Section title="Map Context">
           <MapContextCard
             title="Comparison Map Context"
-            subtitle="Selected locations / assets in synthetic Dubai context"
+            subtitle="Selected locations / assets in illustrative local Dubai context"
             comparison={comparison}
             reportMode
           />
@@ -1214,6 +1282,26 @@ function ComparisonReport({ comparison, onBack }: { comparison: ComparisonResult
           </div>
         </Section>
 
+        <Section title="Market Metrics Release Basis">
+          <div className="grid gap-3 text-sm md:grid-cols-2">
+            <div className="rounded-md border border-line bg-surface p-4">
+              <span className="font-semibold text-muted">Matched screening context</span>
+              <p className="mt-1 text-ink">{matchedScreeningContextCount} of {comparison.items.length} options</p>
+            </div>
+            <div className="rounded-md border border-line bg-surface p-4">
+              <span className="font-semibold text-muted">Decision-scoring use</span>
+              <p className="mt-1 text-ink">{decisionScoringCount} of {comparison.items.length} options</p>
+            </div>
+          </div>
+          <p className="mt-4 text-sm leading-6 text-muted">
+            {matchedScreeningContextCount > decisionScoringCount
+              ? "Matched metrics are available as screening context but are excluded from scoring unless the source release gate permits decision use."
+              : matchedScreeningContextCount > 0
+                ? "Matched metrics were permitted and used in scoring under the source release gate; official/client validation remains required."
+                : "No imported market metrics matched the compared options; scores use illustrative local screening context."}
+          </p>
+        </Section>
+
         <div className="grid gap-6 md:grid-cols-2">
           <Section title="Key Risks By Option">
             <ul className="space-y-3 text-sm leading-6 text-muted">
@@ -1222,7 +1310,7 @@ function ComparisonReport({ comparison, onBack }: { comparison: ComparisonResult
               ))}
             </ul>
           </Section>
-          <Section title="Evidence / Data Used">
+          <Section title="Evidence / Source References">
             <EvidenceSourceCards evidence={comparison.evidence} compact />
           </Section>
         </div>
@@ -1263,7 +1351,7 @@ function ComparisonReport({ comparison, onBack }: { comparison: ComparisonResult
         <Section title="Data Honesty">
           <p className="text-sm leading-6 text-muted">{requiredDataCaveat}</p>
           <p className="mt-2 text-sm leading-6 text-muted">
-            This comparison is an MVP screening output using sample/open, local snapshot, uploaded or validation-required context. It does not claim live official integration, production readiness or pilot readiness.
+            This comparison uses local snapshots, public/open sources, uploaded inputs and validation-required context. It does not claim live official integration or decision-grade validation.
           </p>
         </Section>
         </div>

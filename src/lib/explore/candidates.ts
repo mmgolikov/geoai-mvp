@@ -65,7 +65,7 @@ function route(coordinates: ExploreCoordinate[]): ExploreCandidateGeometry {
 
 const sharedCaveats = [
   exploreRequiredCaveat,
-  "Sample seed and open-context placeholders are intended for workflow demonstration only."
+  "Illustrative local screening profiles and public/open context are not provider-verified or official evidence."
 ];
 
 const propertyCaveats = [
@@ -86,18 +86,18 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
       audience: "b2c",
       candidateType: "selected_point_context",
       title: "Dubai Marina daily-life context",
-      subtitle: "Walkable waterfront and transit-oriented sample context.",
+      subtitle: "Illustrative local screening profile for walkable waterfront and transit-oriented context.",
       locationLabel: "Dubai Marina",
       geometry: point([55.1412, 25.0781]),
       baseScore: 84,
       baseConfidence: "medium",
       scoreBreakdown: [
-        { label: "Access proxy", value: 86, note: "Metro/tram and arterial road proximity sample." },
-        { label: "Amenity proxy", value: 88, note: "Retail, waterfront and leisure anchors in open/sample context." },
+        { label: "Access proxy", value: 86, note: "Metro/tram and arterial road proximity is represented by an illustrative local proxy." },
+        { label: "Amenity proxy", value: 88, note: "Retail, waterfront and leisure anchors use illustrative local and public/open context." },
         { label: "Validation burden", value: 58, note: "Amenity and building-level claims require current checks." }
       ],
       evidence: [
-        evidence("Sample point seed", "demo_seed", "Curated Dubai Marina sample point for Explore v1."),
+        evidence("Illustrative local screening context", "demo_seed", "Illustrative Dubai Marina point geometry for workflow screening."),
         evidence("Open context placeholder", "open_context", "Nearby POI and access context is illustrative, not live provider data.")
       ],
       caveats: propertyCaveats,
@@ -112,18 +112,18 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
       audience: "b2c",
       candidateType: "selected_point_context",
       title: "Downtown mixed-use context",
-      subtitle: "High-activity urban core sample around landmarks and services.",
+      subtitle: "Illustrative local screening profile for an urban core around landmarks and services.",
       locationLabel: "Downtown Dubai",
       geometry: point([55.2744, 25.1972]),
       baseScore: 81,
       baseConfidence: "medium",
       scoreBreakdown: [
         { label: "Access proxy", value: 80, note: "Central road and metro-adjacent screening context." },
-        { label: "Amenity proxy", value: 91, note: "Dense mixed-use anchors in sample/open context." },
+        { label: "Amenity proxy", value: 91, note: "Dense mixed-use anchors use illustrative local and public/open context." },
         { label: "Validation burden", value: 52, note: "Crowding, cost and exact services require field/current checks." }
       ],
       evidence: [
-        evidence("Sample point seed", "demo_seed", "Curated Downtown Dubai sample point."),
+        evidence("Illustrative local screening context", "demo_seed", "Illustrative Downtown Dubai point geometry for workflow screening."),
         evidence("Open context placeholder", "open_context", "Landmark and activity context is illustrative.")
       ],
       caveats: propertyCaveats,
@@ -138,18 +138,18 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
       audience: "b2c",
       candidateType: "selected_point_context",
       title: "JVC residential services context",
-      subtitle: "Sample neighborhood context for everyday services and family-oriented screening.",
+      subtitle: "Illustrative local screening profile for everyday services and family-oriented context.",
       locationLabel: "Jumeirah Village Circle",
       geometry: point([55.2069, 25.0553]),
       baseScore: 76,
       baseConfidence: "medium",
       scoreBreakdown: [
         { label: "Access proxy", value: 70, note: "Road access is favorable; rail access needs verification." },
-        { label: "Amenity proxy", value: 79, note: "Residential services are represented as sample context." },
+        { label: "Amenity proxy", value: 79, note: "Residential services are represented as illustrative context." },
         { label: "Validation burden", value: 60, note: "School, traffic and building conditions need current checks." }
       ],
       evidence: [
-        evidence("Sample point seed", "demo_seed", "Curated residential sample point."),
+        evidence("Illustrative local screening context", "demo_seed", "Illustrative residential point geometry for workflow screening."),
         evidence("User criteria lens", "sample", "Family and resident filters adjust ranking deterministically.")
       ],
       caveats: propertyCaveats,
@@ -182,7 +182,7 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
         { label: "Validation burden", value: 55, note: "Opening hours and access require current checks." }
       ],
       evidence: [
-        evidence("Route sample seed", "demo_seed", "Curated route geometry for Explore v1."),
+        evidence("Illustrative local screening context", "demo_seed", "Illustrative route geometry for workflow screening."),
         evidence("Open context placeholder", "open_context", "Cultural anchors are illustrative and need current provider checks.")
       ],
       caveats: [...sharedCaveats, "Opening hours, accessibility and ticketing are not live-verified."],
@@ -197,7 +197,7 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
       audience: "b2c",
       candidateType: "tourist_route",
       title: "Downtown views and food loop",
-      subtitle: "Sample route around skyline views, mall access and dining anchors.",
+      subtitle: "Illustrative route around skyline views, mall access and dining anchors.",
       locationLabel: "Downtown Dubai",
       geometry: route([
         [55.2771, 25.1975],
@@ -213,8 +213,8 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
         { label: "Validation burden", value: 57, note: "Timing and reservation checks remain external." }
       ],
       evidence: [
-        evidence("Route sample seed", "demo_seed", "Curated Downtown route geometry."),
-        evidence("Sample activity context", "sample", "Activity anchors are demonstration records.")
+        evidence("Illustrative local screening context", "demo_seed", "Illustrative Downtown route geometry for workflow screening."),
+        evidence("Illustrative activity context", "sample", "Activity anchors are illustrative screening records.")
       ],
       caveats: [...sharedCaveats, "Provider availability, crowding and current access conditions require checks."],
       validationRequired: ["Crowding/timing check", "Provider availability", "Transport routing validation"],
@@ -239,7 +239,7 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
         { label: "Validation burden", value: 61, note: "Event calendars and opening hours change frequently." }
       ],
       evidence: [
-        evidence("POI sample seed", "demo_seed", "Curated point for tourist-object workflow."),
+        evidence("Illustrative local screening context", "demo_seed", "Illustrative point geometry for the tourist-object workflow."),
         evidence("Open context placeholder", "open_context", "Event and gallery details are not live.")
       ],
       caveats: [...sharedCaveats, "Events, galleries and access details must be checked with current providers."],
@@ -273,7 +273,7 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
         { label: "Validation burden", value: 57, note: "School, pricing and inventory claims are not verified." }
       ],
       evidence: [
-        evidence("Residential sample seed", "demo_seed", "Curated sample cluster geometry."),
+        evidence("Illustrative local screening context", "demo_seed", "Illustrative residential-cluster geometry for workflow screening."),
         evidence("User criteria lens", "sample", "Family and park filters adjust score.")
       ],
       caveats: propertyCaveats,
@@ -305,8 +305,8 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
         { label: "Validation burden", value: 56, note: "Project, service and completion facts require provider checks." }
       ],
       evidence: [
-        evidence("Residential sample seed", "demo_seed", "Curated waterfront cluster geometry."),
-        evidence("Open context placeholder", "open_context", "Amenity context is sample/open, not provider-verified.")
+        evidence("Illustrative local screening context", "demo_seed", "Illustrative waterfront-cluster geometry for workflow screening."),
+        evidence("Public/open context", "open_context", "Amenity context is public/open and illustrative, not provider-verified.")
       ],
       caveats: propertyCaveats,
       validationRequired: ["Commute validation", "Provider amenity confirmation", "Building-level checks"],
@@ -320,7 +320,7 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
       audience: "b2c",
       candidateType: "residential_cluster",
       title: "JVC everyday-services cluster",
-      subtitle: "Daily services and affordability-positioned sample screening cluster.",
+      subtitle: "Illustrative local screening profile for daily services and affordability-positioned context.",
       locationLabel: "Jumeirah Village Circle",
       geometry: polygon([
         [55.1905, 25.071],
@@ -337,8 +337,8 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
         { label: "Validation burden", value: 62, note: "Building-specific quality varies and needs checks." }
       ],
       evidence: [
-        evidence("Residential sample seed", "demo_seed", "Curated sample cluster geometry."),
-        evidence("Sample criteria lens", "sample", "Commute and service filters adjust score deterministically.")
+        evidence("Illustrative local screening context", "demo_seed", "Illustrative residential-cluster geometry for workflow screening."),
+        evidence("Illustrative criteria lens", "sample", "Commute and service filters adjust score deterministically.")
       ],
       caveats: propertyCaveats,
       validationRequired: ["Peak traffic review", "Building quality checks", "Current amenity verification"],
@@ -353,20 +353,20 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
       scenarioId: "b2c_new_residential_projects",
       audience: "b2c",
       candidateType: "residential_project",
-      title: "Creekside 2026 sample project",
-      subtitle: "Waterfront and gym/parking amenity match in sample project inventory.",
+      title: "Illustrative Creekside residential profile",
+      subtitle: "Illustrative screening profile for waterfront, gym and parking criteria; not a real inventory listing.",
       locationLabel: "Dubai Creek Harbour",
       geometry: point([55.3512, 25.2043]),
       baseScore: 83,
       baseConfidence: "low",
       scoreBreakdown: [
-        { label: "Filter fit", value: 88, note: "Matches waterfront, gym and parking sample filters." },
+        { label: "Filter fit", value: 88, note: "Matches illustrative waterfront, gym and parking attributes." },
         { label: "Access proxy", value: 72, note: "Access timing needs independent validation." },
-        { label: "Validation burden", value: 48, note: "Project fields are sample/open, not provider-confirmed." }
+        { label: "Validation burden", value: 48, note: "Project fields are illustrative and not provider-confirmed." }
       ],
       evidence: [
-        evidence("Sample project seed", "demo_seed", "Synthetic 2024+ project-style record."),
-        evidence("User criteria lens", "sample", "Amenity filters are matched against sample attributes.", "low")
+        evidence("Illustrative screening profile", "demo_seed", "Fictional project-style record; not a real project or inventory listing."),
+        evidence("User criteria lens", "sample", "Amenity filters are matched against illustrative attributes.", "low")
       ],
       caveats: propertyCaveats,
       validationRequired: ["Developer/provider confirmation", "Amenity evidence", "Delivery and service-charge checks"],
@@ -379,25 +379,25 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
       scenarioId: "b2c_new_residential_projects",
       audience: "b2c",
       candidateType: "residential_project",
-      title: "Canal urban-living sample project",
-      subtitle: "Metro-proximity and high-rise sample context for buyer screening.",
+      title: "Illustrative canal urban-living profile",
+      subtitle: "Illustrative screening profile for metro proximity and high-rise buyer criteria; not a real inventory listing.",
       locationLabel: "Business Bay",
       geometry: point([55.2667, 25.1842]),
       baseScore: 79,
       baseConfidence: "low",
       scoreBreakdown: [
         { label: "Filter fit", value: 80, note: "High-rise, metro and parking filters align." },
-        { label: "Demand-driver proxy", value: 83, note: "Urban-core adjacency is a sample demand signal." },
+        { label: "Demand-driver proxy", value: 83, note: "Urban-core adjacency is an illustrative demand signal." },
         { label: "Validation burden", value: 46, note: "Inventory and amenity facts are not live-verified." }
       ],
       evidence: [
-        evidence("Sample project seed", "demo_seed", "Synthetic residential project-style record."),
+        evidence("Illustrative screening profile", "demo_seed", "Fictional residential project-style record; not a real project or inventory listing."),
         evidence("Open context placeholder", "open_context", "Transit and urban-core context is illustrative.", "low")
       ],
       caveats: propertyCaveats,
       validationRequired: ["Inventory validation", "Payment and legal checks", "Amenity/provider confirmation"],
       tags: ["metro proximity", "parking", "high-rise", "2025", "urban core"],
-      recommendedNextAction: "Treat as a discovery sample and validate project inventory before buyer decisions.",
+      recommendedNextAction: "Treat as a discovery screening profile and validate real project inventory before buyer decisions.",
       sourceType: "demo_seed"
     },
     {
@@ -405,20 +405,20 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
       scenarioId: "b2c_new_residential_projects",
       audience: "b2c",
       candidateType: "residential_project",
-      title: "South corridor townhouse sample",
-      subtitle: "Low-rise, parking and family-space demo project hypothesis.",
+      title: "Illustrative south corridor townhouse profile",
+      subtitle: "Illustrative screening profile for low-rise, parking and family-space criteria; not a real inventory listing.",
       locationLabel: "Dubai South",
       geometry: point([55.1617, 24.9186]),
       baseScore: 74,
       baseConfidence: "low",
       scoreBreakdown: [
         { label: "Filter fit", value: 76, note: "Low-rise and parking filters align." },
-        { label: "Growth-context proxy", value: 79, note: "Corridor growth context is sample-only." },
+        { label: "Growth-context proxy", value: 79, note: "Corridor growth context is illustrative local context only." },
         { label: "Validation burden", value: 50, note: "Transport timing and project facts need validation." }
       ],
       evidence: [
-        evidence("Sample project seed", "demo_seed", "Synthetic townhouse-style project record."),
-        evidence("Sample corridor context", "sample", "Growth corridor assumptions are demonstrative.", "low")
+        evidence("Illustrative screening profile", "demo_seed", "Fictional townhouse-style record; not a real project or inventory listing."),
+        evidence("Illustrative corridor context", "sample", "Growth corridor assumptions are illustrative.", "low")
       ],
       caveats: propertyCaveats,
       validationRequired: ["Transport timing", "Provider confirmation", "Community services validation"],
@@ -450,7 +450,7 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
         { label: "Validation burden", value: 54, note: "Opening hours and crowding require current checks." }
       ],
       evidence: [
-        evidence("Route sample seed", "demo_seed", "Curated route for interest-based workflow."),
+        evidence("Illustrative local screening context", "demo_seed", "Illustrative route geometry for the interest-based workflow."),
         evidence("Open context placeholder", "open_context", "POI and food-stop context requires current validation.")
       ],
       caveats: [...sharedCaveats, "Route timing, provider availability and access conditions are not live-verified."],
@@ -481,8 +481,8 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
         { label: "Validation burden", value: 57, note: "Weather, crowding and provider details need checks." }
       ],
       evidence: [
-        evidence("Route sample seed", "demo_seed", "Curated family waterfront route geometry."),
-        evidence("Sample leisure context", "sample", "Leisure context is illustrative.")
+        evidence("Illustrative local screening context", "demo_seed", "Illustrative family-waterfront route geometry."),
+        evidence("Illustrative leisure context", "sample", "Leisure context is illustrative.")
       ],
       caveats: [...sharedCaveats, "Weather, crowding and current access conditions require validation."],
       validationRequired: ["Weather/crowding check", "Current access", "Provider availability"],
@@ -512,10 +512,10 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
         { label: "Validation burden", value: 55, note: "Access and crowding need current checks." }
       ],
       evidence: [
-        evidence("Route sample seed", "demo_seed", "Curated Downtown route geometry."),
+        evidence("Illustrative local screening context", "demo_seed", "Illustrative Downtown route geometry."),
         evidence("Open context placeholder", "open_context", "Architecture and landmark context is illustrative.")
       ],
-      caveats: [...sharedCaveats, "Route timing and access are sample assumptions."],
+      caveats: [...sharedCaveats, "Route timing and access are illustrative assumptions."],
       validationRequired: ["Current access", "Timing check", "Transport validation"],
       tags: ["architecture", "views", "walking", "family", "downtown"],
       recommendedNextAction: "Pair with current access and crowding checks before travel planning.",
@@ -529,7 +529,7 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
       audience: "b2b",
       candidateType: "redevelopment_zone",
       title: "Al Quoz edge redevelopment hypothesis",
-      subtitle: "Industrial-edge sample AOI with access and mixed-use adjacency signals.",
+      subtitle: "Illustrative local AOI with industrial-edge access and mixed-use adjacency signals.",
       locationLabel: "Al Quoz",
       geometry: polygon([
         [55.219, 25.161],
@@ -541,12 +541,12 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
       baseScore: 82,
       baseConfidence: "medium",
       scoreBreakdown: [
-        { label: "Access proxy", value: 83, note: "Arterial-road adjacency in sample context." },
-        { label: "Underuse proxy", value: 78, note: "Industrial-edge context used as demonstration signal." },
+        { label: "Access proxy", value: 83, note: "Arterial-road adjacency in illustrative context." },
+        { label: "Underuse proxy", value: 78, note: "Industrial-edge context used as illustrative screening signal." },
         { label: "Validation burden", value: 42, note: "Ownership, legal, planning and utility evidence is not connected." }
       ],
       evidence: [
-        evidence("Sample zone seed", "demo_seed", "Curated polygon for redevelopment screening workflow."),
+        evidence("Illustrative local screening context", "demo_seed", "Illustrative polygon for the redevelopment screening workflow."),
         evidence("Open context placeholder", "open_context", "Road/access context is illustrative.")
       ],
       caveats: developmentCaveats,
@@ -561,7 +561,7 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
       audience: "b2b",
       candidateType: "redevelopment_zone",
       title: "Ras Al Khor transition hypothesis",
-      subtitle: "Sample transitional area screen with growth and risk questions.",
+      subtitle: "Illustrative transitional area screen with growth and risk questions.",
       locationLabel: "Ras Al Khor",
       geometry: polygon([
         [55.329, 25.201],
@@ -573,13 +573,13 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
       baseScore: 77,
       baseConfidence: "medium",
       scoreBreakdown: [
-        { label: "Growth adjacency", value: 81, note: "Nearby growth context represented as sample signal." },
+        { label: "Growth adjacency", value: 81, note: "Nearby growth context represented as illustrative signal." },
         { label: "Access proxy", value: 74, note: "Road-network context needs deeper validation." },
         { label: "Validation burden", value: 44, note: "Environmental, planning and control checks are required." }
       ],
       evidence: [
-        evidence("Sample zone seed", "demo_seed", "Curated polygon for transitional-zone screening."),
-        evidence("Sample growth context", "sample", "Growth adjacency is a sample proxy.")
+        evidence("Illustrative local screening context", "demo_seed", "Illustrative polygon for transitional-zone screening."),
+        evidence("Illustrative growth context", "sample", "Growth adjacency is an illustrative proxy.")
       ],
       caveats: developmentCaveats,
       validationRequired: ["Environmental constraints review", "Planning validation", "Land/control due diligence"],
@@ -593,7 +593,7 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
       audience: "b2b",
       candidateType: "redevelopment_zone",
       title: "Port Saeed infill hypothesis",
-      subtitle: "Urban infill sample with access strengths and assembly complexity.",
+      subtitle: "Illustrative urban-infill profile with access strengths and assembly complexity.",
       locationLabel: "Port Saeed / Deira",
       geometry: polygon([
         [55.319, 25.258],
@@ -605,12 +605,12 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
       baseScore: 74,
       baseConfidence: "medium",
       scoreBreakdown: [
-        { label: "Access proxy", value: 86, note: "Urban access and activity context are strong sample signals." },
+        { label: "Access proxy", value: 86, note: "Urban access and activity context are strong illustrative signals." },
         { label: "Assembly complexity", value: 48, note: "Fragmentation and control are unresolved validation tasks." },
         { label: "Validation burden", value: 39, note: "Legal/control evidence is not connected." }
       ],
       evidence: [
-        evidence("Sample zone seed", "demo_seed", "Curated infill polygon."),
+        evidence("Illustrative local screening context", "demo_seed", "Illustrative infill polygon for workflow screening."),
         evidence("Open context placeholder", "open_context", "Urban access context is illustrative.")
       ],
       caveats: developmentCaveats,
@@ -627,7 +627,7 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
       audience: "b2b",
       candidateType: "development_zone",
       title: "Dubai South large-zone hypothesis",
-      subtitle: "Strategic corridor sample with logistics and district-expansion signals.",
+      subtitle: "Illustrative strategic-corridor profile with logistics and district-expansion signals.",
       locationLabel: "Dubai South",
       geometry: polygon([
         [55.105, 24.952],
@@ -640,12 +640,12 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
       baseConfidence: "medium",
       scoreBreakdown: [
         { label: "Scale fit", value: 92, note: "Large-zone geometry suits 100+ ha screening." },
-        { label: "Growth driver proxy", value: 86, note: "Logistics and corridor context represented as sample signals." },
+        { label: "Growth driver proxy", value: 86, note: "Logistics and corridor context represented as illustrative signals." },
         { label: "Validation burden", value: 45, note: "Control, planning and infrastructure timing are unresolved." }
       ],
       evidence: [
-        evidence("Sample large-zone seed", "demo_seed", "Curated large polygon for strategic screening."),
-        evidence("Sample corridor context", "sample", "Corridor growth signal is illustrative.")
+        evidence("Illustrative local screening context", "demo_seed", "Illustrative large-zone polygon for strategic screening."),
+        evidence("Illustrative corridor context", "sample", "Corridor growth signal is illustrative.")
       ],
       caveats: developmentCaveats,
       validationRequired: ["Land/control evidence", "Infrastructure timing", "Planning/permitted-use validation"],
@@ -672,12 +672,12 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
       baseConfidence: "medium",
       scoreBreakdown: [
         { label: "Scale fit", value: 89, note: "Large geometry matches strategic-zone screening." },
-        { label: "Anchor adjacency", value: 82, note: "Employment/logistics anchors are sample context." },
+        { label: "Anchor adjacency", value: 82, note: "Employment/logistics anchors are illustrative context." },
         { label: "Validation burden", value: 43, note: "Timing, controls and constraints require deep validation." }
       ],
       evidence: [
-        evidence("Sample large-zone seed", "demo_seed", "Curated corridor polygon."),
-        evidence("Sample anchor context", "sample", "Employment/logistics adjacency is illustrative.")
+        evidence("Illustrative local screening context", "demo_seed", "Illustrative corridor polygon for workflow screening."),
+        evidence("Illustrative anchor context", "sample", "Employment/logistics adjacency is illustrative.")
       ],
       caveats: developmentCaveats,
       validationRequired: ["Planning/permitted-use validation", "Infrastructure capacity", "Land/control review"],
@@ -691,7 +691,7 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
       audience: "b2b",
       candidateType: "development_zone",
       title: "Al Warsan expansion hypothesis",
-      subtitle: "Large-zone sample with growth adjacency and infrastructure questions.",
+      subtitle: "Illustrative large-zone profile with growth adjacency and infrastructure questions.",
       locationLabel: "Al Warsan",
       geometry: polygon([
         [55.392, 25.19],
@@ -704,11 +704,11 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
       baseConfidence: "medium",
       scoreBreakdown: [
         { label: "Scale fit", value: 88, note: "Meets large-zone screening form factor." },
-        { label: "Growth driver proxy", value: 75, note: "District-expansion signal is sample context." },
+        { label: "Growth driver proxy", value: 75, note: "District-expansion signal is illustrative context." },
         { label: "Validation burden", value: 44, note: "Infrastructure and constraints are not validated." }
       ],
       evidence: [
-        evidence("Sample large-zone seed", "demo_seed", "Curated large polygon."),
+        evidence("Illustrative local screening context", "demo_seed", "Illustrative large-zone polygon for workflow screening."),
         evidence("Open context placeholder", "open_context", "Access and district context are illustrative.")
       ],
       caveats: developmentCaveats,
@@ -725,7 +725,7 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
       audience: "b2b",
       candidateType: "development_zone",
       title: "Meydan edge low-rise hypothesis",
-      subtitle: "Premium residential sample around privacy, access and amenity adjacency.",
+      subtitle: "Illustrative premium-residential profile for privacy, access and amenity adjacency.",
       locationLabel: "Meydan / Nad Al Sheba",
       geometry: polygon([
         [55.286, 25.153],
@@ -738,12 +738,12 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
       baseConfidence: "medium",
       scoreBreakdown: [
         { label: "Premium fit proxy", value: 88, note: "Privacy and low-density tags align." },
-        { label: "Access proxy", value: 80, note: "Central access context is sample/open." },
+        { label: "Access proxy", value: 80, note: "Central access uses illustrative local and public/open context." },
         { label: "Validation burden", value: 46, note: "Permitted use and control are unresolved." }
       ],
       evidence: [
-        evidence("Sample premium-zone seed", "demo_seed", "Curated polygon for luxury residential screening."),
-        evidence("Sample amenity context", "sample", "Amenity adjacency is illustrative.")
+        evidence("Illustrative local screening context", "demo_seed", "Illustrative polygon for luxury-residential screening."),
+        evidence("Illustrative amenity context", "sample", "Amenity adjacency is illustrative.")
       ],
       caveats: developmentCaveats,
       validationRequired: ["Planning/permitted-use validation", "Land/control evidence", "Premium buyer evidence"],
@@ -770,11 +770,11 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
       baseConfidence: "medium",
       scoreBreakdown: [
         { label: "Premium fit proxy", value: 84, note: "Water/green adjacency tags match." },
-        { label: "Access proxy", value: 76, note: "Established area access is a sample signal." },
+        { label: "Access proxy", value: 76, note: "Established-area access is an illustrative signal." },
         { label: "Validation burden", value: 44, note: "Control, constraints and exact land facts are not validated." }
       ],
       evidence: [
-        evidence("Sample premium-zone seed", "demo_seed", "Curated low-rise sample polygon."),
+        evidence("Illustrative local screening context", "demo_seed", "Illustrative low-rise polygon for workflow screening."),
         evidence("Open context placeholder", "open_context", "Water/green context is illustrative.")
       ],
       caveats: developmentCaveats,
@@ -789,7 +789,7 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
       audience: "b2b",
       candidateType: "development_zone",
       title: "Dubai Hills edge boutique cluster hypothesis",
-      subtitle: "Boutique low-rise residential sample near park and school signals.",
+      subtitle: "Illustrative boutique low-rise residential profile near park and school signals.",
       locationLabel: "Dubai Hills edge",
       geometry: polygon([
         [55.218, 25.089],
@@ -806,8 +806,8 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
         { label: "Validation burden", value: 45, note: "Entitlement and control evidence is not connected." }
       ],
       evidence: [
-        evidence("Sample premium-zone seed", "demo_seed", "Curated sample polygon."),
-        evidence("Sample amenity context", "sample", "School/park context is a demo screening signal.")
+        evidence("Illustrative local screening context", "demo_seed", "Illustrative polygon for workflow screening."),
+        evidence("Illustrative amenity context", "sample", "School/park context is an illustrative screening signal.")
       ],
       caveats: developmentCaveats,
       validationRequired: ["Planning/permitted-use validation", "School/amenity evidence", "Land/control review"],
@@ -823,7 +823,7 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
       audience: "b2b",
       candidateType: "hotel_zone",
       title: "Business Bay business-hotel hypothesis",
-      subtitle: "Business and events demand-anchor sample for hotel screening.",
+      subtitle: "Illustrative business and events demand-anchor profile for hotel screening.",
       locationLabel: "Business Bay",
       geometry: polygon([
         [55.254, 25.193],
@@ -840,8 +840,8 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
         { label: "Validation burden", value: 47, note: "Hospitality demand and approvals are not validated." }
       ],
       evidence: [
-        evidence("Sample hotel-zone seed", "demo_seed", "Curated polygon for hotel-format screening."),
-        evidence("Sample demand anchors", "sample", "Business and event anchors are demonstration signals.")
+        evidence("Illustrative local screening context", "demo_seed", "Illustrative polygon for hotel-format screening."),
+        evidence("Illustrative demand anchors", "sample", "Business and event anchors are illustrative screening signals.")
       ],
       caveats: developmentCaveats,
       validationRequired: ["Hospitality demand evidence", "Planning/permitted-use validation", "Operator feasibility review"],
@@ -855,7 +855,7 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
       audience: "b2b",
       candidateType: "hotel_zone",
       title: "Palm resort-format hypothesis",
-      subtitle: "Luxury/resort sample near beach and tourist anchors.",
+      subtitle: "Illustrative luxury/resort profile near beach and tourism anchors.",
       locationLabel: "Palm Jumeirah",
       geometry: polygon([
         [55.121, 25.124],
@@ -872,8 +872,8 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
         { label: "Validation burden", value: 43, note: "Land/control, permits and operator evidence are unresolved." }
       ],
       evidence: [
-        evidence("Sample hotel-zone seed", "demo_seed", "Curated resort-format polygon."),
-        evidence("Sample tourism context", "sample", "Tourist anchor context is illustrative.")
+        evidence("Illustrative local screening context", "demo_seed", "Illustrative resort-format polygon for workflow screening."),
+        evidence("Illustrative tourism context", "sample", "Tourist anchor context is illustrative.")
       ],
       caveats: developmentCaveats,
       validationRequired: ["Operator/demand evidence", "Planning/permitted-use validation", "Access and congestion study"],
@@ -887,7 +887,7 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
       audience: "b2b",
       candidateType: "hotel_zone",
       title: "Airport mid-market hotel hypothesis",
-      subtitle: "Airport-access sample for business and mid-market format screening.",
+      subtitle: "Illustrative airport-access profile for business and mid-market format screening.",
       locationLabel: "Garhoud / Airport edge",
       geometry: polygon([
         [55.337, 25.258],
@@ -904,7 +904,7 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
         { label: "Validation burden", value: 45, note: "Competition and approvals require validation." }
       ],
       evidence: [
-        evidence("Sample hotel-zone seed", "demo_seed", "Curated airport-edge polygon."),
+        evidence("Illustrative local screening context", "demo_seed", "Illustrative airport-edge polygon for workflow screening."),
         evidence("Open context placeholder", "open_context", "Airport access context is illustrative.")
       ],
       caveats: developmentCaveats,
@@ -921,7 +921,7 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
       audience: "b2b",
       candidateType: "commercial_zone",
       title: "JVC neighborhood-services hypothesis",
-      subtitle: "Service commercial sample with residential catchment proxy.",
+      subtitle: "Illustrative service-commercial profile with a residential catchment proxy.",
       locationLabel: "Jumeirah Village Circle",
       geometry: polygon([
         [55.195, 25.066],
@@ -938,8 +938,8 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
         { label: "Validation burden", value: 52, note: "Footfall and lease evidence are not connected." }
       ],
       evidence: [
-        evidence("Sample commercial-zone seed", "demo_seed", "Curated neighborhood commercial polygon."),
-        evidence("Sample catchment proxy", "sample", "Residential catchment is a sample proxy.")
+        evidence("Illustrative local screening context", "demo_seed", "Illustrative neighborhood-commercial polygon for workflow screening."),
+        evidence("Illustrative catchment proxy", "sample", "Residential catchment is an illustrative proxy.")
       ],
       caveats: developmentCaveats,
       validationRequired: ["Footfall evidence", "Lease/competition review", "Planning/permitted-use validation"],
@@ -953,7 +953,7 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
       audience: "b2b",
       candidateType: "commercial_zone",
       title: "Business Bay F&B/office catchment hypothesis",
-      subtitle: "Commercial sample near office and canal activity signals.",
+      subtitle: "Illustrative commercial profile near office and canal activity signals.",
       locationLabel: "Business Bay",
       geometry: polygon([
         [55.259, 25.188],
@@ -970,8 +970,8 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
         { label: "Validation burden", value: 50, note: "Footfall and occupancy evidence are not connected." }
       ],
       evidence: [
-        evidence("Sample commercial-zone seed", "demo_seed", "Curated F&B/commercial polygon."),
-        evidence("Sample activity proxy", "sample", "Office and tourist activity signals are illustrative.")
+        evidence("Illustrative local screening context", "demo_seed", "Illustrative F&B/commercial polygon for workflow screening."),
+        evidence("Illustrative activity proxy", "sample", "Office and tourist activity signals are illustrative.")
       ],
       caveats: developmentCaveats,
       validationRequired: ["Footfall validation", "Occupancy and lease evidence", "Planning/permitted-use validation"],
@@ -985,7 +985,7 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
       audience: "b2b",
       candidateType: "commercial_zone",
       title: "Deira retail-services hypothesis",
-      subtitle: "Established activity-node sample with tourist and resident catchment proxies.",
+      subtitle: "Illustrative established activity-node profile with tourism and resident catchment proxies.",
       locationLabel: "Deira",
       geometry: polygon([
         [55.304, 25.277],
@@ -1002,7 +1002,7 @@ const baseSeeds: Record<ExploreScenarioId, ExploreCandidateSeed[]> = {
         { label: "Validation burden", value: 48, note: "Competition and exact footfall are not connected." }
       ],
       evidence: [
-        evidence("Sample commercial-zone seed", "demo_seed", "Curated retail/services polygon."),
+        evidence("Illustrative local screening context", "demo_seed", "Illustrative retail/services polygon for workflow screening."),
         evidence("Open context placeholder", "open_context", "Tourist and resident activity context is illustrative.")
       ],
       caveats: developmentCaveats,
@@ -1158,11 +1158,11 @@ export function getCandidateAnchor(candidate: ExploreCandidate): ExploreCoordina
 
 export function getSourceTypeLabel(sourceType: CandidateSourceType) {
   const labels: Record<CandidateSourceType, string> = {
-    sample: "Sample",
-    open_context: "Open context",
-    user_provided: "User provided",
-    demo_seed: "Sample/open context",
-    fallback: "Sample/open context"
+    sample: "Illustrative local context",
+    open_context: "Public/open context",
+    user_provided: "User-provided context",
+    demo_seed: "Illustrative local screening context",
+    fallback: "Illustrative local screening context"
   };
 
   return labels[sourceType];

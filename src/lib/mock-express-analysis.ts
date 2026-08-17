@@ -40,7 +40,7 @@ export const analysisScenarios: AnalysisScenario[] = [
   {
     id: "customQuery",
     label: "Custom Query",
-    description: "Ask a tailored site, investment, infrastructure, or risk question for a mock structured response."
+    description: "Ask a tailored site, investment, infrastructure, or risk question for a structured screening response."
   }
 ];
 
@@ -118,10 +118,10 @@ function createCustomQueryOverlay(
     summary: answer?.shortAnswer ?? `The custom query adds a user-defined decision lens: "${normalizedQuery}".`,
     keyFactors: answer ? [`Custom query response: ${answer.shortAnswer}`, ...answer.reasoning] : [`Custom query lens: ${normalizedQuery}`],
     opportunities: answer ? [answer.recommendation] : ["Use the query to turn a broad spatial question into a repeatable screening checklist."],
-    risks: answer?.keyRisks ?? ["The custom question may require official, customer-approved or live data that is not connected in this MVP."],
+    risks: answer?.keyRisks ?? ["The custom question may require official, customer-approved or live data that is not connected in the current runtime."],
     nextActions: answer?.nextActions ?? ["List the official or customer-approved evidence required before decisions."],
-    limitations: answer ? [answer.confidenceNote] : ["This custom query is answered as sample/open screening intelligence only; official validation is required before decisions."],
-    evidenceNote: `Custom query "${normalizedQuery}" applied as a ${answer?.intent ?? "custom"} lens. This is sample/open screening context and requires official validation.`,
+    limitations: answer ? [answer.confidenceNote] : ["This custom query uses local and public/open screening context; official validation is required before decisions."],
+    evidenceNote: `Custom query "${normalizedQuery}" applied as a ${answer?.intent ?? "custom"} lens. This is local and public/open screening context and requires official validation.`,
     answer
   };
 }
@@ -220,7 +220,7 @@ function commonEvidence(
       "scenario-context",
       "synthetic-demo-layers",
       `${scenarioLabel} scenario`,
-      "Scenario-specific sample/open context generated from deterministic screening assumptions."
+      "Scenario-specific local and public/open context generated from deterministic screening assumptions."
     ),
     createEvidenceItem(
       "market-snapshot-readiness",
@@ -246,8 +246,8 @@ function commonEvidence(
     createEvidenceItem(
       "mock-scoring-model",
       "synthetic-demo-layers",
-      "Mock scoring model",
-      "Deterministic local scoring model used for MVP demonstration."
+      "Deterministic screening model",
+      "Deterministic local scoring model used for screening workflow support."
     )
   ];
 
@@ -321,15 +321,15 @@ export function createMockExpressAnalysis(
     realEstateDevelopment: {
       title: "Real Estate Development Intelligence",
       summary:
-        `${targetContext}This sample/open development analysis treats the selected coordinate as a candidate Dubai site with ${signals.districtTone}. ` +
-        `The mock model emphasizes land-use assumptions, access, surrounding infrastructure, and commercial or residential potential. ` +
+        `${targetContext}This development screening treats the selected coordinate as a candidate Dubai site with ${signals.districtTone}. ` +
+        `The deterministic model emphasizes land-use assumptions, access, surrounding infrastructure, and commercial or residential potential. ` +
         `The location appears suitable for early-stage screening, but official zoning, ownership, utilities, density, and market absorption must be validated before any commitment. ` +
-        `This is deterministic sample/open intelligence only, prepared to show the GeoAI workflow before official planning and parcel datasets are connected.`,
+        `This is deterministic screening intelligence using local and public/open context before official planning and parcel datasets are validated.`,
       scoreLabels: defaultScoreLabels,
       keyFactors: [
         "Indicative proximity to major road corridors and daily access routes",
-        "Land-use suitability represented through sample/open Dubai growth-pattern assumptions",
-        "Surrounding infrastructure maturity inferred from mock mobility and utility context",
+        "Land-use suitability represented through public/open Dubai growth-pattern assumptions",
+        "Surrounding infrastructure maturity inferred from local mobility and utility context",
         "Commercial and residential potential estimated from access and district positioning",
         "Execution constraints tied to zoning, ownership, density, and approvals",
         "Heat and public-realm exposure included as an early design risk signal"
@@ -358,10 +358,10 @@ export function createMockExpressAnalysis(
     investmentSiteSelection: {
       title: "Investment Site Selection Intelligence",
       summary:
-        `${targetContext}This sample/open investment analysis frames the selected coordinate as a candidate asset or land position in Dubai. ` +
-        `The mock result focuses on location quality, surrounding demand drivers, liquidity assumptions, and risk-adjusted upside. ` +
+        `${targetContext}This investment screening frames the selected coordinate as a candidate asset or land position in Dubai. ` +
+        `The deterministic result focuses on location quality, surrounding demand drivers, liquidity assumptions, and risk-adjusted upside. ` +
         `The site shows useful early signals for comparison, but the recommendation should be tested against alternative parcels, pricing, lease demand, exit liquidity, and legal status. ` +
-        `This is deterministic sample/open intelligence only and does not represent live market advice.`,
+        `This is deterministic screening intelligence using local and public/open context and does not represent live market advice.`,
       scoreLabels: {
         developmentPotential: "Location Quality",
         investmentAttractiveness: "Investment Attractiveness",
@@ -372,10 +372,10 @@ export function createMockExpressAnalysis(
       },
       keyFactors: [
         "Indicative access to demand generators and business corridors",
-        "District liquidity assumptions based on mock Dubai market context",
+        "District liquidity assumptions based on local Dubai market context",
         "Relative position versus alternative growth-corridor sites",
         "Infrastructure readiness as a proxy for holding-period risk",
-        "Commercial catchment and end-user depth represented through sample/open demand signals",
+        "Commercial catchment and end-user depth represented through public/open demand signals",
         "Climate, regulatory, and execution uncertainty included in risk-adjusted scoring"
       ],
       opportunities: [
@@ -402,10 +402,10 @@ export function createMockExpressAnalysis(
     constructionMonitoring: {
       title: "Construction Monitoring Intelligence",
       summary:
-        `${targetContext}This sample/open monitoring analysis treats the selected coordinate as a construction or project-control location. ` +
-        `The mock assessment emphasizes readiness for satellite or drone monitoring, visible progress evidence, site access, and deviation risks. ` +
+        `${targetContext}This monitoring screening treats the selected coordinate as a construction or project-control location. ` +
+        `The deterministic assessment emphasizes readiness for satellite or drone monitoring, visible progress evidence, site access, and deviation risks. ` +
         `The area appears suitable for a repeatable monitoring workflow once project boundaries, baseline schedule, and approved drawings are available. ` +
-        `This is deterministic sample/open intelligence only and does not use live imagery or field data yet.`,
+        `This is deterministic screening intelligence and does not use live imagery or field data.`,
       scoreLabels: {
         developmentPotential: "Monitoring Suitability",
         investmentAttractiveness: "Progress Signal Quality",
@@ -416,8 +416,8 @@ export function createMockExpressAnalysis(
       },
       keyFactors: [
         "Map-selected point can anchor a future project boundary or monitoring zone",
-        "Site access and logistics inferred from sample/open road-context assumptions",
-        "Construction readiness represented through mock infrastructure proximity",
+        "Site access and logistics inferred from public/open road-context assumptions",
+        "Construction readiness represented through local infrastructure-proximity context",
         "Progress evidence workflow suitable for satellite, drone, and site-report comparison",
         "Deviation risk linked to schedule baseline, document gaps, and site constraints",
         "Heat exposure considered as a potential productivity and safety factor"
@@ -439,17 +439,17 @@ export function createMockExpressAnalysis(
         "Define monitoring cadence: weekly, biweekly, or milestone-based.",
         "Connect satellite or drone imagery sources in a future integration step.",
         "Create deviation categories for progress, access, safety, and material staging.",
-        "Prepare a sample lender or investor monitoring report."
+        "Prepare a lender or investor monitoring report."
       ],
       evidence: commonEvidence(point, scenario.label, selectedObject, selectedAoi)
     },
     infrastructureUrbanPlanning: {
       title: "Infrastructure & Urban Planning Intelligence",
       summary:
-        `${targetContext}This sample/open planning analysis evaluates the selected coordinate through an urban integration lens. ` +
-        `The mock model focuses on transport context, utility dependency, public infrastructure requirements, and social or environmental constraints. ` +
+        `${targetContext}This planning screening evaluates the selected coordinate through an urban integration lens. ` +
+        `The deterministic model focuses on transport context, utility dependency, public infrastructure requirements, and social or environmental constraints. ` +
         `The site can be used as an early planning-screening point, but authoritative mobility, utility, population, environmental, and land-use layers are required before recommendations become operational. ` +
-        `This is deterministic sample/open intelligence only for prototype screening.`,
+        `This is deterministic screening intelligence using local and public/open context.`,
       scoreLabels: {
         developmentPotential: "Urban Integration",
         investmentAttractiveness: "Public Value Potential",
@@ -459,8 +459,8 @@ export function createMockExpressAnalysis(
         overallRisk: "Planning Constraint Risk"
       },
       keyFactors: [
-        "Transport connectivity inferred from sample/open road and corridor context",
-        "Utility readiness represented through sample/open infrastructure maturity assumptions",
+        "Transport connectivity inferred from public/open road and corridor context",
+        "Utility readiness represented through local infrastructure-maturity assumptions",
         "Urban integration potential assessed against surrounding development pattern",
         "Public infrastructure dependency considered for access, services, and capacity",
         "Social and environmental constraints included as early planning risk signals",
@@ -490,10 +490,10 @@ export function createMockExpressAnalysis(
     climateRisk: {
       title: "Climate & Risk Intelligence",
       summary:
-        `${targetContext}This sample/open climate analysis treats the selected coordinate as a spatial risk-screening location in Dubai. ` +
-        `The mock assessment emphasizes heat exposure, coastal or flood assumptions, urban heat island effects, resilience requirements, and financing or insurance implications. ` +
+        `${targetContext}This climate screening treats the selected coordinate as a spatial risk-screening location in Dubai. ` +
+        `The deterministic assessment emphasizes heat exposure, coastal or flood assumptions, urban heat island effects, resilience requirements, and financing or insurance implications. ` +
         `The result is useful for early risk framing, but live hazard, elevation, drainage, insurance, and climate-projection datasets are required before formal decisions. ` +
-        `This is deterministic sample/open intelligence only and is not a certified climate-risk assessment.`,
+        `This is deterministic screening intelligence using local and public/open context and is not a certified climate-risk assessment.`,
       scoreLabels: {
         developmentPotential: "Adaptation Potential",
         investmentAttractiveness: "Resilience Investment Case",
@@ -503,9 +503,9 @@ export function createMockExpressAnalysis(
         overallRisk: "Overall Climate Risk"
       },
       keyFactors: [
-        "Heat exposure represented through sample/open outdoor-comfort and urban heat assumptions",
+        "Heat exposure represented through public/open outdoor-comfort and urban heat assumptions",
         "Coastal and drainage exposure approximated from selected map position",
-        "Infrastructure resilience inferred from mock utility and road context",
+        "Infrastructure resilience inferred from local utility and road context",
         "Financing and insurance implications considered through risk-adjusted scoring",
         "Mitigation needs linked to shading, cooling, drainage, and material strategy",
         "Climate uncertainty flagged for formal hazard-layer integration"
@@ -534,9 +534,9 @@ export function createMockExpressAnalysis(
     customQuery: {
       title: "Custom Spatial Intelligence",
       summary:
-        `${targetContext}This sample/open custom analysis responds to the user question: "${customQuery.trim()}". ` +
-        `For the selected Dubai coordinate, the mock response frames the question through location quality, infrastructure context, risk exposure, and next diligence steps. ` +
-        `Because this is deterministic sample/open intelligence, it does not call OpenAI, search live sources, or use official parcel, planning, market, or risk datasets. ` +
+        `${targetContext}This custom screening analysis responds to the user question: "${customQuery.trim()}". ` +
+        `For the selected Dubai coordinate, the deterministic response frames the question through location quality, infrastructure context, risk exposure, and next diligence steps. ` +
+        `This local screening path does not call OpenAI, search live sources, or use official parcel, planning, market, or risk datasets. ` +
         `The output is intended to show how GeoAI can turn a user-defined spatial question into a structured decision workflow.`,
       scoreLabels: {
         developmentPotential: "Question Fit",
@@ -548,7 +548,7 @@ export function createMockExpressAnalysis(
       },
       keyFactors: [
         `User question: ${customQuery.trim()}`,
-        "Selected coordinate anchors the mock spatial reasoning workflow",
+        "Selected coordinate anchors the deterministic spatial reasoning workflow",
         "Infrastructure and access are treated as first-pass context signals",
         "Risk, climate, and regulatory uncertainty are flagged as diligence inputs",
         "Output remains deterministic until AI, official data, and document context are connected"
@@ -560,7 +560,7 @@ export function createMockExpressAnalysis(
         "Prepare a focused follow-up analysis once official layers are connected."
       ],
       risks: [
-        "The custom answer is mock-only and not generated by OpenAI yet.",
+        "The custom answer uses the deterministic local screening path and is not generated by OpenAI.",
         "Question-specific evidence is limited until documents, datasets, and integrations are added.",
         "Regulatory, market, title, and climate assumptions require validation.",
         "The result should be treated as a screening workflow, not a final recommendation."

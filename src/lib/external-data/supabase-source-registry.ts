@@ -2,7 +2,12 @@ import { getSupabaseServerClient } from "@/src/lib/supabase/server";
 import { externalDataCaveat } from "@/src/lib/external-data/source-registry";
 import { readExternalDataManifest } from "@/src/lib/external-data/data-manifest";
 import { normalizeSourceStatus } from "@/src/lib/external-data/source-status";
-import { normalizeSourceDataMode } from "@/src/lib/external-data/source-modes";
+import {
+  ILLUSTRATIVE_LOCAL_SCREENING_CONTEXT_LABEL,
+  normalizeSourceDataMode,
+  sourcePresentationLabel,
+  sourceValidationStatusFor
+} from "@/src/lib/external-data/source-modes";
 import {
   buildSourceReadinessGroups,
   sourceReadinessSummary,
@@ -13,6 +18,12 @@ import {
   type SourceQualityGroup,
   type SourceQualityManifest
 } from "@/src/lib/external-data/source-quality-manifest";
+import {
+  buildSourceProvenanceManifest,
+  type SourceProvenanceGroup,
+  type SourceProvenanceManifest
+} from "@/src/lib/external-data/source-provenance-manifest";
+import { getCompactPublicSourceRegistryReadiness } from "@/src/lib/external-data/public-source-readiness";
 
 type RegistryRow = {
   source_id?: string | null;
@@ -43,6 +54,7 @@ type SnapshotRow = {
 
 type SourceReadinessGroupWithQuality = SourceReadinessGroup & {
   sourceQuality?: SourceQualityGroup;
+  sourceProvenance?: SourceProvenanceGroup;
 };
 
 function normalizeRegistryStatus(value: unknown) {
@@ -64,11 +76,19 @@ function rowMatchesGroup(sourceId: string | null | undefined, group: SourceReadi
   return Boolean(sourceId && (sourceId === group.id || group.sourceIds.includes(sourceId)));
 }
 
+function storedProvenanceAllowsDecision(snapshot: SnapshotRow | undefined) {
+  const manifest = asRecord(snapshot?.manifest);
+  const provenance = asRecord(manifest?.sourceProvenance);
+  const gate = asRecord(provenance?.gate);
+  return gate?.structurallyValid === true && gate?.decisionUse === "allowed";
+}
+
 function hasAcquiredSnapshot(snapshot: SnapshotRow | undefined) {
   return Boolean(
     snapshot?.normalized_path &&
     typeof snapshot.record_count === "number" &&
-    snapshot.record_count > 0
+    snapshot.record_count > 0 &&
+    storedProvenanceAllowsDecision(snapshot)
   );
 }
 
@@ -80,16 +100,27 @@ function failClosedDataMode(value: unknown, acquiredSnapshot: boolean) {
   return normalized;
 }
 
-function attachSourceQuality(
+function attachSourceEvidence(
   groups: SourceReadinessGroup[],
-  sourceQuality: SourceQualityManifest
+  sourceQuality: SourceQualityManifest,
+  sourceProvenance: SourceProvenanceManifest
 ): SourceReadinessGroupWithQuality[] {
   const qualityByGroup = new Map(sourceQuality.groups.map((group) => [group.sourceGroupId, group]));
+  const provenanceByGroup = new Map(sourceProvenance.groups.map((group) => [group.sourceGroupId, group]));
 
   return groups.map((group) => ({
     ...group,
-    sourceQuality: qualityByGroup.get(group.id)
+    sourceQuality: qualityByGroup.get(group.id),
+    sourceProvenance: provenanceByGroup.get(group.id)
   }));
+}
+
+function newestKnownTimestamp(values: Array<string | null | undefined>) {
+  const timestamps = values
+    .filter((value): value is string => Boolean(value))
+    .map((value) => Date.parse(value))
+    .filter(Number.isFinite);
+  return timestamps.length > 0 ? new Date(Math.max(...timestamps)).toISOString() : null;
 }
 
 function overlaySupabaseRows(
@@ -114,11 +145,19 @@ function overlaySupabaseRows(
       : requestedStatus;
     const dataMode = failClosedDataMode(snapshotRow?.source_mode ?? registryRow?.source_mode ?? status, acquiredSnapshot);
     const recordCount = snapshotRow?.record_count ?? registryRow?.record_count ?? group.recordCount;
+    const validationStatus = status === group.status
+      ? group.validationStatus
+      : sourceValidationStatusFor(status);
+    const sampleData = status === "sample_fallback" || validationStatus === "sample-only";
 
     return {
       ...group,
       status,
       dataMode,
+      validationStatus,
+      presentationLabel: sourcePresentationLabel({ dataMode, status, validationStatus }),
+      sampleData,
+      smallSnapshot: sampleData && recordCount !== null && recordCount < 100,
       recordCount,
       confidence: status === "connected" || status === "snapshot_available"
         ? "medium"
@@ -132,7 +171,19 @@ function overlaySupabaseRows(
       ])),
       lastUpdated: snapshotRow?.imported_at ?? registryRow?.updated_at ?? group.lastUpdated,
       caveat: registryRow?.caveat ?? group.caveat,
-      nextValidationStep
+      nextValidationStep,
+      qualityState: acquiredSnapshot ? "validated_snapshot" : group.qualityState,
+      decisionUse: acquiredSnapshot ? "allowed" : "blocked",
+      provenanceValid: acquiredSnapshot || group.provenanceValid,
+      evidence: acquiredSnapshot
+        ? {
+            hashesComplete: true,
+            countsComplete: true,
+            rightsComplete: true,
+            custodyComplete: true
+          }
+        : group.evidence,
+      blockers: acquiredSnapshot ? [] : group.blockers
     };
   });
 }
@@ -164,83 +215,45 @@ async function readRows() {
  * operator-authenticated control plane.
  */
 export function getPublicSourceRegistryReadiness() {
-  const fallback = readExternalDataManifest();
-  const sourceQuality = fallback.sourceQuality ?? buildSourceQualityManifest();
-  const sourceGroups = attachSourceQuality(buildSourceReadinessGroups(fallback), sourceQuality);
-  const summary = {
-    ...sourceReadinessSummary(sourceGroups),
-    qualityGroups: sourceQuality.groups.length
-  };
-  const generatedAt = fallback.generatedAt ?? new Date().toISOString();
-
-  return {
-    contractVersion: "1.3",
-    version: fallback.version,
-    manifestVersion: fallback.version,
-    mode: "bundled_public_manifest",
-    source: "reviewed_repository_snapshot",
-    sourceRegistryCount: 0,
-    externalSnapshotCount: 0,
-    liveRegistryIncluded: false,
-    diagnosticsWithheld: true,
-    manifest: {
-      ...fallback,
-      sourceQuality
-    },
-    sourceQuality,
-    sourceGroups,
-    summary,
-    readiness: sourceGroups.map((group) => ({
-      sourceId: group.id,
-      sourceName: group.name,
-      status: group.status,
-      sourceMode: group.dataMode,
-      dataMode: group.dataMode,
-      lastUpdated: group.lastUpdated,
-      recordCount: group.recordCount,
-      coverageArea: group.coverageArea,
-      confidence: group.confidence,
-      sourceQuality: group.sourceQuality,
-      caveat: group.caveat,
-      nextValidationStep: group.nextValidationStep,
-      validationRequired: true
-    })),
-    blockers: ["Live source-registry and custody diagnostics are withheld from anonymous endpoints."],
-    nextActions: sourceGroups.map((group) => group.nextValidationStep),
-    sync: {
-      status: "operator_only"
-    },
-    caveat: externalDataCaveat,
-    generatedAt
-  };
+  return getCompactPublicSourceRegistryReadiness();
 }
 
 export async function getSourceRegistryReadiness() {
   const fallback = readExternalDataManifest();
   const sourceQuality = fallback.sourceQuality ?? buildSourceQualityManifest();
+  const sourceProvenance = fallback.sourceProvenance ?? buildSourceProvenanceManifest(sourceQuality);
   const { rows, snapshots, blocker } = await readRows();
-  const fallbackGroups = attachSourceQuality(buildSourceReadinessGroups(fallback), sourceQuality);
+  const fallbackWithEvidence = { ...fallback, sourceQuality, sourceProvenance };
+  const fallbackGroups = attachSourceEvidence(buildSourceReadinessGroups(fallbackWithEvidence), sourceQuality, sourceProvenance);
   const sourceGroups = rows.length === 0
     ? fallbackGroups
-    : attachSourceQuality(overlaySupabaseRows(fallbackGroups, rows, snapshots), sourceQuality);
+    : attachSourceEvidence(overlaySupabaseRows(fallbackGroups, rows, snapshots), sourceQuality, sourceProvenance);
   const summary = {
     ...sourceReadinessSummary(sourceGroups),
     qualityGroups: sourceQuality.groups.length
   };
-  const generatedAt = new Date().toISOString();
+  const generatedAt = newestKnownTimestamp([
+    fallback.generatedAt,
+    sourceProvenance.generatedAt,
+    ...rows.map((row) => row.updated_at),
+    ...snapshots.map((snapshot) => snapshot.imported_at)
+  ]);
 
   if (rows.length === 0) {
     return {
       version: "1.3",
       mode: "local_fallback",
       source: "local_manifest_fallback",
+      presentationLabel: ILLUSTRATIVE_LOCAL_SCREENING_CONTEXT_LABEL,
       sourceRegistryCount: 0,
       externalSnapshotCount: snapshots.length,
       manifest: {
         ...fallback,
-        sourceQuality
+        sourceQuality,
+        sourceProvenance
       },
       sourceQuality,
+      sourceProvenance,
       sourceGroups,
       summary,
       readiness: sourceGroups.map((group) => ({
@@ -249,16 +262,24 @@ export async function getSourceRegistryReadiness() {
         status: group.status,
         sourceMode: group.dataMode,
         dataMode: group.dataMode,
+        validationStatus: group.validationStatus,
+        presentationLabel: group.presentationLabel,
+        sampleData: group.sampleData,
+        smallSnapshot: group.smallSnapshot,
         lastUpdated: group.lastUpdated,
         recordCount: group.recordCount,
         coverageArea: group.coverageArea,
         confidence: group.confidence,
         sourceQuality: group.sourceQuality,
+        sourceProvenance: group.sourceProvenance,
         caveat: group.caveat,
         nextValidationStep: group.nextValidationStep,
         validationRequired: true
       })),
-      blockers: [blocker].filter(Boolean),
+      blockers: Array.from(new Set([
+        ...[blocker].filter((value): value is string => Boolean(value)),
+        ...sourceGroups.flatMap((group) => group.blockers)
+      ])),
       nextActions: sourceGroups.map((group) => group.nextValidationStep),
       sync: {
         helper: "npm run data:sync-source-readiness",
@@ -296,16 +317,19 @@ export async function getSourceRegistryReadiness() {
     version: "1.3",
     mode: "supabase",
     source: "supabase_source_registry",
+    presentationLabel: "Operator source registry context",
     sourceRegistryCount: rows.length,
     externalSnapshotCount: snapshots.length,
     manifest: {
-      generatedAt: new Date().toISOString(),
+      generatedAt,
       version: "1.3",
       summary: "GeoAI Data Foundation v1.3 source registry, snapshot readiness and local source-quality metadata.",
       sources: manifestSources,
-      sourceQuality
+      sourceQuality,
+      sourceProvenance
     },
     sourceQuality,
+    sourceProvenance,
     sourceGroups,
     summary,
     readiness: sourceGroups.map((group) => ({
@@ -314,16 +338,21 @@ export async function getSourceRegistryReadiness() {
       status: group.status,
       sourceMode: group.dataMode,
       dataMode: group.dataMode,
+      validationStatus: group.validationStatus,
+      presentationLabel: group.presentationLabel,
+      sampleData: group.sampleData,
+      smallSnapshot: group.smallSnapshot,
       lastUpdated: group.lastUpdated,
       recordCount: group.recordCount,
       coverageArea: group.coverageArea,
       confidence: group.confidence,
       sourceQuality: group.sourceQuality,
+      sourceProvenance: group.sourceProvenance,
       caveat: group.caveat,
       nextValidationStep: group.nextValidationStep,
       validationRequired: true
     })),
-    blockers: [],
+    blockers: Array.from(new Set(sourceGroups.flatMap((group) => group.blockers))),
     nextActions: sourceGroups.map((group) => group.nextValidationStep),
     sync: {
       helper: "npm run data:sync-source-readiness",

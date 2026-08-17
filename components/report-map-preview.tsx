@@ -31,6 +31,47 @@ function hasUsableMapboxToken(token: string) {
   return token.startsWith("pk.");
 }
 
+function createMapResizeScheduler(getCurrentMap: () => MapboxMap | null) {
+  let disposed = false;
+  const animationFrameIds = new Set<number>();
+  const timeoutIds = new Set<number>();
+
+  function resize(expectedMap: MapboxMap) {
+    if (disposed || getCurrentMap() !== expectedMap) return;
+    expectedMap.resize();
+  }
+
+  function request(expectedMap: MapboxMap) {
+    if (disposed) return;
+
+    const animationFrameId = window.requestAnimationFrame(() => {
+      animationFrameIds.delete(animationFrameId);
+      resize(expectedMap);
+    });
+    animationFrameIds.add(animationFrameId);
+  }
+
+  function requestAfter(expectedMap: MapboxMap, delayMs: number) {
+    if (disposed) return;
+
+    const timeoutId = window.setTimeout(() => {
+      timeoutIds.delete(timeoutId);
+      request(expectedMap);
+    }, delayMs);
+    timeoutIds.add(timeoutId);
+  }
+
+  function dispose() {
+    disposed = true;
+    animationFrameIds.forEach((animationFrameId) => window.cancelAnimationFrame(animationFrameId));
+    timeoutIds.forEach((timeoutId) => window.clearTimeout(timeoutId));
+    animationFrameIds.clear();
+    timeoutIds.clear();
+  }
+
+  return { request, requestAfter, dispose };
+}
+
 function getFallbackMarkerStyle(point: SelectedPoint) {
   const left = ((point.longitude - 54.85) / 0.78) * 100;
   const top = ((25.45 - point.latitude) / 0.72) * 100;
@@ -73,7 +114,7 @@ function getFallbackFeatureStyle(feature: GeoJSON.Feature) {
 
 function formatFallbackLabel(label: string) {
   if (label.toLowerCase().includes("dubai marina")) {
-    return "Dubai Marina sample";
+    return "Dubai Marina illustrative screening context";
   }
 
   return label.length > 24 ? "Selected site" : label;
@@ -347,6 +388,8 @@ export function ReportMapPreview({
     }
 
     let isMounted = true;
+    let observer: ResizeObserver | null = null;
+    let resizeScheduler: ReturnType<typeof createMapResizeScheduler> | null = null;
     const openContextFeatures = [
       ...openGeodataBaseline.landuse.map(openLanduseToFeature),
       ...openGeodataBaseline.roads.map(openRoadToFeature),
@@ -379,6 +422,7 @@ export function ReportMapPreview({
           preserveDrawingBuffer: true
         });
         mapRef.current = map;
+        resizeScheduler = createMapResizeScheduler(() => mapRef.current);
         map.scrollZoom.enable();
         map.dragPan.enable();
         map.doubleClickZoom.enable();
@@ -392,14 +436,14 @@ export function ReportMapPreview({
           "top-right"
         );
 
-        const resize = () => window.requestAnimationFrame(() => map.resize());
-        const observer = new ResizeObserver(resize);
+        const resize = () => resizeScheduler?.request(map);
+        observer = new ResizeObserver(resize);
         observer.observe(containerRef.current);
         resize();
-        window.setTimeout(resize, 80);
+        resizeScheduler.requestAfter(map, 80);
 
         map.on("load", () => {
-          if (!isMounted || !mapRef.current) return;
+          if (!isMounted || mapRef.current !== map) return;
 
           map.addSource("geoai-report-context", {
             type: "geojson",
@@ -543,27 +587,26 @@ export function ReportMapPreview({
             }
           }
           resize();
-          window.setTimeout(resize, 120);
+          resizeScheduler?.requestAfter(map, 120);
         });
 
         map.on("error", () => {
           if (isMounted) setMapFailed(true);
         });
 
-        return () => observer.disconnect();
       } catch {
         if (isMounted) setMapFailed(true);
       }
     }
 
-    let cleanupObserver: (() => void) | undefined;
-    void initializeMap().then((cleanup) => {
-      cleanupObserver = cleanup;
-    });
+    void initializeMap();
 
     return () => {
       isMounted = false;
-      cleanupObserver?.();
+      observer?.disconnect();
+      observer = null;
+      resizeScheduler?.dispose();
+      resizeScheduler = null;
       markersRef.current.forEach((marker) => marker.remove());
       markersRef.current = [];
       mapRef.current?.remove();

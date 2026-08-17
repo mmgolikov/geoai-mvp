@@ -7,8 +7,11 @@ import { ReportMapSnapshot as ReportMapSnapshotImage } from "@/components/report
 import { deriveDataConfidenceLevel } from "@/src/data/data-maturity";
 import { userDrawnAoiSourceCode, userDrawnAoiSourceLabel } from "@/src/lib/aoi-library";
 import { buildDashboardModel } from "@/src/lib/dashboard/dashboard-model";
+import { isMarketMetricsDecisionUseAllowed } from "@/src/lib/market-metrics";
 import { formatArea, formatPerimeter } from "@/src/lib/polygon-aoi";
+import { selectAnalysisUsedUploadedDatasets } from "@/src/lib/analysis-upload-use";
 import type { ReportMapSnapshot } from "@/src/lib/report-map-snapshot";
+import type { MarketMetricsMatch } from "@/src/lib/market-metrics/types";
 import type { ComparisonResult, ExpressAnalysis, ScoreKey } from "@/src/types/geo";
 
 type PrintableReportProps =
@@ -66,6 +69,18 @@ function createStableKey(section: string, value: unknown, index: number): string
     .slice(0, 60);
 
   return `${section}-${index}-${slug || "item"}`;
+}
+
+function hasMatchedMarketScreeningContext(match: MarketMetricsMatch | null | undefined) {
+  return Boolean(match?.metrics && match.releaseGate?.screeningContextAvailable);
+}
+
+function hasMarketMetricsDecisionUse(match: MarketMetricsMatch | null | undefined) {
+  return Boolean(
+    match?.metrics &&
+      match.importedMetricsUsed &&
+      isMarketMetricsDecisionUseAllowed(match.releaseGate)
+  );
 }
 
 function PrintSection({ title, children }: { title: string; children: React.ReactNode }) {
@@ -144,25 +159,26 @@ function EvidenceTable({ evidence }: { evidence: ExpressAnalysis["evidence"] | C
   );
 }
 
-function UploadedDataPrintBlock({ analysis }: { analysis: ExpressAnalysis }) {
+export function UploadedDataPrintBlock({ analysis }: { analysis: ExpressAnalysis }) {
   const context = analysis.uploadedDataContext;
+  const usedUploadedDatasets = selectAnalysisUsedUploadedDatasets(analysis);
 
-  if (!context || context.uploadedDatasets.length === 0) {
+  if (!context || usedUploadedDatasets.length === 0) {
     return null;
   }
 
   return (
     <PrintSection title="Source Lineage / Uploaded Data Used">
       <div className="print-score-grid">
-        {context.uploadedDatasets.map((dataset) => {
+        {usedUploadedDatasets.map((dataset) => {
           const applied = context.appliedMetrics.find((match) => match.datasetId === dataset.id);
-          const available = context.availableButNotApplied.find((match) => match.datasetId === dataset.id);
+          const visible = context.visibleGeojsonLayers.some((match) => match.id === dataset.id);
 
           return (
             <PrintCard key={dataset.id}>
               <strong>{dataset.name}</strong>
-              <span>{dataset.type} / {dataset.sourceMode.replace(/-/g, " ")}</span>
-              <small>{applied?.note ?? available?.note ?? dataset.notes ?? "Local upload available as validation-required context."}</small>
+              <span>{dataset.type} / {dataset.sourceMode.replace(/-/g, " ")} / {applied ? "applied" : visible ? "visible context" : "referenced"}</span>
+              <small>{applied?.note ?? dataset.notes ?? "User-provided input referenced by this screening result."}</small>
               <small>Official status: {dataset.officialStatus.replace(/-/g, " ")} / confidence: {dataset.confidence.replace(/-/g, " ")}</small>
             </PrintCard>
           );
@@ -179,7 +195,7 @@ function AnalysisPrintable({
   analysis: ExpressAnalysis;
   mapSnapshot?: ReportMapSnapshot | null;
 }) {
-  const analysisMode = analysis.analysisMode === "openai" ? "AI-generated" : "Sample/open fallback";
+  const analysisMode = analysis.analysisMode === "openai" ? "AI-generated" : "Deterministic local screening";
   const dashboardModel = buildDashboardModel(analysis);
   const siteName = dashboardModel.targetLabel;
   const coordinates = formatCoordinate(analysis.point.latitude, analysis.point.longitude);
@@ -190,6 +206,8 @@ function AnalysisPrintable({
   const decisionRationale = dashboardModel.decisionDetail;
   const marketMetricsMatch = analysis.marketContext?.importedMarketMetrics ?? analysis.marketMetricsMatch;
   const importedMetric = marketMetricsMatch?.metrics;
+  const matchedMarketScreeningContext = hasMatchedMarketScreeningContext(marketMetricsMatch);
+  const marketMetricsUsedInScoring = hasMarketMetricsDecisionUse(marketMetricsMatch);
 
   return (
     <article className="print-memo">
@@ -208,7 +226,7 @@ function AnalysisPrintable({
         <PrintCard><strong>Scenario</strong><span>{analysis.title}</span></PrintCard>
         <PrintCard><strong>Project</strong><span>{analysis.project?.name ?? "Dubai Investment Screening"}</span></PrintCard>
         <PrintCard><strong>Client type</strong><span>{analysis.project?.clientType?.replace(/_/g, " ") ?? "fund"}</span></PrintCard>
-        <PrintCard><strong>Data mode</strong><span>{analysis.project?.dataMode?.replace(/_/g, " ") ?? "sample/open"}</span></PrintCard>
+        <PrintCard><strong>Data mode</strong><span>{analysis.project?.dataMode?.replace(/demo normalized/gi, "illustrative local screening").replace(/_/g, " ") ?? "illustrative local screening"}</span></PrintCard>
         <PrintCard><strong>Generated</strong><span>{formatDate(analysis.generatedAt)}</span></PrintCard>
         <PrintCard><strong>Suitability</strong><span>{dashboardModel.primaryScore}/100</span></PrintCard>
         <PrintCard><strong>Confidence</strong><span>{dashboardModel.confidenceLabel}</span></PrintCard>
@@ -271,7 +289,8 @@ function AnalysisPrintable({
             <PrintCard><strong>Matched area</strong><span>{marketMetricsMatch?.matchedAreaName ?? analysis.marketContext.areaName}</span></PrintCard>
             <PrintCard><strong>Source mode</strong><span>{marketMetricsMatch?.sourceMode ?? analysis.marketContext.sourceMode ?? "seed_static"}</span></PrintCard>
             <PrintCard><strong>Match confidence</strong><span>{marketMetricsMatch?.confidence ?? analysis.marketContext.confidenceLevel}</span></PrintCard>
-            <PrintCard><strong>Imported metrics used</strong><span>{marketMetricsMatch?.importedMetricsUsed ? "yes" : "no"}</span></PrintCard>
+            <PrintCard><strong>Screening context matched</strong><span>{matchedMarketScreeningContext ? "yes" : "no"}</span></PrintCard>
+            <PrintCard><strong>Decision-scoring use</strong><span>{marketMetricsUsedInScoring ? "permitted and used" : matchedMarketScreeningContext ? "excluded by release gate" : "not applicable"}</span></PrintCard>
             {importedMetric ? (
               <>
                 <PrintCard><strong>Transactions</strong><span>{importedMetric.transactionCount} / AED {importedMetric.transactionValueAed.toLocaleString("en-US")}</span></PrintCard>
@@ -285,9 +304,11 @@ function AnalysisPrintable({
             <PrintCard><strong>Liquidity</strong><span>{analysis.marketContext.transactionContext.index}/100</span></PrintCard>
           </div>
           <p>
-            {marketMetricsMatch?.importedMetricsUsed
-              ? "Imported sample metrics demonstrate the market-data workflow and require official DLD / Dubai Pulse validation before investment decisions."
-              : "Seed_static demo metrics used because imported market metrics did not match this selection."}
+            {marketMetricsUsedInScoring
+              ? "Matched metrics were permitted and used in scoring under the source release gate; official/client validation remains required before decisions."
+              : matchedMarketScreeningContext
+                ? "Metrics matched and are available as screening context, but the source release gate excludes them from scoring."
+                : "No imported market metrics matched this selection; the score uses illustrative local screening context."}
           </p>
         </PrintSection>
       ) : null}
@@ -340,14 +361,14 @@ function AnalysisPrintable({
 
       <PrintSection title="Data Confidence / Validation Path">
         <div className="print-score-grid">
-          <PrintCard><strong>Used in prototype</strong><span>Synthetic demo layers, seed_static context and deterministic scoring.</span></PrintCard>
+          <PrintCard><strong>Current screening basis</strong><span>Illustrative local layers, public/open context and deterministic scoring.</span></PrintCard>
           <PrintCard><strong>Official validation</strong><span>DLD, Dubai Pulse and Dubai Municipality / GeoDubai should validate conclusions.</span></PrintCard>
-          <PrintCard><strong>DLD / Dubai Pulse ingestion</strong><span>{ingestionReport.marketMetricCount} sample market areas available for validation workflow and conservative matched scoring.</span></PrintCard>
+          <PrintCard><strong>DLD / Dubai Pulse ingestion</strong><span>{ingestionReport.marketMetricCount} local market areas available as screening context; current snapshot metrics remain excluded from scoring unless the source release gate permits decision use.</span></PrintCard>
           <PrintCard><strong>Validation integration path</strong><span>Adapter stubs define the next path for permitted official, open, licensed and customer data.</span></PrintCard>
         </div>
       </PrintSection>
 
-      <PrintSection title="Evidence / Data Used">
+      <PrintSection title="Evidence / Source References">
         <EvidenceTable evidence={analysis.evidence} />
       </PrintSection>
 
@@ -368,7 +389,7 @@ function AnalysisPrintable({
           {requiredDataCaveat}
         </p>
         <p>
-          Current MVP output demonstrates the decision workflow using sample/open indicators. Any controlled client use should validate conclusions against agreed DLD, Dubai Pulse, Dubai Municipality / GeoDubai, customer and/or licensed datasets.
+          This screening output uses local and public/open indicators. Any client use should validate conclusions against agreed DLD, Dubai Pulse, Dubai Municipality / GeoDubai, customer and/or licensed datasets.
         </p>
         {analysis.limitations?.map((item, index) => <p key={createStableKey("print-analysis-limitation", item, index)}>{item}</p>)}
       </PrintSection>
@@ -377,6 +398,13 @@ function AnalysisPrintable({
 }
 
 function ComparisonPrintable({ comparison }: { comparison: ComparisonResult }) {
+  const matchedScreeningContextCount = comparison.items.filter((item) =>
+    hasMatchedMarketScreeningContext(item.marketMetricsMatch)
+  ).length;
+  const decisionScoringCount = comparison.items.filter((item) =>
+    hasMarketMetricsDecisionUse(item.marketMetricsMatch)
+  ).length;
+
   return (
     <article className="print-memo">
       <header className="print-memo-header">
@@ -437,7 +465,21 @@ function ComparisonPrintable({ comparison }: { comparison: ComparisonResult }) {
         </div>
       </PrintSection>
 
-      <PrintSection title="Evidence / Data Used">
+      <PrintSection title="Market Metrics Release Basis">
+        <div className="print-score-grid">
+          <PrintCard><strong>Matched screening context</strong><span>{matchedScreeningContextCount} of {comparison.items.length} options</span></PrintCard>
+          <PrintCard><strong>Decision-scoring use</strong><span>{decisionScoringCount} of {comparison.items.length} options</span></PrintCard>
+        </div>
+        <p>
+          {matchedScreeningContextCount > decisionScoringCount
+            ? "Matched metrics are available as screening context but are excluded from scoring unless the source release gate permits decision use."
+            : matchedScreeningContextCount > 0
+              ? "Matched metrics were permitted and used in scoring under the source release gate; official/client validation remains required."
+              : "No imported market metrics matched the compared options; scores use illustrative local screening context."}
+        </p>
+      </PrintSection>
+
+      <PrintSection title="Evidence / Source References">
         <EvidenceTable evidence={comparison.evidence} />
       </PrintSection>
 
@@ -456,7 +498,7 @@ function ComparisonPrintable({ comparison }: { comparison: ComparisonResult }) {
           {requiredDataCaveat}
         </p>
         <p>
-          Current MVP output demonstrates the decision workflow using sample/open indicators. Any controlled client use should validate conclusions against agreed DLD, Dubai Pulse, Dubai Municipality / GeoDubai, customer and/or licensed datasets.
+          This screening output uses local and public/open indicators. Any client use should validate conclusions against agreed DLD, Dubai Pulse, Dubai Municipality / GeoDubai, customer and/or licensed datasets.
         </p>
       </PrintSection>
     </article>

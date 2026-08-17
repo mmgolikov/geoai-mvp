@@ -11,35 +11,35 @@ const decisionStages = [
 ] as const;
 
 const sourceFamilies = [
-  ["Satellite and earth observation", "Copernicus and open imagery context", "Sample/open"],
+  ["Satellite and earth observation", "Copernicus and open imagery context", "Open context"],
   ["Market and place context", "Public snapshots and client-provided inputs", "Validate"],
   ["Mobility and accessibility", "OpenStreetMap and network-derived signals", "Open context"],
   ["Project evidence", "User-provided files and validation records", "Controlled"]
 ] as const;
 
-const b2bRoles = ["Developer", "Asset manager", "Planner", "Risk analyst"];
-const b2cRoles = ["Homebuyer", "Investor", "Business owner", "Resident"];
+const b2bRoles = ["Developer", "Real estate fund", "Bank / lender", "Asset manager"];
+const b2cRoles = ["Home buyer", "Property investor", "Relocating household", "Overseas buyer"];
 
 const faqs = [
   [
     "What decisions can GeoAI support?",
-    "Site strategy, place comparison, risk screening, infrastructure and other questions where location, evidence and trade-offs matter."
+    "Development site screening, redevelopment, acquisition, portfolio review, home purchase, rental and relocation decisions where location, evidence and trade-offs matter."
   ],
   [
     "What evidence can GeoAI use?",
-    "GeoAI can combine sample/open context, public snapshots and user-provided project evidence. Every source still needs rights, lineage and fitness-for-use review."
+    "GeoAI can combine public and open context, controlled snapshots and user-provided project evidence. Every source still needs rights, lineage and fitness-for-use review."
   ],
   [
     "Can I use my own data?",
-    "Yes, after the protected project and file-custody path is enabled for the relevant environment. Do not submit confidential data through the public demo."
+    "Yes, after the protected project and file-custody path is enabled for the relevant environment. Do not submit confidential data through public preview access."
   ],
   [
     "How are approval requirements handled?",
     "GeoAI keeps screening, expert review, client validation and official authority decisions separate, with the outstanding validation step visible in the result."
   ],
   [
-    "What is included in a pilot?",
-    "A bounded use case, target geography, evidence plan, decision dashboard, validation route and a documented acceptance package."
+    "What is included in a controlled engagement?",
+    "A bounded decision, target geography, evidence plan, decision dashboard, validation route and a documented acceptance package."
   ]
 ] as const;
 
@@ -77,10 +77,10 @@ function LandingHeader() {
             Prepare request brief
           </Link>
           <Link
-            href="/login?next=/workspace&intent=demo"
+            href="/login?next=/workspace"
             className="hidden h-12 items-center justify-center rounded-control bg-brand px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#0854dd] sm:inline-flex"
           >
-            View demo
+            Open workspace
           </Link>
           <AccessStatusBadge />
         </div>
@@ -98,70 +98,49 @@ function BenefitIcon({ tone, children }: { tone: "blue" | "teal" | "orange"; chi
   return <span className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-sm font-bold ${toneClass}`}>{children}</span>;
 }
 
-function HeroCockpit() {
-  return (
-    <figure
-      data-figma-node="1495:53"
-      data-landing-cockpit-authority="commercial-v1.8"
-      className="relative mx-auto w-full max-w-[804px]"
-    >
-      <picture>
-        <source
-          media="(max-width: 639px)"
-          srcSet="/design/landing-geoai-cockpit-mobile-v18.png"
-        />
-        <source
-          media="(max-width: 1023px)"
-          srcSet="/design/landing-geoai-cockpit-tablet-v18.png"
-        />
-        {/* Repository-owned export of the founder-approved commercial cockpit. */}
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          alt="GeoAI illustrative screening cockpit"
-          src="/design/landing-geoai-cockpit-desktop-v18.png"
-          width="804"
-          height="560"
-          fetchPriority="high"
-          decoding="async"
-          className="mx-auto block h-auto w-full max-w-[350px] lg:max-w-[804px]"
-        />
-      </picture>
-      <figcaption className="sr-only">
-        Illustrative screening visual using public and open context. It is not parcel,
-        zoning, cadastral, ownership or valuation evidence.
-      </figcaption>
-    </figure>
-  );
-}
-
 function HeroSection() {
   return (
-    <section className="bg-gradient-to-r from-white via-[#fbfdff] to-[#edf6ff]">
-      <div className="mx-auto grid max-w-[1320px] gap-10 px-5 py-12 sm:px-8 lg:grid-cols-[480px_minmax(0,1fr)] lg:items-center lg:px-0 lg:py-14">
-        <div className="flex flex-col justify-center">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.04em] text-brand">Spatial decision intelligence</p>
-          <h1 className="mt-5 text-[42px] font-bold leading-[0.98] tracking-[-0.035em] text-ink sm:text-[52px] sm:leading-[1]">
-            Ask the map.<br />Move with evidence.
+    <section className="relative min-h-[660px] overflow-hidden border-b border-line bg-[#edf3f7] sm:min-h-[700px] lg:min-h-[650px]">
+      {/* Repository-owned export of the GCC decision-dashboard candidate. */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        data-figma-node="1957:12"
+        data-landing-cockpit-authority="gcc-real-estate-v1"
+        alt="GeoAI GCC real estate decision dashboard with map, screening result, evidence drivers and next action"
+        src="/design/gcc-decision-cockpit-v1.webp"
+        width="1440"
+        height="900"
+        fetchPriority="high"
+        decoding="async"
+        className="absolute inset-0 h-full w-full object-cover object-center opacity-40 lg:object-right"
+      />
+      <div className="absolute inset-0 bg-white/55" aria-hidden="true" />
+      <div className="relative mx-auto flex min-h-[660px] max-w-[1320px] items-center px-5 py-12 sm:min-h-[700px] sm:px-8 lg:min-h-[650px] lg:px-0">
+        <div className="max-w-[610px]">
+          <p className="text-[11px] font-semibold uppercase tracking-normal text-brand">GCC real estate decision intelligence</p>
+          <h1 className="mt-5 text-[42px] font-bold leading-[1.02] tracking-normal text-ink sm:text-[56px] sm:leading-[1.04]">
+            GeoAI Real Estate Decision Intelligence
           </h1>
-          <p className="mt-6 max-w-[450px] text-base leading-7 text-muted sm:text-[17px]">
-            Screen places, compare options, and understand what supports the result — across access, market, climate, land-use and environmental signals.
+          <p className="mt-6 max-w-[570px] text-base leading-7 text-ink sm:text-[18px]">
+            Screen development sites, redevelopment opportunities, acquisitions and homes in the UAE, with explicit source-readiness views for wider GCC expansion.
           </p>
           <div className="mt-7 grid gap-3 sm:grid-cols-2">
-            <Link href="/login?next=/workspace&intent=demo" className="inline-flex h-[52px] items-center justify-center rounded-control bg-brand px-6 text-sm font-semibold text-white shadow-sm transition hover:bg-[#0854dd]">
-              View demo
+            <Link href="/login?next=/workspace" className="inline-flex h-[52px] items-center justify-center rounded-control bg-brand px-6 text-sm font-semibold text-white shadow-sm transition hover:bg-[#0854dd]">
+              Open workspace
             </Link>
             <Link href="/request-access" className="inline-flex h-[52px] items-center justify-center rounded-control border border-brand bg-white px-6 text-sm font-semibold text-brand transition hover:bg-surface">
               Prepare request brief
             </Link>
           </div>
           <div className="mt-7 grid gap-2">
-            <p className="flex items-center gap-2.5 text-[13px] font-medium text-ink"><BenefitIcon tone="blue">⌖</BenefitIcon>Screen locations against relevant signals</p>
-            <p className="flex items-center gap-2.5 text-[13px] font-medium text-ink"><BenefitIcon tone="teal">≡</BenefitIcon>Explain the ranking, drivers and gaps</p>
-            <p className="flex items-center gap-2.5 text-[13px] font-medium text-ink"><BenefitIcon tone="orange">▣</BenefitIcon>Move to a controlled validation next step</p>
+            <p className="flex items-center gap-2.5 text-[13px] font-semibold text-ink"><BenefitIcon tone="blue">⌖</BenefitIcon>Rank sites, assets and residential options</p>
+            <p className="flex items-center gap-2.5 text-[13px] font-semibold text-ink"><BenefitIcon tone="teal">≡</BenefitIcon>Explain drivers, risks and evidence gaps</p>
+            <p className="flex items-center gap-2.5 text-[13px] font-semibold text-ink"><BenefitIcon tone="orange">▣</BenefitIcon>Move each decision into controlled validation</p>
           </div>
-          <p className="mt-6 text-xs font-medium leading-5 text-muted">Enterprise spatial intelligence · Evidence-aware decision support</p>
+          <p className="mt-6 max-w-[590px] text-xs font-medium leading-5 text-muted">
+            Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.
+          </p>
         </div>
-        <HeroCockpit />
       </div>
     </section>
   );
@@ -252,7 +231,7 @@ function ProductProof() {
               <div className="mt-5 flex gap-4"><span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand text-xl text-white">→</span><h3 className="text-2xl font-semibold leading-8 text-ink">Move to validation with context attached.</h3></div>
               <p className="mt-4 text-sm leading-6 text-muted">Request an official/client validation pack before moving to investment, planning or underwriting.</p>
               <div className="mt-6 rounded-2xl bg-surface p-4 text-xs leading-6 text-ink"><strong>Why this next</strong><br />Access signal: High · Market signal: Medium<br />Validation gap: Open</div>
-              <Link href="/login?next=/workspace&intent=demo" className="mt-6 inline-flex h-10 items-center justify-center rounded-control border border-brand px-4 text-sm font-semibold text-brand">Review source lineage</Link>
+              <Link href="/login?next=/workspace" className="mt-6 inline-flex h-10 items-center justify-center rounded-control border border-brand px-4 text-sm font-semibold text-brand">Review source lineage</Link>
             </article>
           </div>
           <p className="border-t border-line px-6 py-4 text-xs font-semibold text-muted">Outputs · Candidate shortlist → Comparison → Decision dashboard → Source lineage → Report</p>
@@ -271,8 +250,8 @@ function UseCases() {
         <p className="mt-3 text-sm leading-7 text-muted">Start with the audience and decision — not with a catalogue of layers.</p>
         <div className="mt-8 grid gap-5 lg:grid-cols-2">
           {[
-            ["B2B · Organizations", "Development and asset decisions", b2bRoles, ["Portfolio", "Signals", "Ranked sites", "Decision pack"]],
-            ["B2C · Individuals", "Place decisions around personal priorities", b2cRoles, ["Place", "Priorities", "Comparison", "Next step"]]
+            ["B2B · Organizations", "Development, investment and asset decisions", b2bRoles, ["Decision", "Criteria", "Ranked sites", "Validation pack"]],
+            ["B2C · Individuals", "Property purchase, rent and relocation decisions", b2cRoles, ["Property need", "Area fit", "Comparison", "Due diligence"]]
           ].map(([kicker, title, roles, flow], audienceIndex) => (
             <article key={String(kicker)} className="rounded-panel border border-line bg-white p-5 shadow-sm sm:p-7">
               <div className="grid gap-4 sm:grid-cols-[1fr_250px] sm:items-start"><div><p className={`text-xs font-bold uppercase ${audienceIndex === 0 ? "text-brand" : "text-personal"}`}>{String(kicker)}</p><h3 className="mt-2 text-2xl font-semibold text-ink">{String(title)}</h3></div><p className="text-sm leading-6 text-muted">Compare relevant signals and retain the evidence and validation boundary behind the result.</p></div>
@@ -305,7 +284,7 @@ function EvidenceSection() {
 
 function WhyGeoAI() {
   return (
-    <section className="bg-surface py-16 sm:py-20"><div className="mx-auto grid max-w-[1320px] gap-10 px-5 sm:px-8 lg:grid-cols-[440px_1fr] lg:px-0"><div><p className="text-xs font-semibold uppercase tracking-[0.12em] text-brand">Why GeoAI</p><h2 className="mt-3 text-3xl font-semibold tracking-[-0.025em] text-ink sm:text-4xl">Built for decisions that need an audit trail.</h2><p className="mt-5 text-sm leading-7 text-muted">GeoAI connects the question, evidence, method, result and next action — so the work can be reviewed, compared and carried forward.</p><Link href="/login?next=/workspace&intent=demo" className="mt-7 inline-flex h-11 items-center justify-center rounded-control bg-brand px-5 text-sm font-semibold text-white">Open workspace</Link></div><div className="grid gap-4 md:grid-cols-3">{[["01", "Evidence stays inspectable.", "Sources, dates, coverage and lineage remain attached.", "Source lineage"], ["02", "Methods stay explainable.", "Drivers, risks, confidence and validation gaps stay visible.", "Decision dashboard"], ["03", "Work moves forward.", "Shortlists, comparisons, reports and validation packs carry context onward.", "Action-ready package"]].map(([number, title, copy, output]) => <article key={number} className="rounded-panel border border-line bg-white p-5"><span className="text-xs font-bold text-brand">{number}</span><h3 className="mt-5 text-xl font-semibold leading-7 text-ink">{title}</h3><p className="mt-3 text-sm leading-6 text-muted">{copy}</p><p className="mt-8 text-[10px] font-bold uppercase text-accent">Output · {output}</p></article>)}</div></div></section>
+    <section className="bg-surface py-16 sm:py-20"><div className="mx-auto grid max-w-[1320px] gap-10 px-5 sm:px-8 lg:grid-cols-[440px_1fr] lg:px-0"><div><p className="text-xs font-semibold uppercase tracking-[0.12em] text-brand">Why GeoAI</p><h2 className="mt-3 text-3xl font-semibold tracking-normal text-ink sm:text-4xl">Built for decisions that need an audit trail.</h2><p className="mt-5 text-sm leading-7 text-muted">GeoAI connects the question, evidence, method, result and next action so the work can be reviewed, compared and carried forward.</p><Link href="/login?next=/workspace" className="mt-7 inline-flex h-11 items-center justify-center rounded-control bg-brand px-5 text-sm font-semibold text-white">Open workspace</Link></div><div className="grid gap-4 md:grid-cols-3">{[["01", "Evidence stays inspectable.", "Sources, dates, coverage and lineage remain attached.", "Source lineage"], ["02", "Methods stay explainable.", "Drivers, risks, confidence and validation gaps stay visible.", "Decision dashboard"], ["03", "Work moves forward.", "Shortlists, comparisons, reports and validation packs carry context onward.", "Action-ready package"]].map(([number, title, copy, output]) => <article key={number} className="rounded-panel border border-line bg-white p-5"><span className="text-xs font-bold text-brand">{number}</span><h3 className="mt-5 text-xl font-semibold leading-7 text-ink">{title}</h3><p className="mt-3 text-sm leading-6 text-muted">{copy}</p><p className="mt-8 text-[10px] font-bold uppercase text-accent">Output · {output}</p></article>)}</div></div></section>
   );
 }
 
@@ -323,7 +302,7 @@ function FAQ() {
 
 function Conversion() {
   return (
-    <section className="overflow-hidden bg-brand py-16 text-white sm:py-20"><div className="mx-auto grid max-w-[1320px] gap-10 px-5 sm:px-8 lg:grid-cols-[1fr_620px] lg:px-0"><div><p className="text-xs font-semibold uppercase tracking-[0.12em] text-white/75">Start a pilot</p><h2 className="mt-3 max-w-lg text-4xl font-semibold tracking-[-0.03em] sm:text-5xl">Bring one decision and one place.</h2><p className="mt-5 max-w-xl text-sm leading-7 text-white/75">Prepare the workflow, evidence boundary, data requirements and approval path for an approved contact channel.</p><ul className="mt-6 grid gap-2 text-sm text-white/90"><li>• Use-case framing and target area</li><li>• Evidence plan and known gaps</li><li>• Decision dashboard</li><li>• Recommended approval route</li></ul></div><div className="rounded-panel bg-white p-6 text-ink shadow-panel sm:p-8"><p className="text-xs font-bold uppercase text-brand">Prepare a pilot request</p><h3 className="mt-3 text-2xl font-semibold">Start with a bounded request brief.</h3><p className="mt-3 text-sm leading-6 text-muted">Format your organization, decision type and geography locally. No request backend is connected, so the page sends nothing. Do not include confidential, regulated, sensitive or client-protected information.</p><div className="mt-6 grid gap-3 sm:grid-cols-2">{["Organization", "Work email", "Use case / decision", "Geography / AOI"].map((item) => <div key={item} className="rounded-xl border border-line bg-surface px-4 py-3"><span className="text-[10px] font-bold uppercase text-muted">{item}</span><p className="mt-1 text-sm text-ink">Formatted locally</p></div>)}</div><Link href="/request-access" className="mt-6 inline-flex h-12 w-full items-center justify-center rounded-control bg-brand px-5 text-sm font-semibold text-white">Prepare request brief</Link></div></div></section>
+    <section className="overflow-hidden bg-brand py-16 text-white sm:py-20"><div className="mx-auto grid max-w-[1320px] gap-10 px-5 sm:px-8 lg:grid-cols-[1fr_620px] lg:px-0"><div><p className="text-xs font-semibold uppercase tracking-normal text-white/75">Start a controlled engagement</p><h2 className="mt-3 max-w-lg text-4xl font-semibold tracking-normal sm:text-5xl">Bring one decision and one place.</h2><p className="mt-5 max-w-xl text-sm leading-7 text-white/75">Prepare the workflow, evidence boundary, data requirements and approval path for an approved contact channel.</p><ul className="mt-6 grid gap-2 text-sm text-white/90"><li>• Use-case framing and target area</li><li>• Evidence plan and known gaps</li><li>• Decision dashboard</li><li>• Recommended approval route</li></ul></div><div className="rounded-panel bg-white p-6 text-ink shadow-panel sm:p-8"><p className="text-xs font-bold uppercase text-brand">Prepare an engagement brief</p><h3 className="mt-3 text-2xl font-semibold">Start with a bounded request brief.</h3><p className="mt-3 text-sm leading-6 text-muted">Format your organization, decision type and geography locally. No request backend is connected, so the page sends nothing. Do not include confidential, regulated, sensitive or client-protected information.</p><div className="mt-6 grid gap-3 sm:grid-cols-2">{["Organization", "Work email", "Use case / decision", "Geography / AOI"].map((item) => <div key={item} className="rounded-xl border border-line bg-surface px-4 py-3"><span className="text-[10px] font-bold uppercase text-muted">{item}</span><p className="mt-1 text-sm text-ink">Formatted locally</p></div>)}</div><Link href="/request-access" className="mt-6 inline-flex h-12 w-full items-center justify-center rounded-control bg-brand px-5 text-sm font-semibold text-white">Prepare request brief</Link></div></div></section>
   );
 }
 

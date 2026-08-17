@@ -11,14 +11,26 @@ const activeDocs = [
   "CHANGELOG.md",
   "docs/DOCUMENTATION_INDEX.md",
   "docs/CURRENT_RELEASE_STATE.md",
-  "docs/FULL_SYSTEM_AUDIT_2026_07_16.md",
-  "docs/CODEX_BACKLOG_2026_07_16.md",
   "docs/architecture.md",
   "docs/data-strategy.md",
   "docs/roadmap.md",
-  "docs/qa-checklist.md",
   "AGENTS.md",
   "docs/SUPABASE_DATA_API_CONTAINMENT_RUNBOOK_2026_07_16.md"
+];
+
+const candidateDocs = [
+  "docs/CR_GCC_REAL_ESTATE_DECISION_PLATFORM_V1.md",
+  "docs/GCC_REAL_ESTATE_MARKET_RESEARCH_2026_08.md",
+  "docs/GCC_REAL_ESTATE_PRODUCT_AND_MARKET_STRATEGY_V1.md",
+  "docs/FIGMA_GCC_REAL_ESTATE_AUTHORITY_V1.md",
+  "docs/GCC_REAL_ESTATE_TRANSFORMATION_QA_CHECKLIST.md",
+  "docs/RELEASE_GCC_REAL_ESTATE_DECISION_PLATFORM_V1.md"
+];
+
+const historicalContextDocs = [
+  "docs/FULL_SYSTEM_AUDIT_2026_07_16.md",
+  "docs/CODEX_BACKLOG_2026_07_16.md",
+  "docs/qa-checklist.md"
 ];
 
 const releaseFactDocs = [
@@ -145,6 +157,49 @@ for (const relativePath of activeDocs) {
       if (!markdownAnchors(linkedContent).has(fragment)) {
         failures.push(`${relativePath}: broken local anchor ${target}`);
       }
+    }
+  }
+}
+
+let lifecycleManifest;
+try {
+  lifecycleManifest = JSON.parse(read("docs/DOCUMENT_LIFECYCLE_MANIFEST.json"));
+} catch {
+  failures.push("docs/DOCUMENT_LIFECYCLE_MANIFEST.json: invalid JSON");
+}
+
+if (lifecycleManifest) {
+  if (lifecycleManifest.schemaVersion !== "1.2") {
+    failures.push("docs/DOCUMENT_LIFECYCLE_MANIFEST.json: candidate-aware schemaVersion must be 1.2");
+  }
+
+  const manifestActiveDocs = Object.entries(lifecycleManifest.documents ?? {})
+    .filter(([, entry]) => entry?.lifecycle === "active_authority" && entry?.currentAuthority === true)
+    .map(([path]) => path)
+    .sort();
+  const expectedActiveDocs = [...activeDocs].sort();
+  if (JSON.stringify(manifestActiveDocs) !== JSON.stringify(expectedActiveDocs)) {
+    failures.push("docs/DOCUMENT_LIFECYCLE_MANIFEST.json: active authorities do not match the current-truth allowlist");
+  }
+
+  for (const relativePath of candidateDocs) {
+    const content = read(relativePath);
+    const entry = lifecycleManifest.documents?.[relativePath];
+    if (entry?.lifecycle !== "candidate_control" || entry?.currentAuthority !== false) {
+      failures.push(`${relativePath}: candidate must remain candidate_control with currentAuthority=false`);
+    }
+    if (entry?.successor !== "docs/CURRENT_RELEASE_STATE.md") {
+      failures.push(`${relativePath}: candidate must defer released truth to docs/CURRENT_RELEASE_STATE.md`);
+    }
+    if (!/(?:Status:[^\n]*(?:Candidate|Draft|Research evidence|implementation authority)|Implementation branch:)/i.test(content)) {
+      failures.push(`${relativePath}: candidate status or implementation-branch boundary is missing`);
+    }
+  }
+
+  for (const relativePath of historicalContextDocs) {
+    const entry = lifecycleManifest.documents?.[relativePath];
+    if (entry?.currentAuthority !== false || entry?.lifecycle === "active_authority") {
+      failures.push(`${relativePath}: point-in-time context cannot be current authority`);
     }
   }
 }
@@ -312,6 +367,12 @@ for (const requiredLink of activeDocs.filter((path) => path !== "docs/DOCUMENTAT
   const relativeLink = requiredLink.startsWith("docs/") ? requiredLink.replace(/^docs\//, "") : `../${requiredLink}`;
   if (!index.includes(`(${relativeLink})`) && !index.includes(`(${relativeLink}#`)) {
     failures.push(`docs/DOCUMENTATION_INDEX.md: missing navigation link to ${relativeLink}`);
+  }
+}
+for (const candidatePath of candidateDocs) {
+  const candidateLink = candidatePath.replace(/^docs\//, "");
+  if (!index.includes(`(${candidateLink})`) && !index.includes(`(${candidateLink}#`)) {
+    failures.push(`docs/DOCUMENTATION_INDEX.md: missing candidate-control link to ${candidateLink}`);
   }
 }
 

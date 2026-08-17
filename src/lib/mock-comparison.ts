@@ -3,7 +3,8 @@ import { createComparisonCustomQueryAnswer } from "@/src/lib/custom-query/query-
 import { normalizeCustomQueryText } from "@/src/lib/custom-query/query-intent";
 import {
   adjustScoresWithMarketMetrics,
-  findBestMarketMetricMatch
+  findBestMarketMetricMatch,
+  isMarketMetricsDecisionUseAllowed
 } from "@/src/lib/market-metrics";
 import { userDrawnAoiSourceLabel } from "@/src/lib/aoi-library";
 import { analysisScenarios, createMockExpressAnalysis } from "@/src/lib/mock-express-analysis";
@@ -38,6 +39,29 @@ function clampScore(value: number) {
 
 function stablePointId(point: SelectedPoint) {
   return `${point.latitude.toFixed(5)}-${point.longitude.toFixed(5)}`;
+}
+
+function marketBasisLabel(sourceMode: string | undefined) {
+  const mode = sourceMode?.trim().toLowerCase() ?? "";
+  if (/imported/.test(mode)) return "illustrative local market context";
+  if (!mode || /sample|demo|fallback|seed|synthetic|fixture|local/.test(mode)) {
+    return "illustrative local screening context";
+  }
+  if (/open/.test(mode)) return "public/open context";
+  if (/user|customer/.test(mode)) return "user-provided context";
+  return "source context under validation";
+}
+
+function hasMatchedMarketScreeningContext(match: ComparisonScorecard["marketMetricsMatch"]) {
+  return Boolean(match?.metrics && match.releaseGate?.screeningContextAvailable);
+}
+
+function hasMarketMetricsDecisionUse(match: ComparisonScorecard["marketMetricsMatch"]) {
+  return Boolean(
+    match?.metrics &&
+      match.importedMetricsUsed &&
+      isMarketMetricsDecisionUseAllowed(match.releaseGate)
+  );
 }
 
 function recommendedUseForItem(item: ComparisonItem) {
@@ -175,7 +199,12 @@ export function createMockComparison(items: ComparisonItem[], customQuery = ""):
   const winner = scorecards[0];
   const runnerUp = scorecards[1];
   const riskierItems = scorecards.filter((item) => item.riskLevel !== "Low");
-  const importedSupportItems = scorecards.filter((item) => item.marketMetricsMatch?.importedMetricsUsed);
+  const matchedScreeningContextItems = scorecards.filter((item) =>
+    hasMatchedMarketScreeningContext(item.marketMetricsMatch)
+  );
+  const decisionScoringItems = scorecards.filter((item) =>
+    hasMarketMetricsDecisionUse(item.marketMetricsMatch)
+  );
   const normalizedCustomQuery = normalizeCustomQueryText(customQuery);
   const queryContext = normalizedCustomQuery
     ? ` The comparison rationale also reflects the user's custom query: "${normalizedCustomQuery.slice(0, 180)}".`
@@ -185,16 +214,20 @@ export function createMockComparison(items: ComparisonItem[], customQuery = ""):
     items: scorecards,
     winner,
     whyPreferred:
-      `${winner.item.name} has the strongest demo risk-adjusted profile, with an overall score of ${winner.overallScore}. ` +
+      `${winner.item.name} has the strongest screening risk-adjusted profile, with an overall score of ${winner.overallScore}. ` +
       `It combines ${winner.scores.investmentAttractiveness}/100 investment attractiveness, ${winner.scores.accessibility}/100 accessibility, and ${winner.scores.infrastructureReadiness}/100 infrastructure readiness while keeping key concerns manageable for early diligence. ` +
-      `${winner.marketMetricsMatch?.importedMetricsUsed ? `Imported sample market metrics matched ${winner.marketMetricsMatch.matchedAreaName} and support liquidity/demand proxy interpretation.` : "This option relies on seed/demo market fallback and requires imported market validation."}${queryContext}`,
+      `${hasMarketMetricsDecisionUse(winner.marketMetricsMatch)
+        ? `Released market metrics matched ${winner.marketMetricsMatch?.matchedAreaName} and were used in scoring under the source release gate.`
+        : hasMatchedMarketScreeningContext(winner.marketMetricsMatch)
+          ? `Market metrics matched ${winner.marketMetricsMatch?.matchedAreaName} and are available as screening context, but the source release gate excludes them from scoring.`
+          : "No area-specific imported market metrics matched this option; illustrative local screening context remains subject to current market validation."}${queryContext}`,
     whenAnotherMayBeBetter: runnerUp
       ? `${runnerUp.item.name} may be preferable if the priority shifts toward ${runnerUp.recommendedUse.toLowerCase()} or if its open diligence items clear faster than the current best option.`
       : "Another option may be better if official land-use, title, infrastructure, or risk checks materially change the assumptions.",
     sharedOpportunities: [
-      importedSupportItems.length > 0
-        ? `${importedSupportItems.length} option(s) have imported sample market metrics available for liquidity, rental demand and pipeline validation.`
-        : "Imported market metrics were not matched to the selected options; use seed_static context until official datasets are connected.",
+      matchedScreeningContextItems.length > 0
+        ? `${matchedScreeningContextItems.length} shortlisted ${matchedScreeningContextItems.length === 1 ? "option has" : "options have"} matched market metrics available as screening context; ${decisionScoringItems.length} ${decisionScoringItems.length === 1 ? "is" : "are"} permitted for scoring by the source release gate.`
+        : "Area-specific illustrative market metrics were not matched to the selected options; general local context remains active until current market evidence is validated.",
       "Use the selected locations as a short-list for structured investor or planning review.",
       "Compare land-use, access, infrastructure, and climate assumptions before deeper spend.",
       "Create a consistent scoring memo that can be reused for additional candidate sites.",
@@ -202,7 +235,7 @@ export function createMockComparison(items: ComparisonItem[], customQuery = ""):
     ],
     differentiatedRisks: [
       ...scorecards.map((item) =>
-        `${item.item.name}: market data basis ${item.marketMetricsMatch?.sourceMode ?? "seed_static"} / ${item.marketMetricsMatch?.confidence ?? "low"} confidence.`
+        `${item.item.name}: market data basis ${marketBasisLabel(item.marketMetricsMatch?.sourceMode)} / ${item.marketMetricsMatch?.confidence ?? "low"} confidence / ${hasMarketMetricsDecisionUse(item.marketMetricsMatch) ? "permitted and used in scoring" : hasMatchedMarketScreeningContext(item.marketMetricsMatch) ? "matched screening context; excluded from scoring" : "no imported metrics matched"}.`
       ).slice(0, 3),
       `${winner.item.name}: ${winner.keyConcern}.`,
       ...riskierItems.slice(0, 2).map((item) => `${item.item.name}: ${item.keyConcern}.`),
@@ -221,7 +254,7 @@ export function createMockComparison(items: ComparisonItem[], customQuery = ""):
         "comparison-map-selections",
         "synthetic-demo-layers",
         "Comparison map selections",
-        "Selected points and demo objects used as the comparison set."
+        "Selected points and screening objects used as the comparison set."
       ),
       createEvidenceItem(
         "comparison-scenarios",
@@ -246,17 +279,17 @@ export function createMockComparison(items: ComparisonItem[], customQuery = ""):
       createEvidenceItem(
         "comparison-mock-model",
         "synthetic-demo-layers",
-        "Mock comparison scoring model",
-        "Deterministic local comparison model used for MVP demonstration."
+        "Deterministic comparison model",
+        "Deterministic local comparison model used for screening workflow support."
       ),
       createEvidenceItem(
         "comparison-imported-market-metrics",
-        "dubai-pulse-dld-apis",
-        "Imported market metrics readiness",
-        importedSupportItems.length > 0
-          ? "Local DLD / Dubai Pulse-style ingestion metrics used for matched comparison market context. Sample/manual import; official validation required."
-          : "Imported market metrics are available but did not match all selected comparison items.",
-        "medium"
+        "demo-market-context-seed",
+        "Illustrative market context",
+        matchedScreeningContextItems.length > 0
+          ? `${matchedScreeningContextItems.length} comparison ${matchedScreeningContextItems.length === 1 ? "item has" : "items have"} matched metrics available as screening context; ${decisionScoringItems.length} ${decisionScoringItems.length === 1 ? "item is" : "items are"} permitted for scoring by the source release gate. Official/client validation remains required.`
+          : "Illustrative local market metrics are available but did not match all selected comparison items.",
+        "low"
       )
     ]
   };

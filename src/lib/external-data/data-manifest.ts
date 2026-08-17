@@ -20,6 +20,10 @@ import {
   type SnapshotQualityItem,
   type SourceQualityManifest
 } from "@/src/lib/external-data/source-quality-manifest";
+import {
+  buildSourceProvenanceManifest,
+  type SourceProvenanceManifest
+} from "@/src/lib/external-data/source-provenance-manifest";
 
 export type ExternalDataManifestSource = {
   id: string;
@@ -43,6 +47,7 @@ export type ExternalDataManifest = {
   summary: string;
   sources: ExternalDataManifestSource[];
   sourceQuality?: SourceQualityManifest;
+  sourceProvenance?: SourceProvenanceManifest;
 };
 
 const manifestPath = join(process.cwd(), "data/external/normalized/external_data_manifest.json");
@@ -144,7 +149,7 @@ function defaultManifest(): ExternalDataManifest {
   return {
     generatedAt: null,
     version: "1.6",
-    summary: "GeoAI public data connectors v1.6. Public/open sources use snapshots, API context, manual imports and safe sample fallbacks.",
+    summary: "GeoAI public data connectors v1.6. Public/open sources use snapshots, API context, manual imports and explicit illustrative local fallbacks.",
     sources: externalDataSources.map((source) => ({
       id: source.id,
       status: source.status,
@@ -185,6 +190,7 @@ export function normalizedExternalFileExists(relativePath: string) {
 
 function enrichManifestWithSnapshots(manifest: ExternalDataManifest): ExternalDataManifest {
   const sourceQuality = buildSourceQualityManifest();
+  const sourceProvenance = buildSourceProvenanceManifest(sourceQuality);
   const dldSnapshot = readJsonFile<{ areas?: unknown[]; generatedAt?: string; quality?: { notes?: string[] } }>(dldSnapshotPath) ??
     dldSnapshotStatic as { areas?: unknown[]; generatedAt?: string; quality?: { notes?: string[] } };
   const osmSnapshot = readJsonFile<{ roads?: unknown[]; pois?: unknown[]; landuse?: unknown[]; generatedAt?: string }>(osmSnapshotPath) ??
@@ -224,7 +230,7 @@ function enrichManifestWithSnapshots(manifest: ExternalDataManifest): ExternalDa
     confidence: dldLegacyStatus === "snapshot_available" ? "medium" : "low",
     caveat: dldCount > 0
       ? `DLD / Dubai Pulse snapshot context available (${dldSourceMode.replace(/_/g, " ")}). Official validation required. ${externalDataCaveat}`
-      : `DLD / Dubai Pulse public snapshot missing; sample fallback remains active. ${externalDataCaveat}`,
+      : `DLD / Dubai Pulse public snapshot missing; illustrative local fallback remains active. ${externalDataCaveat}`,
     usedInAnalysis: dldCount > 0
   };
   update("dld-dubai-pulse-transactions", dldPatch);
@@ -260,8 +266,8 @@ function enrichManifestWithSnapshots(manifest: ExternalDataManifest): ExternalDa
     confidence: osmLegacyStatus === "snapshot_available" ? "medium" : "low",
     sourceMode: normalizedExternalFileExists(osmLegacyPath) ? "real_snapshot" : "sample_fallback",
     caveat: resolvedOsmCount > 0
-      ? `OSM / Geofabrik sample/open snapshot context available. ${externalDataCaveat}`
-      : `OSM / Geofabrik snapshot missing; sample fallback remains active. ${externalDataCaveat}`,
+      ? `OSM / Geofabrik illustrative public/open snapshot context available. ${externalDataCaveat}`
+      : `OSM / Geofabrik snapshot missing; illustrative local fallback remains active. ${externalDataCaveat}`,
     usedInAnalysis: resolvedOsmCount > 0
   };
   update("osm-geofabrik-baseline", osmPatch);
@@ -321,10 +327,27 @@ function enrichManifestWithSnapshots(manifest: ExternalDataManifest): ExternalDa
 
   applyPerSourceQualityOverlay(sourceById, sourceQuality);
 
+  for (const group of sourceProvenance.groups) {
+    if (group.decisionEligibleReleaseCount > 0) continue;
+    for (const sourceId of group.sourceIds) {
+      const existing = sourceById.get(sourceId);
+      if (!existing || (existing.status !== "snapshot_available" && existing.status !== "connected")) continue;
+      sourceById.set(sourceId, {
+        ...existing,
+        status: "manual_import_ready",
+        sourceMode: "planned_validation",
+        confidence: "requires-validation",
+        usedInAnalysis: false,
+        caveat: externalDataCaveat
+      });
+    }
+  }
+
   return {
     ...manifest,
     version: "1.6",
     sourceQuality,
+    sourceProvenance,
     sources: externalDataSources.map((source) => {
       const existing = sourceById.get(source.id);
       return {

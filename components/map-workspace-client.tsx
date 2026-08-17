@@ -55,6 +55,47 @@ function hasUsableMapboxToken(token: string) {
   return token.startsWith("pk.");
 }
 
+function createMapResizeScheduler(getCurrentMap: () => MapboxMap | null) {
+  let disposed = false;
+  const animationFrameIds = new Set<number>();
+  const timeoutIds = new Set<number>();
+
+  function resize(expectedMap: MapboxMap) {
+    if (disposed || getCurrentMap() !== expectedMap) return;
+    expectedMap.resize();
+  }
+
+  function request(expectedMap: MapboxMap) {
+    if (disposed) return;
+
+    const animationFrameId = window.requestAnimationFrame(() => {
+      animationFrameIds.delete(animationFrameId);
+      resize(expectedMap);
+    });
+    animationFrameIds.add(animationFrameId);
+  }
+
+  function requestAfter(expectedMap: MapboxMap, delayMs: number) {
+    if (disposed) return;
+
+    const timeoutId = window.setTimeout(() => {
+      timeoutIds.delete(timeoutId);
+      request(expectedMap);
+    }, delayMs);
+    timeoutIds.add(timeoutId);
+  }
+
+  function dispose() {
+    disposed = true;
+    animationFrameIds.forEach((animationFrameId) => window.cancelAnimationFrame(animationFrameId));
+    timeoutIds.forEach((timeoutId) => window.clearTimeout(timeoutId));
+    animationFrameIds.clear();
+    timeoutIds.clear();
+  }
+
+  return { request, requestAfter, dispose };
+}
+
 type MapWorkspaceClientProps = {
   selectedPoint: SelectedPoint | null;
   selectedObject?: SelectedDemoObject | null;
@@ -475,7 +516,7 @@ function openLanduseToFeature(landuse: OpenLanduseFeature): GeoJSON.Feature {
       subtype: landuse.landuseClass.replace(/_/g, " "),
       sourceMode: landuse.sourceMode,
       confidenceLevel: landuse.confidence,
-      relevance: "Indicative landuse context from local OSM-style fixture.",
+      relevance: "Illustrative local land-use context; source validation required.",
       clickPriority: 18,
       layerOrder: 12
     },
@@ -592,7 +633,13 @@ function setOpenGeodataTooltip(
 
   const title = String(feature.properties?.name ?? "Open geospatial context");
   const detail = `${String(feature.properties?.subtype ?? "context")} · ${String(feature.properties?.category ?? "Open geospatial baseline")}`;
-  const source = `${String(feature.properties?.sourceMode ?? "open_geodata_sample").replace(/_/g, "-")} · ${String(feature.properties?.confidenceLevel ?? "sample")} confidence`;
+  const rawSourceMode = String(feature.properties?.sourceMode ?? "open_geodata_sample");
+  const rawConfidence = String(feature.properties?.confidenceLevel ?? "sample");
+  const sourceModeLabel = /sample|demo|seed/i.test(rawSourceMode)
+    ? "illustrative-local"
+    : rawSourceMode.replace(/_/g, "-");
+  const confidenceLabel = /sample|demo/i.test(rawConfidence) ? "illustrative screening" : rawConfidence;
+  const source = `${sourceModeLabel} · ${confidenceLabel} confidence`;
   const note = String(feature.properties?.relevance ?? "Open baseline context.");
 
   popup
@@ -615,7 +662,7 @@ function setControlledFixtureTooltip(
   map: MapboxMap
 ) {
   if (!popup) return;
-  const title = String(feature.properties?.name ?? "Controlled contract fixture");
+  const title = String(feature.properties?.name ?? "Illustrative local context");
   const source = String(feature.properties?.sourceMode ?? "open_context_preview").replace(/_/g, " ");
   const note = String(feature.properties?.relevance ?? "Non-real geometry for contract testing only.");
 
@@ -624,7 +671,7 @@ function setControlledFixtureTooltip(
     .setHTML(
       `<div class="geoai-map-tooltip">
         <div class="geoai-map-tooltip-title">${escapeHtml(title)}</div>
-        <div class="geoai-map-tooltip-detail">Controlled non-real fixture</div>
+        <div class="geoai-map-tooltip-detail">Illustrative local screening context</div>
         <div class="geoai-map-tooltip-source">${escapeHtml(source)}</div>
         <div class="geoai-map-tooltip-note">${escapeHtml(note)}</div>
       </div>`
@@ -1856,13 +1903,14 @@ export function MapWorkspaceClient({
     let mapReady = false;
     let pendingMouseMoveEvent: MapMouseEvent | null = null;
     let mouseMoveFrame: number | null = null;
+    let resizeScheduler: ReturnType<typeof createMapResizeScheduler> | null = null;
     const mapInitTimeout = window.setTimeout(() => {
       if (isMounted && !mapReady) {
         mapRef.current?.remove();
         mapRef.current = null;
         setIsMapReady(false);
         setMapResourceError(
-          "Map did not become ready in time. The keyboard-accessible sample map remains available for point selection."
+          "Map did not become ready in time. The keyboard-accessible illustrative map remains available for point selection."
         );
       }
     }, 4000);
@@ -1880,7 +1928,7 @@ export function MapWorkspaceClient({
         setMapResourceError(null);
         mapInitializationStartedAtRef.current = performance.now();
         mapboxgl.accessToken = mapboxToken;
-        mapRef.current = new mapboxgl.Map({
+        const map = new mapboxgl.Map({
           container: mapContainerRef.current,
           style: basemapOptions[0].styleUrl,
           center: defaultCenter,
@@ -1889,10 +1937,12 @@ export function MapWorkspaceClient({
           // live WebGL canvas. Remove this only with a verified on-demand capture path.
           preserveDrawingBuffer: true
         });
+        mapRef.current = map;
+        resizeScheduler = createMapResizeScheduler(() => mapRef.current);
       } catch {
         if (isMounted) {
           setMapResourceError(
-            "Map could not initialize in this browser. The sample map remains available for point selection."
+            "Map could not initialize in this browser. The keyboard-accessible illustrative map remains available for point selection."
           );
         }
         return;
@@ -1942,7 +1992,8 @@ export function MapWorkspaceClient({
             mapReadyMs: Math.round(registrationFinishedAt - (mapInitializationStartedAtRef.current ?? registrationStartedAt)),
             layerRegistrationMs: Math.round(registrationFinishedAt - registrationStartedAt)
           });
-          window.setTimeout(() => mapRef.current?.resize(), 0);
+          const map = mapRef.current;
+          if (map) resizeScheduler?.requestAfter(map, 0);
           setIsMapReady(true);
         }
       };
@@ -2140,6 +2191,8 @@ export function MapWorkspaceClient({
       markerRef.current = null;
       hoverPopupRef.current?.remove();
       hoverPopupRef.current = null;
+      resizeScheduler?.dispose();
+      resizeScheduler = null;
       mapRef.current?.remove();
       mapRef.current = null;
       interactiveLayerIdsRef.current = [];
@@ -2201,7 +2254,7 @@ export function MapWorkspaceClient({
       return;
     }
 
-    const reason = "Selected controlled fixture became inactive after source rollback; point and AOI state were preserved.";
+    const reason = "Selected illustrative context became inactive after source rollback; point and AOI state were preserved.";
     setSelectionRollbackReason(reason);
     setIsLineageDrawerOpen(false);
     onObjectClearRef.current?.();
@@ -2303,11 +2356,15 @@ export function MapWorkspaceClient({
   }, [attribution, basemapStyle, canUseMapbox, isMapReady, selectedAoi, selectedLineage, selectedObject, selectedPoint]);
 
   useEffect(() => {
-    if (!canUseMapbox || !mapRef.current || !isMapReady) {
+    const map = mapRef.current;
+    if (!canUseMapbox || !map || !isMapReady) {
       return;
     }
 
-    window.setTimeout(() => mapRef.current?.resize(), 0);
+    const resizeScheduler = createMapResizeScheduler(() => mapRef.current);
+    resizeScheduler.requestAfter(map, 0);
+
+    return () => resizeScheduler.dispose();
   }, [canUseMapbox, isMapReady, selectedObject, selectedPoint]);
 
   useEffect(() => {
@@ -2315,8 +2372,10 @@ export function MapWorkspaceClient({
       return;
     }
 
+    const resizeScheduler = createMapResizeScheduler(() => mapRef.current);
     const resizeMap = () => {
-      window.requestAnimationFrame(() => mapRef.current?.resize());
+      const map = mapRef.current;
+      if (map) resizeScheduler.request(map);
     };
     const observer = new ResizeObserver(resizeMap);
 
@@ -2325,6 +2384,7 @@ export function MapWorkspaceClient({
 
     return () => {
       observer.disconnect();
+      resizeScheduler.dispose();
     };
   }, [canUseMapbox]);
 
@@ -2421,6 +2481,19 @@ export function MapWorkspaceClient({
     onPointSelect(getFallbackPoint(event.clientX, event.clientY, event.currentTarget.getBoundingClientRect()));
   }
 
+  function handleKeyboardMapSelection(event: React.KeyboardEvent<HTMLElement>) {
+    if (event.target !== event.currentTarget || (event.key !== "Enter" && event.key !== " ")) {
+      return;
+    }
+
+    event.preventDefault();
+    const center = mapRef.current?.getCenter();
+    onPointSelect({
+      longitude: center?.lng ?? defaultCenter[0],
+      latitude: center?.lat ?? defaultCenter[1]
+    });
+  }
+
   function toggleLayer(layerId: DemoLayerId) {
     setLayerVisibility((currentVisibility) => ({
       ...currentVisibility,
@@ -2475,6 +2548,10 @@ export function MapWorkspaceClient({
     <section
       className={className}
       onClick={handleFallbackClick}
+      onKeyDown={handleKeyboardMapSelection}
+      tabIndex={0}
+      role="region"
+      aria-label="Interactive map workspace. Press Enter or Space to select the current map center."
       data-spatial-runtime-environment={activation.runtimeEnvironment}
       data-spatial-requested-source-mode={activation.requestedSourceMode}
       data-spatial-effective-source-mode={activation.effectiveSourceMode}
@@ -2500,7 +2577,7 @@ export function MapWorkspaceClient({
       data-spatial-map-ready-ms={mapObservability.mapReadyMs}
       data-spatial-layer-registration-ms={mapObservability.layerRegistrationMs}
     >
-      <div ref={mapContainerRef} className="absolute inset-0" role="region" aria-label="GeoAI map workspace" />
+      <div ref={mapContainerRef} className="absolute inset-0" aria-hidden="true" />
 
       {shouldShowFallbackMap ? (
         <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(23,79,99,0.12)_1px,transparent_1px),linear-gradient(rgba(23,79,99,0.12)_1px,transparent_1px)] bg-[size:42px_42px]">
@@ -2516,7 +2593,7 @@ export function MapWorkspaceClient({
                 <p className="mt-3 text-sm leading-6 text-muted">
                   {mapResourceError
                     ? mapResourceError
-                    : "Add `NEXT_PUBLIC_MAPBOX_TOKEN` later to render the live Mapbox basemap. The app stays usable without local environment tokens."}
+                    : "The interactive basemap is unavailable. The keyboard-accessible illustrative map remains usable for point selection."}
                 </p>
                 <button
                   type="button"
@@ -2526,11 +2603,11 @@ export function MapWorkspaceClient({
                     onPointSelect({ longitude: defaultCenter[0], latitude: defaultCenter[1] });
                   }}
                 >
-                  Select sample map center
+                  Select default map center
                 </button>
               </div>
               <div className="absolute bottom-6 left-6 right-6 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-white/70 bg-white/85 px-4 py-3 text-sm text-muted shadow-soft backdrop-blur">
-                <span>Dubai / Abu Dhabi sample extent</span>
+                <span>Illustrative Dubai / Abu Dhabi extent</span>
                 <span>Click the map to select a point for express analysis.</span>
               </div>
             </>
@@ -2697,8 +2774,8 @@ export function MapWorkspaceClient({
                   </p>
                   <div className="grid grid-cols-2 gap-1">
                     {([
-                      ["synthetic_fallback", "Synthetic"],
-                      ["open_context_preview", "Controlled fixture"]
+                  ["synthetic_fallback", "Illustrative local"],
+                  ["open_context_preview", "Public/open preview"]
                     ] as const).map(([sourceMode, label]) => (
                       <button
                         key={sourceMode}
@@ -2721,11 +2798,11 @@ export function MapWorkspaceClient({
 
               {activation.fallbackReason ? (
                 <div className="mb-2 rounded-md border border-[#f0d7a4] bg-[#fff9ec] px-2.5 py-2 text-[10px] leading-4 text-[#775611]" data-spatial-fallback-notice>
-                  Synthetic fallback active. {activation.fallbackReason}
+                  Illustrative local context active. {activation.fallbackReason}
                 </div>
               ) : activation.effectiveSourceMode === "open_context_preview" ? (
                 <div className="mb-2 rounded-md border border-[#b8d3c6] bg-[#f3f8f5] px-2.5 py-2 text-[10px] leading-4 text-[#276749]" data-spatial-preview-fixture-notice>
-                  Controlled non-real Preview fixture active. No provider geometry is included.
+                  Prepared public/open preview context is active. No provider geometry is represented.
                 </div>
               ) : null}
 
@@ -2749,15 +2826,15 @@ export function MapWorkspaceClient({
                   <div className="grid gap-1 text-[11px] text-muted">
                     <label className="flex min-w-0 cursor-pointer items-center justify-between gap-2">
                       <span className="flex min-w-0 items-center gap-2"><span className="h-2.5 w-2.5 shrink-0 rounded-sm bg-[#536d7a]" /><span className="truncate">Roads / access</span></span>
-                      <span className="flex shrink-0 items-center gap-1.5"><span className="rounded-full bg-surface px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.06em]">local fixture</span><input type="checkbox" checked={openGeodataVisibility["geoai-open-roads"]} onChange={() => toggleOpenGeodataLayer("geoai-open-roads")} className="h-4 w-4 accent-[#174f63]" /></span>
+                      <span className="flex shrink-0 items-center gap-1.5"><span className="rounded-full bg-surface px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.06em]">illustrative local</span><input type="checkbox" checked={openGeodataVisibility["geoai-open-roads"]} onChange={() => toggleOpenGeodataLayer("geoai-open-roads")} className="h-4 w-4 accent-[#174f63]" /></span>
                     </label>
                     <label className="flex min-w-0 cursor-pointer items-center justify-between gap-2">
                       <span className="flex min-w-0 items-center gap-2"><span className="h-2.5 w-2.5 shrink-0 rounded-full bg-[#1f6b83]" /><span className="truncate">POI / anchors</span></span>
-                      <span className="flex shrink-0 items-center gap-1.5"><span className="rounded-full bg-surface px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.06em]">local fixture</span><input type="checkbox" checked={openGeodataVisibility["geoai-open-poi"]} onChange={() => toggleOpenGeodataLayer("geoai-open-poi")} className="h-4 w-4 accent-[#174f63]" /></span>
+                      <span className="flex shrink-0 items-center gap-1.5"><span className="rounded-full bg-surface px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.06em]">illustrative local</span><input type="checkbox" checked={openGeodataVisibility["geoai-open-poi"]} onChange={() => toggleOpenGeodataLayer("geoai-open-poi")} className="h-4 w-4 accent-[#174f63]" /></span>
                     </label>
                     <label className="flex min-w-0 cursor-pointer items-center justify-between gap-2">
                       <span className="flex min-w-0 items-center gap-2"><span className="h-2.5 w-2.5 shrink-0 rounded-sm bg-[#9bb5a6]" /><span className="truncate">Landuse context</span></span>
-                      <span className="flex shrink-0 items-center gap-1.5"><span className="rounded-full bg-surface px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.06em]">OSM-style sample</span><input type="checkbox" checked={openGeodataVisibility["geoai-open-landuse"]} onChange={() => toggleOpenGeodataLayer("geoai-open-landuse")} className="h-4 w-4 accent-[#174f63]" /></span>
+                      <span className="flex shrink-0 items-center gap-1.5"><span className="rounded-full bg-surface px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.06em]">illustrative OSM-style</span><input type="checkbox" checked={openGeodataVisibility["geoai-open-landuse"]} onChange={() => toggleOpenGeodataLayer("geoai-open-landuse")} className="h-4 w-4 accent-[#174f63]" /></span>
                     </label>
                   </div>
                 </div>
@@ -2772,7 +2849,7 @@ export function MapWorkspaceClient({
                       <span className="min-w-0">
                         <span className="block truncate text-[11px] font-semibold text-ink">{layer.legendLabel}</span>
                         <span className="block truncate text-[9px] font-semibold uppercase tracking-[0.06em] text-muted">
-                          {getCatalogueEntryForDemoLayer(layer.id)?.dataHonestyLabel ?? "Sample/demo"}
+                          {getCatalogueEntryForDemoLayer(layer.id)?.dataHonestyLabel ?? "Illustrative local"}
                         </span>
                       </span>
                     </span>
@@ -2854,7 +2931,7 @@ export function MapWorkspaceClient({
               </div>
 
               <div className="mt-2 rounded-md bg-white px-2.5 py-2 text-[11px] leading-4 text-muted">
-                GeoAI overlays are sample/open screening layers, not official GIS, parcel, zoning, planning, or risk boundaries.
+                GeoAI overlays are illustrative local and public/open screening layers, not official GIS, parcel, zoning, planning, or risk boundaries.
               </div>
             </div>
           ) : null}
@@ -2933,7 +3010,7 @@ export function MapWorkspaceClient({
                 style={position}
                 data-controlled-fixture-key={record.feature.featureKey}
               >
-                <span className="sr-only">Controlled non-real fixture</span>
+                <span className="sr-only">Illustrative local screening context</span>
               </button>
             );
           })}

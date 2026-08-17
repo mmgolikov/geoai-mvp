@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
 const mockSessionKey = "geoai-mock-demo-session-v1";
+const guidedProfileStorageKey = "geoai-user-profile-v1:demo-user-geoai";
 
 async function expectLoginRedirect(page: Page, expectedNext: string) {
   await expect(page).toHaveURL((url) =>
@@ -10,7 +11,7 @@ async function expectLoginRedirect(page: Page, expectedNext: string) {
 }
 
 async function expectAuthenticatedProfileControl(page: Page) {
-  const profileLink = page.getByRole("link", { name: "Open demo profile" });
+  const profileLink = page.getByRole("link", { name: "Open guided workspace profile" });
   await expect(profileLink).toBeVisible();
   await expect(profileLink).toHaveAttribute("data-authenticated", "true");
 }
@@ -20,10 +21,10 @@ test.describe("authenticated product route session", () => {
     await page.goto("/workspace?segment=b2b");
     await expectLoginRedirect(page, "/workspace?segment=b2b");
 
-    await page.getByRole("button", { name: "Use demo credentials" }).click();
+    await page.getByRole("button", { name: "Use guided access" }).click();
     await expect(page.getByLabel("Email or phone")).toHaveValue("demo@geoai.space");
     await expect(page.getByLabel("Password")).toHaveValue("111111");
-    await page.getByRole("button", { name: "Open demo" }).click();
+    await page.getByRole("button", { name: "Open guided workspace" }).click();
 
     await expect(page).toHaveURL((url) =>
       url.pathname === "/workspace" && url.searchParams.get("segment") === "b2b"
@@ -47,12 +48,54 @@ test.describe("authenticated product route session", () => {
 
     await page.goto("/profile");
     await expect(page.getByRole("heading", { name: "Your profile" })).toBeVisible();
+    await page.evaluate((key) => {
+      window.localStorage.setItem(key, JSON.stringify({
+        version: 1,
+        userId: "demo-user-geoai",
+        fullName: "Shared Browser User",
+        contactPhone: "+971501234567"
+      }));
+    }, guidedProfileStorageKey);
     await page.getByRole("button", { name: "Sign out" }).click();
     await expectLoginRedirect(page, "/profile");
     await expect.poll(() => page.evaluate((key) => window.localStorage.getItem(key), mockSessionKey)).toBeNull();
+    await expect.poll(() => page.evaluate((key) => window.localStorage.getItem(key), guidedProfileStorageKey)).toBeNull();
 
     await page.goto("/workspace");
     await expectLoginRedirect(page, "/workspace");
+  });
+
+  test("keeps the current authenticated UI when server logout fails", async ({ page }) => {
+    let logoutRequests = 0;
+    await page.route("**/api/auth/session", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ isAuthenticated: true, supabaseAuthenticated: true })
+      });
+    });
+    await page.route("**/api/auth/logout", async (route) => {
+      logoutRequests += 1;
+      await route.fulfill({
+        status: 503,
+        contentType: "application/json",
+        body: JSON.stringify({ ok: false, status: "logout_failed" })
+      });
+    });
+
+    // The normal guided sign-in and successful sign-out path is covered above.
+    // Seed only the browser-local session here so this test isolates the
+    // fail-closed behavior of an independently failing server logout.
+    await page.addInitScript((key) => window.localStorage.setItem(key, "active"), mockSessionKey);
+    await page.goto("/profile");
+    await expectAuthenticatedProfileControl(page);
+
+    await page.getByRole("button", { name: "Sign out" }).click();
+    await expect.poll(() => logoutRequests).toBe(1);
+    await expect(page).toHaveURL((url) => url.pathname === "/profile");
+    await expect(page.getByRole("heading", { name: "Your profile" })).toBeVisible();
+    await expectAuthenticatedProfileControl(page);
+    await expect.poll(() => page.evaluate((key) => window.localStorage.getItem(key), mockSessionKey)).toBe("active");
   });
 });
 

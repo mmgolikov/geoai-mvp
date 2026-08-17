@@ -546,23 +546,20 @@ export function AnalysisPanel({
   const pilotPackage = getPilotPackageForProject(activeProject.projectKey, activeProject.clientType);
   const pilotChecklist = [
     { label: "Select client type", status: activeProject.clientType ? "Done" : "Needed" },
-    { label: "Choose pilot package", status: pilotPackage ? "Done" : "Needed" },
+    { label: "Choose engagement package", status: pilotPackage ? "Done" : "Needed" },
     { label: "Upload client CSV/GeoJSON", status: parsedUploads.length > 0 ? "Done" : "Needed" },
     { label: "Run analysis on 3-10 sites", status: analysisHistory.length >= 3 ? "Done" : "Needed" },
     { label: "Generate reports", status: hasResult ? "Done" : "Needed" },
     { label: "Compare shortlisted sites", status: hasComparisonReady ? "Done" : "Needed" },
     { label: "Validate official sources", status: "Needed" },
-    { label: "Export pilot deliverables", status: hasResult ? "Optional" : "Needed" }
+    { label: "Export decision deliverables", status: hasResult ? "Optional" : "Needed" }
   ];
 
   useEffect(() => {
     if (exploreInteractionMode === "map_first") {
       setIsExploreSetupOpen(false);
-      return;
     }
-
-    setIsExploreSetupOpen(candidateSearchStatus !== "searched");
-  }, [candidateSearchStatus, exploreInteractionMode, exploreScenarioId]);
+  }, [exploreInteractionMode, exploreScenarioId]);
 
   useEffect(() => {
     if (!enableLegacyPanelServerFanout) return;
@@ -718,7 +715,7 @@ export function AnalysisPanel({
         setPilotWorkflow(await response.json() as PilotWorkflowSummary);
       }
     } catch {
-      setPilotWorkflowMessage("Pilot workflow summary unavailable.");
+      setPilotWorkflowMessage("Validation workflow summary unavailable.");
     }
   }
 
@@ -797,7 +794,7 @@ export function AnalysisPanel({
   async function attachEvidenceFile(file: File) {
     const maxFileSize = storageHealth?.maxFileSizeBytes ?? 5 * 1024 * 1024;
     if (file.size > maxFileSize) {
-      setValidationMessage("Keep evidence uploads under the 5 MB MVP limit.");
+      setValidationMessage("Keep evidence uploads under the 5 MB upload limit.");
       return;
     }
 
@@ -1090,8 +1087,8 @@ export function AnalysisPanel({
   }
 
   return (
-    <aside className="flex min-h-0 max-w-full flex-col border-line bg-white max-lg:border-t lg:h-full lg:w-[380px] lg:overflow-hidden lg:border-l">
-      <section className="min-w-0 max-w-full overflow-x-hidden p-3 pb-5 [scrollbar-width:thin] lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
+    <aside className="flex min-h-0 max-w-full flex-col border-line bg-white max-lg:border-t lg:w-[380px] lg:border-l">
+      <section data-workspace-panel-flow className="min-w-0 max-w-full overflow-x-hidden p-3 pb-5">
         {!hasResult ? <h1 className="sr-only">{workspaceHeading}</h1> : null}
         <div className="grid min-w-0 gap-2">
           <section className="min-w-0 max-w-full overflow-hidden rounded-lg border border-line bg-white p-2">
@@ -1160,7 +1157,7 @@ export function AnalysisPanel({
                     value={projectNameDraft}
                     onChange={(event) => setProjectNameDraft(event.target.value)}
                     className="mt-1 h-10 w-full rounded-md border border-line bg-surface px-2 text-xs font-semibold text-ink outline-none transition focus:border-brand sm:h-8"
-                    placeholder="Pilot screening project"
+                    placeholder="Real estate screening project"
                   />
                 </label>
                 <label className="min-w-0">
@@ -1235,25 +1232,20 @@ export function AnalysisPanel({
 
             <div
               data-scenario-context
-              className="mt-2 rounded-md border border-[#b9dfe3] bg-[#eefafa] px-3 py-2.5"
+              className="mt-2 rounded-md border border-[#b9dfe3] bg-[#eefafa] px-2.5 py-2"
             >
               <p
                 data-scenario-primary-copy
-                className="whitespace-normal break-words text-sm font-semibold leading-5 text-ink"
+                className="whitespace-normal break-words text-[13px] font-semibold leading-5 text-ink"
               >
                 {exploreScenario.primaryCTA}
               </p>
               <p
                 data-scenario-summary-copy
-                className="mt-1 whitespace-normal break-words text-[13px] leading-5 text-muted"
+                className="mt-0.5 line-clamp-2 whitespace-normal break-words text-xs leading-4 text-muted"
               >
                 {exploreScenario.subtitle}
               </p>
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                <span className="rounded-full bg-white px-2 py-1 text-[10px] font-semibold text-brand">
-                  {selectedExploreRole.label}
-                </span>
-              </div>
             </div>
 
             <div className="mt-2">
@@ -1313,6 +1305,27 @@ export function AnalysisPanel({
               </div>
             </details>
 
+            <div className="mt-2 min-w-0">
+              <label
+                htmlFor="custom-query"
+                className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted"
+              >
+                Custom Query
+              </label>
+              <textarea
+                id="custom-query"
+                rows={3}
+                value={customQuery}
+                onChange={(event) => onCustomQueryChange(event.target.value)}
+                placeholder={
+                  hasComparisonReady
+                    ? "Refine this comparison"
+                    : exploreScenario.sampleQueries[0] ?? "Ask a scenario-specific question"
+                }
+                className="mt-1 w-full resize-none rounded-md border border-line bg-surface px-2 py-2 text-xs text-ink outline-none transition placeholder:text-muted/70 focus:border-brand"
+              />
+            </div>
+
             <div className="mt-2 rounded-md border border-line bg-surface p-2">
               <div className="flex items-center justify-between gap-2">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
@@ -1371,26 +1384,6 @@ export function AnalysisPanel({
               )}
             </div>
 
-            <div className="mt-2 min-w-0">
-              <label
-                htmlFor="custom-query"
-                className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted"
-              >
-                Custom Query
-              </label>
-              <textarea
-                id="custom-query"
-                rows={3}
-                value={customQuery}
-                onChange={(event) => onCustomQueryChange(event.target.value)}
-                placeholder={
-                  hasComparisonReady
-                    ? "Refine this comparison"
-                    : exploreScenario.sampleQueries[0] ?? "Ask a scenario-specific question"
-                }
-                className="mt-1 w-full resize-none rounded-md border border-line bg-surface px-2 py-2 text-xs text-ink outline-none transition placeholder:text-muted/70 focus:border-brand"
-              />
-            </div>
           </section>
 
           <details className="order-[20] min-w-0 max-w-full overflow-hidden rounded-lg border border-line bg-white px-3">
@@ -1576,7 +1569,7 @@ export function AnalysisPanel({
                 <h2 className="mt-1 truncate text-sm font-semibold text-ink">
                   {uploadedDatasets.length > 0 ? `${uploadedDatasets.length} browser-local dataset${uploadedDatasets.length === 1 ? "" : "s"}` : "CSV / GeoJSON import"}
                 </h2>
-                <p className="mt-1 truncate text-xs leading-5 text-muted">Project-scoped prototype storage; official validation required.</p>
+                <p className="mt-1 truncate text-xs leading-5 text-muted">Project-scoped browser-local storage; official validation required.</p>
               </div>
               <span className="shrink-0 rounded-full bg-surface px-2 py-1 text-[11px] font-semibold text-brand">Open</span>
             </summary>
@@ -1690,7 +1683,7 @@ export function AnalysisPanel({
 
       </section>
 
-      <section className="sticky bottom-0 z-20 min-w-0 max-w-full flex-shrink-0 border-t border-line bg-white p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-8px_20px_rgba(15,23,42,0.06)] max-[639px]:static max-[639px]:shadow-none lg:static lg:pb-3 lg:shadow-none">
+      <section data-workspace-primary-actions className="sticky bottom-0 z-20 min-w-0 max-w-full flex-shrink-0 border-t border-line bg-white p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-8px_20px_rgba(15,23,42,0.06)] lg:pb-3">
         {primaryCtaDisabled && !hasValidWorkflowTarget ? (
           <p className="mb-2 text-xs leading-5 text-muted">
             {actionUnavailableMessage}

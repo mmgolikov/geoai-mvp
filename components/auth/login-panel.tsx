@@ -116,7 +116,7 @@ export function LoginPanel() {
     setMessage(null);
   }
 
-  const kicker = intent === "demo" ? "GeoAI demo access" : intent === "request" ? "GeoAI access request" : "GeoAI access";
+  const kicker = intent === "demo" ? "GeoAI guided workspace" : intent === "request" ? "GeoAI access request" : "GeoAI access";
 
   return (
     <section className="bg-gradient-to-br from-white via-[#fbfdff] to-[#edf6ff] px-4 py-8 sm:px-6 sm:py-10 lg:min-h-[calc(100vh-64px)] lg:py-12">
@@ -148,7 +148,7 @@ export function LoginPanel() {
           <h2 className="mt-2 text-xl font-semibold text-ink sm:text-2xl">Continue to GeoAI</h2>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-muted">
             {intent === "demo"
-              ? "Sign in or use the ready browser-local demo. Workspace opens automatically after authorization."
+              ? "Sign in with an existing account or use browser-local guided access. Guided access opens Workspace without authorizing protected server resources."
               : intent === "request"
                 ? "Sign in with an existing email or phone account. New account onboarding requires a separate approved invitation."
                 : "Sign in with an existing email or phone account. A saved session opens Workspace automatically."}
@@ -215,7 +215,7 @@ export function LoginPanel() {
                   disabled={pending}
                   className="inline-flex h-12 items-center justify-center rounded-control bg-brand px-5 text-sm font-semibold text-white transition hover:bg-[#0854dd] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {pending ? "Please wait…" : demoSelected ? "Open demo" : passwordSelected ? "Sign in" : method === "phone" ? "Send code" : "Send sign-in link"}
+                  {pending ? "Please wait…" : demoSelected ? "Open guided workspace" : passwordSelected ? "Sign in" : method === "phone" ? "Send code" : "Send sign-in link"}
                 </button>
               </form>
 
@@ -251,8 +251,8 @@ export function LoginPanel() {
 
               <div className="mt-4 grid gap-4 rounded-2xl bg-[#f5f2ff] p-4 sm:grid-cols-[1fr_auto] sm:items-center">
                 <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-personal">Guided access</p>
-                  <p className="mt-1 text-xs leading-5 text-muted">Use the ready browser-local sample account. It never authorizes protected server resources.</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-personal">Browser-local guided access</p>
+                  <p className="mt-1 text-xs leading-5 text-muted">Explore the guided workspace in this browser. This access does not authorize protected server resources.</p>
                   <p className="mt-2 text-[11px] font-semibold text-ink"><code>{mockDemoEmail}</code> · <code>{mockDemoPassword}</code></p>
                 </div>
                 <button
@@ -260,12 +260,12 @@ export function LoginPanel() {
                   onClick={fillDemoCredentials}
                   className="inline-flex h-12 items-center justify-center rounded-control border border-personal bg-white px-5 text-sm font-semibold text-personal transition hover:bg-white/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-personal"
                 >
-                  Use demo credentials
+                  Use guided access
                 </button>
               </div>
 
               <p className="mt-4 text-[10px] leading-4 text-muted">By continuing, you accept the Terms and Privacy Policy.</p>
-              <p className="mt-2 text-[10px] leading-4 text-muted">Phone sign-in is limited to existing accounts and becomes operational only after an approved SMS provider is connected. Email and browser-local demo access do not depend on it.</p>
+              <p className="mt-2 text-[10px] leading-4 text-muted">Phone sign-in is limited to existing accounts and becomes operational only after an approved SMS provider is connected. Email sign-in and browser-local guided access do not depend on it.</p>
             </>
           )}
         </div>

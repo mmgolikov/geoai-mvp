@@ -7,8 +7,10 @@ import { getReport } from "@/src/lib/db/repositories/reports";
 import { normalizeReportDeliverable } from "@/src/lib/report-deliverables";
 import { normalizeReportForDisplay } from "@/src/lib/report-display-normalization";
 import { getSeededDemoReportRecord } from "@/src/data/demo-report-seeds";
+import { getDemoProject } from "@/src/data/demo-projects";
 import { requireProjectAccess } from "@/src/lib/auth/project-access";
 import { hasRequestIdentityKernelEvidence, hasVerifiedRequestIdentity } from "@/src/lib/auth/verified-request-access";
+import { getProjectByKey } from "@/src/lib/db/repositories/projects";
 import { isCanonicalReportId } from "@/src/lib/report-id";
 
 type PrintableReportPageProps = {
@@ -36,7 +38,17 @@ export default async function PrintableReportPage({ params }: PrintableReportPag
   if (!access.allowed || (!publicSeed && !hasVerifiedRequestIdentity(access))) {
     return <PrintReportFallback reportId={id} />;
   }
-  const normalized = result.data ? normalizeReportDeliverable(result.data) : null;
+  const expectedProject = publicSeed
+    ? getDemoProject(projectKey)
+    : projectKey
+      ? (await getProjectByKey(projectKey)).data
+      : null;
+  const normalized = result.data && expectedProject
+    ? normalizeReportDeliverable(result.data, {
+        expectedReportId: id,
+        expectedProject
+      })
+    : null;
   const report = normalized ? normalizeReportForDisplay(normalized) : null;
 
   if (!report) {

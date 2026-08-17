@@ -37,6 +37,49 @@ async function loadBrowserUserProfile(user: NonNullable<GeoAIAuthSession["user"]
   return enrichUserWithBrowserProfile(user);
 }
 
+async function endServerSession() {
+  try {
+    const response = await fetch("/api/auth/logout", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { Accept: "application/json", "Content-Type": "application/json" },
+      body: "{}"
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+async function prepareServerSessionForGuidedAccess() {
+  try {
+    const response = await fetch("/api/auth/session", {
+      method: "GET",
+      credentials: "same-origin",
+      headers: { Accept: "application/json" },
+      cache: "no-store"
+    });
+    if (!response.ok) return false;
+
+    const payload = await response.json() as {
+      isAuthenticated?: unknown;
+      supabaseAuthenticated?: unknown;
+    };
+    if (
+      typeof payload.isAuthenticated !== "boolean" ||
+      typeof payload.supabaseAuthenticated !== "boolean"
+    ) {
+      return false;
+    }
+
+    return payload.isAuthenticated || payload.supabaseAuthenticated
+      ? endServerSession()
+      : true;
+  } catch {
+    return false;
+  }
+}
+
 type AuthContextValue = GeoAIAuthSession & {
   authStatus: AuthModeStatus;
   isSessionResolved: boolean;
@@ -109,6 +152,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         cache: "no-store",
         headers: { Accept: "application/json" }
       });
+      // Guided access can be activated while this request is in flight. Honor
+      // the newer browser-local state instead of letting a stale response
+      // replace it with an anonymous server session.
+      if (isMockDemoSessionActive()) {
+        setSession(createDemoSession());
+        return;
+      }
       if (!response.ok) {
         setSession(createAnonymousSession());
         return;
@@ -180,7 +230,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (authStatus.effectiveMode === "demo_public") {
       return {
         ok: true,
-        message: "GeoAI is running in public demo access mode; no sign-in is required."
+        message: "GeoAI is running with browser-local guided access; no sign-in is required. This access does not authorize protected server resources."
       };
     }
     const supabase = await loadSupabaseBrowserClient();
@@ -216,25 +266,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function signInDemo(email: string, password: string) {
     if (!matchesMockDemoCredentials(email, password)) {
-      return { ok: false, message: "The demo email or password is incorrect." };
+      return { ok: false, message: "The guided access email or password is incorrect." };
     }
     if (authStatus.effectiveMode === "supabase_auth") {
-      try {
-        await fetch("/api/auth/logout", {
-          method: "POST",
-          credentials: "same-origin",
-          headers: { Accept: "application/json", "Content-Type": "application/json" },
-          body: "{}"
-        });
-      } catch {
-        // A mock demo session never receives protected server authorization,
-        // so an unavailable Supabase logout cannot elevate it.
+      const serverSessionPrepared = await prepareServerSessionForGuidedAccess();
+      if (!serverSessionPrepared) {
+        return {
+          ok: false,
+          message: "Guided access could not start because the server session state could not be safely prepared. Retry or keep using the current signed-in session."
+        };
       }
     }
     activateMockDemoSession();
     setSession(createDemoSession());
     setIsSessionResolved(true);
-    return { ok: true, message: "Demo account is ready." };
+    return { ok: true, message: "Browser-local guided access is ready. It does not authorize protected server resources." };
   }
 
   async function signInWithPassword(email: string, password: string) {
@@ -278,7 +324,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       options: { channel: "sms", shouldCreateUser: false }
     });
     if (error) {
-      return { ok: false, message: "Phone sign-in is unavailable for this existing account or the SMS provider is not configured. Use email or the browser-local demo." };
+      return { ok: false, message: "Phone sign-in is unavailable for this existing account or the SMS provider is not configured. Use email or browser-local guided access." };
     }
     return { ok: true, message: "Enter the six-digit code sent to your phone." };
   }
@@ -319,7 +365,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }, true);
       setSession(createDemoSession());
       return stored
-        ? { ok: true, message: "Demo profile saved in this browser." }
+        ? { ok: true, message: "Guided workspace profile saved in this browser. It does not authorize protected server resources." }
         : { ok: false, message: "The browser blocked local profile storage." };
     }
 
@@ -345,7 +391,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function requestEmailChange(email: string) {
     if (!session.user || session.isDemo) {
-      return { ok: false, message: "The public demo email is fixed." };
+      return { ok: false, message: "The browser-local guided access email is fixed." };
     }
     const normalizedEmail = email.trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail) || normalizedEmail.length > 254) {
@@ -363,7 +409,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function changePassword(password: string) {
     if (!session.user || session.isDemo) {
-      return { ok: false, message: "The public demo password is fixed." };
+      return { ok: false, message: "The browser-local guided access password is fixed." };
     }
     if (password.length < 8 || password.length > 128) {
       return { ok: false, message: "Use a password with at least 8 characters." };
@@ -382,24 +428,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function signOut() {
-    clearMockDemoSession();
-    clearBrowserDemoStorage();
     if (authStatus.effectiveMode === "supabase_auth") {
-      try {
-        await fetch("/api/auth/logout", {
-          method: "POST",
-          credentials: "same-origin",
-          headers: {
-            Accept: "application/json",
-            "Content-Type": "application/json"
-          },
-          body: "{}"
-        });
-      } finally {
-        setSession(createAnonymousSession());
-      }
+      const serverSessionPrepared = await prepareServerSessionForGuidedAccess();
+      if (!serverSessionPrepared) return;
+
+      clearMockDemoSession();
+      clearBrowserDemoStorage();
+      setSession(createAnonymousSession());
       return;
     }
+
+    clearMockDemoSession();
+    clearBrowserDemoStorage();
     setSession(authStatus.effectiveMode === "demo_public" ? createDemoSession() : createAnonymousSession());
   }
 

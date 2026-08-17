@@ -79,7 +79,7 @@ for (const tone of ["validation", "critical"]) {
   }
 }
 
-const profile = h(AccessStatusBadgeVisual, { fullName: "GeoAI Demo", href: "/profile", isAuthenticated: true, label: "Open demo profile" });
+const profile = h(AccessStatusBadgeVisual, { fullName: "GeoAI Guided Workspace", href: "/profile", isAuthenticated: true, label: "Open guided workspace profile" });
 output["authenticated-profile-badge-default"] = harness(profile);
 output["authenticated-profile-badge-focus"] = output["authenticated-profile-badge-default"];
 

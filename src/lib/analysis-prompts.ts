@@ -36,7 +36,7 @@ export function buildAnalyzePrompt(request: AnalyzeRequest) {
       }
     : request.selectedObject
     ? {
-        selectionType: "demo_object",
+        selectionType: "illustrative_local_object",
         name: request.selectedObject.name,
         objectType: request.selectedObject.type,
         layerName: request.selectedObject.layerName,
@@ -92,20 +92,20 @@ Generate concise investor/client-ready narrative analysis for a dashboard. The r
 Critical rules:
 - Return valid JSON only. Do not include Markdown.
 - Do not invent live facts, official data, transaction evidence, parcel ownership, zoning rights, or regulatory conclusions.
-- Respect source status. If a source is mock, planned, or not connected, clearly treat it as demo/planned context.
+- Respect source status. If a source is illustrative, planned, or not connected, clearly treat it as illustrative/planned context.
 - Keep deterministic score values as context only. Do not generate new scores.
 - Mention limitations when the current evidence is synthetic, planned, or not connected.
 - Avoid generic phrases such as "this location has potential" unless you tie them to the scenario, coordinates, object context, scores, or evidence.
 - Do not claim exact zoning, ownership, permitted density, transaction values, rents, yields, or official approvals unless the supplied evidence explicitly validates them.
-- If market context is provided, use the matched Dubai area name and its qualitative/index-style signals, but clearly treat seed/sample-open market context as non-official.
-- If enriched marketMetrics are provided, refer to them as seed_static sample-open indicators: activity, rental demand, liquidity, development pipeline, risk, and trend.
+- If market context is provided, use the matched Dubai area name and its qualitative/index-style signals, but clearly treat fixed local and public/open market context as non-official.
+- If enriched marketMetrics are provided, refer to them as fixed illustrative indicators: activity, rental demand, liquidity, development pipeline, risk, and trend.
 - If spatialContext is provided, use its feature category, geometry type, centroid, estimated area, geometry confidence, source status and limitations. Never describe seed_geojson geometries as official parcel or planning boundaries.
 - If selectionType is user_drawn_aoi, use the AOI centroid, bbox, vertex count, area and perimeter as user-provided screening context only. Clearly state it is not an official parcel, zoning, cadastral, planning, ownership or entitlement boundary.
 - Browser-local uploads and AOI geometry are never included in this server/AI prompt. Protected evidence requires a future request-scoped Auth/RBAC and privacy gateway.
 - If the custom query is non-empty, it is an additional decision lens and must materially affect the executive summary, key factors, risks and recommended actions.
 - Do not ignore the custom query even when the scenario is not Custom Query.
 - Answer the custom query within the constraints of available evidence and clearly state what official/customer-approved validation is required.
-- Keep the content polished, specific, and suitable for a professional pilot demo.
+- Keep the content polished, specific, and suitable for a professional decision-screening workflow.
 
 Scenario:
 ${request.scenarioLabel}
@@ -118,7 +118,7 @@ Required executive summary behavior:
 - Optional sentence 5 may frame the decision implication for an investor, developer, lender, or government client.
 
 Evidence status context:
-${unavailableSourceCount} of ${dataSources.length} provided registry sources are not connected live sources in this MVP.
+${unavailableSourceCount} of ${dataSources.length} provided registry sources are not connected live sources in this environment.
 
 Scenario guidance:
 ${scenarioPromptGuidance[request.scenarioId]}
@@ -137,7 +137,7 @@ ${request.customQueryAnswer ? compactJson(request.customQueryAnswer) : "No deter
 Selected location or object:
 ${compactJson(selection)}
 
-Deterministic mock scores to interpret, not change:
+Deterministic screening scores to interpret, not change:
 ${compactJson(request.deterministicScores)}
 
 Evidence already attached to the dashboard:
@@ -185,7 +185,7 @@ Return JSON matching exactly this shape:
   "evidence_notes": [
     {
       "sourceId": "must match one provided source id when possible",
-      "note": "how this source informs or limits the analysis, including whether it is demo, planned, official, open data or commercial"
+      "note": "how this source informs or limits the analysis, including whether it is illustrative local, planned, official, public/open or commercial"
     }
   ],
   "confidence_level": "low | medium | high",

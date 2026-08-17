@@ -180,11 +180,11 @@ function assertDataFoundationPayload(route, payload) {
     assertObject(osmBuildings, `${route} missing OSM buildings source`);
     assert(osmBuildings.recordCount === 0 && osmBuildings.featureCount === 0, `${route} OSM buildings must not inherit the OSM group total`);
     assert(osmBuildings.usedInAnalysis === false, `${route} zero-feature OSM buildings must not claim analysis use`);
-    for (const sourceId of ["osm-geofabrik-open-roads", "osm-geofabrik-open-pois"]) {
+    for (const sourceId of ["osm-geofabrik-baseline", "osm-geofabrik-open-pois"]) {
       const source = sourcesById.get(sourceId);
       assertObject(source, `${route} missing ${sourceId}`);
       assert(source.recordCount === 1 && source.featureCount === 1, `${route} ${sourceId} must preserve its per-source count 1`);
-      assert(source.usedInAnalysis === true, `${route} ${sourceId} must preserve acquired sample evidence`);
+      assert(source.usedInAnalysis === false, `${route} ${sourceId} must remain blocked until provenance permits decision use`);
     }
 
     const overtureExpectedCounts = new Map([

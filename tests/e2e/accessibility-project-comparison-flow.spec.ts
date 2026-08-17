@@ -81,17 +81,17 @@ async function signInDemoWithKeyboard(page: Page, nextPath: "/projects" | "/work
   await page.goto(`/login?next=${encodeURIComponent(nextPath)}&intent=demo`);
   await expect(page.getByRole("heading", { level: 1, name: "Sign in to GeoAI" })).toBeVisible();
 
-  const demoCredentials = page.getByRole("button", { name: "Use demo credentials" });
+  const demoCredentials = page.getByRole("button", { name: "Use guided access" });
   await tabUntilLocator(page, demoCredentials, { maximumTabs: 40 });
   await page.keyboard.press("Enter");
   await expect(page.getByLabel("Email or phone")).toHaveValue("demo@geoai.space");
   await expect(page.getByLabel("Password")).toHaveValue("111111");
 
-  const openDemo = page.getByRole("button", { name: "Open demo" });
+  const openDemo = page.getByRole("button", { name: "Open guided workspace" });
   await tabUntilLocator(page, openDemo, { maximumTabs: 20 });
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL((url) => url.pathname === nextPath);
-  await expect(page.getByRole("link", { name: "Open demo profile" })).toHaveAttribute("data-authenticated", "true");
+  await expect(page.getByRole("link", { name: "Open guided workspace profile" })).toHaveAttribute("data-authenticated", "true");
 }
 
 test.describe.configure({ mode: "serial" });
@@ -166,9 +166,23 @@ test.describe("accessible browser-local project and comparison journeys", () => 
     const comparisonDashboard = page.locator("section[data-dashboard-comparison-id]");
     await expect(comparisonDashboard).toBeVisible();
     await expect(comparisonDashboard.getByRole("heading", { level: 1, name: "Candidate Comparison" })).toBeVisible();
+    await expect(comparisonDashboard.getByText("Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.", { exact: true })).toBeVisible();
+    await expect(comparisonDashboard).not.toContainText(/imported_sample|fallback_demo|seed_static|sample_fallback/);
     await recordAccessibilityResult(page, "Candidate comparison dashboard");
 
-    const exportButton = comparisonDashboard.getByRole("button", { name: "Export", exact: true });
+    const comparisonId = await comparisonDashboard.getAttribute("data-dashboard-comparison-id");
+    expect(comparisonId).toBeTruthy();
+    await page.goto("/projects");
+    const openComparison = page.getByRole("link", { name: "Open comparison" }).first();
+    await expect(openComparison).toBeVisible();
+    await tabUntilLocator(page, openComparison, { maximumTabs: 180 });
+    await page.keyboard.press("Enter");
+    await expect(page).toHaveURL((url) => url.pathname === "/workspace");
+    const restoredComparisonDashboard = page.locator("section[data-dashboard-comparison-id]");
+    await expect(restoredComparisonDashboard).toHaveAttribute("data-dashboard-comparison-id", comparisonId!);
+    await recordAccessibilityResult(page, "Restored project comparison dashboard");
+
+    const exportButton = restoredComparisonDashboard.getByRole("button", { name: "Export", exact: true });
     await tabUntilLocator(page, exportButton, { maximumTabs: 360 });
     await page.keyboard.press("Enter");
 

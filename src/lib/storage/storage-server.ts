@@ -54,7 +54,7 @@ export function validateEvidenceFile(input: { fileName: string; mimeType: string
   }
 
   if (input.size > maxEvidenceFileSizeBytes) {
-    return { ok: false, message: "Evidence file is larger than the 5 MB MVP limit." };
+    return { ok: false, message: "Evidence file is larger than the configured 5 MB limit." };
   }
 
   if (!allowedEvidenceMimeTypes.includes(mimeType)) {

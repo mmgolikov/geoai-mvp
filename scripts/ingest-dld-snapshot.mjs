@@ -133,7 +133,7 @@ if (!rawRows) {
     generatedAt,
     status: "unavailable",
     inputFile,
-    message: "No DLD / Dubai Pulse snapshot file found. Sample/demo fallback remains active.",
+    message: "No DLD / Dubai Pulse snapshot file found. Illustrative local fallback remains active.",
     caveat
   };
   writeFileSync(qualityPath, JSON.stringify(report, null, 2));

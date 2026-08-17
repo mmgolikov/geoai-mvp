@@ -169,7 +169,7 @@ export function ProfilePanel() {
           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-brand">GeoAI account</p>
           <h1 className="mt-4 text-3xl font-semibold tracking-[-0.025em] text-ink">Sign in to open your profile</h1>
           <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-muted">
-            Your name, region and default B2B/B2C role are available after email, phone or browser-local demo sign-in.
+            Your name, region and default B2B/B2C role are available after existing-account email or phone sign-in, or through browser-local guided access.
           </p>
           <Link href="/login?next=/profile" className="mt-6 inline-flex h-12 items-center justify-center rounded-control bg-brand px-5 text-sm font-semibold text-white transition hover:bg-[#0854dd]">
             Sign in
@@ -309,7 +309,7 @@ export function ProfilePanel() {
 
               {isDemo ? (
                 <div className="mt-5 rounded-[14px] border border-line bg-surface p-4 text-sm leading-6 text-muted">
-                  Demo credentials are fixed: <strong className="text-ink">demo@geoai.space</strong> / <strong className="text-ink">111111</strong>. Demo changes stay browser-local.
+                  Guided workspace sign-in: <strong className="text-ink">demo@geoai.space</strong> / <strong className="text-ink">111111</strong>. Changes stay browser-local and do not authorize protected server resources.
                 </div>
               ) : (
                 <>
@@ -341,7 +341,7 @@ export function ProfilePanel() {
               <h2 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-personal">Phone and photo</h2>
               <p className="mt-3 text-xs leading-5 text-ink">Contact phone above is used for project communication and can be edited independently.</p>
               <p className="mt-3 text-xs leading-5 text-muted">Changing the sign-in phone requires verification. The profile photo remains on this device until protected storage is enabled.</p>
-              <p className="mt-3 text-xs leading-5 text-muted">Two-factor authentication is not part of the current MVP flow.</p>
+              <p className="mt-3 text-xs leading-5 text-muted">Two-factor authentication is not part of this sign-in flow.</p>
             </div>
           </aside>
         </div>

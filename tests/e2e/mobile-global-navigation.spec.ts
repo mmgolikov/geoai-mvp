@@ -14,10 +14,10 @@ async function signInDemo(page: Page, nextPath: "/workspace") {
   if (redirected) {
     return;
   }
-  await page.getByRole("button", { name: "Use demo credentials" }).click();
-  await page.getByRole("button", { name: "Open demo" }).click();
+  await page.getByRole("button", { name: "Use guided access" }).click();
+  await page.getByRole("button", { name: "Open guided workspace" }).click();
   await expect(page).toHaveURL((url) => url.pathname === nextPath);
-  await expect(page.getByRole("link", { name: "Open demo profile" })).toHaveAttribute("data-authenticated", "true");
+  await expect(page.getByRole("link", { name: "Open guided workspace profile" })).toHaveAttribute("data-authenticated", "true");
 }
 
 async function expectNoHorizontalOverflow(page: Page) {

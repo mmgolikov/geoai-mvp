@@ -1,7 +1,7 @@
 # Codex Workflow Instructions
 
 Status: Active coding-agent operating authority
-Last verified: 2026-07-21
+Last verified: 2026-08-16
 Owner: GeoAI Engineering
 Authority: Current Codex/agent operating rules
 Successor: None; any replacement must update `docs/DOCUMENTATION_INDEX.md`
@@ -17,20 +17,17 @@ Repo: https://github.com/mmgolikov/geoai-mvp
 Production: https://geoai-mvp.vercel.app
 Vercel team/project: geoaidev / geoai-mvp
 Release policy/schema: [`docs/RELEASE_AUTHORITY_POLICY.json`](docs/RELEASE_AUTHORITY_POLICY.json). Historical evidence: [`docs/LAST_VERIFIED_RELEASE_SNAPSHOT.json`](docs/LAST_VERIFIED_RELEASE_SNAPSHOT.json).
-Last externally verified `main` snapshot: merged PR #106 at `cc8f9ebcf3989fab4a3c4eac9be9dfb8da786a7b`.
-Last externally verified Production snapshot: deployment `dpl_6RC2ohEdLBjiV82k758tFMkaDB9X`, READY at https://geoai-mvp.vercel.app on the exact merge SHA.
-Live operational authority is external post-release evidence from GitHub default-branch/deployment state, the Vercel Production alias and the Project Hub receipt. Repository snapshots are historical and are superseded when newer release evidence exists.
-Rollback deployment: `dpl_ERVqZPD5GAGDLjAVhMcPF2HT5Br7`.
-Released stage: `public_demo_prototype`; public demo and browser-local deterministic workflows are active. The Production source pack is fail-closed (`503`, disabled, zero sources).
-Production status: public demo, synthetic/local fallback and soft access with Production Supabase not configured. Real geometry, real-source persistence, protected client data and B2B/B2C activation are not authorized.
-Released-runtime boundary: PR #97 containment and PR #106 public-funnel/release-truth fixes are released, but the public demo remains browser-local and fixture-bounded. Never enter or upload confidential, regulated, sensitive or client-protected information. Protected persistence, real sources and confidential pilot operation remain blocked.
-Next delivery controls, in dependency order: development Data API/identity decision and canonical migration replay/RLS; fresh exact-head ENV-01 Preview/negative evidence after owner-confirmed Vercel evacuation and development legacy-key disablement; request-scoped Auth/RBAC hosted personas; protected Storage; explicit source visibility/custody; observability; and current architecture publication.
-Spatial B2B gate: GitHub Issue #80 remains open; delivery, distribution, attribution, retention and rollback decisions are not approved.
-Supabase development remains `geoai-dev`, ref `pphdqkurxneyagvnnjdt`, separate from Production and unchanged by current work; active hosted truth is 10 migrations and 0 Auth users. The only executed candidate target is Free rehearsal `geoai-auth-rehearsal`, ref `bkmfcjzalcvdsdvyxpgi`, eu-west-1. It carries 18 migration-ledger entries, including six applied candidate migrations plus one Data API operator entry; hosted pgTAP passes `183/183`; pgTAP/test transactions leave no additional Auth users; PostgREST exposes only the 14-RPC `api` schema and HTTP denies `public`; all 29 GeoAI domain tables have RLS and uncovered domain FKs are zero. The active hosted rehearsal currently has one pre-existing confirmed Auth user. CR 09.22 did not create that user, the user has no project membership authority, tenant authority or protected-resource authority, and no identifying user data is recorded. A seventh migration is now prepared but unapplied: it implements the owner decision to remove MFA/AAL2 from the MVP while retaining a permanent non-anonymous identity, role, RLS, concurrency and audit controls. That contract does not assert verified email or phone ownership. The application candidate uses one existing-user-only email/phone login surface, redirects `/register` and `/mfa` to `/login`, and provides a browser-only mock demo account `demo@geoai.space`; the public demo password is intentionally non-authoritative and must never grant Admin, protected API or customer-data access. Public email and phone OTP must keep `shouldCreateUser: false`; future registration requires a separately approved invitation/server policy. Phone code transport still requires an external SMS provider. Real HTTP email/phone/browser/Admin/Storage personas, resource-specific Admin pagination, development upgrade/drift certification and Production activation remain open; no real-user browser persona was executed in CR 09.22. Four Storage buckets still have zero object policies. Never create a duplicate rehearsal, change managed PostGIS ACL/RLS blindly, or apply the seventh migration to rehearsal/development/Production by inference. Authoritative receipt: `docs/SUPABASE_AUTH_REHEARSAL_RECEIPT_2026_07_16.json`. SOURCE-02 remains an unsigned authorization-none correlation claim with empty registry, no fetch/env/secrets/persistence or atomic reservation writer; real sources remain blocked.
-Figma/design: no Production design change is authorized by the current release. CR 10.02 authorizes only the bounded Product System v3.2.1 accessibility-corrected token/shared-shell candidate on `design/cr-10-02-foundation-shared-shell`; receipt `1819:11` separates enabled inactive `#606f83` from disabled `#667587` and permits no Axe/WCAG exception. It excludes page-body migration, Page 90/Page 99, Figma/Code Connect writes, merge and Production. See `docs/CR_10_02_DESIGN_FOUNDATION_SHARED_SHELL.md` and GitHub issue #110.
-Auth-rehearsal Preview `dpl_66rk4tVny9TmPjo7BKona5Xo1p1b` is READY on exact candidate head `8e0039260f4cf201b230288b6b02c48d2955600e`; Quality Gate run `29534323096` passed. That evidence predates the simplified email/phone/mock-demo product decision. Hosted HTTP evidence proves hard `supabase_auth`, public-demo denial and no synthetic anonymous identity, closing ENV-01 for non-Production Preview integration. Real email/phone/Admin/rendered-browser personas and the simplified exact-head Preview remain unclaimed; never relabel HTTP smoke as browser evidence.
-Historical draft PRs remain separate governance records; do not merge or close them without explicit owner approval. Independent reviewer approvals are not a prerequisite in the current phase; record Codex/owner critical review honestly and keep objective technical/evidence gates.
-Confluence Project Hub is the single operational entry point/dashboard. Exact SHA, deployment and database facts are governed by the linked repository authorities and machine receipts.
+Last externally verified `main`: merged PR #113 at `7f323c4227f2409f3fe2d4d68be48a30176f4e2a`.
+Last externally verified Production: deployment `dpl_4yBHCo1eZ7N6GYQWGAg1EdQGwFTE`, READY at https://geoai-mvp.vercel.app on the exact released SHA.
+Live authority is external GitHub default-branch state, the Vercel Production alias and the Confluence Current Delivery receipt. Repository snapshots remain historical when newer direct evidence exists.
+Released runtime: browser-local public screening with deterministic illustrative local/public-open context. Production Supabase is not configured; the source pack remains fail-closed. This does not establish protected tenancy, confidential custody, official-source activation, production-ready or pilot-ready status.
+Current candidate: Issue #142 and Draft PR #143 on `product/gcc-real-estate-decision-platform-v1`, based on exact `main@7f323c4227f2409f3fe2d4d68be48a30176f4e2a`. It focuses GeoAI on UAE-first/GCC-expandable real-estate decisions, one result contract, source provenance and successor candidate design. It is not released and must remain Draft until exact-head evidence and owner review are complete.
+Supabase development remains `geoai-dev`, ref `pphdqkurxneyagvnnjdt`, separate from Production. Fresh management evidence reports it inactive and fresh physical read-back is unavailable; historical migration/table/source counts are not current certification. No migration, data, Auth, RLS, Storage, secret or environment mutation is authorized by the current candidate.
+Protected identity, organization/project membership, tenant isolation, private Storage, recovery, audit and confidential workflows remain separately gated. Public browser-local access must never authorize protected server resources or accept confidential, regulated or client-protected information.
+Public email and phone OTP must keep `shouldCreateUser: false`; registration requires a separately approved invitation/server policy. Internal compatibility identifiers such as `demo_seed` or `mock_fallback` may remain in code/contracts, but customer-facing presentation must identify fixed context as `Illustrative local screening context` and preserve exact provenance.
+Figma released authority remains Product System v3.2.2 at `1797:2`. Candidate successor page `1956:11` and authority board `1956:12` cover Landing, Workspace, Dashboard, Project Hub and Reports for Draft PR #143; they do not become released design authority before owner acceptance.
+Confluence candidate control: [10.13 GCC Real Estate Decision Platform v1](https://geoaimvp.atlassian.net/wiki/spaces/PH/pages/25591809). Existing [09.09 Current Delivery State](https://geoaimvp.atlassian.net/wiki/spaces/PH/pages/2097153) remains released authority until an accepted release receipt supersedes it.
+Historical Draft PRs remain separate governance records; do not merge or close them by inference. Record critical review and objective technical/evidence gates honestly.
 
 ## Core product flow
 
@@ -54,7 +51,7 @@ Never work directly on `main`. Use the branch specified in the task. If no branc
 
 Never write or imply: official parcel, official zoning, cadastral validation, ownership verification, certified valuation, approved site, guaranteed best use, live DLD integration, live GeoDubai integration, production-ready, pilot-ready, zoning allows, title clear, investment guaranteed.
 
-Use: screening hypothesis, sample/open context, public/open context, user-provided data, official/client validation required.
+Use: screening hypothesis, illustrative local screening context, public/open context, user-provided data, official/client validation required.
 
 Required caveat in UI/report/AI/source panels:
 
@@ -74,13 +71,13 @@ SOURCE-02 is not a network executor or reservation writer. Keep its registry emp
 
 ## Engineering stack
 
-Next.js App Router, React, TypeScript, Tailwind, Mapbox GL JS, Next API routes, PostgreSQL/PostGIS via Supabase, and dormant optional OpenAI server paths. Public analysis is browser-local deterministic. Keep architecture MVP-fast but pilot/enterprise-compatible.
+Next.js App Router, React, TypeScript, Tailwind, Mapbox GL JS, Next API routes, PostgreSQL/PostGIS via Supabase, and dormant optional OpenAI server paths. Public analysis is browser-local deterministic. Keep architecture reviewable, secure-by-default and enterprise-compatible without overstating current maturity.
 
 ## Design implementation rules
 
 Premium, clean, international, light enterprise SaaS. No dark heavy style unless explicitly requested. Avoid text overlap, overflow, random colors, inconsistent spacing, empty/unbalanced zones, hidden critical controls. Every screen should have one main outcome. Respect product sections, screen states, components, breakpoints and data states. Long content must truncate, wrap safely or use disclosure; never break layout.
 
-New Figma/design work is not to be implemented in code without an explicit owner-approved Change Request. CR 10.02 is the sole current exception and is limited to its approved Product System v3.2.1 token/shared-shell scope. Future design implementation branches must start from the exact approved baseline, preserve `/projects` Data Readiness / Source Lineage unless an approved task explicitly changes it, and must not port Page 14, Page 90, Page 99 or any successor redesign by assumption.
+New Figma/design work is not to be implemented in code without an explicit owner-approved Change Request. Issue #142 authorizes only the bounded Draft PR #143 candidate and Figma page `1956:11`; released Product System v3.2.2 remains the Production authority. Future design branches must start from the exact approved baseline, preserve Data Readiness / Source Lineage unless an approved task explicitly changes it, and must not port unrelated historical pages by assumption.
 
 ## Files and areas to inspect when relevant
 

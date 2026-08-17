@@ -114,7 +114,7 @@ export function validateSpatialFeature(feature: SpatialFeature): SpatialValidati
     issues.push({
       featureId: feature.id,
       severity: "warning",
-      message: "One or more coordinates fall outside the Dubai demo validation envelope."
+      message: "One or more coordinates fall outside the configured Dubai screening envelope."
     });
   }
 

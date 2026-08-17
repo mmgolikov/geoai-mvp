@@ -13,26 +13,13 @@
    * unavailable and disabled. Hide only that unavailable action. Once a point
    * is selected the enabled comparison action remains available.
    */
-  aside > section.sticky.bottom-0 > button:first-of-type:disabled {
+  [data-workspace-primary-actions] > button:first-of-type:disabled {
     display: none;
   }
 
   /* Keep the focused query input above the sticky action and safe-area inset. */
   #custom-query {
     scroll-margin-bottom: calc(8.5rem + env(safe-area-inset-bottom));
-  }
-}
-
-@media (max-width: 400px) {
-  /*
-   * At the controlled 390x844 viewport even the compact primary action covers
-   * the lower part of Custom Query. Keep this action block in normal flow on
-   * the narrowest screens; the same primary action is also available in the
-   * contextual selection card, so the workflow remains reachable by scroll.
-   */
-  aside > section.sticky.bottom-0 {
-    position: static;
-    box-shadow: none;
   }
 }
 

@@ -46,7 +46,7 @@ type SupabaseStorageClientLike = {
 };
 
 export const maxEvidenceFileSizeBytes = 5 * 1024 * 1024;
-const maxFileSize = "5 MB per MVP evidence file";
+const maxFileSize = "5 MB per evidence file";
 export const allowedEvidenceMimeTypes = [
   "application/pdf",
   "text/csv",

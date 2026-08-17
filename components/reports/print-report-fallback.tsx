@@ -6,8 +6,11 @@ import { AnalysisReportPrint } from "@/components/reports/analysis-report-print"
 import { ComparisonReportPrint } from "@/components/reports/comparison-report-print";
 import { PrintButton } from "@/components/reports/print-button";
 import { getSeededDemoReportRecord } from "@/src/data/demo-report-seeds";
+import { demoProjects } from "@/src/data/demo-projects";
 import { browserDemoStorageKey, isBrowserDemoStorageEnabled } from "@/src/lib/browser-demo-storage";
 import { normalizeReportDeliverable, type AnalysisReportDeliverable, type ComparisonReportDeliverable } from "@/src/lib/report-deliverables";
+import { normalizeReportForDisplay } from "@/src/lib/report-display-normalization";
+import { mergeProjectsWithLocal } from "@/src/lib/project-local-store";
 
 type PrintReportFallbackProps = {
   reportId: string;
@@ -27,12 +30,23 @@ export function PrintReportFallback({ reportId }: PrintReportFallbackProps) {
       const localRaw = browserStorageEnabled
         ? window.localStorage.getItem(storageKey)
         : null;
-      const parsed = sessionRaw
+      const seededRecord = getSeededDemoReportRecord(reportId);
+      const parsed = seededRecord ?? (sessionRaw
         ? JSON.parse(sessionRaw)
         : localRaw
           ? JSON.parse(localRaw)
-          : getSeededDemoReportRecord(reportId);
-      setReport(normalizeReportDeliverable(parsed));
+          : null);
+      const mergedProjects = mergeProjectsWithLocal(demoProjects);
+      const demoProjectKeys = new Set(demoProjects.map((project) => project.projectKey));
+      const canonicalProjects = [
+        ...demoProjects,
+        ...mergedProjects.filter((project) => !demoProjectKeys.has(project.projectKey))
+      ];
+      const normalized = normalizeReportDeliverable(parsed, {
+        expectedReportId: reportId,
+        canonicalProjects
+      });
+      setReport(normalized ? normalizeReportForDisplay(normalized) : null);
     } catch {
       setReport(null);
     } finally {
@@ -47,7 +61,7 @@ export function PrintReportFallback({ reportId }: PrintReportFallbackProps) {
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">Printable deliverable</p>
             <h2 className="mt-1 text-xl font-semibold text-ink">{report.title}</h2>
-            <p className="mt-1 text-sm leading-6 text-muted">Loaded from saved browser/sample fallback; official validation required.</p>
+            <p className="mt-1 text-sm leading-6 text-muted">Loaded from saved browser or illustrative local context; official validation required.</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <Link
@@ -77,7 +91,7 @@ export function PrintReportFallback({ reportId }: PrintReportFallbackProps) {
         <h1 className="mt-3 text-3xl font-semibold">{checked ? "Report unavailable" : "Preparing printable report"}</h1>
         <p className="mt-3 text-sm leading-6 text-muted">
           {checked
-            ? "This report id is not available in saved browser data or seeded demo reports. Return to the workspace or project dashboard to generate a fresh memo."
+            ? "This report id is not available in saved browser data or prepared local screening reports. Return to the workspace or project dashboard to generate a fresh memo."
             : "Checking saved report payload and local session fallback."}
         </p>
         <div className="mt-6 flex flex-wrap gap-3">

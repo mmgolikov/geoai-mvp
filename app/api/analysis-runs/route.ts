@@ -71,7 +71,7 @@ export async function GET(request: Request) {
     count: Array.isArray(localProjectItems) ? localProjectItems.length : 0,
     items: localProjectItems,
     error: result.error,
-    dataHonesty: "Analysis runs preserve demo/local source lineage unless externally validated."
+    dataHonesty: "Analysis runs preserve illustrative local source lineage unless externally validated."
   });
 }
 

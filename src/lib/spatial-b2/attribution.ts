@@ -52,8 +52,8 @@ export const spatialAttributionRegistry: Record<string, SpatialAttributionRecord
   "geoai-sample-layers": {
     id: "geoai-sample-layers",
     kind: "geoai_overlay",
-    sourceName: "GeoAI sample layers",
-    notice: "Synthetic Dubai sample geometry for screening workflow demonstration.",
+    sourceName: "GeoAI illustrative local layers",
+    notice: "Synthetic Dubai geometry for illustrative local screening context.",
     datasetId: "geoai-current-synthetic-dubai-seed",
     datasetVersion: "spatial-demo-v1",
     licenseName: null,
@@ -65,7 +65,7 @@ export const spatialAttributionRegistry: Record<string, SpatialAttributionRecord
     id: "local-open-geodata-fixture",
     kind: "dataset",
     sourceName: "GeoAI local OSM-style fixture",
-    notice: "Local open-geodata sample fixture; not live OSM and no external licence is inferred.",
+    notice: "Local open-geodata fixture for illustrative screening context; not live OSM and no external licence is inferred.",
     datasetId: "geoai-open-geodata-baseline",
     datasetVersion: "local-fixture-v1",
     licenseName: null,
@@ -161,8 +161,8 @@ export function aggregateSpatialAttribution(input: {
     sourceMode: input.sourceMode,
     basemapMode: input.basemapMode,
     compactLabel: hasNonSyntheticAttribution
-      ? "Active local/test layers · source details"
-      : "GeoAI sample layers",
+      ? "Active local/context layers · source details"
+      : "GeoAI illustrative local layers",
     basemapAttribution: input.basemapMode === "mapbox" ? spatialAttributionRegistry["mapbox-basemap"] : null,
     overlayAttributions,
     activeAttributionIds,
@@ -175,6 +175,7 @@ export function normalizeSpatialAttributionPayload(value: unknown): SpatialAttri
   const payload = value as Partial<SpatialAttributionPayload>;
   if (
     payload.schemaVersion !== "spatial-attribution-v2" ||
+    (payload.sourceMode !== "synthetic_fallback" && payload.sourceMode !== "open_context_preview") ||
     !["mapbox", "fallback_grid", "none"].includes(payload.basemapMode ?? "") ||
     typeof payload.compactLabel !== "string" ||
     (payload.basemapMode === "mapbox" && !payload.basemapAttribution) ||
@@ -186,5 +187,23 @@ export function normalizeSpatialAttributionPayload(value: unknown): SpatialAttri
     return null;
   }
 
-  return payload as SpatialAttributionPayload;
+  const activeAttributionIds = [...new Set(payload.activeAttributionIds)];
+  if (
+    activeAttributionIds.length > 64 ||
+    activeAttributionIds.some((id) =>
+      typeof id !== "string" ||
+      id.length === 0 ||
+      id.length > 128 ||
+      !spatialAttributionRegistry[id] ||
+      spatialAttributionRegistry[id].kind === "basemap"
+    )
+  ) {
+    return null;
+  }
+
+  return aggregateSpatialAttribution({
+    sourceMode: payload.sourceMode,
+    basemapMode: payload.basemapMode as SpatialBasemapMode,
+    activeAttributionIds
+  });
 }

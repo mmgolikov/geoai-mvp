@@ -1,6 +1,12 @@
 import type { ExternalDataManifest, ExternalDataManifestSource } from "@/src/lib/external-data/data-manifest";
 import { externalDataCaveat } from "@/src/lib/external-data/source-registry";
-import { normalizeSourceDataMode, type SourceDataMode } from "@/src/lib/external-data/source-modes";
+import {
+  normalizeSourceDataMode,
+  sourcePresentationLabel,
+  sourceValidationStatusFor,
+  type SourceDataMode,
+  type SourceValidationStatus
+} from "@/src/lib/external-data/source-modes";
 import {
   normalizeSourceStatus,
   sourceStatusPriority,
@@ -14,6 +20,10 @@ export type SourceReadinessGroup = {
   sourceIds: string[];
   status: SourceStatus;
   dataMode: SourceDataMode;
+  validationStatus: SourceValidationStatus;
+  presentationLabel: string;
+  sampleData: boolean;
+  smallSnapshot: boolean;
   recordCount: number | null;
   confidence: "medium" | "low" | "requires-validation";
   coverageArea: string;
@@ -22,6 +32,16 @@ export type SourceReadinessGroup = {
   caveat: string;
   nextValidationStep: string;
   validationRequired: true;
+  qualityState: "no_release" | "blocked" | "screening_context" | "validated_snapshot";
+  decisionUse: "allowed" | "blocked";
+  provenanceValid: boolean;
+  evidence: {
+    hashesComplete: boolean;
+    countsComplete: boolean;
+    rightsComplete: boolean;
+    custodyComplete: boolean;
+  };
+  blockers: string[];
 };
 
 type SourceGroupDefinition = {
@@ -145,12 +165,18 @@ export function buildSourceReadinessGroups(manifest: ExternalDataManifest): Sour
     const ids = new Set([...definition.sourceIds, ...(definition.aliases ?? [])]);
     const matches = sources.filter((source) => ids.has(source.id));
     const qualityGroup = manifest.sourceQuality?.groups.find((group) => group.sourceGroupId === definition.id);
+    const provenanceGroup = manifest.sourceProvenance?.groups.find((group) => group.sourceGroupId === definition.id);
     const statuses = matches.map((source) => normalizeSourceStatus(source.status));
-    const status = qualityGroup
+    const requestedStatus = qualityGroup
       ? normalizeSourceStatus(qualityGroup.status)
       : statuses.length > 0
         ? statuses.sort((a, b) => sourceStatusPriority(a) - sourceStatusPriority(b))[0]
         : definition.fallbackStatus;
+    const provenanceAllowsDecision = Boolean(provenanceGroup?.decisionEligibleReleaseCount);
+    const status =
+      (requestedStatus === "snapshot_available" || requestedStatus === "connected") && !provenanceAllowsDecision
+        ? "manual_import_ready"
+        : requestedStatus;
     const counts = matches.map(sourceCount).filter((count): count is number => typeof count === "number");
     const qualityCount = qualityGroup?.recordCount ?? qualityGroup?.featureCount;
     const recordCount = typeof qualityCount === "number" && Number.isFinite(qualityCount)
@@ -161,13 +187,17 @@ export function buildSourceReadinessGroups(manifest: ExternalDataManifest): Sour
     const resolvedDataMode = normalizeSourceDataMode(
       qualityGroup?.dataMode ?? matches.find((source) => source.sourceMode)?.sourceMode ?? status ?? definition.fallbackDataMode
     );
-    const dataMode = definition.fallbackDataMode === "api_context" && status === "connected"
+    const dataMode = !provenanceAllowsDecision && (requestedStatus === "snapshot_available" || requestedStatus === "connected")
+      ? "planned_validation"
+      : definition.fallbackDataMode === "api_context" && status === "connected"
       ? "api_context"
-      : status === "sample_fallback" && resolvedDataMode === "demo_seed"
+      : status === "sample_fallback"
         ? "sample_fallback"
         : resolvedDataMode;
     const availableFiles = Array.from(new Set(matches.flatMap((source) => source.availableFiles ?? [])));
     const caveat = externalDataCaveat;
+    const validationStatus = qualityGroup?.validationStatus ?? sourceValidationStatusFor(status);
+    const sampleData = status === "sample_fallback" || validationStatus === "sample-only";
 
     return {
       id: definition.id,
@@ -176,14 +206,36 @@ export function buildSourceReadinessGroups(manifest: ExternalDataManifest): Sour
       sourceIds: [...definition.sourceIds, ...(definition.aliases ?? [])],
       status,
       dataMode,
+      validationStatus,
+      presentationLabel: sourcePresentationLabel({ dataMode, status, validationStatus }),
+      sampleData,
+      smallSnapshot: sampleData && recordCount !== null && recordCount < 100,
       recordCount,
-      confidence: qualityGroup?.confidence ?? confidenceFor(status, Boolean(recordCount && recordCount > 0), definition.fallbackConfidence),
+      confidence: provenanceGroup?.confidence === "insufficient"
+        ? "requires-validation"
+        : provenanceGroup?.confidence === "low"
+          ? "low"
+          : qualityGroup?.confidence ?? confidenceFor(status, Boolean(recordCount && recordCount > 0), definition.fallbackConfidence),
       coverageArea: matches.find((source) => source.coverageArea)?.coverageArea ?? definition.coverageArea,
       availableFiles,
       lastUpdated: newestDate(matches.map((source) => source.lastUpdated)),
       caveat,
       nextValidationStep: definition.nextValidationStep,
-      validationRequired: true
+      validationRequired: true,
+      qualityState: provenanceGroup?.qualityState ?? "no_release",
+      decisionUse: provenanceAllowsDecision ? "allowed" : "blocked",
+      provenanceValid: Boolean(
+        provenanceGroup &&
+        provenanceGroup.releaseCount > 0 &&
+        provenanceGroup.validReleaseCount === provenanceGroup.releaseCount
+      ),
+      evidence: provenanceGroup?.evidence ?? {
+        hashesComplete: false,
+        countsComplete: false,
+        rightsComplete: false,
+        custodyComplete: false
+      },
+      blockers: provenanceGroup?.blockers ?? ["No strict local source provenance release is recorded for this source group."]
     };
   });
 }
@@ -195,6 +247,9 @@ export function sourceReadinessSummary(groups: SourceReadinessGroup[]) {
     apiContextGroups: groups.filter((group) => group.status === "connected").length,
     fallbackGroups: groups.filter((group) => group.status === "sample_fallback").length,
     manualImportGroups: groups.filter((group) => group.status === "manual_import_ready").length,
+    screeningContextGroups: groups.filter((group) => group.qualityState === "screening_context").length,
+    decisionEligibleGroups: groups.filter((group) => group.decisionUse === "allowed").length,
+    blockedGroups: groups.filter((group) => group.decisionUse === "blocked").length,
     validationRequired: true,
     caveat: externalDataCaveat
   };

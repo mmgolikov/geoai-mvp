@@ -71,11 +71,11 @@ export function getExploreModeSummary(modes: InteractionMode[]) {
 
 export function getExploreCandidateSourceLabel(sourceType: ExploreCandidate["sourceType"]) {
   const labels: Record<ExploreCandidate["sourceType"], string> = {
-    sample: "Sample",
-    open_context: "Open",
-    user_provided: "User",
-    demo_seed: "Sample/open",
-    fallback: "Sample/open"
+    sample: "Illustrative local context",
+    open_context: "Public/open context",
+    user_provided: "User-provided context",
+    demo_seed: "Illustrative local screening context",
+    fallback: "Illustrative local screening context"
   };
 
   return labels[sourceType];

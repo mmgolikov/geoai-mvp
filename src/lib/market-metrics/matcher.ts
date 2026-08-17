@@ -4,6 +4,11 @@ import {
   listImportedMarketMetrics,
   normalizeAreaName
 } from "@/src/lib/market-metrics/loader";
+import {
+  MARKET_METRICS_FALLBACK_RELEASE_GATE,
+  MARKET_METRICS_SAMPLE_RELEASE_GATE,
+  isMarketMetricsDecisionUseAllowed
+} from "@/src/lib/market-metrics/release-gate";
 import type {
   MarketMetricSelectionContext,
   MarketMetricsMatch
@@ -53,14 +58,16 @@ function candidateText(context: MarketMetricSelectionContext) {
 }
 
 function metricMatch(metricAreaName: string, matchType: MarketMetricsMatch["matchType"], confidence: MarketMetricsMatch["confidence"], note: string): MarketMetricsMatch {
+  const releaseGate = MARKET_METRICS_SAMPLE_RELEASE_GATE;
   return {
     matchedAreaName: metricAreaName,
     matchType,
     confidence,
     sourceMode: "imported_sample",
-    importedMetricsUsed: true,
+    importedMetricsUsed: isMarketMetricsDecisionUseAllowed(releaseGate),
+    releaseGate,
     metrics: getMarketMetricsByArea(metricAreaName),
-    note
+    note: `${note} Available as screening context; the current release gate blocks decision scoring.`
   };
 }
 
@@ -73,8 +80,9 @@ function fallbackMatch(context: MarketMetricSelectionContext): MarketMetricsMatc
       confidence: "medium",
       sourceMode: "seed_static",
       importedMetricsUsed: false,
+      releaseGate: MARKET_METRICS_FALLBACK_RELEASE_GATE,
       metrics: null,
-      note: "Seed_static demo metrics used because imported market metrics did not match this selection."
+      note: "Illustrative local metrics are used because no imported market metrics matched this selection."
     };
   }
 
@@ -84,6 +92,7 @@ function fallbackMatch(context: MarketMetricSelectionContext): MarketMetricsMatc
     confidence: "low",
     sourceMode: "fallback_demo",
     importedMetricsUsed: false,
+    releaseGate: MARKET_METRICS_FALLBACK_RELEASE_GATE,
     metrics: null,
     note: "No imported market metrics were matched to this selection; general Dubai fallback context is used."
   };
@@ -99,7 +108,7 @@ export function findBestMarketMetricMatch(context: MarketMetricSelectionContext)
   if (exactCandidate) {
     const exact = getMarketMetricsByArea(exactCandidate);
     if (exact) {
-      return metricMatch(exact.areaName, "exact", "high", `Imported sample metrics matched exactly to ${exact.areaName}.`);
+      return metricMatch(exact.areaName, "exact", "high", `Locally imported screening metrics matched exactly to ${exact.areaName}.`);
     }
   }
 
@@ -108,7 +117,7 @@ export function findBestMarketMetricMatch(context: MarketMetricSelectionContext)
     if (normalizedText.includes(normalizeAreaName(alias))) {
       const metric = getMarketMetricsByArea(areaName);
       if (metric) {
-        return metricMatch(metric.areaName, "alias", "medium", `Imported sample metrics matched by alias to ${metric.areaName}.`);
+        return metricMatch(metric.areaName, "alias", "medium", `Locally imported screening metrics matched by alias to ${metric.areaName}.`);
       }
     }
   }
@@ -118,7 +127,7 @@ export function findBestMarketMetricMatch(context: MarketMetricSelectionContext)
     return normalizedText.includes(area) || area.split(" ").some((part) => part.length > 4 && normalizedText.includes(part));
   });
   if (partial) {
-    return metricMatch(partial.areaName, "partial", "medium", `Imported sample metrics partially matched to ${partial.areaName}.`);
+    return metricMatch(partial.areaName, "partial", "medium", `Locally imported screening metrics partially matched to ${partial.areaName}.`);
   }
 
   if (context.point) {
@@ -130,7 +139,7 @@ export function findBestMarketMetricMatch(context: MarketMetricSelectionContext)
     if (nearest && nearest.distance <= 12) {
       const metric = getMarketMetricsByArea(nearest.name);
       if (metric) {
-        return metricMatch(metric.areaName, "partial", nearest.distance <= 5 ? "medium" : "low", `Imported sample metrics matched by nearest seed area to ${metric.areaName}.`);
+        return metricMatch(metric.areaName, "partial", nearest.distance <= 5 ? "medium" : "low", `Locally imported screening metrics matched by nearest configured area to ${metric.areaName}.`);
       }
     }
   }

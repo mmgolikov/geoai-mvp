@@ -78,7 +78,7 @@ export type DemoLayer = {
 
 const demoLayerDesign: Record<DemoLayerId, Omit<DemoLayer, "id" | "name" | "type" | "color" | "features">> = {
   coastalFloodRiskZones: {
-    description: "Subtle coastal and drainage exposure signals for demo risk screening.",
+    description: "Illustrative coastal and drainage exposure signals for early risk screening.",
     category: "Climate / Risk",
     sourceMode: "demo_normalized",
     style: {
@@ -94,7 +94,7 @@ const demoLayerDesign: Record<DemoLayerId, Omit<DemoLayer, "id" | "name" | "type
     layerOrder: 10,
     clickPriority: 25,
     legendLabel: "Coastal exposure signals",
-    disclaimer: "Sample/open exposure band; not an official flood or coastal hazard boundary."
+    disclaimer: "Illustrative local/public-open exposure band; not an official flood or coastal hazard boundary."
   },
   heatRiskZones: {
     description: "Subtle urban heat screening signals for climate resilience review.",
@@ -113,7 +113,7 @@ const demoLayerDesign: Record<DemoLayerId, Omit<DemoLayer, "id" | "name" | "type
     layerOrder: 20,
     clickPriority: 24,
     legendLabel: "Heat exposure signals",
-    disclaimer: "Sample/open screening zone; official hazard validation is required."
+    disclaimer: "Illustrative local/public-open screening zone; official hazard validation is required."
   },
   developmentZones: {
     description: "Compact growth and pipeline signals for early site-screening workflows.",
@@ -132,7 +132,7 @@ const demoLayerDesign: Record<DemoLayerId, Omit<DemoLayer, "id" | "name" | "type
     layerOrder: 30,
     clickPriority: 55,
     legendLabel: "Growth / pipeline signals",
-    disclaimer: "Sample/open screening overlay; not a planning or zoning boundary."
+    disclaimer: "Illustrative local/public-open screening overlay; not a planning or zoning boundary."
   },
   premiumRealEstateAreas: {
     description: "Compact market signal areas for investment and development screening.",
@@ -151,7 +151,7 @@ const demoLayerDesign: Record<DemoLayerId, Omit<DemoLayer, "id" | "name" | "type
     layerOrder: 40,
     clickPriority: 70,
     legendLabel: "Market signal areas",
-    disclaimer: "Sample/open market signal area; not an official market boundary."
+    disclaimer: "Illustrative local/public-open market signal area; not an official market boundary."
   },
   assetParcelObjects: {
     description: "Small selected AOI examples used for investor memo and object-selection flows.",
@@ -170,10 +170,10 @@ const demoLayerDesign: Record<DemoLayerId, Omit<DemoLayer, "id" | "name" | "type
     layerOrder: 50,
     clickPriority: 82,
     legendLabel: "Selected AOI examples",
-    disclaimer: "Sample area of interest only; not an official parcel, title, ownership, or planning boundary."
+    disclaimer: "Illustrative area of interest only; not an official parcel, title, ownership, or planning boundary."
   },
   transportCorridors: {
-    description: "Indicative access corridors representing major demo mobility relationships.",
+    description: "Indicative access corridors representing major illustrative mobility relationships.",
     category: "Infrastructure",
     sourceMode: "demo_normalized",
     style: {
@@ -190,10 +190,10 @@ const demoLayerDesign: Record<DemoLayerId, Omit<DemoLayer, "id" | "name" | "type
     layerOrder: 60,
     clickPriority: 35,
     legendLabel: "Access corridors",
-    disclaimer: "Indicative demo corridor; not an official transport alignment."
+    disclaimer: "Illustrative local corridor; not an official transport alignment."
   },
   infrastructureNodes: {
-    description: "Sample airports, mobility hubs, business anchors and development anchors.",
+    description: "Illustrative airports, mobility hubs, business anchors and development anchors.",
     category: "Anchors / POI",
     sourceMode: "demo_normalized",
     style: {
@@ -210,10 +210,10 @@ const demoLayerDesign: Record<DemoLayerId, Omit<DemoLayer, "id" | "name" | "type
     layerOrder: 70,
     clickPriority: 95,
     legendLabel: "Spatial anchors",
-    disclaimer: "Sample/open anchor point; official source validation is required."
+    disclaimer: "Illustrative local/public-open anchor point; official source validation is required."
   },
   constructionSites: {
-    description: "Sample construction monitoring targets for progress and lender-reporting workflows.",
+    description: "Illustrative construction monitoring targets for progress and lender-reporting workflows.",
     category: "Anchors / POI",
     sourceMode: "demo_normalized",
     style: {
@@ -230,7 +230,7 @@ const demoLayerDesign: Record<DemoLayerId, Omit<DemoLayer, "id" | "name" | "type
     layerOrder: 80,
     clickPriority: 92,
     legendLabel: "Pipeline watch points",
-    disclaimer: "Sample construction target; not a live project-control record."
+    disclaimer: "Illustrative construction target; not a live project-control record."
   },
   futureMunicipalityGis: {
     description: "Placeholder for future official GIS validation sources.",
@@ -249,7 +249,7 @@ const demoLayerDesign: Record<DemoLayerId, Omit<DemoLayer, "id" | "name" | "type
     layerOrder: 90,
     clickPriority: 10,
     legendLabel: "Future official GIS",
-    disclaimer: "Planned official integration only; not connected in this MVP."
+    disclaimer: "Planned official integration only; not connected in the current runtime."
   },
   futureCustomerAssets: {
     description: "Placeholder for customer-uploaded assets and boundaries.",

@@ -51,27 +51,27 @@ for (const viewport of viewports) {
       await page.goto("/");
 
       await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
-      await expect(page.getByRole("heading", { level: 1, name: "Ask the map. Move with evidence." })).toBeVisible();
+      await expect(page.getByRole("heading", { level: 1, name: "GeoAI Real Estate Decision Intelligence" })).toBeVisible();
 
-      const demoLink = page.getByRole("link", { name: "View demo" }).last();
+      const workspaceLink = page.getByRole("link", { name: "Open workspace" }).last();
       const requestLink = page.getByRole("link", { name: "Prepare request brief" }).last();
-      await expect(demoLink).toBeVisible();
-      await expect(demoLink).toHaveAttribute("href", "/login?next=/workspace&intent=demo");
+      await expect(workspaceLink).toBeVisible();
+      await expect(workspaceLink).toHaveAttribute("href", "/login?next=/workspace");
       await expect(requestLink).toBeVisible();
       await expect(requestLink).toHaveAttribute("href", "/request-access");
       await expect(page.getByRole("link", { name: "Sign in to GeoAI" })).toBeVisible();
       await expectNoHorizontalOverflow(page);
 
-      await demoLink.click();
+      await workspaceLink.click();
       await expect(page).toHaveURL((url) =>
         url.pathname === "/login"
         && url.searchParams.get("next") === "/workspace"
-        && url.searchParams.get("intent") === "demo"
+        && url.searchParams.get("intent") === null
       );
       await expect(page.getByRole("heading", { level: 1, name: "Sign in to GeoAI" })).toBeVisible();
       await expect(page.getByLabel("Email or phone")).toBeVisible();
       await expect(page.getByLabel("Password")).toBeVisible();
-      await expect(page.getByRole("button", { name: "Use demo credentials" })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Use guided access" })).toBeVisible();
       await expectNoHorizontalOverflow(page);
     });
   });
@@ -80,38 +80,38 @@ for (const viewport of viewports) {
 test.describe("mobile keyboard and target-size access", () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
-  test("opens the demo workspace with the keyboard and exposes the authenticated profile control", async ({ page }) => {
+  test("opens the guided workspace with the keyboard and exposes the authenticated profile control", async ({ page }) => {
     await page.goto("/");
 
-    const demoLink = page.getByRole("link", { name: "View demo" }).last();
+    const workspaceLink = page.getByRole("link", { name: "Open workspace" }).last();
     const requestLink = page.getByRole("link", { name: "Prepare request brief" }).last();
     const profileLink = page.getByRole("link", { name: "Sign in to GeoAI" });
 
-    for (const control of [demoLink, requestLink, profileLink]) {
+    for (const control of [workspaceLink, requestLink, profileLink]) {
       const box = await control.boundingBox();
       expect(box, "Primary mobile controls must have a rendered box").not.toBeNull();
       expect(box?.width ?? 0).toBeGreaterThanOrEqual(40);
       expect(box?.height ?? 0).toBeGreaterThanOrEqual(40);
     }
 
-    await tabUntil(page, (control) => control.href === "/login?next=/workspace&intent=demo");
+    await tabUntil(page, (control) => control.href === "/login?next=/workspace");
     await page.keyboard.press("Enter");
-    await expect(page).toHaveURL((url) => url.pathname === "/login" && url.searchParams.get("intent") === "demo");
+    await expect(page).toHaveURL((url) => url.pathname === "/login" && url.searchParams.get("intent") === null);
 
-    await tabUntil(page, (control) => control.text === "Use demo credentials");
+    await tabUntil(page, (control) => control.text === "Use guided access");
     await page.keyboard.press("Enter");
     await expect(page.getByLabel("Email or phone")).toHaveValue("demo@geoai.space");
     await expect(page.getByLabel("Password")).toHaveValue("111111");
 
-    await tabUntil(page, (control) => control.text === "Open demo");
+    await tabUntil(page, (control) => control.text === "Open guided workspace");
     await page.keyboard.press("Enter");
     await expect(page).toHaveURL((url) => url.pathname === "/workspace");
 
-    const authenticatedProfile = page.getByRole("link", { name: "Open demo profile" });
+    const authenticatedProfile = page.getByRole("link", { name: "Open guided workspace profile" });
     await expect(authenticatedProfile).toBeVisible();
     await expect(authenticatedProfile).toHaveAttribute("data-authenticated", "true");
 
-    await tabUntil(page, (control) => control.label === "Open demo profile");
+    await tabUntil(page, (control) => control.label === "Open guided workspace profile");
     await page.keyboard.press("Enter");
     await expect(page).toHaveURL((url) => url.pathname === "/profile");
     await expect(page.getByRole("heading", { level: 1, name: "Your profile" })).toBeVisible();
