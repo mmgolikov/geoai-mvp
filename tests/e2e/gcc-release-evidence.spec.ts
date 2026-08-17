@@ -20,9 +20,15 @@ type ViewportMetric = {
   documentScrollWidth: number;
   horizontalOverflowPx: number;
   workspaceLayout?: {
+    customQueryHeightPx: number;
     customQueryFooterIntersectionPx: number;
     customQueryFullyInViewport: boolean;
+    customQueryOpacity: number;
+    customQueryWidthPx: number;
+    primaryActionHeightPx: number;
     primaryActionInViewport: boolean;
+    primaryActionOpacity: number;
+    primaryActionWidthPx: number;
   };
   route: string;
   screenshot: string;
@@ -170,26 +176,57 @@ async function captureSurface(
   await coreSurface.scrollIntoViewIfNeeded();
   const viewportMetrics = await readViewportMetrics(page);
   expect(viewportMetrics.horizontalOverflowPx, `${viewport.name} ${surface} horizontal overflow`).toBe(0);
+  if (surface === "workspace") {
+    await expect(page.locator("#custom-query"), `${viewport.name} Custom Query must render visibly`).toBeVisible();
+    await expect(
+      page.locator("[data-workspace-primary-actions]"),
+      `${viewport.name} primary action region must render visibly`
+    ).toBeVisible();
+    await expect(
+      page.locator("[data-workspace-primary-actions] button:last-of-type"),
+      `${viewport.name} primary action must render visibly`
+    ).toBeVisible();
+  }
   const workspaceLayout = surface === "workspace"
     ? await page.evaluate(() => {
-        const query = document.querySelector("#custom-query")?.getBoundingClientRect();
-        const footer = document.querySelector("[data-workspace-primary-actions]")?.getBoundingClientRect();
-        const primaryAction = document.querySelector("[data-workspace-primary-actions] button:last-of-type")?.getBoundingClientRect();
-        if (!query || !footer || !primaryAction) return null;
+        const queryElement = document.querySelector<HTMLElement>("#custom-query");
+        const footerElement = document.querySelector<HTMLElement>("[data-workspace-primary-actions]");
+        const primaryActionElement = document.querySelector<HTMLElement>(
+          "[data-workspace-primary-actions] button:last-of-type"
+        );
+        if (!queryElement || !footerElement || !primaryActionElement) return null;
+        const query = queryElement.getBoundingClientRect();
+        const footer = footerElement.getBoundingClientRect();
+        const primaryAction = primaryActionElement.getBoundingClientRect();
         const horizontalIntersection = Math.max(0, Math.min(query.right, footer.right) - Math.max(query.left, footer.left));
         const verticalIntersection = horizontalIntersection > 0
           ? Math.max(0, Math.min(query.bottom, footer.bottom) - Math.max(query.top, footer.top))
           : 0;
         return {
+          customQueryHeightPx: query.height,
           customQueryFooterIntersectionPx: verticalIntersection,
           customQueryFullyInViewport: query.top >= 0 && query.bottom <= window.innerHeight,
-          primaryActionInViewport: primaryAction.top >= 0 && primaryAction.bottom <= window.innerHeight
+          customQueryOpacity: Number.parseFloat(window.getComputedStyle(queryElement).opacity),
+          customQueryWidthPx: query.width,
+          primaryActionHeightPx: primaryAction.height,
+          primaryActionInViewport: primaryAction.top >= 0 && primaryAction.bottom <= window.innerHeight,
+          primaryActionOpacity: Number.parseFloat(window.getComputedStyle(primaryActionElement).opacity),
+          primaryActionWidthPx: primaryAction.width
         };
       })
     : undefined;
+  if (surface === "workspace") {
+    expect(workspaceLayout, `${viewport.name} workspace controls must yield layout metrics`).not.toBeNull();
+  }
   if (workspaceLayout && viewport.width <= 834) {
+    expect(workspaceLayout.customQueryWidthPx, `${viewport.name} Custom Query width`).toBeGreaterThan(0);
+    expect(workspaceLayout.customQueryHeightPx, `${viewport.name} Custom Query height`).toBeGreaterThan(0);
+    expect(workspaceLayout.customQueryOpacity, `${viewport.name} Custom Query opacity`).toBeGreaterThan(0);
     expect(workspaceLayout.customQueryFullyInViewport, `${viewport.name} Custom Query must be fully visible`).toBe(true);
     expect(workspaceLayout.customQueryFooterIntersectionPx, `${viewport.name} Custom Query/footer intersection`).toBe(0);
+    expect(workspaceLayout.primaryActionWidthPx, `${viewport.name} primary action width`).toBeGreaterThan(0);
+    expect(workspaceLayout.primaryActionHeightPx, `${viewport.name} primary action height`).toBeGreaterThan(0);
+    expect(workspaceLayout.primaryActionOpacity, `${viewport.name} primary action opacity`).toBeGreaterThan(0);
     expect(workspaceLayout.primaryActionInViewport, `${viewport.name} primary action must remain visible`).toBe(true);
   }
 
