@@ -1,10 +1,10 @@
 # GeoAI Full System Audit — 2026-07-16
 
-Status: Active audit record; PR #97 remediation is released
-Last verified: 2026-07-21
+Status: Historical point-in-time audit; do not use as current release authority
+Last verified: 2026-08-18 (lifecycle classification only; findings remain dated 2026-07-16)
 Owner: GeoAI Engineering / Governance
-Authority: Current full-system findings, remediation and residual risk
-Successor: None; any replacement must update `DOCUMENTATION_INDEX.md`
+Authority: Historical PR #97 audit and subsequent scoped evidence
+Successor: [Current Release State](CURRENT_RELEASE_STATE.md) and [Product Baseline and Readiness](PRODUCT_BASELINE_AND_READINESS.md)
 Audit mode: critical, multi-agent, evidence-led; no independent-reviewer approval claim
 Last externally verified release snapshot: merged PR #106 / `cc8f9ebcf3989fab4a3c4eac9be9dfb8da786a7b` / `dpl_6RC2ohEdLBjiV82k758tFMkaDB9X` / https://geoai-mvp.vercel.app / `public_demo_prototype`
 Historical audit release: merged PR #97 / `b915a831d5e5b28eab5fd26ac86059820e7e4a32` / rollback deployment `dpl_ERVqZPD5GAGDLjAVhMcPF2HT5Br7`
@@ -138,7 +138,7 @@ The branch contains risk-reduction controls, not a readiness promotion:
 - explicit source/attribution rendering for seeded/captured report map images and native attribution for live report maps;
 - map failure handling that does not monkeypatch global logging, detects stalled readiness and exposes a keyboard fallback action;
 - dependency upgrades/override that reduce the audited npm advisory count to zero;
-- seven Supabase candidate migrations: the first six are applied only on rehearsal and unapplied to development/Production, while the seventh no-MFA permanent-identity compatibility migration is unapplied everywhere. Together they retire detected anonymous/authenticated domain grants and policies, close direct health/base-table access, add account-state-aware private helpers, stage the Auth/Admin/client/project model, harden foreign-key coverage and lifecycle concurrency, and define immutable tenant/actor-bound custody records without provider write access;
+- seven Supabase candidate migrations: the historical 2026-07-16 receipt recorded the first six on rehearsal, while repository custody marks the seventh no-MFA permanent-identity compatibility migration as pending. Current hosted application state is unverified for every target. Together the files retire detected anonymous/authenticated domain grants and policies, close direct health/base-table access, add account-state-aware private helpers, stage the Auth/Admin/client/project model, harden foreign-key coverage and lifecycle concurrency, and define immutable tenant/actor-bound custody records without provider write access;
 - a narrow `SECURITY DEFINER geoai_private.has_storage_project_role()` predicate so review-only Storage policies do not join protected base/Auth tables as the caller; object fetch/signing remains operation-aware with listing and `client_viewer` raw access denied;
 - a permanent-user identity gate requiring matching UUID claims/user subjects and explicit non-anonymous evidence before profile RPC; effective-mode-gated exact-target SSR/PKCE/session/logout, one existing-user-only email-or-phone login screen, automatic short-lived HttpOnly invitation handoff and permanent-identity Admin RPC routes; plus a browser-only mock demo and a disconnected exact-project AUTH-01B Product facade whose persona-readiness flags remain false;
 - a pure SOURCE-02 `reserve_or_replay` correlation claim with authorization `none`, exact execution/idempotency hashes, empty registry/no fetch/env/secrets/persistence/Production, and external revalidation/trusted-executor/transactional-writer/atomic-reservation requirements;

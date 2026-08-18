@@ -1,20 +1,43 @@
 # Changelog
 
 Status: Active chronological change authority
-Last verified: 2026-07-20
+Last verified: 2026-08-18
 Owner: GeoAI Release Engineering
 Authority: Chronological released/unreleased change record; runtime truth remains `docs/CURRENT_RELEASE_STATE.md`
 Successor: None; any replacement must update `docs/DOCUMENTATION_INDEX.md`
-Navigation: [Documentation Index](docs/DOCUMENTATION_INDEX.md) · [Current Release State](docs/CURRENT_RELEASE_STATE.md) · [Full System Audit](docs/FULL_SYSTEM_AUDIT_2026_07_16.md) · [Codex Backlog](docs/CODEX_BACKLOG_2026_07_16.md)
+Navigation: [Documentation Index](docs/DOCUMENTATION_INDEX.md) · [Current Release State](docs/CURRENT_RELEASE_STATE.md) · [Product Baseline and Readiness](docs/PRODUCT_BASELINE_AND_READINESS.md) · [Release/Changelog Contract](docs/RELEASE_CHANGELOG_CONTRACT.md)
 
-## Unreleased — CR 10.02 Design Foundation and Shared Shell
+## Unreleased — WP-DEV13-002 Exact-Head Evidence Closure, Phase A
+
+- Records the independent-review `NO-GO` for the unsplit WP-DEV13-001 working set, with no P0 finding, and partitions the local work into release/docs, supply-chain/CI and data-honesty/UI commits.
+- Separates current Supabase management metadata from physical database truth: GeoAI_main observed `geoai-dev` as `INACTIVE` and `geoai-auth-rehearsal` as `ACTIVE_HEALTHY`, while schema/ledger/rows/advisors/RLS/policies/PostgREST/Storage/source state remains `unverified` without a fresh physical readback.
+- Adds expiring per-claim evidence windows and negative documentation fixtures for stale evidence and contradictory hosted-state claims.
+- Authorizes the separate Commit B to add an independent full dependency audit beside the production-only audit and records its dev-only Lighthouse transitive acceptance case; this Commit A entry is not a standalone supply-chain receipt.
+- Keeps hosted database replay, exact-head GitHub Quality Gate and Vercel Preview evidence blocked pending GeoAI_main/founder authorization. No remote action is included.
+
+## Unreleased — WP-DEV13-001 Production Baseline Recovery
+
+- Re-established repository current truth around released PR #113: `main` and `release/production` at `7f323c4227f2409f3fe2d4d68be48a30176f4e2a`, Vercel Production `dpl_4yBHCo1eZ7N6GYQWGAg1EdQGwFTE` (`READY`) and stage `public_demo_prototype`.
+- Added an approved local-only Change Request, source audit, compact product/readiness authority, external authority registry, superseded-document register and release/changelog contract. Historical documents remain in place.
+- Added exact-tuple/current-readiness documentation guards, repaired the user-profile contract and CI coverage, enforced the full comparison caveat and retired the invalid self-mutating legacy workflow in place.
+- Applied only bounded dependency/security maintenance supported by current advisories and proportional local verification. A new hosted exact-head Quality Gate remains required. No Product redesign, Auth enforcement, environment/secret, Supabase schema/data/RLS/Storage, Figma, Confluence or Production change is included.
+- Draft PR #143 (`product/gcc-real-estate-decision-platform-v1` at `e92fb5d8e8d83de72ee4c4376d958ce598c00536`) is explicitly excluded as authority and implementation input.
+
+## Released — Product System v3.2.2 correction (PR #113)
+
+- PR #113 merged to `main` and `release/production` at `7f323c4227f2409f3fe2d4d68be48a30176f4e2a`; Vercel Production deployment `dpl_4yBHCo1eZ7N6GYQWGAg1EdQGwFTE` is `READY` at https://geoai-mvp.vercel.app on that exact SHA.
+- The released Production behavior and visuals are the current Product System v3.2.2 product baseline. Historical v3.2.1 CR/receipts remain provenance, while Figma parity is only partial.
+- Historical exact-SHA Quality Gate `30158549978` passed. The later manual run `31946738874` is `partial` and failed at the Production dependency audit; its database replay job passed and most downstream application checks were skipped. A rollback target for this tuple is `unverified`.
+- The release remains `public_demo_prototype`: browser-local/demo-public/soft access only, with confidential pilot and DB-01/AUTH-01/STORAGE-01/SOURCE-01 blocked.
+
+## Historical — CR 10.02 Design Foundation and Shared Shell
 
 - Added a scoped Product System v3.2 token contract, founder-approved 32 px identity asset, 64 px shared Product header and responsive Workspace / Projects / Explore navigation adapter. The shared shell preserves existing profile/access authority, active-route behavior, mobile Escape/outside-click closure and focus restoration.
 - Added bounded Button, StatusChip, SegmentSwitch and ValidationCaveat primitives for later separately approved migrations. Existing page bodies and page-local controls are not migrated or recolored.
 - Added permanent design-authority/token drift checks plus deterministic shell-only Chromium/Axe evidence at 1440, 1024, 768 and 390 px. Page 90 and Page 99 are explicitly excluded as implementation authorities.
-- This is a Draft candidate only. It changes no Auth/API/Supabase/Storage/source/runtime environment, does not authorize merge or Production, and does not claim Production-ready or pilot-ready status.
+- This was a bounded pre-release candidate and is preserved as historical provenance. PR #113 later released the Product System v3.2.2 correction; the old branch/authorization fields no longer describe current runtime authority. It still authorizes no new Auth/API/Supabase/Storage/source/Figma or Production action.
 
-## Unreleased — CR 09.22 public funnel and release truth
+## Released — CR 09.22 public funnel and release truth (PR #106)
 
 - Separated commercial request actions into `/request-access`; the five-field form prepares a plain-text brief in React memory and does not transmit or persist contact data. The browser-local demo keeps its bounded Login-to-Workspace path, and the legacy request intent redirects to the public request route.
 - Added the then-canonical release receipt for merged PR #97, `main` `b915a831d5e5b28eab5fd26ac86059820e7e4a32`, Production `dpl_ERVqZPD5GAGDLjAVhMcPF2HT5Br7` at https://geoai-mvp.vercel.app and stage `public_demo_prototype`. That historical receipt was later superseded by the stable [release-authority policy](docs/RELEASE_AUTHORITY_POLICY.json) and [last verified historical snapshot](docs/LAST_VERIFIED_RELEASE_SNAPSHOT.json).

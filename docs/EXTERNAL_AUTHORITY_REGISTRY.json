@@ -1,0 +1,183 @@
+{
+  "schemaVersion": "1.1",
+  "authorityType": "timeboxed_external_authority_registry",
+  "evidenceAsOf": "2026-08-18T18:03:54Z",
+  "freshnessPolicy": {
+    "currentClaimsRequireWindow": true,
+    "expiredDisposition": "unverified",
+    "gateAction": "fail"
+  },
+  "externalEvidenceSupersedesRepositoryCopy": true,
+  "allowedStatuses": [
+    "confirmed",
+    "partial",
+    "blocked",
+    "unverified"
+  ],
+  "currentRelease": {
+    "status": "confirmed",
+    "evidenceWindow": {
+      "observedAt": "2026-08-18T18:03:54Z",
+      "validUntil": "2026-08-25T18:03:54Z",
+      "validityHours": 168,
+      "expiryAction": "fail"
+    },
+    "mergedPullRequest": 113,
+    "mainSha": "7f323c4227f2409f3fe2d4d68be48a30176f4e2a",
+    "releaseProductionSha": "7f323c4227f2409f3fe2d4d68be48a30176f4e2a",
+    "productionDeploymentId": "dpl_4yBHCo1eZ7N6GYQWGAg1EdQGwFTE",
+    "productionUrl": "https://geoai-mvp.vercel.app",
+    "productionStatus": "READY",
+    "productStage": "public_demo_prototype",
+    "historicalGreenQualityGateRunId": 30158549978,
+    "latestQualityGate": {
+      "runId": 31946738874,
+      "status": "partial",
+      "conclusion": "failure",
+      "databaseReplay": "success",
+      "application": "failed_at_dependency_audit_before_static_build_runtime_checks"
+    },
+    "rollback": {
+      "status": "unverified",
+      "deploymentId": null,
+      "note": "No rollback deployment was re-certified in WP-DEV13-001; Production was not changed."
+    }
+  },
+  "authorities": [
+    {
+      "authorityId": "github_release",
+      "status": "confirmed",
+      "binding": "main and release/production at the PR #113 merge SHA",
+      "allowedUse": "release identity and Git history",
+      "limitations": "The latest Quality Gate is partial/failed; a legacy combined commit status alone is not a green release gate.",
+      "writeAuthorization": "none"
+    },
+    {
+      "authorityId": "vercel_production",
+      "status": "confirmed",
+      "binding": "dpl_4yBHCo1eZ7N6GYQWGAg1EdQGwFTE READY, target production, exact Git SHA, active geoai-mvp.vercel.app alias",
+      "allowedUse": "deployed runtime identity and alias status",
+      "limitations": "No Production change, promotion, rollback or environment inspection was authorized.",
+      "writeAuthorization": "none"
+    },
+    {
+      "authorityId": "production_public_runtime",
+      "status": "confirmed",
+      "binding": "live public health, activation, pilot and source contracts",
+      "allowedUse": "public-demo stage and public response behavior",
+      "limitations": "Private infrastructure diagnostics and real Auth/RLS/Storage personas are intentionally unavailable.",
+      "writeAuthorization": "none"
+    },
+    {
+      "authorityId": "figma",
+      "status": "partial",
+      "binding": "historical v3.2.1 node receipts plus the released PR #113 runtime",
+      "allowedUse": "historical design provenance only; Production runtime is the current visual baseline",
+      "limitations": "Live Figma parity for the released v3.2.2 correction was not re-read; no Figma write or new design decision is authorized.",
+      "writeAuthorization": "blocked"
+    },
+    {
+      "authorityId": "confluence",
+      "status": "partial",
+      "binding": "historical CHG-19 28/28 read-back receipt",
+      "allowedUse": "historical operational-page integrity only",
+      "limitations": "No current PR #113 Project Hub read-back was performed; repository release facts take precedence until resynchronized.",
+      "writeAuthorization": "blocked"
+    },
+    {
+      "authorityId": "supabase_local_migration_chain",
+      "status": "confirmed",
+      "binding": "one pre-ledger reconciliation, ten immutable development-ledger migrations and seven pending migrations; liveApplyReady false",
+      "allowedUse": "repository replay and static security contract",
+      "limitations": "Local/static evidence is not hosted development, rehearsal or Production certification.",
+      "writeAuthorization": "none"
+    },
+    {
+      "authorityId": "supabase_development",
+      "status": "partial",
+      "binding": "GeoAI_main management metadata observation for geoai-dev; historical physical receipt retained separately",
+      "allowedUse": "current project lifecycle status at management-metadata scope only; historical physical context",
+      "limitations": "Management metadata is not a database readback; DB-01 remains blocked.",
+      "managementMetadata": {
+        "status": "confirmed",
+        "observedBy": "GeoAI_main",
+        "projectName": "geoai-dev",
+        "projectRef": "pphdqkurxneyagvnnjdt",
+        "projectStatus": "INACTIVE",
+        "scope": "management_metadata_only",
+        "evidenceWindow": {
+          "observedAt": "2026-08-18T20:09:03Z",
+          "validUntil": "2026-08-19T20:09:03Z",
+          "validityHours": 24,
+          "expiryAction": "fail"
+        }
+      },
+      "hostedPhysicalReadback": {
+        "status": "unverified",
+        "surfaces": [
+          "schema_and_migration_ledger",
+          "auth_users_and_database_rows",
+          "advisors",
+          "rls_and_policies",
+          "postgrest_configuration",
+          "storage_buckets_and_object_policies",
+          "source_rows"
+        ]
+      },
+      "historicalReceipt": "2026-07-16 development snapshot; point-in-time evidence only",
+      "writeAuthorization": "blocked"
+    },
+    {
+      "authorityId": "supabase_auth_rehearsal",
+      "status": "partial",
+      "binding": "GeoAI_main management metadata observation for geoai-auth-rehearsal; historical 18-ledger-entry, 183/183, api-only receipt retained separately",
+      "allowedUse": "current project lifecycle status at management-metadata scope only; historical rehearsal evidence",
+      "limitations": "Management metadata is not a database readback; current migration/application, persona and Storage state is unverified.",
+      "managementMetadata": {
+        "status": "confirmed",
+        "observedBy": "GeoAI_main",
+        "projectName": "geoai-auth-rehearsal",
+        "projectRef": "bkmfcjzalcvdsdvyxpgi",
+        "projectStatus": "ACTIVE_HEALTHY",
+        "scope": "management_metadata_only",
+        "evidenceWindow": {
+          "observedAt": "2026-08-18T20:09:03Z",
+          "validUntil": "2026-08-19T20:09:03Z",
+          "validityHours": 24,
+          "expiryAction": "fail"
+        }
+      },
+      "hostedPhysicalReadback": {
+        "status": "unverified",
+        "surfaces": [
+          "schema_and_migration_ledger",
+          "auth_users_and_database_rows",
+          "advisors",
+          "rls_and_policies",
+          "postgrest_configuration",
+          "storage_buckets_and_object_policies",
+          "source_rows"
+        ]
+      },
+      "historicalReceipt": "docs/SUPABASE_AUTH_REHEARSAL_RECEIPT_2026_07_16.json; point-in-time evidence only",
+      "writeAuthorization": "blocked"
+    },
+    {
+      "authorityId": "supabase_production",
+      "status": "blocked",
+      "binding": "public runtime reports browser-local mode and Production Supabase not configured",
+      "allowedUse": "fail-closed readiness statement",
+      "limitations": "Protected persistence, Auth/RBAC, Storage and source activation are not authorized.",
+      "writeAuthorization": "blocked"
+    },
+    {
+      "authorityId": "draft_pr_143",
+      "status": "blocked",
+      "binding": "PR #143, product/gcc-real-estate-decision-platform-v1, e92fb5d8e8d83de72ee4c4376d958ce598c00536",
+      "allowedUse": "none; excluded_non_authority",
+      "limitations": "Do not copy, cherry-pick, recreate or salvage without file-level review and a separately approved Change Request.",
+      "writeAuthorization": "none"
+    }
+  ],
+  "requiredCaveat": "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
+}

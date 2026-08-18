@@ -1,23 +1,23 @@
 # GeoAI Delivery Roadmap
 
 Status: Active
-Last verified: 2026-07-21
+Last verified: 2026-08-18
 Owner: GeoAI Product / Engineering
 Authority: Current dependency-ordered delivery plan
 Successor: None; any replacement must update `DOCUMENTATION_INDEX.md`
-Last externally verified release snapshot: merged PR #106 at `cc8f9ebcf3989fab4a3c4eac9be9dfb8da786a7b`; Production `dpl_6RC2ohEdLBjiV82k758tFMkaDB9X` at https://geoai-mvp.vercel.app; rollback `dpl_ERVqZPD5GAGDLjAVhMcPF2HT5Br7`; stage `public_demo_prototype`. Policy: [RELEASE_AUTHORITY_POLICY.json](RELEASE_AUTHORITY_POLICY.json); historical snapshot: [LAST_VERIFIED_RELEASE_SNAPSHOT.json](LAST_VERIFIED_RELEASE_SNAPSHOT.json). Live authority is external post-release evidence.
+Current externally verified release: merged PR #113 at `7f323c4227f2409f3fe2d4d68be48a30176f4e2a` on `main` and `release/production`; Production `dpl_4yBHCo1eZ7N6GYQWGAg1EdQGwFTE` (`READY`) at https://geoai-mvp.vercel.app; rollback `unverified`; stage `public_demo_prototype`. Policy: [RELEASE_AUTHORITY_POLICY.json](RELEASE_AUTHORITY_POLICY.json); current authority: [CURRENT_RELEASE_STATE.md](CURRENT_RELEASE_STATE.md) and [EXTERNAL_AUTHORITY_REGISTRY.json](EXTERNAL_AUTHORITY_REGISTRY.json).
 Navigation: [Confluence Hub](https://geoaimvp.atlassian.net/wiki/spaces/PH/overview) · [Documentation Index](DOCUMENTATION_INDEX.md) · [Current Release State](CURRENT_RELEASE_STATE.md) · [Full System Audit](FULL_SYSTEM_AUDIT_2026_07_16.md) · [Codex Backlog](CODEX_BACKLOG_2026_07_16.md)
 
-GeoAI remains a public demo prototype. Production is `demo_only`, `local_fallback`, soft access and has no Production Supabase connection. The source pack is fail-closed in Production. No Production-ready or pilot-ready maturity claim is supported.
+GeoAI remains a public demo prototype. Production is `public_demo_only`, `browser_local`, `demo_public`, soft access and has no Production Supabase connection. The source pack is fail-closed in Production. No Production-ready or pilot-ready maturity claim is supported.
 
 ## P0 — precondition for Auth, RBAC, Admin and real sources
 
-1. Data API and identity boundary: complete on isolated Free rehearsal only. Ref `bkmfcjzalcvdsdvyxpgi` exposes the RPC-only 14-function `api` schema; HTTP health is 200 and `public` is denied with `PGRST106`. Development and Production are unchanged.
-2. Canonical database migration: the first six candidates replayed on rehearsal; hosted pgTAP is `183/183`; all 29 GeoAI domain tables have RLS and uncovered domain FKs are zero. Table-level two-session lock-order runtime evidence passes without deadlock or residual rows. A seventh migration that replaces the Admin AAL2 requirement with a permanent non-anonymous identity is prepared but unapplied everywhere. Next prove the same concurrency through authenticated invitation RPCs, real email/phone HTTP Auth, resource-specific Admin pagination, Storage personas and the separately authorized development upgrade/drift/apply plan. [Receipt](SUPABASE_AUTH_REHEARSAL_RECEIPT_2026_07_16.json).
+1. Data API and identity boundary: the 2026-07-16 isolated Free-rehearsal receipt recorded the RPC-only 14-function `api` schema, HTTP health 200 and `public` denial with `PGRST106`. GeoAI_main currently observes `ACTIVE_HEALTHY` management metadata only; rehearsal/development physical state is unverified.
+2. Canonical database migration: the historical receipt recorded first-six-candidate replay, hosted pgTAP `183/183`, RLS on 29 GeoAI domain tables, zero uncovered domain FKs and rollback-only two-session lock-order evidence. A seventh permanent-non-anonymous-identity migration is pending in local custody; current hosted application state is unverified. Next prove the same concurrency through authenticated invitation RPCs, real email/phone HTTP Auth, resource-specific Admin pagination, Storage personas and the separately authorized development upgrade/drift/apply plan. [Receipt](SUPABASE_AUTH_REHEARSAL_RECEIPT_2026_07_16.json).
 3. Public runtime credential evacuation: remove service-role/secret Supabase keys and direct DB URLs from all public Vercel scopes, rotate where necessary, isolate the operator/worker plane and prove an exact deployment that needs no privileged database credential.
 4. Request-scoped Auth kernel: existing-user-only email/phone OTP uses `shouldCreateUser: false`; password sign-in, PKCE/session/logout, permanent non-anonymous identity evidence and Admin/Onboarding routes are implemented. `View demo` uses the bounded Login-to-Workspace path, while commercial requests use `/request-access` to prepare an unsent React-memory brief. The client gate waits for resolved session state in `supabase_auth`, preserves `demo_public` and fails closed when disabled. The mock `demo@geoai.space` / `111111` session, profile preferences and avatars are browser-only and cannot authorize protected APIs. This is not server authorization; Product repositories and hosted runtime-persona readiness stay false. Next prove owner-approved real email/phone HTTP/JWT/RLS/IDOR/Admin personas and design a safe verified sign-in-phone path.
 5. Protected Storage: the review-only policy now uses narrow `geoai_private.has_storage_project_role()` because caller base/Auth `SELECT` is closed, and object reads are operation-aware/no-listing with `client_viewer` excluded. Next apply only through the approved owner path, derive scope server-side, validate full body/file magic/checksum/quarantine/AV state, and verify upload/fetch/sign/delete/negative personas. No Storage activation is authorized.
-6. Source custody/visibility: SOURCE-01 is applied/SQL-tested on rehearsal only and remains unapplied to development/Production with no provider connected. SOURCE-02 adds only an unsigned, authorization-none `reserve_or_replay` correlation claim with exact execution/idempotency hashes; registry/plan/hash revalidation, trusted execution, transactional writing and atomic pre-fetch reservation remain external/absent. Registry empty, no fetch/env/secrets/persistence, Production denied. Next implement and prove those boundaries plus real source personas.
+6. Source custody/visibility: the 2026-07-16 receipt recorded SOURCE-01 applied/SQL-tested on rehearsal; current hosted application state is unverified and no provider is connected in the released Product. SOURCE-02 adds only an unsigned, authorization-none `reserve_or_replay` correlation claim with exact execution/idempotency hashes; registry/plan/hash revalidation, trusted execution, transactional writing and atomic pre-fetch reservation remain external/absent. Registry empty, no fetch/env/secrets/persistence, Production denied. Next implement and prove those boundaries plus real source personas.
 7. Conditional before protected/upstream AI use — AI safety gateway: request authorization, quotas/rate limits, privacy classification/redaction, bounded schemas/tokens, cost telemetry and fail-closed output filtering. This is P1 resilience work for the browser-local deterministic public demo.
 
 ## P1A — reliability and production-quality engineering
@@ -41,7 +41,7 @@ GeoAI remains a public demo prototype. Production is `demo_only`, `local_fallbac
 
 ## P2 — product and design quality
 
-1. Complete CR 10.02 founder review on the bounded Product System v3.2.1 token/shared-shell candidate. The approved foundation covers only the unchanged semantic baseline, accessibility-corrected component tokens, identity, shared header/navigation, four primitives and permanent evidence; page-body migrations require separate Change Requests and must not use Page 90 or Page 99.
+1. Preserve the released PR #113 Product System v3.2.2 Production behavior and visuals. Historical CR 10.02/v3.2.1 receipts remain provenance only; any page-body migration, Figma/Code Connect write or new design direction requires a separate owner-approved Change Request. Draft PR #143 and Page 14/Page 90/Page 99 material are excluded unless explicitly reviewed and authorized file by file.
 2. Resolve the live UX/a11y/performance audit backlog.
 3. Define and implement the missing criteria-first wireflow and empty/stub product documents.
 4. Modularize Workspace, Project Dashboard, Map and Analysis surfaces with regression coverage.
@@ -59,3 +59,5 @@ rights + custody -> private ingestion -> quality/quarantine -> visibility/RLS
 SOURCE-02 currently covers only deterministic planning and non-persisted outcome receipts inside that sequence. It cannot perform private ingestion, credential injection, SOURCE-01 writes or Production execution.
 
 No stage in this roadmap authorizes a Production deployment, Supabase migration, secret change, real geometry publication or provider activation by itself.
+
+Required caveat: **Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.**
