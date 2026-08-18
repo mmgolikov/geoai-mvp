@@ -54,7 +54,19 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          npm audit --omit=dev --audit-level=moderate | tee artifacts/npm-audit.txt
+          npm audit --omit=dev --audit-level=moderate | tee artifacts/npm-audit-production.txt
+
+      - name: Full dependency audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm audit --audit-level=moderate | tee artifacts/npm-audit-full.txt
+
+      - name: Dependency evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ls lighthouse postcss nanoid @sentry/node @opentelemetry/core | tee artifacts/npm-dependency-tree.txt
 
       - name: Record run metadata
         shell: bash
@@ -117,6 +129,12 @@ jobs:
         run: |
           set -euo pipefail
           npm run test:auth-admin-ui | tee artifacts/auth-admin-ui-check.txt
+
+      - name: User profile contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:user-profile | tee artifacts/user-profile-check.txt
 
       - name: Auth session E2E wiring checks
         shell: bash

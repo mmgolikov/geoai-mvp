@@ -11,6 +11,7 @@ const files = {
   provider: source("components/auth/auth-provider.tsx"),
   login: source("components/auth/login-panel.tsx"),
   badge: source("components/auth/access-status-badge.tsx"),
+  badgeVisual: source("components/auth/access-status-badge-visual.tsx"),
   workspace: source("components/workspace-shell.tsx"),
   projects: source("components/project-dashboard/project-dashboard.tsx"),
   localStore: source("src/lib/auth/profile-local-store.ts"),
@@ -43,7 +44,8 @@ expect(files.provider.includes("saveProfile") && files.provider.includes("reques
 expect(files.provider.includes("signInWithPassword") && files.login.includes("passwordSelected"), "A changed real-user password cannot be used by the login UI");
 expect(files.login.includes("normalizedIdentifier === mockDemoEmail") && !files.login.includes("mockDemoEmail || password.length"), "Any password must not be treated as mock-demo authority");
 expect(files.badge.includes('isAuthenticated ? "/profile" : "/login"'), "Authenticated account control does not open the profile");
-expect(files.badge.includes('data-authenticated={isAuthenticated ? "true" : "false"}') && files.badge.includes("Open your profile"), "Profile icon does not expose a visible authenticated state");
+expect(files.badge.includes("Open your profile"), "Authenticated account control has no visible profile label");
+expect(files.badgeVisual.includes('data-authenticated={isAuthenticated ? "true" : "false"}'), "Profile icon visual does not expose its authenticated state");
 expect(files.login.includes("window.location.replace(getDestination())"), "Saved authorization does not continue directly to Workspace");
 expect(!files.panel.includes("Demo profile changes stay in this browser."), "Large demo caveat still occupies the top of the personal account");
 expect(files.workspace.includes("user?.profile.defaultAudience") && files.workspace.includes("user?.profile.defaultRole"), "Workspace does not consume profile defaults");

@@ -4,6 +4,7 @@ import path from "node:path";
 const root = process.cwd();
 const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 const packageJson = JSON.parse(read("package.json"));
+const packageLock = JSON.parse(read("package-lock.json"));
 const config = read("playwright.config.ts");
 const spec = read("tests/e2e/auth-session-flow.spec.ts");
 const realEmailSpec = read("tests/e2e/real-email-auth-flow.spec.ts");
@@ -33,14 +34,20 @@ if (packageJson.devDependencies?.["@playwright/test"] !== "1.61.1") {
 if (packageJson.devDependencies?.["@axe-core/playwright"] !== "4.12.1") {
   failures.push("@axe-core/playwright must stay exactly pinned to 4.12.1");
 }
-if (packageJson.scripts?.["test:e2e:auth-session"] !== "playwright test tests/e2e/auth-session-flow.spec.ts tests/e2e/auth-responsive-flow.spec.ts tests/e2e/public-request-flow.spec.ts tests/e2e/accessibility-workspace-flow.spec.ts tests/e2e/accessibility-project-comparison-flow.spec.ts tests/e2e/mobile-product-flow.spec.ts tests/e2e/mobile-global-navigation.spec.ts tests/e2e/commercial-alignment-visual.spec.ts tests/e2e/system-resilience-flow.spec.ts tests/e2e/design-foundation-shell.spec.ts tests/e2e/primitive-state-evidence.spec.tsx tests/e2e/route-body-invariance.spec.ts tests/e2e/workspace-consolidation.spec.ts") {
-  failures.push("The focused Auth/session, responsive, accessibility and commercial visual Playwright command is missing");
+if (packageJson.scripts?.["test:e2e:auth-session"] !== "playwright test --fail-on-flaky-tests tests/e2e/auth-session-flow.spec.ts tests/e2e/auth-responsive-flow.spec.ts tests/e2e/public-request-flow.spec.ts tests/e2e/accessibility-workspace-flow.spec.ts tests/e2e/accessibility-project-comparison-flow.spec.ts tests/e2e/mobile-product-flow.spec.ts tests/e2e/mobile-global-navigation.spec.ts tests/e2e/commercial-alignment-visual.spec.ts tests/e2e/system-resilience-flow.spec.ts tests/e2e/design-foundation-shell.spec.ts tests/e2e/primitive-state-evidence.spec.tsx tests/e2e/route-body-invariance.spec.ts tests/e2e/workspace-consolidation.spec.ts") {
+  failures.push("The aggregate Auth/session, responsive, accessibility and commercial visual Playwright command must fail on flaky tests");
 }
 if (packageJson.scripts?.["test:e2e:auth-real-persona"] !== "playwright test tests/e2e/real-email-auth-flow.spec.ts") {
   failures.push("The explicit trusted-terminal real email Auth persona command is missing");
 }
-if (packageJson.devDependencies?.lighthouse !== "13.4.0") {
-  failures.push("Lighthouse must stay exactly pinned to 13.4.0");
+if (packageJson.devDependencies?.lighthouse !== "13.4.1") {
+  failures.push("Lighthouse must stay exactly pinned to the audited dev-tool release 13.4.1");
+}
+if (packageJson.devDependencies?.postcss !== "8.5.23" || packageLock.packages?.["node_modules/postcss"]?.version !== "8.5.23") {
+  failures.push("PostCSS must stay exactly pinned to the patched 8.5.23 release in both manifests");
+}
+if (packageLock.packages?.["node_modules/nanoid"]?.version !== "3.3.18") {
+  failures.push("The lockfile must resolve Nano ID to patched version 3.3.18");
 }
 if (packageJson.scripts?.["test:lighthouse-budget"] !== "node scripts/lighthouse-budget-check.mjs artifacts/lighthouse-mobile.json artifacts/lighthouse-desktop.json artifacts/lighthouse-mobile-projects.json artifacts/lighthouse-desktop-workspace-criteria.json artifacts/lighthouse-desktop-login.json artifacts/lighthouse-desktop-request-access.json artifacts/lighthouse-desktop-profile.json") {
   failures.push("The Lighthouse budget command is missing");
@@ -305,6 +312,11 @@ if (browserStepStart === -1 || buildStepStart === -1) {
 }
 
 requireText(workflow, "npm run test:auth-session-e2e-contract", "Quality Gate must run the static E2E wiring contract");
+for (const marker of [
+  "npm audit --omit=dev --audit-level=moderate | tee artifacts/npm-audit-production.txt",
+  "npm audit --audit-level=moderate | tee artifacts/npm-audit-full.txt",
+  "npm ls lighthouse postcss nanoid @sentry/node @opentelemetry/core | tee artifacts/npm-dependency-tree.txt"
+]) requireText(workflow, marker, `Quality Gate dependency evidence is missing ${marker}`);
 for (const marker of [
   "artifacts/lighthouse-mobile.json",
   "artifacts/lighthouse-desktop.json",

@@ -42,8 +42,10 @@ const output = {
   canonicalBaseline,
   foundationPath,
   pendingMigrations: [containmentPath, identityPath, sourceCustodyPath, activationPath, foreignKeyIndexPath, lifecycleRemediationPath, authSimplificationPath],
-  pendingTarget: "development has seven pending candidates; the first six are applied and evidenced only on the isolated Free rehearsal, while the MFA-removal product decision remains unapplied everywhere",
-  rehearsalEvidence: {
+  pendingTarget: "repository custody lists seven pending candidates; current hosted application state is unverified for development, rehearsal and Production",
+  historicalRehearsalEvidence: {
+    evidenceClass: "historical_point_in_time",
+    observedOn: "2026-07-16",
     projectRef: "bkmfcjzalcvdsdvyxpgi",
     receipt: rehearsalReceiptPath,
     receiptPresent: rehearsalReceiptPresent,
@@ -69,11 +71,11 @@ const output = {
     ...(missingFiles.length ? [`Missing canonical file(s): ${missingFiles.join(", ")}`] : []),
     ...(!staticChecksPassed ? ["One or more migration static checks failed."] : []),
     ...(privilegedApplicationEnvDetected ? ["Privileged Supabase/database credentials are present in this application runtime."] : []),
-    "Development still lacks the pre-ledger geoai_healthcheck ledger reconciliation; the isolated rehearsal is reconciled.",
-    "A development-derived upgrade replay and zero-drift decision have not been certified; full clean replay is certified only on the isolated rehearsal.",
-    "Real application HTTP email/phone/browser personas have not been certified; hosted rehearsal SQL personas pass 183/183 before the pending MFA-removal override.",
+    "Current physical development and rehearsal migration ledgers are unverified; local custody cannot establish hosted reconciliation state.",
+    "A development-derived upgrade replay and zero-drift decision have not been certified; the clean rehearsal replay is a historical 2026-07-16 receipt only.",
+    "Real application HTTP email/phone/browser personas have not been certified; the 2026-07-16 rehearsal receipt recorded 183/183 SQL personas before the locally pending MFA-removal override.",
     "Development source-custody and source-read personas have not been certified; rehearsal SQL coverage does not connect a source.",
-    "The development Data API schema boundary is not confirmed; the isolated rehearsal is pinned to api-only and has positive/negative HTTP evidence."
+    "Current development and rehearsal Data API schema boundaries are unverified; the 2026-07-16 rehearsal receipt recorded an api-only positive/negative HTTP boundary."
   ],
   nextActions: [
     "Use the isolated rehearsal receipt as evidence only for that exact project; do not infer development or Production readiness.",
