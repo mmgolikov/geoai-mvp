@@ -16,6 +16,7 @@ type VisualEvidence = {
 
 const visualDirectory = path.join(process.cwd(), "artifacts", "mobile-visual-evidence");
 const visualManifest = path.join(visualDirectory, "manifest.json");
+const requiredDataCaveat = "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.";
 const visualEvidence: VisualEvidence[] = [];
 
 async function expectNoHorizontalOverflow(page: Page) {
@@ -340,6 +341,7 @@ test.describe("mobile product navigation, targets and visual evidence", () => {
 
     const comparisonDashboard = page.locator("section[data-dashboard-comparison-id]");
     await expect(comparisonDashboard.getByRole("heading", { level: 1, name: "Candidate Comparison" })).toBeVisible();
+    await expect(comparisonDashboard.getByText(requiredDataCaveat, { exact: true })).toBeVisible();
     await expectNoHorizontalOverflow(page);
     await expectNoElementOverflow(comparisonDashboard, "Candidate comparison dashboard");
     const comparisonTable = comparisonDashboard.getByRole("region", { name: "Comparison table" });

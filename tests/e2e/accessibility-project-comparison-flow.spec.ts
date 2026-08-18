@@ -24,6 +24,7 @@ type AccessibilityResult = {
 };
 
 const accessibilityArtifact = path.join(process.cwd(), "artifacts", "axe-project-comparison-results.json");
+const requiredDataCaveat = "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.";
 const accessibilityEvidence: AccessibilityResult[] = [];
 const wcagTags = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
 
@@ -166,6 +167,7 @@ test.describe("accessible browser-local project and comparison journeys", () => 
     const comparisonDashboard = page.locator("section[data-dashboard-comparison-id]");
     await expect(comparisonDashboard).toBeVisible();
     await expect(comparisonDashboard.getByRole("heading", { level: 1, name: "Candidate Comparison" })).toBeVisible();
+    await expect(comparisonDashboard.getByText(requiredDataCaveat, { exact: true })).toBeVisible();
     await recordAccessibilityResult(page, "Candidate comparison dashboard");
 
     const exportButton = comparisonDashboard.getByRole("button", { name: "Export", exact: true });

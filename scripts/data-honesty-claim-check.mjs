@@ -6,6 +6,12 @@ const ROOTS = ["app", "components", "src"];
 const EXTENSIONS = new Set([".ts", ".tsx", ".js", ".jsx", ".mjs"]);
 const OUTPUT_DIR = path.join(process.cwd(), "artifacts");
 const OUTPUT_FILE = path.join(OUTPUT_DIR, "data-honesty-claim-scan.json");
+const REQUIRED_CAVEAT = "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.";
+const REQUIRED_CAVEAT_SURFACES = [
+  "components/comparison-dashboard.tsx",
+  "components/reports/comparison-report-print.tsx",
+  "components/project-dashboard/project-dashboard.tsx"
+];
 
 const rules = [
   { id: "production_ready", pattern: /production[- ]ready/gi },
@@ -60,6 +66,16 @@ const semanticSafePatterns = [
   /\bdeterministic sample\/open\b/i
 ];
 
+const explicitAffirmativePatterns = [
+  /\bofficial parcel\b(?:(?!\bnot\b).){0,60}(?:(?:is|was)\s+(?:confirmed|verified|approved|validated|available)|(?:confirmed|verified|approved|validated|available)\b)/i,
+  /\bofficial zoning\b(?:(?!\bnot\b).){0,60}(?:(?:is|was)\s+(?:confirmed|verified|approved|validated|allowed)|(?:confirmed|verified|approved|validated|allows?)\b)/i,
+  /\bcadastral validation\b(?:(?!\bnot\b).){0,60}(?:(?:is|was)\s+(?:complete|confirmed|verified|passed)|(?:complete|confirmed|verified|passed)\b)/i,
+  /\bownership verification\b(?:(?!\bnot\b).){0,60}(?:(?:is|was)\s+(?:complete|confirmed|verified|passed)|(?:complete|confirmed|verified|passed)\b)/i,
+  /\bcertified valuation\b(?:(?!\bnot\b).){0,60}(?:(?:is|was)\s+(?:available|complete|confirmed|verified)|(?:available|complete|confirmed|verified)\b)/i,
+  /\blive (?:dld|geodubai) integration\b(?:(?!\bnot\b).){0,60}(?:(?:is|was)\s+(?:active|available|connected|enabled)|(?:active|available|connected|enabled)\b)/i
+];
+const leadingNegatedClaimPattern = /\b(?:not|no|never|without)\b.{0,80}\b(?:official parcel|official zoning|cadastral validation|ownership verification|certified valuation|approved site|guaranteed best use|live (?:dld|geodubai) integration)\b/gi;
+
 function walk(directory) {
   if (!fs.existsSync(directory)) return [];
   const files = [];
@@ -106,12 +122,40 @@ function isStructurallySafe(labels) {
 }
 
 function isSemanticallySafe(text) {
+  const affirmativeProbe = text.replace(leadingNegatedClaimPattern, "[negated claim]");
+  if (explicitAffirmativePatterns.some((pattern) => pattern.test(affirmativeProbe))) return false;
   return semanticSafePatterns.some((pattern) => pattern.test(text));
 }
 
 const findings = [];
 const reviewedMatches = [];
 const files = ROOTS.flatMap((root) => walk(path.join(process.cwd(), root)));
+
+for (const fixture of [
+  { text: "Official zoning confirmed; validation planned for an unrelated metric.", expectedSafe: false },
+  { text: "Official zoning is not confirmed; official validation required.", expectedSafe: true }
+]) {
+  if (isSemanticallySafe(fixture.text) !== fixture.expectedSafe) {
+    console.error(`Data-honesty classifier fixture failed: ${fixture.text}`);
+    process.exit(1);
+  }
+}
+
+for (const relativePath of REQUIRED_CAVEAT_SURFACES) {
+  const filePath = path.join(process.cwd(), relativePath);
+  const source = fs.existsSync(filePath) ? fs.readFileSync(filePath, "utf8") : "";
+  if (!source.includes(REQUIRED_CAVEAT)) {
+    findings.push({
+      rule: "required_caveat_surface",
+      file: relativePath,
+      line: 1,
+      match: "missing required caveat",
+      structuralLabels: [],
+      context: REQUIRED_CAVEAT,
+      classification: "required_caveat_missing"
+    });
+  }
+}
 
 for (const filePath of files) {
   const source = fs.readFileSync(filePath, "utf8");
@@ -157,9 +201,10 @@ const result = {
   scannedRoots: ROOTS,
   scannedFiles: files.length,
   prohibitedRules: rules.map((rule) => rule.id),
+  requiredCaveatSurfaces: REQUIRED_CAVEAT_SURFACES,
   findings,
   reviewedContextMatches: reviewedMatches,
-  caveat: "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
+  caveat: REQUIRED_CAVEAT
 };
 fs.writeFileSync(OUTPUT_FILE, `${JSON.stringify(result, null, 2)}\n`, "utf8");
 
