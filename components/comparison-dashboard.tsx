@@ -6,6 +6,8 @@ import { EvidenceSourceCards } from "@/components/evidence-source-cards";
 import { DecisionSummaryBox } from "@/components/ui/decision-summary-box";
 import type { ComparisonItem, ComparisonResult, ScoreKey } from "@/src/types/geo";
 
+const requiredDataCaveat = "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.";
+
 type ComparisonDashboardProps = {
   comparison: ComparisonResult;
   onBackToMap: () => void;
@@ -229,6 +231,7 @@ export function ComparisonDashboard({
             <p className="mt-1 text-sm font-medium text-muted">
               {scenarioLabel} / average shortlist score {averageScore}/100 / official validation required
             </p>
+            <p className="mt-1 text-xs leading-5 text-risk">{requiredDataCaveat}</p>
           </div>
           <div className="flex shrink-0 items-center justify-start gap-2 lg:justify-end">
             <button

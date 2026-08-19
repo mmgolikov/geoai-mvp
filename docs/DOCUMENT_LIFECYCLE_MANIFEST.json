@@ -1,11 +1,11 @@
 {
   "schemaVersion": "1.1",
-  "lastVerified": "2026-07-16",
+  "lastVerified": "2026-08-18",
   "authority": "docs/DOCUMENTATION_INDEX.md",
   "counts": {
-    "markdownDocuments": 142,
+    "markdownDocuments": 148,
     "activeAuthorities": 12,
-    "nonActiveDocuments": 130
+    "nonActiveDocuments": 136
   },
   "documents": {
     "AGENTS.md": {
@@ -41,19 +41,19 @@
     "docs/AUTH_HARD_ACCESS_V1_CHANGE_REQUEST.md": {
       "lifecycle": "historical_or_scoped_delivery_evidence",
       "currentAuthority": false,
-      "successor": "docs/CODEX_BACKLOG_2026_07_16.md",
+      "successor": "docs/PRODUCT_BASELINE_AND_READINESS.md",
       "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
     },
     "docs/AUTH_HARD_ACCESS_V1_PLAN.md": {
       "lifecycle": "historical_or_scoped_delivery_evidence",
       "currentAuthority": false,
-      "successor": "docs/CODEX_BACKLOG_2026_07_16.md",
+      "successor": "docs/PRODUCT_BASELINE_AND_READINESS.md",
       "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
     },
     "docs/AUTH_HARD_ACCESS_V1_QA_CHECKLIST.md": {
       "lifecycle": "historical_or_scoped_delivery_evidence",
       "currentAuthority": false,
-      "successor": "docs/CODEX_BACKLOG_2026_07_16.md",
+      "successor": "docs/PRODUCT_BASELINE_AND_READINESS.md",
       "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
     },
     "docs/AUTH_PROJECT_ACCESS_FOUNDATION_V22.md": {
@@ -71,13 +71,13 @@
     "docs/AUTH_TEST_USERS_MEMBERSHIP_V1_CHANGE_REQUEST.md": {
       "lifecycle": "historical_or_scoped_delivery_evidence",
       "currentAuthority": false,
-      "successor": "docs/CODEX_BACKLOG_2026_07_16.md",
+      "successor": "docs/PRODUCT_BASELINE_AND_READINESS.md",
       "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
     },
     "docs/AUTH_TEST_USERS_MEMBERSHIP_V1_QA_CHECKLIST.md": {
       "lifecycle": "historical_or_scoped_delivery_evidence",
       "currentAuthority": false,
-      "successor": "docs/CODEX_BACKLOG_2026_07_16.md",
+      "successor": "docs/PRODUCT_BASELINE_AND_READINESS.md",
       "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
     },
     "docs/CHECKPOINT_2026-06-18_investor_prototype_v02.md": {
@@ -99,10 +99,10 @@
       "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
     },
     "docs/CODEX_BACKLOG_2026_07_16.md": {
-      "lifecycle": "active_authority",
-      "currentAuthority": true,
-      "successor": null,
-      "rule": "Must carry Status, Last verified, Owner, Authority and Successor fields and be updated with affected behavior."
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
     },
     "docs/CR_09_23_SYSTEM_STABILIZATION_AUDIT_V2.md": {
       "lifecycle": "historical_or_scoped_reference",
@@ -243,10 +243,10 @@
       "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
     },
     "docs/FULL_SYSTEM_AUDIT_2026_07_16.md": {
-      "lifecycle": "active_authority",
-      "currentAuthority": true,
-      "successor": null,
-      "rule": "Must carry Status, Last verified, Owner, Authority and Successor fields and be updated with affected behavior."
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
     },
     "docs/GOVERNANCE_STALE_PR_CLEANUP_2026_07_07.md": {
       "lifecycle": "historical_or_scoped_reference",
@@ -329,14 +329,26 @@
     "docs/POST_RELEASE_QUALITY_AND_SPATIAL_REGRESSION_GATE_V1_CHANGE_REQUEST.md": {
       "lifecycle": "historical_or_scoped_delivery_evidence",
       "currentAuthority": false,
-      "successor": "docs/CODEX_BACKLOG_2026_07_16.md",
+      "successor": "docs/PRODUCT_BASELINE_AND_READINESS.md",
       "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
     },
     "docs/POST_RELEASE_QUALITY_AND_SPATIAL_REGRESSION_GATE_V1_QA_CHECKLIST.md": {
       "lifecycle": "historical_or_scoped_delivery_evidence",
       "currentAuthority": false,
-      "successor": "docs/CODEX_BACKLOG_2026_07_16.md",
+      "successor": "docs/PRODUCT_BASELINE_AND_READINESS.md",
       "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/PRODUCTION_BASELINE_SOURCE_AUDIT_2026_08_18.md": {
+      "lifecycle": "historical_release_evidence",
+      "currentAuthority": false,
+      "successor": "docs/CURRENT_RELEASE_STATE.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/PRODUCT_BASELINE_AND_READINESS.md": {
+      "lifecycle": "active_authority",
+      "currentAuthority": true,
+      "successor": null,
+      "rule": "Must carry Status, Last verified, Owner, Authority and Successor fields and be updated with affected behavior."
     },
     "docs/PROJECTS_WORKSPACES_V01.md": {
       "lifecycle": "historical_or_scoped_reference",
@@ -353,7 +365,7 @@
     "docs/PROJECT_HUB_RUNTIME_STATUS_RECONCILIATION_V11_CHANGE_REQUEST.md": {
       "lifecycle": "historical_or_scoped_delivery_evidence",
       "currentAuthority": false,
-      "successor": "docs/CODEX_BACKLOG_2026_07_16.md",
+      "successor": "docs/PRODUCT_BASELINE_AND_READINESS.md",
       "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
     },
     "docs/PROJECT_SCOPED_PERSISTENCE_V13.md": {
@@ -403,6 +415,12 @@
       "currentAuthority": false,
       "successor": "docs/CURRENT_RELEASE_STATE.md",
       "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/RELEASE_CHANGELOG_CONTRACT.md": {
+      "lifecycle": "active_authority",
+      "currentAuthority": true,
+      "successor": null,
+      "rule": "Must carry Status, Last verified, Owner, Authority and Successor fields and be updated with affected behavior."
     },
     "docs/RELEASE_EVIDENCE_CI_GATE_V1_CHANGE_REQUEST.md": {
       "lifecycle": "historical_release_evidence",
@@ -617,7 +635,7 @@
     "docs/REPORT_CONNECTOR_READINESS_WORDING_V1_CHANGE_REQUEST.md": {
       "lifecycle": "historical_or_scoped_delivery_evidence",
       "currentAuthority": false,
-      "successor": "docs/CODEX_BACKLOG_2026_07_16.md",
+      "successor": "docs/PRODUCT_BASELINE_AND_READINESS.md",
       "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
     },
     "docs/REPORT_EXPORT_DELIVERABLES_V09.md": {
@@ -641,13 +659,13 @@
     "docs/RLS_VERIFICATION_HARNESS_V1_CHANGE_REQUEST.md": {
       "lifecycle": "historical_or_scoped_delivery_evidence",
       "currentAuthority": false,
-      "successor": "docs/CODEX_BACKLOG_2026_07_16.md",
+      "successor": "docs/PRODUCT_BASELINE_AND_READINESS.md",
       "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
     },
     "docs/RLS_VERIFICATION_HARNESS_V1_QA_CHECKLIST.md": {
       "lifecycle": "historical_or_scoped_delivery_evidence",
       "currentAuthority": false,
-      "successor": "docs/CODEX_BACKLOG_2026_07_16.md",
+      "successor": "docs/PRODUCT_BASELINE_AND_READINESS.md",
       "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
     },
     "docs/SECURE_FILE_STORAGE_EVIDENCE_UPLOADS_V26.md": {
@@ -681,10 +699,10 @@
       "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
     },
     "docs/SUPABASE_DATA_API_CONTAINMENT_RUNBOOK_2026_07_16.md": {
-      "lifecycle": "active_authority",
-      "currentAuthority": true,
-      "successor": null,
-      "rule": "Must carry Status, Last verified, Owner, Authority and Successor fields and be updated with affected behavior."
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
     },
     "docs/SUPABASE_DB_BASELINE_V1.md": {
       "lifecycle": "historical_or_scoped_reference",
@@ -721,6 +739,12 @@
       "currentAuthority": false,
       "successor": "docs/DOCUMENTATION_INDEX.md",
       "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/SUPERSEDED_DOCUMENT_REGISTER.md": {
+      "lifecycle": "active_authority",
+      "currentAuthority": true,
+      "successor": null,
+      "rule": "Must carry Status, Last verified, Owner, Authority and Successor fields and be updated with affected behavior."
     },
     "docs/SYSTEM_STABILIZATION_AUDIT_V2_2026_07_21.md": {
       "lifecycle": "historical_or_scoped_reference",
@@ -761,7 +785,7 @@
     "docs/WORKSPACE_MOBILE_PANEL_UX_FIXES_V1_CHANGE_REQUEST.md": {
       "lifecycle": "historical_or_scoped_delivery_evidence",
       "currentAuthority": false,
-      "successor": "docs/CODEX_BACKLOG_2026_07_16.md",
+      "successor": "docs/PRODUCT_BASELINE_AND_READINESS.md",
       "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
     },
     "docs/WORKSPACE_MOBILE_RESPONSIVE_CORRECTIONS_V12.md": {
@@ -773,7 +797,19 @@
     "docs/WORKSPACE_PROJECT_HUB_REPORT_ALIGNMENT_CORRECTIONS_V1_CHANGE_REQUEST.md": {
       "lifecycle": "historical_or_scoped_delivery_evidence",
       "currentAuthority": false,
-      "successor": "docs/CODEX_BACKLOG_2026_07_16.md",
+      "successor": "docs/PRODUCT_BASELINE_AND_READINESS.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/WP_DEV13_001_PRODUCTION_BASELINE_RECOVERY_CHANGE_REQUEST.md": {
+      "lifecycle": "historical_or_scoped_delivery_evidence",
+      "currentAuthority": false,
+      "successor": "docs/PRODUCT_BASELINE_AND_READINESS.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/WP_DEV13_002_EXACT_HEAD_EVIDENCE_CLOSURE_PHASE_A.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
       "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
     },
     "docs/architecture.md": {

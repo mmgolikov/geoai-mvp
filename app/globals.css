@@ -296,7 +296,7 @@ body {
 
 .geoai-print-map {
   position: relative;
-  min-height: 235px;
+  min-height: 300px;
   overflow: hidden;
   border: 1px solid #d9dee5;
   border-radius: 10px;
@@ -345,13 +345,57 @@ body {
   background: rgba(44, 127, 184, 0.12);
 }
 
+.geoai-print-map-status,
+.geoai-print-map-north,
+.geoai-print-map-scale {
+  position: absolute;
+  z-index: 4;
+  border: 1px solid rgba(255, 255, 255, 0.82);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #344054;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 700;
+  line-height: 1.2;
+  box-shadow: 0 4px 12px rgba(15, 35, 45, 0.08);
+}
+
+.geoai-print-map-status {
+  top: 10px;
+  left: 10px;
+  padding: 5px 8px;
+}
+
+.geoai-print-map-scale {
+  top: 10px;
+  right: 10px;
+  padding: 5px 8px;
+}
+
+.geoai-print-map-north {
+  top: 10px;
+  right: auto;
+  left: 55%;
+  display: inline-flex;
+  width: 28px;
+  min-height: 28px;
+  align-items: center;
+  justify-content: center;
+  padding: 3px;
+  text-align: center;
+  transform: translateX(-50%);
+}
+
 .geoai-print-marker {
   position: absolute;
   z-index: 3;
+  box-sizing: border-box;
   left: 50%;
   top: 48%;
   display: flex;
-  max-width: 235px;
+  width: max-content;
+  max-width: min(46%, 235px);
   align-items: center;
   gap: 7px;
   transform: translate(-50%, -50%);
@@ -378,12 +422,13 @@ body {
 
 .geoai-print-marker strong {
   min-width: 0;
-  overflow: hidden;
+  overflow: visible;
   color: #172033;
   font-size: 12px;
   line-height: 1.25;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  white-space: normal;
 }
 
 .geoai-print-marker-primary {
@@ -534,6 +579,10 @@ body {
   .geoai-print-mini-grid {
     grid-template-columns: 1fr;
   }
+
+  .geoai-print-map {
+    min-height: 360px;
+  }
 }
 
 @media print {
@@ -646,7 +695,7 @@ body {
   }
 
   .geoai-print-map {
-    min-height: 148px;
+    min-height: 200px;
   }
 
   .geoai-print-marker strong {

@@ -1,18 +1,18 @@
 # Supabase Data API Containment — Operator Prerequisite
 
-Status: Development draft/not apply-ready; owner path executed and evidenced on isolated rehearsal only
-Last verified: 2026-07-20
+Status: Historical operator evidence; not apply-ready and not a current execution authorization
+Last verified: 2026-08-18 (lifecycle classification only; hosted facts remain dated 2026-07-16)
 Owner: GeoAI Database / Security Operations
-Authority: Current mandatory operator decision and evidence procedure before DB/Auth/Storage activation
-Successor: None; any replacement must update `DOCUMENTATION_INDEX.md`, `CURRENT_RELEASE_STATE.md` and the Confluence Hub
+Authority: Historical rehearsal/operator procedure and evidence
+Successor: [Product Baseline and Readiness](PRODUCT_BASELINE_AND_READINESS.md), [Roadmap](roadmap.md) and a future owner-approved exact-target runbook
 Depends on: DB-01 / GitHub #85
 Navigation: [Confluence Hub](https://geoaimvp.atlassian.net/wiki/spaces/PH/overview) · [Documentation Index](DOCUMENTATION_INDEX.md) · [Current Release State](CURRENT_RELEASE_STATE.md) · [Full System Audit](FULL_SYSTEM_AUDIT_2026_07_16.md) · [Codex Backlog](CODEX_BACKLOG_2026_07_16.md#db-01--canonical-migration-replay-and-rls-evidence)
 
-Historical release context: merged PR #97 at `b915a831d5e5b28eab5fd26ac86059820e7e4a32` was a `public_demo_prototype` baseline. This operator runbook remains unapplied to development/Production; see [RELEASE_AUTHORITY_POLICY.json](RELEASE_AUTHORITY_POLICY.json) and [LAST_VERIFIED_RELEASE_SNAPSHOT.json](LAST_VERIFIED_RELEASE_SNAPSHOT.json). Live authority is external post-release evidence.
+Historical release context: merged PR #97 at `b915a831d5e5b28eab5fd26ac86059820e7e4a32` was a `public_demo_prototype` baseline. The recorded operator runbook was not applied to development/Production; current hosted application state is unverified. See [RELEASE_AUTHORITY_POLICY.json](RELEASE_AUTHORITY_POLICY.json) and [LAST_VERIFIED_RELEASE_SNAPSHOT.json](LAST_VERIFIED_RELEASE_SNAPSHOT.json). Live authority is external post-release evidence.
 
 ## Why this is a separate operator gate
 
-The development Supabase project `pphdqkurxneyagvnnjdt` exposes `public` through the Data API; it is separate from Production, where Supabase is not configured. The 2026-07-16 11:31 UTC snapshot found `ACTIVE_HEALTHY` on PostgreSQL `17.6.1.141`, 20 public tables with RLS on 19 (`spatial_ref_sys` is the only exception), zero Auth users, four buckets and zero `storage.objects` policies. A later read-only migration-ledger check still shows exactly ten historical entries and none of the six current candidates. `anon` and `authenticated` each retained 22 public-table `TRUNCATE` grants, which RLS cannot constrain. Advisors returned 14 security findings (one ERROR, 13 WARN) and 71 performance findings (53 INFO, 18 WARN). No development write was performed. The public application uses browser-local state and does not need this Data API surface.
+The 2026-07-16 snapshot of development Supabase project `pphdqkurxneyagvnnjdt` showed `public` exposed through the Data API; this historical document does not assert current hosted state. That snapshot found `ACTIVE_HEALTHY` on PostgreSQL `17.6.1.141`, 20 public tables with RLS on 19 (`spatial_ref_sys` is the only exception), zero Auth users, four buckets and zero `storage.objects` policies. Local custody now records one pre-ledger reconciliation, ten immutable development-ledger migrations and seven pending migrations; `liveApplyReady:false`. The historical rehearsal receipt recorded the first six plus the owner API operator, while the seventh remains repository-pending; current hosted application state is unverified. `anon` and `authenticated` each retained 22 public-table `TRUNCATE` grants in the historical snapshot, which RLS cannot constrain. Advisors returned 14 security findings (one ERROR, 13 WARN) and 71 performance findings (53 INFO, 18 WARN). No development write was performed. The public application uses browser-local state and does not need this Data API surface.
 
 ## Executed isolated rehearsal evidence
 

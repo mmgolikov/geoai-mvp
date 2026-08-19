@@ -1,126 +1,123 @@
 # GeoAI Documentation Index
 
 Status: Active navigation authority
-Last verified: 2026-07-21
+Last verified: 2026-08-19
 Owner: GeoAI Documentation Governance
 Authority: Sole repository navigation and lifecycle precedence
-Successor: None; any replacement must update this file and the Confluence Hub atomically
-Operational dashboard: [Confluence Project Hub](https://geoaimvp.atlassian.net/wiki/spaces/PH/overview)
-Confluence audit authority: [09.13 Full System Audit — 2026-07-16](https://geoaimvp.atlassian.net/wiki/spaces/PH/pages/12320972)
-Navigation: [Confluence Hub](https://geoaimvp.atlassian.net/wiki/spaces/PH/overview) · [Current Release State](CURRENT_RELEASE_STATE.md) · [Full System Audit](FULL_SYSTEM_AUDIT_2026_07_16.md) · [Roadmap](roadmap.md) · [QA Checklist](qa-checklist.md) · [Codex Backlog](CODEX_BACKLOG_2026_07_16.md)
+Successor: None; any replacement must update this file
+Operational dashboard: [Confluence Project Hub](https://geoaimvp.atlassian.net/wiki/spaces/PH/overview) (`partial`; last repository read-back predates PR #113)
+Navigation: [Current Release State](CURRENT_RELEASE_STATE.md) · [Product Baseline and Readiness](PRODUCT_BASELINE_AND_READINESS.md) · [Architecture](architecture.md) · [Data Strategy](data-strategy.md) · [Roadmap](roadmap.md) · [QA Checklist](qa-checklist.md)
 
-This index is the repository entry point for current documentation. If a versioned release note, dated snapshot or old change request conflicts with an active document below, the active document wins. Historical files remain immutable evidence of what was believed or released at that time; they are not current operating instructions.
+This index is the repository entry point for current documentation. Active authorities below win over dated snapshots, old change requests, receipts and release notes. Historical files remain in place as point-in-time evidence; use the [Superseded Document Register](SUPERSEDED_DOCUMENT_REGISTER.md) before relying on them operationally.
 
 ## Start here
 
 | Need | Current authority | What it answers |
 | --- | --- | --- |
-| Repository overview | [README](../README.md) | Supported prototype features, setup, routes and current public-demo restrictions |
-| Release/runtime truth | [Current Release State](CURRENT_RELEASE_STATE.md) | Exact GitHub SHA, CI, Vercel, Supabase and source activation state |
-| Release authority policy | [Release Authority Policy](RELEASE_AUTHORITY_POLICY.json) | Stable schema, precedence and post-release evidence requirements; no exact runtime tuple |
-| Last verified release snapshot | [Historical Last Verified Snapshot](LAST_VERIFIED_RELEASE_SNAPSHOT.json) | Historical PR/SHA/deployment evidence, superseded when newer external release evidence exists |
-| Full critical assessment | [Full System Audit — 2026-07-16](FULL_SYSTEM_AUDIT_2026_07_16.md) | Findings, fixes, residual risks and go/no-go boundaries |
-| Stabilization audit | [System Stabilization Audit v2 — 2026-07-21](SYSTEM_STABILIZATION_AUDIT_V2_2026_07_21.md) | Historical PR #106 release snapshot, post-merge CI, Production smoke, stale authority reconciliation and protected-pilot backlog |
-| Implemented system | [Architecture](architecture.md) | What the code does now and where trust boundaries stop |
-| Data/source rules | [Data Strategy](data-strategy.md) | Source rights, custody, evidence and activation sequence |
-| Delivery order | [Roadmap](roadmap.md) | P0/P1/P2 dependencies before Auth, Admin and real sources |
-| Verification | [QA Checklist](qa-checklist.md) | Mandatory technical and runtime checks |
-| Product System v3.2.1 candidate | [CR 10.02](CR_10_02_DESIGN_FOUNDATION_SHARED_SHELL.md), [authority registry](DESIGN_SYSTEM_V3_2_AUTHORITY_REGISTRY.json), [token manifest](DESIGN_FOUNDATION_TOKEN_MANIFEST_V3_2.json), [component mapping](DESIGN_FOUNDATION_COMPONENT_MAPPING_V3_2.md), [QA receipt](DESIGN_FOUNDATION_SHARED_SHELL_QA_RECEIPT.md) | Founder-approved bounded token/shared-shell implementation with accessibility receipt `1819:11`; not released and not a Product body migration |
-| Executable residual work | [Codex Backlog](CODEX_BACKLOG_2026_07_16.md) | Scoped tasks and acceptance criteria |
-| Codex/agent operating instructions | [AGENTS.md](../AGENTS.md) | Current implementation, validation and non-authorization rules for coding agents |
-| Supabase operator prerequisite | [Data API Containment Runbook](SUPABASE_DATA_API_CONTAINMENT_RUNBOOK_2026_07_16.md) | Rehearsal owner path executed; development exposure and separate owner decision remain draft/not apply-ready |
-| Isolated rehearsal receipt | [Supabase Auth rehearsal receipt](SUPABASE_AUTH_REHEARSAL_RECEIPT_2026_07_16.json) | Exact Free project, migration, hosted pgTAP, API-only HTTP, advisor and residual-risk evidence |
-| Continue in a new chat | [Continuation prompt](NEW_CHAT_CONTINUATION_PROMPT_2026_07_16.md) | Self-contained context, rules, integrations, state and next execution order |
-| Released source package | [CR-DEV8-001](CR_DEV8_001_CONTROLLED_OPEN_CONTEXT_SOURCE_CONNECTION_PACK_V1.md) and [QA evidence](CR_DEV8_001_QA_CHECKLIST.md) | Exact bounded Preview source contract released in PR #87 |
-| Change history | [Changelog](../CHANGELOG.md) | Chronological repository changes |
-| Document lifecycle | [Generated lifecycle manifest](DOCUMENT_LIFECYCLE_MANIFEST.json) | Machine-derived active/non-active classification and successor for every in-scope repository Markdown document |
-| Historical/scoped archive navigation | [Generated document archive index](DOCUMENT_ARCHIVE_INDEX.md) | Clickable lifecycle and successor sidecar without rewriting point-in-time evidence |
-| Confluence synchronization | [Confluence sync map](CONFLUENCE_SYNC_MAP.json), [CHG-19 receipt](CONFLUENCE_CHG19_RECEIPT.json) and prior [CHG-18 receipt](CONFLUENCE_CHG18_RECEIPT.json) | Current 28-page role/authority/successor map plus versioned SHA-256 direct read-back evidence |
+| Repository overview | [README](../README.md) | Supported prototype behavior, setup, routes and public-demo restrictions |
+| Exact released tuple | [Current Release State](CURRENT_RELEASE_STATE.md) | GitHub SHA, PR, Vercel deployment, runtime stage, CI and release boundary |
+| Product scope and readiness | [Product Baseline and Readiness](PRODUCT_BASELINE_AND_READINESS.md) | Market direction, core flow, released visual baseline, readiness and S0 blockers |
+| External authority status | [External Authority Registry](EXTERNAL_AUTHORITY_REGISTRY.json) | Confirmed, partial, blocked and unverified external evidence with write boundaries |
+| Implemented system | [Architecture](architecture.md) | Current code behavior and trust boundaries |
+| Data and source rules | [Data Strategy](data-strategy.md) | Source rights, custody, evidence and activation sequence |
+| Delivery order | [Roadmap](roadmap.md) | Dependency order before protected-pilot activation |
+| Verification | [QA Checklist](qa-checklist.md) | Required static, build, runtime, browser and evidence checks |
+| Release and change discipline | [Release/Changelog Contract](RELEASE_CHANGELOG_CONTRACT.md) | Change Request, release evidence, changelog and rollback requirements |
+| Current change authorization | [WP-DEV13-002 Exact-Head Evidence Closure, Phase A](WP_DEV13_002_EXACT_HEAD_EVIDENCE_CLOSURE_PHASE_A.md) | Independent-review remediation, three-commit partition and blocked external gate plan |
+| Predecessor change authorization | [WP-DEV13-001 Change Request](WP_DEV13_001_PRODUCTION_BASELINE_RECOVERY_CHANGE_REQUEST.md) | Original local-only scope, risks, acceptance criteria and rollback |
+| Current source audit | [Production Baseline Source Audit — 2026-08-18](PRODUCTION_BASELINE_SOURCE_AUDIT_2026_08_18.md) | Read-only GitHub, Vercel, runtime, CI, docs and local migration evidence |
+| Superseded and duplicate material | [Superseded Document Register](SUPERSEDED_DOCUMENT_REGISTER.md) | Files to preserve but not use as current authority |
+| Change history | [Changelog](../CHANGELOG.md) | Released, unreleased and historical changes |
+| Agent operating rules | [AGENTS.md](../AGENTS.md) | Implementation, validation and non-authorization rules |
+| Stable release schema | [Release Authority Policy](RELEASE_AUTHORITY_POLICY.json) | Evidence precedence and receipt schema; it intentionally contains no current tuple |
+| Generated lifecycle | [Lifecycle Manifest](DOCUMENT_LIFECYCLE_MANIFEST.json), [Archive Index](DOCUMENT_ARCHIVE_INDEX.md) | Machine-derived lifecycle and successor for every in-scope Markdown document |
 
 ## Cross-confirmed current baseline
 
-The following facts must agree across the Hub, release state, architecture, roadmap and active QA documentation:
+These facts must agree across all active release-fact documents:
 
 | Fact | Current value |
 | --- | --- |
-| Released PR | GitHub PR #106, merged |
-| Released `main` | `cc8f9ebcf3989fab4a3c4eac9be9dfb8da786a7b` |
-| Repository release policy | [RELEASE_AUTHORITY_POLICY.json](RELEASE_AUTHORITY_POLICY.json) |
-| Historical snapshot | [LAST_VERIFIED_RELEASE_SNAPSHOT.json](LAST_VERIFIED_RELEASE_SNAPSHOT.json) |
-| Vercel Production | `dpl_6RC2ohEdLBjiV82k758tFMkaDB9X`, READY at https://geoai-mvp.vercel.app on exact SHA |
-| Rollback deployment | `dpl_ERVqZPD5GAGDLjAVhMcPF2HT5Br7` |
-| Product mode | `public_demo_prototype`; browser-local demo active; protected/confidential operation blocked |
-| Production database | Supabase not configured |
-| Production source pack | HTTP 503; disabled; zero sources |
-| Development Supabase | Ref `pphdqkurxneyagvnnjdt`, separate from Production; snapshot `ACTIVE_HEALTHY` on PG `17.6.1.141`; fresh ledger remains exactly ten historical entries with all seven current candidates unapplied; live Data API/Storage/persona/upgrade gates remain |
-| Free Auth rehearsal | Ref `bkmfcjzalcvdsdvyxpgi`, separate from development/Production; active hosted state is 18 migration-ledger entries and one pre-existing confirmed Auth user with no project membership, tenant or protected-resource authority; CR 09.22 created no Auth user and executed no real-user browser persona; the first six candidate migrations + owner API operator are applied; hosted pgTAP `183/183`; PostgREST `api` only proven by positive/negative HTTP; zero uncovered domain FKs; rollback-only two-backend table-level invitation concurrency passed. The seventh no-MFA permanent non-anonymous identity migration is prepared but unapplied and does not assert verified email/phone ownership; real email/phone/Admin, Storage and rendered-browser personas remain open |
-| Candidate Auth browser contract | Exact head `4e5208a729f9dfb13068dc9521871da74a7de8db` passed Quality Gate `29582671453`; Chrome `150.0.7871.114` completed the focused Playwright mock journey `1/1` in `24.3 s`. The runner constructs a fake public-key-shaped value, uses no real credential or hosted identity and has no Supabase write path. Vercel `dpl_DzLXYYmip3N6CazkW3gXpUG34Sib` is rejected after runtime 500 middleware failures; real Auth/RLS/Admin personas remain open |
-| Responsive/keyboard browser evidence | Exact head `e203e895406817497f339fccf1d04da377a7bc65` passed Quality Gate `29584919107`; Chrome `150.0.7871.114` completed `5/5` in `41.5 s` across desktop/tablet/390px layout and overflow checks plus a 390px keyboard-only demo → Workspace → authenticated profile journey. Axe/Lighthouse, deep product/print journeys and real email/phone personas remain pending |
-| Accessibility/deep-keyboard browser evidence | Exact head `5d7af89ac2ead5b4df545e2f1810d5966c22cd0e` passed Quality Gate `29587485235`; Chrome `150.0.7871.114` completed `6/6` in `41.6 s`. Axe reported `0` serious/critical findings on Landing Hub, unified login, Workspace setup, analysis dashboard and printable report; the Tab/Enter-only path switches Map-first to Criteria-first, selects a candidate, runs analysis, exports and focuses print. Preview `dpl_HhpTExvknfLRhMNqxXunUvXZQorF` is healthy. Projects/Explore Axe, comparison/project paths, visual regression, Lighthouse/Core Web Vitals and real users remain pending |
-| Expanded project/comparison browser evidence | Exact head `0edf442f7aa59f0fe1f82f26ef6ad7ca9dde7868` passed Quality Gate `29590190286`; Chrome `150.0.7871.114` completed `8/8` in `1.4m`. All nine Axe surfaces reported `0` serious/critical findings, now including Projects, Explore, candidate comparison and printable comparison. Keyboard-only flows create/reload/open a browser-local project and compare/export/print a criteria-first shortlist. Preview `dpl_9n6d8RoVN6yEoxRzEALyG3F3rSHP` is healthy. Visual regression, Lighthouse/Core Web Vitals, remaining responsive acceptance and real users remain pending |
-| Global navigation/mobile visual/Lighthouse browser evidence | Exact head `80645d64662699bd646f96718d300df5d2b84f5f` passed Quality Gate `29611412924`; Chrome completed `12/12` in `1.7m`, the five 390px product baselines plus one 430×932 navigation baseline matched, used primary controls met 40px, direct 834×1112 navigation passed and all nine Axe surfaces stayed at zero. Lighthouse passed mobile landing, desktop login, mobile Projects (`0.97`) and desktop Explore (`1.00`) budgets. Preview `dpl_94eRMRsM8NJR2hdmYE1zLLbiQE8b` is healthy. Field Core Web Vitals, broader device/route coverage and real users remain pending |
-| Product System v3.2.1 shared-shell candidate | CR 10.02 is founder-approved on `design/cr-10-02-foundation-shared-shell` from baseline `d788ea4ddeecc719b5ffcecdd6aab8539cc9b755`. Scope is the unchanged semantic baseline, accessibility-corrected component tokens, approved identity, one responsive Product header/navigation, bounded primitives and exact-head evidence only. It is not merged or released; page bodies, Figma/Code Connect, Auth, Supabase, Storage, sources and Production remain unchanged |
-| Maturity | Not Production-ready and not pilot-ready |
+| Released PR | GitHub PR #113, merged |
+| Released `main` | `7f323c4227f2409f3fe2d4d68be48a30176f4e2a` |
+| Released `release/production` | `7f323c4227f2409f3fe2d4d68be48a30176f4e2a` |
+| Vercel Production | `dpl_4yBHCo1eZ7N6GYQWGAg1EdQGwFTE`, `READY`, canonical alias `https://geoai-mvp.vercel.app`, exact SHA |
+| Released visual/product baseline | Product System v3.2.2 correction contained in PR #113; preserve Production behavior and visuals |
+| Runtime stage | `public_demo_prototype` |
+| Access and persistence | `public_demo_only`; `browser_local`; `demo_public`; soft access; confidential pilot blocked |
+| Pilot backend | `not_production_ready_or_pilot_ready` |
+| S0 blockers | DB-01 canonical replay/RLS; AUTH-01 request-scoped identity/membership; STORAGE-01 protected evidence; SOURCE-01 real-source custody |
+| Sources | `sample_fallback`, `manual_import_ready`, `permission_required` or `planned`; no live official integration |
+| Latest exact-SHA Quality Gate | Run `31946738874`: `partial` evidence and overall failure at Production dependency audit; database replay job passed; downstream application checks were skipped |
+| Historical exact-SHA green gate | Run `30158549978`: successful point-in-time evidence only |
+| Rollback deployment | `unverified` for the PR #113 release tuple; select and verify before any future Production action |
+| Repository evidence freshness | Current release/runtime window expires `2026-08-25T18:03:54Z`; refreshed Supabase management-metadata windows expire `2026-08-20T20:07:43Z`; documentation gate fails after expiry |
+| Maturity | Public-demo prototype; not Production-ready and not pilot-ready |
 
-The full-system audit was merged as PR #97 and remains historical containment evidence. PR #106 is the last externally verified public-demo snapshot. [Current Release State](CURRENT_RELEASE_STATE.md), the [release policy](RELEASE_AUTHORITY_POLICY.json) and [historical snapshot](LAST_VERIFIED_RELEASE_SNAPSHOT.json) govern repository interpretation. Live authority is external post-release GitHub/Vercel/Project Hub evidence. This does not authorize a new merge, Production deployment, Supabase apply, secret change, Auth activation, real source connection or geometry publication.
+The mandatory caveat is:
 
-The newer isolated rehearsal receipt supersedes the earlier statement that runtime pgTAP, Data API containment and all concurrency evidence were wholly unexecuted: pgTAP/API containment and rollback-only table-level invitation concurrency are now executed only on the Free rehearsal. Authenticated RPC/HTTP concurrency remains open. The receipt does not change the older GitHub exact-head evidence, the separate development project or Production.
+> Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.
 
-Historical PR #97 browser/accessibility evidence, including head `80645d64662699bd646f96718d300df5d2b84f5f`, remains preserved as scoped containment evidence. The last externally verified snapshot is PR #106 / `cc8f9ebcf3989fab4a3c4eac9be9dfb8da786a7b` / `dpl_6RC2ohEdLBjiV82k758tFMkaDB9X`, with Quality Gate `29835520415` and artifacts `8497283837` / `8497226028`. Real email/phone/RLS/Admin/Storage/source personas, field Core Web Vitals and live development apply remain open.
+## Authority and lifecycle boundaries
 
-The personal-account increment at functional head `232fb532db1e5bc1dcf134ca1d616e4506f682f0` added `/profile`, browser-local preferences/avatar and registered-email/password actions. Its historical landing/Auth follow-up at `bdb7f0629c39838e2e3451925825699df7f84fc0` restored both entry actions through Auth. CR 09.22 now keeps `View demo` on bounded Login-to-Workspace and routes commercial requests to the separate `/request-access` React-memory brief. None of these paths uses preferences for authorization, enables verified sign-in-phone mutation or protected Storage; real-user Auth/profile actions remain pending.
+### External systems
 
-The published follow-up at functional head `77ac593b51d43a62ddc89656dbae735378cab69f` adds a resolved-session client gate to Workspace, Projects, Explore and Profile in `supabase_auth`: it restores the saved browser session before rendering, sends resolved anonymous visitors to the unified login with a bounded return path, preserves public-demo behavior and fails closed when Auth is disabled. Quality Gate `29579739837` passed; Preview `dpl_6Er5tTEesM2V6RA7ZQD8eR5VYJpQ` is READY, and hosted HTTP shows only the restoration shell on all four gated routes. It is not server authorization and does not activate Product repositories, RLS, Storage or real user personas. The later exact Playwright suites prove the hydrated mock-session redirect/restoration path; real-user session evidence remains pending.
+- GitHub release refs, PR #113 and the Vercel deployment/alias chain were read-only verified on 2026-08-18 and are `confirmed` in the external registry.
+- Production route/API responses were read-only observed; browser rendering was observed at desktop and mobile widths. This does not certify protected or real-user personas.
+- Figma and Confluence receipts are `partial`: repository evidence exists, but no current PR #113 write/read-back cycle was authorized or performed.
+- Local Supabase migration custody is `confirmed` only as a static repository contract: one pre-ledger reconciliation, ten immutable development-ledger migrations and seven pending migrations; `liveApplyReady:false`.
+- GeoAI_main observed management metadata only: `geoai-dev` is `INACTIVE` and `geoai-auth-rehearsal` is `ACTIVE_HEALTHY`. Both authorities are `partial`; their physical schema/ledger/rows/advisors/RLS/policies/PostgREST/Storage/source state is `unverified`. Production protected persistence is `blocked`.
 
-Immediate released-runtime restriction: PR #97 containment and PR #106 public-funnel/release-truth corrections are released, but the public demo remains browser-local and fixture-bounded. Do not enter confidential, regulated, sensitive or client-protected AOIs, CSV, GeoJSON, filenames, evidence or dynamic package data. Protected persistence and real sources remain blocked.
+### Released Product System
+
+The Production runtime at PR #113 is the current visual/product authority. Product System v3.2.1 CR 10.02, its registry, token manifest, component mapping and QA receipt are preserved historical provenance that led to the released v3.2.2 correction; they no longer describe an unmerged current candidate. They do not authorize Figma writes, page-body redesign, Auth, Supabase, Storage, source activation or another release.
+
+Draft PR #143 (`product/gcc-real-estate-decision-platform-v1` at `e92fb5d8e8d83de72ee4c4376d958ce598c00536`) is an excluded non-authority. Its design/UI must not be copied, cherry-picked, recreated or treated as release evidence. Any future salvage requires file-level review and explicit inclusion in an approved Change Request.
+
+### Historical operating material
+
+- [Full System Audit — 2026-07-16](FULL_SYSTEM_AUDIT_2026_07_16.md), [Codex Backlog — 2026-07-16](CODEX_BACKLOG_2026_07_16.md) and the [Data API Containment Runbook — 2026-07-16](SUPABASE_DATA_API_CONTAINMENT_RUNBOOK_2026_07_16.md) are historical/scoped evidence, not active release authority.
+- [Historical Last Verified Release Snapshot](LAST_VERIFIED_RELEASE_SNAPSHOT.json) records PR #106 and is superseded by the confirmed PR #113 external chain.
+- [Confluence sync map](CONFLUENCE_SYNC_MAP.json), [CHG-19 receipt](CONFLUENCE_CHG19_RECEIPT.json) and earlier receipts are historical integrity evidence. They do not establish current PR #113 Confluence authority.
+- `CR-*`, dated audits, receipts and release notes remain scoped evidence unless this index explicitly promotes them.
 
 ## Topic navigation
 
-### Confluence operational map
-
-The machine-readable [Confluence sync map](CONFLUENCE_SYNC_MAP.json) is the complete synchronization contract for the 28-page active/supporting operational authority set, not for every historical page in the space. CHG-19 supersedes CHG-18 for the final local-only Auth/Admin candidate, rollback-only table-level concurrency evidence and corrected 220 kB route baseline while preserving the released PR #87/Production boundary. Direct read-back passed 28/28 with exactly one CHG-19 marker pair, no CHG-16/CHG-17/CHG-18 marker and a recorded SHA-256 for every current body; see the [CHG-19 receipt](CONFLUENCE_CHG19_RECEIPT.json). The legitimate post-CHG-18 design-page v49 edit was explicitly rebased without changing its design/navigation content and became CHG-19 v50. The prior [CHG-18 receipt](CONFLUENCE_CHG18_RECEIPT.json) remains immutable evidence of the previous state. `CR-DEV8-001` (`12320810`) remains historical released evidence and points to Current Delivery State as successor. The other 226 pages remain historical/scoped cleanup inventory under DOCS-01; synchronizing the operational set does not silently certify them as current.
-
-Hub is the operational snapshot; Home is the stable charter. Every evidence change must update Hub plus every affected mapped page after the exact candidate SHA/CI/deployment is final. Hub must directly link the last externally verified PR #106 snapshot, execution program #96, CR 09.23 issue #107, the repository Codex backlog, Production/Vercel, Supabase containment, release state, audit, work packages, risks, decisions, security and pilot readiness.
-Historical audit PR #97 remains scoped containment evidence and must not be used as the current release tuple.
-
 ### Product and UX
 
-- Current bounded design candidate: [CR 10.02](CR_10_02_DESIGN_FOUNDATION_SHARED_SHELL.md), [Product System v3.2.1 authority registry](DESIGN_SYSTEM_V3_2_AUTHORITY_REGISTRY.json), [token manifest](DESIGN_FOUNDATION_TOKEN_MANIFEST_V3_2.json), [component mapping](DESIGN_FOUNDATION_COMPONENT_MAPPING_V3_2.md), and [shared-shell QA receipt](DESIGN_FOUNDATION_SHARED_SHELL_QA_RECEIPT.md). It authorizes no page-body redesign, Figma/Code Connect write, merge or Production action.
-- Current UI constraints and performance priorities: [Architecture](architecture.md#known-architectural-debt) and [Roadmap](roadmap.md#p2--product-and-design-quality). Read-only Figma/FigJam authority and stale-node findings are recorded in [Current Release State](CURRENT_RELEASE_STATE.md#design-authority--read-only-verification).
-- Historical layout reference: [UI Layout Guardrails](UI_LAYOUT_GUARDRAILS.md). Current design authority is [Architecture](architecture.md), this index and the active [QA Checklist](qa-checklist.md); the guardrail file is not independently current.
-- Historical product release evidence: files prefixed `RELEASE_GEOAI_`, plus `DEMO_*`, `MVP_*` and dated audit/checkpoint files. These are historical unless linked as current above.
+- Current scope, regions, flow and visual boundary: [Product Baseline and Readiness](PRODUCT_BASELINE_AND_READINESS.md).
+- Implemented UI constraints and known debt: [Architecture](architecture.md#known-architectural-debt).
+- Current verification requirements: [QA Checklist](qa-checklist.md).
+- Historical Product System provenance: [CR 10.02](CR_10_02_DESIGN_FOUNDATION_SHARED_SHELL.md), [authority registry](DESIGN_SYSTEM_V3_2_AUTHORITY_REGISTRY.json), [token manifest](DESIGN_FOUNDATION_TOKEN_MANIFEST_V3_2.json), [component mapping](DESIGN_FOUNDATION_COMPONENT_MAPPING_V3_2.md) and [QA receipt](DESIGN_FOUNDATION_SHARED_SHELL_QA_RECEIPT.md).
 
 ### Data, spatial and sources
 
 - Current policy: [Data Strategy](data-strategy.md).
-- Current released source contract: [CR-DEV8-001](CR_DEV8_001_CONTROLLED_OPEN_CONTEXT_SOURCE_CONNECTION_PACK_V1.md).
-- Spatial geometry uses the objective tests/rights controls preserved in [Spatial B1 Release Control](SPATIAL_B1_RELEASE_CONTROL_V1.md), the [Attribution and Distribution Spec](SPATIAL_B1_ATTRIBUTION_AND_DISTRIBUTION_SPEC_V1.md) and GitHub issue #80. Any old independent-review prerequisite is historical exact-hash evidence, not a current approval hold; owner activation and objective geometry/rights evidence remain mandatory.
-- Migration reconciliation remains governed by GitHub issue #85 and the audit [DB-01 task](CODEX_BACKLOG_2026_07_16.md#db-01--canonical-migration-replay-and-rls-evidence).
+- Released bounded source-package evidence: [CR-DEV8-001](CR_DEV8_001_CONTROLLED_OPEN_CONTEXT_SOURCE_CONNECTION_PACK_V1.md) and its [QA evidence](CR_DEV8_001_QA_CHECKLIST.md).
+- Spatial geometry remains blocked by delivery, distribution, attribution, retention and rollback decisions tracked in GitHub Issue #80.
+- DB-01 remains an S0 blocker; local migration custody is not hosted replay/RLS proof.
 
 ### Security, Auth and Storage
 
-- Implemented trust boundary: [Architecture](architecture.md#request-and-trust-boundaries).
-- Pre-activation checks: [QA Checklist](qa-checklist.md).
-- Development Data API operator decision and live evidence: [Supabase Data API Containment Runbook](SUPABASE_DATA_API_CONTAINMENT_RUNBOOK_2026_07_16.md). The isolated rehearsal owner path is executed and evidenced; development remains a separate draft that is not apply-ready.
-- Historical foundations such as `AUTH_*`, `RLS_*`, `SECURE_FILE_STORAGE_*` and `SUPABASE_*` describe intended or prior work. They do not prove active Auth, RLS, Storage or pilot readiness.
+- Trust boundary: [Architecture](architecture.md#request-and-trust-boundaries).
+- Activation checks: [QA Checklist](qa-checklist.md).
+- Historical rehearsal/operator evidence: [Supabase Auth Rehearsal Receipt](SUPABASE_AUTH_REHEARSAL_RECEIPT_2026_07_16.json) and [Data API Containment Runbook](SUPABASE_DATA_API_CONTAINMENT_RUNBOOK_2026_07_16.md).
+- No active authority claims request-scoped Auth/RBAC, protected Storage, real-source custody or Production Supabase readiness.
 
 ### Delivery and governance
 
 - Current ordering and holds: [Roadmap](roadmap.md).
-- Current residual tasks: [Codex Backlog](CODEX_BACKLOG_2026_07_16.md).
-- Independent reviewer approvals are not required in the current phase. Objective evidence gates remain mandatory.
-- Dated `CURRENT_RELEASE_STATE_*`, `CHECKPOINT_*`, `*_CHANGE_REQUEST` and `*_QA_CHECKLIST` files are preserved as release/change evidence and must not be read as the latest state unless this index explicitly links them.
-- Confluence IA evidence is recorded in the [Full System Audit](FULL_SYSTEM_AUDIT_2026_07_16.md#s2--governance-and-maintainability): 253 unique descendants plus Hub, maximum hierarchy depth eight, no demonstrated root islands/orphans, known numbering collisions/stubs and two Hub label/target mismatches.
+- Current external evidence status: [External Authority Registry](EXTERNAL_AUTHORITY_REGISTRY.json).
+- Exact change authorization: [WP-DEV13-002 Exact-Head Evidence Closure, Phase A](WP_DEV13_002_EXACT_HEAD_EVIDENCE_CLOSURE_PHASE_A.md); [WP-DEV13-001](WP_DEV13_001_PRODUCTION_BASELINE_RECOVERY_CHANGE_REQUEST.md) is its preserved predecessor.
+- Historical backlog items require re-triage against the current product baseline before implementation.
 
 ## Documentation lifecycle
 
 | Class | Rule |
 | --- | --- |
-| Active authority | Has an explicit `Status` and `Last verified`; is listed in **Start here**; must be updated in the same change as affected behavior |
-| Release/control evidence | May retain historical SHAs, deployment IDs and decisions; must identify its released or superseded scope |
-| Historical snapshot | Immutable point-in-time evidence; current navigation must point to its successor |
-| Draft/target | Must say that it is not implemented and must never be used as runtime evidence |
+| Active authority | Has an explicit `Status` and `Last verified`, is listed in **Start here**, and is updated with affected behavior |
+| Release/control evidence | Retains exact historical facts and states its released or superseded scope |
+| Historical snapshot | Remains in place; current navigation points to its successor |
+| Draft/target | States that it is not implemented and cannot be used as runtime evidence |
 
-Every change that affects release facts, APIs, trust boundaries, sources, activation or operator workflow must update this index or prove that no navigation/current-truth change is needed. `npm run test:documentation-current-truth` enforces the core cross-document invariants; semantic review is still required.
-
-The generated lifecycle baseline and counts live in [DOCUMENT_LIFECYCLE_MANIFEST.json](DOCUMENT_LIFECYCLE_MANIFEST.json); the [clickable archive sidecar](DOCUMENT_ARCHIVE_INDEX.md) gives every file its recorded lifecycle and successor without modifying historical evidence. Counts are generated and must not become a hand-maintained contract. The earlier manual “80 files without lifecycle language” count is superseded. DOCS-01 remains open for Confluence historical-page lifecycle/IA cleanup.
+Every change affecting release facts, APIs, trust boundaries, sources, activation or operator workflow must update this index or demonstrate that no current-truth change is needed. `npm run test:documentation-current-truth` enforces core cross-document invariants; semantic review remains mandatory.

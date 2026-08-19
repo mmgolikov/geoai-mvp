@@ -4,28 +4,31 @@ import process from "node:process";
 import { validateCurrentReleaseTruth } from "./release-truth-validator.mjs";
 
 const root = process.cwd();
-const minimumVerificationDate = "2026-07-20";
+const minimumVerificationDate = "2026-08-18";
 
 const activeDocs = [
   "README.md",
   "CHANGELOG.md",
   "docs/DOCUMENTATION_INDEX.md",
   "docs/CURRENT_RELEASE_STATE.md",
-  "docs/FULL_SYSTEM_AUDIT_2026_07_16.md",
-  "docs/CODEX_BACKLOG_2026_07_16.md",
+  "docs/PRODUCT_BASELINE_AND_READINESS.md",
+  "docs/RELEASE_CHANGELOG_CONTRACT.md",
+  "docs/SUPERSEDED_DOCUMENT_REGISTER.md",
   "docs/architecture.md",
   "docs/data-strategy.md",
   "docs/roadmap.md",
   "docs/qa-checklist.md",
-  "AGENTS.md",
-  "docs/SUPABASE_DATA_API_CONTAINMENT_RUNBOOK_2026_07_16.md"
+  "AGENTS.md"
 ];
 
 const releaseFactDocs = [
   "docs/DOCUMENTATION_INDEX.md",
   "docs/CURRENT_RELEASE_STATE.md",
-  "docs/FULL_SYSTEM_AUDIT_2026_07_16.md",
+  "docs/PRODUCT_BASELINE_AND_READINESS.md",
+  "docs/architecture.md",
+  "docs/data-strategy.md",
   "docs/roadmap.md",
+  "docs/qa-checklist.md",
   "README.md",
   "AGENTS.md"
 ];
@@ -189,13 +192,26 @@ const semanticContracts = [
       "The current migration chain is not apply-ready for development or Production.",
       "Supabase CLI `2.109.1`",
       "71-assertion pgTAP",
-      "User-uploaded and user-drawn targets skip market/climate network calls"
+      "User-uploaded and user-drawn targets skip market/climate network calls",
+      "GeoAI_main observed management metadata as `INACTIVE`",
+      "Current schema/ledger/rows/advisors/RLS/policies/PostgREST/Storage/source state is `unverified`"
     ],
     forbidden: [
       "Mock fallback works when",
       "returns snapshot-backed context",
       "Decision score POST returns `deterministic_fallback`"
     ]
+  },
+  {
+    path: "docs/CURRENT_RELEASE_STATE.md",
+    required: [
+      "GeoAI_main observed management metadata only",
+      "`geoai-dev` is `INACTIVE`",
+      "`geoai-auth-rehearsal` is `ACTIVE_HEALTHY`",
+      "Physical schema, migration ledger, Auth and database rows, source rows, advisors, RLS, policies and Storage are `unverified`",
+      "The documentation gate fails after expiry"
+    ],
+    forbidden: ["Isolated Free rehearsal — current candidate evidence"]
   },
   {
     path: "docs/architecture.md",
@@ -225,15 +241,29 @@ const semanticContracts = [
     path: "docs/DOCUMENTATION_INDEX.md",
     required: [
       "CONFLUENCE_SYNC_MAP.json",
-      "Independent reviewer approvals are not required in the current phase",
-      "old independent-review prerequisite is historical exact-hash evidence"
+      "External Authority Registry",
+      "Superseded Document Register",
+      "excluded non-authority"
     ],
     forbidden: ["Stable layout rules: [UI Layout Guardrails]"]
   },
   {
     path: "AGENTS.md",
-    required: ["Mapbox GL JS", "Public analysis is browser-local deterministic"],
-    forbidden: ["Mapbox/MapLibre"]
+    required: [
+      "Mapbox GL JS",
+      "Public analysis is browser-local deterministic",
+      "GeoAI_main observed management metadata only",
+      "Physical schema, migration ledger, Auth and database rows, source rows, advisors, RLS, policies and Storage are `unverified`"
+    ],
+    forbidden: ["Mapbox/MapLibre", "active hosted truth is"]
+  },
+  {
+    path: "docs/RELEASE_CHANGELOG_CONTRACT.md",
+    required: [
+      "Every current external claim must declare `observedAt`, `validUntil` and an expiry action.",
+      "Supabase management status and physical database evidence are separate classes."
+    ],
+    forbidden: []
   }
 ];
 
@@ -254,7 +284,7 @@ try {
   const syncMap = JSON.parse(confluenceSyncMapContent);
   confluenceSyncMap = syncMap;
   if (syncMap.hubPageId !== "98425") failures.push(`${confluenceSyncMapPath}: canonical Hub page ID mismatch`);
-  if (syncMap.controlPackage !== "CHG-2026-07-16-19") failures.push(`${confluenceSyncMapPath}: current control package must be CHG-19`);
+  if (syncMap.controlPackage !== "CHG-2026-07-16-19") failures.push(`${confluenceSyncMapPath}: historical control package must be CHG-19`);
   if (!syncMap.readBackVerification?.includes("183/183")) failures.push(`${confluenceSyncMapPath}: final 183/183 rehearsal evidence is missing`);
   if (syncMap.contentHashAlgorithm !== "sha256") failures.push(`${confluenceSyncMapPath}: current-body hash algorithm must be sha256`);
   if (!Array.isArray(syncMap.pages) || syncMap.pages.length !== 28) {
@@ -304,7 +334,24 @@ try {
   failures.push(`${confluenceChg19ReceiptPath}: invalid JSON`);
 }
 
-const releaseTruth = validateCurrentReleaseTruth({ root, activeDocPaths: activeDocs, releaseFactDocPaths: releaseFactDocs });
+const migrationManifestPath = "supabase/migration-ledger-baseline.json";
+try {
+  const migrationManifest = JSON.parse(read(migrationManifestPath));
+  if (migrationManifest.preLedgerReconciliations?.length !== 1) failures.push(`${migrationManifestPath}: expected one pre-ledger reconciliation`);
+  if (migrationManifest.canonicalBaselineCount !== 10 || migrationManifest.liveAppliedMigrations?.length !== 10) {
+    failures.push(`${migrationManifestPath}: expected exactly ten immutable development-ledger migrations`);
+  }
+  if (migrationManifest.pendingMigrations?.length !== 7) failures.push(`${migrationManifestPath}: expected exactly seven pending migrations`);
+} catch {
+  failures.push(`${migrationManifestPath}: invalid JSON`);
+}
+
+const releaseTruth = validateCurrentReleaseTruth({
+  root,
+  activeDocPaths: activeDocs,
+  releaseFactDocPaths: releaseFactDocs,
+  requireExternalRegistry: true
+});
 failures.push(...releaseTruth.failures);
 
 const index = read("docs/DOCUMENTATION_INDEX.md");

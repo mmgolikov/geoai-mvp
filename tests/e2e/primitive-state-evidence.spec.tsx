@@ -197,11 +197,15 @@ const profileCases: PrimitiveCase[] = approved.components.authenticatedProfileBa
 
 const allCases = [...buttonCases, ...chipCases, ...segmentCases, ...caveatCases, ...profileCases];
 
-async function installHarness(page: Page, html: string) {
+async function prepareHarnessPage(page: Page) {
   await page.goto("/request-access");
   await page.clock.setFixedTime(new Date(fixedTime));
-  await page.evaluate((content) => { document.body.innerHTML = content; }, html);
   await page.addStyleTag({ content: "*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important;caret-color:transparent!important}body{margin:0!important;background:#fff!important}nextjs-portal{display:none!important}" });
+  await page.evaluate(async () => document.fonts.ready);
+}
+
+async function installHarness(page: Page, html: string) {
+  await page.evaluate((content) => { document.body.innerHTML = content; }, html);
   await page.mouse.move(1200, 700);
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
   await page.evaluate(async () => document.fonts.ready);
@@ -453,6 +457,9 @@ test("renders the complete permanent Product System v3.2.1 primitive state matri
 
   await fs.rm(evidenceDirectory, { force: true, recursive: true });
   await fs.mkdir(evidenceDirectory, { recursive: true });
+  // Load the application stylesheet and font context once. Re-navigating the same
+  // route for all 56 states dominated the trace without adding state coverage.
+  await prepareHarnessPage(page);
   const records: EvidenceRecord[] = [];
   for (const item of allCases) records.push(await captureState(page, item));
 

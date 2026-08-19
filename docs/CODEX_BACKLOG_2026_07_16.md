@@ -1,10 +1,10 @@
 # GeoAI Codex Backlog — 2026-07-16
 
-Status: Active, implementation-ready
-Last verified: 2026-07-21
+Status: Historical/scoped backlog; re-triage before implementation
+Last verified: 2026-08-18 (lifecycle classification only; tasks remain dated 2026-07-16)
 Owner: GeoAI Engineering
-Authority: Executable residual work and acceptance criteria
-Successor: None; any replacement must update `DOCUMENTATION_INDEX.md`
+Authority: Historical residual-work inventory and acceptance evidence
+Successor: [Product Baseline and Readiness](PRODUCT_BASELINE_AND_READINESS.md) and [Roadmap](roadmap.md)
 Priority rule: complete P0 in dependency order before real sources, Auth/RBAC/Admin activation or client files
 Navigation: [Confluence Hub](https://geoaimvp.atlassian.net/wiki/spaces/PH/overview) · [Documentation Index](DOCUMENTATION_INDEX.md) · [Current Release State](CURRENT_RELEASE_STATE.md) · [Full System Audit](FULL_SYSTEM_AUDIT_2026_07_16.md) · [Roadmap](roadmap.md) · [Supabase containment runbook](SUPABASE_DATA_API_CONTAINMENT_RUNBOOK_2026_07_16.md)
 GitHub execution program: [#96](https://github.com/mmgolikov/geoai-mvp/issues/96)
@@ -19,9 +19,9 @@ Priority: P0 / S0
 Tracks: GitHub [#85](https://github.com/mmgolikov/geoai-mvp/issues/85)
 Blocks: AUTH-01 final integration, Storage, durable writes, real snapshots
 
-Reconcile legacy and current table definitions into an upgrade-safe canonical chain. The candidate chain now includes containment, identity, source custody, rebuilt Auth/Admin/client/project activation, FK-index hardening, forward lifecycle remediation and the no-MFA permanent non-anonymous identity compatibility override. Treat the first six as rehearsal-only and the seventh as unapplied everywhere until each exact-target upgrade/drift/apply plan is separately approved and proven.
+Reconcile legacy and current table definitions into an upgrade-safe canonical chain. The candidate chain now includes containment, identity, source custody, rebuilt Auth/Admin/client/project activation, FK-index hardening, forward lifecycle remediation and the no-MFA permanent non-anonymous identity compatibility override. The 2026-07-16 receipt recorded the first six on rehearsal; repository custody lists the seventh as pending. Current hosted application state is unverified until each exact-target upgrade/drift/apply plan is separately approved and proven.
 
-Current implementation: the first ten live-ledger files remain hash/byte pinned; non-ledger drafts are quarantined. Isolated Free rehearsal `bkmfcjzalcvdsdvyxpgi` carries the first six candidates and the owner Data API operator. Hosted identity/source, activation and lifecycle-remediation suites pass `183/183`; all test users roll back. PostgREST exposes only the 14-RPC `api` schema and HTTP denies `public`; all 29 GeoAI domain tables have RLS and 39 added indexes reduce uncovered domain FKs to zero. A seventh migration now prepares the product decision to replace AAL2 with a permanent non-anonymous identity check, but it is unapplied everywhere and does not assert verified email or phone ownership. Remediation closes invitation expiry rollback/lock order, bootstrap provenance, temporary-ban status drift and the unsafe shared aggregate cursor. Two independent hosted sessions passed the table-level organization→project→invitation create/accept and create/revoke lock-order regression without deadlock and rolled back cleanly. The [receipt](SUPABASE_AUTH_REHEARSAL_RECEIPT_2026_07_16.json) records the applied six-migration state. DB-01 remains open for the seventh-migration exact-target rehearsal, authenticated RPC concurrency, resource-specific Admin pagination, real HTTP email/phone/browser/Storage personas and the separate development upgrade/drift/apply decision.
+Historical implementation receipt (2026-07-16; not current hosted truth): the first ten live-ledger files were hash/byte pinned and non-ledger drafts were quarantined. The isolated Free rehearsal receipt recorded the first six candidates plus the owner Data API operator, `183/183` hosted SQL personas, a 14-RPC `api`-only PostgREST boundary, RLS on 29 GeoAI domain tables and zero uncovered domain foreign keys. Test users rolled back. The seventh repository migration prepares the product decision to replace AAL2 with a permanent non-anonymous identity check and does not assert verified email or phone ownership. Two recorded hosted sessions passed the organization→project→invitation lock-order regression and rolled back. Current physical schema, migration, persona, RLS, PostgREST and Storage state is unverified. DB-01 remains open for exact-target replay, authenticated RPC concurrency, resource-specific Admin pagination, real HTTP email/phone/browser/Storage personas and a separate development upgrade/drift/apply decision.
 
 Acceptance:
 

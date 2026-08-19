@@ -3,7 +3,7 @@ import type { RuntimeSourceObservation } from "@/src/lib/external-data/runtime-s
 import type { SourceLineageSnapshot } from "@/src/lib/project-workspace-types";
 
 type SnapshotInput = {
-  evidence?: Array<{ id: string; title?: string; sourceId?: string; description?: string; sourceType?: string; sourceStatus?: string }>;
+  evidence?: Array<{ id: string; label?: string; title?: string; sourceId?: string; description?: string; sourceType?: string; sourceStatus?: string }>;
   uploadedDatasets?: Array<{ id: string; name: string; type: string; notes?: string }>;
   runtimeObservations?: RuntimeSourceObservation[];
 };
@@ -38,7 +38,7 @@ export function createSourceLineageSnapshot(input: SnapshotInput = {}): SourceLi
       .slice(0, 8)
       .map((item) => ({
         id: item.id,
-        name: item.title ?? item.sourceId ?? item.id,
+        name: item.label ?? item.title ?? item.sourceId ?? item.id,
         note: item.description ?? "Sample/open evidence source."
       })),
     uploadedSources: uploadedDatasets.map((dataset) => ({
