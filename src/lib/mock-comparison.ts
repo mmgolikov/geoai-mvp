@@ -249,15 +249,15 @@ export function createMockComparison(items: ComparisonItem[], customQuery = ""):
         "Mock comparison scoring model",
         "Deterministic local comparison model used for MVP demonstration."
       ),
-      createEvidenceItem(
-        "comparison-imported-market-metrics",
-        "dubai-pulse-dld-apis",
-        "Imported market metrics readiness",
-        importedSupportItems.length > 0
-          ? "Local DLD / Dubai Pulse-style ingestion metrics used for matched comparison market context. Sample/manual import; official validation required."
-          : "Imported market metrics are available but did not match all selected comparison items.",
-        "medium"
-      )
+      ...(importedSupportItems.length > 0
+        ? [createEvidenceItem(
+            "comparison-imported-market-metrics",
+            "demo-market-context-seed",
+            "Imported sample market metrics",
+            "Local ingestion pipeline source: data/normalized/market_area_metrics.json. Used for matched comparison market context and scoring. Sample/manual import; validate against official DLD / Dubai Pulse datasets before underwriting or development decisions.",
+            "medium"
+          )]
+        : [])
     ]
   };
   const queryAnswer = normalizedCustomQuery

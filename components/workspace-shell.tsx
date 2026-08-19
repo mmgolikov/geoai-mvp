@@ -92,6 +92,7 @@ import {
   withUploadedDataContext
 } from "@/src/lib/uploaded-data";
 import type { GeoAIProject } from "@/src/lib/db/types";
+import type { WorkspaceReport } from "@/src/lib/project-workspace-types";
 import { upsertBrowserProjectArtifact } from "@/src/lib/browser-project-artifacts";
 import type {
   AnalysisScenarioId,
@@ -2131,8 +2132,10 @@ export function WorkspaceShell({
     };
   }
 
-  function createPrintableSessionReport(mode: "analysis" | "comparison", reportKey: string) {
+  function createPrintableSessionReport(mode: "analysis" | "comparison", reportKey: string): WorkspaceReport | null {
     if (mode === "analysis" && analysis) {
+      const createdAt = new Date().toISOString();
+
       return {
         id: reportKey,
         projectId: activeProject.id ?? null,
@@ -2142,11 +2145,18 @@ export function WorkspaceShell({
         scenario: analysis.title,
         targetLabel: analysis.selectedAoi?.name ?? analysis.selectedObject?.name ?? "Custom map selection",
         reportPayload: createAnalysisReportPayload(analysis),
-        createdAt: new Date().toISOString()
+        sourceLineage: createSourceLineageSnapshot({
+          evidence: analysis.evidence,
+          uploadedDatasets: analysis.uploadedDataContext?.uploadedDatasets ?? []
+        }),
+        createdAt,
+        updatedAt: createdAt
       };
     }
 
     if (mode === "comparison" && comparison) {
+      const createdAt = new Date().toISOString();
+
       return {
         id: reportKey,
         projectId: activeProject.id ?? null,
@@ -2156,7 +2166,11 @@ export function WorkspaceShell({
         scenario: "Comparison",
         targetLabel: comparison.items.map((item) => item.item.name).join(", "),
         reportPayload: createComparisonReportPayload(comparison),
-        createdAt: new Date().toISOString()
+        sourceLineage: createSourceLineageSnapshot({
+          evidence: comparison.evidence
+        }),
+        createdAt,
+        updatedAt: createdAt
       };
     }
 

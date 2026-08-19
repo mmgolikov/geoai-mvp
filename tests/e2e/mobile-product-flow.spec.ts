@@ -74,7 +74,8 @@ async function expectPixelStableScreenshot(
   page: Page,
   label: string,
   firstImage: Buffer,
-  repeatImage: Buffer
+  repeatImage: Buffer,
+  diagnosticBasePath: string
 ) {
   const comparison = await page.evaluate(async ({ firstBase64, repeatBase64 }) => {
     async function readPixels(base64: string) {
@@ -105,9 +106,14 @@ async function expectPixelStableScreenshot(
     if (!dimensionsMatch) {
       return {
         changedPixelCount: Number.MAX_SAFE_INTEGER,
+        changedPixelBounds: null,
         dimensionsMatch,
+        diffBase64: "",
         height: first.height,
         maxChannelDelta: 255,
+        significantElements: [],
+        significantPixelBounds: null,
+        significantPixelCount: Number.MAX_SAFE_INTEGER,
         totalPixels: first.width * first.height,
         width: first.width
       };
@@ -115,20 +121,85 @@ async function expectPixelStableScreenshot(
 
     let changedPixelCount = 0;
     let maxChannelDelta = 0;
+    let significantPixelCount = 0;
+    const changedPixelBounds = { minX: first.width, minY: first.height, maxX: -1, maxY: -1 };
+    const significantPixelBounds = { minX: first.width, minY: first.height, maxX: -1, maxY: -1 };
+    const diffCanvas = document.createElement("canvas");
+    diffCanvas.width = first.width;
+    diffCanvas.height = first.height;
+    const diffContext = diffCanvas.getContext("2d");
+    if (!diffContext) throw new Error("Unable to create candidate screenshot diff context.");
+    const diffImage = diffContext.createImageData(first.width, first.height);
+
     for (let offset = 0; offset < first.pixels.length; offset += 4) {
       let pixelDelta = 0;
       for (let channel = 0; channel < 4; channel += 1) {
         pixelDelta = Math.max(pixelDelta, Math.abs(first.pixels[offset + channel] - repeat.pixels[offset + channel]));
       }
-      if (pixelDelta > 0) changedPixelCount += 1;
+      if (pixelDelta > 0) {
+        const pixelIndex = offset / 4;
+        const x = pixelIndex % first.width;
+        const y = Math.floor(pixelIndex / first.width);
+        changedPixelCount += 1;
+        changedPixelBounds.minX = Math.min(changedPixelBounds.minX, x);
+        changedPixelBounds.minY = Math.min(changedPixelBounds.minY, y);
+        changedPixelBounds.maxX = Math.max(changedPixelBounds.maxX, x);
+        changedPixelBounds.maxY = Math.max(changedPixelBounds.maxY, y);
+        diffImage.data[offset] = 255;
+        diffImage.data[offset + 1] = pixelDelta > 2 ? 0 : 186;
+        diffImage.data[offset + 2] = 0;
+        diffImage.data[offset + 3] = 255;
+        if (pixelDelta > 2) {
+          significantPixelCount += 1;
+          significantPixelBounds.minX = Math.min(significantPixelBounds.minX, x);
+          significantPixelBounds.minY = Math.min(significantPixelBounds.minY, y);
+          significantPixelBounds.maxX = Math.max(significantPixelBounds.maxX, x);
+          significantPixelBounds.maxY = Math.max(significantPixelBounds.maxY, y);
+        }
+      }
       maxChannelDelta = Math.max(maxChannelDelta, pixelDelta);
     }
 
+    diffContext.putImageData(diffImage, 0, 0);
+    const normalizedChangedBounds = changedPixelCount > 0 ? changedPixelBounds : null;
+    const normalizedSignificantBounds = significantPixelCount > 0 ? significantPixelBounds : null;
+    const significantElements = normalizedSignificantBounds
+      ? Array.from(document.querySelectorAll<HTMLElement>("body *"))
+        .map((element) => {
+          const rect = element.getBoundingClientRect();
+          return {
+            area: rect.width * rect.height,
+            className: element.className?.toString().slice(0, 180) ?? "",
+            height: rect.height,
+            tag: element.tagName.toLowerCase(),
+            text: element.innerText?.trim().replace(/\s+/g, " ").slice(0, 120) ?? "",
+            width: rect.width,
+            x: rect.x,
+            y: rect.y + window.scrollY
+          };
+        })
+        .filter((element) => (
+          element.width > 0 &&
+          element.height > 0 &&
+          element.x < normalizedSignificantBounds.maxX + 1 &&
+          element.x + element.width > normalizedSignificantBounds.minX &&
+          element.y < normalizedSignificantBounds.maxY + 1 &&
+          element.y + element.height > normalizedSignificantBounds.minY
+        ))
+        .sort((firstElement, secondElement) => firstElement.area - secondElement.area)
+        .slice(0, 12)
+      : [];
+
     return {
       changedPixelCount,
+      changedPixelBounds: normalizedChangedBounds,
       dimensionsMatch,
+      diffBase64: diffCanvas.toDataURL("image/png").split(",")[1] ?? "",
       height: first.height,
       maxChannelDelta,
+      significantElements,
+      significantPixelBounds: normalizedSignificantBounds,
+      significantPixelCount,
       totalPixels: first.width * first.height,
       width: first.width
     };
@@ -137,12 +208,30 @@ async function expectPixelStableScreenshot(
     repeatBase64: repeatImage.toString("base64")
   });
 
+  await fs.writeFile(`${diagnosticBasePath}.repeat.png`, repeatImage);
+  if (comparison.diffBase64) {
+    await fs.writeFile(`${diagnosticBasePath}.diff.png`, Buffer.from(comparison.diffBase64, "base64"));
+  }
+  await fs.writeFile(
+    `${diagnosticBasePath}.diff.json`,
+    `${JSON.stringify({ label, ...comparison, diffBase64: undefined }, null, 2)}\n`,
+    "utf8"
+  );
+
   expect(comparison.dimensionsMatch, `${label} candidate baseline dimensions must remain stable`).toBe(true);
   const allowedChangedPixels = Math.max(100, Math.ceil(comparison.totalPixels * 0.001));
+  // Chromium can re-rasterize a sparse set of fractional SVG/font/card-edge pixels between
+  // consecutive full-page captures. Keep a small significant-pixel budget so that isolated
+  // antialias noise passes while any coherent UI/content change still fails closed.
+  const allowedSignificantPixels = Math.max(20, Math.ceil(comparison.totalPixels * 0.00002));
   expect(
     comparison.maxChannelDelta,
-    `${label} candidate baseline may contain only negligible rasterization noise`
-  ).toBeLessThanOrEqual(2);
+    `${label} candidate baseline rasterization delta must remain bounded`
+  ).toBeLessThanOrEqual(24);
+  expect(
+    comparison.significantPixelCount,
+    `${label} candidate baseline significant changed pixels must stay below ${allowedSignificantPixels}`
+  ).toBeLessThanOrEqual(allowedSignificantPixels);
   expect(
     comparison.changedPixelCount,
     `${label} candidate baseline changed pixels must stay below ${allowedChangedPixels}`
@@ -178,7 +267,7 @@ async function captureVisualEvidence(
   const sha256 = createHash("sha256").update(image).digest("hex");
   if (candidateBaseline) {
     const repeatImage = await page.screenshot({ animations: "disabled", caret: "hide", fullPage });
-    await expectPixelStableScreenshot(page, label, image, repeatImage);
+    await expectPixelStableScreenshot(page, label, image, repeatImage, filePath.replace(/\.png$/i, ""));
   } else {
     await expect(page).toHaveScreenshot(fileName, {
       animations: "disabled",

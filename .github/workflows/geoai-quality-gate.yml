@@ -47,8 +47,40 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install --yes poppler-utils
+          required_tools=(pdfinfo pdftoppm pdftotext pdfimages)
+          missing_tools=()
+          for tool in "${required_tools[@]}"; do
+            if ! command -v "$tool" >/dev/null 2>&1; then
+              missing_tools+=("$tool")
+            fi
+          done
+
+          if [ "${#missing_tools[@]}" -gt 0 ]; then
+            echo "Installing poppler-utils; missing tools: ${missing_tools[*]}"
+            sudo -n env DEBIAN_FRONTEND=noninteractive \
+              timeout --signal=TERM --kill-after=10s 180s \
+              apt-get \
+                -o Acquire::Retries=3 \
+                -o Acquire::http::Timeout=30 \
+                -o Acquire::https::Timeout=30 \
+                -o DPkg::Lock::Timeout=30 \
+                update
+            sudo -n env DEBIAN_FRONTEND=noninteractive \
+              timeout --signal=TERM --kill-after=10s 180s \
+              apt-get \
+                -o Acquire::Retries=3 \
+                -o Acquire::http::Timeout=30 \
+                -o Acquire::https::Timeout=30 \
+                -o DPkg::Lock::Timeout=30 \
+                install --yes --no-install-recommends poppler-utils
+          fi
+
+          : > artifacts/poppler-tools.txt
+          for tool in "${required_tools[@]}"; do
+            tool_path="$(command -v "$tool")"
+            tool_version="$("$tool" -v 2>&1 | sed -n '1p')"
+            printf '%s\t%s\t%s\n' "$tool" "$tool_path" "$tool_version" | tee -a artifacts/poppler-tools.txt
+          done
 
       - name: Production dependency audit
         shell: bash

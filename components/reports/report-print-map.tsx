@@ -16,9 +16,9 @@ function stablePercent(value: string, axis: "x" | "y", index: number) {
 }
 
 const comparisonMarkerSlots = [
-  { left: 28, top: 29 },
-  { left: 70, top: 19 },
-  { left: 63, top: 52 }
+  { left: 26, top: 36 },
+  { left: 74, top: 36 },
+  { left: 50, top: 58.5 }
 ];
 
 function formatPoint(point: AnalysisReportDeliverable["coordinates"]) {

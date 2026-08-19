@@ -65,8 +65,8 @@ export function enrichAnalysisWithMarketMetrics(analysis: ExpressAnalysis, match
   const importedEvidence = match.importedMetricsUsed
     ? createEvidenceItem(
         `imported-market-metrics-${match.matchedAreaName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
-        "dubai-pulse-dld-apis",
-        "Imported DLD / Dubai Pulse-style market metrics",
+        "demo-market-context-seed",
+        "Imported sample market metrics",
         `Local ingestion pipeline source: data/normalized/market_area_metrics.json. Used for market context and scenario scoring for ${match.matchedAreaName}. Sample/manual import; validate against official DLD / Dubai Pulse datasets before underwriting or development decisions.`,
         match.confidence
       )

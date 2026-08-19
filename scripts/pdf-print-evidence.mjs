@@ -252,6 +252,10 @@ for (const fixture of fixtures) {
       timestamp: /SAVED REPORT TIMESTAMP/i.test(extractedText) && extractedText.includes(`Evidence timestamp: ${fixedEvidenceTime}`),
       classificationAndCaveat: extractedText.includes("Screening") && extractedText.includes(requiredCaveat),
       sourceLineage: extractedText.includes("Data Used / Source Lineage"),
+      sampleMarketMetricsLineage: fixture.reportType !== "comparison" || (
+        extractedText.includes("Imported sample market metrics") &&
+        extractedText.includes("data/normalized/market_area_metrics.json")
+      ),
       attribution: !fixture.attributionRequired || extractedText.includes("Map/data sources:"),
       pageNumbering: /Page\s+1\s+of\s+\d+/i.test(extractedText)
     };

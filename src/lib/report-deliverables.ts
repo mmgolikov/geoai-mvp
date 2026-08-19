@@ -111,7 +111,7 @@ const fallbackLineage: SourceLineageSnapshot = {
   ]
 };
 
-const releaseCaveat = "screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.";
+const releaseCaveat = "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.";
 
 const scoreKeys: ScoreKey[] = [
   "developmentPotential",
@@ -248,6 +248,10 @@ function readCreatedAt(record: ReportRecord, payload: unknown) {
 function readSourceLineage(record: ReportRecord) {
   const sourceLineage = (record.sourceLineage ?? record.source_lineage) as Partial<SourceLineageSnapshot> | null | undefined;
   const disclaimers = Array.isArray(sourceLineage?.disclaimers) ? sourceLineage.disclaimers : [];
+  const normalizedReleaseCaveat = releaseCaveat.toLocaleLowerCase();
+  const otherDisclaimers = disclaimers.filter((item) => (
+    typeof item === "string" && item.trim().toLocaleLowerCase() !== normalizedReleaseCaveat
+  ));
 
   return {
     capturedAt: typeof sourceLineage?.capturedAt === "string" ? sourceLineage.capturedAt : fallbackLineage.capturedAt,
@@ -255,9 +259,7 @@ function readSourceLineage(record: ReportRecord) {
     uploadedSources: Array.isArray(sourceLineage?.uploadedSources) ? sourceLineage.uploadedSources : [],
     externalSources: Array.isArray(sourceLineage?.externalSources) ? sourceLineage.externalSources : [],
     plannedValidationSources: Array.isArray(sourceLineage?.plannedValidationSources) ? sourceLineage.plannedValidationSources : [],
-    disclaimers: disclaimers.includes(releaseCaveat)
-      ? disclaimers
-      : [releaseCaveat, ...disclaimers]
+    disclaimers: [releaseCaveat, ...otherDisclaimers]
   };
 }
 
