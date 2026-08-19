@@ -1,7 +1,7 @@
 # GeoAI Documentation Index
 
 Status: Active navigation authority
-Last verified: 2026-08-18
+Last verified: 2026-08-19
 Owner: GeoAI Documentation Governance
 Authority: Sole repository navigation and lifecycle precedence
 Successor: None; any replacement must update this file
@@ -51,7 +51,7 @@ These facts must agree across all active release-fact documents:
 | Latest exact-SHA Quality Gate | Run `31946738874`: `partial` evidence and overall failure at Production dependency audit; database replay job passed; downstream application checks were skipped |
 | Historical exact-SHA green gate | Run `30158549978`: successful point-in-time evidence only |
 | Rollback deployment | `unverified` for the PR #113 release tuple; select and verify before any future Production action |
-| Repository evidence freshness | Current release/runtime window expires `2026-08-25T18:03:54Z`; Supabase management-metadata windows expire `2026-08-19T20:09:03Z`; documentation gate fails after expiry |
+| Repository evidence freshness | Current release/runtime window expires `2026-08-25T18:03:54Z`; refreshed Supabase management-metadata windows expire `2026-08-20T20:07:43Z`; documentation gate fails after expiry |
 | Maturity | Public-demo prototype; not Production-ready and not pilot-ready |
 
 The mandatory caveat is:

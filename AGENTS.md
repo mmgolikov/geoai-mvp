@@ -1,7 +1,7 @@
 # Codex Workflow Instructions
 
 Status: Active coding-agent operating authority
-Last verified: 2026-08-18
+Last verified: 2026-08-19
 Owner: GeoAI Engineering
 Authority: Current Codex/agent operating rules
 Successor: None; any replacement must update `docs/DOCUMENTATION_INDEX.md`
@@ -26,7 +26,7 @@ Production status: public demo, synthetic/local fallback and soft access with Pr
 Released-runtime boundary: PR #97 containment, PR #106 public-funnel/release-truth fixes and PR #113 Product System v3.2.2 correction are released, but the public demo remains browser-local and fixture-bounded. Never enter or upload confidential, regulated, sensitive or client-protected information. Protected persistence, real sources and confidential pilot operation remain blocked.
 Next delivery controls, in dependency order: development Data API/identity decision and canonical migration replay/RLS; fresh exact-head ENV-01 Preview/negative evidence after owner-confirmed Vercel evacuation and development legacy-key disablement; request-scoped Auth/RBAC hosted personas; protected Storage; explicit source visibility/custody; observability; and current architecture publication.
 Spatial B2B gate: GitHub Issue #80 remains open; delivery, distribution, attribution, retention and rollback decisions are not approved.
-Current Supabase authority is deliberately split. GeoAI_main observed management metadata only on 2026-08-18: development project `geoai-dev`, ref `pphdqkurxneyagvnnjdt`, is `INACTIVE`; Free rehearsal `geoai-auth-rehearsal`, ref `bkmfcjzalcvdsdvyxpgi`, is `ACTIVE_HEALTHY`. Those management labels do not read or certify either database. Physical schema, migration ledger, Auth and database rows, source rows, advisors, RLS, policies and Storage are `unverified` until a fresh authorized physical readback.
+Current Supabase authority is deliberately split. GeoAI_main observed management metadata only in a read-only refresh on 2026-08-19 (`observedAt` `2026-08-19T20:07:43Z`; valid through `2026-08-20T20:07:43Z`): development project `geoai-dev`, ref `pphdqkurxneyagvnnjdt`, is `INACTIVE`; Free rehearsal `geoai-auth-rehearsal`, ref `bkmfcjzalcvdsdvyxpgi`, is `ACTIVE_HEALTHY`. Those management labels do not read or certify either database. Physical schema, migration ledger, Auth and database rows, source rows, advisors, RLS, policies and Storage are `unverified` until a fresh authorized physical readback.
 
 The 2026-07-16 rehearsal receipt is historical evidence only. It recorded 18 migration-ledger entries, `183/183` hosted pgTAP personas, a 14-RPC `api`-only PostgREST boundary, RLS on 29 GeoAI domain tables, zero uncovered domain foreign keys, one pre-existing Auth user without recorded project/tenant/protected-resource authority, and four Storage buckets with zero object policies. Do not restate any of those values as current hosted truth. The local migration manifest now lists a seventh pending MFA-removal compatibility migration, but its current hosted application state is unverified and it must not be applied to rehearsal, development or Production by inference.
 

@@ -101,13 +101,14 @@
       "managementMetadata": {
         "status": "confirmed",
         "observedBy": "GeoAI_main",
+        "evidenceMethod": "read_only_management_list_projects_no_wake",
         "projectName": "geoai-dev",
         "projectRef": "pphdqkurxneyagvnnjdt",
         "projectStatus": "INACTIVE",
         "scope": "management_metadata_only",
         "evidenceWindow": {
-          "observedAt": "2026-08-18T20:09:03Z",
-          "validUntil": "2026-08-19T20:09:03Z",
+          "observedAt": "2026-08-19T20:07:43Z",
+          "validUntil": "2026-08-20T20:07:43Z",
           "validityHours": 24,
           "expiryAction": "fail"
         }
@@ -136,13 +137,14 @@
       "managementMetadata": {
         "status": "confirmed",
         "observedBy": "GeoAI_main",
+        "evidenceMethod": "read_only_management_list_projects_no_wake",
         "projectName": "geoai-auth-rehearsal",
         "projectRef": "bkmfcjzalcvdsdvyxpgi",
         "projectStatus": "ACTIVE_HEALTHY",
         "scope": "management_metadata_only",
         "evidenceWindow": {
-          "observedAt": "2026-08-18T20:09:03Z",
-          "validUntil": "2026-08-19T20:09:03Z",
+          "observedAt": "2026-08-19T20:07:43Z",
+          "validUntil": "2026-08-20T20:07:43Z",
           "validityHours": 24,
           "expiryAction": "fail"
         }

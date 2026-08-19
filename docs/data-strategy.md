@@ -1,7 +1,7 @@
 # GeoAI Data and Source Strategy
 
 Status: Active baseline
-Last verified: 2026-08-18
+Last verified: 2026-08-19
 Owner: GeoAI Data / Engineering
 Authority: Current source, custody and evidence policy
 Successor: None; any replacement must update `DOCUMENTATION_INDEX.md`
@@ -77,7 +77,7 @@ Real source ingestion must use a separate operator/worker plane. Before profile 
 
 Review-only Storage authorization delegates one exact organization/project/role predicate to hardened `SECURITY DEFINER geoai_private.has_storage_project_role()` because authenticated callers have no direct protected identity/tenant table `SELECT`. Object read remains operation-aware for authenticated fetch/signing only, denying bucket listing; `client_viewer` is excluded from raw evidence objects. This draft is outside the migration chain and remains unapplied pending full Storage personas.
 
-GeoAI_main observed development ref `pphdqkurxneyagvnnjdt` as `INACTIVE` in management metadata on 2026-08-18. Current physical state is `unverified`. Local custody records one pre-ledger reconciliation, exactly ten immutable historical development-ledger migrations and seven pending migrations with `liveApplyReady:false`; none is authorized for development or Production, and local pending state does not assert current hosted application state. Historical development evidence recorded exposed `public`, 20 public tables/19 RLS, zero Auth users, four buckets/zero object policies and 22 public-table `TRUNCATE` grants per public role. The 2026-07-16 rehearsal receipt recorded first-six-candidate, 183/183 and API-only evidence. Neither receipt is a current-development clone, live-derived upgrade replay, drift, live apply or DB-01 certification. Before any source write, the owner must contain the target Data API and prove live personas. Provider writes remain blocked. The [containment runbook](SUPABASE_DATA_API_CONTAINMENT_RUNBOOK_2026_07_16.md) is historical and authorizes no development change.
+GeoAI_main refreshed development ref `pphdqkurxneyagvnnjdt` as `INACTIVE` in read-only management metadata on 2026-08-19 (`observedAt` `2026-08-19T20:07:43Z`; valid through `2026-08-20T20:07:43Z`). Current physical state is `unverified`. Local custody records one pre-ledger reconciliation, exactly ten immutable historical development-ledger migrations and seven pending migrations with `liveApplyReady:false`; none is authorized for development or Production, and local pending state does not assert current hosted application state. Historical development evidence recorded exposed `public`, 20 public tables/19 RLS, zero Auth users, four buckets/zero object policies and 22 public-table `TRUNCATE` grants per public role. The 2026-07-16 rehearsal receipt recorded first-six-candidate, 183/183 and API-only evidence. Neither receipt is a current-development clone, live-derived upgrade replay, drift, live apply or DB-01 certification. Before any source write, the owner must contain the target Data API and prove live personas. Provider writes remain blocked. The [containment runbook](SUPABASE_DATA_API_CONTAINMENT_RUNBOOK_2026_07_16.md) is historical and authorizes no development change.
 
 ## Data quality gates
 

@@ -1,7 +1,7 @@
 # GeoAI Current Release State
 
 Status: Active canonical release guidance with preserved historical evidence
-Last verified: 2026-08-18
+Last verified: 2026-08-19
 Owner: GeoAI Release Engineering
 Authority: Time-boxed repository interpretation of current external release evidence
 Successor: None; any replacement must update `DOCUMENTATION_INDEX.md`
@@ -35,7 +35,7 @@ The released Production runtime, including the PR #113 Product System v3.2.2 cor
 
 The authoritative product direction, core flow, region sequence, stage/readiness matrix, source modes and S0 blockers live in [Product Baseline and Readiness](PRODUCT_BASELINE_AND_READINESS.md). Production remains browser-local and fixture-bounded. Do not enter or upload confidential, regulated, sensitive or client-protected AOIs, CSV, GeoJSON, filenames, evidence or report/package data.
 
-Current Supabase evidence is narrower than the historical receipts below. GeoAI_main observed management metadata only on 2026-08-18: `geoai-dev` is `INACTIVE`, while `geoai-auth-rehearsal` is `ACTIVE_HEALTHY`. Management status is not a database readback. Physical schema, migration ledger, Auth and database rows, source rows, advisors, RLS, policies and Storage are `unverified` unless a fresh authorized physical readback records them.
+Current Supabase evidence is narrower than the historical receipts below. GeoAI_main observed management metadata only in a read-only refresh on 2026-08-19 (`observedAt` `2026-08-19T20:07:43Z`; valid through `2026-08-20T20:07:43Z`): `geoai-dev` is `INACTIVE`, while `geoai-auth-rehearsal` is `ACTIVE_HEALTHY`. Management status is not a database readback. Physical schema, migration ledger, Auth and database rows, source rows, advisors, RLS, policies and Storage are `unverified` unless a fresh authorized physical readback records them.
 
 ## Superseded historical PR #106 snapshot
 
@@ -68,7 +68,7 @@ The historical PR #97 full-system audit remains valid as containment evidence, w
 
 ## Isolated Free rehearsal — historical physical evidence
 
-GeoAI_main observed current management metadata for `geoai-auth-rehearsal` (`bkmfcjzalcvdsdvyxpgi`) as `ACTIVE_HEALTHY` on 2026-08-18. That observation establishes project availability metadata only; it does not confirm PostgreSQL version, migration state or any physical row/security/storage value.
+GeoAI_main refreshed read-only management metadata for `geoai-auth-rehearsal` (`bkmfcjzalcvdsdvyxpgi`) as `ACTIVE_HEALTHY` on 2026-08-19 (`observedAt` `2026-08-19T20:07:43Z`; valid through `2026-08-20T20:07:43Z`). That observation establishes project availability metadata only; it does not confirm PostgreSQL version, migration state or any physical row/security/storage value.
 
 The preserved 2026-07-16 receipt recorded PostgreSQL `17.6.1.147`, `17` canonical schema migrations plus one environment operator ledger entry, and `71/71 + 73/73 + 39/39 = 183/183` pgTAP personas. It also recorded one pre-existing Auth user without project membership, tenant or protected-resource authority; RLS on all `29` GeoAI domain tables excluding managed `spatial_ref_sys`; zero uncovered domain foreign keys; a `pgrst.db_schemas=api` boundary with `14` allowlisted functions and no API relations; and the bounded historical HTTP results. Those values are historical evidence and must not be treated as current physical truth.
 
@@ -169,7 +169,7 @@ The PR #97 containment baseline is released, but public operation remains browse
 
 ## Development Supabase evidence
 
-Project `geoai-dev` (`pphdqkurxneyagvnnjdt`) is separate from Production. GeoAI_main observed its management status as `INACTIVE` on 2026-08-18; no physical readback accompanied that observation. The 2026-07-16 11:31 UTC historical snapshot recorded `ACTIVE_HEALTHY` on PostgreSQL `17.6.1.141`, 20 public tables with RLS on 19 (`spatial_ref_sys` was the exception), zero Auth users, four buckets, zero `storage.objects` policies and a ten-entry migration ledger. The repository reconstructs that historical ledger by version, bytes and MD5 and lists seven local pending candidates. It does not establish their current hosted application state. Development physical schema, ledger, rows, RLS, policies and Storage remain `unverified`, so DB-01 remains open.
+Project `geoai-dev` (`pphdqkurxneyagvnnjdt`) is separate from Production. GeoAI_main refreshed its read-only management status as `INACTIVE` on 2026-08-19 (`observedAt` `2026-08-19T20:07:43Z`; valid through `2026-08-20T20:07:43Z`); no physical readback accompanied that observation. The 2026-07-16 11:31 UTC historical snapshot recorded `ACTIVE_HEALTHY` on PostgreSQL `17.6.1.141`, 20 public tables with RLS on 19 (`spatial_ref_sys` was the exception), zero Auth users, four buckets, zero `storage.objects` policies and a ten-entry migration ledger. The repository reconstructs that historical ledger by version, bytes and MD5 and lists seven local pending candidates. It does not establish their current hosted application state. Development physical schema, ledger, rows, RLS, policies and Storage remain `unverified`, so DB-01 remains open.
 
 The same historical snapshot recorded 22 public-table `TRUNCATE` grants for each of `anon` and `authenticated`, 14 security advisor findings and 71 performance advisor findings. Those values must not be called the current Data API, ACL, Storage or advisor state. No current physical readback, write or configuration change was performed, and ephemeral replay must not be interpreted as hosted remediation.
 

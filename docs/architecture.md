@@ -1,7 +1,7 @@
 # GeoAI Implemented Architecture
 
 Status: Active implementation baseline
-Last verified: 2026-08-18
+Last verified: 2026-08-19
 Owner: GeoAI Engineering
 Authority: Current implemented architecture and trust boundaries
 Successor: None; any replacement must update `DOCUMENTATION_INDEX.md`
@@ -93,7 +93,7 @@ SOURCE-02 is a separate pure `reserve_or_replay` claim boundary, not a network, 
 
 Repository and historical receipts prove a schema foundation, not a deployable security boundary. The 2026-07-16 Free-rehearsal receipt recorded the first-six-candidate clean replay, 183/183 hosted SQL personas, API-only PostgREST and FK coverage; it cannot be promoted to current rehearsal or development truth by inference. Local custody lists a seventh migration that removes the runtime AAL2 requirement in favor of a permanent non-anonymous identity. Current hosted application state for all candidates is unverified. Development blockers:
 
-- the 2026-07-16 migration-ledger readback for `pphdqkurxneyagvnnjdt` recorded exactly ten historical entries and none of the seven candidates. The broader 11:31 UTC historical snapshot recorded `ACTIVE_HEALTHY` on PG `17.6.1.141`, 20 public tables/19 RLS, zero Auth users, four buckets/zero object policies, 22 public-table `TRUNCATE` grants for each public role, and 14 security/71 performance advisor findings. GeoAI_main observed management metadata as `INACTIVE` on 2026-08-18, but current physical state remains unverified;
+- the 2026-07-16 migration-ledger readback for `pphdqkurxneyagvnnjdt` recorded exactly ten historical entries and none of the seven candidates. The broader 11:31 UTC historical snapshot recorded `ACTIVE_HEALTHY` on PG `17.6.1.141`, 20 public tables/19 RLS, zero Auth users, four buckets/zero object policies, 22 public-table `TRUNCATE` grants for each public role, and 14 security/71 performance advisor findings. GeoAI_main refreshed read-only management metadata as `INACTIVE` on 2026-08-19 (`observedAt` `2026-08-19T20:07:43Z`; valid through `2026-08-20T20:07:43Z`), but current physical state remains unverified;
 - owner action to expose only the dedicated minimal `api` schema (or disable the Data API), prove direct-`public` denial and record the change; see the [historical containment runbook](SUPABASE_DATA_API_CONTAINMENT_RUNBOOK_2026_07_16.md), whose rehearsal receipt recorded execution while development remains not apply-ready;
 - request-scoped SSR cookie transport, existing-user-only email-link/phone-OTP entry, PKCE callback/session/logout, permanent-identity Admin/Onboarding routes and an exact-project read facade are implemented locally. MFA is deliberately absent; Product repositories and all persona-readiness flags remain disabled and real email/phone HTTP/JWT evidence is absent;
 - removal/rotation of the service-role credential observed in the existing public Preview environment; candidate code no longer reads or needs it, but external Vercel configuration remains owner-controlled ENV-01 work;
