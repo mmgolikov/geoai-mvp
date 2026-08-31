@@ -1,0 +1,121 @@
+{
+  "protocol": "POINT_TO_OBJECT_001_POSTGIS_TEMP_VALIDATION_RECEIPT_V1",
+  "receiptVersion": "1.0.0",
+  "validatedAtUtc": "2026-08-31T21:50:15Z",
+  "reviewer": "data_geo_1",
+  "environment": {
+    "projectName": "geoai-dev",
+    "projectRef": "pphdqkurxneyagvnnjdt",
+    "region": "eu-west-1",
+    "production": false,
+    "postgresVersion": "17.6.1.141",
+    "postgisVersion": "3.3.7",
+    "executionBoundary": "provider SQL session; temporary tables only; every test transaction ended with ROLLBACK"
+  },
+  "generator": {
+    "path": "scripts/point-to-object-001-generate-postgis-temp-validation.mjs",
+    "bytes": 6399,
+    "sha256": "65eef92f6cece97467b48424d7d2b213c7c5bf8e0e6db05778d7fd20bdba1924"
+  },
+  "cases": [
+    {
+      "caseId": "P2O-UAE-DXB-MUSEUM-FUTURE-001",
+      "sourceSnapshotId": "p2o-uae-dubai-museum-future-osm-20260831t211331z-v1",
+      "normalizedSnapshot": {
+        "path": "data/point-to-object-001/case-packs/uae-dubai-museum-future-v1/normalized-features.geojson",
+        "bytes": 2182917,
+        "sha256": "917e607e124200d2b421b59a8c311c8b47e42bfc5d7f06eec8ac57e677ecaf18"
+      },
+      "sql": {
+        "path": "scripts/point-to-object-001-postgis-uae-temp-validation.sql",
+        "bytes": 94330,
+        "sha256": "ee097c40346e478b520c2bd7453c6a75f12ed1849f8e8fd1977dac216d53c55d"
+      },
+      "results": {
+        "identityEligiblePolygonFeatureCount": 175,
+        "validGeometryCount": 175,
+        "invalidGeometryCount": 0,
+        "interiorBuildingCandidateCount": 1,
+        "boundaryBuildingCandidateCount": 1,
+        "boundaryTouchCount": 1,
+        "metricSrid": 32640,
+        "anchorToQueryBboxBoundaryM": 383.28840307253,
+        "maxRadiusContainedWithinQueryBboxGateM": 300,
+        "contextCompletenessAtContainedRadius": "UNKNOWN",
+        "default800mComplete": false
+      },
+      "forcedIndexPlan": {
+        "nodeType": "Index Scan",
+        "indexName": "p2o_uae_identity_geom_gix",
+        "actualRows": 1,
+        "planningTimeMs": 0.129,
+        "executionTimeMs": 0.091,
+        "interpretation": "GiST operator compatibility on a temporary bounded fixture only; not a production latency benchmark"
+      }
+    },
+    {
+      "caseId": "P2O-SG-MARINA-BAY-001",
+      "sourceSnapshotId": "p2o-sg-marina-bay-osm-20260831t211331z-v1",
+      "normalizedSnapshot": {
+        "path": "data/point-to-object-001/case-packs/singapore-marina-bay-v1/normalized-features.geojson",
+        "bytes": 3726888,
+        "sha256": "c4e3eb9b4abece3e2dc0364761e36b02d26c8a06c7462c8312030fa09dd69cd1"
+      },
+      "sql": {
+        "path": "scripts/point-to-object-001-postgis-sg-temp-validation.sql",
+        "bytes": 163617,
+        "sha256": "5ce2b3f7bbd92403fa215e05b68fd487fe90a05bbebaca6e6507c97b0e2577de"
+      },
+      "results": {
+        "identityEligiblePolygonFeatureCount": 258,
+        "validGeometryCount": 258,
+        "invalidGeometryCount": 0,
+        "interiorBuildingCandidateCount": 2,
+        "boundaryBuildingCandidateCount": 1,
+        "boundaryTouchCount": 1,
+        "metricSrid": 32648,
+        "anchorToQueryBboxBoundaryM": 516.423537019244,
+        "maxRadiusContainedWithinQueryBboxGateM": 400,
+        "contextCompletenessAtContainedRadius": "UNKNOWN",
+        "default800mComplete": false
+      },
+      "forcedIndexPlan": {
+        "nodeType": "Index Scan",
+        "indexName": "p2o_sg_identity_geom_gix",
+        "actualRows": 2,
+        "planningTimeMs": 0.118,
+        "executionTimeMs": 0.113,
+        "interpretation": "GiST operator compatibility on a temporary bounded fixture only; not a production latency benchmark"
+      }
+    }
+  ],
+  "checks": {
+    "all433IdentityEligiblePolygonFeaturesValid": "PASS",
+    "exactUaeCandidateOracle": "PASS",
+    "exactSingaporeCandidateOracle": "PASS",
+    "metricCrs": "PASS",
+    "forcedGistIndexCompatibility": "PASS",
+    "queryBboxContainmentDistance": "PASS_GEOMETRIC_ONLY",
+    "sourceContextCompleteness": "UNKNOWN",
+    "default800mCompleteness": "FAIL",
+    "rollbackExecuted": "PASS",
+    "persistentP2oTableCountAfterTests": 0
+  },
+  "mutations": {
+    "temporarySessionObjectsCreated": true,
+    "persistentSchemaChanged": false,
+    "persistentDataChanged": false,
+    "rlsChanged": false,
+    "authChanged": false,
+    "storageChanged": false,
+    "rollback": "ROLLBACK executed in every validation transaction; provider read-back found zero persistent p2o_uae_identity, p2o_sg_identity or p2o_tool_probe tables"
+  },
+  "limitations": [
+    "The validation covers the 433 features eligible for polygonal object identity after policy quarantine; it does not certify every context point/line geometry.",
+    "A query-selection bbox and a circle contained within it do not prove that the source query returned all intersecting ways or relations.",
+    "The measurements do not establish production scale, latency, selectivity or concurrency.",
+    "No persistent POINT_TO_OBJECT schema, data, grants, RLS policy, Auth object or Storage object was created."
+  ],
+  "productionChanged": false,
+  "mandatoryCaveat": "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
+}
