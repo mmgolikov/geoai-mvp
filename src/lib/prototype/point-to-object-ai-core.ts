@@ -232,8 +232,7 @@ export function validatePointObjectAiContent(
     ...(confirmedFacts ?? []).map((item) => item.statement),
     ...(aiInferences ?? []).map((item) => item.statement),
     ...(locationContext ?? []).map((item) => item.statement),
-    ...(decisionObservations ?? []).map((item) => item.statement),
-    ...missingInformation
+    ...(decisionObservations ?? []).map((item) => item.statement)
   ].filter((item): item is string => typeof item === "string").join(" ");
 
   if (!appearsToBe || !confirmedFacts || confirmedFacts.length === 0 || !aiInferences || !locationContext ||

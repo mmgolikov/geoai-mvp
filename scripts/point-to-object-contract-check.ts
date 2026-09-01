@@ -1337,7 +1337,12 @@ async function assertCandidateAiSafety(): Promise<void> {
       { statement: "Confirm current object identity with an authoritative source.", evidenceRefs: ["EVD-OBJECT"], validationRequired: true },
       { statement: "Confirm snapshot freshness before a decision.", evidenceRefs: ["EVD-SNAPSHOT"], validationRequired: true }
     ],
-    missingInformation: ["Ownership/title evidence", "Official planning and zoning evidence"],
+    missingInformation: [
+      "Ownership/title evidence",
+      "Official planning and zoning evidence",
+      "Exact valuation evidence",
+      "Guaranteed best use evidence"
+    ],
     answerToQuestion: {
       statement: "Ownership is not contained in this evidence pack and requires official validation.",
       evidenceRefs: ["EVD-OBJECT"]
