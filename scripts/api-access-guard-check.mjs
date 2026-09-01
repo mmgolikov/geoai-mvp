@@ -44,6 +44,55 @@ for (const file of await collectRouteFiles(apiRoot)) {
       failures.push(`${relative} ${handler.method}: missing explicit route-access classification`);
       continue;
     }
+    if (policy.access === "public_preview") {
+      const previewIndex = handler.body.indexOf("if (!previewRuntimeAllowed())");
+      if (previewIndex < 0) {
+        failures.push(`${relative} ${handler.method}: public Preview route must fail closed outside the Preview runtime`);
+        continue;
+      }
+
+      if (policy.action === "prototype.ai.challenge" && handler.method === "GET") {
+        const challengeIndex = handler.body.indexOf("randomBytes(");
+        const crossSiteIndex = handler.body.indexOf('request.headers.get("sec-fetch-site")');
+        if (
+          challengeIndex < 0 ||
+          previewIndex > challengeIndex ||
+          crossSiteIndex < previewIndex ||
+          crossSiteIndex > challengeIndex ||
+          !handler.body.includes("noStoreHeaders") ||
+          !handler.body.includes("challengeCookie")
+        ) {
+          failures.push(`${relative} ${handler.method}: Preview challenge must deny non-Preview and cross-site access before issuing a private one-time cookie`);
+        }
+        protectedHandlers += 1;
+        continue;
+      }
+
+      if (policy.action === "prototype.ai.run" && handler.method === "POST") {
+        const originIndex = handler.body.indexOf("if (!sameOrigin(request))");
+        const bodyIndex = handler.body.indexOf("await readBoundedJson(request, 4 * 1024)");
+        const challengeIndex = handler.body.indexOf("if (!challengeIsValid(request, body.challenge))");
+        const rateIndex = handler.body.indexOf("consumeRateLimit(request)");
+        const evidenceIndex = handler.body.indexOf("buildPointObjectEvidencePack(");
+        const providerIndex = handler.body.indexOf("generatePointObjectAiAnalysis(");
+        if (
+          originIndex < previewIndex ||
+          bodyIndex < originIndex ||
+          challengeIndex < bodyIndex ||
+          rateIndex < challengeIndex ||
+          evidenceIndex < rateIndex ||
+          providerIndex < evidenceIndex ||
+          !handler.body.includes("clearChallengeHeader(request)")
+        ) {
+          failures.push(`${relative} ${handler.method}: Preview AI execution must enforce runtime, origin, bounded body, one-time challenge and rate limit before rebuilding evidence and calling the provider`);
+        }
+        protectedHandlers += 1;
+        continue;
+      }
+
+      failures.push(`${relative} ${handler.method}: unsupported public Preview action ${policy.action}`);
+      continue;
+    }
     if (policy.access === "public_demo") continue;
     if (!policy.action || typeof policy.action !== "string" || !policy.action.includes(".")) {
       failures.push(`${relative} ${handler.method}: protected route has no exact resource action`);
