@@ -3,9 +3,9 @@
   "lastVerified": "2026-07-16",
   "authority": "docs/DOCUMENTATION_INDEX.md",
   "counts": {
-    "markdownDocuments": 142,
+    "markdownDocuments": 144,
     "activeAuthorities": 12,
-    "nonActiveDocuments": 130
+    "nonActiveDocuments": 132
   },
   "documents": {
     "AGENTS.md": {
@@ -795,6 +795,18 @@
       "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
     },
     "docs/artifacts/sql/ERD-001-schema-spec.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/change-requests/security-gate-001/SECURITY_GATE_001_CHANGE_REQUEST.md": {
+      "lifecycle": "historical_or_scoped_delivery_evidence",
+      "currentAuthority": false,
+      "successor": "docs/CODEX_BACKLOG_2026_07_16.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/change-requests/security-gate-001/SECURITY_GATE_001_DEPENDENCY_DECISION.md": {
       "lifecycle": "historical_or_scoped_reference",
       "currentAuthority": false,
       "successor": "docs/DOCUMENTATION_INDEX.md",
