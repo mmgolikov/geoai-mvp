@@ -20,9 +20,8 @@ import {
 } from "./geometry";
 import { compareCanonicalText, semanticHash } from "./hash";
 import {
-  assertE1CoverageRegistryAuthority,
-  assertE1FixtureAuthority,
-  assertE1SourceRights,
+  assertResolverCoverageRegistryAuthority,
+  assertResolverRepositoryAuthority,
   createSnapshotAnchor,
   type LivePointSnapshotRepository
 } from "./repository-core";
@@ -119,7 +118,8 @@ function intentAllows(entityType: LivePointEntityType, request: LivePointRequest
 function createCandidate(
   object: LivePointSnapshotObject,
   position: Position,
-  casePack: LivePointCasePack
+  casePack: LivePointCasePack,
+  allowNearestIdentity: boolean
 ): LivePointCandidate | null {
   const measurement = measurePointAgainstGeometry(
     position,
@@ -128,7 +128,7 @@ function createCandidate(
     BOUNDARY_TOLERANCE_M
   );
   if (measurement.containment === "outside" &&
-      measurement.distanceM > CLASS_NEAREST_THRESHOLD_M[object.entityType]) return null;
+      (!allowNearestIdentity || measurement.distanceM > CLASS_NEAREST_THRESHOLD_M[object.entityType])) return null;
 
   const matchMethod = measurement.containment === "inside"
     ? "point_in_polygon" as const
@@ -151,7 +151,7 @@ function createCandidate(
     geometry_type: object.geometry.type,
     geometry_version: LIVE_POINT_GEOMETRY_VERSION,
     source_id: object.sourceId,
-    source_namespace: "SyntheticFixture",
+    source_namespace: object.sourceNamespace,
     entity_type: object.entityType,
     display_name: object.displayName,
     source_tags: object.sourceTags,
@@ -227,8 +227,11 @@ export function resolveLivePoint(
   // Coverage is evaluated from the injected registry before any source-rights
   // decision or snapshot anchor is consulted. This makes outside-coverage a
   // true zero-source outcome.
-  assertE1CoverageRegistryAuthority(repository);
-  const tenantScope = dependencies.tenantScope ?? "synthetic_non_runtime_tenant";
+  assertResolverCoverageRegistryAuthority(repository);
+  const tenantScope = dependencies.tenantScope ??
+    (repository.fixtureAuthority === "synthetic_non_runtime"
+      ? "synthetic_non_runtime_tenant"
+      : "frozen_open_context_preview");
   assertCoordinateOrder(request, repository);
 
   const position = clickedPosition(request);
@@ -278,14 +281,18 @@ export function resolveLivePoint(
     };
   }
 
-  assertE1FixtureAuthority(repository);
-  assertE1SourceRights(repository);
+  assertResolverRepositoryAuthority(repository);
   const snapshotAnchor = createSnapshotAnchor(repository, activeCasePack);
   const resolvedAt = activeCasePack.snapshot.retrievedAt;
 
   const rawCandidates = activeCasePack.objects
     .filter((object) => intentAllows(object.entityType, request))
-    .map((object) => createCandidate(object, position, activeCasePack))
+    .map((object) => createCandidate(
+      object,
+      position,
+      activeCasePack,
+      repository.fixtureAuthority === "synthetic_non_runtime"
+    ))
     .filter((candidate): candidate is LivePointCandidate => candidate !== null);
   const candidates = orderEligibleCandidates(rawCandidates, request);
   if (candidates.length > LIVE_POINT_CAPS.candidates) {
@@ -399,6 +406,25 @@ export function resolveLivePoint(
     warnings.push({
       code: "UNNAMED_SOURCE_FEATURE",
       message: "At least one candidate has no name in the frozen source snapshot."
+    });
+  }
+  if (repository.fixtureAuthority === "quarantined_non_runtime") {
+    if (candidates.some((candidate) =>
+      candidate.limitations.some((item) => item.startsWith("Source classification conflict:")))) {
+      warnings.push({
+        code: "SOURCE_CONFLICT",
+        message: "The frozen source carries a visible classification conflict; no hierarchy or official meaning is inferred."
+      });
+    }
+    if (status === "no_result") {
+      warnings.push({
+        code: "PARTIAL_CONTEXT_SOURCE",
+        message: "No eligible feature was observed at this point in the named snapshot; this is not proof of real-world absence."
+      });
+    }
+    warnings.push({
+      code: "SOURCE_FRESHNESS_UNKNOWN",
+      message: "Per-feature source version and observation time are unavailable; only the frozen snapshot time is known."
     });
   }
 

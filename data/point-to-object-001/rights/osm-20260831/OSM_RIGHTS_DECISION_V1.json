@@ -1,0 +1,176 @@
+{
+  "protocol": "POINT_TO_OBJECT_001_SOURCE_RIGHTS_DECISION_V1",
+  "decisionId": "P2O-RIGHTS-OSM-ODBL-001",
+  "decisionVersion": "1.0.0",
+  "decisionOwner": "data_geo_1",
+  "decisionScope": "licence and source-custody feasibility; not legal advice",
+  "pathBase": "repository_root",
+  "evidenceCollectionStartedAtUtc": "2026-08-31T20:39:49Z",
+  "evidenceCollectionCompletedAtUtc": "2026-08-31T20:43:15Z",
+  "decisionSerializedAtUtc": "2026-08-31T22:36:09Z",
+  "sourceId": "SPAT-001",
+  "sourceName": "OpenStreetMap",
+  "databaseRightsholders": "OpenStreetMap contributors",
+  "licensorAndLicencePublisher": "OpenStreetMap Foundation / Open Data Commons",
+  "licenceId": "ODbL-1.0",
+  "rightsState": "cleared",
+  "permissionPhase": "internal_preview_experiment",
+  "territory": "worldwide",
+  "officialStatus": "open_context_not_official",
+  "sourceIsolationRequired": true,
+  "publicOverpassRuntimeAllowed": false,
+  "permissions": {
+    "oneTimeBoundedAcquisition": { "state": "ALLOWED", "conditions": ["low-volume responsible use", "no runtime dependency", "exact query and response receipt"] },
+    "repositoryStorage": { "state": "ALLOWED", "conditions": ["retain attribution", "retain ODbL source offer", "keep OSM-derived database source-isolated"] },
+    "derivativeUse": { "state": "ALLOWED", "conditions": ["ODbL share-alike applies to the adapted database", "publish transformation and source offer when distributed"] },
+    "internalDisplay": { "state": "ALLOWED", "conditions": ["visible attribution", "open-context label"] },
+    "externalPreviewDisplay": { "state": "ALLOWED", "conditions": ["visible attribution", "link to ODbL/copyright notice", "source offer remains reachable", "no official or endorsement claim"] },
+    "modelTransferOfMinimizedEvidence": { "state": "ALLOWED", "conditions": ["separate OpenAI/security gate", "allowlisted non-personal fields only", "no raw tags or contributor metadata"] },
+    "dataExport": { "state": "ALLOWED", "conditions": ["ODbL attribution/share-alike/source-offer obligations", "no third-party conflation"] },
+    "restOrMcpPassThrough": { "state": "NOT_EVALUATED", "conditions": ["separate distribution/product contract required"] },
+    "thirdPartyConflationOrRelicensing": { "state": "PROHIBITED", "conditions": ["separate rights review required"] }
+  },
+  "obligations": [
+    {
+      "obligationId": "OSM-ATTRIBUTION-VISIBLE-001",
+      "appliesTo": ["internalDisplay", "externalPreviewDisplay", "dataExport"],
+      "requirement": "Display © OpenStreetMap contributors visibly wherever the OSM-derived evidence is presented.",
+      "evidenceLocator": "/permissions/internalDisplay/conditions"
+    },
+    {
+      "obligationId": "OSM-SOURCE-OFFER-001",
+      "appliesTo": ["repositoryStorage", "derivativeUse", "externalPreviewDisplay", "dataExport"],
+      "requirement": "Retain the ODbL notice, licence link, transformation path and reachable source offer for distributed OSM-derived database material.",
+      "evidenceLocator": "/permissions/repositoryStorage/conditions"
+    },
+    {
+      "obligationId": "OSM-SHARE-ALIKE-001",
+      "appliesTo": ["derivativeUse", "dataExport"],
+      "requirement": "Apply ODbL attribution and share-alike obligations when an adapted database is distributed.",
+      "evidenceLocator": "/permissions/derivativeUse/conditions"
+    },
+    {
+      "obligationId": "OSM-SOURCE-ISOLATION-001",
+      "appliesTo": ["repositoryStorage", "derivativeUse", "dataExport"],
+      "requirement": "Keep the OSM-derived database source-isolated; third-party conflation or relicensing requires a separate rights review.",
+      "evidenceLocator": "/permissions/thirdPartyConflationOrRelicensing"
+    },
+    {
+      "obligationId": "OSM-MODEL-MINIMIZATION-001",
+      "appliesTo": ["modelTransferOfMinimizedEvidence"],
+      "requirement": "Transfer only allowlisted non-personal fields after the separate OpenAI/security gate; exclude raw tags and contributor metadata.",
+      "evidenceLocator": "/permissions/modelTransferOfMinimizedEvidence/conditions"
+    },
+    {
+      "obligationId": "OVERPASS-NO-RUNTIME-DEPENDENCY-001",
+      "appliesTo": ["oneTimeBoundedAcquisition"],
+      "requirement": "Do not use the public Overpass instance as a runtime dependency or claim an SLA/API entitlement.",
+      "evidenceLocator": "/permissions/oneTimeBoundedAcquisition/conditions"
+    }
+  ],
+  "activationGates": {
+    "internalFileBackedResolver": "ALLOWED_AFTER_MANIFEST_HASH_AND_GEOMETRY_GATES",
+    "externalPreview": "BLOCKED_PENDING_VISIBLE_ATTRIBUTION_AND_MAIN_PREVIEW_GATE",
+    "production": "PROHIBITED_BY_CURRENT_AUTHORITY",
+    "publicApiOrMcp": "NOT_EVALUATED"
+  },
+  "operativeEvidence": [
+    {
+      "path": "data/point-to-object-001/rights/osm-20260831/osm-copyright.html",
+      "bytes": 21344,
+      "sha256": "9627e33d0eb6e90832e852296f41b0922634655f58188fe5e8b740eee65d0875",
+      "url": "https://www.openstreetmap.org/copyright",
+      "locator": "body text identifying OSM as open data under ODbL and requiring attribution"
+    },
+    {
+      "path": "data/point-to-object-001/rights/osm-20260831/odbl-1.0-legal-code.html",
+      "bytes": 51176,
+      "sha256": "b8d8aebb21bf405f93f6e21bbf0d8f0a749844f9812ec58692f189add6402b47",
+      "url": "https://opendatacommons.org/licenses/odbl/1-0/",
+      "locator": "ODbL 1.0 legal code; use, attribution, share-alike and database-offer provisions"
+    },
+    {
+      "path": "data/point-to-object-001/rights/osm-20260831/osmf-attribution-guidelines.html",
+      "bytes": 51358,
+      "sha256": "e5f20d028bd3db61651ed7bde434d406527b7e3e68f28a7f07f84bd71702d6c2",
+      "url": "https://osmfoundation.org/wiki/Licence/Attribution_Guidelines",
+      "locator": "attribution guidance for interactive maps and produced works"
+    },
+    {
+      "path": "data/point-to-object-001/rights/osm-20260831/osmf-licence-faq.html",
+      "bytes": 82249,
+      "sha256": "78b2c3ab2e923c98143e595c5064ad228a0b9176f8d3750615c9fa19ab40d27d",
+      "url": "https://osmfoundation.org/wiki/Licence/Licence_and_Legal_FAQ",
+      "locator": "licence FAQ; commercial use and derivative database obligations"
+    },
+    {
+      "path": "data/point-to-object-001/rights/osm-20260831/overpass-commons.html",
+      "bytes": 12237,
+      "sha256": "664ae364690159d960ea919539a9e399f773aaa2ada8c751a53795f4d7a54785",
+      "url": "https://dev.overpass-api.de/overpass-doc/en/preface/commons.html",
+      "locator": "public-resource commons guidance; operational evidence only, not the ODbL grant"
+    }
+  ],
+  "operativeTransportEvidence": [
+    {
+      "path": "data/point-to-object-001/rights/osm-20260831/osm-copyright-headers.txt",
+      "bytes": 2703,
+      "sha256": "08d1df9a30174bedf8ae43c09380af4cb0481c2eb50497c1feb7917f21587640",
+      "responseDateUtc": "2026-08-31T20:39:49Z",
+      "sensitiveHeaderValuesRedactedAtCapture": true
+    },
+    {
+      "path": "data/point-to-object-001/rights/osm-20260831/odbl-1.0-legal-code-headers.txt",
+      "bytes": 1020,
+      "sha256": "20c6b946ac2a354b5225ec000df682cad40f77d4e66d7881663c2ee9c13084a0",
+      "responseDateUtc": "2026-08-31T20:43:15Z"
+    },
+    {
+      "path": "data/point-to-object-001/rights/osm-20260831/osmf-attribution-guidelines-headers.txt",
+      "bytes": 520,
+      "sha256": "149e0c8ce0f16fa4dfa76fffc4fad1f25de949ca09cf9c5fc043639e6ab45910",
+      "responseDateUtc": "2026-08-31T20:43:14Z"
+    },
+    {
+      "path": "data/point-to-object-001/rights/osm-20260831/osmf-licence-faq-headers.txt",
+      "bytes": 520,
+      "sha256": "a4002ad9ef930f1682d291eee6d0c6f3d1e0ed480d4302735d064f95ec9a4e36",
+      "responseDateUtc": "2026-08-31T20:39:49Z"
+    },
+    {
+      "path": "data/point-to-object-001/rights/osm-20260831/overpass-commons-headers.txt",
+      "bytes": 279,
+      "sha256": "74242664a699d30b4b1c52dbe9549eb7f59886c0bc783560e223f062cba3de5d",
+      "responseDateUtc": "2026-08-31T20:43:15Z"
+    }
+  ],
+  "nonGoverningEvidence": {
+    "path": "data/point-to-object-001/rights/osm-20260831/osm-api-policy.html",
+    "bytes": 7223,
+    "sha256": "ec52fb959caa8bb0d6ac26b7c547a7f805c461e28c6bdb4691a0c5844962597a",
+    "transportEvidence": {
+      "path": "data/point-to-object-001/rights/osm-20260831/osm-api-policy-headers.txt",
+      "bytes": 323,
+      "sha256": "e6a4366a13410f6f4807989b5e8546354ae7187bce1e401e91de894791f2c3e1",
+      "responseDateUtc": "2026-08-31T20:39:49Z"
+    },
+    "reason": "The OSM core API policy is not the governing policy for the Overpass endpoint used; retained only to prove that the core API is not a runtime substitute."
+  },
+  "requiredAttribution": "© OpenStreetMap contributors",
+  "licenceUrl": "https://www.openstreetmap.org/copyright",
+  "sourceOffer": {
+    "noticePath": "data/point-to-object-001/NOTICE.md",
+    "noticeBytes": 1132,
+    "noticeSha256": "c2aa93be8c84005b6ac3b999327ee6f2cee7375c48bb45f787f9ce5652dbaa8a",
+    "rawAndDerivedDatabasePaths": "data/point-to-object-001/case-packs/",
+    "transformationPath": "scripts/point-to-object-001-build-case-pack.mjs"
+  },
+  "limitations": [
+    "Rights clearance does not establish source accuracy, completeness, freshness or official status.",
+    "OpenStreetMap building geometry is not an official parcel or cadastral boundary.",
+    "Missing source records do not prove real-world absence.",
+    "External Preview activation still requires visible attribution and the separate Main gate.",
+    "REST/MCP pass-through and third-party conflation are outside this decision."
+  ],
+  "mandatoryCaveat": "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
+}

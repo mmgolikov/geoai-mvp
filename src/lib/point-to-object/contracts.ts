@@ -314,7 +314,7 @@ export interface LivePointCandidate {
   geometry_type: GeoJsonGeometry["type"];
   geometry_version: typeof LIVE_POINT_GEOMETRY_VERSION;
   source_id: string;
-  source_namespace: "SyntheticFixture";
+  source_namespace: "SyntheticFixture" | "OpenStreetMap";
   entity_type: LivePointEntityType;
   display_name: string | null;
   source_tags: Record<string, string>;
@@ -478,7 +478,7 @@ export interface LivePointContextFeature {
   category: LivePointContextCategory;
   display_name: string | null;
   distance_m: number;
-  geometry_basis: "synthetic_point";
+  geometry_basis: "synthetic_point" | "osm_node" | "source_receipt_center";
   feature_hash: string;
   authority_status: "open_context_not_official";
 }
@@ -533,7 +533,7 @@ export interface GeometryReceipt {
   geometry_version: typeof LIVE_POINT_GEOMETRY_VERSION;
   byte_size: number;
   source_feature_id: string;
-  source_namespace: "SyntheticFixture";
+  source_namespace: "SyntheticFixture" | "OpenStreetMap";
   snapshot_id: string;
   origin: "source_vector";
   validation: "valid";
@@ -543,7 +543,7 @@ export interface GeometryReceipt {
 export interface AcquisitionReceipt {
   receipt_id: string;
   receipt_hash: string;
-  source_id: "synthetic_fixture";
+  source_id: "synthetic_fixture" | "openstreetmap";
   kind: "acquisition";
   source_as_of: string;
   retrieved_at: string;
@@ -555,7 +555,7 @@ export interface AcquisitionReceipt {
 export interface TermsReceipt {
   terms_receipt_id: string;
   terms_receipt_hash: string;
-  license_id: "Synthetic-Non-Runtime-1.0";
+  license_id: "Synthetic-Non-Runtime-1.0" | "ODbL-1.0";
   license_url: string;
   rights_status: "cleared_for_experiment";
   attribution: string;

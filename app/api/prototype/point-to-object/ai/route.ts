@@ -1,0 +1,231 @@
+import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+
+import { NextResponse } from "next/server";
+
+import { readBoundedJson } from "@/src/lib/http/bounded-json";
+import { isFrozenCaseKey } from "@/src/lib/point-to-object/frozen-osm-repository";
+import {
+  generatePointObjectAiAnalysis,
+  PointObjectAiServiceError
+} from "@/src/lib/prototype/point-to-object-ai";
+import {
+  buildPointObjectEvidencePack,
+  PointObjectEvidenceError
+} from "@/src/lib/prototype/point-to-object-evidence";
+
+export const runtime = "nodejs";
+
+const CHALLENGE_COOKIE = "geoai_p2o_ai_challenge";
+const CHALLENGE_TTL_SECONDS = 5 * 60;
+const RATE_WINDOW_MS = 10 * 60 * 1000;
+const RATE_MAX_REQUESTS = 12;
+
+type RateBucket = { startedAt: number; count: number };
+const rateBuckets = new Map<string, RateBucket>();
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function previewRuntimeAllowed(): boolean {
+  return process.env.VERCEL_ENV === "preview";
+}
+
+function noStoreHeaders(extra: Record<string, string> = {}): Record<string, string> {
+  return {
+    "Cache-Control": "private, no-store, max-age=0",
+    Vary: "Cookie",
+    ...extra
+  };
+}
+
+function challengeCookie(value: string, maxAge: number, secure: boolean): string {
+  return [
+    `${CHALLENGE_COOKIE}=${value}`,
+    "Path=/api/prototype/point-to-object/ai",
+    `Max-Age=${maxAge}`,
+    "HttpOnly",
+    "SameSite=Strict",
+    secure ? "Secure" : ""
+  ].filter(Boolean).join("; ");
+}
+
+function requestIsHttps(request: Request): boolean {
+  return request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim() === "https" ||
+    new URL(request.url).protocol === "https:";
+}
+
+function clearChallengeHeader(request: Request): Record<string, string> {
+  return noStoreHeaders({
+    "Set-Cookie": challengeCookie("deleted", 0, requestIsHttps(request))
+  });
+}
+
+function cookieValue(request: Request, name: string): string | null {
+  const cookie = request.headers.get("cookie");
+  if (!cookie) return null;
+  for (const item of cookie.split(";")) {
+    const separator = item.indexOf("=");
+    if (separator < 0) continue;
+    if (item.slice(0, separator).trim() === name) return item.slice(separator + 1).trim();
+  }
+  return null;
+}
+
+function sha256(value: string): string {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+function safeEqualHex(left: string, right: string): boolean {
+  if (!/^[a-f0-9]{64}$/.test(left) || !/^[a-f0-9]{64}$/.test(right)) return false;
+  return timingSafeEqual(Buffer.from(left, "hex"), Buffer.from(right, "hex"));
+}
+
+function challengeIsValid(request: Request, challenge: string): boolean {
+  if (!/^[A-Za-z0-9_-]{43}$/.test(challenge)) return false;
+  const cookie = cookieValue(request, CHALLENGE_COOKIE);
+  if (!cookie) return false;
+  const [expiresRaw, expectedHash] = cookie.split(".");
+  const expiresAt = Number(expiresRaw);
+  return Number.isSafeInteger(expiresAt) && expiresAt >= Date.now() && safeEqualHex(expectedHash ?? "", sha256(challenge));
+}
+
+function sameOrigin(request: Request): boolean {
+  const origin = request.headers.get("origin");
+  if (!origin) return false;
+  try {
+    const requestUrl = new URL(request.url);
+    const forwardedHost = request.headers.get("x-forwarded-host")?.split(",")[0]?.trim();
+    const forwardedProto = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim();
+    const expected = `${forwardedProto || requestUrl.protocol.replace(":", "")}://${forwardedHost || requestUrl.host}`;
+    return new URL(origin).origin === new URL(expected).origin;
+  } catch {
+    return false;
+  }
+}
+
+function rateKey(request: Request): string {
+  const forwarded = request.headers.get("x-vercel-forwarded-for") ??
+    request.headers.get("x-forwarded-for") ??
+    request.headers.get("x-real-ip") ??
+    "preview-anonymous";
+  const address = forwarded.split(",")[0]?.trim() || "preview-anonymous";
+  const agent = request.headers.get("user-agent")?.slice(0, 200) ?? "unknown-agent";
+  return sha256(`${address}\n${agent}`);
+}
+
+function consumeRateLimit(request: Request): { allowed: true } | { allowed: false; retryAfterSeconds: number } {
+  const now = Date.now();
+  for (const [key, bucket] of rateBuckets) {
+    if (now - bucket.startedAt >= RATE_WINDOW_MS) rateBuckets.delete(key);
+  }
+  const key = rateKey(request);
+  const current = rateBuckets.get(key);
+  if (!current || now - current.startedAt >= RATE_WINDOW_MS) {
+    rateBuckets.set(key, { startedAt: now, count: 1 });
+    return { allowed: true };
+  }
+  if (current.count >= RATE_MAX_REQUESTS) {
+    return { allowed: false, retryAfterSeconds: Math.max(1, Math.ceil((RATE_WINDOW_MS - (now - current.startedAt)) / 1000)) };
+  }
+  current.count += 1;
+  return { allowed: true };
+}
+
+function validBody(value: unknown): value is {
+  caseKey: "dubai" | "singapore";
+  longitude: number;
+  latitude: number;
+  question: string | null;
+  consent: true;
+  challenge: string;
+} {
+  if (!isRecord(value) || Object.keys(value).some((key) =>
+    !["caseKey", "longitude", "latitude", "question", "consent", "challenge"].includes(key))) return false;
+  return isFrozenCaseKey(value.caseKey) &&
+    typeof value.longitude === "number" && Number.isFinite(value.longitude) && Math.abs(value.longitude) <= 180 &&
+    typeof value.latitude === "number" && Number.isFinite(value.latitude) && Math.abs(value.latitude) <= 90 &&
+    (value.question === null || (typeof value.question === "string" && value.question.trim().length <= 500)) &&
+    value.consent === true && typeof value.challenge === "string" && value.challenge.length <= 100;
+}
+
+export async function GET(request: Request) {
+  if (!previewRuntimeAllowed()) {
+    return NextResponse.json({ mode: "unavailable", code: "AI_PREVIEW_ONLY", error: "Grounded AI is available only on an isolated Vercel Preview." }, {
+      status: 403,
+      headers: noStoreHeaders()
+    });
+  }
+  if (request.headers.get("sec-fetch-site") === "cross-site") {
+    return NextResponse.json({ mode: "unavailable", code: "AI_ORIGIN_REJECTED", error: "Cross-site AI activation is not allowed." }, {
+      status: 403,
+      headers: noStoreHeaders()
+    });
+  }
+  const challenge = randomBytes(32).toString("base64url");
+  const expiresAt = Date.now() + CHALLENGE_TTL_SECONDS * 1000;
+  return NextResponse.json({ mode: "ready", challenge, expiresInSeconds: CHALLENGE_TTL_SECONDS }, {
+    headers: noStoreHeaders({
+      "Set-Cookie": challengeCookie(`${expiresAt}.${sha256(challenge)}`, CHALLENGE_TTL_SECONDS, requestIsHttps(request))
+    })
+  });
+}
+
+export async function POST(request: Request) {
+  if (!previewRuntimeAllowed()) {
+    return NextResponse.json({ mode: "unavailable", code: "AI_PREVIEW_ONLY", error: "Grounded AI is available only on an isolated Vercel Preview." }, {
+      status: 403,
+      headers: clearChallengeHeader(request)
+    });
+  }
+  if (!sameOrigin(request)) {
+    return NextResponse.json({ mode: "unavailable", code: "AI_ORIGIN_REJECTED", error: "The grounded AI request must originate from this Preview." }, {
+      status: 403,
+      headers: clearChallengeHeader(request)
+    });
+  }
+  const parsed = await readBoundedJson(request, 4 * 1024);
+  if (!parsed.ok || !validBody(parsed.value)) {
+    return NextResponse.json({ mode: "unavailable", code: "AI_REQUEST_INVALID", error: "A bounded resolved point, explicit consent and browser challenge are required." }, {
+      status: parsed.ok ? 400 : parsed.status,
+      headers: clearChallengeHeader(request)
+    });
+  }
+  const body = parsed.value;
+  if (!challengeIsValid(request, body.challenge)) {
+    return NextResponse.json({ mode: "unavailable", code: "AI_CHALLENGE_INVALID", error: "The one-time browser challenge is missing or expired." }, {
+      status: 403,
+      headers: clearChallengeHeader(request)
+    });
+  }
+  const rate = consumeRateLimit(request);
+  if (!rate.allowed) {
+    return NextResponse.json({ mode: "unavailable", code: "AI_RATE_LIMITED", error: "The Preview AI limit has been reached temporarily." }, {
+      status: 429,
+      headers: { ...clearChallengeHeader(request), "Retry-After": String(rate.retryAfterSeconds) }
+    });
+  }
+
+  try {
+    const evidencePack = buildPointObjectEvidencePack(body.caseKey, [body.longitude, body.latitude]);
+    const result = await generatePointObjectAiAnalysis(evidencePack, body.question?.trim() || null);
+    return NextResponse.json(result, { headers: clearChallengeHeader(request) });
+  } catch (error) {
+    if (error instanceof PointObjectEvidenceError) {
+      return NextResponse.json({ mode: "unavailable", code: error.code, error: error.message }, {
+        status: 422,
+        headers: clearChallengeHeader(request)
+      });
+    }
+    if (error instanceof PointObjectAiServiceError) {
+      return NextResponse.json({ mode: "unavailable", code: error.code, error: error.message }, {
+        status: error.httpStatus,
+        headers: clearChallengeHeader(request)
+      });
+    }
+    return NextResponse.json({ mode: "unavailable", code: "AI_INTERNAL_ERROR", error: "Grounded AI failed closed." }, {
+      status: 500,
+      headers: clearChallengeHeader(request)
+    });
+  }
+}

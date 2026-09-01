@@ -36,6 +36,14 @@ export type AuthorizedSyntheticRepository = SyntheticRepository & {
   rightsDecision: { state: "cleared"; sourceStatus: "cleared_for_experiment" };
 };
 
+export type OpenContextRepository = LivePointSnapshotRepository & {
+  fixtureAuthority: "quarantined_non_runtime";
+};
+
+export type AuthorizedOpenContextRepository = OpenContextRepository & {
+  rightsDecision: { state: "cleared"; sourceStatus: "cleared_for_experiment" };
+};
+
 export function assertE1CoverageRegistryAuthority(
   repository: LivePointSnapshotRepository
 ): asserts repository is SyntheticRepository {
@@ -216,11 +224,122 @@ export function assertE1CoreRepositoryAuthority(
   assertE1SourceRights(repository);
 }
 
+/**
+ * Accepts only the separately authorized, hash-bound frozen OSM Preview shape.
+ * The E1 synthetic authority functions above intentionally remain unchanged so
+ * a quarantined repository can never be relabelled as an E1 synthetic fixture.
+ */
+export function assertOpenContextCoverageRegistryAuthority(
+  repository: LivePointSnapshotRepository
+): asserts repository is OpenContextRepository {
+  if (repository.fixtureAuthority !== "quarantined_non_runtime") {
+    throw new LivePointCoreError("PREVIEW_DISABLED", "The repository is not a quarantined Preview snapshot.");
+  }
+  if (repository.snapshot.manifestId !== "point-to-object-open-context-manifest-v1" ||
+      repository.manifest.manifestId !== "point-to-object-open-context-manifest-v1" ||
+      repository.manifest.status !== "data_package_verified" ||
+      repository.snapshot.sourcePolicy.runtimeSourceFamily !== "openstreetmap_snapshot") {
+    throw new LivePointCoreError("PREVIEW_DISABLED", "The repository is not the authorized frozen OSM Preview profile.");
+  }
+  if (repository.snapshot.casePacks.length === 0 || repository.casePacksById.size === 0) {
+    throw new LivePointCoreError("SNAPSHOT_MISSING", "The frozen OSM repository has no controlled case pack.");
+  }
+  for (const casePack of repository.snapshot.casePacks) {
+    if (repository.casePacksById.get(casePack.id) !== casePack ||
+        semanticHash(casePack.coverage.geometry) !== casePack.coverage.geometryHash ||
+        semanticHash(casePack.coverage.completeness.completeGeometry) !==
+          casePack.coverage.completeness.completeGeometryHash) {
+      throw new LivePointCoreError("SNAPSHOT_HASH_MISMATCH", "Frozen OSM coverage receipts are inconsistent.");
+    }
+  }
+}
+
+export function assertOpenContextRepositoryAuthority(
+  repository: LivePointSnapshotRepository
+): asserts repository is AuthorizedOpenContextRepository {
+  assertOpenContextCoverageRegistryAuthority(repository);
+
+  const { bundleHash, ...snapshotCore } = repository.snapshot;
+  const { manifestHash, ...manifestCore } = repository.manifest;
+  const snapshotSemanticHash = semanticHash(repository.snapshot);
+  const manifestSemanticHash = semanticHash(repository.manifest);
+  const objectCount = repository.snapshot.casePacks.reduce((total, item) => total + item.objects.length, 0);
+  const contextCount = repository.snapshot.casePacks.reduce((total, item) => total + item.contextFeatures.length, 0);
+
+  if (bundleHash !== semanticHash(snapshotCore) ||
+      repository.snapshotSemanticHash !== snapshotSemanticHash ||
+      repository.manifestSemanticHash !== manifestSemanticHash ||
+      manifestHash !== semanticHash(manifestCore) ||
+      repository.manifest.bundle.sha256 !== repository.snapshotByteHash ||
+      repository.manifest.bundle.semanticHash !== repository.snapshotSemanticHash ||
+      repository.manifest.bundle.casePackCount !== repository.snapshot.casePacks.length ||
+      repository.manifest.bundle.objectCount !== objectCount ||
+      repository.manifest.bundle.contextFeatureCount !== contextCount ||
+      repository.objectsById.size !== objectCount ||
+      repository.objectsByGeometryId.size !== objectCount) {
+    throw new LivePointCoreError("SNAPSHOT_HASH_MISMATCH", "Frozen OSM snapshot or manifest receipts are inconsistent.");
+  }
+
+  if (repository.rightsDecision.state !== "cleared" ||
+      repository.rightsDecision.sourceStatus !== "cleared_for_experiment" ||
+      repository.snapshot.sourcePolicy.rightsStatus !== "cleared_for_experiment" ||
+      repository.snapshot.sourcePolicy.licenseId !== "ODbL-1.0" ||
+      repository.manifest.rightsGate.status !== "cleared_for_experiment" ||
+      repository.manifest.termsReceipt.rightsStatus !== "cleared_for_experiment" ||
+      repository.manifest.termsReceipt.licenseId !== "ODbL-1.0") {
+    throw new LivePointCoreError("RIGHTS_UNKNOWN", "Frozen OSM Preview rights are not cleared.");
+  }
+
+  const ids = new Set<string>();
+  const geometryIds = new Set<string>();
+  for (const casePack of repository.snapshot.casePacks) {
+    if (casePack.snapshot.sourceId !== "openstreetmap" ||
+        casePack.snapshot.rightsStatus !== "cleared_for_experiment" ||
+        casePack.objectCount !== casePack.objects.length ||
+        !repository.sourceReceiptsById.has(casePack.snapshot.acquisitionReceiptId)) {
+      throw new LivePointCoreError("SNAPSHOT_CORRUPT", "Frozen OSM case-pack bindings are inconsistent.");
+    }
+    for (const object of casePack.objects) {
+      if (object.sourceNamespace !== "OpenStreetMap" || ids.has(object.id) || geometryIds.has(object.geometryId) ||
+          semanticHash(object.geometry) !== object.geometryHash ||
+          repository.objectsById.get(object.id) !== object ||
+          repository.objectsByGeometryId.get(object.geometryId) !== object) {
+        throw new LivePointCoreError("GEOMETRY_HASH_MISMATCH", "Frozen OSM object geometry receipts are inconsistent.");
+      }
+      ids.add(object.id);
+      geometryIds.add(object.geometryId);
+    }
+  }
+}
+
+export function assertResolverCoverageRegistryAuthority(
+  repository: LivePointSnapshotRepository
+): void {
+  if (repository.fixtureAuthority === "synthetic_non_runtime") {
+    assertE1CoverageRegistryAuthority(repository);
+    return;
+  }
+  assertOpenContextCoverageRegistryAuthority(repository);
+}
+
+export function assertResolverRepositoryAuthority(
+  repository: LivePointSnapshotRepository
+): void {
+  if (repository.fixtureAuthority === "synthetic_non_runtime") {
+    assertE1CoreRepositoryAuthority(repository);
+    return;
+  }
+  assertOpenContextRepositoryAuthority(repository);
+}
+
 export function createSnapshotAnchor(
   repository: LivePointSnapshotRepository,
   casePack: LivePointCasePack
 ): SnapshotAnchor {
-  assertE1CoreRepositoryAuthority(repository);
+  assertResolverRepositoryAuthority(repository);
+  if (repository.rightsDecision.sourceStatus !== "cleared_for_experiment") {
+    throw new LivePointCoreError("RIGHTS_UNKNOWN", "Snapshot rights are not cleared for this controlled evaluation.");
+  }
   return {
     manifest_id: repository.manifest.manifestId,
     snapshot_id: casePack.snapshot.id,
@@ -229,6 +348,6 @@ export function createSnapshotAnchor(
     source_as_of: casePack.snapshot.sourceAsOf,
     retrieved_at: casePack.snapshot.retrievedAt,
     acquisition_receipt_id: casePack.snapshot.acquisitionReceiptId,
-    rights_status: repository.rightsDecision.sourceStatus
+    rights_status: "cleared_for_experiment"
   };
 }

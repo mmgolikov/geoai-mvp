@@ -1,0 +1,292 @@
+{
+  "protocol": "GEOAI_COMPLETION_RECEIPT_V1",
+  "cycleId": "POINT_TO_OBJECT_001",
+  "workPackageId": "POINT_TO_OBJECT_001-DATAGEO",
+  "task": "data_geo_1",
+  "threadId": "01a02033-446c-7a52-a32a-ac30634e13c1",
+  "owner": "data_geo_1",
+  "status": "COMPLETE_LIMITED_CANDIDATE",
+  "completedAtUtc": "2026-08-31T22:46:40Z",
+  "authority": {
+    "masterBrief": {
+      "path": "/Users/mmgolikov/.codex/.chatgpt-projects/g-p-69ad6f8f8f4881919685beb94a855ac6/POINT_TO_OBJECT_001_MASTER_BRIEF.md",
+      "bytes": 12745,
+      "sha256": "fd7312cc2275d66fdeafa4c0e4b1cbe6192441b4e34d34966cec102679cb8da2"
+    },
+    "releasedMainSha": "7f323c4227f2409f3fe2d4d68be48a30176f4e2a",
+    "productionDeploymentId": "dpl_4yBHCo1eZ7N6GYQWGAg1EdQGwFTE",
+    "productionStage": "public_demo_prototype",
+    "localCandidateBranch": "codex/point-to-object-001",
+    "localCandidateWorktree": "/private/tmp/geoai-point-to-object-001",
+    "artifactCommitSha": "5d0633ab037e6953b4861d8658026b419e5702fc",
+    "artifactCommitParentSha": "7f323c4227f2409f3fe2d4d68be48a30176f4e2a",
+    "artifactCommitFileCount": 53,
+    "preExistingUserChangesIncluded": false,
+    "localReissueOrImplementationAuthority": true,
+    "authorityState": "LANE_CANDIDATE_INPUT_ONLY_NO_MAIN_OR_RELEASE_ACCEPTANCE"
+  },
+  "decision": {
+    "verdict": "LIMITED",
+    "statement": "The point-to-object hypothesis is implementable as a bounded immutable file-backed slice using source-isolated OpenStreetMap snapshots, deterministic geometry and fail-closed evidence gates; route activation, external Preview, hosted persistence and Production remain unauthorised or blocked.",
+    "fileBackedDataPackState": "CANDIDATE_NOT_MAIN_ACCEPTED",
+    "routeIntegrationState": "BLOCKED_PENDING_DEV_PARITY_AND_MAIN_APPROVAL",
+    "externalPreviewState": "BLOCKED_PENDING_VISIBLE_ATTRIBUTION_SOURCE_OFFER_UI_PARITY_AND_MAIN_APPROVAL",
+    "productionState": "UNCHANGED_PROHIBITED"
+  },
+  "outputArtifacts": [
+    {
+      "id": "POINT_TO_OBJECT_001_ROOT_PACK_MANIFEST",
+      "version": "1.0.0",
+      "path": "data/point-to-object-001/POINT_TO_OBJECT_001_PACK_MANIFEST.json",
+      "bytes": 11469,
+      "sha256": "32a1a88d26c3af03bc23436888512435283ba484a867cf91508e23329e0bf729"
+    },
+    {
+      "id": "POINT_TO_OBJECT_001_UAE_CASE_PACK_MANIFEST",
+      "version": "1.0.1",
+      "path": "data/point-to-object-001/case-packs/uae-dubai-museum-future-v1/case-pack-manifest.json",
+      "bytes": 9696,
+      "sha256": "e4fa629b012074d85103d11064bdf91761f1a5d7bd47fe29c4b420a07d4c789d"
+    },
+    {
+      "id": "POINT_TO_OBJECT_001_SINGAPORE_CASE_PACK_MANIFEST",
+      "version": "1.0.1",
+      "path": "data/point-to-object-001/case-packs/singapore-marina-bay-v1/case-pack-manifest.json",
+      "bytes": 9679,
+      "sha256": "7e4e46aa5f7481ee88bfbdc2b40a8ec131de8b9c690a38595c69db36f7d7d44c"
+    },
+    {
+      "id": "POINT_TO_OBJECT_001_DATA_CONTRACT",
+      "version": "1.0.1",
+      "path": "docs/point-to-object-001/POINT_TO_OBJECT_001_DATA_CONTRACT.json",
+      "bytes": 17682,
+      "sha256": "fb0956dd3d135a23430f4c04f266de5fa69f7739a9f713f9fc09e04457fc94f1"
+    },
+    {
+      "id": "POINT_TO_OBJECT_001_DETERMINISTIC_VALIDATION_RECEIPT",
+      "version": "1.0.1",
+      "path": "docs/point-to-object-001/POINT_TO_OBJECT_001_VALIDATION_RECEIPT.json",
+      "bytes": 16128,
+      "sha256": "4ac03e609b8a23121b44d92747856e657e1efa6eac9c3c934e045cbcd82bdacc"
+    },
+    {
+      "id": "POINT_TO_OBJECT_001_POSTGIS_TEMP_VALIDATION_RECEIPT",
+      "version": "1.0.0",
+      "path": "docs/point-to-object-001/POINT_TO_OBJECT_001_POSTGIS_TEMP_VALIDATION_RECEIPT.json",
+      "bytes": 5180,
+      "sha256": "29071934fba9508f53eae14462c24bff711bf98be83bea319b5c99b50b7940b0"
+    },
+    {
+      "id": "POINT_TO_OBJECT_001_DB_SOURCE_AUDIT_RECEIPT",
+      "version": "1.0.0",
+      "path": "docs/point-to-object-001/POINT_TO_OBJECT_001_DB_SOURCE_AUDIT_RECEIPT.json",
+      "bytes": 7297,
+      "sha256": "f4a45fdfa6bff3bbd26c1fdc255f08335706b9a97b68a972bf8e3b8bca63db09"
+    },
+    {
+      "id": "POINT_TO_OBJECT_001_OSM_RIGHTS_DECISION",
+      "version": "1.0.0",
+      "path": "data/point-to-object-001/rights/osm-20260831/OSM_RIGHTS_DECISION_V1.json",
+      "bytes": 9642,
+      "sha256": "d01ef3e7e3af38ee4e57a80cd2ca546f9d7307cb232e9e13bd46b7a38efc6e85"
+    }
+  ],
+  "verifiedFacts": [
+    "The root manifest binds 34 direct repository-local records; all 34 resolve within the repository and match exact bytes and SHA-256.",
+    "The UAE pack retains 967 normalized records, with 175 identity-eligible valid polygons or multipolygons.",
+    "The Singapore pack retains 1689 accepted records from 1691 inputs; two unsupported type=building relations are quarantined and 258 identity-eligible polygons or multipolygons are valid.",
+    "All 433 identity-eligible polygon or multipolygon geometries passed rollback-only PostGIS 3.3.7 validation; the persistent POINT_TO_OBJECT table count remained zero.",
+    "Ten deterministic safety fixtures passed exactly, with zero false-confident identity and zero grid-index false negatives.",
+    "The closed 44-field case-manifest contract, six rights obligations, physical realpath/hash/alias gates and six negative controls fail closed as specified.",
+    "The final independent correction audit and final representation-delta audit each returned PASS with P0=0, P1=0 and P2=0.",
+    "No application route, UI, API, model call, hosted persistence or Production behaviour was implemented by this data lane."
+  ],
+  "calculations": [
+    {
+      "id": "P2O-CALC-IDENTITY-GEOMETRY-TOTAL",
+      "formula": "175 UAE eligible geometries + 258 Singapore eligible geometries",
+      "result": 433,
+      "state": "VERIFIED"
+    },
+    {
+      "id": "P2O-CALC-SG-CONSERVATION",
+      "formula": "1689 accepted + 2 rejected",
+      "result": 1691,
+      "state": "VERIFIED"
+    },
+    {
+      "id": "P2O-CALC-DETERMINISTIC-FIXTURES",
+      "formula": "10 exact passes / 10 scoreable fixtures",
+      "resultPercent": 100,
+      "state": "VERIFIED_NON_STATISTICAL"
+    }
+  ],
+  "hypotheses": [
+    "A disabled non-Production file-backed resolver can consume these immutable packs without hosted database persistence.",
+    "The bounded OSM identity path can support a truthful open-context object selection demonstration when ambiguity, missingness, rights and source conflicts remain visible.",
+    "The same response contract can be implemented by Dev without allowing the model to select, score or repair object identity."
+  ],
+  "counterEvidence": [
+    "The Singapore anchor intersects two equal-priority building features and must return ambiguous rather than a preferred object.",
+    "Two Singapore type=building relations are unsupported by the frozen outline-union semantics and are quarantined.",
+    "A building-tagged point is context-only and cannot enter identity success.",
+    "The acquisition windows do not prove complete 800 metre context or real-world absence.",
+    "DB-01, AUTH-01, STORAGE-01 and SOURCE-01 remain FAIL; RLS authorization remains a failing DB/security sub-gate."
+  ],
+  "unverifiedItems": [
+    "Top-1 precision greater than or equal to 98 percent and resolvable share greater than or equal to 80 percent on an independently adjudicated cohort.",
+    "Complete facility/context coverage at 800 metres.",
+    "Official parcel, cadastral, zoning, ownership, planning, utility-capacity or valuation evidence.",
+    "Overture active case-pack rights and geometry parity.",
+    "Mapbox entitlement for the intended Preview presentation.",
+    "External Preview UI attribution/source-offer parity and route integration.",
+    "Managed backup/PITR and Storage object recovery for geoai-dev.",
+    "Exact total acquisition request count across superseded acquisition rounds."
+  ],
+  "sourceRightsMetadata": {
+    "sourceId": "SPAT-001",
+    "sourceName": "OpenStreetMap",
+    "dataOwnerOrRightsholders": "OpenStreetMap contributors",
+    "licensorAndLicencePublisher": "OpenStreetMap Foundation / Open Data Commons",
+    "licence": "ODbL-1.0",
+    "permissionPhase": "internal_preview_experiment",
+    "permittedUse": "Bounded source-isolated internal Preview experiment with visible attribution, ODbL share-alike/source-offer and no-runtime-Overpass obligations.",
+    "redistribution": "CONDITIONAL_ON_ODBL_ATTRIBUTION_SHARE_ALIKE_SOURCE_OFFER_AND_NO_UNREVIEWED_CONFLATION",
+    "territory": "worldwide",
+    "residency": "REPOSITORY_LOCAL_CANDIDATE_ARTIFACT; JURISDICTIONAL_RESIDENCY_NOT_EVALUATED",
+    "officialOrLive": false,
+    "sourceDatabaseObservedAtUtc": "2026-08-31T21:13:31Z",
+    "sourceResponsesCompletedAtUtc": "2026-08-31T21:14:52Z",
+    "rightsEvidenceAccessWindowUtc": {
+      "started": "2026-08-31T20:39:49Z",
+      "completed": "2026-08-31T20:43:15Z"
+    },
+    "confidence": "HIGH_FOR_PHYSICAL_BYTES_AND_EXPLICIT_INTERNAL_PHASE_CONTRACT; LIMITED_AS_NON_LEGAL_REVIEW"
+  },
+  "currentGateStates": {
+    "DB-01": "FAIL",
+    "AUTH-01": "FAIL",
+    "STORAGE-01": "FAIL",
+    "SOURCE-01": "FAIL",
+    "securitySubgates": {
+      "rlsAuthorization": "FAIL"
+    },
+    "fileBackedIdentityGeometry": "PASS_FOR_433_ELIGIBLE_POLYGON_FEATURES",
+    "deterministicSafetyFixtures": "PASS_10_OF_10",
+    "contextCompleteness": "FAIL_UNKNOWN_PARTIAL",
+    "statisticalAccuracy": "NOT_EVALUATED",
+    "routeIntegration": "BLOCKED",
+    "externalPreview": "BLOCKED",
+    "production": "UNCHANGED"
+  },
+  "commercialEvidenceCounts": {
+    "interviews": 0,
+    "wtpObservations": 0,
+    "proposals": 0,
+    "paidPilots": 0,
+    "contractedRevenue": 0
+  },
+  "mutations": {
+    "localRepository": {
+      "beforeSha": "7f323c4227f2409f3fe2d4d68be48a30176f4e2a",
+      "afterArtifactCommitSha": "5d0633ab037e6953b4861d8658026b419e5702fc",
+      "branch": "codex/point-to-object-001",
+      "filesInArtifactCommit": 53,
+      "scope": "data/point-to-object-001, docs/point-to-object-001 and point-to-object-001 scripts only",
+      "reversible": true,
+      "rollbackRecommendation": "If Main rejects the Candidate, revert the two local Candidate commits on codex/point-to-object-001; do not reset or rewrite history."
+    },
+    "supabase": {
+      "project": "geoai-dev / pphdqkurxneyagvnnjdt / eu-west-1",
+      "restoreOrWakeCount": 1,
+      "before": "INACTIVE",
+      "after": "ACTIVE_HEALTHY",
+      "persistentSchemaDataRlsAuthStorageOrSourceMutations": 0,
+      "temporarySql": "TEMP-table geometry/index probes in transactions; all rolled back",
+      "planUpgradeOrPaidAddon": false
+    },
+    "sourceAcquisition": {
+      "finalAcceptedAcquisitions": 2,
+      "transientPublicContributorMetadataResponses": 1,
+      "transientResponseUsedForEvidence": false,
+      "transientResponseRetained": false,
+      "unminimizedAcceptedResponsesRetained": false,
+      "supersededAcquisitionRoundPresent": true,
+      "exactTotalRequestCount": "UNVERIFIED"
+    },
+    "productionOrMain": "none",
+    "externalOutreach": "none",
+    "externalCommercialCommitment": "none"
+  },
+  "verification": {
+    "environment": "isolated local worktree /private/tmp/geoai-point-to-object-001; branch codex/point-to-object-001; base 7f323c4227f2409f3fe2d4d68be48a30176f4e2a; Node v20.19.6; hosted rollback-only PostGIS 3.3.7 on geoai-dev",
+    "reviewers": ["data_geo_1", "independent casepack_integrity Ultra red-team"],
+    "checks": [
+      "Strict duplicate-safe JSON/GeoJSON parsing, UTF-8, no BOM, LF and final LF: PASS for 23 files.",
+      "Root-manifest physical realpath/bytes/SHA-256 read-back: PASS 34/34.",
+      "Full isolated builder -> case finalizer -> validator -> root finalizer replay: exact final hash reproduction PASS.",
+      "Deterministic safety fixtures: PASS 10/10; six contract negative controls REJECTED as expected.",
+      "PostGIS identity geometry: PASS 433/433; TEMP GiST probes PASS; persistent P2O table count 0.",
+      "npm run lint: PASS.",
+      "npm run build: PASS after permitted network access for Geist font; no application files changed.",
+      "npm run test:data-honesty: PASS, 351 files, 0 findings.",
+      "npm run test:secret-hygiene: PASS, 803 tracked paths.",
+      "npm run test:documentation-current-truth: PASS, 12 active authorities.",
+      "git diff --cached --check before artifact commit: PASS.",
+      "Independent final correction audit: PASS, P0=0, P1=0, P2=0.",
+      "Independent final representation-delta audit: PASS, P0=0, P1=0, P2=0."
+    ]
+  },
+  "risks": [
+    "OpenStreetMap semantics and hierarchy remain community-source observations, not official object identity.",
+    "Rights clearance is limited to the explicit internal Preview experiment and is not legal advice.",
+    "Context completeness and statistical accuracy are not established.",
+    "External Preview remains blocked until Dev/UI parity, visible attribution/source offer and Main approval.",
+    "geoai-dev remains unsuitable for protected persistence under the current four failing S0 gates.",
+    "The safe GitHub authentication path was unavailable; no push or Draft PR was attempted."
+  ],
+  "explicitBooleans": {
+    "productionChanged": false,
+    "mainChanged": false,
+    "pushPerformed": false,
+    "pullRequestCreatedOrUpdated": false,
+    "previewCreated": false,
+    "externalOutreachPerformed": false,
+    "customerDataAccessed": false,
+    "privateOrCustomerPersonalDataAccessed": false,
+    "publicSourceContributorMetadataTransientlyProcessed": true,
+    "secretsAccessedPrintedOrCopied": false,
+    "persistentSupabaseMutationPerformed": false,
+    "routeActivated": false
+  },
+  "gitTransport": {
+    "pushAttempted": false,
+    "reason": "GitHub CLI authentication was invalid and the configured osxkeychain credential helper is prohibited; no credential-path workaround was attempted.",
+    "localTrackingRemoteRefsContainingArtifactCommit": 0,
+    "remoteCurrentContainment": "NOT_RECHECKED_DUE_CREDENTIAL_BOUNDARY",
+    "draftPr": null,
+    "preview": null
+  },
+  "openBlockers": [
+    "Main acceptance and Dev contract-parity handoff.",
+    "Safe project-scoped GitHub authentication if Main requires push/PR.",
+    "Dev implementation behind a disabled non-Production feature flag.",
+    "Visible attribution/source-offer and full UI/API/export parity before any external Preview.",
+    "Independent statistical cohort and official/client validation path."
+  ],
+  "dueDiligenceStatus": "PARTIAL",
+  "handoff": {
+    "recipient": "main_1",
+    "readiness": "READY_FOR_MAIN_INDEPENDENT_READBACK_AND_DEV_CONTRACT_ROUTING",
+    "requiredInput": "Review local artifact commit 5d0633ab037e6953b4861d8658026b419e5702fc and root manifest 32a1a88d26c3af03bc23436888512435283ba484a867cf91508e23329e0bf729; decide whether to route the immutable contract to dev_1 and separately provide a safe GitHub authentication path if push/PR is required."
+  },
+  "recommendedNextAction": "main_1 should independently rehash the local artifact commit and root manifest, then route the exact file-backed loader/resolver contract to dev_1 behind a disabled non-Production feature flag.",
+  "mandatoryCaveat": "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.",
+  "nonCircularReceipt": {
+    "selfPath": "docs/point-to-object-001/POINT_TO_OBJECT_001_DATA_COMPLETION_RECEIPT.json",
+    "selfBytes": null,
+    "selfSha256": null,
+    "receiptCommitSha": null,
+    "rule": "The receipt excludes its own physical hash, byte count and containing commit SHA; those are reported by the final task response and Main read-back."
+  }
+}
