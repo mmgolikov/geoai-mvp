@@ -63,6 +63,7 @@
     "test:auth-admin-lifecycle-remediation": "node scripts/auth-admin-lifecycle-remediation-check.mjs",
     "test:data-api-operator": "node scripts/data-api-operator-check.mjs",
     "test:source-connector-foundation": "node scripts/source-connector-foundation-check.mjs",
+    "test:point-to-object": "node --experimental-strip-types scripts/point-to-object-contract-check.ts",
     "test:migration-security-surface": "node scripts/migration-security-surface-check.mjs",
     "test:readiness-evidence": "node scripts/readiness-evidence-check.mjs",
     "test:security-headers": "node scripts/security-header-check.mjs",
@@ -95,6 +96,8 @@
   "dependencies": {
     "@supabase/ssr": "^0.12.3",
     "@supabase/supabase-js": "^2.110.6",
+    "ajv": "8.20.0",
+    "ajv-formats": "3.0.1",
     "mapbox-gl": "^3.26.0",
     "next": "15.5.21",
     "react": "^19.2.7",
