@@ -1,0 +1,259 @@
+{
+  "manifestVersion": "1.0.0",
+  "workPackage": "POINT_TO_OBJECT_001-E1-DURABILITY",
+  "generatedOn": "2026-09-01",
+  "sourceCandidate": {
+    "worktree": "/private/tmp/geoai-point-object-001",
+    "branch": "codex/point-to-object-preview-v1",
+    "head": "7f323c4227f2409f3fe2d4d68be48a30176f4e2a",
+    "changedFileCount": 36
+  },
+  "durableCandidate": {
+    "worktree": "/private/tmp/geoai-point-object-e1-durable",
+    "branch": "codex/point-to-object-e1-durable-v1",
+    "base": "7f323c4227f2409f3fe2d4d68be48a30176f4e2a",
+    "runtimeActivated": false,
+    "externalDataIncluded": false
+  },
+  "acceptedInputHashes": {
+    "schema": "66cd01ed1991084a8dffde5a431e68e9f0bf891961752438c2e4a508a20b3a57",
+    "sourceRunner": "ff924b0a9e0d6b6aeaea555271870ca3c9d8ee8cd731273849f198e0d9342de4",
+    "contractManifest": "e042c6e590aa5b18062506406e4935330946dee0ddd22d9cacddfdec101a513d"
+  },
+  "selfHashPolicy": "The manifest cannot contain its own SHA-256 without recursion. Its detached SHA-256 is reported in the commit and completion receipt.",
+  "includedFiles": [
+    {
+      "path": "docs/change-requests/point-to-object-001/DEPENDENCY_DECISION.md",
+      "sourceCandidateSha256": "63abf7a61c0906905ccdf6f238266061b19fee90883449a0672512a05af1f95d",
+      "durableSha256": "d795d663975eb8b668d42a47769bcce29eb9a96a5970313716616d0bd62f2459",
+      "provenance": "narrowed_for_durability",
+      "reason": "Records the exact AJV closure, licences and inherited-advisory separation."
+    },
+    {
+      "path": "docs/change-requests/point-to-object-001/E1_DURABILITY_CHANGE_REQUEST.md",
+      "sourceCandidateSha256": null,
+      "durableSha256": "40aa4f62e44e918d13ba0eaa09889d72ed45fa9f3f8a40146d05258acd65d2ac",
+      "provenance": "authored_for_durability",
+      "reason": "Defines the bounded durable scope, acceptance, exclusions and rollback."
+    },
+    {
+      "path": "docs/change-requests/point-to-object-001/point-to-object-evidence-bundle-0.1.0-rc.1.schema.json",
+      "sourceCandidateSha256": "66cd01ed1991084a8dffde5a431e68e9f0bf891961752438c2e4a508a20b3a57",
+      "durableSha256": "66cd01ed1991084a8dffde5a431e68e9f0bf891961752438c2e4a508a20b3a57",
+      "provenance": "exact_copy",
+      "reason": "Accepted frozen E1 evidence-envelope schema."
+    },
+    {
+      "path": "package-lock.json",
+      "sourceCandidateSha256": "eb812e0bd7f30ed87dcf541e1024867ee436683b30f7cca3eef4f5c4038e9a9b",
+      "durableSha256": "eb812e0bd7f30ed87dcf541e1024867ee436683b30f7cca3eef4f5c4038e9a9b",
+      "provenance": "exact_copy",
+      "reason": "Pins only the AJV dependency closure required by the E1 runner."
+    },
+    {
+      "path": "package.json",
+      "sourceCandidateSha256": "4b57795f14214cc7c83bda9366cf169c7e06f9f803d9e3f839a450ac458990fc",
+      "durableSha256": "4b57795f14214cc7c83bda9366cf169c7e06f9f803d9e3f839a450ac458990fc",
+      "provenance": "exact_copy",
+      "reason": "Adds the E1 test script and exact ajv/ajv-formats direct pins."
+    },
+    {
+      "path": "scripts/point-to-object-contract-check.ts",
+      "sourceCandidateSha256": "ff924b0a9e0d6b6aeaea555271870ca3c9d8ee8cd731273849f198e0d9342de4",
+      "durableSha256": "c471d9ffe1da87d52ea5b1eaa1fc116206a43147ec2431553144ede658c7a354",
+      "provenance": "narrowed_for_durability",
+      "reason": "Retains accepted contract, semantic and security tests while removing mechanical reads of excluded external-data artifacts."
+    },
+    {
+      "path": "src/lib/point-to-object/candidate-assertion-core.ts",
+      "sourceCandidateSha256": "5a0f1c4bd99ac57cf85d84a67984512b6dba4216109fbb2fa6d09afdcbb3a649",
+      "durableSha256": "5a0f1c4bd99ac57cf85d84a67984512b6dba4216109fbb2fa6d09afdcbb3a649",
+      "provenance": "exact_copy",
+      "reason": "Pure HMAC assertion lifecycle with full request and candidate-set binding."
+    },
+    {
+      "path": "src/lib/point-to-object/candidate-assertion.ts",
+      "sourceCandidateSha256": "91f4da10aa5af3e5eb7bfc609dd689ee7d8182ecba6af3f00c5a747188ff1af9",
+      "durableSha256": "91f4da10aa5af3e5eb7bfc609dd689ee7d8182ecba6af3f00c5a747188ff1af9",
+      "provenance": "exact_copy",
+      "reason": "Server-only wrapper; no route imports it."
+    },
+    {
+      "path": "src/lib/point-to-object/compose.ts",
+      "sourceCandidateSha256": "ae45b063ec6aa8b2ee13f58b599ec7fb09e4b497e21c2bf0c58a7cf48a23b78a",
+      "durableSha256": "ae45b063ec6aa8b2ee13f58b599ec7fb09e4b497e21c2bf0c58a7cf48a23b78a",
+      "provenance": "exact_copy",
+      "reason": "Deterministic typed response composition and cross-operation anchor checks."
+    },
+    {
+      "path": "src/lib/point-to-object/context.ts",
+      "sourceCandidateSha256": "4650d6f5185299ba3c0d72a472f7e10779b4ce03b318669fa8a7f0c5f0dfdbdd",
+      "durableSha256": "4650d6f5185299ba3c0d72a472f7e10779b4ce03b318669fa8a7f0c5f0dfdbdd",
+      "provenance": "exact_copy",
+      "reason": "Deterministic context derivation with outside-coverage zero-source behavior."
+    },
+    {
+      "path": "src/lib/point-to-object/contracts.ts",
+      "sourceCandidateSha256": "fc6f95880e1a69559492067313ca4969b9d87eb8a0433cacaa7323be41755490",
+      "durableSha256": "fc6f95880e1a69559492067313ca4969b9d87eb8a0433cacaa7323be41755490",
+      "provenance": "exact_copy",
+      "reason": "Exact discriminated E1 TypeScript contracts and finite caps."
+    },
+    {
+      "path": "src/lib/point-to-object/errors.ts",
+      "sourceCandidateSha256": "af27232e60c09dfadbccc20642d592a097f283e0fd31dc54602c6f024e2310fb",
+      "durableSha256": "af27232e60c09dfadbccc20642d592a097f283e0fd31dc54602c6f024e2310fb",
+      "provenance": "exact_copy",
+      "reason": "Typed fail-closed error and status mapping."
+    },
+    {
+      "path": "src/lib/point-to-object/evidence.ts",
+      "sourceCandidateSha256": "04a5f45a5afaa7c58abe813470b1647616f19c3089ba928614796e95c20d9d8d",
+      "durableSha256": "04a5f45a5afaa7c58abe813470b1647616f19c3089ba928614796e95c20d9d8d",
+      "provenance": "exact_copy",
+      "reason": "Deterministic evidence bundle and source-lineage integrity logic."
+    },
+    {
+      "path": "src/lib/point-to-object/feature-gate.ts",
+      "sourceCandidateSha256": "397478c6779143836e8670fda81ac55fc7d26b3a0727860c7831261c2720e06b",
+      "durableSha256": "397478c6779143836e8670fda81ac55fc7d26b3a0727860c7831261c2720e06b",
+      "provenance": "exact_copy",
+      "reason": "Hard-false runtime and Production activation boundary."
+    },
+    {
+      "path": "src/lib/point-to-object/geometry.ts",
+      "sourceCandidateSha256": "c1fd271a68615a48dc8e5fdfe46ae94ffe97573efbd3bc27d61f4c393dcd2f7d",
+      "durableSha256": "c1fd271a68615a48dc8e5fdfe46ae94ffe97573efbd3bc27d61f4c393dcd2f7d",
+      "provenance": "exact_copy",
+      "reason": "Bounded deterministic geometry calculations and artifact caps."
+    },
+    {
+      "path": "src/lib/point-to-object/hash.ts",
+      "sourceCandidateSha256": "659d8a4fa406b1992da95ad375c35eeb7fad723e8544b7ea4ff329c40c87afb2",
+      "durableSha256": "659d8a4fa406b1992da95ad375c35eeb7fad723e8544b7ea4ff329c40c87afb2",
+      "provenance": "exact_copy",
+      "reason": "Canonical ordering and content-address helpers."
+    },
+    {
+      "path": "src/lib/point-to-object/repository-core.ts",
+      "sourceCandidateSha256": "b658902ed41eeea3f9a9b643b4e438da47f7bf9dfe568aab49d96c8f5fce61cc",
+      "durableSha256": "b658902ed41eeea3f9a9b643b4e438da47f7bf9dfe568aab49d96c8f5fce61cc",
+      "provenance": "exact_copy",
+      "reason": "Injected repository integrity checks and synthetic-only authority enforcement."
+    },
+    {
+      "path": "src/lib/point-to-object/resolver.ts",
+      "sourceCandidateSha256": "549631768495abf9a1a86c830b7aaed03e71924194782fdbf0d38971302c2843",
+      "durableSha256": "549631768495abf9a1a86c830b7aaed03e71924194782fdbf0d38971302c2843",
+      "provenance": "exact_copy",
+      "reason": "Deterministic resolution, complete ambiguity and overflow behavior."
+    },
+    {
+      "path": "src/lib/point-to-object/semantic-validator.ts",
+      "sourceCandidateSha256": "17273d18241beccb98446d883002b3328282fb92f6f50f4cef33be33622fb2a9",
+      "durableSha256": "17273d18241beccb98446d883002b3328282fb92f6f50f4cef33be33622fb2a9",
+      "provenance": "exact_copy",
+      "reason": "Cross-field hashes, anchors, selection-method and lineage validation."
+    },
+    {
+      "path": "src/lib/point-to-object/snapshot-types.ts",
+      "sourceCandidateSha256": "b91faf9284e90d8c9453f0dfe2349cc95e267e2d8c3212fadea3358b210a51f9",
+      "durableSha256": "b91faf9284e90d8c9453f0dfe2349cc95e267e2d8c3212fadea3358b210a51f9",
+      "provenance": "exact_copy",
+      "reason": "Shared synthetic repository type vocabulary; no data, loader or provider."
+    },
+    {
+      "path": "src/lib/point-to-object/synthetic-repository.ts",
+      "sourceCandidateSha256": "6f6e2ad7f577ff0df46c33fa0d5e8d56697b91ad3c9c184428dbf069844dbd8d",
+      "durableSha256": "6f6e2ad7f577ff0df46c33fa0d5e8d56697b91ad3c9c184428dbf069844dbd8d",
+      "provenance": "exact_copy",
+      "reason": "Explicit synthetic non-runtime fixture repository used by E1 tests."
+    },
+    {
+      "path": "src/lib/point-to-object/validation.ts",
+      "sourceCandidateSha256": "867c3964f62318f5efbbdb7f058e9970428aee4d3a9cafcd19b70d09c3f4433b",
+      "durableSha256": "867c3964f62318f5efbbdb7f058e9970428aee4d3a9cafcd19b70d09c3f4433b",
+      "provenance": "exact_copy",
+      "reason": "Request parsing, schema constraints and byte-budget enforcement."
+    },
+    {
+      "path": "tests/fixtures/point-to-object/contract-manifest-0.1.0-rc.1.json",
+      "sourceCandidateSha256": "e042c6e590aa5b18062506406e4935330946dee0ddd22d9cacddfdec101a513d",
+      "durableSha256": "e042c6e590aa5b18062506406e4935330946dee0ddd22d9cacddfdec101a513d",
+      "provenance": "exact_copy",
+      "reason": "Pins Product/schema authority and fail-closed synthetic-only status."
+    }
+  ],
+  "excludedSourceCandidateFiles": [
+    {
+      "path": "docs/change-requests/point-to-object-001/CHANGE_REQUEST.md",
+      "sourceCandidateSha256": "5b4760164b5b5cc81bd55f2b95d077651e689211926473b772cb2aebb865f2a4",
+      "reason": "Mixed superseded Preview/UI/API/real-data plan and stale branch authority."
+    },
+    {
+      "path": "docs/change-requests/point-to-object-001/MAIN_GATE_HOLD_2026_09_01.md",
+      "sourceCandidateSha256": "9595b7fc4e330ee7c82e123fb8c9cdbf9684295aa15ab2ef1503a748109ea608",
+      "reason": "Stale worktree and prohibition superseded by this durability work package."
+    },
+    {
+      "path": "docs/change-requests/point-to-object-001/SOURCE_RIGHTS_AND_CASE_PACK_RECEIPT.md",
+      "sourceCandidateSha256": "7bae5ac8242ac751d8bba04b548d92419119bfcc29a4c91d2855d9d4328f2219",
+      "reason": "Held external-source, rights and identity assertions are outside E1 durability."
+    },
+    {
+      "path": "scripts/prepare-point-to-object-snapshot.mjs",
+      "sourceCandidateSha256": "0662e99378150a12e4889e21e1cd5511a78965954b6e97269be6b3216057fddf",
+      "reason": "External OSM acquisition and file generation are excluded."
+    },
+    {
+      "path": "src/data/point-to-object/gold-v1.json",
+      "sourceCandidateSha256": "1bd0e846007a62040d5328454963ed32320b7280aad7b9e9ea0abd92395f8858",
+      "reason": "Held OSM-derived expected-output artifact."
+    },
+    {
+      "path": "src/data/point-to-object/manifest-v1.json",
+      "sourceCandidateSha256": "3154dbe4ea050d43d5bceedff6341a27f12e1a81532ea915c23aff0ebe240078",
+      "reason": "Held external data-package manifest."
+    },
+    {
+      "path": "src/data/point-to-object/snapshot-v1.json",
+      "sourceCandidateSha256": "bd8b0c438ec0d0954425c9e8edfa5cff8033b4cd5f0623781b3e242e721416e9",
+      "reason": "Held OSM-derived snapshot."
+    },
+    {
+      "path": "src/data/point-to-object/source/dubai-context-500m-receipt.json",
+      "sourceCandidateSha256": "6ba40c3913e742891ee4271653012c1dbc9f8142ee6ccf2d08e6168efb85cb51",
+      "reason": "External acquisition receipt."
+    },
+    {
+      "path": "src/data/point-to-object/source/probe-manifest.json",
+      "sourceCandidateSha256": "47f86550d6805c73ba41fe5af0e10ca3b86c44c511e92e9406f1a78dea5a9e31",
+      "reason": "External probe evidence."
+    },
+    {
+      "path": "src/data/point-to-object/source/selected-geometries.geojson",
+      "sourceCandidateSha256": "c9b44f205c28c03650714d5e3a37cee4db4da3efec79ce00a439c6dff8913fd3",
+      "reason": "External geometry artifact."
+    },
+    {
+      "path": "src/data/point-to-object/source/selected-geometry-acquisition-metadata-v1.json",
+      "sourceCandidateSha256": "bf655996a1507b6c853fbf746581beacf1bfa361028180d8eb371b4eed14d819",
+      "reason": "External acquisition metadata."
+    },
+    {
+      "path": "src/data/point-to-object/source/singapore-context-500m-receipt.json",
+      "sourceCandidateSha256": "8be349bfd776ca287cfe66ecb24b009ffb8d8e8f246bad0f2ed3c296c77d7db3",
+      "reason": "External acquisition receipt outside the UAE-first E1 core."
+    },
+    {
+      "path": "src/lib/point-to-object/snapshot-repository.ts",
+      "sourceCandidateSha256": "85a9b10bcb8f18c84f06438c1bced08d9e5c42b0715a4d659243492409ac3c8a",
+      "reason": "Parser specialized to the excluded held OSM package."
+    },
+    {
+      "path": "src/lib/point-to-object/snapshot-repository-loader.ts",
+      "sourceCandidateSha256": "a739e08cbdd162c02aca494b47cf1c0949358ddc414f604da53b555041279be6",
+      "reason": "Dormant loader coupled to the excluded held-package parser."
+    }
+  ]
+}
