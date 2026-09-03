@@ -1281,6 +1281,8 @@ function assertStaticBoundaries(): void {
     "A stale context response must be unable to overwrite a newer selection.");
   assert.match(prototypeClientSource, /setTimeout\([\s\S]*250/,
     "Direct-click enrichment must debounce rapid exploratory clicks.");
+  assert.match(prototypeClientSource, /setSessionReady\(true\)[\s\S]*sessionReady \? \([\s\S]*<LiveObjectMap/,
+    "The map must mount only after browser-session restoration so a reload cannot overwrite the saved viewport.");
   assert.match(contextRouteSource, /previewRuntimeAllowed\(\)/,
     "The live context route must remain Preview-gated.");
   assert.equal(contextRouteSource.includes("frozen-osm-repository"), false,

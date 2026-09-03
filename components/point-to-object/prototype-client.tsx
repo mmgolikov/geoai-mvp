@@ -69,6 +69,7 @@ export function PointToObjectPrototype() {
   const [locationKey, setLocationKey] = useState<LiveMapLocationKey>("dubai");
   const [selection, setSelection] = useState<LiveMapSelection | null>(null);
   const [question, setQuestion] = useState("");
+  const [sessionReady, setSessionReady] = useState(false);
   const [contextStatus, setContextStatus] = useState<"idle" | "loading" | "error">("idle");
   const [contextRetryVersion, setContextRetryVersion] = useState(0);
   const contextRequestId = useRef(0);
@@ -80,6 +81,7 @@ export function PointToObjectPrototype() {
       setSelection(restoredSelection);
     }
     setQuestion(readPointObjectQuestion());
+    setSessionReady(true);
   }, []);
 
   useEffect(() => {
@@ -198,13 +200,19 @@ export function PointToObjectPrototype() {
 
       <div className="grid min-h-[calc(100svh-64px)] bg-white lg:h-[calc(100svh-64px)] lg:min-h-0 lg:grid-cols-[minmax(0,1fr)_430px]">
         <section className="relative min-h-[40svh] overflow-hidden border-b border-line lg:h-full lg:min-h-0 lg:border-b-0" aria-label="Interactive location map">
-          <LiveObjectMap
-            locationKey={locationKey}
-            selection={selection}
-            onSelection={handleSelection}
-            onViewportChange={handleViewportChange}
-            className="min-h-[40svh] lg:min-h-0"
-          />
+          {sessionReady ? (
+            <LiveObjectMap
+              locationKey={locationKey}
+              selection={selection}
+              onSelection={handleSelection}
+              onViewportChange={handleViewportChange}
+              className="min-h-[40svh] lg:min-h-0"
+            />
+          ) : (
+            <div className="grid h-full min-h-[40svh] place-items-center bg-[#f4f6f7] text-sm font-medium text-[#52606a]" role="status">
+              Loading live map…
+            </div>
+          )}
           <div className="absolute left-4 top-4 z-10 flex max-w-[calc(100%-5rem)] flex-col gap-2 sm:left-5 sm:top-5 sm:flex-row sm:items-center">
             <div className="inline-flex w-fit rounded-xl border border-white/70 bg-white/95 p-1 shadow-[0_10px_30px_rgba(20,35,45,0.14)] backdrop-blur" role="group" aria-label="Map location">
               {(Object.keys(MARKET_LABEL) as LiveMapLocationKey[]).map((key) => (
