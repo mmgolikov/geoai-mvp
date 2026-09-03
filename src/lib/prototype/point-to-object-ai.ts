@@ -69,9 +69,9 @@ const DEFAULT_PROFILES: Record<AttemptKind, Record<PointObjectAnalysisDepth, Omi
     deep: {
       model: "gpt-5.6-sol",
       reasoningEffort: "high",
-      verbosity: "high",
-      maxOutputTokens: 7_500,
-      timeoutMs: 70_000,
+      verbosity: "medium",
+      maxOutputTokens: 7_000,
+      timeoutMs: 95_000,
       minimumTier: "sol"
     }
   },
@@ -95,9 +95,9 @@ const DEFAULT_PROFILES: Record<AttemptKind, Record<PointObjectAnalysisDepth, Omi
     deep: {
       model: "gpt-5.6-sol",
       reasoningEffort: "high",
-      verbosity: "high",
-      maxOutputTokens: 8_000,
-      timeoutMs: 75_000,
+      verbosity: "medium",
+      maxOutputTokens: 7_000,
+      timeoutMs: 100_000,
       minimumTier: "sol"
     }
   },
