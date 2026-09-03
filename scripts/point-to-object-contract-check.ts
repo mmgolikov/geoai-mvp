@@ -1447,6 +1447,12 @@ async function assertCandidateAiSafety(): Promise<void> {
     statement: "The analysis uses OpenStreetMap open context, not an authoritative cadastral, zoning, title or valuation register.",
     evidenceRefs: ["EVD-SNAPSHOT"]
   }], "Confirmed facts must be rebuilt deterministically rather than trusted from model output.");
+  const validatedDecisionObservations = validated.decisionObservations as Array<{ statement: string; validationRequired: boolean }>;
+  assert.equal(validatedDecisionObservations[0]?.statement,
+    "Match the community-map record and rendered footprint to the intended real-world asset using an official or client object/parcel identifier before a site decision.",
+    "Displayed validation actions must be rebuilt deterministically rather than trusted from model output.");
+  assert.equal(validatedDecisionObservations.every((item) => item.validationRequired === true), true,
+    "Every deterministic validation action must remain explicitly validation-required.");
   assert.equal(validateContent({ ...safeContent, appearsToBe: "The owner is Example Holdings." }, evidencePack), null,
     "Unsupported ownership assertions must fail closed.");
   assert.equal(validateContent({
