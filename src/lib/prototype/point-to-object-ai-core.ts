@@ -348,7 +348,7 @@ const OWNERSHIP_ASSERTION = /\b(?:owner is(?: not)?|owned by)\b/i;
 const SAFE_OWNERSHIP_UNKNOWN = /\bowner is (?:unknown|unverified|not provided|not available)\b/i;
 const EXPLICIT_LIMITATION = /\b(?:not an? official (?:parcel|cadastral)|does not establish (?:an? )?(?:official parcel|official cadastral|exact valuation|financial viability|profitability)|not established as financially viable|financial viability is not established|profitability is not established)\b/i;
 const EMPIRICAL_DOMAIN = /\b(?:occupancy|vacancy|market demand|tourism demand|housing demand|supply|rents?|rental rates?|sale prices?|transaction volumes?|footfall|traffic volumes?|revenue|income|market growth|population|crime rates?|operating performance|financial performance)\b/i;
-const EMPIRICAL_DIRECTION_OR_VALUE = /\b(?:high|low|strong|weak|growing|declining|stable|increasing|decreasing|undersupplied|oversupplied|averages?|stands? at|reaches?)\b|\b\d+(?:\.\d+)?\b/i;
+const EMPIRICAL_DIRECTION_OR_VALUE = /\b(?:high|low|strong|weak|growing|declining|stable|increasing|decreasing|undersupplied|oversupplied|material|favourable|favorable|unfavourable|unfavorable|robust|soft|healthy|competitive|attractive|positive|negative|averages?|stands? at|reaches?)\b|\b\d+(?:\.\d+)?\b/i;
 const EMPIRICAL_ASSERTION = /\b(?:is|are|was|were|has|have)\b/i;
 const EVIDENCE_GAP_LANGUAGE = /\b(?:no|without)\b[^.!?]{0,100}\bevidence\b|\bevidence\s+(?:is|are)\s+(?:absent|missing|unavailable)\b/i;
 const PROXIMITY_LANGUAGE = /\b(?:nearby|adjacent|within walking distance|walkable|approximately|about|around|roughly)\b|\b\d+(?:\.\d+)?\s*(?:m|metres?|meters?|km|kilometres?|kilometers?)\b/i;
@@ -361,12 +361,13 @@ export function containsUnsupportedPointObjectClaim(text: string): boolean {
   return clauses.some((clause) => {
     if (CURRENCY_ASSERTION.test(clause) || PERCENT_ASSERTION.test(clause)) return true;
     if (OWNERSHIP_ASSERTION.test(clause) && !SAFE_OWNERSHIP_UNKNOWN.test(clause)) return true;
-    if (EMPIRICAL_DOMAIN.test(clause) && EMPIRICAL_DIRECTION_OR_VALUE.test(clause) &&
-        !EXPLICIT_UNKNOWN.test(clause) && !EVIDENCE_GAP_LANGUAGE.test(clause)) return true;
+    if (EMPIRICAL_DOMAIN.test(clause) && EMPIRICAL_DIRECTION_OR_VALUE.test(clause)) return true;
     if (EMPIRICAL_DOMAIN.test(clause) && EMPIRICAL_ASSERTION.test(clause) &&
         !EXPLICIT_UNKNOWN.test(clause) && !EVIDENCE_GAP_LANGUAGE.test(clause)) return true;
     if (ABSOLUTE_UNSUPPORTED.test(clause) && !EXPLICIT_UNKNOWN.test(clause) && !EXPLICIT_LIMITATION.test(clause)) return true;
-    return POSITIVE_UNSUPPORTED.test(clause) && !EXPLICIT_UNKNOWN.test(clause);
+    if (!POSITIVE_UNSUPPORTED.test(clause)) return false;
+    const containsPositivePredicate = /\b(?:allows?|permits?|safe|suitable|optimal|good|poor|excellent|bad)\b/i.test(clause);
+    return containsPositivePredicate || !EXPLICIT_UNKNOWN.test(clause);
   });
 }
 

@@ -1427,6 +1427,13 @@ async function assertCandidateAiSafety(): Promise<void> {
     "An unknown empirical field must not launder an unsupported condition assertion.");
   assert.equal(containsUnsupportedClaim("The zoning is unknown, but the development is suitable."), true,
     "An unknown planning field must not launder an unsupported suitability assertion.");
+  assert.equal(containsUnsupportedClaim("Market demand is strong despite occupancy being unknown."), true);
+  assert.equal(containsUnsupportedClaim("Market demand is strong — occupancy is unknown."), true);
+  assert.equal(containsUnsupportedClaim("Market demand is strong, occupancy is unknown."), true);
+  assert.equal(containsUnsupportedClaim("The development is suitable despite zoning being unknown."), true);
+  assert.equal(containsUnsupportedClaim("The asset is in good condition (occupancy is unknown)."), true);
+  assert.equal(containsUnsupportedClaim("Tourism demand is strong yet occupancy is unknown."), true,
+    "Unsupported assertions must fail closed regardless of conjunction or punctuation.");
   assert.equal(containsUnsupportedClaim("The zoning is unknown and requires official validation."), false);
   assert.equal(containsUnsupportedClaim("The geometry is open-map context, not an official cadastral boundary."), false);
   assert.equal(containsUnsupportedClaim("Financial viability is not established by the available evidence."), false);
