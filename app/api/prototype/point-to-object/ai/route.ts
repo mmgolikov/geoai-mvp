@@ -251,7 +251,7 @@ export async function POST(request: Request) {
       headers: clearChallengeHeader(request)
     });
   }
-  const parsed = await readBoundedJson(request, 6 * 1024);
+  const parsed = await readBoundedJson(request, 4 * 1024);
   if (!parsed.ok || !validBody(parsed.value)) {
     return NextResponse.json({ mode: "unavailable", code: "AI_REQUEST_INVALID", error: "A bounded resolved point, explicit consent and browser challenge are required." }, {
       status: parsed.ok ? 400 : parsed.status,
