@@ -8,18 +8,27 @@ import {
   generatePointObjectAiAnalysis,
   PointObjectAiServiceError
 } from "@/src/lib/prototype/point-to-object-ai";
+import type {
+  PointObjectAnalysisDepth,
+  PointObjectAnalysisGoal,
+  PointObjectAnalysisHorizon,
+  PointObjectAnalysisPerspective,
+  PointObjectAnalysisRequest
+} from "@/src/lib/prototype/point-to-object-ai-core";
 import {
   buildLivePointObjectEvidencePack as buildPointObjectEvidencePack,
   LivePointEvidenceError
 } from "@/src/lib/prototype/point-to-object-live-evidence";
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
 
 const CHALLENGE_COOKIE = "geoai_p2o_ai_challenge";
 const CHALLENGE_TTL_SECONDS = 5 * 60;
 const RATE_WINDOW_MS = 10 * 60 * 1000;
 const RATE_MAX_REQUESTS = 4;
 const GLOBAL_RATE_MAX_REQUESTS = 20;
+const ROUTE_SAFE_BUDGET_MS = 55_000;
 
 type RateBucket = { startedAt: number; count: number };
 const rateBuckets = new Map<string, RateBucket>();
@@ -30,6 +39,22 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isLiveMarketKey(value: unknown): value is "dubai" | "singapore" {
   return value === "dubai" || value === "singapore";
+}
+
+function isAnalysisDepth(value: unknown): value is PointObjectAnalysisDepth {
+  return value === "quick" || value === "standard" || value === "deep";
+}
+
+function isAnalysisGoal(value: unknown): value is PointObjectAnalysisGoal {
+  return value === "object_profile" || value === "development_screening" || value === "redevelopment" || value === "due_diligence" || value === "custom";
+}
+
+function isAnalysisPerspective(value: unknown): value is PointObjectAnalysisPerspective {
+  return value === "developer" || value === "investor" || value === "asset_owner";
+}
+
+function isAnalysisHorizon(value: unknown): value is PointObjectAnalysisHorizon {
+  return value === "current" || value === "one_to_three_years" || value === "long_term";
 }
 
 function previewRuntimeAllowed(): boolean {
@@ -159,19 +184,33 @@ function validBody(value: unknown): value is {
   longitude: number;
   latitude: number;
   locale?: string | null;
+  depth: PointObjectAnalysisDepth;
+  goal: PointObjectAnalysisGoal;
+  perspective: PointObjectAnalysisPerspective;
+  horizon: PointObjectAnalysisHorizon;
   question: string | null;
   expectedSourceFeatureId: string | null;
   consent: true;
   challenge: string;
 } {
   if (!isRecord(value) || Object.keys(value).some((key) =>
-    !["caseKey", "longitude", "latitude", "locale", "question", "expectedSourceFeatureId", "consent", "challenge"].includes(key))) return false;
+    !["caseKey", "longitude", "latitude", "locale", "depth", "goal", "perspective", "horizon", "question", "expectedSourceFeatureId", "consent", "challenge"].includes(key))) return false;
+  const questionValid = value.question === null || (
+    typeof value.question === "string" &&
+    value.question.trim().length >= 1 &&
+    value.question.trim().length <= 500
+  );
   return isLiveMarketKey(value.caseKey) &&
     typeof value.longitude === "number" && Number.isFinite(value.longitude) && Math.abs(value.longitude) <= 180 &&
     typeof value.latitude === "number" && Number.isFinite(value.latitude) && Math.abs(value.latitude) <= 90 &&
     coordinatesMatchMarket(value.caseKey, value.longitude, value.latitude) &&
     (value.locale === undefined || value.locale === null || (typeof value.locale === "string" && value.locale.length <= 64)) &&
-    (value.question === null || (typeof value.question === "string" && value.question.trim().length <= 500)) &&
+    isAnalysisDepth(value.depth) &&
+    isAnalysisGoal(value.goal) &&
+    isAnalysisPerspective(value.perspective) &&
+    isAnalysisHorizon(value.horizon) &&
+    questionValid &&
+    (value.goal !== "custom" || value.question !== null) &&
     (value.expectedSourceFeatureId === null || (typeof value.expectedSourceFeatureId === "string" && /^(?:node|way|relation)\/[1-9]\d{0,19}$/.test(value.expectedSourceFeatureId))) &&
     value.consent === true && typeof value.challenge === "string" && value.challenge.length <= 100;
 }
@@ -199,6 +238,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const routeDeadline = Date.now() + ROUTE_SAFE_BUDGET_MS;
   if (!previewRuntimeAllowed()) {
     return NextResponse.json({ mode: "unavailable", code: "AI_PREVIEW_ONLY", error: "AI analysis is not available in this environment." }, {
       status: 403,
@@ -211,7 +251,7 @@ export async function POST(request: Request) {
       headers: clearChallengeHeader(request)
     });
   }
-  const parsed = await readBoundedJson(request, 4 * 1024);
+  const parsed = await readBoundedJson(request, 6 * 1024);
   if (!parsed.ok || !validBody(parsed.value)) {
     return NextResponse.json({ mode: "unavailable", code: "AI_REQUEST_INVALID", error: "A bounded resolved point, explicit consent and browser challenge are required." }, {
       status: parsed.ok ? 400 : parsed.status,
@@ -227,7 +267,7 @@ export async function POST(request: Request) {
   }
   const rate = consumeRateLimit(request);
   if (!rate.allowed) {
-    return NextResponse.json({ mode: "unavailable", code: "AI_RATE_LIMITED", error: "The AI request limit has been reached temporarily." }, {
+    return NextResponse.json({ mode: "unavailable", code: "AI_RATE_LIMITED", error: "The AI request limit has been reached temporarily.", retryable: true }, {
       status: 429,
       headers: { ...clearChallengeHeader(request), "Retry-After": String(rate.retryAfterSeconds) }
     });
@@ -250,7 +290,14 @@ export async function POST(request: Request) {
         headers: clearChallengeHeader(request)
       });
     }
-    const result = await generatePointObjectAiAnalysis(evidencePack, body.question?.trim() || null);
+    const analysisRequest: PointObjectAnalysisRequest = {
+      depth: body.depth,
+      goal: body.goal,
+      perspective: body.perspective,
+      horizon: body.horizon,
+      question: body.question?.trim() || null
+    };
+    const result = await generatePointObjectAiAnalysis(evidencePack, analysisRequest, routeDeadline);
     return NextResponse.json({
       ...result,
       subject: {
@@ -275,7 +322,12 @@ export async function POST(request: Request) {
       });
     }
     if (error instanceof PointObjectAiServiceError) {
-      return NextResponse.json({ mode: "unavailable", code: error.code, error: error.message }, {
+      return NextResponse.json({
+        mode: "unavailable",
+        code: error.code,
+        error: error.message,
+        retryable: error.httpStatus === 429 || error.httpStatus >= 500
+      }, {
         status: error.httpStatus,
         headers: clearChallengeHeader(request)
       });

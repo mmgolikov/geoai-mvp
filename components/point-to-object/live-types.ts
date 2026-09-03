@@ -59,15 +59,103 @@ export type GroundedClaim = {
   evidenceRefs: string[];
 };
 
+export type PointObjectAnalysisDepth = "quick" | "standard" | "deep";
+export type PointObjectAnalysisGoal =
+  | "object_profile"
+  | "development_screening"
+  | "redevelopment"
+  | "due_diligence"
+  | "custom";
+export type PointObjectAnalysisPerspective = "developer" | "investor" | "asset_owner";
+export type PointObjectAnalysisHorizon = "current" | "one_to_three_years" | "long_term";
+export type PointObjectReasoningEffort = "low" | "medium" | "high" | "xhigh";
+export type PointObjectEvidenceClass = "observed" | "derived" | "hypothesis";
+export type PointObjectConfidence = "low" | "medium";
+
+export const POINT_OBJECT_ANALYSIS_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V2_2026_09_03" as const;
+
+export type PointObjectAnalysisRequestReceipt = {
+  depth: PointObjectAnalysisDepth;
+  goal: PointObjectAnalysisGoal;
+  perspective: PointObjectAnalysisPerspective;
+  horizon: PointObjectAnalysisHorizon;
+  question: string | null;
+  focused: boolean;
+};
+
+export type PointObjectDecisionBrief = {
+  headline: string;
+  disposition: "continue_screening" | "hold" | "insufficient_evidence";
+  summary: string;
+  reasons: GroundedClaim[];
+  confidence: PointObjectConfidence;
+};
+
+export type PointObjectDecisionSignal = {
+  title: string;
+  observation: string;
+  implication: string;
+  evidenceClass: PointObjectEvidenceClass;
+  evidenceRefs: string[];
+  confidence: PointObjectConfidence;
+};
+
+export type PointObjectOpportunity = {
+  title: string;
+  hypothesis: string;
+  rationale: string;
+  potentialValue: string;
+  evidenceRefs: string[];
+  evidenceNeeded: string[];
+  confidence: PointObjectConfidence;
+};
+
+export type PointObjectRisk = {
+  title: string;
+  statement: string;
+  decisionImpact: string;
+  severity: "low" | "medium" | "high";
+  evidenceRefs: string[];
+  confidence: PointObjectConfidence;
+};
+
+export type PointObjectValidationAction = {
+  title: string;
+  action: string;
+  source: string;
+  decisionImpact: string;
+  priority: "critical" | "high" | "medium";
+  evidenceRefs: string[];
+};
+
 export type PointObjectAiContent = {
-  appearsToBe: string;
-  confirmedFacts: GroundedClaim[];
-  aiInferences: Array<GroundedClaim & { confidence: "low" | "medium" }>;
+  decisionBrief: PointObjectDecisionBrief;
+  signals: PointObjectDecisionSignal[];
+  opportunities: PointObjectOpportunity[];
+  risks: PointObjectRisk[];
+  sourceFacts: GroundedClaim[];
   locationContext: GroundedClaim[];
-  decisionObservations: Array<GroundedClaim & { validationRequired: boolean }>;
-  missingInformation: string[];
+  nextValidation: PointObjectValidationAction[];
   answerToQuestion: GroundedClaim | null;
   caveat: string;
+};
+
+export type PointObjectAiTelemetry = {
+  provider: "openai";
+  model: string;
+  reasoningEffort: PointObjectReasoningEffort;
+  depth: PointObjectAnalysisDepth;
+  promptVersion: typeof POINT_OBJECT_ANALYSIS_PROMPT_VERSION;
+  requestId: string | null;
+  latencyMs: number;
+  attempts: number;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  totalTokens: number | null;
+  estimatedCostUsd: number | null;
+  costRateSource: string | null;
+  stored: false;
+  toolCalls: 0;
 };
 
 export type PointObjectAiSubject = {
@@ -103,18 +191,10 @@ export type PointObjectAiResponse =
       generatedAt: string;
       evidencePackId: string;
       evidencePackHash: string;
+      request: PointObjectAnalysisRequestReceipt;
       content: PointObjectAiContent;
       subject: PointObjectAiSubject;
-      telemetry?: {
-        model: string;
-        requestId: string | null;
-        latencyMs: number;
-        inputTokens: number | null;
-        outputTokens: number | null;
-        estimatedCostUsd: number | null;
-        stored: false;
-        toolCalls: 0;
-      };
+      telemetry: PointObjectAiTelemetry;
     }
   | {
       mode: "unavailable";
