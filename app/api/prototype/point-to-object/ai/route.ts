@@ -2,6 +2,7 @@ import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 
 import { NextResponse } from "next/server";
 
+import { getPointObjectPreviewUpstreamStatus } from "@/src/lib/ai/openai-upstream-gate";
 import { readBoundedJson } from "@/src/lib/http/bounded-json";
 import { isFrozenCaseKey } from "@/src/lib/point-to-object/frozen-osm-repository";
 import {
@@ -9,16 +10,17 @@ import {
   PointObjectAiServiceError
 } from "@/src/lib/prototype/point-to-object-ai";
 import {
-  buildPointObjectEvidencePack,
-  PointObjectEvidenceError
-} from "@/src/lib/prototype/point-to-object-evidence";
+  buildLivePointObjectEvidencePack as buildPointObjectEvidencePack,
+  LivePointEvidenceError
+} from "@/src/lib/prototype/point-to-object-live-evidence";
 
 export const runtime = "nodejs";
 
 const CHALLENGE_COOKIE = "geoai_p2o_ai_challenge";
 const CHALLENGE_TTL_SECONDS = 5 * 60;
 const RATE_WINDOW_MS = 10 * 60 * 1000;
-const RATE_MAX_REQUESTS = 12;
+const RATE_MAX_REQUESTS = 4;
+const GLOBAL_RATE_MAX_REQUESTS = 20;
 
 type RateBucket = { startedAt: number; count: number };
 const rateBuckets = new Map<string, RateBucket>();
@@ -28,7 +30,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function previewRuntimeAllowed(): boolean {
-  return process.env.VERCEL_ENV === "preview";
+  return process.env.VERCEL_ENV === "preview" && getPointObjectPreviewUpstreamStatus().enabled;
 }
 
 function noStoreHeaders(extra: Record<string, string> = {}): Record<string, string> {
@@ -110,48 +112,68 @@ function rateKey(request: Request): string {
     request.headers.get("x-real-ip") ??
     "preview-anonymous";
   const address = forwarded.split(",")[0]?.trim() || "preview-anonymous";
-  const agent = request.headers.get("user-agent")?.slice(0, 200) ?? "unknown-agent";
-  return sha256(`${address}\n${agent}`);
+  return sha256(address);
 }
 
-function consumeRateLimit(request: Request): { allowed: true } | { allowed: false; retryAfterSeconds: number } {
+function consumeBucket(
+  key: string,
+  maxRequests: number
+): { allowed: true } | { allowed: false; retryAfterSeconds: number } {
   const now = Date.now();
   for (const [key, bucket] of rateBuckets) {
     if (now - bucket.startedAt >= RATE_WINDOW_MS) rateBuckets.delete(key);
   }
-  const key = rateKey(request);
   const current = rateBuckets.get(key);
   if (!current || now - current.startedAt >= RATE_WINDOW_MS) {
     rateBuckets.set(key, { startedAt: now, count: 1 });
     return { allowed: true };
   }
-  if (current.count >= RATE_MAX_REQUESTS) {
+  if (current.count >= maxRequests) {
     return { allowed: false, retryAfterSeconds: Math.max(1, Math.ceil((RATE_WINDOW_MS - (now - current.startedAt)) / 1000)) };
   }
   current.count += 1;
   return { allowed: true };
 }
 
+function consumeRateLimit(request: Request): { allowed: true } | { allowed: false; retryAfterSeconds: number } {
+  const global = consumeBucket("global", GLOBAL_RATE_MAX_REQUESTS);
+  if (!global.allowed) return global;
+  return consumeBucket(`client:${rateKey(request)}`, RATE_MAX_REQUESTS);
+}
+
+function coordinatesMatchMarket(
+  caseKey: "dubai" | "singapore",
+  longitude: number,
+  latitude: number
+): boolean {
+  return caseKey === "dubai"
+    ? longitude >= 54.8 && longitude <= 55.8 && latitude >= 24.8 && latitude <= 25.6
+    : longitude >= 103.5 && longitude <= 104.1 && latitude >= 1.1 && latitude <= 1.55;
+}
+
 function validBody(value: unknown): value is {
   caseKey: "dubai" | "singapore";
   longitude: number;
   latitude: number;
+  locale?: string | null;
   question: string | null;
   consent: true;
   challenge: string;
 } {
   if (!isRecord(value) || Object.keys(value).some((key) =>
-    !["caseKey", "longitude", "latitude", "question", "consent", "challenge"].includes(key))) return false;
+    !["caseKey", "longitude", "latitude", "locale", "question", "consent", "challenge"].includes(key))) return false;
   return isFrozenCaseKey(value.caseKey) &&
     typeof value.longitude === "number" && Number.isFinite(value.longitude) && Math.abs(value.longitude) <= 180 &&
     typeof value.latitude === "number" && Number.isFinite(value.latitude) && Math.abs(value.latitude) <= 90 &&
+    coordinatesMatchMarket(value.caseKey, value.longitude, value.latitude) &&
+    (value.locale === undefined || value.locale === null || (typeof value.locale === "string" && value.locale.length <= 64)) &&
     (value.question === null || (typeof value.question === "string" && value.question.trim().length <= 500)) &&
     value.consent === true && typeof value.challenge === "string" && value.challenge.length <= 100;
 }
 
 export async function GET(request: Request) {
   if (!previewRuntimeAllowed()) {
-    return NextResponse.json({ mode: "unavailable", code: "AI_PREVIEW_ONLY", error: "Grounded AI is available only on an isolated Vercel Preview." }, {
+    return NextResponse.json({ mode: "unavailable", code: "AI_PREVIEW_ONLY", error: "AI analysis is not available in this environment." }, {
       status: 403,
       headers: noStoreHeaders()
     });
@@ -173,13 +195,13 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   if (!previewRuntimeAllowed()) {
-    return NextResponse.json({ mode: "unavailable", code: "AI_PREVIEW_ONLY", error: "Grounded AI is available only on an isolated Vercel Preview." }, {
+    return NextResponse.json({ mode: "unavailable", code: "AI_PREVIEW_ONLY", error: "AI analysis is not available in this environment." }, {
       status: 403,
       headers: clearChallengeHeader(request)
     });
   }
   if (!sameOrigin(request)) {
-    return NextResponse.json({ mode: "unavailable", code: "AI_ORIGIN_REJECTED", error: "The grounded AI request must originate from this Preview." }, {
+    return NextResponse.json({ mode: "unavailable", code: "AI_ORIGIN_REJECTED", error: "The grounded AI request must originate from this application." }, {
       status: 403,
       headers: clearChallengeHeader(request)
     });
@@ -200,20 +222,35 @@ export async function POST(request: Request) {
   }
   const rate = consumeRateLimit(request);
   if (!rate.allowed) {
-    return NextResponse.json({ mode: "unavailable", code: "AI_RATE_LIMITED", error: "The Preview AI limit has been reached temporarily." }, {
+    return NextResponse.json({ mode: "unavailable", code: "AI_RATE_LIMITED", error: "The AI request limit has been reached temporarily." }, {
       status: 429,
       headers: { ...clearChallengeHeader(request), "Retry-After": String(rate.retryAfterSeconds) }
     });
   }
 
   try {
-    const evidencePack = buildPointObjectEvidencePack(body.caseKey, [body.longitude, body.latitude]);
+    const evidencePack = await buildPointObjectEvidencePack({
+      longitude: body.longitude,
+      latitude: body.latitude,
+      locale: body.locale ?? "en"
+    });
     const result = await generatePointObjectAiAnalysis(evidencePack, body.question?.trim() || null);
-    return NextResponse.json(result, { headers: clearChallengeHeader(request) });
+    return NextResponse.json({
+      ...result,
+      subject: {
+        name: evidencePack.selectedObject.name,
+        address: evidencePack.selectedObject.displayAddress,
+        featureClass: evidencePack.selectedObject.featureClass,
+        sourceFeatureId: evidencePack.selectedObject.sourceFeatureId,
+        resolutionMethod: evidencePack.resolution.matchMethod,
+        coordinateAssociation: evidencePack.resolution.coordinateAssociation,
+        sourceLabel: evidencePack.source.attribution
+      }
+    }, { headers: clearChallengeHeader(request) });
   } catch (error) {
-    if (error instanceof PointObjectEvidenceError) {
-      return NextResponse.json({ mode: "unavailable", code: error.code, error: error.message }, {
-        status: 422,
+    if (error instanceof LivePointEvidenceError) {
+      return NextResponse.json({ mode: "unavailable", code: error.code, error: error.message, retryable: error.retryable }, {
+        status: error.httpStatus,
         headers: clearChallengeHeader(request)
       });
     }

@@ -44,10 +44,17 @@ for (const file of await collectRouteFiles(apiRoot)) {
       failures.push(`${relative} ${handler.method}: missing explicit route-access classification`);
       continue;
     }
-    if (policy.access === "public_preview") {
+    if (policy.access === "public_preview" || policy.access === "protected_preview") {
       const previewIndex = handler.body.indexOf("if (!previewRuntimeAllowed())");
       if (previewIndex < 0) {
-        failures.push(`${relative} ${handler.method}: public Preview route must fail closed outside the Preview runtime`);
+        failures.push(`${relative} ${handler.method}: Preview route must fail closed outside the enabled Preview runtime`);
+        continue;
+      }
+      if (
+        policy.access === "protected_preview" &&
+        !source.includes("getPointObjectPreviewUpstreamStatus().enabled")
+      ) {
+        failures.push(`${relative} ${handler.method}: protected Preview route must require its dedicated upstream operator gate`);
         continue;
       }
 
@@ -90,7 +97,7 @@ for (const file of await collectRouteFiles(apiRoot)) {
         continue;
       }
 
-      failures.push(`${relative} ${handler.method}: unsupported public Preview action ${policy.action}`);
+      failures.push(`${relative} ${handler.method}: unsupported Preview action ${policy.action}`);
       continue;
     }
     if (policy.access === "public_demo") continue;

@@ -1,5 +1,6 @@
 import "server-only";
 
+import { getPointObjectPreviewUpstreamStatus } from "@/src/lib/ai/openai-upstream-gate";
 import {
   buildPointObjectResponsesRequest,
   estimatePointObjectAiCost,
@@ -8,7 +9,7 @@ import {
   validatePointObjectAiContent,
   type PointObjectAiResult
 } from "./point-to-object-ai-core";
-import type { PointObjectEvidencePack } from "./point-to-object-evidence";
+import type { GroundablePointObjectEvidencePack } from "./point-to-object-live-evidence";
 
 const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
 const DEFAULT_MODEL = "gpt-4o-mini";
@@ -41,14 +42,14 @@ function isTimeout(error: unknown): boolean {
 }
 
 export async function generatePointObjectAiAnalysis(
-  evidencePack: PointObjectEvidencePack,
+  evidencePack: GroundablePointObjectEvidencePack,
   question: string | null
 ): Promise<PointObjectAiResult> {
-  if (process.env.VERCEL_ENV !== "preview") {
+  if (process.env.VERCEL_ENV !== "preview" || !getPointObjectPreviewUpstreamStatus().enabled) {
     throw new PointObjectAiServiceError(
       "AI_PREVIEW_ONLY",
       403,
-      "Grounded AI is enabled only on an isolated Vercel Preview."
+      "AI analysis is not available in this environment."
     );
   }
   const apiKey = process.env.OPENAI_API_KEY?.trim();
@@ -56,7 +57,7 @@ export async function generatePointObjectAiAnalysis(
     throw new PointObjectAiServiceError(
       "AI_NOT_CONFIGURED",
       503,
-      "Grounded AI is not configured for this Preview."
+      "AI analysis is not configured in this environment."
     );
   }
 

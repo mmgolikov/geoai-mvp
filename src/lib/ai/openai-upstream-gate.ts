@@ -21,3 +21,29 @@ export function getOpenAiUpstreamStatus() {
       : "OpenAI upstream is disabled unless the operator gate, verified request identity/membership, hard Supabase Auth and disabled public-demo bypass are all active."
   };
 }
+
+/**
+ * Narrow exception for the isolated point-to-object evaluator. It remains
+ * Preview-only and requires an explicit, separately auditable operator flag;
+ * it never enables the general product AI routes or Production.
+ */
+export function getPointObjectPreviewUpstreamStatus() {
+  const general = getOpenAiUpstreamStatus();
+  const keyConfigured = Boolean(process.env.OPENAI_API_KEY?.trim());
+  const previewOnly = process.env.VERCEL_ENV === "preview";
+  const explicitlyAllowed =
+    process.env.GEOAI_ALLOW_POINT_OBJECT_PREVIEW_AI?.trim().toLowerCase() === "true";
+  const isolatedPreviewEnabled = keyConfigured && previewOnly && explicitlyAllowed;
+  const enabled = general.enabled || isolatedPreviewEnabled;
+
+  return {
+    enabled,
+    mode: enabled ? "openai_enabled" as const : "deterministic_fallback" as const,
+    scope: general.enabled ? "general_governed_upstream" as const : "isolated_point_object_preview" as const,
+    caveat: enabled
+      ? general.enabled
+        ? general.caveat
+        : "OpenAI upstream is enabled only for the isolated point-to-object Preview route by its dedicated operator flag."
+      : "Point-to-object upstream is disabled unless the general governed gate or its dedicated Preview-only operator flag is active."
+  };
+}

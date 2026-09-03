@@ -1759,10 +1759,10 @@
     "/api/prototype/point-to-object/ai": {
       "route": "/api/prototype/point-to-object/ai",
       "sourcePath": "app/api/prototype/point-to-object/ai/route.ts",
-      "classification": "public_preview_bounded",
+      "classification": "protected_preview_bounded",
       "methods": {
         "GET": {
-          "access": "public_preview",
+          "access": "protected_preview",
           "cachePolicy": {
             "required": "private_no_store_required",
             "declaredDirectives": [
@@ -1779,16 +1779,17 @@
             "contract": "scripts/api-contract-check.mjs"
           },
           "negativeStatusMatrix": [
+            401,
             403,
             405,
             413,
             429,
             503
           ],
-          "diagnosticExposure": "preview_only_minimized_evidence_no_secret_or_provider_detail"
+          "diagnosticExposure": "authenticated_preview_only_minimized_evidence_no_secret_or_provider_detail"
         },
         "POST": {
-          "access": "public_preview",
+          "access": "protected_preview",
           "cachePolicy": {
             "required": "no_store_required",
             "declaredDirectives": [
@@ -1807,13 +1808,14 @@
           },
           "negativeStatusMatrix": [
             400,
+            401,
             403,
             405,
             413,
             429,
             503
           ],
-          "diagnosticExposure": "preview_only_minimized_evidence_no_secret_or_provider_detail"
+          "diagnosticExposure": "authenticated_preview_only_minimized_evidence_no_secret_or_provider_detail"
         }
       }
     },

@@ -10,7 +10,7 @@ const contentSecurityPolicy = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' blob: data: https:",
   "font-src 'self' data:",
-  "connect-src 'self' https://*.mapbox.com https://*.tiles.mapbox.com https://*.supabase.co wss://*.supabase.co",
+  "connect-src 'self' https://*.mapbox.com https://*.tiles.mapbox.com https://tiles.openfreemap.org https://*.supabase.co wss://*.supabase.co",
   "worker-src 'self' blob:",
   "child-src 'self' blob:",
   "manifest-src 'self'",
