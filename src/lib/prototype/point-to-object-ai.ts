@@ -19,7 +19,7 @@ import {
 import type { GroundablePointObjectEvidencePack } from "./point-to-object-live-evidence";
 
 const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
-const GENERATION_BUDGET_MS = 108_000;
+const GENERATION_BUDGET_MS = 270_000;
 const MINIMUM_ATTEMPT_BUDGET_MS = 5_000;
 
 type ModelTier = "luna" | "terra" | "sol";
@@ -71,7 +71,7 @@ const DEFAULT_PROFILES: Record<AttemptKind, Record<PointObjectAnalysisDepth, Omi
       reasoningEffort: "high",
       verbosity: "medium",
       maxOutputTokens: 7_000,
-      timeoutMs: 95_000,
+      timeoutMs: 220_000,
       minimumTier: "sol"
     }
   },
@@ -97,7 +97,7 @@ const DEFAULT_PROFILES: Record<AttemptKind, Record<PointObjectAnalysisDepth, Omi
       reasoningEffort: "high",
       verbosity: "medium",
       maxOutputTokens: 7_000,
-      timeoutMs: 100_000,
+      timeoutMs: 240_000,
       minimumTier: "sol"
     }
   },
