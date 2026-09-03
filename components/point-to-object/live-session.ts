@@ -464,7 +464,7 @@ function parseSubject(value: unknown): PointObjectAiSubject | null {
 function parseTelemetry(value: unknown): PointObjectAiTelemetry | null {
   if (!isRecord(value) || !hasExactKeys(value, [
     "provider", "model", "reasoningEffort", "depth", "promptVersion", "requestId", "latencyMs", "attempts",
-    "inputTokens", "outputTokens", "totalTokens", "estimatedCostUsd", "costRateSource", "stored", "toolCalls"
+    "inputTokens", "cachedInputTokens", "outputTokens", "totalTokens", "estimatedCostUsd", "costRateSource", "stored", "toolCalls"
   ])) return null;
   const model = nonEmptyText(value.model, 120);
   const reasoningEffort = value.reasoningEffort === "low" || value.reasoningEffort === "medium" || value.reasoningEffort === "high" || value.reasoningEffort === "xhigh"
@@ -475,6 +475,7 @@ function parseTelemetry(value: unknown): PointObjectAiTelemetry | null {
   const latencyMs = integer(value.latencyMs, 0, 300_000);
   const attempts = integer(value.attempts, 1, 2);
   const inputTokens = nullableInteger(value.inputTokens, 100_000_000);
+  const cachedInputTokens = nullableInteger(value.cachedInputTokens, 100_000_000);
   const outputTokens = nullableInteger(value.outputTokens, 100_000_000);
   const totalTokens = nullableInteger(value.totalTokens, 200_000_000);
   const estimatedCostUsd = value.estimatedCostUsd === null ? null : finiteNumber(value.estimatedCostUsd, 0, 1_000);
@@ -482,12 +483,15 @@ function parseTelemetry(value: unknown): PointObjectAiTelemetry | null {
   const tokenTupleIsValid = inputTokens !== undefined && outputTokens !== undefined && totalTokens !== undefined &&
     ((inputTokens === null && outputTokens === null && totalTokens === null) ||
       (inputTokens !== null && outputTokens !== null && totalTokens !== null));
+  const cachedTokenIsValid = cachedInputTokens !== undefined && (
+    cachedInputTokens === null || (typeof inputTokens === "number" && cachedInputTokens <= inputTokens)
+  );
   const costTupleIsValid = (estimatedCostUsd === null && costRateSource === null) ||
-    (estimatedCostUsd !== null && costRateSource !== null);
+    (estimatedCostUsd !== null && costRateSource !== null && cachedInputTokens !== null && cachedInputTokens !== undefined);
   if (value.provider !== "openai" || !model || !MODEL_IDENTIFIER.test(model) || !reasoningEffort || !depth ||
       value.promptVersion !== POINT_OBJECT_ANALYSIS_PROMPT_VERSION ||
       (value.requestId !== null && !requestId) || latencyMs === null || attempts === null || !tokenTupleIsValid ||
-      !costTupleIsValid || value.stored !== false || value.toolCalls !== 0) return null;
+      !cachedTokenIsValid || !costTupleIsValid || value.stored !== false || value.toolCalls !== 0) return null;
   return {
     provider: "openai",
     model,
@@ -498,6 +502,7 @@ function parseTelemetry(value: unknown): PointObjectAiTelemetry | null {
     latencyMs,
     attempts,
     inputTokens: inputTokens as number | null,
+    cachedInputTokens: cachedInputTokens as number | null,
     outputTokens: outputTokens as number | null,
     totalTokens: totalTokens as number | null,
     estimatedCostUsd,

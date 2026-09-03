@@ -35,9 +35,11 @@ type AttemptUsage = ReturnType<typeof extractResponsesUsage>;
 
 type UsageAccumulator = {
   inputTokens: number;
+  cachedInputTokens: number;
   outputTokens: number;
   totalTokens: number;
   inputComplete: boolean;
+  cachedInputComplete: boolean;
   outputComplete: boolean;
   totalComplete: boolean;
   estimatedCostUsd: number;
@@ -191,6 +193,8 @@ function isTimeout(error: unknown): boolean {
 function addUsage(accumulator: UsageAccumulator, model: string, usage: AttemptUsage): void {
   if (usage.inputTokens === null) accumulator.inputComplete = false;
   else accumulator.inputTokens += usage.inputTokens;
+  if (usage.cachedInputTokens === null) accumulator.cachedInputComplete = false;
+  else accumulator.cachedInputTokens += usage.cachedInputTokens;
   if (usage.outputTokens === null) accumulator.outputComplete = false;
   else accumulator.outputTokens += usage.outputTokens;
 
@@ -202,7 +206,7 @@ function addUsage(accumulator: UsageAccumulator, model: string, usage: AttemptUs
   if (derivedTotal === null) accumulator.totalComplete = false;
   else accumulator.totalTokens += derivedTotal;
 
-  const cost = estimatePointObjectAiCost(model, usage.inputTokens, usage.outputTokens);
+  const cost = estimatePointObjectAiCost(model, usage.inputTokens, usage.cachedInputTokens, usage.outputTokens);
   if (cost.estimatedCostUsd === null || cost.costRateSource === null) {
     accumulator.costComplete = false;
     return;
@@ -289,6 +293,10 @@ function validateCompletedOutput(
   }
 }
 
+function isRepairableValidationCode(code: PointObjectAiValidationCode): boolean {
+  return code === "SHAPE_INVALID" || code === "CAVEAT_INVALID" || code === "NO_RENDERABLE_PLAN";
+}
+
 export async function generatePointObjectAiAnalysis(
   evidencePack: GroundablePointObjectEvidencePack,
   analysisRequest: PointObjectAnalysisRequest,
@@ -314,9 +322,11 @@ export async function generatePointObjectAiAnalysis(
   const deadline = Math.min(startedAt + GENERATION_BUDGET_MS, routeDeadline ?? Number.POSITIVE_INFINITY);
   const usageAccumulator: UsageAccumulator = {
     inputTokens: 0,
+    cachedInputTokens: 0,
     outputTokens: 0,
     totalTokens: 0,
     inputComplete: true,
+    cachedInputComplete: true,
     outputComplete: true,
     totalComplete: true,
     estimatedCostUsd: 0,
@@ -343,6 +353,13 @@ export async function generatePointObjectAiAnalysis(
       model: profile.model,
       promptVersion: POINT_OBJECT_AI_PROMPT_VERSION
     });
+    if (!isRepairableValidationCode(validation.code)) {
+      throw new PointObjectAiServiceError(
+        "AI_OUTPUT_INVALID",
+        502,
+        "AI analysis returned a plan outside the bounded coded contract. Please try again."
+      );
+    }
     const repairCode = validation.code;
     profile = profileFor(analysisRequest, "repair");
     attempts += 1;
@@ -391,6 +408,7 @@ export async function generatePointObjectAiAnalysis(
       latencyMs: Date.now() - startedAt,
       attempts,
       inputTokens: usageAccumulator.inputComplete ? usageAccumulator.inputTokens : null,
+      cachedInputTokens: usageAccumulator.cachedInputComplete ? usageAccumulator.cachedInputTokens : null,
       outputTokens: usageAccumulator.outputComplete ? usageAccumulator.outputTokens : null,
       totalTokens: usageAccumulator.totalComplete ? usageAccumulator.totalTokens : null,
       estimatedCostUsd: usageAccumulator.costComplete
