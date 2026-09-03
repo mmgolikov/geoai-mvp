@@ -115,7 +115,7 @@ export function PointToObjectPrototype() {
           </div>
         </section>
 
-        <aside className="min-w-0 border-l border-line bg-white lg:h-full lg:overflow-y-auto" aria-live="polite">
+        <aside className="min-w-0 border-l border-line bg-white lg:h-full lg:overflow-y-auto">
           <div className="flex min-h-full flex-col p-5 sm:p-6">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.11em] text-brand">Location analysis</p>

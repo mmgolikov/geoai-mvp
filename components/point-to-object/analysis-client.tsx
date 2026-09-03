@@ -63,6 +63,7 @@ export function PointToObjectAnalysis() {
   const [question, setQuestion] = useState("");
   const [loading, setLoading] = useState(false);
   const [requestError, setRequestError] = useState<string | null>(null);
+  const [announcement, setAnnouncement] = useState("");
   const [missingSelection, setMissingSelection] = useState(false);
   const initialRequestStarted = useRef(false);
   const analysisRef = useRef<PointObjectAiResponse | null>(null);
@@ -76,6 +77,7 @@ export function PointToObjectAnalysis() {
   const requestAnalysis = useCallback(async (activeSelection: LiveMapSelection, activeQuestion: string) => {
     setLoading(true);
     setRequestError(null);
+    setAnnouncement("");
     const preserveExisting = analysisRef.current?.mode === "openai";
     try {
       const challengeResponse = await fetch("/api/prototype/point-to-object/ai", {
@@ -123,6 +125,7 @@ export function PointToObjectAnalysis() {
         commitAnalysis(normalized, activeSelection);
         setQuestion("");
         writePointObjectQuestion("");
+        setAnnouncement(preserveExisting ? "Analysis updated." : "Analysis complete.");
       } else if (preserveExisting) {
         setRequestError(normalized.error ?? "The extended analysis could not be completed.");
       } else {
@@ -156,6 +159,7 @@ export function PointToObjectAnalysis() {
     if (restoredAnalysis) {
       analysisRef.current = restoredAnalysis;
       setAnalysis(restoredAnalysis);
+      setAnnouncement("Saved analysis loaded.");
       return;
     }
     void requestAnalysis(restoredSelection, restoredQuestion);
@@ -193,6 +197,7 @@ export function PointToObjectAnalysis() {
 
   return (
     <main className="min-h-screen bg-[#f6f8fb] text-ink">
+      <p className="sr-only" aria-live="polite">{announcement}</p>
       <header className="flex h-16 items-center justify-between border-b border-line bg-white px-4 sm:px-6">
         <Link href="/" className="flex min-w-0 items-center gap-3 rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-brand">
           <IdentitySymbol />

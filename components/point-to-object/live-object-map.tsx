@@ -448,7 +448,7 @@ export function LiveObjectMap({ locationKey = "dubai", selection = null, classNa
   }
 
   const containerClassName = [
-    "relative h-full min-h-[420px] w-full overflow-hidden bg-[#e8edf0]",
+    "relative h-full min-h-0 w-full overflow-hidden bg-[#e8edf0]",
     className
   ].filter(Boolean).join(" ");
 
@@ -460,6 +460,12 @@ export function LiveObjectMap({ locationKey = "dubai", selection = null, classNa
       aria-describedby="live-map-instructions"
     >
       <div ref={containerRef} className="absolute inset-0" />
+      <div
+        className="pointer-events-none absolute left-1/2 top-1/2 z-10 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-brand/20 shadow-[0_0_0_1px_rgba(19,45,61,0.72),0_2px_6px_rgba(19,45,61,0.3)]"
+        aria-hidden="true"
+      >
+        <span className="absolute left-1/2 top-1/2 h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-ink" />
+      </div>
       <p id="live-map-instructions" className="sr-only">
         Click or tap a visible object. Keyboard users can move the map with its controls and select the map centre with the button below.
       </p>
