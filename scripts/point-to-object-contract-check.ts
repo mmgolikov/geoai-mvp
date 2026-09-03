@@ -1298,8 +1298,10 @@ function assertStaticBoundaries(): void {
   }
   assert.match(liveMapSource, /map\.on\("style\.load", handleStyleReady\)/,
     "GeoAI map layers must be restored after every basemap style load.");
-  assert.match(liveMapSource, /handleStyleReady[\s\S]*applyViewMode\(map, viewModeRef\.current, false\)/,
+  assert.match(liveMapSource, /handleStyleReady[\s\S]*pendingViewModeCameraRef[\s\S]*applyViewMode\(map, viewModeRef\.current, false, pendingCameraMode === viewModeRef\.current\)/,
     "The active 2D/3D camera and rotation contract must be restored after every basemap style load.");
+  assert.match(liveMapSource, /applyViewMode\(map, initialViewMode, false, false\)/,
+    "Restoring a session must preserve its saved custom 3D camera rather than reset to the canonical angle.");
   assert.match(liveMapSource, /viewport:[\s\S]*viewMode: viewModeRef\.current/,
     "The selected map viewport must persist its explicit 2D/3D mode.");
   assert.match(liveMapSource, /selectionCanShowVolume\([\s\S]*renderHeightM !== null/,

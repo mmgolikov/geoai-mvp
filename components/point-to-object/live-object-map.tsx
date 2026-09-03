@@ -498,7 +498,7 @@ function installGeoAiLayers(map: MapLibreMap, viewMode: MapViewMode) {
   }, labelLayer);
 }
 
-function applyViewMode(map: MapLibreMap, viewMode: MapViewMode, animate = true) {
+function applyViewMode(map: MapLibreMap, viewMode: MapViewMode, animate = true, updateCamera = true) {
   const camera = CAMERA[viewMode];
   if (viewMode === "3d") {
     map.dragRotate.enable();
@@ -514,6 +514,7 @@ function applyViewMode(map: MapLibreMap, viewMode: MapViewMode, animate = true) 
   if (map.getLayer(BUILDINGS_3D_LAYER_ID)) {
     map.setLayoutProperty(BUILDINGS_3D_LAYER_ID, "visibility", viewMode === "3d" ? "visible" : "none");
   }
+  if (!updateCamera) return;
   if (animate) map.easeTo({ ...camera, duration: 550 });
   else map.jumpTo(camera);
 }
@@ -526,6 +527,7 @@ export function LiveObjectMap({ locationKey = "dubai", selection = null, classNa
   const locationKeyRef = useRef(locationKey);
   const selectionRef = useRef(selection);
   const viewModeRef = useRef<MapViewMode>("3d");
+  const pendingViewModeCameraRef = useRef<MapViewMode | null>(null);
   const basemapIdRef = useRef<LiveMapBasemapId>("street");
   const showSelectedVolumeRef = useRef(true);
   const [isReady, setIsReady] = useState(false);
@@ -603,14 +605,16 @@ export function LiveObjectMap({ locationKey = "dubai", selection = null, classNa
           attributionControl: false
         });
         mapRef.current = map;
-        applyViewMode(map, initialViewMode, false);
+        applyViewMode(map, initialViewMode, false, false);
         map.addControl(new maplibregl.NavigationControl({ showCompass: false, showZoom: true }), "top-right");
         map.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-right");
 
         const handleStyleReady = () => {
           if (disposed) return;
           installGeoAiLayers(map, viewModeRef.current);
-          applyViewMode(map, viewModeRef.current, false);
+          const pendingCameraMode = pendingViewModeCameraRef.current;
+          applyViewMode(map, viewModeRef.current, false, pendingCameraMode === viewModeRef.current);
+          pendingViewModeCameraRef.current = null;
           setHighlight(map, selectionRef.current, viewModeRef.current, showSelectedVolumeRef.current);
           setError(null);
           setIsReady(true);
@@ -727,7 +731,11 @@ export function LiveObjectMap({ locationKey = "dubai", selection = null, classNa
       selectionRef.current = nextSelection;
       viewportCallbackRef.current?.(nextSelection);
     }
-    if (!map || !map.isStyleLoaded()) return;
+    if (!map || !map.isStyleLoaded()) {
+      pendingViewModeCameraRef.current = nextMode;
+      return;
+    }
+    pendingViewModeCameraRef.current = null;
     applyViewMode(map, nextMode);
     setSelectedVolumeVisibility(map, selectionRef.current, nextMode, showSelectedVolumeRef.current);
   }
