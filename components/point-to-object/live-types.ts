@@ -2,6 +2,7 @@ import type { GeoJsonGeometry } from "@/src/lib/point-to-object/contracts";
 
 export type LiveMapLocationKey = "dubai" | "singapore";
 export type LiveMapMarket = LiveMapLocationKey;
+export type LiveMapBasemapId = "street" | "light" | "contrast";
 
 export type Wgs84Position = [longitude: number, latitude: number];
 
@@ -9,6 +10,20 @@ export type LiveMapNearbyLabel = {
   name: string;
   featureClass: string;
   coordinates: Wgs84Position | null;
+};
+
+export type LiveResolvedObjectContext = {
+  name: string | null;
+  address: string | null;
+  featureClass: string;
+  sourceFeatureId: string;
+  geometryType: "Point" | "LineString" | "MultiLineString" | "Polygon" | "MultiPolygon" | null;
+  coordinateAssociation:
+    | "open_map_geometry_contains_point"
+    | "reverse_nearest_indexed_object_not_point_in_polygon";
+  resultCentroidDistanceM: number;
+  addressParts: Record<string, string>;
+  tags: Record<string, string>;
 };
 
 export type LiveMapSelection = {
@@ -21,10 +36,17 @@ export type LiveMapSelection = {
     featureClass: string;
     sourceFeatureId: string | null;
     geometry: GeoJsonGeometry | null;
+    renderHeightM: number | null;
+    renderMinHeightM: number | null;
   };
+  resolvedObject: LiveResolvedObjectContext | null;
   viewport: {
     center: Wgs84Position;
     zoom: number;
+    pitch: number;
+    bearing: number;
+    viewMode: "2d" | "3d";
+    basemapId: LiveMapBasemapId;
   };
   provider: "OpenFreeMap / OpenStreetMap";
   nearbyLabels: LiveMapNearbyLabel[];
@@ -58,7 +80,22 @@ export type PointObjectAiSubject = {
     | "open_map_geometry_contains_point"
     | "reverse_nearest_indexed_object_not_point_in_polygon";
   sourceLabel: string;
+  geometryType: LiveResolvedObjectContext["geometryType"];
+  resultCentroidDistanceM: number;
+  addressParts: Record<string, string>;
+  tags: Record<string, string>;
 };
+
+export type PointObjectLiveContextResponse =
+  | {
+      mode: "resolved";
+      subject: LiveResolvedObjectContext;
+    }
+  | {
+      mode: "unavailable";
+      error?: string;
+      retryable?: boolean;
+    };
 
 export type PointObjectAiResponse =
   | {

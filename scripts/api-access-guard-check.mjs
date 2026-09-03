@@ -97,6 +97,24 @@ for (const file of await collectRouteFiles(apiRoot)) {
         continue;
       }
 
+      if (policy.action === "prototype.context.resolve" && handler.method === "POST") {
+        const originIndex = handler.body.indexOf("if (!sameOrigin(request))");
+        const bodyIndex = handler.body.indexOf("await readBoundedJson(request, 1_024)");
+        const rateIndex = handler.body.indexOf("consumeRateLimit(request)");
+        const evidenceIndex = handler.body.indexOf("buildLivePointObjectEvidencePack(");
+        if (
+          originIndex < previewIndex ||
+          bodyIndex < originIndex ||
+          rateIndex < bodyIndex ||
+          evidenceIndex < rateIndex ||
+          !handler.body.includes("noStoreHeaders")
+        ) {
+          failures.push(`${relative} ${handler.method}: Preview context resolution must enforce runtime, origin, bounded body and rate limit before rebuilding live evidence`);
+        }
+        protectedHandlers += 1;
+        continue;
+      }
+
       failures.push(`${relative} ${handler.method}: unsupported Preview action ${policy.action}`);
       continue;
     }

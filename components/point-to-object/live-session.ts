@@ -1,15 +1,17 @@
 import type { GeoJsonGeometry } from "@/src/lib/point-to-object/contracts";
 import { LIVE_POINT_CAVEAT } from "@/src/lib/point-to-object/contracts";
 import type {
+  LiveMapBasemapId,
   LiveMapSelection,
+  LiveResolvedObjectContext,
   PointObjectAiResponse,
   Wgs84Position
 } from "@/components/point-to-object/live-types";
 
 export const POINT_OBJECT_SESSION_KEYS = {
-  selection: "geoai:point-to-object:selection:v2",
+  selection: "geoai:point-to-object:selection:v3",
   question: "geoai:point-to-object:question:v2",
-  analysis: "geoai:point-to-object:analysis:v3"
+  analysis: "geoai:point-to-object:analysis:v4"
 } as const;
 
 const MAX_SELECTION_BYTES = 512 * 1024;
@@ -27,6 +29,45 @@ function safeText(value: unknown, maxLength: number): string | null {
 function nonEmptyText(value: unknown, maxLength: number): string | null {
   const text = safeText(value, maxLength)?.trim() ?? "";
   return text ? text : null;
+}
+
+function finiteNumber(value: unknown, minimum: number, maximum: number): number | null {
+  return typeof value === "number" && Number.isFinite(value) && value >= minimum && value <= maximum
+    ? value
+    : null;
+}
+
+function stringMap(value: unknown, maxEntries: number): Record<string, string> | null {
+  if (!isRecord(value) || Object.keys(value).length > maxEntries) return null;
+  const output: Record<string, string> = {};
+  for (const [key, raw] of Object.entries(value)) {
+    if (!/^[A-Za-z0-9_.:+-]{1,80}$/.test(key)) return null;
+    const parsed = nonEmptyText(raw, 500);
+    if (!parsed) return null;
+    output[key] = parsed;
+  }
+  return output;
+}
+
+export function parseLiveResolvedObject(value: unknown): LiveResolvedObjectContext | null {
+  if (!isRecord(value)) return null;
+  const name = value.name === null ? null : nonEmptyText(value.name, 240);
+  const address = value.address === null ? null : nonEmptyText(value.address, 500);
+  const featureClass = nonEmptyText(value.featureClass, 160);
+  const sourceFeatureId = nonEmptyText(value.sourceFeatureId, 160);
+  const geometryType = value.geometryType === null || ["Point", "LineString", "MultiLineString", "Polygon", "MultiPolygon"].includes(String(value.geometryType))
+    ? value.geometryType as LiveResolvedObjectContext["geometryType"]
+    : undefined;
+  const coordinateAssociation = value.coordinateAssociation === "open_map_geometry_contains_point" ||
+    value.coordinateAssociation === "reverse_nearest_indexed_object_not_point_in_polygon"
+    ? value.coordinateAssociation
+    : null;
+  const resultCentroidDistanceM = finiteNumber(value.resultCentroidDistanceM, 0, 1_000_000);
+  const addressParts = stringMap(value.addressParts, 24);
+  const tags = stringMap(value.tags, 36);
+  if ((value.name !== null && !name) || (value.address !== null && !address) || !featureClass || !sourceFeatureId ||
+      geometryType === undefined || !coordinateAssociation || resultCentroidDistanceM === null || !addressParts || !tags) return null;
+  return { name, address, featureClass, sourceFeatureId, geometryType, coordinateAssociation, resultCentroidDistanceM, addressParts, tags };
 }
 
 function selectionFingerprint(selection: LiveMapSelection): string {
@@ -92,11 +133,19 @@ export function readPointObjectSelection(): LiveMapSelection | null {
       ? null
       : safeText(value.object.sourceFeatureId, 128);
     const name = value.object.name === null ? null : safeText(value.object.name, 160);
+    const renderHeightM = value.object.renderHeightM === null || value.object.renderHeightM === undefined
+      ? null
+      : finiteNumber(value.object.renderHeightM, 0, 1_500);
+    const renderMinHeightM = value.object.renderMinHeightM === null || value.object.renderMinHeightM === undefined
+      ? null
+      : finiteNumber(value.object.renderMinHeightM, 0, 1_500);
     if (!point || !center || !clickedAt || !featureClass ||
         typeof value.viewport.zoom !== "number" || !Number.isFinite(value.viewport.zoom) ||
         value.viewport.zoom < 0 || value.viewport.zoom > 24 ||
         (value.object.name !== null && name === null) ||
-        (value.object.sourceFeatureId !== null && sourceFeatureId === null)) return null;
+        (value.object.sourceFeatureId !== null && sourceFeatureId === null) ||
+        (value.object.renderHeightM !== null && value.object.renderHeightM !== undefined && renderHeightM === null) ||
+        (value.object.renderMinHeightM !== null && value.object.renderMinHeightM !== undefined && renderMinHeightM === null)) return null;
     const restoredGeometry = value.object.geometry === null ? null : geometry(value.object.geometry);
     if (value.object.geometry !== null && restoredGeometry === null) return null;
     const nearbyLabels = Array.isArray(value.nearbyLabels)
@@ -109,13 +158,27 @@ export function readPointObjectSelection(): LiveMapSelection | null {
           return [{ name: nearbyName, featureClass: nearbyClass, coordinates: nearbyCoordinates }];
         }).slice(0, 5)
       : [];
+    const restoredResolvedObject = value.resolvedObject === null || value.resolvedObject === undefined
+      ? null
+      : parseLiveResolvedObject(value.resolvedObject);
+    if (value.resolvedObject !== null && value.resolvedObject !== undefined && !restoredResolvedObject) return null;
+    const pitch = value.viewport.pitch === undefined ? 0 : finiteNumber(value.viewport.pitch, 0, 85);
+    const bearing = value.viewport.bearing === undefined ? 0 : finiteNumber(value.viewport.bearing, -360, 360);
+    const viewMode = value.viewport.viewMode === "2d" || value.viewport.viewMode === "3d"
+      ? value.viewport.viewMode
+      : pitch === 0 ? "2d" : "3d";
+    const basemapId: LiveMapBasemapId = value.viewport.basemapId === "light" || value.viewport.basemapId === "contrast"
+      ? value.viewport.basemapId
+      : "street";
+    if (pitch === null || bearing === null) return null;
     return {
       locationKey: value.locationKey,
       longitude: point[0],
       latitude: point[1],
       clickedAt,
-      object: { name, featureClass, sourceFeatureId, geometry: restoredGeometry },
-      viewport: { center, zoom: value.viewport.zoom },
+      object: { name, featureClass, sourceFeatureId, geometry: restoredGeometry, renderHeightM, renderMinHeightM },
+      resolvedObject: restoredResolvedObject,
+      viewport: { center, zoom: value.viewport.zoom, pitch, bearing, viewMode, basemapId },
       provider: "OpenFreeMap / OpenStreetMap",
       nearbyLabels
     };
@@ -125,23 +188,39 @@ export function readPointObjectSelection(): LiveMapSelection | null {
 }
 
 export function writePointObjectSelection(selection: LiveMapSelection): void {
-  const serialized = JSON.stringify(selection);
-  if (serialized.length <= MAX_SELECTION_BYTES) {
-    window.sessionStorage.setItem(POINT_OBJECT_SESSION_KEYS.selection, serialized);
+  try {
+    const serialized = JSON.stringify(selection);
+    if (serialized.length <= MAX_SELECTION_BYTES) {
+      window.sessionStorage.setItem(POINT_OBJECT_SESSION_KEYS.selection, serialized);
+    }
+  } catch {
+    // The live experience remains usable when browser session storage is unavailable.
   }
 }
 
 export function clearPointObjectSelection(): void {
-  window.sessionStorage.removeItem(POINT_OBJECT_SESSION_KEYS.selection);
+  try {
+    window.sessionStorage.removeItem(POINT_OBJECT_SESSION_KEYS.selection);
+  } catch {
+    // No durable browser state to clear.
+  }
 }
 
 export function readPointObjectQuestion(): string {
-  const value = window.sessionStorage.getItem(POINT_OBJECT_SESSION_KEYS.question);
-  return typeof value === "string" ? value.slice(0, 500) : "";
+  try {
+    const value = window.sessionStorage.getItem(POINT_OBJECT_SESSION_KEYS.question);
+    return typeof value === "string" ? value.slice(0, 500) : "";
+  } catch {
+    return "";
+  }
 }
 
 export function writePointObjectQuestion(question: string): void {
-  window.sessionStorage.setItem(POINT_OBJECT_SESSION_KEYS.question, question.slice(0, 500));
+  try {
+    window.sessionStorage.setItem(POINT_OBJECT_SESSION_KEYS.question, question.slice(0, 500));
+  } catch {
+    // The current in-memory question remains available.
+  }
 }
 
 function evidenceRefs(value: unknown): string[] | null {
@@ -204,6 +283,12 @@ export function readPointObjectAnalysis(selection: LiveMapSelection): PointObjec
     const answerToQuestion = value.content.answerToQuestion === null ? null : claim(value.content.answerToQuestion);
     const subjectName = value.subject.name === null ? null : nonEmptyText(value.subject.name, 240);
     const subjectAddress = value.subject.address === null ? null : nonEmptyText(value.subject.address, 500);
+    const geometryType = value.subject.geometryType === null || ["Point", "LineString", "MultiLineString", "Polygon", "MultiPolygon"].includes(String(value.subject.geometryType))
+      ? value.subject.geometryType as LiveResolvedObjectContext["geometryType"]
+      : null;
+    const resultCentroidDistanceM = finiteNumber(value.subject.resultCentroidDistanceM, 0, 1_000_000) ?? 0;
+    const addressParts = stringMap(value.subject.addressParts ?? {}, 24);
+    const tags = stringMap(value.subject.tags ?? {}, 36);
     const generatedAt = nonEmptyText(value.generatedAt, 80);
     const evidencePackId = nonEmptyText(value.evidencePackId, 160);
     const evidencePackHash = typeof value.evidencePackHash === "string" && /^[a-f0-9]{64}$/.test(value.evidencePackHash)
@@ -224,7 +309,7 @@ export function readPointObjectAnalysis(selection: LiveMapSelection): PointObjec
         value.content.caveat !== LIVE_POINT_CAVEAT || !nonEmptyText(value.content.appearsToBe, 500) ||
         (value.subject.name !== null && !subjectName) || (value.subject.address !== null && !subjectAddress) ||
         !generatedAt || !evidencePackId || !evidencePackHash || !featureClass || !sourceFeatureId || !sourceLabel ||
-        !resolutionMethod || !coordinateAssociation) return null;
+        !resolutionMethod || !coordinateAssociation || !addressParts || !tags) return null;
     return {
       mode: "openai",
       generatedAt,
@@ -247,7 +332,11 @@ export function readPointObjectAnalysis(selection: LiveMapSelection): PointObjec
         sourceFeatureId,
         resolutionMethod,
         coordinateAssociation,
-        sourceLabel
+        sourceLabel,
+        geometryType,
+        resultCentroidDistanceM,
+        addressParts,
+        tags
       }
     };
   } catch {
@@ -256,12 +345,20 @@ export function readPointObjectAnalysis(selection: LiveMapSelection): PointObjec
 }
 
 export function writePointObjectAnalysis(analysis: PointObjectAiResponse, selection: LiveMapSelection): void {
-  const serialized = JSON.stringify({ selectionFingerprint: selectionFingerprint(selection), analysis });
-  if (serialized.length <= MAX_ANALYSIS_BYTES) {
-    window.sessionStorage.setItem(POINT_OBJECT_SESSION_KEYS.analysis, serialized);
+  try {
+    const serialized = JSON.stringify({ selectionFingerprint: selectionFingerprint(selection), analysis });
+    if (serialized.length <= MAX_ANALYSIS_BYTES) {
+      window.sessionStorage.setItem(POINT_OBJECT_SESSION_KEYS.analysis, serialized);
+    }
+  } catch {
+    // The current in-memory analysis remains available.
   }
 }
 
 export function clearPointObjectAnalysis(): void {
-  window.sessionStorage.removeItem(POINT_OBJECT_SESSION_KEYS.analysis);
+  try {
+    window.sessionStorage.removeItem(POINT_OBJECT_SESSION_KEYS.analysis);
+  } catch {
+    // No durable browser state to clear.
+  }
 }

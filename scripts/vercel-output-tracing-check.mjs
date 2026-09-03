@@ -33,8 +33,9 @@ const requirements = {
   ".next/server/app/api/external-data/sources/route.js.nft.json": publicSourceFiles,
   ".next/server/app/api/external-data/status/route.js.nft.json": publicSourceFiles,
   ".next/server/app/api/source-lineage/route.js.nft.json": publicSourceFiles,
-  ".next/server/app/api/prototype/point-to-object/ai/route.js.nft.json": pointToObjectPrototypeFiles,
+  ".next/server/app/api/prototype/point-to-object/ai/route.js.nft.json": [],
   ".next/server/app/api/prototype/point-to-object/cases/route.js.nft.json": pointToObjectPrototypeFiles,
+  ".next/server/app/api/prototype/point-to-object/context/route.js.nft.json": [],
   ".next/server/app/api/prototype/point-to-object/resolve/route.js.nft.json": pointToObjectPrototypeFiles
 };
 
@@ -64,8 +65,9 @@ const tracePolicies = {
   ".next/server/app/api/external-data/sources/route.js.nft.json": { allowed: publicSourceFiles, maxBytes: 24 * 1024 },
   ".next/server/app/api/external-data/status/route.js.nft.json": { allowed: publicSourceFiles, maxBytes: 24 * 1024 },
   ".next/server/app/api/source-lineage/route.js.nft.json": { allowed: publicSourceFiles, maxBytes: 24 * 1024 },
-  ".next/server/app/api/prototype/point-to-object/ai/route.js.nft.json": { allowed: pointToObjectPrototypeFiles, maxBytes: 7 * 1024 * 1024 },
+  ".next/server/app/api/prototype/point-to-object/ai/route.js.nft.json": { allowed: [], maxBytes: 0 },
   ".next/server/app/api/prototype/point-to-object/cases/route.js.nft.json": { allowed: pointToObjectPrototypeFiles, maxBytes: 7 * 1024 * 1024 },
+  ".next/server/app/api/prototype/point-to-object/context/route.js.nft.json": { allowed: [], maxBytes: 0 },
   ".next/server/app/api/prototype/point-to-object/resolve/route.js.nft.json": { allowed: pointToObjectPrototypeFiles, maxBytes: 7 * 1024 * 1024 }
 };
 

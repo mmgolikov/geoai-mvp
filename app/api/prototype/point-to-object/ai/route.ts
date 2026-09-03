@@ -4,7 +4,6 @@ import { NextResponse } from "next/server";
 
 import { getPointObjectPreviewUpstreamStatus } from "@/src/lib/ai/openai-upstream-gate";
 import { readBoundedJson } from "@/src/lib/http/bounded-json";
-import { isFrozenCaseKey } from "@/src/lib/point-to-object/frozen-osm-repository";
 import {
   generatePointObjectAiAnalysis,
   PointObjectAiServiceError
@@ -27,6 +26,10 @@ const rateBuckets = new Map<string, RateBucket>();
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isLiveMarketKey(value: unknown): value is "dubai" | "singapore" {
+  return value === "dubai" || value === "singapore";
 }
 
 function previewRuntimeAllowed(): boolean {
@@ -136,9 +139,9 @@ function consumeBucket(
 }
 
 function consumeRateLimit(request: Request): { allowed: true } | { allowed: false; retryAfterSeconds: number } {
-  const global = consumeBucket("global", GLOBAL_RATE_MAX_REQUESTS);
-  if (!global.allowed) return global;
-  return consumeBucket(`client:${rateKey(request)}`, RATE_MAX_REQUESTS);
+  const client = consumeBucket(`client:${rateKey(request)}`, RATE_MAX_REQUESTS);
+  if (!client.allowed) return client;
+  return consumeBucket("global", GLOBAL_RATE_MAX_REQUESTS);
 }
 
 function coordinatesMatchMarket(
@@ -157,17 +160,19 @@ function validBody(value: unknown): value is {
   latitude: number;
   locale?: string | null;
   question: string | null;
+  expectedSourceFeatureId: string | null;
   consent: true;
   challenge: string;
 } {
   if (!isRecord(value) || Object.keys(value).some((key) =>
-    !["caseKey", "longitude", "latitude", "locale", "question", "consent", "challenge"].includes(key))) return false;
-  return isFrozenCaseKey(value.caseKey) &&
+    !["caseKey", "longitude", "latitude", "locale", "question", "expectedSourceFeatureId", "consent", "challenge"].includes(key))) return false;
+  return isLiveMarketKey(value.caseKey) &&
     typeof value.longitude === "number" && Number.isFinite(value.longitude) && Math.abs(value.longitude) <= 180 &&
     typeof value.latitude === "number" && Number.isFinite(value.latitude) && Math.abs(value.latitude) <= 90 &&
     coordinatesMatchMarket(value.caseKey, value.longitude, value.latitude) &&
     (value.locale === undefined || value.locale === null || (typeof value.locale === "string" && value.locale.length <= 64)) &&
     (value.question === null || (typeof value.question === "string" && value.question.trim().length <= 500)) &&
+    (value.expectedSourceFeatureId === null || (typeof value.expectedSourceFeatureId === "string" && /^(?:node|way|relation)\/[1-9]\d{0,19}$/.test(value.expectedSourceFeatureId))) &&
     value.consent === true && typeof value.challenge === "string" && value.challenge.length <= 100;
 }
 
@@ -234,6 +239,17 @@ export async function POST(request: Request) {
       latitude: body.latitude,
       locale: body.locale ?? "en"
     });
+    if (body.expectedSourceFeatureId && body.expectedSourceFeatureId !== evidencePack.selectedObject.sourceFeatureId) {
+      return NextResponse.json({
+        mode: "unavailable",
+        code: "AI_OBJECT_CHANGED",
+        error: "The open-map object changed after selection. Return to the map and select it again.",
+        retryable: true
+      }, {
+        status: 409,
+        headers: clearChallengeHeader(request)
+      });
+    }
     const result = await generatePointObjectAiAnalysis(evidencePack, body.question?.trim() || null);
     return NextResponse.json({
       ...result,
@@ -244,7 +260,11 @@ export async function POST(request: Request) {
         sourceFeatureId: evidencePack.selectedObject.sourceFeatureId,
         resolutionMethod: evidencePack.resolution.matchMethod,
         coordinateAssociation: evidencePack.resolution.coordinateAssociation,
-        sourceLabel: evidencePack.source.attribution
+        sourceLabel: evidencePack.source.attribution,
+        geometryType: evidencePack.selectedObject.geometryType,
+        resultCentroidDistanceM: evidencePack.resolution.resultCentroidDistanceM,
+        addressParts: evidencePack.selectedObject.addressParts,
+        tags: evidencePack.selectedObject.tags
       }
     }, { headers: clearChallengeHeader(request) });
   } catch (error) {

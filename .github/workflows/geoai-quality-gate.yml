@@ -214,6 +214,12 @@ jobs:
           set -euo pipefail
           npm run test:source-connector-foundation | tee artifacts/source-connector-foundation-check.txt
 
+      - name: Point-to-object prototype contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:point-to-object | tee artifacts/point-to-object-contract-check.txt
+
       - name: Workspace-panel source checks
         shell: bash
         run: |

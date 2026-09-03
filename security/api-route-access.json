@@ -48,6 +48,7 @@
     "/api/projects": { "GET": { "access": "project", "action": "project.read", "scope": "collection" }, "POST": { "access": "project", "action": "project.create", "scope": "new", "preAuthMutation": true } },
     "/api/prototype/point-to-object/ai": { "GET": { "access": "protected_preview", "action": "prototype.ai.challenge" }, "POST": { "access": "protected_preview", "action": "prototype.ai.run", "scope": "bounded_live_point", "preAuthMutation": true } },
     "/api/prototype/point-to-object/cases": { "GET": { "access": "public_demo" } },
+    "/api/prototype/point-to-object/context": { "POST": { "access": "protected_preview", "action": "prototype.context.resolve", "scope": "bounded_live_point", "preAuthMutation": true } },
     "/api/prototype/point-to-object/resolve": { "POST": { "access": "public_demo", "action": "prototype.resolve", "scope": "frozen_case" } },
     "/api/report-packages/[id]/export": { "GET": { "access": "project", "action": "report.export", "scope": "resource" } },
     "/api/report-packages/[id]/json": { "GET": { "access": "project", "action": "report.export", "scope": "resource" } },

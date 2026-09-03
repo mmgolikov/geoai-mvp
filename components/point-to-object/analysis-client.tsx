@@ -17,9 +17,32 @@ import type {
   PointObjectAiResponse
 } from "@/components/point-to-object/live-types";
 
+const FOCUSED_ANALYSES = [
+  {
+    label: "Object profile",
+    question: "Summarize the source-backed object identity, classification, geometry relation and mapped attributes. Keep observations separate from inference."
+  },
+  {
+    label: "Development screening",
+    question: "Using only the source-backed classification, geometry relation and allowed mapped attributes, identify three preliminary development-screening considerations and the exact official or client evidence required before acting."
+  },
+  {
+    label: "Use clues",
+    question: "Explain what the mapped classification and attributes may indicate about the object, without inferring ownership, zoning, condition, value or permitted use."
+  },
+  {
+    label: "Due diligence",
+    question: "Turn the current source-backed findings into a concise due-diligence sequence for a development decision, clearly separating current evidence from required official validation."
+  }
+] as const;
+
+function humanizeAttribute(key: string): string {
+  return key.replace(/^tag\./, "").replace(/^classification\./, "").replaceAll("_", " ").replaceAll(":", " · ").replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
 function friendlyEvidenceLabel(reference: string): string {
   const labels: Record<string, string> = {
-    "EVD-COORDINATES": "clicked coordinates",
+    "EVD-COORDINATES": "map-selected analysis point",
     "EVD-OSM-OBJECT": "OpenStreetMap object",
     "EVD-CLASSIFICATION": "open-map classification",
     "EVD-ADDRESS": "open-map address context",
@@ -65,8 +88,9 @@ export function PointToObjectAnalysis() {
   const [requestError, setRequestError] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState("");
   const [missingSelection, setMissingSelection] = useState(false);
-  const initialRequestStarted = useRef(false);
   const analysisRef = useRef<PointObjectAiResponse | null>(null);
+  const requestSequenceRef = useRef(0);
+  const activeRequestRef = useRef<AbortController | null>(null);
 
   const commitAnalysis = useCallback((nextAnalysis: PointObjectAiResponse, activeSelection: LiveMapSelection) => {
     analysisRef.current = nextAnalysis;
@@ -75,6 +99,12 @@ export function PointToObjectAnalysis() {
   }, []);
 
   const requestAnalysis = useCallback(async (activeSelection: LiveMapSelection, activeQuestion: string) => {
+    activeRequestRef.current?.abort();
+    const requestId = requestSequenceRef.current + 1;
+    requestSequenceRef.current = requestId;
+    const controller = new AbortController();
+    activeRequestRef.current = controller;
+    const isCurrent = () => !controller.signal.aborted && requestSequenceRef.current === requestId;
     setLoading(true);
     setRequestError(null);
     setAnnouncement("");
@@ -82,13 +112,15 @@ export function PointToObjectAnalysis() {
     try {
       const challengeResponse = await fetch("/api/prototype/point-to-object/ai", {
         method: "GET",
-        cache: "no-store"
+        cache: "no-store",
+        signal: controller.signal
       });
       const challengePayload = await challengeResponse.json() as {
         mode: "ready" | "unavailable";
         challenge?: string;
         error?: string;
       };
+      if (!isCurrent()) return;
       if (!challengeResponse.ok || challengePayload.mode !== "ready" || !challengePayload.challenge) {
         const unavailable: PointObjectAiResponse = {
           mode: "unavailable",
@@ -103,17 +135,20 @@ export function PointToObjectAnalysis() {
       const response = await fetch("/api/prototype/point-to-object/ai", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
         body: JSON.stringify({
           caseKey: activeSelection.locationKey,
           longitude: activeSelection.longitude,
           latitude: activeSelection.latitude,
           locale: "en",
           question: activeQuestion.trim() || null,
+          expectedSourceFeatureId: activeSelection.resolvedObject?.sourceFeatureId ?? null,
           consent: true,
           challenge: challengePayload.challenge
         })
       });
       const payload = await response.json() as PointObjectAiResponse;
+      if (!isCurrent()) return;
       const normalized: PointObjectAiResponse = payload.mode === "openai"
         ? payload
         : {
@@ -131,7 +166,8 @@ export function PointToObjectAnalysis() {
       } else {
         commitAnalysis(normalized, activeSelection);
       }
-    } catch {
+    } catch (error) {
+      if (!isCurrent() || (error instanceof DOMException && error.name === "AbortError")) return;
       const unavailable: PointObjectAiResponse = {
         mode: "unavailable",
         error: "The analysis service could not be reached. Your map selection is still available.",
@@ -140,29 +176,36 @@ export function PointToObjectAnalysis() {
       if (preserveExisting) setRequestError(unavailable.error ?? "The extended analysis could not be completed.");
       else commitAnalysis(unavailable, activeSelection);
     } finally {
-      setLoading(false);
+      if (isCurrent()) {
+        activeRequestRef.current = null;
+        setLoading(false);
+      }
     }
   }, [commitAnalysis]);
 
   useEffect(() => {
-    if (initialRequestStarted.current) return;
-    initialRequestStarted.current = true;
     const restoredSelection = readPointObjectSelection();
     if (!restoredSelection) {
       setMissingSelection(true);
-      return;
+    } else {
+      const restoredQuestion = readPointObjectQuestion();
+      const restoredAnalysis = readPointObjectAnalysis(restoredSelection);
+      setMissingSelection(false);
+      setSelection(restoredSelection);
+      setQuestion(restoredQuestion);
+      if (restoredAnalysis) {
+        analysisRef.current = restoredAnalysis;
+        setAnalysis(restoredAnalysis);
+        setAnnouncement("Saved analysis loaded.");
+      } else {
+        void requestAnalysis(restoredSelection, restoredQuestion);
+      }
     }
-    const restoredQuestion = readPointObjectQuestion();
-    const restoredAnalysis = readPointObjectAnalysis(restoredSelection);
-    setSelection(restoredSelection);
-    setQuestion(restoredQuestion);
-    if (restoredAnalysis) {
-      analysisRef.current = restoredAnalysis;
-      setAnalysis(restoredAnalysis);
-      setAnnouncement("Saved analysis loaded.");
-      return;
-    }
-    void requestAnalysis(restoredSelection, restoredQuestion);
+    return () => {
+      requestSequenceRef.current += 1;
+      activeRequestRef.current?.abort();
+      activeRequestRef.current = null;
+    };
   }, [requestAnalysis]);
 
   function submitFollowUp(event: React.FormEvent<HTMLFormElement>) {
@@ -170,6 +213,13 @@ export function PointToObjectAnalysis() {
     if (!selection || !question.trim() || loading) return;
     writePointObjectQuestion(question.trim());
     void requestAnalysis(selection, question.trim());
+  }
+
+  function runFocusedAnalysis(focusedQuestion: string) {
+    if (!selection || loading) return;
+    setQuestion(focusedQuestion);
+    writePointObjectQuestion(focusedQuestion);
+    void requestAnalysis(selection, focusedQuestion);
   }
 
   if (missingSelection) {
@@ -194,6 +244,12 @@ export function PointToObjectAnalysis() {
     ? "Nearest indexed OpenStreetMap record"
     : subject?.name ?? selection?.object.name ?? "Selected location";
   const resolvedName = subject?.name && subject.name !== title ? subject.name : null;
+  const contextRelation = subject
+    ? sourceGeometryContainsPoint
+      ? "Containing OpenStreetMap context at the analysis point"
+      : `Nearest indexed OpenStreetMap context · about ${Math.round(subject.resultCentroidDistanceM)} m`
+    : null;
+  const nearbyMapLabels = selection?.nearbyLabels ?? [];
 
   return (
     <main className="min-h-screen bg-[#f6f8fb] text-ink">
@@ -217,10 +273,20 @@ export function PointToObjectAnalysis() {
             <p className="text-xs font-bold uppercase tracking-[0.11em] text-brand">Location analysis</p>
             <h1 className="mt-2 break-words text-2xl font-bold tracking-[-0.035em] sm:text-3xl">{title}</h1>
             {resolvedName ? <p className="mt-2 text-base font-semibold text-[#344054]">{resolvedName}</p> : null}
+            {contextRelation ? <p className="mt-2 text-xs font-semibold text-brand">{contextRelation}</p> : null}
             {subject?.address ? <p className="mt-2 text-sm leading-6 text-muted">{subject.address}</p> : null}
+            {subject && Object.keys(subject.tags).length ? (
+              <div className="mt-4 flex flex-wrap gap-2" aria-label="OpenStreetMap attributes">
+                {Object.entries(subject.tags).slice(0, 6).map(([key, value]) => (
+                  <span key={key} className="rounded-full bg-[#f3f6f8] px-2.5 py-1 text-[11px] font-semibold text-[#475467]">
+                    {humanizeAttribute(key)} · {value}
+                  </span>
+                ))}
+              </div>
+            ) : null}
             {selection ? (
               <p className="mt-3 text-xs tabular-nums text-[#667085]">
-                {selection.latitude.toFixed(6)}, {selection.longitude.toFixed(6)} · OpenStreetMap open context
+                Analysis point {selection.latitude.toFixed(6)}, {selection.longitude.toFixed(6)} · OpenStreetMap open context
               </p>
             ) : null}
           </div>
@@ -256,7 +322,7 @@ export function PointToObjectAnalysis() {
                   <p className="mt-3 text-lg font-semibold leading-8 text-[#243447]">{content.appearsToBe}</p>
                   {content.answerToQuestion ? (
                     <div className="mt-5 rounded-2xl bg-[#eef6ff] p-4">
-                      <p className="text-xs font-bold uppercase tracking-[0.08em] text-brand">AI answer · validate before use</p>
+                      <p className="text-xs font-bold uppercase tracking-[0.08em] text-brand">Focused answer</p>
                       <p className="mt-2 text-sm leading-6 text-[#243447]">{content.answerToQuestion.statement}</p>
                       <p className="mt-2 text-[11px] leading-4 text-muted">
                         Source basis: {[...new Set(content.answerToQuestion.evidenceRefs.map(friendlyEvidenceLabel))].join(", ")}
@@ -265,16 +331,32 @@ export function PointToObjectAnalysis() {
                   ) : null}
                 </section>
 
-                <div className="grid gap-5 lg:grid-cols-2">
+                <div className={`grid gap-5 ${content.locationContext.length ? "lg:grid-cols-2" : ""}`}>
                   <section className="rounded-[20px] border border-line bg-white p-5 shadow-soft">
-                    <h2 className="text-base font-bold">What the source confirms</h2>
+                    <h2 className="text-base font-bold">Source-backed object details</h2>
                     <ClaimList items={content.confirmedFacts} />
                   </section>
-                  <section className="rounded-[20px] border border-line bg-white p-5 shadow-soft">
-                    <h2 className="text-base font-bold">Location context</h2>
-                    {content.locationContext.length ? <ClaimList items={content.locationContext} /> : <p className="mt-3 text-sm leading-6 text-muted">No additional location context is confirmed by this source record.</p>}
-                  </section>
+                  {content.locationContext.length ? (
+                    <section className="rounded-[20px] border border-line bg-white p-5 shadow-soft">
+                      <h2 className="text-base font-bold">Location context</h2>
+                      <ClaimList items={content.locationContext} />
+                    </section>
+                  ) : null}
                 </div>
+
+                {nearbyMapLabels.length ? (
+                  <section className="rounded-[20px] border border-line bg-white p-5 shadow-soft sm:p-7">
+                    <h2 className="text-base font-bold">Nearby on the live map</h2>
+                    <ul className="mt-4 grid gap-3 sm:grid-cols-2">
+                      {nearbyMapLabels.map((item, index) => (
+                        <li key={`${item.name}-${index}`} className="rounded-xl bg-[#f7f9fb] p-4">
+                          <p className="text-sm font-bold text-[#243447]">{item.name}</p>
+                          <p className="mt-1 text-xs text-muted">{humanizeAttribute(item.featureClass)} · visible near the selection</p>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                ) : null}
 
                 {content.aiInferences.length ? (
                   <section className="rounded-[20px] border border-line bg-white p-5 shadow-soft sm:p-7">
@@ -299,7 +381,6 @@ export function PointToObjectAnalysis() {
                     {content.decisionObservations.map((item, index) => (
                       <li key={`${item.statement}-${index}`} className="rounded-xl border border-line p-4 text-sm leading-6 text-[#344054]">
                         <p>{item.statement}</p>
-                        <p className="mt-1 text-[11px] font-semibold text-muted">Official or client validation required.</p>
                         <p className="mt-1 text-[11px] leading-4 text-muted">
                           Source basis: {[...new Set(item.evidenceRefs.map(friendlyEvidenceLabel))].join(", ")}
                         </p>
@@ -317,12 +398,25 @@ export function PointToObjectAnalysis() {
             <form onSubmit={submitFollowUp} className="rounded-[20px] border border-line bg-white p-5 shadow-soft">
               <label className="text-base font-bold" htmlFor="analysis-follow-up">Run a focused analysis</label>
               <p className="mt-2 text-xs leading-5 text-muted">Ask a new question about the same selected location and source record.</p>
+              <div className="mt-4 grid grid-cols-2 gap-2" aria-label="Focused analysis options">
+                {FOCUSED_ANALYSES.map((item) => (
+                  <button
+                    key={item.label}
+                    type="button"
+                    onClick={() => runFocusedAnalysis(item.question)}
+                    disabled={!selection || loading}
+                    className="min-h-10 rounded-xl border border-line bg-[#f8fafc] px-3 text-left text-xs font-bold text-[#344054] transition hover:border-[#a8bfd5] hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
               <textarea
                 id="analysis-follow-up"
                 value={question}
                 onChange={(event) => setQuestion(event.target.value.slice(0, 500))}
                 rows={5}
-                placeholder="For example: What information is still needed before a development decision?"
+                placeholder="For example: What should a developer validate before considering this object?"
                 className="mt-4 w-full resize-y rounded-xl border border-line p-3 text-sm leading-6 outline-none focus:border-brand focus:ring-2 focus:ring-[#bfd8ff]"
               />
               <button type="submit" disabled={!question.trim() || loading} className="mt-3 min-h-12 w-full rounded-control bg-brand px-4 text-sm font-bold text-white disabled:cursor-not-allowed disabled:bg-[#b7c4d7]">
@@ -330,20 +424,8 @@ export function PointToObjectAnalysis() {
               </button>
             </form>
 
-            {content ? (
-              <section className="rounded-[20px] border border-line bg-white p-5 shadow-soft">
-                <h2 className="text-base font-bold">Information still needed</h2>
-                <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-6 text-muted">
-                  {content.missingInformation.map((item) => <li key={item}>{item}</li>)}
-                </ul>
-              </section>
-            ) : null}
-
             <section className="rounded-[18px] border border-line bg-white p-4 text-[11px] leading-5 text-muted">
-              <p>
-                OpenStreetMap is open community context and may be incomplete or out of date. The page states explicitly whether the returned community polygon contains the point; otherwise it is shown only as the nearest indexed record.
-              </p>
-              <p className="mt-3 font-semibold text-[#475467]">
+              <p className="font-semibold text-[#475467]">
                 Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.
               </p>
             </section>

@@ -160,6 +160,7 @@ export type LivePointObjectEvidencePack = {
     featureClass: string;
     geometryType: SafeGeometry["type"] | null;
     geometryHash: string | null;
+    addressParts: Record<string, string>;
     tags: Record<string, string>;
   };
   source: {
@@ -661,10 +662,10 @@ function evidenceFor(
   const evidence: PointObjectEvidenceReference[] = [
     {
       id: "EVD-COORDINATES",
-      label: "Clicked WGS84 coordinates",
+      label: "WGS84 analysis point",
       value: `${point[0].toFixed(6)}, ${point[1].toFixed(6)}`,
       sourceId: "user_point",
-      proofLimit: "Submitted point only; it is not an official address, parcel locator or proof of containment in any geometry."
+      proofLimit: "Map-selected analysis point only; it is not an official address, parcel locator or proof of object identity."
     },
     {
       id: "EVD-OSM-OBJECT",
@@ -672,8 +673,8 @@ function evidenceFor(
       value: objectName(place) ?? sourceFeatureId,
       sourceId: sourceFeatureId,
       proofLimit: coordinateAssociation === "open_map_geometry_contains_point"
-        ? "The returned open-map polygon contains the clicked point; this remains a community geometry, not an official cadastral or parcel boundary."
-        : "Nominatim reverse returns the nearest suitable indexed OSM object; it does not prove that the clicked point is inside that object."
+        ? "The returned open-map polygon contains the analysis point; this remains community context, not proof that it is the same feature rendered by the map and not an official cadastral or parcel boundary."
+        : "Nominatim reverse returns the nearest suitable indexed OSM object; it does not prove that the analysis point is inside that object."
     },
     {
       id: "EVD-CLASSIFICATION",
@@ -810,6 +811,7 @@ export async function buildLivePointObjectEvidencePack(
       featureClass: featureClass(place),
       geometryType: place.geometryType,
       geometryHash: place.geometryHash,
+      addressParts: place.address,
       tags: selectedTags
     },
     source: {
@@ -844,9 +846,9 @@ export async function buildLivePointObjectEvidencePack(
     ],
     limitations: [
       coordinateAssociation === "open_map_geometry_contains_point"
-        ? "The returned OpenStreetMap polygon contains the clicked point, but it is community geometry and not an official parcel or cadastral boundary."
-        : "Nominatim reverse geocoding returns the closest suitable indexed OSM object and does not prove that the clicked point lies inside its geometry.",
-      "Client/vector-tile feature identifiers are ignored; object identity is resolved server-side from the clicked coordinates.",
+        ? "The returned OpenStreetMap polygon contains the analysis point, but it is community context, is not proven identical to the rendered tile feature, and is not an official parcel or cadastral boundary."
+        : "Nominatim reverse geocoding returns the closest suitable indexed OSM object and does not prove that the analysis point lies inside its geometry.",
+      "Client/vector-tile feature identifiers are ignored; OpenStreetMap context is resolved server-side from the map-selected analysis point.",
       "OpenStreetMap is open community context and may be incomplete, stale or differently classified from authoritative registers.",
       "Raw source geometry is used only to derive its type and semantic hash; it is not sent to the AI model.",
       "This single-object resolver does not establish that nearby records are complete or that absent records are absent in reality.",

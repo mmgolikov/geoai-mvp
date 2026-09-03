@@ -14,13 +14,12 @@ export default function PointToObjectSourceOfferPage() {
           </div>
         </header>
         <div className="mt-7 space-y-5 text-sm leading-7 text-muted">
-          <p>The interactive map uses OpenFreeMap vector tiles derived from OpenStreetMap data. A bounded server lookup may use Nominatim after a user explicitly starts an analysis.</p>
+          <p>The interactive map uses OpenFreeMap vector tiles derived from OpenStreetMap data. After a direct map click, a bounded server lookup uses Nominatim to resolve the available object name, address, classification and safe mapped attributes.</p>
           <p>
             © OpenStreetMap contributors. OpenStreetMap data is available under the Open Data Commons Open Database License 1.0 (ODbL):{" "}
             <a className="font-semibold text-brand underline underline-offset-4" href="https://www.openstreetmap.org/copyright" rel="noreferrer" target="_blank">copyright and licence</a>.
           </p>
-          <p>Only allowlisted object and address fields are used for analysis. Raw provider responses, arbitrary contact fields, contributor metadata and full object geometry are not sent to OpenAI.</p>
-          <p>Repository-backed Dubai and Singapore evidence packs remain available for regression and source-offer purposes under ODbL 1.0. Application code outside the data directory keeps its repository licence; no relicensing of OSM data is asserted.</p>
+          <p>Only allowlisted object, classification and address fields are shown. OpenAI receives a smaller server-built projection; raw provider responses, arbitrary contact fields, contributor metadata, display addresses and full object geometry are not sent to the model.</p>
           <p>These features are open community context, not official parcels, cadastral records, zoning, ownership, planning approvals or valuations. A missing record is not proof of real-world absence.</p>
         </div>
         <aside className="mt-8 rounded-2xl border border-[#f2d18d] bg-[#fff9ed] p-4 text-sm font-semibold leading-6 text-[#7a4d00]">

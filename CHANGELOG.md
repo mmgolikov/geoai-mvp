@@ -1,11 +1,19 @@
 # Changelog
 
 Status: Active chronological change authority
-Last verified: 2026-07-20
+Last verified: 2026-09-03
 Owner: GeoAI Release Engineering
 Authority: Chronological released/unreleased change record; runtime truth remains `docs/CURRENT_RELEASE_STATE.md`
 Successor: None; any replacement must update `docs/DOCUMENTATION_INDEX.md`
 Navigation: [Documentation Index](docs/DOCUMENTATION_INDEX.md) · [Current Release State](docs/CURRENT_RELEASE_STATE.md) · [Full System Audit](docs/FULL_SYSTEM_AUDIT_2026_07_16.md) · [Codex Backlog](docs/CODEX_BACKLOG_2026_07_16.md)
+
+## Unreleased — POINT_TO_OBJECT_001 live map V2.1 Preview
+
+- Reworked the isolated point-to-object experience around live OpenFreeMap/OpenStreetMap context: edge-to-edge map/task workspace, explicit 2D/3D camera modes, `Control + drag` rotation, three live map styles, source-height-based selected volume and persistent footprint highlighting across style changes.
+- Added a Preview-only, same-origin `/api/prototype/point-to-object/context` enrichment route. Direct clicks now resolve a server-rebound Nominatim name, address hierarchy, OSM identity, geometry association and allowlisted attributes before analysis; rapid and stale browser requests are cancelled/debounced.
+- Expanded the dedicated analysis surface with deterministic source-backed details and location context, visible live-map surroundings, working focused-analysis actions and custom follow-up while removing internal Candidate/Preview/missing-information controls from customer-facing pages.
+- Added the new route to API access classification/inventory and Vercel trace controls, placed the point-to-object contract in the permanent Quality Gate, and updated the V2 Change Request and live-source decision.
+- Scope is Draft PR #147 / access-controlled Vercel Preview only. No merge to `main`, Production promotion, Supabase mutation/migration, public Overpass dependency, or official/cadastral/zoning/valuation claim is included.
 
 ## Unreleased — CR 10.02 Design Foundation and Shared Shell
 

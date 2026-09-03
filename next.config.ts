@@ -64,7 +64,8 @@ const nextConfig: NextConfig = {
     "/api/external-data/sources": publicSourceRuntimeFiles,
     "/api/external-data/status": publicSourceRuntimeFiles,
     "/api/source-lineage": publicSourceRuntimeFiles,
-    "/api/prototype/point-to-object/*": pointToObjectPrototypeFiles
+    "/api/prototype/point-to-object/cases": pointToObjectPrototypeFiles,
+    "/api/prototype/point-to-object/resolve": pointToObjectPrototypeFiles
   },
   outputFileTracingExcludes: {
     "/api/prototype/point-to-object/*": pointToObjectPrototypeExcludedFiles

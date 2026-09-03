@@ -6,13 +6,15 @@ Date: 2026-09-03
 
 ## Decision
 
-Use MapLibre GL JS with OpenFreeMap for live interactive cartography and rendered object selection. Use the public Nominatim service only for a directly user-triggered, cached, bounded coordinate reverse request in an access-controlled low-traffic evaluation. Do not use public Overpass or Supabase in the V2 runtime critical path.
+Use MapLibre GL JS with OpenFreeMap for live interactive cartography, 2D/3D rendering, basemap switching and rendered object selection. After a direct user click, use the public Nominatim service only for a cached, bounded coordinate reverse request in an access-controlled low-traffic evaluation. Show the safe result immediately in the selected-location card and reuse the same server-side resolver for the AI evidence pack. Do not use public Overpass or Supabase in the V2 runtime critical path.
 
 ## Why this path
 
 - OpenFreeMap provides a keyless MapLibre-compatible vector basemap and current OSM-derived building geometry suitable for a real clickable map.
 - Vector tiles are sufficient for visual selection but do not guarantee object names, addresses, complete tags, or stable object identifiers.
 - Nominatim can return the nearest indexed object for a coordinate. The application checks returned Polygon/MultiPolygon geometry itself and otherwise labels the result as nearest rather than contained.
+- The click-enrichment route returns only safe name, address hierarchy, OSM identity, classification, association and allowlisted attributes. A newer click cancels and supersedes any older unresolved browser request. Before AI execution, the server resolves the coordinate again and rejects the request if that identity no longer matches the selected OSM record.
+- Street, Light and Contrast choices use separate OpenFreeMap styles. Controlled GeoAI 3D-building and selection layers are recreated on `style.load`, so switching a basemap does not silently remove the current footprint highlight.
 - Bounded Overpass endpoints were not reliable enough during the 2026-09-03 source audit to become a live demonstration dependency without a durable controlled cache.
 - The existing Supabase foundation is metadata-oriented and has unresolved database/Auth/RLS readiness findings; attaching an anonymous Preview would increase risk without improving the immediate map experience.
 

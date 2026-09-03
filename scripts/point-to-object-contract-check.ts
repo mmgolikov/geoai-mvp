@@ -1226,6 +1226,7 @@ function assertStaticBoundaries(): void {
     "app/prototype/point-to-object/source-offer/page.tsx",
     "app/api/prototype/point-to-object/ai/route.ts",
     "app/api/prototype/point-to-object/cases/route.ts",
+    "app/api/prototype/point-to-object/context/route.ts",
     "app/api/prototype/point-to-object/resolve/route.ts",
     "components/point-to-object/analysis-client.tsx",
     "components/point-to-object/live-object-map.tsx",
@@ -1255,6 +1256,8 @@ function assertStaticBoundaries(): void {
     "Source Conflict",
     "Source Refresh Unknown",
     "Evidence-bound, never the selector",
+    "Information still needed",
+    "Select map centre",
     'type="checkbox"'
   ]) {
     assert.equal(prototypeUiSource.includes(removedUserFacingLabel), false,
@@ -1265,9 +1268,51 @@ function assertStaticBoundaries(): void {
   assert.match(prototypeUiSource, /Back to map/, "The analysis page must return to the live map.");
   assert.match(prototypeUiSource, /Run extended analysis/, "The analysis page must support a custom follow-up.");
   const analysisClientSource = readFileSync(path.join(ROOT, "components/point-to-object/analysis-client.tsx"), "utf8");
+  const prototypeClientSource = readFileSync(path.join(ROOT, "components/point-to-object/prototype-client.tsx"), "utf8");
+  const liveMapSource = readFileSync(path.join(ROOT, "components/point-to-object/live-object-map.tsx"), "utf8");
+  const contextRouteSource = readFileSync(path.join(ROOT, "app/api/prototype/point-to-object/context/route.ts"), "utf8");
   assert.equal(analysisClientSource.includes("osmFeatureId"), false,
     "The browser must not promote vector-tile feature IDs into OSM object identities.");
+  assert.match(prototypeClientSource, /\/api\/prototype\/point-to-object\/context/,
+    "A direct selection must resolve live object context through the isolated route.");
+  assert.match(prototypeClientSource, /AbortController/,
+    "A superseded click must cancel its browser context request.");
+  assert.match(prototypeClientSource, /contextRequestId\.current/,
+    "A stale context response must be unable to overwrite a newer selection.");
+  assert.match(prototypeClientSource, /setTimeout\([\s\S]*250/,
+    "Direct-click enrichment must debounce rapid exploratory clicks.");
+  assert.match(contextRouteSource, /previewRuntimeAllowed\(\)/,
+    "The live context route must remain Preview-gated.");
+  assert.equal(contextRouteSource.includes("frozen-osm-repository"), false,
+    "The live context route must not trace frozen case data.");
+  assert.equal(readFileSync(path.join(ROOT, "app/api/prototype/point-to-object/ai/route.ts"), "utf8").includes("frozen-osm-repository"), false,
+    "The live AI route must not trace frozen case data.");
+  assert.match(analysisClientSource, /expectedSourceFeatureId/,
+    "The browser must bind analysis to the server-resolved selection identity.");
+  assert.match(readFileSync(path.join(ROOT, "app/api/prototype/point-to-object/ai/route.ts"), "utf8"), /AI_OBJECT_CHANGED/,
+    "The server must fail closed when the selected OSM identity changes before analysis.");
+  assert.match(liveMapSource, /\["2d", "3d"\]/,
+    "The live map must expose explicit 2D and 3D modes.");
+  for (const stylePath of ["styles/liberty", "styles/positron", "styles/bright"]) {
+    assert.match(liveMapSource, new RegExp(stylePath.replace("/", "\\/")), `Missing OpenFreeMap style ${stylePath}.`);
+  }
+  assert.match(liveMapSource, /map\.on\("style\.load", handleStyleReady\)/,
+    "GeoAI map layers must be restored after every basemap style load.");
+  assert.match(liveMapSource, /handleStyleReady[\s\S]*applyViewMode\(map, viewModeRef\.current, false\)/,
+    "The active 2D/3D camera and rotation contract must be restored after every basemap style load.");
+  assert.match(liveMapSource, /viewport:[\s\S]*viewMode: viewModeRef\.current/,
+    "The selected map viewport must persist its explicit 2D/3D mode.");
+  assert.match(liveMapSource, /selectionCanShowVolume\([\s\S]*renderHeightM !== null/,
+    "Selected 3D volume must require a real rendered height.");
+  for (const action of ["Object profile", "Development screening", "Use clues", "Due diligence"]) {
+    assert.match(analysisClientSource, new RegExp(action), `Missing focused analysis action: ${action}.`);
+  }
   const liveEvidenceSource = readFileSync(path.join(ROOT, "src/lib/prototype/point-to-object-live-evidence.ts"), "utf8");
+  const aiCoreSource = readFileSync(path.join(ROOT, "src/lib/prototype/point-to-object-ai-core.ts"), "utf8");
+  assert.equal(aiCoreSource.includes("clickedPoint"), false,
+    "The AI projection must describe the normalized coordinate as an analysis point, not as the original click.");
+  assert.equal(aiCoreSource.includes("clicked_coordinates"), false,
+    "The AI evidence vocabulary must describe normalized analysis coordinates truthfully.");
   assert.equal(liveEvidenceSource.includes("lookup_bbox_or_centroid_proximity_not_point_in_polygon"), false,
     "Live server grounding must not use bbox/centroid proximity as an object-identity surrogate.");
   assert.equal(liveEvidenceSource.includes("new URL(\"lookup\""), false,
