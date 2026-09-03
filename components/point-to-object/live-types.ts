@@ -72,7 +72,7 @@ export type PointObjectReasoningEffort = "low" | "medium" | "high" | "xhigh";
 export type PointObjectEvidenceClass = "observed" | "derived" | "hypothesis";
 export type PointObjectConfidence = "low" | "medium";
 
-export const POINT_OBJECT_ANALYSIS_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V2_2026_09_03" as const;
+export const POINT_OBJECT_ANALYSIS_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V3_2026_09_04" as const;
 
 export type PointObjectAnalysisRequestReceipt = {
   depth: PointObjectAnalysisDepth;

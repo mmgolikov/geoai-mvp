@@ -1421,6 +1421,12 @@ async function assertCandidateAiSafety(): Promise<void> {
     "Unsupported operational metrics must fail closed.");
   assert.equal(containsUnsupportedClaim("The mapped building has 43 levels, while occupancy evidence is not available."), false,
     "A mapped numeric attribute must remain usable when an empirical field is explicitly stated as unavailable.");
+  assert.equal(containsUnsupportedClaim("Occupancy is unknown, but tourism demand is strong."), true,
+    "An unknown metric must not launder a separate unsupported market assertion.");
+  assert.equal(containsUnsupportedClaim("The asset is in good condition, while occupancy is unknown."), true,
+    "An unknown empirical field must not launder an unsupported condition assertion.");
+  assert.equal(containsUnsupportedClaim("The zoning is unknown, but the development is suitable."), true,
+    "An unknown planning field must not launder an unsupported suitability assertion.");
   assert.equal(containsUnsupportedClaim("The zoning is unknown and requires official validation."), false);
   assert.equal(containsUnsupportedClaim("The geometry is open-map context, not an official cadastral boundary."), false);
   assert.equal(containsUnsupportedClaim("Financial viability is not established by the available evidence."), false);
@@ -1538,7 +1544,7 @@ async function assertCandidateAiSafety(): Promise<void> {
     "An allowlisted structured tag value must reach the model projection.");
   assert.equal(projectedAttributes["tag.tourism"], "hotel",
     "An allowlisted categorical tag value must reach the model projection.");
-  assert.deepEqual(validationPolicy.requiredCounts,
+  assert.deepEqual(validationPolicy.targetCounts,
     { decisionReasons: 3, signals: 4, opportunities: 2, risks: 3 },
     "The model must receive deterministic output counts that fit the runtime validator.");
   assert.equal(validationPolicy.exactCaveat, LIVE_POINT_CAVEAT,

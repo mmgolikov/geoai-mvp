@@ -2,7 +2,7 @@ import { LIVE_POINT_CAVEAT } from "@/src/lib/point-to-object/contracts";
 import type { GroundablePointObjectEvidencePack } from "./point-to-object-live-evidence";
 
 export const POINT_OBJECT_AI_SCHEMA_NAME = "geoai_point_object_decision_analysis_v2";
-export const POINT_OBJECT_AI_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V2_2026_09_03";
+export const POINT_OBJECT_AI_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V3_2026_09_04";
 
 export type PointObjectAnalysisDepth = "quick" | "standard" | "deep";
 export type PointObjectAnalysisGoal = "object_profile" | "development_screening" | "redevelopment" | "due_diligence" | "custom";
@@ -357,15 +357,16 @@ const OBSERVATION_SPECULATION = /\b(?:may|might|could|likely|possibly|potential(
 const HYPOTHESIS_LANGUAGE = /\b(?:may|might|could|potential(?:ly)?|hypothesis|scenario|test(?:ing)?|investigat(?:e|ing)|assess(?:ing)?|explor(?:e|ing)|evaluat(?:e|ing)|whether|worth)\b/i;
 
 export function containsUnsupportedPointObjectClaim(text: string): boolean {
-  return text.split(/(?<=[.!?])\s+/).some((sentence) => {
-    if (CURRENCY_ASSERTION.test(sentence) || PERCENT_ASSERTION.test(sentence)) return true;
-    if (OWNERSHIP_ASSERTION.test(sentence) && !SAFE_OWNERSHIP_UNKNOWN.test(sentence)) return true;
-    if (EMPIRICAL_DOMAIN.test(sentence) && EMPIRICAL_DIRECTION_OR_VALUE.test(sentence) &&
-        !EXPLICIT_UNKNOWN.test(sentence) && !EVIDENCE_GAP_LANGUAGE.test(sentence)) return true;
-    if (EMPIRICAL_DOMAIN.test(sentence) && EMPIRICAL_ASSERTION.test(sentence) &&
-        !EXPLICIT_UNKNOWN.test(sentence) && !EVIDENCE_GAP_LANGUAGE.test(sentence)) return true;
-    if (ABSOLUTE_UNSUPPORTED.test(sentence) && !EXPLICIT_UNKNOWN.test(sentence) && !EXPLICIT_LIMITATION.test(sentence)) return true;
-    return POSITIVE_UNSUPPORTED.test(sentence) && !EXPLICIT_UNKNOWN.test(sentence);
+  const clauses = text.split(/(?<=[.!?;])\s+|\s*,?\s+\b(?:and|but|however|although|though|while|whereas)\b\s+/i);
+  return clauses.some((clause) => {
+    if (CURRENCY_ASSERTION.test(clause) || PERCENT_ASSERTION.test(clause)) return true;
+    if (OWNERSHIP_ASSERTION.test(clause) && !SAFE_OWNERSHIP_UNKNOWN.test(clause)) return true;
+    if (EMPIRICAL_DOMAIN.test(clause) && EMPIRICAL_DIRECTION_OR_VALUE.test(clause) &&
+        !EXPLICIT_UNKNOWN.test(clause) && !EVIDENCE_GAP_LANGUAGE.test(clause)) return true;
+    if (EMPIRICAL_DOMAIN.test(clause) && EMPIRICAL_ASSERTION.test(clause) &&
+        !EXPLICIT_UNKNOWN.test(clause) && !EVIDENCE_GAP_LANGUAGE.test(clause)) return true;
+    if (ABSOLUTE_UNSUPPORTED.test(clause) && !EXPLICIT_UNKNOWN.test(clause) && !EXPLICIT_LIMITATION.test(clause)) return true;
+    return POSITIVE_UNSUPPORTED.test(clause) && !EXPLICIT_UNKNOWN.test(clause);
   });
 }
 
@@ -413,6 +414,22 @@ function groundedClaims(value: unknown, allowed: Set<string>, min: number, max: 
   if (!Array.isArray(value) || value.length < min || value.length > max) return null;
   const output = value.map((item) => groundedClaim(item, allowed));
   return output.every((item): item is GroundedClaim => item !== null) ? output : null;
+}
+
+function groundedClaimIssue(value: unknown, allowed: Set<string>, maxLength = 900): { code: PointObjectAiValidationCode; detail: string } | null {
+  if (!isRecord(value)) return { code: "SHAPE_INVALID", detail: "claim_not_object" };
+  const statement = stringValue(value.statement, maxLength);
+  if (!statement) return { code: "SHAPE_INVALID", detail: "claim_statement" };
+  if (!Array.isArray(value.evidenceRefs) || value.evidenceRefs.length === 0 || value.evidenceRefs.length > 6) {
+    return { code: "SHAPE_INVALID", detail: "claim_evidence_refs_shape" };
+  }
+  if (value.evidenceRefs.some((item) => typeof item !== "string" || !allowed.has(item))) {
+    return { code: "UNKNOWN_EVIDENCE_REF", detail: "claim_unknown_evidence_ref" };
+  }
+  const evidenceRefs = refs(value.evidenceRefs, allowed) ?? [];
+  if (containsUnsupportedPointObjectClaim(statement)) return { code: "UNSUPPORTED_ASSERTION", detail: "claim_unsupported_assertion" };
+  if (!evidenceReferencesFitClaim(statement, evidenceRefs)) return { code: "EVIDENCE_MISMATCH", detail: "claim_evidence_mismatch" };
+  return null;
 }
 
 function firstEvidenceRef(allowed: Set<string>, candidates: string[]): string | null {
@@ -529,14 +546,14 @@ function deterministicEvidenceContent(evidencePack: GroundablePointObjectEvidenc
 }
 
 export type PointObjectAiValidationCode = "SHAPE_INVALID" | "UNKNOWN_EVIDENCE_REF" | "UNSUPPORTED_ASSERTION" | "EVIDENCE_MISMATCH" | "ANSWER_MISSING" | "CAVEAT_INVALID";
-export type PointObjectAiValidationResult = { ok: true; content: PointObjectAiContent } | { ok: false; code: PointObjectAiValidationCode };
+export type PointObjectAiValidationResult = { ok: true; content: PointObjectAiContent } | { ok: false; code: PointObjectAiValidationCode; detail?: string };
 
 export function validatePointObjectAiContentDetailed(
   value: unknown,
   evidencePack: GroundablePointObjectEvidencePack,
   request: PointObjectAnalysisRequest
 ): PointObjectAiValidationResult {
-  if (!isRecord(value) || !isRecord(value.decisionBrief)) return { ok: false, code: "SHAPE_INVALID" };
+  if (!isRecord(value) || !isRecord(value.decisionBrief)) return { ok: false, code: "SHAPE_INVALID", detail: "root_or_decision_brief" };
   const allowed = new Set(evidencePack.evidence.map((item) => item.id));
   const brief = value.decisionBrief;
   const headline = stringValue(brief.headline, 180);
@@ -544,8 +561,20 @@ export function validatePointObjectAiContentDetailed(
   const reasons = groundedClaims(brief.reasons, allowed, 2, 4);
   const disposition = brief.disposition === "continue_screening" || brief.disposition === "hold" || brief.disposition === "insufficient_evidence" ? brief.disposition : null;
   const briefConfidence = brief.confidence === "low" || brief.confidence === "medium" ? brief.confidence : null;
-  if (!headline || !summary || !reasons || !disposition || !briefConfidence) return { ok: false, code: "SHAPE_INVALID" };
-  if (containsUnsupportedPointObjectClaim(`${headline} ${summary} ${reasons.map((item) => item.statement).join(" ")}`)) return { ok: false, code: "UNSUPPORTED_ASSERTION" };
+  if (!reasons) {
+    if (!Array.isArray(brief.reasons) || brief.reasons.length < 2 || brief.reasons.length > 4) {
+      return { ok: false, code: "SHAPE_INVALID", detail: "decision_brief_reasons_count" };
+    }
+    for (const [index, rawReason] of brief.reasons.entries()) {
+      const issue = groundedClaimIssue(rawReason, allowed);
+      if (issue) return { ok: false, code: issue.code, detail: `decision_brief_reasons_${index}_${issue.detail}` };
+    }
+    return { ok: false, code: "SHAPE_INVALID", detail: "decision_brief_reasons" };
+  }
+  if (!headline || !summary || !disposition || !briefConfidence) return { ok: false, code: "SHAPE_INVALID", detail: "decision_brief_fields" };
+  if ([headline, summary, ...reasons.map((item) => item.statement)].some(containsUnsupportedPointObjectClaim)) {
+    return { ok: false, code: "UNSUPPORTED_ASSERTION", detail: "decision_brief_assertion" };
+  }
 
   if (!Array.isArray(value.signals) || value.signals.length < 3 || value.signals.length > 6) return { ok: false, code: "SHAPE_INVALID" };
   const signals: PointObjectDecisionSignal[] = [];
@@ -558,7 +587,7 @@ export function validatePointObjectAiContentDetailed(
     const evidenceClass = raw.evidenceClass === "observed" || raw.evidenceClass === "derived" || raw.evidenceClass === "hypothesis" ? raw.evidenceClass : null;
     const confidence = raw.confidence === "low" || raw.confidence === "medium" ? raw.confidence : null;
     if (!title || !observation || !implication || !evidenceRefs || !evidenceClass || !confidence) return { ok: false, code: "SHAPE_INVALID" };
-    if (containsUnsupportedPointObjectClaim(`${title} ${observation} ${implication}`) ||
+    if ([title, observation, implication].some(containsUnsupportedPointObjectClaim) ||
         !evidenceReferencesFitClaim(`${title} ${observation} ${implication}`, evidenceRefs)) return { ok: false, code: "EVIDENCE_MISMATCH" };
     if (evidenceClass === "observed" && OBSERVATION_SPECULATION.test(observation)) return { ok: false, code: "EVIDENCE_MISMATCH" };
     if (evidenceClass === "hypothesis" && !HYPOTHESIS_LANGUAGE.test(`${observation} ${implication}`)) return { ok: false, code: "EVIDENCE_MISMATCH" };
@@ -577,7 +606,7 @@ export function validatePointObjectAiContentDetailed(
     const evidenceNeeded = safeTextArray(raw.evidenceNeeded, 1, 4, 300);
     const confidence = raw.confidence === "low" || raw.confidence === "medium" ? raw.confidence : null;
     if (!title || !hypothesis || !rationale || !potentialValue || !evidenceRefs || !evidenceNeeded || !confidence) return { ok: false, code: "SHAPE_INVALID" };
-    if (containsUnsupportedPointObjectClaim(`${title} ${hypothesis} ${rationale} ${potentialValue}`) ||
+    if ([title, hypothesis, rationale, potentialValue].some(containsUnsupportedPointObjectClaim) ||
         !evidenceReferencesFitClaim(`${title} ${hypothesis} ${rationale} ${potentialValue}`, evidenceRefs) ||
         !HYPOTHESIS_LANGUAGE.test(hypothesis)) return { ok: false, code: "EVIDENCE_MISMATCH" };
     opportunities.push({ title, hypothesis, rationale, potentialValue, evidenceRefs, evidenceNeeded, confidence });
@@ -594,7 +623,7 @@ export function validatePointObjectAiContentDetailed(
     const severity = raw.severity === "low" || raw.severity === "medium" || raw.severity === "high" ? raw.severity : null;
     const confidence = raw.confidence === "low" || raw.confidence === "medium" ? raw.confidence : null;
     if (!title || !statement || !decisionImpact || !evidenceRefs || !severity || !confidence) return { ok: false, code: "SHAPE_INVALID" };
-    if (containsUnsupportedPointObjectClaim(`${title} ${statement} ${decisionImpact}`) ||
+    if ([title, statement, decisionImpact].some(containsUnsupportedPointObjectClaim) ||
         !evidenceReferencesFitClaim(`${title} ${statement} ${decisionImpact}`, evidenceRefs)) return { ok: false, code: "EVIDENCE_MISMATCH" };
     risks.push({ title, statement, decisionImpact, severity, evidenceRefs, confidence });
   }
@@ -656,7 +685,7 @@ export function buildPointObjectResponsesRequest(
           depth: request.depth, goal: request.goal, perspective: request.perspective, horizon: request.horizon, focusedQuestion: boundedQuestion
         },
         validationPolicy: {
-          requiredCounts: { decisionReasons: 3, signals: 4, opportunities: 2, risks: 3 },
+          targetCounts: { decisionReasons: 3, signals: 4, opportunities: 2, risks: 3 },
           allowedEvidenceIds: evidenceProjection.evidenceIndex.map((item) => item.id),
           nearbyContextAvailable: evidenceProjection.nearbyContext.length > 0,
           focusedAnswerRequired: Boolean(boundedQuestion),

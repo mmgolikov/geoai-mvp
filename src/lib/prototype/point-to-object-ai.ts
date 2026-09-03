@@ -285,7 +285,7 @@ function validateCompletedOutput(
     const parsed: unknown = JSON.parse(extractResponsesText(payload));
     return validatePointObjectAiContentDetailed(parsed, evidencePack, analysisRequest);
   } catch {
-    return { ok: false, code: "SHAPE_INVALID" };
+    return { ok: false, code: "SHAPE_INVALID", detail: "json_parse" };
   }
 }
 
@@ -338,6 +338,7 @@ export async function generatePointObjectAiAnalysis(
   if (!validation.ok) {
     console.warn("point_object_ai_validation_rejected", {
       code: validation.code,
+      detail: validation.detail ?? "not_available",
       attempt: attempts,
       model: profile.model,
       promptVersion: POINT_OBJECT_AI_PROMPT_VERSION
@@ -353,6 +354,7 @@ export async function generatePointObjectAiAnalysis(
     if (!validation.ok) {
       console.warn("point_object_ai_validation_rejected", {
         code: validation.code,
+        detail: validation.detail ?? "not_available",
         attempt: attempts,
         model: profile.model,
         promptVersion: POINT_OBJECT_AI_PROMPT_VERSION
