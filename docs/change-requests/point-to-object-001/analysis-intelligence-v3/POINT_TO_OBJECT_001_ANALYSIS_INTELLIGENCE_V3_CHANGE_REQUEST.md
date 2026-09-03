@@ -69,7 +69,7 @@ One invalid-output repair may escalate to Terra/low, Sol/medium or Sol/xhigh res
 - Do not perform server-side scraping, decoding or analytical extraction from public rendered-tile services unless a provider terms receipt explicitly authorizes it.
 - Preserve the exact mandatory caveat and reject prohibited claims about official parcel identity, ownership/title, zoning, approvals, exact value, building condition, guaranteed best use or return.
 - Require claim-to-evidence semantic compatibility for coordinates, geometry, mapped attributes, classification and nearby-distance statements; reject unsourced operational/market metrics and speculative observations mislabeled as observed.
-- Share a 55-second route deadline across source resolution and generation so the function fails closed before the 60-second platform limit.
+- Share a 115-second route deadline across source resolution and generation and fail closed before the route's 120-second platform limit. This allows one bounded repair for structured reasoning while remaining well below Vercel's current Fluid Compute limits.
 - Return model, effort, schema version, attempts, token usage, latency and estimated cost only in the secondary methodology receipt.
 
 ## Risks and controls

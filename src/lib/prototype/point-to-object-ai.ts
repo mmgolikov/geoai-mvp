@@ -19,7 +19,7 @@ import {
 import type { GroundablePointObjectEvidencePack } from "./point-to-object-live-evidence";
 
 const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
-const GENERATION_BUDGET_MS = 50_000;
+const GENERATION_BUDGET_MS = 108_000;
 const MINIMUM_ATTEMPT_BUDGET_MS = 5_000;
 
 type ModelTier = "luna" | "terra" | "sol";
@@ -63,7 +63,7 @@ const DEFAULT_PROFILES: Record<AttemptKind, Record<PointObjectAnalysisDepth, Omi
       reasoningEffort: "medium",
       verbosity: "medium",
       maxOutputTokens: 5_000,
-      timeoutMs: 30_000,
+      timeoutMs: 50_000,
       minimumTier: "terra"
     },
     deep: {
@@ -71,7 +71,7 @@ const DEFAULT_PROFILES: Record<AttemptKind, Record<PointObjectAnalysisDepth, Omi
       reasoningEffort: "high",
       verbosity: "high",
       maxOutputTokens: 7_500,
-      timeoutMs: 38_000,
+      timeoutMs: 70_000,
       minimumTier: "sol"
     }
   },
@@ -89,7 +89,7 @@ const DEFAULT_PROFILES: Record<AttemptKind, Record<PointObjectAnalysisDepth, Omi
       reasoningEffort: "medium",
       verbosity: "high",
       maxOutputTokens: 6_000,
-      timeoutMs: 34_000,
+      timeoutMs: 60_000,
       minimumTier: "sol"
     },
     deep: {
@@ -97,7 +97,7 @@ const DEFAULT_PROFILES: Record<AttemptKind, Record<PointObjectAnalysisDepth, Omi
       reasoningEffort: "high",
       verbosity: "high",
       maxOutputTokens: 8_000,
-      timeoutMs: 40_000,
+      timeoutMs: 75_000,
       minimumTier: "sol"
     }
   },
@@ -115,7 +115,7 @@ const DEFAULT_PROFILES: Record<AttemptKind, Record<PointObjectAnalysisDepth, Omi
       reasoningEffort: "medium",
       verbosity: "high",
       maxOutputTokens: 6_500,
-      timeoutMs: 30_000,
+      timeoutMs: 50_000,
       minimumTier: "sol"
     },
     deep: {
@@ -123,7 +123,7 @@ const DEFAULT_PROFILES: Record<AttemptKind, Record<PointObjectAnalysisDepth, Omi
       reasoningEffort: "xhigh",
       verbosity: "high",
       maxOutputTokens: 9_000,
-      timeoutMs: 34_000,
+      timeoutMs: 55_000,
       minimumTier: "sol"
     }
   }
