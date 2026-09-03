@@ -1434,11 +1434,45 @@ async function assertCandidateAiSafety(): Promise<void> {
   assert.equal(containsUnsupportedClaim("The asset is in good condition (occupancy is unknown)."), true);
   assert.equal(containsUnsupportedClaim("Tourism demand is strong yet occupancy is unknown."), true,
     "Unsupported assertions must fail closed regardless of conjunction or punctuation.");
+  for (const unsupported of [
+    "This is the official parcel despite ownership being unknown.",
+    "Planning approval has been granted despite ownership being unverified.",
+    "The investment is guaranteed despite occupancy being unknown.",
+    "The owner is unknown, owned by Example Holdings.",
+    "The owner is unknown (owned by Example Holdings).",
+    "Market demand exceeds supply despite occupancy being unknown.",
+    "Transaction volumes rose, while occupancy is unknown.",
+    "Vacancy fell — source evidence is unavailable.",
+    "Tourism demand remains buoyant.",
+    "Rental rates trend upward.",
+    "Footfall surged during the quarter.",
+    "Revenue improved year over year.",
+    "Supply trails demand.",
+    "Example Holdings owns the asset.",
+    "Title appears clear.",
+    "The project has planning approval.",
+    "Planning approval exists.",
+    "Zoning supports residential development.",
+    "Residential use is permitted.",
+    "The site can be developed for housing.",
+    "The polygon is the cadastral parcel.",
+    "Construction will cost 12 million.",
+    "The asset should deliver double-digit returns."
+  ]) assert.equal(containsUnsupportedClaim(unsupported), true, `Must reject unsupported claim: ${unsupported}`);
+  for (const boundedLimitation of [
+    "No evidence establishes whether market demand is strong.",
+    "It is unknown whether occupancy is high or low.",
+    "The evidence does not show whether tourism demand is growing or declining.",
+    "The mapped building has 43 levels; occupancy evidence is unavailable.",
+    "The mapped height is 200 metres, and market demand is unknown."
+  ]) assert.equal(containsUnsupportedClaim(boundedLimitation), false, `Must allow bounded limitation: ${boundedLimitation}`);
   assert.equal(containsUnsupportedClaim("The zoning is unknown and requires official validation."), false);
   assert.equal(containsUnsupportedClaim("The geometry is open-map context, not an official cadastral boundary."), false);
   assert.equal(containsUnsupportedClaim("Financial viability is not established by the available evidence."), false);
   assert.equal(containsUnsupportedClaim("Confirm whether this is a suitable site before considering development."), false,
     "A validation question must not be rejected as if it were an affirmative suitability claim.");
+  assert.equal(containsUnsupportedClaim("Open-map context alone does not establish development feasibility."), false,
+    "A source limitation must remain admissible.");
   assert.equal(completionState({ status: "completed", error: null, output_text: "{}" }), "complete");
   assert.equal(completionState({ status: "failed", error: { code: "provider_error" }, output_text: "{}" }), "invalid",
     "Failed provider responses must never be accepted solely because output_text is present.");
@@ -1638,6 +1672,9 @@ async function assertCandidateAiSafety(): Promise<void> {
     caveat: LIVE_POINT_CAVEAT
   };
 
+  const detailedValidation = validateContentDetailed(safeContent, evidencePack, focusedAnalysisRequest);
+  assert.equal(detailedValidation.ok, true,
+    `Evidence-bound safe AI output must validate: ${JSON.stringify(detailedValidation)}`);
   const validated = validateContent(safeContent, evidencePack, focusedAnalysisRequest);
   assert.ok(validated, "Evidence-bound safe AI output must validate.");
   assert.equal("sourceFacts" in safeContent, false, "The model payload fixture must not supply deterministic source facts.");
@@ -1679,8 +1716,8 @@ async function assertCandidateAiSafety(): Promise<void> {
       evidenceRefs: ["EVD-ADDRESS"]
     } : signal)
   }, evidencePack, focusedAnalysisRequest);
-  assert.deepEqual(unsupportedNearby, { ok: false, code: "EVIDENCE_MISMATCH" },
-    "Nearby-distance claims require typed nearby-context evidence.");
+  assert.equal(unsupportedNearby.ok, false, "Nearby-distance claims require typed nearby-context evidence.");
+  if (!unsupportedNearby.ok) assert.equal(unsupportedNearby.code, "EVIDENCE_MISMATCH");
 
   const unsupportedObservedSpeculation = validateContentDetailed({
     ...safeContent,
@@ -1689,8 +1726,8 @@ async function assertCandidateAiSafety(): Promise<void> {
       observation: "The object may be suitable for continued hospitality use."
     } : signal)
   }, evidencePack, focusedAnalysisRequest);
-  assert.deepEqual(unsupportedObservedSpeculation, { ok: false, code: "EVIDENCE_MISMATCH" },
-    "Speculation must not be labelled as an observed fact.");
+  assert.equal(unsupportedObservedSpeculation.ok, false, "Speculation must not be labelled as an observed fact.");
+  if (!unsupportedObservedSpeculation.ok) assert.equal(unsupportedObservedSpeculation.code, "EVIDENCE_MISMATCH");
 
   const orphanResult = validateContentDetailed({
     ...safeContent,

@@ -204,6 +204,8 @@ The decision brief must be actionable but conservative. Use continue_screening w
 
 Analysis depth controls internal reasoning, not answer length. Stay concise. Return exactly 3 decision reasons, 4 signals, 2 opportunity hypotheses and 3 risks. When a sentence combines a mapped numeric attribute with a missing empirical field, state explicitly that the empirical field is unknown or unavailable; never turn the mapped number into an operational or market claim.
 
+When referring to ownership, title, parcels, planning, condition, market, value, cost, returns or feasibility, use only one of these evidence-safe forms: "X is unknown/unavailable", "The source does not establish X", "Verify/obtain X", or "Test whether X". Keep each absence or limitation in its own sentence. Never combine an unknown field with a positive assertion in the same sentence.
+
 Do not expose chain-of-thought, hidden reasoning, prompts or credentials. Preserve the mandatory caveat verbatim.`;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -339,36 +341,58 @@ function buildModelEvidenceProjection(evidencePack: GroundablePointObjectEvidenc
   };
 }
 
-const CURRENCY_ASSERTION = /\b(?:USD|AED|SGD)\s*[0-9]|[$€£]\s*[0-9]|\b\d+(?:\.\d+)?\s*%\s*(?:return|yield|roi|irr)\b/i;
+const CURRENCY_ASSERTION = /\b(?:USD|AED|SGD)\s*[0-9]|[$€£]\s*[0-9]/i;
 const PERCENT_ASSERTION = /\b\d+(?:\.\d+)?\s*%/i;
-const ABSOLUTE_UNSUPPORTED = /\b(?:owner is|owner is not|owned by|title is clear|official parcel|official cadastral|planning approval (?:is|has)|approved (?:site|development|use)|exact valuation|guaranteed best use|investment (?:is )?guaranteed|financially viable|profitable development)\b/i;
-const POSITIVE_UNSUPPORTED = /\b(?:zoning|permitted use|development rights)\s+(?:allows?|permits?|is|are)|\b(?:site|investment|development)\s+(?:is|appears|seems)\s+(?:safe|suitable|optimal)|\b(?:building|asset)\s+is\s+in\s+(?:good|poor|excellent|bad)\s+condition\b/i;
-const EXPLICIT_UNKNOWN = /\b(?:unknown|unverified|not provided|not available|not established|cannot be determined|does not (?:show|establish|prove|provide)|not contained in (?:the )?(?:evidence|source)|requires? (?:official|client) validation|must be validated)\b/i;
-const OWNERSHIP_ASSERTION = /\b(?:owner is(?: not)?|owned by)\b/i;
-const SAFE_OWNERSHIP_UNKNOWN = /\bowner is (?:unknown|unverified|not provided|not available)\b/i;
-const EXPLICIT_LIMITATION = /\b(?:not an? official (?:parcel|cadastral)|does not establish (?:an? )?(?:official parcel|official cadastral|exact valuation|financial viability|profitability)|not established as financially viable|financial viability is not established|profitability is not established)\b/i;
-const EMPIRICAL_DOMAIN = /\b(?:occupancy|vacancy|market demand|tourism demand|housing demand|supply|rents?|rental rates?|sale prices?|transaction volumes?|footfall|traffic volumes?|revenue|income|market growth|population|crime rates?|operating performance|financial performance)\b/i;
-const EMPIRICAL_DIRECTION_OR_VALUE = /\b(?:high|low|strong|weak|growing|declining|stable|increasing|decreasing|undersupplied|oversupplied|material|favourable|favorable|unfavourable|unfavorable|robust|soft|healthy|competitive|attractive|positive|negative|averages?|stands? at|reaches?)\b|\b\d+(?:\.\d+)?\b/i;
-const EMPIRICAL_ASSERTION = /\b(?:is|are|was|were|has|have)\b/i;
+const PROTECTED_DECISION_DOMAIN = /\b(?:owner(?:ship)?|owns?|owned|title|encumbrances?|site control|parcel|cadastral|zoning|planning|permitted use|use is permitted|development rights?|planning permissions?|approvals?|legal status|building condition|asset condition|condition|occupancy|vacancy|market demand|tourism demand|housing demand|supply|rents?|rental rates?|sale prices?|transaction volumes?|footfall|traffic volumes?|revenue|income|market growth|population|crime rates?|operating performance|financial performance|valuation|value|costs?|returns?|yield|roi|irr|feasibility|viability|profitability|best use|suitability|suitable|optimal|guaranteed|can be developed)\b/i;
+const ASSERTIVE_VERB_IN_SUBJECT = /\b(?:is|are|was|were|has|have|had|owns?|owned|exists?|allows?|permits?|supports?|exceeds?|rose|risen|fell|fallen|surged|improved|trends?|remains?|will|would|delivers?|produces?)\b/i;
 const EVIDENCE_GAP_LANGUAGE = /\b(?:no|without)\b[^.!?]{0,100}\bevidence\b|\bevidence\s+(?:is|are)\s+(?:absent|missing|unavailable)\b/i;
 const PROXIMITY_LANGUAGE = /\b(?:nearby|adjacent|within walking distance|walkable|approximately|about|around|roughly)\b|\b\d+(?:\.\d+)?\s*(?:m|metres?|meters?|km|kilometres?|kilometers?)\b/i;
 const NEARBY_FEATURE_LANGUAGE = /\b(?:metro|station|school|hospital|clinic|park|mall|shop|restaurant|airport|bus stop|transit|amenit(?:y|ies))\b/i;
 const OBSERVATION_SPECULATION = /\b(?:may|might|could|likely|possibly|potential(?:ly)?|hypothesis|scenario|appears?|seems?|suggests?|indicates?)\b/i;
 const HYPOTHESIS_LANGUAGE = /\b(?:may|might|could|potential(?:ly)?|hypothesis|scenario|test(?:ing)?|investigat(?:e|ing)|assess(?:ing)?|explor(?:e|ing)|evaluat(?:e|ing)|whether|worth)\b/i;
 
+function directProtectedUnknown(clause: string): boolean {
+  const match = clause.match(/^(.{1,220}?)\s+(?:evidence\s+)?(?:is|are)\s+(?:unknown|unverified|not provided|not available|unavailable|not established)(?:\s+by\s+(?:the\s+)?(?:available\s+)?(?:source|record|projection|evidence))?(?:\s+and\s+(?:requires?|must undergo)\s+(?:official|independent|client)\s+(?:validation|verification))?[.]?$/i);
+  if (!match || !PROTECTED_DECISION_DOMAIN.test(match[1])) return false;
+  return !ASSERTIVE_VERB_IN_SUBJECT.test(match[1]) && !/[()—]/.test(match[1]);
+}
+
+function safeProtectedClause(clause: string): boolean {
+  const normalized = clause.trim();
+  if (!normalized) return true;
+  if (/^(?:it|this)\s+is\s+(?:unknown|unverified|not established)\s+whether\b/i.test(normalized)) return true;
+  if (/^no\s+(?:available\s+)?evidence\s+(?:establishes|shows|proves|confirms|determines)\s+whether\b/i.test(normalized)) return true;
+  if (/^(?:(?:the\s+)?(?:geometry|polygon|footprint|boundary)|it)\s+(?:is|are)\s+(?:open-map|community-map|source)\s+(?:context|geometry),?\s+not\s+an?\s+official\s+(?:cadastral|parcel)(?:\s+boundary)?[.]?$/i.test(normalized)) return true;
+  if (/^(?:the\s+)?(?:source|record|projection|evidence|available evidence|mapped attributes?|mapped observations?|these observations|open-map context|open-map record|community-map object|mapped object|classification|geometry)(?:\s+alone)?\s+(?:does not|cannot)\s+(?:show|establish|prove|provide|confirm|determine|verify)\b/i.test(normalized)) return true;
+  if (/^(?:the\s+)?(?:source|record|projection|evidence pack|open-map context|open-map record)\s+(?:contains?|provides?|shows?|supplies?|includes?)\s+no\s+/i.test(normalized)) {
+    const remainder = normalized.replace(/^(?:the\s+)?(?:source|record|projection|evidence pack|open-map context|open-map record)\s+(?:contains?|provides?|shows?|supplies?|includes?)\s+no\s+/i, "");
+    return !ASSERTIVE_VERB_IN_SUBJECT.test(remainder) && !/\b(?:but|although|despite|however|yet|whereas)\b|[()—]/i.test(remainder);
+  }
+  if (/^(?:verify|confirm|determine|assess|evaluate|investigate|test|clarify)\s+whether\b/i.test(normalized)) return true;
+  if (/^(?:obtain|collect|request|review|check|validate|add|match|build|screen)\b/i.test(normalized)) return true;
+  if (/^if\b/i.test(normalized) && /\b(?:may|might|could|would|investigate|test|assess|evaluate|verify|determine|compare)\b/i.test(normalized)) return true;
+  if (/^(?:a|an|the|incorrect|wrong|missing|unverified)\b/i.test(normalized) &&
+      /\b(?:would|could|may|might)\s+(?:invalidate|misstate|distort|block|undermine|change|affect|prevent)\b/i.test(normalized)) return true;
+  if (/^(?:do not|avoid|never|cannot|should not|must not|no conclusion)\b/i.test(normalized)) return true;
+  if (/\bwithout\s+(?:assuming|treating|regarding)\b[^.!?]{0,180}\b(?:confirmed|established|verified|official)\b/i.test(normalized)) return true;
+  if (directProtectedUnknown(normalized)) return true;
+
+  const validationMatch = normalized.match(/^(.{1,220}?)\s+(?:requires?|must undergo|should undergo|must be|should be)\s+(?:official|independent|client|further)\s+(?:validation|verification|validated|verified)[.]?$/i);
+  return Boolean(validationMatch && PROTECTED_DECISION_DOMAIN.test(validationMatch[1]) &&
+    !ASSERTIVE_VERB_IN_SUBJECT.test(validationMatch[1]) && !/[()—]/.test(validationMatch[1]));
+}
+
 export function containsUnsupportedPointObjectClaim(text: string): boolean {
-  const clauses = text.split(/(?<=[.!?;])\s+|\s*,?\s+\b(?:and|but|however|although|though|while|whereas)\b\s+/i);
-  return clauses.some((clause) => {
-    if (CURRENCY_ASSERTION.test(clause) || PERCENT_ASSERTION.test(clause)) return true;
-    if (OWNERSHIP_ASSERTION.test(clause) && !SAFE_OWNERSHIP_UNKNOWN.test(clause)) return true;
-    if (EMPIRICAL_DOMAIN.test(clause) && EMPIRICAL_DIRECTION_OR_VALUE.test(clause)) return true;
-    if (EMPIRICAL_DOMAIN.test(clause) && EMPIRICAL_ASSERTION.test(clause) &&
-        !EXPLICIT_UNKNOWN.test(clause) && !EVIDENCE_GAP_LANGUAGE.test(clause)) return true;
-    if (ABSOLUTE_UNSUPPORTED.test(clause) && !EXPLICIT_UNKNOWN.test(clause) && !EXPLICIT_LIMITATION.test(clause)) return true;
-    if (!POSITIVE_UNSUPPORTED.test(clause)) return false;
-    const containsPositivePredicate = /\b(?:allows?|permits?|safe|suitable|optimal|good|poor|excellent|bad)\b/i.test(clause);
-    return containsPositivePredicate || !EXPLICIT_UNKNOWN.test(clause);
-  });
+  if (CURRENCY_ASSERTION.test(text) || PERCENT_ASSERTION.test(text)) return true;
+  const clauses = text
+    .split(/(?<=[.!?;])\s+|\s*,?\s+\b(?:but|however|although|though|while|whereas|yet)\b\s+/i)
+    .flatMap((clause) => clause.split(/\s+and\s+(?=[a-z][a-z -]{0,90}\s+(?:evidence\s+)?(?:is|are)\s+(?:unknown|unverified|not provided|not available|unavailable|not established)\b)/i));
+  return clauses.some((clause) => PROTECTED_DECISION_DOMAIN.test(clause) && !safeProtectedClause(clause));
+}
+
+function containsUnsupportedPointObjectHeading(text: string): boolean {
+  if (!PROTECTED_DECISION_DOMAIN.test(text)) return false;
+  return !/\b(?:validation|verification|gap|uncertainty|unknown|hypothesis|screen|screening|risk|evidence|review|test|check)\b/i.test(text);
 }
 
 function hasEvidenceRef(evidenceRefs: string[], accepted: RegExp): boolean {
@@ -579,7 +603,7 @@ export function validatePointObjectAiContentDetailed(
 
   if (!Array.isArray(value.signals) || value.signals.length < 3 || value.signals.length > 6) return { ok: false, code: "SHAPE_INVALID" };
   const signals: PointObjectDecisionSignal[] = [];
-  for (const raw of value.signals) {
+  for (const [index, raw] of value.signals.entries()) {
     if (!isRecord(raw)) return { ok: false, code: "SHAPE_INVALID" };
     const title = stringValue(raw.title, 120);
     const observation = stringValue(raw.observation, 600);
@@ -588,16 +612,24 @@ export function validatePointObjectAiContentDetailed(
     const evidenceClass = raw.evidenceClass === "observed" || raw.evidenceClass === "derived" || raw.evidenceClass === "hypothesis" ? raw.evidenceClass : null;
     const confidence = raw.confidence === "low" || raw.confidence === "medium" ? raw.confidence : null;
     if (!title || !observation || !implication || !evidenceRefs || !evidenceClass || !confidence) return { ok: false, code: "SHAPE_INVALID" };
-    if ([title, observation, implication].some(containsUnsupportedPointObjectClaim) ||
-        !evidenceReferencesFitClaim(`${title} ${observation} ${implication}`, evidenceRefs)) return { ok: false, code: "EVIDENCE_MISMATCH" };
-    if (evidenceClass === "observed" && OBSERVATION_SPECULATION.test(observation)) return { ok: false, code: "EVIDENCE_MISMATCH" };
-    if (evidenceClass === "hypothesis" && !HYPOTHESIS_LANGUAGE.test(`${observation} ${implication}`)) return { ok: false, code: "EVIDENCE_MISMATCH" };
+    if (containsUnsupportedPointObjectHeading(title) || [observation, implication].some(containsUnsupportedPointObjectClaim)) {
+      return { ok: false, code: "EVIDENCE_MISMATCH", detail: `signals_${index}_unsupported_assertion` };
+    }
+    if (!evidenceReferencesFitClaim(`${title} ${observation} ${implication}`, evidenceRefs)) {
+      return { ok: false, code: "EVIDENCE_MISMATCH", detail: `signals_${index}_evidence_refs` };
+    }
+    if (evidenceClass === "observed" && OBSERVATION_SPECULATION.test(observation)) {
+      return { ok: false, code: "EVIDENCE_MISMATCH", detail: `signals_${index}_observed_speculation` };
+    }
+    if (evidenceClass === "hypothesis" && !HYPOTHESIS_LANGUAGE.test(`${observation} ${implication}`)) {
+      return { ok: false, code: "EVIDENCE_MISMATCH", detail: `signals_${index}_hypothesis_language` };
+    }
     signals.push({ title, observation, implication, evidenceClass, evidenceRefs, confidence });
   }
 
   if (!Array.isArray(value.opportunities) || value.opportunities.length < 1 || value.opportunities.length > 4) return { ok: false, code: "SHAPE_INVALID" };
   const opportunities: PointObjectOpportunity[] = [];
-  for (const raw of value.opportunities) {
+  for (const [index, raw] of value.opportunities.entries()) {
     if (!isRecord(raw)) return { ok: false, code: "SHAPE_INVALID" };
     const title = stringValue(raw.title, 120);
     const hypothesis = stringValue(raw.hypothesis, 650);
@@ -607,15 +639,21 @@ export function validatePointObjectAiContentDetailed(
     const evidenceNeeded = safeTextArray(raw.evidenceNeeded, 1, 4, 300);
     const confidence = raw.confidence === "low" || raw.confidence === "medium" ? raw.confidence : null;
     if (!title || !hypothesis || !rationale || !potentialValue || !evidenceRefs || !evidenceNeeded || !confidence) return { ok: false, code: "SHAPE_INVALID" };
-    if ([title, hypothesis, rationale, potentialValue].some(containsUnsupportedPointObjectClaim) ||
-        !evidenceReferencesFitClaim(`${title} ${hypothesis} ${rationale} ${potentialValue}`, evidenceRefs) ||
-        !HYPOTHESIS_LANGUAGE.test(hypothesis)) return { ok: false, code: "EVIDENCE_MISMATCH" };
+    if (containsUnsupportedPointObjectHeading(title) || [hypothesis, rationale, potentialValue].some(containsUnsupportedPointObjectClaim)) {
+      return { ok: false, code: "EVIDENCE_MISMATCH", detail: `opportunities_${index}_unsupported_assertion` };
+    }
+    if (!evidenceReferencesFitClaim(`${title} ${hypothesis} ${rationale} ${potentialValue}`, evidenceRefs)) {
+      return { ok: false, code: "EVIDENCE_MISMATCH", detail: `opportunities_${index}_evidence_refs` };
+    }
+    if (!HYPOTHESIS_LANGUAGE.test(hypothesis)) {
+      return { ok: false, code: "EVIDENCE_MISMATCH", detail: `opportunities_${index}_hypothesis_language` };
+    }
     opportunities.push({ title, hypothesis, rationale, potentialValue, evidenceRefs, evidenceNeeded, confidence });
   }
 
   if (!Array.isArray(value.risks) || value.risks.length < 2 || value.risks.length > 5) return { ok: false, code: "SHAPE_INVALID" };
   const risks: PointObjectRisk[] = [];
-  for (const raw of value.risks) {
+  for (const [index, raw] of value.risks.entries()) {
     if (!isRecord(raw)) return { ok: false, code: "SHAPE_INVALID" };
     const title = stringValue(raw.title, 120);
     const statement = stringValue(raw.statement, 650);
@@ -624,8 +662,12 @@ export function validatePointObjectAiContentDetailed(
     const severity = raw.severity === "low" || raw.severity === "medium" || raw.severity === "high" ? raw.severity : null;
     const confidence = raw.confidence === "low" || raw.confidence === "medium" ? raw.confidence : null;
     if (!title || !statement || !decisionImpact || !evidenceRefs || !severity || !confidence) return { ok: false, code: "SHAPE_INVALID" };
-    if ([title, statement, decisionImpact].some(containsUnsupportedPointObjectClaim) ||
-        !evidenceReferencesFitClaim(`${title} ${statement} ${decisionImpact}`, evidenceRefs)) return { ok: false, code: "EVIDENCE_MISMATCH" };
+    if (containsUnsupportedPointObjectHeading(title) || [statement, decisionImpact].some(containsUnsupportedPointObjectClaim)) {
+      return { ok: false, code: "EVIDENCE_MISMATCH", detail: `risks_${index}_unsupported_assertion` };
+    }
+    if (!evidenceReferencesFitClaim(`${title} ${statement} ${decisionImpact}`, evidenceRefs)) {
+      return { ok: false, code: "EVIDENCE_MISMATCH", detail: `risks_${index}_evidence_refs` };
+    }
     risks.push({ title, statement, decisionImpact, severity, evidenceRefs, confidence });
   }
 
