@@ -336,6 +336,12 @@ export async function generatePointObjectAiAnalysis(
   let validation = validateCompletedOutput(attempt.payload, evidencePack, analysisRequest);
 
   if (!validation.ok) {
+    console.warn("point_object_ai_validation_rejected", {
+      code: validation.code,
+      attempt: attempts,
+      model: profile.model,
+      promptVersion: POINT_OBJECT_AI_PROMPT_VERSION
+    });
     const repairCode = validation.code;
     profile = profileFor(analysisRequest, "repair");
     attempts += 1;
@@ -345,6 +351,12 @@ export async function generatePointObjectAiAnalysis(
     assertCompleteResponse(attempt.payload);
     validation = validateCompletedOutput(attempt.payload, evidencePack, analysisRequest);
     if (!validation.ok) {
+      console.warn("point_object_ai_validation_rejected", {
+        code: validation.code,
+        attempt: attempts,
+        model: profile.model,
+        promptVersion: POINT_OBJECT_AI_PROMPT_VERSION
+      });
       throw new PointObjectAiServiceError(
         "AI_OUTPUT_INVALID",
         502,
