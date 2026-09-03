@@ -807,7 +807,7 @@ export function LiveObjectMap({ locationKey = "dubai", selection = null, classNa
       <p id="live-map-instructions" className="sr-only">
         Click or tap a visible object. Switch between two-dimensional and three-dimensional views below. In three-dimensional view, hold Control and drag, or use a secondary-button drag, to rotate the map.
       </p>
-      <div className="absolute bottom-3 left-3 z-10 flex max-w-[calc(100%-6rem)] flex-wrap items-center gap-2">
+      <div className="absolute bottom-8 left-3 z-10 flex max-w-[calc(100%-6rem)] flex-wrap items-center gap-2 sm:bottom-3">
         <div className="inline-flex rounded-xl border border-white/80 bg-white/95 p-1 shadow-sm backdrop-blur" role="group" aria-label="Map dimension">
           {(["2d", "3d"] as MapViewMode[]).map((mode) => (
             <button
