@@ -45,7 +45,7 @@ const FOCUSED_ANALYSES: Array<{ label: string; goal: PointObjectAnalysisGoal; qu
 const DEPTH_OPTIONS: Array<{ value: PointObjectAnalysisDepth; label: string; description: string }> = [
   { value: "quick", label: "Quick", description: "Fast orientation" },
   { value: "standard", label: "Standard", description: "Balanced · recommended" },
-  { value: "deep", label: "Deep", description: "Maximum depth · may take several minutes" }
+  { value: "deep", label: "Deep", description: "Maximum reasoning depth · slower" }
 ];
 
 function humanizeAttribute(key: string): string {

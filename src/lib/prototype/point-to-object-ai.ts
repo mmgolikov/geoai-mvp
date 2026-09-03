@@ -19,7 +19,7 @@ import {
 import type { GroundablePointObjectEvidencePack } from "./point-to-object-live-evidence";
 
 const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
-const GENERATION_BUDGET_MS = 270_000;
+const GENERATION_BUDGET_MS = 108_000;
 const MINIMUM_ATTEMPT_BUDGET_MS = 5_000;
 
 type ModelTier = "luna" | "terra" | "sol";
@@ -69,9 +69,9 @@ const DEFAULT_PROFILES: Record<AttemptKind, Record<PointObjectAnalysisDepth, Omi
     deep: {
       model: "gpt-5.6-sol",
       reasoningEffort: "high",
-      verbosity: "medium",
-      maxOutputTokens: 7_000,
-      timeoutMs: 220_000,
+      verbosity: "low",
+      maxOutputTokens: 5_200,
+      timeoutMs: 82_000,
       minimumTier: "sol"
     }
   },
@@ -95,9 +95,9 @@ const DEFAULT_PROFILES: Record<AttemptKind, Record<PointObjectAnalysisDepth, Omi
     deep: {
       model: "gpt-5.6-sol",
       reasoningEffort: "high",
-      verbosity: "medium",
-      maxOutputTokens: 7_000,
-      timeoutMs: 240_000,
+      verbosity: "low",
+      maxOutputTokens: 5_500,
+      timeoutMs: 90_000,
       minimumTier: "sol"
     }
   },
@@ -120,10 +120,10 @@ const DEFAULT_PROFILES: Record<AttemptKind, Record<PointObjectAnalysisDepth, Omi
     },
     deep: {
       model: "gpt-5.6-sol",
-      reasoningEffort: "xhigh",
-      verbosity: "high",
-      maxOutputTokens: 9_000,
-      timeoutMs: 55_000,
+      reasoningEffort: "medium",
+      verbosity: "low",
+      maxOutputTokens: 4_500,
+      timeoutMs: 30_000,
       minimumTier: "sol"
     }
   }

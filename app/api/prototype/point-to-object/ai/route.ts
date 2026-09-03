@@ -21,14 +21,14 @@ import {
 } from "@/src/lib/prototype/point-to-object-live-evidence";
 
 export const runtime = "nodejs";
-export const maxDuration = 300;
+export const maxDuration = 120;
 
 const CHALLENGE_COOKIE = "geoai_p2o_ai_challenge";
 const CHALLENGE_TTL_SECONDS = 5 * 60;
 const RATE_WINDOW_MS = 10 * 60 * 1000;
 const RATE_MAX_REQUESTS = 4;
 const GLOBAL_RATE_MAX_REQUESTS = 20;
-const ROUTE_SAFE_BUDGET_MS = 285_000;
+const ROUTE_SAFE_BUDGET_MS = 115_000;
 
 type RateBucket = { startedAt: number; count: number };
 const rateBuckets = new Map<string, RateBucket>();

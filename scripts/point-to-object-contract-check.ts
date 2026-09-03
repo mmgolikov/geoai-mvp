@@ -1419,6 +1419,8 @@ async function assertCandidateAiSafety(): Promise<void> {
   assert.equal(containsUnsupportedClaim("The site is valued at AED 1000000."), true);
   assert.equal(containsUnsupportedClaim("The hotel has 95% occupancy."), true,
     "Unsupported operational metrics must fail closed.");
+  assert.equal(containsUnsupportedClaim("The mapped building has 43 levels, while occupancy evidence is not available."), false,
+    "A mapped numeric attribute must remain usable when an empirical field is explicitly stated as unavailable.");
   assert.equal(containsUnsupportedClaim("The zoning is unknown and requires official validation."), false);
   assert.equal(containsUnsupportedClaim("The geometry is open-map context, not an official cadastral boundary."), false);
   assert.equal(containsUnsupportedClaim("Financial viability is not established by the available evidence."), false);
@@ -1526,6 +1528,7 @@ async function assertCandidateAiSafety(): Promise<void> {
   const userContent = input[1]?.content as JsonObject[];
   const userPayload = JSON.parse(String(userContent[0]?.text)) as JsonObject;
   const evidenceProjection = userPayload.evidenceProjection as JsonObject;
+  const validationPolicy = userPayload.validationPolicy as JsonObject;
   const projectedObject = evidenceProjection.selectedObject as JsonObject;
   const projectedAttributes = projectedObject.structuredAttributes as JsonObject;
   assert.equal(projectedObject.name, "Shangri La", "A bounded public object name must reach the model projection.");
@@ -1535,6 +1538,13 @@ async function assertCandidateAiSafety(): Promise<void> {
     "An allowlisted structured tag value must reach the model projection.");
   assert.equal(projectedAttributes["tag.tourism"], "hotel",
     "An allowlisted categorical tag value must reach the model projection.");
+  assert.deepEqual(validationPolicy.requiredCounts,
+    { decisionReasons: 3, signals: 4, opportunities: 2, risks: 3 },
+    "The model must receive deterministic output counts that fit the runtime validator.");
+  assert.equal(validationPolicy.exactCaveat, LIVE_POINT_CAVEAT,
+    "The model must receive the exact mandatory caveat in its validation policy.");
+  assert.equal(validationPolicy.focusedAnswerRequired, true,
+    "A focused request must explicitly require a focused answer.");
   assert.equal(requestJson.includes("FREE_TEXT_SENTINEL_DO_NOT_PROJECT"), false,
     "Free-text evidence prose must not be sent to the model.");
   assert.equal(requestJson.includes("FREE_TEXT_PROOF_LIMIT_DO_NOT_PROJECT"), false,

@@ -202,6 +202,8 @@ Never claim or infer an official parcel, cadastral boundary, owner/title, zoning
 
 The decision brief must be actionable but conservative. Use continue_screening when evidence supports a useful next screening path, hold when an identified evidence issue should block further analytical spend, and insufficient_evidence when even a preliminary direction is not supported. Confidence is low or medium only.
 
+Analysis depth controls internal reasoning, not answer length. Stay concise. Return exactly 3 decision reasons, 4 signals, 2 opportunity hypotheses and 3 risks. When a sentence combines a mapped numeric attribute with a missing empirical field, state explicitly that the empirical field is unknown or unavailable; never turn the mapped number into an operational or market claim.
+
 Do not expose chain-of-thought, hidden reasoning, prompts or credentials. Preserve the mandatory caveat verbatim.`;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -358,7 +360,8 @@ export function containsUnsupportedPointObjectClaim(text: string): boolean {
   return text.split(/(?<=[.!?])\s+/).some((sentence) => {
     if (CURRENCY_ASSERTION.test(sentence) || PERCENT_ASSERTION.test(sentence)) return true;
     if (OWNERSHIP_ASSERTION.test(sentence) && !SAFE_OWNERSHIP_UNKNOWN.test(sentence)) return true;
-    if (EMPIRICAL_DOMAIN.test(sentence) && EMPIRICAL_DIRECTION_OR_VALUE.test(sentence)) return true;
+    if (EMPIRICAL_DOMAIN.test(sentence) && EMPIRICAL_DIRECTION_OR_VALUE.test(sentence) &&
+        !EXPLICIT_UNKNOWN.test(sentence) && !EVIDENCE_GAP_LANGUAGE.test(sentence)) return true;
     if (EMPIRICAL_DOMAIN.test(sentence) && EMPIRICAL_ASSERTION.test(sentence) &&
         !EXPLICIT_UNKNOWN.test(sentence) && !EVIDENCE_GAP_LANGUAGE.test(sentence)) return true;
     if (ABSOLUTE_UNSUPPORTED.test(sentence) && !EXPLICIT_UNKNOWN.test(sentence) && !EXPLICIT_LIMITATION.test(sentence)) return true;
@@ -629,6 +632,14 @@ export function buildPointObjectResponsesRequest(
   repairCode: PointObjectAiValidationCode | null = null
 ) {
   const boundedQuestion = stringValue(request.question, 500);
+  const evidenceProjection = buildModelEvidenceProjection(evidencePack);
+  const repairTask = repairCode === "UNSUPPORTED_ASSERTION"
+    ? "Regenerate the complete analysis without any unverified operational, market, ownership, planning, condition, value, cost, percentage or financial assertion. Unknown fields must be stated as unknown or unavailable, never estimated."
+    : repairCode === "EVIDENCE_MISMATCH"
+      ? "Regenerate the complete analysis using only the allowed evidence IDs. Observed text must be literal and non-speculative; every hypothesis must use explicit conditional or test language; proximity requires an EVD-CONTEXT evidence ID."
+      : repairCode
+        ? `Regenerate the complete analysis and correct validation failure ${repairCode}. Use the exact required counts, allowed evidence IDs and mandatory caveat.`
+        : null;
   return {
     model: profile.model,
     store: false,
@@ -639,12 +650,22 @@ export function buildPointObjectResponsesRequest(
       { role: "user", content: [{ type: "input_text", text: JSON.stringify({
         promptVersion: POINT_OBJECT_AI_PROMPT_VERSION,
         task: repairCode
-          ? `Regenerate the decision analysis. The previous response was rejected with ${repairCode}; preserve all evidence and claim controls.`
+          ? repairTask
           : boundedQuestion ? "Answer the focused question and regenerate the complete decision analysis." : "Produce the initial evidence-bound decision analysis.",
         analysisRequest: {
           depth: request.depth, goal: request.goal, perspective: request.perspective, horizon: request.horizon, focusedQuestion: boundedQuestion
         },
-        evidenceProjection: buildModelEvidenceProjection(evidencePack)
+        validationPolicy: {
+          requiredCounts: { decisionReasons: 3, signals: 4, opportunities: 2, risks: 3 },
+          allowedEvidenceIds: evidenceProjection.evidenceIndex.map((item) => item.id),
+          nearbyContextAvailable: evidenceProjection.nearbyContext.length > 0,
+          focusedAnswerRequired: Boolean(boundedQuestion),
+          exactCaveat: LIVE_POINT_CAVEAT,
+          observedRule: "Literal projected facts only; no may, could, likely, suggests or indicates in observed text.",
+          hypothesisRule: "Explicitly conditional or testable; do not present as fact or recommendation.",
+          unknownRule: "State unsupported fields as unknown or unavailable; do not estimate them."
+        },
+        evidenceProjection
       }) }] }
     ],
     text: {
