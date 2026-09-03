@@ -504,7 +504,7 @@ function deterministicEvidenceContent(evidencePack: GroundablePointObjectEvidenc
   if (relationshipRef) nextValidation.push({
     title: "Confirm object and parcel identity",
     action: relation === "reverse_nearest_indexed_object_not_point_in_polygon"
-      ? "Match the selected location and nearest indexed record to the intended real-world asset and official parcel."
+      ? "Match the selected location and nearest indexed record to the intended real-world asset and an authority- or client-validated parcel record."
       : "Match the community-map object and rendered footprint to an official or client-supplied asset and parcel identifier.",
     source: "Relevant land/municipality authority or client asset register",
     decisionImpact: "Determines which asset, footprint and rights should be evaluated.",
@@ -838,7 +838,7 @@ function renderReason(code: PointObjectReasonCode, support: PointObjectEvidenceS
       const subject = support.objectRef && support.geometryRef
         ? "object and geometry"
         : support.objectRef ? "object record" : "geometry";
-      return { statement: `The available open-map ${subject} must be matched to the intended real-world asset and official parcel before downstream conclusions.`, evidenceRefs: refs };
+      return { statement: `The available open-map ${subject} must be matched to the intended real-world asset and an authority- or client-validated parcel record before downstream conclusions.`, evidenceRefs: refs };
     }
     case "rights_and_planning_unverified": return { statement: "Ownership, title, permitted use, planning controls and approvals are not established by the available evidence.", evidenceRefs: refs };
     case "physical_baseline_unverified": return { statement: "Condition, capacity, occupancy and operating performance are not established by the available evidence.", evidenceRefs: refs };
@@ -895,7 +895,7 @@ function renderSignal(code: PointObjectSignalCode, support: PointObjectEvidenceS
   switch (code) {
     case "object_identity": return {
       title: "Resolved open-map object", observation: `${selectedLabel(support)} is the object returned for the analysis point.`,
-      implication: "Use this record as a screening anchor and verify its match to the intended asset and official parcel.",
+      implication: "Use this record as a screening anchor and verify its match to the intended asset and an authority- or client-validated parcel record.",
       evidenceClass: "observed", evidenceRefs: refs, confidence: "medium"
     };
     case "use_classification": return {
@@ -961,7 +961,7 @@ function renderOpportunity(code: PointObjectOpportunityCode, support: PointObjec
       hypothesis: "Once parcel identity is confirmed, test the candidate location against authoritative development controls and a verified existing-condition baseline.",
       rationale: "Open-map geometry can frame the request but cannot establish the legal parcel or development envelope.",
       potentialValue: "Creates an early go, hold or reject gate before detailed concept and financial modelling.",
-      evidenceNeeded: ["Official parcel identity", "Permitted use and development controls", "Client programme and constraints"]
+      evidenceNeeded: ["Authority- or client-validated parcel identity", "Permitted use and development controls", "Client programme and constraints"]
     },
     technical_reuse_test: {
       title: "Technical reuse test",
