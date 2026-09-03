@@ -844,7 +844,7 @@ export function LiveObjectMap({ locationKey = "dubai", selection = null, classNa
         ) : null}
       </div>
       {viewMode === "3d" ? (
-        <p className="pointer-events-none absolute bottom-[62px] left-3 z-10 rounded-lg bg-white/90 px-2.5 py-1.5 text-[11px] font-semibold text-[#475467] shadow-sm backdrop-blur">
+        <p className="pointer-events-none absolute bottom-[62px] left-3 z-10 hidden rounded-lg bg-white/90 px-2.5 py-1.5 text-[11px] font-semibold text-[#475467] shadow-sm backdrop-blur sm:block">
           Ctrl + drag to rotate
         </p>
       ) : null}
