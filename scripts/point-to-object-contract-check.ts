@@ -1298,8 +1298,12 @@ function assertStaticBoundaries(): void {
   }
   assert.match(liveMapSource, /map\.on\("style\.load", handleStyleReady\)/,
     "GeoAI map layers must be restored after every basemap style load.");
-  assert.match(liveMapSource, /handleStyleReady[\s\S]*pendingViewModeCameraRef[\s\S]*applyViewMode\(map, viewModeRef\.current, false, pendingCameraMode === viewModeRef\.current\)/,
-    "The active 2D/3D camera and rotation contract must be restored after every basemap style load.");
+  assert.match(liveMapSource, /handleStyleReady[\s\S]*applyViewMode\(map, viewModeRef\.current, false, false\)/,
+    "Basemap style loads must restore active 2D/3D handlers and layers without overwriting the live camera.");
+  assert.match(liveMapSource, /viewport: \{ \.\.\.current\.viewport, \.\.\.CAMERA\[nextMode\], viewMode: nextMode \}/,
+    "A 2D/3D toggle must persist camera and mode as one consistent viewport state.");
+  assert.match(liveMapSource, /if \(!map\) return;[\s\S]*applyViewMode\(map, nextMode\);[\s\S]*if \(!map\.isStyleLoaded\(\)\) return;/,
+    "A 2D/3D camera change must apply immediately, including while the basemap style is loading.");
   assert.match(liveMapSource, /applyViewMode\(map, initialViewMode, false, false\)/,
     "Restoring a session must preserve its saved custom 3D camera rather than reset to the canonical angle.");
   assert.match(liveMapSource, /viewport:[\s\S]*viewMode: viewModeRef\.current/,

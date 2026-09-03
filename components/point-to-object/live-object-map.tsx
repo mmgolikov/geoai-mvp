@@ -527,7 +527,6 @@ export function LiveObjectMap({ locationKey = "dubai", selection = null, classNa
   const locationKeyRef = useRef(locationKey);
   const selectionRef = useRef(selection);
   const viewModeRef = useRef<MapViewMode>("3d");
-  const pendingViewModeCameraRef = useRef<MapViewMode | null>(null);
   const basemapIdRef = useRef<LiveMapBasemapId>("street");
   const showSelectedVolumeRef = useRef(true);
   const [isReady, setIsReady] = useState(false);
@@ -612,9 +611,10 @@ export function LiveObjectMap({ locationKey = "dubai", selection = null, classNa
         const handleStyleReady = () => {
           if (disposed) return;
           installGeoAiLayers(map, viewModeRef.current);
-          const pendingCameraMode = pendingViewModeCameraRef.current;
-          applyViewMode(map, viewModeRef.current, false, pendingCameraMode === viewModeRef.current);
-          pendingViewModeCameraRef.current = null;
+          // Camera state is independent of the style lifecycle. Reinstall only
+          // mode-specific handlers and layer visibility here so a basemap load
+          // cannot overwrite a user's rotation or a 2D/3D choice made mid-load.
+          applyViewMode(map, viewModeRef.current, false, false);
           setHighlight(map, selectionRef.current, viewModeRef.current, showSelectedVolumeRef.current);
           setError(null);
           setIsReady(true);
@@ -726,17 +726,16 @@ export function LiveObjectMap({ locationKey = "dubai", selection = null, classNa
     if (current) {
       const nextSelection: LiveMapSelection = {
         ...current,
-        viewport: { ...current.viewport, viewMode: nextMode }
+        viewport: { ...current.viewport, ...CAMERA[nextMode], viewMode: nextMode }
       };
       selectionRef.current = nextSelection;
       viewportCallbackRef.current?.(nextSelection);
     }
-    if (!map || !map.isStyleLoaded()) {
-      pendingViewModeCameraRef.current = nextMode;
-      return;
-    }
-    pendingViewModeCameraRef.current = null;
+    if (!map) return;
+    // MapLibre camera operations remain available while a style is loading.
+    // Applying the mode immediately eliminates the style.load/toggle race.
     applyViewMode(map, nextMode);
+    if (!map.isStyleLoaded()) return;
     setSelectedVolumeVisibility(map, selectionRef.current, nextMode, showSelectedVolumeRef.current);
   }
 
