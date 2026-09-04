@@ -1532,7 +1532,7 @@ function validateFocusedAnswer(
   if (requiredMissing.length > 0 && status === "answered") return { ok: false, detail: "focused_answer_overclaims_available_sources" };
 
   if (status === "unsupported") {
-    if (statement !== null || refs.length !== 0 || missingCodes.length < 1 || !unsupportedReason || confidence !== "low") {
+    if (missingCodes.length < 1 || !unsupportedReason) {
       return { ok: false, detail: "focused_answer_unsupported_cardinality" };
     }
     const fallback = renderAnswerFallback(fallbackCode ?? "insufficient_for_requested_conclusion", support);

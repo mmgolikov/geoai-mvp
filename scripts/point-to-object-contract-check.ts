@@ -2259,6 +2259,26 @@ async function assertCandidateAiSafety(): Promise<void> {
   assert.equal(unsupportedRoofColour?.answerToQuestion?.status, "unsupported",
     "A missing direct attribute must return a safe source-needed result instead of a guessed value.");
 
+  const noisyUnsupportedRoofColour = validateContent({
+    ...rawPlan,
+    focusedAnswer: {
+      status: "unsupported",
+      scope: "mapped_form",
+      perspective: "investor",
+      horizon: "long_term",
+      statement: "The model claims a silver roof even though the exact requested source field is not available.",
+      evidenceRefs: ["EVD-OBJECT"],
+      confidence: "medium",
+      missingEvidenceCodes: ["physical_baseline"],
+      unsupportedReasonCode: "requires_client_asset_source"
+    }
+  }, evidencePack, roofColourQuestion) as any;
+  assert.equal(noisyUnsupportedRoofColour?.answerToQuestion?.status, "unsupported");
+  assert.equal(String(noisyUnsupportedRoofColour?.answerToQuestion?.statement).includes("silver"), false,
+    "Raw prose and confidence from an unsupported model result must be discarded before rendering.");
+  assert.equal(noisyUnsupportedRoofColour?.answerToQuestion?.confidence, "low",
+    "Unsupported answers must be normalized to deterministic low confidence.");
+
   const safePlanningGap = validateContentDetailed({
     ...rawPlan,
     focusedAnswer: {
