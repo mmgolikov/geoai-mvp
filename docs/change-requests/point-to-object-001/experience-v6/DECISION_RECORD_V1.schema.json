@@ -11,6 +11,8 @@
     "decisionRecordId",
     "recordHash",
     "status",
+    "finalization",
+    "truthLanguagePolicy",
     "projectRef",
     "preferenceContext",
     "scenarioRef",
@@ -32,6 +34,8 @@
     "decisionRecordId": { "$ref": "#/$defs/boundedId" },
     "recordHash": { "$ref": "#/$defs/sha256" },
     "status": { "enum": ["completed", "partial", "blocked", "superseded"] },
+    "finalization": { "$ref": "#/$defs/finalization" },
+    "truthLanguagePolicy": { "const": "locale_neutral_codes_and_user_authored_inputs_v1" },
     "projectRef": {
       "oneOf": [
         { "$ref": "#/$defs/projectRef" },
@@ -84,8 +88,46 @@
       "type": "string",
       "format": "date-time"
     },
+    "finalization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "finalizedAt", "validatorId", "validatorVersion", "schemaValidationPassed", "semanticValidationPassed"],
+      "properties": {
+        "state": { "const": "finalized" },
+        "finalizedAt": { "$ref": "#/$defs/dateTime" },
+        "validatorId": { "$ref": "#/$defs/boundedId" },
+        "validatorVersion": { "$ref": "#/$defs/semver" },
+        "schemaValidationPassed": { "const": true },
+        "semanticValidationPassed": { "const": true }
+      }
+    },
     "operation": {
       "enum": ["resolve", "acquire", "normalize", "calculate", "analyse", "find", "shortlist", "compare", "rank", "create", "generate", "evaluate", "model_input", "dashboard", "report", "project", "export", "persist"]
+    },
+    "channel": {
+      "enum": ["internal_operator", "authenticated_user", "public_preview", "client_shared", "third_party_model", "machine_api", "mcp_tool"]
+    },
+    "deliveryMode": {
+      "enum": ["interactive_display", "server_to_server", "download", "email", "embedded_report", "project_storage", "model_prompt"]
+    },
+    "rightsEvaluation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rightsEvaluationId", "evaluationHash", "rightsReceiptId", "rightsScopeHash", "operation", "channel", "deliveryMode", "territoryCountryCode", "evaluatedAt", "decision", "evaluatorId", "evaluatorVersion"],
+      "properties": {
+        "rightsEvaluationId": { "$ref": "#/$defs/boundedId" },
+        "evaluationHash": { "$ref": "#/$defs/sha256" },
+        "rightsReceiptId": { "$ref": "#/$defs/boundedId" },
+        "rightsScopeHash": { "$ref": "#/$defs/sha256" },
+        "operation": { "$ref": "#/$defs/operation" },
+        "channel": { "$ref": "#/$defs/channel" },
+        "deliveryMode": { "$ref": "#/$defs/deliveryMode" },
+        "territoryCountryCode": { "type": "string", "pattern": "^[A-Z]{2}$" },
+        "evaluatedAt": { "$ref": "#/$defs/dateTime" },
+        "decision": { "const": "permitted" },
+        "evaluatorId": { "$ref": "#/$defs/boundedId" },
+        "evaluatorVersion": { "$ref": "#/$defs/semver" }
+      }
     },
     "evidenceClass": {
       "enum": ["observed", "calculated", "modelled", "hypothesis"]
@@ -200,15 +242,46 @@
             }
           ]
         },
-        "unit": { "oneOf": [{ "type": "string", "maxLength": 100 }, { "type": "null" }] },
+        "unit": { "oneOf": [{ "$ref": "#/$defs/boundedId" }, { "type": "null" }] },
         "source": { "enum": ["user", "scenario_default", "profile_preference"] },
         "normalizedHash": { "$ref": "#/$defs/sha256" }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "source": { "enum": ["scenario_default", "profile_preference"] } },
+            "required": ["source"]
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "oneOf": [
+                  { "$ref": "#/$defs/boundedId" },
+                  { "type": "number" },
+                  { "type": "boolean" },
+                  { "type": "null" },
+                  {
+                    "type": "array",
+                    "maxItems": 100,
+                    "items": {
+                      "oneOf": [
+                        { "$ref": "#/$defs/boundedId" },
+                        { "type": "number" },
+                        { "type": "boolean" }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
     },
     "inputs": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["subjects", "criteria", "criteriaHash", "contextSnapshots", "acquisitionPosture", "refreshReason"],
+      "required": ["subjects", "criteria", "criteriaHash", "contextSnapshots", "acquisitionPosture", "refreshReasonCode"],
       "properties": {
         "subjects": {
           "type": "array",
@@ -228,12 +301,12 @@
           "items": { "$ref": "#/$defs/snapshotRef" }
         },
         "acquisitionPosture": { "enum": ["new_context", "reuse_exact_snapshot", "refresh_context", "no_context_for_discovery"] },
-        "refreshReason": { "oneOf": [{ "type": "string", "maxLength": 2000 }, { "type": "null" }] }
+        "refreshReasonCode": { "oneOf": [{ "$ref": "#/$defs/boundedId" }, { "type": "null" }] }
       },
       "allOf": [
         {
           "if": { "properties": { "acquisitionPosture": { "const": "refresh_context" } }, "required": ["acquisitionPosture"] },
-          "then": { "properties": { "refreshReason": { "type": "string", "minLength": 1 } } }
+          "then": { "properties": { "refreshReasonCode": { "$ref": "#/$defs/boundedId" } } }
         }
       ]
     },
@@ -287,7 +360,7 @@
         "startedAt",
         "completedAt",
         "modelReceipt",
-        "failureReasons"
+        "failureReasonCodes"
       ],
       "properties": {
         "executionId": { "$ref": "#/$defs/boundedId" },
@@ -334,17 +407,17 @@
             { "type": "null" }
           ]
         },
-        "failureReasons": {
+        "failureReasonCodes": {
           "type": "array",
           "maxItems": 100,
-          "items": { "type": "string", "minLength": 1, "maxLength": 2000 }
+          "items": { "$ref": "#/$defs/boundedId" }
         }
       }
     },
     "operationGate": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["operation", "status", "gapIds", "validationTaskIds", "rightsReceiptIds", "reasons"],
+      "required": ["operation", "status", "gapIds", "validationTaskIds", "rightsReceiptIds", "rightsEvaluations", "reasons"],
       "properties": {
         "operation": { "$ref": "#/$defs/operation" },
         "status": { "enum": ["pass", "partial", "blocked"] },
@@ -366,21 +439,26 @@
           "uniqueItems": true,
           "items": { "$ref": "#/$defs/boundedId" }
         },
+        "rightsEvaluations": {
+          "type": "array",
+          "maxItems": 200,
+          "items": { "$ref": "#/$defs/rightsEvaluation" }
+        },
         "reasons": {
           "type": "array",
           "maxItems": 100,
-          "items": { "type": "string", "minLength": 1, "maxLength": 2000 }
+          "items": { "$ref": "#/$defs/boundedId" }
         }
       }
     },
     "claim": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["claimId", "evidenceClass", "text", "snapshotHashes", "factIds", "methodExecutionIds", "assumptions", "confidence", "validationRequired", "proofLimit"],
+      "required": ["claimId", "claimKey", "evidenceClass", "snapshotHashes", "factIds", "methodExecutionIds", "assumptionKeys", "confidence", "validationRequired", "proofLimitCode"],
       "properties": {
         "claimId": { "$ref": "#/$defs/boundedId" },
+        "claimKey": { "$ref": "#/$defs/boundedId" },
         "evidenceClass": { "$ref": "#/$defs/evidenceClass" },
-        "text": { "type": "string", "minLength": 1, "maxLength": 8000 },
         "snapshotHashes": {
           "type": "array",
           "maxItems": 200,
@@ -399,20 +477,21 @@
           "uniqueItems": true,
           "items": { "$ref": "#/$defs/boundedId" }
         },
-        "assumptions": {
+        "assumptionKeys": {
           "type": "array",
           "maxItems": 100,
-          "items": { "type": "string", "minLength": 1, "maxLength": 2000 }
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/boundedId" }
         },
         "confidence": { "enum": ["low", "medium", "high"] },
         "validationRequired": { "type": "boolean" },
-        "proofLimit": { "type": "string", "minLength": 1, "maxLength": 2000 }
+        "proofLimitCode": { "$ref": "#/$defs/boundedId" }
       }
     },
     "metric": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["metricId", "metricKey", "subjectId", "valueState", "value", "unit", "evidenceClass", "snapshotHashes", "factIds", "methodExecutionId", "confidence", "proofLimit"],
+      "required": ["metricId", "metricKey", "subjectId", "valueState", "value", "unit", "evidenceClass", "snapshotHashes", "factIds", "methodExecutionId", "confidence", "proofLimitCode"],
       "properties": {
         "metricId": { "$ref": "#/$defs/boundedId" },
         "metricKey": { "$ref": "#/$defs/boundedId" },
@@ -426,7 +505,7 @@
             { "type": "null" }
           ]
         },
-        "unit": { "oneOf": [{ "type": "string", "maxLength": 100 }, { "type": "null" }] },
+        "unit": { "oneOf": [{ "$ref": "#/$defs/boundedId" }, { "type": "null" }] },
         "evidenceClass": { "$ref": "#/$defs/evidenceClass" },
         "snapshotHashes": {
           "type": "array",
@@ -447,7 +526,7 @@
           ]
         },
         "confidence": { "enum": ["low", "medium", "high"] },
-        "proofLimit": { "type": "string", "minLength": 1, "maxLength": 2000 }
+        "proofLimitCode": { "$ref": "#/$defs/boundedId" }
       },
       "allOf": [
         {
@@ -459,7 +538,7 @@
     "candidate": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["candidateId", "subjectId", "snapshotHash", "state", "reason", "gapIds"],
+      "required": ["candidateId", "subjectId", "snapshotHash", "state", "reasonCode", "gapIds"],
       "properties": {
         "candidateId": { "$ref": "#/$defs/boundedId" },
         "subjectId": { "$ref": "#/$defs/boundedId" },
@@ -470,7 +549,7 @@
           ]
         },
         "state": { "enum": ["discovered", "shortlisted", "excluded", "blocked_for_comparison"] },
-        "reason": { "oneOf": [{ "type": "string", "maxLength": 2000 }, { "type": "null" }] },
+        "reasonCode": { "oneOf": [{ "$ref": "#/$defs/boundedId" }, { "type": "null" }] },
         "gapIds": {
           "type": "array",
           "maxItems": 100,
@@ -515,7 +594,7 @@
     "ranking": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["methodId", "methodVersion", "cohortHash", "gate", "items", "tieHandling", "sensitivitySummary", "screeningPreferenceOnly"],
+      "required": ["methodId", "methodVersion", "cohortHash", "gate", "items", "tieHandlingPolicyId", "sensitivityResultHash", "screeningPreferenceOnly"],
       "properties": {
         "methodId": { "$ref": "#/$defs/boundedId" },
         "methodVersion": { "$ref": "#/$defs/semver" },
@@ -527,8 +606,8 @@
           "maxItems": 200,
           "items": { "$ref": "#/$defs/rankingItem" }
         },
-        "tieHandling": { "type": "string", "minLength": 1, "maxLength": 2000 },
-        "sensitivitySummary": { "type": "string", "minLength": 1, "maxLength": 4000 },
+        "tieHandlingPolicyId": { "$ref": "#/$defs/boundedId" },
+        "sensitivityResultHash": { "$ref": "#/$defs/sha256" },
         "screeningPreferenceOnly": { "const": true }
       }
     },
@@ -564,7 +643,7 @@
       "additionalProperties": false,
       "required": [
         "alternativeId",
-        "label",
+        "labelKey",
         "state",
         "sourceSubjectId",
         "sourceSnapshotHash",
@@ -572,14 +651,14 @@
         "geometryArtifactHash",
         "metricIds",
         "claimIds",
-        "assumptions",
-        "violations",
+        "assumptionKeys",
+        "violationCodes",
         "validationTaskIds",
         "generationExecutionId"
       ],
       "properties": {
         "alternativeId": { "$ref": "#/$defs/boundedId" },
-        "label": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "labelKey": { "$ref": "#/$defs/boundedId" },
         "state": { "enum": ["generated", "evaluated", "rejected", "selected_for_further_screening"] },
         "sourceSubjectId": { "$ref": "#/$defs/boundedId" },
         "sourceSnapshotHash": { "$ref": "#/$defs/sha256" },
@@ -597,16 +676,18 @@
           "uniqueItems": true,
           "items": { "$ref": "#/$defs/boundedId" }
         },
-        "assumptions": {
+        "assumptionKeys": {
           "type": "array",
           "minItems": 1,
           "maxItems": 100,
-          "items": { "type": "string", "minLength": 1, "maxLength": 2000 }
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/boundedId" }
         },
-        "violations": {
+        "violationCodes": {
           "type": "array",
           "maxItems": 100,
-          "items": { "type": "string", "minLength": 1, "maxLength": 2000 }
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/boundedId" }
         },
         "validationTaskIds": {
           "type": "array",
@@ -620,29 +701,35 @@
     "validationTask": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["validationTaskId", "title", "priority", "status", "evidenceNeeded", "blocks", "ownerRole"],
+      "required": ["validationTaskId", "titleKey", "priority", "status", "evidenceRequirementKeys", "blocks", "ownerRole"],
       "properties": {
         "validationTaskId": { "$ref": "#/$defs/boundedId" },
-        "title": { "type": "string", "minLength": 1, "maxLength": 1000 },
+        "titleKey": { "$ref": "#/$defs/boundedId" },
         "priority": { "enum": ["critical", "high", "medium", "low"] },
         "status": { "enum": ["open", "in_progress", "satisfied", "waived_by_named_authority"] },
-        "evidenceNeeded": { "type": "string", "minLength": 1, "maxLength": 4000 },
+        "evidenceRequirementKeys": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 100,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/boundedId" }
+        },
         "blocks": {
           "type": "array",
           "maxItems": 18,
           "uniqueItems": true,
           "items": { "$ref": "#/$defs/operation" }
         },
-        "ownerRole": { "oneOf": [{ "type": "string", "maxLength": 300 }, { "type": "null" }] }
+        "ownerRole": { "oneOf": [{ "$ref": "#/$defs/boundedId" }, { "type": "null" }] }
       }
     },
     "recommendation": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["status", "summary", "claimIds", "metricIds", "validationTaskIds", "screeningOnly"],
+      "required": ["status", "summaryKey", "claimIds", "metricIds", "validationTaskIds", "screeningOnly"],
       "properties": {
         "status": { "enum": ["continue_screening", "hold", "compare_more", "insufficient_evidence"] },
-        "summary": { "type": "string", "minLength": 1, "maxLength": 8000 },
+        "summaryKey": { "$ref": "#/$defs/boundedId" },
         "claimIds": {
           "type": "array",
           "maxItems": 200,
@@ -747,7 +834,7 @@
     "lineage": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["canonicalizationProfile", "inputGraphHash", "outputGraphHash", "decisionArtifactHashes", "refreshReason"],
+      "required": ["canonicalizationProfile", "inputGraphHash", "outputGraphHash", "decisionArtifactHashes", "refreshReasonCode"],
       "properties": {
         "canonicalizationProfile": { "const": "JCS_SHA256_OMIT_RECORD_HASH_V1" },
         "inputGraphHash": { "$ref": "#/$defs/sha256" },
@@ -758,13 +845,13 @@
           "uniqueItems": true,
           "items": { "$ref": "#/$defs/sha256" }
         },
-        "refreshReason": { "oneOf": [{ "type": "string", "maxLength": 2000 }, { "type": "null" }] }
+        "refreshReasonCode": { "oneOf": [{ "$ref": "#/$defs/boundedId" }, { "type": "null" }] }
       }
     },
     "governance": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["claimPolicyId", "claimPolicyVersion", "maximumClaimLevel", "validationState", "privacyClass", "releaseState", "caveat"],
+      "required": ["claimPolicyId", "claimPolicyVersion", "maximumClaimLevel", "validationState", "privacyClass", "releaseState", "caveatPolicyId"],
       "properties": {
         "claimPolicyId": { "$ref": "#/$defs/boundedId" },
         "claimPolicyVersion": { "$ref": "#/$defs/semver" },
@@ -772,7 +859,7 @@
         "validationState": { "enum": ["official_validation_required", "client_validation_required", "named_scope_validated"] },
         "privacyClass": { "enum": ["public_open_context", "user_provided_local", "protected_project"] },
         "releaseState": { "enum": ["local_candidate", "preview_candidate", "released"] },
-        "caveat": { "const": "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion." }
+        "caveatPolicyId": { "const": "caveat.screening-official-validation-required.v1" }
       }
     }
   }

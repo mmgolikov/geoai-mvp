@@ -174,7 +174,7 @@ The first recommended registry fixture is `b2b_redevelopment_selected_aoi@1.0.0`
 
 ## Hash and change control
 
-`registryHash = sha256(JCS-compatible canonical JSON with registryHash omitted)`.
+Each scenario first receives `entryHash = sha256(JCS-compatible canonical JSON of that scenario entry with only entryHash omitted)`. The registry is then finalized as `registryHash = sha256(JCS-compatible canonical JSON of the complete registry with only registryHash omitted)`. Recomputing the outer registry hash cannot repair or conceal a stale/mutated scenario-entry hash; both hashes must validate independently.
 
 Any change to roles, business question, required context, method version, ranking metrics/weights, template version, validation or claim policy creates a new registry version. Existing DecisionRecords continue to reference the prior exact registry/scenario versions.
 

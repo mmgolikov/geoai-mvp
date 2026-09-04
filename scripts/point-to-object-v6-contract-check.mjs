@@ -114,6 +114,8 @@ function rightsPermit(receipt, { operation, channel, deliveryMode, countryCode, 
   const rights = receipt?.rightsScope;
   if (!rights || !hasCurrentRightsEvidence(rights)) return false;
   const evaluatedAtMs = Date.parse(evaluatedAt);
+  if (Date.parse(rights.usagePolicyEvidence.capturedAt) > evaluatedAtMs) return false;
+  if (rights.evidenceRefs.some((evidence) => Date.parse(evidence.capturedAt) > evaluatedAtMs)) return false;
   if (rights.expiresAt && Date.parse(rights.expiresAt) <= evaluatedAtMs) return false;
   if (rights.nextReviewAt && Date.parse(rights.nextReviewAt) <= evaluatedAtMs) return false;
   if (!rights.operations.permitted.includes(operation)) return false;
@@ -125,9 +127,57 @@ function rightsPermit(receipt, { operation, channel, deliveryMode, countryCode, 
   if (rights.territory.scope === "unknown") return false;
   if (rights.territory.scope === "named" && !rights.territory.countryCodes.includes(countryCode)) return false;
   if (rights.commercialUse !== "permitted") return false;
-  if (operation === "export" && !["permitted", "permitted_with_conditions"].includes(rights.redistribution)) return false;
-  if (["model_input", "generate"].includes(operation) && !["permitted", "permitted_with_conditions"].includes(rights.derivativeWorks)) return false;
+  if (operation === "export" && rights.redistribution !== "permitted") return false;
+  if (["model_input", "generate"].includes(operation) && rights.derivativeWorks !== "permitted") return false;
+  if (["export", "model_input", "generate"].includes(operation) && rights.shareAlike === "required") return false;
   return true;
+}
+
+function tupleForOperation(operation) {
+  if (operation === "model_input" || operation === "generate") {
+    return { channel: "third_party_model", deliveryMode: "model_prompt" };
+  }
+  if (operation === "export") return { channel: "authenticated_user", deliveryMode: "download" };
+  if (operation === "report") return { channel: "authenticated_user", deliveryMode: "embedded_report" };
+  if (operation === "persist" || operation === "project") return { channel: "authenticated_user", deliveryMode: "project_storage" };
+  if (operation === "dashboard") return { channel: "authenticated_user", deliveryMode: "interactive_display" };
+  return { channel: "internal_operator", deliveryMode: "server_to_server" };
+}
+
+function makeRightsEvaluation(receipt, operation, overrides = {}) {
+  const tuple = { ...tupleForOperation(operation), ...overrides };
+  const evaluation = {
+    rightsEvaluationId: `rights-evaluation.${operation}.${tuple.channel}.${tuple.deliveryMode}.AE`,
+    evaluationHash: digest("pending-rights-evaluation"),
+    rightsReceiptId: receipt.rightsScope.rightsReceiptId,
+    rightsScopeHash: digest(receipt.rightsScope),
+    operation,
+    channel: tuple.channel,
+    deliveryMode: tuple.deliveryMode,
+    territoryCountryCode: tuple.territoryCountryCode ?? "AE",
+    evaluatedAt: tuple.evaluatedAt ?? "2026-09-04T08:15:00.000Z",
+    decision: "permitted",
+    evaluatorId: "validator.rights-scope",
+    evaluatorVersion: "1.0.0"
+  };
+  evaluation.evaluationHash = contentHash(evaluation, "evaluationHash");
+  return evaluation;
+}
+
+function assertRightsEvaluation(evaluation, operation, receiptByRightsId, label) {
+  assert.equal(evaluation.operation, operation, `${label} operation mismatch`);
+  assert.equal(evaluation.decision, "permitted", `${label} must be a positive immutable receipt`);
+  assert.equal(evaluation.evaluationHash, contentHash(evaluation, "evaluationHash"), `${label} hash mismatch`);
+  const sourceReceipt = receiptByRightsId.get(evaluation.rightsReceiptId);
+  assert(sourceReceipt, `${label} references unknown rights receipt ${evaluation.rightsReceiptId}`);
+  assert.equal(evaluation.rightsScopeHash, digest(sourceReceipt.rightsScope), `${label} rights-scope hash mismatch`);
+  assert.equal(rightsPermit(sourceReceipt, {
+    operation: evaluation.operation,
+    channel: evaluation.channel,
+    deliveryMode: evaluation.deliveryMode,
+    countryCode: evaluation.territoryCountryCode,
+    evaluatedAt: evaluation.evaluatedAt
+  }), true, `${label} tuple is not permitted by the referenced rights scope`);
 }
 
 function assertOperationGateCoverage(gates, label) {
@@ -141,6 +191,7 @@ function assertSnapshotSemantics(snapshot) {
   assert.equal(new Set(snapshot.sections.map((section) => section.section)).size, CONTEXT_SECTIONS.length, "snapshot section duplicate");
   assertOperationGateCoverage(snapshot.quality.operationGates, "snapshot quality gates");
   const receiptIds = new Set(snapshot.sourceReceipts.map((receipt) => receipt.sourceReceiptId));
+  const receiptByRightsId = new Map(snapshot.sourceReceipts.map((receipt) => [receipt.rightsScope.rightsReceiptId, receipt]));
   for (const receipt of snapshot.sourceReceipts) {
     assertExactPartition(receipt.rightsScope.operations, OPERATIONS, `${receipt.sourceReceiptId} operation rights`);
     assertExactPartition(receipt.rightsScope.channels, CHANNELS, `${receipt.sourceReceiptId} channel rights`);
@@ -151,6 +202,17 @@ function assertSnapshotSemantics(snapshot) {
       assert(receiptIds.has(sourceReceiptId), `unknown source receipt ${sourceReceiptId}`);
     }
   }
+  for (const gate of snapshot.quality.operationGates) {
+    assert.equal(new Set(gate.rightsEvaluations.map((item) => item.evaluationHash)).size, gate.rightsEvaluations.length, `${gate.operation} rights evaluations must be unique`);
+    for (const evaluation of gate.rightsEvaluations) {
+      assert(Date.parse(evaluation.evaluatedAt) <= Date.parse(snapshot.capturedAt), `snapshot ${gate.operation} rights evaluation cannot follow snapshot capture`);
+      assertRightsEvaluation(evaluation, gate.operation, receiptByRightsId, `snapshot ${gate.operation} rights evaluation`);
+    }
+    assert.deepEqual([...new Set(gate.rightsEvaluations.map((item) => item.rightsReceiptId))].sort(), [...gate.rightsReceiptIds].sort(), `${gate.operation} gate rights refs must equal persisted evaluations`);
+    if (gate.status !== "blocked" && snapshot.sourceReceipts.length > 0) {
+      assert(gate.rightsEvaluations.length > 0, `${gate.operation} non-blocked gate needs a tuple-scoped rights evaluation`);
+    }
+  }
   assert.equal(snapshot.snapshotHash, contentHash(snapshot, "snapshotHash"), "snapshot hash mismatch");
 }
 
@@ -159,14 +221,109 @@ function assertRegistrySemantics(registry) {
     assertOperationGateCoverage(scenario.operationPolicies, `${scenario.scenarioId} operation policies`);
     assert.deepEqual(scenario.modeBindings.map((binding) => binding.mode).sort(), ["analyse", "create", "find"], "scenario must bind exactly three UI modes");
     assert.equal(new Set(scenario.modeBindings.map((binding) => binding.mode)).size, 3, "scenario mode bindings must be unique");
+    assert.equal(scenario.entryHash, contentHash(scenario, "entryHash"), `${scenario.scenarioId} scenario entry hash mismatch`);
   }
   assert.equal(registry.registryHash, contentHash(registry, "registryHash"), "registry hash mismatch");
 }
 
-function assertDecisionSemantics(record) {
+function assertDecisionSemantics(record, { registry, snapshots }) {
+  assertRegistrySemantics(registry);
+  for (const candidateSnapshot of snapshots) assertSnapshotSemantics(candidateSnapshot);
   assertOperationGateCoverage(record.operationGates, "decision operation gates");
   for (const gate of record.operationGates.filter((item) => item.status === "blocked")) {
     assert(gate.gapIds.length + gate.validationTaskIds.length + gate.reasons.length > 0, `${gate.operation} blocked gate needs a reason reference`);
+  }
+  assert.equal(record.finalization?.state, "finalized", "DecisionRecord must carry finalized state");
+  assert.equal(record.finalization?.schemaValidationPassed, true, "DecisionRecord finalization requires schema validation");
+  assert.equal(record.finalization?.semanticValidationPassed, true, "DecisionRecord finalization requires semantic validation");
+  assert(Date.parse(record.finalization.finalizedAt) >= Date.parse(record.createdAt), "DecisionRecord cannot finalize before creation");
+  assert.equal(record.truthLanguagePolicy, "locale_neutral_codes_and_user_authored_inputs_v1", "DecisionRecord truth-language policy mismatch");
+  assert.equal(record.scenarioRef.registryId, registry.registryId, "DecisionRecord registry ID mismatch");
+  assert.equal(record.scenarioRef.registryVersion, registry.registryVersion, "DecisionRecord registry version mismatch");
+  assert.equal(record.scenarioRef.registryHash, registry.registryHash, "DecisionRecord registry hash mismatch");
+  const scenario = registry.scenarios.find((item) => item.scenarioId === record.scenarioRef.scenarioId && item.version === record.scenarioRef.scenarioVersion);
+  assert(scenario, "DecisionRecord scenario ref does not resolve");
+  assert.equal(record.scenarioRef.scenarioHash, scenario.entryHash, "DecisionRecord scenario hash mismatch");
+  assert.equal(record.scenarioRef.businessQuestionId, scenario.businessQuestion.questionId, "DecisionRecord business-question ref mismatch");
+  assert.equal(record.preferenceContext.audience, scenario.audience, "DecisionRecord audience does not match scenario");
+  assert(scenario.roleIds.includes(record.preferenceContext.roleId), "DecisionRecord role does not belong to scenario");
+  const role = registry.roles.find((item) => item.roleId === record.preferenceContext.roleId);
+  assert(role, "DecisionRecord role ref does not resolve in registry");
+  assert.equal(role.audience, record.preferenceContext.audience, "DecisionRecord role audience mismatch");
+  const contextProfile = registry.contextProfiles.find((item) => item.contextProfileId === scenario.contextProfileRef.contextProfileId && item.version === scenario.contextProfileRef.version);
+  assert(contextProfile, "Scenario context-profile ref does not resolve in registry");
+
+  const snapshotById = new Map(snapshots.map((item) => [item.snapshotId, item]));
+  const resolvedSnapshots = record.inputs.contextSnapshots.map((ref) => {
+    const resolved = snapshotById.get(ref.snapshotId);
+    assert(resolved, `DecisionRecord snapshot ref ${ref.snapshotId} does not resolve`);
+    assert.equal(ref.snapshotHash, resolved.snapshotHash, `DecisionRecord snapshot hash mismatch for ${ref.snapshotId}`);
+    assert.equal(ref.subjectId, resolved.subject.subjectId, `DecisionRecord snapshot subject mismatch for ${ref.snapshotId}`);
+    assert.equal(ref.contextProfileId, resolved.scope.contextProfileId, `DecisionRecord context profile mismatch for ${ref.snapshotId}`);
+    assert.equal(ref.contextProfileVersion, resolved.scope.contextProfileVersion, `DecisionRecord context profile version mismatch for ${ref.snapshotId}`);
+    assert.equal(ref.contextProfileId, scenario.contextProfileRef.contextProfileId, `DecisionRecord snapshot does not use scenario context profile for ${ref.snapshotId}`);
+    assert.equal(ref.contextProfileVersion, scenario.contextProfileRef.version, `DecisionRecord snapshot does not use scenario context profile version for ${ref.snapshotId}`);
+    assert.equal(ref.acquisitionWindowStart, resolved.scope.timeBasis.acquisitionWindowStart, `DecisionRecord acquisition start mismatch for ${ref.snapshotId}`);
+    assert.equal(ref.acquisitionWindowEnd, resolved.scope.timeBasis.acquisitionWindowEnd, `DecisionRecord acquisition end mismatch for ${ref.snapshotId}`);
+    return resolved;
+  });
+  const snapshotBySubjectId = new Map(resolvedSnapshots.map((item) => [item.subject.subjectId, item]));
+  for (const subject of record.inputs.subjects) {
+    const subjectSnapshot = snapshotBySubjectId.get(subject.subjectId);
+    if (!subjectSnapshot && record.inputs.acquisitionPosture === "no_context_for_discovery") continue;
+    assert(subjectSnapshot, `DecisionRecord subject ${subject.subjectId} lacks a resolved snapshot`);
+    assert.equal(subject.geometryHash, subjectSnapshot.subject.geometryHash, `DecisionRecord subject geometry hash mismatch for ${subject.subjectId}`);
+    assert.equal(subject.subjectType, subjectSnapshot.subject.subjectType, `DecisionRecord subject type mismatch for ${subject.subjectId}`);
+    assert(scenario.subjectTypes.includes(subject.subjectType), `DecisionRecord subject type ${subject.subjectType} is not allowed by scenario`);
+  }
+
+  const methodByKey = new Map(registry.methods.map((method) => [`${method.methodId}@${method.version}`, method]));
+  for (const execution of record.methodExecutions) {
+    const method = methodByKey.get(`${execution.methodId}@${execution.methodVersion}`);
+    assert(method, `DecisionRecord method ${execution.methodId}@${execution.methodVersion} does not resolve`);
+    assert(scenario.methodIds.includes(execution.methodId), `DecisionRecord method ${execution.methodId} is not bound to scenario`);
+    assert.equal(execution.operation, method.operation, `DecisionRecord method operation mismatch for ${execution.executionId}`);
+    for (const inputSnapshotHash of execution.inputSnapshotHashes) {
+      assert(resolvedSnapshots.some((item) => item.snapshotHash === inputSnapshotHash), `DecisionRecord method input snapshot ${inputSnapshotHash} does not resolve`);
+    }
+  }
+
+  const templateSets = {
+    dashboard: registry.dashboardTemplates,
+    report: registry.reportTemplates,
+    projectSummary: registry.reportTemplates
+  };
+  for (const [kind, binding] of Object.entries(record.renderPolicy)) {
+    if (!binding) continue;
+    assert(templateSets[kind].some((template) => template.templateId === binding.templateId && template.version === binding.templateVersion), `DecisionRecord ${kind} template does not resolve`);
+  }
+  assert.deepEqual(record.renderPolicy.dashboard && { templateId: record.renderPolicy.dashboard.templateId, version: record.renderPolicy.dashboard.templateVersion }, scenario.dashboardTemplateRef, "DecisionRecord dashboard template differs from scenario binding");
+  assert.deepEqual(record.renderPolicy.report && { templateId: record.renderPolicy.report.templateId, version: record.renderPolicy.report.templateVersion }, scenario.reportTemplateRef, "DecisionRecord report template differs from scenario binding");
+
+  const gapIds = new Set(record.outputs.gapIds);
+  const validationTaskIds = new Set(record.outputs.validationTasks.map((task) => task.validationTaskId));
+  const receiptByRightsId = new Map(resolvedSnapshots.flatMap((item) => item.sourceReceipts.map((receipt) => [receipt.rightsScope.rightsReceiptId, receipt])));
+  const scenarioPolicies = new Map(scenario.operationPolicies.map((policy) => [policy.operation, policy]));
+  const snapshotGates = resolvedSnapshots.map((item) => new Map(item.quality.operationGates.map((gate) => [gate.operation, gate])));
+  const level = { pass: 0, enabled: 0, partial: 1, blocked: 2, not_applicable: 2 };
+  for (const gate of record.operationGates) {
+    for (const gapId of gate.gapIds) assert(gapIds.has(gapId), `${gate.operation} gate references unknown gap ${gapId}`);
+    for (const taskId of gate.validationTaskIds) assert(validationTaskIds.has(taskId), `${gate.operation} gate references unknown validation task ${taskId}`);
+    assert.deepEqual([...new Set(gate.rightsEvaluations.map((item) => item.rightsReceiptId))].sort(), [...gate.rightsReceiptIds].sort(), `${gate.operation} gate rights refs must equal persisted evaluations`);
+    for (const evaluation of gate.rightsEvaluations) {
+      assert(Date.parse(evaluation.evaluatedAt) <= Date.parse(record.decisionAsOf), `decision ${gate.operation} rights evaluation cannot follow decisionAsOf`);
+      assert(Date.parse(evaluation.evaluatedAt) <= Date.parse(record.finalization.finalizedAt), `decision ${gate.operation} rights evaluation cannot follow finalization`);
+      assertRightsEvaluation(evaluation, gate.operation, receiptByRightsId, `decision ${gate.operation} rights evaluation`);
+    }
+    if (gate.status !== "blocked" && receiptByRightsId.size > 0) assert(gate.rightsEvaluations.length > 0, `${gate.operation} non-blocked gate needs a tuple-scoped rights evaluation`);
+    const policy = scenarioPolicies.get(gate.operation);
+    assert(policy, `${gate.operation} scenario policy is missing`);
+    assert(level[gate.status] >= level[policy.status], `${gate.operation} DecisionRecord gate is more permissive than scenario policy`);
+    for (const snapshotGateMap of snapshotGates) {
+      const snapshotGate = snapshotGateMap.get(gate.operation);
+      assert(snapshotGate, `${gate.operation} snapshot gate is missing`);
+      assert(level[gate.status] >= level[snapshotGate.status], `${gate.operation} DecisionRecord gate is more permissive than snapshot gate`);
+    }
   }
   assert.equal(record.recordHash, contentHash(record, "recordHash"), "DecisionRecord hash mismatch");
   assert.equal("renderBindings" in record, false, "DecisionRecord cannot contain mutable render bindings");
@@ -175,11 +332,29 @@ function assertDecisionSemantics(record) {
 function assertRenderSemantics(receipt, decisionRecord, artifactPayload) {
   const expectedOperation = { dashboard: "dashboard", report: "report", project_summary: "project" }[receipt.renderKind];
   assert.equal(receipt.operation, expectedOperation, "render kind and operation mismatch");
-  assert.equal(receipt.sourceOperationGate.operation, receipt.operation, "source operation gate mismatch");
-  assert.notEqual(receipt.sourceOperationGate.status, "blocked", "blocked operation cannot render");
   assert.equal(receipt.sourceDecisionRecordRef.decisionRecordId, decisionRecord.decisionRecordId, "render source record ID mismatch");
+  assert.equal(validators.decisionRecord(decisionRecord), true, "render source DecisionRecord is not schema-valid and finalized");
+  assert.equal(decisionRecord.recordHash, contentHash(decisionRecord, "recordHash"), "render source DecisionRecord hash is not final");
   assert.equal(receipt.sourceDecisionRecordRef.recordHash, decisionRecord.recordHash, "render source record hash mismatch");
+  assert.equal(decisionRecord.finalization?.state, "finalized", "render source DecisionRecord is not finalized");
+  assert.equal(decisionRecord.finalization?.schemaValidationPassed, true, "render source DecisionRecord lacks schema-validation finalization");
+  assert.equal(decisionRecord.finalization?.semanticValidationPassed, true, "render source DecisionRecord lacks semantic-validation finalization");
+  assert.equal(receipt.sourceDecisionRecordRef.finalizedAt, decisionRecord.finalization.finalizedAt, "render source finalization time mismatch");
+  assert.equal(receipt.sourceDecisionRecordRef.finalizationValidatorId, decisionRecord.finalization.validatorId, "render source finalization validator mismatch");
+  assert.equal(receipt.sourceDecisionRecordRef.finalizationValidatorVersion, decisionRecord.finalization.validatorVersion, "render source finalization validator version mismatch");
+  assert(Date.parse(receipt.renderedAt) >= Date.parse(decisionRecord.finalization.finalizedAt), "render cannot precede parent finalization");
+  const referencedGate = decisionRecord.operationGates.find((gate) => gate.operation === receipt.operation);
+  assert(referencedGate, `DecisionRecord has no ${receipt.operation} gate`);
+  assert.deepEqual(receipt.sourceOperationGate, referencedGate, "render source gate must exactly match the referenced DecisionRecord gate");
+  assert.notEqual(referencedGate.status, "blocked", "blocked DecisionRecord operation cannot be relabeled and rendered");
+  const renderPolicyKey = { dashboard: "dashboard", report: "report", project_summary: "projectSummary" }[receipt.renderKind];
+  const expectedTemplate = decisionRecord.renderPolicy[renderPolicyKey];
+  assert(expectedTemplate, `DecisionRecord has no ${renderPolicyKey} template binding`);
+  assert.deepEqual(receipt.templateRef, { templateId: expectedTemplate.templateId, templateVersion: expectedTemplate.templateVersion }, "render template does not match finalized DecisionRecord policy");
+  assert.equal(receipt.validation.status, referencedGate.status === "pass" ? "passed" : "partial", "render validation status must preserve source gate status");
   if (receipt.artifact) {
+    assert(Date.parse(receipt.artifact.createdAt) >= Date.parse(decisionRecord.finalization.finalizedAt), "artifact cannot predate parent finalization");
+    assert(Date.parse(receipt.artifact.createdAt) <= Date.parse(receipt.renderedAt), "artifact creation cannot follow render receipt time");
     assert.equal(receipt.artifact.embeddedDecisionRecordId, decisionRecord.decisionRecordId, "artifact record ID mismatch");
     assert.equal(receipt.artifact.embeddedRecordHash, decisionRecord.recordHash, "artifact record hash mismatch");
     assert.equal(receipt.artifact.artifactHash, digest(artifactPayload), "artifact hash mismatch");
@@ -190,6 +365,32 @@ function assertRenderSemantics(receipt, decisionRecord, artifactPayload) {
   assert.equal(receipt.renderReceiptHash, contentHash(receipt, "renderReceiptHash"), "render receipt hash mismatch");
 }
 
+function rebindRenderReceipt(baseReceipt, parentRecord, artifactTitle = "Screening report") {
+  const reboundArtifactPayload = {
+    sourceDecisionRecordId: parentRecord.decisionRecordId,
+    sourceRecordHash: parentRecord.recordHash,
+    title: artifactTitle,
+    values: []
+  };
+  const rebound = clone(baseReceipt);
+  rebound.sourceDecisionRecordRef = {
+    decisionRecordId: parentRecord.decisionRecordId,
+    recordHash: parentRecord.recordHash,
+    finalizedAt: parentRecord.finalization.finalizedAt,
+    finalizationValidatorId: parentRecord.finalization.validatorId,
+    finalizationValidatorVersion: parentRecord.finalization.validatorVersion
+  };
+  rebound.sourceOperationGate = clone(parentRecord.operationGates.find((gate) => gate.operation === rebound.operation));
+  if (rebound.artifact) {
+    rebound.artifact.artifactHash = digest(reboundArtifactPayload);
+    rebound.artifact.embeddedDecisionRecordId = parentRecord.decisionRecordId;
+    rebound.artifact.embeddedRecordHash = parentRecord.recordHash;
+  }
+  rebound.validation.status = rebound.sourceOperationGate.status === "pass" ? "passed" : "partial";
+  rebound.renderReceiptHash = contentHash(rebound, "renderReceiptHash");
+  return { receipt: rebound, artifactPayload: reboundArtifactPayload };
+}
+
 function findUnionTypeArrays(value, path = "$") {
   const findings = [];
   if (!value || typeof value !== "object") return findings;
@@ -198,6 +399,14 @@ function findUnionTypeArrays(value, path = "$") {
     findings.push(...findUnionTypeArrays(child, `${path}.${key}`));
   }
   return findings;
+}
+
+function schemaDeclaredPropertyNames(value) {
+  const names = [];
+  if (!value || typeof value !== "object") return names;
+  if (value.properties && typeof value.properties === "object") names.push(...Object.keys(value.properties));
+  for (const child of Object.values(value)) names.push(...schemaDeclaredPropertyNames(child));
+  return names;
 }
 
 const schemas = {
@@ -220,53 +429,53 @@ for (const requiredOperation of ["create", "generate", "evaluate", "compare", "r
 }
 
 const rightsScope = {
-  rightsReceiptId: "rights.osm.1",
+  rightsReceiptId: "rights.synthetic-unconditional.1",
   rightsProfileVersion: "1.0.0",
   scopeStatus: "cleared_for_named_scope",
   licence: {
-    licenceId: "ODbL-1.0",
-    licenceUrl: "https://opendatacommons.org/licenses/odbl/1-0/",
-    attributionText: "OpenStreetMap contributors"
+    licenceId: "TEST-UNCONDITIONAL-1.0",
+    licenceUrl: "https://example.invalid/licences/test-unconditional-1.0",
+    attributionText: "Synthetic contract fixture; not a rights determination"
   },
   usagePolicyEvidence: {
-    policyId: "osm-tile-usage-1",
-    policyUrl: "https://operations.osmfoundation.org/policies/tiles/",
-    evidenceHash: digest("usage-policy"),
+    policyId: "test-unconditional-policy-1",
+    policyUrl: "https://example.invalid/policies/test-unconditional-1",
+    evidenceHash: digest("synthetic-usage-policy"),
     capturedAt: "2026-09-04T08:00:00.000Z"
   },
   operations: { permitted: [...OPERATIONS], unknown: [], prohibited: [] },
   channels: { permitted: [...CHANNELS], unknown: [], prohibited: [] },
   deliveryModes: { permitted: [...DELIVERY_MODES], unknown: [], prohibited: [] },
   territory: { scope: "named", countryCodes: ["AE", "SG"] },
-  redistribution: "permitted_with_conditions",
-  derivativeWorks: "permitted_with_conditions",
-  shareAlike: "required",
+  redistribution: "permitted",
+  derivativeWorks: "permitted",
+  shareAlike: "not_required",
   commercialUse: "permitted",
   expiresAt: null,
   nextReviewAt: "2026-12-04T08:00:00.000Z",
   reviewStatus: "current",
   evidenceRefs: [{
-    evidenceId: "rights-evidence.osm-odbl",
+    evidenceId: "rights-evidence.synthetic-unconditional",
     evidenceType: "licence_text",
-    evidenceHash: digest("odbl-evidence"),
-    sourceUrl: "https://opendatacommons.org/licenses/odbl/1-0/",
+    evidenceHash: digest("synthetic-unconditional-evidence"),
+    sourceUrl: "https://example.invalid/licences/test-unconditional-1.0",
     capturedAt: "2026-09-04T08:00:00.000Z"
   }]
 };
 
 const sourceReceipt = {
-  sourceReceiptId: "source-receipt.osm.1",
-  sourceId: "openstreetmap",
-  provider: "OpenStreetMap contributors",
-  sourceKind: "open_map",
-  authorityStatus: "open_context_not_official",
+  sourceReceiptId: "source-receipt.synthetic-contract-fixture.1",
+  sourceId: "synthetic-contract-fixture",
+  provider: "Synthetic contract fixture",
+  sourceKind: "synthetic",
+  authorityStatus: "synthetic_not_evidence",
   rightsScope,
   requestedAt: "2026-09-04T08:00:00.000Z",
-  acquisitionMethodId: "method.osm-context",
+  acquisitionMethodId: "method.synthetic-contract-fixture",
   acquisitionMethodVersion: "1.0.0",
   minimizedPayloadHash: digest("minimized-payload"),
   coverage: {
-    coverageId: "coverage.osm.1",
+    coverageId: "coverage.synthetic.1",
     kind: "buffer",
     geometryHash: digest("coverage-geometry"),
     spatialStatus: "partial",
@@ -274,7 +483,7 @@ const sourceReceipt = {
     returnedCount: 1,
     capReached: false,
     supportsAbsenceConclusion: false,
-    proofLimit: "Open-map context only; completeness is not established."
+    proofLimit: "Synthetic checker fixture only; no real-world coverage claim."
   },
   freshness: {
     sourceObservedAt: null,
@@ -285,7 +494,7 @@ const sourceReceipt = {
     status: "unknown"
   },
   lineageHash: digest("source-lineage"),
-  limitations: ["Open-map context is not an official register."]
+  limitations: ["Synthetic checker fixture only; not source or rights evidence."]
 };
 
 const snapshot = {
@@ -304,9 +513,9 @@ const snapshot = {
     coordinateOrder: "longitude_latitude",
     resolutionStatus: "resolved",
     sourceIdentity: {
-      sourceId: "openstreetmap",
-      namespace: "osm",
-      featureId: "way.1",
+      sourceId: "synthetic-contract-fixture",
+      namespace: "synthetic",
+      featureId: "object.1",
       association: "trusted_identity"
     },
     resolutionReceiptHash: digest("resolution-receipt")
@@ -323,7 +532,7 @@ const snapshot = {
       acquisitionWindowEnd: "2026-09-04T08:00:02.000Z"
     }
   },
-  capturedAt: "2026-09-04T08:00:03.000Z",
+  capturedAt: "2026-09-04T08:16:00.000Z",
   sourceReceipts: [sourceReceipt],
   facts: [{
     factId: "fact.identity.name.en",
@@ -359,7 +568,14 @@ const snapshot = {
     gapCounts: { informational: 0, material: 0, blocking: 0 },
     gate: "partial",
     gateReasons: ["Only the requested identity context was assembled."],
-    operationGates: OPERATIONS.map((operation) => ({ operation, status: "pass", gapIds: [], rightsReceiptIds: [rightsScope.rightsReceiptId], reasons: [] }))
+    operationGates: OPERATIONS.map((operation) => ({
+      operation,
+      status: "pass",
+      gapIds: [],
+      rightsReceiptIds: [rightsScope.rightsReceiptId],
+      rightsEvaluations: [makeRightsEvaluation(sourceReceipt, operation)],
+      reasons: []
+    }))
   },
   lineage: {
     parentSnapshotRefs: [],
@@ -416,7 +632,42 @@ assert.equal(rightsPermit(missingEvidenceReceipt, { operation: "model_input", ch
 const expiredRightsReceipt = clone(sourceReceipt);
 expiredRightsReceipt.rightsScope.expiresAt = "2026-09-04T11:00:00.000Z";
 assert.equal(rightsPermit(expiredRightsReceipt, { operation: "export", channel: "authenticated_user", deliveryMode: "download", countryCode: "AE" }), false, "expired rights evidence must block export");
+const futureEvidenceReceipt = clone(sourceReceipt);
+futureEvidenceReceipt.rightsScope.usagePolicyEvidence.capturedAt = "2026-09-04T08:16:00.000Z";
+futureEvidenceReceipt.rightsScope.evidenceRefs[0].capturedAt = "2026-09-04T08:16:00.000Z";
+assert.equal(rightsPermit(futureEvidenceReceipt, { operation: "model_input", channel: "third_party_model", deliveryMode: "model_prompt", countryCode: "AE", evaluatedAt: "2026-09-04T08:15:00.000Z" }), false, "future-dated evidence cannot authorize an earlier rights evaluation");
 assert.equal(rightsPermit(sourceReceipt, { operation: "model_input", channel: "third_party_model", deliveryMode: "model_prompt", countryCode: "AE" }), true, "fully scoped fixture should permit named model input");
+const conditionalRedistributionReceipt = clone(sourceReceipt);
+conditionalRedistributionReceipt.rightsScope.redistribution = "permitted_with_conditions";
+assert.equal(rightsPermit(conditionalRedistributionReceipt, { operation: "export", channel: "authenticated_user", deliveryMode: "download", countryCode: "AE" }), false, "conditional redistribution must fail closed without obligation-satisfaction evidence");
+const conditionalDerivativeReceipt = clone(sourceReceipt);
+conditionalDerivativeReceipt.rightsScope.derivativeWorks = "permitted_with_conditions";
+assert.equal(rightsPermit(conditionalDerivativeReceipt, { operation: "model_input", channel: "third_party_model", deliveryMode: "model_prompt", countryCode: "AE" }), false, "conditional derivative use must fail closed without obligation-satisfaction evidence");
+const shareAlikeReceipt = clone(sourceReceipt);
+shareAlikeReceipt.rightsScope.shareAlike = "required";
+assert.equal(rightsPermit(shareAlikeReceipt, { operation: "generate", channel: "third_party_model", deliveryMode: "model_prompt", countryCode: "AE" }), false, "unproven share-alike obligations must block derivative generation");
+const conditionallyPermittedSnapshot = clone(snapshot);
+conditionallyPermittedSnapshot.sourceReceipts[0].rightsScope.derivativeWorks = "permitted_with_conditions";
+for (const gate of conditionallyPermittedSnapshot.quality.operationGates) {
+  for (const evaluation of gate.rightsEvaluations) {
+    evaluation.rightsScopeHash = digest(conditionallyPermittedSnapshot.sourceReceipts[0].rightsScope);
+    evaluation.evaluationHash = contentHash(evaluation, "evaluationHash");
+  }
+}
+conditionallyPermittedSnapshot.snapshotHash = contentHash(conditionallyPermittedSnapshot, "snapshotHash");
+expectValid(validators.geoContext, conditionallyPermittedSnapshot, "schema-valid snapshot with unmet conditional derivative rights");
+assert.throws(() => assertSnapshotSemantics(conditionallyPermittedSnapshot), /tuple is not permitted/, "conditional rights cannot produce a positive gate evaluation without satisfaction evidence");
+const tamperedRightsEvaluationSnapshot = clone(snapshot);
+tamperedRightsEvaluationSnapshot.quality.operationGates[0].rightsEvaluations[0].channel = "public_preview";
+tamperedRightsEvaluationSnapshot.snapshotHash = contentHash(tamperedRightsEvaluationSnapshot, "snapshotHash");
+expectValid(validators.geoContext, tamperedRightsEvaluationSnapshot, "schema-valid snapshot with tampered rights tuple");
+assert.throws(() => assertSnapshotSemantics(tamperedRightsEvaluationSnapshot), /hash mismatch/, "rights tuple mutation must invalidate evaluation hash");
+const futureRightsEvaluationSnapshot = clone(snapshot);
+futureRightsEvaluationSnapshot.quality.operationGates[0].rightsEvaluations[0].evaluatedAt = "2026-09-04T08:17:00.000Z";
+futureRightsEvaluationSnapshot.quality.operationGates[0].rightsEvaluations[0].evaluationHash = contentHash(futureRightsEvaluationSnapshot.quality.operationGates[0].rightsEvaluations[0], "evaluationHash");
+futureRightsEvaluationSnapshot.snapshotHash = contentHash(futureRightsEvaluationSnapshot, "snapshotHash");
+expectValid(validators.geoContext, futureRightsEvaluationSnapshot, "schema-valid snapshot with future rights evaluation");
+assert.throws(() => assertSnapshotSemantics(futureRightsEvaluationSnapshot), /cannot follow snapshot capture/);
 const incompleteRightsPartition = clone(snapshot);
 incompleteRightsPartition.sourceReceipts[0].rightsScope.operations.permitted = OPERATIONS.filter((operation) => operation !== "export");
 assert.throws(() => assertSnapshotSemantics(incompleteRightsPartition), /must cover its complete vocabulary/);
@@ -427,7 +678,7 @@ assert.throws(() => assertSnapshotSemantics(overlappingRightsPartition), /entrie
 const localText = (en, ru) => ({ en, ru });
 const operationPolicies = OPERATIONS.map((operation) => {
   const blocked = ["compare", "rank", "create", "generate", "evaluate", "project", "export"].includes(operation);
-  return { operation, status: blocked ? "blocked" : "partial", blockingRequirementIds: blocked ? ["validation.data-and-rights"] : [] };
+  return { operation, status: blocked ? "blocked" : "enabled", blockingRequirementIds: blocked ? ["validation.data-and-rights"] : [] };
 });
 const scenarioRegistry = {
   schemaId: "urn:geoai:scenario-registry:1.0.0",
@@ -574,9 +825,14 @@ const scenarioRegistry = {
     caveat: CAVEAT
   }
 };
+scenarioRegistry.scenarios[0].entryHash = contentHash(scenarioRegistry.scenarios[0], "entryHash");
 scenarioRegistry.registryHash = contentHash(scenarioRegistry, "registryHash");
 expectValid(validators.scenarioRegistry, scenarioRegistry, "positive Scenario Registry fixture");
 assertRegistrySemantics(scenarioRegistry);
+const mutatedScenarioEntry = clone(scenarioRegistry);
+mutatedScenarioEntry.scenarios[0].modeBindings[0].status = "enabled";
+mutatedScenarioEntry.registryHash = contentHash(mutatedScenarioEntry, "registryHash");
+assert.throws(() => assertRegistrySemantics(mutatedScenarioEntry), /scenario entry hash mismatch/, "scenario mutation must invalidate its entry hash even when registry hash is recomputed");
 const enabledRankingWithoutMetrics = clone(scenarioRegistry);
 enabledRankingWithoutMetrics.scenarios[0].ranking.status = "enabled";
 enabledRankingWithoutMetrics.scenarios[0].ranking.methodId = "method.analysis-brief";
@@ -590,6 +846,15 @@ const decisionRecord = {
   decisionRecordId: "decision.analysis.1",
   recordHash: digest("pending-decision"),
   status: "partial",
+  finalization: {
+    state: "finalized",
+    finalizedAt: "2026-09-04T08:20:01.000Z",
+    validatorId: "validator.decision-record",
+    validatorVersion: "1.0.0",
+    schemaValidationPassed: true,
+    semanticValidationPassed: true
+  },
+  truthLanguagePolicy: "locale_neutral_codes_and_user_authored_inputs_v1",
   projectRef: null,
   preferenceContext: { audience: "b2b", roleId: "developer", preferenceOnly: true },
   scenarioRef: {
@@ -619,7 +884,7 @@ const decisionRecord = {
       acquisitionWindowEnd: snapshot.scope.timeBasis.acquisitionWindowEnd
     }],
     acquisitionPosture: "reuse_exact_snapshot",
-    refreshReason: null
+    refreshReasonCode: null
   },
   methodExecutions: [],
   operationGates: OPERATIONS.map((operation) => ({
@@ -628,7 +893,8 @@ const decisionRecord = {
     gapIds: blockedOperations.has(operation) ? ["gap.future-evidence"] : [],
     validationTaskIds: blockedOperations.has(operation) ? ["validation.future-evidence"] : [],
     rightsReceiptIds: [rightsScope.rightsReceiptId],
-    reasons: blockedOperations.has(operation) ? ["Named evidence is required before this operation."] : []
+    rightsEvaluations: [makeRightsEvaluation(sourceReceipt, operation)],
+    reasons: blockedOperations.has(operation) ? ["gate.named-evidence-required"] : []
   })),
   outputs: {
     claims: [],
@@ -638,10 +904,10 @@ const decisionRecord = {
     recommendation: null,
     validationTasks: [{
       validationTaskId: "validation.future-evidence",
-      title: "Validate decision evidence",
+      titleKey: "validation.decision-evidence.title",
       priority: "high",
       status: "open",
-      evidenceNeeded: "Named data and rights evidence.",
+      evidenceRequirementKeys: ["evidence.named-data", "evidence.named-rights"],
       blocks: [...blockedOperations],
       ownerRole: null
     }],
@@ -657,7 +923,7 @@ const decisionRecord = {
     inputGraphHash: digest("decision-input-graph"),
     outputGraphHash: digest("decision-output-graph"),
     decisionArtifactHashes: [],
-    refreshReason: null
+    refreshReasonCode: null
   },
   governance: {
     claimPolicyId: "claim-policy.screening",
@@ -666,12 +932,12 @@ const decisionRecord = {
     validationState: "official_validation_required",
     privacyClass: "public_open_context",
     releaseState: "local_candidate",
-    caveat: CAVEAT
+    caveatPolicyId: "caveat.screening-official-validation-required.v1"
   }
 };
 decisionRecord.recordHash = contentHash(decisionRecord, "recordHash");
 expectValid(validators.decisionRecord, decisionRecord, "positive DecisionRecord fixture");
-assertDecisionSemantics(decisionRecord);
+assertDecisionSemantics(decisionRecord, { registry: scenarioRegistry, snapshots: [snapshot] });
 
 const unknownMetricWithValue = clone(decisionRecord);
 unknownMetricWithValue.outputs.metrics.push({
@@ -686,9 +952,51 @@ unknownMetricWithValue.outputs.metrics.push({
   factIds: [],
   methodExecutionId: null,
   confidence: "low",
-  proofLimit: "No source value was acquired."
+  proofLimitCode: "proof.no-source-value"
 });
 expectInvalid(validators.decisionRecord, unknownMetricWithValue, "unknown metric carrying a value");
+const localizedDecisionNarrative = clone(decisionRecord);
+localizedDecisionNarrative.outputs.validationTasks[0].title = "Проверить доказательства";
+expectInvalid(validators.decisionRecord, localizedDecisionNarrative, "localized system narrative inside DecisionRecord truth payload");
+const localizedSystemCriterion = clone(decisionRecord);
+localizedSystemCriterion.inputs.criteria.push({
+  criterionId: "criterion.land-use",
+  value: "Жилой район",
+  unit: null,
+  source: "scenario_default",
+  normalizedHash: digest("localized-system-criterion")
+});
+expectInvalid(validators.decisionRecord, localizedSystemCriterion, "localized system-owned criterion value inside DecisionRecord truth payload");
+const userAuthoredCriterion = clone(decisionRecord);
+userAuthoredCriterion.inputs.criteria.push({
+  criterionId: "criterion.user-question",
+  value: "Проверить жилой сценарий",
+  unit: null,
+  source: "user",
+  normalizedHash: digest("user-authored-criterion")
+});
+userAuthoredCriterion.recordHash = contentHash(userAuthoredCriterion, "recordHash");
+expectValid(validators.decisionRecord, userAuthoredCriterion, "user-authored language-bearing criterion input");
+const decisionPropertyNames = new Set(schemaDeclaredPropertyNames(schemas.decisionRecord));
+for (const forbiddenField of ["text", "summary", "title", "label", "reason", "assumptions", "violations", "failureReasons", "refreshReason", "proofLimit", "caveat"]) {
+  assert.equal(decisionPropertyNames.has(forbiddenField), false, `DecisionRecord schema contains hash-bearing narrative field ${forbiddenField}`);
+}
+const mismatchedScenarioHash = clone(decisionRecord);
+mismatchedScenarioHash.scenarioRef.scenarioHash = digest("wrong-scenario-entry");
+mismatchedScenarioHash.recordHash = contentHash(mismatchedScenarioHash, "recordHash");
+expectValid(validators.decisionRecord, mismatchedScenarioHash, "schema-valid DecisionRecord with mismatched scenario hash");
+assert.throws(() => assertDecisionSemantics(mismatchedScenarioHash, { registry: scenarioRegistry, snapshots: [snapshot] }), /scenario hash mismatch/);
+const mismatchedSnapshotHash = clone(decisionRecord);
+mismatchedSnapshotHash.inputs.contextSnapshots[0].snapshotHash = digest("wrong-snapshot");
+mismatchedSnapshotHash.recordHash = contentHash(mismatchedSnapshotHash, "recordHash");
+expectValid(validators.decisionRecord, mismatchedSnapshotHash, "schema-valid DecisionRecord with mismatched snapshot hash");
+assert.throws(() => assertDecisionSemantics(mismatchedSnapshotHash, { registry: scenarioRegistry, snapshots: [snapshot] }), /snapshot hash mismatch/);
+const futureDecisionRightsEvaluation = clone(decisionRecord);
+futureDecisionRightsEvaluation.operationGates[0].rightsEvaluations[0].evaluatedAt = "2026-09-04T08:21:00.000Z";
+futureDecisionRightsEvaluation.operationGates[0].rightsEvaluations[0].evaluationHash = contentHash(futureDecisionRightsEvaluation.operationGates[0].rightsEvaluations[0], "evaluationHash");
+futureDecisionRightsEvaluation.recordHash = contentHash(futureDecisionRightsEvaluation, "recordHash");
+expectValid(validators.decisionRecord, futureDecisionRightsEvaluation, "schema-valid DecisionRecord with future rights evaluation");
+assert.throws(() => assertDecisionSemantics(futureDecisionRightsEvaluation, { registry: scenarioRegistry, snapshots: [snapshot] }), /cannot follow decisionAsOf/);
 const oldCyclicRenderBinding = clone(decisionRecord);
 oldCyclicRenderBinding.renderBindings = { report: { artifactHash: digest("report") } };
 expectInvalid(validators.decisionRecord, oldCyclicRenderBinding, "legacy render artifact binding in parent DecisionRecord");
@@ -708,7 +1016,9 @@ const renderReceipt = {
   sourceDecisionRecordRef: {
     decisionRecordId: decisionRecord.decisionRecordId,
     recordHash: decisionRecord.recordHash,
-    finalizedAt: "2026-09-04T08:20:01.000Z"
+    finalizedAt: decisionRecord.finalization.finalizedAt,
+    finalizationValidatorId: decisionRecord.finalization.validatorId,
+    finalizationValidatorVersion: decisionRecord.finalization.validatorVersion
   },
   renderKind: "report",
   operation: "report",
@@ -726,12 +1036,7 @@ const renderReceipt = {
     embeddedRecordHash: decisionRecord.recordHash
   },
   truthRecomputationPerformed: false,
-  sourceOperationGate: {
-    operation: reportGate.operation,
-    status: reportGate.status,
-    gapIds: reportGate.gapIds,
-    rightsReceiptIds: reportGate.rightsReceiptIds
-  },
+  sourceOperationGate: clone(reportGate),
   validation: {
     sourceRecordHashVerified: true,
     refsResolved: true,
@@ -742,12 +1047,19 @@ const renderReceipt = {
   },
   governance: {
     canonicalizationProfile: "JCS_SHA256_OMIT_RENDER_RECEIPT_HASH_V1",
-    caveat: CAVEAT
+    caveatPolicyId: "caveat.screening-official-validation-required.v1"
   }
 };
 renderReceipt.renderReceiptHash = contentHash(renderReceipt, "renderReceiptHash");
 expectValid(validators.decisionRender, renderReceipt, "positive DecisionRenderReceipt fixture");
 assertRenderSemantics(renderReceipt, decisionRecord, artifactPayload);
+const localizedRenderReceipt = clone(renderReceipt);
+localizedRenderReceipt.presentation.locale = "ru";
+localizedRenderReceipt.renderManifestHash = digest("render-manifest-ru");
+localizedRenderReceipt.renderReceiptHash = contentHash(localizedRenderReceipt, "renderReceiptHash");
+expectValid(validators.decisionRender, localizedRenderReceipt, "localized child render receipt");
+assertRenderSemantics(localizedRenderReceipt, decisionRecord, artifactPayload);
+assert.equal(decisionRecord.recordHash, contentHash(decisionRecord, "recordHash"), "localized render must not alter parent truth hash");
 const recomputingRender = clone(renderReceipt);
 recomputingRender.truthRecomputationPerformed = true;
 expectInvalid(validators.decisionRender, recomputingRender, "render that recomputes truth");
@@ -757,9 +1069,52 @@ expectInvalid(validators.decisionRender, wrongRenderOperation, "report receipt w
 const wrongEmbeddedRecord = clone(renderReceipt);
 wrongEmbeddedRecord.artifact.embeddedRecordHash = digest("wrong-parent");
 assert.throws(() => assertRenderSemantics(wrongEmbeddedRecord, decisionRecord, artifactPayload), /artifact record hash mismatch/);
+const artifactBeforeParent = clone(renderReceipt);
+artifactBeforeParent.artifact.createdAt = "2026-09-04T08:19:59.000Z";
+artifactBeforeParent.renderReceiptHash = contentHash(artifactBeforeParent, "renderReceiptHash");
+expectValid(validators.decisionRender, artifactBeforeParent, "schema-valid artifact predating parent finalization");
+assert.throws(() => assertRenderSemantics(artifactBeforeParent, decisionRecord, artifactPayload), /cannot predate parent finalization/);
+const artifactAfterReceipt = clone(renderReceipt);
+artifactAfterReceipt.artifact.createdAt = "2026-09-04T08:22:00.000Z";
+artifactAfterReceipt.renderReceiptHash = contentHash(artifactAfterReceipt, "renderReceiptHash");
+expectValid(validators.decisionRender, artifactAfterReceipt, "schema-valid artifact created after render receipt time");
+assert.throws(() => assertRenderSemantics(artifactAfterReceipt, decisionRecord, artifactPayload), /cannot follow render receipt time/);
+const tamperedRenderGate = clone(renderReceipt);
+tamperedRenderGate.sourceOperationGate.reasons = ["gate.relabelled"];
+tamperedRenderGate.renderReceiptHash = contentHash(tamperedRenderGate, "renderReceiptHash");
+expectValid(validators.decisionRender, tamperedRenderGate, "schema-valid render receipt with tampered gate");
+assert.throws(() => assertRenderSemantics(tamperedRenderGate, decisionRecord, artifactPayload), /must exactly match/);
+const blockedRenderParent = clone(decisionRecord);
+const blockedReportGate = blockedRenderParent.operationGates.find((gate) => gate.operation === "report");
+blockedReportGate.status = "blocked";
+blockedReportGate.gapIds = ["gap.future-evidence"];
+blockedReportGate.validationTaskIds = ["validation.future-evidence"];
+blockedReportGate.reasons = ["gate.named-evidence-required"];
+blockedRenderParent.recordHash = contentHash(blockedRenderParent, "recordHash");
+expectValid(validators.decisionRecord, blockedRenderParent, "finalized parent with blocked report gate");
+assertDecisionSemantics(blockedRenderParent, { registry: scenarioRegistry, snapshots: [snapshot] });
+const blockedBinding = rebindRenderReceipt(renderReceipt, blockedRenderParent);
+blockedBinding.receipt.sourceOperationGate.status = "pass";
+blockedBinding.receipt.validation.status = "passed";
+blockedBinding.receipt.renderReceiptHash = contentHash(blockedBinding.receipt, "renderReceiptHash");
+expectValid(validators.decisionRender, blockedBinding.receipt, "schema-valid receipt relabeling a blocked source gate");
+assert.throws(() => assertRenderSemantics(blockedBinding.receipt, blockedRenderParent, blockedBinding.artifactPayload), /must exactly match/);
+const blockedAsPartialBinding = rebindRenderReceipt(renderReceipt, blockedRenderParent);
+blockedAsPartialBinding.receipt.sourceOperationGate.status = "partial";
+blockedAsPartialBinding.receipt.validation.status = "partial";
+blockedAsPartialBinding.receipt.renderReceiptHash = contentHash(blockedAsPartialBinding.receipt, "renderReceiptHash");
+expectValid(validators.decisionRender, blockedAsPartialBinding.receipt, "schema-valid receipt relabeling blocked source gate as partial");
+assert.throws(() => assertRenderSemantics(blockedAsPartialBinding.receipt, blockedRenderParent, blockedAsPartialBinding.artifactPayload), /must exactly match/);
+const unfinalizedParent = clone(decisionRecord);
+unfinalizedParent.finalization.state = "pending";
+unfinalizedParent.recordHash = contentHash(unfinalizedParent, "recordHash");
+expectInvalid(validators.decisionRecord, unfinalizedParent, "unfinalized DecisionRecord parent");
+const unfinalizedBinding = rebindRenderReceipt(renderReceipt, unfinalizedParent);
+expectValid(validators.decisionRender, unfinalizedBinding.receipt, "child receipt referencing structurally unfinalized parent");
+assert.throws(() => assertRenderSemantics(unfinalizedBinding.receipt, unfinalizedParent, unfinalizedBinding.artifactPayload), /not schema-valid and finalized/);
 const parentMutatedWithLaterArtifact = clone(decisionRecord);
 parentMutatedWithLaterArtifact.lineage.decisionArtifactHashes.push(renderReceipt.artifact.artifactHash);
-assert.throws(() => assertDecisionSemantics(parentMutatedWithLaterArtifact), /DecisionRecord hash mismatch/);
+assert.throws(() => assertDecisionSemantics(parentMutatedWithLaterArtifact, { registry: scenarioRegistry, snapshots: [snapshot] }), /DecisionRecord hash mismatch/);
 parentMutatedWithLaterArtifact.recordHash = contentHash(parentMutatedWithLaterArtifact, "recordHash");
 assert.throws(() => assertRenderSemantics(renderReceipt, parentMutatedWithLaterArtifact, artifactPayload), /render source record hash mismatch/);
 
@@ -774,12 +1129,23 @@ console.log(JSON.stringify({
     "observed_fact_requires_source_receipt",
     "unknown_fact_and_metric_have_null_value",
     "missing_or_unknown_rights_block_model_input_rank_export",
+    "conditional_or_share_alike_rights_fail_closed_without_satisfaction_evidence",
     "rights_permission_partitions_are_complete_disjoint_and_exact",
+    "rights_gate_persists_hashed_operation_channel_delivery_territory_time_tuple",
+    "rights_evaluation_chronology_precedes_snapshot_and_decision_finalization",
+    "rights_evidence_exists_before_its_evaluation",
     "operation_vocabularies_and_gate_coverage_match",
+    "scenario_entry_hash_is_independent_from_registry_hash",
+    "decision_registry_scenario_snapshot_subject_method_template_refs_resolve",
+    "decision_system_narrative_is_locale_neutral_codes",
     "enabled_ranking_requires_metrics",
     "legacy_parent_render_artifact_binding_rejected",
     "render_truth_recomputation_rejected",
     "render_kind_operation_mapping_enforced",
+    "render_gate_is_exact_parent_gate_and_blocked_cannot_be_relabelled",
+    "render_requires_finalized_parent_and_matching_validator_receipt",
+    "render_artifact_chronology_is_parent_then_artifact_then_receipt",
+    "localized_render_preserves_parent_truth_hash",
     "render_receipt_is_acyclic_and_parent_bound",
     "later_render_hash_cannot_be_inserted_into_final_parent"
   ]

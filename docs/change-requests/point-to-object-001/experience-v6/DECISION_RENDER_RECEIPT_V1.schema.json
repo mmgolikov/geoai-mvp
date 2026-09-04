@@ -89,14 +89,41 @@
     "operation": {
       "enum": ["resolve", "acquire", "normalize", "calculate", "analyse", "find", "shortlist", "compare", "rank", "create", "generate", "evaluate", "model_input", "dashboard", "report", "project", "export", "persist"]
     },
+    "channel": {
+      "enum": ["internal_operator", "authenticated_user", "public_preview", "client_shared", "third_party_model", "machine_api", "mcp_tool"]
+    },
+    "deliveryMode": {
+      "enum": ["interactive_display", "server_to_server", "download", "email", "embedded_report", "project_storage", "model_prompt"]
+    },
+    "rightsEvaluation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rightsEvaluationId", "evaluationHash", "rightsReceiptId", "rightsScopeHash", "operation", "channel", "deliveryMode", "territoryCountryCode", "evaluatedAt", "decision", "evaluatorId", "evaluatorVersion"],
+      "properties": {
+        "rightsEvaluationId": { "$ref": "#/$defs/boundedId" },
+        "evaluationHash": { "$ref": "#/$defs/sha256" },
+        "rightsReceiptId": { "$ref": "#/$defs/boundedId" },
+        "rightsScopeHash": { "$ref": "#/$defs/sha256" },
+        "operation": { "$ref": "#/$defs/operation" },
+        "channel": { "$ref": "#/$defs/channel" },
+        "deliveryMode": { "$ref": "#/$defs/deliveryMode" },
+        "territoryCountryCode": { "type": "string", "pattern": "^[A-Z]{2}$" },
+        "evaluatedAt": { "$ref": "#/$defs/dateTime" },
+        "decision": { "const": "permitted" },
+        "evaluatorId": { "$ref": "#/$defs/boundedId" },
+        "evaluatorVersion": { "$ref": "#/$defs/semver" }
+      }
+    },
     "sourceDecisionRecordRef": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["decisionRecordId", "recordHash", "finalizedAt"],
+      "required": ["decisionRecordId", "recordHash", "finalizedAt", "finalizationValidatorId", "finalizationValidatorVersion"],
       "properties": {
         "decisionRecordId": { "$ref": "#/$defs/boundedId" },
         "recordHash": { "$ref": "#/$defs/sha256" },
-        "finalizedAt": { "$ref": "#/$defs/dateTime" }
+        "finalizedAt": { "$ref": "#/$defs/dateTime" },
+        "finalizationValidatorId": { "$ref": "#/$defs/boundedId" },
+        "finalizationValidatorVersion": { "$ref": "#/$defs/semver" }
       }
     },
     "templateRef": {
@@ -141,7 +168,7 @@
     "sourceOperationGate": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["operation", "status", "gapIds", "rightsReceiptIds"],
+      "required": ["operation", "status", "gapIds", "validationTaskIds", "rightsReceiptIds", "rightsEvaluations", "reasons"],
       "properties": {
         "operation": { "$ref": "#/$defs/operation" },
         "status": { "enum": ["pass", "partial"] },
@@ -151,10 +178,26 @@
           "uniqueItems": true,
           "items": { "$ref": "#/$defs/boundedId" }
         },
+        "validationTaskIds": {
+          "type": "array",
+          "maxItems": 500,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/boundedId" }
+        },
         "rightsReceiptIds": {
           "type": "array",
           "maxItems": 200,
           "uniqueItems": true,
+          "items": { "$ref": "#/$defs/boundedId" }
+        },
+        "rightsEvaluations": {
+          "type": "array",
+          "maxItems": 200,
+          "items": { "$ref": "#/$defs/rightsEvaluation" }
+        },
+        "reasons": {
+          "type": "array",
+          "maxItems": 100,
           "items": { "$ref": "#/$defs/boundedId" }
         }
       }
@@ -175,10 +218,10 @@
     "governance": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["canonicalizationProfile", "caveat"],
+      "required": ["canonicalizationProfile", "caveatPolicyId"],
       "properties": {
         "canonicalizationProfile": { "const": "JCS_SHA256_OMIT_RENDER_RECEIPT_HASH_V1" },
-        "caveat": { "const": "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion." }
+        "caveatPolicyId": { "const": "caveat.screening-official-validation-required.v1" }
       }
     }
   }

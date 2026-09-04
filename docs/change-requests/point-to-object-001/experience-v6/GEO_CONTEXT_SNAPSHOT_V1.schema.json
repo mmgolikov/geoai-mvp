@@ -73,6 +73,10 @@
       "type": "string",
       "pattern": "^[a-f0-9]{64}$"
     },
+    "semver": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
     "dateTime": {
       "type": "string",
       "format": "date-time"
@@ -106,6 +110,38 @@
     },
     "deliveryMode": {
       "enum": ["interactive_display", "server_to_server", "download", "email", "embedded_report", "project_storage", "model_prompt"]
+    },
+    "rightsEvaluation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "rightsEvaluationId",
+        "evaluationHash",
+        "rightsReceiptId",
+        "rightsScopeHash",
+        "operation",
+        "channel",
+        "deliveryMode",
+        "territoryCountryCode",
+        "evaluatedAt",
+        "decision",
+        "evaluatorId",
+        "evaluatorVersion"
+      ],
+      "properties": {
+        "rightsEvaluationId": { "$ref": "#/$defs/boundedId" },
+        "evaluationHash": { "$ref": "#/$defs/sha256" },
+        "rightsReceiptId": { "$ref": "#/$defs/boundedId" },
+        "rightsScopeHash": { "$ref": "#/$defs/sha256" },
+        "operation": { "$ref": "#/$defs/operation" },
+        "channel": { "$ref": "#/$defs/channel" },
+        "deliveryMode": { "$ref": "#/$defs/deliveryMode" },
+        "territoryCountryCode": { "type": "string", "pattern": "^[A-Z]{2}$" },
+        "evaluatedAt": { "$ref": "#/$defs/dateTime" },
+        "decision": { "const": "permitted" },
+        "evaluatorId": { "$ref": "#/$defs/boundedId" },
+        "evaluatorVersion": { "$ref": "#/$defs/semver" }
+      }
     },
     "subject": {
       "type": "object",
@@ -740,7 +776,7 @@
     "operationGate": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["operation", "status", "gapIds", "rightsReceiptIds", "reasons"],
+      "required": ["operation", "status", "gapIds", "rightsReceiptIds", "rightsEvaluations", "reasons"],
       "properties": {
         "operation": { "$ref": "#/$defs/operation" },
         "status": { "enum": ["pass", "partial", "blocked"] },
@@ -755,6 +791,11 @@
           "maxItems": 64,
           "uniqueItems": true,
           "items": { "$ref": "#/$defs/boundedId" }
+        },
+        "rightsEvaluations": {
+          "type": "array",
+          "maxItems": 200,
+          "items": { "$ref": "#/$defs/rightsEvaluation" }
         },
         "reasons": {
           "type": "array",
