@@ -6,7 +6,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 select extensions.plan(39);
 
--- Structure, privileges and unchanged Data API inventory (1-6).
+-- Structure, privileges and exact canonical Data API inventory (1-6).
 select extensions.has_function(
   'geoai_private', 'bootstrap_first_platform_owner_v2',
   array['uuid', 'text', 'text', 'uuid'],
@@ -43,8 +43,8 @@ select extensions.is(
     join pg_namespace namespace on namespace.oid = procedure.pronamespace
     where namespace.nspname = 'api'
   ),
-  14,
-  'remediation does not expand the exact 14-RPC Data API inventory'
+  16,
+  'canonical chain exposes the exact 16-RPC Data API inventory including the two point-object persistence RPCs'
 );
 select extensions.has_function(
   'api', 'organization_admin_snapshot',
