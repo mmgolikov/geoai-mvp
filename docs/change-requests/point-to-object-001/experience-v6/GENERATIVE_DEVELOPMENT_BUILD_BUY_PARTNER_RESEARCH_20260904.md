@@ -12,6 +12,8 @@ Required boundary for all prototype outputs:
 
 > Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.
 
+The product-keyed [Technical and Commercial Matrix](./GENERATIVE_DEVELOPMENT_TECHNICAL_COMMERCIAL_MATRIX_20260904.md) is the controlling cross-vendor comparison for API/SDK/MCP, headless and OEM use, inputs/exports, reproducibility, UAE/wider-MENA coverage, security, data location, retention, input/output rights, licensing, pricing, TCO drivers and promotion gates. `Unknown` and `Contract/quote required` cells are intentional fail-closed findings, not implied supplier clearance.
+
 ## Executive decision
 
 GeoAI should not become a general-purpose CAD/BIM authoring system and should not delegate its product core to one geometry vendor. The recommended target is a **vendor-neutral development-decision layer** with a hybrid implementation:
@@ -32,7 +34,7 @@ The practical development chain is:
 
 `land discovery -> preliminary screening -> acquisition due diligence -> feasibility and options -> investment decision -> planning/design handoff -> project monitoring`.
 
-Public developer evidence describes feasibility, title/regulatory due diligence, site and environmental analysis, benchmarking, budget analysis, design optimisation and approvals as part of real development work. See [Emaar Development Integrated Annual Report 2025](https://properties.emaar.com/wp-content/uploads/2026/03/Emaar-Development-IR-2025_English_F.pdf) and [Aldar Projects](https://www.aldar.com/en/explore-aldar/businesses/aldar-projects).
+Public developer evidence describes feasibility and market studies, title and regulatory due diligence, site and environmental analysis, architectural and engineering design, procurement and approvals as parts of real development work. See the current [Emaar Development Integrated Annual Report 2025](https://uae-cms.emaar.com/uploads/Emaar_Development_IR_2025_English_F_2be1c144c4.pdf), especially report page 33, and [Aldar Projects](https://www.aldar.com/en/explore-aldar/businesses/aldar-projects) for the broader development/project-delivery context. These public sources do not validate GeoAI buyer demand or willingness to pay.
 
 The buyer is unlikely to pay primarily for a visually attractive AI-generated model. The paid outcomes to validate are:
 
@@ -76,23 +78,23 @@ The market is fragmented by layer. Treating all suppliers as one category would 
 
 ### 3.1 TestFit — direct competitor and mandatory benchmark
 
-[TestFit Site Solver](https://www.testfit.io/product/site-solver) joins parcel/site inputs, deterministic layout generation, yield, parking, quantity and pro-forma workflows. Public [pricing](https://www.testfit.io/pricing) lists Parking Solver at USD 195/month, Site Intelligence at an additional USD 150/month, Pro Forma at an additional USD 170/month, an MCP connection at an additional USD 100/month, Site Solver from USD 15,000/year and Portfolio from USD 20,000/year.
+[TestFit Site Solver](https://www.testfit.io/product/site-solver) joins parcel/site inputs, algorithmic layout generation, yield, parking, quantity and pro-forma workflows. Public [pricing](https://www.testfit.io/pricing) lists Parking Solver at USD 195/month, Site Intelligence at an additional USD 150/month, Pro Forma at an additional USD 170/month, an MCP connection at an additional USD 100/month for Parking Solver, Site Solver from USD 15,000/year including MCP and Portfolio from USD 20,000/year. However, TestFit's official [MCP FAQ](https://support.testfit.io/knowledge/mcp-faq), dated 2026-09-03, says MCP is included with all new subscriptions and existing customers should contact their account manager or sales. The published entitlement therefore conflicts by plan or customer cohort and requires an account-level quote; `MCP + USD 100/month` must not be used as a universal price.
 
-Its current [MCP offer](https://www.testfit.io/mcp) and [MCP FAQ](https://support.testfit.io/knowledge/mcp-faq) are strategically important: the user's AI assistant interprets intent, while TestFit's deterministic engine creates and edits geometry and analytics. Public documentation describes desktop use rather than a confirmed server-side OEM API.
+Its current [MCP offer](https://www.testfit.io/mcp) and FAQ are strategically important: the user's AI assistant interprets intent, while TestFit says its deterministic engine creates and edits geometry and analytics. The FAQ confirms that MCP is currently desktop-only and has no web functionality. This vendor claim still needs an identical-input reproducibility test, and MCP is not evidence of a server-side OEM API.
 
 **Strengths:** fast feasibility; domain typologies; parking; metrics/pro forma; geometry-edit loop; Revit/DXF workflow; credible paid benchmark.
 
 **Gaps for GeoAI:** public availability of parcel, zoning, flood, utility and other layers varies by country; UAE data/rules coverage is not established by the public “global” statement; MCP is not evidence of a headless OEM right; MENA-specific evidence and authority validation remain external.
 
-**Commercial/legal gate:** [TestFit terms](https://www.testfit.io/legal/terms-of-service) reserve TestFit materials and restrict sublicensing, service-bureau and similar reuse. Customer Data remains the customer's, but the public terms are not a sufficient basis for embedding or reselling TestFit output as a GeoAI service. An explicit OEM/API/white-label and generated-output-rights agreement is required.
+**Commercial/legal gate:** [TestFit terms](https://www.testfit.io/legal/terms-of-service) limit standard use to internal authorised users and prohibit sublicensing, SaaS/service-bureau availability, combining TestFit Materials into other programs and competitive-product use unless expressly permitted. Customer Data remains the customer's, but the terms do not clearly classify generated site configurations, geometry and analytics as Customer Data or grant perpetual post-termination use. Standard rights to TestFit Materials end at termination. An explicit OEM/API/white-label agreement must therefore cover generated-output classification, derivatives, export, customer delivery and post-termination use before GeoAI embeds or resells the workflow.
 
 **Decision:** benchmark first; explore partnership only after technical bake-off and written commercial-rights confirmation. Do not couple GeoAI contracts to TestFit's object model.
 
-### 3.2 Autodesk Forma — analysis and BIM ecosystem candidate
+### 3.2 Autodesk Forma Site Design — analysis and BIM ecosystem candidate
 
 [Autodesk Forma Site Design](https://www.autodesk.com/products/forma-site-design/overview) covers site planning, design automation, environmental analysis, alternatives and connections to IFC, OBJ, Revit, Dynamo and Rhino. Autodesk exposes [Forma cloud APIs](https://aps.autodesk.com/autodesk-forma); Site Design API availability is described as beta.
 
-Public Autodesk documentation says contextual terrain/building/parcel availability varies by region and may use open-source data. [Autodesk Trust regional availability](https://www.autodesk.com/trust/availability) lists Site Design covered-content storage in the US, EU and Australia and the beta API in the US/EU; no UAE storage region is listed. Autodesk's [API terms](https://www.autodesk.com/company/legal-notices-trademarks/autodesk-digital-distribution-web-services-api-terms-of-service) preserve customer ownership of Customer Content, while [special terms](https://www.autodesk.com/company/terms-of-use/en/special-terms) keep third-party datasets subject to separate terms.
+Public Autodesk documentation says contextual terrain/building/parcel availability varies by region and may use open-source data. [Autodesk Trust regional availability](https://www.autodesk.com/trust/availability) lists Site Design covered-content storage in the US, EU and Australia and the beta API in the US/EU; no UAE storage region is listed. Autodesk's [API terms](https://www.autodesk.com/company/legal-notices-trademarks/autodesk-digital-distribution-web-services-api-terms-of-service) say Autodesk-defined `Your Content` remains yours, but separately define `Autodesk Materials` to include content, data or materials generated by the Service and restrict API exposure, service-bureau/competitive use and continued API/Autodesk-Material use after termination. Input ownership therefore does not establish ownership or perpetual commercial rights in generated outputs. [Special terms](https://www.autodesk.com/company/terms-of-use/en/special-terms) also keep third-party datasets subject to separate terms.
 
 **Strengths:** established AEC ecosystem; credible environmental/site analysis; BIM handoff; APIs; familiar enterprise vendor.
 
@@ -100,7 +102,17 @@ Public Autodesk documentation says contextual terrain/building/parcel availabili
 
 **Decision:** priority POC for analysis and handoff, not a replacement for GeoAI GeoContext/evidence. Obtain a UAE account-level quote and precise API/data-region answers.
 
-### 3.3 Hypar and Hypar Elements — composable geometry option
+### 3.3 Autodesk Forma Building Design — current schematic-building candidate
+
+[Autodesk Forma Building Design](https://www.autodesk.com/products/forma-building-design/overview) is a distinct current product for schematic building exploration, including building mass, floor plans, façades, units and performance analysis with a geolocated native-Revit handoff. [Forma for Buildings](https://www.autodesk.com/products/forma-for-buildings/overview) combines Site Design, Building Design, Data Management and Board. Building Design is included with Revit, the AEC Collection and Forma for Buildings; the official [UAE Autodesk store](https://www.autodesk.com/ae/products) currently lists Forma Site Design at USD 655/year and the AEC Collection at USD 3,425/year.
+
+**Strengths:** extends the Autodesk comparison from site feasibility into schematic building detail, unit mix, analysis and native BIM continuity.
+
+**Gaps:** no Building Design production API, UAE processing/storage region, OEM right, generated-output right or standalone UAE entitlement was established in this research wave. Site Design's beta API and region statements must not be inherited by Building Design.
+
+**Decision:** add as a separate matrix row and test only where schematic-building detail or native Revit handoff changes the customer decision. It does not replace the Site Design API POC.
+
+### 3.4 Hypar and Hypar Elements — composable geometry option
 
 [Hypar](https://docs.hypar.io/) generates building systems through reusable design logic and supports optioning and AEC interchange. Public [pricing](https://docs.hypar.io/plans-account-and-admin/plans-pricing-and-licenses) lists USD 100/user/month or USD 1,000/user/year; Enterprise is quote-based.
 
@@ -112,7 +124,7 @@ Public Autodesk documentation says contextual terrain/building/parcel availabili
 
 **Decision:** technical sandbox candidate for the reference provider, subject to prototype performance and output validation. Keep the MIT library and hosted Hypar service as separate legal/technical decisions.
 
-### 3.4 Esri Urban — planning and public-sector integration candidate
+### 3.5 Esri Urban — planning and public-sector integration candidate
 
 [ArcGIS Urban](https://doc.arcgis.com/en/urban/11.4/get-started/get-started-what-is-urban.htm) supports 3D planning scenarios, zoning, plausible rule-based buildings and custom metrics. The [Urban GraphQL API](https://developers.arcgis.com/arcgis-urban-api/get-started/) exposes integration paths; private models use ArcGIS identity/OAuth.
 
@@ -122,7 +134,17 @@ Public Autodesk documentation says contextual terrain/building/parcel availabili
 
 **Decision:** partner where an authority or enterprise customer already has authoritative ArcGIS data/models. Do not make Esri a mandatory dependency for commercial site screening.
 
-### 3.5 Bentley iTwin — later digital-twin/federation layer
+### 3.6 ArcGIS CityEngine — procedural-city candidate
+
+[ArcGIS CityEngine](https://www.esri.com/en-us/arcgis/products/arcgis-cityengine/overview) is Esri's procedural 3D city-generation product. Esri describes creation and iteration from real or synthetic GIS, scenario scaling, rule-driven buildings and import of shapefiles, geodatabases, CAD and BIM. This covers the procedural-city category that ArcGIS Urban alone does not.
+
+**Strengths:** procedural AOI/city modelling, GIS context, scalable scenario generation and Esri ecosystem handoff.
+
+**Gaps:** desktop licensing, production headless automation, API/OEM rights, procedural-rule authorship, UAE rules/data, exports and TCO were not established in this wave.
+
+**Decision:** component/partner candidate for a procedural-AOI brief; do not include automatically in the first bake-off unless city-scale generation is material to the named customer decision.
+
+### 3.7 Bentley iTwin — later digital-twin/federation layer
 
 [Bentley iTwin Platform](https://developer.bentley.com/) provides APIs for digital-twin federation, access control, reporting and visualization. Public [developer pricing](https://developer.bentley.com/pricing/) lists a non-commercial Community tier, Standard at USD 199/month including 200 credits, Premium at USD 499/month including 500 credits, additional credits at USD 1.20 and Enterprise by quote.
 
@@ -132,18 +154,22 @@ Public Autodesk documentation says contextual terrain/building/parcel availabili
 
 **Decision:** later partner for customers needing federated project/asset twins; exclude from the first generation-engine bake-off unless a target pilot already uses Bentley.
 
-### 3.6 Finch, Archistar and specialist engines
+### 3.8 Finch, Archistar and specialist engines
 
 Finch is relevant for detailed floorplate/unit planning and Rhino/Revit/Grasshopper workflows; Archistar is relevant if its planning-rule content and generative options cover the target jurisdiction. Both require direct verification of UAE rules, API/OEM availability, output rights, data handling and enterprise pricing before inclusion in a product dependency. They are secondary POC candidates, not assumptions in the target architecture.
 
-### 3.7 Open-source and infrastructure components
+### 3.9 Open-source and infrastructure components
 
 - [CesiumJS](https://github.com/CesiumGS/cesium) is Apache-2.0 and supports commercial or non-commercial 2D/3D visualization. Cesium ion is a separate commercial service and its SaaS integration terms must be reviewed independently.
 - [IfcOpenShell](https://github.com/IfcOpenShell/IfcOpenShell) provides IFC parsing, geometry and conversion under LGPL-3.0-or-later for many components; some ecosystem components use GPL. Component-by-component legal review is required before distribution.
 - [Hypar Elements](https://github.com/hypar-io/Elements) is MIT-licensed and suitable for a bounded geometry proof of concept.
-- Rhino.Compute can expose Rhino/Grasshopper geometry through a service, but Windows/runtime licensing, scaling and operational cost require a POC.
-- Speckle can provide AEC model transport/versioning and self-hosting patterns, but hosted/white-label terms and support are separate from open-source components.
-- OR-Tools is a candidate solver component; GeoAI must still own the objective functions, constraint provenance and reproducibility contract.
+- [Rhino.Compute](https://developer.rhino3d.com/guides/compute/compute-faq/) can expose Rhino/Grasshopper geometry through a self-hosted Windows or Linux service; macOS is unsupported. The current [production-server guide](https://developer.rhino3d.com/en/guides/compute/deploy-to-iis/) states USD 0.10 per core-hour, before VM/cloud, plugins, support and operations. Customer-facing service rights, scaling, definitions/plugins and full operating cost require a POC and written licence confirmation.
+- [Speckle Server](https://github.com/specklesystems/speckle-server) can provide AEC model transport/versioning and self-hosting patterns. The repository says code is generally Apache-2.0 while some modules may differ; module/dependency review is mandatory. Hosted Speckle/white-label terms and support remain separate from the open-source server decision.
+- [OR-Tools](https://github.com/google/or-tools) is an Apache-2.0 candidate solver component; GeoAI must still own objective functions, constraint provenance, solver/version/seed controls and the reproducibility contract.
+
+### 3.10 UAE and wider-MENA applicability boundary
+
+No assessed proprietary generator has published evidence sufficient to confirm authoritative UAE planning-rule coverage, and no country-level coverage has been verified for Saudi Arabia, Qatar, Oman, Bahrain or Kuwait. The linked technical/commercial matrix therefore marks these country questions `Unknown` or `Contract/quote required`. This report supports UAE-first technical discovery only; it is not a MENA-wide data/rules conclusion. Country promotion requires a licensed source pack, effective date, jurisdiction, professional validation and an identical local test set.
 
 ## 4. Pricing and monetisation benchmark
 
@@ -152,12 +178,14 @@ Public list prices are supplier cost anchors, not evidence of GeoAI willingness 
 | Option | Public anchor | What the price does and does not prove |
 | --- | ---: | --- |
 | TestFit Parking Solver | USD 195/month | Low entry price for parking and basic massing; does not include confirmed UAE data/rules |
-| TestFit add-ons | Site Intelligence +150, Pro Forma +170, MCP +100 USD/month | Shows modular monetisation and direct MCP value capture |
-| TestFit Site Solver | From USD 15,000/year | Enterprise feasibility reference price; exact seats, credits, regions and rights still need quote |
+| TestFit add-ons | Site Intelligence +150, Pro Forma +170 USD/month; pricing page shows MCP +100 for Parking Solver | Shows modular monetisation; the 2026-09-03 FAQ instead says MCP is included with all new subscriptions, so entitlement/value capture must be quoted |
+| TestFit Site Solver | From USD 15,000/year; pricing page includes MCP | Enterprise feasibility reference price; exact seats, add-ons, customer cohort, regions and rights still need quote |
 | TestFit Portfolio | From USD 20,000/year | Portfolio/SSO anchor; not an OEM price |
 | Hypar paid seat | USD 100/month or USD 1,000/year | Professional seat benchmark; hosted embedding not established |
 | Bentley iTwin Standard/Premium | USD 199/499 per month plus credits | API/digital-twin platform anchor; usage cost can scale materially |
-| Autodesk Forma | Locale/account dependent | Obtain a UAE quote; public pages and API entitlements must be reconciled before TCO |
+| Autodesk Forma Site Design | UAE public-store anchor USD 655/year | Dated seat anchor only; obtain the account/order/API quote and reconcile tax, region, third-party data and rights before TCO |
+| Autodesk AEC Collection | UAE public-store anchor USD 3,425/year | Bundle anchor relevant to Forma Building Design/Revit access; not a standalone Building Design, API or OEM price |
+| Rhino.Compute production server | USD 0.10/core-hour | Runtime anchor only; VM/cloud, concurrency, plugins, engineering, support and customer-facing licence interpretation remain additional |
 | Esri Urban | Quote-based | Often follows broader ArcGIS account/user-type economics; partner around customer estate |
 | Open-source runtime | No licence fee does not mean zero cost | Engineering, cloud, observability, security, support and compliance remain material |
 
@@ -277,9 +305,9 @@ Do not collapse the result into one opaque weighted score. Show each metric and 
 - Do not label an output compliant when the relevant authority data and rule version are absent.
 - A supplier advances only if it delivers a clear advantage over the reference provider on a paid customer decision—not merely better graphics.
 
-## 8. Three-year TCO model
+## 8. Three-year TCO input framework
 
-Build one comparable model per provider/architecture with low/base/high usage cases.
+This section defines the required inputs; it is not a completed TCO calculation. Build one quantified model per provider/architecture with low/base/high usage cases. Public anchors available now include Autodesk Forma Site Design at USD 655/year in the UAE store, the AEC Collection at USD 3,425/year, Rhino.Compute server runtime at USD 0.10/core-hour and the TestFit, Hypar and Bentley prices above. All anchors remain subject to entitlement, tax, account, contract and usage assumptions.
 
 ### One-off cost inputs
 
@@ -354,7 +382,7 @@ Decide whether a third-party or open-source geometry/analysis provider creates e
 1. Build the `GeoContextSnapshot`, Scenario Registry and Decision Record contracts before provider integration.
 2. Add one deterministic multi-building reference generator with typologies, assumptions, metrics, violations and full rollback.
 3. Prepare the 20-site UAE golden set and five to ten fixed briefs.
-4. Run TestFit, Forma and Hypar/Rhino feasibility POCs against the identical inputs.
+4. Run TestFit Site Solver, Forma Site Design and Hypar/Rhino feasibility POCs against the identical inputs; add Forma Building Design only when schematic-building/Revit handoff is material and CityEngine only for a procedural-AOI brief.
 5. Validate IFC/Revit/DWG/glTF output with a downstream BIM practitioner.
 6. Obtain written API/OEM/embedding/output-rights and security answers from shortlisted vendors.
 7. Conduct 12–15 interviews across development, investment, master planning, GIS/BIM and digital transformation.
@@ -374,13 +402,19 @@ Decide whether a third-party or open-source geometry/analysis provider creates e
 
 | Evidence | Supports | Confidence | Remaining gap |
 | --- | --- | --- | --- |
-| [TestFit pricing](https://www.testfit.io/pricing), [MCP](https://www.testfit.io/mcp), [FAQ](https://support.testfit.io/knowledge/mcp-faq), [terms](https://www.testfit.io/legal/terms-of-service) | Current offer, pricing, deterministic-MCP pattern and public commercial restrictions | High for published terms/offers | Headless OEM rights, UAE layers/rules, output ownership and residency |
-| [Autodesk Forma overview](https://www.autodesk.com/products/forma-site-design/overview), [APIs](https://aps.autodesk.com/autodesk-forma), [availability](https://www.autodesk.com/trust/availability), [terms](https://www.autodesk.com/company/terms-of-use/en/special-terms) | Site/analysis features, integration surface, stated regions and third-party data boundary | High for published product state | UAE quote, precise API entitlement/SLAs, UAE context coverage and residency |
+| [Technical and Commercial Matrix](./GENERATIVE_DEVELOPMENT_TECHNICAL_COMMERCIAL_MATRIX_20260904.md) | Product-keyed 25-field comparison covering technical surface, UAE/wider-MENA applicability, security, rights, licensing, pricing, TCO drivers and promotion gates | Complete as a Wave-1 public-evidence matrix; `Unknown`/`Contract required` are substantive findings | Vendor contracts, quotes, attestations, local data/rules, POCs and customer validation |
+| [TestFit pricing](https://www.testfit.io/pricing), [MCP](https://www.testfit.io/mcp), [FAQ](https://support.testfit.io/knowledge/mcp-faq), [terms](https://www.testfit.io/legal/terms-of-service), [security policy](https://www.testfit.io/legal/information-security-policy), [backup policy](https://www.testfit.io/legal/cloud-backup-policy) | Product/MCP pattern, published prices, desktop boundary, standard-use restrictions and public security/retention controls | Published entitlement conflict: pricing page and 2026-09-03 FAQ must be reconciled by quote; high for quoted source text, not a unified offer | Headless/OEM rights, generated-output classification, post-termination use, UAE layers/rules, attestation and processing region |
+| [Autodesk Forma Site Design](https://www.autodesk.com/products/forma-site-design/overview), [UAE store](https://www.autodesk.com/ae/products), [APIs](https://aps.autodesk.com/autodesk-forma), [availability](https://www.autodesk.com/trust/availability), [API terms](https://www.autodesk.com/company/legal-notices-trademarks/autodesk-digital-distribution-web-services-api-terms-of-service), [special terms](https://www.autodesk.com/company/terms-of-use/en/special-terms) | Site/analysis features, UAE seat anchor, beta API, stated regions, input-ownership and Autodesk-Material/third-party-data boundaries | High for public product/price/term text; not generated-output/OEM clearance | Account quote, API entitlement/SLA, UAE context, output/derivative/post-term rights and UAE residency |
+| [Autodesk Forma Building Design](https://www.autodesk.com/products/forma-building-design/overview), [Forma for Buildings](https://www.autodesk.com/products/forma-for-buildings/overview) | Current schematic-building, unit/floor-plan/façade, analysis, native-Revit and bundle scope | High for published features/bundle; low for product-specific API, regions and rights | Product-specific API/OEM, security/region, output/export rights, price/entitlement and UAE fit |
 | [Hypar pricing](https://docs.hypar.io/plans-account-and-admin/plans-pricing-and-licenses), [Elements](https://github.com/hypar-io/Elements) | Current seat price and MIT component capabilities/limits | High | Hosted-service OEM/residency and POC output quality |
 | [ArcGIS Urban](https://doc.arcgis.com/en/urban/11.4/get-started/get-started-what-is-urban.htm), [Urban API](https://developers.arcgis.com/arcgis-urban-api/get-started/) | Scenario/zoning concepts and API integration | High | Customer model availability, UAE rule sources, price/OEM terms |
+| [ArcGIS CityEngine](https://www.esri.com/en-us/arcgis/products/arcgis-cityengine/overview) | Procedural city/AOI generation, GIS/CAD/BIM inputs and scenario role | High for published product role | Headless/API/OEM, rule authorship/rights, export, UAE applicability, price and TCO |
+| [Rhino.Compute FAQ](https://developer.rhino3d.com/guides/compute/compute-faq/), [production-server guide](https://developer.rhino3d.com/en/guides/compute/deploy-to-iis/) | Windows/Linux server support and USD 0.10/core-hour runtime anchor | High for published runtime/platform price; not full service rights or TCO | Customer-facing use rights, plugin/definition licences, scaling, support, security and complete cloud cost |
 | [Bentley developer platform](https://developer.bentley.com/), [pricing](https://developer.bentley.com/pricing/) | API/digital-twin role and public cost anchors | High | UAE location consistency, full TCO, massing not core |
 | [CesiumJS](https://github.com/CesiumGS/cesium) | Apache-2.0 browser 2D/3D runtime | High | Cesium ion commercial integration is a separate decision |
 | [IfcOpenShell](https://github.com/IfcOpenShell/IfcOpenShell) | IFC/geometry tooling and component licences | High | Distribution architecture and LGPL/GPL legal review |
+| [Speckle Server](https://github.com/specklesystems/speckle-server) | Self-hosted server/viewer/worker pattern and generally Apache-2.0 repository boundary | High for repository statement; selected modules/dependencies remain unverified | Exact module licences, hosted-service rights, security architecture and round-trip fidelity |
+| [OR-Tools](https://github.com/google/or-tools), [documentation](https://developers.google.com/optimization) | Apache-2.0 optimization component and supported solver families/interfaces | High for code/licence role | Selected solver/version/seed reproducibility, objective quality, compute and any wrapped-solver rights |
 | [UAE data-protection overview](https://u.ae/en/about-the-uae/digital-uae/data/data-protection-laws) | Federal data-protection and transfer framework | High for public legal summary | Counsel interpretation and buyer-specific sovereign requirements |
 
 ### Known unknowns that block a production choice
@@ -396,4 +430,4 @@ Decide whether a third-party or open-source geometry/analysis provider creates e
 
 ## Final recommendation
 
-Proceed with GeoAI-owned contracts and a bounded deterministic reference generator now. Run a time-boxed, identical UAE bake-off before selecting a production geometry or simulation provider. Keep TestFit as the direct commercial benchmark, Forma as the strongest analysis/BIM ecosystem candidate, Hypar/Rhino as the composable geometry route, Esri as the authority-GIS partner path and Bentley as a later digital-twin integration. Promote no provider until commercial rights, UAE applicability, security, TCO and customer decision value are verified in writing and in the same test set.
+Proceed with GeoAI-owned contracts and a bounded deterministic reference generator now. Run a time-boxed, identical UAE bake-off before selecting a production geometry or simulation provider. Keep TestFit as the direct commercial benchmark, Forma Site Design as the analysis/BIM ecosystem candidate, Forma Building Design as a separate schematic-building/Revit route, Hypar/Rhino as the composable geometry route, Esri Urban/CityEngine as customer-GIS and procedural-city paths and Bentley as a later digital-twin integration. Promote no provider until commercial rights, UAE applicability, security, quantified TCO and customer decision value are verified in writing and in the same test set. This is an architecture hypothesis, not supplier selection, procurement approval or commercial validation.
