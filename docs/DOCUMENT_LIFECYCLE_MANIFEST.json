@@ -1,11 +1,11 @@
 {
   "schemaVersion": "1.1",
-  "lastVerified": "2026-07-16",
+  "lastVerified": "2026-09-04",
   "authority": "docs/DOCUMENTATION_INDEX.md",
   "counts": {
-    "markdownDocuments": 158,
+    "markdownDocuments": 168,
     "activeAuthorities": 12,
-    "nonActiveDocuments": 146
+    "nonActiveDocuments": 156
   },
   "documents": {
     "AGENTS.md": {
@@ -858,6 +858,66 @@
       "lifecycle": "historical_release_evidence",
       "currentAuthority": false,
       "successor": "docs/CURRENT_RELEASE_STATE.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/change-requests/point-to-object-001/experience-v6/DECISION_RECORD_V1_CONTRACT.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/change-requests/point-to-object-001/experience-v6/DECISION_RENDER_RECEIPT_V1_CONTRACT.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/change-requests/point-to-object-001/experience-v6/GENERATIVE_DEVELOPMENT_BUILD_BUY_PARTNER_RESEARCH_20260904.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/change-requests/point-to-object-001/experience-v6/GENERATIVE_DEVELOPMENT_TECHNICAL_COMMERCIAL_MATRIX_20260904.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/change-requests/point-to-object-001/experience-v6/GEO_CONTEXT_SNAPSHOT_V1_CONTRACT.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/change-requests/point-to-object-001/experience-v6/POINT_TO_OBJECT_001_V6_DEPENDENCY_GATE_SEQUENCE.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/change-requests/point-to-object-001/experience-v6/POINT_TO_OBJECT_001_V6_INTEGRATED_BACKLOG.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/change-requests/point-to-object-001/experience-v6/POINT_TO_OBJECT_001_V6_REUSE_ADAPT_REPLACE_RETIRE_MATRIX.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/change-requests/point-to-object-001/experience-v6/POINT_TO_OBJECT_001_V6_UMBRELLA_CHANGE_REQUEST.md": {
+      "lifecycle": "historical_or_scoped_delivery_evidence",
+      "currentAuthority": false,
+      "successor": "docs/CODEX_BACKLOG_2026_07_16.md",
+      "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
+    },
+    "docs/change-requests/point-to-object-001/experience-v6/SCENARIO_REGISTRY_V1_CONTRACT.md": {
+      "lifecycle": "historical_or_scoped_reference",
+      "currentAuthority": false,
+      "successor": "docs/DOCUMENTATION_INDEX.md",
       "rule": "Point-in-time or scoped evidence; follow the recorded successor before using it as current truth."
     },
     "docs/change-requests/point-to-object-001/live-map-prototype-v2/POINT_TO_OBJECT_001_LIVE_MAP_PROTOTYPE_V2_CHANGE_REQUEST.md": {

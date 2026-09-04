@@ -82,9 +82,11 @@ const documents = Object.fromEntries(paths.map((path) => {
   }];
 }));
 
+const generatedLastVerified = "2026-09-04";
+
 const manifest = {
   schemaVersion: "1.1",
-  lastVerified: "2026-07-16",
+  lastVerified: generatedLastVerified,
   authority: "docs/DOCUMENTATION_INDEX.md",
   counts: {
     markdownDocuments: paths.length,
@@ -111,7 +113,7 @@ const archiveRows = Object.entries(documents).map(([path, document]) =>
 const archiveExpected = `# GeoAI Document Archive Index
 
 Status: Generated navigation; not an independent authority
-Last verified: 2026-07-16
+Last verified: ${generatedLastVerified}
 Owner: GeoAI Documentation Governance
 Authority: Generated clickable lifecycle inventory; precedence remains with \`DOCUMENTATION_INDEX.md\`
 Successor: \`DOCUMENTATION_INDEX.md\`
