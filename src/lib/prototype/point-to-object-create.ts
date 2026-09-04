@@ -59,6 +59,14 @@ export type RedevelopmentProgramValidation =
   | { ok: true; value: ValidatedRedevelopmentProgram }
   | { ok: false; errors: string[] };
 
+export type PointObjectCreateAoiValidation =
+  | { ok: true; measurements: ReturnType<typeof calculatePolygonMeasurements> }
+  | {
+      ok: false;
+      code: "too_small" | "too_large" | "too_many_vertices" | "invalid_geometry";
+      message: string;
+    };
+
 export type ConceptPosition = [number, number];
 type Point = ConceptPosition;
 type MetricPoint = { x: number; y: number };
@@ -67,6 +75,41 @@ const FLOOR_HEIGHT_M = 3.4;
 const MAX_CONCEPT_BLOCKS = 12;
 const MAX_CONCEPT_LEVELS = 80;
 const MAX_INPUT_TEXT = 600;
+export const pointObjectCreateMinAreaSqM = 100;
+export const pointObjectCreateMaxAreaSqM = 1_000_000;
+export const pointObjectCreateMaxVertices = 25;
+
+export function validatePointObjectCreateAoiVertices(vertices: Point[]): PointObjectCreateAoiValidation {
+  if (vertices.length > pointObjectCreateMaxVertices) {
+    return {
+      ok: false,
+      code: "too_many_vertices",
+      message: `Create prototype AOI must not exceed ${pointObjectCreateMaxVertices} exterior vertices.`
+    };
+  }
+
+  const validation = validatePolygonVertices(vertices);
+  const measuredArea = validation.measurements?.areaSqM;
+  if (typeof measuredArea === "number" && measuredArea < pointObjectCreateMinAreaSqM) {
+    return {
+      ok: false,
+      code: "too_small",
+      message: `Create prototype AOI must cover at least ${pointObjectCreateMinAreaSqM} sq m.`
+    };
+  }
+  if (typeof measuredArea === "number" && measuredArea > pointObjectCreateMaxAreaSqM) {
+    return {
+      ok: false,
+      code: "too_large",
+      message: "Create prototype AOI must not exceed 1 sq km."
+    };
+  }
+  if (!validation.valid || !validation.measurements) {
+    return { ok: false, code: "invalid_geometry", message: validation.message };
+  }
+
+  return { ok: true, measurements: validation.measurements };
+}
 
 const TEMPLATE_COPY: Record<ConceptLocale, Record<ConceptTemplateId, RedevelopmentProgramInput>> = {
   en: {

@@ -153,7 +153,8 @@ export function parseLiveResolvedObject(value: unknown): LiveResolvedObjectConte
     ? value.geometryType as LiveResolvedObjectContext["geometryType"]
     : undefined;
   const coordinateAssociation = value.coordinateAssociation === "open_map_geometry_contains_point" ||
-    value.coordinateAssociation === "reverse_nearest_indexed_object_not_point_in_polygon"
+    value.coordinateAssociation === "reverse_nearest_indexed_object_not_point_in_polygon" ||
+    value.coordinateAssociation === "trusted_open_map_identity"
     ? value.coordinateAssociation
     : null;
   const resultCentroidDistanceM = finiteNumber(value.resultCentroidDistanceM, 0, 1_000_000);
@@ -579,9 +580,10 @@ function parseSubject(value: unknown): PointObjectAiSubject | null {
   const featureClass = nonEmptyText(value.featureClass, 160);
   const sourceFeatureId = nonEmptyText(value.sourceFeatureId, 160);
   const sourceLabel = nonEmptyText(value.sourceLabel, 160);
-  const resolutionMethod = value.resolutionMethod === "nominatim_reverse" ? value.resolutionMethod : null;
+  const resolutionMethod = value.resolutionMethod === "nominatim_reverse" || value.resolutionMethod === "nominatim_lookup" ? value.resolutionMethod : null;
   const coordinateAssociation = value.coordinateAssociation === "open_map_geometry_contains_point" ||
-    value.coordinateAssociation === "reverse_nearest_indexed_object_not_point_in_polygon"
+    value.coordinateAssociation === "reverse_nearest_indexed_object_not_point_in_polygon" ||
+    value.coordinateAssociation === "trusted_open_map_identity"
     ? value.coordinateAssociation
     : null;
   const geometryType = value.geometryType === null

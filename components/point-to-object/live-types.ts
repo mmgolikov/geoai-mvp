@@ -81,7 +81,8 @@ export type LiveResolvedObjectContext = {
   geometryType: "Point" | "LineString" | "MultiLineString" | "Polygon" | "MultiPolygon" | null;
   coordinateAssociation:
     | "open_map_geometry_contains_point"
-    | "reverse_nearest_indexed_object_not_point_in_polygon";
+    | "reverse_nearest_indexed_object_not_point_in_polygon"
+    | "trusted_open_map_identity";
   resultCentroidDistanceM: number;
   addressParts: Record<string, string>;
   tags: Record<string, string>;
@@ -265,10 +266,11 @@ export type PointObjectAiSubject = {
   address: string | null;
   featureClass: string;
   sourceFeatureId: string;
-  resolutionMethod: "nominatim_reverse";
+  resolutionMethod: "nominatim_reverse" | "nominatim_lookup";
   coordinateAssociation:
     | "open_map_geometry_contains_point"
-    | "reverse_nearest_indexed_object_not_point_in_polygon";
+    | "reverse_nearest_indexed_object_not_point_in_polygon"
+    | "trusted_open_map_identity";
   sourceLabel: string;
   geometryType: LiveResolvedObjectContext["geometryType"];
   resultCentroidDistanceM: number;

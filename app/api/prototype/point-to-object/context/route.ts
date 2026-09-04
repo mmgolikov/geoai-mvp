@@ -96,13 +96,16 @@ function validBody(value: unknown): value is {
   longitude: number;
   latitude: number;
   locale: PointObjectLocale;
+  expectedSourceFeatureId?: string | null;
 } {
-  if (!isRecord(value) || Object.keys(value).some((key) => !["caseKey", "longitude", "latitude", "locale"].includes(key))) return false;
+  if (!isRecord(value) || Object.keys(value).some((key) => !["caseKey", "longitude", "latitude", "locale", "expectedSourceFeatureId"].includes(key))) return false;
   return isPointObjectMarketKey(value.caseKey) &&
     typeof value.longitude === "number" && Number.isFinite(value.longitude) && Math.abs(value.longitude) <= 180 &&
     typeof value.latitude === "number" && Number.isFinite(value.latitude) && Math.abs(value.latitude) <= 90 &&
     coordinatesMatchPointObjectMarket(value.caseKey, value.longitude, value.latitude) &&
-    isPointObjectLocale(value.locale);
+    isPointObjectLocale(value.locale) &&
+    (value.expectedSourceFeatureId === undefined || value.expectedSourceFeatureId === null ||
+      (typeof value.expectedSourceFeatureId === "string" && /^(?:node|way|relation)\/[1-9]\d{0,19}$/.test(value.expectedSourceFeatureId)));
 }
 
 export async function POST(request: Request) {
@@ -137,7 +140,8 @@ export async function POST(request: Request) {
     const evidencePack = await buildLivePointObjectEvidencePack({
       longitude: parsed.value.longitude,
       latitude: parsed.value.latitude,
-      locale: nominatimLocale(parsed.value.locale)
+      locale: nominatimLocale(parsed.value.locale),
+      osmFeatureId: parsed.value.expectedSourceFeatureId ?? null
     });
     return NextResponse.json({
       mode: "resolved",

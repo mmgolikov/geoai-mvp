@@ -1,11 +1,19 @@
 # Changelog
 
 Status: Active chronological change authority
-Last verified: 2026-09-03
+Last verified: 2026-09-04
 Owner: GeoAI Release Engineering
 Authority: Chronological released/unreleased change record; runtime truth remains `docs/CURRENT_RELEASE_STATE.md`
 Successor: None; any replacement must update `docs/DOCUMENTATION_INDEX.md`
 Navigation: [Documentation Index](docs/DOCUMENTATION_INDEX.md) · [Current Release State](docs/CURRENT_RELEASE_STATE.md) · [Full System Audit](docs/FULL_SYSTEM_AUDIT_2026_07_16.md) · [Codex Backlog](docs/CODEX_BACKLOG_2026_07_16.md)
+
+## Unreleased — POINT_TO_OBJECT_001 V5.1 isolated Preview candidate
+
+- Reworked the protected point-to-object experience into mode-owned `Analyse`, `Find` and `Create` flows. Direct map selection belongs to Analyse; Find adds B2B/B2C role/scenario capability disclosure, a bounded observed-only OpenStreetMap shortlist and comparison without composite scoring; Create performs reversible source-building replacement and conceptual massing for an AOI.
+- Added server-only Photon search-as-you-type after two normalized CJK characters or three other normalized characters, with selected-market bounds/country/bias, locale/result caps, debounce/abort/session-cache client behavior, keyboard/localized states and the existing explicit-submit Nominatim search as a separate fallback. Photon has no product SLA; all returned context remains OpenStreetMap-derived and requires ODbL attribution.
+- Added exact expected-OSM-identity propagation from Find/map selection through context and AI resolution. Changed or unresolved identity fails closed; `Back to map` plus the preserved Find session restores access to the shortlist, while no dedicated analysis-to-Find CTA is claimed.
+- Localized and aligned the existing profile preference surface without changing authorization, and added focused static contracts plus permanent Quality Gate wiring for autocomplete, interaction, Find, area context, Create, map replacement and profile behavior.
+- This remains a branch-only release candidate until exact-head CI, protected Vercel Preview and rendered-browser evidence pass. The released Production source pack remains disabled/count-only, and `main`, Production, Figma authority, Confluence synchronization and hosted Supabase are unchanged. No official parcel, cadastral, zoning, ownership, valuation, complete-inventory, architectural-design or approved-plan claim is included.
 
 ## Unreleased — POINT_TO_OBJECT_001 live map V2.1 Preview
 

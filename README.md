@@ -356,7 +356,9 @@ No external API keys are required for Data Ingestion v0.1. Tiny samples are scor
 
 ## Open Geospatial Baseline v0.1
 
-GeoAI includes an offline open-geodata baseline prototype for OSM-style roads, POI anchors, landuse context and accessibility metrics. The released source pack also contains a bounded OSM Overpass count-only Preview path without features, coordinates or geometry; it is disabled in Production. No real geometry is activated.
+GeoAI includes an offline open-geodata baseline prototype for OSM-style roads, POI anchors, landuse context and accessibility metrics. In the released `main` / Production baseline, the controlled source pack contains only a bounded OSM Overpass count path without feature identities, coordinates or geometry; Production execution is disabled and returns no active sources. No live source geometry is activated in the released Production product.
+
+The isolated `POINT_TO_OBJECT_001` V5.1 Preview candidate is a separate, non-Production product proof. Its server-only routes use Photon for search-as-you-type, explicit-submit Nominatim for place lookup and bounded Overpass queries for observed OpenStreetMap objects and area context. The candidate can render and analyse live open-map feature geometry, but it is not merged, has no provider SLA, does not use hosted Supabase persistence and does not turn community-map context into official, cadastral, zoning, ownership or valuation evidence. Photon, Nominatim and Overpass results remain subject to provider availability, incomplete tagging and `© OpenStreetMap contributors` / ODbL 1.0 attribution.
 
 Run:
 

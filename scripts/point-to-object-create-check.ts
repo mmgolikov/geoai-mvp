@@ -17,6 +17,7 @@ registerHooks({
 const {
   conceptTemplate,
   generateConceptMassing,
+  validatePointObjectCreateAoiVertices,
   validateRedevelopmentProgram
 } = await import("../src/lib/prototype/point-to-object-create");
 const {
@@ -33,6 +34,42 @@ const aoi = [[
   [55.278, 25.219],
   [55.278, 25.216]
 ]] as [number, number][][];
+
+const realisticDrawnAoi = [
+  [55.2700, 25.2050],
+  [55.2706, 25.2050],
+  [55.2706, 25.2056],
+  [55.2700, 25.2056]
+] as [number, number][];
+const realisticValidation = validatePointObjectCreateAoiVertices(realisticDrawnAoi);
+assert.equal(realisticValidation.ok, true, "A realistic close-zoom rectangular AOI must remain selectable.");
+if (realisticValidation.ok) {
+  assert.ok(realisticValidation.measurements.areaSqM > 3_000 && realisticValidation.measurements.areaSqM < 5_000);
+}
+const tinyValidation = validatePointObjectCreateAoiVertices([
+  [55.2700, 25.2050],
+  [55.27005, 25.2050],
+  [55.27005, 25.20505],
+  [55.2700, 25.20505]
+]);
+assert.equal(tinyValidation.ok, false);
+if (tinyValidation.ok === false) assert.equal(tinyValidation.code, "too_small");
+const oversizedValidation = validatePointObjectCreateAoiVertices([
+  [55.27, 25.20],
+  [55.29, 25.20],
+  [55.29, 25.22],
+  [55.27, 25.22]
+]);
+assert.equal(oversizedValidation.ok, false);
+if (oversizedValidation.ok === false) assert.equal(oversizedValidation.code, "too_large");
+const crossingValidation = validatePointObjectCreateAoiVertices([
+  [55.2700, 25.2050],
+  [55.2710, 25.2060],
+  [55.2700, 25.2060],
+  [55.2710, 25.2050]
+]);
+assert.equal(crossingValidation.ok, false);
+if (crossingValidation.ok === false) assert.equal(crossingValidation.code, "invalid_geometry");
 
 const programInput = conceptTemplate("residential_mixed_use", "en");
 const validated = validateRedevelopmentProgram(programInput);

@@ -18,12 +18,12 @@ export function PointObjectHeader({ backToMap = false, showDataSources = false }
   const profileLabel = isAuthenticated ? t("header.profile.open") : t("header.profile.signIn");
 
   return (
-    <header className="flex h-16 shrink-0 items-center justify-between gap-3 border-b border-line bg-white px-4 sm:px-6">
-      <Link href="/" className="flex min-w-0 items-center gap-3 rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] focus-visible:ring-offset-2">
+    <header className="flex h-16 shrink-0 items-center justify-between gap-2 border-b border-line bg-white px-3 sm:gap-3 sm:px-6">
+      <Link href="/" className="flex min-w-0 items-center gap-2 rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] focus-visible:ring-offset-2 sm:gap-3">
         <IdentitySymbol />
         <span className="min-w-0">
-          <span className="block text-lg font-bold leading-5">GeoAI</span>
-          <span className="block truncate text-[11px] font-semibold text-muted">{t("brand.subtitle")}</span>
+          <span className="block whitespace-nowrap text-lg font-bold leading-5">GeoAI</span>
+          <span className="hidden truncate text-[11px] font-semibold text-muted sm:block">{t("brand.subtitle")}</span>
         </span>
       </Link>
 
@@ -34,8 +34,9 @@ export function PointObjectHeader({ backToMap = false, showDataSources = false }
           </Link>
         ) : null}
         {backToMap ? (
-          <Link href="/prototype/point-to-object" className="inline-flex min-h-10 items-center justify-center rounded-lg border border-line bg-white px-3 text-xs font-semibold text-ink hover:border-[#087f8c] hover:bg-[#f3fbfb] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] sm:px-4 sm:text-sm">
-            {t("header.backToMap")}
+          <Link href="/prototype/point-to-object" aria-label={t("header.backToMap")} className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-line bg-white px-0 text-xs font-semibold text-ink hover:border-[#087f8c] hover:bg-[#f3fbfb] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] sm:w-auto sm:px-4 sm:text-sm">
+            <span className="text-lg leading-none sm:hidden" aria-hidden="true">←</span>
+            <span className="hidden sm:inline">{t("header.backToMap")}</span>
           </Link>
         ) : null}
         <div className="inline-flex h-10 items-center rounded-xl border border-line bg-[#f8fafc] p-1" role="group" aria-label={t("header.language")}>
@@ -54,7 +55,7 @@ export function PointObjectHeader({ backToMap = false, showDataSources = false }
         <AccessStatusBadgeVisual
           avatar={user?.profile.avatarUrl ?? undefined}
           fullName={user?.profile.fullName}
-          href={isAuthenticated ? "/profile" : "/login"}
+          href={isAuthenticated ? "/profile" : "/login?next=/profile"}
           isAuthenticated={isAuthenticated}
           label={profileLabel}
           tone="product"

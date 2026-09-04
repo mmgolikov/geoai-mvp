@@ -271,7 +271,8 @@ export async function POST(request: Request) {
     const evidencePack = await buildPointObjectEvidencePack({
       longitude: body.longitude,
       latitude: body.latitude,
-      locale: nominatimLocale(body.locale)
+      locale: nominatimLocale(body.locale),
+      osmFeatureId: body.expectedSourceFeatureId
     });
     if (body.expectedSourceFeatureId && body.expectedSourceFeatureId !== evidencePack.selectedObject.sourceFeatureId) {
       return NextResponse.json({

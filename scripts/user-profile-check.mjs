@@ -6,6 +6,8 @@ function source(path) {
 
 const files = {
   page: source("app/profile/page.tsx"),
+  prototypeHeader: source("components/point-to-object/prototype-header.tsx"),
+  badgeVisual: source("components/auth/access-status-badge-visual.tsx"),
   gate: source("components/auth/authenticated-route-gate.tsx"),
   panel: source("components/auth/profile-panel.tsx"),
   provider: source("components/auth/auth-provider.tsx"),
@@ -23,7 +25,7 @@ function expect(condition, message) {
   if (!condition) failures.push(message);
 }
 
-expect(files.page.includes("ProfilePanel") && files.page.includes("TopNavigation"), "Profile route is not wired into shared navigation");
+expect(files.page.includes("ProfilePanel") && files.page.includes("PointObjectHeader"), "Profile route is not wired into the current product navigation");
 expect(files.page.includes("AuthenticatedRouteGate") && files.gate.includes("isSessionResolved"), "Profile route can render before the browser session is resolved");
 for (const contract of [
   "Full name",
@@ -43,7 +45,8 @@ expect(files.provider.includes("saveProfile") && files.provider.includes("reques
 expect(files.provider.includes("signInWithPassword") && files.login.includes("passwordSelected"), "A changed real-user password cannot be used by the login UI");
 expect(files.login.includes("normalizedIdentifier === mockDemoEmail") && !files.login.includes("mockDemoEmail || password.length"), "Any password must not be treated as mock-demo authority");
 expect(files.badge.includes('isAuthenticated ? "/profile" : "/login"'), "Authenticated account control does not open the profile");
-expect(files.badge.includes('data-authenticated={isAuthenticated ? "true" : "false"}') && files.badge.includes("Open your profile"), "Profile icon does not expose a visible authenticated state");
+expect(files.prototypeHeader.includes('isAuthenticated ? "/profile" : "/login?next=/profile"'), "Current product account control does not open the profile and preserve the return path");
+expect(files.badgeVisual.includes('data-authenticated={isAuthenticated ? "true" : "false"}') && files.prototypeHeader.includes("profileLabel"), "Current product profile icon does not expose a visible authenticated state");
 expect(files.login.includes("window.location.replace(getDestination())"), "Saved authorization does not continue directly to Workspace");
 expect(!files.panel.includes("Demo profile changes stay in this browser."), "Large demo caveat still occupies the top of the personal account");
 expect(files.workspace.includes("user?.profile.defaultAudience") && files.workspace.includes("user?.profile.defaultRole"), "Workspace does not consume profile defaults");

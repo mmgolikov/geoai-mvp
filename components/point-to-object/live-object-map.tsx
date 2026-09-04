@@ -4,7 +4,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 
 import { useEffect, useRef, useState } from "react";
 import type { Feature, FeatureCollection, Geometry, Position } from "geojson";
-import type { ExpressionSpecification, GeoJSONSource, Map as MapLibreMap, MapGeoJSONFeature, MapMouseEvent } from "maplibre-gl";
+import type { ExpressionSpecification, FilterSpecification, GeoJSONSource, Map as MapLibreMap, MapGeoJSONFeature, MapMouseEvent } from "maplibre-gl";
 
 import type {
   LiveMapBasemapId,
@@ -17,6 +17,12 @@ import { usePointObjectLocale } from "@/components/point-to-object/locale-provid
 import type { GeoJsonGeometry } from "@/src/lib/point-to-object/contracts";
 import type { ConceptMassingResult, PointObjectCreateAoi } from "@/src/lib/prototype/point-to-object-create";
 import type { PointObjectFindBounds } from "@/src/lib/prototype/point-to-object-find-contract";
+import {
+  buildPointObjectBuildingReplacementFilter,
+  restorePointObjectMapFilter,
+  snapshotPointObjectMapFilter,
+  type PointObjectMapFilterSnapshot
+} from "@/src/lib/prototype/point-to-object-map-replacement";
 import { pointObjectMarket } from "@/src/lib/prototype/point-to-object-markets";
 
 const BASEMAPS: Array<{ id: LiveMapBasemapId; labelKey: "map.style.street" | "map.style.light" | "map.style.contrast"; styleUrl: string }> = [
@@ -25,6 +31,8 @@ const BASEMAPS: Array<{ id: LiveMapBasemapId; labelKey: "map.style.street" | "ma
   { id: "contrast", labelKey: "map.style.contrast", styleUrl: "https://tiles.openfreemap.org/styles/bright" }
 ];
 export type LiveMapViewMode = "2d" | "3d";
+export type LiveMapInteractionMode = "analyse" | "find" | "create";
+export type PointObjectReplacementStatus = "idle" | "applied" | "error";
 type MapViewMode = LiveMapViewMode;
 const CAMERA: Record<MapViewMode, { pitch: number; bearing: number }> = {
   "2d": { pitch: 0, bearing: 0 },
@@ -46,6 +54,7 @@ const CONCEPT_VOLUME_LAYER_ID = "geoai-concept-volume";
 const MAX_GEOMETRY_POSITIONS = 5_000;
 const MAX_NEARBY_LABELS = 5;
 const EMPTY_CREATE_COORDINATES: Wgs84Position[] = [];
+const BUILDING_FILTER_SNAPSHOTS = new WeakMap<MapLibreMap, Map<string, PointObjectMapFilterSnapshot>>();
 
 const SELECTABLE_SOURCE_LAYERS = new Set([
   "building",
@@ -57,6 +66,27 @@ const SELECTABLE_SOURCE_LAYERS = new Set([
   "water_name",
   "transportation",
   "aeroway"
+]);
+const NON_OBJECT_POLYGON_SOURCE_LAYERS = new Set([
+  "landcover",
+  "water",
+  "water_name",
+  "transportation",
+  "aeroway"
+]);
+const SELECTABLE_LANDUSE_CLASSES = new Set([
+  "residential",
+  "commercial",
+  "industrial",
+  "retail",
+  "construction",
+  "brownfield",
+  "farmland",
+  "farmyard",
+  "forest",
+  "recreation_ground",
+  "allotments",
+  "cemetery"
 ]);
 
 const NAME_PROPERTY_KEYS = ["name", "name_en", "name:en", "name_int", "ref"] as const;
@@ -71,12 +101,14 @@ export type LiveObjectMapProps = {
   onVisibleBoundsChange?: (bounds: PointObjectFindBounds) => void;
   navigationTarget?: LiveMapNavigationTarget | null;
   viewModeRequest?: { requestId: string; mode: LiveMapViewMode } | null;
+  interactionMode?: LiveMapInteractionMode;
   createDrawing?: boolean;
   createDraftCoordinates?: Wgs84Position[];
   createAoi?: PointObjectCreateAoi | null;
   createAreaCleared?: boolean;
   conceptMassing?: ConceptMassingResult | null;
   onCreateVertex?: (coordinate: Wgs84Position) => void;
+  onReplacementStatus?: (status: PointObjectReplacementStatus) => void;
 };
 
 export type LiveMapNavigationTarget = {
@@ -84,6 +116,10 @@ export type LiveMapNavigationTarget = {
   longitude: number;
   latitude: number;
   zoom?: number;
+  boundingBox?: [south: number, north: number, west: number, east: number] | null;
+  expectedSourceFeatureId?: `${"node" | "way" | "relation"}/${string}`;
+  expectedLabel?: string | null;
+  expectedFeatureClass?: string | null;
 };
 
 function safeText(value: unknown, maxLength = 160): string | null {
@@ -231,23 +267,79 @@ function featureClass(feature: MapGeoJSONFeature): string {
   return firstSafeProperty(feature.properties, CLASS_PROPERTY_KEYS, 80) ?? sourceLayer ?? "location";
 }
 
-function featureScore(feature: MapGeoJSONFeature): number {
+function featureGeometryBounds(feature: MapGeoJSONFeature): [number, number, number, number] | null {
+  const geometry = sanitizeGeometry(feature.geometry);
+  if (!geometry || geometry.type === "Point") return null;
+  const positions = geometry.type === "LineString"
+    ? geometry.coordinates
+    : geometry.type === "Polygon"
+      ? geometry.coordinates.flat()
+      : geometry.coordinates.flat(2);
+  if (!positions.length) return null;
+  let west = Infinity;
+  let south = Infinity;
+  let east = -Infinity;
+  let north = -Infinity;
+  for (const [longitude, latitude] of positions) {
+    west = Math.min(west, longitude);
+    south = Math.min(south, latitude);
+    east = Math.max(east, longitude);
+    north = Math.max(north, latitude);
+  }
+  return Number.isFinite(west) ? [west, south, east, north] : null;
+}
+
+function featureScore(
+  feature: MapGeoJSONFeature,
+  zoom: number,
+  viewportBounds: [west: number, south: number, east: number, north: number]
+): number {
   if (feature.source === HIGHLIGHT_SOURCE_ID) return -1;
   const sourceLayer = sourceLayerOf(feature);
   if (!sourceLayer) return -1;
 
+  const isBuilding = sourceLayer === "building" || feature.layer?.id.toLowerCase().includes("building");
+  const isPolygon = feature.geometry.type === "Polygon" || feature.geometry.type === "MultiPolygon";
+  const name = featureName(feature);
+  if (isPolygon) {
+    const bounds = featureGeometryBounds(feature);
+    if (!bounds) return -1;
+    if (NON_OBJECT_POLYGON_SOURCE_LAYERS.has(sourceLayer)) return -1;
+    const featureClassName = firstSafeProperty(feature.properties, CLASS_PROPERTY_KEYS, 80)?.toLowerCase() ?? null;
+    if (sourceLayer === "landuse" && (!featureClassName || !SELECTABLE_LANDUSE_CLASSES.has(featureClassName))) return -1;
+    const viewportWidth = Math.max(1e-9, viewportBounds[2] - viewportBounds[0]);
+    const viewportHeight = Math.max(1e-9, viewportBounds[3] - viewportBounds[1]);
+    if ((bounds[2] - bounds[0]) / viewportWidth >= 0.8 || (bounds[3] - bounds[1]) / viewportHeight >= 0.8) return -1;
+    const latitude = (bounds[1] + bounds[3]) / 2;
+    const widthM = (bounds[2] - bounds[0]) * 111_320 * Math.max(0.01, Math.cos(latitude * Math.PI / 180));
+    const heightM = (bounds[3] - bounds[1]) * 110_574;
+    // Rendered tile layers can include generalized block/background polygons.
+    // Reject implausibly large "buildings" before the scoring preference can
+    // make one consume an entire viewport as a selected object.
+    if (isBuilding && (widthM > 750 || heightM > 750 || widthM * heightM > 250_000)) return -1;
+  }
+  if (isPolygon && !isBuilding) {
+    if (!name || zoom < 14) return -1;
+    const bounds = featureGeometryBounds(feature);
+    if (!bounds || bounds[2] - bounds[0] > 0.02 || bounds[3] - bounds[1] > 0.02) return -1;
+  }
+
   let score = 0;
-  if (sourceLayer === "building" || feature.layer?.id.toLowerCase().includes("building")) score += 1_000;
-  if (feature.geometry.type === "Polygon" || feature.geometry.type === "MultiPolygon") score += 400;
-  if (featureName(feature)) score += 80;
+  if (isBuilding) score += 1_000;
+  if (isPolygon && isBuilding) score += 400;
+  if (name) score += 80;
   if (sourceLayer === "poi") score += 40;
   if (feature.geometry.type === "Point" || feature.geometry.type === "MultiPoint") score += 20;
   return score;
 }
 
-function selectFeature(features: MapGeoJSONFeature[]): MapGeoJSONFeature | null {
+function selectFeature(
+  features: MapGeoJSONFeature[],
+  zoom: number,
+  viewportBounds: [west: number, south: number, east: number, north: number]
+): MapGeoJSONFeature | null {
   return features
-    .map((feature, index) => ({ feature, index, score: featureScore(feature) }))
+    .map((feature, index) => ({ feature, index, score: featureScore(feature, zoom, viewportBounds) }))
     .filter(({ score }) => score >= 0)
     .sort((left, right) => right.score - left.score || left.index - right.index)[0]?.feature ?? null;
 }
@@ -449,6 +541,62 @@ function createAoiData(draft: Wgs84Position[], aoi: PointObjectCreateAoi | null)
   return { type: "FeatureCollection", features };
 }
 
+function buildingLayerIds(map: MapLibreMap): string[] {
+  return (map.getStyle().layers ?? []).flatMap((layer) => {
+    const candidate = layer as typeof layer & { source?: unknown; "source-layer"?: unknown };
+    const isBuildingLayer = candidate.id === BUILDINGS_3D_LAYER_ID || (
+      (candidate.type === "fill" || candidate.type === "fill-extrusion") &&
+      candidate.source === "openmaptiles" &&
+      candidate["source-layer"] === "building"
+    );
+    return isBuildingLayer ? [candidate.id] : [];
+  });
+}
+
+function resetBuildingFilterSnapshots(map: MapLibreMap) {
+  BUILDING_FILTER_SNAPSHOTS.delete(map);
+}
+
+function snapshotBuildingFilters(map: MapLibreMap): Map<string, PointObjectMapFilterSnapshot> {
+  const existing = BUILDING_FILTER_SNAPSHOTS.get(map);
+  if (existing) return existing;
+  const snapshots = new Map<string, PointObjectMapFilterSnapshot>();
+  for (const layerId of buildingLayerIds(map)) {
+    snapshots.set(layerId, snapshotPointObjectMapFilter(map.getFilter(layerId) as FilterSpecification | null | undefined));
+  }
+  BUILDING_FILTER_SNAPSHOTS.set(map, snapshots);
+  return snapshots;
+}
+
+function restoreBuildingFilters(map: MapLibreMap) {
+  const snapshots = BUILDING_FILTER_SNAPSHOTS.get(map);
+  if (!snapshots) return;
+  for (const [layerId, snapshot] of snapshots) {
+    if (map.getLayer(layerId)) map.setFilter(layerId, restorePointObjectMapFilter(snapshot));
+  }
+}
+
+function applyBuildingReplacement(map: MapLibreMap, aoi: PointObjectCreateAoi): boolean {
+  const snapshots = snapshotBuildingFilters(map);
+  const layerIds = buildingLayerIds(map);
+  if (!layerIds.length || layerIds.some((layerId) => !snapshots.has(layerId))) return false;
+  const plans = layerIds.map((layerId) => ({
+    layerId,
+    plan: buildPointObjectBuildingReplacementFilter(
+      restorePointObjectMapFilter(snapshots.get(layerId)!),
+      { type: "Polygon", coordinates: aoi.coordinates }
+    )
+  }));
+  if (plans.some(({ plan }) => !plan.applied || !plan.filter)) return false;
+  try {
+    for (const { layerId, plan } of plans) map.setFilter(layerId, plan.filter);
+    return true;
+  } catch {
+    restoreBuildingFilters(map);
+    return false;
+  }
+}
+
 function setCreateLayers(
   map: MapLibreMap,
   draft: Wgs84Position[],
@@ -456,31 +604,27 @@ function setCreateLayers(
   suppressExistingBuildings: boolean,
   massing: ConceptMassingResult | null,
   viewMode: MapViewMode
-) {
+): PointObjectReplacementStatus {
   (map.getSource(CREATE_AOI_SOURCE_ID) as GeoJSONSource | undefined)?.setData(createAoiData(draft, aoi));
   (map.getSource(CONCEPT_SOURCE_ID) as GeoJSONSource | undefined)?.setData(massing?.featureCollection ?? { type: "FeatureCollection", features: [] });
-  if (map.getLayer(CONCEPT_FILL_LAYER_ID)) map.setLayoutProperty(CONCEPT_FILL_LAYER_ID, "visibility", massing && viewMode === "2d" ? "visible" : "none");
-  if (map.getLayer(CONCEPT_VOLUME_LAYER_ID)) map.setLayoutProperty(CONCEPT_VOLUME_LAYER_ID, "visibility", massing && viewMode === "3d" ? "visible" : "none");
-  if (map.getLayer(BUILDINGS_3D_LAYER_ID)) {
-    if (suppressExistingBuildings && aoi) {
-      try {
-        map.setFilter(BUILDINGS_3D_LAYER_ID, ["!", ["within", { type: "Polygon", coordinates: aoi.coordinates }]]);
-        map.setLayoutProperty(BUILDINGS_3D_LAYER_ID, "visibility", viewMode === "3d" ? "visible" : "none");
-      } catch {
-        map.setFilter(BUILDINGS_3D_LAYER_ID, null);
-        map.setLayoutProperty(BUILDINGS_3D_LAYER_ID, "visibility", "none");
-      }
-    } else {
-      map.setFilter(BUILDINGS_3D_LAYER_ID, null);
-      map.setLayoutProperty(BUILDINGS_3D_LAYER_ID, "visibility", viewMode === "3d" ? "visible" : "none");
-    }
+  let replacementStatus: PointObjectReplacementStatus = "idle";
+  if (suppressExistingBuildings && aoi) {
+    replacementStatus = applyBuildingReplacement(map, aoi) ? "applied" : "error";
+  } else {
+    restoreBuildingFilters(map);
   }
+  const canShowConcept = Boolean(massing && replacementStatus === "applied");
+  if (map.getLayer(CONCEPT_FILL_LAYER_ID)) map.setLayoutProperty(CONCEPT_FILL_LAYER_ID, "visibility", canShowConcept && viewMode === "2d" ? "visible" : "none");
+  if (map.getLayer(CONCEPT_VOLUME_LAYER_ID)) map.setLayoutProperty(CONCEPT_VOLUME_LAYER_ID, "visibility", canShowConcept && viewMode === "3d" ? "visible" : "none");
+  if (map.getLayer(BUILDINGS_3D_LAYER_ID)) map.setLayoutProperty(BUILDINGS_3D_LAYER_ID, "visibility", viewMode === "3d" ? "visible" : "none");
+  return replacementStatus;
 }
 
 function installGeoAiLayers(map: MapLibreMap, viewMode: MapViewMode) {
   const labelLayer = firstSymbolLayerId(map);
   for (const layer of map.getStyle().layers ?? []) {
-    if (layer.type === "fill-extrusion" && layer.id !== BUILDINGS_3D_LAYER_ID) {
+    const candidate = layer as typeof layer & { "source-layer"?: unknown };
+    if (candidate.type === "fill-extrusion" && candidate["source-layer"] === "building" && candidate.id !== BUILDINGS_3D_LAYER_ID) {
       map.setLayoutProperty(layer.id, "visibility", "none");
     }
   }
@@ -629,12 +773,14 @@ export function LiveObjectMap({
   onVisibleBoundsChange,
   navigationTarget = null,
   viewModeRequest = null,
+  interactionMode = "analyse",
   createDrawing = false,
   createDraftCoordinates = EMPTY_CREATE_COORDINATES,
   createAoi = null,
   createAreaCleared = false,
   conceptMassing = null,
-  onCreateVertex
+  onCreateVertex,
+  onReplacementStatus
 }: LiveObjectMapProps) {
   const { locale, t } = usePointObjectLocale();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -652,7 +798,9 @@ export function LiveObjectMap({
   const showSelectedVolumeRef = useRef(true);
   const translationRef = useRef(t);
   const createDrawingRef = useRef(createDrawing);
+  const interactionModeRef = useRef<LiveMapInteractionMode>(interactionMode);
   const createVertexCallbackRef = useRef(onCreateVertex);
+  const replacementStatusCallbackRef = useRef(onReplacementStatus);
   const createDraftRef = useRef(createDraftCoordinates);
   const createAoiRef = useRef(createAoi);
   const createAreaClearedRef = useRef(createAreaCleared);
@@ -681,6 +829,21 @@ export function LiveObjectMap({
   }, [onVisibleBoundsChange]);
 
   useEffect(() => {
+    replacementStatusCallbackRef.current = onReplacementStatus;
+  }, [onReplacementStatus]);
+
+  useEffect(() => {
+    interactionModeRef.current = interactionMode;
+    const map = mapRef.current;
+    if (!map) return;
+    map.getCanvas().style.cursor = interactionMode === "create" && createDrawingRef.current ? "crosshair" : "";
+    if (interactionMode !== "analyse" && map.isStyleLoaded()) {
+      selectionRef.current = null;
+      setHighlight(map, null, viewModeRef.current, showSelectedVolumeRef.current);
+    }
+  }, [interactionMode]);
+
+  useEffect(() => {
     createDrawingRef.current = createDrawing;
     createVertexCallbackRef.current = onCreateVertex;
     createDraftRef.current = createDraftCoordinates;
@@ -700,8 +863,9 @@ export function LiveObjectMap({
         viewportCallbackRef.current?.(nextSelection);
       }
     }
-    setCreateLayers(map, createDraftCoordinates, createAoi, createAreaCleared, conceptMassing, viewModeRef.current);
-    map.getCanvas().style.cursor = createDrawing ? "crosshair" : "";
+    const replacementStatus = setCreateLayers(map, createDraftCoordinates, createAoi, createAreaCleared, conceptMassing, viewModeRef.current);
+    replacementStatusCallbackRef.current?.(replacementStatus);
+    map.getCanvas().style.cursor = interactionModeRef.current === "create" && createDrawing ? "crosshair" : "";
   }, [conceptMassing, createAoi, createAreaCleared, createDraftCoordinates, createDrawing, onCreateVertex]);
 
   useEffect(() => {
@@ -730,15 +894,58 @@ export function LiveObjectMap({
     if (!map || !selectAtRef.current) return;
     handledNavigationTargetRef.current = navigationTarget.requestId;
     const coordinates: Wgs84Position = [navigationTarget.longitude, navigationTarget.latitude];
+    let selectionCompleted = false;
     const selectAfterMove = () => {
-      if (!selectAtRef.current) return;
+      if (selectionCompleted || !selectAtRef.current || !map.isStyleLoaded()) return;
+      selectionCompleted = true;
+      if (navigationTarget.expectedSourceFeatureId) {
+        const center = map.getCenter();
+        const exactSelection: LiveMapSelection = {
+          locationKey: locationKeyRef.current,
+          longitude: coordinates[0],
+          latitude: coordinates[1],
+          clickedAt: new Date().toISOString(),
+          object: {
+            name: navigationTarget.expectedLabel ?? null,
+            featureClass: navigationTarget.expectedFeatureClass ?? "open_map_object",
+            sourceFeatureId: navigationTarget.expectedSourceFeatureId,
+            geometry: { type: "Point", coordinates },
+            renderHeightM: null,
+            renderMinHeightM: null
+          },
+          resolvedObject: null,
+          viewport: {
+            center: [center.lng, center.lat],
+            zoom: map.getZoom(),
+            pitch: map.getPitch(),
+            bearing: map.getBearing(),
+            viewMode: viewModeRef.current,
+            basemapId: basemapIdRef.current
+          },
+          provider: "OpenFreeMap / OpenStreetMap",
+          nearbyLabels: []
+        };
+        selectionRef.current = exactSelection;
+        setHighlight(map, exactSelection, viewModeRef.current, showSelectedVolumeRef.current);
+        callbackRef.current(exactSelection);
+        return;
+      }
       const projected = map.project(coordinates);
       selectAtRef.current({ x: projected.x, y: projected.y }, coordinates);
     };
     map.once("moveend", selectAfterMove);
-    map.easeTo({ center: coordinates, zoom: navigationTarget.zoom ?? 18, duration: 650 });
+    map.once("idle", selectAfterMove);
+    const fallbackTimer = window.setTimeout(selectAfterMove, 1_400);
+    if (navigationTarget.boundingBox) {
+      const [south, north, west, east] = navigationTarget.boundingBox;
+      map.fitBounds([[west, south], [east, north]], { padding: 72, maxZoom: navigationTarget.zoom ?? 18, duration: 650 });
+    } else {
+      map.easeTo({ center: coordinates, zoom: navigationTarget.zoom ?? 18, duration: 650 });
+    }
     return () => {
       map.off("moveend", selectAfterMove);
+      map.off("idle", selectAfterMove);
+      window.clearTimeout(fallbackTimer);
     };
   }, [isReady, navigationTarget]);
 
@@ -794,13 +1001,15 @@ export function LiveObjectMap({
 
         const handleStyleReady = () => {
           if (disposed) return;
+          resetBuildingFilterSnapshots(map);
           installGeoAiLayers(map, viewModeRef.current);
           // Camera state is independent of the style lifecycle. Reinstall only
           // mode-specific handlers and layer visibility here so a basemap load
           // cannot overwrite a user's rotation or a 2D/3D choice made mid-load.
           applyViewMode(map, viewModeRef.current, createAreaClearedRef.current, false, false);
           setHighlight(map, selectionRef.current, viewModeRef.current, showSelectedVolumeRef.current);
-          setCreateLayers(map, createDraftRef.current, createAoiRef.current, createAreaClearedRef.current, conceptMassingRef.current, viewModeRef.current);
+          const replacementStatus = setCreateLayers(map, createDraftRef.current, createAoiRef.current, createAreaClearedRef.current, conceptMassingRef.current, viewModeRef.current);
+          replacementStatusCallbackRef.current?.(replacementStatus);
           setError(null);
           setIsReady(true);
         };
@@ -811,7 +1020,12 @@ export function LiveObjectMap({
           clicked: Wgs84Position
         ) => {
           if (!map.isStyleLoaded()) return;
-          const selectedFeature = selectFeature(map.queryRenderedFeatures([point.x, point.y]));
+          const visibleBounds = map.getBounds();
+          const selectedFeature = selectFeature(
+            map.queryRenderedFeatures([point.x, point.y]),
+            map.getZoom(),
+            [visibleBounds.getWest(), visibleBounds.getSouth(), visibleBounds.getEast(), visibleBounds.getNorth()]
+          );
           const selectedGeometry = selectedFeature ? sanitizeGeometry(selectedFeature.geometry) : null;
           const center = map.getCenter();
           const analysisPosition = objectLookupPosition(selectedGeometry, clicked);
@@ -851,10 +1065,11 @@ export function LiveObjectMap({
         selectAtRef.current = selectAt;
 
         const handleClick = (event: MapMouseEvent) => {
-          if (createDrawingRef.current) {
+          if (interactionModeRef.current === "create" && createDrawingRef.current) {
             createVertexCallbackRef.current?.([event.lngLat.lng, event.lngLat.lat]);
             return;
           }
+          if (interactionModeRef.current !== "analyse") return;
           selectAt(event.point, [event.lngLat.lng, event.lngLat.lat]);
         };
 
@@ -908,7 +1123,10 @@ export function LiveObjectMap({
       const map = mapRef.current;
       mapRef.current = null;
       selectAtRef.current = null;
-      map?.remove();
+      if (map) {
+        resetBuildingFilterSnapshots(map);
+        map.remove();
+      }
     };
   }, [retryVersion]);
 
@@ -932,7 +1150,8 @@ export function LiveObjectMap({
     applyViewMode(map, nextMode, createAreaClearedRef.current);
     if (!map.isStyleLoaded()) return;
     setSelectedVolumeVisibility(map, selectionRef.current, nextMode, showSelectedVolumeRef.current);
-    setCreateLayers(map, createDraftRef.current, createAoiRef.current, createAreaClearedRef.current, conceptMassingRef.current, nextMode);
+    const replacementStatus = setCreateLayers(map, createDraftRef.current, createAoiRef.current, createAreaClearedRef.current, conceptMassingRef.current, nextMode);
+    replacementStatusCallbackRef.current?.(replacementStatus);
   }
 
   function changeBasemap(nextBasemap: LiveMapBasemapId) {
@@ -990,6 +1209,16 @@ export function LiveObjectMap({
     "relative h-full min-h-0 w-full overflow-hidden bg-[#e8edf0]",
     className
   ].filter(Boolean).join(" ");
+  const instructionKey = interactionMode === "find"
+    ? "map.instructions.find"
+    : interactionMode === "create"
+      ? "map.instructions.create"
+      : "map.instructions.analyse";
+  const readyKey = interactionMode === "find"
+    ? "map.ready.find"
+    : interactionMode === "create"
+      ? "map.ready.create"
+      : "map.ready.analyse";
 
   return (
     <div
@@ -1000,7 +1229,7 @@ export function LiveObjectMap({
     >
       <div ref={containerRef} className="absolute inset-0" />
       <p id="live-map-instructions" className="sr-only">
-        {t("map.instructions")}
+        {t(instructionKey)}
       </p>
       <div className="absolute bottom-8 left-3 z-10 flex max-w-[calc(100%-6rem)] flex-wrap items-center gap-2 sm:bottom-3">
         <div className="inline-flex rounded-xl border border-white/80 bg-white/95 p-1 shadow-sm backdrop-blur" role="group" aria-label={t("map.dimension")}>
@@ -1046,7 +1275,7 @@ export function LiveObjectMap({
       <p className="sr-only" aria-live="polite">
         {selection
           ? t("map.selectedAt", { name: selection.object.name ?? selection.object.featureClass, latitude: selection.latitude.toFixed(6), longitude: selection.longitude.toFixed(6) })
-          : isReady ? t("map.ready") : t("map.loading")}
+          : isReady ? t(readyKey) : t("map.loading")}
       </p>
       {!isReady && !error ? (
         <div className="pointer-events-none absolute inset-0 grid place-items-center bg-[#f4f6f7] text-sm font-medium text-[#52606a]" role="status">

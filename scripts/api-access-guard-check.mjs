@@ -178,6 +178,26 @@ for (const file of await collectRouteFiles(apiRoot)) {
         continue;
       }
 
+      if (policy.action === "prototype.search.suggest" && handler.method === "POST") {
+        const originIndex = handler.body.indexOf("if (!sameOrigin(request))");
+        const bodyIndex = handler.body.indexOf("await readBoundedJson(request, 1_024)");
+        const parseIndex = handler.body.indexOf("parsePointObjectAutocompleteRequest(", bodyIndex);
+        const rateIndex = handler.body.indexOf("consumeRateLimit(request)", parseIndex);
+        const suggestIndex = handler.body.indexOf("suggestPointObjects(", rateIndex);
+        if (
+          originIndex < previewIndex ||
+          bodyIndex < originIndex ||
+          parseIndex < bodyIndex ||
+          rateIndex < parseIndex ||
+          suggestIndex < rateIndex ||
+          !handler.body.includes("noStoreHeaders")
+        ) {
+          failures.push(`${relative} ${handler.method}: Preview autocomplete must enforce runtime, origin, bounded body, strict query parsing and rate limit before Photon execution`);
+        }
+        protectedHandlers += 1;
+        continue;
+      }
+
       if (policy.action === "prototype.create.challenge" && handler.method === "GET") {
         const challengeIndex = handler.body.indexOf("randomBytes(");
         const crossSiteIndex = handler.body.indexOf('request.headers.get("sec-fetch-site")');

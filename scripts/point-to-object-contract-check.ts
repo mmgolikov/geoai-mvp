@@ -1233,6 +1233,7 @@ function assertStaticBoundaries(): void {
     "app/api/prototype/point-to-object/find/route.ts",
     "app/api/prototype/point-to-object/resolve/route.ts",
     "app/api/prototype/point-to-object/search/route.ts",
+    "app/api/prototype/point-to-object/suggest/route.ts",
     "components/point-to-object/analysis-client.tsx",
     "components/point-to-object/create-panel.tsx",
     "components/point-to-object/live-object-map.tsx",
@@ -1253,7 +1254,12 @@ function assertStaticBoundaries(): void {
     [...candidateSurfaceAllowlist].sort(),
     "Only the exact isolated point-to-object Candidate UI/API files are allowed."
   );
-  const pointObjectIntegrationAllowlist = new Set([...candidateSurfaceAllowlist, "app/layout.tsx"]);
+  const pointObjectIntegrationAllowlist = new Set([
+    ...candidateSurfaceAllowlist,
+    "app/layout.tsx",
+    "app/profile/page.tsx",
+    "components/auth/profile-panel.tsx"
+  ]);
 
   const prototypeUiFiles = candidateSurfaceFiles.filter((filePath) =>
     filePath.includes(`${path.sep}app${path.sep}prototype${path.sep}`) ||
@@ -1341,8 +1347,14 @@ function assertStaticBoundaries(): void {
     "The AI evidence vocabulary must describe normalized analysis coordinates truthfully.");
   assert.equal(liveEvidenceSource.includes("lookup_bbox_or_centroid_proximity_not_point_in_polygon"), false,
     "Live server grounding must not use bbox/centroid proximity as an object-identity surrogate.");
-  assert.equal(liveEvidenceSource.includes("new URL(\"lookup\""), false,
-    "Live server grounding must resolve the clicked coordinates rather than client-supplied OSM IDs.");
+  assert.match(liveEvidenceSource, /\^\(node\|way\|relation\)\\\/\(\[1-9\]\\d\{0,19\}\)\$/,
+    "Trusted Find/Search handoff must accept only a strict OpenStreetMap node/way/relation identity.");
+  assert.match(liveEvidenceSource, /new URL\("lookup", endpoint\)/,
+    "Trusted Find/Search handoff must resolve the exact OpenStreetMap identity through Nominatim lookup.");
+  assert.match(liveEvidenceSource, /candidate\.osmType === sourceFeatureId\.type && candidate\.osmId === sourceFeatureId\.id/,
+    "Nominatim lookup must fail closed unless the returned object exactly matches the requested identity.");
+  assert.match(liveEvidenceSource, /trustedIdentity \? lookupPlace\([\s\S]*\) : reversePlace\(/,
+    "Direct map clicks must continue to use coordinate-based reverse resolution when no trusted identity is supplied.");
   const nextConfigSource = readFileSync(path.join(ROOT, "next.config.ts"), "utf8");
   assert.match(nextConfigSource, /https:\/\/tiles\.openfreemap\.org/, "CSP must permit the selected live-map tile host.");
 
@@ -2604,6 +2616,9 @@ async function assertCandidateAiSafety(): Promise<void> {
 
 async function assertLiveOverpassContext(): Promise<void> {
   const liveEvidencePath = path.join(ROOT, "src/lib/prototype/point-to-object-live-evidence.ts");
+  const trustedIdentityModuleUrl = pathToFileURL(
+    path.join(ROOT, "src/lib/prototype/point-to-object-trusted-identity.ts")
+  ).href;
   const liveEvidence = await importErasableTypeScript(liveEvidencePath, [
     [/import "server-only";\n/, ""],
     [
@@ -2617,6 +2632,10 @@ async function assertLiveOverpassContext(): Promise<void> {
     [
       /import \{[\s\S]*?\} from "\.\/point-to-object-markets";\n/,
       `const nominatimLocale = (locale) => locale === "ru" ? "ru,en" : "en";\nconst pointObjectMarket = () => ({ bounds: [[54.8, 24.8], [55.8, 25.6]], countryCode: "ae" });\n`
+    ],
+    [
+      /import \{\n  matchPointObjectTrustedIdentityAnchor,[\s\S]*?\n\} from "\.\/point-to-object-trusted-identity";\n/,
+      `import { matchPointObjectTrustedIdentityAnchor, pointObjectIdentityEvidenceDescriptor, pointObjectLookupAssociation } from ${JSON.stringify(trustedIdentityModuleUrl)};\n`
     ]
   ]);
   const buildQuery = liveEvidence.buildOverpassNearbyQuery as (point: [number, number]) => string;

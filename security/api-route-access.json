@@ -55,6 +55,7 @@
     "/api/prototype/point-to-object/find": { "POST": { "access": "protected_preview", "action": "prototype.find.open_map", "scope": "bounded_visible_area", "preAuthMutation": true } },
     "/api/prototype/point-to-object/resolve": { "POST": { "access": "public_demo", "action": "prototype.resolve", "scope": "frozen_case" } },
     "/api/prototype/point-to-object/search": { "POST": { "access": "protected_preview", "action": "prototype.search.place", "scope": "bounded_market", "preAuthMutation": true } },
+    "/api/prototype/point-to-object/suggest": { "POST": { "access": "protected_preview", "action": "prototype.search.suggest", "scope": "bounded_market", "preAuthMutation": true } },
     "/api/report-packages/[id]/export": { "GET": { "access": "project", "action": "report.export", "scope": "resource" } },
     "/api/report-packages/[id]/json": { "GET": { "access": "project", "action": "report.export", "scope": "resource" } },
     "/api/report-packages/[id]/print": { "GET": { "access": "project", "action": "report.export", "scope": "resource" } },

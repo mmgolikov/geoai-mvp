@@ -200,7 +200,7 @@ const semanticContracts = [
   {
     path: "docs/architecture.md",
     required: [
-      "Both server generation POST routes return 403 before parsing until AUTH-01",
+      "The released generation POST routes return 403 before parsing until AUTH-01",
       "deep snapshots stay outside anonymous function traces",
       "CI `database-replay`",
       "existing public Preview environment"

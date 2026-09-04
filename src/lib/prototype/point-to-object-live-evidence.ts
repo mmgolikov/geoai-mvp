@@ -12,6 +12,13 @@ import {
   type PointObjectLocale,
   type PointObjectMarketKey
 } from "./point-to-object-markets";
+import {
+  matchPointObjectTrustedIdentityAnchor,
+  pointObjectIdentityEvidenceDescriptor,
+  pointObjectLookupAssociation,
+  type PointObjectLookupAssociation,
+  type PointObjectResolutionMethod
+} from "./point-to-object-trusted-identity";
 
 const DEFAULT_NOMINATIM_ENDPOINT = "https://nominatim.openstreetmap.org/";
 const DEFAULT_OVERPASS_ENDPOINT = "https://overpass-api.de/api/interpreter";
@@ -113,10 +120,6 @@ const NAME_KEYS = new Set([
 ]);
 
 type OsmType = "node" | "way" | "relation";
-type LookupAssociation =
-  | "open_map_geometry_contains_point"
-  | "reverse_nearest_indexed_object_not_point_in_polygon";
-
 type SafeGeometry = {
   type: "Point" | "LineString" | "MultiLineString" | "Polygon" | "MultiPolygon";
   coordinates: unknown;
@@ -233,10 +236,7 @@ type NearbyClassification = Pick<NearbyCandidate, "group" | "categories" | "feat
 export type LivePointEvidenceRequest = {
   longitude: number;
   latitude: number;
-  /**
-   * Retained for wire compatibility only. Client/vector-tile identifiers are
-   * deliberately ignored because they are not authoritative OSM identities.
-   */
+  /** Exact OSM node/way/relation identity from a server-normalized search result. */
   osmFeatureId?: string | null;
   /** A short BCP-47 preference list, for example `en` or `en,ar`. */
   locale?: string | null;
@@ -264,8 +264,8 @@ export type LivePointObjectEvidencePack = {
     status: "resolved";
     resolutionId: string;
     resolutionHash: string;
-    matchMethod: "nominatim_reverse";
-    coordinateAssociation: LookupAssociation;
+    matchMethod: PointObjectResolutionMethod;
+    coordinateAssociation: PointObjectLookupAssociation;
     resultCentroidDistanceM: number;
     evidenceQuality: "partial_open_context";
   };
@@ -1313,6 +1313,31 @@ async function reversePlace(
   return sanitizePlace(payload);
 }
 
+function parseTrustedOsmFeatureId(value: string | null | undefined): { type: OsmType; id: string; lookupId: string } | null {
+  const match = /^(node|way|relation)\/([1-9]\d{0,19})$/.exec(value ?? "");
+  if (!match) return null;
+  const type = match[1] as OsmType;
+  const id = match[2];
+  const prefix = type === "node" ? "N" : type === "way" ? "W" : "R";
+  return { type, id, lookupId: `${prefix}${id}` };
+}
+
+async function lookupPlace(
+  endpoint: URL,
+  sourceFeatureId: { type: OsmType; id: string; lookupId: string },
+  locale: string
+): Promise<SafeNominatimPlace | null> {
+  const url = new URL("lookup", endpoint);
+  addCommonParameters(url, locale);
+  url.searchParams.set("osm_ids", sourceFeatureId.lookupId);
+  const payload = await fetchNominatimJson(url);
+  if (!Array.isArray(payload)) return null;
+  const place = payload.map(sanitizePlace).find((candidate): candidate is SafeNominatimPlace => Boolean(
+    candidate && candidate.osmType === sourceFeatureId.type && candidate.osmId === sourceFeatureId.id
+  ));
+  return place ?? null;
+}
+
 export async function searchLivePointObjects(input: {
   marketKey: PointObjectMarketKey;
   locale: PointObjectLocale;
@@ -1388,7 +1413,8 @@ function featureClass(place: SafeNominatimPlace): string {
 function evidenceFor(
   place: SafeNominatimPlace,
   point: [number, number],
-  coordinateAssociation: LookupAssociation,
+  matchMethod: PointObjectResolutionMethod,
+  coordinateAssociation: PointObjectLookupAssociation,
   geometryHash: string | null,
   tags: Record<string, string>,
   metrics: LivePointObjectGeometryMetrics | null
@@ -1396,6 +1422,7 @@ function evidenceFor(
   const sourceFeatureId = `${place.osmType}/${place.osmId}`;
   const selectedName = objectName(place);
   const selectedFeatureClass = featureClass(place);
+  const identityEvidence = pointObjectIdentityEvidenceDescriptor(matchMethod, coordinateAssociation);
   const evidence: PointObjectEvidenceReference[] = [
     {
       id: "EVD-COORDINATES",
@@ -1406,12 +1433,10 @@ function evidenceFor(
     },
     {
       id: "EVD-OSM-OBJECT",
-      label: "OpenStreetMap object returned by Nominatim",
+      label: identityEvidence.label,
       value: JSON.stringify({ sourceFeatureId, name: selectedName }),
       sourceId: sourceFeatureId,
-      proofLimit: coordinateAssociation === "open_map_geometry_contains_point"
-        ? "The returned open-map polygon contains the analysis point; this remains community context, not proof that it is the same feature rendered by the map and not an official cadastral or parcel boundary."
-        : "Nominatim reverse returns the nearest suitable indexed OSM object; it does not prove that the analysis point is inside that object."
+      proofLimit: identityEvidence.proofLimit
     },
     {
       id: "EVD-CLASSIFICATION",
@@ -1536,9 +1561,15 @@ export async function buildLivePointObjectEvidencePack(
   const locale = sanitizeLocale(input.locale);
   const endpoint = configuredEndpoint();
   const conflicts: string[] = [];
-  // Resolve identity from the server-observed coordinates only. Vector-tile
-  // feature IDs are rendering-provider internals and must never be promoted to
-  // OSM node/way/relation IDs by convention.
+  const trustedIdentity = parseTrustedOsmFeatureId(input.osmFeatureId);
+  if (input.osmFeatureId && !trustedIdentity) {
+    throw new LivePointEvidenceError(
+      "LIVE_POINT_INVALID",
+      400,
+      "The expected OpenStreetMap identity is invalid.",
+      false
+    );
+  }
   const nearbyPayloadPromise = fetchOverpassJson(buildOverpassNearbyQuery(point))
     .then((payload) => ({ ok: true as const, payload }))
     .catch(() => ({ ok: false as const }));
@@ -1546,14 +1577,11 @@ export async function buildLivePointObjectEvidencePack(
     .then((payload) => ({ ok: true as const, payload }))
     .catch(() => ({ ok: false as const }));
   const [place, nearbyPayload, fabricPayload] = await Promise.all([
-    reversePlace(endpoint, point, locale),
+    trustedIdentity ? lookupPlace(endpoint, trustedIdentity, locale) : reversePlace(endpoint, point, locale),
     nearbyPayloadPromise,
     fabricPayloadPromise
   ]);
-  const matchMethod = "nominatim_reverse" as const;
-  const coordinateAssociation: LookupAssociation = geometryContainsPoint(place?.geometry ?? null, point)
-    ? "open_map_geometry_contains_point"
-    : "reverse_nearest_indexed_object_not_point_in_polygon";
+  const matchMethod = trustedIdentity ? "nominatim_lookup" as const : "nominatim_reverse" as const;
 
   if (!place) {
     throw new LivePointEvidenceError(
@@ -1564,7 +1592,34 @@ export async function buildLivePointObjectEvidencePack(
     );
   }
 
-  const sourceFeatureId = `${place.osmType}/${place.osmId}`;
+  const resolvedIdentity = `${place.osmType}/${place.osmId}`;
+  if (trustedIdentity && resolvedIdentity !== `${trustedIdentity.type}/${trustedIdentity.id}`) {
+    throw new LivePointEvidenceError(
+      "OBJECT_NOT_RESOLVED",
+      409,
+      "The expected OpenStreetMap object could not be resolved exactly.",
+      true
+    );
+  }
+
+  const geometryContainsAnchor = geometryContainsPoint(place.geometry, point);
+  const trustedAnchorMatch = trustedIdentity ? matchPointObjectTrustedIdentityAnchor({
+    anchor: point,
+    centroid: [place.longitude, place.latitude],
+    geometryContainsAnchor,
+    boundingBox: place.boundingBox
+  }) : null;
+  if (trustedIdentity && !trustedAnchorMatch?.matched) {
+    throw new LivePointEvidenceError(
+      "OBJECT_NOT_RESOLVED",
+      409,
+      "The expected OpenStreetMap object is not spatially consistent with the selected point.",
+      true
+    );
+  }
+  const coordinateAssociation = pointObjectLookupAssociation(matchMethod, geometryContainsAnchor);
+
+  const sourceFeatureId = resolvedIdentity;
   const nearby = nearbyPayload.ok
     ? await resolveLiveNearbyContext(point, sourceFeatureId, locale, async () => nearbyPayload.payload)
     : { status: "unavailable" as const, items: [], responseHash: null, observedAt: null };
@@ -1573,7 +1628,7 @@ export async function buildLivePointObjectEvidencePack(
     : { profile: normalizeOverpassUrbanFabric(null, point), responseHash: null, observedAt: null };
   const selectedTags = displayTags(place);
   const selectedMetrics = geometryMetrics(place.geometry);
-  const centroidDistance = Math.round(distanceM(point, [place.longitude, place.latitude]));
+  const centroidDistance = trustedAnchorMatch?.centroidDistanceM ?? Math.round(distanceM(point, [place.longitude, place.latitude]));
   const sourceResponseCore = {
     sourceFeatureId,
     latitude: place.latitude,
@@ -1662,7 +1717,7 @@ export async function buildLivePointObjectEvidencePack(
     nearbyContext: nearby.items,
     geoContext: fabric.profile,
     evidence: [
-      ...evidenceFor(place, point, coordinateAssociation, place.geometryHash, selectedTags, selectedMetrics),
+      ...evidenceFor(place, point, matchMethod, coordinateAssociation, place.geometryHash, selectedTags, selectedMetrics),
       ...evidenceForNearby(nearby.items),
       ...evidenceForGeoContext(fabric.profile)
     ],
@@ -1677,9 +1732,13 @@ export async function buildLivePointObjectEvidencePack(
     ],
     limitations: [
       coordinateAssociation === "open_map_geometry_contains_point"
-        ? "The returned OpenStreetMap polygon contains the analysis point, but it is community context, is not proven identical to the rendered tile feature, and is not an official parcel or cadastral boundary."
-        : "Nominatim reverse geocoding returns the closest suitable indexed OSM object and does not prove that the analysis point lies inside its geometry.",
-      "Client/vector-tile feature identifiers are ignored; OpenStreetMap context is resolved server-side from the map-selected analysis point.",
+        ? "The returned OpenStreetMap polygon contains the analysis point, but it is community context and is not an official parcel or cadastral boundary."
+        : coordinateAssociation === "trusted_open_map_identity"
+          ? "The exact OpenStreetMap identity was carried from a server-normalized search result and resolved through Nominatim lookup; the supplied point is a navigation anchor and may not lie inside returned geometry."
+          : "Nominatim reverse geocoding returns the closest suitable indexed OSM object and does not prove that the analysis point lies inside its geometry.",
+      trustedIdentity
+        ? "The expected OpenStreetMap node, way or relation identity is checked server-side and spatially bound to the selected anchor; the request fails closed if the exact identity cannot be resolved consistently."
+        : "A rendered vector-tile feature identity is not treated as authoritative; context is resolved server-side from the map-selected analysis point.",
       "OpenStreetMap is open community context and may be incomplete, stale or differently classified from authoritative registers.",
       "Raw source geometry is used only to derive its type and semantic hash; it is not sent to the AI model.",
       nearby.status === "available"

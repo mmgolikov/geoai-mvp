@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   conceptTemplates,
@@ -146,17 +146,42 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
   const [customPrompt, setCustomPrompt] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const requestRef = useRef<AbortController | null>(null);
+  const requestIdRef = useRef(0);
   const copy = COPY[locale];
 
+  useEffect(() => {
+    requestIdRef.current += 1;
+    requestRef.current?.abort();
+    requestRef.current = null;
+    setLoading(false);
+    setError(null);
+    return () => {
+      requestIdRef.current += 1;
+      requestRef.current?.abort();
+    };
+  }, [aoi.id, depth, locale, marketKey]);
+
+  function invalidateGeneration() {
+    requestIdRef.current += 1;
+    requestRef.current?.abort();
+    requestRef.current = null;
+    setLoading(false);
+    setError(null);
+    if (generated) onReset();
+  }
+
   function selectTemplate(nextId: ConceptTemplateId) {
+    if (nextId === templateId) return;
     const template = templates.find((item) => item.templateId === nextId);
     if (!template) return;
+    invalidateGeneration();
     setTemplateId(nextId);
     setControls(controlsFrom(template));
-    setError(null);
   }
 
   function updateControl<Key extends keyof Controls>(key: Key, value: Controls[Key]) {
+    invalidateGeneration();
     setControls((current) => {
       const next = { ...current, [key]: value };
       if (key === "levelsMin" && next.levelsMax < next.levelsMin) next.levelsMax = next.levelsMin;
@@ -167,10 +192,15 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
 
   async function generate() {
     if (loading) return;
+    requestRef.current?.abort();
+    const controller = new AbortController();
+    requestRef.current = controller;
+    const requestId = requestIdRef.current + 1;
+    requestIdRef.current = requestId;
     setLoading(true);
     setError(null);
     try {
-      const challengeResponse = await fetch("/api/prototype/point-to-object/create", { method: "GET", cache: "no-store" });
+      const challengeResponse = await fetch("/api/prototype/point-to-object/create", { method: "GET", cache: "no-store", signal: controller.signal });
       const challengePayload = await challengeResponse.json() as { mode?: unknown; challenge?: unknown; error?: unknown };
       if (!challengeResponse.ok || challengePayload.mode !== "ready" || typeof challengePayload.challenge !== "string") {
         throw new Error(typeof challengePayload.error === "string" ? challengePayload.error : copy.error);
@@ -178,6 +208,7 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
       const response = await fetch("/api/prototype/point-to-object/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
         body: JSON.stringify({
           marketKey,
           locale,
@@ -198,12 +229,26 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
       }
       const { mode: _mode, generatedAt: _generatedAt, promptVersion: _promptVersion, ...concept } = payload as PointObjectGeneratedConcept & { mode: string; generatedAt: string; promptVersion: string };
       if (!isGeneratedConcept(concept)) throw new Error(copy.error);
+      if (controller.signal.aborted || requestId !== requestIdRef.current) return;
       onGenerated(concept);
     } catch (requestError) {
+      if (controller.signal.aborted || requestId !== requestIdRef.current || (requestError instanceof DOMException && requestError.name === "AbortError")) return;
       setError(requestError instanceof Error ? requestError.message : copy.error);
     } finally {
-      setLoading(false);
+      if (requestId === requestIdRef.current) {
+        setLoading(false);
+        if (requestRef.current === controller) requestRef.current = null;
+      }
     }
+  }
+
+  function resetGeneratedConcept() {
+    requestIdRef.current += 1;
+    requestRef.current?.abort();
+    requestRef.current = null;
+    setLoading(false);
+    setError(null);
+    onReset();
   }
 
   return (
@@ -246,7 +291,10 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
       <textarea
         id="point-object-create-prompt"
         value={customPrompt}
-        onChange={(event) => setCustomPrompt(event.target.value.slice(0, 600))}
+        onChange={(event) => {
+          invalidateGeneration();
+          setCustomPrompt(event.target.value.slice(0, 600));
+        }}
         rows={3}
         placeholder={copy.placeholder}
         className="mt-2 w-full resize-none rounded-xl border border-[#cbd8d4] bg-white p-3 text-sm leading-5 outline-none focus:border-[#087f70] focus:ring-2 focus:ring-[#bde7df]"
@@ -270,7 +318,7 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
         >
           {loading ? copy.generating : copy.generate}
         </button>
-        {generated ? <button type="button" onClick={onReset} className="min-h-11 rounded-xl border border-[#b8cbc6] bg-white px-3 text-xs font-bold text-[#345c54]">{copy.reset}</button> : null}
+        {generated ? <button type="button" onClick={resetGeneratedConcept} className="min-h-11 rounded-xl border border-[#b8cbc6] bg-white px-3 text-xs font-bold text-[#345c54]">{copy.reset}</button> : null}
       </div>
       <p className="mt-3 text-[10px] leading-4 text-[#62716d]">{copy.boundary}</p>
     </section>

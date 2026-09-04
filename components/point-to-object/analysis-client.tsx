@@ -22,6 +22,8 @@ import type {
   PointObjectAnalysisHorizon,
   PointObjectAnalysisPerspective
 } from "@/components/point-to-object/live-types";
+import type { ExploreRole, ExploreScenarioId } from "@/src/lib/explore/types";
+import { readPointObjectFindSession } from "@/src/lib/prototype/point-to-object-find-session";
 
 type AnalysisSettings = {
   depth: PointObjectAnalysisDepth;
@@ -36,6 +38,29 @@ const DEFAULT_SETTINGS: AnalysisSettings = {
   perspective: "developer",
   horizon: "current"
 };
+
+function settingsForFindIntent(role: ExploreRole, scenario: ExploreScenarioId): AnalysisSettings {
+  const perspective: PointObjectAnalysisPerspective = [
+    "real_estate_fund", "bank_lender", "investor_buyer", "family_office"
+  ].includes(role)
+    ? "investor"
+    : ["developer", "government_urban_authority", "infrastructure_operator", "consultant_broker"].includes(role)
+      ? "developer"
+      : "asset_owner";
+  const goal: PointObjectAnalysisGoal = scenario.startsWith("b2b_redevelopment_")
+    ? "redevelopment"
+    : scenario === "b2c_point_context" || scenario === "b2c_tourist_objects_route" || scenario === "b2c_interest_routes"
+      ? "object_profile"
+      : scenario === "b2c_residential_context"
+        ? "due_diligence"
+        : "development_screening";
+  const horizon: PointObjectAnalysisHorizon = scenario === "b2c_point_context" || scenario === "b2c_tourist_objects_route" || scenario === "b2c_interest_routes"
+    ? "current"
+    : scenario === "b2b_redevelopment_100ha"
+      ? "long_term"
+      : "one_to_three_years";
+  return { depth: "standard", goal, perspective, horizon };
+}
 
 function humanizeAttribute(key: string): string {
   return key.replace(/^tag\./, "").replace(/^classification\./, "").replaceAll("_", " ").replaceAll(":", " · ").replace(/\b\w/g, (character) => character.toUpperCase());
@@ -244,10 +269,18 @@ export function PointToObjectAnalysis() {
         analysisRef.current = restoredAnalysis;
         setAnalysis(restoredAnalysis);
       } else {
-        const restoredSettings = restoredQuestion.trim()
-          ? { ...DEFAULT_SETTINGS, goal: "custom" as const }
+        const findSession = readPointObjectFindSession();
+        const selectedSourceFeatureId = restoredSelection.resolvedObject?.sourceFeatureId ?? restoredSelection.object.sourceFeatureId;
+        const intentSettings = findSession?.analysisTargetSourceFeatureId === selectedSourceFeatureId
+          ? settingsForFindIntent(findSession.role, findSession.scenario)
           : DEFAULT_SETTINGS;
-        if (restoredQuestion.trim()) setGoal("custom");
+        const restoredSettings = restoredQuestion.trim()
+          ? { ...intentSettings, goal: "custom" as const }
+          : intentSettings;
+        setDepth(restoredSettings.depth);
+        setGoal(restoredSettings.goal);
+        setPerspective(restoredSettings.perspective);
+        setHorizon(restoredSettings.horizon);
         void requestAnalysis(restoredSelection, restoredQuestion, restoredSettings);
       }
     }
@@ -309,9 +342,18 @@ export function PointToObjectAnalysis() {
   const content = analysis?.mode === "openai" ? analysis.content : null;
   const subject = analysis?.mode === "openai" ? analysis.subject : null;
   const sourceGeometryContainsPoint = subject?.coordinateAssociation === "open_map_geometry_contains_point";
-  const title = subject && !sourceGeometryContainsPoint ? t("analysis.nearestTitle") : subject?.name ?? selection?.object.name ?? t("analysis.selectedTitle");
+  const sourceIdentityTrusted = subject?.coordinateAssociation === "trusted_open_map_identity";
+  const title = subject && !sourceGeometryContainsPoint && !sourceIdentityTrusted
+    ? t("analysis.nearestTitle")
+    : subject?.name ?? selection?.object.name ?? t("analysis.selectedTitle");
   const resolvedName = subject?.name && subject.name !== title ? subject.name : null;
-  const contextRelation = subject ? sourceGeometryContainsPoint ? t("selection.relation.containing") : t("selection.relation.nearest", { distance: Math.round(subject.resultCentroidDistanceM) }) : null;
+  const contextRelation = subject
+    ? sourceGeometryContainsPoint
+      ? t("selection.relation.containing")
+      : sourceIdentityTrusted
+        ? t("selection.relation.exact")
+        : t("selection.relation.nearest", { distance: Math.round(subject.resultCentroidDistanceM) })
+    : null;
   const completedDepth = analysis?.mode === "openai" ? analysis.request.depth : depth;
   const localizedDepth = completedDepth === "quick" ? t("analysis.quick") : completedDepth === "deep" ? t("analysis.deep") : t("analysis.standard");
   const dispositionText = content?.decisionBrief.disposition === "continue_screening" ? t("analysis.continue") : content?.decisionBrief.disposition === "hold" ? t("analysis.hold") : t("analysis.insufficient");

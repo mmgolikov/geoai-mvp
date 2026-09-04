@@ -4,7 +4,7 @@
     "app/api/**/route.ts",
     "security/api-route-access.json"
   ],
-  "routeCount": 75,
+  "routeCount": 76,
   "fieldContract": [
     "route",
     "classification",
@@ -2114,6 +2114,42 @@
     "/api/prototype/point-to-object/search": {
       "route": "/api/prototype/point-to-object/search",
       "sourcePath": "app/api/prototype/point-to-object/search/route.ts",
+      "classification": "protected_preview_bounded",
+      "methods": {
+        "POST": {
+          "access": "protected_preview",
+          "cachePolicy": {
+            "required": "no_store_required",
+            "declaredDirectives": [
+              "private, no-store, max-age=0"
+            ],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 1024,
+          "requestSizeLimitStatus": "explicit_read_bounded_json",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200,
+              201
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            400,
+            401,
+            403,
+            405,
+            413,
+            429,
+            503
+          ],
+          "diagnosticExposure": "authenticated_preview_only_minimized_evidence_no_secret_or_provider_detail"
+        }
+      }
+    },
+    "/api/prototype/point-to-object/suggest": {
+      "route": "/api/prototype/point-to-object/suggest",
+      "sourcePath": "app/api/prototype/point-to-object/suggest/route.ts",
       "classification": "protected_preview_bounded",
       "methods": {
         "POST": {

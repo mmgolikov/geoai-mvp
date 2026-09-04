@@ -1,6 +1,17 @@
 export const POINT_OBJECT_LOCALES = ["en", "ru"] as const;
 
+const POINT_OBJECT_AUTOCOMPLETE_CJK_PATTERN = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u;
+
 export type PointObjectLocale = (typeof POINT_OBJECT_LOCALES)[number];
+
+export function pointObjectAutocompleteMinimumCharacters(query: string): 2 | 3 {
+  return POINT_OBJECT_AUTOCOMPLETE_CJK_PATTERN.test(query) ? 2 : 3;
+}
+
+export function pointObjectAutocompleteQueryReady(query: string): boolean {
+  const normalized = query.normalize("NFKC").replace(/\s/gu, "");
+  return Array.from(normalized).length >= pointObjectAutocompleteMinimumCharacters(normalized);
+}
 
 export const POINT_OBJECT_MARKET_KEYS = [
   "dubai",
