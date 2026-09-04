@@ -358,17 +358,46 @@ test("V5.1 keeps exact identity, Find lineage, Create A/B and mobile profile coh
   const methodologyPanel = page.getByTestId("find-methodology-panel");
   await expect(methodologyPanel).toBeVisible();
   const methodologyGeometry = await methodologyPanel.evaluate((element) => {
+    const aside = element.closest("aside");
+    if (!aside) throw new Error("Find methodology panel must remain inside the drawer aside.");
+    const panelRect = element.getBoundingClientRect();
+    const asideRect = aside.getBoundingClientRect();
     element.scrollTop = element.scrollHeight;
     return {
       clientHeight: element.clientHeight,
       scrollHeight: element.scrollHeight,
-      bottomReached: Math.ceil(element.scrollTop + element.clientHeight) >= element.scrollHeight
+      bottomReached: Math.ceil(element.scrollTop + element.clientHeight) >= element.scrollHeight,
+      leftContained: panelRect.left >= asideRect.left - 1,
+      rightContained: panelRect.right <= asideRect.right + 1,
+      topContained: panelRect.top >= asideRect.top - 1,
+      bottomContained: panelRect.bottom <= asideRect.bottom + 1
     };
   });
   expect(methodologyGeometry.clientHeight).toBeGreaterThan(0);
   expect(methodologyGeometry.scrollHeight).toBeGreaterThan(methodologyGeometry.clientHeight);
   expect(methodologyGeometry.bottomReached).toBe(true);
-  await expect(methodologyPanel.getByText("© OpenStreetMap contributors.")).toBeVisible();
+  expect(methodologyGeometry.leftContained).toBe(true);
+  expect(methodologyGeometry.rightContained).toBe(true);
+  expect(methodologyGeometry.topContained).toBe(true);
+  expect(methodologyGeometry.bottomContained).toBe(true);
+  const methodologyAttribution = methodologyPanel.getByText("© OpenStreetMap contributors.");
+  await expect(methodologyAttribution).toBeVisible();
+  const attributionGeometry = await methodologyAttribution.evaluate((element) => {
+    const panel = element.closest<HTMLElement>('[data-testid="find-methodology-panel"]');
+    const aside = element.closest("aside");
+    if (!panel || !aside) throw new Error("Find methodology attribution must remain inside the visible panel and drawer aside.");
+    const attributionRect = element.getBoundingClientRect();
+    const panelRect = panel.getBoundingClientRect();
+    const asideRect = aside.getBoundingClientRect();
+    return {
+      insidePanel: attributionRect.top >= panelRect.top - 1 && attributionRect.bottom <= panelRect.bottom + 1,
+      insideAside: attributionRect.top >= asideRect.top - 1 && attributionRect.bottom <= asideRect.bottom + 1,
+      insideViewport: attributionRect.top >= -1 && attributionRect.bottom <= window.innerHeight + 1
+    };
+  });
+  expect(attributionGeometry.insidePanel).toBe(true);
+  expect(attributionGeometry.insideAside).toBe(true);
+  expect(attributionGeometry.insideViewport).toBe(true);
   await page.getByTestId("find-data-methodology").click();
   await expect(page.getByText("Pan or zoom the map, then use Find to search the visible area. Map clicks do not select objects in this mode.")).toBeAttached();
   await page.locator(".maplibregl-canvas").click({ position: { x: 200, y: 150 }, force: true });
