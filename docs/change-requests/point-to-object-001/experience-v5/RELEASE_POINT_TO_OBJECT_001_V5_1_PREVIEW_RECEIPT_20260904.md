@@ -26,6 +26,21 @@ Successor: `docs/CURRENT_RELEASE_STATE.md`; this receipt is bounded Preview evid
 
 The deployment ID, Preview target, Ready status, exact URL and alias were independently read through Vercel inspection. GitHub Quality Gate evidence below binds the code head to deterministic contracts, Chrome journeys, production build, API/route smoke and database replay. Ready deployment status is not treated as founder acceptance, Production authority or proof of external-provider completeness.
 
+### Documentation-only successor before V6
+
+After the verified V5.1 application head, the same branch advanced to documentation-only commit `d85ef69624bc79c50af788c165c0760dcab01c8f`, tree `80719472a4a941b59cfb5298c3aaa4d7e0f86d98`. This successor did not change the V5.1 runtime implementation. It is therefore recorded separately and must not replace `789b197e4dcd3dbd03fc3d4aa594bdcb23ab1794` as the verified application head.
+
+| Documentation-only evidence | Verified value |
+| --- | --- |
+| Branch head immediately before V6 | `d85ef69624bc79c50af788c165c0760dcab01c8f` |
+| Git tree | `80719472a4a941b59cfb5298c3aaa4d7e0f86d98` |
+| Quality Gate | [Run `33880472031`](https://github.com/mmgolikov/geoai-mvp/actions/runs/33880472031), successful |
+| Quality artifact | `9940176837`, SHA-256 `ecfc5f9e4b971d5e522a73a7b16b2ecbdbb65fb5ba735989b82ddd17e1f4324a`, 32,639,084 bytes |
+| Database artifact | `9939757253`, SHA-256 `62054dde95bb45dbe08e81722da37fb6317e461cef0d1f23954751f03e73b75c`, 7,045 bytes |
+| Preview | `dpl_BH4us5PwSs7yw98JfbG9C1GnZgbz`, target `preview`, Ready at [geoai-4thdsrhia-geoaidev.vercel.app](https://geoai-4thdsrhia-geoaidev.vercel.app) |
+
+The later branch head and its successful checks close the documentation state that followed V5.1. They do not retroactively turn V5.1 into a released, founder-accepted or Production-active version. V6 uses `d85ef696...` as its rollback point and creates a new evidence chain.
+
 ## Delivered V5.1 delta
 
 - `Analyse`, `Find` and `Create` own separate interaction modes. Normal map clicks select objects only in Analyse; idle Find/Create clicks do not create misleading highlights. Background, land-cover and anomalously broad viewport geometries are rejected, preventing the former giant-square selection.
