@@ -22,7 +22,7 @@ async function signInDemo(page: Page, next = "/workspace") {
   const redirected = await page.waitForURL((url) => url.pathname === next, { timeout: 3000 }).then(() => true, () => false);
   if (redirected) return;
   await page.getByRole("button", { name: "Open demo access" }).click();
-  await page.getByRole("button", { name: "Open demo" }).click();
+  await page.getByRole("button", { name: "Open demo", exact: true }).click();
   await expect(page).toHaveURL((url) => url.pathname === next);
 }
 

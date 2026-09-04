@@ -23,7 +23,7 @@ test.describe("authenticated product route session", () => {
     await page.getByRole("button", { name: "Open demo access" }).click();
     await expect(page.getByLabel("Email or phone")).toHaveValue("demo@geoai.space");
     await expect(page.getByLabel("Password")).toHaveValue("111111");
-    await page.getByRole("button", { name: "Open demo" }).click();
+    await page.getByRole("button", { name: "Open demo", exact: true }).click();
 
     await expect(page).toHaveURL((url) =>
       url.pathname === "/workspace" && url.searchParams.get("segment") === "b2b"

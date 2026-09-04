@@ -88,7 +88,7 @@ async function useDemoCredentialsWithKeyboard(page: Page) {
   await expect(page.getByLabel("Email or phone")).toHaveValue("demo@geoai.space");
   await expect(page.getByLabel("Password")).toHaveValue("111111");
 
-  const openDemo = page.getByRole("button", { name: "Open demo" });
+  const openDemo = page.getByRole("button", { name: "Open demo", exact: true });
   await tabUntilLocator(page, openDemo, { maximumTabs: 20 });
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL((url) => url.pathname === "/workspace");

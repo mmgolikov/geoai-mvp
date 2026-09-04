@@ -35,7 +35,7 @@ async function signInDemo(page: Page) {
   const redirected = await page.waitForURL((url) => url.pathname === "/workspace", { timeout: 3000 }).then(() => true, () => false);
   if (!redirected) {
     await page.getByRole("button", { name: "Open demo access" }).click();
-    await page.getByRole("button", { name: "Open demo" }).click();
+    await page.getByRole("button", { name: "Open demo", exact: true }).click();
     await expect(page).toHaveURL((url) => url.pathname === "/workspace");
   }
   await expect(page.getByRole("link", { name: "Open demo profile" })).toHaveAttribute("data-authenticated", "true");
