@@ -2137,6 +2137,18 @@ async function assertCandidateAiSafety(): Promise<void> {
   assert.equal(uncitedNearbyClaim.ok, false,
     "Nearby interpretation must cite a canonically bound EVD-CONTEXT receipt.");
 
+  const combinedObjectAndNearbyAnswer = validateContentDetailed({
+    ...rawPlan,
+    focusedAnswer: {
+      ...rawPlan.focusedAnswer,
+      scope: "nearby_context",
+      statement: "The selected hotel and nearby World Trade Centre station support a combined object-and-location screen, while the investment case still needs verified evidence.",
+      evidenceRefs: ["EVD-OBJECT", "EVD-CONTEXT-01"]
+    }
+  }, evidencePack, focusedAnalysisRequest);
+  assert.equal(combinedObjectAndNearbyAnswer.ok, true,
+    "A nearby-context answer may bind both the selected object and the cited nearby feature.");
+
   const safePlanningGap = validateContentDetailed({
     ...rawPlan,
     focusedAnswer: {

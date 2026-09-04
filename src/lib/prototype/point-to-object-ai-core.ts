@@ -966,12 +966,19 @@ function focusedScopeRefs(
   support: PointObjectEvidenceSupport
 ): string[] {
   switch (scope) {
-    case "object_identity": return uniqueRefs(support.objectRef, support.geometryRef);
-    case "mapped_use": return uniqueRefs(support.classificationRef);
-    case "mapped_form": return uniqueRefs(support.attributesRef, support.geometryRef);
-    case "mapped_lifecycle": return support.hasLifecycleMarker ? uniqueRefs(support.attributesRef) : [];
-    case "address_context": return uniqueRefs(support.addressRef, support.coordinateRef);
-    case "nearby_context": return uniqueRefs(...support.contextRefs);
+    case "object_identity": return uniqueRefs(support.objectRef, support.geometryRef, support.addressRef, support.coordinateRef);
+    case "mapped_use": return uniqueRefs(support.objectRef, support.classificationRef);
+    case "mapped_form": return uniqueRefs(support.objectRef, support.classificationRef, support.attributesRef, support.geometryRef);
+    case "mapped_lifecycle": return support.hasLifecycleMarker
+      ? uniqueRefs(support.objectRef, support.attributesRef, support.geometryRef)
+      : [];
+    case "address_context": return uniqueRefs(support.objectRef, support.addressRef, support.coordinateRef);
+    case "nearby_context": return uniqueRefs(
+      support.objectRef,
+      support.classificationRef,
+      support.addressRef,
+      ...support.contextRefs
+    );
     case "screening_implication":
     case "development_hypothesis": return uniqueRefs(
       support.objectRef,
@@ -981,7 +988,16 @@ function focusedScopeRefs(
       support.geometryRef,
       ...support.contextRefs
     );
-    case "source_limitation": return uniqueRefs(support.sourceStatusRef, support.objectRef, support.coordinateRef);
+    case "source_limitation": return uniqueRefs(
+      support.sourceStatusRef,
+      support.objectRef,
+      support.classificationRef,
+      support.addressRef,
+      support.attributesRef,
+      support.geometryRef,
+      support.coordinateRef,
+      ...support.contextRefs
+    );
   }
 }
 
