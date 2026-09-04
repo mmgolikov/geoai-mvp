@@ -1528,17 +1528,54 @@ function validateFocusedAnswer(
   const unsupportedReason = value.unsupportedReasonCode === null
     ? null
     : enumValue(value.unsupportedReasonCode, POINT_OBJECT_UNSUPPORTED_REASON_CODES);
+  const requiredMissing = requiredMissingEvidence(question, support);
+  const directAttribute = directAttributeRequirement(question, support);
+  const canonicalDirectAttribute = Boolean(
+    directAttribute?.value && directAttribute.evidenceRef && requiredMissing.length === 0
+  );
   if (!status || !scope || !confidence || perspective !== request.perspective || horizon !== request.horizon ||
-      (value.statement !== null && (!statement || statement.length < 40)) ||
+      (value.statement !== null && (!statement || (!canonicalDirectAttribute && statement.length < 40))) ||
       !Array.isArray(value.evidenceRefs) || refs.length !== value.evidenceRefs.length || refs.length > 6 || new Set(refs).size !== refs.length ||
       !Array.isArray(value.missingEvidenceCodes) || missingCodes.length !== value.missingEvidenceCodes.length ||
       missingCodes.length > POINT_OBJECT_MISSING_EVIDENCE_CODES.length || new Set(missingCodes).size !== missingCodes.length ||
       (value.unsupportedReasonCode !== null && !unsupportedReason)) return { ok: false, detail: "focused_answer_shape" };
 
-  const requiredMissing = requiredMissingEvidence(question, support);
-  const directAttribute = directAttributeRequirement(question, support);
   if (requiredMissing.some((code) => !missingCodes.includes(code))) return { ok: false, detail: "focused_answer_missing_source_gate" };
   if (requiredMissing.length > 0 && status === "answered") return { ok: false, detail: "focused_answer_overclaims_available_sources" };
+
+  if (canonicalDirectAttribute && directAttribute?.value && directAttribute.evidenceRef) {
+    if (!statement || !refs.includes(directAttribute.evidenceRef) || !statementIncludesExactValue(statement, directAttribute.value)) {
+      return { ok: false, detail: `focused_answer_attribute_value_unbound_${directAttribute.key}` };
+    }
+    if (FOCUSED_ANSWER_FORBIDDEN.test(statement)) return { ok: false, detail: "focused_answer_forbidden_claim" };
+    if (UNMAPPED_PHYSICAL_LANGUAGE.test(statement)) return { ok: false, detail: "focused_answer_unmapped_physical_claim" };
+    if (novelNumberInStatement(statement, support)) return { ok: false, detail: "focused_answer_novel_number" };
+    const labels: Record<string, { en: string; ru: string }> = {
+      "tag.height": { en: "height", ru: "высота" },
+      "tag.building:levels": { en: "building levels", ru: "этажность" },
+      "tag.start_date": { en: "start date", ru: "дата постройки" },
+      "tag.architectural_style": { en: "architectural style", ru: "архитектурный стиль" },
+      "tag.wheelchair": { en: "wheelchair access", ru: "доступность для маломобильных посетителей" },
+      "tag.surface": { en: "surface", ru: "тип покрытия" }
+    };
+    const russian = /[\u0400-\u04ff]/u.test(question);
+    const label = labels[directAttribute.key] ?? { en: directAttribute.key, ru: directAttribute.key };
+    return {
+      ok: true,
+      answer: {
+        status: "answered",
+        scope: directAttribute.key === "tag.start_date" ? "mapped_lifecycle" : "mapped_form",
+        perspective: request.perspective,
+        horizon: request.horizon,
+        confidence: "low",
+        statement: russian
+          ? `Атрибут OpenStreetMap «${label.ru}»: ${directAttribute.value}. Значение из открытой карты не проверено независимо.`
+          : `Mapped OpenStreetMap ${label.en} attribute: ${directAttribute.value}. This open-map value has not been independently verified.`,
+        evidenceRefs: [directAttribute.evidenceRef],
+        missingEvidence: []
+      }
+    };
+  }
 
   if (status === "unsupported") {
     if (missingCodes.length < 1 || !unsupportedReason) {
@@ -1581,12 +1618,6 @@ function validateFocusedAnswer(
   if (scope === "nearby_context" && contextRefs.length === 0) {
     return { ok: false, detail: "focused_answer_nearby_scope_without_context_receipt" };
   }
-  if (directAttribute?.value && directAttribute.evidenceRef && (
-    !refs.includes(directAttribute.evidenceRef) ||
-    !statementIncludesExactValue(statement, directAttribute.value)
-  )) {
-    return { ok: false, detail: `focused_answer_attribute_value_unbound_${directAttribute.key}` };
-  }
   const nearbyLanguage = /\b(?:nearby|surround|school|hospital|clinic|pharmacy|metro|station|transport|road|park|retail|shop)\b|(?:рядом|вокруг|окружен|школ|больниц|клиник|аптек|метро|станци|транспорт|дорог|парк|магазин|ретейл)/i;
   if ((nearbyLanguage.test(question) || nearbyLanguage.test(statement)) && contextRefs.length === 0) {
     return { ok: false, detail: "focused_answer_context_without_context_receipt" };
@@ -1597,34 +1628,6 @@ function validateFocusedAnswer(
     if (contextTerms.size === 0 || ![...contextTerms].some((term) => statementText.includes(term))) {
       return { ok: false, detail: "focused_answer_context_value_mismatch" };
     }
-  }
-  if (directAttribute?.value && directAttribute.evidenceRef) {
-    const labels: Record<string, { en: string; ru: string }> = {
-      "tag.height": { en: "height", ru: "высота" },
-      "tag.building:levels": { en: "building levels", ru: "этажность" },
-      "tag.start_date": { en: "start date", ru: "дата постройки" },
-      "tag.architectural_style": { en: "architectural style", ru: "архитектурный стиль" },
-      "tag.wheelchair": { en: "wheelchair access", ru: "доступность для маломобильных посетителей" },
-      "tag.surface": { en: "surface", ru: "тип покрытия" }
-    };
-    const russian = /[\u0400-\u04ff]/u.test(question);
-    const label = labels[directAttribute.key] ?? { en: directAttribute.key, ru: directAttribute.key };
-    const normalizedStatement = russian
-      ? `Атрибут OpenStreetMap «${label.ru}»: ${directAttribute.value}. Значение из открытой карты не проверено независимо.`
-      : `Mapped OpenStreetMap ${label.en} attribute: ${directAttribute.value}. This open-map value has not been independently verified.`;
-    return {
-      ok: true,
-      answer: {
-        status: "answered",
-        scope: directAttribute.key === "tag.start_date" ? "mapped_lifecycle" : "mapped_form",
-        perspective: request.perspective,
-        horizon: request.horizon,
-        confidence: "low",
-        statement: normalizedStatement,
-        evidenceRefs: [directAttribute.evidenceRef],
-        missingEvidence: []
-      }
-    };
   }
   return {
     ok: true,

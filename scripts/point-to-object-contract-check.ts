@@ -2329,6 +2329,26 @@ async function assertCandidateAiSafety(): Promise<void> {
   assert.equal(normalizedHeight?.answerToQuestion?.confidence, "low",
     "A community-map direct attribute must not be presented as independently verified.");
 
+  const conciseHeight = validateContent({
+    ...rawPlan,
+    focusedAnswer: {
+      status: "answered",
+      scope: "mapped_form",
+      perspective: "investor",
+      horizon: "long_term",
+      statement: "Height: 200.",
+      evidenceRefs: ["EVD-ALLOWED-FIELDS"],
+      confidence: "medium",
+      missingEvidenceCodes: ["physical_baseline"],
+      unsupportedReasonCode: null
+    }
+  }, evidencePack, heightQuestion) as any;
+  assert.equal(conciseHeight?.answerToQuestion?.statement,
+    "Mapped OpenStreetMap height attribute: 200. This open-map value has not been independently verified.",
+    "A concise exact-field model result must still resolve through canonical server rendering without a manual retry.");
+  assert.deepEqual(conciseHeight?.answerToQuestion?.missingEvidence, [],
+    "Model-selected generic gaps must not dilute a canonical direct-attribute answer.");
+
   const embeddedHeightValue = validateContentDetailed({
     ...rawPlan,
     focusedAnswer: {
