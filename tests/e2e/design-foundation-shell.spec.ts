@@ -98,16 +98,16 @@ async function expectPointObjectHeader(page: Page, viewportWidth: number) {
 
   const language = header.getByRole("group", { name: "Language" });
   await expect(language).toBeVisible();
-  await expectMinimumTarget(language.getByRole("button", { name: "EN", exact: true }), "English language action", 32);
-  await expectMinimumTarget(language.getByRole("button", { name: "RU", exact: true }), "Russian language action", 32);
+  await expectMinimumTarget(language.getByRole("button", { name: "en", exact: true }), "English language action", 32);
+  await expectMinimumTarget(language.getByRole("button", { name: "ru", exact: true }), "Russian language action", 32);
   await expectMinimumTarget(header.getByRole("link", { name: "Back to map" }), "Profile back-to-map action", 40);
   await expectMinimumTarget(header.getByRole("link", { name: "Open your profile" }), "Profile access entry", 40);
 
-  await language.getByRole("button", { name: "RU", exact: true }).click();
+  await language.getByRole("button", { name: "ru", exact: true }).click();
   await expect(header.getByRole("group", { name: "Язык" })).toBeVisible();
   await expect(header.getByRole("link", { name: "Вернуться к карте" })).toBeVisible();
   await expect(header.getByRole("link", { name: "Открыть профиль" })).toBeVisible();
-  await header.getByRole("button", { name: "EN", exact: true }).click();
+  await header.getByRole("button", { name: "en", exact: true }).click();
 }
 
 async function expectShell(page: Page, viewportWidth: number, activeLabel?: "Workspace" | "Projects") {
