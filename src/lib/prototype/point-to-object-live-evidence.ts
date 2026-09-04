@@ -8,6 +8,7 @@ import type {
 } from "./point-to-object-evidence";
 
 const DEFAULT_NOMINATIM_ENDPOINT = "https://nominatim.openstreetmap.org/";
+const DEFAULT_OVERPASS_ENDPOINT = "https://overpass-api.de/api/interpreter";
 const DEFAULT_NOMINATIM_USER_AGENT =
   "GeoAI-PointToObject-Preview/1.0 (+https://github.com/mmgolikov/geoai-mvp)";
 const APPLICATION_REFERER = "https://github.com/mmgolikov/geoai-mvp";
@@ -16,6 +17,14 @@ const NOMINATIM_RESPONSE_MAX_BYTES = 384 * 1024;
 const NOMINATIM_REVALIDATE_SECONDS = 24 * 60 * 60;
 const NOMINATIM_MIN_INTERVAL_MS = 1_000;
 const MAX_GEOMETRY_POSITIONS = 25_000;
+const OVERPASS_TIMEOUT_MS = 4_500;
+const OVERPASS_RESPONSE_MAX_BYTES = 512 * 1024;
+const OVERPASS_REVALIDATE_SECONDS = 6 * 60 * 60;
+const OVERPASS_MIN_INTERVAL_MS = 1_200;
+const OVERPASS_RADIUS_M = 800;
+const OVERPASS_QUERY_RESULT_LIMIT = 120;
+const MAX_OVERPASS_ELEMENTS_TO_PARSE = 160;
+const MAX_NEARBY_CONTEXT_ITEMS = 12;
 
 const ADDRESS_KEYS = new Set([
   "house_number",
@@ -124,6 +133,30 @@ type SafeNominatimPlace = {
   geometryHash: string | null;
 };
 
+export type LiveNearbyContextItem = {
+  evidenceId: string;
+  sourceFeatureId: string;
+  name: string;
+  categories: string[];
+  featureClass: string;
+  distanceM: number;
+  method: "overpass_around_query_element_center_haversine";
+  proofLimit: string;
+};
+
+export type LiveNearbyContextResult = {
+  status: "available" | "unavailable";
+  items: LiveNearbyContextItem[];
+  responseHash: string | null;
+  observedAt: string | null;
+};
+
+type NearbyCandidate = Omit<LiveNearbyContextItem, "evidenceId" | "proofLimit"> & {
+  group: "education" | "healthcare" | "daily_needs" | "transport" | "access" | "open_space" | "destination";
+};
+
+type NearbyClassification = Pick<NearbyCandidate, "group" | "categories" | "featureClass">;
+
 export type LivePointEvidenceRequest = {
   longitude: number;
   latitude: number;
@@ -177,12 +210,19 @@ export type LivePointObjectEvidencePack = {
     attribution: "© OpenStreetMap contributors";
     licenceUrl: "https://www.openstreetmap.org/copyright";
     usagePolicyUrl: "https://operations.osmfoundation.org/policies/nominatim/";
+    contextService: "Overpass API";
+    contextStatus: "available" | "unavailable";
+    contextResponseId: string | null;
+    contextResponseHash: string | null;
+    contextObservedAt: string | null;
+    contextRadiusM: number;
+    contextUsagePolicyUrl: "https://dev.overpass-api.de/overpass-doc/en/preface/commons.html";
     sourceOfferPath: "/prototype/point-to-object/source-offer";
     officialStatus: "open_context_not_official";
     runtimeNetworkUsed: true;
     persistenceUsed: false;
   };
-  nearbyContext: [];
+  nearbyContext: LiveNearbyContextItem[];
   evidence: PointObjectEvidenceReference[];
   conflicts: string[];
   missingInformation: string[];
@@ -219,6 +259,8 @@ export class LivePointEvidenceError extends Error {
 
 let nominatimGate: Promise<void> = Promise.resolve();
 let lastNominatimDispatchAt = 0;
+let overpassGate: Promise<void> = Promise.resolve();
+let lastOverpassDispatchAt = 0;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -307,6 +349,15 @@ function configuredUserAgent(): string {
   return configured;
 }
 
+function configuredOverpassEndpoint(): URL {
+  const configured = process.env.POINT_TO_OBJECT_OVERPASS_ENDPOINT?.trim() || DEFAULT_OVERPASS_ENDPOINT;
+  const endpoint = new URL(configured);
+  if (endpoint.protocol !== "https:" || endpoint.username || endpoint.password || endpoint.search || endpoint.hash) {
+    throw new Error("Unsafe Overpass endpoint configuration.");
+  }
+  return endpoint;
+}
+
 async function waitForNominatimSlot(): Promise<void> {
   let release: (() => void) | undefined;
   const previous = nominatimGate;
@@ -320,6 +371,24 @@ async function waitForNominatimSlot(): Promise<void> {
       await new Promise((resolve) => setTimeout(resolve, waitMs));
     }
     lastNominatimDispatchAt = Date.now();
+  } finally {
+    release?.();
+  }
+}
+
+async function waitForOverpassSlot(): Promise<void> {
+  let release: (() => void) | undefined;
+  const previous = overpassGate;
+  overpassGate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await previous;
+  try {
+    const waitMs = Math.max(0, lastOverpassDispatchAt + OVERPASS_MIN_INTERVAL_MS - Date.now());
+    if (waitMs > 0) {
+      await new Promise((resolve) => setTimeout(resolve, waitMs));
+    }
+    lastOverpassDispatchAt = Date.now();
   } finally {
     release?.();
   }
@@ -453,6 +522,74 @@ async function fetchNominatimJson(url: URL): Promise<unknown> {
   }
 }
 
+export function buildOverpassNearbyQuery(point: [number, number]): string {
+  const longitude = finiteCoordinate(point[0], 180);
+  const latitude = finiteCoordinate(point[1], 90);
+  if (longitude === null || latitude === null) throw new Error("Invalid WGS84 point.");
+  const around = `(around:${OVERPASS_RADIUS_M},${latitude.toFixed(6)},${longitude.toFixed(6)})`;
+  return [
+    `[out:json][timeout:4][maxsize:${OVERPASS_RESPONSE_MAX_BYTES}];`,
+    "(",
+    `nwr${around}["amenity"~"^(school|kindergarten|college|university|hospital|clinic|doctors|pharmacy|marketplace|parking|library|community_centre|arts_centre|theatre|cinema)$"];`,
+    `nwr${around}["shop"~"^(supermarket|convenience|mall)$"];`,
+    `nwr${around}["tourism"~"^(hotel|museum|gallery|attraction)$"];`,
+    `nwr${around}["leisure"~"^(park|garden|playground|sports_centre|nature_reserve)$"];`,
+    `nwr${around}["public_transport"~"^(station|platform|stop_position)$"];`,
+    `nwr${around}["railway"~"^(station|halt|tram_stop|subway_entrance)$"];`,
+    `node${around}["highway"="bus_stop"];`,
+    `way${around}["highway"~"^(motorway|trunk|primary|secondary|tertiary)$"]["name"];`,
+    `nwr${around}["natural"~"^(wood|water)$"]["name"];`,
+    `nwr${around}["landuse"~"^(forest|recreation_ground)$"]["name"];`,
+    ");",
+    `out center ${OVERPASS_QUERY_RESULT_LIMIT};`
+  ].join("\n");
+}
+
+async function readOverpassText(response: Response): Promise<string> {
+  const declaredLength = Number(response.headers.get("content-length"));
+  if (Number.isFinite(declaredLength) && declaredLength > OVERPASS_RESPONSE_MAX_BYTES) {
+    await response.body?.cancel().catch(() => undefined);
+    throw new Error("Overpass response exceeded the permitted size.");
+  }
+  if (!response.body) throw new Error("Overpass returned no readable body.");
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let byteCount = 0;
+  let text = "";
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    byteCount += value.byteLength;
+    if (byteCount > OVERPASS_RESPONSE_MAX_BYTES) {
+      await reader.cancel().catch(() => undefined);
+      throw new Error("Overpass response exceeded the permitted size.");
+    }
+    text += decoder.decode(value, { stream: true });
+  }
+  return text + decoder.decode();
+}
+
+async function fetchOverpassJson(query: string): Promise<unknown> {
+  await waitForOverpassSlot();
+  const url = configuredOverpassEndpoint();
+  url.searchParams.set("data", query);
+  const response = await fetch(url, {
+    method: "GET",
+    redirect: "error",
+    signal: AbortSignal.timeout(OVERPASS_TIMEOUT_MS),
+    headers: {
+      Accept: "application/json",
+      Referer: APPLICATION_REFERER,
+      "User-Agent": configuredUserAgent()
+    },
+    cache: "force-cache",
+    next: { revalidate: OVERPASS_REVALIDATE_SECONDS }
+  });
+  if (!response.ok) throw new Error(`Overpass returned HTTP ${response.status}.`);
+  const text = await readOverpassText(response);
+  return JSON.parse(text);
+}
+
 function normalizePosition(value: unknown, counter: { count: number }): [number, number] | null {
   if (!Array.isArray(value) || value.length < 2 || value.length > 3) return null;
   const longitude = finiteCoordinate(value[0], 180);
@@ -564,6 +701,217 @@ function distanceM(left: [number, number], right: [number, number]): number {
   return earthRadiusM * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+function allowedTag(
+  tags: Record<string, unknown>,
+  key: string,
+  allowedValues: readonly string[]
+): string | null {
+  const value = cleanTaxonomyToken(tags[key]);
+  return value && allowedValues.includes(value) ? value : null;
+}
+
+function classifyNearbyTags(tags: Record<string, unknown>): NearbyClassification | null {
+  const amenity = allowedTag(tags, "amenity", [
+    "school", "kindergarten", "college", "university", "hospital", "clinic", "doctors", "pharmacy",
+    "marketplace", "parking", "library", "community_centre", "arts_centre", "theatre", "cinema"
+  ]);
+  if (amenity) {
+    const group: NearbyCandidate["group"] = ["school", "kindergarten", "college", "university"].includes(amenity)
+      ? "education"
+      : ["hospital", "clinic", "doctors", "pharmacy"].includes(amenity)
+        ? "healthcare"
+        : amenity === "marketplace"
+          ? "daily_needs"
+          : amenity === "parking" ? "access" : "destination";
+    return { group, categories: [group, amenity], featureClass: `amenity:${amenity}` };
+  }
+
+  const shop = allowedTag(tags, "shop", ["supermarket", "convenience", "mall"]);
+  if (shop) return {
+    group: "daily_needs",
+    categories: ["daily_needs", shop],
+    featureClass: `shop:${shop}`
+  };
+
+  const tourism = allowedTag(tags, "tourism", ["hotel", "museum", "gallery", "attraction"]);
+  if (tourism) return {
+    group: "destination",
+    categories: ["destination", tourism],
+    featureClass: `tourism:${tourism}`
+  };
+
+  const leisure = allowedTag(tags, "leisure", ["park", "garden", "playground", "sports_centre", "nature_reserve"]);
+  if (leisure) return {
+    group: "open_space",
+    categories: ["open_space", leisure],
+    featureClass: `leisure:${leisure}`
+  };
+
+  const publicTransport = allowedTag(tags, "public_transport", ["station", "platform", "stop_position"]);
+  if (publicTransport) return {
+    group: "transport",
+    categories: ["transport", publicTransport],
+    featureClass: `public_transport:${publicTransport}`
+  };
+
+  const railway = allowedTag(tags, "railway", ["station", "halt", "tram_stop", "subway_entrance"]);
+  if (railway) return {
+    group: "transport",
+    categories: ["transport", railway],
+    featureClass: `railway:${railway}`
+  };
+
+  const highway = allowedTag(tags, "highway", ["bus_stop", "motorway", "trunk", "primary", "secondary", "tertiary"]);
+  if (highway) {
+    const group = highway === "bus_stop" ? "transport" : "access";
+    return { group, categories: [group, highway], featureClass: `highway:${highway}` };
+  }
+
+  const natural = allowedTag(tags, "natural", ["wood", "water"]);
+  if (natural) return {
+    group: "open_space",
+    categories: ["open_space", natural],
+    featureClass: `natural:${natural}`
+  };
+
+  const landuse = allowedTag(tags, "landuse", ["forest", "recreation_ground"]);
+  return landuse ? {
+    group: "open_space",
+    categories: ["open_space", landuse],
+    featureClass: `landuse:${landuse}`
+  } : null;
+}
+
+function nearbyName(tags: Record<string, unknown>, locale: string, classification: NearbyClassification): string | null {
+  const localeTag = locale.split(",")[0]?.toLowerCase() || "en";
+  const language = localeTag.split("-")[0];
+  const keys = [`name:${localeTag}`, `name:${language}`, "name:en", "name", "official_name", "short_name"];
+  for (const key of [...new Set(keys)]) {
+    const value = cleanText(tags[key], 140);
+    if (value) return value;
+  }
+  const ref = cleanText(tags.ref, 48);
+  if (!ref) return null;
+  return classification.group === "access" ? `Road ${ref}`
+    : classification.group === "transport" ? `Stop ${ref}`
+      : null;
+}
+
+function nearbyElementPoint(value: Record<string, unknown>): [number, number] | null {
+  const coordinateSource = value.type === "node" ? value : isRecord(value.center) ? value.center : null;
+  if (!coordinateSource) return null;
+  const longitude = finiteCoordinate(coordinateSource.lon, 180);
+  const latitude = finiteCoordinate(coordinateSource.lat, 90);
+  return longitude === null || latitude === null ? null : [longitude, latitude];
+}
+
+function balancedNearbySelection(candidates: NearbyCandidate[]): NearbyCandidate[] {
+  const groupOrder: NearbyCandidate["group"][] = [
+    "education", "healthcare", "daily_needs", "transport", "access", "open_space", "destination"
+  ];
+  const buckets = new Map(groupOrder.map((group) => [group, candidates
+    .filter((item) => item.group === group)
+    .sort((left, right) => left.distanceM - right.distanceM || left.sourceFeatureId.localeCompare(right.sourceFeatureId))]));
+  const selected: NearbyCandidate[] = [];
+  for (let round = 0; selected.length < MAX_NEARBY_CONTEXT_ITEMS; round += 1) {
+    let added = false;
+    for (const group of groupOrder) {
+      const item = buckets.get(group)?.[round];
+      if (!item) continue;
+      selected.push(item);
+      added = true;
+      if (selected.length === MAX_NEARBY_CONTEXT_ITEMS) break;
+    }
+    if (!added) break;
+  }
+  return selected;
+}
+
+export function normalizeOverpassNearbyContext(
+  payload: unknown,
+  point: [number, number],
+  selectedSourceFeatureId: string,
+  locale = "en"
+): LiveNearbyContextItem[] {
+  if (!isRecord(payload) || !Array.isArray(payload.elements)) return [];
+  const bySourceIdentity = new Map<string, NearbyCandidate>();
+  for (const raw of payload.elements.slice(0, MAX_OVERPASS_ELEMENTS_TO_PARSE)) {
+    if (!isRecord(raw)) continue;
+    const type = osmType(raw.type);
+    const id = positiveIdentifier(raw.id);
+    const tags = isRecord(raw.tags) ? raw.tags : {};
+    const position = nearbyElementPoint(raw);
+    const classification = classifyNearbyTags(tags);
+    if (!type || !id || !position || !classification) continue;
+    const sourceFeatureId = `${type}/${id}`;
+    if (sourceFeatureId === selectedSourceFeatureId) continue;
+    const name = nearbyName(tags, locale, classification);
+    if (!name) continue;
+    const directDistanceM = Math.round(distanceM(point, position));
+    // Around filters use feature geometry, while ways/relations expose only a
+    // derived centre here. Keep a modest tolerance for large parks/stations.
+    if (!Number.isFinite(directDistanceM) || directDistanceM > OVERPASS_RADIUS_M * 3) continue;
+    const candidate: NearbyCandidate = {
+      sourceFeatureId,
+      name,
+      categories: classification.categories,
+      featureClass: classification.featureClass,
+      distanceM: directDistanceM,
+      method: "overpass_around_query_element_center_haversine",
+      group: classification.group
+    };
+    const previous = bySourceIdentity.get(sourceFeatureId);
+    if (!previous || candidate.distanceM < previous.distanceM) bySourceIdentity.set(sourceFeatureId, candidate);
+  }
+
+  // OSM commonly represents one station, road or venue with several nearby
+  // elements. This is a context summary rather than a feature count, so retain
+  // the nearest representative for an identical group/name combination.
+  const bySemanticIdentity = new Map<string, NearbyCandidate>();
+  for (const candidate of bySourceIdentity.values()) {
+    const key = `${candidate.group}|${candidate.name.normalize("NFKC").toLocaleLowerCase("en-US")}`;
+    const previous = bySemanticIdentity.get(key);
+    if (!previous || candidate.distanceM < previous.distanceM) bySemanticIdentity.set(key, candidate);
+  }
+
+  return balancedNearbySelection([...bySemanticIdentity.values()]).map(({ group: _group, ...item }, index) => ({
+    ...item,
+    evidenceId: `EVD-CONTEXT-${index + 1}`,
+    proofLimit: "Bounded OpenStreetMap context from Overpass; distance is straight-line from the analysis point to the returned node or derived element centre, not a route, travel time, service level or proof of complete coverage."
+  }));
+}
+
+function overpassObservedAt(payload: unknown): string | null {
+  if (!isRecord(payload) || !isRecord(payload.osm3s)) return null;
+  const value = cleanText(payload.osm3s.timestamp_osm_base, 40);
+  if (!value) return null;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? new Date(parsed).toISOString() : null;
+}
+
+export async function resolveLiveNearbyContext(
+  point: [number, number],
+  selectedSourceFeatureId: string,
+  locale: string,
+  loader: (query: string) => Promise<unknown> = fetchOverpassJson
+): Promise<LiveNearbyContextResult> {
+  try {
+    const payload = await loader(buildOverpassNearbyQuery(point));
+    const items = normalizeOverpassNearbyContext(payload, point, selectedSourceFeatureId, locale);
+    const observedAt = overpassObservedAt(payload);
+    return {
+      status: "available",
+      items,
+      responseHash: semanticHash({ observedAt, items }),
+      observedAt
+    };
+  } catch {
+    // Nearby context is additive. The primary Nominatim object remains usable
+    // when the bounded public Overpass service is slow, unavailable or invalid.
+    return { status: "unavailable", items: [], responseHash: null, observedAt: null };
+  }
+}
+
 function pointInRing(point: [number, number], ring: unknown): boolean {
   if (!Array.isArray(ring) || ring.length < 4) return false;
   let inside = false;
@@ -659,18 +1007,20 @@ function evidenceFor(
   tags: Record<string, string>
 ): PointObjectEvidenceReference[] {
   const sourceFeatureId = `${place.osmType}/${place.osmId}`;
+  const selectedName = objectName(place);
+  const selectedFeatureClass = featureClass(place);
   const evidence: PointObjectEvidenceReference[] = [
     {
       id: "EVD-COORDINATES",
       label: "WGS84 analysis point",
-      value: `${point[0].toFixed(6)}, ${point[1].toFixed(6)}`,
+      value: JSON.stringify({ longitude: point[0], latitude: point[1], crs: "EPSG:4326" }),
       sourceId: "user_point",
       proofLimit: "Map-selected analysis point only; it is not an official address, parcel locator or proof of object identity."
     },
     {
       id: "EVD-OSM-OBJECT",
       label: "OpenStreetMap object returned by Nominatim",
-      value: objectName(place) ?? sourceFeatureId,
+      value: JSON.stringify({ sourceFeatureId, name: selectedName }),
       sourceId: sourceFeatureId,
       proofLimit: coordinateAssociation === "open_map_geometry_contains_point"
         ? "The returned open-map polygon contains the analysis point; this remains community context, not proof that it is the same feature rendered by the map and not an official cadastral or parcel boundary."
@@ -679,7 +1029,7 @@ function evidenceFor(
     {
       id: "EVD-CLASSIFICATION",
       label: "OpenStreetMap classification",
-      value: featureClass(place),
+      value: JSON.stringify({ sourceFeatureId, featureClass: selectedFeatureClass }),
       sourceId: sourceFeatureId,
       proofLimit: "Community-map classification returned by Nominatim; not an official land-use, zoning or legal-use classification."
     }
@@ -688,7 +1038,11 @@ function evidenceFor(
     evidence.push({
       id: "EVD-ADDRESS",
       label: "Nominatim display address",
-      value: place.displayName,
+      value: JSON.stringify({
+        sourceFeatureId,
+        displayAddress: place.displayName,
+        addressParts: place.address
+      }),
       sourceId: sourceFeatureId,
       proofLimit: "OpenStreetMap-derived address context; not independently verified against an authoritative address or cadastral register."
     });
@@ -697,7 +1051,7 @@ function evidenceFor(
     evidence.push({
       id: "EVD-GEOMETRY",
       label: "Returned OpenStreetMap geometry hash",
-      value: geometryHash,
+      value: JSON.stringify({ sourceFeatureId, geometryType: place.geometryType, geometryHash }),
       sourceId: sourceFeatureId,
       proofLimit: `Hash of the Nominatim-returned ${place.geometryType} geometry; raw geometry is withheld from the model and is not an official parcel boundary.`
     });
@@ -706,7 +1060,7 @@ function evidenceFor(
     evidence.push({
       id: "EVD-ALLOWED-FIELDS",
       label: "Allowed OpenStreetMap fields",
-      value: JSON.stringify(tags).slice(0, 3_000),
+      value: JSON.stringify({ sourceFeatureId, tags }),
       sourceId: sourceFeatureId,
       proofLimit: "Strict allowlist of public map attributes; contact and personal-data fields are excluded and remaining values are not independently verified."
     });
@@ -719,6 +1073,21 @@ function evidenceFor(
     proofLimit: "Open community context with attribution; the response does not disclose the per-feature observation or edit timestamp."
   });
   return evidence;
+}
+
+function evidenceForNearby(items: LiveNearbyContextItem[]): PointObjectEvidenceReference[] {
+  return items.map((item) => ({
+    id: item.evidenceId,
+    label: item.name,
+    value: JSON.stringify({
+      sourceFeatureId: item.sourceFeatureId,
+      name: item.name,
+      featureClass: item.featureClass,
+      distanceM: item.distanceM
+    }),
+    sourceId: item.sourceFeatureId,
+    proofLimit: item.proofLimit
+  }));
 }
 
 export async function buildLivePointObjectEvidencePack(
@@ -744,7 +1113,13 @@ export async function buildLivePointObjectEvidencePack(
   // Resolve identity from the server-observed coordinates only. Vector-tile
   // feature IDs are rendering-provider internals and must never be promoted to
   // OSM node/way/relation IDs by convention.
-  const place = await reversePlace(endpoint, point, locale);
+  const nearbyPayloadPromise = fetchOverpassJson(buildOverpassNearbyQuery(point))
+    .then((payload) => ({ ok: true as const, payload }))
+    .catch(() => ({ ok: false as const }));
+  const [place, nearbyPayload] = await Promise.all([
+    reversePlace(endpoint, point, locale),
+    nearbyPayloadPromise
+  ]);
   const matchMethod = "nominatim_reverse" as const;
   const coordinateAssociation: LookupAssociation = geometryContainsPoint(place?.geometry ?? null, point)
     ? "open_map_geometry_contains_point"
@@ -760,6 +1135,9 @@ export async function buildLivePointObjectEvidencePack(
   }
 
   const sourceFeatureId = `${place.osmType}/${place.osmId}`;
+  const nearby = nearbyPayload.ok
+    ? await resolveLiveNearbyContext(point, sourceFeatureId, locale, async () => nearbyPayload.payload)
+    : { status: "unavailable" as const, items: [], responseHash: null, observedAt: null };
   const selectedTags = displayTags(place);
   const centroidDistance = Math.round(distanceM(point, [place.longitude, place.latitude]));
   const sourceResponseCore = {
@@ -828,13 +1206,23 @@ export async function buildLivePointObjectEvidencePack(
       attribution: "© OpenStreetMap contributors" as const,
       licenceUrl: "https://www.openstreetmap.org/copyright" as const,
       usagePolicyUrl: "https://operations.osmfoundation.org/policies/nominatim/" as const,
+      contextService: "Overpass API" as const,
+      contextStatus: nearby.status,
+      contextResponseId: nearby.responseHash ? `overpass_response_${nearby.responseHash.slice(0, 24)}` : null,
+      contextResponseHash: nearby.responseHash,
+      contextObservedAt: nearby.observedAt,
+      contextRadiusM: OVERPASS_RADIUS_M,
+      contextUsagePolicyUrl: "https://dev.overpass-api.de/overpass-doc/en/preface/commons.html" as const,
       sourceOfferPath: "/prototype/point-to-object/source-offer" as const,
       officialStatus: "open_context_not_official" as const,
       runtimeNetworkUsed: true as const,
       persistenceUsed: false as const
     },
-    nearbyContext: [] as [],
-    evidence: evidenceFor(place, point, coordinateAssociation, place.geometryHash, selectedTags),
+    nearbyContext: nearby.items,
+    evidence: [
+      ...evidenceFor(place, point, coordinateAssociation, place.geometryHash, selectedTags),
+      ...evidenceForNearby(nearby.items)
+    ],
     conflicts,
     missingInformation: [
       "Authoritative parcel/cadastral boundary and identifier",
@@ -851,8 +1239,11 @@ export async function buildLivePointObjectEvidencePack(
       "Client/vector-tile feature identifiers are ignored; OpenStreetMap context is resolved server-side from the map-selected analysis point.",
       "OpenStreetMap is open community context and may be incomplete, stale or differently classified from authoritative registers.",
       "Raw source geometry is used only to derive its type and semantic hash; it is not sent to the AI model.",
-      "This single-object resolver does not establish that nearby records are complete or that absent records are absent in reality.",
+      nearby.status === "available"
+        ? `Nearby context is a bounded OpenStreetMap/Overpass sample within ${OVERPASS_RADIUS_M} m; it is not a complete inventory and absent records do not prove real-world absence.`
+        : "Nearby OpenStreetMap context was unavailable for this request; the primary Nominatim object remains usable, but no inference may be made from the empty nearby list.",
       "The public Nominatim endpoint is suitable only for a moderate low-traffic Preview; its in-process throttle is not a distributed production quota.",
+      "The public Overpass endpoint is a cached, bounded Preview dependency; it is not a production SLA and failures degrade to an explicitly empty nearby context.",
       "The AI layer may summarize and question this pack but cannot replace official or client validation."
     ],
     caveat: LIVE_POINT_CAVEAT

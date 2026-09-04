@@ -293,7 +293,6 @@ export function PointToObjectAnalysis() {
   const title = subject && !sourceGeometryContainsPoint ? "Nearest indexed OpenStreetMap record" : subject?.name ?? selection?.object.name ?? "Selected location";
   const resolvedName = subject?.name && subject.name !== title ? subject.name : null;
   const contextRelation = subject ? sourceGeometryContainsPoint ? "Containing OpenStreetMap context at the analysis point" : `Nearest indexed OpenStreetMap context · about ${Math.round(subject.resultCentroidDistanceM)} m` : null;
-  const nearbyMapLabels = selection?.nearbyLabels ?? [];
   const completedDepth = analysis?.mode === "openai" ? analysis.request.depth : depth;
 
   return (
@@ -350,7 +349,14 @@ export function PointToObjectAnalysis() {
                     <div className="mt-6 rounded-2xl border border-[#cfe0f7] bg-[#eef6ff] p-4">
                       <p className="text-xs font-bold uppercase tracking-[0.08em] text-brand">Answer to your question</p>
                       {analysis?.mode === "openai" && analysis.request.question ? <p className="mt-2 text-xs leading-5 text-[#52657a]">{analysis.request.question}</p> : null}
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.05em] text-brand">{content.answerToQuestion.status}</span>
+                        <span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-semibold capitalize text-[#52657a]">{content.answerToQuestion.perspective.replace("_", " ")}</span>
+                        <span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-semibold text-[#52657a]">{content.answerToQuestion.horizon === "one_to_three_years" ? "1–3 years" : content.answerToQuestion.horizon.replace("_", " ")}</span>
+                        <span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-semibold capitalize text-[#52657a]">{content.answerToQuestion.confidence} confidence</span>
+                      </div>
                       <p className="mt-2 text-sm font-semibold leading-6 text-[#243447]">{content.answerToQuestion.statement}</p>
+                      {content.answerToQuestion.missingEvidence.length > 0 ? <p className="mt-3 text-xs leading-5 text-[#52657a]"><span className="font-bold">To strengthen this answer:</span> {content.answerToQuestion.missingEvidence.join("; ")}.</p> : null}
                       <EvidenceRefs references={content.answerToQuestion.evidenceRefs} />
                     </div>
                   ) : null}
@@ -372,6 +378,12 @@ export function PointToObjectAnalysis() {
                       </li>
                     ))}
                   </ul>
+                </section>
+
+                <section className="rounded-[20px] border border-line bg-white p-5 shadow-soft sm:p-7">
+                  <h2 className="text-base font-bold">Live location context</h2>
+                  <p className="mt-1 text-xs leading-5 text-muted">Address context and a bounded set of nearby OpenStreetMap features returned for this analysis point.</p>
+                  <ClaimList items={content.locationContext} />
                 </section>
 
                 <div className="grid gap-5 lg:grid-cols-2">
@@ -410,18 +422,11 @@ export function PointToObjectAnalysis() {
                   </ol>
                 </section>
 
-                {nearbyMapLabels.length ? (
-                  <section className="rounded-[20px] border border-line bg-white p-5 shadow-soft sm:p-7">
-                    <h2 className="text-base font-bold">Visible nearby map labels</h2><p className="mt-1 text-xs leading-5 text-muted">Visual context from the current map view; not used as confirmed analytical evidence.</p>
-                    <ul className="mt-4 grid gap-3 sm:grid-cols-2">{nearbyMapLabels.map((item, index) => <li key={`${item.name}-${index}`} className="rounded-xl bg-[#f7f9fb] p-4"><p className="text-sm font-bold text-[#243447]">{item.name}</p><p className="mt-1 text-xs text-muted">{humanizeAttribute(item.featureClass)} · visible near the selection</p></li>)}</ul>
-                  </section>
-                ) : null}
-
                 <details className="rounded-[20px] border border-line bg-white p-5 shadow-soft">
                   <summary className="cursor-pointer list-none text-sm font-bold text-[#344054]">Source evidence and methodology</summary>
                   <div className="mt-5 grid gap-5 lg:grid-cols-2">
                     <div><h3 className="text-sm font-bold">Object source facts</h3><ClaimList items={content.sourceFacts} /></div>
-                    <div><h3 className="text-sm font-bold">Address and map context</h3>{content.locationContext.length ? <ClaimList items={content.locationContext} /> : <p className="mt-3 text-sm text-muted">No additional source context was returned.</p>}</div>
+                    <div><h3 className="text-sm font-bold">Method boundary</h3><p className="mt-3 text-sm leading-6 text-muted">The map context is open community data. Distances are straight-line to returned feature points or centres; coverage is bounded and not a routing, cadastral, planning, market or legal conclusion.</p></div>
                   </div>
                   {analysis?.mode === "openai" ? <div className="mt-5 border-t border-line pt-4 text-[11px] leading-5 text-muted"><p>Accepted result: {analysis.telemetry.model} · reasoning {analysis.telemetry.reasoningEffort} · {analysis.telemetry.latencyMs} ms{analysis.telemetry.estimatedCostUsd === null ? "" : ` · estimated total API cost $${analysis.telemetry.estimatedCostUsd.toFixed(6)}`}</p><p>API route: {analysis.telemetry.attemptTrace.map((attempt) => `${attempt.attempt}. ${attempt.model}/${attempt.reasoningEffort}${attempt.estimatedCostUsd === null ? "" : ` (estimated $${attempt.estimatedCostUsd.toFixed(6)})`}`).join(" → ")}</p><p>Tokens: {analysis.telemetry.inputTokens ?? "unavailable"} input · {analysis.telemetry.cachedInputTokens ?? "unavailable"} cached · {analysis.telemetry.cacheWriteTokens ?? "unavailable"} cache write · {analysis.telemetry.outputTokens ?? "unavailable"} output</p><p>Evidence pack: {analysis.evidencePackId} · analysis schema v{analysis.telemetry.schemaVersion} · prompt {analysis.telemetry.promptVersion}</p></div> : null}
                 </details>
@@ -433,7 +438,7 @@ export function PointToObjectAnalysis() {
         <aside className="min-w-0"><div className="space-y-5 xl:sticky xl:top-6">
           <form onSubmit={submitFollowUp} className="rounded-[20px] border border-line bg-white p-5 shadow-soft">
             <label className="text-base font-bold" htmlFor="analysis-follow-up">Run a focused analysis</label>
-            <p className="mt-2 text-xs leading-5 text-muted">Ask a new question about the same selected location and source record.</p>
+            <p className="mt-2 text-xs leading-5 text-muted">Ask about the selected object or its live open-map context. The answer will separate supported interpretation from evidence still required.</p>
             <div className="mt-4 grid grid-cols-2 gap-2" aria-label="Focused analysis options">
               {FOCUSED_ANALYSES.map((item) => <button key={item.goal} type="button" onClick={() => selectFocusedAnalysis(item.goal, item.question)} disabled={loading} aria-pressed={goal === item.goal} className={`min-h-11 rounded-xl border px-3 text-left text-xs font-bold transition disabled:cursor-not-allowed disabled:opacity-50 ${goal === item.goal ? "border-brand bg-[#eef5ff] text-brand" : "border-line bg-[#f8fafc] text-[#344054] hover:border-[#a8bfd5] hover:bg-white"}`}>{item.label}</button>)}
             </div>

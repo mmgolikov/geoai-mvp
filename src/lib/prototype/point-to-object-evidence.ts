@@ -104,25 +104,35 @@ export function buildPointObjectEvidencePack(
   }
 
   const selected = resolved.resolution.selected_object;
+  const selectedName = resolved.selectedFeature.name;
+  const selectedGeometryType = resolved.selectedFeature.geometry.type;
+  const selectedGeometryHash = resolved.selectedFeature.geometryHash;
   const evidence: PointObjectEvidenceReference[] = [
     {
       id: "EVD-COORDINATES",
       label: "Clicked WGS84 coordinates",
-      value: `${point[0].toFixed(7)}, ${point[1].toFixed(7)}`,
+      value: JSON.stringify({ longitude: point[0], latitude: point[1], crs: "EPSG:4326" }),
       sourceId: "user_point",
       proofLimit: "Submitted point only; it is not an official address or parcel locator."
     },
     {
       id: "EVD-OBJECT",
       label: "Selected frozen source object",
-      value: resolved.selectedFeature.name ?? resolved.selectedFeature.sourceFeatureId,
+      value: JSON.stringify({
+        sourceFeatureId: resolved.selectedFeature.sourceFeatureId,
+        name: selectedName
+      }),
       sourceId: resolved.selectedFeature.sourceFeatureId,
       proofLimit: "OpenStreetMap feature identity in the named snapshot only."
     },
     {
       id: "EVD-GEOMETRY",
       label: "Selected source geometry hash",
-      value: resolved.selectedFeature.geometryHash,
+      value: JSON.stringify({
+        sourceFeatureId: resolved.selectedFeature.sourceFeatureId,
+        geometryType: selectedGeometryType,
+        geometryHash: selectedGeometryHash
+      }),
       sourceId: resolved.selectedFeature.sourceFeatureId,
       proofLimit: "Open community map geometry; not an official parcel or cadastral boundary."
     },

@@ -1406,7 +1406,7 @@ async function assertCandidateAiSafety(): Promise<void> {
     ],
     [
       /import \{\n  POINT_OBJECT_ANALYSIS_PROMPT_VERSION,\n  POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION\n\} from "@\/components\/point-to-object\/live-types";\n/,
-      `const POINT_OBJECT_ANALYSIS_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V4_2026_09_04";\nconst POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION = 3;\n`
+      `const POINT_OBJECT_ANALYSIS_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V5_2026_09_04";\nconst POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION = 4;\n`
     ]
   ]);
   const parseClientTelemetry = liveSession.parsePointObjectAiTelemetry as (value: unknown) => JsonObject | null;
@@ -1427,8 +1427,8 @@ async function assertCandidateAiSafety(): Promise<void> {
     outputTokens: number | null
   ) => { estimatedCostUsd: number | null; costRateSource: string | null };
   const summarizeUsage = aiCore.summarizePointObjectAiAttemptUsage as (attempts: JsonObject[]) => JsonObject;
-  assert.equal(aiCore.POINT_OBJECT_AI_RESULT_SCHEMA_VERSION, 3,
-    "The public analysis receipt must expose the documented V3 result schema version.");
+  assert.equal(aiCore.POINT_OBJECT_AI_RESULT_SCHEMA_VERSION, 4,
+    "The public analysis receipt must expose the documented V4 result schema version.");
   const buildRequest = aiCore.buildPointObjectResponsesRequest as (
     pack: JsonObject,
     analysisRequest: JsonObject,
@@ -1539,11 +1539,11 @@ async function assertCandidateAiSafety(): Promise<void> {
   "A partial token tuple must normalize atomically so billing telemetry cannot discard valid analysis content.");
   const clientTelemetry = {
     provider: "openai",
-    schemaVersion: 3,
+    schemaVersion: 4,
     model: "gpt-5.6-sol",
     reasoningEffort: "medium",
     depth: "standard",
-    promptVersion: "POINT_OBJECT_AI_PROMPT_V4_2026_09_04",
+    promptVersion: "POINT_OBJECT_AI_PROMPT_V5_2026_09_04",
     requestId: "resp_repair",
     latencyMs: 1_234,
     attempts: 2,
@@ -1622,12 +1622,12 @@ async function assertCandidateAiSafety(): Promise<void> {
       { evidenceId: "EVD-CONTEXT-01", sourceFeatureId: "node/456", name: "World Trade Centre", featureClass: "public_transport:station", distanceM: 240 }
     ],
     evidence: [
-      { id: "EVD-OBJECT", label: "Object", value: "FREE_TEXT_SENTINEL_DO_NOT_PROJECT", sourceId: "way/1", proofLimit: "FREE_TEXT_PROOF_LIMIT_DO_NOT_PROJECT" },
-      { id: "EVD-CLASSIFICATION", label: "Classification", value: "tourism:hotel", sourceId: "way/1", proofLimit: "Open-map classification only." },
-      { id: "EVD-ADDRESS", label: "Address", value: "Dubai", sourceId: "way/1", proofLimit: "Open-map address only." },
-      { id: "EVD-ALLOWED-FIELDS", label: "Attributes", value: "building:levels=43", sourceId: "way/1", proofLimit: "Allowlisted tags only." },
-      { id: "EVD-GEOMETRY", label: "Geometry", value: "Polygon", sourceId: "way/1", proofLimit: "Open-map geometry only." },
-      { id: "EVD-COORDINATES", label: "Coordinates", value: "25.208110,55.271928", sourceId: "map", proofLimit: "Analysis point only." },
+      { id: "EVD-OBJECT", label: "Object", value: JSON.stringify({ sourceFeatureId: "way/1", name: "Shangri La" }), sourceId: "way/1", proofLimit: "FREE_TEXT_PROOF_LIMIT_DO_NOT_PROJECT" },
+      { id: "EVD-CLASSIFICATION", label: "Classification", value: JSON.stringify({ sourceFeatureId: "way/1", featureClass: "tourism:hotel" }), sourceId: "way/1", proofLimit: "Open-map classification only." },
+      { id: "EVD-ADDRESS", label: "Address", value: JSON.stringify({ sourceFeatureId: "way/1", displayAddress: "Shangri La, Sheikh Zayed Road, Trade Centre, Dubai, United Arab Emirates", addressParts: { city_district: "Trade Centre", city: "Dubai", state: "Dubai Emirate", country: "United Arab Emirates" } }), sourceId: "way/1", proofLimit: "Open-map address only." },
+      { id: "EVD-ALLOWED-FIELDS", label: "Attributes", value: JSON.stringify({ sourceFeatureId: "way/1", tags: { "tag.building": "hotel", "tag.building:levels": "43", "tag.height": "200", "tag.start_date": "2003", "tag.tourism": "hotel", "tag.wikidata": "Q3751975", "tag.owner": "FREE_TEXT_OWNER_MUST_NOT_PROJECT" } }), sourceId: "way/1", proofLimit: "Allowlisted tags only." },
+      { id: "EVD-GEOMETRY", label: "Geometry", value: JSON.stringify({ sourceFeatureId: "way/1", geometryType: "Polygon", geometryHash: sha256("geometry-test") }), sourceId: "way/1", proofLimit: "Open-map geometry only." },
+      { id: "EVD-COORDINATES", label: "Coordinates", value: JSON.stringify({ longitude: 55.271928, latitude: 25.20811, crs: "EPSG:4326" }), sourceId: "user_point", proofLimit: "Analysis point only." },
       { id: "EVD-CONTEXT-01", label: "World Trade Centre", value: JSON.stringify({ sourceFeatureId: "node/456", name: "World Trade Centre", featureClass: "public_transport:station", distanceM: 240 }), sourceId: "node/456", proofLimit: "Bounded open-map context only." },
       { id: "EVD-SOURCE", label: "Open data source", value: "OpenStreetMap / ODbL", sourceId: "SPAT-001", proofLimit: "Runtime open community-map context; feature observation time unavailable." }
     ],
@@ -1661,16 +1661,20 @@ async function assertCandidateAiSafety(): Promise<void> {
   assert.equal(request.max_output_tokens, 3200, "The profile output-token bound must be enforced.");
   assert.equal((request.text as JsonObject).format instanceof Object, true, "Strict structured output is required.");
   assert.equal(((request.text as JsonObject).format as JsonObject).strict, true, "AI JSON schema must be strict.");
-  assert.equal(((request.text as JsonObject).format as JsonObject).name, "geoai_point_object_decision_plan_v3",
-    "The request must use the V3 coded decision-plan schema.");
+  assert.equal(((request.text as JsonObject).format as JsonObject).name, "geoai_point_object_decision_plan_v4",
+    "The request must use the V4 evidence-bound decision-plan schema.");
   const responseSchema = (((request.text as JsonObject).format as JsonObject).schema as JsonObject);
   assert.deepEqual(responseSchema.required,
-    ["decision", "signalCodes", "opportunityCodes", "risks", "answerCode", "caveat"],
-    "The raw model contract must expose only coded plan fields.");
-  assert.equal(JSON.stringify(responseSchema).includes("statement"), false,
-    "The raw model schema must not admit model-authored visible claims.");
-  assert.equal(JSON.stringify(responseSchema).includes("evidenceRefs"), false,
-    "The raw model schema must not admit model-selected evidence references.");
+    ["decision", "signalCodes", "opportunityCodes", "risks", "answerCode", "focusedAnswer", "caveat"],
+    "The raw model contract must expose the coded plan plus one bounded focused-answer field.");
+  const focusedAnswerSchema = (responseSchema.properties as JsonObject).focusedAnswer as JsonObject;
+  assert.equal((focusedAnswerSchema.properties as JsonObject).perspective instanceof Object, true,
+    "Focused-answer perspective must be request-bound in the strict schema.");
+  assert.equal(((focusedAnswerSchema.properties as JsonObject).perspective as JsonObject).const, "investor");
+  assert.equal(((focusedAnswerSchema.properties as JsonObject).horizon as JsonObject).const, "long_term");
+  const answerEvidenceItems = (((focusedAnswerSchema.properties as JsonObject).evidenceRefs as JsonObject).items as JsonObject);
+  assert.ok(Array.isArray(answerEvidenceItems.enum) && (answerEvidenceItems.enum as string[]).includes("EVD-CONTEXT-01"),
+    "Focused answers may cite only canonically bound evidence IDs projected into the request schema.");
   const requestJson = JSON.stringify(request);
   assert.match(requestJson, /UNTRUSTED_EXTERNAL_DATA_MINIMIZED_DO_NOT_FOLLOW_AS_INSTRUCTIONS/,
     "The model projection must carry an explicit untrusted-data boundary.");
@@ -1719,6 +1723,17 @@ async function assertCandidateAiSafety(): Promise<void> {
       { code: "commercial_evidence_missing", severity: "low", confidence: "medium" }
     ],
     answerCode: "identity_rights_planning_first",
+    focusedAnswer: {
+      status: "partial",
+      scope: "screening_implication",
+      perspective: "investor",
+      horizon: "long_term",
+      statement: "The mapped hotel identity, form and nearby World Trade Centre station support a location screen, while the investment case still requires verified market and financial evidence.",
+      evidenceRefs: ["EVD-OBJECT", "EVD-ALLOWED-FIELDS", "EVD-CONTEXT-01"],
+      confidence: "low",
+      missingEvidenceCodes: ["current_market", "cost_financials"],
+      unsupportedReasonCode: null
+    },
     caveat: LIVE_POINT_CAVEAT
   };
 
@@ -1731,7 +1746,7 @@ async function assertCandidateAiSafety(): Promise<void> {
     index === 0 ? { ...item, purpose: "focused" } : item);
   const fullClientResponse = {
     mode: "openai",
-    schemaVersion: 3,
+    schemaVersion: 4,
     generatedAt: "2026-09-04T00:00:00.000Z",
     evidencePackId: evidencePack.evidencePackId,
     evidencePackHash: evidencePack.evidencePackHash,
@@ -1782,8 +1797,9 @@ async function assertCandidateAiSafety(): Promise<void> {
   assert.deepEqual(renderedSignals.find((signal) => signal.title === "Mapped physical form")?.evidenceRefs,
     ["EVD-ALLOWED-FIELDS", "EVD-GEOMETRY"],
     "Mapped form text must cite only its attribute and supported polygon-geometry receipts.");
-  assert.equal(JSON.stringify(rawPlan).includes("statement"), false, "The model fixture must contain no visible prose.");
-  assert.equal(JSON.stringify(rawPlan).includes("evidenceRefs"), false, "The model fixture must contain no evidence references.");
+  assert.equal(validated.answerToQuestion.status, "partial", "A supported but incomplete custom answer must remain explicitly partial.");
+  assert.deepEqual(validated.answerToQuestion.evidenceRefs, ["EVD-OBJECT", "EVD-ALLOWED-FIELDS", "EVD-CONTEXT-01"],
+    "Model-authored focused interpretation must retain only canonically bound evidence references.");
 
   const sourceFacts = validated.sourceFacts as Array<{ statement: string; evidenceRefs: string[] }>;
   const locationContext = validated.locationContext as Array<{ statement: string; evidenceRefs: string[] }>;
@@ -1814,14 +1830,139 @@ async function assertCandidateAiSafety(): Promise<void> {
   assert.deepEqual(repeated, validated, "The same coded plan and evidence must render byte-for-byte deterministic content.");
   assert.equal((validated.decisionBrief.summary as string).includes("FREE_TEXT"), false,
     "Unprojected source prose must never reach deterministic decision copy.");
+  const sanitizedName = "Shangri\u202e\nLa";
   const sanitized = validateContent(
-    { ...rawPlan, answerCode: null },
-    { ...evidencePack, selectedObject: { ...evidencePack.selectedObject, name: "Shangri\u202e\nLa" } },
+    { ...rawPlan, answerCode: null, focusedAnswer: null },
+    {
+      ...evidencePack,
+      selectedObject: { ...evidencePack.selectedObject, name: sanitizedName },
+      evidence: evidencePack.evidence.map((item: any) => item.id === "EVD-OBJECT"
+        ? { ...item, value: JSON.stringify({ sourceFeatureId: "way/1", name: sanitizedName }) }
+        : item)
+    },
     initialAnalysisRequest
   );
   assert.ok(sanitized, "Sanitizable public source values must remain renderable.");
   assert.equal(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]/u.test(JSON.stringify(sanitized)), false,
     "Control and bidi characters from source values must not reach server-rendered UI copy.");
+
+  const projectionFor = (candidate: typeof evidencePack): JsonObject => {
+    const candidateRequest = buildRequest(candidate, initialAnalysisRequest, modelProfile);
+    const candidateInput = candidateRequest.input as JsonObject[];
+    const candidateContent = candidateInput[1]?.content as JsonObject[];
+    const candidatePayload = JSON.parse(String(candidateContent[0]?.text)) as JsonObject;
+    return candidatePayload.evidenceProjection as JsonObject;
+  };
+  const projectedEvidenceIds = (projection: JsonObject): string[] => (
+    (projection.evidenceIndex as Array<{ id: string }>).map((item) => item.id)
+  );
+
+  const substitutedName = projectionFor({
+    ...evidencePack,
+    selectedObject: { ...evidencePack.selectedObject, name: "SUBSTITUTED_OBJECT_NAME" }
+  });
+  assert.equal((substitutedName.selectedObject as JsonObject).name, null,
+    "An unchanged object receipt ID must not authorize a substituted selected-object name.");
+  assert.equal(projectedEvidenceIds(substitutedName).includes("EVD-OBJECT"), false,
+    "An object receipt whose canonical payload no longer matches the selected object must be unavailable to the model.");
+
+  const substitutedClassification = projectionFor({
+    ...evidencePack,
+    selectedObject: { ...evidencePack.selectedObject, featureClass: "office:company" }
+  });
+  assert.equal((substitutedClassification.selectedObject as JsonObject).featureClass, null,
+    "An unchanged classification receipt ID must not authorize a substituted selected-object classification.");
+  assert.equal(projectedEvidenceIds(substitutedClassification).includes("EVD-CLASSIFICATION"), false,
+    "A mismatched classification receipt must be removed from the eligible evidence index.");
+
+  const substitutedAddress = projectionFor({
+    ...evidencePack,
+    selectedObject: { ...evidencePack.selectedObject, displayAddress: "SUBSTITUTED ADDRESS, DUBAI" }
+  });
+  assert.equal((substitutedAddress.selectedObject as JsonObject).displayAddress, null,
+    "An unchanged address receipt ID must not authorize a substituted display address.");
+  assert.deepEqual((substitutedAddress.selectedObject as JsonObject).addressHierarchy, {},
+    "A failed address binding must also suppress the selected address hierarchy.");
+  assert.equal(projectedEvidenceIds(substitutedAddress).includes("EVD-ADDRESS"), false,
+    "A mismatched address receipt must be removed from the eligible evidence index.");
+
+  const substitutedAddressParts = projectionFor({
+    ...evidencePack,
+    selectedObject: {
+      ...evidencePack.selectedObject,
+      addressParts: { ...evidencePack.selectedObject.addressParts, city: "Abu Dhabi" }
+    }
+  });
+  assert.equal((substitutedAddressParts.selectedObject as JsonObject).displayAddress, null,
+    "An unchanged address receipt ID must not authorize substituted structured address parts.");
+  assert.equal(projectedEvidenceIds(substitutedAddressParts).includes("EVD-ADDRESS"), false,
+    "Address hierarchy and display address must share one canonical receipt binding.");
+
+  const substitutedTags = projectionFor({
+    ...evidencePack,
+    selectedObject: {
+      ...evidencePack.selectedObject,
+      tags: { ...evidencePack.selectedObject.tags, "tag.building": "office" }
+    }
+  });
+  assert.deepEqual((substitutedTags.selectedObject as JsonObject).structuredAttributes, {},
+    "An unchanged attribute receipt ID must not authorize substituted selected-object tags.");
+  assert.equal(projectedEvidenceIds(substitutedTags).includes("EVD-ALLOWED-FIELDS"), false,
+    "A mismatched attribute receipt must be removed from the eligible evidence index.");
+
+  const substitutedCoordinates = projectionFor({
+    ...evidencePack,
+    coordinates: { ...evidencePack.coordinates, longitude: evidencePack.coordinates.longitude + 0.01 }
+  });
+  assert.equal((substitutedCoordinates.analysisPoint as JsonObject).longitude, null,
+    "An unchanged coordinate receipt ID must not authorize substituted WGS84 coordinates.");
+  assert.equal(projectedEvidenceIds(substitutedCoordinates).includes("EVD-COORDINATES"), false,
+    "A mismatched coordinate receipt must be removed from the eligible evidence index.");
+
+  const substitutedGeometryType = projectionFor({
+    ...evidencePack,
+    selectedObject: { ...evidencePack.selectedObject, geometryType: "MultiPolygon" }
+  });
+  assert.equal((substitutedGeometryType.selectedObject as JsonObject).geometryType, null,
+    "An unchanged geometry receipt ID must not authorize a substituted geometry type.");
+  assert.equal(projectedEvidenceIds(substitutedGeometryType).includes("EVD-GEOMETRY"), false,
+    "Geometry type and hash must share one canonical receipt binding.");
+
+  const substitutedGeometryHash = projectionFor({
+    ...evidencePack,
+    selectedObject: { ...evidencePack.selectedObject, geometryHash: sha256("substituted-geometry") }
+  });
+  assert.equal((substitutedGeometryHash.selectedObject as JsonObject).geometryHash, null,
+    "An unchanged geometry receipt ID must not authorize a substituted geometry hash.");
+  assert.equal(projectedEvidenceIds(substitutedGeometryHash).includes("EVD-GEOMETRY"), false,
+    "A mismatched geometry hash must invalidate the geometry receipt.");
+
+  const substitutedSourceIdentity = projectionFor({
+    ...evidencePack,
+    selectedObject: { ...evidencePack.selectedObject, sourceFeatureId: "way/999" }
+  });
+  const substitutedSourceObject = substitutedSourceIdentity.selectedObject as JsonObject;
+  assert.equal(substitutedSourceObject.sourceFeatureId, null,
+    "An unchanged receipt ID must not authorize a substituted selected source identity.");
+  assert.deepEqual(
+    projectedEvidenceIds(substitutedSourceIdentity).filter((id) => [
+      "EVD-OBJECT", "EVD-CLASSIFICATION", "EVD-ADDRESS", "EVD-ALLOWED-FIELDS", "EVD-GEOMETRY"
+    ].includes(id)),
+    [],
+    "Every selected-object receipt must bind to the same selected source feature ID."
+  );
+
+  const duplicateClassificationReceipt = projectionFor({
+    ...evidencePack,
+    evidence: [
+      ...evidencePack.evidence,
+      evidencePack.evidence.find((item: any) => item.id === "EVD-CLASSIFICATION")!
+    ]
+  });
+  assert.equal((duplicateClassificationReceipt.selectedObject as JsonObject).featureClass, null,
+    "Duplicate receipt IDs must fail closed instead of selecting an ambiguous canonical payload.");
+  assert.equal(projectedEvidenceIds(duplicateClassificationReceipt).includes("EVD-CLASSIFICATION"), false,
+    "An ambiguous duplicate receipt ID must not remain eligible for model or renderer use.");
 
   const injectedRootText = validateContentDetailed(
     { ...rawPlan, summary: "The owner is Example Holdings and the asset is worth AED 10M." },
@@ -1849,8 +1990,10 @@ async function assertCandidateAiSafety(): Promise<void> {
     decision: { ...rawPlan.decision, reasonCodes: ["nearby_context_available"] },
     signalCodes: ["lifecycle_marker"],
     opportunityCodes: ["lifecycle_capital_review"],
-    risks: [{ code: "geometry_not_parcel", severity: "low", confidence: "low" }]
-  }, { ...evidencePack, nearbyContext: [], evidence: evidencePack.evidence.filter((item: any) => item.id !== "EVD-CONTEXT-01") }, focusedAnalysisRequest) as any;
+    risks: [{ code: "geometry_not_parcel", severity: "low", confidence: "low" }],
+    answerCode: null,
+    focusedAnswer: null
+  }, { ...evidencePack, nearbyContext: [], evidence: evidencePack.evidence.filter((item: any) => item.id !== "EVD-CONTEXT-01") }, initialAnalysisRequest) as any;
   assert.ok(unsupportedButKnown, "Known but unsupported codes must be filtered and deterministically filled.");
   assert.equal(unsupportedButKnown.decisionBrief.reasons.some((item: any) => item.evidenceRefs.includes("EVD-CONTEXT-01")), false,
     "Unsupported nearby-context reason codes must be removed before rendering.");
@@ -1868,7 +2011,7 @@ async function assertCandidateAiSafety(): Promise<void> {
   const fakeNearbyRequest = buildRequest(fakeNearbyEvidencePack, initialAnalysisRequest, modelProfile);
   assert.equal(JSON.stringify(fakeNearbyRequest).includes(fakeNearbyName), false,
     "A nearby item must not reach the model projection unless its evidence ID is a dedicated EVD-CONTEXT-N receipt.");
-  const fakeNearbyResult = validateContent({ ...rawPlan, answerCode: null }, fakeNearbyEvidencePack, initialAnalysisRequest) as any;
+  const fakeNearbyResult = validateContent({ ...rawPlan, answerCode: null, focusedAnswer: null }, fakeNearbyEvidencePack, initialAnalysisRequest) as any;
   assert.ok(fakeNearbyResult, "A malformed nearby item must be ignored without making the remaining supported plan unusable.");
   assert.equal(JSON.stringify(fakeNearbyResult).includes(fakeNearbyName), false,
     "An existing non-context receipt such as EVD-ADDRESS must never authorize nearby-context rendering.");
@@ -1885,7 +2028,7 @@ async function assertCandidateAiSafety(): Promise<void> {
   const substitutedNearbyRequest = buildRequest(substitutedNearbyEvidencePack, initialAnalysisRequest, modelProfile);
   assert.equal(JSON.stringify(substitutedNearbyRequest).includes(substitutedNearbyName), false,
     "A dedicated nearby evidence ID must not authorize a substituted name or distance unless the receipt value is bound.");
-  const substitutedNearbyResult = validateContent({ ...rawPlan, answerCode: null }, substitutedNearbyEvidencePack, initialAnalysisRequest) as any;
+  const substitutedNearbyResult = validateContent({ ...rawPlan, answerCode: null, focusedAnswer: null }, substitutedNearbyEvidencePack, initialAnalysisRequest) as any;
   assert.ok(substitutedNearbyResult, "A rejected nearby substitution must not invalidate the remaining supported plan.");
   assert.equal(JSON.stringify(substitutedNearbyResult).includes(substitutedNearbyName), false,
     "Server rendering must exclude nearby values whose label, source identity or distance differs from the receipt.");
@@ -1896,7 +2039,7 @@ async function assertCandidateAiSafety(): Promise<void> {
   };
   assert.equal(JSON.stringify(buildRequest(substitutedNearbyClassPack, initialAnalysisRequest, modelProfile)).includes(substitutedNearbyClass), false,
     "A valid receipt ID must not authorize a substituted nearby feature classification.");
-  assert.equal(JSON.stringify(validateContent({ ...rawPlan, answerCode: null }, substitutedNearbyClassPack, initialAnalysisRequest)).includes(substitutedNearbyClass), false,
+  assert.equal(JSON.stringify(validateContent({ ...rawPlan, answerCode: null, focusedAnswer: null }, substitutedNearbyClassPack, initialAnalysisRequest)).includes(substitutedNearbyClass), false,
     "A mismatched nearby feature class must fail closed before deterministic rendering.");
 
   const sparseEvidencePack = {
@@ -1913,7 +2056,8 @@ async function assertCandidateAiSafety(): Promise<void> {
     },
     signalCodes: ["use_classification", "lifecycle_marker", "address_context"],
     opportunityCodes: ["lifecycle_capital_review", "existing_asset_repositioning"],
-    answerCode: null
+    answerCode: null,
+    focusedAnswer: null
   }, sparseEvidencePack, initialAnalysisRequest) as any;
   assert.ok(sparseEvidenceResult, "A sparse pack must remain renderable without borrowing evidence across fields.");
   const sparseRendered = JSON.stringify(sparseEvidenceResult);
@@ -1939,13 +2083,17 @@ async function assertCandidateAiSafety(): Promise<void> {
     decision: { ...rawPlan.decision, path: "technical_baseline_first" },
     signalCodes: ["use_classification", "address_context", "object_identity", "source_limit"],
     opportunityCodes: ["operational_baseline_test", "comparative_screening"],
-    answerCode: null
+    answerCode: null,
+    focusedAnswer: null
   }, {
     ...evidencePack,
     selectedObject: { ...evidencePack.selectedObject, geometryType: "Point" },
     evidence: evidencePack.evidence
       .filter((item: any) => item.id !== "EVD-ALLOWED-FIELDS")
-      .map((item: any) => item.id === "EVD-GEOMETRY" ? { ...item, value: "Point" } : item)
+      .map((item: any) => item.id === "EVD-GEOMETRY" ? {
+        ...item,
+        value: JSON.stringify({ sourceFeatureId: "way/1", geometryType: "Point", geometryHash: sha256("geometry-test") })
+      } : item)
   }, initialAnalysisRequest) as any;
   assert.ok(classificationOnlyResult, "Classification plus point geometry must remain renderable through a non-technical path.");
   assert.equal(classificationOnlyResult.decisionBrief.headline, "Make planning evidence the next decision gate",
@@ -1954,19 +2102,175 @@ async function assertCandidateAiSafety(): Promise<void> {
     "The renderer must never invent a generic geometry phrase when no building-form geometry is supported.");
 
   const missingFocusedAnswer = validateContentDetailed(
-    { ...rawPlan, answerCode: null }, evidencePack, focusedAnalysisRequest
+    { ...rawPlan, focusedAnswer: null }, evidencePack, focusedAnalysisRequest
   );
-  assert.equal(missingFocusedAnswer.ok, true,
-    "A schema-valid null focused answer must receive a deterministic supported fallback without another model call.");
-  if (missingFocusedAnswer.ok) assert.ok(missingFocusedAnswer.content.answerToQuestion,
-    "The server must render the deterministic focused-answer fallback.");
+  assert.equal(missingFocusedAnswer.ok, false,
+    "A focused request must fail closed when the model omits its evidence-bound answer.");
 
-  const initialPlan = { ...rawPlan, answerCode: null };
+  const mismatchedLensAnswer = validateContentDetailed({
+    ...rawPlan,
+    focusedAnswer: { ...rawPlan.focusedAnswer, perspective: "developer" }
+  }, evidencePack, focusedAnalysisRequest);
+  assert.equal(mismatchedLensAnswer.ok, false,
+    "The focused answer must be bound to the request perspective and horizon.");
+
+  const staleFocusedRef = validateContentDetailed({
+    ...rawPlan,
+    focusedAnswer: { ...rawPlan.focusedAnswer, evidenceRefs: ["EVD-CONTEXT-99"] }
+  }, evidencePack, focusedAnalysisRequest);
+  assert.equal(staleFocusedRef.ok, false,
+    "A model-authored interpretation must reject stale or cross-object evidence references.");
+
+  const uncitedNearbyClaim = validateContentDetailed({
+    ...rawPlan,
+    focusedAnswer: {
+      ...rawPlan.focusedAnswer,
+      statement: "Nearby transport improves the screening case, but the open-map context remains incomplete and requires validation.",
+      evidenceRefs: ["EVD-OBJECT"]
+    }
+  }, evidencePack, focusedAnalysisRequest);
+  assert.equal(uncitedNearbyClaim.ok, false,
+    "Nearby interpretation must cite a canonically bound EVD-CONTEXT receipt.");
+
+  const financialOverclaim = validateContentDetailed({
+    ...rawPlan,
+    focusedAnswer: {
+      ...rawPlan.focusedAnswer,
+      statement: "The selected object is definitely worth AED 10000000 and guarantees a strong investment return.",
+      evidenceRefs: ["EVD-OBJECT"]
+    }
+  }, evidencePack, focusedAnalysisRequest);
+  assert.equal(financialOverclaim.ok, false,
+    "Unsupported value, currency and guaranteed-return claims must fail closed.");
+
+  const marketQuestionRequest = {
+    ...focusedAnalysisRequest,
+    question: "What is the current market value, expected cost and investment return for this object?"
+  };
+  const unsupportedMarketPlan = {
+    ...rawPlan,
+    focusedAnswer: {
+      status: "unsupported",
+      scope: "source_limitation",
+      perspective: "investor",
+      horizon: "long_term",
+      statement: null,
+      evidenceRefs: [],
+      confidence: "low",
+      missingEvidenceCodes: ["current_market", "cost_financials"],
+      unsupportedReasonCode: "requires_licensed_market_source"
+    }
+  };
+  const unsupportedMarket = validateContent(unsupportedMarketPlan, evidencePack, marketQuestionRequest) as any;
+  assert.ok(unsupportedMarket?.answerToQuestion,
+    "A market question outside the current evidence must return a safe, useful unsupported result.");
+  assert.equal(unsupportedMarket.answerToQuestion.status, "unsupported");
+  assert.deepEqual(unsupportedMarket.answerToQuestion.missingEvidence,
+    ["licensed current demand, supply and rent evidence", "verified costs and financial assumptions"]);
+  assert.equal(String(unsupportedMarket.answerToQuestion.statement).includes("cannot answer this market or financial question"), true,
+    "Unsupported questions must explain the exact source class needed instead of substituting a generic answer.");
+
+  const initialPlan = { ...rawPlan, answerCode: null, focusedAnswer: null };
   const validatedInitial = validateContent(initialPlan, evidencePack, initialAnalysisRequest);
   assert.ok(validatedInitial, "An initial analysis may correctly omit a focused answer code.");
   assert.equal(validatedInitial.answerToQuestion, null, "Initial analysis must preserve a null focused answer.");
+  const initialRequestSchema = ((((buildRequest(evidencePack, initialAnalysisRequest, modelProfile).text as JsonObject).format as JsonObject).schema as JsonObject).properties as JsonObject).focusedAnswer as JsonObject;
+  assert.equal(initialRequestSchema.type, "null",
+    "The strict initial-analysis schema must make focusedAnswer null rather than inviting unused model prose.");
   assert.equal(validateContent(rawPlan, evidencePack, initialAnalysisRequest), null,
     "An initial analysis must reject an answer code when no question was asked.");
+}
+
+async function assertLiveOverpassContext(): Promise<void> {
+  const liveEvidencePath = path.join(ROOT, "src/lib/prototype/point-to-object-live-evidence.ts");
+  const liveEvidence = await importErasableTypeScript(liveEvidencePath, [
+    [/import "server-only";\n/, ""],
+    [
+      /import \{ LIVE_POINT_CAVEAT \} from "@\/src\/lib\/point-to-object\/contracts";\n/,
+      `const LIVE_POINT_CAVEAT = ${JSON.stringify(LIVE_POINT_CAVEAT)};\n`
+    ],
+    [
+      /import \{ semanticHash \} from "@\/src\/lib\/point-to-object\/hash";\n/,
+      "const semanticHash = (value) => JSON.stringify(value);\n"
+    ]
+  ]);
+  const buildQuery = liveEvidence.buildOverpassNearbyQuery as (point: [number, number]) => string;
+  const normalize = liveEvidence.normalizeOverpassNearbyContext as (
+    payload: unknown,
+    point: [number, number],
+    selectedSourceFeatureId: string,
+    locale?: string
+  ) => Array<JsonObject>;
+  const resolve = liveEvidence.resolveLiveNearbyContext as (
+    point: [number, number],
+    selectedSourceFeatureId: string,
+    locale: string,
+    loader: (query: string) => Promise<unknown>
+  ) => Promise<JsonObject>;
+
+  const point: [number, number] = [55.271928, 25.20811];
+  const query = buildQuery(point);
+  assert.match(query, /\[out:json\]\[timeout:4\]\[maxsize:524288\]/,
+    "Nearby live context must enforce an upstream execution and response-size budget.");
+  assert.match(query, /\(around:800,25\.208110,55\.271928\)/,
+    "Nearby live context must use the normalized server-side point and a bounded 800 m radius.");
+  assert.match(query, /out center 120;/,
+    "Nearby live context must cap the upstream result set and request only tags plus element centres.");
+  assert.equal(query.includes("owner"), false, "Nearby context must not request ownership data.");
+
+  const payload = {
+    osm3s: { timestamp_osm_base: "2026-09-03T21:00:00Z" },
+    elements: [
+      { type: "node", id: 1, lat: 25.2082, lon: 55.2720, tags: { amenity: "school", name: "Future School" } },
+      { type: "node", id: 2, lat: 25.2083, lon: 55.2721, tags: { amenity: "hospital", name: "City Hospital" } },
+      { type: "node", id: 3, lat: 25.2084, lon: 55.2722, tags: { shop: "supermarket", name: "Daily Market" } },
+      { type: "node", id: 4, lat: 25.2085, lon: 55.2723, tags: { public_transport: "station", name: "Metro Station" } },
+      { type: "way", id: 5, center: { lat: 25.2086, lon: 55.2724 }, tags: { highway: "primary", name: "Main Road" } },
+      { type: "relation", id: 6, center: { lat: 25.2087, lon: 55.2725 }, tags: { leisure: "park", name: "City Park" } },
+      { type: "node", id: 7, lat: 25.2088, lon: 55.2726, tags: { tourism: "museum", name: "City Museum" } },
+      { type: "node", id: 8, lat: 25.2089, lon: 55.2727, tags: { amenity: "pharmacy", name: "Health Pharmacy" } },
+      { type: "node", id: 9, lat: 25.2090, lon: 55.2728, tags: { highway: "bus_stop", name: "Central Stop" } },
+      { type: "node", id: 10, lat: 25.2091, lon: 55.2729, tags: { amenity: "cafe", name: "Excluded Cafe" } },
+      { type: "node", id: 11, lat: 25.2092, lon: 55.2730, tags: { amenity: "school", name: "Second School" } },
+      { type: "node", id: 11, lat: 25.2500, lon: 55.3100, tags: { amenity: "school", name: "Duplicate Far School" } },
+      { type: "node", id: 12, lat: 25.2093, lon: 55.2731, tags: { shop: "convenience" } },
+      { type: "node", id: 13, lat: 0, lon: 0, tags: { amenity: "hospital", name: "Impossible Far Hospital" } },
+      { type: "node", id: 99, lat: 25.20811, lon: 55.271928, tags: { amenity: "school", name: "Selected Object" } }
+    ]
+  };
+  const items = normalize(payload, point, "node/99", "en-AE");
+  assert.ok(items.length >= 7 && items.length <= 12,
+    "The normalizer must retain a compact, decision-relevant and category-balanced context sample.");
+  assert.equal(new Set(items.map((item) => item.sourceFeatureId)).size, items.length,
+    "Nearby OSM identities must be deduplicated.");
+  assert.equal(items.some((item) => item.sourceFeatureId === "node/99"), false,
+    "The selected object must not be duplicated into its own nearby context.");
+  assert.equal(items.some((item) => item.name === "Excluded Cafe"), false,
+    "Non-allowlisted high-volume POI categories must be discarded.");
+  assert.equal(items.some((item) => item.name === "Impossible Far Hospital"), false,
+    "Implausibly distant mocked elements must fail closed.");
+  assert.equal(items.every((item, index) => item.evidenceId === `EVD-CONTEXT-${index + 1}`), true,
+    "Nearby context must receive stable dedicated evidence IDs.");
+  assert.equal(items.every((item) => typeof item.distanceM === "number" && item.distanceM >= 0), true,
+    "Every nearby record must expose a bounded straight-line distance.");
+  assert.equal(items.every((item) => item.method === "overpass_around_query_element_center_haversine"), true,
+    "Every nearby distance must disclose its exact non-routing method.");
+
+  let injectedQuery = "";
+  const resolved = await resolve(point, "node/99", "en-AE", async (candidateQuery) => {
+    injectedQuery = candidateQuery;
+    return payload;
+  });
+  assert.equal(injectedQuery, query, "The injected loader must receive the same bounded query used at runtime.");
+  assert.equal(resolved.status, "available");
+  assert.equal(resolved.observedAt, "2026-09-03T21:00:00.000Z");
+  assert.ok(typeof resolved.responseHash === "string" && resolved.responseHash.length > 0,
+    "A successful nearby response must receive a deterministic normalized receipt hash.");
+  assert.deepEqual(
+    await resolve(point, "node/99", "en", async () => { throw new Error("upstream unavailable"); }),
+    { status: "unavailable", items: [], responseHash: null, observedAt: null },
+    "Nearby enrichment must degrade to an explicit empty result without failing primary object resolution."
+  );
 }
 
 async function assertCandidateAssertions(validateReceipt: ReturnType<Ajv2020["compile"]>): Promise<void> {
@@ -2062,6 +2366,7 @@ async function main(): Promise<void> {
   await assertActualPipeline(validateRoot, validateCandidateAssertionReceipt);
   await assertRepositoryAuthorityQuarantine();
   assertStaticBoundaries();
+  await assertLiveOverpassContext();
   await assertCandidateAiSafety();
   await assertCandidateAssertions(validateCandidateAssertionReceipt);
 
@@ -2083,6 +2388,7 @@ async function main(): Promise<void> {
       hmac_assertion_tamper_replay_expiry_binding_cold_key: true,
       runtime_provider_and_secret_boundary: true,
       candidate_ai_typed_plan_and_server_render_boundary: true,
+      live_overpass_nearby_context_bounded_and_fail_closed: true,
       actual_resolver_context_evidence_compose_pipeline: true,
       synthetic_non_runtime_semantic_matrix: true,
       geometry_artifact_hash_and_byte_caps: true,

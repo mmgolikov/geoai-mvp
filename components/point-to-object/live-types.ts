@@ -72,8 +72,8 @@ export type PointObjectReasoningEffort = "low" | "medium" | "high" | "xhigh";
 export type PointObjectEvidenceClass = "observed" | "derived" | "hypothesis";
 export type PointObjectConfidence = "low" | "medium";
 
-export const POINT_OBJECT_ANALYSIS_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V4_2026_09_04" as const;
-export const POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION = 3 as const;
+export const POINT_OBJECT_ANALYSIS_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V5_2026_09_04" as const;
+export const POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION = 4 as const;
 
 export type PointObjectAiAttemptTrace = {
   attempt: number;
@@ -143,6 +143,24 @@ export type PointObjectValidationAction = {
   evidenceRefs: string[];
 };
 
+export type PointObjectFocusedAnswer = GroundedClaim & {
+  status: "answered" | "partial" | "unsupported";
+  scope:
+    | "object_identity"
+    | "mapped_use"
+    | "mapped_form"
+    | "mapped_lifecycle"
+    | "address_context"
+    | "nearby_context"
+    | "screening_implication"
+    | "development_hypothesis"
+    | "source_limitation";
+  confidence: PointObjectConfidence;
+  perspective: PointObjectAnalysisPerspective;
+  horizon: PointObjectAnalysisHorizon;
+  missingEvidence: string[];
+};
+
 export type PointObjectAiContent = {
   decisionBrief: PointObjectDecisionBrief;
   signals: PointObjectDecisionSignal[];
@@ -151,7 +169,7 @@ export type PointObjectAiContent = {
   sourceFacts: GroundedClaim[];
   locationContext: GroundedClaim[];
   nextValidation: PointObjectValidationAction[];
-  answerToQuestion: GroundedClaim | null;
+  answerToQuestion: PointObjectFocusedAnswer | null;
   caveat: string;
 };
 

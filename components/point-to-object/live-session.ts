@@ -17,6 +17,7 @@ import type {
   PointObjectAnalysisRequestReceipt,
   PointObjectDecisionBrief,
   PointObjectDecisionSignal,
+  PointObjectFocusedAnswer,
   PointObjectOpportunity,
   PointObjectRisk,
   PointObjectValidationAction,
@@ -26,7 +27,7 @@ import type {
 export const POINT_OBJECT_SESSION_KEYS = {
   selection: "geoai:point-to-object:selection:v3",
   question: "geoai:point-to-object:question:v2",
-  analysis: "geoai:point-to-object:analysis:v6"
+  analysis: "geoai:point-to-object:analysis:v7"
 } as const;
 
 const MAX_SELECTION_BYTES = 512 * 1024;
@@ -288,6 +289,30 @@ function claims(value: unknown, minimum: number, maximum: number, maxStatement =
   return parsed.every((item): item is GroundedClaim => item !== null) ? parsed : null;
 }
 
+function parseFocusedAnswer(value: unknown): PointObjectFocusedAnswer | null {
+  if (!isRecord(value) || !hasExactKeys(value, [
+    "status", "scope", "confidence", "perspective", "horizon", "statement", "evidenceRefs", "missingEvidence"
+  ])) return null;
+  const statement = nonEmptyText(value.statement, 900);
+  const refs = evidenceRefs(value.evidenceRefs);
+  const missingEvidence = textList(value.missingEvidence, 0, 11, 220);
+  const status = value.status === "answered" || value.status === "partial" || value.status === "unsupported"
+    ? value.status : null;
+  const scope = value.scope === "object_identity" || value.scope === "mapped_use" || value.scope === "mapped_form" ||
+    value.scope === "mapped_lifecycle" || value.scope === "address_context" || value.scope === "nearby_context" ||
+    value.scope === "screening_implication" || value.scope === "development_hypothesis" || value.scope === "source_limitation"
+    ? value.scope : null;
+  const confidence = value.confidence === "low" || value.confidence === "medium" ? value.confidence : null;
+  const perspective = value.perspective === "developer" || value.perspective === "investor" || value.perspective === "asset_owner"
+    ? value.perspective : null;
+  const horizon = value.horizon === "current" || value.horizon === "one_to_three_years" || value.horizon === "long_term"
+    ? value.horizon : null;
+  return statement && refs && missingEvidence && status && scope && confidence && perspective && horizon &&
+    (status === "answered" ? missingEvidence.length === 0 : status === "partial" ? missingEvidence.length > 0 : confidence === "low" && missingEvidence.length > 0)
+    ? { status, scope, confidence, perspective, horizon, statement, evidenceRefs: refs, missingEvidence }
+    : null;
+}
+
 function textList(value: unknown, minimum: number, maximum: number, maxLength: number): string[] | null {
   if (!Array.isArray(value) || value.length < minimum || value.length > maximum) return null;
   const parsed = value.map((item) => nonEmptyText(item, maxLength));
@@ -390,7 +415,7 @@ function parseContent(value: unknown): PointObjectAiContent | null {
   const sourceFacts = claims(value.sourceFacts, 1, 6);
   const locationContext = claims(value.locationContext, 1, 7);
   const nextValidation = parseValidationActions(value.nextValidation);
-  const answerToQuestion = value.answerToQuestion === null ? null : claim(value.answerToQuestion);
+  const answerToQuestion = value.answerToQuestion === null ? null : parseFocusedAnswer(value.answerToQuestion);
   if (!decisionBrief || !signals || !opportunities || !risks || !sourceFacts || !locationContext || !nextValidation ||
       (value.answerToQuestion !== null && !answerToQuestion) || value.caveat !== LIVE_POINT_CAVEAT) return null;
   return {
@@ -628,7 +653,11 @@ export function parsePointObjectAiResponse(value: unknown): PointObjectAiRespons
   if (!generatedAt || !evidencePackId || !/^[A-Za-z0-9_.:-]+$/.test(evidencePackId) || !evidencePackHash ||
       !request || !content || !subject || !telemetry || telemetry.depth !== request.depth ||
       telemetry.attemptTrace[0]?.purpose !== (request.focused ? "focused" : "initial") ||
-      (request.focused && content.answerToQuestion === null)) return null;
+      (request.focused && content.answerToQuestion === null) ||
+      (!request.focused && content.answerToQuestion !== null) ||
+      (content.answerToQuestion !== null && (
+        content.answerToQuestion.perspective !== request.perspective || content.answerToQuestion.horizon !== request.horizon
+      ))) return null;
   return {
     mode: "openai",
     schemaVersion: POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION,
