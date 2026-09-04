@@ -1357,7 +1357,7 @@ const UNSUPPORTED_ANSWER_COPY: Record<PointObjectUnsupportedReasonCode, string> 
   outside_available_open_context: "The requested conclusion is outside the evidence currently available for this location. Add a source that directly covers the question."
 };
 
-const FOCUSED_ANSWER_FORBIDDEN = /(?:https?:\/\/|www\.|<[^>]*>|```|system\s+prompt|developer\s+message|api[_\s-]?key|password|bearer\s+token|guaranteed|definit(?:e|ely)|best\s+use|optimal\s+use|official(?:ly)?\s+(?:confirmed|validated)|title\s+is\s+clear|owned\s+by|zoned\s+(?:for|as)|planning\s+approval\s+(?:exists|is|has)|permitted\s+use\s+is|valued\s+at|worth\s+(?:aed|usd|sar|sgd)|\broi\b|return\s+of\s+\d|(?:walk|drive|travel|route)[^.!?]{0,48}\b(?:minute|minutes|min)\b)/i;
+const FOCUSED_ANSWER_FORBIDDEN = /(?:https?:\/\/|www\.|<[^>]*>|```|system\s+prompt|developer\s+message|api[_\s-]?key|password|bearer\s+token|guaranteed|definit(?:e|ely)|best\s+use|optimal\s+use|official(?:ly)?\s+(?:confirmed|validated)|title\s+is\s+clear|owned\s+by|zoned\s+(?:for|as)|planning\s+approval\s+(?:exists|has\s+been\s+(?:granted|issued)|is\s+(?:granted|approved|confirmed|valid|in\s+place))|permitted\s+use\s+is\s+(?!not\b|unverified\b|unknown\b)|valued\s+at|worth\s+(?:aed|usd|sar|sgd)|\broi\b|return\s+of\s+\d|(?:walk|drive|travel|route)[^.!?]{0,48}\b(?:minute|minutes|min)\b)/i;
 
 function novelNumberInStatement(statement: string, support: PointObjectEvidenceSupport): boolean {
   const evidenceText = JSON.stringify({
@@ -1456,13 +1456,17 @@ function validateFocusedAnswer(
     };
   }
 
-  if (!statement || refs.length < 1 || !refs.every((ref) => support.allowed.has(ref)) || !scope ||
-      !refs.every((ref) => focusedScopeRefs(scope, support).includes(ref)) ||
-      (status === "answered" && missingCodes.length !== 0) ||
-      (status === "partial" && missingCodes.length < 1) || unsupportedReason !== null ||
-      FOCUSED_ANSWER_FORBIDDEN.test(statement) || novelNumberInStatement(statement, support)) {
-    return { ok: false, detail: "focused_answer_evidence_binding" };
+  if (!statement) return { ok: false, detail: "focused_answer_statement_missing" };
+  if (refs.length < 1) return { ok: false, detail: "focused_answer_refs_missing" };
+  if (!refs.every((ref) => support.allowed.has(ref))) return { ok: false, detail: "focused_answer_ref_unbound" };
+  if (!scope || !refs.every((ref) => focusedScopeRefs(scope, support).includes(ref))) {
+    return { ok: false, detail: "focused_answer_ref_outside_scope" };
   }
+  if (status === "answered" && missingCodes.length !== 0) return { ok: false, detail: "focused_answer_answered_with_missing_sources" };
+  if (status === "partial" && missingCodes.length < 1) return { ok: false, detail: "focused_answer_partial_without_missing_sources" };
+  if (unsupportedReason !== null) return { ok: false, detail: "focused_answer_supported_with_unsupported_reason" };
+  if (FOCUSED_ANSWER_FORBIDDEN.test(statement)) return { ok: false, detail: "focused_answer_forbidden_claim" };
+  if (novelNumberInStatement(statement, support)) return { ok: false, detail: "focused_answer_novel_number" };
   const contextRefs = refs.filter((ref) => support.contextRefs.includes(ref));
   if (/\b(?:nearby|surround|school|hospital|clinic|pharmacy|metro|station|transport|road|park|retail|shop)\b/i.test(statement) && contextRefs.length === 0) {
     return { ok: false, detail: "focused_answer_context_without_context_receipt" };

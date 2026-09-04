@@ -2137,6 +2137,28 @@ async function assertCandidateAiSafety(): Promise<void> {
   assert.equal(uncitedNearbyClaim.ok, false,
     "Nearby interpretation must cite a canonically bound EVD-CONTEXT receipt.");
 
+  const safePlanningGap = validateContentDetailed({
+    ...rawPlan,
+    focusedAnswer: {
+      ...rawPlan.focusedAnswer,
+      statement: "The mapped hotel and nearby World Trade Centre station support a location screen, while planning approval is not established and requires authoritative validation.",
+      evidenceRefs: ["EVD-CLASSIFICATION", "EVD-CONTEXT-01"]
+    }
+  }, evidencePack, focusedAnalysisRequest);
+  assert.equal(safePlanningGap.ok, true,
+    "A negative planning-evidence statement must not be mistaken for an affirmative approval claim.");
+
+  const affirmativePlanningClaim = validateContentDetailed({
+    ...rawPlan,
+    focusedAnswer: {
+      ...rawPlan.focusedAnswer,
+      statement: "The nearby World Trade Centre station supports the location and planning approval is confirmed for development.",
+      evidenceRefs: ["EVD-CONTEXT-01"]
+    }
+  }, evidencePack, focusedAnalysisRequest);
+  assert.equal(affirmativePlanningClaim.ok, false,
+    "An affirmative planning-approval claim must fail without authoritative planning evidence.");
+
   const financialOverclaim = validateContentDetailed({
     ...rawPlan,
     focusedAnswer: {
