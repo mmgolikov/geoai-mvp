@@ -1,6 +1,6 @@
 # POINT_TO_OBJECT_001 V5 Implementation Receipt
 
-Status: `PREVIEW_RELEASE_CANDIDATE` — application work complete; exact-head Vercel verification pending
+Status: `PREVIEW_RELEASE_CANDIDATE_VERIFIED` — protected Vercel Preview is live and the primary journeys have been exercised
 
 Date: 2026-09-04
 
@@ -67,14 +67,17 @@ Activation requires, in order:
 - Data-honesty AST scan: PASS, 403 files, zero findings.
 - Secret hygiene, private-cache boundary, request-scoped project reads and source connector foundation: PASS.
 - Local interactive QA: PASS for RU/EN, city switch, live OSM object context, 3D-to-2D Find transition, real Find result selection, AOI drawing and aggregate context.
+- Protected Vercel Preview QA: PASS for live OSM resolution, English and Russian initial AI analysis, 400 m context metrics, AOI drawing, AI concept generation, 2D/3D concept rendering and reset/restore.
+- The first clean-replay CI run correctly detected a stale exact API inventory assertion (14 RPCs versus the intentionally expanded 16). The assertion was corrected without changing database behavior in validation commit `f9fbf03`.
 
 Known infrastructure note: the system Node.js 20 runtime is approaching end of support in `@supabase/supabase-js`; verification also used the bundled Node.js 22 runtime for TypeScript-strip tests. This is not a functional blocker for the Preview build but the deployment runtime should remain on Node.js 22+.
 
 ## Exact release evidence
 
-- Commit: pending
+- Application commit: `6e65f9baffedbd04185927011b031dea8f89742c`
+- Validation correction: `f9fbf03`
 - Pull request: https://github.com/mmgolikov/geoai-mvp/pull/147 (Draft)
-- Protected Preview: pending
+- Protected Preview: https://geoai-mvp-git-codex-point-to-object-clickable-p-3c2c85-geoaidev.vercel.app/prototype/point-to-object
 - Production: unchanged
 - `main`: unchanged
 
