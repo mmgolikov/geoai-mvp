@@ -369,7 +369,8 @@ export async function generatePointObjectAiAnalysis(
       perspective: analysisRequest.perspective,
       horizon: analysisRequest.horizon,
       question: analysisRequest.question,
-      focused: Boolean(analysisRequest.question)
+      focused: Boolean(analysisRequest.question),
+      locale: analysisRequest.locale
     },
     content: validation.content,
     telemetry: {

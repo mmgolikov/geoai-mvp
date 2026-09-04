@@ -2,12 +2,20 @@ import { createHash } from "node:crypto";
 
 import { NextResponse } from "next/server";
 
-import { getPointObjectPreviewUpstreamStatus } from "@/src/lib/ai/openai-upstream-gate";
+import { getPointObjectPreviewSurfaceStatus } from "@/src/lib/ai/openai-upstream-gate";
 import { readBoundedJson } from "@/src/lib/http/bounded-json";
 import {
   buildLivePointObjectEvidencePack,
   LivePointEvidenceError
 } from "@/src/lib/prototype/point-to-object-live-evidence";
+import {
+  coordinatesMatchPointObjectMarket,
+  isPointObjectLocale,
+  isPointObjectMarketKey,
+  nominatimLocale,
+  type PointObjectLocale,
+  type PointObjectMarketKey
+} from "@/src/lib/prototype/point-to-object-markets";
 
 export const runtime = "nodejs";
 
@@ -22,12 +30,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function isLiveMarketKey(value: unknown): value is "dubai" | "singapore" {
-  return value === "dubai" || value === "singapore";
-}
-
 function previewRuntimeAllowed(): boolean {
-  return process.env.VERCEL_ENV === "preview" && getPointObjectPreviewUpstreamStatus().enabled;
+  return getPointObjectPreviewSurfaceStatus().enabled;
 }
 
 function noStoreHeaders(extra: Record<string, string> = {}): Record<string, string> {
@@ -87,24 +91,18 @@ function consumeRateLimit(request: Request): { allowed: true } | { allowed: fals
   return consumeBucket("global", GLOBAL_RATE_MAX_REQUESTS);
 }
 
-function coordinatesMatchMarket(caseKey: "dubai" | "singapore", longitude: number, latitude: number): boolean {
-  return caseKey === "dubai"
-    ? longitude >= 54.8 && longitude <= 55.8 && latitude >= 24.8 && latitude <= 25.6
-    : longitude >= 103.5 && longitude <= 104.1 && latitude >= 1.1 && latitude <= 1.55;
-}
-
 function validBody(value: unknown): value is {
-  caseKey: "dubai" | "singapore";
+  caseKey: PointObjectMarketKey;
   longitude: number;
   latitude: number;
-  locale?: string | null;
+  locale: PointObjectLocale;
 } {
   if (!isRecord(value) || Object.keys(value).some((key) => !["caseKey", "longitude", "latitude", "locale"].includes(key))) return false;
-  return isLiveMarketKey(value.caseKey) &&
+  return isPointObjectMarketKey(value.caseKey) &&
     typeof value.longitude === "number" && Number.isFinite(value.longitude) && Math.abs(value.longitude) <= 180 &&
     typeof value.latitude === "number" && Number.isFinite(value.latitude) && Math.abs(value.latitude) <= 90 &&
-    coordinatesMatchMarket(value.caseKey, value.longitude, value.latitude) &&
-    (value.locale === undefined || value.locale === null || (typeof value.locale === "string" && value.locale.length <= 64));
+    coordinatesMatchPointObjectMarket(value.caseKey, value.longitude, value.latitude) &&
+    isPointObjectLocale(value.locale);
 }
 
 export async function POST(request: Request) {
@@ -139,7 +137,7 @@ export async function POST(request: Request) {
     const evidencePack = await buildLivePointObjectEvidencePack({
       longitude: parsed.value.longitude,
       latitude: parsed.value.latitude,
-      locale: parsed.value.locale ?? "en"
+      locale: nominatimLocale(parsed.value.locale)
     });
     return NextResponse.json({
       mode: "resolved",
@@ -152,7 +150,9 @@ export async function POST(request: Request) {
         coordinateAssociation: evidencePack.resolution.coordinateAssociation,
         resultCentroidDistanceM: evidencePack.resolution.resultCentroidDistanceM,
         addressParts: evidencePack.selectedObject.addressParts,
-        tags: evidencePack.selectedObject.tags
+        tags: evidencePack.selectedObject.tags,
+        metrics: evidencePack.selectedObject.metrics,
+        geoContext: evidencePack.geoContext
       }
     }, { headers: noStoreHeaders() });
   } catch (error) {

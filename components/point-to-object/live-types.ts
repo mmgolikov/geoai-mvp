@@ -1,10 +1,71 @@
 import type { GeoJsonGeometry } from "@/src/lib/point-to-object/contracts";
+import type {
+  PointObjectLocale,
+  PointObjectMarketKey
+} from "@/src/lib/prototype/point-to-object-markets";
 
-export type LiveMapLocationKey = "dubai" | "singapore";
+export type LiveMapLocationKey = PointObjectMarketKey;
 export type LiveMapMarket = LiveMapLocationKey;
+export type LiveMapLocale = PointObjectLocale;
 export type LiveMapBasemapId = "street" | "light" | "contrast";
 
 export type Wgs84Position = [longitude: number, latitude: number];
+
+export type PointObjectContextGroup =
+  | "residential"
+  | "commercial"
+  | "hospitality"
+  | "retail_daily_needs"
+  | "education"
+  | "healthcare"
+  | "civic_culture"
+  | "transport"
+  | "access"
+  | "open_space"
+  | "industrial"
+  | "construction"
+  | "other_built";
+
+export type PointObjectDistrictCharacter =
+  | "hospitality_tourism"
+  | "commercial_business"
+  | "residential"
+  | "mixed_use_urban"
+  | "civic_institutional"
+  | "industrial_logistics"
+  | "open_space_recreation"
+  | "low_signal";
+
+export type PointObjectGeometryMetrics = {
+  footprintAreaSqM: number;
+  footprintPerimeterM: number;
+  method: "local_equirectangular_wgs84_approximation";
+  geometryGeneralized: true;
+};
+
+export type PointObjectGeoContext = {
+  radiusM: 400;
+  coverage: "available" | "unavailable";
+  sampleSize: number;
+  capReached: boolean;
+  groups: Array<{
+    group: PointObjectContextGroup;
+    count: number;
+    sharePct: number;
+    nearestDistanceM: number | null;
+  }>;
+  mappedBuildingCount: number;
+  mappedLevelsKnownCount: number;
+  medianMappedLevels: number | null;
+  nearestTransitM: number | null;
+  nearestMajorRoadM: number | null;
+  districtCharacter: {
+    code: PointObjectDistrictCharacter;
+    confidence: "low" | "medium";
+    ruleVersion: "POINT_OBJECT_DISTRICT_RULE_V1";
+    driverGroups: PointObjectContextGroup[];
+  };
+};
 
 export type LiveMapNearbyLabel = {
   name: string;
@@ -24,6 +85,8 @@ export type LiveResolvedObjectContext = {
   resultCentroidDistanceM: number;
   addressParts: Record<string, string>;
   tags: Record<string, string>;
+  metrics: PointObjectGeometryMetrics | null;
+  geoContext: PointObjectGeoContext;
 };
 
 export type LiveMapSelection = {
@@ -72,8 +135,8 @@ export type PointObjectReasoningEffort = "low" | "medium" | "high" | "xhigh";
 export type PointObjectEvidenceClass = "observed" | "derived" | "hypothesis";
 export type PointObjectConfidence = "low" | "medium";
 
-export const POINT_OBJECT_ANALYSIS_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V6_2026_09_04" as const;
-export const POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION = 4 as const;
+export const POINT_OBJECT_ANALYSIS_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V7_2026_09_04" as const;
+export const POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION = 5 as const;
 
 export type PointObjectAiAttemptTrace = {
   attempt: number;
@@ -96,6 +159,7 @@ export type PointObjectAnalysisRequestReceipt = {
   horizon: PointObjectAnalysisHorizon;
   question: string | null;
   focused: boolean;
+  locale: LiveMapLocale;
 };
 
 export type PointObjectDecisionBrief = {
@@ -170,6 +234,7 @@ export type PointObjectAiContent = {
   locationContext: GroundedClaim[];
   nextValidation: PointObjectValidationAction[];
   answerToQuestion: PointObjectFocusedAnswer | null;
+  geoContext: PointObjectGeoContext;
   caveat: string;
 };
 
@@ -209,6 +274,8 @@ export type PointObjectAiSubject = {
   resultCentroidDistanceM: number;
   addressParts: Record<string, string>;
   tags: Record<string, string>;
+  metrics: PointObjectGeometryMetrics | null;
+  geoContext: PointObjectGeoContext;
 };
 
 export type PointObjectLiveContextResponse =
@@ -221,6 +288,21 @@ export type PointObjectLiveContextResponse =
       error?: string;
       retryable?: boolean;
     };
+
+export type LiveMapSearchResult = {
+  id: string;
+  label: string;
+  secondaryLabel: string | null;
+  longitude: number;
+  latitude: number;
+  category: string | null;
+  featureType: string | null;
+  boundingBox: [south: number, north: number, west: number, east: number] | null;
+};
+
+export type PointObjectSearchResponse =
+  | { mode: "results"; results: LiveMapSearchResult[] }
+  | { mode: "unavailable"; error?: string; retryable?: boolean };
 
 export type PointObjectAiResponse =
   | {

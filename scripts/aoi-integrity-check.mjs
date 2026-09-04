@@ -10,6 +10,13 @@ function assert(condition, message) {
 }
 
 function resolveModule(id) {
+  if (path.isAbsolute(id)) {
+    const candidates = [id, `${id}.ts`, path.join(id, "index.ts")];
+    const file = candidates.find((candidate) => fs.existsSync(candidate));
+    if (!file) throw new Error(`Unable to resolve ${id}`);
+    return file;
+  }
+
   const relative = id.startsWith("@/") ? id.slice(2) : id;
   const candidates = [relative, `${relative}.ts`, path.join(relative, "index.ts")];
   const file = candidates.find((candidate) => fs.existsSync(path.join(process.cwd(), candidate)));
@@ -31,7 +38,13 @@ function load(id) {
   moduleCache.set(file, module.exports);
   vm.runInNewContext(
     output,
-    { module, exports: module.exports, require: (request) => load(request), Date, Math },
+    {
+      module,
+      exports: module.exports,
+      require: (request) => load(request.startsWith(".") ? path.resolve(path.dirname(file), request) : request),
+      Date,
+      Math
+    },
     { filename: file }
   );
   moduleCache.set(file, module.exports);

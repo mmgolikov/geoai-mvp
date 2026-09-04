@@ -1,5 +1,5 @@
 import type { PolygonMeasurements, SelectedPoint, UserDrawnAoi } from "@/src/types/geo";
-import { aoiRequiredCaveat } from "@/src/types/aoi";
+import { aoiRequiredCaveat } from "../types/aoi";
 
 export type PolygonValidation = {
   valid: boolean;

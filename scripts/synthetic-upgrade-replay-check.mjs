@@ -16,6 +16,7 @@ if (unexpectedArguments.length > 0) {
 const preLedger = manifest.preLedgerReconciliations ?? [];
 const liveLedger = manifest.liveAppliedMigrations ?? [];
 const pending = manifest.pendingMigrations ?? [];
+const ledgerTopology = manifest.ledgerTopology ?? {};
 const failures = [];
 
 if (manifest.status !== "read_only_live_ledger_baseline") {
@@ -27,18 +28,34 @@ if (manifest.productionProject !== false) {
 if (preLedger.length !== 1) {
   failures.push(`Expected one pre-ledger reconciliation; found ${preLedger.length}`);
 }
-if (liveLedger.length !== manifest.canonicalBaselineCount || liveLedger.length !== 10) {
-  failures.push(`Expected the exact 10-entry live ledger; found ${liveLedger.length}`);
+if (liveLedger.length !== manifest.canonicalBaselineCount || liveLedger.length !== 12) {
+  failures.push(`Expected the exact 12-entry hosted ledger; found ${liveLedger.length}`);
 }
-if (pending.length !== 7) {
-  failures.push(`Expected exactly seven review-only pending migrations; found ${pending.length}`);
+if (pending.length !== 8) {
+  failures.push(`Expected exactly eight review-only pending migrations; found ${pending.length}`);
 }
 
 const allEntries = [...preLedger, ...liveLedger, ...pending];
 const versions = allEntries.map((entry) => entry.version);
 if (new Set(versions).size !== versions.length) failures.push("Migration versions are not unique");
-if (versions.some((version, index) => index > 0 && version <= versions[index - 1])) {
-  failures.push("Migration versions are not strictly increasing");
+for (const [label, entries] of [["live", liveLedger], ["pending", pending]]) {
+  if (entries.some((entry, index) => index > 0 && entry.version <= entries[index - 1].version)) {
+    failures.push(`${label} migration versions are not strictly increasing within their declared state`);
+  }
+}
+const lastLiveVersion = liveLedger.at(-1)?.version ?? "";
+const pendingInsideAppliedRange = pending.filter((entry) => entry.version < lastLiveVersion).map((entry) => entry.version).sort();
+const declaredPendingInside = Array.isArray(ledgerTopology.pendingVersionsInsideAppliedRange)
+  ? [...ledgerTopology.pendingVersionsInsideAppliedRange].sort()
+  : [];
+if (ledgerTopology.kind !== "noncontiguous_applied_version_set") {
+  failures.push("Hosted ledger topology is not declared as a noncontiguous applied version set");
+}
+if (JSON.stringify(pendingInsideAppliedRange) !== JSON.stringify(declaredPendingInside)) {
+  failures.push("Declared pending versions inside the applied range do not match the derived version holes");
+}
+if (pendingInsideAppliedRange.length !== 7 || pendingInsideAppliedRange.some((version) => !version.startsWith("20260716"))) {
+  failures.push("Expected exactly seven pending 20260716 migrations inside the hosted applied range");
 }
 
 if (failures.length > 0) {
@@ -48,11 +65,11 @@ if (failures.length > 0) {
 }
 
 const caveat =
-  "REVIEW-ONLY: this synthetic local ledger-prefix rehearsal is not a current-development clone, does not measure live schema/constraint/policy/function-grant drift, and does not certify DB-01 or authorize any live/Production action.";
+  "REVIEW-ONLY: this synthetic local noncontiguous-ledger rehearsal is not a current-development clone, does not measure live schema/constraint/policy/function-grant drift, and does not certify DB-01 or authorize any live/Production action.";
 
 if (!runLocal) {
   console.log(
-    `Synthetic upgrade-replay static contract passed: exact ${liveLedger.length}-entry ledger prefix, ${preLedger.length} pre-ledger reconciliation, and ${pending.length} pending migration(s) are declared. ${caveat}`
+    `Synthetic upgrade-replay static contract passed: exact ${liveLedger.length}-entry noncontiguous hosted ledger, ${preLedger.length} pre-ledger reconciliation, and ${pending.length} pending migration(s), including ${pendingInsideAppliedRange.length} internal version holes, are declared. ${caveat}`
   );
   process.exit(0);
 }
@@ -350,26 +367,42 @@ select jsonb_pretty(jsonb_build_object(
 }
 
 const preLedgerEntry = preLedger[0];
-const lastLiveEntry = liveLedger.at(-1);
+const firstPendingInsideVersion = pendingInsideAppliedRange[0];
+const contiguousLiveLedger = liveLedger.filter((entry) => entry.version < firstPendingInsideVersion);
+const lateAppliedLedger = liveLedger.filter((entry) => entry.version > pendingInsideAppliedRange.at(-1));
+const lastContiguousLiveEntry = contiguousLiveLedger.at(-1);
+const sortedReconciledLiveLedger = [...preLedger, ...liveLedger].sort((left, right) => left.version.localeCompare(right.version));
+const sortedCompleteLedger = [...allEntries].sort((left, right) => left.version.localeCompare(right.version));
 
 console.log(caveat);
 runSupabase(
-  ["db", "reset", "--local", "--version", lastLiveEntry.version, "--no-seed"],
-  `Build the canonical prefix through ${lastLiveEntry.version}`
+  ["db", "reset", "--local", "--version", lastContiguousLiveEntry.version, "--no-seed"],
+  `Build the last truly contiguous local prefix through ${lastContiguousLiveEntry.version}`
 );
 runSupabase(
   ["migration", "repair", preLedgerEntry.version, "--status", "reverted", "--local"],
   "Simulate the observed live ledger omission without changing schema objects"
 );
-assertLedger(liveLedger, "Verify the exact observed 10-entry ledger shape", true);
+assertLedger(contiguousLiveLedger, "Verify the exact observed contiguous 10-entry ledger subset", true);
 assertDeclaredPreLedgerFingerprint();
+for (const entry of lateAppliedLedger) {
+  runSupabase(
+    ["db", "query", "--local", "--file", `supabase/migrations/${entry.version}_${entry.name}.sql`],
+    `Apply recovered hosted artifact ${entry.version} to the isolated local database`
+  );
+  runSupabase(
+    ["migration", "repair", entry.version, "--status", "applied", "--local"],
+    `Recreate hosted applied-ledger entry ${entry.version} without filling earlier version holes`
+  );
+}
+assertLedger(liveLedger, "Verify the exact observed noncontiguous 12-entry hosted ledger version shape", false);
 runSupabase(
   ["migration", "repair", preLedgerEntry.version, "--status", "applied", "--local"],
   "Rehearse the required pre-ledger repair locally"
 );
-assertLedger([...preLedger, ...liveLedger], "Verify the reconciled ledger prefix", false);
-runSupabase(["migration", "up", "--local"], "Apply the seven review-only pending migrations locally");
-assertLedger(allEntries, "Verify the complete synthetic upgrade ledger", false);
+assertLedger(sortedReconciledLiveLedger, "Verify the reconciled noncontiguous hosted ledger", false);
+runSupabase(["migration", "up", "--local", "--include-all"], "Apply all eight review-only pending migrations locally, including the seven 20260716 version holes");
+assertLedger(sortedCompleteLedger, "Verify the complete synthetic upgrade ledger", false);
 assertPostUpgradeSurface();
 
-console.log(`Synthetic ledger-prefix upgrade rehearsal passed. ${caveat}`);
+console.log(`Synthetic noncontiguous-ledger upgrade rehearsal passed. ${caveat}`);

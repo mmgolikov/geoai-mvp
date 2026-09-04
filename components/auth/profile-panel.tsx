@@ -309,7 +309,7 @@ export function ProfilePanel() {
 
               {isDemo ? (
                 <div className="mt-5 rounded-[14px] border border-line bg-surface p-4 text-sm leading-6 text-muted">
-                  Demo credentials are fixed: <strong className="text-ink">demo@geoai.space</strong> / <strong className="text-ink">111111</strong>. Demo changes stay browser-local.
+                  Demo access is browser-local and never authorizes protected server resources. Demo changes remain on this device.
                 </div>
               ) : (
                 <>

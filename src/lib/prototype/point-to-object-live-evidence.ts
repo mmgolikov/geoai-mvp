@@ -6,6 +6,12 @@ import type {
   PointObjectEvidencePack,
   PointObjectEvidenceReference
 } from "./point-to-object-evidence";
+import {
+  nominatimLocale,
+  pointObjectMarket,
+  type PointObjectLocale,
+  type PointObjectMarketKey
+} from "./point-to-object-markets";
 
 const DEFAULT_NOMINATIM_ENDPOINT = "https://nominatim.openstreetmap.org/";
 const DEFAULT_OVERPASS_ENDPOINT = "https://overpass-api.de/api/interpreter";
@@ -22,8 +28,11 @@ const OVERPASS_RESPONSE_MAX_BYTES = 512 * 1024;
 const OVERPASS_REVALIDATE_SECONDS = 6 * 60 * 60;
 const OVERPASS_MIN_INTERVAL_MS = 1_200;
 const OVERPASS_RADIUS_M = 800;
+const URBAN_FABRIC_RADIUS_M = 400 as const;
 const OVERPASS_QUERY_RESULT_LIMIT = 120;
+const URBAN_FABRIC_RESULT_LIMIT = 320;
 const MAX_OVERPASS_ELEMENTS_TO_PARSE = 160;
+const MAX_URBAN_FABRIC_ELEMENTS_TO_PARSE = 360;
 const MAX_NEARBY_CONTEXT_ITEMS = 12;
 
 const ADDRESS_KEYS = new Set([
@@ -151,6 +160,70 @@ export type LiveNearbyContextResult = {
   observedAt: string | null;
 };
 
+export const POINT_OBJECT_CONTEXT_GROUPS = [
+  "residential",
+  "commercial",
+  "hospitality",
+  "retail_daily_needs",
+  "education",
+  "healthcare",
+  "civic_culture",
+  "transport",
+  "access",
+  "open_space",
+  "industrial",
+  "construction",
+  "other_built"
+] as const;
+
+export type PointObjectContextGroup = (typeof POINT_OBJECT_CONTEXT_GROUPS)[number];
+
+export const POINT_OBJECT_DISTRICT_CHARACTERS = [
+  "hospitality_tourism",
+  "commercial_business",
+  "residential",
+  "mixed_use_urban",
+  "civic_institutional",
+  "industrial_logistics",
+  "open_space_recreation",
+  "low_signal"
+] as const;
+
+export type PointObjectDistrictCharacter = (typeof POINT_OBJECT_DISTRICT_CHARACTERS)[number];
+
+export type LivePointObjectGeometryMetrics = {
+  footprintAreaSqM: number;
+  footprintPerimeterM: number;
+  method: "local_equirectangular_wgs84_approximation";
+  geometryGeneralized: true;
+};
+
+export type LiveGeoContextGroupMetric = {
+  group: PointObjectContextGroup;
+  count: number;
+  sharePct: number;
+  nearestDistanceM: number | null;
+};
+
+export type LiveGeoContextProfile = {
+  radiusM: typeof URBAN_FABRIC_RADIUS_M;
+  coverage: "available" | "unavailable";
+  sampleSize: number;
+  capReached: boolean;
+  groups: LiveGeoContextGroupMetric[];
+  mappedBuildingCount: number;
+  mappedLevelsKnownCount: number;
+  medianMappedLevels: number | null;
+  nearestTransitM: number | null;
+  nearestMajorRoadM: number | null;
+  districtCharacter: {
+    code: PointObjectDistrictCharacter;
+    confidence: "low" | "medium";
+    ruleVersion: "POINT_OBJECT_DISTRICT_RULE_V1";
+    driverGroups: PointObjectContextGroup[];
+  };
+};
+
 type NearbyCandidate = Omit<LiveNearbyContextItem, "evidenceId" | "proofLimit"> & {
   group: "education" | "healthcare" | "daily_needs" | "transport" | "access" | "open_space" | "destination";
 };
@@ -167,6 +240,17 @@ export type LivePointEvidenceRequest = {
   osmFeatureId?: string | null;
   /** A short BCP-47 preference list, for example `en` or `en,ar`. */
   locale?: string | null;
+};
+
+export type LivePointSearchResult = {
+  id: string;
+  label: string;
+  secondaryLabel: string | null;
+  longitude: number;
+  latitude: number;
+  category: string | null;
+  featureType: string | null;
+  boundingBox: [south: number, north: number, west: number, east: number] | null;
 };
 
 export type LivePointObjectEvidencePack = {
@@ -195,6 +279,7 @@ export type LivePointObjectEvidencePack = {
     geometryHash: string | null;
     addressParts: Record<string, string>;
     tags: Record<string, string>;
+    metrics: LivePointObjectGeometryMetrics | null;
   };
   source: {
     name: "OpenStreetMap";
@@ -217,12 +302,18 @@ export type LivePointObjectEvidencePack = {
     contextObservedAt: string | null;
     contextRadiusM: number;
     contextUsagePolicyUrl: "https://dev.overpass-api.de/overpass-doc/en/preface/commons.html";
+    fabricStatus: "available" | "unavailable";
+    fabricResponseId: string | null;
+    fabricResponseHash: string | null;
+    fabricObservedAt: string | null;
+    fabricRadiusM: typeof URBAN_FABRIC_RADIUS_M;
     sourceOfferPath: "/prototype/point-to-object/source-offer";
     officialStatus: "open_context_not_official";
     runtimeNetworkUsed: true;
     persistenceUsed: false;
   };
   nearbyContext: LiveNearbyContextItem[];
+  geoContext: LiveGeoContextProfile;
   evidence: PointObjectEvidenceReference[];
   conflicts: string[];
   missingInformation: string[];
@@ -545,6 +636,31 @@ export function buildOverpassNearbyQuery(point: [number, number]): string {
   ].join("\n");
 }
 
+export function buildOverpassUrbanFabricQuery(point: [number, number]): string {
+  const longitude = finiteCoordinate(point[0], 180);
+  const latitude = finiteCoordinate(point[1], 90);
+  if (longitude === null || latitude === null) throw new Error("Invalid WGS84 point.");
+  const around = `(around:${URBAN_FABRIC_RADIUS_M},${latitude.toFixed(6)},${longitude.toFixed(6)})`;
+  return [
+    `[out:json][timeout:4][maxsize:${OVERPASS_RESPONSE_MAX_BYTES}];`,
+    "(",
+    `nwr${around}["building"];`,
+    `nwr${around}["landuse"~"^(residential|commercial|retail|industrial|construction|brownfield|recreation_ground|forest)$"];`,
+    `nwr${around}["office"];`,
+    `nwr${around}["shop"];`,
+    `nwr${around}["tourism"];`,
+    `nwr${around}["amenity"];`,
+    `nwr${around}["leisure"];`,
+    `nwr${around}["natural"~"^(wood|water|grassland|scrub)$"];`,
+    `nwr${around}["public_transport"];`,
+    `nwr${around}["railway"~"^(station|halt|tram_stop|subway_entrance)$"];`,
+    `node${around}["highway"="bus_stop"];`,
+    `way${around}["highway"~"^(motorway|trunk|primary|secondary|tertiary)$"];`,
+    ");",
+    `out tags center ${URBAN_FABRIC_RESULT_LIMIT};`
+  ].join("\n");
+}
+
 async function readOverpassText(response: Response): Promise<string> {
   const declaredLength = Number(response.headers.get("content-length"));
   if (Number.isFinite(declaredLength) && declaredLength > OVERPASS_RESPONSE_MAX_BYTES) {
@@ -701,6 +817,55 @@ function distanceM(left: [number, number], right: [number, number]): number {
   return earthRadiusM * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+export function geometryMetrics(geometry: SafeGeometry | null): LivePointObjectGeometryMetrics | null {
+  if (!geometry || (geometry.type !== "Polygon" && geometry.type !== "MultiPolygon")) return null;
+  const polygons = geometry.type === "Polygon" ? [geometry.coordinates] : geometry.coordinates;
+  if (!Array.isArray(polygons)) return null;
+  let footprintAreaSqM = 0;
+  let footprintPerimeterM = 0;
+  for (const polygon of polygons) {
+    if (!Array.isArray(polygon) || polygon.length === 0) return null;
+    const rings = polygon.flatMap((ring) => {
+      if (!Array.isArray(ring) || ring.length < 4) return [];
+      const positions = ring.flatMap((position) => {
+        if (!Array.isArray(position)) return [];
+        const longitude = finiteCoordinate(position[0], 180);
+        const latitude = finiteCoordinate(position[1], 90);
+        return longitude === null || latitude === null ? [] : [[longitude, latitude] as [number, number]];
+      });
+      return positions.length === ring.length ? [positions] : [];
+    });
+    if (rings.length !== polygon.length) return null;
+    for (const [ringIndex, ring] of rings.entries()) {
+      const referenceLatitude = ring.reduce((total, position) => total + position[1], 0) / ring.length;
+      const metresPerLongitudeDegree = 111_320 * Math.cos(radians(referenceLatitude));
+      let signedArea = 0;
+      let perimeter = 0;
+      for (let index = 0; index < ring.length; index += 1) {
+        const current = ring[index];
+        const next = ring[(index + 1) % ring.length];
+        const currentX = current[0] * metresPerLongitudeDegree;
+        const currentY = current[1] * 110_540;
+        const nextX = next[0] * metresPerLongitudeDegree;
+        const nextY = next[1] * 110_540;
+        signedArea += currentX * nextY - nextX * currentY;
+        perimeter += distanceM(current, next);
+      }
+      const area = Math.abs(signedArea / 2);
+      footprintAreaSqM += ringIndex === 0 ? area : -area;
+      footprintPerimeterM += perimeter;
+    }
+  }
+  if (!Number.isFinite(footprintAreaSqM) || footprintAreaSqM <= 0 || footprintAreaSqM > 1_000_000_000 ||
+      !Number.isFinite(footprintPerimeterM) || footprintPerimeterM <= 0) return null;
+  return {
+    footprintAreaSqM: Math.round(footprintAreaSqM),
+    footprintPerimeterM: Math.round(footprintPerimeterM),
+    method: "local_equirectangular_wgs84_approximation",
+    geometryGeneralized: true
+  };
+}
+
 function allowedTag(
   tags: Record<string, unknown>,
   key: string,
@@ -803,6 +968,182 @@ function nearbyElementPoint(value: Record<string, unknown>): [number, number] | 
   const longitude = finiteCoordinate(coordinateSource.lon, 180);
   const latitude = finiteCoordinate(coordinateSource.lat, 90);
   return longitude === null || latitude === null ? null : [longitude, latitude];
+}
+
+function contextGroup(tags: Record<string, unknown>): PointObjectContextGroup | null {
+  const value = (key: string) => cleanTaxonomyToken(tags[key])?.toLowerCase() ?? null;
+  const building = value("building");
+  const landuse = value("landuse");
+  const amenity = value("amenity");
+  const tourism = value("tourism");
+  const leisure = value("leisure");
+  const natural = value("natural");
+  const railway = value("railway");
+  const publicTransport = value("public_transport");
+  const highway = value("highway");
+
+  if (landuse === "industrial" || ["industrial", "warehouse", "manufacture", "storage_tank"].includes(building ?? "")) return "industrial";
+  if (["construction", "brownfield"].includes(landuse ?? "") || building === "construction") return "construction";
+  if (tourism || ["hotel", "guest_house", "hostel", "resort"].includes(building ?? "")) return "hospitality";
+  if (typeof tags.shop === "string" || landuse === "retail" || building === "retail") return "retail_daily_needs";
+  if (typeof tags.office === "string" || landuse === "commercial" || ["commercial", "office"].includes(building ?? "")) return "commercial";
+  if (["residential", "apartments", "house", "detached", "terrace", "semidetached_house", "dormitory"].includes(building ?? "") || landuse === "residential") return "residential";
+  if (["school", "kindergarten", "college", "university"].includes(amenity ?? "")) return "education";
+  if (["hospital", "clinic", "doctors", "dentist", "pharmacy"].includes(amenity ?? "")) return "healthcare";
+  if (amenity && [
+    "library", "community_centre", "arts_centre", "theatre", "cinema", "place_of_worship", "townhall",
+    "courthouse", "police", "fire_station", "post_office", "social_facility", "childcare"
+  ].includes(amenity)) return "civic_culture";
+  if (publicTransport || railway || highway === "bus_stop") return "transport";
+  if (["motorway", "trunk", "primary", "secondary", "tertiary"].includes(highway ?? "")) return "access";
+  if (leisure || natural || ["recreation_ground", "forest"].includes(landuse ?? "")) return "open_space";
+  if (building) return "other_built";
+  if (amenity) return "civic_culture";
+  return null;
+}
+
+function mappedLevels(tags: Record<string, unknown>): number | null {
+  const raw = cleanText(tags["building:levels"], 24);
+  if (!raw || !/^\d{1,3}(?:\.\d)?$/.test(raw)) return null;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed > 0 && parsed <= 200 ? parsed : null;
+}
+
+function districtCharacterFor(
+  counts: Map<PointObjectContextGroup, number>,
+  sampleSize: number,
+  capReached: boolean
+): LiveGeoContextProfile["districtCharacter"] {
+  const count = (group: PointObjectContextGroup) => counts.get(group) ?? 0;
+  const useGroups: PointObjectContextGroup[] = [
+    "residential", "commercial", "hospitality", "retail_daily_needs", "education", "healthcare",
+    "civic_culture", "open_space", "industrial", "construction"
+  ];
+  const useCount = useGroups.reduce((total, group) => total + count(group), 0);
+  const share = (group: PointObjectContextGroup) => useCount > 0 ? count(group) / useCount : 0;
+  const activeGroups = useGroups.filter((group) => count(group) > 0);
+  let code: PointObjectDistrictCharacter = "low_signal";
+  let driverGroups: PointObjectContextGroup[] = [];
+  if (sampleSize >= 4 && useCount >= 3) {
+    if (share("industrial") + share("construction") >= 0.4) {
+      code = "industrial_logistics";
+      driverGroups = ["industrial", "construction"].filter((group) => count(group as PointObjectContextGroup) > 0) as PointObjectContextGroup[];
+    } else if (share("open_space") >= 0.45 && count("other_built") < 10) {
+      code = "open_space_recreation";
+      driverGroups = ["open_space"];
+    } else if (share("hospitality") >= 0.25) {
+      code = "hospitality_tourism";
+      driverGroups = ["hospitality", "retail_daily_needs"].filter((group) => count(group as PointObjectContextGroup) > 0) as PointObjectContextGroup[];
+    } else if (share("residential") >= 0.45) {
+      code = "residential";
+      driverGroups = ["residential", "retail_daily_needs", "education"].filter((group) => count(group as PointObjectContextGroup) > 0) as PointObjectContextGroup[];
+    } else if (share("education") + share("healthcare") + share("civic_culture") >= 0.45) {
+      code = "civic_institutional";
+      driverGroups = ["education", "healthcare", "civic_culture"].filter((group) => count(group as PointObjectContextGroup) > 0) as PointObjectContextGroup[];
+    } else if (share("commercial") + share("retail_daily_needs") >= 0.5) {
+      code = "commercial_business";
+      driverGroups = ["commercial", "retail_daily_needs"];
+    } else if (activeGroups.length >= 3) {
+      code = "mixed_use_urban";
+      driverGroups = [...activeGroups].sort((left, right) => count(right) - count(left)).slice(0, 3);
+    }
+  }
+  return {
+    code,
+    confidence: code !== "low_signal" && !capReached && useCount >= 8 ? "medium" : "low",
+    ruleVersion: "POINT_OBJECT_DISTRICT_RULE_V1",
+    driverGroups
+  };
+}
+
+export function normalizeOverpassUrbanFabric(
+  payload: unknown,
+  point: [number, number]
+): LiveGeoContextProfile {
+  if (!isRecord(payload) || !Array.isArray(payload.elements)) {
+    return {
+      radiusM: URBAN_FABRIC_RADIUS_M,
+      coverage: "unavailable",
+      sampleSize: 0,
+      capReached: false,
+      groups: [],
+      mappedBuildingCount: 0,
+      mappedLevelsKnownCount: 0,
+      medianMappedLevels: null,
+      nearestTransitM: null,
+      nearestMajorRoadM: null,
+      districtCharacter: districtCharacterFor(new Map(), 0, false)
+    };
+  }
+  const rawElements = payload.elements.slice(0, MAX_URBAN_FABRIC_ELEMENTS_TO_PARSE);
+  const byIdentity = new Map<string, { group: PointObjectContextGroup; distanceM: number; building: boolean; levels: number | null }>();
+  for (const raw of rawElements) {
+    if (!isRecord(raw)) continue;
+    const type = osmType(raw.type);
+    const id = positiveIdentifier(raw.id);
+    const tags = isRecord(raw.tags) ? raw.tags : {};
+    const position = nearbyElementPoint(raw);
+    const group = contextGroup(tags);
+    if (!type || !id || !position || !group) continue;
+    const directDistanceM = Math.round(distanceM(point, position));
+    if (!Number.isFinite(directDistanceM) || directDistanceM > URBAN_FABRIC_RADIUS_M * 3) continue;
+    const key = `${type}/${id}`;
+    if (!byIdentity.has(key)) byIdentity.set(key, {
+      group,
+      distanceM: directDistanceM,
+      building: typeof tags.building === "string",
+      levels: mappedLevels(tags)
+    });
+  }
+  const sample = [...byIdentity.values()];
+  const counts = new Map<PointObjectContextGroup, number>();
+  const nearest = new Map<PointObjectContextGroup, number>();
+  const levels = sample.flatMap((item) => item.levels === null ? [] : [item.levels]).sort((left, right) => left - right);
+  for (const item of sample) {
+    counts.set(item.group, (counts.get(item.group) ?? 0) + 1);
+    nearest.set(item.group, Math.min(nearest.get(item.group) ?? Number.POSITIVE_INFINITY, item.distanceM));
+  }
+  const groups = POINT_OBJECT_CONTEXT_GROUPS.flatMap((group) => {
+    const count = counts.get(group) ?? 0;
+    return count === 0 ? [] : [{
+      group,
+      count,
+      sharePct: sample.length > 0 ? Number((count / sample.length * 100).toFixed(1)) : 0,
+      nearestDistanceM: nearest.get(group) ?? null
+    }];
+  });
+  const capReached = payload.elements.length >= URBAN_FABRIC_RESULT_LIMIT;
+  const middle = Math.floor(levels.length / 2);
+  const medianMappedLevels = levels.length === 0 ? null : levels.length % 2 === 1
+    ? levels[middle]
+    : Number(((levels[middle - 1] + levels[middle]) / 2).toFixed(1));
+  return {
+    radiusM: URBAN_FABRIC_RADIUS_M,
+    coverage: "available",
+    sampleSize: sample.length,
+    capReached,
+    groups,
+    mappedBuildingCount: sample.filter((item) => item.building).length,
+    mappedLevelsKnownCount: levels.length,
+    medianMappedLevels,
+    nearestTransitM: nearest.get("transport") ?? null,
+    nearestMajorRoadM: nearest.get("access") ?? null,
+    districtCharacter: districtCharacterFor(counts, sample.length, capReached)
+  };
+}
+
+async function resolveLiveUrbanFabric(
+  point: [number, number],
+  loader: (query: string) => Promise<unknown> = fetchOverpassJson
+): Promise<{ profile: LiveGeoContextProfile; responseHash: string | null; observedAt: string | null }> {
+  try {
+    const payload = await loader(buildOverpassUrbanFabricQuery(point));
+    const profile = normalizeOverpassUrbanFabric(payload, point);
+    const observedAt = overpassObservedAt(payload);
+    return { profile, responseHash: semanticHash({ observedAt, profile }), observedAt };
+  } catch {
+    return { profile: normalizeOverpassUrbanFabric(null, point), responseHash: null, observedAt: null };
+  }
 }
 
 function balancedNearbySelection(candidates: NearbyCandidate[]): NearbyCandidate[] {
@@ -972,6 +1313,51 @@ async function reversePlace(
   return sanitizePlace(payload);
 }
 
+export async function searchLivePointObjects(input: {
+  marketKey: PointObjectMarketKey;
+  locale: PointObjectLocale;
+  query: string;
+}): Promise<LivePointSearchResult[]> {
+  const query = cleanText(input.query, 120);
+  if (!query || query.length < 2) return [];
+  const market = pointObjectMarket(input.marketKey);
+  const [[west, south], [east, north]] = market.bounds;
+  const url = new URL("search", configuredEndpoint());
+  url.searchParams.set("format", "jsonv2");
+  url.searchParams.set("addressdetails", "1");
+  url.searchParams.set("namedetails", "1");
+  url.searchParams.set("accept-language", nominatimLocale(input.locale));
+  url.searchParams.set("q", query);
+  url.searchParams.set("limit", "5");
+  url.searchParams.set("bounded", "1");
+  url.searchParams.set("viewbox", `${west},${north},${east},${south}`);
+  const payload = await fetchNominatimJson(url);
+  if (!Array.isArray(payload)) return [];
+  const seen = new Set<string>();
+  return payload.flatMap((raw) => {
+    const place = sanitizePlace(raw);
+    if (!place) return [];
+    const sourceFeatureId = `${place.osmType}/${place.osmId}`;
+    if (seen.has(sourceFeatureId)) return [];
+    seen.add(sourceFeatureId);
+    const label = objectName(place) ?? place.displayName?.split(",")[0]?.trim() ?? null;
+    if (!label) return [];
+    const secondaryLabel = place.displayName && place.displayName !== label
+      ? place.displayName
+      : null;
+    return [{
+      id: sourceFeatureId,
+      label,
+      secondaryLabel,
+      longitude: Number(place.longitude.toFixed(6)),
+      latitude: Number(place.latitude.toFixed(6)),
+      category: place.category,
+      featureType: place.featureType,
+      boundingBox: place.boundingBox
+    }];
+  }).slice(0, 5);
+}
+
 function displayTags(place: SafeNominatimPlace): Record<string, string> {
   const entries: Array<[string, string]> = [];
   const push = (key: string, value: string | null) => {
@@ -1004,7 +1390,8 @@ function evidenceFor(
   point: [number, number],
   coordinateAssociation: LookupAssociation,
   geometryHash: string | null,
-  tags: Record<string, string>
+  tags: Record<string, string>,
+  metrics: LivePointObjectGeometryMetrics | null
 ): PointObjectEvidenceReference[] {
   const sourceFeatureId = `${place.osmType}/${place.osmId}`;
   const selectedName = objectName(place);
@@ -1056,6 +1443,15 @@ function evidenceFor(
       proofLimit: `Hash of the Nominatim-returned ${place.geometryType} geometry; raw geometry is withheld from the model and is not an official parcel boundary.`
     });
   }
+  if (metrics && geometryHash) {
+    evidence.push({
+      id: "EVD-OBJECT-METRICS",
+      label: "Approximate mapped object footprint metrics",
+      value: JSON.stringify({ sourceFeatureId, geometryHash, metrics }),
+      sourceId: sourceFeatureId,
+      proofLimit: "Approximate measurements derived from generalized community-map geometry; not a surveyed, cadastral, title or legal site area."
+    });
+  }
   if (Object.keys(tags).length > 0) {
     evidence.push({
       id: "EVD-ALLOWED-FIELDS",
@@ -1071,6 +1467,36 @@ function evidenceFor(
     value: "© OpenStreetMap contributors; ODbL 1.0",
     sourceId: "SPAT-001",
     proofLimit: "Open community context with attribution; the response does not disclose the per-feature observation or edit timestamp."
+  });
+  return evidence;
+}
+
+function evidenceForGeoContext(profile: LiveGeoContextProfile): PointObjectEvidenceReference[] {
+  const summary = {
+    radiusM: profile.radiusM,
+    coverage: profile.coverage,
+    sampleSize: profile.sampleSize,
+    capReached: profile.capReached,
+    groups: profile.groups,
+    mappedBuildingCount: profile.mappedBuildingCount,
+    mappedLevelsKnownCount: profile.mappedLevelsKnownCount,
+    medianMappedLevels: profile.medianMappedLevels,
+    nearestTransitM: profile.nearestTransitM,
+    nearestMajorRoadM: profile.nearestMajorRoadM
+  };
+  const evidence: PointObjectEvidenceReference[] = [{
+    id: "EVD-CONTEXT-SUMMARY",
+    label: "Bounded mapped context summary",
+    value: JSON.stringify(summary),
+    sourceId: "SPAT-001",
+    proofLimit: "Aggregates describe only the bounded returned OpenStreetMap sample. They are not a complete real-world inventory, route analysis, service level or proof of absence."
+  }];
+  evidence.push({
+    id: "EVD-DISTRICT-PROFILE",
+    label: "Rule-based mapped context profile",
+    value: JSON.stringify({ summaryHash: semanticHash(summary), districtCharacter: profile.districtCharacter }),
+    sourceId: "derived:POINT_OBJECT_DISTRICT_RULE_V1",
+    proofLimit: "Transparent rule-based interpretation of the bounded mapped sample; not an official land-use, planning or market classification."
   });
   return evidence;
 }
@@ -1116,9 +1542,13 @@ export async function buildLivePointObjectEvidencePack(
   const nearbyPayloadPromise = fetchOverpassJson(buildOverpassNearbyQuery(point))
     .then((payload) => ({ ok: true as const, payload }))
     .catch(() => ({ ok: false as const }));
-  const [place, nearbyPayload] = await Promise.all([
+  const fabricPayloadPromise = fetchOverpassJson(buildOverpassUrbanFabricQuery(point))
+    .then((payload) => ({ ok: true as const, payload }))
+    .catch(() => ({ ok: false as const }));
+  const [place, nearbyPayload, fabricPayload] = await Promise.all([
     reversePlace(endpoint, point, locale),
-    nearbyPayloadPromise
+    nearbyPayloadPromise,
+    fabricPayloadPromise
   ]);
   const matchMethod = "nominatim_reverse" as const;
   const coordinateAssociation: LookupAssociation = geometryContainsPoint(place?.geometry ?? null, point)
@@ -1138,7 +1568,11 @@ export async function buildLivePointObjectEvidencePack(
   const nearby = nearbyPayload.ok
     ? await resolveLiveNearbyContext(point, sourceFeatureId, locale, async () => nearbyPayload.payload)
     : { status: "unavailable" as const, items: [], responseHash: null, observedAt: null };
+  const fabric = fabricPayload.ok
+    ? await resolveLiveUrbanFabric(point, async () => fabricPayload.payload)
+    : { profile: normalizeOverpassUrbanFabric(null, point), responseHash: null, observedAt: null };
   const selectedTags = displayTags(place);
+  const selectedMetrics = geometryMetrics(place.geometry);
   const centroidDistance = Math.round(distanceM(point, [place.longitude, place.latitude]));
   const sourceResponseCore = {
     sourceFeatureId,
@@ -1152,9 +1586,10 @@ export async function buildLivePointObjectEvidencePack(
     address: place.address,
     extraTags: place.extraTags,
     nameDetails: place.nameDetails,
-    boundingBox: place.boundingBox,
-    geometryType: place.geometryType,
-    geometryHash: place.geometryHash
+      boundingBox: place.boundingBox,
+      geometryType: place.geometryType,
+      geometryHash: place.geometryHash,
+      metrics: selectedMetrics
   };
   const sourceResponseHash = semanticHash(sourceResponseCore);
   const resolutionCore = {
@@ -1190,7 +1625,8 @@ export async function buildLivePointObjectEvidencePack(
       geometryType: place.geometryType,
       geometryHash: place.geometryHash,
       addressParts: place.address,
-      tags: selectedTags
+      tags: selectedTags,
+      metrics: selectedMetrics
     },
     source: {
       name: "OpenStreetMap" as const,
@@ -1213,15 +1649,22 @@ export async function buildLivePointObjectEvidencePack(
       contextObservedAt: nearby.observedAt,
       contextRadiusM: OVERPASS_RADIUS_M,
       contextUsagePolicyUrl: "https://dev.overpass-api.de/overpass-doc/en/preface/commons.html" as const,
+      fabricStatus: fabric.profile.coverage,
+      fabricResponseId: fabric.responseHash ? `overpass_fabric_${fabric.responseHash.slice(0, 24)}` : null,
+      fabricResponseHash: fabric.responseHash,
+      fabricObservedAt: fabric.observedAt,
+      fabricRadiusM: URBAN_FABRIC_RADIUS_M,
       sourceOfferPath: "/prototype/point-to-object/source-offer" as const,
       officialStatus: "open_context_not_official" as const,
       runtimeNetworkUsed: true as const,
       persistenceUsed: false as const
     },
     nearbyContext: nearby.items,
+    geoContext: fabric.profile,
     evidence: [
-      ...evidenceFor(place, point, coordinateAssociation, place.geometryHash, selectedTags),
-      ...evidenceForNearby(nearby.items)
+      ...evidenceFor(place, point, coordinateAssociation, place.geometryHash, selectedTags, selectedMetrics),
+      ...evidenceForNearby(nearby.items),
+      ...evidenceForGeoContext(fabric.profile)
     ],
     conflicts,
     missingInformation: [

@@ -19,6 +19,14 @@ import {
   buildLivePointObjectEvidencePack as buildPointObjectEvidencePack,
   LivePointEvidenceError
 } from "@/src/lib/prototype/point-to-object-live-evidence";
+import {
+  coordinatesMatchPointObjectMarket,
+  isPointObjectLocale,
+  isPointObjectMarketKey,
+  nominatimLocale,
+  type PointObjectLocale,
+  type PointObjectMarketKey
+} from "@/src/lib/prototype/point-to-object-markets";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -35,10 +43,6 @@ const rateBuckets = new Map<string, RateBucket>();
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function isLiveMarketKey(value: unknown): value is "dubai" | "singapore" {
-  return value === "dubai" || value === "singapore";
 }
 
 function isAnalysisDepth(value: unknown): value is PointObjectAnalysisDepth {
@@ -169,21 +173,11 @@ function consumeRateLimit(request: Request): { allowed: true } | { allowed: fals
   return consumeBucket("global", GLOBAL_RATE_MAX_REQUESTS);
 }
 
-function coordinatesMatchMarket(
-  caseKey: "dubai" | "singapore",
-  longitude: number,
-  latitude: number
-): boolean {
-  return caseKey === "dubai"
-    ? longitude >= 54.8 && longitude <= 55.8 && latitude >= 24.8 && latitude <= 25.6
-    : longitude >= 103.5 && longitude <= 104.1 && latitude >= 1.1 && latitude <= 1.55;
-}
-
 function validBody(value: unknown): value is {
-  caseKey: "dubai" | "singapore";
+  caseKey: PointObjectMarketKey;
   longitude: number;
   latitude: number;
-  locale?: string | null;
+  locale: PointObjectLocale;
   depth: PointObjectAnalysisDepth;
   goal: PointObjectAnalysisGoal;
   perspective: PointObjectAnalysisPerspective;
@@ -200,11 +194,11 @@ function validBody(value: unknown): value is {
     value.question.trim().length >= 1 &&
     value.question.trim().length <= 500
   );
-  return isLiveMarketKey(value.caseKey) &&
+  return isPointObjectMarketKey(value.caseKey) &&
     typeof value.longitude === "number" && Number.isFinite(value.longitude) && Math.abs(value.longitude) <= 180 &&
     typeof value.latitude === "number" && Number.isFinite(value.latitude) && Math.abs(value.latitude) <= 90 &&
-    coordinatesMatchMarket(value.caseKey, value.longitude, value.latitude) &&
-    (value.locale === undefined || value.locale === null || (typeof value.locale === "string" && value.locale.length <= 64)) &&
+    coordinatesMatchPointObjectMarket(value.caseKey, value.longitude, value.latitude) &&
+    isPointObjectLocale(value.locale) &&
     isAnalysisDepth(value.depth) &&
     isAnalysisGoal(value.goal) &&
     isAnalysisPerspective(value.perspective) &&
@@ -277,7 +271,7 @@ export async function POST(request: Request) {
     const evidencePack = await buildPointObjectEvidencePack({
       longitude: body.longitude,
       latitude: body.latitude,
-      locale: body.locale ?? "en"
+      locale: nominatimLocale(body.locale)
     });
     if (body.expectedSourceFeatureId && body.expectedSourceFeatureId !== evidencePack.selectedObject.sourceFeatureId) {
       return NextResponse.json({
@@ -295,7 +289,8 @@ export async function POST(request: Request) {
       goal: body.goal,
       perspective: body.perspective,
       horizon: body.horizon,
-      question: body.question?.trim() || null
+      question: body.question?.trim() || null,
+      locale: body.locale
     };
     const result = await generatePointObjectAiAnalysis(evidencePack, analysisRequest, routeDeadline);
     return NextResponse.json({
@@ -311,7 +306,9 @@ export async function POST(request: Request) {
         geometryType: evidencePack.selectedObject.geometryType,
         resultCentroidDistanceM: evidencePack.resolution.resultCentroidDistanceM,
         addressParts: evidencePack.selectedObject.addressParts,
-        tags: evidencePack.selectedObject.tags
+        tags: evidencePack.selectedObject.tags,
+        metrics: evidencePack.selectedObject.metrics,
+        geoContext: evidencePack.geoContext
       }
     }, { headers: clearChallengeHeader(request) });
   } catch (error) {

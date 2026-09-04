@@ -1,5 +1,6 @@
 import type { GeoJsonGeometry } from "@/src/lib/point-to-object/contracts";
 import { LIVE_POINT_CAVEAT } from "@/src/lib/point-to-object/contracts";
+import { isPointObjectLocale, isPointObjectMarketKey } from "@/src/lib/prototype/point-to-object-markets";
 import {
   POINT_OBJECT_ANALYSIS_PROMPT_VERSION,
   POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION
@@ -19,6 +20,9 @@ import type {
   PointObjectDecisionSignal,
   PointObjectFocusedAnswer,
   PointObjectOpportunity,
+  PointObjectGeoContext,
+  PointObjectGeometryMetrics,
+  PointObjectSearchResponse,
   PointObjectRisk,
   PointObjectValidationAction,
   Wgs84Position
@@ -65,6 +69,80 @@ function stringMap(value: unknown, maxEntries: number): Record<string, string> |
   return output;
 }
 
+function parseGeometryMetrics(value: unknown): PointObjectGeometryMetrics | null {
+  if (!isRecord(value) || !hasExactKeys(value, ["footprintAreaSqM", "footprintPerimeterM", "method", "geometryGeneralized"])) return null;
+  const footprintAreaSqM = finiteNumber(value.footprintAreaSqM, 1, 1_000_000_000);
+  const footprintPerimeterM = finiteNumber(value.footprintPerimeterM, 1, 10_000_000);
+  return footprintAreaSqM !== null && footprintPerimeterM !== null &&
+    value.method === "local_equirectangular_wgs84_approximation" && value.geometryGeneralized === true
+    ? { footprintAreaSqM, footprintPerimeterM, method: value.method, geometryGeneralized: true }
+    : null;
+}
+
+const GEO_CONTEXT_GROUPS = new Set([
+  "residential", "commercial", "hospitality", "retail_daily_needs", "education", "healthcare",
+  "civic_culture", "transport", "access", "open_space", "industrial", "construction", "other_built"
+]);
+const DISTRICT_CHARACTERS = new Set([
+  "hospitality_tourism", "commercial_business", "residential", "mixed_use_urban", "civic_institutional",
+  "industrial_logistics", "open_space_recreation", "low_signal"
+]);
+
+function parseGeoContext(value: unknown): PointObjectGeoContext | null {
+  if (!isRecord(value) || !hasExactKeys(value, [
+    "radiusM", "coverage", "sampleSize", "capReached", "groups", "mappedBuildingCount", "mappedLevelsKnownCount",
+    "medianMappedLevels", "nearestTransitM", "nearestMajorRoadM", "districtCharacter"
+  ]) || value.radiusM !== 400 || (value.coverage !== "available" && value.coverage !== "unavailable") ||
+      typeof value.capReached !== "boolean" || !Array.isArray(value.groups) || !isRecord(value.districtCharacter)) return null;
+  const sampleSize = integer(value.sampleSize, 0, 10_000);
+  const mappedBuildingCount = integer(value.mappedBuildingCount, 0, 10_000);
+  const mappedLevelsKnownCount = integer(value.mappedLevelsKnownCount, 0, 10_000);
+  const medianMappedLevels = value.medianMappedLevels === null ? null : finiteNumber(value.medianMappedLevels, 0, 200);
+  const nearestTransitM = value.nearestTransitM === null ? null : finiteNumber(value.nearestTransitM, 0, 10_000);
+  const nearestMajorRoadM = value.nearestMajorRoadM === null ? null : finiteNumber(value.nearestMajorRoadM, 0, 10_000);
+  const groups = value.groups.flatMap((item) => {
+    if (!isRecord(item) || !hasExactKeys(item, ["group", "count", "sharePct", "nearestDistanceM"]) ||
+        typeof item.group !== "string" || !GEO_CONTEXT_GROUPS.has(item.group)) return [];
+    const count = integer(item.count, 0, 10_000);
+    const sharePct = finiteNumber(item.sharePct, 0, 100);
+    const nearestDistanceM = item.nearestDistanceM === null ? null : finiteNumber(item.nearestDistanceM, 0, 10_000);
+    return count === null || sharePct === null || (item.nearestDistanceM !== null && nearestDistanceM === null)
+      ? []
+      : [{ group: item.group as PointObjectGeoContext["groups"][number]["group"], count, sharePct, nearestDistanceM }];
+  });
+  const district = value.districtCharacter;
+  if (sampleSize === null || mappedBuildingCount === null || mappedLevelsKnownCount === null ||
+      (value.medianMappedLevels !== null && medianMappedLevels === null) ||
+      (value.nearestTransitM !== null && nearestTransitM === null) ||
+      (value.nearestMajorRoadM !== null && nearestMajorRoadM === null) || groups.length !== value.groups.length ||
+      new Set(groups.map((item) => item.group)).size !== groups.length ||
+      !hasExactKeys(district, ["code", "confidence", "ruleVersion", "driverGroups"]) ||
+      typeof district.code !== "string" || !DISTRICT_CHARACTERS.has(district.code) ||
+      (district.confidence !== "low" && district.confidence !== "medium") ||
+      district.ruleVersion !== "POINT_OBJECT_DISTRICT_RULE_V1" || !Array.isArray(district.driverGroups)) return null;
+  const driverGroups = district.driverGroups.flatMap((item) => typeof item === "string" && GEO_CONTEXT_GROUPS.has(item)
+    ? [item as PointObjectGeoContext["districtCharacter"]["driverGroups"][number]] : []);
+  if (driverGroups.length !== district.driverGroups.length || new Set(driverGroups).size !== driverGroups.length) return null;
+  return {
+    radiusM: 400,
+    coverage: value.coverage,
+    sampleSize,
+    capReached: value.capReached,
+    groups,
+    mappedBuildingCount,
+    mappedLevelsKnownCount,
+    medianMappedLevels,
+    nearestTransitM,
+    nearestMajorRoadM,
+    districtCharacter: {
+      code: district.code as PointObjectGeoContext["districtCharacter"]["code"],
+      confidence: district.confidence,
+      ruleVersion: "POINT_OBJECT_DISTRICT_RULE_V1",
+      driverGroups
+    }
+  };
+}
+
 export function parseLiveResolvedObject(value: unknown): LiveResolvedObjectContext | null {
   if (!isRecord(value)) return null;
   const name = value.name === null ? null : nonEmptyText(value.name, 240);
@@ -81,9 +159,48 @@ export function parseLiveResolvedObject(value: unknown): LiveResolvedObjectConte
   const resultCentroidDistanceM = finiteNumber(value.resultCentroidDistanceM, 0, 1_000_000);
   const addressParts = stringMap(value.addressParts, 24);
   const tags = stringMap(value.tags, 36);
+  const metrics = value.metrics === null ? null : parseGeometryMetrics(value.metrics);
+  const geoContext = parseGeoContext(value.geoContext);
   if ((value.name !== null && !name) || (value.address !== null && !address) || !featureClass || !sourceFeatureId ||
-      geometryType === undefined || !coordinateAssociation || resultCentroidDistanceM === null || !addressParts || !tags) return null;
-  return { name, address, featureClass, sourceFeatureId, geometryType, coordinateAssociation, resultCentroidDistanceM, addressParts, tags };
+      geometryType === undefined || !coordinateAssociation || resultCentroidDistanceM === null || !addressParts || !tags ||
+      (value.metrics !== null && !metrics) || !geoContext) return null;
+  return { name, address, featureClass, sourceFeatureId, geometryType, coordinateAssociation, resultCentroidDistanceM, addressParts, tags, metrics, geoContext };
+}
+
+export function parsePointObjectSearchResponse(value: unknown): PointObjectSearchResponse | null {
+  if (!isRecord(value) || (value.mode !== "results" && value.mode !== "unavailable")) return null;
+  if (value.mode === "unavailable") {
+    if (!hasOnlyKeys(value, ["mode", "error", "retryable"])) return null;
+    const error = value.error === undefined ? undefined : nonEmptyText(value.error, 500) ?? null;
+    const retryable = value.retryable === undefined ? undefined : typeof value.retryable === "boolean" ? value.retryable : null;
+    if (error === null || retryable === null) return null;
+    return { mode: "unavailable", error, retryable };
+  }
+  if (!hasExactKeys(value, ["mode", "results"]) || !Array.isArray(value.results) || value.results.length > 5) return null;
+  const results = value.results.flatMap((item) => {
+    if (!isRecord(item) || !hasExactKeys(item, [
+      "id", "label", "secondaryLabel", "longitude", "latitude", "category", "featureType", "boundingBox"
+    ])) return [];
+    const id = nonEmptyText(item.id, 160);
+    const label = nonEmptyText(item.label, 240);
+    const secondaryLabel = item.secondaryLabel === null ? null : nonEmptyText(item.secondaryLabel, 500);
+    const longitude = finiteNumber(item.longitude, -180, 180);
+    const latitude = finiteNumber(item.latitude, -90, 90);
+    const category = item.category === null ? null : nonEmptyText(item.category, 80);
+    const featureType = item.featureType === null ? null : nonEmptyText(item.featureType, 80);
+    const box = Array.isArray(item.boundingBox) && item.boundingBox.length === 4
+      ? item.boundingBox.map((number, index) => finiteNumber(number, index < 2 ? -90 : -180, index < 2 ? 90 : 180))
+      : null;
+    const boundingBox = box && box.every((number): number is number => number !== null) && box[0] <= box[1] && box[2] <= box[3]
+      ? box as [number, number, number, number]
+      : null;
+    if (!id || !/^(?:node|way|relation)\/[1-9]\d{0,19}$/.test(id) || !label ||
+        (item.secondaryLabel !== null && !secondaryLabel) || longitude === null || latitude === null ||
+        (item.category !== null && !category) || (item.featureType !== null && !featureType) ||
+        (item.boundingBox !== null && !boundingBox)) return [];
+    return [{ id, label, secondaryLabel, longitude, latitude, category, featureType, boundingBox }];
+  });
+  return results.length === value.results.length ? { mode: "results", results } : null;
 }
 
 function selectionFingerprint(selection: LiveMapSelection): string {
@@ -139,7 +256,7 @@ export function readPointObjectSelection(): LiveMapSelection | null {
     if (!raw || raw.length > MAX_SELECTION_BYTES) return null;
     const value: unknown = JSON.parse(raw);
     if (!isRecord(value) || !isRecord(value.object) || !isRecord(value.viewport) ||
-        (value.locationKey !== "dubai" && value.locationKey !== "singapore") ||
+        !isPointObjectMarketKey(value.locationKey) ||
         value.provider !== "OpenFreeMap / OpenStreetMap") return null;
     const point = coordinate([value.longitude, value.latitude]);
     const center = coordinate(value.viewport.center);
@@ -406,7 +523,7 @@ function parseValidationActions(value: unknown): PointObjectValidationAction[] |
 
 function parseContent(value: unknown): PointObjectAiContent | null {
   if (!isRecord(value) || !hasExactKeys(value, [
-    "decisionBrief", "signals", "opportunities", "risks", "sourceFacts", "locationContext", "nextValidation", "answerToQuestion", "caveat"
+    "decisionBrief", "signals", "opportunities", "risks", "sourceFacts", "locationContext", "nextValidation", "answerToQuestion", "geoContext", "caveat"
   ])) return null;
   const decisionBrief = parseDecisionBrief(value.decisionBrief);
   const signals = parseSignals(value.signals);
@@ -416,8 +533,9 @@ function parseContent(value: unknown): PointObjectAiContent | null {
   const locationContext = claims(value.locationContext, 1, 7);
   const nextValidation = parseValidationActions(value.nextValidation);
   const answerToQuestion = value.answerToQuestion === null ? null : parseFocusedAnswer(value.answerToQuestion);
+  const geoContext = parseGeoContext(value.geoContext);
   if (!decisionBrief || !signals || !opportunities || !risks || !sourceFacts || !locationContext || !nextValidation ||
-      (value.answerToQuestion !== null && !answerToQuestion) || value.caveat !== LIVE_POINT_CAVEAT) return null;
+      (value.answerToQuestion !== null && !answerToQuestion) || !geoContext || value.caveat !== LIVE_POINT_CAVEAT) return null;
   return {
     decisionBrief,
     signals,
@@ -427,12 +545,13 @@ function parseContent(value: unknown): PointObjectAiContent | null {
     locationContext,
     nextValidation,
     answerToQuestion,
+    geoContext,
     caveat: LIVE_POINT_CAVEAT
   };
 }
 
 function parseRequestReceipt(value: unknown): PointObjectAnalysisRequestReceipt | null {
-  if (!isRecord(value) || !hasExactKeys(value, ["depth", "goal", "perspective", "horizon", "question", "focused"])) return null;
+  if (!isRecord(value) || !hasExactKeys(value, ["depth", "goal", "perspective", "horizon", "question", "focused", "locale"])) return null;
   const depth = value.depth === "quick" || value.depth === "standard" || value.depth === "deep" ? value.depth : null;
   const goal = value.goal === "object_profile" || value.goal === "development_screening" || value.goal === "redevelopment" ||
     value.goal === "due_diligence" || value.goal === "custom" ? value.goal : null;
@@ -444,15 +563,16 @@ function parseRequestReceipt(value: unknown): PointObjectAnalysisRequestReceipt 
     : null;
   const question = value.question === null ? null : nonEmptyText(value.question, 500);
   const focused = typeof value.focused === "boolean" ? value.focused : null;
-  return depth && goal && perspective && horizon && (value.question === null || question) && focused !== null && focused === (question !== null)
-    ? { depth, goal, perspective, horizon, question, focused }
+  return depth && goal && perspective && horizon && isPointObjectLocale(value.locale) &&
+    (value.question === null || question) && focused !== null && focused === (question !== null)
+    ? { depth, goal, perspective, horizon, question, focused, locale: value.locale }
     : null;
 }
 
 function parseSubject(value: unknown): PointObjectAiSubject | null {
   if (!isRecord(value) || !hasExactKeys(value, [
     "name", "address", "featureClass", "sourceFeatureId", "resolutionMethod", "coordinateAssociation", "sourceLabel",
-    "geometryType", "resultCentroidDistanceM", "addressParts", "tags"
+    "geometryType", "resultCentroidDistanceM", "addressParts", "tags", "metrics", "geoContext"
   ])) return null;
   const name = value.name === null ? null : nonEmptyText(value.name, 240);
   const address = value.address === null ? null : nonEmptyText(value.address, 500);
@@ -473,8 +593,11 @@ function parseSubject(value: unknown): PointObjectAiSubject | null {
   const resultCentroidDistanceM = finiteNumber(value.resultCentroidDistanceM, 0, 1_000_000);
   const addressParts = stringMap(value.addressParts, 24);
   const tags = stringMap(value.tags, 36);
+  const metrics = value.metrics === null ? null : parseGeometryMetrics(value.metrics);
+  const geoContext = parseGeoContext(value.geoContext);
   if ((value.name !== null && !name) || (value.address !== null && !address) || !featureClass || !sourceFeatureId || !sourceLabel ||
-      !resolutionMethod || !coordinateAssociation || geometryType === undefined || resultCentroidDistanceM === null || !addressParts || !tags) return null;
+      !resolutionMethod || !coordinateAssociation || geometryType === undefined || resultCentroidDistanceM === null || !addressParts || !tags ||
+      (value.metrics !== null && !metrics) || !geoContext) return null;
   return {
     name,
     address,
@@ -486,7 +609,9 @@ function parseSubject(value: unknown): PointObjectAiSubject | null {
     geometryType,
     resultCentroidDistanceM,
     addressParts,
-    tags
+    tags,
+    metrics,
+    geoContext
   };
 }
 

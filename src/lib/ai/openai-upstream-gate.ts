@@ -47,3 +47,23 @@ export function getPointObjectPreviewUpstreamStatus() {
       : "Point-to-object upstream is disabled unless the general governed gate or its dedicated Preview-only operator flag is active."
   };
 }
+
+/**
+ * Preview surface gate for read-only open-map requests. Unlike the OpenAI
+ * upstream gate, this deliberately does not depend on an OpenAI credential:
+ * geocoding and OSM/Overpass context must remain independently testable.
+ */
+export function getPointObjectPreviewSurfaceStatus() {
+  const previewOnly = process.env.VERCEL_ENV === "preview";
+  const explicitlyAllowed =
+    process.env.GEOAI_ALLOW_POINT_OBJECT_PREVIEW_AI?.trim().toLowerCase() === "true";
+  const enabled = previewOnly && explicitlyAllowed;
+
+  return {
+    enabled,
+    mode: enabled ? "preview_surface_enabled" as const : "preview_surface_disabled" as const,
+    caveat: enabled
+      ? "Read-only point-to-object Preview sources are enabled by the isolated Preview operator flag."
+      : "Read-only point-to-object sources are disabled outside the explicitly enabled Preview surface."
+  };
+}

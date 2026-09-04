@@ -3,8 +3,8 @@
 import "maplibre-gl/dist/maplibre-gl.css";
 
 import { useEffect, useRef, useState } from "react";
-import type { Feature, Geometry, Position } from "geojson";
-import type { GeoJSONSource, Map as MapLibreMap, MapGeoJSONFeature, MapMouseEvent } from "maplibre-gl";
+import type { Feature, FeatureCollection, Geometry, Position } from "geojson";
+import type { ExpressionSpecification, GeoJSONSource, Map as MapLibreMap, MapGeoJSONFeature, MapMouseEvent } from "maplibre-gl";
 
 import type {
   LiveMapBasemapId,
@@ -13,14 +13,19 @@ import type {
   LiveMapSelection,
   Wgs84Position
 } from "@/components/point-to-object/live-types";
+import { usePointObjectLocale } from "@/components/point-to-object/locale-provider";
 import type { GeoJsonGeometry } from "@/src/lib/point-to-object/contracts";
+import type { ConceptMassingResult, PointObjectCreateAoi } from "@/src/lib/prototype/point-to-object-create";
+import type { PointObjectFindBounds } from "@/src/lib/prototype/point-to-object-find-contract";
+import { pointObjectMarket } from "@/src/lib/prototype/point-to-object-markets";
 
-const BASEMAPS: Array<{ id: LiveMapBasemapId; label: string; styleUrl: string }> = [
-  { id: "street", label: "Street", styleUrl: "https://tiles.openfreemap.org/styles/liberty" },
-  { id: "light", label: "Light", styleUrl: "https://tiles.openfreemap.org/styles/positron" },
-  { id: "contrast", label: "Contrast", styleUrl: "https://tiles.openfreemap.org/styles/bright" }
+const BASEMAPS: Array<{ id: LiveMapBasemapId; labelKey: "map.style.street" | "map.style.light" | "map.style.contrast"; styleUrl: string }> = [
+  { id: "street", labelKey: "map.style.street", styleUrl: "https://tiles.openfreemap.org/styles/liberty" },
+  { id: "light", labelKey: "map.style.light", styleUrl: "https://tiles.openfreemap.org/styles/positron" },
+  { id: "contrast", labelKey: "map.style.contrast", styleUrl: "https://tiles.openfreemap.org/styles/bright" }
 ];
-type MapViewMode = "2d" | "3d";
+export type LiveMapViewMode = "2d" | "3d";
+type MapViewMode = LiveMapViewMode;
 const CAMERA: Record<MapViewMode, { pitch: number; bearing: number }> = {
   "2d": { pitch: 0, bearing: 0 },
   "3d": { pitch: 55, bearing: -25 }
@@ -31,25 +36,16 @@ const HIGHLIGHT_FILL_LAYER_ID = "geoai-live-selection-fill";
 const HIGHLIGHT_VOLUME_LAYER_ID = "geoai-live-selection-volume";
 const HIGHLIGHT_LINE_LAYER_ID = "geoai-live-selection-line";
 const HIGHLIGHT_POINT_LAYER_ID = "geoai-live-selection-point";
+const CREATE_AOI_SOURCE_ID = "geoai-create-aoi";
+const CREATE_AOI_FILL_LAYER_ID = "geoai-create-aoi-fill";
+const CREATE_AOI_LINE_LAYER_ID = "geoai-create-aoi-line";
+const CREATE_AOI_VERTEX_LAYER_ID = "geoai-create-aoi-vertices";
+const CONCEPT_SOURCE_ID = "geoai-concept-massing";
+const CONCEPT_FILL_LAYER_ID = "geoai-concept-fill";
+const CONCEPT_VOLUME_LAYER_ID = "geoai-concept-volume";
 const MAX_GEOMETRY_POSITIONS = 5_000;
 const MAX_NEARBY_LABELS = 5;
-
-const MARKET_VIEW: Record<LiveMapLocationKey, { center: Wgs84Position; zoom: number; label: string }> = {
-  dubai: {
-    center: [55.2818037, 25.2191],
-    zoom: 16.8,
-    label: "Dubai, Museum of the Future"
-  },
-  singapore: {
-    center: [103.8605263, 1.2827539],
-    zoom: 16.6,
-    label: "Singapore, Marina Bay"
-  }
-};
-const MARKET_BOUNDS: Record<LiveMapLocationKey, [[number, number], [number, number]]> = {
-  dubai: [[54.8, 24.8], [55.8, 25.6]],
-  singapore: [[103.5, 1.1], [104.1, 1.55]]
-};
+const EMPTY_CREATE_COORDINATES: Wgs84Position[] = [];
 
 const SELECTABLE_SOURCE_LAYERS = new Set([
   "building",
@@ -72,6 +68,22 @@ export type LiveObjectMapProps = {
   className?: string;
   onSelection: (selection: LiveMapSelection | null) => void;
   onViewportChange?: (selection: LiveMapSelection) => void;
+  onVisibleBoundsChange?: (bounds: PointObjectFindBounds) => void;
+  navigationTarget?: LiveMapNavigationTarget | null;
+  viewModeRequest?: { requestId: string; mode: LiveMapViewMode } | null;
+  createDrawing?: boolean;
+  createDraftCoordinates?: Wgs84Position[];
+  createAoi?: PointObjectCreateAoi | null;
+  createAreaCleared?: boolean;
+  conceptMassing?: ConceptMassingResult | null;
+  onCreateVertex?: (coordinate: Wgs84Position) => void;
+};
+
+export type LiveMapNavigationTarget = {
+  requestId: string;
+  longitude: number;
+  latitude: number;
+  zoom?: number;
 };
 
 function safeText(value: unknown, maxLength = 160): string | null {
@@ -420,6 +432,51 @@ function setHighlight(
   setSelectedVolumeVisibility(map, selection, viewMode, showVolume);
 }
 
+function createAoiData(draft: Wgs84Position[], aoi: PointObjectCreateAoi | null): FeatureCollection {
+  const features: Feature[] = [];
+  const ring = aoi?.coordinates[0] ?? draft;
+  if (aoi && ring.length >= 4) {
+    features.push({ type: "Feature", properties: { kind: "aoi" }, geometry: { type: "Polygon", coordinates: [ring] } });
+  } else if (draft.length >= 3) {
+    features.push({ type: "Feature", properties: { kind: "draft-fill" }, geometry: { type: "Polygon", coordinates: [[...draft, draft[0]]] } });
+    features.push({ type: "Feature", properties: { kind: "draft" }, geometry: { type: "LineString", coordinates: draft } });
+  } else if (draft.length >= 2) {
+    features.push({ type: "Feature", properties: { kind: "draft" }, geometry: { type: "LineString", coordinates: draft } });
+  }
+  for (const coordinate of ring.slice(0, aoi ? -1 : undefined)) {
+    features.push({ type: "Feature", properties: { kind: "vertex" }, geometry: { type: "Point", coordinates: coordinate } });
+  }
+  return { type: "FeatureCollection", features };
+}
+
+function setCreateLayers(
+  map: MapLibreMap,
+  draft: Wgs84Position[],
+  aoi: PointObjectCreateAoi | null,
+  suppressExistingBuildings: boolean,
+  massing: ConceptMassingResult | null,
+  viewMode: MapViewMode
+) {
+  (map.getSource(CREATE_AOI_SOURCE_ID) as GeoJSONSource | undefined)?.setData(createAoiData(draft, aoi));
+  (map.getSource(CONCEPT_SOURCE_ID) as GeoJSONSource | undefined)?.setData(massing?.featureCollection ?? { type: "FeatureCollection", features: [] });
+  if (map.getLayer(CONCEPT_FILL_LAYER_ID)) map.setLayoutProperty(CONCEPT_FILL_LAYER_ID, "visibility", massing && viewMode === "2d" ? "visible" : "none");
+  if (map.getLayer(CONCEPT_VOLUME_LAYER_ID)) map.setLayoutProperty(CONCEPT_VOLUME_LAYER_ID, "visibility", massing && viewMode === "3d" ? "visible" : "none");
+  if (map.getLayer(BUILDINGS_3D_LAYER_ID)) {
+    if (suppressExistingBuildings && aoi) {
+      try {
+        map.setFilter(BUILDINGS_3D_LAYER_ID, ["!", ["within", { type: "Polygon", coordinates: aoi.coordinates }]]);
+        map.setLayoutProperty(BUILDINGS_3D_LAYER_ID, "visibility", viewMode === "3d" ? "visible" : "none");
+      } catch {
+        map.setFilter(BUILDINGS_3D_LAYER_ID, null);
+        map.setLayoutProperty(BUILDINGS_3D_LAYER_ID, "visibility", "none");
+      }
+    } else {
+      map.setFilter(BUILDINGS_3D_LAYER_ID, null);
+      map.setLayoutProperty(BUILDINGS_3D_LAYER_ID, "visibility", viewMode === "3d" ? "visible" : "none");
+    }
+  }
+}
+
 function installGeoAiLayers(map: MapLibreMap, viewMode: MapViewMode) {
   const labelLayer = firstSymbolLayerId(map);
   for (const layer of map.getStyle().layers ?? []) {
@@ -496,9 +553,53 @@ function installGeoAiLayers(map: MapLibreMap, viewMode: MapViewMode) {
       "circle-stroke-width": 3
     }
   }, labelLayer);
+  if (!map.getSource(CREATE_AOI_SOURCE_ID)) map.addSource(CREATE_AOI_SOURCE_ID, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+  if (!map.getLayer(CREATE_AOI_FILL_LAYER_ID)) map.addLayer({
+    id: CREATE_AOI_FILL_LAYER_ID,
+    type: "fill",
+    source: CREATE_AOI_SOURCE_ID,
+    filter: ["==", ["geometry-type"], "Polygon"],
+    paint: { "fill-color": "#12a594", "fill-opacity": 0.16 }
+  }, labelLayer);
+  if (!map.getLayer(CREATE_AOI_LINE_LAYER_ID)) map.addLayer({
+    id: CREATE_AOI_LINE_LAYER_ID,
+    type: "line",
+    source: CREATE_AOI_SOURCE_ID,
+    filter: ["in", ["geometry-type"], ["literal", ["LineString", "Polygon"]]],
+    paint: { "line-color": "#087f70", "line-width": 3, "line-dasharray": [2, 1] }
+  }, labelLayer);
+  if (!map.getLayer(CREATE_AOI_VERTEX_LAYER_ID)) map.addLayer({
+    id: CREATE_AOI_VERTEX_LAYER_ID,
+    type: "circle",
+    source: CREATE_AOI_SOURCE_ID,
+    filter: ["==", ["geometry-type"], "Point"],
+    paint: { "circle-color": "#ffffff", "circle-radius": 5, "circle-stroke-color": "#087f70", "circle-stroke-width": 2 }
+  }, labelLayer);
+  if (!map.getSource(CONCEPT_SOURCE_ID)) map.addSource(CONCEPT_SOURCE_ID, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+  const conceptColor: ExpressionSpecification = ["match", ["get", "use"], "residential", "#77b7a7", "office", "#4f8fa3", "retail", "#d5a54b", "hospitality", "#9c78b5", "civic", "#6f9b68", "#87a7a1"];
+  if (!map.getLayer(CONCEPT_FILL_LAYER_ID)) map.addLayer({
+    id: CONCEPT_FILL_LAYER_ID,
+    type: "fill",
+    source: CONCEPT_SOURCE_ID,
+    layout: { visibility: "none" },
+    paint: { "fill-color": conceptColor, "fill-opacity": 0.68, "fill-outline-color": "#285951" }
+  }, labelLayer);
+  if (!map.getLayer(CONCEPT_VOLUME_LAYER_ID)) map.addLayer({
+    id: CONCEPT_VOLUME_LAYER_ID,
+    type: "fill-extrusion",
+    source: CONCEPT_SOURCE_ID,
+    layout: { visibility: "none" },
+    paint: {
+      "fill-extrusion-color": conceptColor,
+      "fill-extrusion-height": ["get", "heightM"],
+      "fill-extrusion-base": ["get", "baseM"],
+      "fill-extrusion-opacity": 0.88,
+      "fill-extrusion-vertical-gradient": true
+    }
+  }, labelLayer);
 }
 
-function applyViewMode(map: MapLibreMap, viewMode: MapViewMode, animate = true, updateCamera = true) {
+function applyViewMode(map: MapLibreMap, viewMode: MapViewMode, suppressExistingBuildings = false, animate = true, updateCamera = true) {
   const camera = CAMERA[viewMode];
   if (viewMode === "3d") {
     map.dragRotate.enable();
@@ -512,23 +613,50 @@ function applyViewMode(map: MapLibreMap, viewMode: MapViewMode, animate = true, 
     map.keyboard.disableRotation();
   }
   if (map.getLayer(BUILDINGS_3D_LAYER_ID)) {
-    map.setLayoutProperty(BUILDINGS_3D_LAYER_ID, "visibility", viewMode === "3d" ? "visible" : "none");
+    if (!suppressExistingBuildings) map.setLayoutProperty(BUILDINGS_3D_LAYER_ID, "visibility", viewMode === "3d" ? "visible" : "none");
   }
   if (!updateCamera) return;
   if (animate) map.easeTo({ ...camera, duration: 550 });
   else map.jumpTo(camera);
 }
 
-export function LiveObjectMap({ locationKey = "dubai", selection = null, className, onSelection, onViewportChange }: LiveObjectMapProps) {
+export function LiveObjectMap({
+  locationKey = "dubai",
+  selection = null,
+  className,
+  onSelection,
+  onViewportChange,
+  onVisibleBoundsChange,
+  navigationTarget = null,
+  viewModeRequest = null,
+  createDrawing = false,
+  createDraftCoordinates = EMPTY_CREATE_COORDINATES,
+  createAoi = null,
+  createAreaCleared = false,
+  conceptMassing = null,
+  onCreateVertex
+}: LiveObjectMapProps) {
+  const { locale, t } = usePointObjectLocale();
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
+  const selectAtRef = useRef<((point: { x: number; y: number }, clicked: Wgs84Position) => void) | null>(null);
+  const handledNavigationTargetRef = useRef<string | null>(null);
+  const handledViewModeRequestRef = useRef<string | null>(null);
   const callbackRef = useRef(onSelection);
   const viewportCallbackRef = useRef(onViewportChange);
+  const visibleBoundsCallbackRef = useRef(onVisibleBoundsChange);
   const locationKeyRef = useRef(locationKey);
   const selectionRef = useRef(selection);
   const viewModeRef = useRef<MapViewMode>("3d");
   const basemapIdRef = useRef<LiveMapBasemapId>("street");
   const showSelectedVolumeRef = useRef(true);
+  const translationRef = useRef(t);
+  const createDrawingRef = useRef(createDrawing);
+  const createVertexCallbackRef = useRef(onCreateVertex);
+  const createDraftRef = useRef(createDraftCoordinates);
+  const createAoiRef = useRef(createAoi);
+  const createAreaClearedRef = useRef(createAreaCleared);
+  const conceptMassingRef = useRef(conceptMassing);
   const [isReady, setIsReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [retryVersion, setRetryVersion] = useState(0);
@@ -541,8 +669,40 @@ export function LiveObjectMap({ locationKey = "dubai", selection = null, classNa
   }, [onSelection]);
 
   useEffect(() => {
+    translationRef.current = t;
+  }, [t]);
+
+  useEffect(() => {
     viewportCallbackRef.current = onViewportChange;
   }, [onViewportChange]);
+
+  useEffect(() => {
+    visibleBoundsCallbackRef.current = onVisibleBoundsChange;
+  }, [onVisibleBoundsChange]);
+
+  useEffect(() => {
+    createDrawingRef.current = createDrawing;
+    createVertexCallbackRef.current = onCreateVertex;
+    createDraftRef.current = createDraftCoordinates;
+    createAoiRef.current = createAoi;
+    createAreaClearedRef.current = createAreaCleared;
+    conceptMassingRef.current = conceptMassing;
+    const map = mapRef.current;
+    if (!map || !map.isStyleLoaded()) return;
+    if (createDrawing && viewModeRef.current !== "2d") {
+      viewModeRef.current = "2d";
+      setViewMode("2d");
+      applyViewMode(map, "2d", createAreaCleared);
+      const current = selectionRef.current;
+      if (current) {
+        const nextSelection = { ...current, viewport: { ...current.viewport, ...CAMERA["2d"], viewMode: "2d" as const } };
+        selectionRef.current = nextSelection;
+        viewportCallbackRef.current?.(nextSelection);
+      }
+    }
+    setCreateLayers(map, createDraftCoordinates, createAoi, createAreaCleared, conceptMassing, viewModeRef.current);
+    map.getCanvas().style.cursor = createDrawing ? "crosshair" : "";
+  }, [conceptMassing, createAoi, createAreaCleared, createDraftCoordinates, createDrawing, onCreateVertex]);
 
   useEffect(() => {
     selectionRef.current = selection;
@@ -555,14 +715,38 @@ export function LiveObjectMap({ locationKey = "dubai", selection = null, classNa
     locationKeyRef.current = locationKey;
     const map = mapRef.current;
     if (!map) return;
-    const view = MARKET_VIEW[locationKey];
+    const view = pointObjectMarket(locationKey);
     setError(null);
     setIsReady(false);
     setHighlight(map, null, viewModeRef.current, showSelectedVolumeRef.current);
-    map.setMaxBounds(MARKET_BOUNDS[locationKey]);
-    map.easeTo({ center: view.center, zoom: view.zoom, ...CAMERA[viewModeRef.current], duration: 650 });
+    map.setMaxBounds([ [...view.bounds[0]], [...view.bounds[1]] ]);
+    map.easeTo({ center: [...view.center], zoom: view.zoom, ...CAMERA[viewModeRef.current], duration: 650 });
     map.once("idle", () => setIsReady(true));
   }, [locationKey]);
+
+  useEffect(() => {
+    if (!navigationTarget || !isReady || handledNavigationTargetRef.current === navigationTarget.requestId) return;
+    const map = mapRef.current;
+    if (!map || !selectAtRef.current) return;
+    handledNavigationTargetRef.current = navigationTarget.requestId;
+    const coordinates: Wgs84Position = [navigationTarget.longitude, navigationTarget.latitude];
+    const selectAfterMove = () => {
+      if (!selectAtRef.current) return;
+      const projected = map.project(coordinates);
+      selectAtRef.current({ x: projected.x, y: projected.y }, coordinates);
+    };
+    map.once("moveend", selectAfterMove);
+    map.easeTo({ center: coordinates, zoom: navigationTarget.zoom ?? 18, duration: 650 });
+    return () => {
+      map.off("moveend", selectAfterMove);
+    };
+  }, [isReady, navigationTarget]);
+
+  useEffect(() => {
+    if (!viewModeRequest || handledViewModeRequestRef.current === viewModeRequest.requestId) return;
+    handledViewModeRequestRef.current = viewModeRequest.requestId;
+    changeViewMode(viewModeRequest.mode);
+  }, [viewModeRequest]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -574,7 +758,7 @@ export function LiveObjectMap({ locationKey = "dubai", selection = null, classNa
     void import("maplibre-gl")
       .then((maplibregl) => {
         if (disposed || !containerRef.current) return;
-        const view = MARKET_VIEW[locationKeyRef.current];
+        const view = pointObjectMarket(locationKeyRef.current);
         const restored = selectionRef.current;
         const initialBasemap = restored?.viewport.basemapId ?? basemapIdRef.current;
         const initialViewMode: MapViewMode = restored?.viewport.viewMode ?? viewModeRef.current;
@@ -588,11 +772,11 @@ export function LiveObjectMap({ locationKey = "dubai", selection = null, classNa
         const map = new maplibregl.Map({
           container: containerRef.current,
           style: basemapById(initialBasemap).styleUrl,
-          center: restored?.locationKey === locationKeyRef.current ? restored.viewport.center : view.center,
+          center: restored?.locationKey === locationKeyRef.current ? restored.viewport.center : [...view.center],
           zoom: restored?.locationKey === locationKeyRef.current ? restored.viewport.zoom : view.zoom,
           minZoom: 3,
           maxZoom: 20,
-          maxBounds: MARKET_BOUNDS[locationKeyRef.current],
+          maxBounds: [[...view.bounds[0]], [...view.bounds[1]]],
           maxPitch: 60,
           pitch: initialCamera.pitch,
           bearing: initialCamera.bearing,
@@ -604,7 +788,7 @@ export function LiveObjectMap({ locationKey = "dubai", selection = null, classNa
           attributionControl: false
         });
         mapRef.current = map;
-        applyViewMode(map, initialViewMode, false, false);
+        applyViewMode(map, initialViewMode, createAreaClearedRef.current, false, false);
         map.addControl(new maplibregl.NavigationControl({ showCompass: false, showZoom: true }), "top-right");
         map.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-right");
 
@@ -614,8 +798,9 @@ export function LiveObjectMap({ locationKey = "dubai", selection = null, classNa
           // Camera state is independent of the style lifecycle. Reinstall only
           // mode-specific handlers and layer visibility here so a basemap load
           // cannot overwrite a user's rotation or a 2D/3D choice made mid-load.
-          applyViewMode(map, viewModeRef.current, false, false);
+          applyViewMode(map, viewModeRef.current, createAreaClearedRef.current, false, false);
           setHighlight(map, selectionRef.current, viewModeRef.current, showSelectedVolumeRef.current);
+          setCreateLayers(map, createDraftRef.current, createAoiRef.current, createAreaClearedRef.current, conceptMassingRef.current, viewModeRef.current);
           setError(null);
           setIsReady(true);
         };
@@ -663,12 +848,19 @@ export function LiveObjectMap({ locationKey = "dubai", selection = null, classNa
           setHighlight(map, nextSelection, viewModeRef.current, showSelectedVolumeRef.current);
           callbackRef.current(nextSelection);
         };
+        selectAtRef.current = selectAt;
 
         const handleClick = (event: MapMouseEvent) => {
+          if (createDrawingRef.current) {
+            createVertexCallbackRef.current?.([event.lngLat.lng, event.lngLat.lat]);
+            return;
+          }
           selectAt(event.point, [event.lngLat.lng, event.lngLat.lat]);
         };
 
         const handleMoveEnd = () => {
+          const visibleBounds = map.getBounds();
+          visibleBoundsCallbackRef.current?.([visibleBounds.getWest(), visibleBounds.getSouth(), visibleBounds.getEast(), visibleBounds.getNorth()]);
           const current = selectionRef.current;
           if (!current) return;
           const center = map.getCenter();
@@ -690,6 +882,8 @@ export function LiveObjectMap({ locationKey = "dubai", selection = null, classNa
         map.once("load", () => {
           if (disposed) return;
           map.resize();
+          const visibleBounds = map.getBounds();
+          visibleBoundsCallbackRef.current?.([visibleBounds.getWest(), visibleBounds.getSouth(), visibleBounds.getEast(), visibleBounds.getNorth()]);
           setError(null);
           setIsReady(true);
         });
@@ -698,14 +892,14 @@ export function LiveObjectMap({ locationKey = "dubai", selection = null, classNa
         map.on("error", (event) => {
           const message = event.error instanceof Error ? event.error.message : "";
           if (/image .+ could not be loaded|sprite/i.test(message)) return;
-          if (!disposed) setError("Some live map data could not be loaded.");
+          if (!disposed) setError(translationRef.current("map.error.partial"));
         });
 
         resizeObserver = new ResizeObserver(() => map.resize());
         resizeObserver.observe(container);
       })
       .catch(() => {
-        if (!disposed) setError("The live map could not be loaded.");
+        if (!disposed) setError(translationRef.current("map.error.full"));
       });
 
     return () => {
@@ -713,6 +907,7 @@ export function LiveObjectMap({ locationKey = "dubai", selection = null, classNa
       resizeObserver?.disconnect();
       const map = mapRef.current;
       mapRef.current = null;
+      selectAtRef.current = null;
       map?.remove();
     };
   }, [retryVersion]);
@@ -734,9 +929,10 @@ export function LiveObjectMap({ locationKey = "dubai", selection = null, classNa
     if (!map) return;
     // MapLibre camera operations remain available while a style is loading.
     // Applying the mode immediately eliminates the style.load/toggle race.
-    applyViewMode(map, nextMode);
+    applyViewMode(map, nextMode, createAreaClearedRef.current);
     if (!map.isStyleLoaded()) return;
     setSelectedVolumeVisibility(map, selectionRef.current, nextMode, showSelectedVolumeRef.current);
+    setCreateLayers(map, createDraftRef.current, createAoiRef.current, createAreaClearedRef.current, conceptMassingRef.current, nextMode);
   }
 
   function changeBasemap(nextBasemap: LiveMapBasemapId) {
@@ -799,36 +995,36 @@ export function LiveObjectMap({ locationKey = "dubai", selection = null, classNa
     <div
       className={containerClassName}
       role="region"
-      aria-label={`Live object map — ${MARKET_VIEW[locationKey].label}`}
+      aria-label={`${t("map.region")} — ${pointObjectMarket(locationKey).label[locale]}`}
       aria-describedby="live-map-instructions"
     >
       <div ref={containerRef} className="absolute inset-0" />
       <p id="live-map-instructions" className="sr-only">
-        Click or tap a visible object. Switch between two-dimensional and three-dimensional views below. In three-dimensional view, hold Control and drag, or use a secondary-button drag, to rotate the map.
+        {t("map.instructions")}
       </p>
       <div className="absolute bottom-8 left-3 z-10 flex max-w-[calc(100%-6rem)] flex-wrap items-center gap-2 sm:bottom-3">
-        <div className="inline-flex rounded-xl border border-white/80 bg-white/95 p-1 shadow-sm backdrop-blur" role="group" aria-label="Map dimension">
+        <div className="inline-flex rounded-xl border border-white/80 bg-white/95 p-1 shadow-sm backdrop-blur" role="group" aria-label={t("map.dimension")}>
           {(["2d", "3d"] as MapViewMode[]).map((mode) => (
             <button
               key={mode}
               type="button"
               onClick={() => changeViewMode(mode)}
               aria-pressed={viewMode === mode}
-              className={`min-h-9 rounded-lg px-3 text-xs font-bold uppercase transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand ${viewMode === mode ? "bg-ink text-white" : "text-[#475467] hover:bg-[#f1f4f6]"}`}
+              className={`min-h-9 rounded-lg px-3 text-xs font-bold uppercase transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] ${viewMode === mode ? "bg-[#087f8c] text-white" : "text-[#475467] hover:bg-[#f1f4f6]"}`}
             >
               {mode}
             </button>
           ))}
         </div>
         <label className="flex min-h-11 items-center gap-2 rounded-xl border border-white/80 bg-white/95 px-3 text-xs font-semibold text-[#475467] shadow-sm backdrop-blur">
-          <span>Map style</span>
+          <span>{t("map.style")}</span>
           <select
             value={basemapId}
             onChange={(event) => changeBasemap(event.target.value as LiveMapBasemapId)}
-            className="bg-transparent font-bold text-ink outline-none focus-visible:ring-2 focus-visible:ring-brand"
-            aria-label="Map style"
+            className="bg-transparent font-bold text-ink outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c]"
+            aria-label={t("map.style")}
           >
-            {BASEMAPS.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
+            {BASEMAPS.map((item) => <option key={item.id} value={item.id}>{t(item.labelKey)}</option>)}
           </select>
         </label>
         {viewMode === "3d" && selectionCanShowVolume(selection) ? (
@@ -836,32 +1032,32 @@ export function LiveObjectMap({ locationKey = "dubai", selection = null, classNa
             type="button"
             onClick={toggleSelectedVolume}
             aria-pressed={showSelectedVolume}
-            className={`min-h-11 rounded-xl border border-white/80 px-3 text-xs font-bold shadow-sm backdrop-blur focus:outline-none focus-visible:ring-2 focus-visible:ring-brand ${showSelectedVolume ? "bg-[#0f6b78] text-white" : "bg-white/95 text-[#475467]"}`}
+            className={`min-h-11 rounded-xl border border-white/80 px-3 text-xs font-bold shadow-sm backdrop-blur focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] ${showSelectedVolume ? "bg-[#087f8c] text-white" : "bg-white/95 text-[#475467]"}`}
           >
-            3D volume
+            {t("map.volume")}
           </button>
         ) : null}
       </div>
       {viewMode === "3d" ? (
         <p className="pointer-events-none absolute bottom-[62px] left-3 z-10 hidden rounded-lg bg-white/90 px-2.5 py-1.5 text-[11px] font-semibold text-[#475467] shadow-sm backdrop-blur sm:block">
-          Ctrl + drag to rotate
+          {t("map.rotate")}
         </p>
       ) : null}
       <p className="sr-only" aria-live="polite">
         {selection
-          ? `${selection.object.name ?? selection.object.featureClass} selected at ${selection.latitude.toFixed(6)}, ${selection.longitude.toFixed(6)}.`
-          : isReady ? "Live map ready for selection." : "Live map loading."}
+          ? t("map.selectedAt", { name: selection.object.name ?? selection.object.featureClass, latitude: selection.latitude.toFixed(6), longitude: selection.longitude.toFixed(6) })
+          : isReady ? t("map.ready") : t("map.loading")}
       </p>
       {!isReady && !error ? (
         <div className="pointer-events-none absolute inset-0 grid place-items-center bg-[#f4f6f7] text-sm font-medium text-[#52606a]" role="status">
-          Loading live map…
+          {t("map.loading")}
         </div>
       ) : null}
       {error ? (
         <div className={`absolute z-20 grid place-items-center p-4 text-center text-sm text-[#52606a] ${isReady ? "left-3 right-3 top-3 rounded-xl border border-[#d7dee4] bg-white/95 shadow-sm" : "inset-0 bg-[#f4f6f7]"}`} role="alert">
           <span>{error}</span>
-          <button type="button" onClick={retryMap} className="mt-3 min-h-10 rounded-lg bg-ink px-4 text-xs font-bold text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-brand">
-            Reload map
+          <button type="button" onClick={retryMap} className="mt-3 min-h-10 rounded-lg bg-[#087f8c] px-4 text-xs font-bold text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c]">
+            {t("map.reload")}
           </button>
         </div>
       ) : null}

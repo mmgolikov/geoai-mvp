@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { IdentitySymbol } from "@/components/design-system/identity-symbol";
+import { PointToObjectPrototypeV5 } from "@/components/point-to-object/prototype-client-v5";
 import { LiveObjectMap } from "@/components/point-to-object/live-object-map";
 import {
   clearPointObjectAnalysis,
@@ -21,7 +22,7 @@ import type {
   PointObjectLiveContextResponse
 } from "@/components/point-to-object/live-types";
 
-const MARKET_LABEL: Record<LiveMapLocationKey, string> = {
+const MARKET_LABEL: Partial<Record<LiveMapLocationKey, string>> = {
   dubai: "Dubai",
   singapore: "Singapore"
 };
@@ -64,7 +65,7 @@ function visibleAttributes(selection: LiveMapSelection): Array<[string, string]>
     .slice(0, 5);
 }
 
-export function PointToObjectPrototype() {
+export function LegacyPointToObjectPrototype() {
   const router = useRouter();
   const [locationKey, setLocationKey] = useState<LiveMapLocationKey>("dubai");
   const [selection, setSelection] = useState<LiveMapSelection | null>(null);
@@ -342,4 +343,8 @@ export function PointToObjectPrototype() {
       </div>
     </main>
   );
+}
+
+export function PointToObjectPrototype() {
+  return <PointToObjectPrototypeV5 />;
 }

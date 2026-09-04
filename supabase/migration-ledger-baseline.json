@@ -1,14 +1,27 @@
 {
   "schemaVersion": "1.0",
   "status": "read_only_live_ledger_baseline",
-  "observedAt": "2026-07-16T08:24:00Z",
+  "observedAt": "2026-09-04T06:47:00Z",
   "projectRef": "pphdqkurxneyagvnnjdt",
   "environment": "development",
   "productionProject": false,
   "contentSourceSha": "c115d24994f5ac9c1f21943ccb98270b9e9a9085",
   "hashAlgorithm": "md5",
   "hashBasis": "UTF-8 migration statement exactly as stored in supabase_migrations.schema_migrations, without an added trailing newline",
-  "canonicalBaselineCount": 10,
+  "canonicalBaselineCount": 12,
+  "ledgerTopology": {
+    "kind": "noncontiguous_applied_version_set",
+    "reason": "The hosted development ledger contains two applied 20260726 DLD migrations while all seven repository migrations dated 20260716 remain pending.",
+    "pendingVersionsInsideAppliedRange": [
+      "20260716000000",
+      "20260716085854",
+      "20260716113000",
+      "20260716164451",
+      "20260716172000",
+      "20260716175210",
+      "20260716213214"
+    ]
+  },
   "preLedgerReconciliations": [
     {
       "version": "20260705100000",
@@ -91,6 +104,18 @@
       "name": "geoai_audit_event_types_v1",
       "statementBytes": 1085,
       "statementMd5": "a3a8ed31ea97a1d24198eb9ad1655810"
+    },
+    {
+      "version": "20260726151724",
+      "name": "dld_demo_ingestion_foundation_v1",
+      "statementBytes": 9436,
+      "statementMd5": "043e7c30317fb72bd9e30240f24041d0"
+    },
+    {
+      "version": "20260726152858",
+      "name": "dld_demo_http_client_v1a",
+      "statementBytes": 198,
+      "statementMd5": "d6f3ba5a353066facb8dd5b7110245a6"
     }
   ],
   "pendingMigrations": [
@@ -184,7 +209,21 @@
         "Admin role, RLS, concurrency and audit regression",
         "schema diff, advisor and rollback evidence"
       ]
+    },
+    {
+      "version": "20260904065018",
+      "name": "point_object_analysis_persistence_v1",
+      "applyState": "not_applied_development_only_review_draft",
+      "requires": [
+        "preserve the exact noncontiguous hosted ledger baseline, including the two recovered DLD migration artifacts",
+        "containment and identity migrations applied first",
+        "clean and upgrade replay",
+        "Data API exposes only the approved api schema",
+        "real owner, analyst, viewer, anonymous and cross-tenant JWT personas",
+        "schema diff, advisor and rollback evidence",
+        "explicit exact-target development apply approval"
+      ]
     }
   ],
-  "rule": "Files under supabase/legacy_migrations are provenance only. Clean replay starts with the declared pre-ledger bootstrap. On the existing development project its schema fingerprint must be verified and its ledger version repaired to applied before any push. The following ten immutable files must match the live ledger exactly."
+  "rule": "Files under supabase/legacy_migrations are provenance only. Clean replay starts with the declared pre-ledger bootstrap. On the existing development project its schema fingerprint must be verified and its ledger version repaired to applied before any push. The following twelve immutable files must match the live ledger exactly as a noncontiguous applied version set; the seven 20260716 files remain pending even though the two later 20260726 DLD files are applied."
 }

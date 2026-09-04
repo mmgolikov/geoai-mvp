@@ -1225,14 +1225,23 @@ function assertStaticBoundaries(): void {
     "app/prototype/point-to-object/analysis/page.tsx",
     "app/prototype/point-to-object/source-offer/page.tsx",
     "app/api/prototype/point-to-object/ai/route.ts",
+    "app/api/prototype/point-to-object/analysis-runs/route.ts",
+    "app/api/prototype/point-to-object/area-context/route.ts",
     "app/api/prototype/point-to-object/cases/route.ts",
     "app/api/prototype/point-to-object/context/route.ts",
+    "app/api/prototype/point-to-object/create/route.ts",
+    "app/api/prototype/point-to-object/find/route.ts",
     "app/api/prototype/point-to-object/resolve/route.ts",
+    "app/api/prototype/point-to-object/search/route.ts",
     "components/point-to-object/analysis-client.tsx",
+    "components/point-to-object/create-panel.tsx",
     "components/point-to-object/live-object-map.tsx",
     "components/point-to-object/live-session.ts",
     "components/point-to-object/live-types.ts",
-    "components/point-to-object/prototype-client.tsx"
+    "components/point-to-object/locale-provider.tsx",
+    "components/point-to-object/prototype-client-v5.tsx",
+    "components/point-to-object/prototype-client.tsx",
+    "components/point-to-object/prototype-header.tsx"
   ]);
   const candidateSurfaceFiles = [
     ...collectFiles(path.join(ROOT, "app/prototype/point-to-object")),
@@ -1244,12 +1253,14 @@ function assertStaticBoundaries(): void {
     [...candidateSurfaceAllowlist].sort(),
     "Only the exact isolated point-to-object Candidate UI/API files are allowed."
   );
+  const pointObjectIntegrationAllowlist = new Set([...candidateSurfaceAllowlist, "app/layout.tsx"]);
 
   const prototypeUiFiles = candidateSurfaceFiles.filter((filePath) =>
     filePath.includes(`${path.sep}app${path.sep}prototype${path.sep}`) ||
     filePath.includes(`${path.sep}components${path.sep}point-to-object${path.sep}`)
   );
   const prototypeUiSource = prototypeUiFiles.map((filePath) => readFileSync(filePath, "utf8")).join("\n");
+  const prototypeI18nSource = readFileSync(path.join(ROOT, "src/lib/prototype/point-to-object-i18n.ts"), "utf8");
   for (const removedUserFacingLabel of [
     "Preview · Not Released",
     "Point-to-object Candidate",
@@ -1265,10 +1276,11 @@ function assertStaticBoundaries(): void {
   }
   assert.match(prototypeUiSource, /OpenFreeMap/, "The prototype must use a live OpenFreeMap surface.");
   assert.match(prototypeUiSource, /\/prototype\/point-to-object\/analysis/, "The prototype must navigate to a dedicated analysis page.");
-  assert.match(prototypeUiSource, /Back to map/, "The analysis page must return to the live map.");
-  assert.match(prototypeUiSource, /Run focused analysis/, "The analysis page must support a custom follow-up.");
+  assert.match(`${prototypeUiSource}\n${prototypeI18nSource}`, /Back to map/, "The analysis page must return to the live map.");
+  assert.match(`${prototypeUiSource}\n${prototypeI18nSource}`, /Run focused analysis/, "The analysis page must support a custom follow-up.");
   const analysisClientSource = readFileSync(path.join(ROOT, "components/point-to-object/analysis-client.tsx"), "utf8");
-  const prototypeClientSource = readFileSync(path.join(ROOT, "components/point-to-object/prototype-client.tsx"), "utf8");
+  const prototypeClientSource = ["prototype-client.tsx", "prototype-client-v5.tsx"]
+    .map((name) => readFileSync(path.join(ROOT, "components/point-to-object", name), "utf8")).join("\n");
   const liveMapSource = readFileSync(path.join(ROOT, "components/point-to-object/live-object-map.tsx"), "utf8");
   const contextRouteSource = readFileSync(path.join(ROOT, "app/api/prototype/point-to-object/context/route.ts"), "utf8");
   assert.equal(analysisClientSource.includes("osmFeatureId"), false,
@@ -1306,20 +1318,20 @@ function assertStaticBoundaries(): void {
   }
   assert.match(liveMapSource, /map\.on\("style\.load", handleStyleReady\)/,
     "GeoAI map layers must be restored after every basemap style load.");
-  assert.match(liveMapSource, /handleStyleReady[\s\S]*applyViewMode\(map, viewModeRef\.current, false, false\)/,
+  assert.match(liveMapSource, /handleStyleReady[\s\S]*applyViewMode\(map, viewModeRef\.current,[\s\S]{0,100}false, false\)/,
     "Basemap style loads must restore active 2D/3D handlers and layers without overwriting the live camera.");
   assert.match(liveMapSource, /viewport: \{ \.\.\.current\.viewport, \.\.\.CAMERA\[nextMode\], viewMode: nextMode \}/,
     "A 2D/3D toggle must persist camera and mode as one consistent viewport state.");
-  assert.match(liveMapSource, /if \(!map\) return;[\s\S]*applyViewMode\(map, nextMode\);[\s\S]*if \(!map\.isStyleLoaded\(\)\) return;/,
+  assert.match(liveMapSource, /if \(!map\) return;[\s\S]*applyViewMode\(map, nextMode,[\s\S]{0,100}\);[\s\S]*if \(!map\.isStyleLoaded\(\)\) return;/,
     "A 2D/3D camera change must apply immediately, including while the basemap style is loading.");
-  assert.match(liveMapSource, /applyViewMode\(map, initialViewMode, false, false\)/,
+  assert.match(liveMapSource, /applyViewMode\(map, initialViewMode,[\s\S]{0,100}false, false\)/,
     "Restoring a session must preserve its saved custom 3D camera rather than reset to the canonical angle.");
   assert.match(liveMapSource, /viewport:[\s\S]*viewMode: viewModeRef\.current/,
     "The selected map viewport must persist its explicit 2D/3D mode.");
   assert.match(liveMapSource, /selectionCanShowVolume\([\s\S]*renderHeightM !== null/,
     "Selected 3D volume must require a real rendered height.");
   for (const action of ["Object profile", "Development screening", "Redevelopment", "Due diligence"]) {
-    assert.match(analysisClientSource, new RegExp(action), `Missing focused analysis action: ${action}.`);
+    assert.match(`${analysisClientSource}\n${prototypeI18nSource}`, new RegExp(action), `Missing focused analysis action: ${action}.`);
   }
   const liveEvidenceSource = readFileSync(path.join(ROOT, "src/lib/prototype/point-to-object-live-evidence.ts"), "utf8");
   const aiCoreSource = readFileSync(path.join(ROOT, "src/lib/prototype/point-to-object-ai-core.ts"), "utf8");
@@ -1361,7 +1373,7 @@ function assertStaticBoundaries(): void {
       const relativePath = path.relative(ROOT, filePath).split(path.sep).join("/");
       const integratesPointToObject = /(?:src\/lib|@\/src\/lib|\.\.\/.*src\/lib)\/point-to-object|point-to-object\//.test(source);
       if (integratesPointToObject) {
-        assert.equal(candidateSurfaceAllowlist.has(relativePath), true,
+        assert.equal(pointObjectIntegrationAllowlist.has(relativePath), true,
           `${relativePath} is not allowlisted to integrate the point-to-object Candidate.`);
       }
       assert.equal(source.includes("point-to-object/candidate-assertion-core"), false,
@@ -1401,7 +1413,9 @@ async function assertCandidateAiSafety(): Promise<void> {
       /import \{ LIVE_POINT_CAVEAT \} from "@\/src\/lib\/point-to-object\/contracts";\n/,
       `const LIVE_POINT_CAVEAT = ${JSON.stringify(LIVE_POINT_CAVEAT)};\n`
     ],
-    [/import type \{ GroundablePointObjectEvidencePack \} from "\.\/point-to-object-live-evidence";\n/, ""]
+    [/import \{ semanticHash \} from "@\/src\/lib\/point-to-object\/hash";\n/, "const semanticHash = (value) => JSON.stringify(value);\n"],
+    [/import type \{[\s\S]*?\} from "\.\/point-to-object-live-evidence";\n/, ""],
+    [/import type \{ PointObjectLocale \} from "\.\/point-to-object-markets";\n/, ""]
   ]);
   const liveSessionPath = path.join(ROOT, "components/point-to-object/live-session.ts");
   const liveSession = await importErasableTypeScript(liveSessionPath, [
@@ -1411,7 +1425,11 @@ async function assertCandidateAiSafety(): Promise<void> {
     ],
     [
       /import \{\n  POINT_OBJECT_ANALYSIS_PROMPT_VERSION,\n  POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION\n\} from "@\/components\/point-to-object\/live-types";\n/,
-      `const POINT_OBJECT_ANALYSIS_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V6_2026_09_04";\nconst POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION = 4;\n`
+      `const POINT_OBJECT_ANALYSIS_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V7_2026_09_04";\nconst POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION = 5;\n`
+    ],
+    [
+      /import \{ isPointObjectLocale, isPointObjectMarketKey \} from "@\/src\/lib\/prototype\/point-to-object-markets";\n/,
+      `const isPointObjectLocale = (value) => value === "en" || value === "ru";\nconst isPointObjectMarketKey = (value) => ["dubai", "abu_dhabi", "doha", "riyadh", "jeddah", "kuala_lumpur", "singapore", "hong_kong", "moscow"].includes(value);\n`
     ]
   ]);
   const parseClientTelemetry = liveSession.parsePointObjectAiTelemetry as (value: unknown) => JsonObject | null;
@@ -1432,8 +1450,8 @@ async function assertCandidateAiSafety(): Promise<void> {
     outputTokens: number | null
   ) => { estimatedCostUsd: number | null; costRateSource: string | null };
   const summarizeUsage = aiCore.summarizePointObjectAiAttemptUsage as (attempts: JsonObject[]) => JsonObject;
-  assert.equal(aiCore.POINT_OBJECT_AI_RESULT_SCHEMA_VERSION, 4,
-    "The public analysis receipt must expose the documented V4 result schema version.");
+  assert.equal(aiCore.POINT_OBJECT_AI_RESULT_SCHEMA_VERSION, 5,
+    "The public analysis receipt must expose the documented V5 result schema version.");
   const buildRequest = aiCore.buildPointObjectResponsesRequest as (
     pack: JsonObject,
     analysisRequest: JsonObject,
@@ -1469,6 +1487,8 @@ async function assertCandidateAiSafety(): Promise<void> {
     "Cost provenance must disclose all four applied rates.");
   assert.equal(estimateCost("gpt-5.6-sol", 1_000, 400, 0, 100).estimatedCostUsd, 0.00456,
     "A zero-write response must preserve the ordinary-plus-cached-read cost calculation.");
+  assert.deepEqual(estimateCost("gpt-5.6-sol-unrecognized", 1_000, 0, 0, 100), { estimatedCostUsd: null, costRateSource: null },
+    "An unrecognized model suffix must not inherit a potentially incorrect published price.");
   assert.deepEqual(estimateCost("gpt-5.6-sol", 100, 60, 41, 10), { estimatedCostUsd: null, costRateSource: null },
     "Impossible cache-read and cache-write token totals must fail closed instead of understating or overstating cost.");
   assert.deepEqual(estimateCost("gpt-5.6-sol", 100, 0, null, 10), { estimatedCostUsd: null, costRateSource: null },
@@ -1544,11 +1564,11 @@ async function assertCandidateAiSafety(): Promise<void> {
   "A partial token tuple must normalize atomically so billing telemetry cannot discard valid analysis content.");
   const clientTelemetry = {
     provider: "openai",
-    schemaVersion: 4,
+    schemaVersion: 5,
     model: "gpt-5.6-sol",
     reasoningEffort: "medium",
     depth: "standard",
-    promptVersion: "POINT_OBJECT_AI_PROMPT_V6_2026_09_04",
+    promptVersion: "POINT_OBJECT_AI_PROMPT_V7_2026_09_04",
     requestId: "resp_repair",
     latencyMs: 1_234,
     attempts: 2,
@@ -1577,6 +1597,47 @@ async function assertCandidateAiSafety(): Promise<void> {
   assert.equal(parseClientTelemetry({ ...clientTelemetry, schemaVersion: 2 }), null,
     "The client must reject an analysis receipt from an undeclared schema version.");
 
+  const mappedMetrics = {
+    footprintAreaSqM: 2_450,
+    footprintPerimeterM: 210,
+    method: "local_equirectangular_wgs84_approximation",
+    geometryGeneralized: true
+  };
+  const geoContext = {
+    radiusM: 400,
+    coverage: "available",
+    sampleSize: 40,
+    capReached: false,
+    groups: [
+      { group: "hospitality", count: 12, sharePct: 30, nearestDistanceM: 0 },
+      { group: "commercial", count: 10, sharePct: 25, nearestDistanceM: 25 },
+      { group: "transport", count: 8, sharePct: 20, nearestDistanceM: 240 },
+      { group: "other_built", count: 10, sharePct: 25, nearestDistanceM: 15 }
+    ],
+    mappedBuildingCount: 28,
+    mappedLevelsKnownCount: 18,
+    medianMappedLevels: 12,
+    nearestTransitM: 240,
+    nearestMajorRoadM: 35,
+    districtCharacter: {
+      code: "hospitality_tourism",
+      confidence: "medium",
+      ruleVersion: "POINT_OBJECT_DISTRICT_RULE_V1",
+      driverGroups: ["hospitality", "commercial"]
+    }
+  };
+  const geoContextSummary = {
+    radiusM: geoContext.radiusM,
+    coverage: geoContext.coverage,
+    sampleSize: geoContext.sampleSize,
+    capReached: geoContext.capReached,
+    groups: geoContext.groups,
+    mappedBuildingCount: geoContext.mappedBuildingCount,
+    mappedLevelsKnownCount: geoContext.mappedLevelsKnownCount,
+    medianMappedLevels: geoContext.medianMappedLevels,
+    nearestTransitM: geoContext.nearestTransitM,
+    nearestMajorRoadM: geoContext.nearestMajorRoadM
+  };
   const evidencePack = {
     protocol: "POINT_TO_OBJECT_001_AI_EVIDENCE_PACK_LIVE_V1",
     evidencePackId: "p2o_evidence_test",
@@ -1601,6 +1662,7 @@ async function assertCandidateAiSafety(): Promise<void> {
       featureClass: "tourism:hotel",
       geometryType: "Polygon",
       geometryHash: sha256("geometry-test"),
+      metrics: mappedMetrics,
       addressParts: {
         city_district: "Trade Centre",
         city: "Dubai",
@@ -1626,14 +1688,18 @@ async function assertCandidateAiSafety(): Promise<void> {
     nearbyContext: [
       { evidenceId: "EVD-CONTEXT-01", sourceFeatureId: "node/456", name: "World Trade Centre", featureClass: "public_transport:station", distanceM: 240 }
     ],
+    geoContext,
     evidence: [
       { id: "EVD-OBJECT", label: "Object", value: JSON.stringify({ sourceFeatureId: "way/1", name: "Shangri La" }), sourceId: "way/1", proofLimit: "FREE_TEXT_PROOF_LIMIT_DO_NOT_PROJECT" },
       { id: "EVD-CLASSIFICATION", label: "Classification", value: JSON.stringify({ sourceFeatureId: "way/1", featureClass: "tourism:hotel" }), sourceId: "way/1", proofLimit: "Open-map classification only." },
       { id: "EVD-ADDRESS", label: "Address", value: JSON.stringify({ sourceFeatureId: "way/1", displayAddress: "Shangri La, Sheikh Zayed Road, Trade Centre, Dubai, United Arab Emirates", addressParts: { city_district: "Trade Centre", city: "Dubai", state: "Dubai Emirate", country: "United Arab Emirates" } }), sourceId: "way/1", proofLimit: "Open-map address only." },
       { id: "EVD-ALLOWED-FIELDS", label: "Attributes", value: JSON.stringify({ sourceFeatureId: "way/1", tags: { "tag.building": "hotel", "tag.building:levels": "43", "tag.height": "200", "tag.start_date": "2003", "tag.tourism": "hotel", "tag.wikidata": "Q3751975", "tag.owner": "FREE_TEXT_OWNER_MUST_NOT_PROJECT" } }), sourceId: "way/1", proofLimit: "Allowlisted tags only." },
       { id: "EVD-GEOMETRY", label: "Geometry", value: JSON.stringify({ sourceFeatureId: "way/1", geometryType: "Polygon", geometryHash: sha256("geometry-test") }), sourceId: "way/1", proofLimit: "Open-map geometry only." },
+      { id: "EVD-OBJECT-METRICS", label: "Approximate mapped object footprint metrics", value: JSON.stringify({ sourceFeatureId: "way/1", geometryHash: sha256("geometry-test"), metrics: mappedMetrics }), sourceId: "way/1", proofLimit: "Approximate metrics only." },
       { id: "EVD-COORDINATES", label: "Coordinates", value: JSON.stringify({ longitude: 55.271928, latitude: 25.20811, crs: "EPSG:4326" }), sourceId: "user_point", proofLimit: "Analysis point only." },
       { id: "EVD-CONTEXT-01", label: "World Trade Centre", value: JSON.stringify({ sourceFeatureId: "node/456", name: "World Trade Centre", featureClass: "public_transport:station", distanceM: 240 }), sourceId: "node/456", proofLimit: "Bounded open-map context only." },
+      { id: "EVD-CONTEXT-SUMMARY", label: "Bounded mapped context summary", value: JSON.stringify(geoContextSummary), sourceId: "SPAT-001", proofLimit: "Bounded aggregate only." },
+      { id: "EVD-DISTRICT-PROFILE", label: "Rule-based mapped context profile", value: JSON.stringify({ summaryHash: JSON.stringify(geoContextSummary), districtCharacter: geoContext.districtCharacter }), sourceId: "derived:POINT_OBJECT_DISTRICT_RULE_V1", proofLimit: "Rule-based context only." },
       { id: "EVD-SOURCE", label: "Open data source", value: "OpenStreetMap / ODbL", sourceId: "SPAT-001", proofLimit: "Runtime open community-map context; feature observation time unavailable." }
     ],
     conflicts: [],
@@ -1647,7 +1713,8 @@ async function assertCandidateAiSafety(): Promise<void> {
     goal: "development_screening",
     perspective: "investor",
     horizon: "long_term",
-    question: "What should an investor validate before advancing this location?"
+    question: "What should an investor validate before advancing this location?",
+    locale: "en"
   };
   const initialAnalysisRequest = { ...focusedAnalysisRequest, question: null };
   const modelProfile = {
@@ -1666,8 +1733,8 @@ async function assertCandidateAiSafety(): Promise<void> {
   assert.equal(request.max_output_tokens, 3200, "The profile output-token bound must be enforced.");
   assert.equal((request.text as JsonObject).format instanceof Object, true, "Strict structured output is required.");
   assert.equal(((request.text as JsonObject).format as JsonObject).strict, true, "AI JSON schema must be strict.");
-  assert.equal(((request.text as JsonObject).format as JsonObject).name, "geoai_point_object_decision_plan_v4",
-    "The request must use the V4 evidence-bound decision-plan schema.");
+  assert.equal(((request.text as JsonObject).format as JsonObject).name, "geoai_point_object_decision_plan_v5",
+    "The request must use the V5 evidence-bound decision-plan schema.");
   const responseSchema = (((request.text as JsonObject).format as JsonObject).schema as JsonObject);
   assert.deepEqual(responseSchema.required,
     ["decision", "signalCodes", "opportunityCodes", "risks", "answerCode", "focusedAnswer", "caveat"],
@@ -1698,6 +1765,14 @@ async function assertCandidateAiSafety(): Promise<void> {
     "An allowlisted structured tag value must reach the model projection.");
   assert.equal(projectedAttributes["tag.tourism"], "hotel",
     "An allowlisted categorical tag value must reach the model projection.");
+  assert.deepEqual(projectedObject.metrics, mappedMetrics,
+    "Approximate mapped footprint metrics must reach the model only when bound to their exact receipt.");
+  assert.deepEqual(evidenceProjection.geoContext, geoContext,
+    "Bounded mapped urban-fabric aggregates must reach the model only when bound to exact summary and district receipts.");
+  const initialProjectedEvidenceIds = (evidenceProjection.evidenceIndex as JsonObject[]).map((item) => item.id);
+  assert.ok(initialProjectedEvidenceIds.includes("EVD-OBJECT-METRICS"));
+  assert.ok(initialProjectedEvidenceIds.includes("EVD-CONTEXT-SUMMARY"));
+  assert.ok(initialProjectedEvidenceIds.includes("EVD-DISTRICT-PROFILE"));
   assert.deepEqual(selectionPolicy.targetCounts,
     { decisionReasons: 3, signals: 4, opportunities: 2, risks: 3 },
     "The model must receive deterministic output counts that fit the runtime validator.");
@@ -1762,7 +1837,7 @@ async function assertCandidateAiSafety(): Promise<void> {
     index === 0 ? { ...item, purpose: "focused" } : item);
   const fullClientResponse = {
     mode: "openai",
-    schemaVersion: 4,
+    schemaVersion: 5,
     generatedAt: "2026-09-04T00:00:00.000Z",
     evidencePackId: evidencePack.evidencePackId,
     evidencePackHash: evidencePack.evidencePackHash,
@@ -1779,7 +1854,9 @@ async function assertCandidateAiSafety(): Promise<void> {
       geometryType: evidencePack.selectedObject.geometryType,
       resultCentroidDistanceM: evidencePack.resolution.resultCentroidDistanceM,
       addressParts: evidencePack.selectedObject.addressParts,
-      tags: evidencePack.selectedObject.tags
+      tags: evidencePack.selectedObject.tags,
+      metrics: evidencePack.selectedObject.metrics,
+      geoContext: evidencePack.geoContext
     },
     telemetry: {
       ...clientTelemetry,
@@ -1826,8 +1903,59 @@ async function assertCandidateAiSafety(): Promise<void> {
     "Location context must be rebuilt server-side from the normalized evidence pack.");
   assert.ok(locationContext.some((item) => item.statement.includes("World Trade Centre") && item.evidenceRefs.includes("EVD-CONTEXT-01")),
     "Bounded nearby context must be rebuilt server-side from normalized context evidence.");
+  assert.ok(sourceFacts.some((item) => item.statement.includes("footprint") && item.evidenceRefs.includes("EVD-OBJECT-METRICS")),
+    "Approximate mapped footprint area and perimeter must be rendered as a receipt-backed source fact.");
+  assert.ok(locationContext.some((item) => item.evidenceRefs.includes("EVD-DISTRICT-PROFILE") && item.statement.includes("hospitality and tourism-led")),
+    "The rule-based district character and its drivers must be rendered as an explicitly derived context statement.");
+  assert.ok(locationContext.some((item) => item.evidenceRefs.includes("EVD-CONTEXT-SUMMARY") && item.statement.includes("400 m")),
+    "Context radius, sample coverage and cap state must be disclosed in the user-facing analysis.");
+  assert.ok(locationContext.some((item) => item.evidenceRefs.includes("EVD-CONTEXT-SUMMARY") && item.statement.includes("mapped buildings")),
+    "Mapped building count and levels coverage must be rendered from the bounded aggregate.");
+  assert.deepEqual(validated.geoContext, geoContext,
+    "The validated V5 result must preserve the exact server-derived geo-context profile for UI rendering.");
   assert.ok(nextValidation.length >= 4 && nextValidation[0]?.priority === "critical",
     "Prioritized validation actions must be added deterministically server-side.");
+
+  const metricsTamperPack = {
+    ...evidencePack,
+    selectedObject: {
+      ...evidencePack.selectedObject,
+      metrics: { ...mappedMetrics, footprintAreaSqM: mappedMetrics.footprintAreaSqM + 1 }
+    }
+  };
+  const metricsTamperRequest = buildRequest(metricsTamperPack, focusedAnalysisRequest, modelProfile);
+  const metricsTamperInput = metricsTamperRequest.input as JsonObject[];
+  const metricsTamperPayload = JSON.parse(String((metricsTamperInput[1]?.content as JsonObject[])[0]?.text)) as JsonObject;
+  const metricsTamperProjection = metricsTamperPayload.evidenceProjection as JsonObject;
+  assert.equal((metricsTamperProjection.selectedObject as JsonObject).metrics, null,
+    "Substituted geometry metrics must fail closed when the exact metric receipt no longer matches.");
+  assert.equal(((metricsTamperProjection.evidenceIndex as JsonObject[]) ?? []).some((item) => item.id === "EVD-OBJECT-METRICS"), false,
+    "A mismatched metric receipt must not remain eligible model evidence.");
+
+  const contextTamperPack = {
+    ...evidencePack,
+    geoContext: { ...geoContext, sampleSize: geoContext.sampleSize + 1 }
+  };
+  const contextTamperRequest = buildRequest(contextTamperPack, focusedAnalysisRequest, modelProfile);
+  const contextTamperInput = contextTamperRequest.input as JsonObject[];
+  const contextTamperPayload = JSON.parse(String((contextTamperInput[1]?.content as JsonObject[])[0]?.text)) as JsonObject;
+  const contextTamperProjection = contextTamperPayload.evidenceProjection as JsonObject;
+  assert.equal(contextTamperProjection.geoContext, null,
+    "Substituted urban-fabric aggregates must fail closed when their exact summary receipt no longer matches.");
+  const contextTamperEvidenceIds = ((contextTamperProjection.evidenceIndex as JsonObject[]) ?? []).map((item) => item.id);
+  assert.equal(contextTamperEvidenceIds.includes("EVD-CONTEXT-SUMMARY"), false);
+  assert.equal(contextTamperEvidenceIds.includes("EVD-DISTRICT-PROFILE"), false);
+
+  const russianValidated = validateContent(rawPlan, evidencePack, { ...focusedAnalysisRequest, locale: "ru" }) as any;
+  assert.ok(russianValidated, "The same evidence-bound analysis must support a Russian deterministic render.");
+  assert.match(russianValidated.decisionBrief.summary, /[А-Яа-яЁё]/,
+    "Russian locale must control the deterministic decision language.");
+  assert.ok(russianValidated.locationContext.some((item: any) => /[А-Яа-яЁё]/.test(item.statement)),
+    "Russian locale must control the deterministic geo-context language.");
+  assert.deepEqual(russianValidated.geoContext, geoContext,
+    "Locale changes must not alter the underlying evidence-derived geo-context data.");
+  assert.equal(russianValidated.caveat, LIVE_POINT_CAVEAT,
+    "The mandatory legal/data caveat remains exact across locales.");
 
   const allRenderedRefs = [
     ...validated.decisionBrief.reasons,
@@ -2485,9 +2613,14 @@ async function assertLiveOverpassContext(): Promise<void> {
     [
       /import \{ semanticHash \} from "@\/src\/lib\/point-to-object\/hash";\n/,
       "const semanticHash = (value) => JSON.stringify(value);\n"
+    ],
+    [
+      /import \{[\s\S]*?\} from "\.\/point-to-object-markets";\n/,
+      `const nominatimLocale = (locale) => locale === "ru" ? "ru,en" : "en";\nconst pointObjectMarket = () => ({ bounds: [[54.8, 24.8], [55.8, 25.6]], countryCode: "ae" });\n`
     ]
   ]);
   const buildQuery = liveEvidence.buildOverpassNearbyQuery as (point: [number, number]) => string;
+  const buildFabricQuery = liveEvidence.buildOverpassUrbanFabricQuery as (point: [number, number]) => string;
   const normalize = liveEvidence.normalizeOverpassNearbyContext as (
     payload: unknown,
     point: [number, number],
@@ -2500,6 +2633,11 @@ async function assertLiveOverpassContext(): Promise<void> {
     locale: string,
     loader: (query: string) => Promise<unknown>
   ) => Promise<JsonObject>;
+  const normalizeFabric = liveEvidence.normalizeOverpassUrbanFabric as (
+    payload: unknown,
+    point: [number, number]
+  ) => JsonObject;
+  const calculateGeometryMetrics = liveEvidence.geometryMetrics as (geometry: unknown) => JsonObject | null;
 
   const point: [number, number] = [55.271928, 25.20811];
   const query = buildQuery(point);
@@ -2510,6 +2648,48 @@ async function assertLiveOverpassContext(): Promise<void> {
   assert.match(query, /out center 120;/,
     "Nearby live context must cap the upstream result set and request only tags plus element centres.");
   assert.equal(query.includes("owner"), false, "Nearby context must not request ownership data.");
+
+  const fabricQuery = buildFabricQuery(point);
+  assert.match(fabricQuery, /\(around:400,25\.208110,55\.271928\)/,
+    "Urban-fabric aggregation must use a separately bounded 400 m radius.");
+  assert.match(fabricQuery, /out tags center 320;/,
+    "Urban-fabric aggregation must cap upstream elements and request only tags plus centres.");
+  assert.equal(fabricQuery.includes("owner"), false,
+    "Urban-fabric aggregation must not request ownership or similarly unneeded fields.");
+
+  const fabric = normalizeFabric({ elements: [
+    { type: "way", id: 101, center: { lat: 25.20812, lon: 55.27194 }, tags: { building: "apartments", "building:levels": "6" } },
+    { type: "way", id: 102, center: { lat: 25.20814, lon: 55.27196 }, tags: { building: "apartments", "building:levels": "8" } },
+    { type: "way", id: 103, center: { lat: 25.20816, lon: 55.27198 }, tags: { building: "apartments", "building:levels": "10" } },
+    { type: "way", id: 104, center: { lat: 25.20818, lon: 55.27200 }, tags: { building: "commercial", "building:levels": "12" } },
+    { type: "way", id: 105, center: { lat: 25.20820, lon: 55.27202 }, tags: { building: "office", "building:levels": "14" } },
+    { type: "node", id: 106, lat: 25.20822, lon: 55.27204, tags: { shop: "supermarket" } },
+    { type: "node", id: 107, lat: 25.20824, lon: 55.27206, tags: { public_transport: "station" } },
+    { type: "way", id: 108, center: { lat: 25.20826, lon: 55.27208 }, tags: { highway: "primary" } }
+  ] }, point);
+  assert.equal(fabric.coverage, "available");
+  assert.equal(fabric.sampleSize, 8);
+  assert.equal(fabric.mappedBuildingCount, 5);
+  assert.equal(fabric.mappedLevelsKnownCount, 5);
+  assert.equal(fabric.medianMappedLevels, 10);
+  assert.equal((fabric.districtCharacter as JsonObject).code, "residential",
+    "The transparent district rule must derive a stable character from returned mapped-use counts.");
+  assert.ok(typeof fabric.nearestTransitM === "number" && typeof fabric.nearestMajorRoadM === "number",
+    "Mapped transit and major-road proximity must be derived as straight-line context metrics.");
+  assert.equal((fabric.groups as JsonObject[]).some((group) => group.group === "residential" && group.count === 3), true,
+    "The aggregate must expose a compact mapped activity/use mix.");
+
+  const squareMetrics = calculateGeometryMetrics({
+    type: "Polygon",
+    coordinates: [[
+      [55.2710, 25.2080], [55.2720, 25.2080], [55.2720, 25.2090], [55.2710, 25.2090], [55.2710, 25.2080]
+    ]]
+  });
+  assert.ok(squareMetrics && Number(squareMetrics.footprintAreaSqM) > 9_000 && Number(squareMetrics.footprintAreaSqM) < 12_000,
+    "Mapped polygon footprint area must be calculated approximately and within a defensible local range.");
+  assert.equal(squareMetrics?.method, "local_equirectangular_wgs84_approximation");
+  assert.equal(squareMetrics?.geometryGeneralized, true,
+    "Footprint metrics must carry the generalized/open-map geometry limitation in their typed contract.");
 
   const payload = {
     osm3s: { timestamp_osm_base: "2026-09-03T21:00:00Z" },
