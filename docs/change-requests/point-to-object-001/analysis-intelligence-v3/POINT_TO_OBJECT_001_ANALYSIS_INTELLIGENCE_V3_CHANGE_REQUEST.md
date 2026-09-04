@@ -49,7 +49,7 @@ The prototype must demonstrate the product thesis: a selected spatial object bec
 | Standard | `gpt-5.6-terra` | `gpt-5.6-sol` | medium |
 | Deep | `gpt-5.6-sol` | `gpt-5.6-sol` | high |
 
-One invalid-output repair may escalate to Terra/low, Sol/medium or Sol/xhigh respectively. Exact model IDs remain server defaults with validated environment overrides. `max` reasoning is excluded from the interactive UI until representative evals show a measurable gain that justifies latency and cost.
+One invalid-output repair uses Terra/low for Quick and Sol/medium for Standard or Deep; the Deep repair is deliberately bounded below the initial Deep effort to preserve the shared route deadline. Exact model IDs remain server defaults with validated environment overrides. `max` reasoning is excluded from the interactive UI until representative evals show a measurable gain that justifies latency and cost.
 
 ## Source and evidence decision
 
