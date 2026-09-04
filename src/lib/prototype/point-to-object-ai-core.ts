@@ -1129,7 +1129,7 @@ function renderReason(code: PointObjectReasonCode, support: PointObjectEvidenceS
       const item = support.projection.nearbyContext[0];
       return { statement: item
         ? `Nearby open-map context includes ${item.name}, classified as ${item.featureClass}, approximately ${item.distanceM} m straight-line from the analysis point.`
-        : "Bounded nearby open-map context is available for comparison.", evidenceRefs: refs };
+        : "Bounded nearby open-map context is available for comparison.", evidenceRefs: item ? [item.evidenceId] : refs };
     }
     case "source_is_non_official": return { statement: "The available source is open community-map context, not an authoritative domain register.", evidenceRefs: refs };
     case "identity_requires_validation": {
@@ -1388,6 +1388,41 @@ function novelNumberInStatement(statement: string, support: PointObjectEvidenceS
   return (statement.match(/\d+(?:[.,]\d+)?/g) ?? []).some((number) => !allowed.has(number));
 }
 
+function contextEvidenceTerms(
+  refs: readonly string[],
+  support: PointObjectEvidenceSupport
+): Set<string> {
+  const terms = new Set<string>();
+  for (const item of support.projection.nearbyContext.filter((candidate) => refs.includes(candidate.evidenceId))) {
+    for (const token of item.name.toLocaleLowerCase("en-US").split(/[^\p{L}\p{N}]+/u)) {
+      if (token.length >= 4) terms.add(token);
+    }
+    const classValue = item.featureClass.toLocaleLowerCase("en-US").split(":").at(-1) ?? "";
+    for (const token of classValue.split(/[^a-z0-9]+/)) if (token.length >= 4) terms.add(token);
+    if (/school|kindergarten|college|university/.test(classValue)) {
+      terms.add("education"); terms.add("educational");
+    }
+    if (/hospital|clinic|doctors|pharmacy/.test(classValue)) {
+      terms.add("healthcare"); terms.add("medical");
+    }
+    if (/supermarket|convenience|marketplace|mall/.test(classValue)) {
+      terms.add("grocery"); terms.add("retail"); terms.add("shopping"); terms.add("convenience");
+    }
+    if (/station|platform|stop_position|halt|tram_stop|subway_entrance|bus_stop/.test(classValue)) {
+      terms.add("transit"); terms.add("transport"); terms.add("station");
+    }
+    if (/motorway|trunk|primary|secondary|tertiary/.test(classValue)) {
+      terms.add("road"); terms.add("access");
+    }
+    if (/park|garden|playground|sports_centre|nature_reserve|wood|water|forest|recreation_ground/.test(classValue)) {
+      terms.add("park"); terms.add("green"); terms.add("open space");
+    }
+    if (/hotel/.test(classValue)) terms.add("hospitality");
+    if (/museum|gallery|arts_centre|theatre|cinema/.test(classValue)) terms.add("cultural");
+  }
+  return terms;
+}
+
 function requiredMissingEvidence(
   question: string,
   support: PointObjectEvidenceSupport
@@ -1489,12 +1524,9 @@ function validateFocusedAnswer(
     return { ok: false, detail: "focused_answer_context_without_context_receipt" };
   }
   if (contextRefs.length > 0) {
-    const contextText = support.projection.nearbyContext
-      .filter((item) => contextRefs.includes(item.evidenceId))
-      .flatMap((item) => [item.name, item.featureClass])
-      .join(" ")
-      .toLocaleLowerCase("en-US");
-    if (!contextText || !contextText.split(/\s+/).some((token) => token.length >= 4 && statement.toLocaleLowerCase("en-US").includes(token))) {
+    const statementText = statement.toLocaleLowerCase("en-US");
+    const contextTerms = contextEvidenceTerms(contextRefs, support);
+    if (contextTerms.size === 0 || ![...contextTerms].some((term) => statementText.includes(term))) {
       return { ok: false, detail: "focused_answer_context_value_mismatch" };
     }
   }

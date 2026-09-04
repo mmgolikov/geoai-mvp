@@ -1747,6 +1747,17 @@ async function assertCandidateAiSafety(): Promise<void> {
     `Evidence-bound coded AI plan must validate: ${JSON.stringify(detailedValidation)}`);
   const validated = validateContent(rawPlan, evidencePack, focusedAnalysisRequest) as any;
   assert.ok(validated, "Evidence-bound coded AI plan must validate.");
+  const nearbyReasonResult = validateContent({
+    ...rawPlan,
+    decision: {
+      ...rawPlan.decision,
+      reasonCodes: ["nearby_context_available", "use_classification_available", "lifecycle_marker_available"]
+    }
+  }, evidencePack, focusedAnalysisRequest) as any;
+  const nearbyReason = nearbyReasonResult.decisionBrief.reasons.find((item: any) =>
+    String(item.statement).startsWith("Nearby open-map context includes"));
+  assert.equal(nearbyReason?.evidenceRefs.length, 1,
+    "A rendered fact about one nearby feature must not over-cite an unrelated second feature.");
   const focusedAttemptTrace = (mixedRouteUsage.attemptTrace as JsonObject[]).map((item, index) =>
     index === 0 ? { ...item, purpose: "focused" } : item);
   const fullClientResponse = {
@@ -2148,6 +2159,18 @@ async function assertCandidateAiSafety(): Promise<void> {
   }, evidencePack, focusedAnalysisRequest);
   assert.equal(combinedObjectAndNearbyAnswer.ok, true,
     "A nearby-context answer may bind both the selected object and the cited nearby feature.");
+
+  const genericContextCategoryAnswer = validateContentDetailed({
+    ...rawPlan,
+    focusedAnswer: {
+      ...rawPlan.focusedAnswer,
+      scope: "nearby_context",
+      statement: "The nearby transport context supports comparative location screening, while the investment case still needs verified evidence.",
+      evidenceRefs: ["EVD-CONTEXT-01"]
+    }
+  }, evidencePack, focusedAnalysisRequest);
+  assert.equal(genericContextCategoryAnswer.ok, true,
+    "A derived category phrase may bind to the canonical nearby feature class without repeating the full feature name.");
 
   const mixedEvidenceMappedUseAnswer = validateContentDetailed({
     ...rawPlan,
