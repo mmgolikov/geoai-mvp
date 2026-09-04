@@ -1391,6 +1391,11 @@ function assertStaticBoundaries(): void {
 async function assertCandidateAiSafety(): Promise<void> {
   const aiCorePath = path.join(ROOT, "src/lib/prototype/point-to-object-ai-core.ts");
   assert.ok(existsSync(aiCorePath), "Candidate AI core is required for bounded Preview safety tests.");
+  const aiServiceSource = readFileSync(path.join(ROOT, "src/lib/prototype/point-to-object-ai.ts"), "utf8");
+  assert.match(aiServiceSource, /code === "EVIDENCE_INSUFFICIENT"/,
+    "A routine focused-answer evidence mismatch must receive one bounded server-side repair instead of forcing a manual retry.");
+  assert.match(aiServiceSource, /validation\.detail \?\? null/,
+    "The bounded repair request must receive the internal validation detail needed to correct the failed evidence gate.");
   const aiCore = await importErasableTypeScript(aiCorePath, [
     [
       /import \{ LIVE_POINT_CAVEAT \} from "@\/src\/lib\/point-to-object\/contracts";\n/,

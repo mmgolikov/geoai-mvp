@@ -1615,13 +1615,14 @@ export function buildPointObjectResponsesRequest(
   evidencePack: GroundablePointObjectEvidencePack,
   request: PointObjectAnalysisRequest,
   profile: PointObjectModelProfile,
-  repairCode: PointObjectAiValidationCode | null = null
+  repairCode: PointObjectAiValidationCode | null = null,
+  repairDetail: string | null = null
 ) {
   const boundedQuestion = stringValue(request.question, 500);
   const evidenceProjection = buildModelEvidenceProjection(evidencePack);
   const support = evidenceSupport(evidencePack);
   const repairTask = repairCode
-    ? `Regenerate the strict decision plan and correct validation failure ${repairCode}. Use exact keys, eligible evidence refs, known enum codes and the mandatory caveat. If a focused answer cannot be supported, return unsupported instead of rephrasing the claim.`
+    ? `Regenerate the strict decision plan and correct validation failure ${repairCode}${repairDetail ? ` (${repairDetail})` : ""}. Use exact keys, eligible evidence refs, known enum codes and the mandatory caveat. For a focused answer, cite only scope-compatible eligible refs; when using nearby context, name the cited feature exactly and cite its EVD-CONTEXT record; do not introduce any number absent from evidenceProjection. If the requested answer cannot pass those gates, return unsupported instead of rephrasing the claim.`
     : null;
   return {
     model: profile.model,

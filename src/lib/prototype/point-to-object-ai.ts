@@ -190,7 +190,8 @@ async function requestOpenAi(
   request: PointObjectAnalysisRequest,
   profile: RoutedProfile,
   deadline: number,
-  repairCode: PointObjectAiValidationCode | null
+  repairCode: PointObjectAiValidationCode | null,
+  repairDetail: string | null = null
 ): Promise<{ payload: unknown; requestId: string | null }> {
   let response: Response;
   try {
@@ -201,7 +202,7 @@ async function requestOpenAi(
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json"
       },
-      body: JSON.stringify(buildPointObjectResponsesRequest(evidencePack, request, profile, repairCode))
+      body: JSON.stringify(buildPointObjectResponsesRequest(evidencePack, request, profile, repairCode, repairDetail))
     });
   } catch (error) {
     if (isTimeout(error)) {
@@ -255,7 +256,8 @@ function validateCompletedOutput(
 }
 
 function isRepairableValidationCode(code: PointObjectAiValidationCode): boolean {
-  return code === "SHAPE_INVALID" || code === "CAVEAT_INVALID" || code === "NO_RENDERABLE_PLAN";
+  return code === "SHAPE_INVALID" || code === "UNKNOWN_CODE" || code === "CAVEAT_INVALID" ||
+    code === "NO_RENDERABLE_PLAN" || code === "EVIDENCE_INSUFFICIENT";
 }
 
 export async function generatePointObjectAiAnalysis(
@@ -318,7 +320,15 @@ export async function generatePointObjectAiAnalysis(
     const repairCode = validation.code;
     profile = profileFor(analysisRequest, "repair");
     attempts += 1;
-    attempt = await requestOpenAi(apiKey, evidencePack, analysisRequest, profile, deadline, repairCode);
+    attempt = await requestOpenAi(
+      apiKey,
+      evidencePack,
+      analysisRequest,
+      profile,
+      deadline,
+      repairCode,
+      validation.detail ?? null
+    );
     requestId = attempt.requestId;
     attemptUsages.push({
       purpose: "repair",
