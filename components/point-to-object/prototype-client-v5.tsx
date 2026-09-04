@@ -223,7 +223,6 @@ export function PointToObjectPrototypeV5() {
   const suggestionCacheRef = useRef(new Map<string, LiveMapSearchResult[]>());
   const findPreferencesInitializedRef = useRef(false);
   const previousLocaleRef = useRef(locale);
-  const initialLocaleRef = useRef(locale);
 
   const findRoles = useMemo(() => getExploreRolesByAudience(findAudience), [findAudience]);
   const findScenarios = useMemo(() => getExploreScenariosByRole(findAudience, findRole), [findAudience, findRole]);
@@ -241,6 +240,7 @@ export function PointToObjectPrototypeV5() {
     findResult.criteria.mappedMinimumLevels !== findMappedMinimumLevels ||
     !sameFindBounds(visibleBounds, findResult.criteria.bounds)
   );
+  const findResultMarketMismatch = findResult !== null && findResult.criteria.marketKey !== locationKey;
 
   useEffect(() => {
     const restoredSelection = readPointObjectSelection();
@@ -257,17 +257,15 @@ export function PointToObjectPrototypeV5() {
       setFindScenario(restoredFind.scenario);
       setFindGroup(restoredFind.group);
       setFindMinimumLevels(restoredFind.mappedMinimumLevels);
-      if (restoredFind.locale === initialLocaleRef.current) {
-        setFindResult(restoredFind.result);
-        setFindResultIntent(restoredFind.result ? {
-          audience: restoredFind.audience,
-          role: restoredFind.role,
-          scenario: restoredFind.scenario
-        } : null);
-        setFindShortlist(restoredFind.shortlist);
-        setFindComparisonOpen(restoredFind.comparisonOpen);
-        setFindAnalysisTargetSourceFeatureId(restoredFind.analysisTargetSourceFeatureId);
-      }
+      setFindResult(restoredFind.result);
+      setFindResultIntent(restoredFind.result ? {
+        audience: restoredFind.audience,
+        role: restoredFind.role,
+        scenario: restoredFind.scenario
+      } : null);
+      setFindShortlist(restoredFind.shortlist);
+      setFindComparisonOpen(restoredFind.comparisonOpen);
+      setFindAnalysisTargetSourceFeatureId(restoredFind.analysisTargetSourceFeatureId);
     }
     setQuestion(readPointObjectQuestion());
     setFindSessionReady(true);
@@ -320,11 +318,7 @@ export function PointToObjectPrototypeV5() {
     setSuggestionStatus("idle");
     setActiveSuggestionIndex(-1);
     committedSearchQueryRef.current = "";
-    setFindResult(null);
-    setFindResultIntent(null);
-    setFindShortlist([]);
-    setFindComparisonOpen(false);
-    setFindAnalysisTargetSourceFeatureId(null);
+    findRequestRef.current?.abort();
     setFindStatus("idle");
   }, [locale, sessionReady]);
 
@@ -480,6 +474,7 @@ export function PointToObjectPrototypeV5() {
     if (nextMarket === locationKey) return;
     searchRequestRef.current?.abort();
     suggestionRequestRef.current?.abort();
+    findRequestRef.current?.abort();
     committedSearchQueryRef.current = "";
     setLocationKey(nextMarket);
     setSelection(null);
@@ -498,11 +493,6 @@ export function PointToObjectPrototypeV5() {
     setAreaContextStatus("idle");
     setIsDrawing(false);
     setCreateError(null);
-    setFindResult(null);
-    setFindResultIntent(null);
-    setFindShortlist([]);
-    setFindComparisonOpen(false);
-    setFindAnalysisTargetSourceFeatureId(null);
     setFindStatus("idle");
     clearPointObjectSelection();
     clearPointObjectAnalysis();
@@ -588,6 +578,7 @@ export function PointToObjectPrototypeV5() {
   }
 
   function chooseFindCandidate(candidate: PointObjectFindResult["candidates"][number]) {
+    if (findResultMarketMismatch) return;
     const expectedSourceFeatureId = exactOsmFeatureId(candidate.sourceFeatureId);
     if (!expectedSourceFeatureId) {
       setFindStatus("error");
@@ -878,7 +869,7 @@ export function PointToObjectPrototypeV5() {
                     ? "inline-flex min-h-11 max-w-[138px] cursor-pointer list-none items-center justify-center rounded-xl border border-line bg-white px-3 text-center text-[11px] font-bold leading-4 text-[#087f8c] transition hover:border-[#087f8c] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c]"
                     : "grid h-9 w-9 cursor-pointer list-none place-items-center rounded-full border border-line bg-white text-sm font-bold text-[#087f8c] transition hover:border-[#087f8c] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c]"}
                 >{mode === "find" ? findMethodologyLabel : "i"}</summary>
-                <div className="absolute right-0 top-12 z-30 w-[min(360px,calc(100vw-2rem))] rounded-xl border border-line bg-white p-4 text-xs leading-5 text-[#475467] shadow-panel">
+                <div data-testid={mode === "find" ? "find-methodology-panel" : undefined} className="absolute right-0 top-12 z-30 max-h-[calc(100svh-9rem)] w-[min(360px,calc(100vw-2rem))] overflow-y-auto overscroll-contain rounded-xl border border-line bg-white p-4 text-xs leading-5 text-[#475467] shadow-panel">
                   {mode === "find" ? <div data-testid="find-methodology-content">
                     <p><strong className="text-ink">{locale === "ru" ? "Источник:" : "Source:"}</strong> OpenStreetMap {locale === "ru" ? "через" : "via"} Overpass API · ODbL 1.0.</p>
                     <p className="mt-2"><strong className="text-ink">{locale === "ru" ? "Текущая область карты:" : "Current map extent:"}</strong></p>
@@ -931,10 +922,10 @@ export function PointToObjectPrototypeV5() {
                 {findShortlist.length >= 2 ? <div className="mb-3 flex items-center justify-between gap-3 rounded-xl bg-[#e6f5f1] px-3 py-2"><span className="text-xs font-bold text-[#176548]">{locale === "ru" ? `Выбрано: ${findShortlist.length}` : `Selected: ${findShortlist.length}`}</span><button type="button" onClick={() => setFindComparisonOpen((value) => !value)} className="min-h-11 rounded-lg bg-[#087f70] px-3 text-[11px] font-bold text-white">{findComparisonOpen ? (locale === "ru" ? "К списку" : "Back to list") : (locale === "ru" ? "Сравнить" : "Compare")}</button></div> : null}
                 {findComparisonOpen && findShortlist.length >= 2 ? <div className="space-y-2" aria-label={locale === "ru" ? "Сравнение объектов" : "Object comparison"}>
                   <p className="text-[10px] leading-4 text-muted">{locale === "ru" ? "Фактическое сопоставление атрибутов OpenStreetMap без оценки, победителя или инвестиционной рекомендации." : "Factual OpenStreetMap attribute comparison without scoring, winner or investment recommendation."}</p>
-                  {findShortlist.map((candidate) => <article key={candidate.sourceFeatureId} className="rounded-xl border border-line bg-white p-3"><div className="flex items-start justify-between gap-2"><div><h3 className="text-sm font-bold text-ink">{candidate.label}</h3><p className="mt-1 text-[11px] text-muted">{findGroupLabels[candidate.group]} · {candidate.matchedTag.key}={candidate.matchedTag.value}</p></div><button type="button" onClick={() => toggleFindShortlist(candidate)} className="min-h-11 shrink-0 rounded-lg px-2 text-[11px] font-bold text-[#087f70]">{locale === "ru" ? "Убрать" : "Remove"}</button></div><dl className="mt-2 grid grid-cols-[90px_1fr] gap-x-2 gap-y-1 text-[10px]"><dt className="text-muted">{locale === "ru" ? "Этажность" : "Levels"}</dt><dd className="font-semibold">{candidate.mappedBuildingLevels ?? "—"}</dd><dt className="text-muted">OSM ID</dt><dd className="truncate font-semibold">{candidate.sourceFeatureId}</dd><dt className="text-muted">{locale === "ru" ? "Координаты" : "Coordinates"}</dt><dd className="font-semibold tabular-nums">{candidate.latitude.toFixed(5)}, {candidate.longitude.toFixed(5)}</dd></dl><button type="button" onClick={() => chooseFindCandidate(candidate)} className="mt-3 min-h-11 w-full rounded-lg border border-[#8ebdb4] bg-white px-3 text-xs font-bold text-[#176548]">{locale === "ru" ? "Открыть анализ" : "Open analysis"}</button></article>)}
+                  {findShortlist.map((candidate) => <article key={candidate.sourceFeatureId} className="rounded-xl border border-line bg-white p-3"><div className="flex items-start justify-between gap-2"><div><h3 className="text-sm font-bold text-ink">{candidate.label}</h3><p className="mt-1 text-[11px] text-muted">{findGroupLabels[candidate.group]} · {candidate.matchedTag.key}={candidate.matchedTag.value}</p></div><button type="button" onClick={() => toggleFindShortlist(candidate)} className="min-h-11 shrink-0 rounded-lg px-2 text-[11px] font-bold text-[#087f70]">{locale === "ru" ? "Убрать" : "Remove"}</button></div><dl className="mt-2 grid grid-cols-[90px_1fr] gap-x-2 gap-y-1 text-[10px]"><dt className="text-muted">{locale === "ru" ? "Этажность" : "Levels"}</dt><dd className="font-semibold">{candidate.mappedBuildingLevels ?? "—"}</dd><dt className="text-muted">OSM ID</dt><dd className="truncate font-semibold">{candidate.sourceFeatureId}</dd><dt className="text-muted">{locale === "ru" ? "Координаты" : "Coordinates"}</dt><dd className="font-semibold tabular-nums">{candidate.latitude.toFixed(5)}, {candidate.longitude.toFixed(5)}</dd></dl><button type="button" disabled={findResultMarketMismatch} onClick={() => chooseFindCandidate(candidate)} className="mt-3 min-h-11 w-full rounded-lg border border-[#8ebdb4] bg-white px-3 text-xs font-bold text-[#176548] disabled:cursor-not-allowed disabled:opacity-40">{locale === "ru" ? "Открыть анализ" : "Open analysis"}</button></article>)}
                 </div> : <ul className="space-y-2">{findResult.candidates.map((candidate) => {
                   const selectedForComparison = findShortlist.some((item) => item.sourceFeatureId === candidate.sourceFeatureId);
-                  return <li key={candidate.sourceFeatureId} className="rounded-xl border border-line bg-white p-3"><button type="button" onClick={() => chooseFindCandidate(candidate)} className="min-h-11 w-full text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c]"><span className="block text-sm font-bold text-ink">{candidate.label}</span><span className="mt-1 block text-[11px] text-muted">{findGroupLabels[candidate.group]}{candidate.mappedBuildingLevels === null ? "" : ` · ${candidate.mappedBuildingLevels} ${locale === "ru" ? "эт." : "levels"}`} · {candidate.matchedTag.key}={candidate.matchedTag.value}</span></button><button type="button" aria-pressed={selectedForComparison} disabled={!selectedForComparison && findShortlist.length >= 3} onClick={() => toggleFindShortlist(candidate)} className={`mt-2 min-h-11 rounded-lg px-3 text-[11px] font-bold transition disabled:opacity-40 ${selectedForComparison ? "bg-[#087f70] text-white" : "border border-[#8ebdb4] bg-white text-[#176548]"}`}>{selectedForComparison ? (locale === "ru" ? "Выбрано" : "Selected") : (locale === "ru" ? "В сравнение" : "Compare")}</button></li>;
+                  return <li key={candidate.sourceFeatureId} className="rounded-xl border border-line bg-white p-3"><button type="button" disabled={findResultMarketMismatch} onClick={() => chooseFindCandidate(candidate)} className="min-h-11 w-full text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] disabled:cursor-not-allowed disabled:opacity-40"><span className="block text-sm font-bold text-ink">{candidate.label}</span><span className="mt-1 block text-[11px] text-muted">{findGroupLabels[candidate.group]}{candidate.mappedBuildingLevels === null ? "" : ` · ${candidate.mappedBuildingLevels} ${locale === "ru" ? "эт." : "levels"}`} · {candidate.matchedTag.key}={candidate.matchedTag.value}</span></button><button type="button" aria-pressed={selectedForComparison} disabled={!selectedForComparison && findShortlist.length >= 3} onClick={() => toggleFindShortlist(candidate)} className={`mt-2 min-h-11 rounded-lg px-3 text-[11px] font-bold transition disabled:opacity-40 ${selectedForComparison ? "bg-[#087f70] text-white" : "border border-[#8ebdb4] bg-white text-[#176548]"}`}>{selectedForComparison ? (locale === "ru" ? "Выбрано" : "Selected") : (locale === "ru" ? "В сравнение" : "Compare")}</button></li>;
                 })}</ul>}
               </div> : null}
               </div>

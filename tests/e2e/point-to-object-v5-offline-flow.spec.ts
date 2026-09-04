@@ -251,7 +251,7 @@ async function expectFindDrawerGeometry(page: Page, checkMapAlignment = false) {
     const ctaRect = localCta.getBoundingClientRect();
     const scrollOwners = [...element.querySelectorAll<HTMLElement>("*")].filter((candidate) => {
       const overflowY = getComputedStyle(candidate).overflowY;
-      return overflowY === "auto" || overflowY === "scroll";
+      return candidate.getClientRects().length > 0 && (overflowY === "auto" || overflowY === "scroll");
     });
     const visibleTargets = [...element.querySelectorAll<HTMLElement>("button, select, input, summary")].filter((candidate) => {
       const rect = candidate.getBoundingClientRect();
@@ -332,6 +332,11 @@ test("V5.1 keeps exact identity, Find lineage, Create A/B and mobile profile coh
   await expect(page.getByTestId("find-result-stale")).toHaveText("Stale");
   await expect(page.getByTestId("find-search-cta")).toHaveText("Update search");
   await expect(page.getByRole("article").filter({ hasText: "Marina Candidate Two" })).toBeVisible();
+  await page.getByRole("combobox", { name: "City" }).selectOption("singapore");
+  await expect(page.getByTestId("find-result-stale")).toHaveText("Stale");
+  await expect(page.getByRole("article").filter({ hasText: "Marina Candidate One" }).getByRole("button", { name: "Open analysis" })).toBeDisabled();
+  await page.getByRole("combobox", { name: "City" }).selectOption("dubai");
+  await expect(page.getByRole("article").filter({ hasText: "Marina Candidate One" }).getByRole("button", { name: "Open analysis" })).toBeEnabled();
   const restoredFind = await page.evaluate(() => JSON.parse(sessionStorage.getItem("geoai:point-to-object:find:v1") ?? "null"));
   expect(restoredFind.result.source.sourceResponseHash).toBe(sha256);
   expect(restoredFind.shortlist.map((item: { sourceFeatureId: string }) => item.sourceFeatureId)).toEqual(["way/2001", "node/2002"]);
@@ -349,6 +354,22 @@ test("V5.1 keeps exact identity, Find lineage, Create A/B and mobile profile coh
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     await expectFindDrawerGeometry(page, viewport.align);
   }
+  await page.getByTestId("find-data-methodology").click();
+  const methodologyPanel = page.getByTestId("find-methodology-panel");
+  await expect(methodologyPanel).toBeVisible();
+  const methodologyGeometry = await methodologyPanel.evaluate((element) => {
+    element.scrollTop = element.scrollHeight;
+    return {
+      clientHeight: element.clientHeight,
+      scrollHeight: element.scrollHeight,
+      bottomReached: Math.ceil(element.scrollTop + element.clientHeight) >= element.scrollHeight
+    };
+  });
+  expect(methodologyGeometry.clientHeight).toBeGreaterThan(0);
+  expect(methodologyGeometry.scrollHeight).toBeGreaterThan(methodologyGeometry.clientHeight);
+  expect(methodologyGeometry.bottomReached).toBe(true);
+  await expect(methodologyPanel.getByText("© OpenStreetMap contributors.")).toBeVisible();
+  await page.getByTestId("find-data-methodology").click();
   await expect(page.getByText("Pan or zoom the map, then use Find to search the visible area. Map clicks do not select objects in this mode.")).toBeAttached();
   await page.locator(".maplibregl-canvas").click({ position: { x: 200, y: 150 }, force: true });
   await expect.poll(() => page.evaluate(() => JSON.parse(sessionStorage.getItem("geoai:point-to-object:selection:v3") ?? "null")?.object?.sourceFeatureId)).toBe("way/2001");
