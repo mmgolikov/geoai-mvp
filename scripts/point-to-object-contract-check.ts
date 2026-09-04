@@ -2149,6 +2149,30 @@ async function assertCandidateAiSafety(): Promise<void> {
   assert.equal(combinedObjectAndNearbyAnswer.ok, true,
     "A nearby-context answer may bind both the selected object and the cited nearby feature.");
 
+  const mixedEvidenceMappedUseAnswer = validateContentDetailed({
+    ...rawPlan,
+    focusedAnswer: {
+      ...rawPlan.focusedAnswer,
+      scope: "mapped_use",
+      statement: "The mapped hotel use and nearby World Trade Centre station support an initial location screen, while the investment case still needs verified evidence.",
+      evidenceRefs: ["EVD-CLASSIFICATION", "EVD-CONTEXT-01"]
+    }
+  }, evidencePack, focusedAnalysisRequest);
+  assert.equal(mixedEvidenceMappedUseAnswer.ok, true,
+    "The answer scope is a primary theme and may include additional canonically bound evidence classes.");
+
+  const unrelatedMappedUseScope = validateContentDetailed({
+    ...rawPlan,
+    focusedAnswer: {
+      ...rawPlan.focusedAnswer,
+      scope: "mapped_use",
+      statement: "Nearby World Trade Centre station supports an initial location screen, while the investment case still needs verified evidence.",
+      evidenceRefs: ["EVD-CONTEXT-01"]
+    }
+  }, evidencePack, focusedAnalysisRequest);
+  assert.equal(unrelatedMappedUseScope.ok, false,
+    "The declared primary scope must still have at least one compatible canonical evidence reference.");
+
   const safePlanningGap = validateContentDetailed({
     ...rawPlan,
     focusedAnswer: {

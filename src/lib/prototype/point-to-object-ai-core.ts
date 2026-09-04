@@ -1475,7 +1475,8 @@ function validateFocusedAnswer(
   if (!statement) return { ok: false, detail: "focused_answer_statement_missing" };
   if (refs.length < 1) return { ok: false, detail: "focused_answer_refs_missing" };
   if (!refs.every((ref) => support.allowed.has(ref))) return { ok: false, detail: "focused_answer_ref_unbound" };
-  if (!scope || !refs.every((ref) => focusedScopeRefs(scope, support).includes(ref))) {
+  const primaryScopeRefs = scope ? focusedScopeRefs(scope, support) : [];
+  if (!scope || primaryScopeRefs.length < 1 || !refs.some((ref) => primaryScopeRefs.includes(ref))) {
     return { ok: false, detail: "focused_answer_ref_outside_scope" };
   }
   if (status === "answered" && missingCodes.length !== 0) return { ok: false, detail: "focused_answer_answered_with_missing_sources" };
@@ -1673,7 +1674,7 @@ export function buildPointObjectResponsesRequest(
         },
         validationPolicy: {
           exactCaveat: LIVE_POINT_CAVEAT,
-          serverRenderingRule: "The server renders facts and standard analysis. Only focusedAnswer.statement may contain model-authored visible interpretation, and every sentence must be grounded by eligible evidenceRefs."
+          serverRenderingRule: "The server renders facts and standard analysis. Only focusedAnswer.statement may contain model-authored visible interpretation, and every sentence must be grounded by eligible evidenceRefs. Focused-answer scope is the primary theme: at least one citation must match it, while additional citations may bind other relevant selected-object or nearby-context facts."
         },
         evidenceProjection
       }) }] }
