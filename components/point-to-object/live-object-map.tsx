@@ -1232,14 +1232,14 @@ export function LiveObjectMap({
         {t(instructionKey)}
       </p>
       <div className="absolute bottom-8 left-3 z-10 flex max-w-[calc(100%-6rem)] flex-wrap items-center gap-2 sm:bottom-3">
-        <div className="inline-flex rounded-xl border border-white/80 bg-white/95 p-1 shadow-sm backdrop-blur" role="group" aria-label={t("map.dimension")}>
+        <div className="inline-flex rounded-xl border border-white/80 bg-white/95 p-1 shadow-sm backdrop-blur" role="group" aria-label={t("map.dimension")} data-testid="map-dimension-control">
           {(["2d", "3d"] as MapViewMode[]).map((mode) => (
             <button
               key={mode}
               type="button"
               onClick={() => changeViewMode(mode)}
               aria-pressed={viewMode === mode}
-              className={`min-h-9 rounded-lg px-3 text-xs font-bold uppercase transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] ${viewMode === mode ? "bg-[#087f8c] text-white" : "text-[#475467] hover:bg-[#f1f4f6]"}`}
+              className={`min-h-11 rounded-lg px-3 text-xs font-bold uppercase transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] ${viewMode === mode ? "bg-[#087f8c] text-white" : "text-[#475467] hover:bg-[#f1f4f6]"}`}
             >
               {mode}
             </button>

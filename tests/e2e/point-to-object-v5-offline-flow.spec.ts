@@ -232,6 +232,56 @@ async function signInDemo(page: Page, nextPath: string) {
   await expect(page).toHaveURL((url) => url.pathname === nextPath);
 }
 
+async function expectFindDrawerGeometry(page: Page, checkMapAlignment = false) {
+  const drawer = page.getByTestId("find-drawer");
+  const scrollRegion = page.getByTestId("find-scroll-region");
+  const footer = page.getByTestId("find-sticky-footer");
+  const cta = page.getByTestId("find-search-cta");
+  await expect(drawer).toBeVisible();
+  await expect(footer).toBeVisible();
+  await expect(cta).toBeVisible();
+  const geometry = await drawer.evaluate((element) => {
+    const scroll = element.querySelector<HTMLElement>('[data-testid="find-scroll-region"]');
+    const localFooter = element.querySelector<HTMLElement>('[data-testid="find-sticky-footer"]');
+    const localCta = element.querySelector<HTMLElement>('[data-testid="find-search-cta"]');
+    if (!scroll || !localFooter || !localCta) throw new Error("Find drawer geometry targets are missing.");
+    const drawerRect = element.getBoundingClientRect();
+    const scrollRect = scroll.getBoundingClientRect();
+    const footerRect = localFooter.getBoundingClientRect();
+    const ctaRect = localCta.getBoundingClientRect();
+    const scrollOwners = [...element.querySelectorAll<HTMLElement>("*")].filter((candidate) => {
+      const overflowY = getComputedStyle(candidate).overflowY;
+      return overflowY === "auto" || overflowY === "scroll";
+    });
+    const visibleTargets = [...element.querySelectorAll<HTMLElement>("button, select, input, summary")].filter((candidate) => {
+      const rect = candidate.getBoundingClientRect();
+      const style = getComputedStyle(candidate);
+      return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
+    });
+    return {
+      drawerBottom: drawerRect.bottom,
+      scrollBottom: scrollRect.bottom,
+      footerTop: footerRect.top,
+      footerBottom: footerRect.bottom,
+      ctaHeight: ctaRect.height,
+      scrollOwnerCount: scrollOwners.length,
+      smallestTargetHeight: Math.min(...visibleTargets.map((candidate) => candidate.getBoundingClientRect().height))
+    };
+  });
+  expect(geometry.footerBottom).toBeLessThanOrEqual(geometry.drawerBottom + 1);
+  expect(geometry.scrollBottom).toBeLessThanOrEqual(geometry.footerTop + 1);
+  expect(geometry.scrollOwnerCount).toBe(1);
+  expect(geometry.ctaHeight).toBeGreaterThanOrEqual(44);
+  expect(geometry.smallestTargetHeight).toBeGreaterThanOrEqual(44);
+  if (checkMapAlignment) {
+    const ctaBox = await cta.boundingBox();
+    const dimensionButtonBox = await page.getByTestId("map-dimension-control").getByRole("button").first().boundingBox();
+    expect(ctaBox).not.toBeNull();
+    expect(dimensionButtonBox).not.toBeNull();
+    expect(Math.abs((ctaBox?.y ?? 0) + (ctaBox?.height ?? 0) - (dimensionButtonBox?.y ?? 0) - (dimensionButtonBox?.height ?? 0))).toBeLessThanOrEqual(2);
+  }
+}
+
 test("V5.1 keeps exact identity, Find lineage, Create A/B and mobile profile coherent offline", async ({ page }) => {
   contextRequests.length = 0;
   const unexpectedExternal = await installOfflineRoutes(page);
@@ -253,6 +303,10 @@ test("V5.1 keeps exact identity, Find lineage, Create A/B and mobile profile coh
 
   await page.getByRole("tab", { name: "Find" }).click();
   await page.getByRole("button", { name: "Search this view" }).click();
+  await expect(page.getByTestId("find-result-lineage")).toContainText("OpenStreetMap · Overpass API");
+  await expect(page.getByTestId("find-result-lineage")).toContainText("ODbL-1.0");
+  await expect(page.getByTestId("find-result-lineage")).toContainText("Query extent:");
+  await expect(page.getByTestId("find-result-stale")).toHaveCount(0);
   const firstCandidate = page.getByRole("listitem").filter({ hasText: "Marina Candidate One" });
   const secondCandidate = page.getByRole("listitem").filter({ hasText: "Marina Candidate Two" });
   await firstCandidate.getByRole("button", { name: "Compare", exact: true }).click();
@@ -275,7 +329,26 @@ test("V5.1 keeps exact identity, Find lineage, Create A/B and mobile profile coh
   await page.getByRole("link", { name: "Back to map" }).click();
   await page.getByRole("tab", { name: "Find" }).click();
   await expect(page.getByText("Sample lineage")).toBeVisible();
+  await expect(page.getByTestId("find-result-stale")).toHaveText("Stale");
+  await expect(page.getByTestId("find-search-cta")).toHaveText("Update search");
   await expect(page.getByRole("article").filter({ hasText: "Marina Candidate Two" })).toBeVisible();
+  const restoredFind = await page.evaluate(() => JSON.parse(sessionStorage.getItem("geoai:point-to-object:find:v1") ?? "null"));
+  expect(restoredFind.result.source.sourceResponseHash).toBe(sha256);
+  expect(restoredFind.shortlist.map((item: { sourceFeatureId: string }) => item.sourceFeatureId)).toEqual(["way/2001", "node/2002"]);
+  expect(restoredFind.analysisTargetSourceFeatureId).toBe("way/2001");
+  expect(restoredFind.role).toBe("developer");
+  expect(restoredFind.scenario).toBe("b2b_redevelopment_selected_aoi");
+  for (const viewport of [
+    { width: 1440, height: 900, align: true },
+    { width: 1440, height: 720, align: true },
+    { width: 1440, height: 768, align: true },
+    { width: 834, height: 1112, align: false },
+    { width: 390, height: 844, align: false },
+    { width: 720, height: 450, align: false }
+  ]) {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await expectFindDrawerGeometry(page, viewport.align);
+  }
   await expect(page.getByText("Pan or zoom the map, then use Find to search the visible area. Map clicks do not select objects in this mode.")).toBeAttached();
   await page.locator(".maplibregl-canvas").click({ position: { x: 200, y: 150 }, force: true });
   await expect.poll(() => page.evaluate(() => JSON.parse(sessionStorage.getItem("geoai:point-to-object:selection:v3") ?? "null")?.object?.sourceFeatureId)).toBe("way/2001");
