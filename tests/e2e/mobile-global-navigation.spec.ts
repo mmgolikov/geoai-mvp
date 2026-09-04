@@ -14,7 +14,7 @@ async function signInDemo(page: Page, nextPath: "/workspace") {
   if (redirected) {
     return;
   }
-  await page.getByRole("button", { name: "Use demo credentials" }).click();
+  await page.getByRole("button", { name: "Open demo access" }).click();
   await page.getByRole("button", { name: "Open demo" }).click();
   await expect(page).toHaveURL((url) => url.pathname === nextPath);
   await expect(page.getByRole("link", { name: "Open demo profile" })).toHaveAttribute("data-authenticated", "true");

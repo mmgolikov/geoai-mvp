@@ -402,8 +402,8 @@ jobs:
           fi
 
           google-chrome --version | tee artifacts/google-chrome-version.txt
-          npm run test:e2e:auth-session | tee artifacts/auth-session-e2e.txt
           npm run test:e2e:point-to-object-v5 | tee artifacts/point-to-object-v5-e2e.txt
+          npm run test:e2e:auth-session | tee artifacts/auth-session-e2e.txt
           npx lighthouse 'http://127.0.0.1:3100/login?next=/workspace&intent=demo' \
             --quiet \
             --preset=desktop \

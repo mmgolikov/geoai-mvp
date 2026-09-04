@@ -210,7 +210,7 @@ async function signInDemo(page: Page, nextPath: "/projects" | "/workspace") {
   if (redirected) {
     return;
   }
-  await page.getByRole("button", { name: "Use demo credentials" }).click();
+  await page.getByRole("button", { name: "Open demo access" }).click();
   await expect(page.getByLabel("Email or phone")).toHaveValue("demo@geoai.space");
   await expect(page.getByLabel("Password")).toHaveValue("111111");
   await page.getByRole("button", { name: "Open demo" }).click();

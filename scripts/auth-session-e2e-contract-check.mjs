@@ -57,7 +57,7 @@ for (const route of ["/workspace?segment=b2b", "/projects", "/explore", "/profil
   requireText(spec, route, `Browser flow must cover ${route}`);
 }
 for (const marker of [
-  "Use demo credentials",
+  "Open demo access",
   "Open demo profile",
   "geoai-mock-demo-session-v1",
   "page.reload()",
@@ -145,7 +145,7 @@ for (const marker of [
   "expectNoHorizontalOverflow(page)",
   "Primary mobile controls must have a rendered box",
   'control.href === "/login?next=/workspace&intent=demo"',
-  'control.text === "Use demo credentials"',
+  'control.text === "Open demo access"',
   'control.text === "Open demo"',
   'control.label === "Open demo profile"'
 ]) requireText(responsiveSpec, marker, `Responsive/keyboard browser flow is missing ${marker}`);
