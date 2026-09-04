@@ -400,8 +400,9 @@ test("V5.1 keeps exact identity, Find lineage, Create A/B and mobile profile coh
   expect(attributionGeometry.insideViewport).toBe(true);
   await page.getByTestId("find-data-methodology").click();
   await expect(page.getByText("Pan or zoom the map, then use Find to search the visible area. Map clicks do not select objects in this mode.")).toBeAttached();
+  await expect.poll(() => page.evaluate(() => JSON.parse(sessionStorage.getItem("geoai:point-to-object:selection:v3") ?? "null"))).toBeNull();
   await page.locator(".maplibregl-canvas").click({ position: { x: 200, y: 150 }, force: true });
-  await expect.poll(() => page.evaluate(() => JSON.parse(sessionStorage.getItem("geoai:point-to-object:selection:v3") ?? "null")?.object?.sourceFeatureId)).toBe("way/2001");
+  await expect.poll(() => page.evaluate(() => JSON.parse(sessionStorage.getItem("geoai:point-to-object:selection:v3") ?? "null"))).toBeNull();
 
   await page.getByRole("tab", { name: "Create" }).click();
   await page.getByLabel("Upload GeoJSON").setInputFiles({
