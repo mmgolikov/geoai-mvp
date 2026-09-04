@@ -1411,7 +1411,7 @@ async function assertCandidateAiSafety(): Promise<void> {
     ],
     [
       /import \{\n  POINT_OBJECT_ANALYSIS_PROMPT_VERSION,\n  POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION\n\} from "@\/components\/point-to-object\/live-types";\n/,
-      `const POINT_OBJECT_ANALYSIS_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V5_2026_09_04";\nconst POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION = 4;\n`
+      `const POINT_OBJECT_ANALYSIS_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V6_2026_09_04";\nconst POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION = 4;\n`
     ]
   ]);
   const parseClientTelemetry = liveSession.parsePointObjectAiTelemetry as (value: unknown) => JsonObject | null;
@@ -1548,7 +1548,7 @@ async function assertCandidateAiSafety(): Promise<void> {
     model: "gpt-5.6-sol",
     reasoningEffort: "medium",
     depth: "standard",
-    promptVersion: "POINT_OBJECT_AI_PROMPT_V5_2026_09_04",
+    promptVersion: "POINT_OBJECT_AI_PROMPT_V6_2026_09_04",
     requestId: "resp_repair",
     latencyMs: 1_234,
     attempts: 2,
@@ -2195,6 +2195,69 @@ async function assertCandidateAiSafety(): Promise<void> {
   }, evidencePack, focusedAnalysisRequest);
   assert.equal(unrelatedMappedUseScope.ok, false,
     "The declared primary scope must still have at least one compatible canonical evidence reference.");
+
+  const evidencePackWithoutNearby = {
+    ...evidencePack,
+    nearbyContext: [],
+    evidence: evidencePack.evidence.filter((item: any) => !String(item.id).startsWith("EVD-CONTEXT-"))
+  };
+  const russianNearbyWithoutReceipt = validateContentDetailed({
+    ...rawPlan,
+    focusedAnswer: {
+      status: "answered",
+      scope: "nearby_context",
+      perspective: "investor",
+      horizon: "long_term",
+      statement: "Рядом с выбранным объектом якобы находятся новая школа и большой парк, что повышает привлекательность локации.",
+      evidenceRefs: ["EVD-OBJECT"],
+      confidence: "medium",
+      missingEvidenceCodes: [],
+      unsupportedReasonCode: null
+    }
+  }, evidencePackWithoutNearby, {
+    ...focusedAnalysisRequest,
+    question: "Что находится рядом с объектом и как это влияет на привлекательность?"
+  });
+  assert.equal(russianNearbyWithoutReceipt.ok, false,
+    "Nearby scope must require a canonical context receipt structurally, independent of answer language.");
+
+  const roofColourQuestion = {
+    ...focusedAnalysisRequest,
+    question: "What colour is the roof of this building?"
+  };
+  const inventedRoofColour = validateContentDetailed({
+    ...rawPlan,
+    focusedAnswer: {
+      status: "answered",
+      scope: "mapped_form",
+      perspective: "investor",
+      horizon: "long_term",
+      statement: "The selected building has a silver roof according to the available mapped object record.",
+      evidenceRefs: ["EVD-OBJECT", "EVD-GEOMETRY"],
+      confidence: "medium",
+      missingEvidenceCodes: [],
+      unsupportedReasonCode: null
+    }
+  }, evidencePack, roofColourQuestion);
+  assert.equal(inventedRoofColour.ok, false,
+    "A missing direct attribute must never be inferred from a generic object or geometry receipt.");
+
+  const unsupportedRoofColour = validateContent({
+    ...rawPlan,
+    focusedAnswer: {
+      status: "unsupported",
+      scope: "source_limitation",
+      perspective: "investor",
+      horizon: "long_term",
+      statement: null,
+      evidenceRefs: [],
+      confidence: "low",
+      missingEvidenceCodes: ["physical_baseline"],
+      unsupportedReasonCode: "requires_client_asset_source"
+    }
+  }, evidencePack, roofColourQuestion) as any;
+  assert.equal(unsupportedRoofColour?.answerToQuestion?.status, "unsupported",
+    "A missing direct attribute must return a safe source-needed result instead of a guessed value.");
 
   const safePlanningGap = validateContentDetailed({
     ...rawPlan,
