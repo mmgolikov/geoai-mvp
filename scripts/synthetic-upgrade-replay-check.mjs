@@ -5,6 +5,9 @@ const root = new URL("../", import.meta.url);
 const manifest = JSON.parse(
   await readFile(new URL("supabase/migration-ledger-baseline.json", root), "utf8")
 );
+const localSupabaseConfig = await readFile(new URL("supabase/config.toml", root), "utf8");
+const localProjectId = localSupabaseConfig.match(/^project_id\s*=\s*"([a-z0-9][a-z0-9_-]*)"\s*$/m)?.[1] ?? "";
+const localDatabaseContainer = `supabase_db_${localProjectId}`;
 const runLocal = process.argv.includes("--run-local");
 const unexpectedArguments = process.argv.slice(2).filter((argument) => argument !== "--run-local");
 
@@ -24,6 +27,9 @@ if (manifest.status !== "read_only_live_ledger_baseline") {
 }
 if (manifest.productionProject !== false) {
   failures.push("Synthetic replay is permitted only for a manifest explicitly marked non-production");
+}
+if (!localProjectId) {
+  failures.push("A safe local Supabase project_id is required to derive the isolated database container");
 }
 if (preLedger.length !== 1) {
   failures.push(`Expected one pre-ledger reconciliation; found ${preLedger.length}`);
@@ -110,6 +116,39 @@ function runSupabase(arguments_, label) {
 
 function queryLocal(sql, label) {
   runSupabase(["db", "query", "--local", sql], label);
+}
+
+async function queryLocalFile(relativePath, label) {
+  const sql = await readFile(new URL(relativePath, root), "utf8");
+  console.log(`\n== ${label} ==`);
+  const result = spawnSync(
+    "docker",
+    [
+      "exec",
+      "-i",
+      localDatabaseContainer,
+      "psql",
+      "--no-psqlrc",
+      "--set",
+      "ON_ERROR_STOP=1",
+      "--username",
+      "postgres",
+      "--dbname",
+      "postgres"
+    ],
+    {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      input: sql,
+      stdio: ["pipe", "pipe", "pipe"]
+    }
+  );
+  if (result.stdout) process.stdout.write(result.stdout);
+  if (result.stderr) process.stderr.write(result.stderr);
+  if (result.error) throw result.error;
+  if (result.status !== 0) {
+    throw new Error(`${label} failed with exit code ${result.status}`);
+  }
 }
 
 function assertLedger(entries, label, compareNames) {
@@ -386,8 +425,8 @@ runSupabase(
 assertLedger(contiguousLiveLedger, "Verify the exact observed contiguous 10-entry ledger subset", true);
 assertDeclaredPreLedgerFingerprint();
 for (const entry of lateAppliedLedger) {
-  runSupabase(
-    ["db", "query", "--local", "--file", `supabase/migrations/${entry.version}_${entry.name}.sql`],
+  await queryLocalFile(
+    `supabase/migrations/${entry.version}_${entry.name}.sql`,
     `Apply recovered hosted artifact ${entry.version} to the isolated local database`
   );
   runSupabase(
