@@ -2242,6 +2242,110 @@ async function assertCandidateAiSafety(): Promise<void> {
   assert.equal(inventedRoofColour.ok, false,
     "A missing direct attribute must never be inferred from a generic object or geometry receipt.");
 
+  const roofShadeQuestion = {
+    ...focusedAnalysisRequest,
+    question: "What shade is the roof of this building?"
+  };
+  const inventedRoofShade = validateContentDetailed({
+    ...rawPlan,
+    focusedAnswer: {
+      status: "answered",
+      scope: "mapped_form",
+      perspective: "investor",
+      horizon: "long_term",
+      statement: "The selected building has a silver roof according to the available mapped object record.",
+      evidenceRefs: ["EVD-OBJECT", "EVD-GEOMETRY"],
+      confidence: "medium",
+      missingEvidenceCodes: [],
+      unsupportedReasonCode: null
+    }
+  }, evidencePack, roofShadeQuestion);
+  assert.equal(inventedRoofShade.ok, false,
+    "A paraphrased request for an unmapped visual attribute must fail closed.");
+
+  for (const question of [
+    "What hue is the rooftop?",
+    "What tone is the facade?",
+    "What does the exterior look like?",
+    "Какого оттенка крыша?"
+  ]) {
+    const variant = validateContentDetailed({
+      ...rawPlan,
+      focusedAnswer: {
+        status: "answered",
+        scope: "mapped_form",
+        perspective: "investor",
+        horizon: "long_term",
+        statement: "The selected object has a silver exterior according to the mapped record.",
+        evidenceRefs: ["EVD-OBJECT", "EVD-GEOMETRY"],
+        confidence: "medium",
+        missingEvidenceCodes: [],
+        unsupportedReasonCode: null
+      }
+    }, evidencePack, { ...focusedAnalysisRequest, question });
+    assert.equal(variant.ok, false, `Unmapped visual question must fail closed: ${question}`);
+  }
+
+  const heightQuestion = {
+    ...focusedAnalysisRequest,
+    question: "How tall is the building?"
+  };
+  const heightWithInventedVisualClaims = validateContentDetailed({
+    ...rawPlan,
+    focusedAnswer: {
+      status: "answered",
+      scope: "mapped_form",
+      perspective: "investor",
+      horizon: "long_term",
+      statement: "The mapped height is 200, and the building has a silver roof and marble facade.",
+      evidenceRefs: ["EVD-ALLOWED-FIELDS", "EVD-GEOMETRY"],
+      confidence: "medium",
+      missingEvidenceCodes: [],
+      unsupportedReasonCode: null
+    }
+  }, evidencePack, heightQuestion);
+  assert.equal(heightWithInventedVisualClaims.ok, false,
+    "A supported attribute must not legitimise appended unmapped physical claims.");
+
+  const normalizedHeight = validateContent({
+    ...rawPlan,
+    focusedAnswer: {
+      status: "answered",
+      scope: "mapped_form",
+      perspective: "investor",
+      horizon: "long_term",
+      statement: "The mapped height attribute is 200 according to the selected source record.",
+      evidenceRefs: ["EVD-ALLOWED-FIELDS"],
+      confidence: "medium",
+      missingEvidenceCodes: [],
+      unsupportedReasonCode: null
+    }
+  }, evidencePack, heightQuestion) as any;
+  assert.equal(normalizedHeight?.answerToQuestion?.statement,
+    "Mapped OpenStreetMap height attribute: 200. This open-map value has not been independently verified.",
+    "Supported direct attributes must be rendered from the canonical field rather than raw model prose.");
+  assert.deepEqual(normalizedHeight?.answerToQuestion?.evidenceRefs, ["EVD-ALLOWED-FIELDS"],
+    "A direct-attribute answer must expose only its canonical attribute receipt.");
+  assert.equal(normalizedHeight?.answerToQuestion?.confidence, "low",
+    "A community-map direct attribute must not be presented as independently verified.");
+
+  const embeddedHeightValue = validateContentDetailed({
+    ...rawPlan,
+    focusedAnswer: {
+      status: "answered",
+      scope: "mapped_form",
+      perspective: "investor",
+      horizon: "long_term",
+      statement: "The mapped height is 1200 according to the selected source record.",
+      evidenceRefs: ["EVD-ALLOWED-FIELDS"],
+      confidence: "medium",
+      missingEvidenceCodes: [],
+      unsupportedReasonCode: null
+    }
+  }, evidencePack, heightQuestion);
+  assert.equal(embeddedHeightValue.ok, false,
+    "A requested attribute value must match as a complete token rather than as a substring.");
+
   const unsupportedRoofColour = validateContent({
     ...rawPlan,
     focusedAnswer: {

@@ -1377,6 +1377,11 @@ const UNSUPPORTED_ANSWER_COPY: Record<PointObjectUnsupportedReasonCode, string> 
 
 const FOCUSED_ANSWER_FORBIDDEN = /(?:https?:\/\/|www\.|<[^>]*>|```|system\s+prompt|developer\s+message|api[_\s-]?key|password|bearer\s+token|guaranteed|definit(?:e|ely)|best\s+use|optimal\s+use|official(?:ly)?\s+(?:confirmed|validated)|title\s+is\s+clear|owned\s+by|zoned\s+(?:for|as)|planning\s+approval\s+(?:exists|has\s+been\s+(?:granted|issued)|is\s+(?:granted|approved|confirmed|valid|in\s+place))|permitted\s+use\s+is\s+(?!not\b|unverified\b|unknown\b)|valued\s+at|worth\s+(?:aed|usd|sar|sgd)|\broi\b|return\s+of\s+\d|(?:walk|drive|travel|route)[^.!?]{0,48}\b(?:minute|minutes|min)\b)/i;
 
+// These physical/visual fields are intentionally absent from the current
+// allowlist. A generic object or geometry receipt must never be used as proof
+// for them, including when they are appended to an otherwise valid answer.
+const UNMAPPED_PHYSICAL_LANGUAGE = /\b(?:roof|rooftop|facade|façade|exterior|cladding)\b|(?:крыш|фасад|облицовк|внешн(?:ий|яя|ее|ие)?\s+вид)/i;
+
 function novelNumberInStatement(statement: string, support: PointObjectEvidenceSupport): boolean {
   const evidenceText = JSON.stringify({
     analysisPoint: support.projection.analysisPoint,
@@ -1388,6 +1393,11 @@ function novelNumberInStatement(statement: string, support: PointObjectEvidenceS
   allowed.add("1");
   allowed.add("3");
   return (statement.match(/\d+(?:[.,]\d+)?/g) ?? []).some((number) => !allowed.has(number));
+}
+
+function statementIncludesExactValue(statement: string, value: string): boolean {
+  const escaped = value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(^|[^\\p{L}\\p{N}])${escaped}($|[^\\p{L}\\p{N}])`, "iu").test(statement);
 }
 
 function contextEvidenceTerms(
@@ -1450,8 +1460,7 @@ function directAttributeRequirement(
     ? { key, value: stringValue(tags[key], 120), evidenceRef: support.attributesRef, missingCode }
     : null;
 
-  const unmappedVisual = /(?:\b(?:roof|rooftop|facade|façade|exterior)\b[^?]{0,48}\b(?:colou?r|material|finish|surface)\b|\b(?:colou?r|material|finish)\b[^?]{0,48}\b(?:roof|rooftop|facade|façade|exterior)\b|(?:крыш|фасад|внешн)[^?]{0,48}(?:цвет|материал|покрыти|отделк)|(?:цвет|материал|покрыти|отделк)[^?]{0,48}(?:крыш|фасад|внешн))/;
-  if (unmappedVisual.test(normalized)) {
+  if (UNMAPPED_PHYSICAL_LANGUAGE.test(normalized)) {
     return { key: "unmapped_visual_attribute", value: null, evidenceRef: null, missingCode: "physical_baseline" };
   }
 
@@ -1566,6 +1575,7 @@ function validateFocusedAnswer(
   if (status === "partial" && missingCodes.length < 1) return { ok: false, detail: "focused_answer_partial_without_missing_sources" };
   if (unsupportedReason !== null) return { ok: false, detail: "focused_answer_supported_with_unsupported_reason" };
   if (FOCUSED_ANSWER_FORBIDDEN.test(statement)) return { ok: false, detail: "focused_answer_forbidden_claim" };
+  if (UNMAPPED_PHYSICAL_LANGUAGE.test(statement)) return { ok: false, detail: "focused_answer_unmapped_physical_claim" };
   if (novelNumberInStatement(statement, support)) return { ok: false, detail: "focused_answer_novel_number" };
   const contextRefs = refs.filter((ref) => support.contextRefs.includes(ref));
   if (scope === "nearby_context" && contextRefs.length === 0) {
@@ -1573,7 +1583,7 @@ function validateFocusedAnswer(
   }
   if (directAttribute?.value && directAttribute.evidenceRef && (
     !refs.includes(directAttribute.evidenceRef) ||
-    !statement.toLocaleLowerCase("en-US").includes(directAttribute.value.toLocaleLowerCase("en-US"))
+    !statementIncludesExactValue(statement, directAttribute.value)
   )) {
     return { ok: false, detail: `focused_answer_attribute_value_unbound_${directAttribute.key}` };
   }
@@ -1587,6 +1597,34 @@ function validateFocusedAnswer(
     if (contextTerms.size === 0 || ![...contextTerms].some((term) => statementText.includes(term))) {
       return { ok: false, detail: "focused_answer_context_value_mismatch" };
     }
+  }
+  if (directAttribute?.value && directAttribute.evidenceRef) {
+    const labels: Record<string, { en: string; ru: string }> = {
+      "tag.height": { en: "height", ru: "высота" },
+      "tag.building:levels": { en: "building levels", ru: "этажность" },
+      "tag.start_date": { en: "start date", ru: "дата постройки" },
+      "tag.architectural_style": { en: "architectural style", ru: "архитектурный стиль" },
+      "tag.wheelchair": { en: "wheelchair access", ru: "доступность для маломобильных посетителей" },
+      "tag.surface": { en: "surface", ru: "тип покрытия" }
+    };
+    const russian = /[\u0400-\u04ff]/u.test(question);
+    const label = labels[directAttribute.key] ?? { en: directAttribute.key, ru: directAttribute.key };
+    const normalizedStatement = russian
+      ? `Атрибут OpenStreetMap «${label.ru}»: ${directAttribute.value}. Значение из открытой карты не проверено независимо.`
+      : `Mapped OpenStreetMap ${label.en} attribute: ${directAttribute.value}. This open-map value has not been independently verified.`;
+    return {
+      ok: true,
+      answer: {
+        status: "answered",
+        scope: directAttribute.key === "tag.start_date" ? "mapped_lifecycle" : "mapped_form",
+        perspective: request.perspective,
+        horizon: request.horizon,
+        confidence: "low",
+        statement: normalizedStatement,
+        evidenceRefs: [directAttribute.evidenceRef],
+        missingEvidence: []
+      }
+    };
   }
   return {
     ok: true,
