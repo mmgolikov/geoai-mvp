@@ -177,6 +177,9 @@ test("Projects, Profile and report actions use the same Product-primary teal", a
   await expectProductPrimary(b2b, "Profile selected B2B");
   await b2c.click();
   await expect(b2c).toHaveAttribute("aria-pressed", "true");
+  // Read the selected control's default token after leaving its intentional
+  // darker hover state.
+  await page.mouse.move(1, 1);
   await expectProductPrimary(b2c, "Profile selected B2C");
   await expectProductPrimary(page.getByRole("link", { name: "Open workspace", exact: true }), "Profile Open workspace action");
   await expectProductPrimary(page.getByRole("button", { name: "Save profile", exact: true }), "Profile Save profile action");
