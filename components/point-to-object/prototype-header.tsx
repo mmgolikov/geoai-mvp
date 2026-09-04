@@ -27,7 +27,7 @@ export function PointObjectHeader({ backToMap = false, showDataSources = false }
         </span>
       </Link>
 
-      <div className="flex shrink-0 items-center gap-2">
+      <div data-point-object-header-actions className="flex shrink-0 items-center gap-2">
         {showDataSources ? (
           <Link href="/prototype/point-to-object/source-offer" className="hidden min-h-10 items-center rounded-lg px-3 text-xs font-semibold text-muted hover:bg-surface hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] sm:inline-flex">
             {t("header.dataSources")}
