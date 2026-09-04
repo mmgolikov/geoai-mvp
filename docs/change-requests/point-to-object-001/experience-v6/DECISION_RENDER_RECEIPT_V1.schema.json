@@ -1,0 +1,185 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:geoai:decision-render-receipt:1.0.0",
+  "title": "GeoAI DecisionRenderReceipt V1",
+  "description": "External, acyclic receipt for rendering an already-final DecisionRecord. The receipt and any rendered artifact are never inserted into the parent DecisionRecord.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaId",
+    "schemaVersion",
+    "renderReceiptId",
+    "renderReceiptHash",
+    "sourceDecisionRecordRef",
+    "renderKind",
+    "operation",
+    "templateRef",
+    "presentation",
+    "renderer",
+    "renderedAt",
+    "renderManifestHash",
+    "artifact",
+    "truthRecomputationPerformed",
+    "sourceOperationGate",
+    "validation",
+    "governance"
+  ],
+  "properties": {
+    "schemaId": { "const": "urn:geoai:decision-render-receipt:1.0.0" },
+    "schemaVersion": { "const": "1.0.0" },
+    "renderReceiptId": { "$ref": "#/$defs/boundedId" },
+    "renderReceiptHash": { "$ref": "#/$defs/sha256" },
+    "sourceDecisionRecordRef": { "$ref": "#/$defs/sourceDecisionRecordRef" },
+    "renderKind": { "enum": ["dashboard", "report", "project_summary"] },
+    "operation": { "$ref": "#/$defs/operation" },
+    "templateRef": { "$ref": "#/$defs/templateRef" },
+    "presentation": { "$ref": "#/$defs/presentation" },
+    "renderer": { "$ref": "#/$defs/renderer" },
+    "renderedAt": { "$ref": "#/$defs/dateTime" },
+    "renderManifestHash": { "$ref": "#/$defs/sha256" },
+    "artifact": {
+      "oneOf": [
+        { "$ref": "#/$defs/artifact" },
+        { "type": "null" }
+      ]
+    },
+    "truthRecomputationPerformed": { "const": false },
+    "sourceOperationGate": { "$ref": "#/$defs/sourceOperationGate" },
+    "validation": { "$ref": "#/$defs/validation" },
+    "governance": { "$ref": "#/$defs/governance" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "renderKind": { "const": "dashboard" } }, "required": ["renderKind"] },
+      "then": { "properties": { "operation": { "const": "dashboard" } } }
+    },
+    {
+      "if": { "properties": { "renderKind": { "const": "report" } }, "required": ["renderKind"] },
+      "then": {
+        "properties": {
+          "operation": { "const": "report" },
+          "artifact": { "$ref": "#/$defs/artifact" }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "renderKind": { "const": "project_summary" } }, "required": ["renderKind"] },
+      "then": { "properties": { "operation": { "const": "project" } } }
+    }
+  ],
+  "$defs": {
+    "boundedId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/@-]*$"
+    },
+    "semver": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "dateTime": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "operation": {
+      "enum": ["resolve", "acquire", "normalize", "calculate", "analyse", "find", "shortlist", "compare", "rank", "create", "generate", "evaluate", "model_input", "dashboard", "report", "project", "export", "persist"]
+    },
+    "sourceDecisionRecordRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["decisionRecordId", "recordHash", "finalizedAt"],
+      "properties": {
+        "decisionRecordId": { "$ref": "#/$defs/boundedId" },
+        "recordHash": { "$ref": "#/$defs/sha256" },
+        "finalizedAt": { "$ref": "#/$defs/dateTime" }
+      }
+    },
+    "templateRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["templateId", "templateVersion"],
+      "properties": {
+        "templateId": { "$ref": "#/$defs/boundedId" },
+        "templateVersion": { "$ref": "#/$defs/semver" }
+      }
+    },
+    "presentation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["locale"],
+      "properties": {
+        "locale": { "type": "string", "pattern": "^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$", "maxLength": 35 }
+      }
+    },
+    "renderer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["methodId", "methodVersion"],
+      "properties": {
+        "methodId": { "$ref": "#/$defs/boundedId" },
+        "methodVersion": { "$ref": "#/$defs/semver" }
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["artifactId", "artifactHash", "mediaType", "createdAt", "embeddedDecisionRecordId", "embeddedRecordHash"],
+      "properties": {
+        "artifactId": { "$ref": "#/$defs/boundedId" },
+        "artifactHash": { "$ref": "#/$defs/sha256" },
+        "mediaType": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "createdAt": { "$ref": "#/$defs/dateTime" },
+        "embeddedDecisionRecordId": { "$ref": "#/$defs/boundedId" },
+        "embeddedRecordHash": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "sourceOperationGate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation", "status", "gapIds", "rightsReceiptIds"],
+      "properties": {
+        "operation": { "$ref": "#/$defs/operation" },
+        "status": { "enum": ["pass", "partial"] },
+        "gapIds": {
+          "type": "array",
+          "maxItems": 500,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/boundedId" }
+        },
+        "rightsReceiptIds": {
+          "type": "array",
+          "maxItems": 200,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/boundedId" }
+        }
+      }
+    },
+    "validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sourceRecordHashVerified", "refsResolved", "rightsScopeVerified", "caveatRendered", "gapsRendered", "status"],
+      "properties": {
+        "sourceRecordHashVerified": { "const": true },
+        "refsResolved": { "const": true },
+        "rightsScopeVerified": { "const": true },
+        "caveatRendered": { "const": true },
+        "gapsRendered": { "const": true },
+        "status": { "enum": ["passed", "partial"] }
+      }
+    },
+    "governance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["canonicalizationProfile", "caveat"],
+      "properties": {
+        "canonicalizationProfile": { "const": "JCS_SHA256_OMIT_RENDER_RECEIPT_HASH_V1" },
+        "caveat": { "const": "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion." }
+      }
+    }
+  }
+}

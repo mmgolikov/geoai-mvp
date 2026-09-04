@@ -14,7 +14,7 @@ Machine contract: `GEO_CONTEXT_SNAPSHOT_V1.schema.json`.
 
 ## Purpose
 
-`GeoContextSnapshot` is the immutable, content-addressed context record for exactly one point, mapped object, site or AOI at a defined time and coverage. It is the only context input allowed for V6 Analyse, shortlist promotion, ranking, comparison, Create evaluation, dashboard and report generation.
+`GeoContextSnapshot` is the immutable, content-addressed, locale-independent truth record for exactly one point, mapped object, site or AOI at a defined time and coverage. A rights-cleared projection of it is the only context input allowed for V6 Analyse, shortlist promotion, ranking, comparison, Create evaluation, dashboard and report generation.
 
 It separates four classes that must never be collapsed:
 
@@ -35,9 +35,9 @@ V5 `derived` values migrate to `calculated` only when the transformation is dete
 | `snapshotId`, `snapshotHash` | Immutable identifier and SHA-256 content hash. |
 | `status` | `complete`, `partial` or `blocked`; `complete` is a contract state, not an official-data claim. |
 | `subject` | One point/object/site/AOI identity, geometry reference/hash, CRS and resolution status. |
-| `scope` | Market/locale, context profile ID/version, requested spatial window and time basis. |
+| `scope` | Market, context profile ID/version, requested spatial window and time basis. Presentation locale is deliberately absent. |
 | `capturedAt` | Time the normalized snapshot was assembled. It does not substitute for source-observed time. |
-| `sourceReceipts` | Source, acquisition, rights, authority, coverage, freshness and lineage receipts. |
+| `sourceReceipts` | Source, acquisition, versioned rights scope, authority, coverage, freshness and lineage receipts. |
 | `facts` | Typed observed/calculated/modelled/hypothesis records. |
 | `sections` | Exactly one status/index entry for each canonical context dimension. |
 | `conflicts`, `gaps` | Explicit source conflicts and missing/insufficient context. |
@@ -70,6 +70,8 @@ This fixed index allows scenarios to request a subset without silently omitting 
 - CRS is `EPSG:4326` and coordinate order is `[longitude, latitude]` at this boundary.
 - `resolutionStatus` is `resolved`, `ambiguous`, `coordinate_context_only`, `no_result` or `outside_coverage`.
 - `object` and `site` with `resolved` status require a source identity. `ambiguous` identity cannot be silently promoted to resolved.
+- `subject` has no presentation name. Source-observed names are facts such as `identity.name`, `identity.name.en` or `identity.name.ar`; changing a source fact changes the snapshot hash.
+- Acquisition and normalization must not vary their truth projection by the UI locale: all allowlisted name variants returned by the source are retained as separately keyed observed facts, then the renderer chooses presentation language outside the snapshot.
 - A source polygon is not called a parcel/cadastral boundary unless a separately validated source and claim policy permit that wording. V1's default authority boundary does not.
 
 ## Source receipt rules
@@ -78,14 +80,25 @@ Each source receipt records:
 
 - stable `sourceReceiptId`, `sourceId`, provider and source kind;
 - `authorityStatus`: open context, named-authority publication not validated by GeoAI, client assertion, commercial-provider output not validated by GeoAI, or synthetic non-evidence;
-- `rightsStatus`: `cleared_for_scope`, `restricted`, `unknown` or `blocked`;
+- a required `rightsScope` receipt with its own stable ID and semantic version;
+- licence ID/URL and exact attribution text;
+- usage-policy ID/URL, capture time and evidence hash;
+- a complete, mutually exclusive partition of every operation, channel and delivery mode into `permitted`, `unknown` or `prohibited`;
+- territory (`global`, named ISO alpha-2 countries or `unknown`), commercial-use, redistribution, derivative-work and share-alike terms;
+- expiry, next-review and review status plus immutable evidence references;
 - requested/retrieved/source-observed timestamps separately;
 - acquisition method/version and minimized payload hash;
 - coverage receipt with query/extent geometry, spatial and temporal status, counts, caps and proof limit;
 - freshness receipt with policy, age and `current`/`aging`/`stale`/`unknown`/`not_applicable` state;
 - lineage hash and limitations.
 
-`rightsStatus=unknown|blocked` cannot support a rendered, ranked, model-input or exported fact. Presence of a source receipt does not prove completeness, authority or reusable rights.
+The exact operation vocabulary is:
+
+`resolve`, `acquire`, `normalize`, `calculate`, `analyse`, `find`, `shortlist`, `compare`, `rank`, `create`, `generate`, `evaluate`, `model_input`, `dashboard`, `report`, `project`, `export`, `persist`.
+
+Channels are `internal_operator`, `authenticated_user`, `public_preview`, `client_shared`, `third_party_model`, `machine_api`, `mcp_tool`. Delivery modes are `interactive_display`, `server_to_server`, `download`, `email`, `embedded_report`, `project_storage`, `model_prompt`.
+
+The rights validator must reject duplicate or omitted vocabulary entries across the three permission buckets. An operation proceeds only when the named operation, actual channel, actual delivery mode and territory are all explicitly `permitted`, the review is current, and licence/policy evidence is complete. `unknown`, omitted, expired, due, restricted or prohibited scope fails closed. In particular, affected `model_input`, `rank` and `export` operations are blocked; downstream facts and gaps remain visible only through independently permitted channels. `export` additionally requires permitted redistribution, while `model_input` and `generate` require permitted derivative use. Presence of a receipt does not prove completeness, authority or reusable rights.
 
 ## Fact graph rules
 
@@ -120,27 +133,28 @@ A recent response with incomplete mapped coverage is not complete. A complete hi
 
 - affected section and optional required fact key;
 - decision impact (`informational`, `material`, `blocking`);
-- affected modes/methods;
+- affected operations/methods;
 - remediation action and requested validation source;
 - whether the gap blocks ranking, generation/evaluation, report sharing or another gated operation.
 
-An operation is blocked if any `blocking` gap targets it. The UI may still present factual context that passed its own gate.
+An operation is blocked if any `blocking` gap targets it or any contributing source lacks explicit rights for that operation/channel/delivery/territory tuple. `quality.operationGates` contains exactly one gate for every operation in the shared vocabulary and references the gaps and rights receipts used. The UI may still present factual context that passed its own independent gate.
 
 ## Hash and immutability profile
 
-1. Serialize JSON using RFC 8785 JSON Canonicalization Scheme-compatible ordering and number/string encoding.
-2. Calculate `snapshotHash = sha256(canonicalJSON(snapshot with snapshotHash omitted))`.
-3. `snapshotId` is stable and opaque; it is not the hash and must not be reused for changed content.
-4. Geometry and minimized provider payloads are separately hash-addressed.
-5. A refresh or corrected fact creates a new snapshot with `parentSnapshotRefs`; the prior snapshot is not mutated.
-6. `sourceObservedAt=null` and freshness `unknown` remain explicit; do not substitute retrieval time.
-7. Locale changes presentation only and cannot alter facts, methods or hashes. Localized labels belong in templates/registry, not duplicated fact truth.
+1. The hash-bearing truth payload is the complete schema-valid `GeoContextSnapshot`; it contains neither presentation locale nor a localized subject display label.
+2. Serialize that payload using RFC 8785 JSON Canonicalization Scheme-compatible ordering and number/string encoding.
+3. Calculate `snapshotHash = sha256(canonicalJSON(snapshot with only the top-level snapshotHash field omitted))`. No other field or envelope is excluded.
+4. `snapshotId` is stable and opaque; it is not the hash and must not be reused for changed content.
+5. Geometry and minimized provider payloads are separately hash-addressed.
+6. A refresh or corrected fact creates a new snapshot with `parentSnapshotRefs`; the prior snapshot is not mutated.
+7. `sourceObservedAt=null` and freshness `unknown` remain explicit; do not substitute retrieval time.
+8. A consumer passes presentation locale outside the snapshot to a template/renderer. Switching that locale may create a different `DecisionRenderReceipt`, but it reuses the exact same snapshot and DecisionRecord hashes. A genuinely different source-observed name is truth and therefore changes the snapshot hash.
 
 ## Minimum construction pipeline
 
-`resolve subject -> acquire/minimize -> normalize source receipts -> build observed facts -> calculate deterministic facts -> run optional models -> index sections -> detect conflicts/gaps -> apply quality/claim gates -> canonicalize/hash -> persist or return`
+`resolve subject -> acquire/minimize -> normalize source and rights-scope receipts -> build observed facts -> calculate deterministic facts -> apply operation/rights gate before any model input -> run optional models -> index sections -> detect conflicts/gaps -> apply quality/claim gates -> canonicalize/hash -> apply persist/delivery gate -> persist or return`
 
-Provider responses must not flow directly to UI, ranking or model prompts. Prompts receive only an allowlisted projection of facts, gaps and proof limits plus the snapshot hash.
+Provider responses must not flow directly to UI, ranking or model prompts. Prompts receive only an allowlisted, rights-cleared projection of facts, gaps and proof limits plus the snapshot hash.
 
 ## Mapping from the current candidate
 
@@ -161,11 +175,11 @@ Provider responses must not flow directly to UI, ranking or model prompts. Promp
 - source/fact/section cross-reference and acyclic graph validation;
 - exactly eleven unique section keys;
 - evidence-class conditional rules;
-- rights, coverage, freshness and confidence cap tests;
+- rights-scope partition, licence/policy evidence, operation/channel/delivery/territory and fail-closed tests;
 - zero-result/absence adversarial tests;
 - conflict preservation tests;
 - unknown/stale source and blocked-operation tests;
-- locale-invariance test;
+- locale and display-label rejection from truth payload plus external-presentation locale-invariance test;
 - current V5.1 evidence-pack adapter parity fixtures.
 
 ## Non-authorizations

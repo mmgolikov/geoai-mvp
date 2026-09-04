@@ -70,6 +70,7 @@
     "test:point-to-object-area-context": "node --experimental-strip-types scripts/point-to-object-area-context-check.ts",
     "test:point-to-object-create": "node --experimental-strip-types scripts/point-to-object-create-check.ts",
     "test:point-to-object-map-replacement": "node --experimental-strip-types scripts/point-to-object-map-replacement-check.mjs",
+    "test:point-to-object-v6-contracts": "node scripts/point-to-object-v6-contract-check.mjs",
     "test:point-to-object-v5-interaction": "node scripts/point-to-object-v5-interaction-check.mjs",
     "test:point-to-object-trusted-identity": "node --experimental-strip-types scripts/point-to-object-trusted-identity-check.ts",
     "test:point-to-object-persistence": "node scripts/point-to-object-persistence-check.mjs",

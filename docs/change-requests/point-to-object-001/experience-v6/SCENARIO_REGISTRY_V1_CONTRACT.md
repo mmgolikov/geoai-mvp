@@ -48,7 +48,7 @@ Each entry must contain:
 1. identity/version/lifecycle status and B2B/B2C audience;
 2. allowed preference roles;
 3. one business question with localized text, decision type, decision owner and horizon;
-4. supported subject types and explicit `modeBindings` for Analyse, Find and Create;
+4. supported subject types, explicit `modeBindings` for Analyse, Find and Create, and one `operationPolicy` for every shared operation;
 5. one context profile reference;
 6. method references for acquisition, calculation, AI, ranking, comparison, generation and evaluation as applicable;
 7. a ranking policy that is explicitly `enabled`, `blocked` or `not_applicable`;
@@ -74,7 +74,23 @@ Every scenario contains exactly one binding for each of `analyse`, `find` and `c
 - `blocked`: the mode must not execute; the binding lists blocking requirements;
 - `not_applicable`: the business question does not use that mode.
 
-A mode binding declares subject types, method IDs, produced output keys and localized limitation. UI availability is derived from this binding; it is not maintained as a second capability map.
+A mode binding declares subject types, method IDs, produced output keys, localized limitation and the operations it may invoke. UI availability is derived from this binding; it is not maintained as a second capability map.
+
+## Shared operation and gate mapping
+
+All GeoContext, Scenario Registry, DecisionRecord and DecisionRenderReceipt contracts use exactly this vocabulary:
+
+`resolve`, `acquire`, `normalize`, `calculate`, `analyse`, `find`, `shortlist`, `compare`, `rank`, `create`, `generate`, `evaluate`, `model_input`, `dashboard`, `report`, `project`, `export`, `persist`.
+
+Every scenario has exactly one `operationPolicy` for each value with `enabled`, `partial`, `blocked` or `not_applicable` status. A blocked policy names at least one validation requirement. The UI-mode mapping is explicit rather than inferred:
+
+| UI mode | Core operations | Optional gated downstream operations |
+| --- | --- | --- |
+| Analyse | `resolve`, `acquire`, `normalize`, `calculate`, `analyse` | `model_input`, `dashboard`, `report`, `project`, `export`, `persist` |
+| Find | `acquire`, `normalize`, `find`, `shortlist` | `analyse`, `compare`, `rank`, `dashboard`, `report`, `project`, `export`, `persist` |
+| Create | `create`, `generate`, `evaluate` | `model_input`, `dashboard`, `report`, `project`, `export`, `persist` |
+
+The mode binding lists the subset used by that scenario. A method's `operation`, every fact/validation `blocks` entry, snapshot/record operation gates and the external render operation must use the same enum. Scenario status never overrides a blocked snapshot rights/coverage/freshness gate.
 
 ## Context profile
 
@@ -84,7 +100,7 @@ A context profile declares:
 - radius/extent rules and acquisition-window tolerance;
 - required fact keys with necessity, allowed evidence classes, maximum age, minimum coverage and absence semantics;
 - comparison cohort policy: same profile/version, compatible acquisition window and exact metric definitions;
-- which missing facts block Analyse, ranking, Create/evaluation or report sharing.
+- which missing facts block any named operation, including Analyse, comparison/ranking, Create/generation/evaluation, report, Project Hub, export or persistence.
 
 `maximumAgeSeconds=null` means no approved freshness threshold exists; it is not infinite freshness. `minimumCoverage=unknown_allowed` may support display but cannot support absence claims or an enabled rank unless the method explicitly permits it.
 
@@ -113,14 +129,14 @@ Ranking is disabled by default. `ranking.status=enabled` requires:
 - weights summing to exactly `1.0` after decimal normalization;
 - an explicit missing-data policy;
 - metric-level contributions and excluded/blocked reasons in the DecisionRecord;
-- no synthetic/demo fact, unsupported value, blocking gap or rights-blocked source contributing to the result;
+- no synthetic/demo fact, unsupported value, blocking gap or source lacking explicit operation/channel/delivery/territory rights contributing to the result;
 - wording limited to a screening preference, never “approved”, “best use” or guaranteed investment result.
 
 When these conditions are not met, factual comparison remains possible but ranking is `blocked` with reasons.
 
 ## Dashboard and report bindings
 
-Templates define sections and required output/fact keys. They do not calculate values. Both dashboard and report read the same DecisionRecord and GeoContext snapshot references. A missing required value renders as a named gap; it is never replaced with a demo default.
+Templates define sections and required output/fact keys. They do not calculate values. Both dashboard and report read the same already-final DecisionRecord and GeoContext snapshot references. A missing required value renders as a named gap; it is never replaced with a demo default. Template IDs/versions are frozen in `DecisionRecord.renderPolicy`; render manifests and artifact hashes exist only in a later external `DecisionRenderReceipt`.
 
 ## Initial migration disposition for existing scenarios
 
@@ -168,17 +184,18 @@ The registry validator must prove:
 
 1. globally unique IDs and versions;
 2. every reference resolves exactly once;
-3. each scenario has exactly three unique mode bindings;
+3. each scenario has exactly three unique mode bindings and exactly eighteen unique operation policies;
 4. role audience matches scenario audience;
-5. mode methods have compatible operations and subject types;
+5. mode methods have compatible operations and subject types, and mode-to-operation mappings agree with operation policies;
 6. required fact keys exist in the referenced context profile;
 7. dashboard/report output refs are produced by scenario methods or snapshot facts;
 8. ranking weights equal 1.0 and ranking method/metrics exist when enabled;
-9. blocked modes/ranking list at least one blocking requirement;
+9. blocked modes, operation policies and ranking list at least one blocking requirement;
 10. model methods contain caps and validation policy;
 11. product roles cannot appear as authorization capabilities;
 12. no retired method/template is referenced by a candidate/released scenario;
-13. registry hash and scenario-entry hashes reconcile.
+13. registry hash and scenario-entry hashes reconcile;
+14. every required source operation is separately rights-cleared for the actual channel, delivery mode and territory before execution.
 
 ## Non-authorizations
 

@@ -98,8 +98,14 @@
         "risks_constraints"
       ]
     },
-    "mode": {
-      "enum": ["analyse", "find", "create", "compare", "report"]
+    "operation": {
+      "enum": ["resolve", "acquire", "normalize", "calculate", "analyse", "find", "shortlist", "compare", "rank", "create", "generate", "evaluate", "model_input", "dashboard", "report", "project", "export", "persist"]
+    },
+    "channel": {
+      "enum": ["internal_operator", "authenticated_user", "public_preview", "client_shared", "third_party_model", "machine_api", "mcp_tool"]
+    },
+    "deliveryMode": {
+      "enum": ["interactive_display", "server_to_server", "download", "email", "embedded_report", "project_storage", "model_prompt"]
     },
     "subject": {
       "type": "object",
@@ -107,7 +113,6 @@
       "required": [
         "subjectId",
         "subjectType",
-        "displayName",
         "geometryId",
         "geometryHash",
         "geometryType",
@@ -120,10 +125,6 @@
       "properties": {
         "subjectId": { "$ref": "#/$defs/boundedId" },
         "subjectType": { "enum": ["point", "object", "site", "aoi"] },
-        "displayName": {
-          "type": ["string", "null"],
-          "maxLength": 500
-        },
         "geometryId": { "$ref": "#/$defs/boundedId" },
         "geometryHash": { "$ref": "#/$defs/sha256" },
         "geometryType": { "enum": ["Point", "LineString", "MultiLineString", "Polygon", "MultiPolygon"] },
@@ -159,7 +160,6 @@
       "additionalProperties": false,
       "required": [
         "marketKey",
-        "locale",
         "contextProfileId",
         "contextProfileVersion",
         "requestedRadiusM",
@@ -168,10 +168,14 @@
       ],
       "properties": {
         "marketKey": { "$ref": "#/$defs/boundedId" },
-        "locale": { "type": "string", "pattern": "^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$", "maxLength": 35 },
         "contextProfileId": { "$ref": "#/$defs/boundedId" },
         "contextProfileVersion": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
-        "requestedRadiusM": { "type": ["number", "null"], "minimum": 0, "maximum": 100000 },
+        "requestedRadiusM": {
+          "oneOf": [
+            { "type": "number", "minimum": 0, "maximum": 100000 },
+            { "type": "null" }
+          ]
+        },
         "requestedExtentGeometryHash": {
           "oneOf": [
             { "$ref": "#/$defs/sha256" },
@@ -215,7 +219,12 @@
         },
         "spatialStatus": { "enum": ["complete_for_declared_extent", "partial", "unknown"] },
         "temporalStatus": { "enum": ["complete_for_declared_window", "partial", "unknown", "not_applicable"] },
-        "returnedCount": { "type": ["integer", "null"], "minimum": 0 },
+        "returnedCount": {
+          "oneOf": [
+            { "type": "integer", "minimum": 0 },
+            { "type": "null" }
+          ]
+        },
         "capReached": { "type": "boolean" },
         "supportsAbsenceConclusion": { "type": "boolean" },
         "proofLimit": { "type": "string", "minLength": 1, "maxLength": 2000 }
@@ -235,10 +244,185 @@
       "properties": {
         "sourceObservedAt": { "$ref": "#/$defs/nullableDateTime" },
         "retrievedAt": { "$ref": "#/$defs/dateTime" },
-        "ageSeconds": { "type": ["integer", "null"], "minimum": 0 },
+        "ageSeconds": {
+          "oneOf": [
+            { "type": "integer", "minimum": 0 },
+            { "type": "null" }
+          ]
+        },
         "policyId": { "$ref": "#/$defs/boundedId" },
-        "maxAgeSeconds": { "type": ["integer", "null"], "minimum": 0 },
+        "maxAgeSeconds": {
+          "oneOf": [
+            { "type": "integer", "minimum": 0 },
+            { "type": "null" }
+          ]
+        },
         "status": { "enum": ["current", "aging", "stale", "unknown", "not_applicable"] }
+      }
+    },
+    "rightsOperationScope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["permitted", "unknown", "prohibited"],
+      "properties": {
+        "permitted": {
+          "type": "array",
+          "maxItems": 18,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/operation" }
+        },
+        "unknown": {
+          "type": "array",
+          "maxItems": 18,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/operation" }
+        },
+        "prohibited": {
+          "type": "array",
+          "maxItems": 18,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/operation" }
+        }
+      }
+    },
+    "rightsChannelScope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["permitted", "unknown", "prohibited"],
+      "properties": {
+        "permitted": {
+          "type": "array",
+          "maxItems": 7,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/channel" }
+        },
+        "unknown": {
+          "type": "array",
+          "maxItems": 7,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/channel" }
+        },
+        "prohibited": {
+          "type": "array",
+          "maxItems": 7,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/channel" }
+        }
+      }
+    },
+    "rightsDeliveryScope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["permitted", "unknown", "prohibited"],
+      "properties": {
+        "permitted": {
+          "type": "array",
+          "maxItems": 7,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/deliveryMode" }
+        },
+        "unknown": {
+          "type": "array",
+          "maxItems": 7,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/deliveryMode" }
+        },
+        "prohibited": {
+          "type": "array",
+          "maxItems": 7,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/deliveryMode" }
+        }
+      }
+    },
+    "rightsEvidenceRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["evidenceId", "evidenceType", "evidenceHash", "sourceUrl", "capturedAt"],
+      "properties": {
+        "evidenceId": { "$ref": "#/$defs/boundedId" },
+        "evidenceType": { "enum": ["licence_text", "terms", "usage_policy", "provider_confirmation", "client_authorization", "legal_review"] },
+        "evidenceHash": { "$ref": "#/$defs/sha256" },
+        "sourceUrl": { "type": "string", "format": "uri", "maxLength": 2048 },
+        "capturedAt": { "$ref": "#/$defs/dateTime" }
+      }
+    },
+    "rightsScopeReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "rightsReceiptId",
+        "rightsProfileVersion",
+        "scopeStatus",
+        "licence",
+        "usagePolicyEvidence",
+        "operations",
+        "channels",
+        "deliveryModes",
+        "territory",
+        "redistribution",
+        "derivativeWorks",
+        "shareAlike",
+        "commercialUse",
+        "expiresAt",
+        "nextReviewAt",
+        "reviewStatus",
+        "evidenceRefs"
+      ],
+      "properties": {
+        "rightsReceiptId": { "$ref": "#/$defs/boundedId" },
+        "rightsProfileVersion": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+        "scopeStatus": { "enum": ["cleared_for_named_scope", "restricted", "unknown", "blocked"] },
+        "licence": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["licenceId", "licenceUrl", "attributionText"],
+          "properties": {
+            "licenceId": { "oneOf": [{ "type": "string", "minLength": 1, "maxLength": 300 }, { "type": "null" }] },
+            "licenceUrl": { "oneOf": [{ "type": "string", "format": "uri", "maxLength": 2048 }, { "type": "null" }] },
+            "attributionText": { "oneOf": [{ "type": "string", "minLength": 1, "maxLength": 4000 }, { "type": "null" }] }
+          }
+        },
+        "usagePolicyEvidence": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["policyId", "policyUrl", "evidenceHash", "capturedAt"],
+          "properties": {
+            "policyId": { "oneOf": [{ "$ref": "#/$defs/boundedId" }, { "type": "null" }] },
+            "policyUrl": { "oneOf": [{ "type": "string", "format": "uri", "maxLength": 2048 }, { "type": "null" }] },
+            "evidenceHash": { "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }] },
+            "capturedAt": { "$ref": "#/$defs/nullableDateTime" }
+          }
+        },
+        "operations": { "$ref": "#/$defs/rightsOperationScope" },
+        "channels": { "$ref": "#/$defs/rightsChannelScope" },
+        "deliveryModes": { "$ref": "#/$defs/rightsDeliveryScope" },
+        "territory": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["scope", "countryCodes"],
+          "properties": {
+            "scope": { "enum": ["global", "named", "unknown"] },
+            "countryCodes": {
+              "type": "array",
+              "maxItems": 249,
+              "uniqueItems": true,
+              "items": { "type": "string", "pattern": "^[A-Z]{2}$" }
+            }
+          }
+        },
+        "redistribution": { "enum": ["permitted", "permitted_with_conditions", "restricted", "prohibited", "unknown"] },
+        "derivativeWorks": { "enum": ["permitted", "permitted_with_conditions", "restricted", "prohibited", "unknown"] },
+        "shareAlike": { "enum": ["required", "not_required", "unknown", "not_applicable"] },
+        "commercialUse": { "enum": ["permitted", "restricted", "prohibited", "unknown"] },
+        "expiresAt": { "$ref": "#/$defs/nullableDateTime" },
+        "nextReviewAt": { "$ref": "#/$defs/nullableDateTime" },
+        "reviewStatus": { "enum": ["current", "due", "expired", "unknown"] },
+        "evidenceRefs": {
+          "type": "array",
+          "maxItems": 50,
+          "items": { "$ref": "#/$defs/rightsEvidenceRef" }
+        }
       }
     },
     "sourceReceipt": {
@@ -250,7 +434,7 @@
         "provider",
         "sourceKind",
         "authorityStatus",
-        "rightsStatus",
+        "rightsScope",
         "requestedAt",
         "acquisitionMethodId",
         "acquisitionMethodVersion",
@@ -266,7 +450,7 @@
         "provider": { "type": "string", "minLength": 1, "maxLength": 300 },
         "sourceKind": { "enum": ["open_map", "public_register", "public_statistical", "remote_sensing", "weather_climate", "market", "client_provided", "licensed_commercial", "synthetic"] },
         "authorityStatus": { "enum": ["open_context_not_official", "published_by_named_authority_unvalidated", "client_asserted", "commercial_provider_unvalidated", "synthetic_not_evidence"] },
-        "rightsStatus": { "enum": ["cleared_for_scope", "restricted", "unknown", "blocked"] },
+        "rightsScope": { "$ref": "#/$defs/rightsScopeReceipt" },
         "requestedAt": { "$ref": "#/$defs/dateTime" },
         "acquisitionMethodId": { "$ref": "#/$defs/boundedId" },
         "acquisitionMethodVersion": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
@@ -295,12 +479,26 @@
         {
           "type": "array",
           "maxItems": 100,
-          "items": { "type": ["string", "number", "boolean", "null"] }
+          "items": {
+            "oneOf": [
+              { "type": "string" },
+              { "type": "number" },
+              { "type": "boolean" },
+              { "type": "null" }
+            ]
+          }
         },
         {
           "type": "object",
           "maxProperties": 100,
-          "additionalProperties": { "type": ["string", "number", "boolean", "null"] }
+          "additionalProperties": {
+            "oneOf": [
+              { "type": "string" },
+              { "type": "number" },
+              { "type": "boolean" },
+              { "type": "null" }
+            ]
+          }
         }
       ]
     },
@@ -324,9 +522,9 @@
       "properties": {
         "provider": { "type": "string", "minLength": 1, "maxLength": 200 },
         "model": { "type": "string", "minLength": 1, "maxLength": 200 },
-        "modelVersion": { "type": ["string", "null"], "maxLength": 200 },
+        "modelVersion": { "oneOf": [{ "type": "string", "maxLength": 200 }, { "type": "null" }] },
         "promptOrConfigHash": { "$ref": "#/$defs/sha256" },
-        "requestId": { "type": ["string", "null"], "maxLength": 512 },
+        "requestId": { "oneOf": [{ "type": "string", "maxLength": 512 }, { "type": "null" }] },
         "executedAt": { "$ref": "#/$defs/dateTime" },
         "storedByProvider": { "type": "boolean" },
         "toolCalls": { "type": "integer", "minimum": 0, "maximum": 100 },
@@ -373,7 +571,7 @@
         "supportStatus": { "enum": ["supported", "partial", "unsupported"] },
         "valueState": { "enum": ["known", "unknown", "not_observed", "not_calculable"] },
         "value": { "$ref": "#/$defs/factValue" },
-        "unit": { "type": ["string", "null"], "maxLength": 100 },
+        "unit": { "oneOf": [{ "type": "string", "maxLength": 100 }, { "type": "null" }] },
         "sourceReceiptIds": {
           "type": "array",
           "maxItems": 32,
@@ -507,7 +705,7 @@
         "requiredFactKey",
         "state",
         "decisionImpact",
-        "affectedModes",
+        "affectedOperations",
         "affectedMethodIds",
         "remediationAction",
         "requestedValidationSource"
@@ -523,11 +721,11 @@
         },
         "state": { "enum": ["missing", "coverage_unknown", "source_unavailable", "stale", "conflict", "rights_blocked", "not_calculable", "not_requested"] },
         "decisionImpact": { "enum": ["informational", "material", "blocking"] },
-        "affectedModes": {
+        "affectedOperations": {
           "type": "array",
-          "maxItems": 5,
+          "maxItems": 18,
           "uniqueItems": true,
-          "items": { "$ref": "#/$defs/mode" }
+          "items": { "$ref": "#/$defs/operation" }
         },
         "affectedMethodIds": {
           "type": "array",
@@ -536,13 +734,39 @@
           "items": { "$ref": "#/$defs/boundedId" }
         },
         "remediationAction": { "type": "string", "minLength": 1, "maxLength": 2000 },
-        "requestedValidationSource": { "type": ["string", "null"], "maxLength": 500 }
+        "requestedValidationSource": { "oneOf": [{ "type": "string", "maxLength": 500 }, { "type": "null" }] }
+      }
+    },
+    "operationGate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation", "status", "gapIds", "rightsReceiptIds", "reasons"],
+      "properties": {
+        "operation": { "$ref": "#/$defs/operation" },
+        "status": { "enum": ["pass", "partial", "blocked"] },
+        "gapIds": {
+          "type": "array",
+          "maxItems": 500,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/boundedId" }
+        },
+        "rightsReceiptIds": {
+          "type": "array",
+          "maxItems": 64,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/boundedId" }
+        },
+        "reasons": {
+          "type": "array",
+          "maxItems": 100,
+          "items": { "type": "string", "minLength": 1, "maxLength": 2000 }
+        }
       }
     },
     "quality": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["coverageStatus", "freshnessStatus", "confidenceCounts", "gapCounts", "gate", "gateReasons"],
+      "required": ["coverageStatus", "freshnessStatus", "confidenceCounts", "gapCounts", "gate", "gateReasons", "operationGates"],
       "properties": {
         "coverageStatus": { "enum": ["complete_for_requested_profile", "partial", "unknown"] },
         "freshnessStatus": { "enum": ["current", "mixed", "stale", "unknown"] },
@@ -571,6 +795,12 @@
           "type": "array",
           "maxItems": 100,
           "items": { "type": "string", "minLength": 1, "maxLength": 2000 }
+        },
+        "operationGates": {
+          "type": "array",
+          "minItems": 18,
+          "maxItems": 18,
+          "items": { "$ref": "#/$defs/operationGate" }
         }
       }
     },

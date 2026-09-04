@@ -262,6 +262,12 @@ jobs:
           set -euo pipefail
           npm run test:point-to-object-map-replacement | tee artifacts/point-to-object-map-replacement-check.txt
 
+      - name: Point-to-object V6 architecture contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:point-to-object-v6-contracts | tee artifacts/point-to-object-v6-contract-check.txt
+
       - name: User-profile contract
         shell: bash
         run: |

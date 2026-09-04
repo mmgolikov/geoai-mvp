@@ -110,6 +110,9 @@
         "risks_constraints"
       ]
     },
+    "operation": {
+      "enum": ["resolve", "acquire", "normalize", "calculate", "analyse", "find", "shortlist", "compare", "rank", "create", "generate", "evaluate", "model_input", "dashboard", "report", "project", "export", "persist"]
+    },
     "role": {
       "type": "object",
       "additionalProperties": false,
@@ -146,14 +149,19 @@
           "uniqueItems": true,
           "items": { "enum": ["observed", "calculated", "modelled", "hypothesis"] }
         },
-        "maximumAgeSeconds": { "type": ["integer", "null"], "minimum": 0 },
+        "maximumAgeSeconds": {
+          "oneOf": [
+            { "type": "integer", "minimum": 0 },
+            { "type": "null" }
+          ]
+        },
         "minimumCoverage": { "enum": ["complete_for_declared_extent", "partial_allowed", "unknown_allowed"] },
         "absenceSemantics": { "enum": ["not_applicable", "measured_absence_required", "absence_not_supported"] },
         "blocks": {
           "type": "array",
-          "maxItems": 5,
+          "maxItems": 18,
           "uniqueItems": true,
-          "items": { "enum": ["analyse", "find", "create", "compare", "report"] }
+          "items": { "$ref": "#/$defs/operation" }
         }
       }
     },
@@ -192,9 +200,9 @@
           "required": ["kind", "defaultM", "minimumM", "maximumM"],
           "properties": {
             "kind": { "enum": ["fixed", "bounded_user_choice", "subject_extent_buffer", "scenario_method_defined"] },
-            "defaultM": { "type": ["number", "null"], "minimum": 0, "maximum": 100000 },
-            "minimumM": { "type": ["number", "null"], "minimum": 0, "maximum": 100000 },
-            "maximumM": { "type": ["number", "null"], "minimum": 0, "maximum": 100000 }
+            "defaultM": { "oneOf": [{ "type": "number", "minimum": 0, "maximum": 100000 }, { "type": "null" }] },
+            "minimumM": { "oneOf": [{ "type": "number", "minimum": 0, "maximum": 100000 }, { "type": "null" }] },
+            "maximumM": { "oneOf": [{ "type": "number", "minimum": 0, "maximum": 100000 }, { "type": "null" }] }
           }
         },
         "acquisitionWindowToleranceSeconds": { "type": "integer", "minimum": 0, "maximum": 31536000 },
@@ -254,7 +262,7 @@
         "methodId": { "$ref": "#/$defs/boundedId" },
         "version": { "$ref": "#/$defs/semver" },
         "status": { "enum": ["candidate", "enabled", "blocked", "retired"] },
-        "operation": { "enum": ["resolve", "acquire", "normalize", "calculate", "analyse", "find", "rank", "compare", "generate", "evaluate", "render_dashboard", "render_report"] },
+        "operation": { "$ref": "#/$defs/operation" },
         "implementationKind": { "enum": ["spatial_query", "deterministic_rule", "statistical_model", "optimization", "simulation", "llm_structured", "generation_provider", "manual_validation", "renderer"] },
         "executionPlane": { "enum": ["browser", "server", "operator"] },
         "deterministic": { "type": "boolean" },
@@ -323,10 +331,17 @@
     "modeBinding": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["mode", "status", "subjectTypes", "methodIds", "outputKeys", "blockingRequirementIds", "limitation"],
+      "required": ["mode", "status", "operations", "subjectTypes", "methodIds", "outputKeys", "blockingRequirementIds", "limitation"],
       "properties": {
         "mode": { "enum": ["analyse", "find", "create"] },
         "status": { "enum": ["enabled", "partial", "blocked", "not_applicable"] },
+        "operations": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 18,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/operation" }
+        },
         "subjectTypes": {
           "type": "array",
           "maxItems": 4,
@@ -353,6 +368,27 @@
         },
         "limitation": { "$ref": "#/$defs/localizedText" }
       }
+    },
+    "operationPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation", "status", "blockingRequirementIds"],
+      "properties": {
+        "operation": { "$ref": "#/$defs/operation" },
+        "status": { "enum": ["enabled", "partial", "blocked", "not_applicable"] },
+        "blockingRequirementIds": {
+          "type": "array",
+          "maxItems": 100,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/boundedId" }
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "status": { "const": "blocked" } }, "required": ["status"] },
+          "then": { "properties": { "blockingRequirementIds": { "type": "array", "minItems": 1 } } }
+        }
+      ]
     },
     "rankingMetric": {
       "type": "object",
@@ -445,9 +481,9 @@
         "status": { "enum": ["required", "conditional", "not_applicable"] },
         "blocks": {
           "type": "array",
-          "maxItems": 5,
+          "maxItems": 18,
           "uniqueItems": true,
-          "items": { "enum": ["analyse", "find", "create", "compare", "report"] }
+          "items": { "$ref": "#/$defs/operation" }
         },
         "evidenceNeeded": { "$ref": "#/$defs/localizedText" }
       }
@@ -466,6 +502,7 @@
         "subjectTypes",
         "contextProfileRef",
         "modeBindings",
+        "operationPolicies",
         "methodIds",
         "ranking",
         "dashboardTemplateRef",
@@ -511,6 +548,12 @@
           "minItems": 3,
           "maxItems": 3,
           "items": { "$ref": "#/$defs/modeBinding" }
+        },
+        "operationPolicies": {
+          "type": "array",
+          "minItems": 18,
+          "maxItems": 18,
+          "items": { "$ref": "#/$defs/operationPolicy" }
         },
         "methodIds": {
           "type": "array",
@@ -562,7 +605,7 @@
           "required": ["owner", "approvedBy", "approvedAt", "supersedes"],
           "properties": {
             "owner": { "type": "string", "minLength": 1, "maxLength": 300 },
-            "approvedBy": { "type": ["string", "null"], "maxLength": 300 },
+            "approvedBy": { "oneOf": [{ "type": "string", "maxLength": 300 }, { "type": "null" }] },
             "approvedAt": {
               "oneOf": [
                 { "$ref": "#/$defs/dateTime" },

@@ -14,7 +14,7 @@ Machine contract: `DECISION_RECORD_V1.schema.json`.
 
 ## Purpose
 
-`DecisionRecord` is the immutable, versioned result of one decision-stage execution. It binds the exact scenario, business question, subjects, criteria, GeoContext snapshots, method executions, outputs, model/provider receipts, validation state and render bindings.
+`DecisionRecord` is the immutable, versioned result of one decision-stage execution. It binds the exact scenario, business question, subjects, criteria, GeoContext snapshots, method executions, outputs, model/provider receipts, validation state, per-operation gates and immutable render template policy.
 
 It prevents the current failure mode in which search, comparison, dashboard and report independently derive similar-looking but different values.
 
@@ -32,8 +32,8 @@ A DecisionRecord is append-only. Product progress creates linked records rather 
 4. An individual `analyse` record may reference one of the same snapshots; it does not reacquire unless refresh is explicit.
 5. `create` creates successor alternatives and generation artifacts from the selected snapshot/scenario.
 6. `evaluate` compares alternatives under versioned methods and the same or explicitly refreshed context.
-7. Dashboard renders the selected DecisionRecord.
-8. Report creates a frozen render artifact that references that same record; it does not execute methods.
+7. Dashboard renders the selected, already-final DecisionRecord.
+8. Report creates a frozen artifact and then a separate `DecisionRenderReceipt` referencing that same finalized record; it does not execute decision methods or mutate the record.
 
 Refreshing source context creates new GeoContextSnapshot(s) and a successor DecisionRecord with `refreshReason`. Prior records/reports remain reproducible.
 
@@ -46,14 +46,15 @@ Refreshing source context creates new GeoContextSnapshot(s) and a successor Deci
 | `projectRef` | Optional project/tenant reference; `null` for bounded public-demo/browser-local flow. |
 | `preferenceContext` | B2B/B2C and product role used to frame the question; explicitly not authorization. |
 | `scenarioRef` | Exact registry ID/version/hash, scenario ID/version/hash and business-question ID. |
-| `operation` | `analyse`, `find`, `compare`, `create`, `evaluate` or `report`. |
+| `operation` | One value from the shared eighteen-operation vocabulary; the record captures the decision-stage operation that produced it. |
 | `createdAt`, `decisionAsOf` | Execution and decision time; source times remain on snapshots. |
 | `parentRecordRefs` | Immutable predecessor chain. |
 | `inputs` | Subjects, criteria hash, snapshot refs and acquisition/refresh posture. |
 | `methodExecutions` | Versioned methods, input/output hashes, status and model/provider receipts. |
+| `operationGates` | Exactly one `pass`, `partial` or `blocked` receipt for every shared operation, with gap, validation-task and rights-receipt refs. |
 | `outputs` | Claims, metrics, candidate set/ranking, alternatives, recommendation and validation tasks. |
-| `renderBindings` | Dashboard/report templates and frozen render artifact refs. |
-| `lineage` | Canonicalization, input/output graph and artifact hashes. |
+| `renderPolicy` | Dashboard/report/Project Summary template IDs and versions only; never render-manifest or rendered-artifact hashes. |
+| `lineage` | Canonicalization, input/output graph and decision-stage artifact hashes only. |
 | `governance` | Claim cap, validation/privacy/release states and caveat. |
 
 ## Input and snapshot rules
@@ -72,7 +73,15 @@ Each execution records method ID/version, operation, status, deterministic flag,
 - deterministic methods must reproduce the same output hash from the same canonical inputs and version;
 - model methods require provider/model/config or prompt hash, request status, token/cost fields when available, and structured-output validation status;
 - model failure cannot overwrite or downgrade source facts; it produces a failed/partial method receipt and explicit gaps;
-- dashboard/report renderers are methods only for traceability; `recomputationAllowed=false`.
+- dashboard/report renderers are versioned in a later external `DecisionRenderReceipt`; they are not decision-stage method executions and `recomputationAllowed=false`.
+
+## Shared operation gates
+
+The exact shared vocabulary is:
+
+`resolve`, `acquire`, `normalize`, `calculate`, `analyse`, `find`, `shortlist`, `compare`, `rank`, `create`, `generate`, `evaluate`, `model_input`, `dashboard`, `report`, `project`, `export`, `persist`.
+
+`operationGates` contains each value exactly once. A gate is blocked when a referenced snapshot gap, validation task or rights-scope receipt blocks it. A rights receipt permits an operation only when the actual operation, channel, delivery mode and territory are explicitly permitted and the licence/policy evidence is current and complete. Unknown or missing scope blocks at least the affected `model_input`, `rank` and `export`; it cannot be bypassed by a scenario being enabled. `create`, `generate`, `evaluate`, `compare`, `rank`, `report` and `project` therefore have first-class independent gates rather than inheriting a coarse mode status.
 
 ## Claims and metrics
 
@@ -114,17 +123,21 @@ The original map replacement is a reversible visualization state, not a mutation
 
 ## Dashboard, report and Project Hub
 
-- Dashboard consumers bind to one DecisionRecord ID/hash and the record's template ID/version; the hash is carried by the consumer reference, not repeated inside the hashed record.
-- Report consumers bind to the same record plus a render manifest/artifact hash; the external report artifact carries the DecisionRecord ID/hash.
+- Dashboard, report and Project Hub consumers bind to one finalized DecisionRecord ID/hash and the template ID/version frozen in `renderPolicy`.
+- The parent DecisionRecord contains no render manifest, rendered artifact or render receipt hash. `lineage.decisionArtifactHashes` is limited to artifacts finalized before the record, such as a generated concept geometry/programme; it cannot contain later dashboard/report/Project Summary artifacts.
+- Rendering follows one acyclic order: finalize and hash the DecisionRecord; verify its relevant operation gate; render an artifact that embeds only the parent record ID/hash; hash the artifact; then hash a separate `DecisionRenderReceipt` that binds parent, template, locale, renderer, manifest and artifact.
+- The artifact never embeds its later `renderReceiptHash`; the receipt is never inserted back into the parent. A localized re-render creates a new receipt/artifact while preserving the exact parent DecisionRecord and GeoContext hashes.
 - Neither may run acquisition, analysis, ranking or generation.
-- Project Hub indexes record/snapshot/report refs and their status; it does not flatten or rewrite their payloads.
+- Project Hub indexes record/snapshot/render-receipt refs and their status; it does not flatten or rewrite their payloads.
 - Localization changes labels and narrative presentation only. Numeric values, units, claims, source references and hashes remain invariant.
+
+Machine contract for that external receipt: `DECISION_RENDER_RECEIPT_V1.schema.json`; normative behavior: `DECISION_RENDER_RECEIPT_V1_CONTRACT.md`.
 
 ## Hash and canonicalization
 
 `recordHash = sha256(JCS-compatible canonical JSON with recordHash omitted)`.
 
-Method input/output, criteria, candidate cohort, model projection, report render manifest and artifacts have separate hashes. `lineage.inputGraphHash` and `lineage.outputGraphHash` bind the complete reference graph. A semantic validator must reject missing, duplicate, cyclic, hash-mismatched or cross-project references.
+Method input/output, criteria, candidate cohort, model projection and pre-finalization decision artifacts have separate hashes. Later render manifests/artifacts are intentionally absent and are bound by external receipts. `lineage.inputGraphHash` and `lineage.outputGraphHash` bind the decision reference graph. A semantic validator must reject missing, duplicate, cyclic, hash-mismatched or cross-project references.
 
 ## Persistence boundary
 
@@ -152,11 +165,13 @@ The DecisionRecord validator must prove:
 5. candidate ranking exists only with a passing, comparable cohort and enabled registry ranking policy;
 6. ranking contributions reconcile exactly to recorded scores/order and weights;
 7. generated alternatives reference source context, programme/geometry artifacts, assumptions and validation tasks;
-8. dashboard/report bindings have `recomputationAllowed=false` and read the same record hash;
-9. `report` operations contain no acquisition/ranking/generation execution;
+8. render policy templates have `recomputationAllowed=false`; no manifest, rendered-artifact or render-receipt hash exists in the parent record;
+9. a `report`, `dashboard` or `project` render requires a non-blocked matching operation gate and an external DecisionRenderReceipt bound to the already-final record;
 10. refreshed context uses new snapshots and a successor record;
 11. locale does not change truth/hash-bearing values;
-12. mandatory caveat and validation state are present.
+12. mandatory caveat and validation state are present;
+13. exactly eighteen unique operation gates exist and agree with Scenario Registry policies, snapshot gaps, rights scopes and validation tasks;
+14. unknown or missing rights scope fails closed for every affected operation, including model input, ranking and export.
 
 ## Non-authorizations
 
