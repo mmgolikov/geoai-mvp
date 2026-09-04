@@ -1,0 +1,631 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:geoai:geo-context-snapshot:1.0.0",
+  "title": "GeoAI GeoContextSnapshot V1",
+  "description": "Immutable context for one point, object, site or AOI. JSON Schema validation is necessary but semantic reference, graph, hash, rights, coverage, freshness and claim-policy validation is also required.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaId",
+    "schemaVersion",
+    "snapshotId",
+    "snapshotHash",
+    "status",
+    "subject",
+    "scope",
+    "capturedAt",
+    "sourceReceipts",
+    "facts",
+    "sections",
+    "conflicts",
+    "gaps",
+    "quality",
+    "lineage",
+    "governance"
+  ],
+  "properties": {
+    "schemaId": { "const": "urn:geoai:geo-context-snapshot:1.0.0" },
+    "schemaVersion": { "const": "1.0.0" },
+    "snapshotId": { "$ref": "#/$defs/boundedId" },
+    "snapshotHash": { "$ref": "#/$defs/sha256" },
+    "status": { "enum": ["complete", "partial", "blocked"] },
+    "subject": { "$ref": "#/$defs/subject" },
+    "scope": { "$ref": "#/$defs/scope" },
+    "capturedAt": { "$ref": "#/$defs/dateTime" },
+    "sourceReceipts": {
+      "type": "array",
+      "maxItems": 64,
+      "items": { "$ref": "#/$defs/sourceReceipt" }
+    },
+    "facts": {
+      "type": "array",
+      "maxItems": 2000,
+      "items": { "$ref": "#/$defs/fact" }
+    },
+    "sections": {
+      "type": "array",
+      "minItems": 11,
+      "maxItems": 11,
+      "items": { "$ref": "#/$defs/section" }
+    },
+    "conflicts": {
+      "type": "array",
+      "maxItems": 200,
+      "items": { "$ref": "#/$defs/conflict" }
+    },
+    "gaps": {
+      "type": "array",
+      "maxItems": 500,
+      "items": { "$ref": "#/$defs/gap" }
+    },
+    "quality": { "$ref": "#/$defs/quality" },
+    "lineage": { "$ref": "#/$defs/lineage" },
+    "governance": { "$ref": "#/$defs/governance" }
+  },
+  "$defs": {
+    "boundedId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/@-]*$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "dateTime": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "nullableDateTime": {
+      "oneOf": [
+        { "$ref": "#/$defs/dateTime" },
+        { "type": "null" }
+      ]
+    },
+    "contextSection": {
+      "enum": [
+        "identity_geometry",
+        "built_environment",
+        "land_use",
+        "mobility_accessibility",
+        "infrastructure_poi",
+        "open_space_public_realm",
+        "terrain_environment",
+        "climate",
+        "satellite_change",
+        "market_socioeconomic",
+        "risks_constraints"
+      ]
+    },
+    "mode": {
+      "enum": ["analyse", "find", "create", "compare", "report"]
+    },
+    "subject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "subjectId",
+        "subjectType",
+        "displayName",
+        "geometryId",
+        "geometryHash",
+        "geometryType",
+        "crs",
+        "coordinateOrder",
+        "resolutionStatus",
+        "sourceIdentity",
+        "resolutionReceiptHash"
+      ],
+      "properties": {
+        "subjectId": { "$ref": "#/$defs/boundedId" },
+        "subjectType": { "enum": ["point", "object", "site", "aoi"] },
+        "displayName": {
+          "type": ["string", "null"],
+          "maxLength": 500
+        },
+        "geometryId": { "$ref": "#/$defs/boundedId" },
+        "geometryHash": { "$ref": "#/$defs/sha256" },
+        "geometryType": { "enum": ["Point", "LineString", "MultiLineString", "Polygon", "MultiPolygon"] },
+        "crs": { "const": "EPSG:4326" },
+        "coordinateOrder": { "const": "longitude_latitude" },
+        "resolutionStatus": { "enum": ["resolved", "ambiguous", "coordinate_context_only", "no_result", "outside_coverage"] },
+        "sourceIdentity": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["sourceId", "namespace", "featureId", "association"],
+              "properties": {
+                "sourceId": { "$ref": "#/$defs/boundedId" },
+                "namespace": { "$ref": "#/$defs/boundedId" },
+                "featureId": { "$ref": "#/$defs/boundedId" },
+                "association": { "enum": ["geometry_contains_point", "trusted_identity", "nearest_not_containment", "user_selected", "user_uploaded"] }
+              }
+            },
+            { "type": "null" }
+          ]
+        },
+        "resolutionReceiptHash": {
+          "oneOf": [
+            { "$ref": "#/$defs/sha256" },
+            { "type": "null" }
+          ]
+        }
+      }
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "marketKey",
+        "locale",
+        "contextProfileId",
+        "contextProfileVersion",
+        "requestedRadiusM",
+        "requestedExtentGeometryHash",
+        "timeBasis"
+      ],
+      "properties": {
+        "marketKey": { "$ref": "#/$defs/boundedId" },
+        "locale": { "type": "string", "pattern": "^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$", "maxLength": 35 },
+        "contextProfileId": { "$ref": "#/$defs/boundedId" },
+        "contextProfileVersion": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+        "requestedRadiusM": { "type": ["number", "null"], "minimum": 0, "maximum": 100000 },
+        "requestedExtentGeometryHash": {
+          "oneOf": [
+            { "$ref": "#/$defs/sha256" },
+            { "type": "null" }
+          ]
+        },
+        "timeBasis": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["requestedAsOf", "acquisitionWindowStart", "acquisitionWindowEnd"],
+          "properties": {
+            "requestedAsOf": { "$ref": "#/$defs/nullableDateTime" },
+            "acquisitionWindowStart": { "$ref": "#/$defs/dateTime" },
+            "acquisitionWindowEnd": { "$ref": "#/$defs/dateTime" }
+          }
+        }
+      }
+    },
+    "coverageReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "coverageId",
+        "kind",
+        "geometryHash",
+        "spatialStatus",
+        "temporalStatus",
+        "returnedCount",
+        "capReached",
+        "supportsAbsenceConclusion",
+        "proofLimit"
+      ],
+      "properties": {
+        "coverageId": { "$ref": "#/$defs/boundedId" },
+        "kind": { "enum": ["measured_extent", "query_bounds", "buffer", "provider_declared", "unknown"] },
+        "geometryHash": {
+          "oneOf": [
+            { "$ref": "#/$defs/sha256" },
+            { "type": "null" }
+          ]
+        },
+        "spatialStatus": { "enum": ["complete_for_declared_extent", "partial", "unknown"] },
+        "temporalStatus": { "enum": ["complete_for_declared_window", "partial", "unknown", "not_applicable"] },
+        "returnedCount": { "type": ["integer", "null"], "minimum": 0 },
+        "capReached": { "type": "boolean" },
+        "supportsAbsenceConclusion": { "type": "boolean" },
+        "proofLimit": { "type": "string", "minLength": 1, "maxLength": 2000 }
+      }
+    },
+    "freshnessReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sourceObservedAt",
+        "retrievedAt",
+        "ageSeconds",
+        "policyId",
+        "maxAgeSeconds",
+        "status"
+      ],
+      "properties": {
+        "sourceObservedAt": { "$ref": "#/$defs/nullableDateTime" },
+        "retrievedAt": { "$ref": "#/$defs/dateTime" },
+        "ageSeconds": { "type": ["integer", "null"], "minimum": 0 },
+        "policyId": { "$ref": "#/$defs/boundedId" },
+        "maxAgeSeconds": { "type": ["integer", "null"], "minimum": 0 },
+        "status": { "enum": ["current", "aging", "stale", "unknown", "not_applicable"] }
+      }
+    },
+    "sourceReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sourceReceiptId",
+        "sourceId",
+        "provider",
+        "sourceKind",
+        "authorityStatus",
+        "rightsStatus",
+        "requestedAt",
+        "acquisitionMethodId",
+        "acquisitionMethodVersion",
+        "minimizedPayloadHash",
+        "coverage",
+        "freshness",
+        "lineageHash",
+        "limitations"
+      ],
+      "properties": {
+        "sourceReceiptId": { "$ref": "#/$defs/boundedId" },
+        "sourceId": { "$ref": "#/$defs/boundedId" },
+        "provider": { "type": "string", "minLength": 1, "maxLength": 300 },
+        "sourceKind": { "enum": ["open_map", "public_register", "public_statistical", "remote_sensing", "weather_climate", "market", "client_provided", "licensed_commercial", "synthetic"] },
+        "authorityStatus": { "enum": ["open_context_not_official", "published_by_named_authority_unvalidated", "client_asserted", "commercial_provider_unvalidated", "synthetic_not_evidence"] },
+        "rightsStatus": { "enum": ["cleared_for_scope", "restricted", "unknown", "blocked"] },
+        "requestedAt": { "$ref": "#/$defs/dateTime" },
+        "acquisitionMethodId": { "$ref": "#/$defs/boundedId" },
+        "acquisitionMethodVersion": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+        "minimizedPayloadHash": {
+          "oneOf": [
+            { "$ref": "#/$defs/sha256" },
+            { "type": "null" }
+          ]
+        },
+        "coverage": { "$ref": "#/$defs/coverageReceipt" },
+        "freshness": { "$ref": "#/$defs/freshnessReceipt" },
+        "lineageHash": { "$ref": "#/$defs/sha256" },
+        "limitations": {
+          "type": "array",
+          "maxItems": 50,
+          "items": { "type": "string", "minLength": 1, "maxLength": 2000 }
+        }
+      }
+    },
+    "factValue": {
+      "oneOf": [
+        { "type": "string", "maxLength": 4000 },
+        { "type": "number" },
+        { "type": "boolean" },
+        { "type": "null" },
+        {
+          "type": "array",
+          "maxItems": 100,
+          "items": { "type": ["string", "number", "boolean", "null"] }
+        },
+        {
+          "type": "object",
+          "maxProperties": 100,
+          "additionalProperties": { "type": ["string", "number", "boolean", "null"] }
+        }
+      ]
+    },
+    "methodReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["methodId", "methodVersion", "kind", "executedAt", "inputHash", "outputHash"],
+      "properties": {
+        "methodId": { "$ref": "#/$defs/boundedId" },
+        "methodVersion": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+        "kind": { "enum": ["deterministic", "statistical_model", "optimization", "simulation", "generative_model", "llm_structured"] },
+        "executedAt": { "$ref": "#/$defs/dateTime" },
+        "inputHash": { "$ref": "#/$defs/sha256" },
+        "outputHash": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "modelReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "model", "modelVersion", "promptOrConfigHash", "requestId", "executedAt", "storedByProvider", "toolCalls", "status"],
+      "properties": {
+        "provider": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "model": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "modelVersion": { "type": ["string", "null"], "maxLength": 200 },
+        "promptOrConfigHash": { "$ref": "#/$defs/sha256" },
+        "requestId": { "type": ["string", "null"], "maxLength": 512 },
+        "executedAt": { "$ref": "#/$defs/dateTime" },
+        "storedByProvider": { "type": "boolean" },
+        "toolCalls": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "status": { "enum": ["completed", "fallback", "timeout", "refusal", "invalid_output", "upstream_error"] }
+      }
+    },
+    "confidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level", "basis", "capApplied"],
+      "properties": {
+        "level": { "enum": ["low", "medium", "high"] },
+        "basis": { "type": "string", "minLength": 1, "maxLength": 2000 },
+        "capApplied": { "type": "boolean" }
+      }
+    },
+    "fact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "factId",
+        "factKey",
+        "section",
+        "evidenceClass",
+        "supportStatus",
+        "valueState",
+        "value",
+        "unit",
+        "sourceReceiptIds",
+        "inputFactIds",
+        "method",
+        "modelReceipt",
+        "assumptions",
+        "confidence",
+        "validAt",
+        "proofLimit",
+        "validationRequired"
+      ],
+      "properties": {
+        "factId": { "$ref": "#/$defs/boundedId" },
+        "factKey": { "$ref": "#/$defs/boundedId" },
+        "section": { "$ref": "#/$defs/contextSection" },
+        "evidenceClass": { "enum": ["observed", "calculated", "modelled", "hypothesis"] },
+        "supportStatus": { "enum": ["supported", "partial", "unsupported"] },
+        "valueState": { "enum": ["known", "unknown", "not_observed", "not_calculable"] },
+        "value": { "$ref": "#/$defs/factValue" },
+        "unit": { "type": ["string", "null"], "maxLength": 100 },
+        "sourceReceiptIds": {
+          "type": "array",
+          "maxItems": 32,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/boundedId" }
+        },
+        "inputFactIds": {
+          "type": "array",
+          "maxItems": 100,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/boundedId" }
+        },
+        "method": {
+          "oneOf": [
+            { "$ref": "#/$defs/methodReceipt" },
+            { "type": "null" }
+          ]
+        },
+        "modelReceipt": {
+          "oneOf": [
+            { "$ref": "#/$defs/modelReceipt" },
+            { "type": "null" }
+          ]
+        },
+        "assumptions": {
+          "type": "array",
+          "maxItems": 50,
+          "items": { "type": "string", "minLength": 1, "maxLength": 2000 }
+        },
+        "confidence": { "$ref": "#/$defs/confidence" },
+        "validAt": { "$ref": "#/$defs/nullableDateTime" },
+        "proofLimit": { "type": "string", "minLength": 1, "maxLength": 2000 },
+        "validationRequired": { "type": "boolean" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "evidenceClass": { "const": "observed" } }, "required": ["evidenceClass"] },
+          "then": {
+            "properties": {
+              "sourceReceiptIds": { "type": "array", "minItems": 1 },
+              "inputFactIds": { "type": "array", "maxItems": 0 },
+              "method": { "type": "null" },
+              "modelReceipt": { "type": "null" },
+              "assumptions": { "type": "array", "maxItems": 0 }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "evidenceClass": { "const": "calculated" } }, "required": ["evidenceClass"] },
+          "then": {
+            "properties": {
+              "inputFactIds": { "type": "array", "minItems": 1 },
+              "method": { "$ref": "#/$defs/methodReceipt", "type": "object", "properties": { "kind": { "const": "deterministic" } } },
+              "modelReceipt": { "type": "null" },
+              "assumptions": { "type": "array", "maxItems": 0 }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "evidenceClass": { "const": "modelled" } }, "required": ["evidenceClass"] },
+          "then": {
+            "properties": {
+              "inputFactIds": { "type": "array", "minItems": 1 },
+              "method": { "$ref": "#/$defs/methodReceipt" },
+              "modelReceipt": { "$ref": "#/$defs/modelReceipt" }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "evidenceClass": { "const": "hypothesis" } }, "required": ["evidenceClass"] },
+          "then": {
+            "properties": {
+              "inputFactIds": { "type": "array", "minItems": 1 },
+              "method": { "$ref": "#/$defs/methodReceipt" },
+              "assumptions": { "type": "array", "minItems": 1 },
+              "validationRequired": { "const": true }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "valueState": { "enum": ["unknown", "not_observed", "not_calculable"] } }, "required": ["valueState"] },
+          "then": { "properties": { "value": { "type": "null" } } }
+        }
+      ]
+    },
+    "section": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["section", "status", "factIds", "gapIds"],
+      "properties": {
+        "section": { "$ref": "#/$defs/contextSection" },
+        "status": { "enum": ["available", "partial", "unavailable", "not_requested"] },
+        "factIds": {
+          "type": "array",
+          "maxItems": 1000,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/boundedId" }
+        },
+        "gapIds": {
+          "type": "array",
+          "maxItems": 500,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/boundedId" }
+        }
+      }
+    },
+    "conflict": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["conflictId", "factIds", "status", "decisionImpact", "resolutionAction"],
+      "properties": {
+        "conflictId": { "$ref": "#/$defs/boundedId" },
+        "factIds": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 20,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/boundedId" }
+        },
+        "status": { "enum": ["unresolved", "resolved_by_named_rule", "requires_external_validation"] },
+        "decisionImpact": { "enum": ["informational", "material", "blocking"] },
+        "resolutionAction": { "type": "string", "minLength": 1, "maxLength": 2000 }
+      }
+    },
+    "gap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "gapId",
+        "section",
+        "requiredFactKey",
+        "state",
+        "decisionImpact",
+        "affectedModes",
+        "affectedMethodIds",
+        "remediationAction",
+        "requestedValidationSource"
+      ],
+      "properties": {
+        "gapId": { "$ref": "#/$defs/boundedId" },
+        "section": { "$ref": "#/$defs/contextSection" },
+        "requiredFactKey": {
+          "oneOf": [
+            { "$ref": "#/$defs/boundedId" },
+            { "type": "null" }
+          ]
+        },
+        "state": { "enum": ["missing", "coverage_unknown", "source_unavailable", "stale", "conflict", "rights_blocked", "not_calculable", "not_requested"] },
+        "decisionImpact": { "enum": ["informational", "material", "blocking"] },
+        "affectedModes": {
+          "type": "array",
+          "maxItems": 5,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/mode" }
+        },
+        "affectedMethodIds": {
+          "type": "array",
+          "maxItems": 100,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/boundedId" }
+        },
+        "remediationAction": { "type": "string", "minLength": 1, "maxLength": 2000 },
+        "requestedValidationSource": { "type": ["string", "null"], "maxLength": 500 }
+      }
+    },
+    "quality": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["coverageStatus", "freshnessStatus", "confidenceCounts", "gapCounts", "gate", "gateReasons"],
+      "properties": {
+        "coverageStatus": { "enum": ["complete_for_requested_profile", "partial", "unknown"] },
+        "freshnessStatus": { "enum": ["current", "mixed", "stale", "unknown"] },
+        "confidenceCounts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["low", "medium", "high"],
+          "properties": {
+            "low": { "type": "integer", "minimum": 0 },
+            "medium": { "type": "integer", "minimum": 0 },
+            "high": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "gapCounts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["informational", "material", "blocking"],
+          "properties": {
+            "informational": { "type": "integer", "minimum": 0 },
+            "material": { "type": "integer", "minimum": 0 },
+            "blocking": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "gate": { "enum": ["pass", "partial", "blocked"] },
+        "gateReasons": {
+          "type": "array",
+          "maxItems": 100,
+          "items": { "type": "string", "minLength": 1, "maxLength": 2000 }
+        }
+      }
+    },
+    "snapshotRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["snapshotId", "snapshotHash"],
+      "properties": {
+        "snapshotId": { "$ref": "#/$defs/boundedId" },
+        "snapshotHash": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "lineage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "parentSnapshotRefs",
+        "assemblerId",
+        "assemblerVersion",
+        "canonicalizationProfile",
+        "inputHash",
+        "factGraphHash",
+        "sourceReceiptIds"
+      ],
+      "properties": {
+        "parentSnapshotRefs": {
+          "type": "array",
+          "maxItems": 32,
+          "items": { "$ref": "#/$defs/snapshotRef" }
+        },
+        "assemblerId": { "$ref": "#/$defs/boundedId" },
+        "assemblerVersion": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+        "canonicalizationProfile": { "const": "JCS_SHA256_OMIT_SNAPSHOT_HASH_V1" },
+        "inputHash": { "$ref": "#/$defs/sha256" },
+        "factGraphHash": { "$ref": "#/$defs/sha256" },
+        "sourceReceiptIds": {
+          "type": "array",
+          "maxItems": 64,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/boundedId" }
+        }
+      }
+    },
+    "governance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["claimPolicyId", "claimPolicyVersion", "maximumClaimLevel", "validationState", "privacyClass", "caveat"],
+      "properties": {
+        "claimPolicyId": { "$ref": "#/$defs/boundedId" },
+        "claimPolicyVersion": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+        "maximumClaimLevel": { "enum": ["open_context_screening", "client_provided_screening", "validated_for_named_scope"] },
+        "validationState": { "enum": ["official_validation_required", "client_validation_required", "named_scope_validated"] },
+        "privacyClass": { "enum": ["public_open_context", "user_provided_local", "protected_project"] },
+        "caveat": { "const": "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion." }
+      }
+    }
+  }
+}
