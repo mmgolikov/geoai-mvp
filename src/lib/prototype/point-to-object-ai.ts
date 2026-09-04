@@ -330,6 +330,15 @@ export async function generatePointObjectAiAnalysis(
         promptVersion: POINT_OBJECT_AI_PROMPT_VERSION
       });
       validation = recovered;
+    } else {
+      console.warn("point_object_ai_focused_answer_recovery_rejected", {
+        rejectedDetail: validation.detail,
+        recoveryCode: recovered.code,
+        recoveryDetail: recovered.detail ?? "not_available",
+        attempt: attempts,
+        model: profile.model,
+        promptVersion: POINT_OBJECT_AI_PROMPT_VERSION
+      });
     }
   }
 
@@ -384,6 +393,15 @@ export async function generatePointObjectAiAnalysis(
           promptVersion: POINT_OBJECT_AI_PROMPT_VERSION
         });
         validation = recovered;
+      } else {
+        console.warn("point_object_ai_focused_answer_recovery_rejected", {
+          rejectedDetail: validation.detail,
+          recoveryCode: recovered.code,
+          recoveryDetail: recovered.detail ?? "not_available",
+          attempt: attempts,
+          model: profile.model,
+          promptVersion: POINT_OBJECT_AI_PROMPT_VERSION
+        });
       }
     }
     if (!validation.ok) {

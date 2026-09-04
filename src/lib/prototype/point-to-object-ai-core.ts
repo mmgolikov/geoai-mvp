@@ -2105,7 +2105,14 @@ function recoveredFocusedAnswerPlan(
   const fallback = renderAnswerFallback(fallbackCode, support, request.locale);
   const selected = selectedLabel(support, request.locale);
   const featureClass = support.projection.selectedObject.featureClass;
-  const objectSentence = featureClass
+  const objectDescriptorTriggersNearbyGate = nearbyLanguage.test(`${selected} ${featureClass ?? ""}`);
+  const objectSentence = objectDescriptorTriggersNearbyGate
+    ? localized(
+      request.locale,
+      "The selected open-map record and its mapped attributes support a screening-level next step.",
+      "Выбранная запись открытой карты и её картированные атрибуты поддерживают следующий шаг на уровне скрининга."
+    )
+    : featureClass
     ? localized(
       request.locale,
       `${selected} is mapped as ${featureClass}.`,

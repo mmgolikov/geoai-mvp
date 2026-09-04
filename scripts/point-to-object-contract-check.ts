@@ -2327,6 +2327,46 @@ async function assertCandidateAiSafety(): Promise<void> {
       "Rejected model-authored wording must never survive deterministic recovery.");
   }
 
+  const mallEvidencePack = {
+    ...evidencePack,
+    selectedObject: {
+      ...evidencePack.selectedObject,
+      name: "Dubai Marina Mall",
+      featureClass: "shop:mall"
+    },
+    evidence: evidencePack.evidence.map((item: any) => item.id === "EVD-OBJECT"
+      ? { ...item, value: JSON.stringify({ sourceFeatureId: "way/1", name: "Dubai Marina Mall" }) }
+      : item.id === "EVD-CLASSIFICATION"
+        ? { ...item, value: JSON.stringify({ sourceFeatureId: "way/1", featureClass: "shop:mall" }) }
+        : item)
+  };
+  const generalScreeningRequest = {
+    ...focusedAnalysisRequest,
+    perspective: "developer",
+    horizon: "current",
+    question: "What should a developer investigate first for this site, and why?"
+  };
+  const mallMismatchPlan = {
+    ...contextMismatchPlan,
+    focusedAnswer: {
+      ...contextMismatchPlan.focusedAnswer,
+      perspective: "developer",
+      horizon: "current"
+    }
+  };
+  const recoveredMallMismatch = recoverFocusedContentDetailed(
+    mallMismatchPlan,
+    mallEvidencePack,
+    generalScreeningRequest
+  );
+  assert.equal(recoveredMallMismatch.ok, true,
+    "Recovery must not misread a selected-object shop classification as an uncited nearby retail claim.");
+  if (recoveredMallMismatch.ok) {
+    const answer = recoveredMallMismatch.content.answerToQuestion as JsonObject;
+    assert.equal(String(answer.statement).includes("shop:mall"), false,
+      "A nearby-keyword object classification must use neutral server copy when no nearby receipt is cited.");
+  }
+
   const combinedObjectAndNearbyAnswer = validateContentDetailed({
     ...rawPlan,
     focusedAnswer: {
