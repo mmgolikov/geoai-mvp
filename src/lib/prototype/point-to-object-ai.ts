@@ -7,6 +7,7 @@ import {
   buildPointObjectResponsesRequest,
   extractResponsesText,
   extractResponsesUsage,
+  recoverPointObjectAiFocusedContentDetailed,
   responseCompletionState,
   summarizePointObjectAiAttemptUsage,
   validatePointObjectAiContentDetailed,
@@ -255,9 +256,22 @@ function validateCompletedOutput(
   }
 }
 
+function parseCompletedOutput(payload: unknown): unknown {
+  try {
+    return JSON.parse(extractResponsesText(payload));
+  } catch {
+    return null;
+  }
+}
+
 function isRepairableValidationCode(code: PointObjectAiValidationCode): boolean {
   return code === "SHAPE_INVALID" || code === "UNKNOWN_CODE" || code === "CAVEAT_INVALID" ||
     code === "NO_RENDERABLE_PLAN" || code === "EVIDENCE_INSUFFICIENT";
+}
+
+function isDeterministicFocusedRecovery(detail: string | undefined): boolean {
+  return detail === "focused_answer_context_value_mismatch" ||
+    detail === "focused_answer_context_without_context_receipt";
 }
 
 export async function generatePointObjectAiAnalysis(
@@ -302,6 +316,23 @@ export async function generatePointObjectAiAnalysis(
   assertCompleteResponse(attempt.payload);
   let validation = validateCompletedOutput(attempt.payload, evidencePack, analysisRequest);
 
+  if (!validation.ok && isDeterministicFocusedRecovery(validation.detail)) {
+    const recovered = recoverPointObjectAiFocusedContentDetailed(
+      parseCompletedOutput(attempt.payload),
+      evidencePack,
+      analysisRequest
+    );
+    if (recovered.ok) {
+      console.warn("point_object_ai_focused_answer_recovered", {
+        rejectedDetail: validation.detail,
+        attempt: attempts,
+        model: profile.model,
+        promptVersion: POINT_OBJECT_AI_PROMPT_VERSION
+      });
+      validation = recovered;
+    }
+  }
+
   if (!validation.ok) {
     console.warn("point_object_ai_validation_rejected", {
       code: validation.code,
@@ -339,6 +370,22 @@ export async function generatePointObjectAiAnalysis(
     });
     assertCompleteResponse(attempt.payload);
     validation = validateCompletedOutput(attempt.payload, evidencePack, analysisRequest);
+    if (!validation.ok && isDeterministicFocusedRecovery(validation.detail)) {
+      const recovered = recoverPointObjectAiFocusedContentDetailed(
+        parseCompletedOutput(attempt.payload),
+        evidencePack,
+        analysisRequest
+      );
+      if (recovered.ok) {
+        console.warn("point_object_ai_focused_answer_recovered", {
+          rejectedDetail: validation.detail,
+          attempt: attempts,
+          model: profile.model,
+          promptVersion: POINT_OBJECT_AI_PROMPT_VERSION
+        });
+        validation = recovered;
+      }
+    }
     if (!validation.ok) {
       console.warn("point_object_ai_validation_rejected", {
         code: validation.code,

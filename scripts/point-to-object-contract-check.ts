@@ -1420,6 +1420,10 @@ async function assertCandidateAiSafety(): Promise<void> {
     "A routine focused-answer evidence mismatch must receive one bounded server-side repair instead of forcing a manual retry.");
   assert.match(aiServiceSource, /validation\.detail \?\? null/,
     "The bounded repair request must receive the internal validation detail needed to correct the failed evidence gate.");
+  const deterministicRecoveryIndex = aiServiceSource.indexOf("isDeterministicFocusedRecovery(validation.detail)");
+  const repairRequestIndex = aiServiceSource.indexOf("profile = profileFor(analysisRequest, \"repair\")");
+  assert.ok(deterministicRecoveryIndex > 0 && repairRequestIndex > deterministicRecoveryIndex,
+    "Known context-binding failures must use safe deterministic recovery before spending a second model call.");
   const aiCore = await importErasableTypeScript(aiCorePath, [
     [
       /import \{ LIVE_POINT_CAVEAT \} from "@\/src\/lib\/point-to-object\/contracts";\n/,
@@ -1479,7 +1483,12 @@ async function assertCandidateAiSafety(): Promise<void> {
     value: unknown,
     pack: JsonObject,
     analysisRequest: JsonObject
-  ) => { ok: true; content: JsonObject } | { ok: false; code: string };
+  ) => { ok: true; content: JsonObject } | { ok: false; code: string; detail?: string };
+  const recoverFocusedContentDetailed = aiCore.recoverPointObjectAiFocusedContentDetailed as (
+    value: unknown,
+    pack: JsonObject,
+    analysisRequest: JsonObject
+  ) => { ok: true; content: JsonObject } | { ok: false; code: string; detail?: string };
 
   assert.equal(completionState({ status: "completed", error: null, output_text: "{}" }), "complete");
   assert.equal(completionState({ status: "failed", error: { code: "provider_error" }, output_text: "{}" }), "invalid",
@@ -2288,6 +2297,36 @@ async function assertCandidateAiSafety(): Promise<void> {
   assert.equal(uncitedNearbyClaim.ok, false,
     "Nearby interpretation must cite a canonically bound EVD-CONTEXT receipt.");
 
+  const contextMismatchPlan = {
+    ...rawPlan,
+    focusedAnswer: {
+      ...rawPlan.focusedAnswer,
+      scope: "nearby_context",
+      statement: "The surrounding context supports a stronger initial screen, while additional evidence remains necessary.",
+      evidenceRefs: ["EVD-CONTEXT-01"]
+    }
+  };
+  const nearbyTransportRequest = {
+    ...focusedAnalysisRequest,
+    question: "What nearby transport context should an investor investigate first?"
+  };
+  const contextMismatch = validateContentDetailed(contextMismatchPlan, evidencePack, nearbyTransportRequest);
+  assert.equal(contextMismatch.ok, false,
+    "A model-authored context claim without a bound context value must remain rejected by the strict validator.");
+  assert.equal(contextMismatch.ok ? null : contextMismatch.detail, "focused_answer_context_value_mismatch");
+  const recoveredContextMismatch = recoverFocusedContentDetailed(contextMismatchPlan, evidencePack, nearbyTransportRequest);
+  assert.equal(recoveredContextMismatch.ok, true,
+    "The service recovery path must replace only an invalid focused answer with server-rendered evidence-bound copy.");
+  if (recoveredContextMismatch.ok) {
+    const recoveredAnswer = recoveredContextMismatch.content.answerToQuestion as JsonObject;
+    assert.match(String(recoveredAnswer.statement), /World Trade Centre/i,
+      "Recovered focused copy must name the exact nearby feature bound by its canonical receipt.");
+    assert.ok((recoveredAnswer.evidenceRefs as string[]).includes("EVD-CONTEXT-01"),
+      "Recovered focused copy must retain the exact nearby evidence receipt.");
+    assert.equal(String(recoveredAnswer.statement).includes("stronger initial screen"), false,
+      "Rejected model-authored wording must never survive deterministic recovery.");
+  }
+
   const combinedObjectAndNearbyAnswer = validateContentDetailed({
     ...rawPlan,
     focusedAnswer: {
@@ -2360,6 +2399,27 @@ async function assertCandidateAiSafety(): Promise<void> {
   });
   assert.equal(russianNearbyWithoutReceipt.ok, false,
     "Nearby scope must require a canonical context receipt structurally, independent of answer language.");
+  const recoveredMissingNearby = recoverFocusedContentDetailed({
+    ...rawPlan,
+    focusedAnswer: {
+      ...rawPlan.focusedAnswer,
+      scope: "nearby_context",
+      statement: "Рядом находится якобы важный объект, но подтверждающей записи окружения нет.",
+      evidenceRefs: ["EVD-OBJECT"]
+    }
+  }, evidencePackWithoutNearby, {
+    ...focusedAnalysisRequest,
+    question: "Что находится рядом с объектом и как это влияет на привлекательность?",
+    locale: "ru"
+  });
+  assert.equal(recoveredMissingNearby.ok, true,
+    "A nearby question without a canonical context receipt must degrade to a safe server-rendered unsupported answer.");
+  if (recoveredMissingNearby.ok) {
+    const answer = recoveredMissingNearby.content.answerToQuestion as JsonObject;
+    assert.equal(answer.status, "unsupported");
+    assert.ok((answer.missingEvidence as string[]).some((item) => item.includes("реестр")),
+      "Safe recovery must disclose the missing complete nearby inventory in the active locale.");
+  }
 
   const roofColourQuestion = {
     ...focusedAnalysisRequest,

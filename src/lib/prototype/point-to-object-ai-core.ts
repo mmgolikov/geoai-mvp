@@ -269,6 +269,18 @@ type PointObjectRawDecisionPlan = {
   caveat: typeof LIVE_POINT_CAVEAT;
 };
 
+type PointObjectRawFocusedAnswer = {
+  status: "answered" | "partial" | "unsupported";
+  scope: PointObjectFocusedAnswerScope;
+  perspective: PointObjectAnalysisPerspective;
+  horizon: PointObjectAnalysisHorizon;
+  statement: string | null;
+  evidenceRefs: string[];
+  confidence: "low" | "medium";
+  missingEvidenceCodes: PointObjectMissingEvidenceCode[];
+  unsupportedReasonCode: PointObjectUnsupportedReasonCode | null;
+};
+
 function pointObjectAiJsonSchemaFor(
   request: PointObjectAnalysisRequest,
   allowedEvidenceRefs: readonly string[]
@@ -2040,6 +2052,137 @@ function validateFocusedAnswer(
       missingEvidence: missingCodes.map((code) => request.locale === "ru" ? MISSING_EVIDENCE_LABELS_RU[code] : MISSING_EVIDENCE_LABELS[code])
     }
   };
+}
+
+function recoveredFocusedAnswerPlan(
+  request: PointObjectAnalysisRequest,
+  support: PointObjectEvidenceSupport,
+  fallbackCode: PointObjectAnswerCode
+): PointObjectRawFocusedAnswer | null {
+  const question = stringValue(request.question, 500);
+  if (!question) return null;
+
+  const requiredMissing = requiredMissingEvidence(question, support);
+  const nearbyLanguage = /\b(?:nearby|surround|school|hospital|clinic|pharmacy|metro|station|transport|road|park|retail|shop)\b|(?:рядом|вокруг|окружен|школ|больниц|клиник|аптек|метро|станци|транспорт|дорог|парк|магазин|ретейл)/i;
+  const asksForNearbyContext = nearbyLanguage.test(question);
+  const normalizedQuestion = question.normalize("NFKC").toLocaleLowerCase("en-US");
+  const nearbyCandidates = support.projection.nearbyContext
+    .filter((item) => support.allowed.has(item.evidenceId));
+  const requestedNearbyClass = (() => {
+    if (/\b(?:school|education|kindergarten|college|university)\b|(?:школ|образован|детск[^ ]*\s+сад|университет|колледж)/.test(normalizedQuestion)) return /school|kindergarten|college|university/;
+    if (/\b(?:hospital|clinic|pharmacy|healthcare|medical)\b|(?:больниц|клиник|аптек|медицин|здравоохран)/.test(normalizedQuestion)) return /hospital|clinic|doctors|pharmacy/;
+    if (/\b(?:metro|station|transit|transport|bus|tram)\b|(?:метро|станци|транспорт|останов|автобус|трамва)/.test(normalizedQuestion)) return /station|platform|stop_position|halt|tram_stop|subway_entrance|bus_stop/;
+    if (/\b(?:road|access|motorway|highway)\b|(?:дорог|магистрал|подъезд|доступ)/.test(normalizedQuestion)) return /motorway|trunk|primary|secondary|tertiary/;
+    if (/\b(?:park|green|open space|recreation)\b|(?:парк|зелен|зелён|рекреац)/.test(normalizedQuestion)) return /park|garden|playground|sports_centre|nature_reserve|wood|water|forest|recreation_ground/;
+    if (/\b(?:retail|shop|mall|grocery|supermarket)\b|(?:магазин|ретейл|торгов|супермаркет|продукт)/.test(normalizedQuestion)) return /supermarket|convenience|marketplace|mall|shop/;
+    if (/\b(?:hotel|hospitality|tourism)\b|(?:отел|гостиниц|туризм)/.test(normalizedQuestion)) return /hotel|guest_house|hostel|tourism/;
+    return null;
+  })();
+  const nearby = !asksForNearbyContext
+    ? null
+    : requestedNearbyClass
+      ? nearbyCandidates.find((item) => requestedNearbyClass.test(item.featureClass)) ?? null
+      : nearbyCandidates[0] ?? null;
+
+  if (asksForNearbyContext && !nearby) {
+    const missingEvidenceCodes = [...new Set<PointObjectMissingEvidenceCode>([
+      ...requiredMissing,
+      "complete_nearby_inventory"
+    ])];
+    return {
+      status: "unsupported",
+      scope: "source_limitation",
+      perspective: request.perspective,
+      horizon: request.horizon,
+      statement: null,
+      evidenceRefs: [],
+      confidence: "low",
+      missingEvidenceCodes,
+      unsupportedReasonCode: "outside_available_open_context"
+    };
+  }
+
+  const fallback = renderAnswerFallback(fallbackCode, support, request.locale);
+  const selected = selectedLabel(support, request.locale);
+  const featureClass = support.projection.selectedObject.featureClass;
+  const objectSentence = featureClass
+    ? localized(
+      request.locale,
+      `${selected} is mapped as ${featureClass}.`,
+      `${selected} картирован как ${featureClass}.`
+    )
+    : localized(
+      request.locale,
+      `${selected} is the open-map object bound to this analysis point.`,
+      `${selected} — объект открытой карты, связанный с точкой анализа.`
+    );
+  const nearbySentence = nearby
+    ? localized(
+      request.locale,
+      `The bounded nearby sample includes ${nearby.name} (${nearby.featureClass}); use it as a mapped context signal, not as a complete inventory.`,
+      `Ограниченная выборка окружения включает ${nearby.name} (${nearby.featureClass}); используйте это как картированный сигнал контекста, а не полный реестр.`
+    )
+    : "";
+  const statement = [objectSentence, nearbySentence, fallback.statement].filter(Boolean).join(" ");
+  const evidenceRefs = uniqueRefs(
+    support.objectRef,
+    support.classificationRef,
+    support.attributesRef,
+    support.geometryRef,
+    nearby?.evidenceId,
+    support.sourceStatusRef
+  ).slice(0, 6);
+  if (!evidenceRefs.length) return null;
+
+  return {
+    status: requiredMissing.length ? "partial" : "answered",
+    scope: "screening_implication",
+    perspective: request.perspective,
+    horizon: request.horizon,
+    statement,
+    evidenceRefs,
+    confidence: "low",
+    missingEvidenceCodes: requiredMissing,
+    unsupportedReasonCode: null
+  };
+}
+
+/**
+ * Salvages an otherwise valid strict decision plan when only the model-authored
+ * focused answer fails evidence binding. The replacement is rendered entirely
+ * from canonically bound server evidence and is revalidated through the same
+ * strict contract before it can reach the client.
+ */
+export function recoverPointObjectAiFocusedContentDetailed(
+  value: unknown,
+  evidencePack: GroundablePointObjectEvidencePack,
+  request: PointObjectAnalysisRequest
+): PointObjectAiValidationResult {
+  if (!request.question || !isRecord(value)) {
+    return { ok: false, code: "SHAPE_INVALID", detail: "focused_recovery_input" };
+  }
+  const support = evidenceSupport(evidencePack);
+  const requestedAnswerCode = enumValue(value.answerCode, POINT_OBJECT_ANSWER_CODES);
+  const fallbackCandidates: Array<PointObjectAnswerCode | null> = [
+    requestedAnswerCode,
+    "identity_rights_planning_first",
+    "source_evidence_only",
+    "insufficient_for_requested_conclusion"
+  ];
+  const fallbackCode = fallbackCandidates
+    .find((code): code is PointObjectAnswerCode => Boolean(code && answerRefs(code, support).length > 0)) ?? null;
+  if (!fallbackCode) {
+    return { ok: false, code: "EVIDENCE_INSUFFICIENT", detail: "focused_recovery_answer_evidence" };
+  }
+  const focusedAnswer = recoveredFocusedAnswerPlan(request, support, fallbackCode);
+  if (!focusedAnswer) {
+    return { ok: false, code: "EVIDENCE_INSUFFICIENT", detail: "focused_recovery_plan" };
+  }
+  return validatePointObjectAiContentDetailed({
+    ...value,
+    answerCode: fallbackCode,
+    focusedAnswer
+  }, evidencePack, request);
 }
 
 function isArrayShape(value: unknown, max: number): value is unknown[] {

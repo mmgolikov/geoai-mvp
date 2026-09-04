@@ -8,7 +8,7 @@ Owner: GeoAI product delivery team
 
 Authority: Founder feedback issued in Main on 2026-09-04 against the protected V5 Preview. This record authorizes the bounded implementation below on `codex/point-to-object-clickable-prototype-v1`. It does not authorize merge to `main`, Production deployment, Production environment changes, hosted Supabase activation, or representation of open-map data as official evidence.
 
-Successor: The exact-head V5.1 Preview release receipt after CI, deployment and rendered-browser verification; until then, current runtime truth remains `docs/CURRENT_RELEASE_STATE.md`.
+Successor: `RELEASE_POINT_TO_OBJECT_001_V5_1_PREVIEW_RECEIPT_20260904.md` for exact candidate evidence; current released-runtime truth remains `docs/CURRENT_RELEASE_STATE.md`.
 
 ## Source audit
 
@@ -39,6 +39,7 @@ Turn the V5 feature proof into a coherent product loop:
 - `Find` proves a live Overpass filter but has lost the earlier role, scenario, shortlist and comparison product logic.
 - A profile implementation exists elsewhere in the product, but it is not coherently localized or connected to this prototype.
 - In non-Analyse modes a normal map click can select a very large basemap polygon, producing a misleading highlight unrelated to the active task.
+- A focused OpenAI answer can be useful but still fail the strict context-to-evidence wording gate, causing the entire otherwise valid analysis to return `AI_OUTPUT_INVALID`.
 
 ## Users and primary jobs
 
@@ -96,6 +97,7 @@ Turn the V5 feature proof into a coherent product loop:
 - Search: server-only Photon autocomplete adapter with selected-market bounds/country/bias, allowlisted response parser, same-origin and Preview gates, rate limiting, timeouts, body limits and caching. Existing explicit-submit Nominatim search remains separate.
 - Find: extend the request/response contract with product intent only where it affects transparent query predicates; retain raw observed candidate evidence and source lineage.
 - Profile: reuse the existing normalized audience/role preference contract without a schema or hosted Supabase mutation.
+- AI analysis: keep the strict validator unchanged; for the two known context-binding mismatches only, replace the invalid focused sentence with server-rendered copy derived from canonically bound evidence and revalidate the whole plan before returning it. Do not salvage malformed JSON, unknown codes, forbidden claims, unbound evidence or an absent nearby-context receipt.
 - No hosted Supabase mutation is required for the first coherent Preview slice.
 
 ## Affected screens, routes and files
@@ -124,6 +126,7 @@ Turn the V5 feature proof into a coherent product loop:
 | Find recreates mock rankings | Observed-only shortlist/comparison; unsupported criteria excluded; no composite score |
 | Profile preferences are mistaken for access | Explicit preference semantics; existing Auth/RLS remains the only authorization source |
 | Demo profile leaks between users | Identity-scoped storage and sign-out cleanup tests |
+| A safe model plan is discarded because only its focused sentence misses a context binding | Strict validator remains authoritative; allowlisted context-binding failures receive deterministic server recovery, full revalidation and an audit log, while all other failures remain fail-closed |
 
 ## Acceptance criteria
 
@@ -135,6 +138,7 @@ Turn the V5 feature proof into a coherent product loop:
 - Find exposes audience, role and scenario, returns a live bounded shortlist, supports selecting comparison items and compares only observed fields with visible gaps.
 - Opening a Find candidate preserves its expected OSM source identity through Analyse; an identity change fails closed. After `Back to map`, the preserved shortlist is available by selecting `Find`; a direct analysis-to-Find CTA is outside this slice.
 - Profile can be opened from the prototype header and saves the existing B2B/B2C plus compatible default-role contract; it does not change authorization.
+- A focused request that hits either known context-binding mismatch returns a fully revalidated analysis without a second paid model call; missing or unbound nearby evidence remains unsupported rather than inferred.
 - English/Russian copy, 390 px responsive layout, keyboard focus, build, lint, contract tests, source/data-honesty checks and focused browser journeys pass.
 - Exact-head protected Vercel Preview is READY; `main`, Production and hosted Supabase remain unchanged.
 
