@@ -73,6 +73,21 @@ export type PointObjectEvidenceClass = "observed" | "derived" | "hypothesis";
 export type PointObjectConfidence = "low" | "medium";
 
 export const POINT_OBJECT_ANALYSIS_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V4_2026_09_04" as const;
+export const POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION = 3 as const;
+
+export type PointObjectAiAttemptTrace = {
+  attempt: number;
+  purpose: "initial" | "focused" | "repair";
+  model: string;
+  reasoningEffort: PointObjectReasoningEffort;
+  requestId: string | null;
+  inputTokens: number | null;
+  cachedInputTokens: number | null;
+  cacheWriteTokens: number | null;
+  outputTokens: number | null;
+  totalTokens: number | null;
+  estimatedCostUsd: number | null;
+};
 
 export type PointObjectAnalysisRequestReceipt = {
   depth: PointObjectAnalysisDepth;
@@ -142,6 +157,7 @@ export type PointObjectAiContent = {
 
 export type PointObjectAiTelemetry = {
   provider: "openai";
+  schemaVersion: typeof POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION;
   model: string;
   reasoningEffort: PointObjectReasoningEffort;
   depth: PointObjectAnalysisDepth;
@@ -149,8 +165,10 @@ export type PointObjectAiTelemetry = {
   requestId: string | null;
   latencyMs: number;
   attempts: number;
+  attemptTrace: PointObjectAiAttemptTrace[];
   inputTokens: number | null;
   cachedInputTokens: number | null;
+  cacheWriteTokens: number | null;
   outputTokens: number | null;
   totalTokens: number | null;
   estimatedCostUsd: number | null;
@@ -189,6 +207,7 @@ export type PointObjectLiveContextResponse =
 export type PointObjectAiResponse =
   | {
       mode: "openai";
+      schemaVersion: typeof POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION;
       generatedAt: string;
       evidencePackId: string;
       evidencePackHash: string;

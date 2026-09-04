@@ -64,6 +64,7 @@ export type PointObjectEvidencePack = {
     sourceFeatureId: string;
     name: string | null;
     categories: string[];
+    featureClass: string;
     distanceM: number;
     method: string;
     proofLimit: string;
@@ -142,18 +143,21 @@ export function buildPointObjectEvidencePack(
   ];
   const nearbyContext = resolved.nearbyContext.slice(0, 6).map((item, index) => {
     const evidenceId = `EVD-CONTEXT-${index + 1}`;
+    const sourceFeatureId = item.id.split(":openstreetmap:")[1] ?? item.id;
+    const featureClass = item.categories[0] ?? "openstreetmap_object";
     evidence.push({
       id: evidenceId,
       label: item.name ?? item.categories.join(" / "),
-      value: item.distanceM,
-      sourceId: item.id.split(":openstreetmap:")[1] ?? item.id,
+      value: JSON.stringify({ sourceFeatureId, name: item.name, featureClass, distanceM: item.distanceM }),
+      sourceId: sourceFeatureId,
       proofLimit: "Straight-line source-geometry distance in the frozen snapshot; not routing, travel time or service quality."
     });
     return {
       evidenceId,
-      sourceFeatureId: item.id.split(":openstreetmap:")[1] ?? item.id,
+      sourceFeatureId,
       name: item.name,
       categories: item.categories,
+      featureClass,
       distanceM: item.distanceM,
       method: item.method,
       proofLimit: "Observed frozen-source context only; coverage remains partial and missing records do not prove absence."

@@ -1,12 +1,16 @@
 import type { GeoJsonGeometry } from "@/src/lib/point-to-object/contracts";
 import { LIVE_POINT_CAVEAT } from "@/src/lib/point-to-object/contracts";
-import { POINT_OBJECT_ANALYSIS_PROMPT_VERSION } from "@/components/point-to-object/live-types";
+import {
+  POINT_OBJECT_ANALYSIS_PROMPT_VERSION,
+  POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION
+} from "@/components/point-to-object/live-types";
 import type {
   GroundedClaim,
   LiveMapBasemapId,
   LiveMapSelection,
   LiveResolvedObjectContext,
   PointObjectAiContent,
+  PointObjectAiAttemptTrace,
   PointObjectAiResponse,
   PointObjectAiSubject,
   PointObjectAiTelemetry,
@@ -461,10 +465,75 @@ function parseSubject(value: unknown): PointObjectAiSubject | null {
   };
 }
 
-function parseTelemetry(value: unknown): PointObjectAiTelemetry | null {
+function parseAttemptTrace(value: unknown): PointObjectAiAttemptTrace[] | null {
+  if (!Array.isArray(value) || value.length < 1 || value.length > 2) return null;
+  const parsed = value.map((item, index): PointObjectAiAttemptTrace | null => {
+    if (!isRecord(item) || !hasExactKeys(item, [
+      "attempt", "purpose", "model", "reasoningEffort", "requestId", "inputTokens", "cachedInputTokens",
+      "cacheWriteTokens", "outputTokens", "totalTokens", "estimatedCostUsd"
+    ])) return null;
+    const attempt = integer(item.attempt, 1, 2);
+    const purpose = item.purpose === "initial" || item.purpose === "focused" || item.purpose === "repair"
+      ? item.purpose
+      : null;
+    const model = nonEmptyText(item.model, 120);
+    const reasoningEffort = item.reasoningEffort === "low" || item.reasoningEffort === "medium" ||
+      item.reasoningEffort === "high" || item.reasoningEffort === "xhigh" ? item.reasoningEffort : null;
+    const requestId = item.requestId === null ? null : nonEmptyText(item.requestId, 200);
+    const inputTokens = nullableInteger(item.inputTokens, 100_000_000);
+    const cachedInputTokens = nullableInteger(item.cachedInputTokens, 100_000_000);
+    const cacheWriteTokens = nullableInteger(item.cacheWriteTokens, 100_000_000);
+    const outputTokens = nullableInteger(item.outputTokens, 100_000_000);
+    const totalTokens = nullableInteger(item.totalTokens, 200_000_000);
+    const estimatedCostUsd = item.estimatedCostUsd === null ? null : finiteNumber(item.estimatedCostUsd, 0, 1_000);
+    const estimatedCostIsValid = item.estimatedCostUsd === null || estimatedCostUsd !== null;
+    const tokenTupleIsValid = inputTokens !== undefined && outputTokens !== undefined && totalTokens !== undefined &&
+      ((inputTokens === null && outputTokens === null && totalTokens === null) ||
+        (typeof inputTokens === "number" && typeof outputTokens === "number" && typeof totalTokens === "number" &&
+          totalTokens === inputTokens + outputTokens));
+    const cacheTupleIsValid = cachedInputTokens !== undefined && cacheWriteTokens !== undefined && (
+      (cachedInputTokens === null && cacheWriteTokens === null) ||
+      (typeof cachedInputTokens === "number" && typeof cacheWriteTokens === "number" &&
+        typeof inputTokens === "number" && cachedInputTokens + cacheWriteTokens <= inputTokens)
+    );
+    const costTupleIsValid = estimatedCostUsd === null || (
+      typeof inputTokens === "number" && typeof cachedInputTokens === "number" &&
+      typeof cacheWriteTokens === "number" && typeof outputTokens === "number"
+    );
+    if (attempt !== index + 1 || !purpose || !model || !MODEL_IDENTIFIER.test(model) || !reasoningEffort ||
+        (item.requestId !== null && !requestId) || !estimatedCostIsValid || !tokenTupleIsValid ||
+        !cacheTupleIsValid || !costTupleIsValid) return null;
+    if ((index === 0 && purpose === "repair") || (index === 1 && purpose !== "repair")) return null;
+    return {
+      attempt,
+      purpose,
+      model,
+      reasoningEffort,
+      requestId,
+      inputTokens: inputTokens as number | null,
+      cachedInputTokens: cachedInputTokens as number | null,
+      cacheWriteTokens: cacheWriteTokens as number | null,
+      outputTokens: outputTokens as number | null,
+      totalTokens: totalTokens as number | null,
+      estimatedCostUsd
+    };
+  });
+  return parsed.every((item): item is PointObjectAiAttemptTrace => item !== null) ? parsed : null;
+}
+
+function sumTraceField(
+  trace: PointObjectAiAttemptTrace[],
+  field: "inputTokens" | "cachedInputTokens" | "cacheWriteTokens" | "outputTokens" | "totalTokens"
+): number | null {
+  return trace.every((attempt) => typeof attempt[field] === "number")
+    ? trace.reduce((sum, attempt) => sum + (attempt[field] as number), 0)
+    : null;
+}
+
+export function parsePointObjectAiTelemetry(value: unknown): PointObjectAiTelemetry | null {
   if (!isRecord(value) || !hasExactKeys(value, [
-    "provider", "model", "reasoningEffort", "depth", "promptVersion", "requestId", "latencyMs", "attempts",
-    "inputTokens", "cachedInputTokens", "outputTokens", "totalTokens", "estimatedCostUsd", "costRateSource", "stored", "toolCalls"
+    "provider", "schemaVersion", "model", "reasoningEffort", "depth", "promptVersion", "requestId", "latencyMs", "attempts", "attemptTrace",
+    "inputTokens", "cachedInputTokens", "cacheWriteTokens", "outputTokens", "totalTokens", "estimatedCostUsd", "costRateSource", "stored", "toolCalls"
   ])) return null;
   const model = nonEmptyText(value.model, 120);
   const reasoningEffort = value.reasoningEffort === "low" || value.reasoningEffort === "medium" || value.reasoningEffort === "high" || value.reasoningEffort === "xhigh"
@@ -474,26 +543,47 @@ function parseTelemetry(value: unknown): PointObjectAiTelemetry | null {
   const requestId = value.requestId === null ? null : nonEmptyText(value.requestId, 200);
   const latencyMs = integer(value.latencyMs, 0, 300_000);
   const attempts = integer(value.attempts, 1, 2);
+  const attemptTrace = parseAttemptTrace(value.attemptTrace);
   const inputTokens = nullableInteger(value.inputTokens, 100_000_000);
   const cachedInputTokens = nullableInteger(value.cachedInputTokens, 100_000_000);
+  const cacheWriteTokens = nullableInteger(value.cacheWriteTokens, 100_000_000);
   const outputTokens = nullableInteger(value.outputTokens, 100_000_000);
   const totalTokens = nullableInteger(value.totalTokens, 200_000_000);
   const estimatedCostUsd = value.estimatedCostUsd === null ? null : finiteNumber(value.estimatedCostUsd, 0, 1_000);
   const costRateSource = value.costRateSource === null ? null : nonEmptyText(value.costRateSource, 500);
+  const estimatedCostIsValid = value.estimatedCostUsd === null || estimatedCostUsd !== null;
+  const costRateSourceIsValid = value.costRateSource === null || costRateSource !== null;
   const tokenTupleIsValid = inputTokens !== undefined && outputTokens !== undefined && totalTokens !== undefined &&
     ((inputTokens === null && outputTokens === null && totalTokens === null) ||
-      (inputTokens !== null && outputTokens !== null && totalTokens !== null));
-  const cachedTokenIsValid = cachedInputTokens !== undefined && (
-    cachedInputTokens === null || (typeof inputTokens === "number" && cachedInputTokens <= inputTokens)
+      (inputTokens !== null && outputTokens !== null && totalTokens !== null && totalTokens === inputTokens + outputTokens));
+  const cacheBreakdownIsValid = cachedInputTokens !== undefined && cacheWriteTokens !== undefined && (
+    (cachedInputTokens === null && cacheWriteTokens === null) ||
+    (typeof cachedInputTokens === "number" && typeof cacheWriteTokens === "number" &&
+      typeof inputTokens === "number" && cachedInputTokens + cacheWriteTokens <= inputTokens)
   );
   const costTupleIsValid = (estimatedCostUsd === null && costRateSource === null) ||
-    (estimatedCostUsd !== null && costRateSource !== null && cachedInputTokens !== null && cachedInputTokens !== undefined);
-  if (value.provider !== "openai" || !model || !MODEL_IDENTIFIER.test(model) || !reasoningEffort || !depth ||
+    (estimatedCostUsd !== null && costRateSource !== null && cachedInputTokens !== null && cacheWriteTokens !== null);
+  const traceCost = attemptTrace && attemptTrace.every((attempt) => attempt.estimatedCostUsd !== null)
+    ? Number(attemptTrace.reduce((sum, attempt) => sum + (attempt.estimatedCostUsd as number), 0).toFixed(8))
+    : null;
+  const traceMatchesAggregate = Boolean(attemptTrace && attempts === attemptTrace.length &&
+    inputTokens === sumTraceField(attemptTrace, "inputTokens") &&
+    cachedInputTokens === sumTraceField(attemptTrace, "cachedInputTokens") &&
+    cacheWriteTokens === sumTraceField(attemptTrace, "cacheWriteTokens") &&
+    outputTokens === sumTraceField(attemptTrace, "outputTokens") &&
+    totalTokens === sumTraceField(attemptTrace, "totalTokens") &&
+    estimatedCostUsd === traceCost &&
+    model === attemptTrace.at(-1)?.model && reasoningEffort === attemptTrace.at(-1)?.reasoningEffort &&
+    requestId === attemptTrace.at(-1)?.requestId);
+  if (value.provider !== "openai" || value.schemaVersion !== POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION ||
+      !model || !MODEL_IDENTIFIER.test(model) || !reasoningEffort || !depth ||
       value.promptVersion !== POINT_OBJECT_ANALYSIS_PROMPT_VERSION ||
       (value.requestId !== null && !requestId) || latencyMs === null || attempts === null || !tokenTupleIsValid ||
-      !cachedTokenIsValid || !costTupleIsValid || value.stored !== false || value.toolCalls !== 0) return null;
+      !estimatedCostIsValid || !costRateSourceIsValid || !cacheBreakdownIsValid || !costTupleIsValid ||
+      !traceMatchesAggregate || value.stored !== false || value.toolCalls !== 0) return null;
   return {
     provider: "openai",
+    schemaVersion: POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION,
     model,
     reasoningEffort,
     depth,
@@ -501,8 +591,10 @@ function parseTelemetry(value: unknown): PointObjectAiTelemetry | null {
     requestId,
     latencyMs,
     attempts,
+    attemptTrace: attemptTrace as PointObjectAiAttemptTrace[],
     inputTokens: inputTokens as number | null,
     cachedInputTokens: cachedInputTokens as number | null,
+    cacheWriteTokens: cacheWriteTokens as number | null,
     outputTokens: outputTokens as number | null,
     totalTokens: totalTokens as number | null,
     estimatedCostUsd,
@@ -512,7 +604,7 @@ function parseTelemetry(value: unknown): PointObjectAiTelemetry | null {
   };
 }
 
-function parseAnalysisResponse(value: unknown): PointObjectAiResponse | null {
+export function parsePointObjectAiResponse(value: unknown): PointObjectAiResponse | null {
   if (!isRecord(value) || (value.mode !== "openai" && value.mode !== "unavailable")) return null;
   if (value.mode === "unavailable") {
     if (!hasOnlyKeys(value, ["mode", "code", "error", "retryable"])) return null;
@@ -522,7 +614,8 @@ function parseAnalysisResponse(value: unknown): PointObjectAiResponse | null {
     if (code === null || error === null || retryable === null) return null;
     return { mode: "unavailable", code, error, retryable };
   }
-  if (!hasExactKeys(value, ["mode", "generatedAt", "evidencePackId", "evidencePackHash", "request", "content", "subject", "telemetry"])) return null;
+  if (!hasExactKeys(value, ["mode", "schemaVersion", "generatedAt", "evidencePackId", "evidencePackHash", "request", "content", "subject", "telemetry"]) ||
+      value.schemaVersion !== POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION) return null;
   const generatedAt = isoTimestamp(value.generatedAt);
   const evidencePackId = nonEmptyText(value.evidencePackId, 160);
   const evidencePackHash = typeof value.evidencePackHash === "string" && /^[a-f0-9]{64}$/.test(value.evidencePackHash)
@@ -531,12 +624,14 @@ function parseAnalysisResponse(value: unknown): PointObjectAiResponse | null {
   const request = parseRequestReceipt(value.request);
   const content = parseContent(value.content);
   const subject = parseSubject(value.subject);
-  const telemetry = parseTelemetry(value.telemetry);
+  const telemetry = parsePointObjectAiTelemetry(value.telemetry);
   if (!generatedAt || !evidencePackId || !/^[A-Za-z0-9_.:-]+$/.test(evidencePackId) || !evidencePackHash ||
       !request || !content || !subject || !telemetry || telemetry.depth !== request.depth ||
+      telemetry.attemptTrace[0]?.purpose !== (request.focused ? "focused" : "initial") ||
       (request.focused && content.answerToQuestion === null)) return null;
   return {
     mode: "openai",
+    schemaVersion: POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION,
     generatedAt,
     evidencePackId,
     evidencePackHash,
@@ -554,7 +649,7 @@ export function readPointObjectAnalysis(selection: LiveMapSelection): PointObjec
     const envelope: unknown = JSON.parse(raw);
     if (!isRecord(envelope) || !hasExactKeys(envelope, ["selectionFingerprint", "analysis"]) ||
         envelope.selectionFingerprint !== selectionFingerprint(selection)) return null;
-    return parseAnalysisResponse(envelope.analysis);
+    return parsePointObjectAiResponse(envelope.analysis);
   } catch {
     return null;
   }
@@ -562,7 +657,7 @@ export function readPointObjectAnalysis(selection: LiveMapSelection): PointObjec
 
 export function writePointObjectAnalysis(analysis: PointObjectAiResponse, selection: LiveMapSelection): void {
   try {
-    const validatedAnalysis = parseAnalysisResponse(analysis);
+    const validatedAnalysis = parsePointObjectAiResponse(analysis);
     if (!validatedAnalysis) return;
     const serialized = JSON.stringify({ selectionFingerprint: selectionFingerprint(selection), analysis: validatedAnalysis });
     if (serialized.length <= MAX_ANALYSIS_BYTES) {

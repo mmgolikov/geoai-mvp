@@ -3,6 +3,7 @@ import type { GroundablePointObjectEvidencePack } from "./point-to-object-live-e
 
 export const POINT_OBJECT_AI_SCHEMA_NAME = "geoai_point_object_decision_plan_v3";
 export const POINT_OBJECT_AI_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V4_2026_09_04";
+export const POINT_OBJECT_AI_RESULT_SCHEMA_VERSION = 3 as const;
 
 export type PointObjectAnalysisDepth = "quick" | "standard" | "deep";
 export type PointObjectAnalysisGoal = "object_profile" | "development_screening" | "redevelopment" | "due_diligence" | "custom";
@@ -86,6 +87,7 @@ export type PointObjectAiContent = {
 
 export type PointObjectAiTelemetry = {
   provider: "openai";
+  schemaVersion: typeof POINT_OBJECT_AI_RESULT_SCHEMA_VERSION;
   model: string;
   reasoningEffort: PointObjectReasoningEffort;
   depth: PointObjectAnalysisDepth;
@@ -93,8 +95,10 @@ export type PointObjectAiTelemetry = {
   requestId: string | null;
   latencyMs: number;
   attempts: number;
+  attemptTrace: PointObjectAiAttemptTrace[];
   inputTokens: number | null;
   cachedInputTokens: number | null;
+  cacheWriteTokens: number | null;
   outputTokens: number | null;
   totalTokens: number | null;
   estimatedCostUsd: number | null;
@@ -103,8 +107,25 @@ export type PointObjectAiTelemetry = {
   toolCalls: 0;
 };
 
+export type PointObjectAiAttemptPurpose = "initial" | "focused" | "repair";
+
+export type PointObjectAiAttemptTrace = {
+  attempt: number;
+  purpose: PointObjectAiAttemptPurpose;
+  model: string;
+  reasoningEffort: PointObjectReasoningEffort;
+  requestId: string | null;
+  inputTokens: number | null;
+  cachedInputTokens: number | null;
+  cacheWriteTokens: number | null;
+  outputTokens: number | null;
+  totalTokens: number | null;
+  estimatedCostUsd: number | null;
+};
+
 export type PointObjectAiResult = {
   mode: "openai";
+  schemaVersion: typeof POINT_OBJECT_AI_RESULT_SCHEMA_VERSION;
   generatedAt: string;
   evidencePackId: string;
   evidencePackHash: string;
@@ -341,11 +362,19 @@ function buildModelEvidenceProjection(evidencePack: GroundablePointObjectEvidenc
   const coordinates = isRecord(pack.coordinates) ? pack.coordinates : {};
   const resolution = isRecord(pack.resolution) ? pack.resolution : {};
   const evidence = Array.isArray(pack.evidence) ? pack.evidence : [];
-  const evidenceIndex = evidence.flatMap((item) => {
+  const evidenceReceipts = evidence.flatMap((item) => {
     if (!isRecord(item) || typeof item.id !== "string" || !MODEL_SAFE_EVIDENCE_IDS.test(item.id)) return [];
-    return [{ id: item.id, kind: evidenceKind(item.id) }];
+    const label = stringValue(item.label, 140);
+    const sourceId = safeIdentifier(item.sourceId);
+    const value = typeof item.value === "number"
+      ? finiteNumber(item.value, 1_000_000_000)
+      : stringValue(item.value, 3_000);
+    if (!label || !sourceId || value === null) return [];
+    return [{ id: item.id, kind: evidenceKind(item.id), label, sourceId, value }];
   }).slice(0, 32);
+  const evidenceIndex = evidenceReceipts.map(({ id, kind }) => ({ id, kind }));
   const evidenceIds = new Set(evidenceIndex.map((item) => item.id));
+  const evidenceReceiptById = new Map(evidenceReceipts.map((item) => [item.id, item]));
   const hasObjectEvidence = evidenceIds.has("EVD-OSM-OBJECT") || evidenceIds.has("EVD-OBJECT");
   const hasClassificationEvidence = evidenceIds.has("EVD-CLASSIFICATION");
   const hasAddressEvidence = evidenceIds.has("EVD-ADDRESS");
@@ -384,12 +413,25 @@ function buildModelEvidenceProjection(evidencePack: GroundablePointObjectEvidenc
     nearbyContext: nearby.flatMap((item) => {
       if (!isRecord(item) || typeof item.evidenceId !== "string" ||
           !MODEL_SAFE_CONTEXT_EVIDENCE_ID.test(item.evidenceId) || !evidenceIds.has(item.evidenceId)) return [];
+      const receipt = evidenceReceiptById.get(item.evidenceId);
       const name = stringValue(item.name, 140);
-      const featureClass = safeTaxonomyToken(item.featureClass) ?? (
-        Array.isArray(item.categories) ? safeTaxonomyToken(item.categories[0]) : null
-      );
+      const categories = Array.isArray(item.categories)
+        ? item.categories.flatMap((candidate) => {
+          const token = safeTaxonomyToken(candidate);
+          return token ? [token] : [];
+        }).slice(0, 8)
+        : [];
+      const featureClass = safeTaxonomyToken(item.featureClass) ?? categories[0] ?? null;
+      const sourceFeatureId = safeIdentifier(item.sourceFeatureId);
       const distanceM = finiteNumber(item.distanceM, 10_000);
-      return name && featureClass && distanceM !== null
+      const expectedLabel = name ?? (categories.length ? categories.join(" / ") : null);
+      const expectedReceiptValue = sourceFeatureId && name && featureClass && distanceM !== null
+        ? JSON.stringify({ sourceFeatureId, name, featureClass, distanceM })
+        : null;
+      const receiptIsBound = Boolean(receipt && sourceFeatureId && expectedLabel &&
+        expectedReceiptValue && receipt.sourceId === sourceFeatureId && receipt.label === expectedLabel &&
+        receipt.value === expectedReceiptValue);
+      return receiptIsBound && name && featureClass && distanceM !== null
         ? [{ evidenceId: item.evidenceId, name, featureClass, distanceM: Math.round(distanceM) }]
         : [];
     }).slice(0, 16),
@@ -1185,6 +1227,7 @@ export function buildPointObjectResponsesRequest(
     : null;
   return {
     model: profile.model,
+    service_tier: "default",
     store: false,
     max_output_tokens: profile.maxOutputTokens,
     reasoning: { effort: profile.reasoningEffort },
@@ -1250,38 +1293,130 @@ export function responseCompletionState(payload: unknown): "complete" | "incompl
 
 export function extractResponsesUsage(payload: unknown) {
   if (!isRecord(payload) || !isRecord(payload.usage)) {
-    return { inputTokens: null, cachedInputTokens: null, outputTokens: null, totalTokens: null };
+    return { inputTokens: null, cachedInputTokens: null, cacheWriteTokens: null, outputTokens: null, totalTokens: null };
   }
   const numberOrNull = (value: unknown) => typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : null;
   const inputDetails = isRecord(payload.usage.input_tokens_details) ? payload.usage.input_tokens_details : null;
   return {
     inputTokens: numberOrNull(payload.usage.input_tokens),
     cachedInputTokens: inputDetails ? numberOrNull(inputDetails.cached_tokens) : null,
+    cacheWriteTokens: inputDetails ? numberOrNull(inputDetails.cache_write_tokens) : null,
     outputTokens: numberOrNull(payload.usage.output_tokens),
     totalTokens: numberOrNull(payload.usage.total_tokens)
   };
 }
 
 const COST_RATES = [
-  { pattern: /^gpt-5\.6-luna(?:-|$)/, input: 0.20, cachedInput: 0.02, output: 1.20, label: "gpt-5.6-luna" },
-  { pattern: /^gpt-5\.6-terra(?:-|$)/, input: 2.00, cachedInput: 0.20, output: 12.00, label: "gpt-5.6-terra" },
-  { pattern: /^(?:gpt-5\.6-sol|gpt-5\.6)(?:-|$)/, input: 4.00, cachedInput: 0.40, output: 20.00, label: "gpt-5.6-sol" }
+  { pattern: /^gpt-5\.6-luna(?:-|$)/, input: 0.20, cachedInput: 0.02, cacheWrite: 0.25, output: 1.20, label: "gpt-5.6-luna" },
+  { pattern: /^gpt-5\.6-terra(?:-|$)/, input: 2.00, cachedInput: 0.20, cacheWrite: 2.50, output: 12.00, label: "gpt-5.6-terra" },
+  { pattern: /^(?:gpt-5\.6-sol|gpt-5\.6)(?:-|$)/, input: 4.00, cachedInput: 0.40, cacheWrite: 5.00, output: 20.00, label: "gpt-5.6-sol" }
 ] as const;
 
 export function estimatePointObjectAiCost(
   model: string,
   inputTokens: number | null,
   cachedInputTokens: number | null,
+  cacheWriteTokens: number | null,
   outputTokens: number | null
 ) {
   const rate = COST_RATES.find((candidate) => candidate.pattern.test(model));
-  if (!rate || inputTokens === null || cachedInputTokens === null || outputTokens === null ||
-      cachedInputTokens > inputTokens) return { estimatedCostUsd: null, costRateSource: null };
-  const uncachedInputTokens = inputTokens - cachedInputTokens;
-  const cost = uncachedInputTokens * rate.input / 1_000_000 +
-    cachedInputTokens * rate.cachedInput / 1_000_000 + outputTokens * rate.output / 1_000_000;
+  if (!rate || inputTokens === null || cachedInputTokens === null || cacheWriteTokens === null || outputTokens === null ||
+      cachedInputTokens + cacheWriteTokens > inputTokens) return { estimatedCostUsd: null, costRateSource: null };
+  const ordinaryInputTokens = inputTokens - cachedInputTokens - cacheWriteTokens;
+  const cost = ordinaryInputTokens * rate.input / 1_000_000 +
+    cachedInputTokens * rate.cachedInput / 1_000_000 +
+    cacheWriteTokens * rate.cacheWrite / 1_000_000 +
+    outputTokens * rate.output / 1_000_000;
   return {
     estimatedCostUsd: Number(cost.toFixed(8)),
-    costRateSource: `OpenAI ${rate.label} public API rate accessed 2026-09-04: USD ${rate.input}/M uncached input, USD ${rate.cachedInput}/M cached input, USD ${rate.output}/M output`
+    costRateSource: `OpenAI ${rate.label} Standard API rate accessed 2026-09-04: USD ${rate.input}/M ordinary input, USD ${rate.cachedInput}/M cached input, USD ${rate.cacheWrite}/M cache writes, USD ${rate.output}/M output`
+  };
+}
+
+export type PointObjectAiAttemptUsageInput = {
+  purpose: PointObjectAiAttemptPurpose;
+  model: string;
+  reasoningEffort: PointObjectReasoningEffort;
+  requestId: string | null;
+  usage: ReturnType<typeof extractResponsesUsage>;
+};
+
+export function summarizePointObjectAiAttemptUsage(attempts: readonly PointObjectAiAttemptUsageInput[]) {
+  let inputTokens = 0;
+  let cachedInputTokens = 0;
+  let cacheWriteTokens = 0;
+  let outputTokens = 0;
+  let totalTokens = 0;
+  let tokenTupleComplete = attempts.length > 0;
+  let cacheBreakdownComplete = attempts.length > 0;
+  let costComplete = attempts.length > 0;
+  let estimatedCostUsd = 0;
+  const costRateSources = new Set<string>();
+
+  const attemptTrace = attempts.map((attempt, index): PointObjectAiAttemptTrace => {
+    const { usage } = attempt;
+    const derivedTotal = usage.totalTokens ?? (
+      usage.inputTokens !== null && usage.outputTokens !== null
+        ? usage.inputTokens + usage.outputTokens
+        : null
+    );
+    const tokenTupleAvailable = usage.inputTokens !== null && usage.outputTokens !== null &&
+      derivedTotal !== null && derivedTotal === usage.inputTokens + usage.outputTokens;
+    const normalizedInputTokens = tokenTupleAvailable ? usage.inputTokens : null;
+    const normalizedOutputTokens = tokenTupleAvailable ? usage.outputTokens : null;
+    const normalizedTotalTokens = tokenTupleAvailable ? derivedTotal : null;
+    const cacheBreakdownAvailable = tokenTupleAvailable && usage.cachedInputTokens !== null &&
+      usage.cacheWriteTokens !== null && usage.cachedInputTokens + usage.cacheWriteTokens <= (usage.inputTokens as number);
+    const normalizedCachedInputTokens = cacheBreakdownAvailable ? usage.cachedInputTokens : null;
+    const normalizedCacheWriteTokens = cacheBreakdownAvailable ? usage.cacheWriteTokens : null;
+    const cost = estimatePointObjectAiCost(
+      attempt.model,
+      normalizedInputTokens,
+      normalizedCachedInputTokens,
+      normalizedCacheWriteTokens,
+      normalizedOutputTokens
+    );
+
+    if (normalizedInputTokens === null || normalizedOutputTokens === null || normalizedTotalTokens === null) tokenTupleComplete = false;
+    else {
+      inputTokens += normalizedInputTokens;
+      outputTokens += normalizedOutputTokens;
+      totalTokens += normalizedTotalTokens;
+    }
+    if (normalizedCachedInputTokens === null || normalizedCacheWriteTokens === null) cacheBreakdownComplete = false;
+    else {
+      cachedInputTokens += normalizedCachedInputTokens;
+      cacheWriteTokens += normalizedCacheWriteTokens;
+    }
+    if (cost.estimatedCostUsd === null || cost.costRateSource === null) costComplete = false;
+    else {
+      estimatedCostUsd += cost.estimatedCostUsd;
+      costRateSources.add(cost.costRateSource);
+    }
+
+    return {
+      attempt: index + 1,
+      purpose: attempt.purpose,
+      model: attempt.model,
+      reasoningEffort: attempt.reasoningEffort,
+      requestId: attempt.requestId,
+      inputTokens: normalizedInputTokens,
+      cachedInputTokens: normalizedCachedInputTokens,
+      cacheWriteTokens: normalizedCacheWriteTokens,
+      outputTokens: normalizedOutputTokens,
+      totalTokens: normalizedTotalTokens,
+      estimatedCostUsd: cost.estimatedCostUsd
+    };
+  });
+
+  return {
+    attemptTrace,
+    inputTokens: tokenTupleComplete ? inputTokens : null,
+    cachedInputTokens: cacheBreakdownComplete ? cachedInputTokens : null,
+    cacheWriteTokens: cacheBreakdownComplete ? cacheWriteTokens : null,
+    outputTokens: tokenTupleComplete ? outputTokens : null,
+    totalTokens: tokenTupleComplete ? totalTokens : null,
+    estimatedCostUsd: costComplete ? Number(estimatedCostUsd.toFixed(8)) : null,
+    costRateSource: costComplete ? [...costRateSources].join(" | ") || null : null
   };
 }

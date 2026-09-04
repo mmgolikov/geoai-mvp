@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { IdentitySymbol } from "@/components/design-system/identity-symbol";
 import {
+  parsePointObjectAiResponse,
   readPointObjectAnalysis,
   readPointObjectQuestion,
   readPointObjectSelection,
@@ -178,8 +179,19 @@ export function PointToObjectAnalysis() {
           challenge: challengePayload.challenge
         })
       });
-      const payload = await response.json() as PointObjectAiResponse;
+      const rawPayload: unknown = await response.json();
       if (!isCurrent()) return;
+      const payload = parsePointObjectAiResponse(rawPayload);
+      if (!payload) {
+        const unavailable: PointObjectAiResponse = {
+          mode: "unavailable",
+          error: "The analysis service returned an incompatible response. Please try again.",
+          retryable: true
+        };
+        if (preserveExisting) setRequestError(unavailable.error ?? "The focused analysis could not be completed.");
+        else commitAnalysis(unavailable, activeSelection);
+        return;
+      }
       const normalized: PointObjectAiResponse = payload.mode === "openai" ? payload : {
         mode: "unavailable",
         error: payload.error ?? "The selected location could not be analyzed right now.",
@@ -411,7 +423,7 @@ export function PointToObjectAnalysis() {
                     <div><h3 className="text-sm font-bold">Object source facts</h3><ClaimList items={content.sourceFacts} /></div>
                     <div><h3 className="text-sm font-bold">Address and map context</h3>{content.locationContext.length ? <ClaimList items={content.locationContext} /> : <p className="mt-3 text-sm text-muted">No additional source context was returned.</p>}</div>
                   </div>
-                  {analysis?.mode === "openai" ? <div className="mt-5 border-t border-line pt-4 text-[11px] leading-5 text-muted"><p>Analysis engine: {analysis.telemetry.model} · reasoning {analysis.telemetry.reasoningEffort} · {analysis.telemetry.attempts} attempt{analysis.telemetry.attempts === 1 ? "" : "s"} · {analysis.telemetry.latencyMs} ms{analysis.telemetry.estimatedCostUsd === null ? "" : ` · estimated API cost $${analysis.telemetry.estimatedCostUsd.toFixed(4)}`}</p><p>Evidence pack: {analysis.evidencePackId} · prompt {analysis.telemetry.promptVersion}</p></div> : null}
+                  {analysis?.mode === "openai" ? <div className="mt-5 border-t border-line pt-4 text-[11px] leading-5 text-muted"><p>Accepted result: {analysis.telemetry.model} · reasoning {analysis.telemetry.reasoningEffort} · {analysis.telemetry.latencyMs} ms{analysis.telemetry.estimatedCostUsd === null ? "" : ` · estimated total API cost $${analysis.telemetry.estimatedCostUsd.toFixed(6)}`}</p><p>API route: {analysis.telemetry.attemptTrace.map((attempt) => `${attempt.attempt}. ${attempt.model}/${attempt.reasoningEffort}${attempt.estimatedCostUsd === null ? "" : ` (estimated $${attempt.estimatedCostUsd.toFixed(6)})`}`).join(" → ")}</p><p>Tokens: {analysis.telemetry.inputTokens ?? "unavailable"} input · {analysis.telemetry.cachedInputTokens ?? "unavailable"} cached · {analysis.telemetry.cacheWriteTokens ?? "unavailable"} cache write · {analysis.telemetry.outputTokens ?? "unavailable"} output</p><p>Evidence pack: {analysis.evidencePackId} · analysis schema v{analysis.telemetry.schemaVersion} · prompt {analysis.telemetry.promptVersion}</p></div> : null}
                 </details>
               </div>
             ) : null}

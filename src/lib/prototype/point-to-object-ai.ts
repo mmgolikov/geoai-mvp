@@ -3,12 +3,14 @@ import "server-only";
 import { getPointObjectPreviewUpstreamStatus } from "@/src/lib/ai/openai-upstream-gate";
 import {
   POINT_OBJECT_AI_PROMPT_VERSION,
+  POINT_OBJECT_AI_RESULT_SCHEMA_VERSION,
   buildPointObjectResponsesRequest,
-  estimatePointObjectAiCost,
   extractResponsesText,
   extractResponsesUsage,
   responseCompletionState,
+  summarizePointObjectAiAttemptUsage,
   validatePointObjectAiContentDetailed,
+  type PointObjectAiAttemptUsageInput,
   type PointObjectAiResult,
   type PointObjectAiValidationCode,
   type PointObjectAiValidationResult,
@@ -29,22 +31,6 @@ type RoutedProfile = PointObjectModelProfile & {
   timeoutMs: number;
   minimumTier: ModelTier;
   envNames: readonly string[];
-};
-
-type AttemptUsage = ReturnType<typeof extractResponsesUsage>;
-
-type UsageAccumulator = {
-  inputTokens: number;
-  cachedInputTokens: number;
-  outputTokens: number;
-  totalTokens: number;
-  inputComplete: boolean;
-  cachedInputComplete: boolean;
-  outputComplete: boolean;
-  totalComplete: boolean;
-  estimatedCostUsd: number;
-  costComplete: boolean;
-  costRateSources: Set<string>;
 };
 
 const MODEL_TIER_RANK: Record<ModelTier, number> = { luna: 0, terra: 1, sol: 2 };
@@ -190,31 +176,6 @@ function isTimeout(error: unknown): boolean {
   return error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
 }
 
-function addUsage(accumulator: UsageAccumulator, model: string, usage: AttemptUsage): void {
-  if (usage.inputTokens === null) accumulator.inputComplete = false;
-  else accumulator.inputTokens += usage.inputTokens;
-  if (usage.cachedInputTokens === null) accumulator.cachedInputComplete = false;
-  else accumulator.cachedInputTokens += usage.cachedInputTokens;
-  if (usage.outputTokens === null) accumulator.outputComplete = false;
-  else accumulator.outputTokens += usage.outputTokens;
-
-  const derivedTotal = usage.totalTokens ?? (
-    usage.inputTokens !== null && usage.outputTokens !== null
-      ? usage.inputTokens + usage.outputTokens
-      : null
-  );
-  if (derivedTotal === null) accumulator.totalComplete = false;
-  else accumulator.totalTokens += derivedTotal;
-
-  const cost = estimatePointObjectAiCost(model, usage.inputTokens, usage.cachedInputTokens, usage.outputTokens);
-  if (cost.estimatedCostUsd === null || cost.costRateSource === null) {
-    accumulator.costComplete = false;
-    return;
-  }
-  accumulator.estimatedCostUsd += cost.estimatedCostUsd;
-  accumulator.costRateSources.add(cost.costRateSource);
-}
-
 function timeoutFor(profile: RoutedProfile, deadline: number): number {
   const remaining = deadline - Date.now();
   if (remaining < MINIMUM_ATTEMPT_BUDGET_MS) {
@@ -320,19 +281,7 @@ export async function generatePointObjectAiAnalysis(
 
   const startedAt = Date.now();
   const deadline = Math.min(startedAt + GENERATION_BUDGET_MS, routeDeadline ?? Number.POSITIVE_INFINITY);
-  const usageAccumulator: UsageAccumulator = {
-    inputTokens: 0,
-    cachedInputTokens: 0,
-    outputTokens: 0,
-    totalTokens: 0,
-    inputComplete: true,
-    cachedInputComplete: true,
-    outputComplete: true,
-    totalComplete: true,
-    estimatedCostUsd: 0,
-    costComplete: true,
-    costRateSources: new Set<string>()
-  };
+  const attemptUsages: PointObjectAiAttemptUsageInput[] = [];
   let attempts = 0;
   let requestId: string | null = null;
 
@@ -341,7 +290,13 @@ export async function generatePointObjectAiAnalysis(
   attempts += 1;
   let attempt = await requestOpenAi(apiKey, evidencePack, analysisRequest, profile, deadline, null);
   requestId = attempt.requestId;
-  addUsage(usageAccumulator, profile.model, extractResponsesUsage(attempt.payload));
+  attemptUsages.push({
+    purpose: initialKind,
+    model: profile.model,
+    reasoningEffort: profile.reasoningEffort,
+    requestId: attempt.requestId,
+    usage: extractResponsesUsage(attempt.payload)
+  });
   assertCompleteResponse(attempt.payload);
   let validation = validateCompletedOutput(attempt.payload, evidencePack, analysisRequest);
 
@@ -365,7 +320,13 @@ export async function generatePointObjectAiAnalysis(
     attempts += 1;
     attempt = await requestOpenAi(apiKey, evidencePack, analysisRequest, profile, deadline, repairCode);
     requestId = attempt.requestId;
-    addUsage(usageAccumulator, profile.model, extractResponsesUsage(attempt.payload));
+    attemptUsages.push({
+      purpose: "repair",
+      model: profile.model,
+      reasoningEffort: profile.reasoningEffort,
+      requestId: attempt.requestId,
+      usage: extractResponsesUsage(attempt.payload)
+    });
     assertCompleteResponse(attempt.payload);
     validation = validateCompletedOutput(attempt.payload, evidencePack, analysisRequest);
     if (!validation.ok) {
@@ -384,8 +345,11 @@ export async function generatePointObjectAiAnalysis(
     }
   }
 
+  const usageSummary = summarizePointObjectAiAttemptUsage(attemptUsages);
+
   return {
     mode: "openai",
+    schemaVersion: POINT_OBJECT_AI_RESULT_SCHEMA_VERSION,
     generatedAt: new Date().toISOString(),
     evidencePackId: evidencePack.evidencePackId,
     evidencePackHash: evidencePack.evidencePackHash,
@@ -400,6 +364,7 @@ export async function generatePointObjectAiAnalysis(
     content: validation.content,
     telemetry: {
       provider: "openai",
+      schemaVersion: POINT_OBJECT_AI_RESULT_SCHEMA_VERSION,
       model: profile.model,
       reasoningEffort: profile.reasoningEffort,
       depth: analysisRequest.depth,
@@ -407,16 +372,14 @@ export async function generatePointObjectAiAnalysis(
       requestId,
       latencyMs: Date.now() - startedAt,
       attempts,
-      inputTokens: usageAccumulator.inputComplete ? usageAccumulator.inputTokens : null,
-      cachedInputTokens: usageAccumulator.cachedInputComplete ? usageAccumulator.cachedInputTokens : null,
-      outputTokens: usageAccumulator.outputComplete ? usageAccumulator.outputTokens : null,
-      totalTokens: usageAccumulator.totalComplete ? usageAccumulator.totalTokens : null,
-      estimatedCostUsd: usageAccumulator.costComplete
-        ? Number(usageAccumulator.estimatedCostUsd.toFixed(8))
-        : null,
-      costRateSource: usageAccumulator.costComplete
-        ? [...usageAccumulator.costRateSources].join(" | ") || null
-        : null,
+      attemptTrace: usageSummary.attemptTrace,
+      inputTokens: usageSummary.inputTokens,
+      cachedInputTokens: usageSummary.cachedInputTokens,
+      cacheWriteTokens: usageSummary.cacheWriteTokens,
+      outputTokens: usageSummary.outputTokens,
+      totalTokens: usageSummary.totalTokens,
+      estimatedCostUsd: usageSummary.estimatedCostUsd,
+      costRateSource: usageSummary.costRateSource,
       stored: false,
       toolCalls: 0
     }

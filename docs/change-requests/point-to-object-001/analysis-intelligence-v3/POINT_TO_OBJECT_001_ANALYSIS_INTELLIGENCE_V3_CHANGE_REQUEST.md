@@ -70,7 +70,7 @@ One invalid-output repair uses Terra/low for Quick and Sol/medium for Standard o
 - Preserve the exact mandatory caveat and reject prohibited claims about official parcel identity, ownership/title, zoning, approvals, exact value, building condition, guaranteed best use or return.
 - Require claim-to-evidence semantic compatibility for coordinates, geometry, mapped attributes, classification and nearby-distance statements; reject unsourced operational/market metrics and speculative observations mislabeled as observed.
 - Share a 115-second route deadline across source resolution and generation and fail closed before the route's 120-second platform limit. This allows one bounded repair for structured reasoning while remaining well below Vercel's current Fluid Compute limits.
-- Return model, effort, schema version, attempts, token usage, latency and estimated cost only in the secondary methodology receipt.
+- Pin Responses API processing to the Standard service tier. The success envelope and methodology receipt carry literal analysis schema version `3`; the receipt identifies the accepted model/effort plus a per-provider-attempt route ledger with model, effort, request ID, ordinary/cached/cache-write token usage and rate-based estimated cost.
 
 ## Risks and controls
 
@@ -94,6 +94,9 @@ One invalid-output repair uses Terra/low for Quick and Sol/medium for Standard o
 - Opportunity and risk items explain why they matter and what evidence is still required.
 - Validation actions are prioritized and state which decision they can change.
 - `Quick`, `Standard` and `Deep` controls are usable on desktop and mobile; the server receipt proves the actual routed model and reasoning effort.
+- The cost receipt accounts separately for ordinary input, cached reads, GPT-5.6 cache writes and output across every bounded attempt; incomplete usage fails closed instead of showing a partial estimate.
+- Aggregate usage and estimated cost reconcile exactly to the one- or two-attempt ledger; if repair changes the model, the UI shows the complete model route rather than attributing all usage to the accepted attempt.
+- Nearby context is projected or rendered only when its name, feature class, source feature identity and distance match the canonical structured `EVD-CONTEXT-N` receipt.
 - Focused/custom Standard analysis uses a stronger model than the initial Standard analysis.
 - An invalid first model result triggers at most one repair and does not require the user to manually retry for a routine schema/evidence mismatch.
 - Failed or cancelled provider responses cannot be accepted solely because they contain partial output text.

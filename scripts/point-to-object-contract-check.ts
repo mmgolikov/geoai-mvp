@@ -1291,6 +1291,12 @@ function assertStaticBoundaries(): void {
     "The live AI route must not trace frozen case data.");
   assert.match(analysisClientSource, /expectedSourceFeatureId/,
     "The browser must bind analysis to the server-resolved selection identity.");
+  const networkParserIndex = analysisClientSource.indexOf("const payload = parsePointObjectAiResponse(rawPayload)");
+  const networkCommitIndex = analysisClientSource.indexOf("commitAnalysis(normalized, activeSelection)", networkParserIndex);
+  assert.ok(networkParserIndex >= 0 && networkCommitIndex > networkParserIndex,
+    "The browser must runtime-validate the V3 network response before committing it to UI state or session storage.");
+  assert.equal(/response\.json\(\) as PointObjectAiResponse/.test(analysisClientSource), false,
+    "The network response must not bypass runtime validation through a TypeScript cast.");
   assert.match(readFileSync(path.join(ROOT, "app/api/prototype/point-to-object/ai/route.ts"), "utf8"), /AI_OBJECT_CHANGED/,
     "The server must fail closed when the selected OSM identity changes before analysis.");
   assert.match(liveMapSource, /\["2d", "3d"\]/,
@@ -1392,10 +1398,24 @@ async function assertCandidateAiSafety(): Promise<void> {
     ],
     [/import type \{ GroundablePointObjectEvidencePack \} from "\.\/point-to-object-live-evidence";\n/, ""]
   ]);
+  const liveSessionPath = path.join(ROOT, "components/point-to-object/live-session.ts");
+  const liveSession = await importErasableTypeScript(liveSessionPath, [
+    [
+      /import \{ LIVE_POINT_CAVEAT \} from "@\/src\/lib\/point-to-object\/contracts";\n/,
+      `const LIVE_POINT_CAVEAT = ${JSON.stringify(LIVE_POINT_CAVEAT)};\n`
+    ],
+    [
+      /import \{\n  POINT_OBJECT_ANALYSIS_PROMPT_VERSION,\n  POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION\n\} from "@\/components\/point-to-object\/live-types";\n/,
+      `const POINT_OBJECT_ANALYSIS_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V4_2026_09_04";\nconst POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION = 3;\n`
+    ]
+  ]);
+  const parseClientTelemetry = liveSession.parsePointObjectAiTelemetry as (value: unknown) => JsonObject | null;
+  const parseClientResponse = liveSession.parsePointObjectAiResponse as (value: unknown) => JsonObject | null;
   const completionState = aiCore.responseCompletionState as (value: unknown) => "complete" | "incomplete" | "refusal" | "invalid";
   const extractUsage = aiCore.extractResponsesUsage as (value: unknown) => {
     inputTokens: number | null;
     cachedInputTokens: number | null;
+    cacheWriteTokens: number | null;
     outputTokens: number | null;
     totalTokens: number | null;
   };
@@ -1403,8 +1423,12 @@ async function assertCandidateAiSafety(): Promise<void> {
     model: string,
     inputTokens: number | null,
     cachedInputTokens: number | null,
+    cacheWriteTokens: number | null,
     outputTokens: number | null
   ) => { estimatedCostUsd: number | null; costRateSource: string | null };
+  const summarizeUsage = aiCore.summarizePointObjectAiAttemptUsage as (attempts: JsonObject[]) => JsonObject;
+  assert.equal(aiCore.POINT_OBJECT_AI_RESULT_SCHEMA_VERSION, 3,
+    "The public analysis receipt must expose the documented V3 result schema version.");
   const buildRequest = aiCore.buildPointObjectResponsesRequest as (
     pack: JsonObject,
     analysisRequest: JsonObject,
@@ -1428,18 +1452,125 @@ async function assertCandidateAiSafety(): Promise<void> {
   assert.equal(completionState({ status: "incomplete", incomplete_details: { reason: "max_output_tokens" }, output_text: "{}" }), "incomplete");
   assert.deepEqual(extractUsage({ usage: {
     input_tokens: 1_000,
-    input_tokens_details: { cached_tokens: 400 },
+    input_tokens_details: { cached_tokens: 400, cache_write_tokens: 200 },
     output_tokens: 100,
     total_tokens: 1_100
-  } }), { inputTokens: 1_000, cachedInputTokens: 400, outputTokens: 100, totalTokens: 1_100 },
-  "Responses usage extraction must preserve cached input tokens separately.");
-  const cachedCost = estimateCost("gpt-5.6-sol", 1_000, 400, 100);
-  assert.equal(cachedCost.estimatedCostUsd, 0.00456,
-    "Cost must charge 600 uncached input tokens, 400 cached input tokens and 100 output tokens at their distinct rates.");
-  assert.match(cachedCost.costRateSource ?? "", /USD 4\/M uncached input, USD 0\.4\/M cached input, USD 20\/M output/,
-    "Cost provenance must disclose all three applied rates.");
-  assert.deepEqual(estimateCost("gpt-5.6-sol", 100, 101, 10), { estimatedCostUsd: null, costRateSource: null },
-    "Impossible cached-token counts must fail closed instead of understating or overstating cost.");
+  } }), { inputTokens: 1_000, cachedInputTokens: 400, cacheWriteTokens: 200, outputTokens: 100, totalTokens: 1_100 },
+  "Responses usage extraction must preserve cache reads and cache writes separately.");
+  const cachedCost = estimateCost("gpt-5.6-sol", 1_000, 400, 200, 100);
+  assert.equal(cachedCost.estimatedCostUsd, 0.00476,
+    "Cost must charge 400 ordinary input tokens, 400 cached reads, 200 cache writes and 100 output tokens at their distinct rates.");
+  assert.match(cachedCost.costRateSource ?? "", /USD 4\/M ordinary input, USD 0\.4\/M cached input, USD 5\/M cache writes, USD 20\/M output/,
+    "Cost provenance must disclose all four applied rates.");
+  assert.equal(estimateCost("gpt-5.6-sol", 1_000, 400, 0, 100).estimatedCostUsd, 0.00456,
+    "A zero-write response must preserve the ordinary-plus-cached-read cost calculation.");
+  assert.deepEqual(estimateCost("gpt-5.6-sol", 100, 60, 41, 10), { estimatedCostUsd: null, costRateSource: null },
+    "Impossible cache-read and cache-write token totals must fail closed instead of understating or overstating cost.");
+  assert.deepEqual(estimateCost("gpt-5.6-sol", 100, 0, null, 10), { estimatedCostUsd: null, costRateSource: null },
+    "Missing GPT-5.6 cache-write usage must fail closed instead of presenting an incomplete estimate.");
+  assert.deepEqual(extractUsage({ usage: {
+    input_tokens: 100,
+    input_tokens_details: { cached_tokens: 20 },
+    output_tokens: 10,
+    total_tokens: 110
+  } }), { inputTokens: 100, cachedInputTokens: 20, cacheWriteTokens: null, outputTokens: 10, totalTokens: 110 },
+  "Missing cache-write usage must remain explicitly unknown.");
+  const mixedRouteUsage = summarizeUsage([
+    {
+      purpose: "initial", model: "gpt-5.6-terra", reasoningEffort: "medium", requestId: "resp_initial",
+      usage: { inputTokens: 1_000, cachedInputTokens: 500, cacheWriteTokens: 200, outputTokens: 100, totalTokens: 1_100 }
+    },
+    {
+      purpose: "repair", model: "gpt-5.6-sol", reasoningEffort: "medium", requestId: "resp_repair",
+      usage: { inputTokens: 900, cachedInputTokens: 400, cacheWriteTokens: 100, outputTokens: 120, totalTokens: 1_020 }
+    }
+  ]);
+  assert.deepEqual({
+    inputTokens: mixedRouteUsage.inputTokens,
+    cachedInputTokens: mixedRouteUsage.cachedInputTokens,
+    cacheWriteTokens: mixedRouteUsage.cacheWriteTokens,
+    outputTokens: mixedRouteUsage.outputTokens,
+    totalTokens: mixedRouteUsage.totalTokens,
+    estimatedCostUsd: mixedRouteUsage.estimatedCostUsd
+  }, { inputTokens: 1_900, cachedInputTokens: 900, cacheWriteTokens: 300, outputTokens: 220, totalTokens: 2_120, estimatedCostUsd: 0.00706 },
+  "Initial and repair usage must aggregate across distinct model rates without losing cache writes.");
+  assert.match(String(mixedRouteUsage.costRateSource), /gpt-5\.6-terra[\s\S]*gpt-5\.6-sol/,
+    "Mixed-model repair telemetry must retain both pricing sources in attempt order.");
+  assert.deepEqual((mixedRouteUsage.attemptTrace as JsonObject[]).map((item) => [item.attempt, item.purpose, item.model, item.estimatedCostUsd]), [
+    [1, "initial", "gpt-5.6-terra", 0.0024],
+    [2, "repair", "gpt-5.6-sol", 0.00466]
+  ], "The receipt must attribute model and cost to each provider request.");
+  const incompleteMixedRouteUsage = summarizeUsage([
+    {
+      purpose: "initial", model: "gpt-5.6-terra", reasoningEffort: "medium", requestId: "resp_initial",
+      usage: { inputTokens: 1_000, cachedInputTokens: 500, cacheWriteTokens: 200, outputTokens: 100, totalTokens: 1_100 }
+    },
+    {
+      purpose: "repair", model: "gpt-5.6-sol", reasoningEffort: "medium", requestId: "resp_repair",
+      usage: { inputTokens: 900, cachedInputTokens: 400, cacheWriteTokens: null, outputTokens: 120, totalTokens: 1_020 }
+    }
+  ]);
+  assert.equal(incompleteMixedRouteUsage.cachedInputTokens, null);
+  assert.equal(incompleteMixedRouteUsage.cacheWriteTokens, null);
+  assert.equal(incompleteMixedRouteUsage.estimatedCostUsd, null,
+    "One incomplete attempt must fail the aggregate cost closed while preserving the analysis payload.");
+  assert.deepEqual((incompleteMixedRouteUsage.attemptTrace as JsonObject[])[1]?.cachedInputTokens, null,
+    "A partial per-attempt cache breakdown must normalize both cache fields to unknown.");
+  const impossibleCacheUsage = summarizeUsage([{
+    purpose: "initial", model: "gpt-5.6-terra", reasoningEffort: "medium", requestId: "resp_invalid_cache",
+    usage: { inputTokens: 100, cachedInputTokens: 80, cacheWriteTokens: 21, outputTokens: 10, totalTokens: 110 }
+  }]);
+  assert.equal(impossibleCacheUsage.cachedInputTokens, null);
+  assert.equal(impossibleCacheUsage.cacheWriteTokens, null);
+  assert.equal(impossibleCacheUsage.estimatedCostUsd, null,
+    "An impossible numeric cache breakdown must normalize to unknown and fail billing closed.");
+  const partialTokenUsage = summarizeUsage([{
+    purpose: "initial", model: "gpt-5.6-terra", reasoningEffort: "medium", requestId: "resp_partial_tokens",
+    usage: { inputTokens: null, cachedInputTokens: 0, cacheWriteTokens: 0, outputTokens: 10, totalTokens: 10 }
+  }]);
+  assert.deepEqual({
+    inputTokens: partialTokenUsage.inputTokens,
+    cachedInputTokens: partialTokenUsage.cachedInputTokens,
+    cacheWriteTokens: partialTokenUsage.cacheWriteTokens,
+    outputTokens: partialTokenUsage.outputTokens,
+    totalTokens: partialTokenUsage.totalTokens,
+    estimatedCostUsd: partialTokenUsage.estimatedCostUsd
+  }, { inputTokens: null, cachedInputTokens: null, cacheWriteTokens: null, outputTokens: null, totalTokens: null, estimatedCostUsd: null },
+  "A partial token tuple must normalize atomically so billing telemetry cannot discard valid analysis content.");
+  const clientTelemetry = {
+    provider: "openai",
+    schemaVersion: 3,
+    model: "gpt-5.6-sol",
+    reasoningEffort: "medium",
+    depth: "standard",
+    promptVersion: "POINT_OBJECT_AI_PROMPT_V4_2026_09_04",
+    requestId: "resp_repair",
+    latencyMs: 1_234,
+    attempts: 2,
+    attemptTrace: mixedRouteUsage.attemptTrace,
+    inputTokens: mixedRouteUsage.inputTokens,
+    cachedInputTokens: mixedRouteUsage.cachedInputTokens,
+    cacheWriteTokens: mixedRouteUsage.cacheWriteTokens,
+    outputTokens: mixedRouteUsage.outputTokens,
+    totalTokens: mixedRouteUsage.totalTokens,
+    estimatedCostUsd: mixedRouteUsage.estimatedCostUsd,
+    costRateSource: mixedRouteUsage.costRateSource,
+    stored: false,
+    toolCalls: 0
+  };
+  assert.ok(parseClientTelemetry(clientTelemetry),
+    "The client must accept a fully attributed two-attempt Standard repair receipt.");
+  assert.equal(parseClientTelemetry({ ...clientTelemetry, estimatedCostUsd: "malformed", costRateSource: 42 }), null,
+    "Malformed non-null billing fields must not normalize to an accepted null/null pair.");
+  assert.equal(parseClientTelemetry({
+    ...clientTelemetry,
+    cachedInputTokens: 900,
+    cacheWriteTokens: null,
+    estimatedCostUsd: null,
+    costRateSource: null
+  }), null, "A partial aggregate cache breakdown must be rejected instead of discarding the valid analysis receipt later.");
+  assert.equal(parseClientTelemetry({ ...clientTelemetry, schemaVersion: 2 }), null,
+    "The client must reject an analysis receipt from an undeclared schema version.");
 
   const evidencePack = {
     protocol: "POINT_TO_OBJECT_001_AI_EVIDENCE_PACK_LIVE_V1",
@@ -1488,7 +1619,7 @@ async function assertCandidateAiSafety(): Promise<void> {
       officialStatus: "open_context_not_official"
     },
     nearbyContext: [
-      { evidenceId: "EVD-CONTEXT-01", name: "World Trade Centre", featureClass: "public_transport:station", distanceM: 240 }
+      { evidenceId: "EVD-CONTEXT-01", sourceFeatureId: "node/456", name: "World Trade Centre", featureClass: "public_transport:station", distanceM: 240 }
     ],
     evidence: [
       { id: "EVD-OBJECT", label: "Object", value: "FREE_TEXT_SENTINEL_DO_NOT_PROJECT", sourceId: "way/1", proofLimit: "FREE_TEXT_PROOF_LIMIT_DO_NOT_PROJECT" },
@@ -1497,7 +1628,7 @@ async function assertCandidateAiSafety(): Promise<void> {
       { id: "EVD-ALLOWED-FIELDS", label: "Attributes", value: "building:levels=43", sourceId: "way/1", proofLimit: "Allowlisted tags only." },
       { id: "EVD-GEOMETRY", label: "Geometry", value: "Polygon", sourceId: "way/1", proofLimit: "Open-map geometry only." },
       { id: "EVD-COORDINATES", label: "Coordinates", value: "25.208110,55.271928", sourceId: "map", proofLimit: "Analysis point only." },
-      { id: "EVD-CONTEXT-01", label: "Nearby context", value: "World Trade Centre", sourceId: "open-map", proofLimit: "Bounded open-map context only." },
+      { id: "EVD-CONTEXT-01", label: "World Trade Centre", value: JSON.stringify({ sourceFeatureId: "node/456", name: "World Trade Centre", featureClass: "public_transport:station", distanceM: 240 }), sourceId: "node/456", proofLimit: "Bounded open-map context only." },
       { id: "EVD-SOURCE", label: "Open data source", value: "OpenStreetMap / ODbL", sourceId: "SPAT-001", proofLimit: "Runtime open community-map context; feature observation time unavailable." }
     ],
     conflicts: [],
@@ -1522,6 +1653,7 @@ async function assertCandidateAiSafety(): Promise<void> {
   };
   const request = buildRequest(evidencePack, focusedAnalysisRequest, modelProfile);
   assert.equal(request.model, modelProfile.model, "The server-selected model profile must be bound to the Responses request.");
+  assert.equal(request.service_tier, "default", "Responses requests must pin Standard processing for auditable pricing.");
   assert.equal(request.store, false, "Responses request must disable storage.");
   assert.equal("tools" in request, false, "Responses request must not enable tools or retrieval.");
   assert.deepEqual(request.reasoning, { effort: "high" }, "Reasoning effort must come from the server-selected profile.");
@@ -1595,6 +1727,41 @@ async function assertCandidateAiSafety(): Promise<void> {
     `Evidence-bound coded AI plan must validate: ${JSON.stringify(detailedValidation)}`);
   const validated = validateContent(rawPlan, evidencePack, focusedAnalysisRequest) as any;
   assert.ok(validated, "Evidence-bound coded AI plan must validate.");
+  const focusedAttemptTrace = (mixedRouteUsage.attemptTrace as JsonObject[]).map((item, index) =>
+    index === 0 ? { ...item, purpose: "focused" } : item);
+  const fullClientResponse = {
+    mode: "openai",
+    schemaVersion: 3,
+    generatedAt: "2026-09-04T00:00:00.000Z",
+    evidencePackId: evidencePack.evidencePackId,
+    evidencePackHash: evidencePack.evidencePackHash,
+    request: { ...focusedAnalysisRequest, focused: true },
+    content: validated,
+    subject: {
+      name: evidencePack.selectedObject.name,
+      address: evidencePack.selectedObject.displayAddress,
+      featureClass: evidencePack.selectedObject.featureClass,
+      sourceFeatureId: evidencePack.selectedObject.sourceFeatureId,
+      resolutionMethod: evidencePack.resolution.matchMethod,
+      coordinateAssociation: evidencePack.resolution.coordinateAssociation,
+      sourceLabel: "© OpenStreetMap contributors",
+      geometryType: evidencePack.selectedObject.geometryType,
+      resultCentroidDistanceM: evidencePack.resolution.resultCentroidDistanceM,
+      addressParts: evidencePack.selectedObject.addressParts,
+      tags: evidencePack.selectedObject.tags
+    },
+    telemetry: {
+      ...clientTelemetry,
+      depth: "deep",
+      attemptTrace: focusedAttemptTrace
+    }
+  };
+  assert.ok(parseClientResponse(fullClientResponse),
+    "The network success envelope must pass strict V3 runtime validation before client state is committed.");
+  assert.equal(parseClientResponse({ ...fullClientResponse, schemaVersion: undefined }), null);
+  assert.equal(parseClientResponse({ ...fullClientResponse, schemaVersion: 2 }), null);
+  assert.equal(parseClientResponse({ ...fullClientResponse, schemaVersion: "3" }), null,
+    "Missing, stale and stringified schema versions must be rejected before rendering.");
   assert.equal(validated.decisionBrief.reasons.length, 3, "The server must normalize decision reasons to exactly three.");
   assert.equal((validated.signals as unknown[]).length, 4, "The server must normalize signals to exactly four.");
   assert.equal((validated.opportunities as unknown[]).length, 2, "The server must normalize opportunities to exactly two.");
@@ -1705,6 +1872,32 @@ async function assertCandidateAiSafety(): Promise<void> {
   assert.ok(fakeNearbyResult, "A malformed nearby item must be ignored without making the remaining supported plan unusable.");
   assert.equal(JSON.stringify(fakeNearbyResult).includes(fakeNearbyName), false,
     "An existing non-context receipt such as EVD-ADDRESS must never authorize nearby-context rendering.");
+
+  const substitutedNearbyName = "SUBSTITUTED_NEARBY_VALUE_MUST_NOT_RENDER";
+  const substitutedNearbyEvidencePack = {
+    ...evidencePack,
+    nearbyContext: [{
+      ...evidencePack.nearbyContext[0],
+      name: substitutedNearbyName,
+      distanceM: 25
+    }]
+  };
+  const substitutedNearbyRequest = buildRequest(substitutedNearbyEvidencePack, initialAnalysisRequest, modelProfile);
+  assert.equal(JSON.stringify(substitutedNearbyRequest).includes(substitutedNearbyName), false,
+    "A dedicated nearby evidence ID must not authorize a substituted name or distance unless the receipt value is bound.");
+  const substitutedNearbyResult = validateContent({ ...rawPlan, answerCode: null }, substitutedNearbyEvidencePack, initialAnalysisRequest) as any;
+  assert.ok(substitutedNearbyResult, "A rejected nearby substitution must not invalidate the remaining supported plan.");
+  assert.equal(JSON.stringify(substitutedNearbyResult).includes(substitutedNearbyName), false,
+    "Server rendering must exclude nearby values whose label, source identity or distance differs from the receipt.");
+  const substitutedNearbyClass = "amenity:school";
+  const substitutedNearbyClassPack = {
+    ...evidencePack,
+    nearbyContext: [{ ...evidencePack.nearbyContext[0], featureClass: substitutedNearbyClass }]
+  };
+  assert.equal(JSON.stringify(buildRequest(substitutedNearbyClassPack, initialAnalysisRequest, modelProfile)).includes(substitutedNearbyClass), false,
+    "A valid receipt ID must not authorize a substituted nearby feature classification.");
+  assert.equal(JSON.stringify(validateContent({ ...rawPlan, answerCode: null }, substitutedNearbyClassPack, initialAnalysisRequest)).includes(substitutedNearbyClass), false,
+    "A mismatched nearby feature class must fail closed before deterministic rendering.");
 
   const sparseEvidencePack = {
     ...evidencePack,
