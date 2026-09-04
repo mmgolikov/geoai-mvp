@@ -18,7 +18,7 @@ export function PointObjectHeader({ backToMap = false, showDataSources = false }
   const profileLabel = isAuthenticated ? t("header.profile.open") : t("header.profile.signIn");
 
   return (
-    <header className="flex h-16 shrink-0 items-center justify-between gap-2 border-b border-line bg-white px-3 sm:gap-3 sm:px-6">
+    <header data-point-object-header className="flex h-16 shrink-0 items-center justify-between gap-2 border-b border-line bg-white px-3 sm:gap-3 sm:px-6">
       <Link href="/" className="flex min-w-0 items-center gap-2 rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] focus-visible:ring-offset-2 sm:gap-3">
         <IdentitySymbol />
         <span className="min-w-0">

@@ -7,7 +7,7 @@ export default function ProfilePage() {
     <>
       <PointObjectHeader backToMap />
       <AuthenticatedRouteGate>
-        <main className="min-h-[calc(100vh-64px)] bg-[#f4f8f7]" data-product-shell>
+        <main className="min-h-[calc(100vh-64px)] bg-[#f4f8f7]" data-product-surface="profile">
           <ProfilePanel />
         </main>
       </AuthenticatedRouteGate>

@@ -49,12 +49,12 @@ async function expectMinimumTarget(locator: Locator, label: string, minimum: num
   expect(box?.height ?? 0, `${label} height`).toBeGreaterThanOrEqual(minimum);
 }
 
-async function seriousCriticalAxe(page: Page) {
-  const scan = await new AxeBuilder({ page }).include("[data-product-shell]").analyze();
+async function seriousCriticalAxe(page: Page, selector: string) {
+  const scan = await new AxeBuilder({ page }).include(selector).analyze();
   return scan.violations.filter((violation) => violation.impact === "serious" || violation.impact === "critical").length;
 }
 
-async function captureDeterministic(page: Page, locator: Locator, label: string, fileName: string) {
+async function captureDeterministic(page: Page, locator: Locator, label: string, fileName: string, axeSelector = "[data-product-shell]") {
   await stabilize(page);
   await fs.mkdir(evidenceDirectory, { recursive: true });
   const first = await locator.screenshot({ animations: "disabled", caret: "hide" });
@@ -65,7 +65,7 @@ async function captureDeterministic(page: Page, locator: Locator, label: string,
   const filePath = path.join(evidenceDirectory, fileName);
   await fs.writeFile(filePath, first);
   const box = await locator.boundingBox();
-  const axeCount = await seriousCriticalAxe(page);
+  const axeCount = await seriousCriticalAxe(page, axeSelector);
   expect(axeCount, `${label} serious/critical Axe findings`).toBe(0);
   evidence.push({
     axeSeriousCritical: axeCount,
@@ -76,6 +76,18 @@ async function captureDeterministic(page: Page, locator: Locator, label: string,
     sha256: firstHash,
     width: Math.round(box?.width ?? 0)
   });
+}
+
+async function expectPointObjectHeader(page: Page, viewportWidth: number) {
+  const header = page.locator("[data-point-object-header]");
+  await expect(header).toBeVisible();
+  const box = await header.boundingBox();
+  expect(box?.height).toBe(64);
+  expect(box?.width).toBe(viewportWidth);
+  await expect(header.locator('[data-figma-node="468:57"]')).toHaveAttribute("aria-hidden", "true");
+  await expect(header.getByRole("group", { name: "Language" })).toBeVisible();
+  await expectMinimumTarget(header.getByRole("link", { name: "Back to map" }), "Profile back-to-map action", 40);
+  await expectMinimumTarget(header.getByRole("link", { name: "Open profile" }), "Profile access entry", 40);
 }
 
 async function expectShell(page: Page, viewportWidth: number, activeLabel?: "Workspace" | "Projects") {
@@ -146,14 +158,24 @@ test("proves the responsive Product System v3.2 shell with the consolidated Prod
     await signInDemo(page);
     for (const route of [
       { href: "/workspace", label: "Workspace" as const },
-      { href: "/projects", label: "Projects" as const },
-      { href: "/profile", label: undefined }
+      { href: "/projects", label: "Projects" as const }
     ]) {
       await page.goto(route.href);
       await stabilize(page);
       await expectShell(page, viewport.width, route.label);
       await captureDeterministic(page, page.locator("[data-product-shell]"), `${viewport.name} ${route.label ?? "Profile"} shell`, `${viewport.name}-${route.href.slice(1)}.png`);
     }
+
+    await page.goto("/profile");
+    await stabilize(page);
+    await expectPointObjectHeader(page, viewport.width);
+    await captureDeterministic(
+      page,
+      page.locator("[data-point-object-header]"),
+      `${viewport.name} Profile point-object header`,
+      `${viewport.name}-profile.png`,
+      "[data-point-object-header]"
+    );
 
     if (viewport.width === 390) {
       await page.goto("/workspace");
