@@ -181,7 +181,9 @@ test("Projects, Profile and report actions use the same Product-primary teal", a
   // darker hover state.
   await page.mouse.move(1, 1);
   await expectProductPrimary(b2c, "Profile selected B2C");
-  await expectProductPrimary(page.getByRole("link", { name: "Open workspace", exact: true }), "Profile Open workspace action");
+  const openMap = page.getByRole("link", { name: "Open map", exact: true });
+  await expect(openMap).toHaveAttribute("href", "/prototype/point-to-object");
+  await expectProductPrimary(openMap, "Profile Open map action");
   await expectProductPrimary(page.getByRole("button", { name: "Save profile", exact: true }), "Profile Save profile action");
 
   await page.goto("/reports/seeded-analysis-dubai-marina-report/print");
