@@ -688,7 +688,9 @@ function safeWikidataStatementValue(value: unknown): PointObjectWikidataStatemen
     const latitude = finiteNumber(value.latitude, 90);
     const precision = value.precision === null ? null : finiteNumber(value.precision, 10);
     return hasExactKeys(value, ["kind", "longitude", "latitude", "precision", "globe"]) &&
-      longitude !== null && latitude !== null && precision !== null && precision > 0 && precision <= 0.0001 &&
+      // Keep the supported representation cap aligned with the server-only adapter.
+      // Its geometry-dependent budget is checked before this sanitized projection.
+      longitude !== null && latitude !== null && precision !== null && precision > 0 && precision <= 1 / 3600 + Number.EPSILON &&
       value.globe === "http://www.wikidata.org/entity/Q2"
       ? { kind: "coordinate", longitude, latitude, precision, globe: value.globe }
       : null;

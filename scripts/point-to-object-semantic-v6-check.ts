@@ -169,7 +169,7 @@ function rawPlan() {
   };
 }
 
-function linkedEntityForPack() {
+function linkedEntityForPack(coordinatePrecision: number | null = 1 / 3600) {
   const qid = "Q777";
   const source = {
     sourceId: "WIKIDATA-ENTITY",
@@ -203,6 +203,7 @@ function linkedEntityForPack() {
   const identity = { identityReceiptHash: semanticHash(identityCore), ...identityCore };
   const statements = [
     ["P31", "entity", { kind: "entity", entityId: "Q27686" }],
+    ["P625", "coordinate", { kind: "coordinate", longitude: 55.2708, latitude: 25.2048, precision: coordinatePrecision, globe: "http://www.wikidata.org/entity/Q2" }],
     ["P2048", "height-a", { kind: "quantity", amount: "+321.4", numericValue: 321.4, unit: "metre", unitEntityId: "Q11573", lowerBound: null, upperBound: null }],
     ["P2048", "height-b", { kind: "quantity", amount: "+330", numericValue: 330, unit: "metre", unitEntityId: "Q11573", lowerBound: null, upperBound: null }],
     ["P1101", "floors", { kind: "quantity", amount: "+68", numericValue: 68, unit: "count", unitEntityId: null, lowerBound: null, upperBound: null }]
@@ -228,7 +229,7 @@ function wikidataEvidence(entity: any) {
   const shared = { qid: entity.qid, sourceResponseHash: entity.source.sourceResponseHash, sourceRevisionId: entity.source.sourceRevisionId, identityReceiptHash: entity.identity.identityReceiptHash };
   return [
     { id: "EVD-WIKIDATA-ENTITY", label: "Linked Wikidata community entity", sourceId, value: JSON.stringify({ ...shared, labels: entity.labels, identity: entity.identity, source: entity.source }) },
-    ...["P31", "P2048", "P1101"].map((propertyId) => ({
+    ...["P31", "P625", "P2048", "P1101"].map((propertyId) => ({
       id: `EVD-WIKIDATA-${propertyId}`,
       label: `Wikidata ${propertyId} statement receipt`,
       sourceId,
@@ -301,6 +302,15 @@ linkedPack.linkedEntity = linkedEntityForPack();
 linkedPack.evidence.push(...wikidataEvidence(linkedPack.linkedEntity));
 const linkedResult = validate(rawPlan(), linkedPack, requests[0]);
 assert.equal(linkedResult.ok, true, linkedResult.detail);
+assert.ok(projectionFor(linkedPack).linkedEntity,
+  "Canonical one-arcsecond P625 must survive the final model projection, not merely the source adapter.");
+for (const precision of [null, 0, 1 / 3600 * 1.01, 1]) {
+  const rejectedPrecisionPack = evidencePack();
+  rejectedPrecisionPack.linkedEntity = linkedEntityForPack(precision);
+  rejectedPrecisionPack.evidence.push(...wikidataEvidence(rejectedPrecisionPack.linkedEntity));
+  assert.equal(projectionFor(rejectedPrecisionPack).linkedEntity, null,
+    `The final model projection must also reject unsupported coordinate resolution ${precision}.`);
+}
 assert.equal(linkedResult.content.initialSemanticBrief.codes.subject, "linked_named_entity");
 assert.equal(linkedResult.content.sourceFacts.some((fact: any) => /linked complex, not selected-building attributes/.test(fact.statement)), true,
   "Visible Wikidata facts must keep the linked complex separate from selected-building attributes.");

@@ -1,6 +1,6 @@
 # Cycle 04 integration receipt
 
-Status: Integrated local acceptance complete; exact-head CI and protected Preview pending
+Status: Initial integration published and CI passed at 5191def; bounded real-source precision correction awaiting successor publication
 Date: 2026-09-06
 Owner: GeoAI Main
 Authority: [Cycle 04 approved change request](CYCLE_04_GEOCONTEXT_GENERATOR_CHANGE_REQUEST.md)
@@ -8,7 +8,13 @@ Successor: None
 
 ## Scope and publication boundary
 
-Baseline and rollback point: `d5091f2c62e14936fc0440f396b4cfedfd45f53c`, protected Preview `dpl_DrnkECZpvDVGpEftjFoBswgZmFCE`. This receipt does not claim a new deployed Preview. No push, merge, main/Production change, credential/environment change, hosted Supabase/Auth/Storage mutation or paid AI call has occurred in this integration stage.
+Baseline and rollback point: `d5091f2c62e14936fc0440f396b4cfedfd45f53c`, protected Preview `dpl_DrnkECZpvDVGpEftjFoBswgZmFCE`. The integration-stage sections below are historical evidence, not successor-deployment claims. Initial integration `5191def99c63ada1f2cf21831fb1192f388cd704` was subsequently pushed to the Preview branch, deployment `dpl_4NGs99qUJeTHQYkF1ju3F7xTGuRa` is READY and rendered, and quality run [33995576781](https://github.com/mmgolikov/geoai-mvp/actions/runs/33995576781) passed both jobs. No main/Production merge/promotion, credential/environment change, hosted Supabase/Auth/Storage mutation or paid AI call occurred.
+
+## Real-source precision correction
+
+After the initial Preview, Main ran bounded exact-object public OSM/Wikidata probes through the local adapter. Both Burj Al Arab and Marina Bay Sands were initially rejected because standard one-arcsecond P625 resolution exceeded the synthetic fixture's 0.0001-degree ceiling. This was an integration coverage gap despite passing synthetic tests, not unavailable source data. The approved CR now documents a one-arcsecond maximum and a conservative half-cell representation budget that consumes the existing polygon/node tolerance; it does not expand the 20 m/250 m ceilings or certify source accuracy. Null/zero/coarse precision, holes, exterior/near-ceiling cases are tested. The final model projection also used the old ceiling and is corrected and regression-tested with P625-bearing linked-entity receipts, including positive canonical and negative unsupported-resolution cases. The raw P625 precision remains in source-hashed statement receipts; no V1 receipt schema migration is introduced.
+
+Bounded public retest on the corrected local adapter at 2026-09-05 22:40 UTC: `way/12700546` → Q62939 (revision 2532273591) AVAILABLE, with year 1999, height 321 m and 56 floors as linked-entity statements; `node/4302905987` → Q548679 (revision 2518380772) AVAILABLE, with date 2010-06-23 and conflicting floor statements 55/57 preserved, not silently chosen. These are community-source observations, not selected-footprint certification or a live Vercel/OpenAI test. The committed positive polygon fixture includes observed Burj geometry/coordinate values; other fixture attributes remain synthetic. Successor exact-head CI and Preview readbacks must be recorded externally after publication.
 
 ## Local integration
 

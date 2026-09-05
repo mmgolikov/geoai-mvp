@@ -159,7 +159,7 @@ async function run(): Promise<void> {
   assert.equal(coordinateConflictResult.status, "identity_rejected");
   assert.equal(coordinateConflictResult.reason, "coordinate_missing_or_conflicting");
 
-  for (const [qid, precision] of [["Q1013", 1], ["Q1014", null]] as const) {
+  for (const [qid, precision] of [["Q1013", 1], ["Q1014", null], ["Q1017", 0], ["Q1018", 1 / 3600 * 1.01]] as const) {
     const coarseCoordinate = new PointObjectWikidataAdapter({ fetchImpl: (async () => jsonResponse(payload(qid, 55.2708, 25.2048, {
       P625: [claim("P625", `${qid}$P625`, coordinateValue(55.2708, 25.2048, precision))]
     }))) as typeof fetch });
@@ -167,6 +167,39 @@ async function run(): Promise<void> {
     assert.equal(coarseResult.status, "identity_rejected");
     assert.equal(coarseResult.reason, "coordinate_precision_insufficient",
       "A coarse or unknown P625 precision must not prove a 20 m/250 m identity join.");
+  }
+
+  // Public P625 observations on 2026-09-05: Q62939 revision 2532273591 and
+  // Q548679 revision 2518380772 both use the canonical one-arcsecond resolution.
+  // Geometry is an OSM observation; other payload facts below remain synthetic.
+  const arcsecond = 1 / 3600;
+  const burjGeometry = { type: "Polygon" as const, coordinates: [[
+    [55.1848041, 25.1416843], [55.1853083, 25.1408904], [55.1853994, 25.140913],
+    [55.1854852, 25.140949], [55.185563, 25.1409976], [55.1856308, 25.1410572],
+    [55.1856867, 25.1411263], [55.1857289, 25.1412028], [55.1857565, 25.1412847],
+    [55.1857685, 25.1413695], [55.1857647, 25.1414551], [55.1848041, 25.1416843]
+  ]] };
+  const burjAdapter = new PointObjectWikidataAdapter({ fetchImpl: (async () => jsonResponse(payload("Q62939", 55.18527777777778, 25.14138888888889, {
+    P625: [claim("P625", "Q62939$P625", coordinateValue(55.18527777777778, 25.14138888888889, arcsecond))]
+  }))) as typeof fetch });
+  assert.equal((await burjAdapter.resolve({ ...baseInput("Q62939"), osmSourceFeatureId: "way/12700546", osmGeometry: burjGeometry,
+    osmCentroid: [55.1853967, 25.1413271] })).status, "available", "Canonical arcsecond coordinates with interior clearance should enrich an exact QID.");
+
+  const square = { type: "Polygon" as const, coordinates: [[[55, 25], [55.002, 25], [55.002, 25.002], [55, 25.002], [55, 25]]] };
+  for (const [qid, longitude, latitude, geometry, centroid, expected] of [
+    ["Q1020", 55.001, 25.001, square, [55.001, 25.001], "available"],
+    ["Q1021", 54.99995, 25.001, square, [55.001, 25.001], "identity_rejected"],
+    ["Q1022", 55.001, 25.001, { ...square, coordinates: [...square.coordinates, [[55.0008, 25.0008], [55.0012, 25.0008], [55.0012, 25.0012], [55.0008, 25.0012], [55.0008, 25.0008]]] }, [55.001, 25.001], "identity_rejected"],
+    ["Q1023", 55, 25.002, { type: "Point" as const, coordinates: [55, 25] }, [55, 25], "available"],
+    ["Q1024", 55, 25.0021, { type: "Point" as const, coordinates: [55, 25] }, [55, 25], "identity_rejected"],
+    ["Q548679", 103.86, 1.2825, { type: "Point" as const, coordinates: [103.8587, 1.283] }, [103.8587, 1.283], "available"]
+  ] as const) {
+    const resolutionAdapter = new PointObjectWikidataAdapter({ fetchImpl: (async () => jsonResponse(payload(qid, longitude, latitude, {
+      P625: [claim("P625", `${qid}$P625`, coordinateValue(longitude, latitude, arcsecond))],
+      ...(qid === "Q548679" ? { P17: [claim("P17", `${qid}$P17`, entityValue("Q334"))] } : {})
+    }))) as typeof fetch });
+    const result = await resolutionAdapter.resolve({ ...baseInput(qid), osmGeometry: geometry, osmCentroid: centroid, expectedCountryCode: qid === "Q548679" ? "sg" : "ae" });
+    assert.equal(result.status, expected, `${qid}: resolution envelope must consume, not expand, the existing spatial tolerance.`);
   }
 
   const countryConflict = new PointObjectWikidataAdapter({ fetchImpl: (async () => jsonResponse(payload("Q1004", 55.2708, 25.2048, {

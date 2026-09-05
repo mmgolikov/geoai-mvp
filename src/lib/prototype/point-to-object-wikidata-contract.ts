@@ -9,7 +9,7 @@ export const POINT_OBJECT_WIKIDATA_CACHE_MAX_ENTRIES = 128;
 export const POINT_OBJECT_WIKIDATA_QUEUE_MAX_ENTRIES = 16;
 export const POINT_OBJECT_WIKIDATA_POLYGON_TOLERANCE_M = 20 as const;
 export const POINT_OBJECT_WIKIDATA_NODE_COMPLEX_MAX_DISTANCE_M = 250 as const;
-export const POINT_OBJECT_WIKIDATA_MAX_COORDINATE_PRECISION_DEGREES = 0.0001 as const;
+export const POINT_OBJECT_WIKIDATA_MAX_COORDINATE_PRECISION_DEGREES = 1 / 3600;
 
 const WIKIDATA_QID = /^Q[1-9]\d{0,15}$/;
 const WIKIDATA_STATEMENT_ID = /^[A-Za-z0-9$_.:-]{1,180}$/;
@@ -493,19 +493,37 @@ function polygonBoundaryDistanceM(point: readonly [number, number], polygon: unk
 
 function polygonContainsOrTouches(
   geometry: PointObjectWikidataGeometry,
-  point: readonly [number, number]
+  point: readonly [number, number],
+  resolutionBudgetM: number
 ): { matched: boolean; boundaryDistanceM: number } {
   const polygons = geometry.type === "Polygon"
     ? [geometry.coordinates]
     : geometry.type === "MultiPolygon" && Array.isArray(geometry.coordinates)
       ? geometry.coordinates
       : [];
-  if (polygons.some((polygon) => pointInPolygon(point, polygon))) return { matched: true, boundaryDistanceM: 0 };
-  const boundaryDistanceM = polygons.reduce((nearest, polygon) => Math.min(nearest, polygonBoundaryDistanceM(point, polygon)), Number.POSITIVE_INFINITY);
+  const distances = polygons.map((polygon) => {
+    const distance = polygonBoundaryDistanceM(point, polygon);
+    return { inside: pointInPolygon(point, polygon), distance };
+  });
+  // The representation cell consumes the existing tolerance; it never enlarges it.
+  // A point well inside a polygon can use its clearance, including hole boundaries.
+  const matched = distances.some(({ inside, distance }) => Number.isFinite(distance) &&
+    (inside ? resolutionBudgetM - distance : resolutionBudgetM + distance) <= POINT_OBJECT_WIKIDATA_POLYGON_TOLERANCE_M);
+  const boundaryDistanceM = distances.some(({ inside }) => inside)
+    ? 0
+    : distances.reduce((nearest, value) => Math.min(nearest, value.distance), Number.POSITIVE_INFINITY);
   return {
-    matched: Number.isFinite(boundaryDistanceM) && boundaryDistanceM <= POINT_OBJECT_WIKIDATA_POLYGON_TOLERANCE_M,
+    matched,
     boundaryDistanceM
   };
+}
+
+function coordinateResolutionBudgetM(precisionDegrees: number): number {
+  // Wikibase precision is representation resolution, NOT measured positional accuracy.
+  // Assume rounding to the declared step: half of the cell diagonal. 112 km/degree
+  // on both axes conservatively bounds the WGS84 cell at any latitude. This is only
+  // a quantization guard for a linked community entity, never cadastral validation.
+  return precisionDegrees * 112_000 / Math.SQRT2;
 }
 
 const COUNTRY_QID: Record<PointObjectWikidataCountryCode, string> = {
@@ -579,18 +597,19 @@ function identityReceipt(
     statement.value as Extract<PointObjectWikidataStatementValue, { kind: "coordinate" }>
   ));
   if (coordinateValues.some((value) => value.precision === null || value.precision <= 0 ||
-      value.precision > POINT_OBJECT_WIKIDATA_MAX_COORDINATE_PRECISION_DEGREES)) {
+      value.precision > POINT_OBJECT_WIKIDATA_MAX_COORDINATE_PRECISION_DEGREES + Number.EPSILON)) {
     return { status: "identity_rejected", linkedEntity: null, reason: "coordinate_precision_insufficient" };
   }
   const coordinates = coordinateValues.map((value) => [value.longitude, value.latitude] as const);
   if (coordinates.length === 0 || snapshot.conflictingPropertyIds.includes("P625")) {
     return { status: "identity_rejected", linkedEntity: null, reason: "coordinate_missing_or_conflicting" };
   }
+  const resolutionBudgetsM = coordinateValues.map((value) => coordinateResolutionBudgetM(value.precision!));
 
   let basis: PointObjectWikidataIdentityReceipt["basis"];
   let linkedCoordinateDistanceM: number;
   if (input.osmGeometry?.type === "Polygon" || input.osmGeometry?.type === "MultiPolygon") {
-    const matches = coordinates.map((coordinate) => polygonContainsOrTouches(input.osmGeometry!, coordinate));
+    const matches = coordinates.map((coordinate, index) => polygonContainsOrTouches(input.osmGeometry!, coordinate, resolutionBudgetsM[index]));
     if (matches.some((match) => !match.matched)) {
       return { status: "identity_rejected", linkedEntity: null, reason: "polygon_coordinate_mismatch" };
     }
@@ -598,7 +617,7 @@ function identityReceipt(
     linkedCoordinateDistanceM = Math.round(Math.max(...matches.map((match) => match.boundaryDistanceM)));
   } else if (!input.osmGeometry || input.osmGeometry.type === "Point") {
     const distances = coordinates.map((coordinate) => distanceM(input.osmCentroid, coordinate));
-    if (distances.some((distance) => distance > POINT_OBJECT_WIKIDATA_NODE_COMPLEX_MAX_DISTANCE_M)) {
+    if (distances.some((distance, index) => distance + resolutionBudgetsM[index] > POINT_OBJECT_WIKIDATA_NODE_COMPLEX_MAX_DISTANCE_M)) {
       return { status: "identity_rejected", linkedEntity: null, reason: "node_or_complex_coordinate_mismatch" };
     }
     basis = "node_or_complex_coordinate_within_ceiling";
