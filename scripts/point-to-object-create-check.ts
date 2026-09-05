@@ -263,6 +263,73 @@ if (!narrowProgramValidation.ok) throw new Error(narrowProgramValidation.errors.
 const narrowCampus = generateConceptMassing(narrowAoi, narrowProgramValidation.value, "geoai-narrow-campus");
 assertGeometryContract(narrowAoi, narrowProgramValidation.value, narrowCampus);
 assert.ok(narrowCampus.featureCollection.features.every((feature) => feature.properties.levels === 4));
+const heightMutation = structuredClone(narrowCampus);
+heightMutation.featureCollection.features[0].properties.heightM = 17;
+heightMutation.estimatedFloorAreaSqM = Number(heightMutation.featureCollection.features.reduce((sum, feature) =>
+  sum + featureAreaSqM(feature) * (feature.properties.heightM - feature.properties.baseM) / 3.4, 0).toFixed(1));
+assert.ok(validateConceptMassingGeometry(narrowAoi, narrowProgramValidation.value, heightMutation)
+  .some((error) => /height must equal/.test(error)),
+"Geometry validation must reject a tampered 17 m top for a fixed four-level campus even when floor area is recomputed.");
+
+const centralHoleAoi = [
+  aoi[0],
+  [
+    [55.2790, 25.2170],
+    [55.2800, 25.2170],
+    [55.2800, 25.2180],
+    [55.2790, 25.2180],
+    [55.2790, 25.2170]
+  ]
+] as [number, number][][];
+assert.throws(() => generateConceptMassing(centralHoleAoi, validated.value, "geoai-central-hole"),
+  /exactly one exterior ring/i, "Interior-ring AOIs must fail closed until the Create surface supports holes.");
+
+const outsideAdditionalRingAoi = [
+  aoi[0],
+  [
+    [55.2900, 25.2300],
+    [55.2910, 25.2300],
+    [55.2910, 25.2310],
+    [55.2900, 25.2310],
+    [55.2900, 25.2300]
+  ]
+] as [number, number][][];
+assert.throws(() => generateConceptMassing(outsideAdditionalRingAoi, validated.value, "geoai-outside-ring"),
+  /exactly one exterior ring/i, "An extra ring outside the AOI must not be silently treated as supported geometry.");
+
+const symmetryCenter = [55.28, 25.218] as const;
+const symmetryHalfWidthLng = 17.5 / (111_320 * Math.cos(symmetryCenter[1] * Math.PI / 180));
+const symmetryHalfHeightLat = 12.5 / 110_540;
+const symmetryFallbackAoi = [[
+  [symmetryCenter[0] - symmetryHalfWidthLng, symmetryCenter[1] - symmetryHalfHeightLat],
+  [symmetryCenter[0] + symmetryHalfWidthLng, symmetryCenter[1] - symmetryHalfHeightLat],
+  [symmetryCenter[0] + symmetryHalfWidthLng, symmetryCenter[1] + symmetryHalfHeightLat],
+  [symmetryCenter[0] - symmetryHalfWidthLng, symmetryCenter[1] + symmetryHalfHeightLat],
+  [symmetryCenter[0] - symmetryHalfWidthLng, symmetryCenter[1] - symmetryHalfHeightLat]
+]] as [number, number][][];
+const symmetryProgramValidation = validateRedevelopmentProgram({
+  ...civicProgram,
+  blockCount: 2,
+  levelsMin: 4,
+  levelsMax: 8,
+  targetSiteCoveragePct: 16,
+  openSpacePct: 50,
+  setbackM: 4
+});
+if (!symmetryProgramValidation.ok) throw new Error(symmetryProgramValidation.errors.join("; "));
+const symmetryNativeA = generateConceptMassing(symmetryFallbackAoi, symmetryProgramValidation.value, "scan", "A");
+assert.throws(() => generateConceptMassing(symmetryFallbackAoi, symmetryProgramValidation.value, "scan", "B"),
+  /fit|achieved/i, "The regression must continue to exercise native B placement failure.");
+const symmetryAlternatives = generateConceptMassingAlternatives(
+  symmetryFallbackAoi,
+  symmetryProgramValidation.value,
+  "scan"
+);
+assert.equal(symmetryAlternatives.length, 2,
+  "A centrally symmetric AOI must recover a validated reflected B after native B placement fails.");
+assertGeometryContract(symmetryFallbackAoi, symmetryProgramValidation.value, symmetryAlternatives[1].massing);
+assert.notEqual(geometrySignature(symmetryNativeA), geometrySignature(symmetryAlternatives[1].massing),
+  "The reflected B must contain genuinely distinct opposite-diagonal footprints.");
 
 const impossibleCourtyard = validateRedevelopmentProgram({ ...programInput, blockCount: 3 });
 if (!impossibleCourtyard.ok) throw new Error(impossibleCourtyard.errors.join("; "));

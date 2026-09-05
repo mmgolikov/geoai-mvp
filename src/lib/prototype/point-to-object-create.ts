@@ -1097,6 +1097,9 @@ export function validateConceptMassingGeometry(
 ): string[] {
   const outer = aoiCoordinates[0];
   if (!outer) return ["AOI exterior ring is required."];
+  if (aoiCoordinates.length !== 1) {
+    return ["Create prototype AOI supports exactly one exterior ring and does not support interior or additional rings."];
+  }
   const projection = metricProjection(outer);
   const rings = aoiCoordinates.map((ring) => geoJsonRingToMetric(ring, projection.forward));
   const errors: string[] = [];
@@ -1112,6 +1115,16 @@ export function validateConceptMassingGeometry(
       errors.push(`Concept feature ${properties.id} has invalid vertical bounds.`);
     }
     if (!Number.isInteger(properties.levels) || properties.levels < 1) errors.push(`Concept feature ${properties.id} has invalid levels.`);
+    const expectedHeightM = Number((properties.levels * FLOOR_HEIGHT_M).toFixed(1));
+    if (!Number.isFinite(properties.heightM) || Math.abs(properties.heightM - expectedHeightM) > 0.05) {
+      errors.push(`Concept feature ${properties.id} height must equal its absolute level count.`);
+    }
+    if (properties.volumeRole !== "tower" && (!Number.isFinite(properties.baseM) || Math.abs(properties.baseM) > 0.05)) {
+      errors.push(`Concept feature ${properties.id} must start at site datum for its volume role.`);
+    }
+    if (properties.primaryBlock !== (properties.volumeRole !== "podium")) {
+      errors.push(`Concept feature ${properties.id} has inconsistent primary-block semantics for its volume role.`);
+    }
     const ring = feature.geometry.coordinates[0] as Point[];
     if (feature.id !== properties.id || properties.massingStyle !== result.massingStyle || properties.variantId !== result.variantId) {
       errors.push(`Concept feature ${properties.id} has inconsistent identity metadata.`);
@@ -1244,6 +1257,9 @@ export function generateConceptMassing(
 ): ConceptMassingResult {
   const outer = aoiCoordinates[0];
   if (!outer) throw new Error("AOI exterior ring is required.");
+  if (aoiCoordinates.length !== 1) {
+    throw new Error("Create prototype AOI supports exactly one exterior ring and does not support interior or additional rings.");
+  }
   const openOuter = outer.length > 1 && outer[0][0] === outer[outer.length - 1][0] && outer[0][1] === outer[outer.length - 1][1]
     ? outer.slice(0, -1)
     : outer;
@@ -1284,6 +1300,52 @@ export function generateConceptMassing(
   );
 }
 
+function conceptGeometrySignature(result: ConceptMassingResult): string {
+  return JSON.stringify(result.featureCollection.features.map((feature) => ({
+    coordinates: feature.geometry.coordinates,
+    baseM: feature.properties.baseM,
+    heightM: feature.properties.heightM,
+    role: feature.properties.volumeRole
+  })));
+}
+
+function conceptFootprintSignature(result: ConceptMassingResult): string {
+  return JSON.stringify(result.featureCollection.features.map((feature) => feature.geometry.coordinates));
+}
+
+function reflectValidatedAlternativeAcrossAoiCenter(
+  aoiCoordinates: Point[][],
+  program: ValidatedRedevelopmentProgram,
+  source: ConceptMassingResult
+): ConceptMassingResult {
+  const outer = aoiCoordinates[0];
+  if (!outer || aoiCoordinates.length !== 1) {
+    throw new ConceptMassingError("geometry_validation_failed", "A single exterior AOI ring is required for symmetry fallback.");
+  }
+  const projection = metricProjection(outer);
+  const center = centroidOfPoints(geoJsonRingToMetric(outer, projection.forward));
+  const volumes: PlannedVolume[] = source.featureCollection.features.map((feature) => ({
+    footprint: geoJsonRingToMetric(feature.geometry.coordinates[0] as Point[], projection.forward).map((point) => ({
+      x: 2 * center.x - point.x,
+      y: 2 * center.y - point.y
+    })),
+    role: feature.properties.volumeRole,
+    primaryBlock: feature.properties.primaryBlock,
+    levels: feature.properties.levels,
+    baseLevels: Math.round(feature.properties.baseM / FLOOR_HEIGHT_M),
+    use: feature.properties.use
+  }));
+  return buildMassingResult(
+    aoiCoordinates,
+    program,
+    `${source.seed}:central-reflection:B`,
+    "B",
+    volumes,
+    source.aoiAreaSqM,
+    projection.inverse
+  );
+}
+
 export function generateConceptMassingAlternatives(
   aoiCoordinates: Point[][],
   program: ValidatedRedevelopmentProgram,
@@ -1295,20 +1357,9 @@ export function generateConceptMassingAlternatives(
   for (const id of ["A", "B"] as const) {
     try {
       const massing = generateConceptMassing(aoiCoordinates, program, seed, id);
-      const geometrySignature = JSON.stringify(massing.featureCollection.features.map((feature) => ({
-        coordinates: feature.geometry.coordinates,
-        baseM: feature.properties.baseM,
-        heightM: feature.properties.heightM,
-        role: feature.properties.volumeRole
-      })));
-      const duplicatesExisting = alternatives.some((alternative) => JSON.stringify(
-        alternative.massing.featureCollection.features.map((feature) => ({
-          coordinates: feature.geometry.coordinates,
-          baseM: feature.properties.baseM,
-          heightM: feature.properties.heightM,
-          role: feature.properties.volumeRole
-        }))
-      ) === geometrySignature);
+      const geometrySignature = conceptGeometrySignature(massing);
+      const duplicatesExisting = alternatives.some((alternative) =>
+        conceptGeometrySignature(alternative.massing) === geometrySignature);
       if (!duplicatesExisting) {
         alternatives.push({
           id,
@@ -1318,6 +1369,24 @@ export function generateConceptMassingAlternatives(
       }
     } catch (error) {
       firstError ??= error;
+      const sourceA = id === "B" ? alternatives.find((alternative) => alternative.id === "A") : null;
+      if (sourceA) {
+        try {
+          const reflected = reflectValidatedAlternativeAcrossAoiCenter(aoiCoordinates, program, sourceA.massing);
+          const hasDistinctFootprints = conceptFootprintSignature(reflected) !== conceptFootprintSignature(sourceA.massing);
+          const duplicatesExisting = alternatives.some((alternative) =>
+            conceptGeometrySignature(alternative.massing) === conceptGeometrySignature(reflected));
+          if (hasDistinctFootprints && !duplicatesExisting) {
+            alternatives.push({
+              id: "B",
+              label: locale === "ru" ? "Вариант B" : "Alternative B",
+              massing: reflected
+            });
+          }
+        } catch {
+          // A non-symmetric or concave AOI may invalidate the transform; keep the one-valid-alternative fallback.
+        }
+      }
     }
   }
   if (alternatives.length === 0) {
