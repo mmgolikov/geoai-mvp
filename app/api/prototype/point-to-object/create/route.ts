@@ -18,13 +18,20 @@ import {
   validatePointObjectCreateLockedControlKeys,
   type PointObjectCreateControlKey,
   type PointObjectCreateDepth,
+  type PointObjectCreateNumericControls,
   type PointObjectCreateRoutedProfile
 } from "@/src/lib/prototype/point-to-object-create-ai-core";
+import {
+  bindPointObjectCreateProgramToPreflight,
+  pointObjectCreatePreflightAllowsProvider,
+  preflightPointObjectCreate
+} from "@/src/lib/prototype/point-to-object-create-orchestration";
 import {
   ConceptMassingError,
   generateConceptMassingAlternatives,
   type ConceptLocale,
-  type ConceptTemplateId
+  type ConceptTemplateId,
+  type ValidatedRedevelopmentProgram
 } from "@/src/lib/prototype/point-to-object-create";
 import { isPointObjectMarketKey, type PointObjectMarketKey } from "@/src/lib/prototype/point-to-object-markets";
 import {
@@ -45,6 +52,7 @@ const CHALLENGE_TTL_SECONDS = 5 * 60;
 const RATE_WINDOW_MS = 10 * 60 * 1000;
 const RATE_MAX_REQUESTS = 4;
 const CREATE_TIMEOUT_MS = 95_000;
+const CREATE_PREFLIGHT_BUDGET_MS = 8_000;
 const CREATE_CAVEAT = "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.";
 
 type RateBucket = { startedAt: number; count: number };
@@ -56,14 +64,7 @@ type CreateRequest = {
   depth: PointObjectCreateDepth;
   templateId: ConceptTemplateId;
   customPrompt: string | null;
-  controls: {
-    blockCount: number;
-    levelsMin: number;
-    levelsMax: number;
-    targetSiteCoveragePct: number;
-    openSpacePct: number;
-    setbackM: number;
-  };
+  controls: PointObjectCreateNumericControls;
   lockedControlKeys?: PointObjectCreateControlKey[];
   aoiCoordinates: [number, number][][];
   challenge: string;
@@ -203,11 +204,15 @@ function aoiDimensions(ring: [number, number][]) {
 
 function requireRequestedParameters(
   program: ReturnType<typeof parsePointObjectCreateProgram>,
-  controls: Partial<CreateRequest["controls"]>
+  controls: Partial<CreateRequest["controls"]>,
+  massingStyle: ReturnType<typeof inferPromptMassingStyle>,
+  useMix: ValidatedRedevelopmentProgram["useMix"] | null
 ): ReturnType<typeof parsePointObjectCreateProgram> {
   if (!program.ok) return program;
-  const mismatches = (Object.keys(controls) as Array<keyof CreateRequest["controls"]>)
+  const mismatches: string[] = (Object.keys(controls) as Array<keyof CreateRequest["controls"]>)
     .filter((key) => program.value[key] !== controls[key]);
+  if (massingStyle !== null && program.value.massingStyle !== massingStyle) mismatches.push("massingStyle");
+  if (useMix !== null && JSON.stringify(program.value.useMix) !== JSON.stringify(useMix)) mismatches.push("useMix");
   return mismatches.length
     ? { ok: false, errors: [`AI response changed requested parameters: ${mismatches.join(", ")}.`] }
     : program;
@@ -219,6 +224,17 @@ function requestedParameters(body: CreateRequest): Partial<CreateRequest["contro
   return selectPointObjectCreateRequestedParameters(body.controls, locked.value);
 }
 
+class PointObjectCreateProviderError extends Error {
+  constructor(
+    public readonly code: "rate_limited" | "provider_rejected",
+    public readonly requestId: string | null,
+    public readonly usage: ReturnType<typeof extractResponsesUsage>
+  ) {
+    super(code);
+    this.name = "PointObjectCreateProviderError";
+  }
+}
+
 async function callOpenAi(body: ReturnType<typeof buildPointObjectCreateResponsesRequest>, apiKey: string, timeoutMs: number) {
   const response = await fetch(OPENAI_RESPONSES_URL, {
     method: "POST",
@@ -226,8 +242,16 @@ async function callOpenAi(body: ReturnType<typeof buildPointObjectCreateResponse
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify(body)
   });
-  if (!response.ok) throw new Error(response.status === 429 ? "rate_limited" : "provider_rejected");
-  return { payload: await response.json() as unknown, requestId: response.headers.get("x-request-id") };
+  const payload = await response.json().catch(() => null) as unknown;
+  const requestId = response.headers.get("x-request-id");
+  if (!response.ok) {
+    throw new PointObjectCreateProviderError(
+      response.status === 429 ? "rate_limited" : "provider_rejected",
+      requestId,
+      extractResponsesUsage(payload)
+    );
+  }
+  return { payload, requestId };
 }
 
 function requireCreateAttemptTimeout(requestedMs: number, deadlineMs: number): number {
@@ -294,6 +318,10 @@ export async function POST(request: Request) {
     }, { status: 422, headers: noStoreHeaders(request, true) });
   }
   const lockedParameters = requestedParameters(body);
+  const lockedControlKeys = validatePointObjectCreateLockedControlKeys(body.lockedControlKeys);
+  if (!lockedControlKeys.ok) {
+    return NextResponse.json({ mode: "unavailable", error: "The fixed-parameter contract is invalid." }, { status: 400, headers: noStoreHeaders(request, true) });
+  }
   const promptStyle = inferPromptMassingStyle(body.customPrompt);
   if (promptStyle === "courtyard" && typeof lockedParameters?.blockCount === "number" && lockedParameters.blockCount < 4) {
     return NextResponse.json({ mode: "unavailable", error: body.locale === "ru" ? "Для дворовой композиции нужно не менее четырёх корпусов." : "A courtyard needs at least four primary wings." }, { status: 422, headers: noStoreHeaders(request, true) });
@@ -302,12 +330,89 @@ export async function POST(request: Request) {
     return NextResponse.json({ mode: "unavailable", error: body.locale === "ru" ? "Для башен на подиуме задайте высоту основных объёмов не менее двух этажей." : "Towers on a podium require primary heights of at least two levels." }, { status: 422, headers: noStoreHeaders(request, true) });
   }
 
+  const startedAt = Date.now();
+  const deadline = startedAt + CREATE_TIMEOUT_MS;
+  const aoiHash = sha256(JSON.stringify(body.aoiCoordinates));
+  const preflight = preflightPointObjectCreate({
+    aoiCoordinates: body.aoiCoordinates,
+    aoiHash,
+    locale: body.locale,
+    templateId: body.templateId,
+    customPrompt: body.customPrompt,
+    controls: body.controls,
+    lockedControlKeys: lockedControlKeys.value
+  });
+  const geometryPreflightMs = Date.now() - startedAt;
+  if (geometryPreflightMs > CREATE_PREFLIGHT_BUDGET_MS) {
+    return NextResponse.json({
+      mode: "unavailable",
+      error: body.locale === "ru"
+        ? "Проверка геометрии превысила ограниченный бюджет времени. Измените параметры или повторите позже."
+        : "Geometry preflight exceeded its bounded time budget. Adjust the parameters or try again later.",
+      telemetry: {
+        attempts: 0,
+        providerCalls: 0,
+        inputTokens: 0,
+        cachedInputTokens: 0,
+        cacheWriteTokens: 0,
+        outputTokens: 0,
+        totalTokens: 0,
+        estimatedCostUsd: 0,
+        stored: false,
+        toolCalls: 0,
+        geometryPreflightMs
+      }
+    }, { status: 504, headers: noStoreHeaders(request, true) });
+  }
+  if (!pointObjectCreatePreflightAllowsProvider(preflight)) {
+    if (preflight.kind === "suggestion") {
+      return NextResponse.json({
+        mode: "programme_adjustment_required",
+        error: body.locale === "ru"
+          ? "Заданные параметры не разместились в ограниченном поиске. Найден проверенный вариант с меньшей целевой застройкой."
+          : "The requested parameters did not fit in the bounded search. A validated lower site-coverage target is available.",
+        suggestion: preflight.suggestion,
+        telemetry: {
+          attempts: 0,
+          providerCalls: 0,
+          inputTokens: 0,
+          cachedInputTokens: 0,
+          cacheWriteTokens: 0,
+          outputTokens: 0,
+          totalTokens: 0,
+          estimatedCostUsd: 0,
+          stored: false,
+          toolCalls: 0,
+          geometryPreflightMs
+        },
+        caveat: CREATE_CAVEAT
+      }, { status: 422, headers: noStoreHeaders(request, true) });
+    }
+    return NextResponse.json({
+      mode: "unavailable",
+      error: body.locale === "ru"
+        ? "Ограниченный поиск не нашёл проверенную геометрию для этих параметров. Уменьшите застройку, число корпусов или отступ и повторите."
+        : "The bounded search found no validated geometry for these parameters. Reduce coverage, building count or setback and try again.",
+      telemetry: {
+        attempts: 0,
+        providerCalls: 0,
+        inputTokens: 0,
+        cachedInputTokens: 0,
+        cacheWriteTokens: 0,
+        outputTokens: 0,
+        totalTokens: 0,
+        estimatedCostUsd: 0,
+        stored: false,
+        toolCalls: 0,
+        geometryPreflightMs
+      }
+    }, { status: 422, headers: noStoreHeaders(request, true) });
+  }
+
   const profile = profileFor(body.depth);
   if (!profile) return NextResponse.json({ mode: "unavailable", error: "Concept generation model routing is not configured safely." }, { status: 503, headers: noStoreHeaders(request, true) });
   const apiKey = process.env.OPENAI_API_KEY?.trim();
   if (!apiKey) return NextResponse.json({ mode: "unavailable", error: "Concept generation is not configured." }, { status: 503, headers: noStoreHeaders(request, true) });
-  const startedAt = Date.now();
-  const deadline = startedAt + CREATE_TIMEOUT_MS;
   const dimensions = aoiDimensions(body.aoiCoordinates[0]);
   const areaContext = await resolvePointObjectAreaContext(areaContextRequest.value).catch(() => null);
   const input = {
@@ -327,61 +432,104 @@ export async function POST(request: Request) {
       inclusionMethod: areaContext.coverage.inclusionMethod,
       completeInventory: areaContext.coverage.completeInventory
     } : null,
-    requestedParameters: lockedParameters
+    requestedParameters: lockedParameters,
+    requestedMassingStyle: preflight.kind === "ready" ? preflight.program.massingStyle : promptStyle,
+    requestedUseMix: preflight.kind === "ready" ? preflight.program.useMix : null
   };
 
+  const attemptUsage: PointObjectAiAttemptUsageInput[] = [];
+  let activeAttemptProfile: PointObjectCreateRoutedProfile = profile;
+  const callTrackedOpenAi = async (
+    requestBody: ReturnType<typeof buildPointObjectCreateResponsesRequest>,
+    attemptProfile: PointObjectCreateRoutedProfile,
+    purpose: PointObjectAiAttemptUsageInput["purpose"],
+    timeoutMs: number
+  ) => {
+    const index = attemptUsage.push({
+      purpose,
+      model: attemptProfile.model,
+      reasoningEffort: attemptProfile.reasoningEffort,
+      requestId: null,
+      usage: extractResponsesUsage(null)
+    }) - 1;
+    try {
+      const attempt = await callOpenAi(requestBody, apiKey, timeoutMs);
+      attemptUsage[index] = {
+        purpose,
+        model: attemptProfile.model,
+        reasoningEffort: attemptProfile.reasoningEffort,
+        requestId: attempt.requestId,
+        usage: extractResponsesUsage(attempt.payload)
+      };
+      return attempt;
+    } catch (error) {
+      if (error instanceof PointObjectCreateProviderError) {
+        attemptUsage[index] = {
+          purpose,
+          model: attemptProfile.model,
+          reasoningEffort: attemptProfile.reasoningEffort,
+          requestId: error.requestId,
+          usage: error.usage
+        };
+      }
+      throw error;
+    }
+  };
+  const failureTelemetry = () => {
+    if (attemptUsage.length === 0) return null;
+    return {
+      model: activeAttemptProfile.model,
+      reasoningEffort: activeAttemptProfile.reasoningEffort,
+      latencyMs: Date.now() - startedAt,
+      attempts: attemptUsage.length,
+      ...summarizePointObjectAiAttemptUsage(attemptUsage),
+      stored: false,
+      toolCalls: 0
+    };
+  };
   try {
-    let attempt = await callOpenAi(
+    let attempt = await callTrackedOpenAi(
       buildPointObjectCreateResponsesRequest(input, profile),
-      apiKey,
+      profile,
+      "initial",
       requireCreateAttemptTimeout(profile.timeoutMs, deadline)
     );
-    const attemptUsage: PointObjectAiAttemptUsageInput[] = [{
-      purpose: "initial",
-      model: profile.model,
-      reasoningEffort: profile.reasoningEffort,
-      requestId: attempt.requestId,
-      usage: extractResponsesUsage(attempt.payload)
-    }];
     let completion = responseCompletionState(attempt.payload);
     let program = completion === "complete"
-      ? requireRequestedParameters(parsePointObjectCreateProgram(extractResponsesText(attempt.payload), body.templateId, body.locale), lockedParameters ?? {})
+      ? requireRequestedParameters(parsePointObjectCreateProgram(extractResponsesText(attempt.payload), body.templateId, body.locale), lockedParameters ?? {}, input.requestedMassingStyle, input.requestedUseMix)
       : { ok: false as const, errors: [`Response state: ${completion}`] };
     let attempts = 1;
     if (!program.ok) {
       attempts = 2;
       const repairProfile = { ...profile, reasoningEffort: "medium" as const };
-      attempt = await callOpenAi(
+      activeAttemptProfile = repairProfile;
+      attempt = await callTrackedOpenAi(
         buildPointObjectCreateResponsesRequest(input, repairProfile, program.errors),
-        apiKey,
+        repairProfile,
+        "repair",
         requireCreateAttemptTimeout(35_000, deadline)
       );
-      attemptUsage.push({
-        purpose: "repair",
-        model: repairProfile.model,
-        reasoningEffort: repairProfile.reasoningEffort,
-        requestId: attempt.requestId,
-        usage: extractResponsesUsage(attempt.payload)
-      });
       completion = responseCompletionState(attempt.payload);
       program = completion === "complete"
-        ? requireRequestedParameters(parsePointObjectCreateProgram(extractResponsesText(attempt.payload), body.templateId, body.locale), lockedParameters ?? {})
+        ? requireRequestedParameters(parsePointObjectCreateProgram(extractResponsesText(attempt.payload), body.templateId, body.locale), lockedParameters ?? {}, input.requestedMassingStyle, input.requestedUseMix)
         : { ok: false as const, errors: [`Response state: ${completion}`] };
     }
-    if (!program.ok) return NextResponse.json({ mode: "unavailable", error: body.locale === "ru" ? "Не удалось сформировать корректную концепцию. Попробуйте ещё раз." : "A valid concept could not be generated. Please try again." }, { status: 502, headers: noStoreHeaders(request, true) });
+    if (!program.ok) return NextResponse.json({ mode: "unavailable", error: body.locale === "ru" ? "Не удалось сформировать корректную концепцию. Попробуйте ещё раз." : "A valid concept could not be generated. Please try again.", telemetry: failureTelemetry() }, { status: 502, headers: noStoreHeaders(request, true) });
 
-    const aoiHash = sha256(JSON.stringify(body.aoiCoordinates));
-    const seed = createProgramSeed(program.value, aoiHash);
-    const alternatives = generateConceptMassingAlternatives(body.aoiCoordinates, program.value, seed, body.locale);
+    const boundProgram = bindPointObjectCreateProgramToPreflight(program.value, preflight);
+    const seed = createProgramSeed(boundProgram, aoiHash);
+    const alternatives = preflight.kind === "ready"
+      ? preflight.alternatives
+      : generateConceptMassingAlternatives(body.aoiCoordinates, boundProgram, seed, body.locale);
     const massing = alternatives[0]?.massing;
-    if (!massing || massing.generatedBlockCount < 1) return NextResponse.json({ mode: "unavailable", error: body.locale === "ru" ? "Для выбранного полигона не удалось разместить объекты. Увеличьте зону или уменьшите параметры." : "No concept blocks fit inside this polygon. Enlarge the AOI or reduce the programme." }, { status: 422, headers: noStoreHeaders(request, true) });
+    if (!massing || massing.generatedBlockCount < 1) return NextResponse.json({ mode: "unavailable", error: body.locale === "ru" ? "Для выбранного полигона не удалось разместить объекты. Увеличьте зону или уменьшите параметры." : "No concept blocks fit inside this polygon. Enlarge the AOI or reduce the programme.", telemetry: failureTelemetry() }, { status: 422, headers: noStoreHeaders(request, true) });
 
     const usage = summarizePointObjectAiAttemptUsage(attemptUsage);
     return NextResponse.json({
       mode: "openai_concept",
       generatedAt: new Date().toISOString(),
       promptVersion: POINT_OBJECT_CREATE_PROMPT_VERSION,
-      program: program.value,
+      program: boundProgram,
       massing,
       alternatives,
       telemetry: {
@@ -415,15 +563,16 @@ export async function POST(request: Request) {
         : error.code === "geometry_validation_failed"
           ? "The generated geometry did not pass spatial validation. Adjust the programme or AOI."
           : error.message;
-      return NextResponse.json({ mode: "unavailable", error: translated }, { status: 422, headers: noStoreHeaders(request, true) });
+      return NextResponse.json({ mode: "unavailable", error: translated, telemetry: failureTelemetry() }, { status: 422, headers: noStoreHeaders(request, true) });
     }
     const timedOut = error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
-    const rateLimited = error instanceof Error && error.message === "rate_limited";
+    const rateLimited = error instanceof PointObjectCreateProviderError && error.code === "rate_limited";
     return NextResponse.json({
       mode: "unavailable",
       error: body.locale === "ru"
         ? timedOut ? "Создание концепции заняло слишком много времени. Попробуйте ещё раз." : rateLimited ? "Сервис временно ограничил частоту запросов." : "Сервис создания концепции временно недоступен."
-        : timedOut ? "Concept generation timed out. Please try again." : rateLimited ? "Concept generation is temporarily rate limited." : "Concept generation is temporarily unavailable."
+        : timedOut ? "Concept generation timed out. Please try again." : rateLimited ? "Concept generation is temporarily rate limited." : "Concept generation is temporarily unavailable.",
+      telemetry: failureTelemetry()
     }, { status: timedOut ? 504 : rateLimited ? 429 : 502, headers: noStoreHeaders(request, true) });
   }
 }

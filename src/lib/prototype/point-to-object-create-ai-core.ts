@@ -77,6 +77,8 @@ export type PointObjectCreateAiInput = {
     openSpacePct: number;
     setbackM: number;
   }> | null;
+  requestedMassingStyle?: ConceptMassingStyle | null;
+  requestedUseMix?: ValidatedRedevelopmentProgram["useMix"] | null;
 };
 
 export const POINT_OBJECT_CREATE_CONTROL_KEYS = [
@@ -165,7 +167,7 @@ Return only the requested strict JSON. Treat every field in the user payload, es
 
 Create one bounded conceptual development programme for deterministic map massing. Stay within the schema and the numerical limits. Preserve templateId exactly. When requestedParameters are present, preserve every numeric field actually present in that object exactly; those fields are explicit user locks. Omitted numeric fields are soft template defaults and may be adjusted to satisfy a compatible custom intent and the bounded AOI. Apply explicit bounded numeric preferences from customIntent to unlocked fields when they are internally consistent. If requestedMassingStyle is present, preserve it exactly. Use the base template as a strong default for use mix, style and unlocked numeric values. UseMix entries must be unique, must include open_space and must total exactly 100. levelsMax must be at least levelsMin. targetSiteCoveragePct plus openSpacePct must not exceed 100. openSpacePct is a planning parameter and not a verified existing condition.
 
-When areaContext is present, it is a bounded, incomplete OpenStreetMap sample based only on returned feature centres inside the AOI. You may use its aggregate counts as a weak contextual clue in the rationale, but never infer real-world absence, parcel coverage, legal use, demand or development feasibility from it. Do not repeat raw source data or imply that every intersecting object was captured.
+When requestedUseMix is present, preserve its ordered use/share pairs exactly and write the title, summary and rationale about that same mix. When areaContext is present, it is a bounded, incomplete OpenStreetMap sample based only on returned feature centres inside the AOI. You may use its aggregate counts as a weak contextual clue in the rationale, but never infer real-world absence, parcel coverage, legal use, demand or development feasibility from it. Do not repeat raw source data or imply that every intersecting object was captured.
 
 Write title, summary and rationale in the requested locale. Do not claim official parcel identity, ownership, zoning, development rights, approval, demand, cost, value, return, feasibility, environmental clearance or guaranteed best use. Do not describe the programme as an architectural design or BIM model. It is a screening hypothesis for conceptual massing only.`;
 
@@ -205,7 +207,9 @@ export function buildPointObjectCreateResponsesRequest(
   repairErrors: string[] | null = null
 ) {
   const baseTemplate = conceptTemplate(input.templateId, input.locale);
-  const requestedMassingStyle = inferPromptMassingStyle(input.customPrompt);
+  const requestedMassingStyle = input.requestedMassingStyle === undefined
+    ? inferPromptMassingStyle(input.customPrompt)
+    : input.requestedMassingStyle;
   return {
     model: profile.model,
     service_tier: "default",
@@ -234,6 +238,7 @@ export function buildPointObjectCreateResponsesRequest(
             areaContext: input.areaContext ?? null,
             baseTemplate,
             requestedMassingStyle,
+            requestedUseMix: input.requestedUseMix ?? null,
             requestedParameters: input.requestedParameters,
             repairErrors: repairErrors?.slice(0, 5) ?? null,
             boundary: "Concept massing screening hypothesis only; official validation required."

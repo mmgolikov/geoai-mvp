@@ -14,7 +14,7 @@ export type PointObjectCreateEditorSnapshot = {
   committedDraftKey: string | null;
 };
 
-const CONTROL_KEYS: PointObjectCreateEditorControlKey[] = [
+export const POINT_OBJECT_CREATE_EDITOR_CONTROL_KEYS: readonly PointObjectCreateEditorControlKey[] = [
   "blockCount",
   "levelsMin",
   "levelsMax",
@@ -51,7 +51,7 @@ export function createPointObjectCreateDraftKey(input: {
 function validControls(value: unknown): value is PointObjectCreateEditorControls {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const controls = value as Partial<PointObjectCreateEditorControls>;
-  return Object.keys(value).every((key) => CONTROL_KEYS.includes(key as PointObjectCreateEditorControlKey)) &&
+  return Object.keys(value).every((key) => POINT_OBJECT_CREATE_EDITOR_CONTROL_KEYS.includes(key as PointObjectCreateEditorControlKey)) &&
     Number.isInteger(controls.blockCount) && Number(controls.blockCount) >= 1 && Number(controls.blockCount) <= 12 &&
     Number.isInteger(controls.levelsMin) && Number(controls.levelsMin) >= 1 && Number(controls.levelsMin) <= 80 &&
     Number.isInteger(controls.levelsMax) && Number(controls.levelsMax) >= Number(controls.levelsMin) && Number(controls.levelsMax) <= 80 &&
@@ -73,7 +73,7 @@ export function restorePointObjectCreateEditorSnapshot(
       (snapshot.committedDraftKey !== null && typeof snapshot.committedDraftKey !== "string") ||
       (typeof snapshot.committedDraftKey === "string" && snapshot.committedDraftKey.length > 2_000) ||
       !Array.isArray(snapshot.lockedControlKeys) ||
-      snapshot.lockedControlKeys.some((key) => !CONTROL_KEYS.includes(key)) ||
+      snapshot.lockedControlKeys.some((key) => !POINT_OBJECT_CREATE_EDITOR_CONTROL_KEYS.includes(key)) ||
       new Set(snapshot.lockedControlKeys).size !== snapshot.lockedControlKeys.length) return null;
   return {
     version: 1,

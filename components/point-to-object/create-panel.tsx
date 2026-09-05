@@ -14,11 +14,16 @@ import {
 import {
   createPointObjectCreateDraftKey,
   createPointObjectCreateEditorScopeKey,
+  POINT_OBJECT_CREATE_EDITOR_CONTROL_KEYS,
   restorePointObjectCreateEditorSnapshot,
   type PointObjectCreateEditorControlKey,
   type PointObjectCreateEditorControls,
   type PointObjectCreateEditorSnapshot
 } from "@/src/lib/prototype/point-to-object-create-editor";
+import {
+  POINT_OBJECT_CREATE_COVERAGE_TOTAL_ATTEMPT_LIMIT,
+  type PointObjectCreateCoverageSuggestion
+} from "@/src/lib/prototype/point-to-object-create-orchestration";
 
 export type { PointObjectCreateEditorSnapshot } from "@/src/lib/prototype/point-to-object-create-editor";
 
@@ -77,8 +82,8 @@ const COPY = {
     draft: "Draft settings",
     draftChanged: "Changes not applied",
     errorPreserved: "The previous valid result remains available.",
-    edited: "Edited",
-    resetParameters: "Reset edited values",
+    resetParameters: "Reset parameters",
+    applySuggestedCoverage: "Apply suggested coverage",
     option: "Option",
     generatedBlocks: "Generated blocks",
     levels: "Levels",
@@ -108,8 +113,8 @@ const COPY = {
     draft: "Настройки черновика",
     draftChanged: "Изменения не применены",
     errorPreserved: "Предыдущий корректный результат остаётся доступен.",
-    edited: "Изменено",
-    resetParameters: "Сбросить изменения",
+    resetParameters: "Сбросить параметры",
+    applySuggestedCoverage: "Применить предложенную застройку",
     option: "Вариант",
     generatedBlocks: "Создано корпусов",
     levels: "Этажность",
@@ -160,14 +165,35 @@ function isGeneratedConcept(value: unknown): value is PointObjectGeneratedConcep
     alternativesAreValid;
 }
 
+function coverageSuggestionResponse(value: unknown): {
+  error: string;
+  suggestion: PointObjectCreateCoverageSuggestion;
+} | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  const response = value as { mode?: unknown; error?: unknown; suggestion?: unknown };
+  if (response.mode !== "programme_adjustment_required" || typeof response.error !== "string" ||
+      typeof response.suggestion !== "object" || response.suggestion === null || Array.isArray(response.suggestion)) return null;
+  const suggestion = response.suggestion as Partial<PointObjectCreateCoverageSuggestion>;
+  if (suggestion.control !== "targetSiteCoveragePct" || suggestion.basis !== "bounded_validated_geometry_candidate" ||
+      typeof suggestion.requestedValue !== "number" || typeof suggestion.suggestedValue !== "number" ||
+      typeof suggestion.validatedAchievedValue !== "number" || !Number.isInteger(suggestion.searchAttempts) ||
+      !Number.isFinite(suggestion.requestedValue) || !Number.isFinite(suggestion.suggestedValue) ||
+      !Number.isFinite(suggestion.validatedAchievedValue) || !Number.isInteger(suggestion.requestedValue) ||
+      !Number.isInteger(suggestion.suggestedValue) ||
+      suggestion.requestedValue < 8 || suggestion.requestedValue > 60 || suggestion.suggestedValue < 8 ||
+      suggestion.suggestedValue >= suggestion.requestedValue || suggestion.validatedAchievedValue < 0 ||
+      suggestion.validatedAchievedValue > 60 || Math.abs(suggestion.validatedAchievedValue - suggestion.suggestedValue) > 1 ||
+      (suggestion.searchAttempts ?? 0) < 2 ||
+      (suggestion.searchAttempts ?? 0) > POINT_OBJECT_CREATE_COVERAGE_TOTAL_ATTEMPT_LIMIT) return null;
+  return { error: response.error, suggestion: suggestion as PointObjectCreateCoverageSuggestion };
+}
+
 function RangeControl({
   label,
   value,
   minimum,
   maximum,
   suffix,
-  edited,
-  editedLabel,
   onChange
 }: {
   label: string;
@@ -175,14 +201,12 @@ function RangeControl({
   minimum: number;
   maximum: number;
   suffix?: string;
-  edited: boolean;
-  editedLabel: string;
   onChange: (value: number) => void;
 }) {
   return (
     <label className="rounded-xl border border-[#d7e0dd] bg-white p-3 text-xs font-semibold text-[#344054]">
       <span className="flex items-center justify-between gap-3">
-        <span className="flex min-w-0 items-center gap-2"><span>{label}</span>{edited ? <span className="rounded-full bg-[#e6f5f1] px-2 py-0.5 text-[10px] font-bold text-[#176548]">{editedLabel}</span> : null}</span>
+        <span className="min-w-0">{label}</span>
         <span className="tabular-nums text-[#087f70]">{value}{suffix}</span>
       </span>
       <input
@@ -204,10 +228,14 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
   const [templateId, setTemplateId] = useState<ConceptTemplateId>(() => restoredEditor?.templateId ?? "residential_mixed_use");
   const activeTemplate = templates.find((item) => item.templateId === templateId) ?? templates[0];
   const [controls, setControls] = useState<Controls>(() => restoredEditor?.controls ?? controlsFrom(activeTemplate));
-  const [lockedControlKeys, setLockedControlKeys] = useState<Set<ControlKey>>(() => new Set(restoredEditor?.lockedControlKeys ?? []));
+  const [lockedControlKeys, setLockedControlKeys] = useState<Set<ControlKey>>(() => new Set(POINT_OBJECT_CREATE_EDITOR_CONTROL_KEYS));
   const [customPrompt, setCustomPrompt] = useState(() => restoredEditor?.customPrompt ?? "");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [coverageSuggestion, setCoverageSuggestion] = useState<{
+    error: string;
+    suggestion: PointObjectCreateCoverageSuggestion;
+  } | null>(null);
   const [committedDraftKey, setCommittedDraftKey] = useState<string | null>(() => restoredEditor?.committedDraftKey ?? null);
   const requestRef = useRef<AbortController | null>(null);
   const requestIdRef = useRef(0);
@@ -241,7 +269,7 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
       const nextTemplate = templates.find((item) => item.templateId === nextTemplateId) ?? templates[0];
       setTemplateId(nextTemplateId);
       setControls(nextRestored?.controls ?? controlsFrom(nextTemplate));
-      setLockedControlKeys(new Set(nextRestored?.lockedControlKeys ?? []));
+      setLockedControlKeys(new Set(POINT_OBJECT_CREATE_EDITOR_CONTROL_KEYS));
       setCustomPrompt(nextRestored?.customPrompt ?? "");
       setCommittedDraftKey(nextRestored?.committedDraftKey ?? null);
       editorScopeKeyRef.current = editorScopeKey;
@@ -275,6 +303,7 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
     requestRef.current = null;
     setLoading(false);
     setError(null);
+    setCoverageSuggestion(null);
   }
 
   function selectTemplate(nextId: ConceptTemplateId) {
@@ -283,7 +312,7 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
     invalidatePendingRequest();
     setTemplateId(nextId);
     setControls(controlsFrom(template));
-    setLockedControlKeys(new Set());
+    setLockedControlKeys(new Set(POINT_OBJECT_CREATE_EDITOR_CONTROL_KEYS));
   }
 
   function updateControl<Key extends keyof Controls>(key: Key, value: Controls[Key]) {
@@ -313,7 +342,7 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
   function resetEditedControls() {
     invalidatePendingRequest();
     setControls(controlsFrom(activeTemplate));
-    setLockedControlKeys(new Set());
+    setLockedControlKeys(new Set(POINT_OBJECT_CREATE_EDITOR_CONTROL_KEYS));
   }
 
   async function generate() {
@@ -326,6 +355,7 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
     requestIdRef.current = requestId;
     setLoading(true);
     setError(null);
+    setCoverageSuggestion(null);
     try {
       const challengeResponse = await fetch("/api/prototype/point-to-object/create", { method: "GET", cache: "no-store", signal: controller.signal });
       const challengePayload = await challengeResponse.json() as { mode?: unknown; challenge?: unknown; error?: unknown };
@@ -349,6 +379,12 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
         })
       });
       const payload = await response.json() as unknown;
+      const suggestion = coverageSuggestionResponse(payload);
+      if (!response.ok && suggestion) {
+        if (controller.signal.aborted || requestId !== requestIdRef.current) return;
+        setCoverageSuggestion(suggestion);
+        return;
+      }
       if (!response.ok || typeof payload !== "object" || payload === null || (payload as { mode?: unknown }).mode !== "openai_concept") {
         const message = typeof payload === "object" && payload !== null && typeof (payload as { error?: unknown }).error === "string"
           ? (payload as { error: string }).error
@@ -377,6 +413,7 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
     requestRef.current = null;
     setLoading(false);
     setError(null);
+    setCoverageSuggestion(null);
     setCommittedDraftKey(null);
     onReset();
   }
@@ -387,6 +424,13 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
   const generatedLevelsMin = activeMassing?.minGeneratedLevels ?? generated?.program.levelsMin ?? 0;
   const generatedLevelsMax = activeMassing?.maxGeneratedLevels ?? generated?.program.levelsMax ?? 0;
   const generatedLevels = generatedLevelsMin === generatedLevelsMax ? String(generatedLevelsMin) : `${generatedLevelsMin}–${generatedLevelsMax}`;
+  const activeTemplateControls = controlsFrom(activeTemplate);
+  const controlsDifferFromTemplate = POINT_OBJECT_CREATE_EDITOR_CONTROL_KEYS.some((key) => controls[key] !== activeTemplateControls[key]);
+
+  function applySuggestedCoverage() {
+    if (!coverageSuggestion) return;
+    updateControl("targetSiteCoveragePct", coverageSuggestion.suggestion.suggestedValue);
+  }
 
   return (
     <section className="rounded-[18px] border border-[#cfe0da] bg-[#f4faf7] p-4" aria-labelledby="create-panel-title">
@@ -416,14 +460,14 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
 
       <details className="mt-4 rounded-xl border border-[#d7e0dd] bg-white/80 p-3">
         <summary className="cursor-pointer text-xs font-bold text-[#345c54]">{locale === "ru" ? "Параметры концепции" : "Concept parameters"}</summary>
-        {lockedControlKeys.size > 0 ? <div className="mt-3 flex justify-end"><button type="button" onClick={resetEditedControls} className="min-h-11 rounded-lg px-2 text-[11px] font-bold text-[#087f70] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f70]" data-testid="reset-edited-create-controls">{copy.resetParameters}</button></div> : null}
+        {controlsDifferFromTemplate ? <div className="mt-3 flex justify-end"><button type="button" onClick={resetEditedControls} className="min-h-11 rounded-lg px-2 text-[11px] font-bold text-[#087f70] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f70]" data-testid="reset-edited-create-controls">{copy.resetParameters}</button></div> : null}
         <div className="mt-3 grid gap-2 sm:grid-cols-2">
-          <RangeControl label={copy.blocks} value={controls.blockCount} minimum={1} maximum={12} edited={lockedControlKeys.has("blockCount")} editedLabel={copy.edited} onChange={(value) => updateControl("blockCount", value)} />
-          <RangeControl label={copy.coverage} value={controls.targetSiteCoveragePct} minimum={8} maximum={60} suffix="%" edited={lockedControlKeys.has("targetSiteCoveragePct")} editedLabel={copy.edited} onChange={(value) => updateControl("targetSiteCoveragePct", value)} />
-          <RangeControl label={copy.levelsMin} value={controls.levelsMin} minimum={1} maximum={40} edited={lockedControlKeys.has("levelsMin")} editedLabel={copy.edited} onChange={(value) => updateControl("levelsMin", value)} />
-          <RangeControl label={copy.levelsMax} value={controls.levelsMax} minimum={1} maximum={80} edited={lockedControlKeys.has("levelsMax")} editedLabel={copy.edited} onChange={(value) => updateControl("levelsMax", value)} />
-          <RangeControl label={copy.openSpace} value={controls.openSpacePct} minimum={15} maximum={75} suffix="%" edited={lockedControlKeys.has("openSpacePct")} editedLabel={copy.edited} onChange={(value) => updateControl("openSpacePct", value)} />
-          <RangeControl label={copy.setback} value={controls.setbackM} minimum={2} maximum={30} suffix={locale === "ru" ? " м" : " m"} edited={lockedControlKeys.has("setbackM")} editedLabel={copy.edited} onChange={(value) => updateControl("setbackM", value)} />
+          <RangeControl label={copy.blocks} value={controls.blockCount} minimum={1} maximum={12} onChange={(value) => updateControl("blockCount", value)} />
+          <RangeControl label={copy.coverage} value={controls.targetSiteCoveragePct} minimum={8} maximum={60} suffix="%" onChange={(value) => updateControl("targetSiteCoveragePct", value)} />
+          <RangeControl label={copy.levelsMin} value={controls.levelsMin} minimum={1} maximum={40} onChange={(value) => updateControl("levelsMin", value)} />
+          <RangeControl label={copy.levelsMax} value={controls.levelsMax} minimum={1} maximum={80} onChange={(value) => updateControl("levelsMax", value)} />
+          <RangeControl label={copy.openSpace} value={controls.openSpacePct} minimum={15} maximum={75} suffix="%" onChange={(value) => updateControl("openSpacePct", value)} />
+          <RangeControl label={copy.setback} value={controls.setbackM} minimum={2} maximum={30} suffix={locale === "ru" ? " м" : " m"} onChange={(value) => updateControl("setbackM", value)} />
         </div>
       </details>
 
@@ -442,6 +486,7 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
 
       {draftChangedAfterGeneration ? <p className="mt-3 text-[11px] font-bold text-[#79520d]" data-testid="create-draft-status">{copy.draftChanged}</p> : null}
       {error ? <p className="mt-3 rounded-lg border border-[#e6bd74] bg-[#fff9ed] px-3 py-2 text-xs leading-5 text-[#79520d]" role="alert" data-testid="create-generation-error">{error}{generated ? ` ${copy.errorPreserved}` : ""}</p> : null}
+      {coverageSuggestion ? <div className="mt-3 rounded-lg border border-[#e6bd74] bg-[#fff9ed] p-3 text-xs leading-5 text-[#79520d]" role="alert" data-testid="create-coverage-suggestion"><p>{coverageSuggestion.error}{generated ? ` ${copy.errorPreserved}` : ""}</p><p className="mt-1 font-semibold tabular-nums">{coverageSuggestion.suggestion.requestedValue}% → {coverageSuggestion.suggestion.suggestedValue}%</p><button type="button" onClick={applySuggestedCoverage} className="mt-2 min-h-11 rounded-lg border border-[#d6b36e] bg-white px-3 font-bold text-[#65450f] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f70]" data-testid="create-apply-suggested-coverage">{copy.applySuggestedCoverage}</button></div> : null}
       {generated ? (
         <div className="mt-3 rounded-xl border border-[#98d1c4] bg-white p-3" data-testid="generated-concept-summary">
           {generated.alternatives && generated.alternatives.length > 1 ? <div className="mb-3 grid grid-cols-2 gap-1 rounded-lg bg-[#e8efed] p-1" role="tablist" aria-label={locale === "ru" ? "Варианты концепции" : "Concept options"}>{generated.alternatives.map((alternative) => <button key={alternative.id} type="button" role="tab" aria-selected={alternative.id === activeAlternativeId} data-testid={`create-alternative-${alternative.id.toLowerCase()}`} onClick={() => onAlternativeChange(alternative.id)} className={`min-h-11 rounded-lg px-3 text-xs font-bold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f70] ${alternative.id === activeAlternativeId ? "bg-[#087f70] text-white shadow-sm" : "bg-transparent text-[#52606a] hover:bg-white"}`}>{alternative.label || `${copy.option} ${alternative.id}`}</button>)}</div> : null}
