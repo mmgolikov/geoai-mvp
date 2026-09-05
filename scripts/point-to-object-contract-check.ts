@@ -1440,8 +1440,8 @@ async function assertCandidateAiSafety(): Promise<void> {
       `const LIVE_POINT_CAVEAT = ${JSON.stringify(LIVE_POINT_CAVEAT)};\n`
     ],
     [
-      /import \{\n  POINT_OBJECT_ANALYSIS_PROMPT_VERSION,\n  POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION\n\} from "@\/components\/point-to-object\/live-types";\n/,
-      `const POINT_OBJECT_ANALYSIS_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V7_2026_09_04";\nconst POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION = 5;\n`
+      /import \{\n  POINT_OBJECT_ANALYSIS_LEGACY_PROMPT_VERSION,\n  POINT_OBJECT_ANALYSIS_LEGACY_RESULT_SCHEMA_VERSION,\n  POINT_OBJECT_ANALYSIS_PROMPT_VERSION,\n  POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION\n\} from "@\/components\/point-to-object\/live-types";\n/,
+      `const POINT_OBJECT_ANALYSIS_LEGACY_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V7_2026_09_04";\nconst POINT_OBJECT_ANALYSIS_LEGACY_RESULT_SCHEMA_VERSION = 5;\nconst POINT_OBJECT_ANALYSIS_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V8_2026_09_06";\nconst POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION = 6;\n`
     ],
     [
       /import \{ isPointObjectLocale, isPointObjectMarketKey \} from "@\/src\/lib\/prototype\/point-to-object-markets";\n/,
@@ -1466,8 +1466,8 @@ async function assertCandidateAiSafety(): Promise<void> {
     outputTokens: number | null
   ) => { estimatedCostUsd: number | null; costRateSource: string | null };
   const summarizeUsage = aiCore.summarizePointObjectAiAttemptUsage as (attempts: JsonObject[]) => JsonObject;
-  assert.equal(aiCore.POINT_OBJECT_AI_RESULT_SCHEMA_VERSION, 5,
-    "The public analysis receipt must expose the documented V5 result schema version.");
+  assert.equal(aiCore.POINT_OBJECT_AI_RESULT_SCHEMA_VERSION, 6,
+    "The public analysis receipt must expose the documented V6 result schema version.");
   const buildRequest = aiCore.buildPointObjectResponsesRequest as (
     pack: JsonObject,
     analysisRequest: JsonObject,
@@ -1585,11 +1585,11 @@ async function assertCandidateAiSafety(): Promise<void> {
   "A partial token tuple must normalize atomically so billing telemetry cannot discard valid analysis content.");
   const clientTelemetry = {
     provider: "openai",
-    schemaVersion: 5,
+    schemaVersion: 6,
     model: "gpt-5.6-sol",
     reasoningEffort: "medium",
     depth: "standard",
-    promptVersion: "POINT_OBJECT_AI_PROMPT_V7_2026_09_04",
+    promptVersion: "POINT_OBJECT_AI_PROMPT_V8_2026_09_06",
     requestId: "resp_repair",
     latencyMs: 1_234,
     attempts: 2,
@@ -1660,7 +1660,7 @@ async function assertCandidateAiSafety(): Promise<void> {
     nearestMajorRoadM: geoContext.nearestMajorRoadM
   };
   const evidencePack = {
-    protocol: "POINT_TO_OBJECT_001_AI_EVIDENCE_PACK_LIVE_V1",
+    protocol: "POINT_TO_OBJECT_001_AI_EVIDENCE_PACK_LIVE_V2",
     evidencePackId: "p2o_evidence_test",
     evidencePackHash: sha256("candidate-ai-evidence"),
     caseKey: "live",
@@ -1707,7 +1707,15 @@ async function assertCandidateAiSafety(): Promise<void> {
       officialStatus: "open_context_not_official"
     },
     nearbyContext: [
-      { evidenceId: "EVD-CONTEXT-01", sourceFeatureId: "node/456", name: "World Trade Centre", featureClass: "public_transport:station", distanceM: 240 }
+      {
+        evidenceId: "EVD-CONTEXT-01",
+        sourceFeatureId: "node/456",
+        name: "World Trade Centre",
+        categories: ["public_transport:station", "railway:station"],
+        featureClass: "public_transport:station",
+        distanceM: 240,
+        method: "overpass_around_query_element_center_haversine"
+      }
     ],
     geoContext,
     evidence: [
@@ -1718,7 +1726,7 @@ async function assertCandidateAiSafety(): Promise<void> {
       { id: "EVD-GEOMETRY", label: "Geometry", value: JSON.stringify({ sourceFeatureId: "way/1", geometryType: "Polygon", geometryHash: sha256("geometry-test") }), sourceId: "way/1", proofLimit: "Open-map geometry only." },
       { id: "EVD-OBJECT-METRICS", label: "Approximate mapped object footprint metrics", value: JSON.stringify({ sourceFeatureId: "way/1", geometryHash: sha256("geometry-test"), metrics: mappedMetrics }), sourceId: "way/1", proofLimit: "Approximate metrics only." },
       { id: "EVD-COORDINATES", label: "Coordinates", value: JSON.stringify({ longitude: 55.271928, latitude: 25.20811, crs: "EPSG:4326" }), sourceId: "user_point", proofLimit: "Analysis point only." },
-      { id: "EVD-CONTEXT-01", label: "World Trade Centre", value: JSON.stringify({ sourceFeatureId: "node/456", name: "World Trade Centre", featureClass: "public_transport:station", distanceM: 240 }), sourceId: "node/456", proofLimit: "Bounded open-map context only." },
+      { id: "EVD-CONTEXT-01", label: "World Trade Centre", value: JSON.stringify({ sourceFeatureId: "node/456", name: "World Trade Centre", categories: ["public_transport:station", "railway:station"], featureClass: "public_transport:station", distanceM: 240, method: "overpass_around_query_element_center_haversine" }), sourceId: "node/456", proofLimit: "Bounded open-map context only." },
       { id: "EVD-CONTEXT-SUMMARY", label: "Bounded mapped context summary", value: JSON.stringify(geoContextSummary), sourceId: "SPAT-001", proofLimit: "Bounded aggregate only." },
       { id: "EVD-DISTRICT-PROFILE", label: "Rule-based mapped context profile", value: JSON.stringify({ summaryHash: JSON.stringify(geoContextSummary), districtCharacter: geoContext.districtCharacter }), sourceId: "derived:POINT_OBJECT_DISTRICT_RULE_V1", proofLimit: "Rule-based context only." },
       { id: "EVD-SOURCE", label: "Open data source", value: "OpenStreetMap / ODbL", sourceId: "SPAT-001", proofLimit: "Runtime open community-map context; feature observation time unavailable." }
@@ -1754,8 +1762,8 @@ async function assertCandidateAiSafety(): Promise<void> {
   assert.equal(request.max_output_tokens, 3200, "The profile output-token bound must be enforced.");
   assert.equal((request.text as JsonObject).format instanceof Object, true, "Strict structured output is required.");
   assert.equal(((request.text as JsonObject).format as JsonObject).strict, true, "AI JSON schema must be strict.");
-  assert.equal(((request.text as JsonObject).format as JsonObject).name, "geoai_point_object_decision_plan_v5",
-    "The request must use the V5 evidence-bound decision-plan schema.");
+  assert.equal(((request.text as JsonObject).format as JsonObject).name, "geoai_point_object_decision_plan_v6",
+    "The request must use the V6 evidence-bound decision-plan schema.");
   const responseSchema = (((request.text as JsonObject).format as JsonObject).schema as JsonObject);
   assert.deepEqual(responseSchema.required,
     ["decision", "signalCodes", "opportunityCodes", "risks", "answerCode", "focusedAnswer", "caveat"],
@@ -1858,7 +1866,7 @@ async function assertCandidateAiSafety(): Promise<void> {
     index === 0 ? { ...item, purpose: "focused" } : item);
   const fullClientResponse = {
     mode: "openai",
-    schemaVersion: 5,
+    schemaVersion: 6,
     generatedAt: "2026-09-04T00:00:00.000Z",
     evidencePackId: evidencePack.evidencePackId,
     evidencePackHash: evidencePack.evidencePackHash,
@@ -1877,7 +1885,8 @@ async function assertCandidateAiSafety(): Promise<void> {
       addressParts: evidencePack.selectedObject.addressParts,
       tags: evidencePack.selectedObject.tags,
       metrics: evidencePack.selectedObject.metrics,
-      geoContext: evidencePack.geoContext
+      geoContext: evidencePack.geoContext,
+      linkedEntity: null
     },
     telemetry: {
       ...clientTelemetry,
@@ -1926,14 +1935,14 @@ async function assertCandidateAiSafety(): Promise<void> {
     "Bounded nearby context must be rebuilt server-side from normalized context evidence.");
   assert.ok(sourceFacts.some((item) => item.statement.includes("footprint") && item.evidenceRefs.includes("EVD-OBJECT-METRICS")),
     "Approximate mapped footprint area and perimeter must be rendered as a receipt-backed source fact.");
-  assert.ok(locationContext.some((item) => item.evidenceRefs.includes("EVD-DISTRICT-PROFILE") && item.statement.includes("hospitality and tourism-led")),
-    "The rule-based district character and its drivers must be rendered as an explicitly derived context statement.");
-  assert.ok(locationContext.some((item) => item.evidenceRefs.includes("EVD-CONTEXT-SUMMARY") && item.statement.includes("400 m")),
+  assert.ok(sourceFacts.some((item) => item.evidenceRefs.includes("EVD-DISTRICT-PROFILE") && item.statement.includes("hospitality and tourism-led")),
+    "The rule-based district character and its drivers must be rendered as an explicitly derived source fact.");
+  assert.ok(sourceFacts.some((item) => item.evidenceRefs.includes("EVD-CONTEXT-SUMMARY") && item.statement.includes("400 m")),
     "Context radius, sample coverage and cap state must be disclosed in the user-facing analysis.");
-  assert.ok(locationContext.some((item) => item.evidenceRefs.includes("EVD-CONTEXT-SUMMARY") && item.statement.includes("mapped buildings")),
-    "Mapped building count and levels coverage must be rendered from the bounded aggregate.");
+  assert.equal(validated.geoContext.mappedBuildingCount, 28,
+    "Mapped building count must remain available in the exact evidence-derived geo-context profile.");
   assert.deepEqual(validated.geoContext, geoContext,
-    "The validated V5 result must preserve the exact server-derived geo-context profile for UI rendering.");
+    "The validated V6 result must preserve the exact server-derived geo-context profile for UI rendering.");
   assert.ok(nextValidation.length >= 4 && nextValidation[0]?.priority === "critical",
     "Prioritized validation actions must be added deterministically server-side.");
 
@@ -2730,11 +2739,15 @@ async function assertLiveOverpassContext(): Promise<void> {
       `const LIVE_POINT_CAVEAT = ${JSON.stringify(LIVE_POINT_CAVEAT)};\n`
     ],
     [
-      /import \{ semanticHash \} from "@\/src\/lib\/point-to-object\/hash";\n/,
-      "const semanticHash = (value) => JSON.stringify(value);\n"
+      /import \{ semanticHash, sha256 \} from "@\/src\/lib\/point-to-object\/hash";\n/,
+      "import { createHash } from \"node:crypto\";\nconst semanticHash = (value) => JSON.stringify(value);\nconst sha256 = (value) => createHash(\"sha256\").update(value).digest(\"hex\");\n"
     ],
     [
-      /import \{[\s\S]*?\} from "\.\/point-to-object-markets";\n/,
+      /import \{ resolvePointObjectWikidata \} from "\.\/point-to-object-wikidata";\n/,
+      "const resolvePointObjectWikidata = async () => ({ status: \"not_requested_no_qid\", linkedEntity: null, reason: null });\n"
+    ],
+    [
+      /import \{\n  nominatimLocale,[\s\S]*?\n\} from "\.\/point-to-object-markets";\n/,
       `const nominatimLocale = (locale) => locale === "ru" ? "ru,en" : "en";\nconst pointObjectMarket = () => ({ bounds: [[54.8, 24.8], [55.8, 25.6]], countryCode: "ae" });\n`
     ],
     [

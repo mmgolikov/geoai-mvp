@@ -3,7 +3,7 @@ import "server-only";
 import { unstable_cache } from "next/cache";
 
 import { LIVE_POINT_CAVEAT } from "@/src/lib/point-to-object/contracts";
-import { semanticHash } from "@/src/lib/point-to-object/hash";
+import { semanticHash, sha256 } from "@/src/lib/point-to-object/hash";
 import type {
   PointObjectEvidencePack,
   PointObjectEvidenceReference
@@ -21,6 +21,12 @@ import {
   type PointObjectLookupAssociation,
   type PointObjectResolutionMethod
 } from "./point-to-object-trusted-identity";
+import { resolvePointObjectWikidata } from "./point-to-object-wikidata";
+import type {
+  PointObjectWikidataCountryCode,
+  PointObjectWikidataLinkedEntity,
+  PointObjectWikidataResolution
+} from "./point-to-object-wikidata-contract";
 
 const DEFAULT_NOMINATIM_ENDPOINT = "https://nominatim.openstreetmap.org/";
 const DEFAULT_OVERPASS_ENDPOINT = "https://overpass-api.de/api/interpreter";
@@ -243,6 +249,10 @@ export type LivePointEvidenceRequest = {
   osmFeatureId?: string | null;
   /** A short BCP-47 preference list, for example `en` or `en,ar`. */
   locale?: string | null;
+  /** Exact market country already validated by the route. */
+  expectedCountryCode: PointObjectWikidataCountryCode;
+  /** Optional enclosing route deadline; it always wins over the adapter cap. */
+  deadlineAtMs?: number;
 };
 
 export type LivePointSearchResult = {
@@ -257,7 +267,7 @@ export type LivePointSearchResult = {
 };
 
 export type LivePointObjectEvidencePack = {
-  protocol: "POINT_TO_OBJECT_001_AI_EVIDENCE_PACK_LIVE_V1";
+  protocol: "POINT_TO_OBJECT_001_AI_EVIDENCE_PACK_LIVE_V2";
   evidencePackId: string;
   evidencePackHash: string;
   caseKey: "live";
@@ -284,12 +294,14 @@ export type LivePointObjectEvidencePack = {
     tags: Record<string, string>;
     metrics: LivePointObjectGeometryMetrics | null;
   };
+  linkedEntity: PointObjectWikidataLinkedEntity | null;
   source: {
     name: "OpenStreetMap";
     service: "Nominatim";
     sourceId: "SPAT-001";
     sourceResponseId: string;
     sourceResponseHash: string;
+    sourceResponseBytes: number;
     observedAt: null;
     acquiredAt: string;
     freshness: "runtime_response_feature_time_unavailable";
@@ -314,6 +326,8 @@ export type LivePointObjectEvidencePack = {
     officialStatus: "open_context_not_official";
     runtimeNetworkUsed: true;
     persistenceUsed: false;
+    wikidataStatus: PointObjectWikidataResolution["status"];
+    wikidataReason: PointObjectWikidataResolution["reason"];
   };
   nearbyContext: LiveNearbyContextItem[];
   geoContext: LiveGeoContextProfile;
@@ -488,7 +502,7 @@ async function waitForOverpassSlot(): Promise<void> {
   }
 }
 
-async function readBoundedText(response: Response): Promise<string> {
+async function readBoundedText(response: Response): Promise<{ text: string; bytes: number }> {
   const declaredLength = Number(response.headers.get("content-length"));
   if (Number.isFinite(declaredLength) && declaredLength > NOMINATIM_RESPONSE_MAX_BYTES) {
     throw new LivePointEvidenceError(
@@ -527,18 +541,25 @@ async function readBoundedText(response: Response): Promise<string> {
     text += decoder.decode(value, { stream: true });
   }
   text += decoder.decode();
-  return text;
+  return { text, bytes: byteCount };
 }
 
 function isTimeout(error: unknown): boolean {
   return error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
 }
 
-async function fetchNominatimJson(url: URL): Promise<unknown> {
+type NominatimResponseReceipt = {
+  payload: unknown;
+  sourceResponseHash: string;
+  sourceResponseBytes: number;
+  acquiredAt: string;
+};
+
+async function fetchNominatimJsonUncached(urlString: string): Promise<NominatimResponseReceipt> {
   await waitForNominatimSlot();
   let response: Response;
   try {
-    response = await fetch(url, {
+    response = await fetch(new URL(urlString), {
       method: "GET",
       redirect: "error",
       signal: AbortSignal.timeout(NOMINATIM_TIMEOUT_MS),
@@ -547,8 +568,7 @@ async function fetchNominatimJson(url: URL): Promise<unknown> {
         Referer: APPLICATION_REFERER,
         "User-Agent": configuredUserAgent()
       },
-      cache: "force-cache",
-      next: { revalidate: NOMINATIM_REVALIDATE_SECONDS }
+      cache: "no-store"
     });
   } catch (error) {
     if (isTimeout(error)) {
@@ -584,9 +604,9 @@ async function fetchNominatimJson(url: URL): Promise<unknown> {
     );
   }
 
-  let text: string;
+  let bounded: { text: string; bytes: number };
   try {
-    text = await readBoundedText(response);
+    bounded = await readBoundedText(response);
   } catch (error) {
     if (error instanceof LivePointEvidenceError) throw error;
     if (isTimeout(error)) {
@@ -605,7 +625,12 @@ async function fetchNominatimJson(url: URL): Promise<unknown> {
     );
   }
   try {
-    return JSON.parse(text);
+    return {
+      payload: JSON.parse(bounded.text),
+      sourceResponseHash: sha256(bounded.text),
+      sourceResponseBytes: bounded.bytes,
+      acquiredAt: new Date().toISOString()
+    };
   } catch {
     throw new LivePointEvidenceError(
       "NOMINATIM_RESPONSE_INVALID",
@@ -615,6 +640,12 @@ async function fetchNominatimJson(url: URL): Promise<unknown> {
     );
   }
 }
+
+const fetchNominatimJson = unstable_cache(
+  fetchNominatimJsonUncached,
+  ["point-object-live-nominatim-v3"],
+  { revalidate: NOMINATIM_REVALIDATE_SECONDS }
+);
 
 export function buildOverpassNearbyQuery(point: [number, number]): string {
   const longitude = finiteCoordinate(point[0], 180);
@@ -1111,7 +1142,10 @@ export function normalizeOverpassUrbanFabric(
     const group = contextGroup(tags);
     if (!type || !id || !position || !group) continue;
     const directDistanceM = Math.round(distanceM(point, position));
-    if (!Number.isFinite(directDistanceM) || directDistanceM > URBAN_FABRIC_RADIUS_M * 3) continue;
+    // Overpass `around` may return a way/relation whose geometry intersects the
+    // radius while its returned centre lies outside it. Only centres inside the
+    // declared radius contribute to within-radius counts and distance metrics.
+    if (!Number.isFinite(directDistanceM) || directDistanceM > URBAN_FABRIC_RADIUS_M) continue;
     const key = `${type}/${id}`;
     if (!byIdentity.has(key)) byIdentity.set(key, {
       group,
@@ -1128,6 +1162,12 @@ export function normalizeOverpassUrbanFabric(
     counts.set(item.group, (counts.get(item.group) ?? 0) + 1);
     nearest.set(item.group, Math.min(nearest.get(item.group) ?? Number.POSITIVE_INFINITY, item.distanceM));
   }
+  const groupPriority = (group: PointObjectContextGroup): number => {
+    if (group === "transport" || group === "access") return 0;
+    if (group === "other_built") return 3;
+    if (group === "industrial" || group === "construction") return 2;
+    return 1;
+  };
   const groups = POINT_OBJECT_CONTEXT_GROUPS.flatMap((group) => {
     const count = counts.get(group) ?? 0;
     return count === 0 ? [] : [{
@@ -1136,7 +1176,10 @@ export function normalizeOverpassUrbanFabric(
       sharePct: sample.length > 0 ? Number((count / sample.length * 100).toFixed(1)) : 0,
       nearestDistanceM: nearest.get(group) ?? null
     }];
-  });
+  }).sort((left, right) => groupPriority(left.group) - groupPriority(right.group) ||
+    right.count - left.count ||
+    (left.nearestDistanceM ?? Number.POSITIVE_INFINITY) - (right.nearestDistanceM ?? Number.POSITIVE_INFINITY) ||
+    left.group.localeCompare(right.group));
   const capReached = payload.elements.length >= URBAN_FABRIC_RESULT_LIMIT;
   const middle = Math.floor(levels.length / 2);
   const medianMappedLevels = levels.length === 0 ? null : levels.length % 2 === 1
@@ -1175,9 +1218,20 @@ function balancedNearbySelection(candidates: NearbyCandidate[]): NearbyCandidate
   const groupOrder: NearbyCandidate["group"][] = [
     "education", "healthcare", "daily_needs", "transport", "access", "open_space", "destination"
   ];
-  const buckets = new Map(groupOrder.map((group) => [group, candidates
-    .filter((item) => item.group === group)
-    .sort((left, right) => left.distanceM - right.distanceM || left.sourceFeatureId.localeCompare(right.sourceFeatureId))]));
+  const buckets = new Map(groupOrder.map((group) => {
+    const sorted = candidates
+      .filter((item) => item.group === group)
+      .sort((left, right) => left.distanceM - right.distanceM || left.sourceFeatureId.localeCompare(right.sourceFeatureId));
+    const seenNames = new Set<string>();
+    const diverse: NearbyCandidate[] = [];
+    const repeated: NearbyCandidate[] = [];
+    for (const item of sorted) {
+      const nameKey = item.name.normalize("NFKC").toLocaleLowerCase("en-US");
+      (seenNames.has(nameKey) ? repeated : diverse).push(item);
+      seenNames.add(nameKey);
+    }
+    return [group, [...diverse, ...repeated]] as const;
+  }));
   const selected: NearbyCandidate[] = [];
   for (let round = 0; selected.length < MAX_NEARBY_CONTEXT_ITEMS; round += 1) {
     let added = false;
@@ -1215,9 +1269,10 @@ export function normalizeOverpassNearbyContext(
     const name = nearbyName(tags, locale, classification);
     if (!name) continue;
     const directDistanceM = Math.round(distanceM(point, position));
-    // Around filters use feature geometry, while ways/relations expose only a
-    // derived centre here. Keep a modest tolerance for large parks/stations.
-    if (!Number.isFinite(directDistanceM) || directDistanceM > OVERPASS_RADIUS_M * 3) continue;
+    // Around filters use feature geometry, while ways/relations expose a
+    // derived centre. Omit edge-intersecting records whose returned centre is
+    // outside the declared within-radius claim.
+    if (!Number.isFinite(directDistanceM) || directDistanceM > OVERPASS_RADIUS_M) continue;
     const candidate: NearbyCandidate = {
       sourceFeatureId,
       name,
@@ -1231,20 +1286,10 @@ export function normalizeOverpassNearbyContext(
     if (!previous || candidate.distanceM < previous.distanceM) bySourceIdentity.set(sourceFeatureId, candidate);
   }
 
-  // OSM commonly represents one station, road or venue with several nearby
-  // elements. This is a context summary rather than a feature count, so retain
-  // the nearest representative for an identical group/name combination.
-  const bySemanticIdentity = new Map<string, NearbyCandidate>();
-  for (const candidate of bySourceIdentity.values()) {
-    const key = `${candidate.group}|${candidate.name.normalize("NFKC").toLocaleLowerCase("en-US")}`;
-    const previous = bySemanticIdentity.get(key);
-    if (!previous || candidate.distanceM < previous.distanceM) bySemanticIdentity.set(key, candidate);
-  }
-
-  return balancedNearbySelection([...bySemanticIdentity.values()]).map(({ group: _group, ...item }, index) => ({
+  return balancedNearbySelection([...bySourceIdentity.values()]).map(({ group: _group, ...item }, index) => ({
     ...item,
     evidenceId: `EVD-CONTEXT-${index + 1}`,
-    proofLimit: "Bounded OpenStreetMap context from Overpass; distance is straight-line from the analysis point to the returned node or derived element centre, not a route, travel time, service level or proof of complete coverage."
+    proofLimit: "One bounded OpenStreetMap element record from Overpass; it is not asserted to be a unique real-world facility. Distance is straight-line from the analysis point to the returned node or derived element centre inside the declared radius, not a route, travel time, service level or proof of complete coverage."
   }));
 }
 
@@ -1328,15 +1373,15 @@ async function reversePlace(
   endpoint: URL,
   point: [number, number],
   locale: string
-): Promise<SafeNominatimPlace | null> {
+): Promise<{ place: SafeNominatimPlace | null; receipt: NominatimResponseReceipt }> {
   const url = new URL("reverse", endpoint);
   addCommonParameters(url, locale);
   url.searchParams.set("lat", point[1].toFixed(6));
   url.searchParams.set("lon", point[0].toFixed(6));
   url.searchParams.set("zoom", "18");
   url.searchParams.set("layer", "address,poi,railway,natural,manmade");
-  const payload = await fetchNominatimJson(url);
-  return sanitizePlace(payload);
+  const receipt = await fetchNominatimJson(url.toString());
+  return { place: sanitizePlace(receipt.payload), receipt };
 }
 
 function parseTrustedOsmFeatureId(value: string | null | undefined): { type: OsmType; id: string; lookupId: string } | null {
@@ -1352,16 +1397,16 @@ async function lookupPlace(
   endpoint: URL,
   sourceFeatureId: { type: OsmType; id: string; lookupId: string },
   locale: string
-): Promise<SafeNominatimPlace | null> {
+): Promise<{ place: SafeNominatimPlace | null; receipt: NominatimResponseReceipt }> {
   const url = new URL("lookup", endpoint);
   addCommonParameters(url, locale);
   url.searchParams.set("osm_ids", sourceFeatureId.lookupId);
-  const payload = await fetchNominatimJson(url);
-  if (!Array.isArray(payload)) return null;
-  const place = payload.map(sanitizePlace).find((candidate): candidate is SafeNominatimPlace => Boolean(
+  const receipt = await fetchNominatimJson(url.toString());
+  if (!Array.isArray(receipt.payload)) return { place: null, receipt };
+  const place = receipt.payload.map(sanitizePlace).find((candidate): candidate is SafeNominatimPlace => Boolean(
     candidate && candidate.osmType === sourceFeatureId.type && candidate.osmId === sourceFeatureId.id
   ));
-  return place ?? null;
+  return { place: place ?? null, receipt };
 }
 
 export async function searchLivePointObjects(input: {
@@ -1382,10 +1427,10 @@ export async function searchLivePointObjects(input: {
   url.searchParams.set("limit", "5");
   url.searchParams.set("bounded", "1");
   url.searchParams.set("viewbox", `${west},${north},${east},${south}`);
-  const payload = await fetchNominatimJson(url);
-  if (!Array.isArray(payload)) return [];
+  const receipt = await fetchNominatimJson(url.toString());
+  if (!Array.isArray(receipt.payload)) return [];
   const seen = new Set<string>();
-  return payload.flatMap((raw) => {
+  return receipt.payload.flatMap((raw) => {
     const place = sanitizePlace(raw);
     if (!place) return [];
     const sourceFeatureId = `${place.osmType}/${place.osmId}`;
@@ -1559,12 +1604,96 @@ function evidenceForNearby(items: LiveNearbyContextItem[]): PointObjectEvidenceR
     value: JSON.stringify({
       sourceFeatureId: item.sourceFeatureId,
       name: item.name,
+      categories: item.categories,
       featureClass: item.featureClass,
-      distanceM: item.distanceM
+      distanceM: item.distanceM,
+      method: item.method
     }),
     sourceId: item.sourceFeatureId,
     proofLimit: item.proofLimit
   }));
+}
+
+function evidenceForWikidata(entity: PointObjectWikidataLinkedEntity): PointObjectEvidenceReference[] {
+  const sourceId = `wikidata:${entity.qid}`;
+  const shared = {
+    qid: entity.qid,
+    sourceResponseHash: entity.source.sourceResponseHash,
+    sourceRevisionId: entity.source.sourceRevisionId,
+    identityReceiptHash: entity.identity.identityReceiptHash
+  };
+  const evidence: PointObjectEvidenceReference[] = [{
+    id: "EVD-WIKIDATA-ENTITY",
+    label: "Linked Wikidata community entity",
+    value: JSON.stringify({ ...shared, labels: entity.labels, identity: entity.identity, source: entity.source }),
+    sourceId,
+    proofLimit: "Exact QID carried by the selected OSM record and conservatively spatial/type/country checked. This links a community entity; it does not certify a selected building footprint, parcel, owner, legal use or official identity."
+  }];
+  const proofLimits: Record<string, string> = {
+    P31: "Wikidata entity-type statements retained with statement rank; they support only the linked-entity scope and are not an official use classification.",
+    P571: "Wikidata inception statement with original precision and Gregorian calendar; inception is not automatically opening, completion, refurbishment or source observation time.",
+    P2048: "Wikidata linked-entity height statements in metres; they remain separate from OSM footprint attributes and never feed Create geometry.",
+    P1101: "Wikidata linked-entity above-ground floor-count statements; they remain separate from OSM footprint attributes and never feed Create geometry.",
+    P625: "Wikidata entity-coordinate statements used only by the conservative linked-entity identity receipt.",
+    P17: "Wikidata country statements used only as a linked-entity consistency check."
+  };
+  for (const propertyId of ["P31", "P571", "P2048", "P1101", "P625", "P17"] as const) {
+    const statements = entity.statements.filter((statement) => statement.propertyId === propertyId);
+    if (!statements.length) continue;
+    evidence.push({
+      id: `EVD-WIKIDATA-${propertyId}`,
+      label: `Wikidata ${propertyId} statement receipt`,
+      value: JSON.stringify({ ...shared, statements }),
+      sourceId,
+      proofLimit: proofLimits[propertyId]
+    });
+  }
+  return evidence;
+}
+
+function mappedNumericTag(
+  tags: Record<string, string>,
+  key: string,
+  propertyId: "P2048" | "P1101"
+): number | null {
+  const raw = tags[key];
+  if (!raw) return null;
+  const match = /^([+-]?\d{1,4}(?:\.\d{1,3})?)\s*(m|metre|meter|metres|meters|ft|feet)?$/i.exec(raw.normalize("NFKC").trim());
+  if (!match) return null;
+  const value = Number(match[1]);
+  if (!Number.isFinite(value)) return null;
+  if (propertyId === "P1101") return !match[2] && Number.isSafeInteger(value) && value > 0 ? value : null;
+  if (match[2]?.toLowerCase() === "ft" || match[2]?.toLowerCase() === "feet") return value > 0 ? value * 0.3048 : null;
+  return value > 0 ? value : null;
+}
+
+function linkedQuantityValues(entity: PointObjectWikidataLinkedEntity, propertyId: "P2048" | "P1101"): number[] {
+  return entity.statements.flatMap((statement) => statement.propertyId === propertyId && statement.value.kind === "quantity"
+    ? [statement.value.numericValue]
+    : []);
+}
+
+function linkedEntityConflicts(
+  entity: PointObjectWikidataLinkedEntity,
+  selectedTags: Record<string, string>
+): string[] {
+  const conflicts = entity.conflictingPropertyIds.map((propertyId) => (
+    `Wikidata ${propertyId} carries multiple active values; every value remains source-scoped and no winner or average is selected.`
+  ));
+  const comparisons = [
+    { propertyId: "P2048" as const, tag: "tag.height", label: "height" },
+    { propertyId: "P1101" as const, tag: "tag.building:levels", label: "floor count" }
+  ];
+  for (const comparison of comparisons) {
+    const osmValue = mappedNumericTag(selectedTags, comparison.tag, comparison.propertyId);
+    const wikidataValues = linkedQuantityValues(entity, comparison.propertyId);
+    if (osmValue !== null && wikidataValues.length && !wikidataValues.every((value) => (
+      Math.abs(value - osmValue) <= Math.max(0.01, Math.abs(osmValue) * 1e-6)
+    ))) {
+      conflicts.push(`OSM selected-object ${comparison.label} (${osmValue}) and Wikidata linked-entity ${comparison.label} (${wikidataValues.join(", ")}) differ; the sources remain separate.`);
+    }
+  }
+  return conflicts;
 }
 
 export async function buildLivePointObjectEvidencePack(
@@ -1602,11 +1731,12 @@ export async function buildLivePointObjectEvidencePack(
   const fabricPayloadPromise = fetchOverpassJson(buildOverpassUrbanFabricQuery(point))
     .then((payload) => ({ ok: true as const, payload }))
     .catch(() => ({ ok: false as const }));
-  const [place, nearbyPayload, fabricPayload] = await Promise.all([
+  const [placeReceipt, nearbyPayload, fabricPayload] = await Promise.all([
     trustedIdentity ? lookupPlace(endpoint, trustedIdentity, locale) : reversePlace(endpoint, point, locale),
     nearbyPayloadPromise,
     fabricPayloadPromise
   ]);
+  const place = placeReceipt.place;
   const matchMethod = trustedIdentity ? "nominatim_lookup" as const : "nominatim_reverse" as const;
 
   if (!place) {
@@ -1654,6 +1784,18 @@ export async function buildLivePointObjectEvidencePack(
     : { profile: normalizeOverpassUrbanFabric(null, point), responseHash: null, observedAt: null };
   const selectedTags = displayTags(place);
   const selectedMetrics = geometryMetrics(place.geometry);
+  const wikidata = await resolvePointObjectWikidata({
+    qid: selectedTags["tag.wikidata"] ?? null,
+    osmSourceFeatureId: sourceFeatureId,
+    osmGeometryHash: place.geometryHash,
+    osmGeometry: place.geometry,
+    osmCentroid: [place.longitude, place.latitude],
+    osmFeatureClass: featureClass(place),
+    osmTags: selectedTags,
+    expectedCountryCode: input.expectedCountryCode,
+    deadlineAtMs: input.deadlineAtMs
+  });
+  if (wikidata.status === "available") conflicts.push(...linkedEntityConflicts(wikidata.linkedEntity, selectedTags));
   const centroidDistance = trustedAnchorMatch?.centroidDistanceM ?? Math.round(distanceM(point, [place.longitude, place.latitude]));
   const sourceResponseCore = {
     sourceFeatureId,
@@ -1667,24 +1809,26 @@ export async function buildLivePointObjectEvidencePack(
     address: place.address,
     extraTags: place.extraTags,
     nameDetails: place.nameDetails,
-      boundingBox: place.boundingBox,
-      geometryType: place.geometryType,
-      geometryHash: place.geometryHash,
-      metrics: selectedMetrics
+    boundingBox: place.boundingBox,
+    geometryType: place.geometryType,
+    geometryHash: place.geometryHash,
+    metrics: selectedMetrics
   };
-  const sourceResponseHash = semanticHash(sourceResponseCore);
+  const normalizedSourceFeatureHash = semanticHash(sourceResponseCore);
+  const sourceResponseHash = placeReceipt.receipt.sourceResponseHash;
   const resolutionCore = {
     point,
     sourceFeatureId,
     matchMethod,
     coordinateAssociation,
     centroidDistance,
-    sourceResponseHash
+    sourceResponseHash,
+    normalizedSourceFeatureHash
   };
   const resolutionHash = semanticHash(resolutionCore);
-  const acquiredAt = new Date().toISOString();
+  const acquiredAt = placeReceipt.receipt.acquiredAt;
   const core = {
-    protocol: "POINT_TO_OBJECT_001_AI_EVIDENCE_PACK_LIVE_V1" as const,
+    protocol: "POINT_TO_OBJECT_001_AI_EVIDENCE_PACK_LIVE_V2" as const,
     caseKey: "live" as const,
     caseId: `live_${place.osmType}_${place.osmId}`,
     coordinates: { longitude: point[0], latitude: point[1], crs: "EPSG:4326" as const },
@@ -1709,12 +1853,14 @@ export async function buildLivePointObjectEvidencePack(
       tags: selectedTags,
       metrics: selectedMetrics
     },
+    linkedEntity: wikidata.linkedEntity,
     source: {
       name: "OpenStreetMap" as const,
       service: "Nominatim" as const,
       sourceId: "SPAT-001" as const,
       sourceResponseId: `nominatim_response_${sourceResponseHash.slice(0, 24)}`,
       sourceResponseHash,
+      sourceResponseBytes: placeReceipt.receipt.sourceResponseBytes,
       observedAt: null,
       acquiredAt,
       freshness: "runtime_response_feature_time_unavailable" as const,
@@ -1738,14 +1884,17 @@ export async function buildLivePointObjectEvidencePack(
       sourceOfferPath: "/prototype/point-to-object/source-offer" as const,
       officialStatus: "open_context_not_official" as const,
       runtimeNetworkUsed: true as const,
-      persistenceUsed: false as const
+      persistenceUsed: false as const,
+      wikidataStatus: wikidata.status,
+      wikidataReason: wikidata.reason
     },
     nearbyContext: nearby.items,
     geoContext: fabric.profile,
     evidence: [
       ...evidenceFor(place, point, matchMethod, coordinateAssociation, place.geometryHash, selectedTags, selectedMetrics),
       ...evidenceForNearby(nearby.items),
-      ...evidenceForGeoContext(fabric.profile)
+      ...evidenceForGeoContext(fabric.profile),
+      ...(wikidata.linkedEntity ? evidenceForWikidata(wikidata.linkedEntity) : [])
     ],
     conflicts,
     missingInformation: [
@@ -1772,6 +1921,11 @@ export async function buildLivePointObjectEvidencePack(
         : "Nearby OpenStreetMap context was unavailable for this request; the primary Nominatim object remains usable, but no inference may be made from the empty nearby list.",
       "The public Nominatim endpoint is suitable only for a moderate low-traffic Preview; its in-process throttle is not a distributed production quota.",
       "The public Overpass endpoint is a cached, bounded Preview dependency; it is not a production SLA and failures degrade to an explicitly empty nearby context.",
+      wikidata.status === "available"
+        ? "Wikidata facts describe a conservatively linked community entity and remain separate from the selected OSM footprint; they do not certify building, parcel, ownership, planning or valuation identity."
+        : wikidata.status === "not_requested_no_qid"
+          ? "The selected OSM record carried no exact Wikidata QID, so no Wikidata request or enrichment was attempted."
+          : "Optional Wikidata enrichment was unavailable or failed conservative identity checks; the separately sourced OSM evidence remains usable.",
       "The AI layer may summarize and question this pack but cannot replace official or client validation."
     ],
     caveat: LIVE_POINT_CAVEAT

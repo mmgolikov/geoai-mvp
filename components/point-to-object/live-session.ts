@@ -1,7 +1,15 @@
 import type { GeoJsonGeometry } from "@/src/lib/point-to-object/contracts";
 import { LIVE_POINT_CAVEAT } from "@/src/lib/point-to-object/contracts";
 import { isPointObjectLocale, isPointObjectMarketKey } from "@/src/lib/prototype/point-to-object-markets";
+import type {
+  PointObjectWikidataLinkedEntity,
+  PointObjectWikidataPropertyId,
+  PointObjectWikidataStatementReceipt,
+  PointObjectWikidataStatementValue
+} from "@/src/lib/prototype/point-to-object-wikidata-contract";
 import {
+  POINT_OBJECT_ANALYSIS_LEGACY_PROMPT_VERSION,
+  POINT_OBJECT_ANALYSIS_LEGACY_RESULT_SCHEMA_VERSION,
   POINT_OBJECT_ANALYSIS_PROMPT_VERSION,
   POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION
 } from "@/components/point-to-object/live-types";
@@ -11,6 +19,7 @@ import type {
   LiveMapSelection,
   LiveResolvedObjectContext,
   PointObjectAiContent,
+  PointObjectInitialSemanticBrief,
   PointObjectAiAttemptTrace,
   PointObjectAiResponse,
   PointObjectAiSubject,
@@ -31,7 +40,8 @@ import type {
 export const POINT_OBJECT_SESSION_KEYS = {
   selection: "geoai:point-to-object:selection:v3",
   question: "geoai:point-to-object:question:v2",
-  analysis: "geoai:point-to-object:analysis:v7"
+  analysis: "geoai:point-to-object:analysis:v8",
+  legacyAnalysis: "geoai:point-to-object:analysis:v7"
 } as const;
 
 const MAX_SELECTION_BYTES = 512 * 1024;
@@ -143,6 +153,96 @@ function parseGeoContext(value: unknown): PointObjectGeoContext | null {
   };
 }
 
+const WIKIDATA_PROPERTY_IDS = new Set(["P31", "P571", "P2048", "P1101", "P625", "P17"]);
+
+function parseWikidataStatementValue(value: unknown): PointObjectWikidataStatementValue | null {
+  if (!isRecord(value) || typeof value.kind !== "string") return null;
+  if (value.kind === "entity" && hasExactKeys(value, ["kind", "entityId"]) &&
+      typeof value.entityId === "string" && /^Q[1-9]\d{0,15}$/.test(value.entityId)) {
+    return { kind: "entity", entityId: value.entityId };
+  }
+  if (value.kind === "time" && hasExactKeys(value, ["kind", "time", "precision", "calendarModel"]) &&
+      typeof value.time === "string" && (value.precision === 9 || value.precision === 10 || value.precision === 11) &&
+      value.calendarModel === "http://www.wikidata.org/entity/Q1985727") {
+    const parts = /^\+(\d{4})-(\d{2})-(\d{2})T00:00:00Z$/.exec(value.time);
+    const year = parts ? Number(parts[1]) : 0;
+    const month = parts ? Number(parts[2]) : -1;
+    const day = parts ? Number(parts[3]) : -1;
+    const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+    const daysInMonth = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    const calendarFieldsValid = value.precision === 9
+      ? month === 0 && day === 0
+      : value.precision === 10
+        ? month >= 1 && month <= 12 && day === 0
+        : month >= 1 && month <= 12 && day >= 1 && day <= daysInMonth[month - 1];
+    if (parts && year >= 1 && calendarFieldsValid) {
+      return { kind: "time", time: value.time, precision: value.precision, calendarModel: value.calendarModel };
+    }
+  }
+  if (value.kind === "quantity" && hasExactKeys(value, ["kind", "amount", "numericValue", "unit", "unitEntityId", "lowerBound", "upperBound"]) &&
+      typeof value.amount === "string" && /^[+-]?\d{1,12}(?:\.\d{1,8})?$/.test(value.amount) &&
+      typeof value.numericValue === "number" && Number.isFinite(value.numericValue) &&
+      (value.unit === "metre" || value.unit === "count") &&
+      (value.unit === "metre" ? value.unitEntityId === "Q11573" : value.unitEntityId === null) &&
+      (value.lowerBound === null || typeof value.lowerBound === "string") &&
+      (value.upperBound === null || typeof value.upperBound === "string")) {
+    return value as PointObjectWikidataStatementValue;
+  }
+  if (value.kind === "coordinate" && hasExactKeys(value, ["kind", "longitude", "latitude", "precision", "globe"])) {
+    const longitude = finiteNumber(value.longitude, -180, 180);
+    const latitude = finiteNumber(value.latitude, -90, 90);
+    const precision = value.precision === null ? null : finiteNumber(value.precision, 0, 10);
+    return longitude !== null && latitude !== null && precision !== null && precision > 0 && precision <= 0.0001 &&
+      value.globe === "http://www.wikidata.org/entity/Q2"
+      ? { kind: "coordinate", longitude, latitude, precision, globe: value.globe }
+      : null;
+  }
+  return null;
+}
+
+function parseWikidataLinkedEntity(value: unknown): PointObjectWikidataLinkedEntity | null {
+  if (!isRecord(value) || !hasExactKeys(value, ["contractVersion", "qid", "labels", "source", "identity", "statements", "conflictingPropertyIds"]) ||
+      value.contractVersion !== "POINT_OBJECT_WIKIDATA_ENTITY_V1" || typeof value.qid !== "string" || !/^Q[1-9]\d{0,15}$/.test(value.qid) ||
+      !isRecord(value.labels) || !hasExactKeys(value.labels, ["en", "ru"]) || !isRecord(value.source) || !isRecord(value.identity) ||
+      !Array.isArray(value.statements) || value.statements.length > 32 || !Array.isArray(value.conflictingPropertyIds)) return null;
+  const labelEn = value.labels.en === null ? null : nonEmptyText(value.labels.en, 180);
+  const labelRu = value.labels.ru === null ? null : nonEmptyText(value.labels.ru, 180);
+  if ((value.labels.en !== null && !labelEn) || (value.labels.ru !== null && !labelRu)) return null;
+  const source = value.source;
+  if (!hasExactKeys(source, ["sourceId", "dataset", "service", "endpointHost", "sourceResponseHash", "sourceResponseBytes", "sourceRevisionId", "entityModifiedAt", "acquiredAt", "cacheExpiresAt", "licenceId", "licenceUrl", "accessPolicyUrl", "usagePolicyUrl", "officialStatus"]) ||
+      source.sourceId !== "WIKIDATA-ENTITY" || source.dataset !== "Wikidata" || source.service !== "MediaWiki Action API" || source.endpointHost !== "www.wikidata.org" ||
+      typeof source.sourceResponseHash !== "string" || !/^[a-f0-9]{64}$/.test(source.sourceResponseHash) ||
+      integer(source.sourceResponseBytes, 1, 256 * 1024) === null || integer(source.sourceRevisionId, 1, Number.MAX_SAFE_INTEGER) === null ||
+      (source.entityModifiedAt !== null && !isoTimestamp(source.entityModifiedAt)) || !isoTimestamp(source.acquiredAt) || !isoTimestamp(source.cacheExpiresAt) ||
+      source.licenceId !== "CC0-1.0" || source.licenceUrl !== "https://www.wikidata.org/wiki/Wikidata:Licensing" ||
+      source.accessPolicyUrl !== "https://www.wikidata.org/wiki/Wikidata:Data_access/en" || source.usagePolicyUrl !== "https://www.mediawiki.org/wiki/API:Etiquette" ||
+      source.officialStatus !== "community_structured_data_not_official_asset_record") return null;
+  const identity = value.identity;
+  if (!hasExactKeys(identity, ["identityReceiptHash", "qid", "osmSourceFeatureId", "osmGeometryHash", "basis", "linkedCoordinateDistanceM", "polygonBoundaryToleranceM", "nodeOrComplexMaxDistanceM", "countryMatch", "typeMatch", "scope"]) ||
+      typeof identity.identityReceiptHash !== "string" || !/^[a-f0-9]{64}$/.test(identity.identityReceiptHash) || identity.qid !== value.qid ||
+      typeof identity.osmSourceFeatureId !== "string" || !/^(?:node|way|relation)\/[1-9]\d{0,19}$/.test(identity.osmSourceFeatureId) ||
+      (identity.osmGeometryHash !== null && (typeof identity.osmGeometryHash !== "string" || !/^[a-f0-9]{64}$/.test(identity.osmGeometryHash))) ||
+      (identity.basis !== "polygon_coordinate_inside_or_boundary_tolerance" && identity.basis !== "node_or_complex_coordinate_within_ceiling") ||
+      finiteNumber(identity.linkedCoordinateDistanceM, 0, 1_000_000) === null || identity.polygonBoundaryToleranceM !== 20 || identity.nodeOrComplexMaxDistanceM !== 250 ||
+      (identity.countryMatch !== "matched" && identity.countryMatch !== "not_asserted") || identity.typeMatch !== "compatible" ||
+      identity.scope !== "linked_community_entity_not_certified_selected_footprint") return null;
+  const statements = value.statements.flatMap((raw): PointObjectWikidataStatementReceipt[] => {
+    if (!isRecord(raw) || !hasExactKeys(raw, ["statementReceiptHash", "identityReceiptHash", "sourceResponseHash", "sourceRevisionId", "qid", "propertyId", "statementId", "rank", "value", "qualifiers"]) ||
+        typeof raw.statementReceiptHash !== "string" || !/^[a-f0-9]{64}$/.test(raw.statementReceiptHash) || raw.identityReceiptHash !== identity.identityReceiptHash ||
+        raw.sourceResponseHash !== source.sourceResponseHash || raw.sourceRevisionId !== source.sourceRevisionId || raw.qid !== value.qid ||
+        typeof raw.propertyId !== "string" || !WIKIDATA_PROPERTY_IDS.has(raw.propertyId) || typeof raw.statementId !== "string" ||
+        !/^[A-Za-z0-9$_.:-]{1,180}$/.test(raw.statementId) || (raw.rank !== "preferred" && raw.rank !== "normal") ||
+        !Array.isArray(raw.qualifiers) || raw.qualifiers.length !== 0) return [];
+    const statementValue = parseWikidataStatementValue(raw.value);
+    return statementValue ? [{ ...raw, propertyId: raw.propertyId as PointObjectWikidataPropertyId, value: statementValue } as PointObjectWikidataStatementReceipt] : [];
+  });
+  const conflicts = value.conflictingPropertyIds.flatMap((item) => typeof item === "string" && WIKIDATA_PROPERTY_IDS.has(item)
+    ? [item as PointObjectWikidataPropertyId] : []);
+  if (statements.length !== value.statements.length || new Set(statements.map((statement) => statement.statementId)).size !== statements.length ||
+      conflicts.length !== value.conflictingPropertyIds.length || new Set(conflicts).size !== conflicts.length) return null;
+  return value as unknown as PointObjectWikidataLinkedEntity;
+}
+
 export function parseLiveResolvedObject(value: unknown): LiveResolvedObjectContext | null {
   if (!isRecord(value)) return null;
   const name = value.name === null ? null : nonEmptyText(value.name, 240);
@@ -162,10 +262,12 @@ export function parseLiveResolvedObject(value: unknown): LiveResolvedObjectConte
   const tags = stringMap(value.tags, 36);
   const metrics = value.metrics === null ? null : parseGeometryMetrics(value.metrics);
   const geoContext = parseGeoContext(value.geoContext);
+  const linkedEntity = value.linkedEntity === null || value.linkedEntity === undefined ? null : parseWikidataLinkedEntity(value.linkedEntity);
   if ((value.name !== null && !name) || (value.address !== null && !address) || !featureClass || !sourceFeatureId ||
       geometryType === undefined || !coordinateAssociation || resultCentroidDistanceM === null || !addressParts || !tags ||
-      (value.metrics !== null && !metrics) || !geoContext) return null;
-  return { name, address, featureClass, sourceFeatureId, geometryType, coordinateAssociation, resultCentroidDistanceM, addressParts, tags, metrics, geoContext };
+      (value.metrics !== null && !metrics) || !geoContext ||
+      (value.linkedEntity !== null && value.linkedEntity !== undefined && !linkedEntity)) return null;
+  return { name, address, featureClass, sourceFeatureId, geometryType, coordinateAssociation, resultCentroidDistanceM, addressParts, tags, metrics, geoContext, linkedEntity };
 }
 
 export function parsePointObjectSearchResponse(value: unknown): PointObjectSearchResponse | null {
@@ -407,6 +509,43 @@ function claims(value: unknown, minimum: number, maximum: number, maxStatement =
   return parsed.every((item): item is GroundedClaim => item !== null) ? parsed : null;
 }
 
+const SEMANTIC_SUBJECT_CODES = new Set(["linked_named_entity", "named_open_map_object", "classified_open_map_object", "coordinate_only"]);
+const SEMANTIC_CONTEXT_CODES = new Set([
+  "hospitality_tourism_mapped", "commercial_business_mapped", "residential_mapped", "mixed_use_urban_mapped",
+  "civic_institutional_mapped", "industrial_logistics_mapped", "open_space_recreation_mapped", "sparse_open_context"
+]);
+const SEMANTIC_ACCESS_CODES = new Set(["mapped_transit_and_road", "mapped_transit_only", "mapped_road_only", "mapped_access_unavailable"]);
+const SEMANTIC_IMPLICATION_CODES = new Set([
+  "developer_profile_validation", "investor_profile_downside", "asset_owner_profile_baseline",
+  "developer_development_sequence", "investor_development_downside", "asset_owner_development_constraints",
+  "developer_redevelopment_envelope", "investor_redevelopment_downside", "asset_owner_redevelopment_capital",
+  "developer_due_diligence_sequence", "investor_due_diligence_gates", "asset_owner_due_diligence_baseline",
+  "developer_custom_validation", "investor_custom_downside", "asset_owner_custom_baseline"
+]);
+
+function parseInitialSemanticBrief(value: unknown): PointObjectInitialSemanticBrief | null {
+  if (!isRecord(value) || !hasExactKeys(value, ["codes", "subject", "context", "access", "implication", "confidence"]) ||
+      !isRecord(value.codes) || !hasExactKeys(value.codes, ["subject", "context", "access", "implication"])) return null;
+  const subject = claim(value.subject, 1_400);
+  const context = claim(value.context, 1_400);
+  const access = claim(value.access, 1_400);
+  const implication = claim(value.implication, 1_600);
+  if (!subject || !context || !access || !implication ||
+      typeof value.codes.subject !== "string" || !SEMANTIC_SUBJECT_CODES.has(value.codes.subject) ||
+      typeof value.codes.context !== "string" || !SEMANTIC_CONTEXT_CODES.has(value.codes.context) ||
+      typeof value.codes.access !== "string" || !SEMANTIC_ACCESS_CODES.has(value.codes.access) ||
+      typeof value.codes.implication !== "string" || !SEMANTIC_IMPLICATION_CODES.has(value.codes.implication) ||
+      (value.confidence !== "low" && value.confidence !== "medium")) return null;
+  return {
+    codes: value.codes as PointObjectInitialSemanticBrief["codes"],
+    subject,
+    context,
+    access,
+    implication,
+    confidence: value.confidence
+  };
+}
+
 function parseFocusedAnswer(value: unknown): PointObjectFocusedAnswer | null {
   if (!isRecord(value) || !hasExactKeys(value, [
     "status", "scope", "confidence", "perspective", "horizon", "statement", "evidenceRefs", "missingEvidence"
@@ -524,6 +663,37 @@ function parseValidationActions(value: unknown): PointObjectValidationAction[] |
 
 function parseContent(value: unknown): PointObjectAiContent | null {
   if (!isRecord(value) || !hasExactKeys(value, [
+    "initialSemanticBrief", "decisionBrief", "signals", "opportunities", "risks", "sourceFacts", "locationContext", "nextValidation", "answerToQuestion", "geoContext", "caveat"
+  ])) return null;
+  const initialSemanticBrief = parseInitialSemanticBrief(value.initialSemanticBrief);
+  const decisionBrief = parseDecisionBrief(value.decisionBrief);
+  const signals = parseSignals(value.signals);
+  const opportunities = parseOpportunities(value.opportunities);
+  const risks = parseRisks(value.risks);
+  const sourceFacts = claims(value.sourceFacts, 1, 10, 1_600);
+  const locationContext = claims(value.locationContext, 1, 7);
+  const nextValidation = parseValidationActions(value.nextValidation);
+  const answerToQuestion = value.answerToQuestion === null ? null : parseFocusedAnswer(value.answerToQuestion);
+  const geoContext = parseGeoContext(value.geoContext);
+  if (!initialSemanticBrief || !decisionBrief || !signals || !opportunities || !risks || !sourceFacts || !locationContext || !nextValidation ||
+      (value.answerToQuestion !== null && !answerToQuestion) || !geoContext || value.caveat !== LIVE_POINT_CAVEAT) return null;
+  return {
+    initialSemanticBrief,
+    decisionBrief,
+    signals,
+    opportunities,
+    risks,
+    sourceFacts,
+    locationContext,
+    nextValidation,
+    answerToQuestion,
+    geoContext,
+    caveat: LIVE_POINT_CAVEAT
+  };
+}
+
+function parseLegacyContent(value: unknown): Omit<PointObjectAiContent, "initialSemanticBrief"> | null {
+  if (!isRecord(value) || !hasExactKeys(value, [
     "decisionBrief", "signals", "opportunities", "risks", "sourceFacts", "locationContext", "nextValidation", "answerToQuestion", "geoContext", "caveat"
   ])) return null;
   const decisionBrief = parseDecisionBrief(value.decisionBrief);
@@ -537,18 +707,7 @@ function parseContent(value: unknown): PointObjectAiContent | null {
   const geoContext = parseGeoContext(value.geoContext);
   if (!decisionBrief || !signals || !opportunities || !risks || !sourceFacts || !locationContext || !nextValidation ||
       (value.answerToQuestion !== null && !answerToQuestion) || !geoContext || value.caveat !== LIVE_POINT_CAVEAT) return null;
-  return {
-    decisionBrief,
-    signals,
-    opportunities,
-    risks,
-    sourceFacts,
-    locationContext,
-    nextValidation,
-    answerToQuestion,
-    geoContext,
-    caveat: LIVE_POINT_CAVEAT
-  };
+  return { decisionBrief, signals, opportunities, risks, sourceFacts, locationContext, nextValidation, answerToQuestion, geoContext, caveat: LIVE_POINT_CAVEAT };
 }
 
 function parseRequestReceipt(value: unknown): PointObjectAnalysisRequestReceipt | null {
@@ -573,7 +732,7 @@ function parseRequestReceipt(value: unknown): PointObjectAnalysisRequestReceipt 
 function parseSubject(value: unknown): PointObjectAiSubject | null {
   if (!isRecord(value) || !hasExactKeys(value, [
     "name", "address", "featureClass", "sourceFeatureId", "resolutionMethod", "coordinateAssociation", "sourceLabel",
-    "geometryType", "resultCentroidDistanceM", "addressParts", "tags", "metrics", "geoContext"
+    "geometryType", "resultCentroidDistanceM", "addressParts", "tags", "metrics", "geoContext", "linkedEntity"
   ])) return null;
   const name = value.name === null ? null : nonEmptyText(value.name, 240);
   const address = value.address === null ? null : nonEmptyText(value.address, 500);
@@ -597,9 +756,10 @@ function parseSubject(value: unknown): PointObjectAiSubject | null {
   const tags = stringMap(value.tags, 36);
   const metrics = value.metrics === null ? null : parseGeometryMetrics(value.metrics);
   const geoContext = parseGeoContext(value.geoContext);
+  const linkedEntity = value.linkedEntity === null ? null : parseWikidataLinkedEntity(value.linkedEntity);
   if ((value.name !== null && !name) || (value.address !== null && !address) || !featureClass || !sourceFeatureId || !sourceLabel ||
       !resolutionMethod || !coordinateAssociation || geometryType === undefined || resultCentroidDistanceM === null || !addressParts || !tags ||
-      (value.metrics !== null && !metrics) || !geoContext) return null;
+      (value.metrics !== null && !metrics) || !geoContext || (value.linkedEntity !== null && !linkedEntity)) return null;
   return {
     name,
     address,
@@ -613,8 +773,20 @@ function parseSubject(value: unknown): PointObjectAiSubject | null {
     addressParts,
     tags,
     metrics,
-    geoContext
+    geoContext,
+    linkedEntity
   };
+}
+
+function parseLegacySubject(value: unknown): Omit<PointObjectAiSubject, "linkedEntity"> | null {
+  if (!isRecord(value) || !hasExactKeys(value, [
+    "name", "address", "featureClass", "sourceFeatureId", "resolutionMethod", "coordinateAssociation", "sourceLabel",
+    "geometryType", "resultCentroidDistanceM", "addressParts", "tags", "metrics", "geoContext"
+  ])) return null;
+  const projected = parseSubject({ ...value, linkedEntity: null });
+  if (!projected) return null;
+  const { linkedEntity: _linkedEntity, ...legacy } = projected;
+  return legacy;
 }
 
 function parseAttemptTrace(value: unknown): PointObjectAiAttemptTrace[] | null {
@@ -682,7 +854,13 @@ function sumTraceField(
     : null;
 }
 
-export function parsePointObjectAiTelemetry(value: unknown): PointObjectAiTelemetry | null {
+type ParsedPointObjectAiTelemetry = Extract<PointObjectAiResponse, { mode: "openai" }>["telemetry"];
+
+function parsePointObjectAiTelemetryFor(
+  value: unknown,
+  expectedSchemaVersion: typeof POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION | typeof POINT_OBJECT_ANALYSIS_LEGACY_RESULT_SCHEMA_VERSION,
+  expectedPromptVersion: typeof POINT_OBJECT_ANALYSIS_PROMPT_VERSION | typeof POINT_OBJECT_ANALYSIS_LEGACY_PROMPT_VERSION
+): ParsedPointObjectAiTelemetry | null {
   if (!isRecord(value) || !hasExactKeys(value, [
     "provider", "schemaVersion", "model", "reasoningEffort", "depth", "promptVersion", "requestId", "latencyMs", "attempts", "attemptTrace",
     "inputTokens", "cachedInputTokens", "cacheWriteTokens", "outputTokens", "totalTokens", "estimatedCostUsd", "costRateSource", "stored", "toolCalls"
@@ -727,19 +905,19 @@ export function parsePointObjectAiTelemetry(value: unknown): PointObjectAiTeleme
     estimatedCostUsd === traceCost &&
     model === attemptTrace.at(-1)?.model && reasoningEffort === attemptTrace.at(-1)?.reasoningEffort &&
     requestId === attemptTrace.at(-1)?.requestId);
-  if (value.provider !== "openai" || value.schemaVersion !== POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION ||
+  if (value.provider !== "openai" || value.schemaVersion !== expectedSchemaVersion ||
       !model || !MODEL_IDENTIFIER.test(model) || !reasoningEffort || !depth ||
-      value.promptVersion !== POINT_OBJECT_ANALYSIS_PROMPT_VERSION ||
+      value.promptVersion !== expectedPromptVersion ||
       (value.requestId !== null && !requestId) || latencyMs === null || attempts === null || !tokenTupleIsValid ||
       !estimatedCostIsValid || !costRateSourceIsValid || !cacheBreakdownIsValid || !costTupleIsValid ||
       !traceMatchesAggregate || value.stored !== false || value.toolCalls !== 0) return null;
   return {
     provider: "openai",
-    schemaVersion: POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION,
+    schemaVersion: expectedSchemaVersion,
     model,
     reasoningEffort,
     depth,
-    promptVersion: POINT_OBJECT_ANALYSIS_PROMPT_VERSION,
+    promptVersion: expectedPromptVersion,
     requestId,
     latencyMs,
     attempts,
@@ -753,7 +931,15 @@ export function parsePointObjectAiTelemetry(value: unknown): PointObjectAiTeleme
     costRateSource,
     stored: false,
     toolCalls: 0
-  };
+  } as ParsedPointObjectAiTelemetry;
+}
+
+export function parsePointObjectAiTelemetry(value: unknown): PointObjectAiTelemetry | null {
+  return parsePointObjectAiTelemetryFor(
+    value,
+    POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION,
+    POINT_OBJECT_ANALYSIS_PROMPT_VERSION
+  ) as PointObjectAiTelemetry | null;
 }
 
 export function parsePointObjectAiResponse(value: unknown): PointObjectAiResponse | null {
@@ -798,14 +984,56 @@ export function parsePointObjectAiResponse(value: unknown): PointObjectAiRespons
   };
 }
 
+export function parseLegacyPointObjectAiResponse(value: unknown): Extract<PointObjectAiResponse, { mode: "openai"; schemaVersion: 5 }> | null {
+  if (!isRecord(value) || !hasExactKeys(value, ["mode", "schemaVersion", "generatedAt", "evidencePackId", "evidencePackHash", "request", "content", "subject", "telemetry"]) ||
+      value.mode !== "openai" || value.schemaVersion !== POINT_OBJECT_ANALYSIS_LEGACY_RESULT_SCHEMA_VERSION) return null;
+  const generatedAt = isoTimestamp(value.generatedAt);
+  const evidencePackId = nonEmptyText(value.evidencePackId, 160);
+  const evidencePackHash = typeof value.evidencePackHash === "string" && /^[a-f0-9]{64}$/.test(value.evidencePackHash) ? value.evidencePackHash : null;
+  const request = parseRequestReceipt(value.request);
+  const content = parseLegacyContent(value.content);
+  const subject = parseLegacySubject(value.subject);
+  const telemetry = parsePointObjectAiTelemetryFor(
+    value.telemetry,
+    POINT_OBJECT_ANALYSIS_LEGACY_RESULT_SCHEMA_VERSION,
+    POINT_OBJECT_ANALYSIS_LEGACY_PROMPT_VERSION
+  );
+  if (!generatedAt || !evidencePackId || !/^[A-Za-z0-9_.:-]+$/.test(evidencePackId) || !evidencePackHash ||
+      !request || !content || !subject || !telemetry || telemetry.schemaVersion !== 5 ||
+      telemetry.promptVersion !== POINT_OBJECT_ANALYSIS_LEGACY_PROMPT_VERSION || telemetry.depth !== request.depth ||
+      telemetry.attemptTrace[0]?.purpose !== (request.focused ? "focused" : "initial") ||
+      (request.focused && content.answerToQuestion === null) || (!request.focused && content.answerToQuestion !== null) ||
+      (content.answerToQuestion !== null && (content.answerToQuestion.perspective !== request.perspective || content.answerToQuestion.horizon !== request.horizon))) return null;
+  return {
+    mode: "openai",
+    schemaVersion: POINT_OBJECT_ANALYSIS_LEGACY_RESULT_SCHEMA_VERSION,
+    generatedAt,
+    evidencePackId,
+    evidencePackHash,
+    request,
+    content,
+    subject,
+    telemetry: telemetry as Extract<PointObjectAiResponse, { mode: "openai"; schemaVersion: 5 }>["telemetry"]
+  };
+}
+
 export function readPointObjectAnalysis(selection: LiveMapSelection): PointObjectAiResponse | null {
   try {
     const raw = window.sessionStorage.getItem(POINT_OBJECT_SESSION_KEYS.analysis);
-    if (!raw || raw.length > MAX_ANALYSIS_BYTES) return null;
-    const envelope: unknown = JSON.parse(raw);
-    if (!isRecord(envelope) || !hasExactKeys(envelope, ["selectionFingerprint", "analysis"]) ||
-        envelope.selectionFingerprint !== selectionFingerprint(selection)) return null;
-    return parsePointObjectAiResponse(envelope.analysis);
+    if (raw && raw.length <= MAX_ANALYSIS_BYTES) {
+      const envelope: unknown = JSON.parse(raw);
+      if (isRecord(envelope) && hasExactKeys(envelope, ["selectionFingerprint", "analysis"]) &&
+          envelope.selectionFingerprint === selectionFingerprint(selection)) {
+        const current = parsePointObjectAiResponse(envelope.analysis);
+        if (current) return current;
+      }
+    }
+    const legacyRaw = window.sessionStorage.getItem(POINT_OBJECT_SESSION_KEYS.legacyAnalysis);
+    if (!legacyRaw || legacyRaw.length > MAX_ANALYSIS_BYTES) return null;
+    const legacyEnvelope: unknown = JSON.parse(legacyRaw);
+    if (!isRecord(legacyEnvelope) || !hasExactKeys(legacyEnvelope, ["selectionFingerprint", "analysis"]) ||
+        legacyEnvelope.selectionFingerprint !== selectionFingerprint(selection)) return null;
+    return parseLegacyPointObjectAiResponse(legacyEnvelope.analysis);
   } catch {
     return null;
   }
@@ -827,6 +1055,7 @@ export function writePointObjectAnalysis(analysis: PointObjectAiResponse, select
 export function clearPointObjectAnalysis(): void {
   try {
     window.sessionStorage.removeItem(POINT_OBJECT_SESSION_KEYS.analysis);
+    window.sessionStorage.removeItem(POINT_OBJECT_SESSION_KEYS.legacyAnalysis);
   } catch {
     // No durable browser state to clear.
   }

@@ -13,6 +13,7 @@ import {
   writePointObjectAnalysis,
   writePointObjectQuestion
 } from "@/components/point-to-object/live-session";
+import { POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION } from "@/components/point-to-object/live-types";
 import type {
   GroundedClaim,
   LiveMapSelection,
@@ -66,7 +67,7 @@ function humanizeAttribute(key: string): string {
   return key.replace(/^tag\./, "").replace(/^classification\./, "").replaceAll("_", " ").replaceAll(":", " · ").replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
-function friendlyEvidenceLabel(reference: string, t: ReturnType<typeof usePointObjectLocale>["t"]): string {
+function friendlyEvidenceLabel(reference: string, t: ReturnType<typeof usePointObjectLocale>["t"], locale: "en" | "ru"): string {
   const labels: Record<string, string> = {
     "EVD-COORDINATES": t("evidence.point"),
     "EVD-OBJECT": t("evidence.object"),
@@ -79,12 +80,17 @@ function friendlyEvidenceLabel(reference: string, t: ReturnType<typeof usePointO
     "EVD-SNAPSHOT": t("evidence.snapshot"),
     "EVD-RIGHTS": t("evidence.rights")
   };
-  return labels[reference] ?? t("evidence.generic");
+  if (/^EVD-CONTEXT-\d+$/.test(reference)) return locale === "ru" ? `Объект окружения · ${reference}` : `Nearby place · ${reference}`;
+  if (reference === "EVD-CONTEXT-SUMMARY") return locale === "ru" ? "Сводка окружения" : "Surroundings summary";
+  if (reference === "EVD-DISTRICT-PROFILE") return locale === "ru" ? "Расчётный профиль окружения" : "Derived context profile";
+  if (reference === "EVD-WIKIDATA-ENTITY") return locale === "ru" ? "Wikidata · связанный комплекс" : "Wikidata · linked complex";
+  if (/^EVD-WIKIDATA-P\d+$/.test(reference)) return locale === "ru" ? `Wikidata · факт связанного комплекса ${reference.replace("EVD-WIKIDATA-", "")}` : `Wikidata · linked-complex fact ${reference.replace("EVD-WIKIDATA-", "")}`;
+  return locale === "ru" ? `Запись источника · ${reference}` : `Source receipt · ${reference}`;
 }
 
 function EvidenceRefs({ references }: { references: string[] }) {
-  const { t } = usePointObjectLocale();
-  return <p className="mt-2 text-[11px] leading-4 text-muted">{t("analysis.evidence")} {[...new Set(references.map((reference) => friendlyEvidenceLabel(reference, t)))].join(", ")}</p>;
+  const { locale, t } = usePointObjectLocale();
+  return <details className="mt-2 text-[11px] leading-4 text-muted"><summary className="cursor-pointer select-none font-semibold">{t("analysis.evidence")} {references.length}</summary><p className="mt-1 break-words">{[...new Set(references.map((reference) => friendlyEvidenceLabel(reference, t, locale)))].join(" · ")}</p></details>;
 }
 
 function ClaimList({ items }: { items: GroundedClaim[] }) {
@@ -293,6 +299,7 @@ export function PointToObjectAnalysis() {
 
   useEffect(() => {
     if (!selection || analysis?.mode !== "openai" || loading) return;
+    if (analysis.schemaVersion !== POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION) return;
     if (analysis.request.locale === locale) {
       localeRefreshAttemptRef.current = null;
       return;
@@ -340,6 +347,9 @@ export function PointToObjectAnalysis() {
   }
 
   const content = analysis?.mode === "openai" ? analysis.content : null;
+  const semanticBrief = analysis?.mode === "openai" && analysis.schemaVersion === POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION
+    ? analysis.content.initialSemanticBrief
+    : null;
   const subject = analysis?.mode === "openai" ? analysis.subject : null;
   const sourceGeometryContainsPoint = subject?.coordinateAssociation === "open_map_geometry_contains_point";
   const sourceIdentityTrusted = subject?.coordinateAssociation === "trusted_open_map_identity";
@@ -366,6 +376,20 @@ export function PointToObjectAnalysis() {
   const localizedPriority = (value: "critical" | "high" | "medium") => locale === "ru" ? (value === "critical" ? "Критический" : value === "high" ? "Высокий" : "Средний") : value;
   const evidenceClassLabel = (value: "observed" | "derived" | "hypothesis") => value === "observed" ? t("analysis.observed") : value === "derived" ? t("analysis.derived") : t("analysis.hypothesis");
   const geoContext = content?.geoContext ?? subject?.geoContext ?? null;
+  const lowValueStandaloneReceipts = new Set([
+    "EVD-OSM-OBJECT", "EVD-OBJECT", "EVD-CLASSIFICATION", "EVD-ADDRESS", "EVD-GEOMETRY",
+    "EVD-CONTEXT-SUMMARY", "EVD-DISTRICT-PROFILE", "EVD-SOURCE", "EVD-SNAPSHOT", "EVD-RIGHTS"
+  ]);
+  const factPriority = (item: GroundedClaim) => item.evidenceRefs.includes("EVD-ALLOWED-FIELDS") ? 0
+    : item.evidenceRefs.includes("EVD-OBJECT-METRICS") ? 1
+      : item.evidenceRefs.some((reference) => reference.startsWith("EVD-WIKIDATA-")) ? 2
+        : item.evidenceRefs.some((reference) => /^EVD-CONTEXT-\d+$/.test(reference)) ? 3 : 4;
+  const mergedLocationContext = content
+    ? [...content.sourceFacts, ...content.locationContext]
+      .filter((item) => item.evidenceRefs.length === 0 || !item.evidenceRefs.every((reference) => lowValueStandaloneReceipts.has(reference)))
+      .filter((item, index, items) => items.findIndex((candidate) => candidate.statement === item.statement) === index)
+      .sort((left, right) => factPriority(left) - factPriority(right))
+    : [];
   const contextGroupLabels: Record<string, string> = locale === "ru" ? {
     residential: "Жильё", commercial: "Деловые объекты", hospitality: "Гостиницы", retail_daily_needs: "Торговля и услуги", education: "Образование", healthcare: "Здравоохранение", civic_culture: "Общественные и культурные объекты", transport: "Транспорт", access: "Дорожная доступность", open_space: "Открытые пространства", industrial: "Промышленность", construction: "Строительство", other_built: "Прочая застройка"
   } : {
@@ -419,6 +443,10 @@ export function PointToObjectAnalysis() {
                   </div>
                   <h2 className="mt-4 text-xl font-bold leading-8 tracking-[-0.025em] text-[#172b4d]">{content.decisionBrief.headline}</h2>
                   <p className="mt-3 text-base leading-7 text-[#344054]">{content.decisionBrief.summary}</p>
+                  {semanticBrief ? <div className="mt-5 rounded-2xl border border-[#d6e4e1] bg-[#f5faf8] p-4">
+                    <div className="flex items-center justify-between gap-3"><p className="text-[11px] font-bold uppercase tracking-[0.07em] text-[#176548]">{locale === "ru" ? "Контекст решения" : "Decision context"}</p><span className="text-[10px] font-semibold text-[#536963]">{confidenceLabel(semanticBrief.confidence)}</span></div>
+                    <ClaimList items={[semanticBrief.subject, semanticBrief.context, semanticBrief.access, semanticBrief.implication]} />
+                  </div> : null}
                   <ClaimList items={content.decisionBrief.reasons} />
                   {content.answerToQuestion && analysis?.mode === "openai" && Boolean(analysis.request.question) ? (
                     <div className="mt-6 rounded-2xl border border-[#cfe0f7] bg-[#eef6ff] p-4">
@@ -440,19 +468,19 @@ export function PointToObjectAnalysis() {
 
                 {geoContext ? <section className="rounded-[20px] border border-line bg-white p-5 shadow-soft sm:p-7">
                   <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div><h2 className="text-base font-bold">{locale === "ru" ? "Геоконтекст в радиусе 400 м" : "400 m geospatial context"}</h2><p className="mt-1 text-xs leading-5 text-muted">{locale === "ru" ? "Структура доступных объектов вокруг выбранной точки; расстояния рассчитаны по прямой." : "Available mapped features around the selected point; distances are straight-line."}</p></div>
+                    <div><h2 className="text-base font-bold">{locale === "ru" ? "Окружение в радиусе 400 м" : "Surroundings within 400 m"}</h2><p className="mt-1 text-xs leading-5 text-muted">{locale === "ru" ? "Объекты, найденные в открытой карте вокруг выбранной точки; расстояния рассчитаны по прямой." : "Features returned by the open map around the selected point; distances are straight-line."}</p></div>
                     <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase ${geoContext.coverage === "available" ? "bg-[#edf7f2] text-[#176548]" : "bg-[#fff5e8] text-[#8a4b08]"}`}>{geoContext.coverage === "available" ? (locale === "ru" ? "Данные доступны" : "Coverage available") : (locale === "ru" ? "Данные недоступны" : "Coverage unavailable")}</span>
                   </div>
                   {geoContext.coverage === "available" ? <>
                     <div className="mt-4 rounded-2xl bg-[#f2f8f5] p-4"><p className="text-[11px] font-bold uppercase tracking-[0.06em] text-[#176548]">{locale === "ru" ? "Характер окружения" : "District character"}</p><p className="mt-1 text-lg font-bold text-[#173b35]">{districtLabels[geoContext.districtCharacter.code] ?? humanizeAttribute(geoContext.districtCharacter.code)}</p><p className="mt-1 text-xs leading-5 text-[#536963]">{locale === "ru" ? "Определяющие группы:" : "Primary drivers:"} {geoContext.districtCharacter.driverGroups.map((group) => contextGroupLabels[group] ?? group).join(", ") || (locale === "ru" ? "сигнал недостаточен" : "insufficient signal")} · {confidenceLabel(geoContext.districtCharacter.confidence)}</p></div>
                     <dl className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                      <div className="rounded-xl border border-line p-3"><dt className="text-[10px] font-bold uppercase text-muted">{locale === "ru" ? "Выборка" : "Sample"}</dt><dd className="mt-1 text-lg font-bold">{geoContext.sampleSize}</dd></div>
-                      <div className="rounded-xl border border-line p-3"><dt className="text-[10px] font-bold uppercase text-muted">{locale === "ru" ? "Здания" : "Buildings"}</dt><dd className="mt-1 text-lg font-bold">{geoContext.mappedBuildingCount}</dd></div>
+                      <div className="rounded-xl border border-line p-3"><dt className="text-[10px] font-bold uppercase text-muted">{locale === "ru" ? "Объекты выборки" : "Returned features"}</dt><dd className="mt-1 text-lg font-bold">{geoContext.sampleSize}</dd></div>
+                      <div className="rounded-xl border border-line p-3"><dt className="text-[10px] font-bold uppercase text-muted">{locale === "ru" ? "Здания в выборке" : "Returned buildings"}</dt><dd className="mt-1 text-lg font-bold">{geoContext.mappedBuildingCount}</dd></div>
                       <div className="rounded-xl border border-line p-3"><dt className="text-[10px] font-bold uppercase text-muted">{locale === "ru" ? "Медиана этажей" : "Median levels"}</dt><dd className="mt-1 text-lg font-bold">{geoContext.medianMappedLevels ?? "—"}</dd><p className="mt-1 text-[10px] text-muted">{geoContext.mappedLevelsKnownCount}/{geoContext.mappedBuildingCount} {locale === "ru" ? "с этажностью" : "known"}</p></div>
                       <div className="rounded-xl border border-line p-3"><dt className="text-[10px] font-bold uppercase text-muted">{locale === "ru" ? "Доступность" : "Access"}</dt><dd className="mt-1 text-xs font-bold">{locale === "ru" ? "Транспорт" : "Transit"}: {geoContext.nearestTransitM === null ? "—" : `${geoContext.nearestTransitM} m`}</dd><p className="mt-1 text-[10px] text-muted">{locale === "ru" ? "Магистраль" : "Major road"}: {geoContext.nearestMajorRoadM === null ? "—" : `${geoContext.nearestMajorRoadM} m`}</p></div>
                     </dl>
-                    {geoContext.groups.length ? <div className="mt-4 grid gap-2 sm:grid-cols-2">{geoContext.groups.slice(0, 6).map((group) => <div key={group.group} className="flex items-center justify-between gap-3 rounded-xl bg-[#f8fafc] px-3 py-2 text-xs"><span className="font-semibold text-[#344054]">{contextGroupLabels[group.group] ?? group.group}</span><span className="shrink-0 tabular-nums text-muted">{group.count} · {group.sharePct}%{group.nearestDistanceM === null ? "" : ` · ${group.nearestDistanceM} m`}</span></div>)}</div> : null}
-                    {geoContext.capReached ? <p className="mt-3 rounded-lg border border-[#e6bd74] bg-[#fff9ed] px-3 py-2 text-[11px] text-[#79520d]">{locale === "ru" ? "Достигнут лимит выборки: доли описывают полученную выборку, а не полный реестр окружения." : "The sample cap was reached: shares describe the returned sample, not a complete area inventory."}</p> : null}
+                    {geoContext.groups.some((group) => group.count > 0) ? <div className="mt-4 grid gap-2 sm:grid-cols-2">{geoContext.groups.filter((group) => group.count > 0).slice(0, 8).map((group) => <div key={group.group} className="flex items-center justify-between gap-3 rounded-xl bg-[#f8fafc] px-3 py-2 text-xs"><span className="font-semibold text-[#344054]">{contextGroupLabels[group.group] ?? group.group}</span><span className="shrink-0 tabular-nums text-muted">{group.count} · {group.sharePct}%{group.nearestDistanceM === null ? "" : ` · ${group.nearestDistanceM} m`}</span></div>)}</div> : null}
+                    {geoContext.capReached ? <p className="mt-3 rounded-lg border border-[#e6bd74] bg-[#fff9ed] px-3 py-2 text-[11px] text-[#79520d]">{locale === "ru" ? "Достигнут лимит выборки: доли относятся только к найденным объектам, а не ко всему окружению." : "The sample cap was reached: shares describe only the returned features, not the full surroundings."}</p> : null}
                     {subject?.metrics ? <p className="mt-3 text-[11px] leading-5 text-muted">{locale === "ru" ? "Приближённая геометрия объекта" : "Approximate object geometry"}: {Math.round(subject.metrics.footprintAreaSqM).toLocaleString(locale)} {locale === "ru" ? "м²" : "m²"} · {Math.round(subject.metrics.footprintPerimeterM).toLocaleString(locale)} {locale === "ru" ? "м по периметру. Расчёт выполнен локально по генерализованной геометрии WGS84." : "m perimeter. Locally calculated from generalized WGS84 geometry."}</p> : null}
                   </> : <p className="mt-4 text-sm leading-6 text-muted">{locale === "ru" ? "Для этой точки выборка окружающих объектов не получена. Выводы о типе района не формируются." : "No surrounding-feature sample was returned for this point. No district-type inference is shown."}</p>}
                 </section> : null}
@@ -475,11 +503,11 @@ export function PointToObjectAnalysis() {
                   </ul>
                 </section>
 
-                <section className="rounded-[20px] border border-line bg-white p-5 shadow-soft sm:p-7">
+                {mergedLocationContext.length > 0 ? <section className="rounded-[20px] border border-line bg-white p-5 shadow-soft sm:p-7">
                   <h2 className="text-base font-bold">{t("analysis.locationContext")}</h2>
                   <p className="mt-1 text-xs leading-5 text-muted">{t("analysis.locationContextHelp")}</p>
-                  <ClaimList items={content.locationContext} />
-                </section>
+                  <ClaimList items={mergedLocationContext} />
+                </section> : null}
 
                 <div className="grid gap-5 lg:grid-cols-2">
                   <section className="rounded-[20px] border border-line bg-white p-5 shadow-soft">

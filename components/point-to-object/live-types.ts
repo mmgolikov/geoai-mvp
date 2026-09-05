@@ -3,6 +3,7 @@ import type {
   PointObjectLocale,
   PointObjectMarketKey
 } from "@/src/lib/prototype/point-to-object-markets";
+import type { PointObjectWikidataLinkedEntity } from "@/src/lib/prototype/point-to-object-wikidata-contract";
 
 export type LiveMapLocationKey = PointObjectMarketKey;
 export type LiveMapMarket = LiveMapLocationKey;
@@ -88,6 +89,7 @@ export type LiveResolvedObjectContext = {
   tags: Record<string, string>;
   metrics: PointObjectGeometryMetrics | null;
   geoContext: PointObjectGeoContext;
+  linkedEntity: PointObjectWikidataLinkedEntity | null;
 };
 
 export type LiveMapSelection = {
@@ -136,8 +138,10 @@ export type PointObjectReasoningEffort = "low" | "medium" | "high" | "xhigh";
 export type PointObjectEvidenceClass = "observed" | "derived" | "hypothesis";
 export type PointObjectConfidence = "low" | "medium";
 
-export const POINT_OBJECT_ANALYSIS_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V7_2026_09_04" as const;
-export const POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION = 5 as const;
+export const POINT_OBJECT_ANALYSIS_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V8_2026_09_06" as const;
+export const POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION = 6 as const;
+export const POINT_OBJECT_ANALYSIS_LEGACY_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V7_2026_09_04" as const;
+export const POINT_OBJECT_ANALYSIS_LEGACY_RESULT_SCHEMA_VERSION = 5 as const;
 
 export type PointObjectAiAttemptTrace = {
   attempt: number;
@@ -226,7 +230,28 @@ export type PointObjectFocusedAnswer = GroundedClaim & {
   missingEvidence: string[];
 };
 
+export type PointObjectInitialSemanticBrief = {
+  codes: {
+    subject: "linked_named_entity" | "named_open_map_object" | "classified_open_map_object" | "coordinate_only";
+    context: "hospitality_tourism_mapped" | "commercial_business_mapped" | "residential_mapped" |
+      "mixed_use_urban_mapped" | "civic_institutional_mapped" | "industrial_logistics_mapped" |
+      "open_space_recreation_mapped" | "sparse_open_context";
+    access: "mapped_transit_and_road" | "mapped_transit_only" | "mapped_road_only" | "mapped_access_unavailable";
+    implication: "developer_profile_validation" | "investor_profile_downside" | "asset_owner_profile_baseline" |
+      "developer_development_sequence" | "investor_development_downside" | "asset_owner_development_constraints" |
+      "developer_redevelopment_envelope" | "investor_redevelopment_downside" | "asset_owner_redevelopment_capital" |
+      "developer_due_diligence_sequence" | "investor_due_diligence_gates" | "asset_owner_due_diligence_baseline" |
+      "developer_custom_validation" | "investor_custom_downside" | "asset_owner_custom_baseline";
+  };
+  subject: GroundedClaim;
+  context: GroundedClaim;
+  access: GroundedClaim;
+  implication: GroundedClaim;
+  confidence: PointObjectConfidence;
+};
+
 export type PointObjectAiContent = {
+  initialSemanticBrief: PointObjectInitialSemanticBrief;
   decisionBrief: PointObjectDecisionBrief;
   signals: PointObjectDecisionSignal[];
   opportunities: PointObjectOpportunity[];
@@ -278,11 +303,13 @@ export type PointObjectAiSubject = {
   tags: Record<string, string>;
   metrics: PointObjectGeometryMetrics | null;
   geoContext: PointObjectGeoContext;
+  linkedEntity: PointObjectWikidataLinkedEntity | null;
 };
 
 export type PointObjectLiveContextResponse =
   | {
       mode: "resolved";
+      schemaVersion: 2;
       subject: LiveResolvedObjectContext;
     }
   | {
@@ -317,6 +344,20 @@ export type PointObjectAiResponse =
       content: PointObjectAiContent;
       subject: PointObjectAiSubject;
       telemetry: PointObjectAiTelemetry;
+    }
+  | {
+      mode: "openai";
+      schemaVersion: typeof POINT_OBJECT_ANALYSIS_LEGACY_RESULT_SCHEMA_VERSION;
+      generatedAt: string;
+      evidencePackId: string;
+      evidencePackHash: string;
+      request: PointObjectAnalysisRequestReceipt;
+      content: Omit<PointObjectAiContent, "initialSemanticBrief">;
+      subject: Omit<PointObjectAiSubject, "linkedEntity">;
+      telemetry: Omit<PointObjectAiTelemetry, "schemaVersion" | "promptVersion"> & {
+        schemaVersion: typeof POINT_OBJECT_ANALYSIS_LEGACY_RESULT_SCHEMA_VERSION;
+        promptVersion: typeof POINT_OBJECT_ANALYSIS_LEGACY_PROMPT_VERSION;
+      };
     }
   | {
       mode: "unavailable";

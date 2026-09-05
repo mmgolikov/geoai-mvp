@@ -24,6 +24,7 @@ import {
   isPointObjectLocale,
   isPointObjectMarketKey,
   nominatimLocale,
+  pointObjectMarket,
   type PointObjectLocale,
   type PointObjectMarketKey
 } from "@/src/lib/prototype/point-to-object-markets";
@@ -272,7 +273,9 @@ export async function POST(request: Request) {
       longitude: body.longitude,
       latitude: body.latitude,
       locale: nominatimLocale(body.locale),
-      osmFeatureId: body.expectedSourceFeatureId
+      osmFeatureId: body.expectedSourceFeatureId,
+      expectedCountryCode: pointObjectMarket(body.caseKey).countryCode,
+      deadlineAtMs: routeDeadline
     });
     if (body.expectedSourceFeatureId && body.expectedSourceFeatureId !== evidencePack.selectedObject.sourceFeatureId) {
       return NextResponse.json({
@@ -309,7 +312,8 @@ export async function POST(request: Request) {
         addressParts: evidencePack.selectedObject.addressParts,
         tags: evidencePack.selectedObject.tags,
         metrics: evidencePack.selectedObject.metrics,
-        geoContext: evidencePack.geoContext
+        geoContext: evidencePack.geoContext,
+        linkedEntity: evidencePack.linkedEntity
       }
     }, { headers: clearChallengeHeader(request) });
   } catch (error) {

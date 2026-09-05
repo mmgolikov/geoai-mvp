@@ -13,6 +13,7 @@ import {
   isPointObjectLocale,
   isPointObjectMarketKey,
   nominatimLocale,
+  pointObjectMarket,
   type PointObjectLocale,
   type PointObjectMarketKey
 } from "@/src/lib/prototype/point-to-object-markets";
@@ -141,10 +142,12 @@ export async function POST(request: Request) {
       longitude: parsed.value.longitude,
       latitude: parsed.value.latitude,
       locale: nominatimLocale(parsed.value.locale),
-      osmFeatureId: parsed.value.expectedSourceFeatureId ?? null
+      osmFeatureId: parsed.value.expectedSourceFeatureId ?? null,
+      expectedCountryCode: pointObjectMarket(parsed.value.caseKey).countryCode
     });
     return NextResponse.json({
       mode: "resolved",
+      schemaVersion: 2,
       subject: {
         name: evidencePack.selectedObject.name,
         address: evidencePack.selectedObject.displayAddress,
@@ -156,7 +159,8 @@ export async function POST(request: Request) {
         addressParts: evidencePack.selectedObject.addressParts,
         tags: evidencePack.selectedObject.tags,
         metrics: evidencePack.selectedObject.metrics,
-        geoContext: evidencePack.geoContext
+        geoContext: evidencePack.geoContext,
+        linkedEntity: evidencePack.linkedEntity
       }
     }, { headers: noStoreHeaders() });
   } catch (error) {
