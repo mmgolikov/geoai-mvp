@@ -42,6 +42,8 @@ export type ConceptMassingProperties = {
   heightM: number;
   /** Absolute extrusion base above the site datum. */
   baseM: number;
+  /** Tower support lineage; may be omitted only for legacy single-podium tower results. */
+  supportingPodiumId?: string | null;
   label: string;
 };
 
@@ -50,9 +52,9 @@ export type ConceptMassingResult = {
   variantId: ConceptAlternativeId;
   massingStyle: ConceptMassingStyle;
   requestedBlockCount: number;
-  /** Number of primary buildings/towers, excluding a supporting podium. */
+  /** Number of primary buildings/towers, excluding supporting podiums. */
   generatedBlockCount: number;
-  /** Actual GeoJSON feature count, including a supporting podium. */
+  /** Actual GeoJSON feature count, including supporting podiums. */
   generatedFeatureCount: number;
   aoiAreaSqM: number;
   /** Unique ground footprint. Stacked tower footprints do not double-count the podium. */
@@ -453,6 +455,7 @@ type PlannedVolume = {
   levels: number;
   baseLevels: number;
   use: Exclude<ConceptUse, "open_space">;
+  supportingPodiumIndex?: number;
 };
 
 const GEOMETRY_EPSILON_M = 0.02;
@@ -639,6 +642,67 @@ function dominantEdgeAngle(ringInput: MetricPoint[]): number {
   return angle;
 }
 
+function normalizeRectangleAngle(angle: number): number {
+  let normalized = angle;
+  while (normalized >= Math.PI / 2) normalized -= Math.PI;
+  while (normalized < -Math.PI / 2) normalized += Math.PI;
+  return normalized;
+}
+
+function rectangleAngleDistance(left: number, right: number): number {
+  const delta = Math.abs(normalizeRectangleAngle(left) - normalizeRectangleAngle(right));
+  return Math.min(delta, Math.PI - delta);
+}
+
+function principalAxisAngle(ringInput: MetricPoint[]): number {
+  const ring = openRing(ringInput);
+  const center = centroidOfPoints(ring);
+  let xx = 0;
+  let yy = 0;
+  let xy = 0;
+  for (const point of ring) {
+    const deltaX = point.x - center.x;
+    const deltaY = point.y - center.y;
+    xx += deltaX * deltaX;
+    yy += deltaY * deltaY;
+    xy += deltaX * deltaY;
+  }
+  return normalizeRectangleAngle(0.5 * Math.atan2(2 * xy, xx - yy));
+}
+
+function boundaryAlignedAngles(ringInput: MetricPoint[]): number[] {
+  const candidates = polygonEdges(ringInput)
+    .map(([start, end]) => ({
+      angle: normalizeRectangleAngle(Math.atan2(end.y - start.y, end.x - start.x)),
+      length: pointDistance(start, end)
+    }))
+    .sort((left, right) => right.length - left.length);
+  const unique: number[] = [];
+  for (const candidate of candidates) {
+    if (unique.every((angle) => rectangleAngleDistance(angle, candidate.angle) > toRadians(2))) {
+      unique.push(candidate.angle);
+    }
+    if (unique.length === 4) break;
+  }
+  return unique;
+}
+
+function adaptivePodiumAngles(ring: MetricPoint[], variantId: ConceptAlternativeId): number[] {
+  const dominant = dominantEdgeAngle(ring);
+  const principal = principalAxisAngle(ring);
+  const offset = variantId === "B" ? toRadians(12) : 0;
+  const ordered = [
+    dominant + offset,
+    dominant,
+    principal + offset,
+    principal,
+    ...boundaryAlignedAngles(ring).flatMap((angle) => variantId === "B" ? [angle + offset, angle] : [angle])
+  ].map(normalizeRectangleAngle);
+  return ordered.filter((angle, index) =>
+    ordered.findIndex((candidate) => rectangleAngleDistance(candidate, angle) <= toRadians(2)) === index
+  ).slice(0, 6);
+}
+
 function centroidOfPoints(pointsInput: MetricPoint[]): MetricPoint {
   const points = openRing(pointsInput);
   return points.reduce<MetricPoint>((sum, point) => ({ x: sum.x + point.x / points.length, y: sum.y + point.y / points.length }), { x: 0, y: 0 });
@@ -649,16 +713,18 @@ function findLargestEnvelope(
   aspectRatio: number,
   angle: number,
   setbackM: number,
-  variantId: ConceptAlternativeId
+  variantId: ConceptAlternativeId,
+  gridDivisions = 18,
+  binaryIterations = 24
 ): OrientedRectangle | null {
   const bounds = metricBounds(rings[0]);
   const center = centroidOfPoints(rings[0]);
   const candidates: MetricPoint[] = [center, { x: (bounds.minX + bounds.maxX) / 2, y: (bounds.minY + bounds.maxY) / 2 }];
-  for (let yIndex = 1; yIndex <= 17; yIndex += 1) {
-    for (let xIndex = 1; xIndex <= 17; xIndex += 1) {
+  for (let yIndex = 1; yIndex < gridDivisions; yIndex += 1) {
+    for (let xIndex = 1; xIndex < gridDivisions; xIndex += 1) {
       candidates.push({
-        x: bounds.minX + (bounds.maxX - bounds.minX) * xIndex / 18,
-        y: bounds.minY + (bounds.maxY - bounds.minY) * yIndex / 18
+        x: bounds.minX + (bounds.maxX - bounds.minX) * xIndex / gridDivisions,
+        y: bounds.minY + (bounds.maxY - bounds.minY) * yIndex / gridDivisions
       });
     }
   }
@@ -672,7 +738,7 @@ function findLargestEnvelope(
     if (!pointInPolygon(candidate, rings)) continue;
     let low = 0;
     let high = maximumArea;
-    for (let iteration = 0; iteration < 24; iteration += 1) {
+    for (let iteration = 0; iteration < binaryIterations; iteration += 1) {
       const area = (low + high) / 2;
       const width = Math.sqrt(area * aspectRatio);
       const height = area / Math.max(width, Number.EPSILON);
@@ -759,6 +825,9 @@ function featureFromVolume(
       levels: volume.levels,
       heightM,
       baseM,
+      ...(volume.supportingPodiumIndex === undefined ? {} : {
+        supportingPodiumId: `concept-${variantId.toLowerCase()}-${volume.supportingPodiumIndex + 1}`
+      }),
       label: `${program.title} · ${volume.role.replaceAll("_", " ")} ${index + 1}`
     },
     geometry: { type: "Polygon", coordinates: [closedRing] }
@@ -882,6 +951,14 @@ function targetFractions(variantId: ConceptAlternativeId): Array<[number, number
     : [[0.5, 0.2], [0.2, 0.5], [0.8, 0.5], [0.5, 0.8], [0.28, 0.28], [0.72, 0.72], [0.72, 0.28], [0.28, 0.72], [0.5, 0.4], [0.4, 0.6], [0.6, 0.6], [0.5, 0.75]];
 }
 
+type DistributedRectangleOptions = {
+  aspectRatios?: number[];
+  areaFactors?: number[];
+  gridDivisions?: number;
+  scaleSteps?: number[];
+  targetFractions?: Array<[number, number]>;
+};
+
 function placeDistributedRectangles(
   rings: MetricPoint[][],
   program: ValidatedRedevelopmentProgram,
@@ -890,30 +967,36 @@ function placeDistributedRectangles(
   seed: string,
   setbackM: number,
   gapM: number,
-  angleOffsets: number[]
+  angleOffsets: number[],
+  options: DistributedRectangleOptions = {}
 ): OrientedRectangle[] | null {
   const bounds = metricBounds(rings[0]);
   const dominant = dominantEdgeAngle(rings[0]);
-  const targets = targetFractions(variantId);
+  const targets = options.targetFractions ?? targetFractions(variantId);
+  const gridDivisions = options.gridDivisions ?? 22;
   const candidates: MetricPoint[] = [];
-  for (let yIndex = 1; yIndex <= 21; yIndex += 1) {
-    for (let xIndex = 1; xIndex <= 21; xIndex += 1) {
+  for (let yIndex = 1; yIndex < gridDivisions; yIndex += 1) {
+    for (let xIndex = 1; xIndex < gridDivisions; xIndex += 1) {
       candidates.push({
-        x: bounds.minX + (bounds.maxX - bounds.minX) * xIndex / 22,
-        y: bounds.minY + (bounds.maxY - bounds.minY) * yIndex / 22
+        x: bounds.minX + (bounds.maxX - bounds.minX) * xIndex / gridDivisions,
+        y: bounds.minY + (bounds.maxY - bounds.minY) * yIndex / gridDivisions
       });
     }
   }
-  const rawFactors = Array.from({ length: program.blockCount }, (_, index) => 0.88 + (index % 3) * 0.12);
+  const rawFactors = Array.from({ length: program.blockCount }, (_, index) =>
+    options.areaFactors?.[index % options.areaFactors.length] ?? 0.88 + (index % 3) * 0.12
+  );
   const factorScale = program.blockCount / rawFactors.reduce((sum, factor) => sum + factor, 0);
-  for (let scaleStep = 10; scaleStep >= 4; scaleStep -= 1) {
+  const scaleSteps = options.scaleSteps ?? Array.from({ length: 7 }, (_, index) => 10 - index);
+  for (const scaleStep of scaleSteps) {
     const scale = scaleStep / 10;
     const placed: OrientedRectangle[] = [];
     for (let index = 0; index < program.blockCount; index += 1) {
       const blockArea = desiredArea / program.blockCount * rawFactors[index] * factorScale * scale * scale;
       const narrow = Math.min(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY) /
         Math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY) < 0.3;
-      const aspect = narrow ? 2.6 : 1.25 + (index % 2) * 0.5;
+      const aspect = Math.max(1, options.aspectRatios?.[index % options.aspectRatios.length] ??
+        (narrow ? 2.6 : 1.25 + (index % 2) * 0.5));
       const width = Math.sqrt(blockArea * aspect);
       const height = blockArea / width;
       const offset = angleOffsets[index % angleOffsets.length] ?? 0;
@@ -1022,6 +1105,178 @@ function planCampus(
   }));
 }
 
+function ringIsConcave(ringInput: MetricPoint[]): boolean {
+  const ring = openRing(ringInput);
+  let sign = 0;
+  for (let index = 0; index < ring.length; index += 1) {
+    const previous = ring[(index + ring.length - 1) % ring.length];
+    const current = ring[index];
+    const next = ring[(index + 1) % ring.length];
+    const cross = (current.x - previous.x) * (next.y - current.y) -
+      (current.y - previous.y) * (next.x - current.x);
+    if (Math.abs(cross) <= GEOMETRY_EPSILON_M) continue;
+    const currentSign = Math.sign(cross);
+    if (sign !== 0 && currentSign !== sign) return true;
+    sign = currentSign;
+  }
+  return false;
+}
+
+function distributeTowerCounts(podiums: OrientedRectangle[], towerCount: number): number[] {
+  const totalArea = podiums.reduce((sum, podium) => sum + podium.width * podium.height, 0);
+  if (!Number.isFinite(totalArea) || totalArea <= 0) return [];
+  const raw = podiums.map((podium) => podium.width * podium.height / totalArea * towerCount);
+  const counts = raw.map((value) => Math.max(1, Math.floor(value)));
+  while (counts.reduce((sum, count) => sum + count, 0) > towerCount) {
+    let candidate = -1;
+    for (let index = 0; index < counts.length; index += 1) {
+      if (counts[index] <= 1) continue;
+      if (candidate === -1 || counts[index] - raw[index] > counts[candidate] - raw[candidate]) candidate = index;
+    }
+    if (candidate === -1) return [];
+    counts[candidate] -= 1;
+  }
+  while (counts.reduce((sum, count) => sum + count, 0) < towerCount) {
+    const candidate = raw.reduce((best, value, index) =>
+      value - counts[index] > raw[best] - counts[best] ? index : best, 0);
+    counts[candidate] += 1;
+  }
+  return counts;
+}
+
+function planTowersForPodiums(
+  podiums: OrientedRectangle[],
+  program: ValidatedRedevelopmentProgram,
+  variantId: ConceptAlternativeId,
+  seed: string
+): PlannedVolume[] | null {
+  if (podiums.length === 0 || podiums.length > program.blockCount) return null;
+  const podiumLevels = Math.max(1, Math.min(4, program.levelsMin - 1));
+  const activeUses = normalizedUseSequence(program);
+  const podiumUse = activeUses.includes("retail") ? "retail" : activeUses[0] ?? "civic";
+  const towerCounts = distributeTowerCounts(podiums, program.blockCount);
+  if (towerCounts.length !== podiums.length ||
+      towerCounts.some((count) => count < 1) ||
+      towerCounts.reduce((sum, count) => sum + count, 0) !== program.blockCount) return null;
+  const baseTowerAreaShare = Math.max(0.18, Math.min(0.36, (100 - program.openSpacePct) / 220));
+  const areaShares = [baseTowerAreaShare, baseTowerAreaShare * 0.84, 0.18, 0.14];
+  const aspectProfiles = variantId === "A"
+    ? [[1.25, 1.7], [1.7, 1.25], [2.1, 1.4], [1, 1.6]]
+    : [[1.7, 1.25], [1.25, 1.9], [2.2, 1.35], [1.5, 1]];
+  const angleProfiles = variantId === "A"
+    ? [[0, 0, 0, 0], [-7, 7, -7, 7], [0, 90, 0, 90]]
+    : [[8, -8, 8, -8], [0, 0, 0, 0], [90, 0, 90, 0]];
+  const placedGroups: OrientedRectangle[][] = [];
+  for (let podiumIndex = 0; podiumIndex < podiums.length; podiumIndex += 1) {
+    const podium = podiums[podiumIndex];
+    const count = towerCounts[podiumIndex];
+    const towerProgram: ValidatedRedevelopmentProgram = { ...program, blockCount: count, targetSiteCoveragePct: 32 };
+    const minimumDimension = Math.min(podium.width, podium.height);
+    const internalSetback = Math.max(2, Math.min(5, minimumDimension * 0.055));
+    const gapM = Math.max(2.5, Math.min(5, minimumDimension * 0.06));
+    let placed: OrientedRectangle[] | null = null;
+    for (const areaShare of areaShares) {
+      for (let profileIndex = 0; profileIndex < aspectProfiles.length && !placed; profileIndex += 1) {
+        for (const angles of angleProfiles) {
+          placed = placeDistributedRectangles(
+            [podium.points],
+            towerProgram,
+            variantId,
+            podium.width * podium.height * areaShare,
+            `${seed}:podium:${podiumIndex}`,
+            internalSetback,
+            gapM,
+            angles,
+            {
+              aspectRatios: aspectProfiles[profileIndex],
+              gridDivisions: 24
+            }
+          );
+          if (placed) break;
+        }
+      }
+      if (placed) break;
+    }
+    if (!placed || placed.length !== count) return null;
+    placedGroups.push(placed);
+  }
+  const podiumVolumes: PlannedVolume[] = podiums.map((podium) => ({
+    footprint: podium.points,
+    role: "podium",
+    primaryBlock: false,
+    levels: podiumLevels,
+    baseLevels: 0,
+    use: podiumUse
+  }));
+  let towerIndex = 0;
+  const towerVolumes: PlannedVolume[] = [];
+  for (let podiumIndex = 0; podiumIndex < placedGroups.length; podiumIndex += 1) {
+    for (const tower of placedGroups[podiumIndex]) {
+      towerVolumes.push({
+        footprint: tower.points,
+        role: "tower",
+        primaryBlock: true,
+        levels: levelForPrimary(program, seed, towerIndex, program.blockCount),
+        baseLevels: podiumLevels,
+        use: useForPrimary(program, towerIndex),
+        supportingPodiumIndex: podiumIndex
+      });
+      towerIndex += 1;
+    }
+  }
+  return [...podiumVolumes, ...towerVolumes];
+}
+
+function tryMultiplePodiumPlan(
+  rings: MetricPoint[][],
+  program: ValidatedRedevelopmentProgram,
+  variantId: ConceptAlternativeId,
+  seed: string,
+  desiredArea: number
+): PlannedVolume[] | null {
+  const countOrder = variantId === "A" ? [2, 3] : [3, 2];
+  const targetPattern = variantId === "A"
+    ? [[0.68, 0.2], [0.2, 0.68], [0.8, 0.68], [0.5, 0.82]] as Array<[number, number]>
+    : [[0.32, 0.2], [0.8, 0.68], [0.2, 0.68], [0.5, 0.82]] as Array<[number, number]>;
+  const profiles = [
+    { aspects: [2.2], offsets: [0, 90, 90] },
+    { aspects: [2.8, 2.2], offsets: [0, 90, 90] },
+    { aspects: [1.75], offsets: [0, 90, 90] },
+    { aspects: [3.5, 2.4, 2.4], offsets: [0, 90, 90] }
+  ];
+  for (const podiumCount of countOrder) {
+    if (podiumCount > program.blockCount) continue;
+    const podiumProgram: ValidatedRedevelopmentProgram = {
+      ...program,
+      blockCount: podiumCount,
+      targetSiteCoveragePct: program.targetSiteCoveragePct
+    };
+    for (const profile of profiles) {
+      const podiums = placeDistributedRectangles(
+        rings,
+        podiumProgram,
+        variantId,
+        desiredArea,
+        `${seed}:split:${podiumCount}`,
+        program.setbackM,
+        Math.max(0.75, program.setbackM * 0.08),
+        profile.offsets,
+        {
+          aspectRatios: profile.aspects,
+          areaFactors: [1],
+          gridDivisions: 40,
+          scaleSteps: [10],
+          targetFractions: targetPattern
+        }
+      );
+      if (!podiums) continue;
+      const volumes = planTowersForPodiums(podiums, program, variantId, seed);
+      if (volumes) return volumes;
+    }
+  }
+  return null;
+}
+
 function planTowersOnPodium(
   rings: MetricPoint[][],
   program: ValidatedRedevelopmentProgram,
@@ -1032,54 +1287,37 @@ function planTowersOnPodium(
   if (program.levelsMin < 2) {
     throw new ConceptMassingError("tower_height_incompatible", "Towers on a podium require primary heights of at least two levels.");
   }
-  const baseAngle = dominantEdgeAngle(rings[0]);
-  const preferredAngle = baseAngle + (variantId === "B" ? toRadians(12) : 0);
-  let maximum = findLargestEnvelope(rings, 1.45, preferredAngle, program.setbackM, variantId);
-  if (!maximum && variantId === "B") maximum = findLargestEnvelope(rings, 1.45, baseAngle, program.setbackM, variantId);
-  if (!maximum) throw new ConceptMassingError("programme_does_not_fit", "A podium does not fit inside this AOI and setback.");
-  const maximumArea = maximum.width * maximum.height;
-  const podiumArea = Math.min(desiredArea, maximumArea);
-  if (podiumArea < desiredArea * 0.7) {
-    throw new ConceptMassingError("programme_does_not_fit", "The requested podium coverage does not fit inside this AOI and setback.");
+  const aspects = variantId === "A"
+    ? [1.45, 1, 1.9, 2.8, 4, 6, 8]
+    : [1.45, 1.9, 1, 3.5, 2.6, 5, 8];
+  const angles = adaptivePodiumAngles(rings[0], variantId);
+  const concave = ringIsConcave(rings[0]);
+  let deferredSinglePodium: PlannedVolume[] | null = null;
+  for (const angle of angles) {
+    for (const aspect of aspects) {
+      const maximum = findLargestEnvelope(rings, aspect, angle, program.setbackM, variantId, 14, 18);
+      if (!maximum) continue;
+      const maximumArea = maximum.width * maximum.height;
+      if (maximumArea + 0.1 < desiredArea) continue;
+      const podium = scaleRectangle(maximum, Math.sqrt(desiredArea / maximumArea));
+      if (!polygonInsideAoi(podium.points, rings, program.setbackM)) continue;
+      const volumes = planTowersForPodiums([podium], program, variantId, seed);
+      if (!volumes) continue;
+      // A near-capacity rectangle on one concave arm is valid but spatially brittle; prefer a
+      // split layout when the same bounded search can use the site's disjoint buildable arms.
+      const tightlyConsumesOneConcaveArm = concave && desiredArea / maximumArea > 0.86;
+      if (!tightlyConsumesOneConcaveArm) return volumes;
+      deferredSinglePodium ??= volumes;
+    }
   }
-  const podium = scaleRectangle(maximum, Math.sqrt(podiumArea / maximumArea));
-  const podiumLevels = Math.max(1, Math.min(4, program.levelsMin - 1));
-  const towerProgramme: ValidatedRedevelopmentProgram = { ...program, targetSiteCoveragePct: 32 };
-  const towerAreaShare = Math.max(0.18, Math.min(0.5, (100 - program.openSpacePct) / 150));
-  const towerArea = podiumArea * towerAreaShare;
-  const towerRings = [podium.points];
-  const towerAngles = variantId === "A" ? [0, 0, 0, 0] : [8, -8, 8, -8];
-  const towers = placeDistributedRectangles(
-    towerRings,
-    towerProgramme,
-    variantId,
-    towerArea,
-    seed,
-    Math.max(3, Math.min(podium.width, podium.height) * 0.06),
-    Math.max(4, Math.min(podium.width, podium.height) * 0.05),
-    towerAngles
+  if (deferredSinglePodium && openRing(rings[0]).length > 12) return deferredSinglePodium;
+  const multiplePodiums = tryMultiplePodiumPlan(rings, program, variantId, seed, desiredArea);
+  if (multiplePodiums) return multiplePodiums;
+  if (deferredSinglePodium) return deferredSinglePodium;
+  throw new ConceptMassingError(
+    "programme_does_not_fit",
+    "The bounded podium-layout search could not produce the requested coverage and tower count inside this AOI and setback."
   );
-  if (!towers) throw new ConceptMassingError("programme_does_not_fit", "The requested tower count does not fit safely on the podium.");
-  const activeUses = normalizedUseSequence(program);
-  const podiumUse = activeUses.includes("retail") ? "retail" : activeUses[0] ?? "civic";
-  return [
-    {
-      footprint: podium.points,
-      role: "podium",
-      primaryBlock: false,
-      levels: podiumLevels,
-      baseLevels: 0,
-      use: podiumUse
-    },
-    ...towers.map((tower, index) => ({
-      footprint: tower.points,
-      role: "tower" as const,
-      primaryBlock: true,
-      levels: levelForPrimary(program, seed, index, towers.length),
-      baseLevels: podiumLevels,
-      use: useForPrimary(program, index)
-    }))
-  ];
 }
 
 function geoJsonRingToMetric(ring: Point[], forward: (point: Point) => MetricPoint): MetricPoint[] {
@@ -1104,7 +1342,10 @@ export function validateConceptMassingGeometry(
   const rings = aoiCoordinates.map((ring) => geoJsonRingToMetric(ring, projection.forward));
   const errors: string[] = [];
   const ids = new Set<string>();
-  if (result.featureCollection.features.length > MAX_CONCEPT_BLOCKS + 1) {
+  const maximumFeatureCount = program.massingStyle === "towers_on_podium"
+    ? MAX_CONCEPT_BLOCKS * 2
+    : MAX_CONCEPT_BLOCKS;
+  if (result.featureCollection.features.length > maximumFeatureCount) {
     errors.push("Concept feature count exceeds the bounded prototype limit.");
   }
   const projected = result.featureCollection.features.map((feature) => {
@@ -1141,21 +1382,45 @@ export function validateConceptMassingGeometry(
     }
     return { feature, footprint };
   });
-  const podium = projected.find((item) => item.feature.properties.volumeRole === "podium");
+  const podiums = projected.filter((item) => item.feature.properties.volumeRole === "podium");
+  const towers = projected.filter((item) => item.feature.properties.volumeRole === "tower");
+  const podiumById = new Map(podiums.map((item) => [item.feature.properties.id, item]));
+  const supportByTowerId = new Map<string, (typeof podiums)[number]>();
+  const supportedTowerCounts = new Map(podiums.map((item) => [item.feature.properties.id, 0]));
+  for (const item of projected) {
+    const supportId = item.feature.properties.supportingPodiumId;
+    if (item.feature.properties.volumeRole !== "tower") {
+      if (supportId !== undefined && supportId !== null) {
+        errors.push(`Concept feature ${item.feature.properties.id} must not declare podium support.`);
+      }
+      continue;
+    }
+    const support = typeof supportId === "string"
+      ? podiumById.get(supportId)
+      : podiums.length === 1 ? podiums[0] : undefined;
+    if (!support) {
+      errors.push(`Tower ${item.feature.properties.id} must reference one valid supporting podium.`);
+      continue;
+    }
+    supportByTowerId.set(item.feature.properties.id, support);
+    supportedTowerCounts.set(support.feature.properties.id,
+      (supportedTowerCounts.get(support.feature.properties.id) ?? 0) + 1);
+    if (!item.footprint.every((point) => pointInRing(point, support.footprint, true)) ||
+      Math.abs(item.feature.properties.baseM - support.feature.properties.heightM) > 0.05) {
+      errors.push(`Tower ${item.feature.properties.id} must sit inside and directly above its supporting podium.`);
+    }
+  }
   for (let leftIndex = 0; leftIndex < projected.length; leftIndex += 1) {
     for (let rightIndex = leftIndex + 1; rightIndex < projected.length; rightIndex += 1) {
       const left = projected[leftIndex];
       const right = projected[rightIndex];
-      const pairIsPodiumTower = (left.feature.properties.volumeRole === "podium" && right.feature.properties.volumeRole === "tower") ||
-        (right.feature.properties.volumeRole === "podium" && left.feature.properties.volumeRole === "tower");
-      if (pairIsPodiumTower) {
-        const podiumItem = left.feature.properties.volumeRole === "podium" ? left : right;
-        const towerItem = left.feature.properties.volumeRole === "tower" ? left : right;
-        if (!towerItem.footprint.every((point) => pointInRing(point, podiumItem.footprint, true)) ||
-          Math.abs(towerItem.feature.properties.baseM - podiumItem.feature.properties.heightM) > 0.05) {
-          errors.push("Tower volumes must sit inside and above the podium.");
-        }
-      } else if (polygonsOverlap(left.footprint, right.footprint)) {
+      const podiumItem = left.feature.properties.volumeRole === "podium" ? left
+        : right.feature.properties.volumeRole === "podium" ? right : null;
+      const towerItem = left.feature.properties.volumeRole === "tower" ? left
+        : right.feature.properties.volumeRole === "tower" ? right : null;
+      const linkedSupportPair = Boolean(podiumItem && towerItem &&
+        supportByTowerId.get(towerItem.feature.properties.id) === podiumItem);
+      if (!linkedSupportPair && polygonsOverlap(left.footprint, right.footprint)) {
         errors.push(`Concept footprints ${left.feature.properties.id} and ${right.feature.properties.id} overlap.`);
       }
     }
@@ -1172,8 +1437,8 @@ export function validateConceptMassingGeometry(
     errors.push("Fixed primary height was not preserved.");
   }
   const projectedPrimary = projected.filter((item) => item.feature.properties.primaryBlock);
-  const measuredGroundArea = program.massingStyle === "towers_on_podium" && podium
-    ? metricPolygonArea(podium.footprint)
+  const measuredGroundArea = program.massingStyle === "towers_on_podium"
+    ? podiums.reduce((sum, item) => sum + metricPolygonArea(item.footprint), 0)
     : projectedPrimary.reduce((sum, item) => sum + metricPolygonArea(item.footprint), 0);
   const measuredFloorArea = projected.reduce((sum, item) =>
     sum + metricPolygonArea(item.footprint) *
@@ -1199,9 +1464,18 @@ export function validateConceptMassingGeometry(
     if (wings.some((wing) => pointInRing(center, wing.footprint, true))) errors.push("Courtyard geometry must preserve an unbuilt central void.");
   }
   if (program.massingStyle === "towers_on_podium") {
-    if (!podium) errors.push("Tower geometry requires a physical podium feature.");
-    if (projected.filter((item) => item.feature.properties.volumeRole === "tower").length !== program.blockCount) {
+    if (podiums.length === 0) errors.push("Tower geometry requires at least one physical podium feature.");
+    if (podiums.length > program.blockCount) errors.push("Tower geometry cannot contain more podiums than towers.");
+    if (towers.length !== program.blockCount) {
       errors.push("Tower count does not match the requested control.");
+    }
+    if (projected.some((item) => item.feature.properties.volumeRole !== "podium" && item.feature.properties.volumeRole !== "tower")) {
+      errors.push("Tower geometry may contain only podium and tower volume roles.");
+    }
+    for (const podium of podiums) {
+      if ((supportedTowerCounts.get(podium.feature.properties.id) ?? 0) === 0) {
+        errors.push(`Podium ${podium.feature.properties.id} must support at least one tower.`);
+      }
     }
   }
   return [...new Set(errors)];
@@ -1218,7 +1492,8 @@ function buildMassingResult(
 ): ConceptMassingResult {
   const features = volumes.map((volume, index) => featureFromVolume(volume, index, program, variantId, inverse));
   const groundFootprintArea = program.massingStyle === "towers_on_podium"
-    ? metricPolygonArea(volumes.find((volume) => volume.role === "podium")?.footprint ?? [])
+    ? volumes.filter((volume) => volume.role === "podium")
+      .reduce((sum, volume) => sum + metricPolygonArea(volume.footprint), 0)
     : volumes.filter((volume) => volume.primaryBlock).reduce((sum, volume) => sum + metricPolygonArea(volume.footprint), 0);
   const estimatedFloorArea = volumes.reduce((sum, volume) =>
     sum + metricPolygonArea(volume.footprint) * Math.max(0, volume.levels - volume.baseLevels), 0);
@@ -1241,7 +1516,7 @@ function buildMassingResult(
   if (Math.abs(result.achievedSiteCoveragePct - program.targetSiteCoveragePct) > 1) {
     throw new ConceptMassingError(
       "programme_does_not_fit",
-      "The requested site coverage cannot be achieved safely inside this AOI and setback."
+      "The bounded geometry search exhausted its valid layouts before it could fit the requested site coverage inside this AOI and setback."
     );
   }
   const errors = validateConceptMassingGeometry(aoiCoordinates, program, result);
@@ -1324,17 +1599,30 @@ function reflectValidatedAlternativeAcrossAoiCenter(
   }
   const projection = metricProjection(outer);
   const center = centroidOfPoints(geoJsonRingToMetric(outer, projection.forward));
-  const volumes: PlannedVolume[] = source.featureCollection.features.map((feature) => ({
-    footprint: geoJsonRingToMetric(feature.geometry.coordinates[0] as Point[], projection.forward).map((point) => ({
-      x: 2 * center.x - point.x,
-      y: 2 * center.y - point.y
-    })),
-    role: feature.properties.volumeRole,
-    primaryBlock: feature.properties.primaryBlock,
-    levels: feature.properties.levels,
-    baseLevels: Math.round(feature.properties.baseM / FLOOR_HEIGHT_M),
-    use: feature.properties.use
-  }));
+  const sourceIndexById = new Map(source.featureCollection.features.map((feature, index) => [feature.properties.id, index]));
+  const sourcePodiumIndices = source.featureCollection.features
+    .map((feature, index) => feature.properties.volumeRole === "podium" ? index : -1)
+    .filter((index) => index >= 0);
+  const volumes: PlannedVolume[] = source.featureCollection.features.map((feature) => {
+    const explicitSupportIndex = typeof feature.properties.supportingPodiumId === "string"
+      ? sourceIndexById.get(feature.properties.supportingPodiumId)
+      : undefined;
+    const supportingPodiumIndex = feature.properties.volumeRole === "tower"
+      ? explicitSupportIndex ?? (sourcePodiumIndices.length === 1 ? sourcePodiumIndices[0] : undefined)
+      : undefined;
+    return {
+      footprint: geoJsonRingToMetric(feature.geometry.coordinates[0] as Point[], projection.forward).map((point) => ({
+        x: 2 * center.x - point.x,
+        y: 2 * center.y - point.y
+      })),
+      role: feature.properties.volumeRole,
+      primaryBlock: feature.properties.primaryBlock,
+      levels: feature.properties.levels,
+      baseLevels: Math.round(feature.properties.baseM / FLOOR_HEIGHT_M),
+      use: feature.properties.use,
+      supportingPodiumIndex
+    };
+  });
   return buildMassingResult(
     aoiCoordinates,
     program,

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { registerHooks } from "node:module";
+import { performance } from "node:perf_hooks";
 
 registerHooks({
   resolve(specifier, context, nextResolve) {
@@ -50,6 +51,50 @@ function geometrySignature(result: ReturnType<typeof generateConceptMassing>) {
 
 function featureAreaSqM(feature: ReturnType<typeof generateConceptMassing>["featureCollection"]["features"][number]) {
   return calculatePolygonMeasurements(feature.geometry.coordinates[0].slice(0, -1) as [number, number][]).areaSqM;
+}
+
+function featureAspectRatio(feature: ReturnType<typeof generateConceptMassing>["featureCollection"]["features"][number]) {
+  const ring = feature.geometry.coordinates[0];
+  const lengths = ring.slice(0, -1).map((point, index) => {
+    const next = ring[index + 1];
+    const latitude = (point[1] + next[1]) / 2 * Math.PI / 180;
+    return Math.hypot(
+      (next[0] - point[0]) * 111_320 * Math.cos(latitude),
+      (next[1] - point[1]) * 110_540
+    );
+  });
+  return Math.max(...lengths) / Math.min(...lengths);
+}
+
+function assertTowerPodiumContract(
+  polygon: [number, number][][],
+  program: Parameters<typeof generateConceptMassing>[1],
+  result: ReturnType<typeof generateConceptMassing>,
+  expectedPodiumCount: number
+) {
+  assertGeometryContract(polygon, program, result);
+  const podiums = result.featureCollection.features.filter((feature) => feature.properties.volumeRole === "podium");
+  const towers = result.featureCollection.features.filter((feature) => feature.properties.volumeRole === "tower");
+  const podiumById = new Map(podiums.map((feature) => [feature.properties.id, feature]));
+  assert.equal(podiums.length, expectedPodiumCount);
+  assert.equal(towers.length, program.blockCount);
+  assert.ok(result.generatedFeatureCount <= 24, "Tower concepts must stay within the bounded two-features-per-tower cap.");
+  const usedPodiums = new Set<string>();
+  for (const tower of towers) {
+    assert.equal(typeof tower.properties.supportingPodiumId, "string", "Generated towers must expose explicit support lineage.");
+    const support = podiumById.get(tower.properties.supportingPodiumId ?? "");
+    assert.ok(support, "Every generated tower must reference an existing podium.");
+    assert.equal(tower.properties.baseM, support.properties.heightM);
+    assert.ok(tower.properties.heightM > tower.properties.baseM);
+    usedPodiums.add(support.properties.id);
+  }
+  assert.equal(usedPodiums.size, podiums.length, "Every generated podium must support at least one tower.");
+  assert.equal(result.minGeneratedLevels, program.levelsMin);
+  assert.equal(result.maxGeneratedLevels, program.levelsMax);
+  const measuredGroundArea = podiums.reduce((sum, podium) => sum + featureAreaSqM(podium), 0);
+  assert.ok(Math.abs(measuredGroundArea - result.generatedFootprintAreaSqM) /
+    Math.max(1, result.generatedFootprintAreaSqM) < 0.025,
+  "Ground footprint must equal the sum of disjoint podium footprints without stacked tower double-counting.");
 }
 
 function controlsFromProgram(program: {
@@ -197,6 +242,175 @@ assert.ok(new Set(towerFeatures.map((feature) => feature.properties.levels)).siz
 const towerAlternatives = generateConceptMassingAlternatives(aoi, commercialValidation.value, "geoai-tower-alternatives");
 assert.equal(towerAlternatives.length, 2);
 assert.notEqual(geometrySignature(towerAlternatives[0].massing), geometrySignature(towerAlternatives[1].massing));
+
+const legacySinglePodium = structuredClone(towers);
+for (const feature of legacySinglePodium.featureCollection.features) {
+  if (feature.properties.volumeRole === "tower") delete feature.properties.supportingPodiumId;
+}
+assert.deepEqual(validateConceptMassingGeometry(aoi, commercialValidation.value, legacySinglePodium), [],
+  "A legacy result without explicit tower support IDs remains readable only when one podium is unambiguous.");
+
+const cycle03ProgramValidation = validateRedevelopmentProgram({
+  ...commercialProgram,
+  title: "Synthetic ten-tower control",
+  summary: "Synthetic deterministic adversarial geometry fixture.",
+  blockCount: 10,
+  levelsMin: 10,
+  levelsMax: 53,
+  targetSiteCoveragePct: 42,
+  openSpacePct: 32,
+  setbackM: 10,
+  useMix: [
+    { use: "office", sharePct: 58 },
+    { use: "residential", sharePct: 24 },
+    { use: "retail", sharePct: 10 },
+    { use: "open_space", sharePct: 8 }
+  ],
+  rationale: ["Exercises adaptive and split podium placement with fixed controls."]
+});
+if (!cycle03ProgramValidation.ok) throw new Error(cycle03ProgramValidation.errors.join("; "));
+const cycle03Program = cycle03ProgramValidation.value;
+const cycle03Fixtures = {
+  rotatedLong: [[
+    [37.61819284, 55.74902122],
+    [37.62245933, 55.75025333],
+    [37.62180716, 55.75097878],
+    [37.61754067, 55.74974667],
+    [37.61819284, 55.74902122]
+  ]],
+  concaveL: [[
+    [37.62000000, 55.75000000],
+    [37.62399033, 55.75000000],
+    [37.62399033, 55.75090465],
+    [37.62159613, 55.75090465],
+    [37.62159613, 55.75226162],
+    [37.62000000, 55.75226162],
+    [37.62000000, 55.75000000]
+  ]],
+  concaveU: [[
+    [37.62000000, 55.75000000],
+    [37.62478840, 55.75000000],
+    [37.62478840, 55.75199023],
+    [37.62351149, 55.75199023],
+    [37.62351149, 55.75072372],
+    [37.62127691, 55.75072372],
+    [37.62127691, 55.75199023],
+    [37.62000000, 55.75199023],
+    [37.62000000, 55.75000000]
+  ]],
+  geometricNonfit: [[
+    [37.62000000, 55.75000000],
+    [37.62063845, 55.75000000],
+    [37.62063845, 55.75036186],
+    [37.62000000, 55.75036186],
+    [37.62000000, 55.75000000]
+  ]]
+} as const satisfies Record<string, readonly (readonly [number, number])[][]>;
+
+const cycle03Timings: Record<string, number> = {};
+function generateTimedCycle03Alternatives(
+  id: "rotatedLong" | "concaveL" | "concaveU",
+  expectedPodiumCount: number
+) {
+  const polygon = cycle03Fixtures[id].map((ring) => ring.map((point) => [...point] as [number, number]));
+  const started = performance.now();
+  const generated = generateConceptMassingAlternatives(polygon, cycle03Program, `cycle03:${id}`);
+  cycle03Timings[id] = Number((performance.now() - started).toFixed(1));
+  assert.ok(cycle03Timings[id] < 2_500, `${id} must complete both alternatives inside the bounded per-case budget.`);
+  assert.equal(generated.length, 2);
+  assert.notEqual(geometrySignature(generated[0].massing), geometrySignature(generated[1].massing));
+  for (const alternative of generated) {
+    assertTowerPodiumContract(polygon, cycle03Program, alternative.massing, expectedPodiumCount);
+  }
+  return { polygon, generated };
+}
+
+const rotatedCycle03 = generateTimedCycle03Alternatives("rotatedLong", 1);
+const rotatedPodium = rotatedCycle03.generated[0].massing.featureCollection.features
+  .find((feature) => feature.properties.volumeRole === "podium");
+assert.ok(rotatedPodium);
+assert.ok(featureAspectRatio(rotatedPodium) > 2.5,
+  "The elongated rotated AOI must use an adaptive podium aspect ratio instead of the old fixed 1.45 ratio.");
+const lCycle03 = generateTimedCycle03Alternatives("concaveL", 2);
+const uCycle03 = generateTimedCycle03Alternatives("concaveU", 3);
+
+const clockwiseL = [[...lCycle03.polygon[0]].reverse()] as [number, number][][];
+const clockwiseStarted = performance.now();
+const clockwiseLResult = generateConceptMassing(clockwiseL, cycle03Program, "cycle03:concaveL", "A");
+cycle03Timings.clockwiseL = Number((performance.now() - clockwiseStarted).toFixed(1));
+assert.ok(cycle03Timings.clockwiseL < 2_500);
+assertTowerPodiumContract(clockwiseL, cycle03Program, clockwiseLResult, 2);
+assert.equal(clockwiseLResult.achievedSiteCoveragePct, lCycle03.generated[0].massing.achievedSiteCoveragePct,
+  "Clockwise and counter-clockwise forms must preserve the same feasibility class and requested metrics.");
+
+const missingSupport = structuredClone(lCycle03.generated[0].massing);
+const missingSupportTower = missingSupport.featureCollection.features
+  .find((feature) => feature.properties.volumeRole === "tower");
+assert.ok(missingSupportTower);
+delete missingSupportTower.properties.supportingPodiumId;
+assert.ok(validateConceptMassingGeometry(lCycle03.polygon, cycle03Program, missingSupport)
+  .some((error) => /valid supporting podium/.test(error)),
+"Multi-podium results must fail closed when tower support lineage is missing.");
+const wrongSupport = structuredClone(lCycle03.generated[0].massing);
+const wrongSupportPodiums = wrongSupport.featureCollection.features
+  .filter((feature) => feature.properties.volumeRole === "podium");
+const wrongSupportTower = wrongSupport.featureCollection.features
+  .find((feature) => feature.properties.volumeRole === "tower");
+assert.ok(wrongSupportTower && wrongSupportPodiums.length === 2);
+wrongSupportTower.properties.supportingPodiumId = wrongSupportPodiums
+  .find((feature) => feature.properties.id !== wrongSupportTower.properties.supportingPodiumId)?.properties.id ?? "missing";
+assert.ok(validateConceptMassingGeometry(lCycle03.polygon, cycle03Program, wrongSupport)
+  .some((error) => /directly above its supporting podium/.test(error)),
+"A tower must not be relinked to a different podium without matching containment.");
+const overlappingPodiums = structuredClone(uCycle03.generated[0].massing);
+const overlappingPodiumFeatures = overlappingPodiums.featureCollection.features
+  .filter((feature) => feature.properties.volumeRole === "podium");
+assert.equal(overlappingPodiumFeatures.length, 3);
+overlappingPodiumFeatures[1].geometry.coordinates = structuredClone(overlappingPodiumFeatures[0].geometry.coordinates);
+assert.ok(validateConceptMassingGeometry(uCycle03.polygon, cycle03Program, overlappingPodiums)
+  .some((error) => /overlap/.test(error)), "Split podium footprints must remain disjoint.");
+
+let nonfitError: unknown;
+const nonfitPolygon = cycle03Fixtures.geometricNonfit
+  .map((ring) => ring.map((point) => [...point] as [number, number]));
+const nonfitStarted = performance.now();
+try {
+  generateConceptMassing(nonfitPolygon, cycle03Program, "cycle03:geometric-nonfit", "A");
+} catch (error) {
+  nonfitError = error;
+}
+cycle03Timings.geometricNonfit = Number((performance.now() - nonfitStarted).toFixed(1));
+assert.ok(cycle03Timings.geometricNonfit < 2_500);
+assert.ok(nonfitError instanceof Error && "code" in nonfitError && nonfitError.code === "programme_does_not_fit");
+assert.match(nonfitError.message, /bounded/i);
+assert.doesNotMatch(nonfitError.message, /mathematically impossible|planning infeasible|site is impossible/i,
+  "Bounded solver exhaustion must not be described as legal, planning, or mathematical impossibility.");
+
+const starCenter = [37.62, 55.75] as const;
+const metresPerLongitude = 111_320 * Math.cos(starCenter[1] * Math.PI / 180);
+const twentyFourVertexRing = Array.from({ length: 24 }, (_, index): [number, number] => {
+  const angle = index * Math.PI * 2 / 24;
+  const radiusM = index % 2 === 0 ? 180 : 115;
+  return [
+    starCenter[0] + Math.cos(angle) * radiusM / metresPerLongitude,
+    starCenter[1] + Math.sin(angle) * radiusM / 110_540
+  ];
+});
+twentyFourVertexRing.push(twentyFourVertexRing[0]);
+const denseStarted = performance.now();
+const denseAlternatives = generateConceptMassingAlternatives(
+  [twentyFourVertexRing],
+  cycle03Program,
+  "cycle03:twenty-four-vertex-concave"
+);
+cycle03Timings.twentyFourVertexConcave = Number((performance.now() - denseStarted).toFixed(1));
+assert.ok(cycle03Timings.twentyFourVertexConcave < 2_500,
+  "A maximum-complexity accepted AOI must not turn the bounded deterministic search into a timeout.");
+assert.equal(denseAlternatives.length, 2);
+for (const alternative of denseAlternatives) {
+  assertTowerPodiumContract([twentyFourVertexRing], cycle03Program, alternative.massing, 1);
+}
+console.log("cycle03 geometry timings ms", cycle03Timings);
 
 const civicProgram = conceptTemplate("civic_green", "en");
 const civicValidation = validateRedevelopmentProgram(civicProgram);
