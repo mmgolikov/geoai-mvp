@@ -644,7 +644,7 @@ test("Create A/B and mobile profile remain coherent offline", async ({ page }, t
   await expect(mapPresentation).toHaveText("Hide existing buildings");
   await page.getByText("Concept parameters", { exact: true }).click();
   await page.getByRole("slider", { name: "Blocks" }).press("ArrowRight");
-  await expect(page.getByText("Edited", { exact: true })).toHaveCount(1);
+  await expect(page.getByText("Edited", { exact: true })).toHaveCount(0);
   await expect(page.getByTestId("reset-edited-create-controls")).toBeVisible();
   const generateConcept = page.getByTestId("create-generate-action");
   await expect(generateConcept).toHaveText("Generate concept");
@@ -653,7 +653,8 @@ test("Create A/B and mobile profile remain coherent offline", async ({ page }, t
   await expect(generateConcept).toHaveText("Already generated");
   await expect(generateConcept).toBeDisabled();
   expect(createPostRequests).toHaveLength(1);
-  expect(createPostRequests[0]?.lockedControlKeys).toEqual(["blockCount"]);
+  expect([...(createPostRequests[0]?.lockedControlKeys as string[])].sort()).toEqual(
+    ["blockCount", "levelsMin", "levelsMax", "targetSiteCoveragePct", "openSpacePct", "setbackM"].sort());
   await expect(page.getByTestId("create-alternative-a")).toHaveAttribute("aria-selected", "true");
   await expect(page.getByTestId("generated-concept-metrics")).toContainText("Generated blocks1");
   await page.getByTestId("create-alternative-b").click();
@@ -684,7 +685,8 @@ test("Create A/B and mobile profile remain coherent offline", async ({ page }, t
   await expect.poll(() => createPostRequests.length).toBe(2);
   await expect(generateConcept).toHaveText("Already generated");
   await expect(generateConcept).toBeDisabled();
-  expect(createPostRequests[1]?.lockedControlKeys).toEqual([]);
+  expect([...(createPostRequests[1]?.lockedControlKeys as string[])].sort()).toEqual(
+    ["blockCount", "levelsMin", "levelsMax", "targetSiteCoveragePct", "openSpacePct", "setbackM"].sort());
   await page.getByTestId("create-clear-generated").click();
   await expect(page.getByTestId("generated-concept-summary")).toHaveCount(0);
   await expect(mapPresentation).toHaveText("Hide existing buildings");

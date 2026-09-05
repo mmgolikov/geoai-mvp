@@ -157,8 +157,9 @@ assert.match(pendingInvalidation, /requestIdRef\.current \+= 1;[\s\S]*requestRef
 assert.doesNotMatch(pendingInvalidation, /onReset\(\)/, "Draft edits must preserve the last committed result");
 assert.match(create, /function selectTemplate[\s\S]*invalidatePendingRequest\(\);[\s\S]*setTemplateId/);
 assert.match(create, /function updateControl[\s\S]*invalidatePendingRequest\(\);[\s\S]*setControls/);
-assert.match(create, /lockedControlKeys: \[\.\.\.lockedControlKeys\]/, "Create must send only explicitly edited controls to the engine lock contract");
-assert.match(create, /setLockedControlKeys\(new Set\(\)\)/, "Template and local reset actions must clear edited-control locks");
+assert.match(create, /lockedControlKeys: \[\.\.\.lockedControlKeys\]/, "Create must send the explicit fixed controls to the engine lock contract");
+assert.match(create, /setLockedControlKeys\(new Set\(POINT_OBJECT_CREATE_EDITOR_CONTROL_KEYS\)\)/, "Template and local reset actions must preserve the fixed-default contract");
+assert.doesNotMatch(create, /setLockedControlKeys\(new Set\(\)\)/, "Reset must not silently restore soft controls");
 assert.ok(create.includes('data-testid={`create-alternative-${alternative.id.toLowerCase()}`}'), "Create must expose stable A/B option controls");
 assert.match(client, /conceptMassing=\{mode === "create" \? activeConceptMassing : null\}/, "The map must render the active returned concept alternative");
 assert.match(create, /id="point-object-create-prompt"[\s\S]*onChange=\{\(event\) => \{[\s\S]*invalidatePendingRequest\(\);[\s\S]*setCustomPrompt/);

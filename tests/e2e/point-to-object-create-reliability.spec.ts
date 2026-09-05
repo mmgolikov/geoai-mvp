@@ -2,6 +2,7 @@ import { expect, test, type Page, type Route } from "@playwright/test";
 
 const createPosts: Array<Record<string, unknown>> = [];
 let challengeGets = 0;
+const fixedControlKeys = ["blockCount", "levelsMin", "levelsMax", "targetSiteCoveragePct", "openSpacePct", "setbackM"];
 
 async function json(route: Route, body: unknown, status = 200) {
   await route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
@@ -125,6 +126,23 @@ async function installRoutes(page: Page) {
     }
     const request = route.request().postDataJSON() as Record<string, unknown>;
     createPosts.push(request);
+    const requestControls = request.controls as Record<string, number>;
+    if (!request.customPrompt && requestControls.targetSiteCoveragePct > 28) {
+      await json(route, {
+        mode: "programme_adjustment_required",
+        error: "A validated lower-coverage candidate is available.",
+        suggestion: {
+          control: "targetSiteCoveragePct",
+          requestedValue: requestControls.targetSiteCoveragePct,
+          suggestedValue: 20,
+          validatedAchievedValue: 20,
+          searchAttempts: 2,
+          basis: "bounded_validated_geometry_candidate"
+        },
+        telemetry: { attempts: 0, providerCalls: 0, estimatedCostUsd: 0 }
+      }, 422);
+      return;
+    }
     if (request.customPrompt === "force failure") {
       await json(route, { mode: "unavailable", error: "Intentional offline failure." }, 503);
       return;
@@ -253,7 +271,7 @@ test("Create separates draft from committed geometry and never spends on local-o
   await expect(generate).toBeDisabled();
   expect(createPosts).toHaveLength(1);
   expect(challengeGets).toBe(1);
-  expect(createPosts[0].lockedControlKeys).toEqual(["blockCount"]);
+  expect([...(createPosts[0].lockedControlKeys as string[])].sort()).toEqual([...fixedControlKeys].sort());
 
   await page.getByTestId("create-alternative-b").click();
   await expect(page.getByTestId("generated-concept-metrics")).toContainText("1,500");
@@ -270,7 +288,7 @@ test("Create separates draft from committed geometry and never spends on local-o
   await expect(page.getByTestId("generated-concept-summary")).toContainText("Generation 2 committed result.");
   expect(createPosts).toHaveLength(2);
   expect(challengeGets).toBe(2);
-  expect(createPosts[1].lockedControlKeys).toEqual([]);
+  expect([...(createPosts[1].lockedControlKeys as string[])].sort()).toEqual([...fixedControlKeys].sort());
 
   const prompt = page.getByLabel("Custom direction");
   await prompt.fill("force failure");
@@ -317,4 +335,50 @@ test("Create separates draft from committed geometry and never spends on local-o
   await page.getByTestId("create-clear-generated").click();
   await expect(page.getByTestId("generated-concept-summary")).toHaveCount(0);
   await expect(generate).toHaveText("Generate concept");
+});
+
+test("Create coverage proposal is explicit and applying it preserves the committed result without a request", async ({ page }, testInfo) => {
+  createPosts.length = 0;
+  challengeGets = 0;
+  await installRoutes(page);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto("/prototype/point-to-object");
+  await page.getByRole("tab", { name: "Create" }).click();
+  await page.getByLabel("Upload GeoJSON").setInputFiles({
+    name: "coverage-proposal-ui-fixture.geojson",
+    mimeType: "application/geo+json",
+    buffer: Buffer.from(JSON.stringify({ type: "Polygon", coordinates: [[
+      [55.27015, 25.20515], [55.27065, 25.20515], [55.27065, 25.20565],
+      [55.27015, 25.20565], [55.27015, 25.20515]
+    ]] }))
+  });
+  await page.getByRole("button", { name: "Public campus" }).click();
+  const generate = page.getByTestId("create-generate-action");
+  await generate.click();
+  await expect(page.getByTestId("generated-concept-summary")).toContainText("Generation 1 committed result.");
+  expect([...(createPosts[0].lockedControlKeys as string[])].sort()).toEqual([...fixedControlKeys].sort());
+
+  await page.getByText("Concept parameters", { exact: true }).click();
+  await page.getByRole("slider", { name: "Site coverage" }).press("ArrowRight");
+  await expect(page.getByLabel("Custom direction")).toHaveValue("");
+  await generate.click();
+  await expect(page.getByTestId("create-coverage-suggestion")).toContainText("29% → 20%");
+  await expect(page.getByTestId("generated-concept-summary")).toContainText("Generation 1 committed result.");
+  expect(createPosts).toHaveLength(2);
+  expect(challengeGets).toBe(2);
+  await page.getByTestId("create-coverage-suggestion").scrollIntoViewIfNeeded();
+  await page.screenshot({ path: testInfo.outputPath("coverage-proposal-before-apply.png") });
+  await page.getByTestId("create-apply-suggested-coverage").click();
+  await expect(page.getByTestId("create-coverage-suggestion")).toHaveCount(0);
+  await expect(page.getByTestId("generated-concept-summary")).toContainText("Generation 1 committed result.");
+  await expect(generate).toHaveText("Update concept");
+  expect(createPosts).toHaveLength(2);
+  expect(challengeGets).toBe(2);
+  await generate.click();
+  await expect(page.getByTestId("generated-concept-summary")).toContainText("Generation 3 committed result.");
+  expect((createPosts[2].controls as Record<string, number>).targetSiteCoveragePct).toBe(20);
+  expect([...(createPosts[2].lockedControlKeys as string[])].sort()).toEqual([...fixedControlKeys].sort());
+  await expect(generate).toHaveText("Already generated");
+  await expect(generate).toBeDisabled();
+  await page.screenshot({ path: testInfo.outputPath("coverage-proposal-applied.png") });
 });

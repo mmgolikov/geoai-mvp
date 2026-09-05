@@ -18,6 +18,25 @@ The first iteration improves the current protected Preview, establishes contract
 
 **Cycle 02, 2026-09-05 evening, takes precedence for Find/Create.** The founder explicitly approved complete roles/scenarios/settings/comparison and reliable area deletion/replacement/generation semantics. dev_1 owns Find and parent integration, gen_ai_1 owns Create/renderer, and Control owns integrated verification and one protected Preview update. The earlier compact Task-only Find is rejected. Preserve its clean styling and 430 px drawer, but not its hidden role/scenario controls. Baseline/rollback is `432b3f361d82dcfc24e5f28a82eddd6dfe5535ef` / `dpl_7PsAVbtbxE8MCdCiRucHRVvjV8pX`.
 
+### Cycle 03 — adaptive generator
+
+The later [Cycle 03 scope](POINT_TO_OBJECT_001_V6_UMBRELLA_CHANGE_REQUEST.md#cycle-03--adaptive-create-generator-2026-09-05) takes precedence for Create parameter defaults and geometry, while retaining Cycle 02 lifecycle and Find behavior. Baseline/rollback: `55e4593dc495337558dbacf43384d020a59b09ce` / `dpl_Cr7bEPpDF1x2f2m2TE6hKZNcpsMN`. Controls/preflight commit `abb4eabaf8cbae24531361769638a0eb1423e248` is integrated locally as `2e70a7d`; geometry is permission-blocked, with no geometry source edits. No new Preview is published or verified.
+
+| Cycle 03 item | Owner | Acceptance | Status |
+| --- | --- | --- | --- |
+| Adaptive and multi-podium geometry | gen_ai_1 | Irregular/elongated sites; validated support, containment, disjoint ground metrics and primary counts | Blocked by managed permission review; requires direct founder authorization in gen_ai_1. Do not transfer denied edits or bypass review |
+| Explicit controls and preflight | dev_1 | Fixed numeric values by default; fixed no-fit before AI; validated suggested coverage requires application | Locally integrated; dedicated fixtures, actual-handler offline checks, lint and build 79/79 pass |
+| Adversarial and browser acceptance | Control | Synthetic complex AOIs, API call counts, preservation/rollback, EN/RU and 430 px drawer | Controls/preflight integration: six offline browser journeys pass. Adaptive geometry remains unimplemented; synthetic coverage witnesses do not prove complete programme feasibility |
+| Protected Preview | Control | Exact-head CI, browser evidence, receipt and unchanged Main/Production | Held pending geometry and combined acceptance. Current Preview unchanged; live interactive browser check also requires Mac unlock |
+
+No live OpenAI invocation was performed in Cycle 03. Actual-handler tests substitute the provider transport and source adapter while executing the real request/challenge/origin/geometry pipeline. They verify zero provider calls/cost on deterministic no-fit or suggested adjustments, one stubbed call on success, and unknown rather than zero cost when transport fails without usage. UI tests use isolated browser fixtures and do not establish live-provider or live-map acceptance.
+
+Scope of preflight: blank custom direction and a complete fixed template programme only. Nonempty custom direction can change structural intent/use mix even with all numeric controls fixed, so it requires AI programme resolution and subsequent geometry validation. It must not be silently replaced by template geometry. Such custom requests can incur provider cost before a geometry failure; a universal zero-cost failure guarantee is not claimed.
+
+Custom-intent follow-up `b8194e151c5909e4fda071b8a54d23756c8f2aa6` is integrated locally as `e19a2741f320a6ef897005634bff6c2153137fff`. Independent P1 review is closed: a nonempty request cannot inherit template use/style locks simply from numeric locks. The actual-handler no-retail fixture changed from 502 before the correction to 200 in one stubbed attempt, retaining the requested use mix in programme and geometry. Focused checks and the rebuilt 79-route application pass; no paid provider call was used.
+
+### Cycle 02 acceptance
+
 | Cycle 02 item | Acceptance | Status |
 | --- | --- | --- |
 | Full Find | Visible role/scenario settings, executable minimum/maximum mapped levels and scenario presets, comparison add/remove/clear/open, EN/RU | Integrated; filtered payload and comparison browser journeys pass; actual EN/RU local-map rendering verified |
@@ -86,7 +105,7 @@ The [2026-09-05 functional-UI/Create correction](POINT_TO_OBJECT_001_V6_UMBRELLA
 
 ## Founder blockers
 
-No founder input is required to complete the current protected-Preview P0 evidence cycle.
+Cycle 03 requires direct founder authorization in the existing `gen_ai_1` task to edit its prepared geometry branch. The first source edit was denied because that task's direct user context was analysis-only. No edits were made in that lane. Interactive live-browser verification also requires the founder to unlock the Mac. The earlier P0 evidence cycle is separate from these current blockers.
 
 The following future work requires explicit founder action or approval:
 

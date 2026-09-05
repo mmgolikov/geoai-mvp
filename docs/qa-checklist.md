@@ -85,6 +85,19 @@ These checks apply only to `codex/point-to-object-clickable-prototype-v1` / PR #
 - [ ] Courtyard, perimeter, podium/towers and campus differ in actual valid geometry; fixed floors remain fixed, setbacks/concave AOIs are respected, podium metrics do not double-count, and feasible A/B options differ without extra model requests.
 - [ ] Rendered checks distinguish mocked/offline journeys from live API evidence and prove A/B display, full existing-building replacement and Show existing/Reset restoration. Publish only after the verified integration; record exact Preview/CI separately from local checks.
 
+## Cycle 03 adaptive Create acceptance
+
+- [x] Locally verified on controls/preflight integration `2e70a7d`: displayed numeric values are fixed by default, including restored/reset editor state. No new automatic-adjustment UI is introduced. Dedicated fixtures and actual browser request payloads confirm all six fixed keys.
+- [x] Local actual-handler offline checks confirm deterministic fixed-programme failure and its validated coverage suggestion before source/provider calls. Suggestions are not mathematical maxima. The browser proposal/apply journey confirms explicit application, retained prior result and no new request on Apply.
+- [x] Custom direction is not constrained to the template use mix/style merely by six numeric locks. Blank direction supports deterministic template preflight; nonempty direction requires programme resolution and post-model validation. Actual-handler no-retail regression returns the requested changed use mix in one attempt without silent template substitution. Independent P1 closure verified at `e19a274`; focused checks and build 79/79 pass after correction.
+- [ ] Multi-podium output validates every support: towers remain inside their associated podium and above its top, podiums do not overlap, primary counts remain exact, and footprint/floor-area metrics include all supports without double counting.
+- [ ] Synthetic elongated/rotated/L/U/concave/narrow AOIs, clockwise rings and infeasible controls are checked with explicit fixture scope and bounded measured solver time. A failed heuristic search is not presented as planning infeasibility.
+- [ ] The existing 33 layout combinations and Create draft/stale-response/rollback tests stay active. Inspect actual generated 3D geometry, not only metadata or rectangles invented by UI fixtures.
+- [x] Local actual-handler checks confirm error telemetry after provider dispatch; unknown transport usage remains unknown cost, not zero. Deterministic preflight failures confirm zero provider calls and zero cost. All provider transport is stubbed in these tests; no live paid request was made.
+- [ ] Exact-head CI and protected Preview receipt distinguish offline tests, actual live UI and any unavailable paid-provider checks. No paid live control, Main/Production or hosted state change is authorized by this slice.
+
+Local controls/preflight verification: Node 24.19.0 lint and build (79/79 routes), existing Create checks, new preflight/actual-route checks, V5 interaction, V6 contracts, data honesty and API/secret static checks pass. The combined offline browser suite passes six journeys, including layout boundaries, Find comparison, source replacement/restoration, A/B, stale-response preservation and explicit coverage application. After custom-intent correction, all six journeys pass again in 46.4 s on application head `e19a274`; final screenshots live in `/private/tmp/geoai-cycle03-final-browser-evidence`. The proposal uses blank custom direction and a numeric control change, consistent with template preflight; its screenshot was visually inspected. This is not adaptive multi-podium acceptance or live-map/provider evidence. Geometry permission and interactive Mac unlock remain separate blockers.
+
 ## Environment
 
 - [ ] `.env.local` exists locally when running Mapbox.

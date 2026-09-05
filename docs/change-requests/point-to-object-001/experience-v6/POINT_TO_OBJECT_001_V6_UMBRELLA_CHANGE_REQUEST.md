@@ -224,6 +224,36 @@ Before V6 Preview evidence can be recorded:
 4. **V6.1:** founder-selected GeoContext slice and no-regret generative variant spike.
 5. **Later gated work:** hosted persistence, licensed/controlled sources, provider POC and pilot-grade operations.
 
+## Cycle 03 — Adaptive Create generator, 2026-09-05
+
+Status: founder-approved implementation scope; not yet verified or deployed.
+
+Approval: after the Moscow screenshot coverage failure and its diagnosis, the founder requested: “понятно тогда давай развивать генератор”. This authorizes the bounded generator correction below, not a Production release or a new paid provider test.
+
+Problem and business reason: a developer-selected elongated/concave AOI must not be reduced to one fixed-aspect rectangular podium. The current solver rejects heuristic coverage shortfalls as though they prove site infeasibility, and does so after a potentially charged AI call. Displayed controls can also be silently treated as soft defaults. This prevents credible redevelopment exploration.
+
+Baseline and rollback: application `55e4593dc495337558dbacf43384d020a59b09ce`, protected Preview `dpl_Cr7bEPpDF1x2f2m2TE6hKZNcpsMN`, Draft PR #147. Work remains on isolated successor branches; Control alone integrates into `codex/point-to-object-clickable-prototype-v1` and may update protected Preview after verification. Main, Production, hosted Supabase, Auth/env/secrets, model routing and paid subscriptions remain unchanged.
+
+Scope and ownership:
+
+- gen_ai_1: deterministic geometry only. Adaptive aspect/orientation/placement; multiple non-overlapping podiums when a single podium is unsuitable; exact primary-tower count and validated tower-to-podium support; accurate union-equivalent ground area and stacked floor-area accounting. Existing courtyard/campus/perimeter and A/B remain valid. All search is bounded. Report solver exhaustion, not a claimed mathematical/planning maximum.
+- dev_1: Create controls, request/preflight and response UX. Displayed numeric values are fixed by default, with explicit opt-in if AI parameter adjustment is retained. Determine the actual programme/style being tested. Reject a deterministic no-fit before a paid call when programme inputs are fixed; offer a specifically validated lower-coverage candidate for user application where possible, never silently relax controls. Variable-AI cases must not be falsely pre-rejected. Retain usable generation-usage metadata after provider-side errors where available. A/B switching and applying a proposed parameter change do not themselves call AI.
+- Control: integration, independent adversarial geometry and API-order checks, browser/visual regression, docs and exact-head Preview receipt. Existing worker task names are reused. No concurrent ownership of the same file.
+
+Custom-intent boundary: six fixed numeric controls do not fix use mix or structural intent. Only a known template programme with blank custom direction is eligible for template-based deterministic preflight. Any nonempty custom direction first requires programme resolution; retain numeric locks but do not impose template use mix/style as a substitute for the user's text. In that path, post-model geometry validation remains necessary and can fail after a paid call. Never claim universally zero-cost no-fit. Tests must include negated style and no-retail requests without template-mismatch repair or silent template substitution.
+
+Affected surface: Create drawer, generation route and deterministic geometry contract only. Do not redesign Find/Analyse, widen the 430 px desktop drawer, change map replacement lifecycle or introduce permanent explanatory boilerplate. UI remains EN/RU with concise actionable failures.
+
+Acceptance:
+
+1. A public synthetic elongated Moscow-like concave AOI exercises 10 towers, levels 10–53, 42% target coverage, 32% open space and 10 m setback. Either a fully validated exact programme is generated or an explicitly identified alternative target can be applied. The fixture is not the founder's exact unsaved polygon.
+2. Include rectangle, rotated elongated, L/U shapes, constrained narrow and genuinely impossible cases, opposite ring winding and A/B. No crossing AOI/setback, tower over unsupported podium, duplicate identity, overlap, lost buildings or false coverage/floor-area metrics.
+3. Fixed default controls survive the complete request/AI/result path. A failed heuristic search is not labeled a legal, engineering or planning impossibility. No unsourced maximum/guaranteed density is presented.
+4. Fixed-programme no-fit uses zero OpenAI calls. Any suggested coverage is backed by actual validated geometry, requires explicit application, and leaves previous valid geometry intact. Stale requests, style switches, delete/reset and unchanged Generate remain covered.
+5. Focused contracts, lint/build, browser tests and exact-head CI pass before Preview handoff. Inspect actual rendered 3D fixture geometry as well as numeric tests. A paid live AI control is not authorized in this slice; distinguish provider fixtures from live integration evidence.
+
+Data impact: no new source, hosted persistence, private AOI transfer or change to provider licensing. Generated geometry remains conceptual screening, not architecture/BIM, approved planning or investment validation.
+
 ## Rollback
 
 Revert the bounded V6 commit chain to pre-V6 branch head `d85ef69624bc79c50af788c165c0760dcab01c8f`, then restore its protected Preview if required. Do not reset or rewrite `main`.
