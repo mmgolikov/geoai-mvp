@@ -256,6 +256,10 @@ Data impact: no new source, hosted persistence, private AOI transfer or change t
 
 Integration quality correction: the adaptive placement initially allowed excessive footprint shrinking at a proposed lower target on a 40 x 40 m site. The final solver and validator enforce limited prototype visual floors (tower area >=70 sq m and minimum caliper width >=6.5 m; at >=40 levels, >=90 sq m and >=7.5 m). These are not engineering/planning requirements or a feasibility certificate. Tiny-footprint negative fixtures, the original complex-site matrix and preflight/actual-handler contracts all pass. Full evidence scope and remaining limitations are recorded in the integrated backlog.
 
+## Cycle 04 — Profile-owned audience, useful geocontext and site-responsive generation
+
+The founder approved the next bounded iteration on 2026-09-05. The [Cycle 04 change request](CYCLE_04_GEOCONTEXT_GENERATOR_CHANGE_REQUEST.md) covers Find audience ownership, locale/AOI UX corrections, audited geocontext enrichment and more complex deterministic geometry. It begins from Cycle 03 head `d5091f2c62e14936fc0440f396b4cfedfd45f53c`. Local source/geometry/UX acceptance, build and ten browser journeys are complete; the [integration receipt](CYCLE_04_INTEGRATION_RECEIPT.md) defines the bounded source activation and remaining external Preview gate. Main/Production are outside this scope.
+
 ## Rollback
 
 Revert the bounded V6 commit chain to pre-V6 branch head `d85ef69624bc79c50af788c165c0760dcab01c8f`, then restore its protected Preview if required. Do not reset or rewrite `main`.

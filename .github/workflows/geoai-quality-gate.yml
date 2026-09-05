@@ -226,6 +226,12 @@ jobs:
           set -euo pipefail
           npm run test:point-to-object-autocomplete | tee artifacts/point-to-object-autocomplete-check.txt
 
+      - name: Point-to-object source and semantic analysis contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:point-to-object-geocontext | tee artifacts/point-to-object-geocontext-check.txt
+
       - name: Point-to-object V5 interaction contract
         shell: bash
         run: |

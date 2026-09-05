@@ -16,6 +16,22 @@ The first iteration improves the current protected Preview, establishes contract
 
 ## Current iteration
 
+### Cycle 04 — active successor
+
+The [founder-approved Cycle 04 change request](CYCLE_04_GEOCONTEXT_GENERATOR_CHANGE_REQUEST.md) takes precedence for this iteration. Baseline is `d5091f2c62e14936fc0440f396b4cfedfd45f53c`. The [integration receipt](CYCLE_04_INTEGRATION_RECEIPT.md) records completed local source/UX/geometry acceptance, build 79/79 and ten browser journeys. Exact successor CI/Preview readbacks belong in Draft PR #147 after publication, not in a pre-claimed release statement.
+
+| Work package | Owner | Required outcome | State |
+| --- | --- | --- | --- |
+| UX-04 | dev_1; Main integration | Profile-only audience, full Find role/scenario/settings/comparison; preserved Create draft on locale change; one-time uploaded AOI fit | Locally integrated and browser-checked; includes MapLibre host-height correction and compact Russian area-heading layout; final combined Preview pending |
+| GEO-04 audit | data_geo_1 | Current-code loss analysis and 1–2 primary-source-reviewed enrichment candidates with usage and evidence contracts | Completed and reviewed by Main; artifact hash `8e88beba3f3e06c6727aadbbbcac44213a3de7b954d29bff196e1dcaa721bea1`; no new source active yet |
+| GEO-04 integration | data_geo_1; Main review/integration | One known-QID Wikidata adapter, existing OSM radius/projection repair and useful source-bound initial brief | Owner `3caa05f` integrated as `bb08c29`; five independent counterexamples fixed and retested; V6/current and V5/historical contracts plus browser rendering pass; no live AI acceptance claimed |
+| GEN-04 | gen_ai_1; Main integration | Valid non-rectangular forms and improved concave-site distribution, exact controls and independent geometry metrics | Owner `9e150c7` integrated as `41fafdd`; independent strict matrix 20/20 and rendered A/B/restore checks pass; prototype geometry only, final combined Preview pending |
+| Integrated acceptance | Main | Final SHA contracts/build/visual/CI/Preview; 430 px drawer, replacement/restore and unchanged main/Production | Local gate complete: build 79/79, ten browser cases, source and geometry oracles. One Preview push and exact-head external readbacks follow |
+
+Remaining code boundary: `point-to-object-ai-core.ts` keeps standard initial prose server-owned and permits model-authored text in the focused answer. Stronger model settings alone do not enrich initial prose. Cycle 04 improves the data/projection and adds a concrete object/surroundings/access/goal brief, while filtering duplicate resolver narration. Point/AOI semantic parity, additional paid/official providers and live AI acceptance are not claimed.
+
+### Previous iteration scopes
+
 **Cycle 02, 2026-09-05 evening, takes precedence for Find/Create.** The founder explicitly approved complete roles/scenarios/settings/comparison and reliable area deletion/replacement/generation semantics. dev_1 owns Find and parent integration, gen_ai_1 owns Create/renderer, and Control owns integrated verification and one protected Preview update. The earlier compact Task-only Find is rejected. Preserve its clean styling and 430 px drawer, but not its hidden role/scenario controls. Baseline/rollback is `432b3f361d82dcfc24e5f28a82eddd6dfe5535ef` / `dpl_7PsAVbtbxE8MCdCiRucHRVvjV8pX`.
 
 ### Cycle 03 — adaptive generator

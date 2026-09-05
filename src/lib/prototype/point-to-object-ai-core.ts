@@ -1591,6 +1591,7 @@ export function renderInitialSemanticBrief(
   const accessCode = semanticAccessCodeFor(support);
   const implicationCode = semanticImplicationCodeFor(request);
   const subjectName = selected.name ?? localized(locale, "Selected location", "Выбранная локация");
+  const russianSubjectFor = selected.name ? `объекта «${selected.name}»` : "выбранной локации";
   const subjectClass = friendlyFeatureLabel(selected.featureClass, locale);
   const address = selected.displayAddress;
   const conciseAddress = address && selected.name && address.toLocaleLowerCase("en-US").startsWith(`${selected.name.toLocaleLowerCase("en-US")},`)
@@ -1679,25 +1680,25 @@ export function renderInitialSemanticBrief(
   };
   const sparseImplicationByPerspective: Record<PointObjectAnalysisPerspective, Record<PointObjectAnalysisGoal, string>> = {
     developer: {
-      object_profile: localized(locale, `For ${subjectName}, confirm the asset-to-parcel match and permitted use before defining its development profile.`, `Для ${subjectName} сначала сопоставьте объект с участком и проверьте разрешённое использование.`),
-      development_screening: localized(locale, `For ${subjectName}, verify permitted use, site constraints and access capacity before defining a development programme.`, `Для ${subjectName} проверьте разрешённое использование, ограничения участка и пропускную способность доступа до выбора программы развития.`),
-      redevelopment: localized(locale, `For ${subjectName}, verify existing-building condition, permitted changes and access capacity before testing redevelopment.`, `Для ${subjectName} проверьте состояние здания, допустимые изменения и пропускную способность доступа до оценки реконструкции.`),
-      due_diligence: localized(locale, `For ${subjectName}, verify the parcel match, rights, planning controls and access capacity.`, `Для ${subjectName} проверьте участок, права, градостроительные ограничения и пропускную способность доступа.`),
-      custom: localized(locale, `For ${subjectName}, bind the customer's question to the specific official or client source it requires.`, `Для ${subjectName} свяжите вопрос клиента с конкретным официальным или клиентским источником.`)
+      object_profile: localized(locale, `For ${subjectName}, confirm the asset-to-parcel match and permitted use before defining its development profile.`, `Для ${russianSubjectFor} сначала сопоставьте объект с участком и проверьте разрешённое использование.`),
+      development_screening: localized(locale, `For ${subjectName}, verify permitted use, site constraints and access capacity before defining a development programme.`, `Для ${russianSubjectFor} проверьте разрешённое использование, ограничения участка и пропускную способность доступа до выбора программы развития.`),
+      redevelopment: localized(locale, `For ${subjectName}, verify existing-building condition, permitted changes and access capacity before testing redevelopment.`, `Для ${russianSubjectFor} проверьте состояние здания, допустимые изменения и пропускную способность доступа до оценки реконструкции.`),
+      due_diligence: localized(locale, `For ${subjectName}, verify the parcel match, rights, planning controls and access capacity.`, `Для ${russianSubjectFor} проверьте участок, права, градостроительные ограничения и пропускную способность доступа.`),
+      custom: localized(locale, `For ${subjectName}, bind the customer's question to the specific official or client source it requires.`, `Для ${russianSubjectFor} свяжите вопрос клиента с конкретным официальным или клиентским источником.`)
     },
     investor: {
-      object_profile: localized(locale, `For ${subjectName}, check occupancy, income history, tenant mix and comparable transactions before positioning the asset.`, `Для ${subjectName} проверьте загрузку, историю дохода, состав арендаторов и сопоставимые сделки до оценки позиционирования актива.`),
-      development_screening: localized(locale, `For ${subjectName}, check permitted use, demand evidence, costs and comparable transactions before testing development.`, `Для ${subjectName} проверьте разрешённое использование, спрос, затраты и сопоставимые сделки до оценки развития.`),
-      redevelopment: localized(locale, `For ${subjectName}, check condition, refurbishment cost, occupancy and demand evidence before testing repositioning.`, `Для ${subjectName} проверьте состояние, стоимость реконструкции, загрузку и спрос до оценки репозиционирования.`),
-      due_diligence: localized(locale, `For ${subjectName}, verify title and planning records, income history, costs and comparable transactions.`, `Для ${subjectName} подтвердите права и градостроительные документы, историю дохода, затраты и сопоставимые сделки.`),
-      custom: localized(locale, `For ${subjectName}, bind the investment question to verified operating, market and legal records.`, `Для ${subjectName} свяжите инвестиционный вопрос с подтверждёнными операционными, рыночными и правовыми данными.`)
+      object_profile: localized(locale, `For ${subjectName}, check occupancy, income history, tenant mix and comparable transactions before positioning the asset.`, `Для ${russianSubjectFor} проверьте загрузку, историю дохода, состав арендаторов и сопоставимые сделки до оценки позиционирования актива.`),
+      development_screening: localized(locale, `For ${subjectName}, check permitted use, demand evidence, costs and comparable transactions before testing development.`, `Для ${russianSubjectFor} проверьте разрешённое использование, спрос, затраты и сопоставимые сделки до оценки развития.`),
+      redevelopment: localized(locale, `For ${subjectName}, check condition, refurbishment cost, occupancy and demand evidence before testing repositioning.`, `Для ${russianSubjectFor} проверьте состояние, стоимость реконструкции, загрузку и спрос до оценки репозиционирования.`),
+      due_diligence: localized(locale, `For ${subjectName}, verify title and planning records, income history, costs and comparable transactions.`, `Для ${russianSubjectFor} подтвердите права и градостроительные документы, историю дохода, затраты и сопоставимые сделки.`),
+      custom: localized(locale, `For ${subjectName}, bind the investment question to verified operating, market and legal records.`, `Для ${russianSubjectFor} свяжите инвестиционный вопрос с подтверждёнными операционными, рыночными и правовыми данными.`)
     },
     asset_owner: {
-      object_profile: localized(locale, `For ${subjectName}, check condition, occupancy, building systems and service capacity.`, `Для ${subjectName} проверьте состояние, загрузку, инженерные системы и доступную мощность.`),
-      development_screening: localized(locale, `For ${subjectName}, check utility capacity, planning controls and operational disruption before testing development.`, `Для ${subjectName} проверьте мощности, градостроительные ограничения и влияние работ на эксплуатацию до оценки развития.`),
-      redevelopment: localized(locale, `For ${subjectName}, check condition, systems, occupancy and refurbishment phasing before choosing a reuse path.`, `Для ${subjectName} проверьте состояние, инженерные системы, загрузку и этапы реконструкции до выбора повторного использования.`),
-      due_diligence: localized(locale, `For ${subjectName}, reconcile the asset register, rights, maintenance history and operating data.`, `Для ${subjectName} сверьте реестр актива, права, историю обслуживания и операционные данные.`),
-      custom: localized(locale, `For ${subjectName}, test the operating question against owner and technical records.`, `Для ${subjectName} проверьте операционный вопрос по данным собственника и техническим материалам.`)
+      object_profile: localized(locale, `For ${subjectName}, check condition, occupancy, building systems and service capacity.`, `Для ${russianSubjectFor} проверьте состояние, загрузку, инженерные системы и доступную мощность.`),
+      development_screening: localized(locale, `For ${subjectName}, check utility capacity, planning controls and operational disruption before testing development.`, `Для ${russianSubjectFor} проверьте мощности, градостроительные ограничения и влияние работ на эксплуатацию до оценки развития.`),
+      redevelopment: localized(locale, `For ${subjectName}, check condition, systems, occupancy and refurbishment phasing before choosing a reuse path.`, `Для ${russianSubjectFor} проверьте состояние, инженерные системы, загрузку и этапы реконструкции до выбора повторного использования.`),
+      due_diligence: localized(locale, `For ${subjectName}, reconcile the asset register, rights, maintenance history and operating data.`, `Для ${russianSubjectFor} сверьте реестр актива, права, историю обслуживания и операционные данные.`),
+      custom: localized(locale, `For ${subjectName}, test the operating question against owner and technical records.`, `Для ${russianSubjectFor} проверьте операционный вопрос по данным собственника и техническим материалам.`)
     }
   };
   const implicationStatement = `${horizonLead}${hasUsableContext

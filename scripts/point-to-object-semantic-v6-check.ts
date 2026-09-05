@@ -60,7 +60,15 @@ function geoContext(sparse = false) {
   };
 }
 
-function evidencePack(sparse = false): any {
+function evidencePack(sparse = false, market: "dubai" | "singapore" = "dubai", named = true): any {
+  // Synthetic semantic fixtures, not observations of actual buildings or districts.
+  const city = market === "singapore" ? "Singapore" : "Dubai";
+  const country = market === "singapore" ? "Singapore" : "United Arab Emirates";
+  const longitude = market === "singapore" ? 103.86 : 55.27;
+  const latitude = market === "singapore" ? 1.28 : 25.2;
+  const name = named ? (market === "singapore" ? "Synthetic Marina Hotel" : "Harbour Hotel") : null;
+  const displayAddress = named ? `${name}, ${city}` : null;
+  const addressParts = named ? { city, country } : {};
   const context = geoContext(sparse);
   const summary = {
     radiusM: context.radiusM,
@@ -99,10 +107,10 @@ function evidencePack(sparse = false): any {
     }
   ];
   const evidence: any[] = [
-    { id: "EVD-COORDINATES", label: "point", sourceId: "user_point", value: JSON.stringify({ longitude: 55.27, latitude: 25.2, crs: "EPSG:4326" }) },
-    { id: "EVD-OSM-OBJECT", label: "object", sourceId: sourceFeatureId, value: JSON.stringify({ sourceFeatureId, name: "Harbour Hotel" }) },
+    { id: "EVD-COORDINATES", label: "point", sourceId: "user_point", value: JSON.stringify({ longitude, latitude, crs: "EPSG:4326" }) },
+    { id: "EVD-OSM-OBJECT", label: "object", sourceId: sourceFeatureId, value: JSON.stringify({ sourceFeatureId, name }) },
     { id: "EVD-CLASSIFICATION", label: "class", sourceId: sourceFeatureId, value: JSON.stringify({ sourceFeatureId, featureClass: "tourism:hotel" }) },
-    { id: "EVD-ADDRESS", label: "address", sourceId: sourceFeatureId, value: JSON.stringify({ sourceFeatureId, displayAddress: "Harbour Hotel, Dubai", addressParts: { city: "Dubai", country: "United Arab Emirates" } }) },
+    { id: "EVD-ADDRESS", label: "address", sourceId: sourceFeatureId, value: JSON.stringify({ sourceFeatureId, displayAddress, addressParts }) },
     { id: "EVD-GEOMETRY", label: "geometry", sourceId: sourceFeatureId, value: JSON.stringify({ sourceFeatureId, geometryType: "Polygon", geometryHash: "a".repeat(64) }) },
     { id: "EVD-OBJECT-METRICS", label: "metrics", sourceId: sourceFeatureId, value: JSON.stringify({ sourceFeatureId, geometryHash: "a".repeat(64), metrics }) },
     { id: "EVD-ALLOWED-FIELDS", label: "fields", sourceId: sourceFeatureId, value: JSON.stringify({ sourceFeatureId, tags: { "tag.building": "hotel", "tag.building:levels": "30", "tag.height": "200", "tag.tourism": "hotel" } }) },
@@ -119,16 +127,16 @@ function evidencePack(sparse = false): any {
   ];
   return {
     protocol: "POINT_TO_OBJECT_001_AI_EVIDENCE_PACK_LIVE_V2",
-    coordinates: { longitude: 55.27, latitude: 25.2, crs: "EPSG:4326" },
+    coordinates: { longitude, latitude, crs: "EPSG:4326" },
     resolution: { matchMethod: "nominatim_lookup", coordinateAssociation: "open_map_geometry_contains_point", resultCentroidDistanceM: 5 },
     selectedObject: {
       sourceFeatureId,
-      name: "Harbour Hotel",
-      displayAddress: "Harbour Hotel, Dubai",
+      name,
+      displayAddress,
       featureClass: "tourism:hotel",
       geometryType: "Polygon",
       geometryHash: "a".repeat(64),
-      addressParts: { city: "Dubai", country: "United Arab Emirates" },
+      addressParts,
       tags: { "tag.building": "hotel", "tag.building:levels": "30", "tag.height": "200", "tag.tourism": "hotel" },
       metrics
     },
@@ -333,12 +341,17 @@ const benchmarkRequests = [
   { depth: "standard", goal: "object_profile", perspective: "investor", horizon: "current", question: null, locale: "ru" },
   { depth: "standard", goal: "development_screening", perspective: "developer", horizon: "current", question: null, locale: "ru" }
 ] as const;
-const benchmarkPacks = [pack, pack, sparsePack];
+const benchmarkPacks = [pack, evidencePack(false, "singapore"), evidencePack(true, "dubai", false)];
 const benchmarks = benchmarkRequests.map((request, index) => {
   const result = validate(rawPlan(), benchmarkPacks[index], request);
   assert.equal(result.ok, true, result.detail);
   const brief = result.content.initialSemanticBrief;
   return [brief.subject.statement, brief.context.statement, brief.access.statement, brief.implication.statement].join(" ");
 });
-console.log(JSON.stringify({ benchmarkRu: benchmarks }, null, 2));
+assert.match(benchmarks[1], /Synthetic Marina Hotel.*Singapore/);
+assert.doesNotMatch(benchmarks[1], /Dubai|Harbour Hotel/);
+assert.match(benchmarks[2], /Выбранная локация/);
+assert.match(benchmarks[2], /Для выбранной локации проверьте/);
+assert.doesNotMatch(benchmarks[2], /Harbour Hotel|Metro Gate|Harbour Offices/);
+console.log(JSON.stringify({ benchmarkScope: "synthetic fixtures; not live geographic observations", benchmarkRu: benchmarks }, null, 2));
 console.log("point-to-object-semantic-v6-check: PASS (server brief, utility copy, numeric equality, priority, strict joins and sparse fallback)");
