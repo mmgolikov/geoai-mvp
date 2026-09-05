@@ -226,7 +226,7 @@ Before V6 Preview evidence can be recorded:
 
 ## Cycle 03 — Adaptive Create generator, 2026-09-05
 
-Status: founder-approved implementation scope; not yet verified or deployed.
+Status: implemented and locally verified through application `7451125affdbc0ba1bb207c8fc3b9281f03de675`; protected Preview publication/read-back remains a separate exact-head gate.
 
 Approval: after the Moscow screenshot coverage failure and its diagnosis, the founder requested: “понятно тогда давай развивать генератор”. This authorizes the bounded generator correction below, not a Production release or a new paid provider test.
 
@@ -253,6 +253,8 @@ Acceptance:
 5. Focused contracts, lint/build, browser tests and exact-head CI pass before Preview handoff. Inspect actual rendered 3D fixture geometry as well as numeric tests. A paid live AI control is not authorized in this slice; distinguish provider fixtures from live integration evidence.
 
 Data impact: no new source, hosted persistence, private AOI transfer or change to provider licensing. Generated geometry remains conceptual screening, not architecture/BIM, approved planning or investment validation.
+
+Integration quality correction: the adaptive placement initially allowed excessive footprint shrinking at a proposed lower target on a 40 x 40 m site. The final solver and validator enforce limited prototype visual floors (tower area >=70 sq m and minimum caliper width >=6.5 m; at >=40 levels, >=90 sq m and >=7.5 m). These are not engineering/planning requirements or a feasibility certificate. Tiny-footprint negative fixtures, the original complex-site matrix and preflight/actual-handler contracts all pass. Full evidence scope and remaining limitations are recorded in the integrated backlog.
 
 ## Rollback
 
