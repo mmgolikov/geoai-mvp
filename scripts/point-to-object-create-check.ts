@@ -386,6 +386,56 @@ assert.match(nonfitError.message, /bounded/i);
 assert.doesNotMatch(nonfitError.message, /mathematically impossible|planning infeasible|site is impossible/i,
   "Bounded solver exhaustion must not be described as legal, planning, or mathematical impossibility.");
 
+const tinyHighRiseProgramValidation = validateRedevelopmentProgram({
+  templateId: cycle03Program.templateId,
+  title: cycle03Program.title,
+  summary: cycle03Program.summary,
+  massingStyle: cycle03Program.massingStyle,
+  blockCount: cycle03Program.blockCount,
+  levelsMin: cycle03Program.levelsMin,
+  levelsMax: cycle03Program.levelsMax,
+  targetSiteCoveragePct: 25,
+  openSpacePct: cycle03Program.openSpacePct,
+  setbackM: cycle03Program.setbackM,
+  useMix: cycle03Program.useMix,
+  rationale: cycle03Program.rationale
+});
+if (!tinyHighRiseProgramValidation.ok) throw new Error(tinyHighRiseProgramValidation.errors.join("; "));
+let tinyHighRiseError: unknown;
+const tinyHighRiseStarted = performance.now();
+try {
+  generateConceptMassingAlternatives(
+    nonfitPolygon,
+    tinyHighRiseProgramValidation.value,
+    "cycle03:tiny-high-rise-quality-floor"
+  );
+} catch (error) {
+  tinyHighRiseError = error;
+}
+cycle03Timings.tinyHighRiseQualityFloor = Number((performance.now() - tinyHighRiseStarted).toFixed(1));
+assert.ok(cycle03Timings.tinyHighRiseQualityFloor < 2_500);
+assert.ok(tinyHighRiseError instanceof Error && "code" in tinyHighRiseError &&
+  tinyHighRiseError.code === "programme_does_not_fit",
+"A lower coverage must not make a ten-tower, 10-53-level concept fit by shrinking towers into metre-wide needles.");
+assert.match(tinyHighRiseError.message, /bounded/i);
+
+const tinyTowerMutation = structuredClone(towers);
+const tinyTowerFeature = tinyTowerMutation.featureCollection.features
+  .find((feature) => feature.properties.volumeRole === "tower");
+assert.ok(tinyTowerFeature);
+const tinyTowerRing = tinyTowerFeature.geometry.coordinates[0];
+const tinyTowerCenter = tinyTowerRing.slice(0, -1).reduce<[number, number]>((sum, point) => [
+  sum[0] + point[0] / (tinyTowerRing.length - 1),
+  sum[1] + point[1] / (tinyTowerRing.length - 1)
+], [0, 0]);
+tinyTowerFeature.geometry.coordinates[0] = tinyTowerRing.map((point) => [
+  tinyTowerCenter[0] + (point[0] - tinyTowerCenter[0]) * 0.08,
+  tinyTowerCenter[1] + (point[1] - tinyTowerCenter[1]) * 0.08
+]);
+assert.ok(validateConceptMassingGeometry(aoi, commercialValidation.value, tinyTowerMutation)
+  .some((error) => /geometry-quality floor/.test(error)),
+"Validation must reject implausibly tiny primary tower geometry independently of generator placement.");
+
 const starCenter = [37.62, 55.75] as const;
 const metresPerLongitude = 111_320 * Math.cos(starCenter[1] * Math.PI / 180);
 const twentyFourVertexRing = Array.from({ length: 24 }, (_, index): [number, number] => {

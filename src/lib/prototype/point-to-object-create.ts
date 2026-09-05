@@ -460,6 +460,13 @@ type PlannedVolume = {
 
 const GEOMETRY_EPSILON_M = 0.02;
 const MIN_BUILDING_DIMENSION_M = 4;
+// Bounded visual-massing heuristics, not planning/code/engineering minima. They preserve the
+// synthetic 100 x 100 m ten-tower control while excluding metre-wide high-rise extrusions.
+const MIN_TOWER_FOOTPRINT_AREA_SQM = 70;
+const MIN_TOWER_SHORT_SIDE_M = 6.5;
+const HIGH_RISE_LEVEL_THRESHOLD = 40;
+const MIN_HIGH_RISE_FOOTPRINT_AREA_SQM = 90;
+const MIN_HIGH_RISE_SHORT_SIDE_M = 7.5;
 
 function openRing<T extends MetricPoint | Point>(ring: T[]): T[] {
   const first = ring[0];
@@ -489,6 +496,33 @@ function metricPolygonArea(points: MetricPoint[]): number {
     area += current.x * next.y - next.x * current.y;
   }
   return Math.abs(area) / 2;
+}
+
+function towerGeometryQualityFloor(levels: number): { areaSqM: number; shortSideM: number } {
+  return levels >= HIGH_RISE_LEVEL_THRESHOLD
+    ? { areaSqM: MIN_HIGH_RISE_FOOTPRINT_AREA_SQM, shortSideM: MIN_HIGH_RISE_SHORT_SIDE_M }
+    : { areaSqM: MIN_TOWER_FOOTPRINT_AREA_SQM, shortSideM: MIN_TOWER_SHORT_SIDE_M };
+}
+
+function towerFootprintMeetsQuality(footprint: MetricPoint[], levels: number): boolean {
+  const floor = towerGeometryQualityFloor(levels);
+  const ring = openRing(footprint);
+  let minimumWidthM = Number.POSITIVE_INFINITY;
+  for (let index = 0; index < ring.length; index += 1) {
+    const start = ring[index];
+    const end = ring[(index + 1) % ring.length];
+    const deltaX = end.x - start.x;
+    const deltaY = end.y - start.y;
+    const length = Math.hypot(deltaX, deltaY);
+    if (length <= GEOMETRY_EPSILON_M) continue;
+    const normalX = -deltaY / length;
+    const normalY = deltaX / length;
+    const projections = ring.map((point) => point.x * normalX + point.y * normalY);
+    minimumWidthM = Math.min(minimumWidthM, Math.max(...projections) - Math.min(...projections));
+  }
+  if (!Number.isFinite(minimumWidthM)) minimumWidthM = 0;
+  return metricPolygonArea(footprint) + GEOMETRY_EPSILON_M >= floor.areaSqM &&
+    minimumWidthM + GEOMETRY_EPSILON_M >= floor.shortSideM;
 }
 
 function pointDistance(left: MetricPoint, right: MetricPoint): number {
@@ -1170,6 +1204,12 @@ function planTowersForPodiums(
   for (let podiumIndex = 0; podiumIndex < podiums.length; podiumIndex += 1) {
     const podium = podiums[podiumIndex];
     const count = towerCounts[podiumIndex];
+    const towerOffset = towerCounts.slice(0, podiumIndex).reduce((sum, value) => sum + value, 0);
+    const towerLevels = Array.from({ length: count }, (_, index) =>
+      levelForPrimary(program, seed, towerOffset + index, program.blockCount));
+    const qualityAreaFactors = towerLevels.map((levels) => towerGeometryQualityFloor(levels).areaSqM);
+    const minimumRequiredArea = qualityAreaFactors.reduce((sum, areaSqM) => sum + areaSqM, 0);
+    if (podium.width * podium.height * baseTowerAreaShare + GEOMETRY_EPSILON_M < minimumRequiredArea) return null;
     const towerProgram: ValidatedRedevelopmentProgram = { ...program, blockCount: count, targetSiteCoveragePct: 32 };
     const minimumDimension = Math.min(podium.width, podium.height);
     const internalSetback = Math.max(2, Math.min(5, minimumDimension * 0.055));
@@ -1178,7 +1218,7 @@ function planTowersForPodiums(
     for (const areaShare of areaShares) {
       for (let profileIndex = 0; profileIndex < aspectProfiles.length && !placed; profileIndex += 1) {
         for (const angles of angleProfiles) {
-          placed = placeDistributedRectangles(
+          const candidate = placeDistributedRectangles(
             [podium.points],
             towerProgram,
             variantId,
@@ -1189,9 +1229,13 @@ function planTowersForPodiums(
             angles,
             {
               aspectRatios: aspectProfiles[profileIndex],
+              areaFactors: qualityAreaFactors,
               gridDivisions: 24
             }
           );
+          if (candidate?.every((tower, index) => towerFootprintMeetsQuality(tower.points, towerLevels[index]))) {
+            placed = candidate;
+          }
           if (placed) break;
         }
       }
@@ -1377,6 +1421,11 @@ export function validateConceptMassingGeometry(
     }
     const footprint = geoJsonRingToMetric(ring, projection.forward);
     if (metricPolygonArea(footprint) <= 1) errors.push(`Concept feature ${properties.id} has a degenerate footprint.`);
+    if (properties.volumeRole === "tower" && !towerFootprintMeetsQuality(footprint, properties.levels)) {
+      const floor = towerGeometryQualityFloor(properties.levels);
+      errors.push(`Tower ${properties.id} is below the bounded conceptual geometry-quality floor ` +
+        `(${floor.areaSqM} sq m footprint and ${floor.shortSideM} m minimum width).`);
+    }
     if (!polygonInsideAoi(footprint, rings, Math.max(0, program.setbackM - 0.25))) {
       errors.push(`Concept feature ${properties.id} does not respect the AOI setback.`);
     }
