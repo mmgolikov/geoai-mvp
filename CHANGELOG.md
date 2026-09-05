@@ -7,6 +7,15 @@ Authority: Chronological released/unreleased change record; runtime truth remain
 Successor: None; any replacement must update `docs/DOCUMENTATION_INDEX.md`
 Navigation: [Documentation Index](docs/DOCUMENTATION_INDEX.md) · [Current Release State](docs/CURRENT_RELEASE_STATE.md) · [Full System Audit](docs/FULL_SYSTEM_AUDIT_2026_07_16.md) · [Codex Backlog](docs/CODEX_BACKLOG_2026_07_16.md)
 
+## Unreleased — 2026-09-05 functional UI and diverse Create
+
+- Removed prototype Data sources/Data & methodology actions, Optional prompt labels, raw default identity telemetry and repetitive successful replacement/methodology narration. Analyse keeps an intrinsic selection card, a 132 px desktop question composer and bottom-aligned action. The 430 px desktop drawer and map behavior are preserved.
+- Find now presents executable tasks with compact profile context and expandable filters. Existing stale-result handling, source identity, bounded current-view searches and comparison remain; unavailable large-zone scenarios are not offered as dead-end actions. No suitability/financial/availability claim or ranking is added.
+- Create supports actual courtyard/perimeter wings, towers on a supporting podium and distributed campus blocks. Valid A/B alternatives share one AI programme and switch locally. User-edited numeric controls remain exact; untouched defaults no longer silently override the prompt. Negated and mixed style intent is not forced by a presence-only keyword match.
+- Geometry checks cover complete AOI/setback containment, primary-versus-feature counts, absolute floor/base/top semantics and non-double-counted coverage/floor-area estimates. Independent review reproduced and closed the narrow-campus B omission, unsupported additional-ring acceptance and fixed-floor height-validation gaps. Current AOIs explicitly support one exterior ring, not polygons with holes.
+- Integrated application head `523e200ddcbba06f8c94cd34bbf4c184a5782791` combines engine `757cada`, prompt correction `3082ea8`, geometry hardening `9d889ac` and the UI-only `fbd1137` change. Local Node 24 build/types pass, 79 pages build, and 14 focused contract/security/data-honesty suites pass. Offline visual review is bounded and separate from live map/API proof. Final integrated browser and exact-head CI/Preview results are recorded externally in Draft PR #147 after verification, not certified by this entry.
+- Existing protected Preview only; rollback is `864b28c4375516e0f51d675a52b3e8c4f5fbd227` / `dpl_CBLh1JoVFyMYoN6XxajSrU18HH7z`. No main/Production, hosted database, auth, credentials/environment, product model routing, paid provider, Figma or Confluence changes.
+
 ## Unreleased — 2026-09-05 compact desktop drawer correction
 
 - Limited the narrow-landscape grid and methodology-width rules to screens below the 1024 px desktop breakpoint. Analyse, Find and Create retain the original 430 px desktop drawer; the map takes the remaining width. Mobile stacking and the existing methodology height/scroll behavior are unchanged.

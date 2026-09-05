@@ -12,6 +12,21 @@ Current released-runtime authority remains `docs/CURRENT_RELEASE_STATE.md`.
 
 ## Executive outcome
 
+### 2026-09-05 founder correction — functional UI and diverse Create
+
+This later directive supersedes the earlier requirements below for a permanent source row, `Data sources` header link and `Data & methodology` drawer. The founder explicitly rejected these controls, repetitive technical caveats, an oversized selected-object card, an undersized question composer, non-executable Find choices and uniform generated boxes. The affected screens are the prototype header, Analyse, Find, Create and analysis continuation; main/Production remain excluded.
+
+Acceptance for this slice:
+
+- Keep the restored 430 px desktop drawer, existing live map, 2D/3D, search, localization, profile and comparison behavior. Use an intrinsic selection card and a 132 px composer with no Optional label; empty submission still starts normal analysis and the primary action stays visible.
+- Remove the rejected controls and repeated success/methodology narration throughout the prototype. Retain native map attribution, internal provenance, evidence validation, useful uncertainty in actual conclusions and actionable failures. Never replace unavailable data with fabricated facts.
+- Find presents executable customer tasks with compact profile context and additional filters. Preserve stale-result handling, identity, current-view limits and shortlist comparison. Do not imply low-rise, vacancy, financial ranking or legal suitability that the underlying filter cannot evaluate.
+- Create generates genuinely distinct courtyard/perimeter, podium/towers and campus geometry. A/B share one AI programme and require no additional provider call when switching. Actual valid alternative count governs the UI; never duplicate an invalid or infeasible second option.
+- Preserve AOI/setback containment, real open courtyard voids, primary-block counts, absolute extrusion base/top heights, unique ground coverage and estimated floor area without stacked-volume double-counting. Source buildings must be fully replaced and restored by Show existing/Reset, with no source mutation.
+- Add optional allowlisted `lockedControlKeys`: omission keeps all six legacy numeric locks, an empty array uses soft defaults, and only user-edited values are hard constraints. Coupled floor-bound corrections lock both values. Full prompt intent must not be overridden by ambiguous or negated keyword matching.
+
+Starting/rollback head for this slice is `864b28c4375516e0f51d675a52b3e8c4f5fbd227`, with protected Preview `dpl_CBLh1JoVFyMYoN6XxajSrU18HH7z`. UI and geometry are separately implemented and reviewed before integration. No model/provider, secret/env, hosted database, auth, Figma or Confluence change is included. Build/tests alone do not prove rendered acceptance; exact-head Preview evidence and any remaining gaps must be recorded externally in Draft PR #147.
+
 ### 2026-09-05 corrective scope — desktop drawer width
 
 Founder-reported regression: the narrow-landscape 48% drawer rule also matches wide desktop windows, overriding the existing 430 px desktop drawer. The affected users are all map-first users in Analyse, Find and Create; the map loses working space without a requested product change.

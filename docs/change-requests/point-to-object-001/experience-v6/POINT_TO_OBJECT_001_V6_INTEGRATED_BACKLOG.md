@@ -16,6 +16,8 @@ The first iteration improves the current protected Preview, establishes contract
 
 ## Current iteration
 
+The [2026-09-05 functional-UI/Create correction](POINT_TO_OBJECT_001_V6_UMBRELLA_CHANGE_REQUEST.md#2026-09-05-founder-correction--functional-ui-and-diverse-create) supersedes the original permanent methodology/source-row requirements below. Current owners: dev_1 for UI/Find, gen_ai_1 for geometry/programme, design_1 for UX handoff and Control for integration and exact-head acceptance. Both implementation lanes are local candidates; no new Preview acceptance is implied by this entry. Immediate rollback is `864b28c4375516e0f51d675a52b3e8c4f5fbd227`.
+
 | Priority | Work item | Owner | Dependency | Acceptance / gate | State |
 | --- | --- | --- | --- | --- | --- |
 | P0 hotfix 2026-09-05 | Restore compact desktop drawer in all three modes | Product Engineering / QA | Founder-reported desktop regression | 430 px drawer at desktop widths; remaining width belongs to map; explicit 640/1024 px boundary, portrait and mode-switch geometry checks | Implemented; local production build, types, static interaction and documentation checks pass. Actual built-app browser measurements pass 33 mode/viewport combinations. Exact-head CI/Preview evidence follows externally in Draft PR #147. Prior V6 containment checks did not establish width acceptance |

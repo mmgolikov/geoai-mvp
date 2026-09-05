@@ -41,6 +41,8 @@ This index is the repository entry point for current documentation. If a version
 
 ## Cross-confirmed current baseline
 
+2026-09-05 functional-UI/Create correction: the later [founder-approved corrective scope](change-requests/point-to-object-001/experience-v6/POINT_TO_OBJECT_001_V6_UMBRELLA_CHANGE_REQUEST.md#2026-09-05-founder-correction--functional-ui-and-diverse-create) removes Data sources/Data & methodology chrome and generic narration, compacts Analyse/Find, and adds genuinely different deterministic massing alternatives with edited-control locks. It supersedes earlier permanent-display requirements only, not provenance, attribution, validation or released-runtime boundaries. Integrated local and exact-head protected-Preview acceptance are separate gates; results are recorded in Draft PR #147, not inferred from worker completion.
+
 2026-09-05 Preview correction: the founder rejected the V6 desktop drawer width. The [active V6 change request](change-requests/point-to-object-001/experience-v6/POINT_TO_OBJECT_001_V6_UMBRELLA_CHANGE_REQUEST.md#2026-09-05-corrective-scope--desktop-drawer-width) and [backlog](change-requests/point-to-object-001/experience-v6/POINT_TO_OBJECT_001_V6_INTEGRATED_BACKLOG.md) track a narrow restoration of the 430 px desktop drawer. Earlier A/B receipts remain historical evidence and are not visual acceptance of this regression. The correction's exact-head CI/Preview and browser measurements are recorded externally in Draft PR #147 after execution; released `main` and Production are not part of this correction.
 
 The following facts must agree across the Hub, release state, architecture, roadmap and active QA documentation:

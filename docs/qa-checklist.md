@@ -72,6 +72,15 @@ These checks apply only to `codex/point-to-object-clickable-prototype-v1` / PR #
 - [ ] Exact-head protected Vercel Preview is READY; route/security smoke and deployment-scoped error/fatal log review pass. Record deployment ID, exact URL and SHA. Production alias/deployment, `main` SHA and hosted Supabase remain unchanged.
 - [ ] After the final CR, active-doc and release-receipt edits, run `npm run docs:lifecycle:generate`, `npm run test:document-lifecycle` and `git diff --check`; lifecycle generation must be the final documentation step before commit.
 
+## 2026-09-05 isolated functional-UI/Create acceptance
+
+- [ ] No Data sources/Data & methodology action, Optional prompt marker or repetitive successful replacement/massing narration is visible. Native map attribution and actionable errors remain.
+- [ ] Analyse has intrinsic object-card height, a useful question composer and visible bottom CTA; empty question works. Find offers executable tasks, preserves filters/profile context, comparison and stale identity handling, with EN/RU parity.
+- [ ] All three map modes preserve the 33 viewport/mode drawer geometry assertions from the desktop-width correction.
+- [ ] Request/UI/server agree on `lockedControlKeys`, legacy omission, empty soft locks, coupled floor edits and actual returned alternative count. Negated/ambiguous prompt keywords do not force an incompatible style.
+- [ ] Courtyard, perimeter, podium/towers and campus differ in actual valid geometry; fixed floors remain fixed, setbacks/concave AOIs are respected, podium metrics do not double-count, and feasible A/B options differ without extra model requests.
+- [ ] Rendered checks distinguish mocked/offline journeys from live API evidence and prove A/B display, full existing-building replacement and Show existing/Reset restoration. Publish only after the verified integration; record exact Preview/CI separately from local checks.
+
 ## Environment
 
 - [ ] `.env.local` exists locally when running Mapbox.
