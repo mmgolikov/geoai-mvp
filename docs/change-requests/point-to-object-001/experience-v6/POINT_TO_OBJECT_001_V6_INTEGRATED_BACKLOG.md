@@ -16,6 +16,18 @@ The first iteration improves the current protected Preview, establishes contract
 
 ## Current iteration
 
+**Cycle 02, 2026-09-05 evening, takes precedence for Find/Create.** The founder explicitly approved complete roles/scenarios/settings/comparison and reliable area deletion/replacement/generation semantics. dev_1 owns Find and parent integration, gen_ai_1 owns Create/renderer, and Control owns integrated verification and one protected Preview update. The earlier compact Task-only Find is rejected. Preserve its clean styling and 430 px drawer, but not its hidden role/scenario controls. Baseline/rollback is `432b3f361d82dcfc24e5f28a82eddd6dfe5535ef` / `dpl_7PsAVbtbxE8MCdCiRucHRVvjV8pX`.
+
+| Cycle 02 item | Acceptance | Status |
+| --- | --- | --- |
+| Full Find | Visible role/scenario settings, executable minimum/maximum mapped levels and scenario presets, comparison add/remove/clear/open, EN/RU | Integrated; filtered payload and comparison browser journeys pass; actual EN/RU local-map rendering verified |
+| Source reliability | 32 MiB execution memory separate from 512 KiB response limit; runtime remarks and malformed payloads rejected; no cached false empty result | Area, nearby/urban-fabric and Find corrections integrated; contract tests pass; Find cache preserves network acquisition time |
+| Create lifecycle | Draft edits retain committed geometry; A/B local-only; unchanged generation disabled; failed/stale responses preserve result | Integrated; request-count, failed-update and stale-response browser tests pass |
+| Reversible map state | Separate Delete area and result clearing; applied-state-driven hide/show; late layer reconciliation; retry after failure | Integrated; 429/context-failure, repeated toggles/delete and late-layer exact-filter-restoration tests pass. Exact new Preview real-map check remains separate |
+| Delivery | Integrated build/contracts/browser checks; exact SHA CI and protected Preview; no main/Production writes | Local build 79/79 pages, types/contracts and combined offline browser suite 5/5 pass; independent rendered review has no P0/P1/P2 findings within reviewed scope. Exact-head CI/Preview receipt follows externally in PR #147 |
+
+The single founder-authorized live OpenAI control on the prior `432b3f3` Preview succeeded: public Dubai AOI, one Generate action, four courtyard wings at 6–12 floors and visually different local A/B. It does not prove the new candidate's lifecycle or area-context behavior; do not repeat the paid control without separate authority.
+
 The [2026-09-05 functional-UI/Create correction](POINT_TO_OBJECT_001_V6_UMBRELLA_CHANGE_REQUEST.md#2026-09-05-founder-correction--functional-ui-and-diverse-create) supersedes the original permanent methodology/source-row requirements below. Current owners: dev_1 for UI/Find, gen_ai_1 for geometry/programme, design_1 for UX handoff and Control for integration and exact-head acceptance. Both implementation lanes are local candidates; no new Preview acceptance is implied by this entry. Immediate rollback is `864b28c4375516e0f51d675a52b3e8c4f5fbd227`.
 
 | Priority | Work item | Owner | Dependency | Acceptance / gate | State |
@@ -36,6 +48,8 @@ The [2026-09-05 functional-UI/Create correction](POINT_TO_OBJECT_001_V6_UMBRELLA
 | P0 | PR #147 and V6 Preview receipt | Control / Release | Final exact-head CI and Vercel evidence | Receipt successor B binds integrated application/docs head A and A's exact tree/CI/artifacts/Preview; PR external metadata then records docs-only head B and B's exact CI/Preview without a self-referential receipt claim; Draft remains open | Receipt B prepared and binds A; B CI/Preview and final Draft PR body are intentionally completed after this docs-only commit |
 
 ## Next product slice
+
+- Source timestamp follow-up: distinguish actual provider acquisition time from cache retrieval/render time consistently in area/nearby evidence. Cached source content must not acquire an implied new observation timestamp. This is a separate lineage-hardening item; a current display timestamp is not evidence of source freshness.
 
 | Priority | Work item | Owner | Dependency | Acceptance / gate | State |
 | --- | --- | --- | --- | --- | --- |

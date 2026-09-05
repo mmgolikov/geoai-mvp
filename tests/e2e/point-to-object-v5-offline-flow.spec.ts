@@ -475,7 +475,7 @@ test("map-first layout keeps a compact desktop drawer across all modes and break
   expect(unexpectedExternal).toEqual([]);
 });
 
-test("V5.1 keeps exact identity and the complete Find comparison flow coherent offline", async ({ page }) => {
+test("V5.1 keeps exact identity and the complete Find comparison flow coherent offline", async ({ page }, testInfo) => {
   contextRequests.length = 0;
   findPostRequests.length = 0;
   createPostRequests.length = 0;
@@ -511,6 +511,7 @@ test("V5.1 keeps exact identity and the complete Find comparison flow coherent o
   await expect(page.getByRole("option", { name: /development-zone search unavailable/i })).toHaveCount(0);
   await expect(page.getByRole("option", { name: "Buildings and construction sites" })).toHaveCount(1);
   await expect(findObjectType).toHaveValue("construction");
+  await page.screenshot({ path: testInfo.outputPath("find-complete-settings-en.png") });
   await findScenario.selectOption("b2b_lowrise_luxury_residential");
   await expect(findObjectType).toHaveValue("residential");
   await expect(findLevelsFrom).toHaveValue("");
@@ -539,6 +540,8 @@ test("V5.1 keeps exact identity and the complete Find comparison flow coherent o
   await expect(page.getByTestId("find-comparison-grid").getByRole("article")).toHaveCount(2);
   await expect(page.getByTestId("find-comparison-grid")).toContainText("Dubai Marina");
   await expect(page.getByTestId("find-comparison-grid")).toContainText("Jumeirah Lakes Towers");
+  await page.getByTestId("find-comparison-grid").scrollIntoViewIfNeeded();
+  await page.screenshot({ path: testInfo.outputPath("find-side-by-side-comparison-en.png") });
   await expect(page.getByText(/SHA-256/)).toHaveCount(0);
   await expect(page.getByText(/way\/2001|node\/2002|relation\/2003/)).toHaveCount(0);
   await expect(page.getByText(/Coordinates|OSM ID/)).toHaveCount(0);
@@ -676,8 +679,11 @@ test("Create A/B and mobile profile remain coherent offline", async ({ page }, t
   await expect(page.getByTestId("generated-concept-summary")).toBeVisible();
   await expect(generateConcept).toHaveText("Update concept");
   await generateConcept.click();
-  await expect(page.getByTestId("generated-concept-summary")).toBeVisible();
-  expect(createPostRequests).toHaveLength(2);
+  // The prior summary deliberately remains visible during regeneration, so it
+  // cannot signal completion of the new request.
+  await expect.poll(() => createPostRequests.length).toBe(2);
+  await expect(generateConcept).toHaveText("Already generated");
+  await expect(generateConcept).toBeDisabled();
   expect(createPostRequests[1]?.lockedControlKeys).toEqual([]);
   await page.getByTestId("create-clear-generated").click();
   await expect(page.getByTestId("generated-concept-summary")).toHaveCount(0);

@@ -1,7 +1,7 @@
 # GeoAI Documentation Index
 
 Status: Active navigation authority
-Last verified: 2026-09-04
+Last verified: 2026-09-05
 Owner: GeoAI Documentation Governance
 Authority: Sole repository navigation and lifecycle precedence
 Successor: None; any replacement must update this file and the Confluence Hub atomically
@@ -40,6 +40,8 @@ This index is the repository entry point for current documentation. If a version
 | Confluence synchronization | [Confluence sync map](CONFLUENCE_SYNC_MAP.json), [CHG-19 receipt](CONFLUENCE_CHG19_RECEIPT.json) and prior [CHG-18 receipt](CONFLUENCE_CHG18_RECEIPT.json) | Current 28-page role/authority/successor map plus versioned SHA-256 direct read-back evidence |
 
 ## Cross-confirmed current baseline
+
+2026-09-05 evening Cycle 02: the [approved Find/Create reliability correction](change-requests/point-to-object-001/experience-v6/POINT_TO_OBJECT_001_V6_UMBRELLA_CHANGE_REQUEST.md#2026-09-05-evening-correction--complete-find-and-reliable-create) restores visible role/scenario configuration, real filter ranges and side-by-side comparison, separates Create draft/result states, and corrects Overpass error handling and reversible source-building replacement. It supersedes the earlier hidden-role Find simplification, not the 430 px drawer. Baseline/rollback is `432b3f361d82dcfc24e5f28a82eddd6dfe5535ef`, protected Preview `dpl_7PsAVbtbxE8MCdCiRucHRVvjV8pX`. Current implementation and acceptance are tracked in the integrated backlog; the successor's exact-head evidence belongs in Draft PR #147 after verification. Main/Production and Confluence are unchanged.
 
 2026-09-05 functional-UI/Create correction: the later [founder-approved corrective scope](change-requests/point-to-object-001/experience-v6/POINT_TO_OBJECT_001_V6_UMBRELLA_CHANGE_REQUEST.md#2026-09-05-founder-correction--functional-ui-and-diverse-create) removes Data sources/Data & methodology chrome and generic narration, compacts Analyse/Find, and adds genuinely different deterministic massing alternatives with edited-control locks. It supersedes earlier permanent-display requirements only, not provenance, attribution, validation or released-runtime boundaries. Integrated local and exact-head protected-Preview acceptance are separate gates; results are recorded in Draft PR #147, not inferred from worker completion.
 

@@ -12,6 +12,16 @@ Current released-runtime authority remains `docs/CURRENT_RELEASE_STATE.md`.
 
 ## Executive outcome
 
+### 2026-09-05 evening correction — complete Find and reliable Create
+
+The founder's later 19:30/19:31 screenshots supersede the compact hidden-role/task simplification below: Find must expose roles, scenarios, meaningful scenario-specific configuration and a real object comparison workflow. Keep the 430 px drawer, functional-only copy, existing maps and EN/RU. Reuse the prior role/scenario registries and comparison interactions, not their synthetic result data or unsupported promises. Every offered filter must affect actual bounded search; missing values must remain unknown. Roles alone do not authorize data or financial suitability claims.
+
+Create must separate editable draft settings from the last successful generation. No template/input/alternative change may call OpenAI automatically; A/B switch already generated options locally. An unchanged completed request must not remain a misleading paid Generate action. Revised inputs must explicitly update the concept, preserve the last valid result on failure/cancellation, and reject stale responses for changed AOIs. Separate Delete area from reversible Clear 3D/Show existing. Derive replacement controls from actual applied state; reconcile late building layers and restore source filters after reset/style change/failure. Area-context availability is not a prerequisite for visual replacement.
+
+Source investigation reproduced an Overpass HTTP 200 response containing an out-of-memory `remark` and an empty element array. Query working memory had incorrectly reused the 512 KiB response-byte limit, and the remark was ignored. Find and area context must use separate bounded query-memory and response caps, reject runtime error/partial error payloads instead of reporting zero objects, and avoid caching them as successful empty results. Public-provider failures remain possible and must be actionable.
+
+Current slice baseline/rollback is `432b3f361d82dcfc24e5f28a82eddd6dfe5535ef`, protected Preview `dpl_7PsAVbtbxE8MCdCiRucHRVvjV8pX`. The founder separately approved one existing-key OpenAI control generation on the public 2.32 ha Museum of the Future AOI in Dubai, with a residential-courtyard prompt and total API budget up to USD 1. That single baseline control succeeded with rendered distinct A/B; it is not acceptance evidence for this forthcoming correction, and no additional paid test is implied. Main, Production, hosted DB, auth/env/secrets, model routing, Figma and Confluence remain unchanged.
+
 ### 2026-09-05 founder correction — functional UI and diverse Create
 
 This later directive supersedes the earlier requirements below for a permanent source row, `Data sources` header link and `Data & methodology` drawer. The founder explicitly rejected these controls, repetitive technical caveats, an oversized selected-object card, an undersized question composer, non-executable Find choices and uniform generated boxes. The affected screens are the prototype header, Analyse, Find, Create and analysis continuation; main/Production remain excluded.

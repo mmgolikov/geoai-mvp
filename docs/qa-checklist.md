@@ -74,6 +74,10 @@ These checks apply only to `codex/point-to-object-clickable-prototype-v1` / PR #
 
 ## 2026-09-05 isolated functional-UI/Create acceptance
 
+- [ ] Evening correction: Find exposes visible roles/scenarios and scenario-specific effective controls; two or more real available object records can be added/removed/compared and opened for analysis with search context retained. No synthetic score or inert filter is introduced.
+- [ ] Find/area context separate Overpass query working-memory from HTTP response caps; HTTP 200 with an error remark or partial error response never becomes successful zero data or a cached result.
+- [ ] Create separates draft/committed results; unchanged completed Generate is a no-op with explicit UI state; edited inputs enable an update. Template/input/A-B changes do not spend API budget; failures/cancellation retain the last valid result and stale responses cannot overwrite a newer AOI.
+- [ ] Clear/Show existing labels match applied replacement, not merely intended state. Repeat hide/show/delete/reselect with context failure, late building layers and style/2D/3D changes; restoration and retry work without a successful context query.
 - [ ] No Data sources/Data & methodology action, Optional prompt marker or repetitive successful replacement/massing narration is visible. Native map attribution and actionable errors remain.
 - [ ] Analyse has intrinsic object-card height, a useful question composer and visible bottom CTA; empty question works. Find offers executable tasks, preserves filters/profile context, comparison and stale identity handling, with EN/RU parity.
 - [ ] All three map modes preserve the 33 viewport/mode drawer geometry assertions from the desktop-width correction.

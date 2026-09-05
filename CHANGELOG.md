@@ -7,6 +7,16 @@ Authority: Chronological released/unreleased change record; runtime truth remain
 Successor: None; any replacement must update `docs/DOCUMENTATION_INDEX.md`
 Navigation: [Documentation Index](docs/DOCUMENTATION_INDEX.md) · [Current Release State](docs/CURRENT_RELEASE_STATE.md) · [Full System Audit](docs/FULL_SYSTEM_AUDIT_2026_07_16.md) · [Codex Backlog](docs/CODEX_BACKLOG_2026_07_16.md)
 
+## Unreleased — 2026-09-05 evening Find/Create reliability, Cycle 02
+
+- Replaces the rejected Task-only Find simplification with visible B2B/B2C, roles, scenarios, real mapped-floor range settings and side-by-side selection/comparison. Scenario presets must affect executed criteria; price, vacancy, development rights, quality and suitability are not fabricated from map tags.
+- Separates Create draft settings from committed alternatives. Editing inputs or selecting A/B does not call the model or erase the result. Unchanged generation is disabled; edited inputs enable Update concept. Failed and stale responses preserve the previous valid result.
+- Separates Delete area, Clear generated result and reversible source-building presentation. Renderer feedback and explicit retry, rather than an intended-state boolean, drive the hide/show action; source context failure is independent of map clearing.
+- Corrects the Overpass 512 KiB working-memory mistake with a separate bounded 32 MiB query allowance while retaining the 512 KiB HTTP response cap. Runtime remarks and malformed responses fail closed; only validated source responses are cached.
+- The founder-authorized single live OpenAI control on baseline `432b3f3` succeeded with four courtyard wings, 6–12 floors and different local A/B geometry. This is prior-candidate provider evidence, not acceptance of the new lifecycle changes. Subsequent regression checks use offline fixtures and do not consume additional model budget.
+- Integrated application head `188ca93` combines area/live-error handling, complete Find, Create draft/result separation and guarded late-layer reconciliation. Local production build generates 79/79 pages; types, targeted contracts and all five combined offline browser journeys pass. Permanent E2E now waits for the new generation request and completion state, not the intentionally preserved old summary. Independent visual review of Analyse, Find, comparison and Create reports no P0/P1/P2 within the supplied offline renders; actual local EN/RU Find renders retain the compact drawer and live map.
+- Integration, final rendered acceptance and exact-head CI/Preview are separate gates recorded in Draft PR #147 after execution. Cycle 02 rollback is `432b3f361d82dcfc24e5f28a82eddd6dfe5535ef` / `dpl_7PsAVbtbxE8MCdCiRucHRVvjV8pX`. Main/Production, hosted Supabase, auth/environment/credentials, model routing, Figma and Confluence are unchanged.
+
 ## Unreleased — 2026-09-05 functional UI and diverse Create
 
 - Removed prototype Data sources/Data & methodology actions, Optional prompt labels, raw default identity telemetry and repetitive successful replacement/methodology narration. Analyse keeps an intrinsic selection card, a 132 px desktop question composer and bottom-aligned action. The 430 px desktop drawer and map behavior are preserved.

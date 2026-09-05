@@ -1,7 +1,7 @@
 # GeoAI Implemented Architecture
 
 Status: Active implementation baseline
-Last verified: 2026-09-04
+Last verified: 2026-09-05
 Owner: GeoAI Engineering
 Authority: Current implemented architecture and trust boundaries
 Successor: None; any replacement must update `DOCUMENTATION_INDEX.md`
@@ -43,6 +43,14 @@ The V5.1 candidate on `codex/point-to-object-clickable-prototype-v1` is a separa
 The 2026-09-05 Create correction extends the candidate response with `alternatives[{id,label,massing}]`; legacy `massing` aliases A. One bounded AI programme feeds deterministic courtyard, perimeter, podium/tower or campus generators; switching validated A/B does not call the model. `baseM` and `heightM` are absolute base/top elevations, tower levels are counted from the site datum, primary buildings are separate from rendered-feature count, and ground coverage/floor-area estimates avoid podium double-counting. Current AOIs accept one exterior ring only. Both geometry and fallback placement must pass containment, setback, overlap and height validation. Request `lockedControlKeys` is an allowlisted subset of six numeric controls: omission preserves legacy all-locked behavior; an empty array permits soft defaults; user-edited fields remain exact. This does not change model routing, credentials, provider access or hosted persistence. Local integration, rendered checks and exact-head Preview evidence remain distinct from these implementation contracts.
 
 All Photon, Nominatim and Overpass context is OpenStreetMap-derived and requires `© OpenStreetMap contributors` / ODbL 1.0 attribution. Coverage and tagging may be incomplete or uneven. The mandatory interpretation remains: “Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.” Exact-head CI, protected Preview deployment and rendered-browser evidence remain required before a V5.1 Preview-verified status may be recorded. `main`, Production and hosted Supabase are unchanged.
+
+### Cycle 02 candidate reliability contract — 2026-09-05
+
+Overpass query working memory is separate from the 512 KiB HTTP response cap. Area context and nearby/urban-fabric loaders use a bounded 32 MiB query allowance, reject runtime `remark` and malformed payloads, and cache only validated responses. An upstream error must never become an empty successful inventory. A valid empty `elements` array remains an observed empty query result, not proof of no buildings.
+
+Create keeps editable draft inputs separate from the last committed programme/geometry. Template, numeric-control, prompt and A/B interactions do not themselves call OpenAI. An unchanged committed draft disables generation; edited inputs expose Update concept. Failed or obsolete requests cannot erase or overwrite the last valid result. Deleting the area, clearing the generated result and hiding/restoring source buildings are different operations; actual renderer feedback, rather than requested visibility alone, controls presentation state. Building filter snapshots include late-discovered layers and retain originals for reversal. These local contracts do not certify a deployed Preview; exact-head integration and browser receipts remain required.
+
+Find exposes role/scenario selection and an executed minimum/maximum mapped-floor range (1–100; missing levels never satisfy an active range). The low-rise preset applies an explicit maximum of four floors without asserting luxury class or development suitability. Up to three records can be selected for side-by-side comparison of available type, floors and locality, then opened by verified source identity. Find caches the validated payload together with its network acquisition time, not a refreshed cache-hit timestamp. Late same-style building layers trigger guarded style-graph reconciliation even while tiles reload; full style changes reset original-filter snapshots separately. The regression suite verifies one application to a new layer, no recursion on unrelated styledata and exact restoration.
 
 ## Product System v3.2.1 candidate boundary
 
