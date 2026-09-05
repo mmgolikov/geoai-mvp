@@ -792,6 +792,54 @@ test("Create A/B and mobile profile remain coherent offline", async ({ page }, t
   expect(unexpectedExternal).toEqual([]);
 });
 
+test("Find rejects a same-audience saved result when its scenario is no longer executable", async ({ page }) => {
+  findPostRequests.length = 0;
+  const unexpectedExternal = await installOfflineRoutes(page);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto("/prototype/point-to-object");
+  await expect(page.locator(".maplibregl-canvas")).toBeVisible();
+  await page.getByRole("tab", { name: "Find", exact: true }).click();
+  await page.getByTestId("find-search-cta").click();
+  await expect(page.getByText("Showing 3", { exact: true })).toBeVisible();
+  const firstCandidate = page.getByRole("listitem").filter({ hasText: "Marina Candidate One" });
+  const secondCandidate = page.getByRole("listitem").filter({ hasText: "Marina Candidate Two" });
+  await firstCandidate.getByRole("button", { name: "Compare", exact: true }).click();
+  await secondCandidate.getByRole("button", { name: "Compare", exact: true }).click();
+  await page.getByRole("button", { name: "Compare selected", exact: true }).click();
+  await expect(page.getByTestId("find-comparison-grid")).toBeVisible();
+
+  await page.evaluate(() => {
+    const key = "geoai:point-to-object:find:v1";
+    const state = JSON.parse(sessionStorage.getItem(key) ?? "null");
+    if (!state) throw new Error("Expected a saved Find session.");
+    state.scenario = "b2b_redevelopment_100ha";
+    sessionStorage.setItem(key, JSON.stringify(state));
+  });
+  await page.reload();
+  await page.getByRole("tab", { name: "Find", exact: true }).click();
+  await expect(page.getByRole("combobox", { name: "Role" })).toHaveValue("developer");
+  await expect(page.getByRole("combobox", { name: "Scenario" })).toHaveValue("b2b_redevelopment_selected_aoi");
+  await expect(page.getByText("Showing 3", { exact: true })).toHaveCount(0);
+  await expect(page.getByTestId("find-comparison-toolbar")).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() => {
+    const state = JSON.parse(sessionStorage.getItem("geoai:point-to-object:find:v1") ?? "null");
+    return {
+      scenario: state?.scenario,
+      result: state?.result,
+      shortlist: state?.shortlist,
+      comparisonOpen: state?.comparisonOpen,
+      analysisTargetSourceFeatureId: state?.analysisTargetSourceFeatureId
+    };
+  })).toEqual({
+    scenario: "b2b_redevelopment_selected_aoi",
+    result: null,
+    shortlist: [],
+    comparisonOpen: false,
+    analysisTargetSourceFeatureId: null
+  });
+  expect(unexpectedExternal).toEqual([]);
+});
+
 test("Create source-building replacement stays reversible when area context is rate limited", async ({ page }) => {
   const unexpectedExternal = await installOfflineRoutes(page, { areaContextMode: "rate" });
   await page.setViewportSize({ width: 1280, height: 900 });

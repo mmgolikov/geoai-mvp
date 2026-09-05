@@ -978,6 +978,8 @@ export function LiveObjectMap({
     map.fitBounds(createAoiFitRequest.bounds, {
       padding: { top: topPadding, right: horizontalPadding, bottom: bottomPadding, left: horizontalPadding },
       maxZoom: 18,
+      bearing: map.getBearing(),
+      pitch: map.getPitch(),
       duration: 650
     });
     container.dispatchEvent(new CustomEvent("geoai:aoi-fit-applied", {

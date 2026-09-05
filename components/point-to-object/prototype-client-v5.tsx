@@ -202,6 +202,17 @@ function getExecutableFindScenarios(audience: ExploreAudience, role: ExploreRole
     .filter((scenario) => pointObjectFindCapability(scenario.id).status !== "unsupported");
 }
 
+function getExecutableFindRoles(audience: ExploreAudience) {
+  return getExploreRolesByAudience(audience)
+    .filter((role) => getExecutableFindScenarios(audience, role.id).length > 0);
+}
+
+function getDefaultExecutableFindRole(audience: ExploreAudience, preferredRole?: ExploreRole): ExploreRole {
+  const executableRoles = getExecutableFindRoles(audience);
+  if (preferredRole && executableRoles.some((role) => role.id === preferredRole)) return preferredRole;
+  return executableRoles[0]?.id ?? getDefaultRoleForAudience(audience);
+}
+
 function getDefaultExecutableFindScenario(audience: ExploreAudience, role: ExploreRole): ExploreScenarioId {
   return getExecutableFindScenarios(audience, role)[0]?.id ?? getDefaultScenarioForRole(audience, role);
 }
@@ -325,8 +336,7 @@ export function PointToObjectPrototypeV5() {
   const appliedProfileAudienceRef = useRef<string | null>(null);
   const previousLocaleRef = useRef(locale);
 
-  const findRoles = useMemo(() => getExploreRolesByAudience(findAudience)
-    .filter((role) => getExecutableFindScenarios(findAudience, role.id).length > 0), [findAudience]);
+  const findRoles = useMemo(() => getExecutableFindRoles(findAudience), [findAudience]);
   const findScenarios = useMemo(() => getExecutableFindScenarios(findAudience, findRole), [findAudience, findRole]);
   const findCapability = pointObjectFindCapability(findScenario);
   const findIntentKey = `${findAudience}:${findRole}:${findScenario}`;
@@ -374,35 +384,41 @@ export function PointToObjectPrototypeV5() {
     findRequestRef.current = null;
 
     if (restoredFind) {
-      const executableScenarios = getExecutableFindScenarios(restoredFind.audience, restoredFind.role);
+      const restoredRole = getDefaultExecutableFindRole(restoredFind.audience, restoredFind.role);
+      const executableScenarios = getExecutableFindScenarios(restoredFind.audience, restoredRole);
       const restoredScenario = executableScenarios.some((scenario) => scenario.id === restoredFind.scenario)
         ? restoredFind.scenario
-        : executableScenarios[0]?.id ?? getDefaultExecutableFindScenario(restoredFind.audience, restoredFind.role);
+        : executableScenarios[0]?.id ?? getDefaultExecutableFindScenario(restoredFind.audience, restoredRole);
       const restoredCapability = pointObjectFindCapability(restoredScenario);
       const restoredGroup = restoredCapability.allowedGroups.includes(restoredFind.group)
         ? restoredFind.group
         : restoredCapability.defaultGroup;
+      const restoredIntentWasNormalized = restoredRole !== restoredFind.role ||
+        restoredScenario !== restoredFind.scenario || restoredGroup !== restoredFind.group;
+      const restoredScenarioChanged = restoredRole !== restoredFind.role || restoredScenario !== restoredFind.scenario;
       const restoredSelection = readPointObjectSelection();
       if (!restoredSelection || restoredSelection.locationKey === restoredFind.marketKey) setLocationKey(restoredFind.marketKey);
       setFindAudience(restoredFind.audience);
-      setFindRole(restoredFind.role);
+      setFindRole(restoredRole);
       setFindScenario(restoredScenario);
       setFindGroup(restoredGroup);
-      setFindMinimumLevels(restoredFind.mappedMinimumLevels);
-      setFindMaximumLevels(restoredFind.mappedMaximumLevels);
-      setFindResult(restoredFind.result);
-      setFindResultIntent(restoredFind.result ? {
+      setFindMinimumLevels(restoredScenarioChanged
+        ? restoredCapability.mappedLevelsPreset.minimum?.toString() ?? ""
+        : restoredFind.mappedMinimumLevels);
+      setFindMaximumLevels(restoredScenarioChanged
+        ? restoredCapability.mappedLevelsPreset.maximum?.toString() ?? ""
+        : restoredFind.mappedMaximumLevels);
+      setFindResult(restoredIntentWasNormalized ? null : restoredFind.result);
+      setFindResultIntent(!restoredIntentWasNormalized && restoredFind.result ? {
         audience: restoredFind.audience,
         role: restoredFind.role,
-        scenario: restoredScenario
+        scenario: restoredFind.scenario
       } : null);
-      setFindShortlist(restoredFind.shortlist);
-      setFindComparisonOpen(restoredFind.comparisonOpen);
-      setFindAnalysisTargetSourceFeatureId(restoredFind.analysisTargetSourceFeatureId);
+      setFindShortlist(restoredIntentWasNormalized ? [] : restoredFind.shortlist);
+      setFindComparisonOpen(restoredIntentWasNormalized ? false : restoredFind.comparisonOpen);
+      setFindAnalysisTargetSourceFeatureId(restoredIntentWasNormalized ? null : restoredFind.analysisTargetSourceFeatureId);
     } else {
-      const role = getExploreRolesByAudience(profileAudience).some((item) => item.id === user?.profile.defaultRole)
-        ? user!.profile.defaultRole
-        : getDefaultRoleForAudience(profileAudience);
+      const role = getDefaultExecutableFindRole(profileAudience, user?.profile.defaultRole);
       const scenario = getDefaultExecutableFindScenario(profileAudience, role);
       const capability = pointObjectFindCapability(scenario);
       setFindAudience(profileAudience);

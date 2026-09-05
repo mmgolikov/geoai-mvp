@@ -92,6 +92,9 @@ assert.match(client, /findResultIntentKey !== findIntentKey/);
 assert.match(client, /const findResultMarketMismatch = findResult !== null && findResult\.criteria\.marketKey !== locationKey/);
 assert.match(client, /if \(findResultMarketMismatch\) return;/, "Cross-market stale candidates must fail closed before navigation or context resolution");
 assert.match(client, /const persistedIntent = findResult && findResultIntent/);
+assert.match(client, /const restoredIntentWasNormalized = restoredRole !== restoredFind\.role \|\|[\s\S]*restoredScenario !== restoredFind\.scenario \|\| restoredGroup !== restoredFind\.group/);
+assert.match(client, /setFindResult\(restoredIntentWasNormalized \? null : restoredFind\.result\)/, "A normalized restored intent must not relabel prior results");
+assert.match(client, /setFindShortlist\(restoredIntentWasNormalized \? \[\] : restoredFind\.shortlist\)/);
 assert.match(client, /const requestIntent = \{ audience: findAudience, role: findRole, scenario: findScenario \}/);
 assert.match(client, /controller\.signal\.aborted \|\| requestId !== findRequestIdRef\.current/, "A late Find response must not inherit a newer profile audience");
 assert.match(client, /findRequestIdRef\.current \+= 1;[\s\S]*findRequestRef\.current\?\.abort\(\);[\s\S]*setFindResult\(null\);[\s\S]*setFindShortlist\(\[\]\)/, "An incompatible profile audience must invalidate pending and persisted Find outcomes");
@@ -137,6 +140,7 @@ assert.match(analysis, /data-testid="analysis-caveat">\{content\.caveat\}/, "Dec
 assert.match(map, /data-testid="map-dimension-control"/);
 assert.match(map, /handledCreateAoiFitRequestRef\.current === createAoiFitRequest\.requestId/);
 assert.match(map, /map\.fitBounds\(createAoiFitRequest\.bounds/);
+assert.match(map, /bearing: map\.getBearing\(\),[\s\S]*pitch: map\.getPitch\(\)/, "Uploaded AOI fit must preserve the user's orientation and 2D\/3D posture");
 assert.match(client, /closeCreateArea\(vertices, true\)/, "Only uploaded AOIs should request automatic fitting");
 assert.match(map, /min-h-11 rounded-lg px-3 text-xs font-bold uppercase/, "2D and 3D controls must retain 44px targets");
 assert.match(map, /sm:bottom-3/, "Desktop map controls must retain their anchored lower edge");
