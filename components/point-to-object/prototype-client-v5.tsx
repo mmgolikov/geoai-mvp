@@ -4,8 +4,8 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useAuth } from "@/components/auth/auth-provider";
-import { PointObjectCreatePanel, type PointObjectGeneratedConcept } from "@/components/point-to-object/create-panel";
-import { LiveObjectMap, type LiveMapNavigationTarget, type LiveMapViewMode } from "@/components/point-to-object/live-object-map";
+import { PointObjectCreatePanel, type PointObjectCreateEditorSnapshot, type PointObjectGeneratedConcept } from "@/components/point-to-object/create-panel";
+import { LiveObjectMap, type LiveMapCreateAoiFitRequest, type LiveMapNavigationTarget, type LiveMapViewMode } from "@/components/point-to-object/live-object-map";
 import { usePointObjectLocale } from "@/components/point-to-object/locale-provider";
 import { PointObjectHeader } from "@/components/point-to-object/prototype-header";
 import {
@@ -42,7 +42,9 @@ import {
 import { pointObjectFindCapability } from "@/src/lib/prototype/point-to-object-find-capabilities";
 import {
   isPointObjectFindResult,
+  pointObjectFindSessionForProfileAudience,
   readPointObjectFindSession,
+  type PointObjectFindSessionState,
   writePointObjectFindSession
 } from "@/src/lib/prototype/point-to-object-find-session";
 import { POINT_OBJECT_MARKETS, pointObjectAutocompleteQueryReady } from "@/src/lib/prototype/point-to-object-markets";
@@ -152,6 +154,15 @@ function extractSinglePolygon(value: unknown): Coordinate[] | null {
   return vertices;
 }
 
+function createAoiBounds(vertices: Coordinate[]): [[number, number], [number, number]] {
+  const longitudes = vertices.map(([longitude]) => longitude);
+  const latitudes = vertices.map(([, latitude]) => latitude);
+  return [
+    [Math.min(...longitudes), Math.min(...latitudes)],
+    [Math.max(...longitudes), Math.max(...latitudes)]
+  ];
+}
+
 function humanize(value: string): string {
   return value.replaceAll("_", " ").replaceAll(":", " · ").replace(/\b\w/g, (character) => character.toUpperCase());
 }
@@ -257,7 +268,7 @@ function isAreaContextResult(value: unknown): value is PointObjectAreaContextRes
 export function PointToObjectPrototypeV5() {
   const router = useRouter();
   const { locale, t } = usePointObjectLocale();
-  const { user } = useAuth();
+  const { user, isSessionResolved } = useAuth();
   const [locationKey, setLocationKey] = useState<LiveMapLocationKey>("dubai");
   const [selection, setSelection] = useState<LiveMapSelection | null>(null);
   const [question, setQuestion] = useState("");
@@ -275,7 +286,10 @@ export function PointToObjectPrototypeV5() {
   const [isDrawing, setIsDrawing] = useState(false);
   const [draftCoordinates, setDraftCoordinates] = useState<Coordinate[]>([]);
   const [createAoi, setCreateAoi] = useState<PointObjectCreateAoi | null>(null);
+  const [createAoiFitRequest, setCreateAoiFitRequest] = useState<LiveMapCreateAoiFitRequest | null>(null);
+  const [createEditorSnapshot, setCreateEditorSnapshot] = useState<PointObjectCreateEditorSnapshot | null>(null);
   const [generatedConcept, setGeneratedConcept] = useState<PointObjectGeneratedConcept | null>(null);
+  const [generatedConceptLocale, setGeneratedConceptLocale] = useState<"en" | "ru" | null>(null);
   const [activeCreateAlternativeId, setActiveCreateAlternativeId] = useState<"A" | "B">("A");
   const [createError, setCreateError] = useState<string | null>(null);
   const [createAreaCleared, setCreateAreaCleared] = useState(false);
@@ -300,13 +314,15 @@ export function PointToObjectPrototypeV5() {
   const [findResultIntent, setFindResultIntent] = useState<FindIntent | null>(null);
   const [findSessionReady, setFindSessionReady] = useState(false);
   const findRequestRef = useRef<AbortController | null>(null);
+  const findRequestIdRef = useRef(0);
   const contextRequestId = useRef(0);
   const searchRequestRef = useRef<AbortController | null>(null);
   const suggestionRequestRef = useRef<AbortController | null>(null);
   const committedSearchQueryRef = useRef("");
   const suggestionRequestIdRef = useRef(0);
   const suggestionCacheRef = useRef(new Map<string, LiveMapSearchResult[]>());
-  const findPreferencesInitializedRef = useRef(false);
+  const restoredFindSessionRef = useRef<PointObjectFindSessionState | null>(null);
+  const appliedProfileAudienceRef = useRef<string | null>(null);
   const previousLocaleRef = useRef(locale);
 
   const findRoles = useMemo(() => getExploreRolesByAudience(findAudience)
@@ -335,11 +351,28 @@ export function PointToObjectPrototypeV5() {
 
   useEffect(() => {
     const restoredSelection = readPointObjectSelection();
-    const restoredFind = readPointObjectFindSession();
+    restoredFindSessionRef.current = readPointObjectFindSession();
     if (restoredSelection) {
       setLocationKey(restoredSelection.locationKey);
       setSelection(restoredSelection);
     }
+    setQuestion(readPointObjectQuestion());
+    setSessionReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!sessionReady || !isSessionResolved) return;
+    const profileAudience = user?.profile.defaultAudience ?? "b2b";
+    if (appliedProfileAudienceRef.current === profileAudience) return;
+
+    const isInitialReconciliation = appliedProfileAudienceRef.current === null;
+    const restoredFind = isInitialReconciliation
+      ? pointObjectFindSessionForProfileAudience(restoredFindSessionRef.current, profileAudience)
+      : null;
+    findRequestIdRef.current += 1;
+    findRequestRef.current?.abort();
+    findRequestRef.current = null;
+
     if (restoredFind) {
       const executableScenarios = getExecutableFindScenarios(restoredFind.audience, restoredFind.role);
       const restoredScenario = executableScenarios.some((scenario) => scenario.id === restoredFind.scenario)
@@ -349,7 +382,7 @@ export function PointToObjectPrototypeV5() {
       const restoredGroup = restoredCapability.allowedGroups.includes(restoredFind.group)
         ? restoredFind.group
         : restoredCapability.defaultGroup;
-      findPreferencesInitializedRef.current = true;
+      const restoredSelection = readPointObjectSelection();
       if (!restoredSelection || restoredSelection.locationKey === restoredFind.marketKey) setLocationKey(restoredFind.marketKey);
       setFindAudience(restoredFind.audience);
       setFindRole(restoredFind.role);
@@ -361,16 +394,33 @@ export function PointToObjectPrototypeV5() {
       setFindResultIntent(restoredFind.result ? {
         audience: restoredFind.audience,
         role: restoredFind.role,
-        scenario: restoredFind.scenario
+        scenario: restoredScenario
       } : null);
       setFindShortlist(restoredFind.shortlist);
       setFindComparisonOpen(restoredFind.comparisonOpen);
       setFindAnalysisTargetSourceFeatureId(restoredFind.analysisTargetSourceFeatureId);
+    } else {
+      const role = getExploreRolesByAudience(profileAudience).some((item) => item.id === user?.profile.defaultRole)
+        ? user!.profile.defaultRole
+        : getDefaultRoleForAudience(profileAudience);
+      const scenario = getDefaultExecutableFindScenario(profileAudience, role);
+      const capability = pointObjectFindCapability(scenario);
+      setFindAudience(profileAudience);
+      setFindRole(role);
+      setFindScenario(scenario);
+      setFindGroup(capability.defaultGroup);
+      setFindMinimumLevels(capability.mappedLevelsPreset.minimum?.toString() ?? "");
+      setFindMaximumLevels(capability.mappedLevelsPreset.maximum?.toString() ?? "");
+      setFindResult(null);
+      setFindResultIntent(null);
+      setFindShortlist([]);
+      setFindComparisonOpen(false);
+      setFindAnalysisTargetSourceFeatureId(null);
+      setFindStatus("idle");
     }
-    setQuestion(readPointObjectQuestion());
+    appliedProfileAudienceRef.current = profileAudience;
     setFindSessionReady(true);
-    setSessionReady(true);
-  }, []);
+  }, [isSessionResolved, sessionReady, user]);
 
   useEffect(() => {
     if (!findSessionReady) return;
@@ -398,23 +448,6 @@ export function PointToObjectPrototypeV5() {
   }, [findAnalysisTargetSourceFeatureId, findAudience, findComparisonOpen, findGroup, findMaximumLevels, findMinimumLevels, findResult, findResultIntent, findRole, findScenario, findSessionReady, findShortlist, locale, locationKey]);
 
   useEffect(() => {
-    if (findPreferencesInitializedRef.current || !user) return;
-    findPreferencesInitializedRef.current = true;
-    const audience = user.profile.defaultAudience;
-    const role = getExploreRolesByAudience(audience).some((item) => item.id === user.profile.defaultRole)
-      ? user.profile.defaultRole
-      : getDefaultRoleForAudience(audience);
-    const scenario = getDefaultExecutableFindScenario(audience, role);
-    setFindAudience(audience);
-    setFindRole(role);
-    setFindScenario(scenario);
-    const capability = pointObjectFindCapability(scenario);
-    setFindGroup(capability.defaultGroup);
-    setFindMinimumLevels(capability.mappedLevelsPreset.minimum?.toString() ?? "");
-    setFindMaximumLevels(capability.mappedLevelsPreset.maximum?.toString() ?? "");
-  }, [user]);
-
-  useEffect(() => {
     if (!sessionReady || previousLocaleRef.current === locale) return;
     previousLocaleRef.current = locale;
     contextRequestId.current += 1;
@@ -424,6 +457,7 @@ export function PointToObjectPrototypeV5() {
     setSuggestionStatus("idle");
     setActiveSuggestionIndex(-1);
     committedSearchQueryRef.current = "";
+    findRequestIdRef.current += 1;
     findRequestRef.current?.abort();
     setFindStatus("idle");
   }, [locale, sessionReady]);
@@ -533,6 +567,7 @@ export function PointToObjectPrototypeV5() {
   useEffect(() => () => {
     searchRequestRef.current?.abort();
     suggestionRequestRef.current?.abort();
+    findRequestIdRef.current += 1;
     findRequestRef.current?.abort();
   }, []);
 
@@ -607,7 +642,10 @@ export function PointToObjectPrototypeV5() {
     setNavigationTarget(null);
     setDraftCoordinates([]);
     setCreateAoi(null);
+    setCreateAoiFitRequest(null);
+    setCreateEditorSnapshot(null);
     setGeneratedConcept(null);
+    setGeneratedConceptLocale(null);
     setActiveCreateAlternativeId("A");
     setCreateAreaCleared(false);
     setCreateReplacementStatus("idle");
@@ -625,20 +663,10 @@ export function PointToObjectPrototypeV5() {
   }
 
   function markFindOutcomeStale() {
+    findRequestIdRef.current += 1;
     findRequestRef.current?.abort();
+    findRequestRef.current = null;
     setFindStatus("idle");
-  }
-
-  function changeFindAudience(audience: ExploreAudience) {
-    const role = getDefaultRoleForAudience(audience);
-    const scenario = getDefaultExecutableFindScenario(audience, role);
-    setFindAudience(audience);
-    setFindRole(role);
-    setFindScenario(scenario);
-    setFindGroup(pointObjectFindCapability(scenario).defaultGroup);
-    setFindMinimumLevels(pointObjectFindCapability(scenario).mappedLevelsPreset.minimum?.toString() ?? "");
-    setFindMaximumLevels(pointObjectFindCapability(scenario).mappedLevelsPreset.maximum?.toString() ?? "");
-    markFindOutcomeStale();
   }
 
   function changeFindRole(role: ExploreRole) {
@@ -677,6 +705,9 @@ export function PointToObjectPrototypeV5() {
     if (!visibleBounds || findStatus === "loading" || findCapability.status === "unsupported") return;
     findRequestRef.current?.abort();
     const controller = new AbortController();
+    const requestId = findRequestIdRef.current + 1;
+    const requestIntent = { audience: findAudience, role: findRole, scenario: findScenario };
+    findRequestIdRef.current = requestId;
     findRequestRef.current = controller;
     setFindStatus("loading");
     try {
@@ -689,10 +720,10 @@ export function PointToObjectPrototypeV5() {
         body: JSON.stringify({ marketKey: locationKey, locale, bounds: visibleBounds, group: findGroup, mappedMinimumLevels, mappedMaximumLevels, limit: 12 })
       });
       const payload: unknown = await response.json();
-      if (controller.signal.aborted) return;
+      if (controller.signal.aborted || requestId !== findRequestIdRef.current) return;
       if (response.ok && isPointObjectFindResult(payload)) {
         setFindResult(payload);
-        setFindResultIntent({ audience: findAudience, role: findRole, scenario: findScenario });
+        setFindResultIntent(requestIntent);
         setFindShortlist([]);
         setFindComparisonOpen(false);
         setFindAnalysisTargetSourceFeatureId(null);
@@ -705,9 +736,9 @@ export function PointToObjectPrototypeV5() {
         setFindStatus("error");
       }
     } catch (error) {
-      if (!(error instanceof DOMException && error.name === "AbortError")) setFindStatus("error");
+      if (requestId === findRequestIdRef.current && !(error instanceof DOMException && error.name === "AbortError")) setFindStatus("error");
     } finally {
-      if (findRequestRef.current === controller) findRequestRef.current = null;
+      if (requestId === findRequestIdRef.current && findRequestRef.current === controller) findRequestRef.current = null;
     }
   }
 
@@ -740,7 +771,10 @@ export function PointToObjectPrototypeV5() {
       setIsDrawing(false);
       setDraftCoordinates([]);
       setCreateAoi(null);
+      setCreateAoiFitRequest(null);
+      setCreateEditorSnapshot(null);
       setGeneratedConcept(null);
+      setGeneratedConceptLocale(null);
       setActiveCreateAlternativeId("A");
       setCreateAreaCleared(false);
       setCreateReplacementStatus("idle");
@@ -758,7 +792,7 @@ export function PointToObjectPrototypeV5() {
     setCreateError(null);
   }
 
-  function closeCreateArea(vertices = draftCoordinates) {
+  function closeCreateArea(vertices = draftCoordinates, fitUploadedArea = false) {
     const validation = validatePointObjectCreateAoiVertices(vertices);
     if (validation.ok === false) {
       if (validation.code === "too_small") setCreateError(t("create.tooSmall"));
@@ -768,16 +802,23 @@ export function PointToObjectPrototypeV5() {
       return;
     }
     const ring = closePolygonRing(vertices);
+    const aoiId = `create-aoi-${Date.now()}`;
     setCreateAoi({
-      id: `create-aoi-${Date.now()}`,
+      id: aoiId,
       coordinates: [ring],
       areaSqM: validation.measurements.areaSqM,
       perimeterM: validation.measurements.perimeterM,
       vertexCount: vertices.length
     });
+    setCreateAoiFitRequest(fitUploadedArea ? {
+      requestId: `uploaded:${aoiId}`,
+      bounds: createAoiBounds(vertices)
+    } : null);
+    setCreateEditorSnapshot(null);
     setDraftCoordinates(vertices);
     setIsDrawing(false);
     setGeneratedConcept(null);
+    setGeneratedConceptLocale(null);
     setActiveCreateAlternativeId("A");
     setCreateAreaCleared(false);
     setCreateReplacementStatus("idle");
@@ -797,7 +838,7 @@ export function PointToObjectPrototypeV5() {
       const vertices = extractSinglePolygon(parsed);
       if (!vertices) throw new Error("invalid");
       setDraftCoordinates(vertices);
-      closeCreateArea(vertices);
+      closeCreateArea(vertices, true);
     } catch {
       setCreateError(t("create.uploadError"));
     }
@@ -807,7 +848,10 @@ export function PointToObjectPrototypeV5() {
     setIsDrawing(false);
     setDraftCoordinates([]);
     setCreateAoi(null);
+    setCreateAoiFitRequest(null);
+    setCreateEditorSnapshot(null);
     setGeneratedConcept(null);
+    setGeneratedConceptLocale(null);
     setActiveCreateAlternativeId("A");
     setCreateAreaCleared(false);
     setCreateReplacementStatus("idle");
@@ -971,7 +1015,7 @@ export function PointToObjectPrototypeV5() {
       <PointObjectHeader />
       <div className="grid h-[calc(100svh-64px)] min-h-0 grid-rows-[clamp(108px,32svh,360px)_minmax(0,1fr)] bg-white sm:max-lg:landscape:grid-cols-[minmax(0,1fr)_minmax(340px,48%)] sm:max-lg:landscape:grid-rows-1 lg:grid-cols-[minmax(0,1fr)_430px] lg:grid-rows-1">
         <section className="relative h-full min-h-0 overflow-hidden border-b border-line sm:max-lg:landscape:border-b-0 lg:border-b-0" aria-label={t("map.region")}>
-          {sessionReady ? <LiveObjectMap {...createReplacementMapProps} locationKey={locationKey} interactionMode={mode} selection={mode === "analyse" ? selection : null} navigationTarget={navigationTarget} viewModeRequest={viewModeRequest} onSelection={handleSelection} onViewportChange={handleViewportChange} onVisibleBoundsChange={setVisibleBounds} createDrawing={mode === "create" && isDrawing} createDraftCoordinates={mode === "create" ? draftCoordinates : []} createAoi={mode === "create" ? createAoi : null} createAreaCleared={mode === "create" && createAreaCleared} conceptMassing={mode === "create" ? activeConceptMassing : null} onCreateVertex={addCreateVertex} onReplacementStatus={setCreateReplacementStatus} className="h-full min-h-0" /> : <div className="grid h-full min-h-0 place-items-center bg-[#f4f6f7] text-sm font-medium text-[#52606a]" role="status">{t("map.loading")}</div>}
+          {sessionReady ? <LiveObjectMap {...createReplacementMapProps} locationKey={locationKey} interactionMode={mode} selection={mode === "analyse" ? selection : null} navigationTarget={navigationTarget} viewModeRequest={viewModeRequest} onSelection={handleSelection} onViewportChange={handleViewportChange} onVisibleBoundsChange={setVisibleBounds} createDrawing={mode === "create" && isDrawing} createDraftCoordinates={mode === "create" ? draftCoordinates : []} createAoi={mode === "create" ? createAoi : null} createAoiFitRequest={mode === "create" ? createAoiFitRequest : null} createAreaCleared={mode === "create" && createAreaCleared} conceptMassing={mode === "create" ? activeConceptMassing : null} onCreateVertex={addCreateVertex} onReplacementStatus={setCreateReplacementStatus} className="h-full min-h-0" /> : <div className="grid h-full min-h-0 place-items-center bg-[#f4f6f7] text-sm font-medium text-[#52606a]" role="status">{t("map.loading")}</div>}
           <div className="absolute left-4 top-4 z-10 flex w-[min(650px,calc(100%-5rem))] flex-col gap-2 sm:left-5 sm:top-5 sm:flex-row">
             <label className="flex h-11 w-fit shrink-0 items-center rounded-xl border border-white/70 bg-white/95 px-3 shadow-[0_10px_30px_rgba(20,35,45,0.14)] backdrop-blur">
               <span className="sr-only">{t("city.label")}</span>
@@ -1017,10 +1061,6 @@ export function PointToObjectPrototypeV5() {
             {mode === "find" ? <section className="mt-2 flex min-h-0 flex-1 flex-col" data-testid="find-drawer">
               <div className="min-h-0 flex-1 overflow-y-auto pr-1" data-testid="find-scroll-region">
               <div className="mt-3 grid gap-2" data-testid="find-context-controls">
-                <fieldset className="grid gap-1">
-                  <legend className="text-xs font-bold text-[#344054]">{locale === "ru" ? "Контекст" : "Context"}</legend>
-                  <div className="grid grid-cols-2 gap-1 rounded-lg bg-[#e8efed] p-1">{(["b2b", "b2c"] as ExploreAudience[]).map((audience) => <button key={audience} type="button" data-testid={`find-audience-${audience}`} aria-pressed={findAudience === audience} onClick={() => changeFindAudience(audience)} className={`min-h-11 rounded-lg text-xs font-bold uppercase transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] ${findAudience === audience ? "bg-[#087f8c] text-white shadow-sm" : "text-[#52606a] hover:bg-white"}`}>{audience}</button>)}</div>
-                </fieldset>
                 <label className="text-xs font-bold text-[#344054]">{locale === "ru" ? "Роль" : "Role"}<select value={findRole} onChange={(event) => changeFindRole(event.target.value as ExploreRole)} className="mt-1 min-h-11 w-full rounded-lg border border-line bg-white px-3 text-sm outline-none focus:border-[#087f8c]">{findRoles.map((role) => <option key={role.id} value={role.id}>{locale === "ru" ? FIND_ROLE_LABELS_RU[role.id] : role.label}</option>)}</select></label>
                 <label className="text-xs font-bold text-[#344054]">{locale === "ru" ? "Сценарий" : "Scenario"}<select value={findScenario} onChange={(event) => changeFindScenario(event.target.value as ExploreScenarioId)} className="mt-1 min-h-11 w-full rounded-lg border border-line bg-white px-3 text-sm outline-none focus:border-[#087f8c]">{findScenarios.map((scenario) => <option key={scenario.id} value={scenario.id}>{FIND_SCENARIO_LABELS[locale][scenario.id]}</option>)}</select></label>
                 <fieldset className="grid gap-2 rounded-xl border border-line bg-[#fbfcfd] p-3 sm:grid-cols-2 lg:grid-cols-1">
@@ -1089,7 +1129,7 @@ export function PointToObjectPrototypeV5() {
                   {areaContextStatus === "error" ? <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-[#e6bd74] bg-[#fff9ed] p-3 text-xs text-[#79520d]" role="alert"><span>{locale === "ru" ? "Контекст зоны временно недоступен." : "Area context is temporarily unavailable."}</span><button type="button" onClick={() => setAreaContextRetryVersion((value) => value + 1)} className="min-h-8 rounded-lg border border-[#d6b36e] bg-white px-2 font-bold">{t("selection.retry")}</button></div> : null}
                   {areaContext ? <><div className="mt-3 grid grid-cols-3 gap-2"><div className="rounded-lg bg-white p-2"><span className="block text-[10px] text-muted">{locale === "ru" ? "Объекты на карте" : "Mapped objects"}</span><strong className="mt-1 block text-sm">{areaContext.summary.sampleSize}</strong></div><div className="rounded-lg bg-white p-2"><span className="block text-[10px] text-muted">{locale === "ru" ? "Здания на карте" : "Mapped buildings"}</span><strong className="mt-1 block text-sm">{areaContext.summary.mappedBuildingCount}</strong></div><div className="rounded-lg bg-white p-2"><span className="block text-[10px] text-muted">{locale === "ru" ? "Медиана этажей" : "Median levels"}</span><strong className="mt-1 block text-sm">{areaContext.summary.medianMappedLevels ?? "—"}</strong></div></div><div className="mt-3 flex flex-wrap gap-1.5">{areaContext.summary.groups.slice(0, 5).map((group) => <span key={group.group} className="rounded-full bg-white px-2.5 py-1 text-[10px] font-semibold text-[#475467] ring-1 ring-inset ring-[#d7dee4]">{areaGroupLabels[group.group]} · {group.count}</span>)}</div>{areaContext.coverage.capReached ? <p className="mt-3 text-[10px] font-semibold leading-4 text-[#79520d]">{locale === "ru" ? "Нарисуйте меньшую зону, чтобы сузить список объектов на карте." : "Draw a smaller area to narrow the mapped objects."}</p> : null}</> : null}
                 </section>
-                <PointObjectCreatePanel locale={locale} marketKey={locationKey} aoi={createAoi} depth="standard" generated={generatedConcept} activeAlternativeId={activeCreateAlternativeId} onGenerated={(concept) => { setGeneratedConcept(concept); setActiveCreateAlternativeId("A"); setCreateReplacementStatus("idle"); setCreateAreaCleared(true); setCreateReplacementRevision((revision) => revision + 1); }} onAlternativeChange={(id) => { setActiveCreateAlternativeId(id); setCreateReplacementStatus("idle"); setCreateAreaCleared(true); setCreateReplacementRevision((revision) => revision + 1); }} onReset={() => { setGeneratedConcept(null); setActiveCreateAlternativeId("A"); setCreateAreaCleared(false); setCreateReplacementStatus("idle"); setCreateReplacementRevision(0); }} />{createAreaCleared && createReplacementStatus !== "applied" ? <p className={`rounded-xl border px-3 py-2 text-[10px] leading-4 ${createReplacementStatus === "error" ? "border-[#e6bd74] bg-[#fff9ed] text-[#79520d]" : "border-[#d8e2df] bg-[#f8faf9] text-[#62716d]"}`} role="status">{createReplacementStatus === "error" ? (locale === "ru" ? "Безопасное замещение не применилось: исходные здания восстановлены, новая модель скрыта." : "Safe replacement could not be applied: source buildings were restored and the concept is hidden.") : (locale === "ru" ? "Подготавливаем замещение зданий…" : "Preparing building replacement…")}</p> : null}<button type="button" data-testid="create-delete-area" onClick={resetCreate} className="min-h-11 w-full rounded-xl border border-[#b8cbc6] bg-white px-3 text-xs font-bold text-[#345c54] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c]">{t("create.deleteArea")}</button></>}
+                <PointObjectCreatePanel locale={locale} marketKey={locationKey} aoi={createAoi} depth="standard" generated={generatedConcept} generatedLocale={generatedConceptLocale} editorSnapshot={createEditorSnapshot} onEditorSnapshotChange={setCreateEditorSnapshot} activeAlternativeId={activeCreateAlternativeId} onGenerated={(concept) => { setGeneratedConcept(concept); setGeneratedConceptLocale(locale); setActiveCreateAlternativeId("A"); setCreateReplacementStatus("idle"); setCreateAreaCleared(true); setCreateReplacementRevision((revision) => revision + 1); }} onAlternativeChange={(id) => { setActiveCreateAlternativeId(id); setCreateReplacementStatus("idle"); setCreateAreaCleared(true); setCreateReplacementRevision((revision) => revision + 1); }} onReset={() => { setGeneratedConcept(null); setGeneratedConceptLocale(null); setActiveCreateAlternativeId("A"); setCreateAreaCleared(false); setCreateReplacementStatus("idle"); setCreateReplacementRevision(0); }} />{createAreaCleared && createReplacementStatus !== "applied" ? <p className={`rounded-xl border px-3 py-2 text-[10px] leading-4 ${createReplacementStatus === "error" ? "border-[#e6bd74] bg-[#fff9ed] text-[#79520d]" : "border-[#d8e2df] bg-[#f8faf9] text-[#62716d]"}`} role="status">{createReplacementStatus === "error" ? (locale === "ru" ? "Безопасное замещение не применилось: исходные здания восстановлены, новая модель скрыта." : "Safe replacement could not be applied: source buildings were restored and the concept is hidden.") : (locale === "ru" ? "Подготавливаем замещение зданий…" : "Preparing building replacement…")}</p> : null}<button type="button" data-testid="create-delete-area" onClick={resetCreate} className="min-h-11 w-full rounded-xl border border-[#b8cbc6] bg-white px-3 text-xs font-bold text-[#345c54] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c]">{t("create.deleteArea")}</button></>}
             </div> : null}
           </div>
         </aside>

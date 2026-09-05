@@ -49,6 +49,7 @@ type CreatePanelProps = {
   aoi: PointObjectCreateAoi;
   depth: CreateDepth;
   generated: PointObjectGeneratedConcept | null;
+  generatedLocale: "en" | "ru" | null;
   activeAlternativeId: "A" | "B";
   onGenerated: (concept: PointObjectGeneratedConcept) => void;
   onAlternativeChange: (id: "A" | "B") => void;
@@ -91,6 +92,7 @@ const COPY = {
     achievedCoverage: "Achieved coverage",
     estimatedArea: "Estimated floor area",
     error: "The concept could not be generated. Please try again.",
+    resultLanguageChanged: "The generated geometry is preserved. Update the concept to refresh its explanatory text in English.",
   },
   ru: {
     eyebrow: "СОЗДАНИЕ",
@@ -122,6 +124,7 @@ const COPY = {
     achievedCoverage: "Полученная застройка",
     estimatedArea: "Расчётная площадь этажей",
     error: "Не удалось создать концепцию. Попробуйте ещё раз.",
+    resultLanguageChanged: "Созданная геометрия сохранена. Обновите концепцию, чтобы получить пояснения на русском языке.",
   }
 } as const;
 
@@ -221,14 +224,14 @@ function RangeControl({
   );
 }
 
-export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generated, activeAlternativeId, onGenerated, onAlternativeChange, onReset, editorSnapshot = null, onEditorSnapshotChange }: CreatePanelProps) {
+export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generated, generatedLocale, activeAlternativeId, onGenerated, onAlternativeChange, onReset, editorSnapshot = null, onEditorSnapshotChange }: CreatePanelProps) {
   const templates = useMemo(() => conceptTemplates(locale), [locale]);
-  const editorScopeKey = createPointObjectCreateEditorScopeKey({ aoiId: aoi.id, marketKey, locale, depth });
+  const editorScopeKey = createPointObjectCreateEditorScopeKey({ aoiId: aoi.id, marketKey });
   const restoredEditor = restorePointObjectCreateEditorSnapshot(editorSnapshot, editorScopeKey);
   const [templateId, setTemplateId] = useState<ConceptTemplateId>(() => restoredEditor?.templateId ?? "residential_mixed_use");
   const activeTemplate = templates.find((item) => item.templateId === templateId) ?? templates[0];
   const [controls, setControls] = useState<Controls>(() => restoredEditor?.controls ?? controlsFrom(activeTemplate));
-  const [lockedControlKeys, setLockedControlKeys] = useState<Set<ControlKey>>(() => new Set(POINT_OBJECT_CREATE_EDITOR_CONTROL_KEYS));
+  const [lockedControlKeys, setLockedControlKeys] = useState<Set<ControlKey>>(() => new Set(restoredEditor?.lockedControlKeys ?? POINT_OBJECT_CREATE_EDITOR_CONTROL_KEYS));
   const [customPrompt, setCustomPrompt] = useState(() => restoredEditor?.customPrompt ?? "");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -245,13 +248,16 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
   const copy = COPY[locale];
   const draftKey = useMemo(() => createPointObjectCreateDraftKey({
     scopeKey: editorScopeKey,
+    locale,
+    depth,
     templateId,
     customPrompt,
     controls,
     lockedControlKeys
-  }), [controls, customPrompt, editorScopeKey, lockedControlKeys, templateId]);
+  }), [controls, customPrompt, depth, editorScopeKey, locale, lockedControlKeys, templateId]);
   const generatedFromCurrentDraft = Boolean(generated && committedDraftKey === draftKey);
   const draftChangedAfterGeneration = Boolean(generated && !generatedFromCurrentDraft);
+  const generatedLanguageMatches = Boolean(generated && generatedLocale === locale);
 
   useEffect(() => {
     editorSnapshotCallbackRef.current = onEditorSnapshotChange;
@@ -269,7 +275,7 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
       const nextTemplate = templates.find((item) => item.templateId === nextTemplateId) ?? templates[0];
       setTemplateId(nextTemplateId);
       setControls(nextRestored?.controls ?? controlsFrom(nextTemplate));
-      setLockedControlKeys(new Set(POINT_OBJECT_CREATE_EDITOR_CONTROL_KEYS));
+      setLockedControlKeys(new Set(nextRestored?.lockedControlKeys ?? POINT_OBJECT_CREATE_EDITOR_CONTROL_KEYS));
       setCustomPrompt(nextRestored?.customPrompt ?? "");
       setCommittedDraftKey(nextRestored?.committedDraftKey ?? null);
       editorScopeKeyRef.current = editorScopeKey;
@@ -489,8 +495,8 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
       {coverageSuggestion ? <div className="mt-3 rounded-lg border border-[#e6bd74] bg-[#fff9ed] p-3 text-xs leading-5 text-[#79520d]" role="alert" data-testid="create-coverage-suggestion"><p>{coverageSuggestion.error}{generated ? ` ${copy.errorPreserved}` : ""}</p><p className="mt-1 font-semibold tabular-nums">{coverageSuggestion.suggestion.requestedValue}% → {coverageSuggestion.suggestion.suggestedValue}%</p><button type="button" onClick={applySuggestedCoverage} className="mt-2 min-h-11 rounded-lg border border-[#d6b36e] bg-white px-3 font-bold text-[#65450f] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f70]" data-testid="create-apply-suggested-coverage">{copy.applySuggestedCoverage}</button></div> : null}
       {generated ? (
         <div className="mt-3 rounded-xl border border-[#98d1c4] bg-white p-3" data-testid="generated-concept-summary">
-          {generated.alternatives && generated.alternatives.length > 1 ? <div className="mb-3 grid grid-cols-2 gap-1 rounded-lg bg-[#e8efed] p-1" role="tablist" aria-label={locale === "ru" ? "Варианты концепции" : "Concept options"}>{generated.alternatives.map((alternative) => <button key={alternative.id} type="button" role="tab" aria-selected={alternative.id === activeAlternativeId} data-testid={`create-alternative-${alternative.id.toLowerCase()}`} onClick={() => onAlternativeChange(alternative.id)} className={`min-h-11 rounded-lg px-3 text-xs font-bold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f70] ${alternative.id === activeAlternativeId ? "bg-[#087f70] text-white shadow-sm" : "bg-transparent text-[#52606a] hover:bg-white"}`}>{alternative.label || `${copy.option} ${alternative.id}`}</button>)}</div> : null}
-          <p className="text-xs leading-5 text-[#475467]">{generated.program.summary}</p>
+          {generated.alternatives && generated.alternatives.length > 1 ? <div className="mb-3 grid grid-cols-2 gap-1 rounded-lg bg-[#e8efed] p-1" role="tablist" aria-label={locale === "ru" ? "Варианты концепции" : "Concept options"}>{generated.alternatives.map((alternative) => <button key={alternative.id} type="button" role="tab" aria-selected={alternative.id === activeAlternativeId} data-testid={`create-alternative-${alternative.id.toLowerCase()}`} onClick={() => onAlternativeChange(alternative.id)} className={`min-h-11 rounded-lg px-3 text-xs font-bold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f70] ${alternative.id === activeAlternativeId ? "bg-[#087f70] text-white shadow-sm" : "bg-transparent text-[#52606a] hover:bg-white"}`}>{generatedLanguageMatches && alternative.label ? alternative.label : `${copy.option} ${alternative.id}`}</button>)}</div> : null}
+          {generatedLanguageMatches ? <p className="text-xs leading-5 text-[#475467]">{generated.program.summary}</p> : <p className="text-xs leading-5 text-[#79520d]" data-testid="create-result-language-stale">{copy.resultLanguageChanged}</p>}
           <dl className="mt-3 grid grid-cols-2 gap-2 text-[11px]" data-testid="generated-concept-metrics">
             <div className="rounded-lg bg-[#f4faf7] p-2"><dt className="text-[#667085]">{copy.generatedBlocks}</dt><dd className="mt-1 font-bold tabular-nums text-[#176548]">{generatedBlocks}</dd></div>
             <div className="rounded-lg bg-[#f4faf7] p-2"><dt className="text-[#667085]">{copy.levels}</dt><dd className="mt-1 font-bold tabular-nums text-[#176548]">{generatedLevels}</dd></div>

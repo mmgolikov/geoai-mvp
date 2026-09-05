@@ -26,14 +26,14 @@ export const POINT_OBJECT_CREATE_EDITOR_CONTROL_KEYS: readonly PointObjectCreate
 export function createPointObjectCreateEditorScopeKey(input: {
   aoiId: string;
   marketKey: string;
-  locale: "en" | "ru";
-  depth: "quick" | "standard" | "deep";
 }): string {
   return JSON.stringify(input);
 }
 
 export function createPointObjectCreateDraftKey(input: {
   scopeKey: string;
+  locale: "en" | "ru";
+  depth: "quick" | "standard" | "deep";
   templateId: ConceptTemplateId;
   customPrompt: string;
   controls: PointObjectCreateEditorControls;
@@ -41,6 +41,8 @@ export function createPointObjectCreateDraftKey(input: {
 }): string {
   return JSON.stringify({
     scopeKey: input.scopeKey,
+    locale: input.locale,
+    depth: input.depth,
     templateId: input.templateId,
     customPrompt: input.customPrompt.trim() || null,
     controls: input.controls,

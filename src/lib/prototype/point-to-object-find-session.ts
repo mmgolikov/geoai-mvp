@@ -170,6 +170,13 @@ export function readPointObjectFindSession(): PointObjectFindSessionState | null
   }
 }
 
+export function pointObjectFindSessionForProfileAudience(
+  state: PointObjectFindSessionState | null,
+  profileAudience: ExploreAudience
+): PointObjectFindSessionState | null {
+  return state?.audience === profileAudience ? state : null;
+}
+
 export function writePointObjectFindSession(state: Omit<PointObjectFindSessionState, "version" | "updatedAt">): void {
   if (typeof window === "undefined") return;
   try {

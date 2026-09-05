@@ -105,11 +105,17 @@ export type LiveObjectMapProps = {
   createDrawing?: boolean;
   createDraftCoordinates?: Wgs84Position[];
   createAoi?: PointObjectCreateAoi | null;
+  createAoiFitRequest?: LiveMapCreateAoiFitRequest | null;
   createAreaCleared?: boolean;
   createReplacementRevision?: number;
   conceptMassing?: ConceptMassingResult | null;
   onCreateVertex?: (coordinate: Wgs84Position) => void;
   onReplacementStatus?: (status: PointObjectReplacementStatus) => void;
+};
+
+export type LiveMapCreateAoiFitRequest = {
+  requestId: string;
+  bounds: [[number, number], [number, number]];
 };
 
 export type LiveMapNavigationTarget = {
@@ -778,6 +784,7 @@ export function LiveObjectMap({
   createDrawing = false,
   createDraftCoordinates = EMPTY_CREATE_COORDINATES,
   createAoi = null,
+  createAoiFitRequest = null,
   createAreaCleared = false,
   createReplacementRevision = 0,
   conceptMassing = null,
@@ -790,6 +797,7 @@ export function LiveObjectMap({
   const selectAtRef = useRef<((point: { x: number; y: number }, clicked: Wgs84Position) => void) | null>(null);
   const handledNavigationTargetRef = useRef<string | null>(null);
   const handledViewModeRequestRef = useRef<string | null>(null);
+  const handledCreateAoiFitRequestRef = useRef<string | null>(null);
   const callbackRef = useRef(onSelection);
   const viewportCallbackRef = useRef(onViewportChange);
   const visibleBoundsCallbackRef = useRef(onVisibleBoundsChange);
@@ -957,6 +965,25 @@ export function LiveObjectMap({
     handledViewModeRequestRef.current = viewModeRequest.requestId;
     changeViewMode(viewModeRequest.mode);
   }, [viewModeRequest]);
+
+  useEffect(() => {
+    if (!createAoiFitRequest || !isReady || handledCreateAoiFitRequestRef.current === createAoiFitRequest.requestId) return;
+    const map = mapRef.current;
+    const container = containerRef.current;
+    if (!map || !container) return;
+    handledCreateAoiFitRequestRef.current = createAoiFitRequest.requestId;
+    const horizontalPadding = Math.max(20, Math.min(72, Math.floor(container.clientWidth * 0.12)));
+    const topPadding = Math.max(20, Math.min(72, Math.floor(container.clientHeight * 0.18)));
+    const bottomPadding = Math.max(20, Math.min(56, Math.floor(container.clientHeight * 0.14)));
+    map.fitBounds(createAoiFitRequest.bounds, {
+      padding: { top: topPadding, right: horizontalPadding, bottom: bottomPadding, left: horizontalPadding },
+      maxZoom: 18,
+      duration: 650
+    });
+    container.dispatchEvent(new CustomEvent("geoai:aoi-fit-applied", {
+      detail: { requestId: createAoiFitRequest.requestId }
+    }));
+  }, [createAoiFitRequest, isReady]);
 
   useEffect(() => {
     const container = containerRef.current;
