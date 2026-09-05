@@ -3,6 +3,7 @@ import { expect, test, type Page, type Route } from "@playwright/test";
 const sha256 = "a".repeat(64);
 const acquiredAt = "2026-09-04T09:00:00.000Z";
 const contextRequests: Array<Record<string, unknown>> = [];
+const findPostRequests: Array<Record<string, unknown>> = [];
 const createPostRequests: Array<Record<string, unknown>> = [];
 
 const candidates = [
@@ -23,7 +24,7 @@ function candidate(type: "node" | "way" | "relation", id: string, label: string,
     group: "construction",
     matchedTag: { key: "landuse", value: "construction" },
     mappedBuildingLevels: levels,
-    observedTags: { name: label, landuse: "construction" },
+    observedTags: { name: label, landuse: "construction", "addr:district": id === "2001" ? "Dubai Marina" : id === "2002" ? "Jumeirah Lakes Towers" : "Jumeirah Beach Residence" },
     evidenceClass: "observed_in_open_map_source"
   } as const;
 }
@@ -68,7 +69,7 @@ async function json(route: Route, body: unknown, status = 200) {
   await route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
 }
 
-async function installOfflineRoutes(page: Page) {
+async function installOfflineRoutes(page: Page, options: { areaContextMode?: "success" | "rate" | "error" } = {}) {
   const unexpectedExternal: string[] = [];
   await page.route(/^https:\/\//, async (route) => {
     const url = new URL(route.request().url());
@@ -84,7 +85,10 @@ async function installOfflineRoutes(page: Page) {
             maxzoom: 14
           }
         },
-        layers: [{ id: "background", type: "background", paint: { "background-color": "#e8edf0" } }]
+        layers: [
+          { id: "background", type: "background", paint: { "background-color": "#e8edf0" } },
+          { id: "building", type: "fill", source: "openmaptiles", "source-layer": "building", paint: { "fill-color": "#c8d1d0" } }
+        ]
       });
       return;
     }
@@ -128,6 +132,7 @@ async function installOfflineRoutes(page: Page) {
   });
   await page.route("**/api/prototype/point-to-object/find", async (route) => {
     const request = route.request().postDataJSON() as Record<string, unknown>;
+    findPostRequests.push(request);
     await json(route, {
       protocol: "POINT_TO_OBJECT_001_FIND_OPEN_MAP_V1",
       mode: "results",
@@ -164,13 +169,19 @@ async function installOfflineRoutes(page: Page) {
       caveat: "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
     });
   });
-  await page.route("**/api/prototype/point-to-object/area-context", (route) => json(route, {
-    protocol: "POINT_TO_OBJECT_001_AREA_CONTEXT_V1",
-    mode: "results",
-    features: [],
-    summary: { sampleSize: 2, mappedBuildingCount: 2, mappedLevelsKnownCount: 1, medianMappedLevels: 6, groups: [{ group: "residential", count: 2 }] },
-    coverage: { capReached: false }
-  }));
+  await page.route("**/api/prototype/point-to-object/area-context", (route) => {
+    if (options.areaContextMode === "rate") {
+      return route.fulfill({ status: 429, contentType: "application/json", headers: { "Retry-After": "30" }, body: JSON.stringify({ mode: "unavailable", error: "rate limited" }) });
+    }
+    if (options.areaContextMode === "error") return json(route, { mode: "unavailable", error: "upstream unavailable" }, 502);
+    return json(route, {
+      protocol: "POINT_TO_OBJECT_001_AREA_CONTEXT_V1",
+      mode: "results",
+      features: [],
+      summary: { sampleSize: 2, mappedBuildingCount: 2, mappedLevelsKnownCount: 1, medianMappedLevels: 6, groups: [{ group: "residential", count: 2 }] },
+      coverage: { capReached: false }
+    });
+  });
   await page.route("**/api/prototype/point-to-object/create", async (route) => {
     if (route.request().method() === "GET") {
       await json(route, { mode: "ready", challenge: "A".repeat(43) });
@@ -464,8 +475,9 @@ test("map-first layout keeps a compact desktop drawer across all modes and break
   expect(unexpectedExternal).toEqual([]);
 });
 
-test("V5.1 keeps exact identity, Find lineage, Create A/B and mobile profile coherent offline", async ({ page }, testInfo) => {
+test("V5.1 keeps exact identity and the complete Find comparison flow coherent offline", async ({ page }) => {
   contextRequests.length = 0;
+  findPostRequests.length = 0;
   createPostRequests.length = 0;
   const unexpectedExternal = await installOfflineRoutes(page);
   await page.setViewportSize({ width: 1280, height: 900 });
@@ -489,10 +501,33 @@ test("V5.1 keeps exact identity, Find lineage, Create A/B and mobile profile coh
 
   await page.getByRole("tab", { name: "Find" }).click();
   await expect(page.getByRole("heading", { name: "Find places" })).toBeVisible();
-  await expect(page.getByText("B2B · Developer", { exact: true })).toBeVisible();
+  await expect(page.getByTestId("find-audience-b2b")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByTestId("find-audience-b2c")).toBeVisible();
+  await expect(page.getByRole("combobox", { name: "Role" })).toHaveValue("developer");
+  const findScenario = page.getByRole("combobox", { name: "Scenario" });
+  const findObjectType = page.getByRole("combobox", { name: "Object type" });
+  const findLevelsFrom = page.getByLabel("Levels from");
+  const findLevelsTo = page.getByLabel("Levels to");
   await expect(page.getByRole("option", { name: /development-zone search unavailable/i })).toHaveCount(0);
   await expect(page.getByRole("option", { name: "Buildings and construction sites" })).toHaveCount(1);
-  await page.getByRole("button", { name: "Search visible area" }).click();
+  await expect(findObjectType).toHaveValue("construction");
+  await findScenario.selectOption("b2b_lowrise_luxury_residential");
+  await expect(findObjectType).toHaveValue("residential");
+  await expect(findLevelsFrom).toHaveValue("");
+  await expect(findLevelsTo).toHaveValue("4");
+  await findLevelsFrom.fill("1.5");
+  await expect(findLevelsFrom).toHaveValue("");
+  await findLevelsFrom.fill("2");
+  await page.getByTestId("find-search-cta").click();
+  await expect.poll(() => findPostRequests.length).toBe(1);
+  expect(findPostRequests[0]).toMatchObject({ group: "residential", mappedMinimumLevels: 2, mappedMaximumLevels: 4, limit: 12 });
+  await findScenario.selectOption("b2b_redevelopment_selected_aoi");
+  await expect(findObjectType).toHaveValue("construction");
+  await expect(findLevelsFrom).toHaveValue("");
+  await expect(findLevelsTo).toHaveValue("");
+  await page.getByTestId("find-search-cta").click();
+  await expect.poll(() => findPostRequests.length).toBe(2);
+  expect(findPostRequests[1]).toMatchObject({ group: "construction", mappedMinimumLevels: null, mappedMaximumLevels: null, limit: 12 });
   await expect(page.getByText("Showing 3", { exact: true })).toBeVisible();
   await expect(page.getByText(/OpenStreetMap sample · acquired/)).toHaveCount(0);
   await expect(page.getByTestId("find-result-stale")).toHaveCount(0);
@@ -500,11 +535,24 @@ test("V5.1 keeps exact identity, Find lineage, Create A/B and mobile profile coh
   const secondCandidate = page.getByRole("listitem").filter({ hasText: "Marina Candidate Two" });
   await firstCandidate.getByRole("button", { name: "Compare", exact: true }).click();
   await secondCandidate.getByRole("button", { name: "Compare", exact: true }).click();
-  await page.getByRole("button", { name: "Compare", exact: true }).first().click();
+  await page.getByRole("button", { name: "Compare selected", exact: true }).click();
+  await expect(page.getByTestId("find-comparison-grid").getByRole("article")).toHaveCount(2);
+  await expect(page.getByTestId("find-comparison-grid")).toContainText("Dubai Marina");
+  await expect(page.getByTestId("find-comparison-grid")).toContainText("Jumeirah Lakes Towers");
   await expect(page.getByText(/SHA-256/)).toHaveCount(0);
   await expect(page.getByText(/way\/2001|node\/2002|relation\/2003/)).toHaveCount(0);
   await expect(page.getByText(/Coordinates|OSM ID/)).toHaveCount(0);
   await expect(page.getByText(/Factual OpenStreetMap attribute comparison|mapped signal/)).toHaveCount(0);
+  await page.getByRole("button", { name: "Remove from comparison: Marina Candidate Two" }).click();
+  await expect(page.getByTestId("find-comparison-grid")).toHaveCount(0);
+  await secondCandidate.getByRole("button", { name: "Compare", exact: true }).click();
+  await page.getByRole("button", { name: "Compare selected", exact: true }).click();
+  await page.getByRole("button", { name: "Back to results", exact: true }).click();
+  await page.getByRole("button", { name: "Clear", exact: true }).click();
+  await expect(page.getByTestId("find-comparison-toolbar")).toHaveCount(0);
+  await firstCandidate.getByRole("button", { name: "Compare", exact: true }).click();
+  await secondCandidate.getByRole("button", { name: "Compare", exact: true }).click();
+  await page.getByRole("button", { name: "Compare selected", exact: true }).click();
   await page.getByRole("article").filter({ hasText: "Marina Candidate One" }).getByRole("button", { name: "Open analysis" }).click();
   await expect(page.getByText("Marina Candidate One", { exact: true }).first()).toBeVisible();
   await expect.poll(() => contextRequests.at(-1)?.expectedSourceFeatureId).toBe("way/2001");
@@ -538,6 +586,7 @@ test("V5.1 keeps exact identity, Find lineage, Create A/B and mobile profile coh
   expect(restoredFind.analysisTargetSourceFeatureId).toBe("way/2001");
   expect(restoredFind.role).toBe("developer");
   expect(restoredFind.scenario).toBe("b2b_redevelopment_selected_aoi");
+  expect(restoredFind.mappedMaximumLevels).toBe("");
   for (const viewport of [
     { width: 1440, height: 900, align: true },
     { width: 1440, height: 720, align: true },
@@ -555,6 +604,15 @@ test("V5.1 keeps exact identity, Find lineage, Create A/B and mobile profile coh
   await expect.poll(() => page.evaluate(() => JSON.parse(sessionStorage.getItem("geoai:point-to-object:selection:v3") ?? "null"))).toBeNull();
   await page.locator(".maplibregl-canvas").click({ position: { x: 200, y: 150 }, force: true });
   await expect.poll(() => page.evaluate(() => JSON.parse(sessionStorage.getItem("geoai:point-to-object:selection:v3") ?? "null"))).toBeNull();
+  expect(unexpectedExternal).toEqual([]);
+});
+
+test("Create A/B and mobile profile remain coherent offline", async ({ page }, testInfo) => {
+  createPostRequests.length = 0;
+  const unexpectedExternal = await installOfflineRoutes(page);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto("/prototype/point-to-object");
+  await expect(page.locator(".maplibregl-canvas")).toBeVisible();
 
   await page.getByRole("tab", { name: "Create" }).click();
   await page.getByLabel("Upload GeoJSON").setInputFiles({
@@ -575,12 +633,22 @@ test("V5.1 keeps exact identity, Find lineage, Create A/B and mobile profile coh
   await expect(page.getByText("Objects inside the polygon")).toBeVisible();
   await expect(page.getByText("Mapped objects", { exact: true })).toBeVisible();
   await expect(page.getByText(/Uses returned feature centres inside the AOI/)).toHaveCount(0);
+  const mapPresentation = page.getByTestId("create-map-presentation-toggle");
+  await expect(mapPresentation).toHaveText("Hide existing buildings");
+  await mapPresentation.click();
+  await expect(mapPresentation).toHaveText("Show existing");
+  await mapPresentation.click();
+  await expect(mapPresentation).toHaveText("Hide existing buildings");
   await page.getByText("Concept parameters", { exact: true }).click();
   await page.getByRole("slider", { name: "Blocks" }).press("ArrowRight");
   await expect(page.getByText("Edited", { exact: true })).toHaveCount(1);
   await expect(page.getByTestId("reset-edited-create-controls")).toBeVisible();
-  await page.getByRole("button", { name: "Generate concept" }).click();
+  const generateConcept = page.getByTestId("create-generate-action");
+  await expect(generateConcept).toHaveText("Generate concept");
+  await generateConcept.click();
   await expect(page.getByTestId("generated-concept-summary")).toContainText("A deterministic mixed-use concept for the selected area.");
+  await expect(generateConcept).toHaveText("Already generated");
+  await expect(generateConcept).toBeDisabled();
   expect(createPostRequests).toHaveLength(1);
   expect(createPostRequests[0]?.lockedControlKeys).toEqual(["blockCount"]);
   await expect(page.getByTestId("create-alternative-a")).toHaveAttribute("aria-selected", "true");
@@ -598,21 +666,24 @@ test("V5.1 keeps exact identity, Find lineage, Create A/B and mobile profile coh
   const showExisting = page.getByRole("button", { name: "Show existing" });
   await expect(showExisting).toBeVisible();
   await showExisting.click();
-  await expect(page.getByRole("button", { name: "Show concept" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Show generated concept" })).toBeVisible();
   await expect(page.getByTestId("generated-concept-summary")).toBeVisible();
-  await page.getByRole("button", { name: "Show concept" }).click();
+  await page.getByRole("button", { name: "Show generated concept" }).click();
   await expect(page.getByRole("button", { name: "Show existing" })).toBeVisible();
   await expect(page.getByText(/Source buildings inside the selected area are hidden/)).toHaveCount(0);
   await page.getByTestId("reset-edited-create-controls").click();
   await expect(page.getByText("Edited", { exact: true })).toHaveCount(0);
-  await expect(page.getByTestId("generated-concept-summary")).toHaveCount(0);
-  await page.getByRole("button", { name: "Generate concept" }).click();
+  await expect(page.getByTestId("generated-concept-summary")).toBeVisible();
+  await expect(generateConcept).toHaveText("Update concept");
+  await generateConcept.click();
   await expect(page.getByTestId("generated-concept-summary")).toBeVisible();
   expect(createPostRequests).toHaveLength(2);
   expect(createPostRequests[1]?.lockedControlKeys).toEqual([]);
-  await page.getByRole("button", { name: "Reset concept" }).click();
+  await page.getByTestId("create-clear-generated").click();
   await expect(page.getByTestId("generated-concept-summary")).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Clear 3D" })).toBeVisible();
+  await expect(mapPresentation).toHaveText("Hide existing buildings");
+  await page.getByTestId("create-delete-area").click();
+  await expect(page.getByText(/Area ready ·/)).toHaveCount(0);
 
   await signInDemo(page, "/profile");
   await page.setViewportSize({ width: 390, height: 844 });
@@ -629,13 +700,54 @@ test("V5.1 keeps exact identity, Find lineage, Create A/B and mobile profile coh
   await expect(page.getByRole("link", { name: "Вернуться к карте" })).toBeVisible();
   await page.goto("/prototype/point-to-object");
   await page.getByRole("tab", { name: "Поиск" }).click();
-  await expect(page.getByText("B2B · Девелопер", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Изменить" }).click();
+  await expect(page.getByTestId("find-audience-b2b")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("combobox", { name: "Роль" })).toHaveValue("developer");
+  await expect(page.getByRole("combobox", { name: "Сценарий" })).toBeVisible();
+  await expect(page.getByRole("combobox", { name: "Тип объекта" })).toBeVisible();
+  await expect(page.getByLabel("Этажей от")).toBeVisible();
+  await expect(page.getByLabel("Этажей до")).toBeVisible();
   await page.getByTestId("find-audience-b2c").click();
-  await expect(page.getByText("B2C · Турист", { exact: true })).toBeVisible();
+  await expect(page.getByTestId("find-audience-b2c")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("combobox", { name: "Роль" })).toHaveValue("tourist");
   await page.goto("/profile");
   await expect(page.getByRole("combobox", { name: "Роль по умолчанию" })).toHaveValue("developer");
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(1);
+  expect(unexpectedExternal).toEqual([]);
+});
+
+test("Create source-building replacement stays reversible when area context is rate limited", async ({ page }) => {
+  const unexpectedExternal = await installOfflineRoutes(page, { areaContextMode: "rate" });
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto("/prototype/point-to-object");
+  await page.getByRole("tab", { name: "Create", exact: true }).click();
+  await page.getByLabel("Upload GeoJSON").setInputFiles({
+    name: "offline-rate-limited-area.geojson",
+    mimeType: "application/geo+json",
+    buffer: Buffer.from(JSON.stringify({
+      type: "Polygon",
+      coordinates: [[
+        [55.27015, 25.20515],
+        [55.27065, 25.20515],
+        [55.27065, 25.20565],
+        [55.27015, 25.20565],
+        [55.27015, 25.20515]
+      ]]
+    }))
+  });
+
+  await expect(page.getByText("Retry in 30s.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Retry", exact: true })).toBeDisabled();
+  const presentationToggle = page.getByTestId("create-map-presentation-toggle");
+  await expect(presentationToggle).toHaveText("Hide existing buildings");
+  await presentationToggle.click();
+  await expect(presentationToggle).toHaveText("Show existing");
+  await presentationToggle.click();
+  await expect(presentationToggle).toHaveText("Hide existing buildings");
+
+  await page.getByTestId("create-delete-area").click();
+  await expect(page.getByText(/Area ready ·/)).toHaveCount(0);
+  await expect(page.getByText(/Retry in \d+s\.|Try again\./)).toHaveCount(0);
+  await expect(presentationToggle).toHaveCount(0);
   expect(unexpectedExternal).toEqual([]);
 });

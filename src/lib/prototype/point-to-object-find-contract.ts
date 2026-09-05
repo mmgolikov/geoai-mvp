@@ -35,6 +35,7 @@ export type PointObjectFindRequest = {
   bounds: PointObjectFindBounds;
   group: PointObjectFindGroup;
   mappedMinimumLevels: number | null;
+  mappedMaximumLevels: number | null;
   limit: number;
 };
 
@@ -93,6 +94,16 @@ export const POINT_OBJECT_FIND_MAX_RESULTS = 20;
 export const POINT_OBJECT_FIND_UPSTREAM_LIMIT = 80;
 export const POINT_OBJECT_FIND_MAX_AREA_SQ_KM = 36;
 export const POINT_OBJECT_FIND_MAX_SPAN_KM = 8;
+export const POINT_OBJECT_FIND_OVERPASS_WORKING_MEMORY_BYTES = 32 * 1024 * 1024;
+
+export type PointObjectFindPayloadErrorCode = "OVERPASS_RUNTIME_FAILURE" | "OVERPASS_PAYLOAD_INVALID";
+
+export class PointObjectFindPayloadError extends Error {
+  constructor(public readonly code: PointObjectFindPayloadErrorCode, message: string) {
+    super(message);
+    this.name = "PointObjectFindPayloadError";
+  }
+}
 
 const GROUP_PREDICATES: Record<PointObjectFindGroup, readonly string[]> = {
   residential: [
@@ -144,7 +155,10 @@ const OBSERVED_TAG_KEYS = new Set([
   "shop",
   "amenity",
   "tourism",
-  "landuse"
+  "landuse",
+  "addr:district",
+  "addr:suburb",
+  "addr:city"
 ]);
 
 type ParsedFindRequest =
@@ -206,7 +220,7 @@ function boundsMetrics(bounds: PointObjectFindBounds): {
 
 export function parsePointObjectFindRequest(value: unknown): ParsedFindRequest {
   if (!isRecord(value)) return { ok: false, error: "A bounded Find request is required." };
-  const allowed = new Set(["marketKey", "locale", "bounds", "group", "mappedMinimumLevels", "limit"]);
+  const allowed = new Set(["marketKey", "locale", "bounds", "group", "mappedMinimumLevels", "mappedMaximumLevels", "limit"]);
   if (Object.keys(value).some((key) => !allowed.has(key))) {
     return { ok: false, error: "The Find request contains unsupported fields." };
   }
@@ -244,6 +258,16 @@ export function parsePointObjectFindRequest(value: unknown): ParsedFindRequest {
   ) {
     return { ok: false, error: "Mapped minimum levels must be an integer from 1 to 100." };
   }
+  const requestedMaximumLevels = value.mappedMaximumLevels ?? null;
+  if (
+    requestedMaximumLevels !== null &&
+    (typeof requestedMaximumLevels !== "number" || !Number.isInteger(requestedMaximumLevels) || requestedMaximumLevels < 1 || requestedMaximumLevels > 100)
+  ) {
+    return { ok: false, error: "Mapped maximum levels must be an integer from 1 to 100." };
+  }
+  if (requestedLevels !== null && requestedMaximumLevels !== null && requestedLevels > requestedMaximumLevels) {
+    return { ok: false, error: "Mapped minimum levels cannot exceed mapped maximum levels." };
+  }
   const requestedLimit = value.limit ?? 12;
   if (typeof requestedLimit !== "number" || !Number.isInteger(requestedLimit) || requestedLimit < 1 || requestedLimit > POINT_OBJECT_FIND_MAX_RESULTS) {
     return { ok: false, error: `Result limit must be an integer from 1 to ${POINT_OBJECT_FIND_MAX_RESULTS}.` };
@@ -256,6 +280,7 @@ export function parsePointObjectFindRequest(value: unknown): ParsedFindRequest {
       bounds: [west, south, east, north],
       group: value.group,
       mappedMinimumLevels: requestedLevels,
+      mappedMaximumLevels: requestedMaximumLevels,
       limit: requestedLimit
     }
   };
@@ -268,16 +293,41 @@ export function pointObjectFindApproximateAreaSqKm(bounds: PointObjectFindBounds
 export function buildPointObjectFindOverpassQuery(request: PointObjectFindRequest): string {
   const [west, south, east, north] = request.bounds;
   const bbox = `(${south.toFixed(6)},${west.toFixed(6)},${north.toFixed(6)},${east.toFixed(6)})`;
-  const explicitLevelsOnly = request.mappedMinimumLevels === null ? "" : `["building:levels"]`;
+  const explicitLevelsOnly = request.mappedMinimumLevels === null && request.mappedMaximumLevels === null ? "" : `["building:levels"]`;
   const selectors = GROUP_PREDICATES[request.group]
     .map((predicate) => `nwr${predicate}${explicitLevelsOnly}${bbox};`);
   return [
-    "[out:json][timeout:5][maxsize:524288];",
+    `[out:json][timeout:5][maxsize:${POINT_OBJECT_FIND_OVERPASS_WORKING_MEMORY_BYTES}];`,
     "(",
     ...selectors,
     ");",
     `out tags center ${POINT_OBJECT_FIND_UPSTREAM_LIMIT + 1};`
   ].join("\n");
+}
+
+function validatedPointObjectFindElements(payload: unknown): unknown[] {
+  if (!isRecord(payload) || !Array.isArray(payload.elements)) {
+    throw new PointObjectFindPayloadError("OVERPASS_PAYLOAD_INVALID", "Overpass returned an invalid Find payload.");
+  }
+  if (Object.hasOwn(payload, "remark")) {
+    const remark = cleanText(payload.remark, 500);
+    if (!remark) throw new PointObjectFindPayloadError("OVERPASS_PAYLOAD_INVALID", "Overpass returned an invalid Find remark.");
+    throw new PointObjectFindPayloadError("OVERPASS_RUNTIME_FAILURE", "Overpass could not complete the bounded Find query.");
+  }
+  return payload.elements;
+}
+
+export function assertUsablePointObjectFindPayload(payload: unknown): void {
+  validatedPointObjectFindElements(payload);
+}
+
+export function pointObjectFindOverpassRuntimeError(payload: unknown): boolean {
+  try {
+    validatedPointObjectFindElements(payload);
+    return false;
+  } catch (error) {
+    return error instanceof PointObjectFindPayloadError && error.code === "OVERPASS_RUNTIME_FAILURE";
+  }
 }
 
 function safeTags(value: unknown): Record<string, string> {
@@ -353,12 +403,11 @@ export function normalizePointObjectFindCandidates(
   capReached: boolean;
   observedAt: string | null;
 } {
-  if (!isRecord(payload) || !Array.isArray(payload.elements)) {
-    return { candidates: [], upstreamElementCount: 0, normalizedCandidateCount: 0, capReached: false, observedAt: null };
-  }
+  const elements = validatedPointObjectFindElements(payload);
+  const payloadRecord = payload as Record<string, unknown>;
   const [west, south, east, north] = request.bounds;
   const byIdentity = new Map<string, PointObjectFindCandidate>();
-  for (const raw of payload.elements.slice(0, POINT_OBJECT_FIND_UPSTREAM_LIMIT + 1)) {
+  for (const raw of elements.slice(0, POINT_OBJECT_FIND_UPSTREAM_LIMIT + 1)) {
     if (!isRecord(raw)) continue;
     const type = elementType(raw.type);
     const id = positiveIdentifier(raw.id);
@@ -369,6 +418,7 @@ export function normalizePointObjectFindCandidates(
     if (point[0] < west || point[0] > east || point[1] < south || point[1] > north) continue;
     const levels = mappedLevels(tags["building:levels"]);
     if (request.mappedMinimumLevels !== null && (levels === null || levels < request.mappedMinimumLevels)) continue;
+    if (request.mappedMaximumLevels !== null && (levels === null || levels > request.mappedMaximumLevels)) continue;
     const sourceFeatureId = `${type}/${id}` as const;
     const name = cleanText(tags[`name:${request.locale}`]) ?? cleanText(tags.name) ?? cleanText(tags["name:en"]);
     byIdentity.set(sourceFeatureId, {
@@ -387,13 +437,13 @@ export function normalizePointObjectFindCandidates(
     });
   }
   const normalized = [...byIdentity.values()].sort((left, right) => left.sourceFeatureId.localeCompare(right.sourceFeatureId));
-  const observedValue = isRecord(payload.osm3s) ? cleanText(payload.osm3s.timestamp_osm_base, 40) : null;
+  const observedValue = isRecord(payloadRecord.osm3s) ? cleanText(payloadRecord.osm3s.timestamp_osm_base, 40) : null;
   const observedTimestamp = observedValue === null ? Number.NaN : Date.parse(observedValue);
   return {
     candidates: normalized.slice(0, request.limit),
-    upstreamElementCount: payload.elements.length,
+    upstreamElementCount: elements.length,
     normalizedCandidateCount: normalized.length,
-    capReached: payload.elements.length > POINT_OBJECT_FIND_UPSTREAM_LIMIT,
+    capReached: elements.length > POINT_OBJECT_FIND_UPSTREAM_LIMIT,
     observedAt: Number.isFinite(observedTimestamp) ? new Date(observedTimestamp).toISOString() : null
   };
 }

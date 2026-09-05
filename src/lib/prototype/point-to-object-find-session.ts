@@ -38,6 +38,7 @@ export type PointObjectFindSessionState = {
   scenario: ExploreScenarioId;
   group: PointObjectFindGroup;
   mappedMinimumLevels: string;
+  mappedMaximumLevels: string;
   result: PointObjectFindResult | null;
   shortlist: PointObjectFindCandidate[];
   comparisonOpen: boolean;
@@ -85,6 +86,7 @@ export function isPointObjectFindResult(value: unknown): value is PointObjectFin
       !value.criteria.bounds.every((item) => isFiniteInRange(item, -180, 180)) ||
       typeof value.criteria.group !== "string" || !GROUPS.has(value.criteria.group as PointObjectFindGroup) ||
       !(value.criteria.mappedMinimumLevels === null || (Number.isInteger(value.criteria.mappedMinimumLevels) && Number(value.criteria.mappedMinimumLevels) >= 1 && Number(value.criteria.mappedMinimumLevels) <= 100)) ||
+      !(value.criteria.mappedMaximumLevels === null || (Number.isInteger(value.criteria.mappedMaximumLevels) && Number(value.criteria.mappedMaximumLevels) >= 1 && Number(value.criteria.mappedMaximumLevels) <= 100)) ||
       !Number.isInteger(value.criteria.limit) || Number(value.criteria.limit) < 1 || Number(value.criteria.limit) > 20 ||
       !isRecord(value.coverage) || value.coverage.kind !== "bounded_open_map_sample" ||
       !isFiniteInRange(value.coverage.approximateAreaSqKm, 0, 36) ||
@@ -104,6 +106,8 @@ export function isPointObjectFindResult(value: unknown): value is PointObjectFin
       value.source.officialStatus !== "open_context_not_official" || value.source.runtimeNetworkUsed !== true ||
       value.source.persistenceUsed !== false || !Array.isArray(value.limitations) || value.limitations.length > 24 ||
       value.limitations.some((item) => typeof item !== "string" || item.length > 1_000) || value.caveat !== POINT_OBJECT_FIND_CAVEAT) return false;
+  if (value.criteria.mappedMinimumLevels !== null && value.criteria.mappedMaximumLevels !== null &&
+      Number(value.criteria.mappedMinimumLevels) > Number(value.criteria.mappedMaximumLevels)) return false;
   if (value.mode === "empty" && value.candidates.length !== 0) return false;
   if (Number(value.coverage.returnedCandidateCount) !== value.candidates.length) return false;
   return true;
@@ -116,6 +120,7 @@ function parseState(value: unknown): PointObjectFindSessionState | null {
       typeof value.scenario !== "string" || !SCENARIOS.has(value.scenario as ExploreScenarioId) ||
       typeof value.group !== "string" || !GROUPS.has(value.group as PointObjectFindGroup) ||
       typeof value.mappedMinimumLevels !== "string" || !/^\d{0,3}$/.test(value.mappedMinimumLevels) ||
+      typeof value.mappedMaximumLevels !== "string" || !/^\d{0,3}$/.test(value.mappedMaximumLevels) ||
       !(value.result === null || isPointObjectFindResult(value.result)) || !Array.isArray(value.shortlist) ||
       value.shortlist.length > 3 || !value.shortlist.every(isCandidate) ||
       typeof value.comparisonOpen !== "boolean" ||
@@ -129,8 +134,10 @@ function parseState(value: unknown): PointObjectFindSessionState | null {
   const result = value.result as PointObjectFindResult | null;
   const shortlist = value.shortlist as PointObjectFindCandidate[];
   const mappedMinimumLevels = value.mappedMinimumLevels === "" ? null : Number(value.mappedMinimumLevels);
+  const mappedMaximumLevels = value.mappedMaximumLevels === "" ? null : Number(value.mappedMaximumLevels);
+  if (mappedMinimumLevels !== null && mappedMaximumLevels !== null && mappedMinimumLevels > mappedMaximumLevels) return null;
   if (result && (result.criteria.marketKey !== value.marketKey || result.criteria.locale !== value.locale || result.criteria.group !== value.group ||
-      result.criteria.mappedMinimumLevels !== mappedMinimumLevels)) return null;
+      result.criteria.mappedMinimumLevels !== mappedMinimumLevels || result.criteria.mappedMaximumLevels !== mappedMaximumLevels)) return null;
   const candidateIds = new Set(result?.candidates.map((item) => item.sourceFeatureId) ?? []);
   if (shortlist.some((item) => !candidateIds.has(item.sourceFeatureId))) return null;
   if (value.analysisTargetSourceFeatureId !== null && !candidateIds.has(value.analysisTargetSourceFeatureId as PointObjectFindCandidate["sourceFeatureId"])) return null;
@@ -143,6 +150,7 @@ function parseState(value: unknown): PointObjectFindSessionState | null {
     scenario,
     group: value.group as PointObjectFindGroup,
     mappedMinimumLevels: value.mappedMinimumLevels,
+    mappedMaximumLevels: value.mappedMaximumLevels,
     result,
     shortlist,
     comparisonOpen: value.comparisonOpen && shortlist.length >= 2,

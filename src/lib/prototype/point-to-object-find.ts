@@ -1,12 +1,16 @@
 import "server-only";
 
+import { unstable_cache } from "next/cache";
+
 import { semanticHash } from "@/src/lib/point-to-object/hash";
 import {
+  assertUsablePointObjectFindPayload,
   buildPointObjectFindOverpassQuery,
   normalizePointObjectFindCandidates,
   POINT_OBJECT_FIND_CAVEAT,
   POINT_OBJECT_FIND_UPSTREAM_LIMIT,
   pointObjectFindApproximateAreaSqKm,
+  PointObjectFindPayloadError,
   type PointObjectFindRequest,
   type PointObjectFindResult
 } from "./point-to-object-find-contract";
@@ -18,12 +22,14 @@ const OVERPASS_REVALIDATE_SECONDS = 15 * 60;
 const OVERPASS_MIN_INTERVAL_MS = 1_200;
 const USER_AGENT = "GeoAI-PointToObject-Preview/1.0 (+https://github.com/mmgolikov/geoai-mvp)";
 const REFERER = "https://github.com/mmgolikov/geoai-mvp";
+type PointObjectFindUpstreamReceipt = { payload: unknown; acquiredAt: string };
 
 export type PointObjectFindErrorCode =
   | "OVERPASS_TIMEOUT"
   | "OVERPASS_RATE_LIMITED"
   | "OVERPASS_UNAVAILABLE"
   | "OVERPASS_RESPONSE_TOO_LARGE"
+  | "OVERPASS_RUNTIME_ERROR"
   | "OVERPASS_RESPONSE_INVALID";
 
 export class PointObjectFindError extends Error {
@@ -87,7 +93,7 @@ async function readBoundedText(response: Response): Promise<string> {
   return text + decoder.decode();
 }
 
-async function fetchOverpassPayload(query: string): Promise<unknown> {
+async function fetchOverpassPayload(query: string): Promise<PointObjectFindUpstreamReceipt> {
   await waitForOverpassSlot();
   const url = new URL(OVERPASS_ENDPOINT);
   url.searchParams.set("data", query);
@@ -98,8 +104,9 @@ async function fetchOverpassPayload(query: string): Promise<unknown> {
       redirect: "error",
       signal: AbortSignal.timeout(OVERPASS_TIMEOUT_MS),
       headers: { Accept: "application/json", Referer: REFERER, "User-Agent": USER_AGENT },
-      cache: "force-cache",
-      next: { revalidate: OVERPASS_REVALIDATE_SECONDS }
+      // Cache only after payload validation. Overpass can return an HTTP 200
+      // runtime-error remark, which must never become a cached empty result.
+      cache: "no-store"
     });
   } catch (error) {
     if (timeoutError(error)) {
@@ -120,20 +127,55 @@ async function fetchOverpassPayload(query: string): Promise<unknown> {
   }
   const text = await readBoundedText(response);
   try {
-    return JSON.parse(text) as unknown;
-  } catch {
+    const payload = JSON.parse(text) as unknown;
+    assertUsablePointObjectFindPayload(payload);
+    return { payload, acquiredAt: new Date().toISOString() };
+  } catch (error) {
+    if (error instanceof PointObjectFindPayloadError) {
+      throw new PointObjectFindError(
+        error.code === "OVERPASS_RUNTIME_FAILURE" ? "OVERPASS_RUNTIME_ERROR" : "OVERPASS_RESPONSE_INVALID",
+        502,
+        error.code === "OVERPASS_RUNTIME_FAILURE"
+          ? "Open-map Find could not complete the bounded query. Zoom in or retry later."
+          : "Open-map Find returned invalid data.",
+        true
+      );
+    }
     throw new PointObjectFindError("OVERPASS_RESPONSE_INVALID", 502, "Open-map Find returned invalid data.", true);
   }
 }
 
+const fetchCachedOverpassPayload = unstable_cache(
+  fetchOverpassPayload,
+  ["point-object-find-overpass-v2"],
+  { revalidate: OVERPASS_REVALIDATE_SECONDS }
+);
+
 export async function findPointObjects(
   request: PointObjectFindRequest,
-  loader: (query: string) => Promise<unknown> = fetchOverpassPayload
+  loader?: (query: string) => Promise<unknown>
 ): Promise<PointObjectFindResult> {
   const query = buildPointObjectFindOverpassQuery(request);
-  const payload = await loader(query);
+  const receipt = loader
+    ? { payload: await loader(query), acquiredAt: new Date().toISOString() }
+    : await fetchCachedOverpassPayload(query);
+  const { payload, acquiredAt } = receipt;
+  try {
+    assertUsablePointObjectFindPayload(payload);
+  } catch (error) {
+    if (error instanceof PointObjectFindPayloadError) {
+      throw new PointObjectFindError(
+        error.code === "OVERPASS_RUNTIME_FAILURE" ? "OVERPASS_RUNTIME_ERROR" : "OVERPASS_RESPONSE_INVALID",
+        502,
+        error.code === "OVERPASS_RUNTIME_FAILURE"
+          ? "Open-map Find could not complete the bounded query. Zoom in or retry later."
+          : "Open-map Find returned invalid data.",
+        true
+      );
+    }
+    throw error;
+  }
   const normalized = normalizePointObjectFindCandidates(payload, request);
-  const acquiredAt = new Date().toISOString();
   const sourceResponseHash = semanticHash({
     observedAt: normalized.observedAt,
     upstreamElementCount: normalized.upstreamElementCount,
@@ -154,7 +196,7 @@ export async function findPointObjects(
       upstreamQueryLimit: POINT_OBJECT_FIND_UPSTREAM_LIMIT,
       capReached: normalized.capReached,
       completeInventory: false,
-      mappedLevelsPolicy: request.mappedMinimumLevels === null
+      mappedLevelsPolicy: request.mappedMinimumLevels === null && request.mappedMaximumLevels === null
         ? "not_requested"
         : "strict_explicit_building_levels_tag_only"
     },

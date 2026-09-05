@@ -120,6 +120,18 @@ function sameFindBounds(left: PointObjectFindBounds | null, right: PointObjectFi
   return left !== null && left.every((coordinate, index) => Math.abs(coordinate - right[index]) < 1e-6);
 }
 
+function boundedRetryAfterSeconds(value: string | null): number {
+  const numeric = value?.trim().match(/^\d+$/) ? Number(value) : Number.NaN;
+  const seconds = Number.isFinite(numeric)
+    ? numeric
+    : value ? Math.ceil((Date.parse(value) - Date.now()) / 1_000) : Number.NaN;
+  return Number.isFinite(seconds) ? Math.min(600, Math.max(1, seconds)) : 60;
+}
+
+function acceptedMappedLevelsInput(value: string): string | null {
+  return value === "" || /^\d{1,3}$/.test(value) ? value : null;
+}
+
 function extractSinglePolygon(value: unknown): Coordinate[] | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const candidate = value as { type?: unknown; coordinates?: unknown; geometry?: unknown; features?: unknown };
@@ -164,6 +176,14 @@ function readableFindSubtype(value: string, group: PointObjectFindGroup, locale:
     warehouse: { en: "Warehouse", ru: "Склад" }
   };
   return labels[normalized]?.[locale] ?? humanize(normalized);
+}
+
+function comparisonObservedAttribute(candidate: PointObjectFindCandidate, locale: "en" | "ru"): { label: string; value: string } | null {
+  for (const key of ["addr:district", "addr:suburb", "addr:city"] as const) {
+    const value = candidate.observedTags[key]?.trim();
+    if (value) return { label: locale === "ru" ? "Район" : "Locality", value };
+  }
+  return null;
 }
 
 function getExecutableFindScenarios(audience: ExploreAudience, role: ExploreRole) {
@@ -260,15 +280,18 @@ export function PointToObjectPrototypeV5() {
   const [createError, setCreateError] = useState<string | null>(null);
   const [createAreaCleared, setCreateAreaCleared] = useState(false);
   const [createReplacementStatus, setCreateReplacementStatus] = useState<"idle" | "applied" | "error">("idle");
+  const [createReplacementRevision, setCreateReplacementRevision] = useState(0);
   const [areaContext, setAreaContext] = useState<PointObjectAreaContextResult | null>(null);
-  const [areaContextStatus, setAreaContextStatus] = useState<"idle" | "loading" | "error">("idle");
+  const [areaContextStatus, setAreaContextStatus] = useState<"idle" | "loading" | "rate" | "error">("idle");
   const [areaContextRetryVersion, setAreaContextRetryVersion] = useState(0);
+  const [areaContextRetryAfterSeconds, setAreaContextRetryAfterSeconds] = useState(0);
   const [visibleBounds, setVisibleBounds] = useState<PointObjectFindBounds | null>(null);
   const [findAudience, setFindAudience] = useState<ExploreAudience>("b2b");
   const [findRole, setFindRole] = useState<ExploreRole>("developer");
   const [findScenario, setFindScenario] = useState<ExploreScenarioId>("b2b_redevelopment_selected_aoi");
   const [findGroup, setFindGroup] = useState<PointObjectFindGroup>("construction");
   const [findMinimumLevels, setFindMinimumLevels] = useState("");
+  const [findMaximumLevels, setFindMaximumLevels] = useState("");
   const [findResult, setFindResult] = useState<PointObjectFindResult | null>(null);
   const [findShortlist, setFindShortlist] = useState<PointObjectFindCandidate[]>([]);
   const [findComparisonOpen, setFindComparisonOpen] = useState(false);
@@ -276,9 +299,7 @@ export function PointToObjectPrototypeV5() {
   const [findStatus, setFindStatus] = useState<"idle" | "loading" | "zoom" | "rate" | "error">("idle");
   const [findResultIntent, setFindResultIntent] = useState<FindIntent | null>(null);
   const [findSessionReady, setFindSessionReady] = useState(false);
-  const [findContextOpen, setFindContextOpen] = useState(false);
   const findRequestRef = useRef<AbortController | null>(null);
-  const findContextButtonRef = useRef<HTMLButtonElement | null>(null);
   const contextRequestId = useRef(0);
   const searchRequestRef = useRef<AbortController | null>(null);
   const suggestionRequestRef = useRef<AbortController | null>(null);
@@ -297,16 +318,20 @@ export function PointToObjectPrototypeV5() {
     ? `${findResultIntent.audience}:${findResultIntent.role}:${findResultIntent.scenario}`
     : null;
   const findMappedMinimumLevels = findMinimumLevels.trim() ? Number(findMinimumLevels) : null;
+  const findMappedMaximumLevels = findMaximumLevels.trim() ? Number(findMaximumLevels) : null;
   const findResultIsStale = findResult !== null && (
     findResultIntentKey !== findIntentKey ||
     findResult.criteria.marketKey !== locationKey ||
     findResult.criteria.locale !== locale ||
     findResult.criteria.group !== findGroup ||
     findResult.criteria.mappedMinimumLevels !== findMappedMinimumLevels ||
+    findResult.criteria.mappedMaximumLevels !== findMappedMaximumLevels ||
     !sameFindBounds(visibleBounds, findResult.criteria.bounds)
   );
   const findResultMarketMismatch = findResult !== null && findResult.criteria.marketKey !== locationKey;
   const activeConceptMassing = generatedConcept?.alternatives?.find((alternative) => alternative.id === activeCreateAlternativeId)?.massing ?? generatedConcept?.massing ?? null;
+  const sourceBuildingsHidden = createAreaCleared && createReplacementStatus === "applied";
+  const createReplacementMapProps = { createReplacementRevision };
 
   useEffect(() => {
     const restoredSelection = readPointObjectSelection();
@@ -331,6 +356,7 @@ export function PointToObjectPrototypeV5() {
       setFindScenario(restoredScenario);
       setFindGroup(restoredGroup);
       setFindMinimumLevels(restoredFind.mappedMinimumLevels);
+      setFindMaximumLevels(restoredFind.mappedMaximumLevels);
       setFindResult(restoredFind.result);
       setFindResultIntent(restoredFind.result ? {
         audience: restoredFind.audience,
@@ -361,12 +387,15 @@ export function PointToObjectPrototypeV5() {
       mappedMinimumLevels: findResult
         ? findResult.criteria.mappedMinimumLevels === null ? "" : String(findResult.criteria.mappedMinimumLevels)
         : findMinimumLevels,
+      mappedMaximumLevels: findResult
+        ? findResult.criteria.mappedMaximumLevels === null ? "" : String(findResult.criteria.mappedMaximumLevels)
+        : findMaximumLevels,
       result: findResult,
       shortlist: findResult ? findShortlist : [],
       comparisonOpen: Boolean(findResult) && findComparisonOpen,
       analysisTargetSourceFeatureId: findResult ? findAnalysisTargetSourceFeatureId : null
     });
-  }, [findAnalysisTargetSourceFeatureId, findAudience, findComparisonOpen, findGroup, findMinimumLevels, findResult, findResultIntent, findRole, findScenario, findSessionReady, findShortlist, locale, locationKey]);
+  }, [findAnalysisTargetSourceFeatureId, findAudience, findComparisonOpen, findGroup, findMaximumLevels, findMinimumLevels, findResult, findResultIntent, findRole, findScenario, findSessionReady, findShortlist, locale, locationKey]);
 
   useEffect(() => {
     if (findPreferencesInitializedRef.current || !user) return;
@@ -379,7 +408,10 @@ export function PointToObjectPrototypeV5() {
     setFindAudience(audience);
     setFindRole(role);
     setFindScenario(scenario);
-    setFindGroup(pointObjectFindCapability(scenario).defaultGroup);
+    const capability = pointObjectFindCapability(scenario);
+    setFindGroup(capability.defaultGroup);
+    setFindMinimumLevels(capability.mappedLevelsPreset.minimum?.toString() ?? "");
+    setFindMaximumLevels(capability.mappedLevelsPreset.maximum?.toString() ?? "");
   }, [user]);
 
   useEffect(() => {
@@ -508,10 +540,12 @@ export function PointToObjectPrototypeV5() {
     if (!createAoi || mode !== "create") {
       setAreaContext(null);
       setAreaContextStatus("idle");
+      setAreaContextRetryAfterSeconds(0);
       return;
     }
     const controller = new AbortController();
     setAreaContextStatus("loading");
+    setAreaContextRetryAfterSeconds(0);
     setAreaContext(null);
     void fetch("/api/prototype/point-to-object/area-context", {
       method: "POST",
@@ -521,6 +555,11 @@ export function PointToObjectPrototypeV5() {
     }).then(async (response) => {
       const payload: unknown = await response.json();
       if (controller.signal.aborted) return;
+      if (response.status === 429) {
+        setAreaContextStatus("rate");
+        setAreaContextRetryAfterSeconds(boundedRetryAfterSeconds(response.headers.get("retry-after")));
+        return;
+      }
       if (!response.ok || !isAreaContextResult(payload)) {
         setAreaContextStatus("error");
         return;
@@ -533,6 +572,14 @@ export function PointToObjectPrototypeV5() {
     });
     return () => controller.abort();
   }, [areaContextRetryVersion, createAoi, locale, locationKey, mode]);
+
+  useEffect(() => {
+    if (areaContextStatus !== "rate") return;
+    const timer = window.setInterval(() => {
+      setAreaContextRetryAfterSeconds((seconds) => Math.max(0, seconds - 1));
+    }, 1_000);
+    return () => window.clearInterval(timer);
+  }, [areaContextStatus]);
 
   const handleSelection = useCallback((nextSelection: LiveMapSelection | null) => {
     contextRequestId.current += 1;
@@ -564,8 +611,10 @@ export function PointToObjectPrototypeV5() {
     setActiveCreateAlternativeId("A");
     setCreateAreaCleared(false);
     setCreateReplacementStatus("idle");
+    setCreateReplacementRevision(0);
     setAreaContext(null);
     setAreaContextStatus("idle");
+    setAreaContextRetryAfterSeconds(0);
     setIsDrawing(false);
     setCreateError(null);
     setFindStatus("idle");
@@ -587,7 +636,8 @@ export function PointToObjectPrototypeV5() {
     setFindRole(role);
     setFindScenario(scenario);
     setFindGroup(pointObjectFindCapability(scenario).defaultGroup);
-    setFindMinimumLevels("");
+    setFindMinimumLevels(pointObjectFindCapability(scenario).mappedLevelsPreset.minimum?.toString() ?? "");
+    setFindMaximumLevels(pointObjectFindCapability(scenario).mappedLevelsPreset.maximum?.toString() ?? "");
     markFindOutcomeStale();
   }
 
@@ -596,14 +646,17 @@ export function PointToObjectPrototypeV5() {
     setFindRole(role);
     setFindScenario(scenario);
     setFindGroup(pointObjectFindCapability(scenario).defaultGroup);
-    setFindMinimumLevels("");
+    setFindMinimumLevels(pointObjectFindCapability(scenario).mappedLevelsPreset.minimum?.toString() ?? "");
+    setFindMaximumLevels(pointObjectFindCapability(scenario).mappedLevelsPreset.maximum?.toString() ?? "");
     markFindOutcomeStale();
   }
 
   function changeFindScenario(scenario: ExploreScenarioId) {
+    const capability = pointObjectFindCapability(scenario);
     setFindScenario(scenario);
-    setFindGroup(pointObjectFindCapability(scenario).defaultGroup);
-    setFindMinimumLevels("");
+    setFindGroup(capability.defaultGroup);
+    setFindMinimumLevels(capability.mappedLevelsPreset.minimum?.toString() ?? "");
+    setFindMaximumLevels(capability.mappedLevelsPreset.maximum?.toString() ?? "");
     markFindOutcomeStale();
   }
 
@@ -615,6 +668,11 @@ export function PointToObjectPrototypeV5() {
     if (next.length < 2) setFindComparisonOpen(false);
   }
 
+  function clearFindShortlist() {
+    setFindShortlist([]);
+    setFindComparisonOpen(false);
+  }
+
   async function findInView() {
     if (!visibleBounds || findStatus === "loading" || findCapability.status === "unsupported") return;
     findRequestRef.current?.abort();
@@ -623,11 +681,12 @@ export function PointToObjectPrototypeV5() {
     setFindStatus("loading");
     try {
       const mappedMinimumLevels = findMinimumLevels.trim() ? Number(findMinimumLevels) : null;
+      const mappedMaximumLevels = findMaximumLevels.trim() ? Number(findMaximumLevels) : null;
       const response = await fetch("/api/prototype/point-to-object/find", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         signal: controller.signal,
-        body: JSON.stringify({ marketKey: locationKey, locale, bounds: visibleBounds, group: findGroup, mappedMinimumLevels, limit: 12 })
+        body: JSON.stringify({ marketKey: locationKey, locale, bounds: visibleBounds, group: findGroup, mappedMinimumLevels, mappedMaximumLevels, limit: 12 })
       });
       const payload: unknown = await response.json();
       if (controller.signal.aborted) return;
@@ -685,8 +744,10 @@ export function PointToObjectPrototypeV5() {
       setActiveCreateAlternativeId("A");
       setCreateAreaCleared(false);
       setCreateReplacementStatus("idle");
+      setCreateReplacementRevision(0);
       setAreaContext(null);
       setAreaContextStatus("idle");
+      setAreaContextRetryAfterSeconds(0);
       setCreateError(null);
     }
   }
@@ -720,6 +781,7 @@ export function PointToObjectPrototypeV5() {
     setActiveCreateAlternativeId("A");
     setCreateAreaCleared(false);
     setCreateReplacementStatus("idle");
+    setCreateReplacementRevision(0);
     setCreateError(null);
   }
 
@@ -749,9 +811,21 @@ export function PointToObjectPrototypeV5() {
     setActiveCreateAlternativeId("A");
     setCreateAreaCleared(false);
     setCreateReplacementStatus("idle");
+    setCreateReplacementRevision(0);
     setAreaContext(null);
     setAreaContextStatus("idle");
+    setAreaContextRetryAfterSeconds(0);
     setCreateError(null);
+  }
+
+  function toggleCreateMapPresentation() {
+    setCreateReplacementStatus("idle");
+    if (sourceBuildingsHidden) {
+      setCreateAreaCleared(false);
+      return;
+    }
+    setCreateAreaCleared(true);
+    setCreateReplacementRevision((revision) => revision + 1);
   }
 
   async function searchPlace(event: React.FormEvent<HTMLFormElement>) {
@@ -870,7 +944,9 @@ export function PointToObjectPrototypeV5() {
   } : {
     residential: "Residential", commercial: "Commercial", hospitality: "Hospitality", retail_daily_needs: "Retail & services", education: "Education", healthcare: "Healthcare", civic_culture: "Civic", transport: "Transport", access: "Roads", open_space: "Open space", industrial: "Industrial", construction: "Construction", other_built: "Other built"
   };
-  const findHasInvalidLevels = findMinimumLevels !== "" && (Number(findMinimumLevels) < 1 || Number(findMinimumLevels) > 100);
+  const findHasInvalidLevels = (findMinimumLevels !== "" && (Number(findMinimumLevels) < 1 || Number(findMinimumLevels) > 100)) ||
+    (findMaximumLevels !== "" && (Number(findMaximumLevels) < 1 || Number(findMaximumLevels) > 100)) ||
+    (findMinimumLevels !== "" && findMaximumLevels !== "" && Number(findMinimumLevels) > Number(findMaximumLevels));
   const findCtaDisabled = !visibleBounds || findStatus === "loading" || findCapability.status === "unsupported" || findHasInvalidLevels;
   const findFooterStatus = findStatus === "loading"
     ? (locale === "ru" ? "Ищем объекты в текущей видимой области…" : "Searching the current visible area…")
@@ -883,7 +959,7 @@ export function PointToObjectPrototypeV5() {
           : findCapability.status === "unsupported"
             ? (locale === "ru" ? "Для этого сценария нужны официальные земельные и градостроительные данные." : "This scenario requires authoritative land and planning data.")
             : findHasInvalidLevels
-              ? (locale === "ru" ? "Укажите этажность от 1 до 100." : "Enter mapped levels from 1 to 100.")
+              ? (locale === "ru" ? "Укажите диапазон этажности от 1 до 100; минимум не должен превышать максимум." : "Enter mapped levels from 1 to 100; minimum cannot exceed maximum.")
               : findResultIsStale
                 ? (locale === "ru" ? "Карта или критерии изменились — обновите результаты." : "The map or criteria changed — update the results.")
                 : !visibleBounds
@@ -895,7 +971,7 @@ export function PointToObjectPrototypeV5() {
       <PointObjectHeader />
       <div className="grid h-[calc(100svh-64px)] min-h-0 grid-rows-[clamp(108px,32svh,360px)_minmax(0,1fr)] bg-white sm:max-lg:landscape:grid-cols-[minmax(0,1fr)_minmax(340px,48%)] sm:max-lg:landscape:grid-rows-1 lg:grid-cols-[minmax(0,1fr)_430px] lg:grid-rows-1">
         <section className="relative h-full min-h-0 overflow-hidden border-b border-line sm:max-lg:landscape:border-b-0 lg:border-b-0" aria-label={t("map.region")}>
-          {sessionReady ? <LiveObjectMap locationKey={locationKey} interactionMode={mode} selection={mode === "analyse" ? selection : null} navigationTarget={navigationTarget} viewModeRequest={viewModeRequest} onSelection={handleSelection} onViewportChange={handleViewportChange} onVisibleBoundsChange={setVisibleBounds} createDrawing={mode === "create" && isDrawing} createDraftCoordinates={mode === "create" ? draftCoordinates : []} createAoi={mode === "create" ? createAoi : null} createAreaCleared={mode === "create" && createAreaCleared} conceptMassing={mode === "create" ? activeConceptMassing : null} onCreateVertex={addCreateVertex} onReplacementStatus={setCreateReplacementStatus} className="h-full min-h-0" /> : <div className="grid h-full min-h-0 place-items-center bg-[#f4f6f7] text-sm font-medium text-[#52606a]" role="status">{t("map.loading")}</div>}
+          {sessionReady ? <LiveObjectMap {...createReplacementMapProps} locationKey={locationKey} interactionMode={mode} selection={mode === "analyse" ? selection : null} navigationTarget={navigationTarget} viewModeRequest={viewModeRequest} onSelection={handleSelection} onViewportChange={handleViewportChange} onVisibleBoundsChange={setVisibleBounds} createDrawing={mode === "create" && isDrawing} createDraftCoordinates={mode === "create" ? draftCoordinates : []} createAoi={mode === "create" ? createAoi : null} createAreaCleared={mode === "create" && createAreaCleared} conceptMassing={mode === "create" ? activeConceptMassing : null} onCreateVertex={addCreateVertex} onReplacementStatus={setCreateReplacementStatus} className="h-full min-h-0" /> : <div className="grid h-full min-h-0 place-items-center bg-[#f4f6f7] text-sm font-medium text-[#52606a]" role="status">{t("map.loading")}</div>}
           <div className="absolute left-4 top-4 z-10 flex w-[min(650px,calc(100%-5rem))] flex-col gap-2 sm:left-5 sm:top-5 sm:flex-row">
             <label className="flex h-11 w-fit shrink-0 items-center rounded-xl border border-white/70 bg-white/95 px-3 shadow-[0_10px_30px_rgba(20,35,45,0.14)] backdrop-blur">
               <span className="sr-only">{t("city.label")}</span>
@@ -940,32 +1016,39 @@ export function PointToObjectPrototypeV5() {
 
             {mode === "find" ? <section className="mt-2 flex min-h-0 flex-1 flex-col" data-testid="find-drawer">
               <div className="min-h-0 flex-1 overflow-y-auto pr-1" data-testid="find-scroll-region">
-              <div className="mt-3" onKeyDown={(event) => { if (event.key === "Escape" && findContextOpen) { event.preventDefault(); setFindContextOpen(false); window.requestAnimationFrame(() => findContextButtonRef.current?.focus()); } }}>
-                <div className="flex min-h-11 items-center justify-between gap-3 rounded-xl border border-line bg-[#f8fafc] px-3">
-                  <p className="truncate text-xs font-bold text-[#344054]">{findAudience.toUpperCase()} · {locale === "ru" ? FIND_ROLE_LABELS_RU[findRole] : findRoles.find((role) => role.id === findRole)?.label ?? findRole}</p>
-                  <button ref={findContextButtonRef} type="button" aria-expanded={findContextOpen} onClick={() => setFindContextOpen((value) => !value)} className="min-h-11 shrink-0 rounded-lg px-2 text-xs font-bold text-[#087f70] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c]">{findContextOpen ? (locale === "ru" ? "Закрыть" : "Close") : (locale === "ru" ? "Изменить" : "Change")}</button>
-                </div>
-                {findContextOpen ? <div className="mt-2 grid gap-2 rounded-xl border border-line bg-white p-3" role="group" aria-label={locale === "ru" ? "Контекст профиля" : "Profile context"}>
+              <div className="mt-3 grid gap-2" data-testid="find-context-controls">
+                <fieldset className="grid gap-1">
+                  <legend className="text-xs font-bold text-[#344054]">{locale === "ru" ? "Контекст" : "Context"}</legend>
                   <div className="grid grid-cols-2 gap-1 rounded-lg bg-[#e8efed] p-1">{(["b2b", "b2c"] as ExploreAudience[]).map((audience) => <button key={audience} type="button" data-testid={`find-audience-${audience}`} aria-pressed={findAudience === audience} onClick={() => changeFindAudience(audience)} className={`min-h-11 rounded-lg text-xs font-bold uppercase transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] ${findAudience === audience ? "bg-[#087f8c] text-white shadow-sm" : "text-[#52606a] hover:bg-white"}`}>{audience}</button>)}</div>
-                  <label className="text-xs font-bold text-[#344054]">{locale === "ru" ? "Роль" : "Role"}<select value={findRole} onChange={(event) => changeFindRole(event.target.value as ExploreRole)} className="mt-1 min-h-11 w-full rounded-lg border border-line bg-white px-3 text-sm outline-none focus:border-[#087f8c]">{findRoles.map((role) => <option key={role.id} value={role.id}>{locale === "ru" ? FIND_ROLE_LABELS_RU[role.id] : role.label}</option>)}</select></label>
-                </div> : null}
+                </fieldset>
+                <label className="text-xs font-bold text-[#344054]">{locale === "ru" ? "Роль" : "Role"}<select value={findRole} onChange={(event) => changeFindRole(event.target.value as ExploreRole)} className="mt-1 min-h-11 w-full rounded-lg border border-line bg-white px-3 text-sm outline-none focus:border-[#087f8c]">{findRoles.map((role) => <option key={role.id} value={role.id}>{locale === "ru" ? FIND_ROLE_LABELS_RU[role.id] : role.label}</option>)}</select></label>
+                <label className="text-xs font-bold text-[#344054]">{locale === "ru" ? "Сценарий" : "Scenario"}<select value={findScenario} onChange={(event) => changeFindScenario(event.target.value as ExploreScenarioId)} className="mt-1 min-h-11 w-full rounded-lg border border-line bg-white px-3 text-sm outline-none focus:border-[#087f8c]">{findScenarios.map((scenario) => <option key={scenario.id} value={scenario.id}>{FIND_SCENARIO_LABELS[locale][scenario.id]}</option>)}</select></label>
+                <fieldset className="grid gap-2 rounded-xl border border-line bg-[#fbfcfd] p-3 sm:grid-cols-2 lg:grid-cols-1">
+                  <legend className="px-1 text-xs font-bold text-[#475467]">{locale === "ru" ? "Параметры поиска" : "Search settings"}</legend>
+                  <label className="text-xs font-bold text-[#344054]">{locale === "ru" ? "Тип объекта" : "Object type"}<select value={findGroup} onChange={(event) => { setFindGroup(event.target.value as PointObjectFindGroup); markFindOutcomeStale(); }} className="mt-1 min-h-11 w-full rounded-lg border border-line bg-white px-3 text-sm outline-none focus:border-[#087f8c]">{findCapability.allowedGroups.map((group) => <option key={group} value={group}>{findGroupLabels[group]}</option>)}</select></label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="text-xs font-bold text-[#344054]">{locale === "ru" ? "Этажей от" : "Levels from"}<input type="text" inputMode="numeric" pattern="[0-9]*" maxLength={3} value={findMinimumLevels} onChange={(event) => { const value = acceptedMappedLevelsInput(event.target.value); if (value !== null) { setFindMinimumLevels(value); markFindOutcomeStale(); } }} placeholder="1" className="mt-1 min-h-11 w-full rounded-lg border border-line bg-white px-3 text-sm outline-none focus:border-[#087f8c]" /></label>
+                    <label className="text-xs font-bold text-[#344054]">{locale === "ru" ? "Этажей до" : "Levels to"}<input type="text" inputMode="numeric" pattern="[0-9]*" maxLength={3} value={findMaximumLevels} onChange={(event) => { const value = acceptedMappedLevelsInput(event.target.value); if (value !== null) { setFindMaximumLevels(value); markFindOutcomeStale(); } }} placeholder="100" className="mt-1 min-h-11 w-full rounded-lg border border-line bg-white px-3 text-sm outline-none focus:border-[#087f8c]" /></label>
+                  </div>
+                </fieldset>
               </div>
-              <label className="mt-3 block text-xs font-bold text-[#344054]">{locale === "ru" ? "Задача" : "Task"}<select value={findScenario} onChange={(event) => changeFindScenario(event.target.value as ExploreScenarioId)} className="mt-1 min-h-11 w-full rounded-lg border border-line bg-white px-3 text-sm outline-none focus:border-[#087f8c]">{findScenarios.map((scenario) => <option key={scenario.id} value={scenario.id}>{FIND_SCENARIO_LABELS[locale][scenario.id]}</option>)}</select></label>
-              <details className="mt-3 rounded-xl border border-line bg-[#fbfcfd] px-3">
-                <summary className="flex min-h-11 cursor-pointer list-none items-center text-xs font-bold text-[#475467] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c]">{locale === "ru" ? "Дополнительные критерии" : "More criteria"}</summary>
-                <div className="grid gap-3 border-t border-line pb-3 pt-3 sm:grid-cols-2 lg:grid-cols-1">
-                  <label className="text-xs font-bold text-[#344054]">{locale === "ru" ? "Тип объекта" : "Object group"}<select value={findGroup} onChange={(event) => { setFindGroup(event.target.value as PointObjectFindGroup); markFindOutcomeStale(); }} className="mt-1 min-h-11 w-full rounded-lg border border-line bg-white px-3 text-sm outline-none focus:border-[#087f8c]">{findCapability.allowedGroups.map((group) => <option key={group} value={group}>{findGroupLabels[group]}</option>)}</select></label>
-                  <label className="text-xs font-bold text-[#344054]">{locale === "ru" ? "Этажность на карте от" : "Mapped levels from"}<input type="number" min={1} max={100} inputMode="numeric" value={findMinimumLevels} onChange={(event) => { setFindMinimumLevels(event.target.value.replace(/\D/g, "").slice(0, 3)); markFindOutcomeStale(); }} placeholder={locale === "ru" ? "Например, 10" : "For example, 10"} className="mt-1 min-h-11 w-full rounded-lg border border-line bg-white px-3 text-sm outline-none focus:border-[#087f8c]" /></label>
-                </div>
-              </details>
               {findResult ? <div className="mt-4">
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted"><span>{findResult.mode === "empty" ? (locale === "ru" ? "По этим условиям ничего не найдено." : "No matches for these filters.") : (locale === "ru" ? `Показано: ${findResult.candidates.length}` : `Showing ${findResult.candidates.length}`)}</span><span className="flex items-center gap-2">{findResultIsStale ? <span className="rounded-full bg-[#e8edef] px-2 py-0.5 font-bold uppercase tracking-[0.06em] text-[#52606a]" data-testid="find-result-stale">{locale === "ru" ? "Устарела" : "Stale"}</span> : null}{findResult.coverage.capReached ? <span className="font-semibold text-[#79520d]">{locale === "ru" ? "Увеличьте масштаб, чтобы сузить результаты." : "Zoom in to narrow results."}</span> : null}</span></div>
-                {findShortlist.length >= 2 ? <div className="mb-3 flex items-center justify-between gap-3 rounded-xl bg-[#e6f5f1] px-3 py-2"><span className="text-xs font-bold text-[#176548]">{locale === "ru" ? `Выбрано: ${findShortlist.length}` : `Selected: ${findShortlist.length}`}</span><button type="button" onClick={() => setFindComparisonOpen((value) => !value)} className="min-h-11 rounded-lg bg-[#087f70] px-3 text-[11px] font-bold text-white">{findComparisonOpen ? (locale === "ru" ? "К списку" : "Back to list") : (locale === "ru" ? "Сравнить" : "Compare")}</button></div> : null}
-                {findComparisonOpen && findShortlist.length >= 2 ? <div className="space-y-2" aria-label={locale === "ru" ? "Сравнение объектов" : "Object comparison"}>
-                  {findShortlist.map((candidate) => {
-                    const subtype = readableFindSubtype(candidate.matchedTag.value, candidate.group, locale);
-                    return <article key={candidate.sourceFeatureId} className="rounded-xl border border-line bg-white p-3"><div className="flex items-start justify-between gap-2"><div><h3 className="text-sm font-bold text-ink">{candidate.label}</h3><p className="mt-1 text-[11px] text-muted">{findGroupLabels[candidate.group]}{subtype ? ` · ${subtype}` : ""}</p></div><button type="button" onClick={() => toggleFindShortlist(candidate)} className="min-h-11 shrink-0 rounded-lg px-2 text-[11px] font-bold text-[#087f70]">{locale === "ru" ? "Убрать" : "Remove"}</button></div><dl className="mt-2 grid grid-cols-[90px_1fr] gap-x-2 gap-y-1 text-[10px]"><dt className="text-muted">{locale === "ru" ? "Этажность" : "Levels"}</dt><dd className="font-semibold">{candidate.mappedBuildingLevels ?? "—"}</dd></dl><button type="button" disabled={findResultMarketMismatch} onClick={() => chooseFindCandidate(candidate)} className="mt-3 min-h-11 w-full rounded-lg border border-[#8ebdb4] bg-white px-3 text-xs font-bold text-[#176548] disabled:cursor-not-allowed disabled:opacity-40">{locale === "ru" ? "Открыть анализ" : "Open analysis"}</button></article>;
-                  })}
+                {findShortlist.length > 0 ? <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-[#e6f5f1] px-3 py-2" data-testid="find-comparison-toolbar">
+                  <span className="text-xs font-bold text-[#176548]">{locale === "ru" ? `Выбрано: ${findShortlist.length}` : `Selected: ${findShortlist.length}`}</span>
+                  <div className="flex flex-wrap justify-end gap-1.5">
+                    {findComparisonOpen ? <button type="button" onClick={() => setFindComparisonOpen(false)} className="min-h-11 rounded-lg border border-[#8ebdb4] bg-white px-3 text-[11px] font-bold text-[#176548] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c]">{locale === "ru" ? "К результатам" : "Back to results"}</button> : <button type="button" disabled={findShortlist.length < 2} onClick={() => setFindComparisonOpen(true)} className="min-h-11 rounded-lg bg-[#087f70] px-3 text-[11px] font-bold text-white disabled:cursor-not-allowed disabled:bg-[#9bbdb5] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c]">{locale === "ru" ? "Сравнить выбранные" : "Compare selected"}</button>}
+                    <button type="button" onClick={clearFindShortlist} className="min-h-11 rounded-lg px-3 text-[11px] font-bold text-[#176548] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c]">{locale === "ru" ? "Очистить" : "Clear"}</button>
+                  </div>
+                </div> : null}
+                {findComparisonOpen && findShortlist.length >= 2 ? <div className="-mx-1 overflow-x-auto overflow-y-hidden px-1 pb-2" role="region" aria-label={locale === "ru" ? "Сравнение объектов" : "Object comparison"} tabIndex={0}>
+                  <div className="grid grid-flow-col auto-cols-[minmax(188px,1fr)] gap-2" data-testid="find-comparison-grid">
+                    {findShortlist.map((candidate) => {
+                      const subtype = readableFindSubtype(candidate.matchedTag.value, candidate.group, locale);
+                      const observedAttribute = comparisonObservedAttribute(candidate, locale);
+                      return <article key={candidate.sourceFeatureId} className="flex min-w-0 flex-col rounded-xl border border-line bg-white p-3"><div className="flex items-start justify-between gap-1"><div className="min-w-0"><h3 className="break-words text-sm font-bold text-ink">{candidate.label}</h3><p className="mt-1 break-words text-[11px] text-muted">{findGroupLabels[candidate.group]}{subtype ? ` · ${subtype}` : ""}</p></div><button type="button" aria-label={`${locale === "ru" ? "Убрать из сравнения" : "Remove from comparison"}: ${candidate.label}`} onClick={() => toggleFindShortlist(candidate)} className="min-h-11 shrink-0 rounded-lg px-2 text-[11px] font-bold text-[#087f70] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c]">{locale === "ru" ? "Убрать" : "Remove"}</button></div><dl className="mt-3 grid grid-cols-[minmax(72px,auto)_minmax(0,1fr)] gap-x-2 gap-y-2 text-[10px]"><dt className="text-muted">{locale === "ru" ? "Тип" : "Type"}</dt><dd className="break-words font-semibold">{subtype ?? findGroupLabels[candidate.group]}</dd><dt className="text-muted">{locale === "ru" ? "Этажность" : "Levels"}</dt><dd className="font-semibold">{candidate.mappedBuildingLevels ?? (locale === "ru" ? "Не указана" : "Not mapped")}</dd>{observedAttribute ? <><dt className="text-muted">{observedAttribute.label}</dt><dd className="break-words font-semibold">{observedAttribute.value}</dd></> : null}</dl><button type="button" disabled={findResultMarketMismatch} onClick={() => chooseFindCandidate(candidate)} className="mt-auto min-h-11 w-full rounded-lg border border-[#8ebdb4] bg-white px-3 text-xs font-bold text-[#176548] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] disabled:cursor-not-allowed disabled:opacity-40">{locale === "ru" ? "Открыть анализ" : "Open analysis"}</button></article>;
+                    })}
+                  </div>
                 </div> : <ul className="space-y-2">{findResult.candidates.map((candidate) => {
                   const selectedForComparison = findShortlist.some((item) => item.sourceFeatureId === candidate.sourceFeatureId);
                   const subtype = readableFindSubtype(candidate.matchedTag.value, candidate.group, locale);
@@ -993,19 +1076,20 @@ export function PointToObjectPrototypeV5() {
             {mode === "create" ? <div className="mt-5 space-y-4">
               {!createAoi ? <section className="rounded-[18px] border border-[#cfe0da] bg-[#f4faf7] p-4">
                 <div className="grid grid-cols-2 gap-2">
-                  <button type="button" onClick={() => { setIsDrawing(true); setDraftCoordinates([]); setCreateError(null); setGeneratedConcept(null); setActiveCreateAlternativeId("A"); }} className="min-h-11 rounded-xl bg-[#087f70] px-3 text-xs font-bold text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f70] focus-visible:ring-offset-2">{t("create.draw")}</button>
+                  <button type="button" onClick={() => { setIsDrawing(true); setDraftCoordinates([]); setCreateError(null); setGeneratedConcept(null); setActiveCreateAlternativeId("A"); setCreateAreaCleared(false); setCreateReplacementStatus("idle"); setCreateReplacementRevision(0); }} className="min-h-11 rounded-xl bg-[#087f70] px-3 text-xs font-bold text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f70] focus-visible:ring-offset-2">{t("create.draw")}</button>
                   <label className="grid min-h-11 cursor-pointer place-items-center rounded-xl border border-[#9bbdb5] bg-white px-3 text-center text-xs font-bold text-[#345c54] focus-within:ring-2 focus-within:ring-[#087f70]"><span>{t("create.upload")}</span><input type="file" accept="application/geo+json,application/json,.geojson,.json" aria-label={t("create.upload")} onChange={(event) => void uploadCreateArea(event)} className="sr-only focus-visible:outline-none" /></label>
                 </div>
                 {isDrawing ? <><p className="mt-3 text-xs font-semibold text-[#345c54]">{t("create.drawing", { count: draftCoordinates.length })}</p><div className="mt-3 grid grid-cols-3 gap-2"><button type="button" disabled={draftCoordinates.length < 3} onClick={() => closeCreateArea()} className="min-h-10 rounded-lg bg-[#087f70] px-2 text-xs font-bold text-white disabled:opacity-40">{t("create.close")}</button><button type="button" disabled={!draftCoordinates.length} onClick={() => setDraftCoordinates((current) => current.slice(0, -1))} className="min-h-10 rounded-lg border border-[#b8cbc6] bg-white px-2 text-xs font-bold text-[#345c54] disabled:opacity-40">{t("create.undo")}</button><button type="button" onClick={resetCreate} className="min-h-10 rounded-lg border border-[#b8cbc6] bg-white px-2 text-xs font-bold text-[#345c54]">{t("create.cancel")}</button></div></> : null}
                 {createError ? <p className="mt-3 rounded-lg border border-[#e6bd74] bg-[#fff9ed] px-3 py-2 text-xs text-[#79520d]" role="alert">{createError}</p> : null}
               </section> : <><p className="rounded-xl border border-[#cfe0da] bg-[#f4faf7] px-4 py-3 text-xs font-bold text-[#345c54]">{t("create.ready", { area: createAoi.areaSqM >= 10_000 ? `${(createAoi.areaSqM / 10_000).toFixed(2)} ${locale === "ru" ? "га" : "ha"}` : `${Math.round(createAoi.areaSqM).toLocaleString(locale)} ${locale === "ru" ? "м²" : "m²"}` })}</p>
                 <section className="rounded-[18px] border border-line bg-[#f8fafc] p-4" aria-live="polite">
-                  <div className="flex items-start justify-between gap-3"><div><p className="text-[11px] font-bold uppercase tracking-[0.09em] text-[#087f70]">{locale === "ru" ? "КОНТЕКСТ ЗОНЫ" : "AREA CONTEXT"}</p><h2 className="mt-1 text-sm font-bold text-ink">{locale === "ru" ? "Сводка объектов внутри полигона" : "Objects inside the polygon"}</h2></div><button type="button" onClick={() => { setCreateReplacementStatus("idle"); setCreateAreaCleared((value) => !value); }} className="min-h-9 shrink-0 rounded-lg border border-[#8ebdb4] bg-white px-3 text-[11px] font-bold text-[#176548]">{createAreaCleared ? (locale === "ru" ? "Показать исходные" : "Show existing") : generatedConcept ? (locale === "ru" ? "Показать концепт" : "Show concept") : (locale === "ru" ? "Очистить 3D" : "Clear 3D")}</button></div>
+                  <div className="flex items-start justify-between gap-3"><div><p className="text-[11px] font-bold uppercase tracking-[0.09em] text-[#087f70]">{locale === "ru" ? "КОНТЕКСТ ЗОНЫ" : "AREA CONTEXT"}</p><h2 className="mt-1 text-sm font-bold text-ink">{locale === "ru" ? "Сводка объектов внутри полигона" : "Objects inside the polygon"}</h2></div><button type="button" data-testid="create-map-presentation-toggle" onClick={toggleCreateMapPresentation} className="min-h-11 shrink-0 rounded-lg border border-[#8ebdb4] bg-white px-3 text-[11px] font-bold text-[#176548] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c]">{sourceBuildingsHidden ? (locale === "ru" ? "Показать исходные" : "Show existing") : activeConceptMassing ? (locale === "ru" ? "Показать созданную концепцию" : "Show generated concept") : (locale === "ru" ? "Скрыть исходные здания" : "Hide existing buildings")}</button></div>
                   {areaContextStatus === "loading" ? <p className="mt-3 text-xs font-semibold text-[#087f70]" role="status">{locale === "ru" ? "Собираем объекты открытой карты…" : "Reading open-map objects…"}</p> : null}
+                  {areaContextStatus === "rate" ? <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-[#e6bd74] bg-[#fff9ed] p-3 text-xs text-[#79520d]" role="alert"><span>{areaContextRetryAfterSeconds > 0 ? (locale === "ru" ? `Можно повторить через ${areaContextRetryAfterSeconds} с.` : `Retry in ${areaContextRetryAfterSeconds}s.`) : (locale === "ru" ? "Можно повторить запрос." : "Try again.")}</span><button type="button" disabled={areaContextRetryAfterSeconds > 0} onClick={() => setAreaContextRetryVersion((value) => value + 1)} className="min-h-11 shrink-0 rounded-lg border border-[#d6b36e] bg-white px-3 font-bold disabled:cursor-wait disabled:opacity-50">{t("selection.retry")}</button></div> : null}
                   {areaContextStatus === "error" ? <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-[#e6bd74] bg-[#fff9ed] p-3 text-xs text-[#79520d]" role="alert"><span>{locale === "ru" ? "Контекст зоны временно недоступен." : "Area context is temporarily unavailable."}</span><button type="button" onClick={() => setAreaContextRetryVersion((value) => value + 1)} className="min-h-8 rounded-lg border border-[#d6b36e] bg-white px-2 font-bold">{t("selection.retry")}</button></div> : null}
                   {areaContext ? <><div className="mt-3 grid grid-cols-3 gap-2"><div className="rounded-lg bg-white p-2"><span className="block text-[10px] text-muted">{locale === "ru" ? "Объекты на карте" : "Mapped objects"}</span><strong className="mt-1 block text-sm">{areaContext.summary.sampleSize}</strong></div><div className="rounded-lg bg-white p-2"><span className="block text-[10px] text-muted">{locale === "ru" ? "Здания на карте" : "Mapped buildings"}</span><strong className="mt-1 block text-sm">{areaContext.summary.mappedBuildingCount}</strong></div><div className="rounded-lg bg-white p-2"><span className="block text-[10px] text-muted">{locale === "ru" ? "Медиана этажей" : "Median levels"}</span><strong className="mt-1 block text-sm">{areaContext.summary.medianMappedLevels ?? "—"}</strong></div></div><div className="mt-3 flex flex-wrap gap-1.5">{areaContext.summary.groups.slice(0, 5).map((group) => <span key={group.group} className="rounded-full bg-white px-2.5 py-1 text-[10px] font-semibold text-[#475467] ring-1 ring-inset ring-[#d7dee4]">{areaGroupLabels[group.group]} · {group.count}</span>)}</div>{areaContext.coverage.capReached ? <p className="mt-3 text-[10px] font-semibold leading-4 text-[#79520d]">{locale === "ru" ? "Нарисуйте меньшую зону, чтобы сузить список объектов на карте." : "Draw a smaller area to narrow the mapped objects."}</p> : null}</> : null}
                 </section>
-                <PointObjectCreatePanel locale={locale} marketKey={locationKey} aoi={createAoi} depth="standard" generated={generatedConcept} activeAlternativeId={activeCreateAlternativeId} onGenerated={(concept) => { setGeneratedConcept(concept); setActiveCreateAlternativeId("A"); setCreateReplacementStatus("idle"); setCreateAreaCleared(true); }} onAlternativeChange={(id) => { setActiveCreateAlternativeId(id); setCreateReplacementStatus("idle"); setCreateAreaCleared(true); }} onReset={() => { setGeneratedConcept(null); setActiveCreateAlternativeId("A"); setCreateAreaCleared(false); setCreateReplacementStatus("idle"); }} />{createAreaCleared && createReplacementStatus !== "applied" ? <p className={`rounded-xl border px-3 py-2 text-[10px] leading-4 ${createReplacementStatus === "error" ? "border-[#e6bd74] bg-[#fff9ed] text-[#79520d]" : "border-[#d8e2df] bg-[#f8faf9] text-[#62716d]"}`} role="status">{createReplacementStatus === "error" ? (locale === "ru" ? "Безопасное замещение не применилось: исходные здания восстановлены, новая модель скрыта." : "Safe replacement could not be applied: source buildings were restored and the concept is hidden.") : (locale === "ru" ? "Подготавливаем замещение зданий…" : "Preparing building replacement…")}</p> : null}<button type="button" onClick={resetCreate} className="min-h-10 w-full rounded-xl border border-[#b8cbc6] bg-white px-3 text-xs font-bold text-[#345c54]">{t("create.cancel")}</button></>}
+                <PointObjectCreatePanel locale={locale} marketKey={locationKey} aoi={createAoi} depth="standard" generated={generatedConcept} activeAlternativeId={activeCreateAlternativeId} onGenerated={(concept) => { setGeneratedConcept(concept); setActiveCreateAlternativeId("A"); setCreateReplacementStatus("idle"); setCreateAreaCleared(true); setCreateReplacementRevision((revision) => revision + 1); }} onAlternativeChange={(id) => { setActiveCreateAlternativeId(id); setCreateReplacementStatus("idle"); setCreateAreaCleared(true); setCreateReplacementRevision((revision) => revision + 1); }} onReset={() => { setGeneratedConcept(null); setActiveCreateAlternativeId("A"); setCreateAreaCleared(false); setCreateReplacementStatus("idle"); setCreateReplacementRevision(0); }} />{createAreaCleared && createReplacementStatus !== "applied" ? <p className={`rounded-xl border px-3 py-2 text-[10px] leading-4 ${createReplacementStatus === "error" ? "border-[#e6bd74] bg-[#fff9ed] text-[#79520d]" : "border-[#d8e2df] bg-[#f8faf9] text-[#62716d]"}`} role="status">{createReplacementStatus === "error" ? (locale === "ru" ? "Безопасное замещение не применилось: исходные здания восстановлены, новая модель скрыта." : "Safe replacement could not be applied: source buildings were restored and the concept is hidden.") : (locale === "ru" ? "Подготавливаем замещение зданий…" : "Preparing building replacement…")}</p> : null}<button type="button" data-testid="create-delete-area" onClick={resetCreate} className="min-h-11 w-full rounded-xl border border-[#b8cbc6] bg-white px-3 text-xs font-bold text-[#345c54] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c]">{t("create.deleteArea")}</button></>}
             </div> : null}
           </div>
         </aside>
