@@ -344,6 +344,16 @@ assert.match(responsesRequest.input[1].content[0].text, /\"locale\":\"en\"/);
 assert.equal(inferPromptMassingStyle("Make four towers on a shared podium."), "towers_on_podium");
 assert.equal(inferPromptMassingStyle("Создай тихий внутренний двор"), "courtyard");
 assert.equal(inferPromptMassingStyle("No explicit spatial form."), null);
+assert.equal(inferPromptMassingStyle("Create a campus without towers."), "campus",
+  "A negated tower mention must not override the requested campus style.");
+assert.equal(inferPromptMassingStyle("Сделай кампус без башен."), "campus",
+  "Russian negation must not turn a campus request into towers.");
+assert.equal(inferPromptMassingStyle("Не нужен двор, хочу башни."), "towers_on_podium",
+  "A negated courtyard mention must not override a positive tower request.");
+assert.equal(inferPromptMassingStyle("Сохрани исторический дворец."), null,
+  "A substring inside an unrelated word must not force courtyard massing.");
+assert.equal(inferPromptMassingStyle("Compare a courtyard and towers."), null,
+  "Mixed style intent must remain available to the full programme planner instead of forcing a regex winner.");
 const towerPromptRequest = buildPointObjectCreateResponsesRequest({
   ...aiInput,
   customPrompt: "Create towers on a podium.",

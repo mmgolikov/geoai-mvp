@@ -179,13 +179,24 @@ function boundedPrompt(value: string | null): string | null {
 }
 
 export function inferPromptMassingStyle(value: string | null): ConceptMassingStyle | null {
-  const prompt = boundedPrompt(value)?.toLocaleLowerCase() ?? "";
+  const prompt = boundedPrompt(value)?.toLowerCase() ?? "";
   if (!prompt) return null;
-  if (/\b(?:courtyard|inner[ -]?court|court[ -]?block)\b|(?:двор|внутренн(?:ий|его)\s+двор)/iu.test(prompt)) return "courtyard";
-  if (/\b(?:tower|towers|podium|high[ -]?rise)\b|(?:башн|подиум|высотн)/iu.test(prompt)) return "towers_on_podium";
-  if (/\b(?:campus|pavilion|pavilions|distributed)\b|(?:кампус|павильон|рассредоточ)/iu.test(prompt)) return "campus";
-  if (/\b(?:perimeter|edge[ -]?aligned|street[ -]?wall)\b|(?:периметр|периметральн|вдоль\s+границ)/iu.test(prompt)) return "perimeter";
-  return null;
+  const stylePatterns: Array<[ConceptMassingStyle, RegExp]> = [
+    ["courtyard", /\b(?:courtyard|inner[ -]?court|court[ -]?block)\b|(?<![\p{L}\p{N}_])(?:двор|внутренн(?:ий|его)\s+двор)(?![\p{L}\p{N}_])/iu],
+    ["towers_on_podium", /\b(?:tower|towers|podium|high[ -]?rise)\b|(?<![\p{L}\p{N}_])(?:башн[\p{L}-]*|подиум[\p{L}-]*|высотн[\p{L}-]*)(?![\p{L}\p{N}_])/iu],
+    ["campus", /\b(?:campus|pavilion|pavilions|distributed)\b|(?<![\p{L}\p{N}_])(?:кампус[\p{L}-]*|павильон[\p{L}-]*|рассредоточ[\p{L}-]*)(?![\p{L}\p{N}_])/iu],
+    ["perimeter", /\b(?:perimeter|edge[ -]?aligned|street[ -]?wall)\b|(?<![\p{L}\p{N}_])(?:периметр[\p{L}-]*|периметральн[\p{L}-]*|вдоль\s+границ)(?![\p{L}\p{N}_])/iu]
+  ];
+  const negatedImmediatelyBefore = /(?:\b(?:without|no|not|avoid(?:ing)?|exclude|excluding|do\s+not\s+(?:want|use|include)|instead\s+of)\b|(?:без|не\s+(?:нуж(?:ен|на|но|ны)|хочу|используй|делай|добавляй)|избег(?:ай|ать)|исключ(?:и|ить)))\s*(?:[\p{L}\p{N}_-]+\s+){0,2}$/iu;
+  const positiveStyles = new Set<ConceptMassingStyle>();
+  for (const [style, pattern] of stylePatterns) {
+    const globalPattern = new RegExp(pattern.source, `${pattern.flags}g`);
+    for (const match of prompt.matchAll(globalPattern)) {
+      const before = prompt.slice(Math.max(0, (match.index ?? 0) - 48), match.index ?? 0);
+      if (!negatedImmediatelyBefore.test(before)) positiveStyles.add(style);
+    }
+  }
+  return positiveStyles.size === 1 ? [...positiveStyles][0] : null;
 }
 
 export function buildPointObjectCreateResponsesRequest(
