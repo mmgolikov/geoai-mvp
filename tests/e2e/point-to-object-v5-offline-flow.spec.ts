@@ -725,6 +725,16 @@ test("Create A/B and mobile profile remain coherent offline", async ({ page }, t
   await expect(page.getByTestId("create-result-language-stale")).toBeVisible();
   await expect(page.getByText("A deterministic mixed-use concept for the selected area.")).toHaveCount(0);
   await expect(page.getByTestId("create-generate-action")).toHaveText("Обновить концепцию");
+  await mapPresentation.click();
+  await expect(mapPresentation).toHaveText("Показать созданную концепцию");
+  const areaHeadingBox = await page.getByTestId("create-area-context-heading").boundingBox();
+  const presentationBox = await mapPresentation.boundingBox();
+  expect(areaHeadingBox).not.toBeNull();
+  expect(presentationBox).not.toBeNull();
+  expect(areaHeadingBox!.width).toBeGreaterThan(280);
+  expect(presentationBox!.y).toBeGreaterThanOrEqual(areaHeadingBox!.y + areaHeadingBox!.height);
+  await mapPresentation.click();
+  await expect(mapPresentation).toHaveText("Показать исходные");
   await page.getByRole("button", { name: "en", exact: true }).click();
   await expect(page.getByTestId("create-result-language-stale")).toHaveCount(0);
   await expect(generateConcept).toHaveText("Already generated");
