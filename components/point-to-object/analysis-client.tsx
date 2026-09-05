@@ -395,7 +395,6 @@ export function PointToObjectAnalysis() {
                 {Object.entries(subject.tags).slice(0, 6).map(([key, value]) => <span key={key} className="rounded-full bg-[#f3f6f8] px-2.5 py-1 text-[11px] font-semibold text-[#475467]">{humanizeAttribute(key)} · {value}</span>)}
               </div>
             ) : null}
-            {selection ? <p className="mt-3 text-xs tabular-nums text-[#667085]">{t("analysis.point", { latitude: selection.latitude.toFixed(6), longitude: selection.longitude.toFixed(6) })}</p> : null}
           </div>
 
           <div className="mt-5">
@@ -421,7 +420,7 @@ export function PointToObjectAnalysis() {
                   <h2 className="mt-4 text-xl font-bold leading-8 tracking-[-0.025em] text-[#172b4d]">{content.decisionBrief.headline}</h2>
                   <p className="mt-3 text-base leading-7 text-[#344054]">{content.decisionBrief.summary}</p>
                   <ClaimList items={content.decisionBrief.reasons} />
-                  {content.answerToQuestion ? (
+                  {content.answerToQuestion && analysis?.mode === "openai" && Boolean(analysis.request.question) ? (
                     <div className="mt-6 rounded-2xl border border-[#cfe0f7] bg-[#eef6ff] p-4">
                       <p className="text-xs font-bold uppercase tracking-[0.08em] text-[#087f8c]">{t("analysis.answer")}</p>
                       {analysis?.mode === "openai" && analysis.request.question ? <p className="mt-2 text-xs leading-5 text-[#52657a]">{analysis.request.question}</p> : null}
@@ -436,6 +435,7 @@ export function PointToObjectAnalysis() {
                       <EvidenceRefs references={content.answerToQuestion.evidenceRefs} />
                     </div>
                   ) : null}
+                  <p className="mt-5 border-t border-line pt-4 text-[11px] leading-5 text-muted" data-testid="analysis-caveat">{content.caveat}</p>
                 </section>
 
                 {geoContext ? <section className="rounded-[20px] border border-line bg-white p-5 shadow-soft sm:p-7">
@@ -517,14 +517,6 @@ export function PointToObjectAnalysis() {
                   </ol>
                 </section>
 
-                <details className="rounded-[20px] border border-line bg-white p-5 shadow-soft">
-                  <summary className="cursor-pointer list-none text-sm font-bold text-[#344054]">{t("analysis.evidenceMethod")}</summary>
-                  <div className="mt-5 grid gap-5 lg:grid-cols-2">
-                    <div><h3 className="text-sm font-bold">{t("analysis.sourceFacts")}</h3><ClaimList items={content.sourceFacts} /></div>
-                    <div><h3 className="text-sm font-bold">{t("analysis.methodBoundary")}</h3><p className="mt-3 text-sm leading-6 text-muted">{t("analysis.methodText")}</p></div>
-                  </div>
-                  {analysis?.mode === "openai" ? <div className="mt-5 border-t border-line pt-4 text-[11px] leading-5 text-muted"><p>{locale === "ru" ? "Принятый результат" : "Accepted result"}: {analysis.telemetry.model} · {locale === "ru" ? "уровень рассуждения" : "reasoning"} {analysis.telemetry.reasoningEffort} · {analysis.telemetry.latencyMs} ms{analysis.telemetry.estimatedCostUsd === null ? "" : ` · ${locale === "ru" ? "оценочная стоимость API" : "estimated total API cost"} $${analysis.telemetry.estimatedCostUsd.toFixed(6)}`}</p><p>{locale === "ru" ? "Маршрут API" : "API route"}: {analysis.telemetry.attemptTrace.map((attempt) => `${attempt.attempt}. ${attempt.model}/${attempt.reasoningEffort}${attempt.estimatedCostUsd === null ? "" : ` (${locale === "ru" ? "оценка" : "estimated"} $${attempt.estimatedCostUsd.toFixed(6)})`}`).join(" → ")}</p><p>{locale === "ru" ? "Токены" : "Tokens"}: {analysis.telemetry.inputTokens ?? (locale === "ru" ? "нет данных" : "unavailable")} {locale === "ru" ? "вход" : "input"} · {analysis.telemetry.cachedInputTokens ?? (locale === "ru" ? "нет данных" : "unavailable")} {locale === "ru" ? "кэшировано" : "cached"} · {analysis.telemetry.cacheWriteTokens ?? (locale === "ru" ? "нет данных" : "unavailable")} {locale === "ru" ? "запись кэша" : "cache write"} · {analysis.telemetry.outputTokens ?? (locale === "ru" ? "нет данных" : "unavailable")} {locale === "ru" ? "выход" : "output"}</p><p>{locale === "ru" ? "Пакет данных" : "Evidence pack"}: {analysis.evidencePackId} · {locale === "ru" ? "схема анализа" : "analysis schema"} v{analysis.telemetry.schemaVersion} · {locale === "ru" ? "промпт" : "prompt"} {analysis.telemetry.promptVersion}</p></div> : null}
-                </details>
               </div>
             ) : null}
           </div>
@@ -554,7 +546,6 @@ export function PointToObjectAnalysis() {
             </details>
             <button type="submit" disabled={!question.trim() || loading} className="mt-4 min-h-12 w-full rounded-control bg-[#087f8c] px-4 text-sm font-bold text-white disabled:cursor-not-allowed disabled:bg-[#b7c4d7]">{loading ? t("analysis.running", { depth: localizedDepth }) : t("analysis.run")}</button>
           </form>
-          <section className="rounded-[18px] border border-line bg-white p-4 text-[11px] leading-5 text-muted"><p className="font-semibold text-[#475467]">{t("boundary")}</p></section>
         </div></aside>
       </div>
     </main>

@@ -38,10 +38,7 @@ assert.match(session, /shortlist\.some\(\(item\) => !candidateIds\.has\(item\.so
 assert.match(client, /readPointObjectFindSession\(\)/);
 assert.match(client, /writePointObjectFindSession\(\{/);
 assert.doesNotMatch(client, /if \(restoredFind\.locale ===/, "Session restore must retain the last successful Find result across a locale change and expose it as stale until refreshed");
-assert.match(client, /Sample lineage/);
-assert.match(client, /sourceResponseHash\.slice\(0, 16\)/);
-assert.match(client, /data-testid="find-result-lineage"/);
-assert.match(client, /findResult\.source\.name[\s\S]*findResult\.source\.service[\s\S]*findResult\.source\.acquiredAt[\s\S]*findResult\.source\.licenceId/);
+assert.doesNotMatch(client, /sourceResponseHash\.slice|data-testid="find-result-lineage"/, "Find must keep source evidence in state instead of routine UI");
 assert.match(client, /findResult\.criteria\.bounds/);
 assert.match(session, /analysisTargetSourceFeatureId/);
 assert.match(analysis, /findSession\?\.analysisTargetSourceFeatureId === selectedSourceFeatureId/);
@@ -51,16 +48,17 @@ const findDrawerStart = client.indexOf('data-testid="find-drawer"');
 const findDrawerEnd = client.indexOf('{mode === "create"', findDrawerStart);
 assert.ok(findDrawerStart >= 0 && findDrawerEnd > findDrawerStart, "Find drawer source must be addressable for deterministic UI checks");
 const findDrawer = client.slice(findDrawerStart, findDrawerEnd);
-assert.match(client, /ⓘ Data & methodology/);
-assert.match(client, /data-testid="find-methodology-content"/);
-assert.match(client, /Current map extent:/);
-assert.match(client, /Returned sample query extent:/);
-assert.match(client, /data-testid="find-result-extent"/);
-assert.match(client, /ownership, vacancy, condition, zoning, demolition rights or redevelopment validation/);
-assert.match(client, /POINT_OBJECT_FIND_CAVEAT/);
+assert.doesNotMatch(header, /showDataSources|source-offer|header\.dataSources/, "Prototype headers must not expose the removed Data sources action");
+assert.doesNotMatch(client, /Data & methodology|find-data-methodology|find-methodology-panel|POINT_OBJECT_FIND_CAVEAT/, "Prototype drawers must not restore the removed methodology control");
+assert.match(client, /getExecutableFindScenarios/);
+assert.match(client, /pointObjectFindCapability\(scenario\.id\)\.status !== "unsupported"/, "Find choices must omit non-executable scenarios");
+assert.match(i18n, /"find\.title": "Find places"/);
+assert.match(client, /Buildings and construction sites/);
+assert.match(client, /Residential buildings/);
 assert.doesNotMatch(client, /t\("find\.body"\)/, "Find must not render a permanent introductory disclaimer");
-assert.doesNotMatch(findDrawer, /<details/, "Find drawer must not duplicate the methodology disclosure");
+assert.match(findDrawer, /More criteria/);
 assert.doesNotMatch(findDrawer, /findCapability\.limitation\[locale\]<\/p>/, "Find capability text must not render as a permanent inline disclaimer");
+assert.doesNotMatch(findDrawer, /Factual OpenStreetMap attribute comparison|Фактическое сопоставление атрибутов|mapped signal|сигнал на карте|signal":/, "Find cards must use readable object labels without technical comparison narration");
 assert.equal((findDrawer.match(/overflow-y-auto/g) ?? []).length, 1, "Find drawer must have exactly one scroll region");
 assert.match(findDrawer, /data-testid="find-scroll-region"/);
 assert.match(findDrawer, /data-testid="find-sticky-footer"/);
@@ -99,6 +97,17 @@ assert.match(client, /sm:max-lg:landscape:grid-cols-\[minmax\(0,1fr\)_minmax\(34
 assert.match(client, /mode === "find" \? "overflow-hidden" : "overflow-y-auto"/, "Find must delegate vertical scrolling to its single internal region");
 assert.match(client, /role="tab"[\s\S]*min-h-11/, "Mode tabs must retain 44px targets");
 assert.match(client, /lg:pb-4/);
+assert.match(client, /data-testid="analyse-composer"/);
+assert.match(client, /h-\[120px\][\s\S]*lg:h-\[132px\][\s\S]*lg:min-h-\[120px\][\s\S]*lg:max-h-\[200px\]/, "Analyse composer must retain a useful bounded writing area");
+const selectionCardStart = client.indexOf('data-testid="selection-card"');
+const selectionCardEnd = client.indexOf('data-testid="analyse-composer"', selectionCardStart);
+const selectionCard = client.slice(selectionCardStart, selectionCardEnd);
+assert.doesNotMatch(selectionCard, /sourceFeatureId|field\.osmObject|field\.relation|relationLabel/, "Selection summary must not expose raw object or relation identifiers");
+assert.doesNotMatch(client, /t\("question\.optional"\)/, "Prototype controls must not render Optional badges");
+assert.match(client, /event\.metaKey \|\| event\.ctrlKey/);
+assert.doesNotMatch(analysis, /analysis\.telemetry\.model|analysis\.telemetry\.attemptTrace|analysis\.evidencePackId/, "Analysis evidence disclosure must not expose implementation telemetry");
+assert.doesNotMatch(analysis, /analysis\.evidenceMethod|analysis\.methodBoundary|analysis\.methodText/, "Analysis must not restore the removed generic methodology disclosure");
+assert.match(analysis, /data-testid="analysis-caveat">\{content\.caveat\}/, "Decision output must retain one exact response-bound caveat");
 assert.match(map, /data-testid="map-dimension-control"/);
 assert.match(map, /min-h-11 rounded-lg px-3 text-xs font-bold uppercase/, "2D and 3D controls must retain 44px targets");
 assert.match(map, /sm:bottom-3/, "Desktop map controls must retain their anchored lower edge");
@@ -108,7 +117,14 @@ assert.match(client, /generatedConcept \? \(locale === "ru" \? "Показать
 assert.match(create, /function invalidateGeneration\(\)[\s\S]*requestIdRef\.current \+= 1;[\s\S]*requestRef\.current\?\.abort\(\);[\s\S]*if \(generated\) onReset\(\);/);
 assert.match(create, /function selectTemplate[\s\S]*invalidateGeneration\(\);[\s\S]*setTemplateId/);
 assert.match(create, /function updateControl[\s\S]*invalidateGeneration\(\);[\s\S]*setControls/);
+assert.match(create, /lockedControlKeys: \[\.\.\.lockedControlKeys\]/, "Create must send only explicitly edited controls to the engine lock contract");
+assert.match(create, /setLockedControlKeys\(new Set\(\)\)/, "Template and local reset actions must clear edited-control locks");
+assert.ok(create.includes('data-testid={`create-alternative-${alternative.id.toLowerCase()}`}'), "Create must expose stable A/B option controls");
+assert.match(client, /conceptMassing=\{mode === "create" \? activeConceptMassing : null\}/, "The map must render the active returned concept alternative");
 assert.match(create, /id="point-object-create-prompt"[\s\S]*onChange=\{\(event\) => \{[\s\S]*invalidateGeneration\(\);[\s\S]*setCustomPrompt/);
+assert.doesNotMatch(create, /Concept ready|Concept massing is a screening visualization/, "Create must not repeat generic success or disclaimer narration");
+assert.match(create, /data-testid="generated-concept-summary"/);
+assert.doesNotMatch(client, /Uses returned feature centres inside the AOI|Учитываются центры объектов, попавшие внутрь зоны|t\("create\.mask"\)/, "Create must not render persistent source-method or success narration");
 
 for (const scenario of [
   "b2c_point_context", "b2c_tourist_objects_route", "b2c_residential_context",
@@ -116,7 +132,6 @@ for (const scenario of [
   "b2b_redevelopment_100ha", "b2b_lowrise_luxury_residential", "b2b_hotel_development",
   "b2b_commercial_real_estate"
 ]) assert.match(capabilities, new RegExp(`${scenario}: \\{`));
-assert.match(client, /findCapability\.limitation\[locale\]/);
 
 for (const key of ["map.instructions.analyse", "map.instructions.find", "map.instructions.create"]) {
   assert.equal(i18n.split(`"${key}"`).length, 3, `${key} must exist once per locale`);

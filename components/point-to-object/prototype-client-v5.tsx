@@ -34,7 +34,6 @@ import {
   validatePointObjectCreateAoiVertices
 } from "@/src/lib/prototype/point-to-object-create";
 import {
-  POINT_OBJECT_FIND_CAVEAT,
   type PointObjectFindBounds,
   type PointObjectFindCandidate,
   type PointObjectFindGroup,
@@ -86,17 +85,31 @@ const FIND_ROLE_LABELS_RU: Record<ExploreRole, string> = {
   asset_manager: "Управляющий активами"
 };
 
-const FIND_SCENARIO_LABELS_RU: Record<ExploreScenarioId, string> = {
-  b2c_point_context: "Контекст точки или объекта",
-  b2c_tourist_objects_route: "Туристические объекты",
-  b2c_residential_context: "Контекст жилья",
-  b2c_new_residential_projects: "Новые жилые проекты",
-  b2c_interest_routes: "Места интереса",
-  b2b_redevelopment_selected_aoi: "Редевелопмент выбранной зоны",
-  b2b_redevelopment_100ha: "Поиск крупной зоны развития",
-  b2b_lowrise_luxury_residential: "Малоэтажная жилая застройка",
-  b2b_hotel_development: "Гостиничное развитие",
-  b2b_commercial_real_estate: "Коммерческая недвижимость"
+const FIND_SCENARIO_LABELS: Record<"en" | "ru", Record<ExploreScenarioId, string>> = {
+  en: {
+    b2c_point_context: "Places and amenities",
+    b2c_tourist_objects_route: "Visitor attractions",
+    b2c_residential_context: "Homes and amenities",
+    b2c_new_residential_projects: "Construction and homes",
+    b2c_interest_routes: "Places of interest",
+    b2b_redevelopment_selected_aoi: "Buildings and construction sites",
+    b2b_redevelopment_100ha: "Large development-zone search unavailable",
+    b2b_lowrise_luxury_residential: "Residential buildings",
+    b2b_hotel_development: "Hotels and amenities",
+    b2b_commercial_real_estate: "Commercial properties"
+  },
+  ru: {
+    b2c_point_context: "Объекты и инфраструктура",
+    b2c_tourist_objects_route: "Достопримечательности",
+    b2c_residential_context: "Жильё и инфраструктура",
+    b2c_new_residential_projects: "Строительство и жильё",
+    b2c_interest_routes: "Интересные места",
+    b2b_redevelopment_selected_aoi: "Здания и стройплощадки",
+    b2b_redevelopment_100ha: "Поиск крупной зоны недоступен",
+    b2b_lowrise_luxury_residential: "Жилые здания",
+    b2b_hotel_development: "Отели и инфраструктура",
+    b2b_commercial_real_estate: "Коммерческие объекты"
+  }
 };
 
 function sameCoordinate(left: Coordinate, right: Coordinate): boolean {
@@ -105,10 +118,6 @@ function sameCoordinate(left: Coordinate, right: Coordinate): boolean {
 
 function sameFindBounds(left: PointObjectFindBounds | null, right: PointObjectFindBounds): boolean {
   return left !== null && left.every((coordinate, index) => Math.abs(coordinate - right[index]) < 1e-6);
-}
-
-function formatFindBounds(bounds: PointObjectFindBounds, locale: "en" | "ru"): string {
-  return `${locale === "ru" ? "З" : "W"} ${bounds[0].toFixed(4)} · ${locale === "ru" ? "Ю" : "S"} ${bounds[1].toFixed(4)} · ${locale === "ru" ? "В" : "E"} ${bounds[2].toFixed(4)} · ${locale === "ru" ? "С" : "N"} ${bounds[3].toFixed(4)}`;
 }
 
 function extractSinglePolygon(value: unknown): Coordinate[] | null {
@@ -133,6 +142,58 @@ function extractSinglePolygon(value: unknown): Coordinate[] | null {
 
 function humanize(value: string): string {
   return value.replaceAll("_", " ").replaceAll(":", " · ").replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+function readableFindSubtype(value: string, group: PointObjectFindGroup, locale: "en" | "ru"): string | null {
+  const normalized = value.trim().toLowerCase();
+  if (!normalized || normalized === "yes" || normalized === group) return null;
+  const labels: Record<string, Record<"en" | "ru", string>> = {
+    apartments: { en: "Apartment building", ru: "Многоквартирный дом" },
+    residential: { en: "Residential building", ru: "Жилое здание" },
+    detached: { en: "Detached house", ru: "Отдельный дом" },
+    semidetached_house: { en: "Semi-detached house", ru: "Дом на две семьи" },
+    commercial: { en: "Commercial building", ru: "Коммерческое здание" },
+    office: { en: "Office", ru: "Офис" },
+    hotel: { en: "Hotel", ru: "Гостиница" },
+    guest_house: { en: "Guest house", ru: "Гостевой дом" },
+    university: { en: "University", ru: "Университет" },
+    kindergarten: { en: "Kindergarten", ru: "Детский сад" },
+    hospital: { en: "Hospital", ru: "Больница" },
+    clinic: { en: "Clinic", ru: "Клиника" },
+    pharmacy: { en: "Pharmacy", ru: "Аптека" },
+    warehouse: { en: "Warehouse", ru: "Склад" }
+  };
+  return labels[normalized]?.[locale] ?? humanize(normalized);
+}
+
+function getExecutableFindScenarios(audience: ExploreAudience, role: ExploreRole) {
+  return getExploreScenariosByRole(audience, role)
+    .filter((scenario) => pointObjectFindCapability(scenario.id).status !== "unsupported");
+}
+
+function getDefaultExecutableFindScenario(audience: ExploreAudience, role: ExploreRole): ExploreScenarioId {
+  return getExecutableFindScenarios(audience, role)[0]?.id ?? getDefaultScenarioForRole(audience, role);
+}
+
+function visibleSelectionAttributes(tags: Record<string, string>): Array<[string, string]> {
+  const priority = ["building:use", "building", "landuse", "amenity", "tourism", "building:levels", "levels", "operator", "brand", "addr:district", "addr:suburb", "addr:city"];
+  const entries = Object.entries(tags)
+    .filter(([key, value]) => !["classification.category", "classification.type", "classification.address_type", "name"].includes(key) && value.trim() !== "" && !(key === "building" && value === "yes"))
+    .sort(([left], [right]) => {
+      const leftPriority = priority.indexOf(left);
+      const rightPriority = priority.indexOf(right);
+      return (leftPriority < 0 ? priority.length : leftPriority) - (rightPriority < 0 ? priority.length : rightPriority);
+    });
+  return entries.slice(0, 4);
+}
+
+function selectionAttributeLabel(key: string, locale: "en" | "ru"): string {
+  if (key === "building:levels" || key === "levels") return locale === "ru" ? "Этажность на карте" : "Mapped levels";
+  if (key === "building" || key === "building:use" || key === "landuse") return locale === "ru" ? "Тип на карте" : "Mapped type";
+  if (key === "operator") return locale === "ru" ? "Оператор" : "Operator";
+  if (key === "brand") return locale === "ru" ? "Бренд" : "Brand";
+  if (key.startsWith("addr:")) return locale === "ru" ? "Район" : "Locality";
+  return humanize(key.replace(/^tag\./, "").replace(/^classification\./, ""));
 }
 
 function isSearchResponse(value: unknown): value is PointObjectSearchResponse {
@@ -195,6 +256,7 @@ export function PointToObjectPrototypeV5() {
   const [draftCoordinates, setDraftCoordinates] = useState<Coordinate[]>([]);
   const [createAoi, setCreateAoi] = useState<PointObjectCreateAoi | null>(null);
   const [generatedConcept, setGeneratedConcept] = useState<PointObjectGeneratedConcept | null>(null);
+  const [activeCreateAlternativeId, setActiveCreateAlternativeId] = useState<"A" | "B">("A");
   const [createError, setCreateError] = useState<string | null>(null);
   const [createAreaCleared, setCreateAreaCleared] = useState(false);
   const [createReplacementStatus, setCreateReplacementStatus] = useState<"idle" | "applied" | "error">("idle");
@@ -214,7 +276,9 @@ export function PointToObjectPrototypeV5() {
   const [findStatus, setFindStatus] = useState<"idle" | "loading" | "zoom" | "rate" | "error">("idle");
   const [findResultIntent, setFindResultIntent] = useState<FindIntent | null>(null);
   const [findSessionReady, setFindSessionReady] = useState(false);
+  const [findContextOpen, setFindContextOpen] = useState(false);
   const findRequestRef = useRef<AbortController | null>(null);
+  const findContextButtonRef = useRef<HTMLButtonElement | null>(null);
   const contextRequestId = useRef(0);
   const searchRequestRef = useRef<AbortController | null>(null);
   const suggestionRequestRef = useRef<AbortController | null>(null);
@@ -224,8 +288,9 @@ export function PointToObjectPrototypeV5() {
   const findPreferencesInitializedRef = useRef(false);
   const previousLocaleRef = useRef(locale);
 
-  const findRoles = useMemo(() => getExploreRolesByAudience(findAudience), [findAudience]);
-  const findScenarios = useMemo(() => getExploreScenariosByRole(findAudience, findRole), [findAudience, findRole]);
+  const findRoles = useMemo(() => getExploreRolesByAudience(findAudience)
+    .filter((role) => getExecutableFindScenarios(findAudience, role.id).length > 0), [findAudience]);
+  const findScenarios = useMemo(() => getExecutableFindScenarios(findAudience, findRole), [findAudience, findRole]);
   const findCapability = pointObjectFindCapability(findScenario);
   const findIntentKey = `${findAudience}:${findRole}:${findScenario}`;
   const findResultIntentKey = findResultIntent
@@ -241,6 +306,7 @@ export function PointToObjectPrototypeV5() {
     !sameFindBounds(visibleBounds, findResult.criteria.bounds)
   );
   const findResultMarketMismatch = findResult !== null && findResult.criteria.marketKey !== locationKey;
+  const activeConceptMassing = generatedConcept?.alternatives?.find((alternative) => alternative.id === activeCreateAlternativeId)?.massing ?? generatedConcept?.massing ?? null;
 
   useEffect(() => {
     const restoredSelection = readPointObjectSelection();
@@ -250,12 +316,20 @@ export function PointToObjectPrototypeV5() {
       setSelection(restoredSelection);
     }
     if (restoredFind) {
+      const executableScenarios = getExecutableFindScenarios(restoredFind.audience, restoredFind.role);
+      const restoredScenario = executableScenarios.some((scenario) => scenario.id === restoredFind.scenario)
+        ? restoredFind.scenario
+        : executableScenarios[0]?.id ?? getDefaultExecutableFindScenario(restoredFind.audience, restoredFind.role);
+      const restoredCapability = pointObjectFindCapability(restoredScenario);
+      const restoredGroup = restoredCapability.allowedGroups.includes(restoredFind.group)
+        ? restoredFind.group
+        : restoredCapability.defaultGroup;
       findPreferencesInitializedRef.current = true;
       if (!restoredSelection || restoredSelection.locationKey === restoredFind.marketKey) setLocationKey(restoredFind.marketKey);
       setFindAudience(restoredFind.audience);
       setFindRole(restoredFind.role);
-      setFindScenario(restoredFind.scenario);
-      setFindGroup(restoredFind.group);
+      setFindScenario(restoredScenario);
+      setFindGroup(restoredGroup);
       setFindMinimumLevels(restoredFind.mappedMinimumLevels);
       setFindResult(restoredFind.result);
       setFindResultIntent(restoredFind.result ? {
@@ -301,7 +375,7 @@ export function PointToObjectPrototypeV5() {
     const role = getExploreRolesByAudience(audience).some((item) => item.id === user.profile.defaultRole)
       ? user.profile.defaultRole
       : getDefaultRoleForAudience(audience);
-    const scenario = getDefaultScenarioForRole(audience, role);
+    const scenario = getDefaultExecutableFindScenario(audience, role);
     setFindAudience(audience);
     setFindRole(role);
     setFindScenario(scenario);
@@ -487,6 +561,7 @@ export function PointToObjectPrototypeV5() {
     setDraftCoordinates([]);
     setCreateAoi(null);
     setGeneratedConcept(null);
+    setActiveCreateAlternativeId("A");
     setCreateAreaCleared(false);
     setCreateReplacementStatus("idle");
     setAreaContext(null);
@@ -507,7 +582,7 @@ export function PointToObjectPrototypeV5() {
 
   function changeFindAudience(audience: ExploreAudience) {
     const role = getDefaultRoleForAudience(audience);
-    const scenario = getDefaultScenarioForRole(audience, role);
+    const scenario = getDefaultExecutableFindScenario(audience, role);
     setFindAudience(audience);
     setFindRole(role);
     setFindScenario(scenario);
@@ -517,7 +592,7 @@ export function PointToObjectPrototypeV5() {
   }
 
   function changeFindRole(role: ExploreRole) {
-    const scenario = getDefaultScenarioForRole(findAudience, role);
+    const scenario = getDefaultExecutableFindScenario(findAudience, role);
     setFindRole(role);
     setFindScenario(scenario);
     setFindGroup(pointObjectFindCapability(scenario).defaultGroup);
@@ -607,6 +682,7 @@ export function PointToObjectPrototypeV5() {
       setDraftCoordinates([]);
       setCreateAoi(null);
       setGeneratedConcept(null);
+      setActiveCreateAlternativeId("A");
       setCreateAreaCleared(false);
       setCreateReplacementStatus("idle");
       setAreaContext(null);
@@ -641,6 +717,7 @@ export function PointToObjectPrototypeV5() {
     setDraftCoordinates(vertices);
     setIsDrawing(false);
     setGeneratedConcept(null);
+    setActiveCreateAlternativeId("A");
     setCreateAreaCleared(false);
     setCreateReplacementStatus("idle");
     setCreateError(null);
@@ -669,6 +746,7 @@ export function PointToObjectPrototypeV5() {
     setDraftCoordinates([]);
     setCreateAoi(null);
     setGeneratedConcept(null);
+    setActiveCreateAlternativeId("A");
     setCreateAreaCleared(false);
     setCreateReplacementStatus("idle");
     setAreaContext(null);
@@ -777,18 +855,11 @@ export function PointToObjectPrototypeV5() {
   const selectionContextLabel = !selection?.resolvedObject
     ? t("selection.selected")
     : selection.resolvedObject.coordinateAssociation === "open_map_geometry_contains_point"
-      ? t("selection.containing")
-      : selection.resolvedObject.coordinateAssociation === "trusted_open_map_identity"
-        ? t("selection.exact")
-        : t("selection.nearest");
-  const relationLabel = selection?.resolvedObject
-    ? selection.resolvedObject.coordinateAssociation === "open_map_geometry_contains_point"
       ? t("selection.relation.containing")
       : selection.resolvedObject.coordinateAssociation === "trusted_open_map_identity"
         ? t("selection.relation.exact")
-        : t("selection.relation.nearest", { distance: Math.round(selection.resolvedObject.resultCentroidDistanceM) })
-    : null;
-  const selectedAttributes = Object.entries(selection?.resolvedObject?.tags ?? {}).filter(([key]) => !["classification.category", "classification.type", "classification.address_type"].includes(key)).slice(0, 3);
+        : t("selection.relation.nearest", { distance: Math.round(selection.resolvedObject.resultCentroidDistanceM) });
+  const selectedAttributes = visibleSelectionAttributes(selection?.resolvedObject?.tags ?? {});
   const findGroupLabels: Record<PointObjectFindGroup, string> = locale === "ru" ? {
     residential: "Жилая недвижимость", commercial_office: "Офисы и коммерция", hospitality: "Гостиницы", retail: "Ретейл", education: "Образование", healthcare: "Здравоохранение", civic_culture: "Общественные и культурные", industrial_logistics: "Промышленность и логистика", construction: "Строительство"
   } : {
@@ -801,11 +872,6 @@ export function PointToObjectPrototypeV5() {
   };
   const findHasInvalidLevels = findMinimumLevels !== "" && (Number(findMinimumLevels) < 1 || Number(findMinimumLevels) > 100);
   const findCtaDisabled = !visibleBounds || findStatus === "loading" || findCapability.status === "unsupported" || findHasInvalidLevels;
-  const findMethodologyLabel = locale === "ru" ? "ⓘ Данные и методика" : "ⓘ Data & methodology";
-  const findExtentLabel = visibleBounds
-    ? formatFindBounds(visibleBounds, locale)
-    : (locale === "ru" ? "Границы карты определяются…" : "Map extent is resolving…");
-  const findResultExtentLabel = findResult ? formatFindBounds(findResult.criteria.bounds, locale) : null;
   const findFooterStatus = findStatus === "loading"
     ? (locale === "ru" ? "Ищем объекты в текущей видимой области…" : "Searching the current visible area…")
     : findStatus === "zoom"
@@ -826,10 +892,10 @@ export function PointToObjectPrototypeV5() {
 
   return (
     <main className="h-[100svh] min-h-[420px] overflow-hidden bg-white text-ink">
-      <PointObjectHeader showDataSources />
+      <PointObjectHeader />
       <div className="grid h-[calc(100svh-64px)] min-h-0 grid-rows-[clamp(108px,32svh,360px)_minmax(0,1fr)] bg-white sm:max-lg:landscape:grid-cols-[minmax(0,1fr)_minmax(340px,48%)] sm:max-lg:landscape:grid-rows-1 lg:grid-cols-[minmax(0,1fr)_430px] lg:grid-rows-1">
         <section className="relative h-full min-h-0 overflow-hidden border-b border-line sm:max-lg:landscape:border-b-0 lg:border-b-0" aria-label={t("map.region")}>
-          {sessionReady ? <LiveObjectMap locationKey={locationKey} interactionMode={mode} selection={mode === "analyse" ? selection : null} navigationTarget={navigationTarget} viewModeRequest={viewModeRequest} onSelection={handleSelection} onViewportChange={handleViewportChange} onVisibleBoundsChange={setVisibleBounds} createDrawing={mode === "create" && isDrawing} createDraftCoordinates={mode === "create" ? draftCoordinates : []} createAoi={mode === "create" ? createAoi : null} createAreaCleared={mode === "create" && createAreaCleared} conceptMassing={mode === "create" ? generatedConcept?.massing ?? null : null} onCreateVertex={addCreateVertex} onReplacementStatus={setCreateReplacementStatus} className="h-full min-h-0" /> : <div className="grid h-full min-h-0 place-items-center bg-[#f4f6f7] text-sm font-medium text-[#52606a]" role="status">{t("map.loading")}</div>}
+          {sessionReady ? <LiveObjectMap locationKey={locationKey} interactionMode={mode} selection={mode === "analyse" ? selection : null} navigationTarget={navigationTarget} viewModeRequest={viewModeRequest} onSelection={handleSelection} onViewportChange={handleViewportChange} onVisibleBoundsChange={setVisibleBounds} createDrawing={mode === "create" && isDrawing} createDraftCoordinates={mode === "create" ? draftCoordinates : []} createAoi={mode === "create" ? createAoi : null} createAreaCleared={mode === "create" && createAreaCleared} conceptMassing={mode === "create" ? activeConceptMassing : null} onCreateVertex={addCreateVertex} onReplacementStatus={setCreateReplacementStatus} className="h-full min-h-0" /> : <div className="grid h-full min-h-0 place-items-center bg-[#f4f6f7] text-sm font-medium text-[#52606a]" role="status">{t("map.loading")}</div>}
           <div className="absolute left-4 top-4 z-10 flex w-[min(650px,calc(100%-5rem))] flex-col gap-2 sm:left-5 sm:top-5 sm:flex-row">
             <label className="flex h-11 w-fit shrink-0 items-center rounded-xl border border-white/70 bg-white/95 px-3 shadow-[0_10px_30px_rgba(20,35,45,0.14)] backdrop-blur">
               <span className="sr-only">{t("city.label")}</span>
@@ -854,78 +920,56 @@ export function PointToObjectPrototypeV5() {
             <div className="mb-2 grid shrink-0 grid-cols-3 gap-1 rounded-xl bg-[#f2f5f4] p-1" role="tablist" aria-label={t("mode.label")}>
               {(["analyse", "find", "create"] as ProductMode[]).map((item) => <button key={item} type="button" role="tab" aria-selected={mode === item} onClick={() => changeMode(item)} className={`min-h-11 rounded-lg px-2 text-xs font-bold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] ${mode === item ? "bg-white text-[#087f8c] shadow-sm" : "text-[#667085] hover:text-[#344054]"}`}>{t(`mode.${item}` as "mode.analyse" | "mode.find" | "mode.create")}</button>)}
             </div>
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
+            <div className="min-w-0">
                 {mode === "find" ? null : <p className="text-xs font-bold uppercase tracking-[0.11em] text-[#087f8c]">{mode === "create" ? t("mode.create") : t("panel.eyebrow")}</p>}
                 <h1 className={`${mode === "find" ? "text-[22px] sm:text-2xl" : "mt-2 text-2xl sm:text-[28px]"} font-bold tracking-[-0.035em]`}>{mode === "create" ? t("create.title") : mode === "find" ? t("find.title") : t("panel.title")}</h1>
                 {mode === "find" ? null : <p className="mt-2 text-sm leading-5 text-muted">{mode === "create" ? t("create.body") : t("panel.description")}</p>}
-              </div>
-              <details className="group relative shrink-0">
-                <summary
-                  aria-label={mode === "find" ? findMethodologyLabel.replace("ⓘ ", "") : t("info.label")}
-                  title={mode === "find" ? findMethodologyLabel.replace("ⓘ ", "") : t("info.label")}
-                  data-testid={mode === "find" ? "find-data-methodology" : undefined}
-                  className={mode === "find"
-                    ? "inline-flex min-h-11 max-w-[138px] cursor-pointer list-none items-center justify-center rounded-xl border border-line bg-white px-3 text-center text-[11px] font-bold leading-4 text-[#087f8c] transition hover:border-[#087f8c] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c]"
-                    : "grid h-9 w-9 cursor-pointer list-none place-items-center rounded-full border border-line bg-white text-sm font-bold text-[#087f8c] transition hover:border-[#087f8c] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c]"}
-                >{mode === "find" ? findMethodologyLabel : "i"}</summary>
-                <div data-testid={mode === "find" ? "find-methodology-panel" : undefined} className="absolute right-0 top-12 z-30 max-h-[max(10rem,calc(68svh-12rem))] w-[min(360px,calc(100vw-2rem))] overflow-y-auto overscroll-contain rounded-xl border border-line bg-white p-4 text-xs leading-5 text-[#475467] shadow-panel sm:landscape:max-h-[calc(100svh-13rem)] sm:max-lg:landscape:w-[min(360px,calc(48vw-2.5rem))] lg:w-[360px]">
-                  {mode === "find" ? <div data-testid="find-methodology-content">
-                    <p><strong className="text-ink">{locale === "ru" ? "Источник:" : "Source:"}</strong> OpenStreetMap {locale === "ru" ? "через" : "via"} Overpass API · ODbL 1.0.</p>
-                    <p className="mt-2"><strong className="text-ink">{locale === "ru" ? "Текущая область карты:" : "Current map extent:"}</strong></p>
-                    <p className="mt-1 font-mono text-[10px] leading-4" data-testid="find-current-extent">{findExtentLabel}</p>
-                    {findResultExtentLabel ? <><p className="mt-2"><strong className="text-ink">{locale === "ru" ? "Область возвращённой выборки:" : "Returned sample query extent:"}</strong></p><p className="mt-1 font-mono text-[10px] leading-4" data-testid="find-result-extent">{findResultExtentLabel}</p>{findResultIsStale ? <p className="mt-1 font-semibold text-[#52606a]">{locale === "ru" ? "Текущая карта или критерии отличаются; показанная выборка помечена как устаревшая до обновления." : "The current map or criteria differ; the returned sample is marked stale until refreshed."}</p> : null}</> : null}
-                    <p className="mt-2">{locale === "ru" ? "Возвращаются только нанесённые в OSM объекты. Выборка ограничена, может быть неполной или устаревшей и не является полным реестром либо ранжированием." : "Only objects mapped in OSM are returned. The bounded sample may be incomplete or outdated and is not a complete inventory or ranking."}</p>
-                    <p className="mt-2">{locale === "ru" ? "OSM не подтверждает право собственности, вакантность, состояние, зонирование, право сноса или допустимость редевелопмента." : "OSM does not establish ownership, vacancy, condition, zoning, demolition rights or redevelopment validation."}</p>
-                    <p className="mt-2"><strong className="text-ink">{locale === "ru" ? "Граница сценария:" : "Scenario boundary:"}</strong> {findCapability.limitation[locale]}</p>
-                    {findResult?.coverage.capReached ? <p className="mt-2 font-semibold text-[#79520d]">{locale === "ru" ? "Достигнут лимит источника; дополнительные совпадения могут существовать." : "The upstream cap was reached; additional matches may exist."}</p> : null}
-                    <p className="mt-2 font-semibold text-ink">{locale === "ru" ? t("boundary") : POINT_OBJECT_FIND_CAVEAT}</p>
-                    <p className="mt-2">© OpenStreetMap contributors.</p>
-                  </div> : <><p>{t("info.usage")}</p><p className="mt-2">{t("info.source")}</p><p className="mt-2 font-semibold">{t("boundary")}</p></>}
-                </div>
-              </details>
             </div>
 
-            {mode === "analyse" ? <><section className="mt-4 min-h-[150px] overflow-hidden rounded-[18px] border border-line bg-[#f8fafc] p-4 lg:min-h-0 lg:flex-1" data-testid="selection-card">
-              {selection ? <><p className="text-[11px] font-bold uppercase tracking-[0.09em] text-[#667085]">{selectionContextLabel}</p><h2 className="mt-2 break-words text-lg font-bold tracking-[-0.02em]" data-testid="selected-object">{selectionTitle}</h2><p className="mt-1 text-sm text-muted">{humanize(selection.resolvedObject?.featureClass ?? selection.object.featureClass)}</p>
+            {mode === "analyse" ? <div className="flex min-h-0 flex-1 flex-col"><section className="mt-4 shrink-0 overflow-hidden rounded-[18px] border border-line bg-[#f8fafc] p-4" data-testid="selection-card">
+              {selection ? <><p className="text-[11px] font-bold uppercase tracking-[0.09em] text-[#667085]">{t("selection.selected")}</p><h2 className="mt-2 line-clamp-2 break-words text-lg font-bold tracking-[-0.02em]" data-testid="selected-object">{selectionTitle}</h2><p className="mt-1 text-sm text-muted">{humanize(selection.resolvedObject?.featureClass ?? selection.object.featureClass)}</p>
+                {selection.resolvedObject ? <p className="mt-1 text-xs font-semibold text-[#087f8c]">{selectionContextLabel}</p> : null}
                 {selection.resolvedObject?.address ? <p className="mt-2 line-clamp-2 text-xs leading-5 text-[#475467]">{selection.resolvedObject.address}</p> : null}
                 {contextStatus === "loading" ? <p className="mt-3 text-xs font-semibold text-[#087f8c]" role="status">{t("selection.resolving")}</p> : null}
                 {contextStatus === "error" ? <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-[#e7c47e] bg-[#fffaf0] px-3 py-2 text-xs text-[#6b4b16]" role="alert"><span>{t("selection.error")}</span><button type="button" onClick={() => { setContextStatus("loading"); setContextRetryVersion((value) => value + 1); }} className="min-h-9 shrink-0 rounded-lg border border-[#d6b36e] bg-white px-3 font-bold text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c]">{t("selection.retry")}</button></div> : null}
-                <dl className="mt-3 grid grid-cols-[82px_minmax(0,1fr)] gap-x-3 gap-y-1.5 text-[11px]"><dt className="text-muted">{t("field.analysisPoint")}</dt><dd className="truncate font-semibold tabular-nums">{selection.latitude.toFixed(6)}, {selection.longitude.toFixed(6)}</dd>{selection.resolvedObject ? <><dt className="text-muted">{t("field.osmObject")}</dt><dd className="truncate font-semibold">{selection.resolvedObject.sourceFeatureId}</dd><dt className="text-muted">{t("field.relation")}</dt><dd className="line-clamp-1 font-semibold">{relationLabel}</dd></> : null}</dl>
-                {selectedAttributes.length ? <div className="mt-3 flex flex-wrap gap-1.5 border-t border-line pt-3" aria-label={t("selection.attributes")}>{selectedAttributes.map(([key, value]) => <span key={key} className="rounded-full bg-white px-2.5 py-1 text-[10px] font-semibold text-[#475467] ring-1 ring-inset ring-[#d7dee4]">{humanize(key.replace(/^tag\./, "").replace(/^classification\./, ""))} · {value}</span>)}</div> : null}</> : <div className="py-3"><p className="text-sm font-bold">{t("selection.empty.title")}</p><p className="mt-2 text-sm leading-6 text-muted">{t("selection.empty.body")}</p></div>}
+                {selectedAttributes.length ? <div className="mt-3 flex flex-wrap gap-1.5 border-t border-line pt-3" aria-label={t("selection.attributes")}>{selectedAttributes.map(([key, value]) => <span key={key} className="rounded-full bg-white px-2.5 py-1 text-[10px] font-semibold text-[#475467] ring-1 ring-inset ring-[#d7dee4]">{selectionAttributeLabel(key, locale)} · {humanize(value)}</span>)}</div> : null}</> : <div className="py-3"><p className="text-sm font-bold">{t("selection.empty.title")}</p><p className="mt-2 text-sm leading-6 text-muted">{t("selection.empty.body")}</p></div>}
             </section>
 
-            <div className="shrink-0 pt-3"><label className="text-xs font-bold text-ink" htmlFor="point-object-question">{t("question.label")} <span className="font-medium text-muted">{t("question.optional")}</span></label><textarea id="point-object-question" value={question} onChange={(event) => setQuestion(event.target.value.slice(0, 500))} rows={2} placeholder={t("question.placeholder")} className="mt-1.5 w-full resize-none rounded-xl border border-line bg-white px-3 py-2 text-sm leading-5 outline-none transition focus:border-[#087f8c] focus:ring-2 focus:ring-[#bfe4e2]" /><button type="button" onClick={startAnalysis} disabled={!selection?.resolvedObject} className="mt-2 min-h-11 w-full rounded-control bg-[#087f8c] px-4 text-sm font-bold text-white transition hover:bg-[#006c78] disabled:cursor-not-allowed disabled:bg-[#b7c4c4] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] focus-visible:ring-offset-2">{selection && !selection.resolvedObject ? t("analyze.resolving") : t("analyze.action")}</button></div>
-            </> : null}
+            <div className="mt-auto shrink-0 pt-3" data-testid="analyse-composer"><label className="text-xs font-bold text-ink" htmlFor="point-object-question">{t("question.label")}</label><textarea id="point-object-question" value={question} onChange={(event) => setQuestion(event.target.value.slice(0, 500))} onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key === "Enter") { event.preventDefault(); startAnalysis(); } }} placeholder={t("question.placeholder")} className="mt-1.5 h-[120px] w-full resize-none rounded-xl border border-line bg-white px-3 py-2 text-sm leading-5 outline-none transition focus:border-[#087f8c] focus:ring-2 focus:ring-[#bfe4e2] lg:h-[132px] lg:min-h-[120px] lg:max-h-[200px] lg:resize-y" /><div className="sticky bottom-0 bg-white pt-2"><button type="button" onClick={startAnalysis} disabled={!selection?.resolvedObject} className="min-h-11 w-full rounded-control bg-[#087f8c] px-4 text-sm font-bold text-white transition hover:bg-[#006c78] disabled:cursor-not-allowed disabled:bg-[#b7c4c4] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] focus-visible:ring-offset-2">{selection && !selection.resolvedObject ? t("analyze.resolving") : t("analyze.action")}</button></div></div>
+            </div> : null}
 
             {mode === "find" ? <section className="mt-2 flex min-h-0 flex-1 flex-col" data-testid="find-drawer">
               <div className="min-h-0 flex-1 overflow-y-auto pr-1" data-testid="find-scroll-region">
-              <div className="grid min-h-[52px] grid-cols-2 gap-1 rounded-xl bg-[#e8efed] p-1" role="group" aria-label={locale === "ru" ? "Тип пользователя" : "Audience"}>
-                {(["b2b", "b2c"] as ExploreAudience[]).map((audience) => <button key={audience} type="button" aria-pressed={findAudience === audience} onClick={() => changeFindAudience(audience)} className={`min-h-11 rounded-lg text-xs font-bold uppercase transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] ${findAudience === audience ? "bg-[#087f8c] text-white shadow-sm" : "text-[#52606a] hover:bg-white"}`}>{audience}</button>)}
-              </div>
-              <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
-                <label className="text-xs font-bold text-[#344054]">{locale === "ru" ? "Роль" : "Role"}<select value={findRole} onChange={(event) => changeFindRole(event.target.value as ExploreRole)} className="mt-1 min-h-11 w-full rounded-lg border border-line bg-white px-3 text-sm outline-none focus:border-[#087f8c]">{findRoles.map((role) => <option key={role.id} value={role.id}>{locale === "ru" ? FIND_ROLE_LABELS_RU[role.id] : role.label}</option>)}</select></label>
-                <label className="text-xs font-bold text-[#344054]">{locale === "ru" ? "Сценарий" : "Scenario"}<select value={findScenario} onChange={(event) => changeFindScenario(event.target.value as ExploreScenarioId)} className="mt-1 min-h-11 w-full rounded-lg border border-line bg-white px-3 text-sm outline-none focus:border-[#087f8c]">{findScenarios.map((scenario) => <option key={scenario.id} value={scenario.id}>{locale === "ru" ? FIND_SCENARIO_LABELS_RU[scenario.id] : scenario.title}</option>)}</select></label>
-              </div>
-              <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
-                <label className="text-xs font-bold text-[#344054]">{locale === "ru" ? "Тип объекта" : "Object group"}<select value={findGroup} onChange={(event) => { setFindGroup(event.target.value as PointObjectFindGroup); markFindOutcomeStale(); }} className="mt-1 min-h-11 w-full rounded-lg border border-line bg-white px-3 text-sm outline-none focus:border-[#087f8c]">{findCapability.allowedGroups.map((group) => <option key={group} value={group}>{findGroupLabels[group]}</option>)}</select></label>
-                <label className="text-xs font-bold text-[#344054]">{locale === "ru" ? "Минимальная этажность по OSM" : "Minimum mapped levels"} <span className="font-medium text-muted">({t("question.optional")})</span><input type="number" min={1} max={100} inputMode="numeric" value={findMinimumLevels} onChange={(event) => { setFindMinimumLevels(event.target.value.replace(/\D/g, "").slice(0, 3)); markFindOutcomeStale(); }} placeholder={locale === "ru" ? "Например, 10" : "For example, 10"} className="mt-1 min-h-11 w-full rounded-lg border border-line bg-white px-3 text-sm outline-none focus:border-[#087f8c]" /></label>
-              </div>
-              {findResult ? <div className="mt-4">
-                <div className="mb-3 flex items-center justify-between gap-3 text-[11px] text-muted"><span>{findResult.mode === "empty" ? (locale === "ru" ? "В ограниченной выборке текущего окна совпадений нет." : "No mapped matches in this bounded view sample.") : (locale === "ru" ? `Найдено в выборке: ${findResult.candidates.length}` : `Returned in sample: ${findResult.candidates.length}`)}</span><span>{findResult.coverage.approximateAreaSqKm.toLocaleString(locale)} {locale === "ru" ? "км²" : "km²"}</span></div>
-                <div className="mb-3 rounded-lg border border-[#d7e2df] bg-[#f7faf9] px-3 py-2 text-[10px] leading-4 text-[#526b64]" data-testid="find-result-lineage">
-                  <div className="flex items-center justify-between gap-2"><strong className="text-[#345c54]">{locale === "ru" ? "Происхождение выборки" : "Sample lineage"}</strong>{findResultIsStale ? <span className="rounded-full bg-[#e8edef] px-2 py-0.5 font-bold uppercase tracking-[0.06em] text-[#52606a]" data-testid="find-result-stale">{locale === "ru" ? "Устарела" : "Stale"}</span> : null}</div>
-                  <p className="mt-1">{findResult.source.name} · {findResult.source.service} · {locale === "ru" ? "получено" : "acquired"} <time dateTime={findResult.source.acquiredAt}>{new Date(findResult.source.acquiredAt).toLocaleString(locale)}</time> · {findResult.source.licenceId}</p>
-                  <p className="font-mono">{locale === "ru" ? "Область запроса" : "Query extent"}: {findResultExtentLabel}</p>
-                  <p>SHA-256 {findResult.source.sourceResponseHash.slice(0, 16)}… · {locale === "ru" ? "ограниченная выборка, не полный реестр" : "bounded sample, not a complete inventory"}</p>
+              <div className="mt-3" onKeyDown={(event) => { if (event.key === "Escape" && findContextOpen) { event.preventDefault(); setFindContextOpen(false); window.requestAnimationFrame(() => findContextButtonRef.current?.focus()); } }}>
+                <div className="flex min-h-11 items-center justify-between gap-3 rounded-xl border border-line bg-[#f8fafc] px-3">
+                  <p className="truncate text-xs font-bold text-[#344054]">{findAudience.toUpperCase()} · {locale === "ru" ? FIND_ROLE_LABELS_RU[findRole] : findRoles.find((role) => role.id === findRole)?.label ?? findRole}</p>
+                  <button ref={findContextButtonRef} type="button" aria-expanded={findContextOpen} onClick={() => setFindContextOpen((value) => !value)} className="min-h-11 shrink-0 rounded-lg px-2 text-xs font-bold text-[#087f70] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c]">{findContextOpen ? (locale === "ru" ? "Закрыть" : "Close") : (locale === "ru" ? "Изменить" : "Change")}</button>
                 </div>
+                {findContextOpen ? <div className="mt-2 grid gap-2 rounded-xl border border-line bg-white p-3" role="group" aria-label={locale === "ru" ? "Контекст профиля" : "Profile context"}>
+                  <div className="grid grid-cols-2 gap-1 rounded-lg bg-[#e8efed] p-1">{(["b2b", "b2c"] as ExploreAudience[]).map((audience) => <button key={audience} type="button" data-testid={`find-audience-${audience}`} aria-pressed={findAudience === audience} onClick={() => changeFindAudience(audience)} className={`min-h-11 rounded-lg text-xs font-bold uppercase transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] ${findAudience === audience ? "bg-[#087f8c] text-white shadow-sm" : "text-[#52606a] hover:bg-white"}`}>{audience}</button>)}</div>
+                  <label className="text-xs font-bold text-[#344054]">{locale === "ru" ? "Роль" : "Role"}<select value={findRole} onChange={(event) => changeFindRole(event.target.value as ExploreRole)} className="mt-1 min-h-11 w-full rounded-lg border border-line bg-white px-3 text-sm outline-none focus:border-[#087f8c]">{findRoles.map((role) => <option key={role.id} value={role.id}>{locale === "ru" ? FIND_ROLE_LABELS_RU[role.id] : role.label}</option>)}</select></label>
+                </div> : null}
+              </div>
+              <label className="mt-3 block text-xs font-bold text-[#344054]">{locale === "ru" ? "Задача" : "Task"}<select value={findScenario} onChange={(event) => changeFindScenario(event.target.value as ExploreScenarioId)} className="mt-1 min-h-11 w-full rounded-lg border border-line bg-white px-3 text-sm outline-none focus:border-[#087f8c]">{findScenarios.map((scenario) => <option key={scenario.id} value={scenario.id}>{FIND_SCENARIO_LABELS[locale][scenario.id]}</option>)}</select></label>
+              <details className="mt-3 rounded-xl border border-line bg-[#fbfcfd] px-3">
+                <summary className="flex min-h-11 cursor-pointer list-none items-center text-xs font-bold text-[#475467] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c]">{locale === "ru" ? "Дополнительные критерии" : "More criteria"}</summary>
+                <div className="grid gap-3 border-t border-line pb-3 pt-3 sm:grid-cols-2 lg:grid-cols-1">
+                  <label className="text-xs font-bold text-[#344054]">{locale === "ru" ? "Тип объекта" : "Object group"}<select value={findGroup} onChange={(event) => { setFindGroup(event.target.value as PointObjectFindGroup); markFindOutcomeStale(); }} className="mt-1 min-h-11 w-full rounded-lg border border-line bg-white px-3 text-sm outline-none focus:border-[#087f8c]">{findCapability.allowedGroups.map((group) => <option key={group} value={group}>{findGroupLabels[group]}</option>)}</select></label>
+                  <label className="text-xs font-bold text-[#344054]">{locale === "ru" ? "Этажность на карте от" : "Mapped levels from"}<input type="number" min={1} max={100} inputMode="numeric" value={findMinimumLevels} onChange={(event) => { setFindMinimumLevels(event.target.value.replace(/\D/g, "").slice(0, 3)); markFindOutcomeStale(); }} placeholder={locale === "ru" ? "Например, 10" : "For example, 10"} className="mt-1 min-h-11 w-full rounded-lg border border-line bg-white px-3 text-sm outline-none focus:border-[#087f8c]" /></label>
+                </div>
+              </details>
+              {findResult ? <div className="mt-4">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted"><span>{findResult.mode === "empty" ? (locale === "ru" ? "По этим условиям ничего не найдено." : "No matches for these filters.") : (locale === "ru" ? `Показано: ${findResult.candidates.length}` : `Showing ${findResult.candidates.length}`)}</span><span className="flex items-center gap-2">{findResultIsStale ? <span className="rounded-full bg-[#e8edef] px-2 py-0.5 font-bold uppercase tracking-[0.06em] text-[#52606a]" data-testid="find-result-stale">{locale === "ru" ? "Устарела" : "Stale"}</span> : null}{findResult.coverage.capReached ? <span className="font-semibold text-[#79520d]">{locale === "ru" ? "Увеличьте масштаб, чтобы сузить результаты." : "Zoom in to narrow results."}</span> : null}</span></div>
                 {findShortlist.length >= 2 ? <div className="mb-3 flex items-center justify-between gap-3 rounded-xl bg-[#e6f5f1] px-3 py-2"><span className="text-xs font-bold text-[#176548]">{locale === "ru" ? `Выбрано: ${findShortlist.length}` : `Selected: ${findShortlist.length}`}</span><button type="button" onClick={() => setFindComparisonOpen((value) => !value)} className="min-h-11 rounded-lg bg-[#087f70] px-3 text-[11px] font-bold text-white">{findComparisonOpen ? (locale === "ru" ? "К списку" : "Back to list") : (locale === "ru" ? "Сравнить" : "Compare")}</button></div> : null}
                 {findComparisonOpen && findShortlist.length >= 2 ? <div className="space-y-2" aria-label={locale === "ru" ? "Сравнение объектов" : "Object comparison"}>
-                  <p className="text-[10px] leading-4 text-muted">{locale === "ru" ? "Фактическое сопоставление атрибутов OpenStreetMap без оценки, победителя или инвестиционной рекомендации." : "Factual OpenStreetMap attribute comparison without scoring, winner or investment recommendation."}</p>
-                  {findShortlist.map((candidate) => <article key={candidate.sourceFeatureId} className="rounded-xl border border-line bg-white p-3"><div className="flex items-start justify-between gap-2"><div><h3 className="text-sm font-bold text-ink">{candidate.label}</h3><p className="mt-1 text-[11px] text-muted">{findGroupLabels[candidate.group]} · {candidate.matchedTag.key}={candidate.matchedTag.value}</p></div><button type="button" onClick={() => toggleFindShortlist(candidate)} className="min-h-11 shrink-0 rounded-lg px-2 text-[11px] font-bold text-[#087f70]">{locale === "ru" ? "Убрать" : "Remove"}</button></div><dl className="mt-2 grid grid-cols-[90px_1fr] gap-x-2 gap-y-1 text-[10px]"><dt className="text-muted">{locale === "ru" ? "Этажность" : "Levels"}</dt><dd className="font-semibold">{candidate.mappedBuildingLevels ?? "—"}</dd><dt className="text-muted">OSM ID</dt><dd className="truncate font-semibold">{candidate.sourceFeatureId}</dd><dt className="text-muted">{locale === "ru" ? "Координаты" : "Coordinates"}</dt><dd className="font-semibold tabular-nums">{candidate.latitude.toFixed(5)}, {candidate.longitude.toFixed(5)}</dd></dl><button type="button" disabled={findResultMarketMismatch} onClick={() => chooseFindCandidate(candidate)} className="mt-3 min-h-11 w-full rounded-lg border border-[#8ebdb4] bg-white px-3 text-xs font-bold text-[#176548] disabled:cursor-not-allowed disabled:opacity-40">{locale === "ru" ? "Открыть анализ" : "Open analysis"}</button></article>)}
+                  {findShortlist.map((candidate) => {
+                    const subtype = readableFindSubtype(candidate.matchedTag.value, candidate.group, locale);
+                    return <article key={candidate.sourceFeatureId} className="rounded-xl border border-line bg-white p-3"><div className="flex items-start justify-between gap-2"><div><h3 className="text-sm font-bold text-ink">{candidate.label}</h3><p className="mt-1 text-[11px] text-muted">{findGroupLabels[candidate.group]}{subtype ? ` · ${subtype}` : ""}</p></div><button type="button" onClick={() => toggleFindShortlist(candidate)} className="min-h-11 shrink-0 rounded-lg px-2 text-[11px] font-bold text-[#087f70]">{locale === "ru" ? "Убрать" : "Remove"}</button></div><dl className="mt-2 grid grid-cols-[90px_1fr] gap-x-2 gap-y-1 text-[10px]"><dt className="text-muted">{locale === "ru" ? "Этажность" : "Levels"}</dt><dd className="font-semibold">{candidate.mappedBuildingLevels ?? "—"}</dd></dl><button type="button" disabled={findResultMarketMismatch} onClick={() => chooseFindCandidate(candidate)} className="mt-3 min-h-11 w-full rounded-lg border border-[#8ebdb4] bg-white px-3 text-xs font-bold text-[#176548] disabled:cursor-not-allowed disabled:opacity-40">{locale === "ru" ? "Открыть анализ" : "Open analysis"}</button></article>;
+                  })}
                 </div> : <ul className="space-y-2">{findResult.candidates.map((candidate) => {
                   const selectedForComparison = findShortlist.some((item) => item.sourceFeatureId === candidate.sourceFeatureId);
-                  return <li key={candidate.sourceFeatureId} className="rounded-xl border border-line bg-white p-3"><button type="button" disabled={findResultMarketMismatch} onClick={() => chooseFindCandidate(candidate)} className="min-h-11 w-full text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] disabled:cursor-not-allowed disabled:opacity-40"><span className="block text-sm font-bold text-ink">{candidate.label}</span><span className="mt-1 block text-[11px] text-muted">{findGroupLabels[candidate.group]}{candidate.mappedBuildingLevels === null ? "" : ` · ${candidate.mappedBuildingLevels} ${locale === "ru" ? "эт." : "levels"}`} · {candidate.matchedTag.key}={candidate.matchedTag.value}</span></button><button type="button" aria-pressed={selectedForComparison} disabled={!selectedForComparison && findShortlist.length >= 3} onClick={() => toggleFindShortlist(candidate)} className={`mt-2 min-h-11 rounded-lg px-3 text-[11px] font-bold transition disabled:opacity-40 ${selectedForComparison ? "bg-[#087f70] text-white" : "border border-[#8ebdb4] bg-white text-[#176548]"}`}>{selectedForComparison ? (locale === "ru" ? "Выбрано" : "Selected") : (locale === "ru" ? "В сравнение" : "Compare")}</button></li>;
+                  const subtype = readableFindSubtype(candidate.matchedTag.value, candidate.group, locale);
+                  return <li key={candidate.sourceFeatureId} className="rounded-xl border border-line bg-white p-3"><button type="button" disabled={findResultMarketMismatch} onClick={() => chooseFindCandidate(candidate)} className="min-h-11 w-full text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] disabled:cursor-not-allowed disabled:opacity-40"><span className="block text-sm font-bold text-ink">{candidate.label}</span><span className="mt-1 block text-[11px] text-muted">{findGroupLabels[candidate.group]}{subtype ? ` · ${subtype}` : ""}{candidate.mappedBuildingLevels === null ? "" : ` · ${candidate.mappedBuildingLevels} ${locale === "ru" ? "эт." : "levels"}`}</span></button><button type="button" aria-pressed={selectedForComparison} disabled={!selectedForComparison && findShortlist.length >= 3} onClick={() => toggleFindShortlist(candidate)} className={`mt-2 min-h-11 rounded-lg px-3 text-[11px] font-bold transition disabled:opacity-40 ${selectedForComparison ? "bg-[#087f70] text-white" : "border border-[#8ebdb4] bg-white text-[#176548]"}`}>{selectedForComparison ? (locale === "ru" ? "Выбрано" : "Selected") : (locale === "ru" ? "В сравнение" : "Compare")}</button></li>;
                 })}</ul>}
               </div> : null}
               </div>
@@ -942,14 +986,14 @@ export function PointToObjectPrototypeV5() {
                   disabled={findCtaDisabled}
                   className="min-h-11 w-full rounded-xl bg-[#087f8c] px-4 text-sm font-bold text-white transition hover:bg-[#006c78] disabled:cursor-not-allowed disabled:bg-[#b7c4c4] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] focus-visible:ring-offset-2"
                   data-testid="find-search-cta"
-                >{findStatus === "loading" ? (locale === "ru" ? "Ищем…" : "Searching…") : findResultIsStale ? (locale === "ru" ? "Обновить поиск" : "Update search") : (locale === "ru" ? "Искать в видимой области" : "Search this view")}</button>
+                >{findStatus === "loading" ? (locale === "ru" ? "Ищем…" : "Searching…") : findResultIsStale ? (locale === "ru" ? "Обновить поиск" : "Update search") : (locale === "ru" ? "Искать в видимой области" : "Search visible area")}</button>
               </footer>
             </section> : null}
 
             {mode === "create" ? <div className="mt-5 space-y-4">
               {!createAoi ? <section className="rounded-[18px] border border-[#cfe0da] bg-[#f4faf7] p-4">
                 <div className="grid grid-cols-2 gap-2">
-                  <button type="button" onClick={() => { setIsDrawing(true); setDraftCoordinates([]); setCreateError(null); setGeneratedConcept(null); }} className="min-h-11 rounded-xl bg-[#087f70] px-3 text-xs font-bold text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f70] focus-visible:ring-offset-2">{t("create.draw")}</button>
+                  <button type="button" onClick={() => { setIsDrawing(true); setDraftCoordinates([]); setCreateError(null); setGeneratedConcept(null); setActiveCreateAlternativeId("A"); }} className="min-h-11 rounded-xl bg-[#087f70] px-3 text-xs font-bold text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f70] focus-visible:ring-offset-2">{t("create.draw")}</button>
                   <label className="grid min-h-11 cursor-pointer place-items-center rounded-xl border border-[#9bbdb5] bg-white px-3 text-center text-xs font-bold text-[#345c54] focus-within:ring-2 focus-within:ring-[#087f70]"><span>{t("create.upload")}</span><input type="file" accept="application/geo+json,application/json,.geojson,.json" aria-label={t("create.upload")} onChange={(event) => void uploadCreateArea(event)} className="sr-only focus-visible:outline-none" /></label>
                 </div>
                 {isDrawing ? <><p className="mt-3 text-xs font-semibold text-[#345c54]">{t("create.drawing", { count: draftCoordinates.length })}</p><div className="mt-3 grid grid-cols-3 gap-2"><button type="button" disabled={draftCoordinates.length < 3} onClick={() => closeCreateArea()} className="min-h-10 rounded-lg bg-[#087f70] px-2 text-xs font-bold text-white disabled:opacity-40">{t("create.close")}</button><button type="button" disabled={!draftCoordinates.length} onClick={() => setDraftCoordinates((current) => current.slice(0, -1))} className="min-h-10 rounded-lg border border-[#b8cbc6] bg-white px-2 text-xs font-bold text-[#345c54] disabled:opacity-40">{t("create.undo")}</button><button type="button" onClick={resetCreate} className="min-h-10 rounded-lg border border-[#b8cbc6] bg-white px-2 text-xs font-bold text-[#345c54]">{t("create.cancel")}</button></div></> : null}
@@ -959,9 +1003,9 @@ export function PointToObjectPrototypeV5() {
                   <div className="flex items-start justify-between gap-3"><div><p className="text-[11px] font-bold uppercase tracking-[0.09em] text-[#087f70]">{locale === "ru" ? "КОНТЕКСТ ЗОНЫ" : "AREA CONTEXT"}</p><h2 className="mt-1 text-sm font-bold text-ink">{locale === "ru" ? "Сводка объектов внутри полигона" : "Objects inside the polygon"}</h2></div><button type="button" onClick={() => { setCreateReplacementStatus("idle"); setCreateAreaCleared((value) => !value); }} className="min-h-9 shrink-0 rounded-lg border border-[#8ebdb4] bg-white px-3 text-[11px] font-bold text-[#176548]">{createAreaCleared ? (locale === "ru" ? "Показать исходные" : "Show existing") : generatedConcept ? (locale === "ru" ? "Показать концепт" : "Show concept") : (locale === "ru" ? "Очистить 3D" : "Clear 3D")}</button></div>
                   {areaContextStatus === "loading" ? <p className="mt-3 text-xs font-semibold text-[#087f70]" role="status">{locale === "ru" ? "Собираем объекты открытой карты…" : "Reading open-map objects…"}</p> : null}
                   {areaContextStatus === "error" ? <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-[#e6bd74] bg-[#fff9ed] p-3 text-xs text-[#79520d]" role="alert"><span>{locale === "ru" ? "Контекст зоны временно недоступен." : "Area context is temporarily unavailable."}</span><button type="button" onClick={() => setAreaContextRetryVersion((value) => value + 1)} className="min-h-8 rounded-lg border border-[#d6b36e] bg-white px-2 font-bold">{t("selection.retry")}</button></div> : null}
-                  {areaContext ? <><div className="mt-3 grid grid-cols-3 gap-2"><div className="rounded-lg bg-white p-2"><span className="block text-[10px] text-muted">{locale === "ru" ? "Объекты" : "Objects"}</span><strong className="mt-1 block text-sm">{areaContext.summary.sampleSize}</strong></div><div className="rounded-lg bg-white p-2"><span className="block text-[10px] text-muted">{locale === "ru" ? "Здания" : "Buildings"}</span><strong className="mt-1 block text-sm">{areaContext.summary.mappedBuildingCount}</strong></div><div className="rounded-lg bg-white p-2"><span className="block text-[10px] text-muted">{locale === "ru" ? "Медиана этажей" : "Median levels"}</span><strong className="mt-1 block text-sm">{areaContext.summary.medianMappedLevels ?? "—"}</strong></div></div><div className="mt-3 flex flex-wrap gap-1.5">{areaContext.summary.groups.slice(0, 5).map((group) => <span key={group.group} className="rounded-full bg-white px-2.5 py-1 text-[10px] font-semibold text-[#475467] ring-1 ring-inset ring-[#d7dee4]">{areaGroupLabels[group.group]} · {group.count}</span>)}</div><p className="mt-3 text-[10px] leading-4 text-muted">{locale === "ru" ? "Учитываются центры объектов, попавшие внутрь зоны; это ограниченная выборка OpenStreetMap, а не полный реестр." : "Uses returned feature centres inside the AOI; this is a bounded OpenStreetMap sample, not a complete inventory."}{areaContext.coverage.capReached ? ` ${locale === "ru" ? "Достигнут лимит ответа." : "The response cap was reached."}` : ""}</p></> : null}
+                  {areaContext ? <><div className="mt-3 grid grid-cols-3 gap-2"><div className="rounded-lg bg-white p-2"><span className="block text-[10px] text-muted">{locale === "ru" ? "Объекты на карте" : "Mapped objects"}</span><strong className="mt-1 block text-sm">{areaContext.summary.sampleSize}</strong></div><div className="rounded-lg bg-white p-2"><span className="block text-[10px] text-muted">{locale === "ru" ? "Здания на карте" : "Mapped buildings"}</span><strong className="mt-1 block text-sm">{areaContext.summary.mappedBuildingCount}</strong></div><div className="rounded-lg bg-white p-2"><span className="block text-[10px] text-muted">{locale === "ru" ? "Медиана этажей" : "Median levels"}</span><strong className="mt-1 block text-sm">{areaContext.summary.medianMappedLevels ?? "—"}</strong></div></div><div className="mt-3 flex flex-wrap gap-1.5">{areaContext.summary.groups.slice(0, 5).map((group) => <span key={group.group} className="rounded-full bg-white px-2.5 py-1 text-[10px] font-semibold text-[#475467] ring-1 ring-inset ring-[#d7dee4]">{areaGroupLabels[group.group]} · {group.count}</span>)}</div>{areaContext.coverage.capReached ? <p className="mt-3 text-[10px] font-semibold leading-4 text-[#79520d]">{locale === "ru" ? "Нарисуйте меньшую зону, чтобы сузить список объектов на карте." : "Draw a smaller area to narrow the mapped objects."}</p> : null}</> : null}
                 </section>
-                <PointObjectCreatePanel locale={locale} marketKey={locationKey} aoi={createAoi} depth="standard" generated={generatedConcept} onGenerated={(concept) => { setGeneratedConcept(concept); setCreateReplacementStatus("idle"); setCreateAreaCleared(true); }} onReset={() => { setGeneratedConcept(null); setCreateAreaCleared(false); setCreateReplacementStatus("idle"); }} />{createAreaCleared ? <p className={`rounded-xl border px-3 py-2 text-[10px] leading-4 ${createReplacementStatus === "error" ? "border-[#e6bd74] bg-[#fff9ed] text-[#79520d]" : "border-[#d8e2df] bg-[#f8faf9] text-[#62716d]"}`} role="status">{createReplacementStatus === "error" ? (locale === "ru" ? "Безопасное замещение не применилось: исходные здания восстановлены, новая модель скрыта." : "Safe replacement could not be applied: source buildings were restored and the concept is hidden.") : createReplacementStatus === "applied" ? t("create.mask") : (locale === "ru" ? "Подготавливаем замещение зданий…" : "Preparing building replacement…")}</p> : null}<button type="button" onClick={resetCreate} className="min-h-10 w-full rounded-xl border border-[#b8cbc6] bg-white px-3 text-xs font-bold text-[#345c54]">{t("create.cancel")}</button></>}
+                <PointObjectCreatePanel locale={locale} marketKey={locationKey} aoi={createAoi} depth="standard" generated={generatedConcept} activeAlternativeId={activeCreateAlternativeId} onGenerated={(concept) => { setGeneratedConcept(concept); setActiveCreateAlternativeId("A"); setCreateReplacementStatus("idle"); setCreateAreaCleared(true); }} onAlternativeChange={(id) => { setActiveCreateAlternativeId(id); setCreateReplacementStatus("idle"); setCreateAreaCleared(true); }} onReset={() => { setGeneratedConcept(null); setActiveCreateAlternativeId("A"); setCreateAreaCleared(false); setCreateReplacementStatus("idle"); }} />{createAreaCleared && createReplacementStatus !== "applied" ? <p className={`rounded-xl border px-3 py-2 text-[10px] leading-4 ${createReplacementStatus === "error" ? "border-[#e6bd74] bg-[#fff9ed] text-[#79520d]" : "border-[#d8e2df] bg-[#f8faf9] text-[#62716d]"}`} role="status">{createReplacementStatus === "error" ? (locale === "ru" ? "Безопасное замещение не применилось: исходные здания восстановлены, новая модель скрыта." : "Safe replacement could not be applied: source buildings were restored and the concept is hidden.") : (locale === "ru" ? "Подготавливаем замещение зданий…" : "Preparing building replacement…")}</p> : null}<button type="button" onClick={resetCreate} className="min-h-10 w-full rounded-xl border border-[#b8cbc6] bg-white px-3 text-xs font-bold text-[#345c54]">{t("create.cancel")}</button></>}
             </div> : null}
           </div>
         </aside>

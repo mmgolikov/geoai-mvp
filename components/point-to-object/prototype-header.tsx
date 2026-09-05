@@ -9,10 +9,9 @@ import { usePointObjectLocale } from "@/components/point-to-object/locale-provid
 
 export type PointObjectHeaderProps = {
   backToMap?: boolean;
-  showDataSources?: boolean;
 };
 
-export function PointObjectHeader({ backToMap = false, showDataSources = false }: PointObjectHeaderProps) {
+export function PointObjectHeader({ backToMap = false }: PointObjectHeaderProps) {
   const { locale, setLocale, t } = usePointObjectLocale();
   const { isAuthenticated, user } = useAuth();
   const profileLabel = isAuthenticated ? t("header.profile.open") : t("header.profile.signIn");
@@ -28,11 +27,6 @@ export function PointObjectHeader({ backToMap = false, showDataSources = false }
       </Link>
 
       <div data-point-object-header-actions className="flex shrink-0 items-center gap-2">
-        {showDataSources ? (
-          <Link href="/prototype/point-to-object/source-offer" className="hidden min-h-10 items-center rounded-lg px-3 text-xs font-semibold text-muted hover:bg-surface hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] sm:inline-flex">
-            {t("header.dataSources")}
-          </Link>
-        ) : null}
         {backToMap ? (
           <Link href="/prototype/point-to-object" aria-label={t("header.backToMap")} className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-line bg-white px-0 text-xs font-semibold text-ink hover:border-[#087f8c] hover:bg-[#f3fbfb] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] sm:w-auto sm:px-4 sm:text-sm">
             <span className="text-lg leading-none sm:hidden" aria-hidden="true">←</span>

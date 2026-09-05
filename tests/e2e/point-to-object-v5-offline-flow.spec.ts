@@ -3,6 +3,7 @@ import { expect, test, type Page, type Route } from "@playwright/test";
 const sha256 = "a".repeat(64);
 const acquiredAt = "2026-09-04T09:00:00.000Z";
 const contextRequests: Array<Record<string, unknown>> = [];
+const createPostRequests: Array<Record<string, unknown>> = [];
 
 const candidates = [
   candidate("way", "2001", "Marina Candidate One", 55.2704, 25.2054, 12),
@@ -175,6 +176,7 @@ async function installOfflineRoutes(page: Page) {
       await json(route, { mode: "ready", challenge: "A".repeat(43) });
       return;
     }
+    createPostRequests.push(route.request().postDataJSON() as Record<string, unknown>);
     await json(route, {
       mode: "openai_concept",
       generatedAt: acquiredAt,
@@ -199,7 +201,7 @@ async function installOfflineRoutes(page: Page) {
           type: "FeatureCollection",
           features: [{
             type: "Feature",
-            properties: { id: "concept-1", kind: "concept_massing", templateId: "residential_mixed_use", use: "residential", levels: 8, heightM: 27.2, baseM: 0, label: "Concept 1" },
+            properties: { id: "concept-a-1", kind: "concept_massing", templateId: "residential_mixed_use", massingStyle: "courtyard", variantId: "A", volumeRole: "courtyard_wing", primaryBlock: true, use: "residential", levels: 8, heightM: 27.2, baseM: 0, label: "Option A block" },
             geometry: { type: "Polygon", coordinates: [[[55.2702, 25.2052], [55.2705, 25.2052], [55.2705, 25.2055], [55.2702, 25.2055], [55.2702, 25.2052]]] }
           }]
         },
@@ -208,8 +210,69 @@ async function installOfflineRoutes(page: Page) {
         aoiAreaSqM: 2_500,
         generatedFootprintAreaSqM: 950,
         achievedSiteCoveragePct: 38,
-        seed: "offline-e2e"
+        seed: "offline-e2e-a",
+        generatedFeatureCount: 1,
+        estimatedFloorAreaSqM: 7_600,
+        minGeneratedLevels: 8,
+        maxGeneratedLevels: 8,
+        massingStyle: "courtyard",
+        variantId: "A"
       },
+      alternatives: [{
+        id: "A",
+        label: "Option A · Courtyard",
+        massing: {
+          featureCollection: {
+            type: "FeatureCollection",
+            features: [{
+              type: "Feature",
+              properties: { id: "concept-a-1", kind: "concept_massing", templateId: "residential_mixed_use", massingStyle: "courtyard", variantId: "A", volumeRole: "courtyard_wing", primaryBlock: true, use: "residential", levels: 8, heightM: 27.2, baseM: 0, label: "Option A block" },
+              geometry: { type: "Polygon", coordinates: [[[55.2702, 25.2052], [55.2705, 25.2052], [55.2705, 25.2055], [55.2702, 25.2055], [55.2702, 25.2052]]] }
+            }]
+          },
+          requestedBlockCount: 1,
+          generatedBlockCount: 1,
+          generatedFeatureCount: 1,
+          aoiAreaSqM: 2_500,
+          generatedFootprintAreaSqM: 950,
+          estimatedFloorAreaSqM: 7_600,
+          achievedSiteCoveragePct: 38,
+          minGeneratedLevels: 8,
+          maxGeneratedLevels: 8,
+          massingStyle: "courtyard",
+          variantId: "A",
+          seed: "offline-e2e-a"
+        }
+      }, {
+        id: "B",
+        label: "Option B · Two bars",
+        massing: {
+          featureCollection: {
+            type: "FeatureCollection",
+            features: [{
+              type: "Feature",
+              properties: { id: "concept-b-1", kind: "concept_massing", templateId: "residential_mixed_use", massingStyle: "courtyard", variantId: "B", volumeRole: "courtyard_wing", primaryBlock: true, use: "residential", levels: 6, heightM: 20.4, baseM: 0, label: "Option B block 1" },
+              geometry: { type: "Polygon", coordinates: [[[55.2702, 25.2052], [55.27035, 25.2052], [55.27035, 25.2055], [55.2702, 25.2055], [55.2702, 25.2052]]] }
+            }, {
+              type: "Feature",
+              properties: { id: "concept-b-2", kind: "concept_massing", templateId: "residential_mixed_use", massingStyle: "courtyard", variantId: "B", volumeRole: "courtyard_wing", primaryBlock: true, use: "residential", levels: 10, heightM: 34, baseM: 0, label: "Option B block 2" },
+              geometry: { type: "Polygon", coordinates: [[[55.27036, 25.2052], [55.2705, 25.2052], [55.2705, 25.2055], [55.27036, 25.2055], [55.27036, 25.2052]]] }
+            }]
+          },
+          requestedBlockCount: 1,
+          generatedBlockCount: 2,
+          generatedFeatureCount: 2,
+          aoiAreaSqM: 2_500,
+          generatedFootprintAreaSqM: 925,
+          estimatedFloorAreaSqM: 8_100,
+          achievedSiteCoveragePct: 37,
+          minGeneratedLevels: 6,
+          maxGeneratedLevels: 10,
+          massingStyle: "courtyard",
+          variantId: "B",
+          seed: "offline-e2e-b"
+        }
+      }],
       telemetry: { model: "offline-fixture", reasoningEffort: "none", latencyMs: 1, attempts: 1, estimatedCostUsd: 0 },
       caveat: "Concept massing is a screening visualization, not an architectural design or approved plan."
     });
@@ -225,9 +288,13 @@ async function installOfflineRoutes(page: Page) {
 
 async function signInDemo(page: Page, nextPath: string) {
   await page.goto(`/login?next=${encodeURIComponent(nextPath)}&intent=demo`);
-  const redirected = await page.waitForURL((url) => url.pathname === nextPath, { timeout: 2_000 }).then(() => true, () => false);
-  if (redirected) return;
-  await page.getByRole("button", { name: "Open demo access" }).click();
+  const demoAccess = page.getByRole("button", { name: "Open demo access" });
+  await expect.poll(async () => {
+    return new URL(page.url()).pathname === nextPath || await demoAccess.isVisible().catch(() => false);
+  }, { timeout: 10_000, intervals: [50, 100, 250] }).toBe(true);
+  if (new URL(page.url()).pathname === nextPath) return;
+  await expect(demoAccess).toBeVisible();
+  await demoAccess.click();
   await page.getByRole("button", { name: "Open demo", exact: true }).click();
   await expect(page).toHaveURL((url) => url.pathname === nextPath);
 }
@@ -286,6 +353,13 @@ test("map-first layout keeps a compact desktop drawer across all modes and break
   const unexpectedExternal = await installOfflineRoutes(page);
   await page.goto("/prototype/point-to-object");
   await expect(page.locator(".maplibregl-canvas")).toBeVisible();
+  const search = page.getByRole("combobox", { name: "Search address or place" });
+  await search.fill("Shangri");
+  await page.getByRole("option", { name: /Shangri-La exact search result/ }).click();
+  await expect(page.getByTestId("selected-object")).toHaveText("Shangri-La exact search result");
+  await expect(page.getByRole("link", { name: "Data sources" })).toHaveCount(0);
+  await expect(page.getByText("Data & methodology", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Optional", { exact: true })).toHaveCount(0);
 
   for (const viewport of [
     { width: 1710, height: 877, drawerWidth: 430, stacked: false },
@@ -302,7 +376,10 @@ test("map-first layout keeps a compact desktop drawer across all modes and break
   ]) {
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     for (const mode of ["Analyse", "Find", "Create"]) {
-      await page.getByRole("tab", { name: mode, exact: true }).click();
+      const modeTab = page.getByRole("tab", { name: mode, exact: true });
+      await modeTab.click();
+      await expect(modeTab).toHaveAttribute("aria-selected", "true");
+      await expect(modeTab).toHaveCSS("background-color", "rgb(255, 255, 255)");
       await expect.poll(async () => {
         const drawer = await page.locator("main aside").boundingBox();
         return Math.abs((drawer?.width ?? 0) - viewport.drawerWidth);
@@ -332,15 +409,64 @@ test("map-first layout keeps a compact desktop drawer across all modes and break
         expect(Math.abs(geometry.drawerTop - geometry.mapTop)).toBeLessThanOrEqual(1);
       }
       if (viewport.width === 1710) {
+        if (mode === "Analyse") {
+          const composer = page.getByTestId("analyse-composer");
+          const selectedObject = page.getByTestId("selected-object");
+          const textarea = composer.getByRole("textbox", { name: "What would you like to know?" });
+          const analyze = composer.getByRole("button", { name: "Analyze", exact: true });
+          await expect(selectedObject).toBeVisible();
+          await expect(composer).toBeVisible();
+          await expect(analyze).toBeVisible();
+          const textareaBox = await textarea.boundingBox();
+          const analyzeBox = await analyze.boundingBox();
+          const dimensionButtonBox = await page.getByTestId("map-dimension-control").getByRole("button").first().boundingBox();
+          const analyzeGeometry = await composer.evaluate((element) => {
+            const wrapper = element.parentElement;
+            const drawer = wrapper?.parentElement;
+            const rect = (target: Element | null | undefined) => target?.getBoundingClientRect().toJSON() ?? null;
+            return {
+              composer: rect(element),
+              wrapper: rect(wrapper),
+              drawer: rect(drawer),
+              composerMarginTop: getComputedStyle(element).marginTop,
+              wrapperFlex: wrapper ? getComputedStyle(wrapper).flex : null,
+              drawerDisplay: drawer ? getComputedStyle(drawer).display : null
+            };
+          });
+          expect(textareaBox?.height).toBeGreaterThanOrEqual(120);
+          expect(textareaBox?.height).toBeLessThanOrEqual(160);
+          expect(analyzeBox).not.toBeNull();
+          expect(dimensionButtonBox).not.toBeNull();
+          expect(
+            Math.abs((analyzeBox?.y ?? 0) + (analyzeBox?.height ?? 0) - (dimensionButtonBox?.y ?? 0) - (dimensionButtonBox?.height ?? 0)),
+            `Analyse composer must share the map control horizon: ${JSON.stringify(analyzeGeometry)}`
+          ).toBeLessThanOrEqual(2);
+        }
         await page.screenshot({ path: testInfo.outputPath(`desktop-drawer-${mode.toLowerCase()}.png`) });
+      }
+      if ((viewport.width === 720 || viewport.width === 640) && mode === "Analyse") {
+        await page.locator("main aside > div").evaluate((element) => { element.scrollTop = 0; });
+        const selectedObject = page.getByTestId("selected-object");
+        const analyze = page.getByTestId("analyse-composer").getByRole("button", { name: "Analyze", exact: true });
+        await expect(selectedObject).toBeVisible();
+        const selectedBox = await selectedObject.boundingBox();
+        expect(selectedBox).not.toBeNull();
+        expect((selectedBox?.y ?? 0)).toBeGreaterThanOrEqual(64);
+        expect((selectedBox?.y ?? viewport.height) + (selectedBox?.height ?? 0)).toBeLessThanOrEqual(viewport.height + 1);
+        await analyze.scrollIntoViewIfNeeded();
+        await expect(analyze).toBeVisible();
+        const analyzeBox = await analyze.boundingBox();
+        expect(analyzeBox).not.toBeNull();
+        expect((analyzeBox?.y ?? viewport.height) + (analyzeBox?.height ?? 0)).toBeLessThanOrEqual(viewport.height + 1);
       }
     }
   }
   expect(unexpectedExternal).toEqual([]);
 });
 
-test("V5.1 keeps exact identity, Find lineage, Create A/B and mobile profile coherent offline", async ({ page }) => {
+test("V5.1 keeps exact identity, Find lineage, Create A/B and mobile profile coherent offline", async ({ page }, testInfo) => {
   contextRequests.length = 0;
+  createPostRequests.length = 0;
   const unexpectedExternal = await installOfflineRoutes(page);
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto("/prototype/point-to-object");
@@ -351,26 +477,34 @@ test("V5.1 keeps exact identity, Find lineage, Create A/B and mobile profile coh
   await expect(page.getByRole("option", { name: /Shangri-La exact search result/ })).toBeVisible();
   await search.press("ArrowDown");
   await search.press("Enter");
-  await expect(page.getByText("Exact OpenStreetMap object")).toBeVisible();
-  await expect(page.getByText("way/1001", { exact: true })).toBeVisible();
+  await expect(page.getByText("Exact mapped object")).toBeVisible();
+  await expect(page.getByTestId("selected-object")).toHaveText("Shangri-La exact search result");
+  await expect(page.getByText("Shangri-La exact search result, Dubai, United Arab Emirates")).toBeVisible();
+  await expect(page.getByText("Mapped levels · 12")).toBeVisible();
+  await expect(page.getByText("way/1001", { exact: true })).toHaveCount(0);
   expect(contextRequests.at(-1)?.expectedSourceFeatureId).toBe("way/1001");
   const searchSelection = await page.evaluate(() => JSON.parse(sessionStorage.getItem("geoai:point-to-object:selection:v3") ?? "null"));
   expect(searchSelection.object.sourceFeatureId).toBe("way/1001");
   expect(searchSelection.object.geometry.type).toBe("Point");
 
   await page.getByRole("tab", { name: "Find" }).click();
-  await page.getByRole("button", { name: "Search this view" }).click();
-  await expect(page.getByTestId("find-result-lineage")).toContainText("OpenStreetMap · Overpass API");
-  await expect(page.getByTestId("find-result-lineage")).toContainText("ODbL-1.0");
-  await expect(page.getByTestId("find-result-lineage")).toContainText("Query extent:");
+  await expect(page.getByRole("heading", { name: "Find places" })).toBeVisible();
+  await expect(page.getByText("B2B · Developer", { exact: true })).toBeVisible();
+  await expect(page.getByRole("option", { name: /development-zone search unavailable/i })).toHaveCount(0);
+  await expect(page.getByRole("option", { name: "Buildings and construction sites" })).toHaveCount(1);
+  await page.getByRole("button", { name: "Search visible area" }).click();
+  await expect(page.getByText("Showing 3", { exact: true })).toBeVisible();
+  await expect(page.getByText(/OpenStreetMap sample · acquired/)).toHaveCount(0);
   await expect(page.getByTestId("find-result-stale")).toHaveCount(0);
   const firstCandidate = page.getByRole("listitem").filter({ hasText: "Marina Candidate One" });
   const secondCandidate = page.getByRole("listitem").filter({ hasText: "Marina Candidate Two" });
   await firstCandidate.getByRole("button", { name: "Compare", exact: true }).click();
   await secondCandidate.getByRole("button", { name: "Compare", exact: true }).click();
   await page.getByRole("button", { name: "Compare", exact: true }).first().click();
-  await expect(page.getByText("Sample lineage")).toBeVisible();
-  await expect(page.getByText(/SHA-256 aaaaaaaaaaaaaaaa/)).toBeVisible();
+  await expect(page.getByText(/SHA-256/)).toHaveCount(0);
+  await expect(page.getByText(/way\/2001|node\/2002|relation\/2003/)).toHaveCount(0);
+  await expect(page.getByText(/Coordinates|OSM ID/)).toHaveCount(0);
+  await expect(page.getByText(/Factual OpenStreetMap attribute comparison|mapped signal/)).toHaveCount(0);
   await page.getByRole("article").filter({ hasText: "Marina Candidate One" }).getByRole("button", { name: "Open analysis" }).click();
   await expect(page.getByText("Marina Candidate One", { exact: true }).first()).toBeVisible();
   await expect.poll(() => contextRequests.at(-1)?.expectedSourceFeatureId).toBe("way/2001");
@@ -381,11 +515,15 @@ test("V5.1 keeps exact identity, Find lineage, Create A/B and mobile profile coh
   expect(findSelection.object.geometry.type).toBe("Point");
   expect(JSON.stringify(findSelection.object.geometry).length).toBeLessThan(100);
 
-  await page.getByRole("button", { name: "Analyze", exact: true }).click();
+  const emptyQuestion = page.getByRole("textbox", { name: "What would you like to know?" });
+  await expect(emptyQuestion).toHaveValue("");
+  await expect(page.getByRole("button", { name: "Analyze", exact: true })).toBeEnabled();
+  await emptyQuestion.press("Control+Enter");
   await expect(page).toHaveURL(/\/prototype\/point-to-object\/analysis$/);
+  await expect(page.getByRole("link", { name: "Data sources" })).toHaveCount(0);
   await page.getByRole("link", { name: "Back to map" }).click();
   await page.getByRole("tab", { name: "Find" }).click();
-  await expect(page.getByText("Sample lineage")).toBeVisible();
+  await expect(page.getByText("Showing 3", { exact: true })).toBeVisible();
   await expect(page.getByTestId("find-result-stale")).toHaveText("Stale");
   await expect(page.getByTestId("find-search-cta")).toHaveText("Update search");
   await expect(page.getByRole("article").filter({ hasText: "Marina Candidate Two" })).toBeVisible();
@@ -411,51 +549,8 @@ test("V5.1 keeps exact identity, Find lineage, Create A/B and mobile profile coh
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     await expectFindDrawerGeometry(page, viewport.align);
   }
-  await page.getByTestId("find-data-methodology").click();
-  const methodologyPanel = page.getByTestId("find-methodology-panel");
-  await expect(methodologyPanel).toBeVisible();
-  const methodologyGeometry = await methodologyPanel.evaluate((element) => {
-    const aside = element.closest("aside");
-    if (!aside) throw new Error("Find methodology panel must remain inside the drawer aside.");
-    const panelRect = element.getBoundingClientRect();
-    const asideRect = aside.getBoundingClientRect();
-    element.scrollTop = element.scrollHeight;
-    return {
-      clientHeight: element.clientHeight,
-      scrollHeight: element.scrollHeight,
-      bottomReached: Math.ceil(element.scrollTop + element.clientHeight) >= element.scrollHeight,
-      leftContained: panelRect.left >= asideRect.left - 1,
-      rightContained: panelRect.right <= asideRect.right + 1,
-      topContained: panelRect.top >= asideRect.top - 1,
-      bottomContained: panelRect.bottom <= asideRect.bottom + 1
-    };
-  });
-  expect(methodologyGeometry.clientHeight).toBeGreaterThan(0);
-  expect(methodologyGeometry.scrollHeight).toBeGreaterThan(methodologyGeometry.clientHeight);
-  expect(methodologyGeometry.bottomReached).toBe(true);
-  expect(methodologyGeometry.leftContained).toBe(true);
-  expect(methodologyGeometry.rightContained).toBe(true);
-  expect(methodologyGeometry.topContained).toBe(true);
-  expect(methodologyGeometry.bottomContained).toBe(true);
-  const methodologyAttribution = methodologyPanel.getByText("© OpenStreetMap contributors.");
-  await expect(methodologyAttribution).toBeVisible();
-  const attributionGeometry = await methodologyAttribution.evaluate((element) => {
-    const panel = element.closest<HTMLElement>('[data-testid="find-methodology-panel"]');
-    const aside = element.closest("aside");
-    if (!panel || !aside) throw new Error("Find methodology attribution must remain inside the visible panel and drawer aside.");
-    const attributionRect = element.getBoundingClientRect();
-    const panelRect = panel.getBoundingClientRect();
-    const asideRect = aside.getBoundingClientRect();
-    return {
-      insidePanel: attributionRect.top >= panelRect.top - 1 && attributionRect.bottom <= panelRect.bottom + 1,
-      insideAside: attributionRect.top >= asideRect.top - 1 && attributionRect.bottom <= asideRect.bottom + 1,
-      insideViewport: attributionRect.top >= -1 && attributionRect.bottom <= window.innerHeight + 1
-    };
-  });
-  expect(attributionGeometry.insidePanel).toBe(true);
-  expect(attributionGeometry.insideAside).toBe(true);
-  expect(attributionGeometry.insideViewport).toBe(true);
-  await page.getByTestId("find-data-methodology").click();
+  await expect(page.getByTestId("find-data-methodology")).toHaveCount(0);
+  await expect(page.getByTestId("find-methodology-panel")).toHaveCount(0);
   await expect(page.getByText("Pan or zoom the map, then use Find to search the visible area. Map clicks do not select objects in this mode.")).toBeAttached();
   await expect.poll(() => page.evaluate(() => JSON.parse(sessionStorage.getItem("geoai:point-to-object:selection:v3") ?? "null"))).toBeNull();
   await page.locator(".maplibregl-canvas").click({ position: { x: 200, y: 150 }, force: true });
@@ -478,28 +573,68 @@ test("V5.1 keeps exact identity, Find lineage, Create A/B and mobile profile coh
   });
   await expect(page.getByText(/Area ready ·/)).toBeVisible();
   await expect(page.getByText("Objects inside the polygon")).toBeVisible();
+  await expect(page.getByText("Mapped objects", { exact: true })).toBeVisible();
+  await expect(page.getByText(/Uses returned feature centres inside the AOI/)).toHaveCount(0);
+  await page.getByText("Concept parameters", { exact: true }).click();
+  await page.getByRole("slider", { name: "Blocks" }).press("ArrowRight");
+  await expect(page.getByText("Edited", { exact: true })).toHaveCount(1);
+  await expect(page.getByTestId("reset-edited-create-controls")).toBeVisible();
   await page.getByRole("button", { name: "Generate concept" }).click();
-  await expect(page.getByText("Concept ready")).toBeVisible();
+  await expect(page.getByTestId("generated-concept-summary")).toContainText("A deterministic mixed-use concept for the selected area.");
+  expect(createPostRequests).toHaveLength(1);
+  expect(createPostRequests[0]?.lockedControlKeys).toEqual(["blockCount"]);
+  await expect(page.getByTestId("create-alternative-a")).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByTestId("generated-concept-metrics")).toContainText("Generated blocks1");
+  await page.getByTestId("create-alternative-b").click();
+  await expect(page.getByTestId("create-alternative-b")).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByTestId("create-alternative-b")).toHaveCSS("background-color", "rgb(8, 127, 112)");
+  await expect(page.getByTestId("generated-concept-metrics")).toContainText("Generated blocks2");
+  await expect(page.locator(".maplibregl-canvas")).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("create-alternative-b.png") });
+  expect(createPostRequests).toHaveLength(1);
+  await page.getByTestId("create-alternative-a").click();
+  expect(createPostRequests).toHaveLength(1);
+  await expect(page.getByText("Concept ready")).toHaveCount(0);
   const showExisting = page.getByRole("button", { name: "Show existing" });
   await expect(showExisting).toBeVisible();
   await showExisting.click();
   await expect(page.getByRole("button", { name: "Show concept" })).toBeVisible();
-  await expect(page.getByText("Concept ready")).toBeVisible();
+  await expect(page.getByTestId("generated-concept-summary")).toBeVisible();
   await page.getByRole("button", { name: "Show concept" }).click();
   await expect(page.getByRole("button", { name: "Show existing" })).toBeVisible();
+  await expect(page.getByText(/Source buildings inside the selected area are hidden/)).toHaveCount(0);
+  await page.getByTestId("reset-edited-create-controls").click();
+  await expect(page.getByText("Edited", { exact: true })).toHaveCount(0);
+  await expect(page.getByTestId("generated-concept-summary")).toHaveCount(0);
+  await page.getByRole("button", { name: "Generate concept" }).click();
+  await expect(page.getByTestId("generated-concept-summary")).toBeVisible();
+  expect(createPostRequests).toHaveLength(2);
+  expect(createPostRequests[1]?.lockedControlKeys).toEqual([]);
   await page.getByRole("button", { name: "Reset concept" }).click();
-  await expect(page.getByText("Concept ready")).toHaveCount(0);
+  await expect(page.getByTestId("generated-concept-summary")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Clear 3D" })).toBeVisible();
 
   await signInDemo(page, "/profile");
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.getByRole("button", { name: "ru", exact: true }).click();
+  const russianLocale = page.getByRole("button", { name: "ru", exact: true });
+  await expect.poll(async () => {
+    if (await russianLocale.getAttribute("aria-pressed") !== "true") await russianLocale.click();
+    return russianLocale.getAttribute("aria-pressed");
+  }, { timeout: 10_000, intervals: [50, 100, 250] }).toBe("true");
   await expect(page.getByRole("heading", { name: "Ваш профиль" })).toBeVisible();
   await page.getByRole("button", { name: "B2C", exact: true }).click();
   await expect(page.getByRole("combobox", { name: "Роль по умолчанию" })).toHaveValue("tourist");
   await page.getByRole("button", { name: "B2B", exact: true }).click();
   await expect(page.getByRole("combobox", { name: "Роль по умолчанию" })).toHaveValue("developer");
   await expect(page.getByRole("link", { name: "Вернуться к карте" })).toBeVisible();
+  await page.goto("/prototype/point-to-object");
+  await page.getByRole("tab", { name: "Поиск" }).click();
+  await expect(page.getByText("B2B · Девелопер", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Изменить" }).click();
+  await page.getByTestId("find-audience-b2c").click();
+  await expect(page.getByText("B2C · Турист", { exact: true })).toBeVisible();
+  await page.goto("/profile");
+  await expect(page.getByRole("combobox", { name: "Роль по умолчанию" })).toHaveValue("developer");
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(1);
   expect(unexpectedExternal).toEqual([]);
