@@ -10,14 +10,19 @@ import {
   boundedPointObjectCreateAttemptTimeout,
   createProgramSeed,
   buildPointObjectCreateResponsesRequest,
+  inferPromptMassingStyle,
   parsePointObjectCreateProgram,
   POINT_OBJECT_CREATE_PROMPT_VERSION,
   resolvePointObjectCreateModelProfile,
+  selectPointObjectCreateRequestedParameters,
+  validatePointObjectCreateLockedControlKeys,
+  type PointObjectCreateControlKey,
   type PointObjectCreateDepth,
   type PointObjectCreateRoutedProfile
 } from "@/src/lib/prototype/point-to-object-create-ai-core";
 import {
-  generateConceptMassing,
+  ConceptMassingError,
+  generateConceptMassingAlternatives,
   type ConceptLocale,
   type ConceptTemplateId
 } from "@/src/lib/prototype/point-to-object-create";
@@ -59,6 +64,7 @@ type CreateRequest = {
     openSpacePct: number;
     setbackM: number;
   };
+  lockedControlKeys?: PointObjectCreateControlKey[];
   aoiCoordinates: [number, number][][];
   challenge: string;
 };
@@ -160,10 +166,11 @@ function validCoordinates(value: unknown): value is [number, number][][] {
 }
 
 function validBody(value: unknown): value is CreateRequest {
-  if (!isRecord(value) || Object.keys(value).some((key) => !["marketKey", "locale", "depth", "templateId", "customPrompt", "controls", "aoiCoordinates", "challenge"].includes(key))) return false;
+  if (!isRecord(value) || Object.keys(value).some((key) => !["marketKey", "locale", "depth", "templateId", "customPrompt", "controls", "lockedControlKeys", "aoiCoordinates", "challenge"].includes(key))) return false;
   if (!isRecord(value.controls) || Object.keys(value.controls).some((key) => !["blockCount", "levelsMin", "levelsMax", "targetSiteCoveragePct", "openSpacePct", "setbackM"].includes(key))) return false;
   const controls = value.controls;
-  return isPointObjectMarketKey(value.marketKey) &&
+  const validLocks = validatePointObjectCreateLockedControlKeys(value.lockedControlKeys).ok;
+  return validLocks && isPointObjectMarketKey(value.marketKey) &&
     (value.locale === "en" || value.locale === "ru") &&
     (value.depth === "quick" || value.depth === "standard" || value.depth === "deep") &&
     (value.templateId === "residential_mixed_use" || value.templateId === "commercial_hub" || value.templateId === "civic_green") &&
@@ -196,7 +203,7 @@ function aoiDimensions(ring: [number, number][]) {
 
 function requireRequestedParameters(
   program: ReturnType<typeof parsePointObjectCreateProgram>,
-  controls: CreateRequest["controls"]
+  controls: Partial<CreateRequest["controls"]>
 ): ReturnType<typeof parsePointObjectCreateProgram> {
   if (!program.ok) return program;
   const mismatches = (Object.keys(controls) as Array<keyof CreateRequest["controls"]>)
@@ -204,6 +211,12 @@ function requireRequestedParameters(
   return mismatches.length
     ? { ok: false, errors: [`AI response changed requested parameters: ${mismatches.join(", ")}.`] }
     : program;
+}
+
+function requestedParameters(body: CreateRequest): Partial<CreateRequest["controls"]> | null {
+  const locked = validatePointObjectCreateLockedControlKeys(body.lockedControlKeys);
+  if (!locked.ok) return null;
+  return selectPointObjectCreateRequestedParameters(body.controls, locked.value);
 }
 
 async function callOpenAi(body: ReturnType<typeof buildPointObjectCreateResponsesRequest>, apiKey: string, timeoutMs: number) {
@@ -272,6 +285,22 @@ export async function POST(request: Request) {
   if (!areaContextRequest.ok) {
     return NextResponse.json({ mode: "unavailable", error: body.locale === "ru" ? "Полигон должен находиться внутри выбранного города." : "The polygon must stay inside the selected market." }, { status: 400, headers: noStoreHeaders(request, true) });
   }
+  if (body.controls.targetSiteCoveragePct + body.controls.openSpacePct > 100) {
+    return NextResponse.json({
+      mode: "unavailable",
+      error: body.locale === "ru"
+        ? "Сумма плотности застройки и открытых пространств не должна превышать 100%."
+        : "Site coverage and open-space share must not exceed 100% together."
+    }, { status: 422, headers: noStoreHeaders(request, true) });
+  }
+  const lockedParameters = requestedParameters(body);
+  const promptStyle = inferPromptMassingStyle(body.customPrompt);
+  if (promptStyle === "courtyard" && typeof lockedParameters?.blockCount === "number" && lockedParameters.blockCount < 4) {
+    return NextResponse.json({ mode: "unavailable", error: body.locale === "ru" ? "Для дворовой композиции нужно не менее четырёх корпусов." : "A courtyard needs at least four primary wings." }, { status: 422, headers: noStoreHeaders(request, true) });
+  }
+  if (promptStyle === "towers_on_podium" && lockedParameters?.levelsMin === 1) {
+    return NextResponse.json({ mode: "unavailable", error: body.locale === "ru" ? "Для башен на подиуме задайте высоту основных объёмов не менее двух этажей." : "Towers on a podium require primary heights of at least two levels." }, { status: 422, headers: noStoreHeaders(request, true) });
+  }
 
   const profile = profileFor(body.depth);
   if (!profile) return NextResponse.json({ mode: "unavailable", error: "Concept generation model routing is not configured safely." }, { status: 503, headers: noStoreHeaders(request, true) });
@@ -298,7 +327,7 @@ export async function POST(request: Request) {
       inclusionMethod: areaContext.coverage.inclusionMethod,
       completeInventory: areaContext.coverage.completeInventory
     } : null,
-    requestedParameters: body.controls
+    requestedParameters: lockedParameters
   };
 
   try {
@@ -316,7 +345,7 @@ export async function POST(request: Request) {
     }];
     let completion = responseCompletionState(attempt.payload);
     let program = completion === "complete"
-      ? requireRequestedParameters(parsePointObjectCreateProgram(extractResponsesText(attempt.payload), body.templateId, body.locale), body.controls)
+      ? requireRequestedParameters(parsePointObjectCreateProgram(extractResponsesText(attempt.payload), body.templateId, body.locale), lockedParameters ?? {})
       : { ok: false as const, errors: [`Response state: ${completion}`] };
     let attempts = 1;
     if (!program.ok) {
@@ -336,15 +365,16 @@ export async function POST(request: Request) {
       });
       completion = responseCompletionState(attempt.payload);
       program = completion === "complete"
-        ? requireRequestedParameters(parsePointObjectCreateProgram(extractResponsesText(attempt.payload), body.templateId, body.locale), body.controls)
+        ? requireRequestedParameters(parsePointObjectCreateProgram(extractResponsesText(attempt.payload), body.templateId, body.locale), lockedParameters ?? {})
         : { ok: false as const, errors: [`Response state: ${completion}`] };
     }
     if (!program.ok) return NextResponse.json({ mode: "unavailable", error: body.locale === "ru" ? "Не удалось сформировать корректную концепцию. Попробуйте ещё раз." : "A valid concept could not be generated. Please try again." }, { status: 502, headers: noStoreHeaders(request, true) });
 
     const aoiHash = sha256(JSON.stringify(body.aoiCoordinates));
     const seed = createProgramSeed(program.value, aoiHash);
-    const massing = generateConceptMassing(body.aoiCoordinates, program.value, seed);
-    if (massing.generatedBlockCount < 1) return NextResponse.json({ mode: "unavailable", error: body.locale === "ru" ? "Для выбранного полигона не удалось разместить объекты. Увеличьте зону или уменьшите параметры." : "No concept blocks fit inside this polygon. Enlarge the AOI or reduce the programme." }, { status: 422, headers: noStoreHeaders(request, true) });
+    const alternatives = generateConceptMassingAlternatives(body.aoiCoordinates, program.value, seed, body.locale);
+    const massing = alternatives[0]?.massing;
+    if (!massing || massing.generatedBlockCount < 1) return NextResponse.json({ mode: "unavailable", error: body.locale === "ru" ? "Для выбранного полигона не удалось разместить объекты. Увеличьте зону или уменьшите параметры." : "No concept blocks fit inside this polygon. Enlarge the AOI or reduce the programme." }, { status: 422, headers: noStoreHeaders(request, true) });
 
     const usage = summarizePointObjectAiAttemptUsage(attemptUsage);
     return NextResponse.json({
@@ -353,6 +383,7 @@ export async function POST(request: Request) {
       promptVersion: POINT_OBJECT_CREATE_PROMPT_VERSION,
       program: program.value,
       massing,
+      alternatives,
       telemetry: {
         model: profile.model,
         reasoningEffort: profile.reasoningEffort,
@@ -374,6 +405,18 @@ export async function POST(request: Request) {
       caveat: CREATE_CAVEAT
     }, { headers: noStoreHeaders(request, true) });
   } catch (error) {
+    if (error instanceof ConceptMassingError) {
+      const translated = body.locale === "ru"
+        ? error.code === "courtyard_requires_four_blocks"
+          ? "Для дворовой композиции нужно не менее четырёх корпусов."
+          : error.code === "tower_height_incompatible"
+            ? "Для башен на подиуме задайте высоту основных объёмов не менее двух этажей."
+            : "Заданная композиция не помещается внутри зоны с выбранными отступами. Уменьшите число корпусов, покрытие или отступ."
+        : error.code === "geometry_validation_failed"
+          ? "The generated geometry did not pass spatial validation. Adjust the programme or AOI."
+          : error.message;
+      return NextResponse.json({ mode: "unavailable", error: translated }, { status: 422, headers: noStoreHeaders(request, true) });
+    }
     const timedOut = error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
     const rateLimited = error instanceof Error && error.message === "rate_limited";
     return NextResponse.json({
