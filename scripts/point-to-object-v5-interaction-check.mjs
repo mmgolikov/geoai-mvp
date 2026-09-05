@@ -114,14 +114,22 @@ assert.match(map, /sm:bottom-3/, "Desktop map controls must retain their anchore
 
 assert.doesNotMatch(client, /setCreateAreaCleared\(\(value\) => !value\);\s*setGeneratedConcept\(null\)/);
 assert.match(client, /generatedConcept \? \(locale === "ru" \? "Показать концепт" : "Show concept"\)/);
-assert.match(create, /function invalidateGeneration\(\)[\s\S]*requestIdRef\.current \+= 1;[\s\S]*requestRef\.current\?\.abort\(\);[\s\S]*if \(generated\) onReset\(\);/);
-assert.match(create, /function selectTemplate[\s\S]*invalidateGeneration\(\);[\s\S]*setTemplateId/);
-assert.match(create, /function updateControl[\s\S]*invalidateGeneration\(\);[\s\S]*setControls/);
+const pendingInvalidationStart = create.indexOf("function invalidatePendingRequest()");
+const pendingInvalidationEnd = create.indexOf("function selectTemplate", pendingInvalidationStart);
+const pendingInvalidation = create.slice(pendingInvalidationStart, pendingInvalidationEnd);
+assert.ok(pendingInvalidationStart >= 0 && pendingInvalidationEnd > pendingInvalidationStart, "Create pending-request invalidation must be addressable");
+assert.match(pendingInvalidation, /requestIdRef\.current \+= 1;[\s\S]*requestRef\.current\?\.abort\(\);/);
+assert.doesNotMatch(pendingInvalidation, /onReset\(\)/, "Draft edits must preserve the last committed result");
+assert.match(create, /function selectTemplate[\s\S]*invalidatePendingRequest\(\);[\s\S]*setTemplateId/);
+assert.match(create, /function updateControl[\s\S]*invalidatePendingRequest\(\);[\s\S]*setControls/);
 assert.match(create, /lockedControlKeys: \[\.\.\.lockedControlKeys\]/, "Create must send only explicitly edited controls to the engine lock contract");
 assert.match(create, /setLockedControlKeys\(new Set\(\)\)/, "Template and local reset actions must clear edited-control locks");
 assert.ok(create.includes('data-testid={`create-alternative-${alternative.id.toLowerCase()}`}'), "Create must expose stable A/B option controls");
 assert.match(client, /conceptMassing=\{mode === "create" \? activeConceptMassing : null\}/, "The map must render the active returned concept alternative");
-assert.match(create, /id="point-object-create-prompt"[\s\S]*onChange=\{\(event\) => \{[\s\S]*invalidateGeneration\(\);[\s\S]*setCustomPrompt/);
+assert.match(create, /id="point-object-create-prompt"[\s\S]*onChange=\{\(event\) => \{[\s\S]*invalidatePendingRequest\(\);[\s\S]*setCustomPrompt/);
+assert.match(create, /generatedFromCurrentDraft[\s\S]*disabled=\{loading \|\| generatedFromCurrentDraft\}/, "Unchanged generated input must be an explicit disabled no-op");
+assert.match(create, /upToDate: "Already generated"/);
+assert.match(create, /regenerate: "Update concept"/);
 assert.doesNotMatch(create, /Concept ready|Concept massing is a screening visualization/, "Create must not repeat generic success or disclaimer narration");
 assert.match(create, /data-testid="generated-concept-summary"/);
 assert.doesNotMatch(client, /Uses returned feature centres inside the AOI|Учитываются центры объектов, попавшие внутрь зоны|t\("create\.mask"\)/, "Create must not render persistent source-method or success narration");

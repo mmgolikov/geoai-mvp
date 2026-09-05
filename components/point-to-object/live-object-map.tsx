@@ -106,6 +106,7 @@ export type LiveObjectMapProps = {
   createDraftCoordinates?: Wgs84Position[];
   createAoi?: PointObjectCreateAoi | null;
   createAreaCleared?: boolean;
+  createReplacementRevision?: number;
   conceptMassing?: ConceptMassingResult | null;
   onCreateVertex?: (coordinate: Wgs84Position) => void;
   onReplacementStatus?: (status: PointObjectReplacementStatus) => void;
@@ -558,11 +559,11 @@ function resetBuildingFilterSnapshots(map: MapLibreMap) {
 }
 
 function snapshotBuildingFilters(map: MapLibreMap): Map<string, PointObjectMapFilterSnapshot> {
-  const existing = BUILDING_FILTER_SNAPSHOTS.get(map);
-  if (existing) return existing;
-  const snapshots = new Map<string, PointObjectMapFilterSnapshot>();
+  const snapshots = BUILDING_FILTER_SNAPSHOTS.get(map) ?? new Map<string, PointObjectMapFilterSnapshot>();
   for (const layerId of buildingLayerIds(map)) {
-    snapshots.set(layerId, snapshotPointObjectMapFilter(map.getFilter(layerId) as FilterSpecification | null | undefined));
+    if (!snapshots.has(layerId)) {
+      snapshots.set(layerId, snapshotPointObjectMapFilter(map.getFilter(layerId) as FilterSpecification | null | undefined));
+    }
   }
   BUILDING_FILTER_SNAPSHOTS.set(map, snapshots);
   return snapshots;
@@ -778,6 +779,7 @@ export function LiveObjectMap({
   createDraftCoordinates = EMPTY_CREATE_COORDINATES,
   createAoi = null,
   createAreaCleared = false,
+  createReplacementRevision = 0,
   conceptMassing = null,
   onCreateVertex,
   onReplacementStatus
@@ -866,7 +868,7 @@ export function LiveObjectMap({
     const replacementStatus = setCreateLayers(map, createDraftCoordinates, createAoi, createAreaCleared, conceptMassing, viewModeRef.current);
     replacementStatusCallbackRef.current?.(replacementStatus);
     map.getCanvas().style.cursor = interactionModeRef.current === "create" && createDrawing ? "crosshair" : "";
-  }, [conceptMassing, createAoi, createAreaCleared, createDraftCoordinates, createDrawing, onCreateVertex]);
+  }, [conceptMassing, createAoi, createAreaCleared, createDraftCoordinates, createDrawing, createReplacementRevision, onCreateVertex]);
 
   useEffect(() => {
     selectionRef.current = selection;

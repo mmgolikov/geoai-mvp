@@ -11,6 +11,16 @@ import {
   type RedevelopmentProgramInput,
   type ValidatedRedevelopmentProgram
 } from "@/src/lib/prototype/point-to-object-create";
+import {
+  createPointObjectCreateDraftKey,
+  createPointObjectCreateEditorScopeKey,
+  restorePointObjectCreateEditorSnapshot,
+  type PointObjectCreateEditorControlKey,
+  type PointObjectCreateEditorControls,
+  type PointObjectCreateEditorSnapshot
+} from "@/src/lib/prototype/point-to-object-create-editor";
+
+export type { PointObjectCreateEditorSnapshot } from "@/src/lib/prototype/point-to-object-create-editor";
 
 type CreateDepth = "quick" | "standard" | "deep";
 
@@ -38,11 +48,12 @@ type CreatePanelProps = {
   onGenerated: (concept: PointObjectGeneratedConcept) => void;
   onAlternativeChange: (id: "A" | "B") => void;
   onReset: () => void;
+  editorSnapshot?: PointObjectCreateEditorSnapshot | null;
+  onEditorSnapshotChange?: (snapshot: PointObjectCreateEditorSnapshot) => void;
 };
 
-type Controls = Pick<RedevelopmentProgramInput,
-  "blockCount" | "levelsMin" | "levelsMax" | "targetSiteCoveragePct" | "openSpacePct" | "setbackM">;
-type ControlKey = keyof Controls;
+type Controls = PointObjectCreateEditorControls;
+type ControlKey = PointObjectCreateEditorControlKey;
 
 const COPY = {
   en: {
@@ -59,8 +70,13 @@ const COPY = {
     prompt: "Custom direction",
     placeholder: "For example: prioritize shaded pedestrian space and active ground floors.",
     generate: "Generate concept",
+    regenerate: "Update concept",
     generating: "Generating concept…",
-    reset: "Reset concept",
+    upToDate: "Already generated",
+    reset: "Clear generated result",
+    draft: "Draft settings",
+    draftChanged: "Changes not applied",
+    errorPreserved: "The previous valid result remains available.",
     edited: "Edited",
     resetParameters: "Reset edited values",
     option: "Option",
@@ -85,8 +101,13 @@ const COPY = {
     prompt: "Дополнительное задание",
     placeholder: "Например: сделай приоритетом затенённые пешеходные зоны и активные первые этажи.",
     generate: "Создать концепцию",
+    regenerate: "Обновить концепцию",
     generating: "Создаём концепцию…",
-    reset: "Сбросить концепцию",
+    upToDate: "Уже создано",
+    reset: "Удалить созданный результат",
+    draft: "Настройки черновика",
+    draftChanged: "Изменения не применены",
+    errorPreserved: "Предыдущий корректный результат остаётся доступен.",
     edited: "Изменено",
     resetParameters: "Сбросить изменения",
     option: "Вариант",
@@ -176,18 +197,37 @@ function RangeControl({
   );
 }
 
-export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generated, activeAlternativeId, onGenerated, onAlternativeChange, onReset }: CreatePanelProps) {
+export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generated, activeAlternativeId, onGenerated, onAlternativeChange, onReset, editorSnapshot = null, onEditorSnapshotChange }: CreatePanelProps) {
   const templates = useMemo(() => conceptTemplates(locale), [locale]);
-  const [templateId, setTemplateId] = useState<ConceptTemplateId>("residential_mixed_use");
+  const editorScopeKey = createPointObjectCreateEditorScopeKey({ aoiId: aoi.id, marketKey, locale, depth });
+  const restoredEditor = restorePointObjectCreateEditorSnapshot(editorSnapshot, editorScopeKey);
+  const [templateId, setTemplateId] = useState<ConceptTemplateId>(() => restoredEditor?.templateId ?? "residential_mixed_use");
   const activeTemplate = templates.find((item) => item.templateId === templateId) ?? templates[0];
-  const [controls, setControls] = useState<Controls>(() => controlsFrom(activeTemplate));
-  const [lockedControlKeys, setLockedControlKeys] = useState<Set<ControlKey>>(() => new Set());
-  const [customPrompt, setCustomPrompt] = useState("");
+  const [controls, setControls] = useState<Controls>(() => restoredEditor?.controls ?? controlsFrom(activeTemplate));
+  const [lockedControlKeys, setLockedControlKeys] = useState<Set<ControlKey>>(() => new Set(restoredEditor?.lockedControlKeys ?? []));
+  const [customPrompt, setCustomPrompt] = useState(() => restoredEditor?.customPrompt ?? "");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [committedDraftKey, setCommittedDraftKey] = useState<string | null>(() => restoredEditor?.committedDraftKey ?? null);
   const requestRef = useRef<AbortController | null>(null);
   const requestIdRef = useRef(0);
+  const editorScopeKeyRef = useRef(editorScopeKey);
+  const editorSnapshotCallbackRef = useRef(onEditorSnapshotChange);
+  const editorScopeChanged = editorScopeKeyRef.current !== editorScopeKey;
   const copy = COPY[locale];
+  const draftKey = useMemo(() => createPointObjectCreateDraftKey({
+    scopeKey: editorScopeKey,
+    templateId,
+    customPrompt,
+    controls,
+    lockedControlKeys
+  }), [controls, customPrompt, editorScopeKey, lockedControlKeys, templateId]);
+  const generatedFromCurrentDraft = Boolean(generated && committedDraftKey === draftKey);
+  const draftChangedAfterGeneration = Boolean(generated && !generatedFromCurrentDraft);
+
+  useEffect(() => {
+    editorSnapshotCallbackRef.current = onEditorSnapshotChange;
+  }, [onEditorSnapshotChange]);
 
   useEffect(() => {
     requestIdRef.current += 1;
@@ -195,32 +235,59 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
     requestRef.current = null;
     setLoading(false);
     setError(null);
+    if (editorScopeChanged) {
+      const nextRestored = restorePointObjectCreateEditorSnapshot(editorSnapshot, editorScopeKey);
+      const nextTemplateId = nextRestored?.templateId ?? "residential_mixed_use";
+      const nextTemplate = templates.find((item) => item.templateId === nextTemplateId) ?? templates[0];
+      setTemplateId(nextTemplateId);
+      setControls(nextRestored?.controls ?? controlsFrom(nextTemplate));
+      setLockedControlKeys(new Set(nextRestored?.lockedControlKeys ?? []));
+      setCustomPrompt(nextRestored?.customPrompt ?? "");
+      setCommittedDraftKey(nextRestored?.committedDraftKey ?? null);
+      editorScopeKeyRef.current = editorScopeKey;
+    }
     return () => {
       requestIdRef.current += 1;
       requestRef.current?.abort();
     };
-  }, [aoi.id, depth, locale, marketKey]);
+  }, [editorScopeKey]);
 
-  function invalidateGeneration() {
+  useEffect(() => {
+    if (editorScopeChanged) return;
+    editorSnapshotCallbackRef.current?.({
+      version: 1,
+      scopeKey: editorScopeKey,
+      templateId,
+      controls: { ...controls },
+      lockedControlKeys: [...lockedControlKeys].sort(),
+      customPrompt,
+      committedDraftKey
+    });
+  }, [committedDraftKey, controls, customPrompt, editorScopeChanged, editorScopeKey, lockedControlKeys, templateId]);
+
+  useEffect(() => {
+    if (!generated) setCommittedDraftKey(null);
+  }, [generated]);
+
+  function invalidatePendingRequest() {
     requestIdRef.current += 1;
     requestRef.current?.abort();
     requestRef.current = null;
     setLoading(false);
     setError(null);
-    if (generated) onReset();
   }
 
   function selectTemplate(nextId: ConceptTemplateId) {
     const template = templates.find((item) => item.templateId === nextId);
     if (!template) return;
-    invalidateGeneration();
+    invalidatePendingRequest();
     setTemplateId(nextId);
     setControls(controlsFrom(template));
     setLockedControlKeys(new Set());
   }
 
   function updateControl<Key extends keyof Controls>(key: Key, value: Controls[Key]) {
-    invalidateGeneration();
+    invalidatePendingRequest();
     const next = { ...controls, [key]: value };
     let correctedPair = false;
     if (key === "levelsMin" && next.levelsMax < next.levelsMin) {
@@ -244,17 +311,18 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
   }
 
   function resetEditedControls() {
-    invalidateGeneration();
+    invalidatePendingRequest();
     setControls(controlsFrom(activeTemplate));
     setLockedControlKeys(new Set());
   }
 
   async function generate() {
-    if (loading) return;
+    if (loading || generatedFromCurrentDraft) return;
     requestRef.current?.abort();
     const controller = new AbortController();
     requestRef.current = controller;
     const requestId = requestIdRef.current + 1;
+    const requestDraftKey = draftKey;
     requestIdRef.current = requestId;
     setLoading(true);
     setError(null);
@@ -290,6 +358,7 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
       const { mode: _mode, generatedAt: _generatedAt, promptVersion: _promptVersion, ...concept } = payload as PointObjectGeneratedConcept & { mode: string; generatedAt: string; promptVersion: string };
       if (!isGeneratedConcept(concept)) throw new Error(copy.error);
       if (controller.signal.aborted || requestId !== requestIdRef.current) return;
+      setCommittedDraftKey(requestDraftKey);
       onGenerated(concept);
     } catch (requestError) {
       if (controller.signal.aborted || requestId !== requestIdRef.current || (requestError instanceof DOMException && requestError.name === "AbortError")) return;
@@ -308,6 +377,7 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
     requestRef.current = null;
     setLoading(false);
     setError(null);
+    setCommittedDraftKey(null);
     onReset();
   }
 
@@ -327,7 +397,9 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
         {copy.area}: {aoi.areaSqM >= 10_000 ? `${(aoi.areaSqM / 10_000).toFixed(2)} ${locale === "ru" ? "га" : "ha"}` : `${Math.round(aoi.areaSqM).toLocaleString(locale)} ${locale === "ru" ? "м²" : "m²"}`}
       </p>
 
-      <div className="mt-4 grid gap-2" aria-label={copy.title}>
+      <p className="mt-4 text-[11px] font-bold uppercase tracking-[0.08em] text-[#536963]">{copy.draft}</p>
+
+      <div className="mt-2 grid gap-2" aria-label={copy.title}>
         {templates.map((template) => (
           <button
             key={template.templateId}
@@ -360,7 +432,7 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
         id="point-object-create-prompt"
         value={customPrompt}
         onChange={(event) => {
-          invalidateGeneration();
+          invalidatePendingRequest();
           setCustomPrompt(event.target.value.slice(0, 600));
         }}
         rows={3}
@@ -368,7 +440,8 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
         className="mt-2 w-full resize-none rounded-xl border border-[#cbd8d4] bg-white p-3 text-sm leading-5 outline-none focus:border-[#087f70] focus:ring-2 focus:ring-[#bde7df]"
       />
 
-      {error ? <p className="mt-3 rounded-lg border border-[#e6bd74] bg-[#fff9ed] px-3 py-2 text-xs leading-5 text-[#79520d]" role="alert">{error}</p> : null}
+      {draftChangedAfterGeneration ? <p className="mt-3 text-[11px] font-bold text-[#79520d]" data-testid="create-draft-status">{copy.draftChanged}</p> : null}
+      {error ? <p className="mt-3 rounded-lg border border-[#e6bd74] bg-[#fff9ed] px-3 py-2 text-xs leading-5 text-[#79520d]" role="alert" data-testid="create-generation-error">{error}{generated ? ` ${copy.errorPreserved}` : ""}</p> : null}
       {generated ? (
         <div className="mt-3 rounded-xl border border-[#98d1c4] bg-white p-3" data-testid="generated-concept-summary">
           {generated.alternatives && generated.alternatives.length > 1 ? <div className="mb-3 grid grid-cols-2 gap-1 rounded-lg bg-[#e8efed] p-1" role="tablist" aria-label={locale === "ru" ? "Варианты концепции" : "Concept options"}>{generated.alternatives.map((alternative) => <button key={alternative.id} type="button" role="tab" aria-selected={alternative.id === activeAlternativeId} data-testid={`create-alternative-${alternative.id.toLowerCase()}`} onClick={() => onAlternativeChange(alternative.id)} className={`min-h-11 rounded-lg px-3 text-xs font-bold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f70] ${alternative.id === activeAlternativeId ? "bg-[#087f70] text-white shadow-sm" : "bg-transparent text-[#52606a] hover:bg-white"}`}>{alternative.label || `${copy.option} ${alternative.id}`}</button>)}</div> : null}
@@ -389,12 +462,13 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
         <button
           type="button"
           onClick={() => void generate()}
-          disabled={loading}
+          disabled={loading || generatedFromCurrentDraft}
+          data-testid="create-generate-action"
           className="min-h-11 rounded-xl bg-[#087f70] px-4 text-sm font-bold text-white transition hover:bg-[#06695e] disabled:cursor-not-allowed disabled:bg-[#a8c7c0] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f70] focus-visible:ring-offset-2"
         >
-          {loading ? copy.generating : copy.generate}
+          {loading ? copy.generating : generatedFromCurrentDraft ? copy.upToDate : generated ? copy.regenerate : copy.generate}
         </button>
-        {generated ? <button type="button" onClick={resetGeneratedConcept} className="min-h-11 rounded-xl border border-[#b8cbc6] bg-white px-3 text-xs font-bold text-[#345c54]">{copy.reset}</button> : null}
+        {generated ? <button type="button" onClick={resetGeneratedConcept} data-testid="create-clear-generated" className="min-h-11 rounded-xl border border-[#b8cbc6] bg-white px-3 text-xs font-bold text-[#345c54]">{copy.reset}</button> : null}
       </div>
     </section>
   );

@@ -33,6 +33,11 @@ const {
   validatePointObjectCreateLockedControlKeys
 } = await import("../src/lib/prototype/point-to-object-create-ai-core");
 const { calculatePolygonMeasurements } = await import("../src/lib/polygon-aoi");
+const {
+  createPointObjectCreateDraftKey,
+  createPointObjectCreateEditorScopeKey,
+  restorePointObjectCreateEditorSnapshot
+} = await import("../src/lib/prototype/point-to-object-create-editor");
 
 function geometrySignature(result: ReturnType<typeof generateConceptMassing>) {
   return JSON.stringify(result.featureCollection.features.map((feature) => ({
@@ -45,6 +50,24 @@ function geometrySignature(result: ReturnType<typeof generateConceptMassing>) {
 
 function featureAreaSqM(feature: ReturnType<typeof generateConceptMassing>["featureCollection"]["features"][number]) {
   return calculatePolygonMeasurements(feature.geometry.coordinates[0].slice(0, -1) as [number, number][]).areaSqM;
+}
+
+function controlsFromProgram(program: {
+  blockCount: number;
+  levelsMin: number;
+  levelsMax: number;
+  targetSiteCoveragePct: number;
+  openSpacePct: number;
+  setbackM: number;
+}) {
+  return {
+    blockCount: program.blockCount,
+    levelsMin: program.levelsMin,
+    levelsMax: program.levelsMax,
+    targetSiteCoveragePct: program.targetSiteCoveragePct,
+    openSpacePct: program.openSpacePct,
+    setbackM: program.setbackM
+  };
 }
 
 function assertGeometryContract(
@@ -454,6 +477,51 @@ assert.equal(
 );
 assert.notEqual(seedOne, createProgramSeed({ ...validated.value, setbackM: validated.value.setbackM + 1 }, aoiHash));
 assert.notEqual(seedOne, createProgramSeed({ ...validated.value, openSpacePct: validated.value.openSpacePct + 1 }, aoiHash));
+
+const editorScopeKey = createPointObjectCreateEditorScopeKey({
+  aoiId: "editor-aoi",
+  marketKey: "dubai",
+  locale: "en",
+  depth: "standard"
+});
+const editorDraftKey = createPointObjectCreateDraftKey({
+  scopeKey: editorScopeKey,
+  templateId: programInput.templateId,
+  customPrompt: "  shaded courtyard  ",
+  controls: controlsFromProgram(programInput),
+  lockedControlKeys: ["levelsMax", "levelsMin"]
+});
+assert.equal(editorDraftKey, createPointObjectCreateDraftKey({
+  scopeKey: editorScopeKey,
+  templateId: programInput.templateId,
+  customPrompt: "shaded courtyard",
+  controls: controlsFromProgram(programInput),
+  lockedControlKeys: ["levelsMin", "levelsMax"]
+}), "Equivalent draft inputs must retain the same no-op key.");
+assert.notEqual(editorDraftKey, createPointObjectCreateDraftKey({
+  scopeKey: editorScopeKey,
+  templateId: programInput.templateId,
+  customPrompt: "shaded courtyard",
+  controls: { ...controlsFromProgram(programInput), setbackM: programInput.setbackM + 1 },
+  lockedControlKeys: ["levelsMin", "levelsMax", "setbackM"]
+}), "An edited numeric lock must invalidate the committed draft key.");
+const editorSnapshot = {
+  version: 1 as const,
+  scopeKey: editorScopeKey,
+  templateId: programInput.templateId,
+  controls: controlsFromProgram(programInput),
+  lockedControlKeys: ["levelsMin", "levelsMax"] as const,
+  customPrompt: "shaded courtyard",
+  committedDraftKey: editorDraftKey
+};
+assert.deepEqual(restorePointObjectCreateEditorSnapshot(editorSnapshot, editorScopeKey), {
+  ...editorSnapshot,
+  lockedControlKeys: ["levelsMin", "levelsMax"]
+});
+assert.equal(restorePointObjectCreateEditorSnapshot(editorSnapshot, `${editorScopeKey}:other`), null,
+  "An editor snapshot must never cross an AOI/market/locale/depth scope.");
+assert.equal(restorePointObjectCreateEditorSnapshot({ ...editorSnapshot, controls: { ...editorSnapshot.controls, blockCount: 99 } }, editorScopeKey), null,
+  "Out-of-range editor memory must fail closed.");
 
 const fixedTowerBaseValidation = validateRedevelopmentProgram({ ...commercialProgram, levelsMin: 20, levelsMax: 20, openSpacePct: 25 });
 const fixedTowerOpenValidation = validateRedevelopmentProgram({ ...commercialProgram, levelsMin: 20, levelsMax: 20, openSpacePct: 35 });
