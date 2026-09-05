@@ -136,6 +136,87 @@ async function installRoutes(page: Page) {
   });
 }
 
+async function addLateBuildingLayer(page: Page) {
+  await page.evaluate(() => {
+    type HookNode = { memoizedState: unknown; next: HookNode | null };
+    type FiberNode = { memoizedState: HookNode | null; return: FiberNode | null };
+    type TestMap = {
+      addLayer: (layer: Record<string, unknown>) => unknown;
+      getFilter: (layerId: string) => unknown;
+      on: (event: "styledata", handler: () => void) => unknown;
+      setFilter: (layerId: string, filter: unknown) => unknown;
+      setPaintProperty: (layerId: string, property: string, value: unknown) => unknown;
+    };
+    type Harness = {
+      map: TestMap;
+      originalFilter: unknown;
+      setFilterCalls: number;
+      styleDataEvents: number;
+    };
+    const canvas = document.querySelector<HTMLElement>("[data-testid='live-map-canvas']");
+    if (!canvas) throw new Error("Map canvas not found.");
+    const fiberKey = Object.getOwnPropertyNames(canvas).find((key) => key.startsWith("__reactFiber$"));
+    if (!fiberKey) throw new Error("React fiber not found on map canvas.");
+    let fiber: FiberNode | null = (canvas as unknown as Record<string, FiberNode>)[fiberKey];
+    let map: TestMap | null = null;
+    while (fiber && !map) {
+      let hook = fiber.memoizedState;
+      while (hook) {
+        const value = hook.memoizedState as { current?: unknown } | null;
+        const candidate = value?.current as Partial<TestMap> | null | undefined;
+        if (candidate && typeof candidate.addLayer === "function" && typeof candidate.getFilter === "function" && typeof candidate.setFilter === "function") {
+          map = candidate as TestMap;
+          break;
+        }
+        hook = hook.next;
+      }
+      fiber = fiber.return;
+    }
+    if (!map) throw new Error("MapLibre instance not found in LiveObjectMap hooks.");
+
+    const originalFilter = ["==", ["get", "kind"], "main"];
+    const harness: Harness = { map, originalFilter, setFilterCalls: 0, styleDataEvents: 0 };
+    const originalSetFilter = map.setFilter.bind(map);
+    map.setFilter = (layerId, filter) => {
+      if (layerId === "late-building") harness.setFilterCalls += 1;
+      return originalSetFilter(layerId, filter);
+    };
+    map.on("styledata", () => {
+      harness.styleDataEvents += 1;
+    });
+    (window as typeof window & { __geoAiLateBuildingHarness?: Harness }).__geoAiLateBuildingHarness = harness;
+    map.addLayer({
+      id: "late-building",
+      type: "fill",
+      source: "openmaptiles",
+      "source-layer": "building",
+      filter: originalFilter,
+      paint: { "fill-color": "#cbd5da" }
+    });
+  });
+}
+
+async function readLateBuildingLayerState(page: Page) {
+  return page.evaluate(() => {
+    type Harness = {
+      map: { getFilter: (layerId: string) => unknown };
+      originalFilter: unknown;
+      setFilterCalls: number;
+      styleDataEvents: number;
+    };
+    const harness = (window as typeof window & { __geoAiLateBuildingHarness?: Harness }).__geoAiLateBuildingHarness;
+    if (!harness) throw new Error("Late-building harness is not installed.");
+    const filter = harness.map.getFilter("late-building");
+    return {
+      filter,
+      originalFilter: harness.originalFilter,
+      setFilterCalls: harness.setFilterCalls,
+      styleDataEvents: harness.styleDataEvents,
+      suppressed: JSON.stringify(filter).includes('"distance"')
+    };
+  });
+}
+
 test("Create separates draft from committed geometry and never spends on local-only actions", async ({ page }, testInfo) => {
   createPosts.length = 0;
   challengeGets = 0;
@@ -206,6 +287,31 @@ test("Create separates draft from committed geometry and never spends on local-o
   await expect(page.getByTestId("generated-concept-summary")).toContainText("Generation 2 committed result.");
   await expect(generate).toHaveText("Update concept");
   expect(createPosts).toHaveLength(4);
+
+  await test.step("a late same-style building layer is suppressed once and restores its source filter", async () => {
+    await addLateBuildingLayer(page);
+    await expect.poll(async () => {
+      const state = await readLateBuildingLayerState(page);
+      return { suppressed: state.suppressed, setFilterCalls: state.setFilterCalls };
+    }).toEqual({ suppressed: true, setFilterCalls: 1 });
+
+    const styleDataEventsBeforeUnrelatedChange = (await readLateBuildingLayerState(page)).styleDataEvents;
+    await page.evaluate(() => {
+      type Harness = { map: { setPaintProperty: (layerId: string, property: string, value: unknown) => unknown } };
+      const harness = (window as typeof window & { __geoAiLateBuildingHarness?: Harness }).__geoAiLateBuildingHarness;
+      if (!harness) throw new Error("Late-building harness is not installed.");
+      harness.map.setPaintProperty("background", "background-color", "#e7ecef");
+    });
+    await expect.poll(async () => (await readLateBuildingLayerState(page)).styleDataEvents)
+      .toBeGreaterThan(styleDataEventsBeforeUnrelatedChange);
+    await expect.poll(async () => (await readLateBuildingLayerState(page)).setFilterCalls).toBe(1);
+
+    await page.getByRole("button", { name: "Show existing" }).click();
+    await expect.poll(async () => {
+      const state = await readLateBuildingLayerState(page);
+      return { filter: state.filter, setFilterCalls: state.setFilterCalls };
+    }).toEqual({ filter: ["==", ["get", "kind"], "main"], setFilterCalls: 2 });
+  });
 
   await page.screenshot({ path: testInfo.outputPath("draft-generated-separation.png") });
   await page.getByTestId("create-clear-generated").click();

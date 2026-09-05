@@ -807,6 +807,7 @@ export function LiveObjectMap({
   const createAoiRef = useRef(createAoi);
   const createAreaClearedRef = useRef(createAreaCleared);
   const conceptMassingRef = useRef(conceptMassing);
+  const styleChangeInProgressRef = useRef(true);
   const [isReady, setIsReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [retryVersion, setRetryVersion] = useState(0);
@@ -961,8 +962,11 @@ export function LiveObjectMap({
     const container = containerRef.current;
     if (!container) return;
 
+    styleChangeInProgressRef.current = true;
     let disposed = false;
     let resizeObserver: ResizeObserver | null = null;
+    let handleStyleData: (() => void) | null = null;
+    let handleStyleReady: (() => void) | null = null;
 
     void import("maplibre-gl")
       .then((maplibregl) => {
@@ -1001,8 +1005,43 @@ export function LiveObjectMap({
         map.addControl(new maplibregl.NavigationControl({ showCompass: false, showZoom: true }), "top-right");
         map.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-right");
 
-        const handleStyleReady = () => {
+        let observedBuildingLayerIds = new Set<string>();
+        let buildingLayerReconciliationReady = false;
+        let reconcilingBuildingLayers = false;
+
+        handleStyleData = () => {
+          if (disposed || reconcilingBuildingLayers || !buildingLayerReconciliationReady || styleChangeInProgressRef.current) return;
+          const currentLayerIds = buildingLayerIds(map);
+          const addedLayerIds = currentLayerIds.filter((layerId) => !observedBuildingLayerIds.has(layerId));
+          const layerSetChanged = addedLayerIds.length > 0 ||
+            observedBuildingLayerIds.size !== currentLayerIds.length;
+          if (!layerSetChanged) return;
+          observedBuildingLayerIds = new Set(currentLayerIds);
+          if (!addedLayerIds.length || !createAreaClearedRef.current || !createAoiRef.current) return;
+
+          // Mark the new identity set and enter the guard before setFilter. MapLibre
+          // emits styledata for filter mutations, which must not recursively
+          // trigger another replacement pass.
+          reconcilingBuildingLayers = true;
+          try {
+            const replacementStatus = setCreateLayers(
+              map,
+              createDraftRef.current,
+              createAoiRef.current,
+              createAreaClearedRef.current,
+              conceptMassingRef.current,
+              viewModeRef.current
+            );
+            replacementStatusCallbackRef.current?.(replacementStatus);
+          } finally {
+            reconcilingBuildingLayers = false;
+          }
+        };
+
+        handleStyleReady = () => {
           if (disposed) return;
+          styleChangeInProgressRef.current = true;
+          buildingLayerReconciliationReady = false;
           resetBuildingFilterSnapshots(map);
           installGeoAiLayers(map, viewModeRef.current);
           // Camera state is independent of the style lifecycle. Reinstall only
@@ -1012,9 +1051,13 @@ export function LiveObjectMap({
           setHighlight(map, selectionRef.current, viewModeRef.current, showSelectedVolumeRef.current);
           const replacementStatus = setCreateLayers(map, createDraftRef.current, createAoiRef.current, createAreaClearedRef.current, conceptMassingRef.current, viewModeRef.current);
           replacementStatusCallbackRef.current?.(replacementStatus);
+          observedBuildingLayerIds = new Set(buildingLayerIds(map));
+          buildingLayerReconciliationReady = true;
+          styleChangeInProgressRef.current = false;
           setError(null);
           setIsReady(true);
         };
+        map.on("styledata", handleStyleData);
         map.on("style.load", handleStyleReady);
 
         const selectAt = (
@@ -1126,6 +1169,8 @@ export function LiveObjectMap({
       mapRef.current = null;
       selectAtRef.current = null;
       if (map) {
+        if (handleStyleData) map.off("styledata", handleStyleData);
+        if (handleStyleReady) map.off("style.load", handleStyleReady);
         resetBuildingFilterSnapshots(map);
         map.remove();
       }
@@ -1181,6 +1226,7 @@ export function LiveObjectMap({
     }
     setError(null);
     setIsReady(false);
+    styleChangeInProgressRef.current = true;
     map.setStyle(basemapById(nextBasemap).styleUrl, { diff: false });
   }
 
@@ -1229,7 +1275,7 @@ export function LiveObjectMap({
       aria-label={`${t("map.region")} — ${pointObjectMarket(locationKey).label[locale]}`}
       aria-describedby="live-map-instructions"
     >
-      <div ref={containerRef} className="absolute inset-0" />
+      <div ref={containerRef} className="absolute inset-0" data-testid="live-map-canvas" />
       <p id="live-map-instructions" className="sr-only">
         {t(instructionKey)}
       </p>
