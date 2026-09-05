@@ -1,0 +1,22 @@
+{
+  "schema_id": "urn:geoai:point-to-object-001:evidence-bundle:0.1.0-rc.1",
+  "profile_version": "0.1.0-rc.1",
+  "schema_path": "docs/change-requests/point-to-object-001/point-to-object-evidence-bundle-0.1.0-rc.1.schema.json",
+  "schema_sha256": "66cd01ed1991084a8dffde5a431e68e9f0bf891961752438c2e4a508a20b3a57",
+  "product_contract_version": "1.1.1",
+  "product_change_request_sha256": "03ffd6117794b5560b02fb41ac9a5b81a84b7b81f0ae016d0b951190a9b7e9cd",
+  "product_change_request_bytes": 23455,
+  "product_contract_sha256": "f18fc665800879bb33de66227b9f6175984bc5b0a2d8e08307f94acd7f8290d2",
+  "product_contract_bytes": 39393,
+  "product_state_claim_matrix_sha256": "9aff3d43b114f1da1808343a694f565e237a24968e2c8780f30d62aa27f5752b",
+  "product_state_claim_matrix_bytes": 21948,
+  "normative_contract_freeze_sha256": "9e22992b902c2042036db08249f9eadf434b3517944fa62c3e6a3ae8f35a4c6a",
+  "normative_schema_subset_sha256": "3b3bc2a9b940a3a3b67c690deac1c4b3a1e16040064e2dd3266a28a97aa1860c",
+  "normative_red_team_matrix_sha256": "9b105327ba691184bc99d6461ebfbc31282d4e886c47e95ebacd1f745462ca49",
+  "runtime_surface_status": "HARD_DISABLED",
+  "success_fixture_scope": "SYNTHETIC_NON_RUNTIME_ONLY",
+  "deterministic_pack_evidence_status": "HOLD_NOT_IDENTITY_ACCEPTANCE",
+  "route_integration_authority": false,
+  "external_preview_authority": false,
+  "production_authority": false
+}

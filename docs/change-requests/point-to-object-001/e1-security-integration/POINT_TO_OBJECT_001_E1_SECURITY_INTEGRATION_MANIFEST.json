@@ -1,0 +1,53 @@
+{
+  "protocol": "GEOAI_LOCAL_INTEGRATION_MANIFEST_V1",
+  "workPackageId": "POINT_TO_OBJECT_001-E1-SECURITY-INTEGRATION-001",
+  "date": "2026-09-01",
+  "status": "LOCAL_INTEGRATION_CANDIDATE_HOLD",
+  "branch": "codex/point-object-e1-security-integration-v1",
+  "releasedBaseline": "7f323c4227f2409f3fe2d4d68be48a30176f4e2a",
+  "inputs": {
+    "e1": {
+      "commit": "fddd003142b6d4d97cecc1fcb7fb25a65a449610",
+      "tree": "60fba412f5628ae745f0b256eb46c75201c21642",
+      "manifestSha256": "e46885b8a14d429734a52faa45246f3f7379364df08e3c81b6cea6974a5ed491"
+    },
+    "securityGate001": {
+      "commit": "54976264ffd739558dfad18607f0d91272ff2ac6",
+      "tree": "6c2c7b5de0c5a5faa3592ed599cd5764bf534075",
+      "manifestSha256": "8494d94931b68ce62bffa6d68c92fa894d9dea8ecf2c842e6b5d405b7a673de1"
+    }
+  },
+  "mechanicalMergeCommit": "34a9fdef967b02bf7043e2802f51ecefd5828869",
+  "mechanicalMergeParents": [
+    "fddd003142b6d4d97cecc1fcb7fb25a65a449610",
+    "54976264ffd739558dfad18607f0d91272ff2ac6"
+  ],
+  "integratedPackageHashesBeforeBookkeeping": {
+    "package.json": "205abb652c064b3a2b5f0ef08010ceba91045d6105a60a5ee783ee230e30330d",
+    "package-lock.json": "1530bbf3dd422504ac98d0fc4283aeaedf97d0253f77a4304129e3699a9d9b18"
+  },
+  "dependencyState": {
+    "next": "15.5.21",
+    "postcss": "8.5.23",
+    "nanoid": "3.3.18",
+    "productionAuditKnownFindings": 0,
+    "fullTreeDevToolingFindings": 18,
+    "devToolingFollowUp": "SECURITY-GATE-002-DEV-TOOLING"
+  },
+  "authority": {
+    "pushAllowed": false,
+    "previewAllowed": false,
+    "prUpdateAllowed": false,
+    "mainMergeAllowed": false,
+    "productionDeployAllowed": false,
+    "runtimeActivationAllowed": false,
+    "supabaseMutationAllowed": false
+  },
+  "blockingGates": [
+    "exact_head_local_verification",
+    "figma_p1r2_acceptance_before_e2",
+    "data_rights_acceptance_before_real_data_runtime",
+    "hosted_quality_gate_before_any_remote_candidate"
+  ],
+  "mandatoryCaveat": "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
+}

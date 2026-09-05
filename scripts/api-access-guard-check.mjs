@@ -44,6 +44,200 @@ for (const file of await collectRouteFiles(apiRoot)) {
       failures.push(`${relative} ${handler.method}: missing explicit route-access classification`);
       continue;
     }
+    if (policy.access === "public_preview" || policy.access === "protected_preview") {
+      const previewIndexes = [
+        handler.body.indexOf("if (!previewRuntimeAllowed())"),
+        handler.body.indexOf('if (process.env.VERCEL_ENV !== "preview" || !getPointObjectPreviewUpstreamStatus().enabled)')
+      ].filter((index) => index >= 0);
+      const previewIndex = previewIndexes.length > 0 ? Math.min(...previewIndexes) : -1;
+      if (previewIndex < 0) {
+        failures.push(`${relative} ${handler.method}: Preview route must fail closed outside the enabled Preview runtime`);
+        continue;
+      }
+      if (
+        policy.access === "protected_preview" &&
+        !source.includes("getPointObjectPreviewUpstreamStatus().enabled") &&
+        !source.includes("getPointObjectPreviewSurfaceStatus().enabled")
+      ) {
+        failures.push(`${relative} ${handler.method}: protected Preview route must require its dedicated upstream operator gate`);
+        continue;
+      }
+
+      if (policy.action === "prototype.ai.challenge" && handler.method === "GET") {
+        const challengeIndex = handler.body.indexOf("randomBytes(");
+        const crossSiteIndex = handler.body.indexOf('request.headers.get("sec-fetch-site")');
+        if (
+          challengeIndex < 0 ||
+          previewIndex > challengeIndex ||
+          crossSiteIndex < previewIndex ||
+          crossSiteIndex > challengeIndex ||
+          !handler.body.includes("noStoreHeaders") ||
+          !handler.body.includes("challengeCookie")
+        ) {
+          failures.push(`${relative} ${handler.method}: Preview challenge must deny non-Preview and cross-site access before issuing a private one-time cookie`);
+        }
+        protectedHandlers += 1;
+        continue;
+      }
+
+      if (policy.action === "prototype.ai.run" && handler.method === "POST") {
+        const originIndex = handler.body.indexOf("if (!sameOrigin(request))");
+        const bodyIndex = handler.body.indexOf("await readBoundedJson(request, 4 * 1024)");
+        const challengeIndex = handler.body.indexOf("if (!challengeIsValid(request, body.challenge))");
+        const rateIndex = handler.body.indexOf("consumeRateLimit(request)");
+        const evidenceIndex = handler.body.indexOf("buildPointObjectEvidencePack(");
+        const providerIndex = handler.body.indexOf("generatePointObjectAiAnalysis(");
+        if (
+          originIndex < previewIndex ||
+          bodyIndex < originIndex ||
+          challengeIndex < bodyIndex ||
+          rateIndex < challengeIndex ||
+          evidenceIndex < rateIndex ||
+          providerIndex < evidenceIndex ||
+          !handler.body.includes("clearChallengeHeader(request)")
+        ) {
+          failures.push(`${relative} ${handler.method}: Preview AI execution must enforce runtime, origin, bounded body, one-time challenge and rate limit before rebuilding evidence and calling the provider`);
+        }
+        protectedHandlers += 1;
+        continue;
+      }
+
+      if (policy.action === "prototype.context.resolve" && handler.method === "POST") {
+        const originIndex = handler.body.indexOf("if (!sameOrigin(request))");
+        const bodyIndex = handler.body.indexOf("await readBoundedJson(request, 1_024)");
+        const rateIndex = handler.body.indexOf("consumeRateLimit(request)");
+        const evidenceIndex = handler.body.indexOf("buildLivePointObjectEvidencePack(");
+        if (
+          originIndex < previewIndex ||
+          bodyIndex < originIndex ||
+          rateIndex < bodyIndex ||
+          evidenceIndex < rateIndex ||
+          !handler.body.includes("noStoreHeaders")
+        ) {
+          failures.push(`${relative} ${handler.method}: Preview context resolution must enforce runtime, origin, bounded body and rate limit before rebuilding live evidence`);
+        }
+        protectedHandlers += 1;
+        continue;
+      }
+
+      if (policy.action === "prototype.find.open_map" && handler.method === "POST") {
+        const originIndex = handler.body.indexOf("if (!sameOrigin(request))");
+        const bodyIndex = handler.body.indexOf("await readBoundedJson(request, 2_048)");
+        const parseIndex = handler.body.indexOf("parsePointObjectFindRequest(", bodyIndex);
+        const rateIndex = handler.body.indexOf("consumeRateLimit(request)", parseIndex);
+        const findIndex = handler.body.indexOf("findPointObjects(", rateIndex);
+        if (
+          originIndex < previewIndex ||
+          bodyIndex < originIndex ||
+          parseIndex < bodyIndex ||
+          rateIndex < parseIndex ||
+          findIndex < rateIndex ||
+          !handler.body.includes("noStoreHeaders")
+        ) {
+          failures.push(`${relative} ${handler.method}: Preview Find must enforce runtime, origin, bounded body, strict criteria parsing and rate limit before open-map execution`);
+        }
+        protectedHandlers += 1;
+        continue;
+      }
+
+      if (policy.action === "prototype.area_context.open_map" && handler.method === "POST") {
+        const originIndex = handler.body.indexOf("if (!sameOrigin(request))");
+        const bodyIndex = handler.body.indexOf("await readBoundedJson(request, 20 * 1024)");
+        const parseIndex = handler.body.indexOf("parsePointObjectAreaContextRequest(", bodyIndex);
+        const rateIndex = handler.body.indexOf("consumeRateLimit(request)", parseIndex);
+        const contextIndex = handler.body.indexOf("resolvePointObjectAreaContext(", rateIndex);
+        if (
+          originIndex < previewIndex ||
+          bodyIndex < originIndex ||
+          parseIndex < bodyIndex ||
+          rateIndex < parseIndex ||
+          contextIndex < rateIndex ||
+          !handler.body.includes("noStoreHeaders")
+        ) {
+          failures.push(`${relative} ${handler.method}: Preview AOI context must enforce runtime, origin, bounded body, strict polygon parsing and rate limit before open-map execution`);
+        }
+        protectedHandlers += 1;
+        continue;
+      }
+
+      if (policy.action === "prototype.search.place" && handler.method === "POST") {
+        const originIndex = handler.body.indexOf("if (!sameOrigin(request))");
+        const bodyIndex = handler.body.indexOf("await readBoundedJson(request, 1_024)");
+        const rateIndex = handler.body.indexOf("const clientRate = consumeBucket", bodyIndex);
+        const searchIndex = handler.body.indexOf("searchLivePointObjects(", rateIndex);
+        if (
+          originIndex < previewIndex ||
+          bodyIndex < originIndex ||
+          rateIndex < bodyIndex ||
+          searchIndex < rateIndex ||
+          !handler.body.includes("noStoreHeaders")
+        ) {
+          failures.push(`${relative} ${handler.method}: Preview place search must enforce runtime, origin, bounded body and rate limit before live source execution`);
+        }
+        protectedHandlers += 1;
+        continue;
+      }
+
+      if (policy.action === "prototype.search.suggest" && handler.method === "POST") {
+        const originIndex = handler.body.indexOf("if (!sameOrigin(request))");
+        const bodyIndex = handler.body.indexOf("await readBoundedJson(request, 1_024)");
+        const parseIndex = handler.body.indexOf("parsePointObjectAutocompleteRequest(", bodyIndex);
+        const rateIndex = handler.body.indexOf("consumeRateLimit(request)", parseIndex);
+        const suggestIndex = handler.body.indexOf("suggestPointObjects(", rateIndex);
+        if (
+          originIndex < previewIndex ||
+          bodyIndex < originIndex ||
+          parseIndex < bodyIndex ||
+          rateIndex < parseIndex ||
+          suggestIndex < rateIndex ||
+          !handler.body.includes("noStoreHeaders")
+        ) {
+          failures.push(`${relative} ${handler.method}: Preview autocomplete must enforce runtime, origin, bounded body, strict query parsing and rate limit before Photon execution`);
+        }
+        protectedHandlers += 1;
+        continue;
+      }
+
+      if (policy.action === "prototype.create.challenge" && handler.method === "GET") {
+        const challengeIndex = handler.body.indexOf("randomBytes(");
+        const crossSiteIndex = handler.body.indexOf('request.headers.get("sec-fetch-site")');
+        if (
+          challengeIndex < 0 ||
+          previewIndex > challengeIndex ||
+          crossSiteIndex < previewIndex ||
+          crossSiteIndex > challengeIndex ||
+          !handler.body.includes("noStoreHeaders") ||
+          !handler.body.includes("challengeCookie")
+        ) {
+          failures.push(`${relative} ${handler.method}: Preview Create challenge must deny non-Preview and cross-site access before issuing a private one-time cookie`);
+        }
+        protectedHandlers += 1;
+        continue;
+      }
+
+      if (policy.action === "prototype.create.generate" && handler.method === "POST") {
+        const originIndex = handler.body.indexOf("if (!sameOrigin(request))");
+        const bodyIndex = handler.body.indexOf("await readBoundedJson(request, 20 * 1_024)");
+        const challengeIndex = handler.body.indexOf("challengeIsValid(request", bodyIndex);
+        const rateIndex = handler.body.indexOf("consumeRateLimit(request)", challengeIndex);
+        const providerIndex = handler.body.indexOf("callOpenAi(", rateIndex);
+        if (
+          originIndex < previewIndex ||
+          bodyIndex < originIndex ||
+          challengeIndex < bodyIndex ||
+          rateIndex < challengeIndex ||
+          providerIndex < rateIndex ||
+          !handler.body.includes("noStoreHeaders(request, true)")
+        ) {
+          failures.push(`${relative} ${handler.method}: Preview Create must enforce runtime, origin, bounded body, one-time challenge and rate limit before provider execution`);
+        }
+        protectedHandlers += 1;
+        continue;
+      }
+
+      failures.push(`${relative} ${handler.method}: unsupported Preview action ${policy.action}`);
+      continue;
+    }
     if (policy.access === "public_demo") continue;
     if (!policy.action || typeof policy.action !== "string" || !policy.action.includes(".")) {
       failures.push(`${relative} ${handler.method}: protected route has no exact resource action`);
@@ -124,6 +318,28 @@ for (const file of await collectRouteFiles(apiRoot)) {
     }
     if (policy.access !== "project") {
       failures.push(`${relative} ${handler.method}: unsupported access classification ${policy.access}`);
+      continue;
+    }
+
+    if (policy.scope === "caller_owned_preview") {
+      const gateIndex = handler.body.indexOf("if (!getPointObjectPersistenceGate().enabled)");
+      const bodyIndex = handler.body.indexOf("await readBoundedJson(request, 768 * 1024)");
+      const guardIndex = handler.body.indexOf("await authorizePointObjectAnalysis(");
+      const denialIndex = handler.body.indexOf("if (!access.allowed)", guardIndex);
+      const rpcIndex = handler.body.search(/await (?:list|persist)PointObjectAnalysisRun/);
+      if (
+        gateIndex < 0 ||
+        guardIndex < gateIndex ||
+        denialIndex < guardIndex ||
+        rpcIndex < denialIndex ||
+        (handler.method === "POST" && (bodyIndex < gateIndex || guardIndex < bodyIndex)) ||
+        !handler.body.includes(`action: "${policy.action}"`) ||
+        !handler.body.includes("privateNoStoreJson")
+      ) {
+        failures.push(`${relative} ${handler.method}: caller-owned Preview persistence must enforce its dedicated gate, bounded input, request-scoped project action and denial before RPC execution`);
+      }
+      protectedHandlers += 1;
+      guardCalls += 1;
       continue;
     }
 

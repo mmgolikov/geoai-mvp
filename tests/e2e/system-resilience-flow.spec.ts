@@ -14,8 +14,8 @@ function record(name: string, details: Record<string, unknown>) {
 
 async function signInDemo(page: Page, nextPath = "/workspace") {
   await page.goto(`/login?next=${encodeURIComponent(nextPath)}&intent=demo`);
-  await page.getByRole("button", { name: "Use demo credentials" }).click();
-  await page.getByRole("button", { name: "Open demo" }).click();
+  await page.getByRole("button", { name: "Open demo access" }).click();
+  await page.getByRole("button", { name: "Open demo", exact: true }).click();
   await expect(page).toHaveURL((url) => url.pathname === nextPath);
 }
 
@@ -38,8 +38,8 @@ test("fails closed without crashing when localStorage is unavailable", async ({ 
     Object.defineProperty(window, "localStorage", { configurable: true, get() { throw new DOMException("blocked", "SecurityError"); } });
   });
   await page.goto("/login?next=/workspace&intent=demo");
-  await page.getByRole("button", { name: "Use demo credentials" }).click();
-  await page.getByRole("button", { name: "Open demo" }).click();
+  await page.getByRole("button", { name: "Open demo access" }).click();
+  await page.getByRole("button", { name: "Open demo", exact: true }).click();
   await expect(page).toHaveURL((url) => url.pathname === "/login");
   await expect(page.getByRole("heading", { level: 1, name: "Sign in to GeoAI" })).toBeVisible();
   await expect(page.locator("body")).not.toContainText("Application error");

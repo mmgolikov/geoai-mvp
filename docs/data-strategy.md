@@ -1,11 +1,11 @@
 # GeoAI Data and Source Strategy
 
 Status: Active baseline
-Last verified: 2026-07-21
+Last verified: 2026-09-04
 Owner: GeoAI Data / Engineering
 Authority: Current source, custody and evidence policy
 Successor: None; any replacement must update `DOCUMENTATION_INDEX.md`
-Released baseline: merged PR #106 / `cc8f9ebcf3989fab4a3c4eac9be9dfb8da786a7b` / Production `dpl_6RC2ohEdLBjiV82k758tFMkaDB9X` at https://geoai-mvp.vercel.app / rollback `dpl_ERVqZPD5GAGDLjAVhMcPF2HT5Br7` / `public_demo_prototype`
+Current externally verified release baseline: PR #113 / `main` `7f323c4227f2409f3fe2d4d68be48a30176f4e2a` (`Merge PR #113: Product System v3.2.2 correction`) / Production `dpl_4yBHCo1eZ7N6GYQWGAg1EdQGwFTE` READY at https://geoai-a71p4fxnr-geoaidev.vercel.app / aliases including https://geoai-mvp.vercel.app / GitHub deployment `5601335100` status `15930263481` success / `public_demo_prototype`. Historical PR #106 evidence remains preserved in the historical snapshot.
 Release policy/schema: [RELEASE_AUTHORITY_POLICY.json](RELEASE_AUTHORITY_POLICY.json) · Historical snapshot: [LAST_VERIFIED_RELEASE_SNAPSHOT.json](LAST_VERIFIED_RELEASE_SNAPSHOT.json) · Live authority is external post-release evidence.
 Navigation: [Confluence Hub](https://geoaimvp.atlassian.net/wiki/spaces/PH/overview) · [Documentation Index](DOCUMENTATION_INDEX.md) · [Current Release State](CURRENT_RELEASE_STATE.md) · [Architecture](architecture.md) · [Full System Audit](FULL_SYSTEM_AUDIT_2026_07_16.md) · [Codex Backlog](CODEX_BACKLOG_2026_07_16.md)
 
@@ -23,15 +23,20 @@ The isolated Free Auth rehearsal now proves the SOURCE-01 schema can coexist wit
 | User-uploaded CSV/GeoJSON | Project-tagged browser-local only in public demo; structural quotas; validation required | Non-confidential user-provided screening context | Personal/confidential/regulated data, server persistence, cross-user sharing, verified or official evidence |
 | NASA POWER | Fixed historical point context in bounded Preview | Low-volume climate/energy screening context | Engineering/insurance-grade model or live SLA |
 | Copernicus Sentinel-2 | Catalogue metadata only in bounded Preview | Availability/context metadata | Geometry, bbox, imagery asset acquisition or analysis |
-| OSM Overpass | Bounded counts only in Preview | Count-level open context with ODbL attribution | Features, coordinates, geometry or official GIS |
+| Released source-pack OSM Overpass | Bounded counts only in controlled Preview; disabled in Production | Count-level open context with ODbL attribution | Features, coordinates, geometry or official GIS |
+| V5.1 Photon autocomplete candidate | Isolated protected Preview, server-only and policy-bounded; not merged | Search-as-you-type place suggestions with selected-market bounds/country/bias and ODbL attribution | Complete address register, guaranteed availability, official place identity or unrestricted bulk geocoding |
+| V5.1 explicit Nominatim search / identity lookup candidate | Isolated protected Preview, server-only and separately rate-limited; not used for autocomplete | Explicit place search and exact expected-OSM-identity re-resolution | Search-as-you-type, provider SLA, cadastral identity or official address authority |
+| V5.1 bounded Overpass object/AOI candidate | Isolated protected Preview, capped current-view feature samples; not merged | Observed OpenStreetMap identities, tags, coordinates and geometry for Find and area context | Complete inventory, suitability ranking, official GIS, parcel, zoning, ownership or valuation evidence |
 | Open-Meteo | `permission_required` | Limitation/caveat only | Evidence, AI payload, scoring or live Product context |
 | DLD/Dubai Pulse | Blocked pending stable approved access/snapshot and reusable rights | Readiness/manual import planning | Live/official integration or current transaction evidence |
 | Overture/OSM geometry | Deferred | Contract/design work only | Activated Product geometry |
 | WorldPop/OpenAQ/administrative samples | Sample/manual/readiness | Caveated source catalog context | Connected or decision-grade evidence |
 
-Production source-pack API execution is disabled and returns HTTP 503 with zero active sources. PR #97 released the server-resolved `/explore` runtime-environment boundary. No current source influences deterministic scores, and no real source is activated.
+Production source-pack API execution is disabled and returns HTTP 503 with zero active sources. PR #97 released the server-resolved `/explore` runtime-environment boundary. No released Production source influences deterministic scores, and no live source geometry is activated in released `main` / Production.
 
-Candidate local/Preview provider execution requires all of: explicit flag, server-only operator token of at least 32 characters and matching request authorization. Production remains disabled. Provider fetches are constrained to fixed HTTPS hosts, reject redirects and cancel non-success/oversized bodies. NASA pairs must align on valid in-period dates and parameter ranges; Copernicus requires the exact collection, strict UTC in-period datetime and 0–100 cloud cover; Overpass requires exactly three finite non-negative count values. This narrows SSRF, accidental activation, semantic corruption and single-response memory risk but is not distributed quota/circuit evidence.
+The V5.1 point-to-object routes are a separate isolated candidate rather than a source-pack or custody activation. Photon, Nominatim and Overpass run only behind bounded same-origin server routes on the protected Preview path; responses are not written to hosted Supabase, registered as approved SOURCE-01 releases or promoted into Production. All are OpenStreetMap-derived open context with `© OpenStreetMap contributors` / ODbL 1.0 attribution, provider availability and uneven-coverage risk. Public endpoints provide no GeoAI SLA. The candidate must preserve explicit gaps, capped-sample disclosure and the mandatory screening caveat.
+
+The controlled source-pack local/Preview provider execution requires all of: explicit flag, server-only operator token of at least 32 characters and matching request authorization. Production remains disabled. Source-pack provider fetches are constrained to fixed HTTPS hosts, reject redirects and cancel non-success/oversized bodies. NASA pairs must align on valid in-period dates and parameter ranges; Copernicus requires the exact collection, strict UTC in-period datetime and 0–100 cloud cover; source-pack Overpass requires exactly three finite non-negative count values. This narrows SSRF, accidental activation, semantic corruption and single-response memory risk but is not distributed quota/circuit evidence. The V5.1 route family has its own Preview/origin/rate/timeout/body/response gates and must not be used as evidence that the controlled source pack or SOURCE-01 custody workflow is active.
 
 The audit candidate's anonymous data-sources/readiness/manifest/sources/status/lineage routes are static `compact_public_v1` projections of the reviewed repository snapshot. Their API/source contract is `1.3`; manifest is `1.6`; `liveRegistryIncluded:false`. Deep snapshots remain excluded. Exact Preview `dpl_CY7oNavQwu5ddkhRRLaR3FWTd3d9` on head `e999c5a07d3ced6c95f2eb44f6a5f03a9c17caea` measures 5,164/4,411/18,284/5,164/8,221/4,292 B for data-sources/readiness/manifest/sources/status/lineage. The source pack remains 503 with `activationAllowed:false` and zero sources; no provider or Supabase live-registry call was activated.
 

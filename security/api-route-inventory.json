@@ -4,7 +4,7 @@
     "app/api/**/route.ts",
     "security/api-route-access.json"
   ],
-  "routeCount": 66,
+  "routeCount": 76,
   "fieldContract": [
     "route",
     "classification",
@@ -1753,6 +1753,433 @@
             503
           ],
           "diagnosticExposure": "authenticated_minimum_necessary_no_secret_or_inventory_leak"
+        }
+      }
+    },
+    "/api/prototype/point-to-object/ai": {
+      "route": "/api/prototype/point-to-object/ai",
+      "sourcePath": "app/api/prototype/point-to-object/ai/route.ts",
+      "classification": "protected_preview_bounded",
+      "methods": {
+        "GET": {
+          "access": "protected_preview",
+          "cachePolicy": {
+            "required": "private_no_store_required",
+            "declaredDirectives": [
+              "private, no-store, max-age=0"
+            ],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 0,
+          "requestSizeLimitStatus": "not_applicable",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            401,
+            403,
+            405,
+            413,
+            429,
+            503
+          ],
+          "diagnosticExposure": "authenticated_preview_only_minimized_evidence_no_secret_or_provider_detail"
+        },
+        "POST": {
+          "access": "protected_preview",
+          "cachePolicy": {
+            "required": "no_store_required",
+            "declaredDirectives": [
+              "private, no-store, max-age=0"
+            ],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 4096,
+          "requestSizeLimitStatus": "explicit_read_bounded_json",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200,
+              201
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            400,
+            401,
+            403,
+            405,
+            413,
+            429,
+            503
+          ],
+          "diagnosticExposure": "authenticated_preview_only_minimized_evidence_no_secret_or_provider_detail"
+        }
+      }
+    },
+    "/api/prototype/point-to-object/analysis-runs": {
+      "route": "/api/prototype/point-to-object/analysis-runs",
+      "sourcePath": "app/api/prototype/point-to-object/analysis-runs/route.ts",
+      "classification": "project_scoped",
+      "methods": {
+        "GET": {
+          "access": "project",
+          "cachePolicy": {
+            "required": "private_no_store_required",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 0,
+          "requestSizeLimitStatus": "not_applicable",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            401,
+            403,
+            404,
+            405,
+            413,
+            503
+          ],
+          "diagnosticExposure": "authenticated_minimum_necessary_no_secret_or_inventory_leak"
+        },
+        "POST": {
+          "access": "project",
+          "cachePolicy": {
+            "required": "no_store_required",
+            "declaredDirectives": [],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 786432,
+          "requestSizeLimitStatus": "explicit_read_bounded_json",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200,
+              201
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            400,
+            401,
+            403,
+            404,
+            405,
+            413,
+            503
+          ],
+          "diagnosticExposure": "authenticated_minimum_necessary_no_secret_or_inventory_leak"
+        }
+      }
+    },
+    "/api/prototype/point-to-object/area-context": {
+      "route": "/api/prototype/point-to-object/area-context",
+      "sourcePath": "app/api/prototype/point-to-object/area-context/route.ts",
+      "classification": "protected_preview_bounded",
+      "methods": {
+        "POST": {
+          "access": "protected_preview",
+          "cachePolicy": {
+            "required": "no_store_required",
+            "declaredDirectives": [
+              "private, no-store, max-age=0"
+            ],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 20480,
+          "requestSizeLimitStatus": "explicit_read_bounded_json",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200,
+              201
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            400,
+            401,
+            403,
+            405,
+            413,
+            429,
+            503
+          ],
+          "diagnosticExposure": "authenticated_preview_only_minimized_evidence_no_secret_or_provider_detail"
+        }
+      }
+    },
+    "/api/prototype/point-to-object/cases": {
+      "route": "/api/prototype/point-to-object/cases",
+      "sourcePath": "app/api/prototype/point-to-object/cases/route.ts",
+      "classification": "public_sanitized",
+      "methods": {
+        "GET": {
+          "access": "public_demo",
+          "cachePolicy": {
+            "required": "public_sanitized_explicit_or_runtime_verified",
+            "declaredDirectives": [
+              "public, s-maxage=300, stale-while-revalidate=600"
+            ],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 0,
+          "requestSizeLimitStatus": "not_applicable",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            405,
+            413
+          ],
+          "diagnosticExposure": "compact_sanitized_public_contract"
+        }
+      }
+    },
+    "/api/prototype/point-to-object/context": {
+      "route": "/api/prototype/point-to-object/context",
+      "sourcePath": "app/api/prototype/point-to-object/context/route.ts",
+      "classification": "protected_preview_bounded",
+      "methods": {
+        "POST": {
+          "access": "protected_preview",
+          "cachePolicy": {
+            "required": "no_store_required",
+            "declaredDirectives": [
+              "private, no-store, max-age=0"
+            ],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 1024,
+          "requestSizeLimitStatus": "explicit_read_bounded_json",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200,
+              201
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            400,
+            401,
+            403,
+            405,
+            413,
+            429,
+            503
+          ],
+          "diagnosticExposure": "authenticated_preview_only_minimized_evidence_no_secret_or_provider_detail"
+        }
+      }
+    },
+    "/api/prototype/point-to-object/create": {
+      "route": "/api/prototype/point-to-object/create",
+      "sourcePath": "app/api/prototype/point-to-object/create/route.ts",
+      "classification": "protected_preview_bounded",
+      "methods": {
+        "GET": {
+          "access": "protected_preview",
+          "cachePolicy": {
+            "required": "private_no_store_required",
+            "declaredDirectives": [
+              "private, no-store, max-age=0"
+            ],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 0,
+          "requestSizeLimitStatus": "not_applicable",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            401,
+            403,
+            405,
+            413,
+            429,
+            503
+          ],
+          "diagnosticExposure": "authenticated_preview_only_minimized_evidence_no_secret_or_provider_detail"
+        },
+        "POST": {
+          "access": "protected_preview",
+          "cachePolicy": {
+            "required": "no_store_required",
+            "declaredDirectives": [
+              "private, no-store, max-age=0"
+            ],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 20480,
+          "requestSizeLimitStatus": "explicit_read_bounded_json",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200,
+              201
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            400,
+            401,
+            403,
+            405,
+            413,
+            429,
+            503
+          ],
+          "diagnosticExposure": "authenticated_preview_only_minimized_evidence_no_secret_or_provider_detail"
+        }
+      }
+    },
+    "/api/prototype/point-to-object/find": {
+      "route": "/api/prototype/point-to-object/find",
+      "sourcePath": "app/api/prototype/point-to-object/find/route.ts",
+      "classification": "protected_preview_bounded",
+      "methods": {
+        "POST": {
+          "access": "protected_preview",
+          "cachePolicy": {
+            "required": "no_store_required",
+            "declaredDirectives": [
+              "private, no-store, max-age=0"
+            ],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 2048,
+          "requestSizeLimitStatus": "explicit_read_bounded_json",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200,
+              201
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            400,
+            401,
+            403,
+            405,
+            413,
+            429,
+            503
+          ],
+          "diagnosticExposure": "authenticated_preview_only_minimized_evidence_no_secret_or_provider_detail"
+        }
+      }
+    },
+    "/api/prototype/point-to-object/resolve": {
+      "route": "/api/prototype/point-to-object/resolve",
+      "sourcePath": "app/api/prototype/point-to-object/resolve/route.ts",
+      "classification": "public_sanitized",
+      "methods": {
+        "POST": {
+          "access": "public_demo",
+          "cachePolicy": {
+            "required": "no_store_required",
+            "declaredDirectives": [
+              "private, no-store, max-age=0"
+            ],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 8192,
+          "requestSizeLimitStatus": "explicit_read_bounded_json",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200,
+              201
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            400,
+            405,
+            413
+          ],
+          "diagnosticExposure": "compact_sanitized_public_contract"
+        }
+      }
+    },
+    "/api/prototype/point-to-object/search": {
+      "route": "/api/prototype/point-to-object/search",
+      "sourcePath": "app/api/prototype/point-to-object/search/route.ts",
+      "classification": "protected_preview_bounded",
+      "methods": {
+        "POST": {
+          "access": "protected_preview",
+          "cachePolicy": {
+            "required": "no_store_required",
+            "declaredDirectives": [
+              "private, no-store, max-age=0"
+            ],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 1024,
+          "requestSizeLimitStatus": "explicit_read_bounded_json",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200,
+              201
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            400,
+            401,
+            403,
+            405,
+            413,
+            429,
+            503
+          ],
+          "diagnosticExposure": "authenticated_preview_only_minimized_evidence_no_secret_or_provider_detail"
+        }
+      }
+    },
+    "/api/prototype/point-to-object/suggest": {
+      "route": "/api/prototype/point-to-object/suggest",
+      "sourcePath": "app/api/prototype/point-to-object/suggest/route.ts",
+      "classification": "protected_preview_bounded",
+      "methods": {
+        "POST": {
+          "access": "protected_preview",
+          "cachePolicy": {
+            "required": "no_store_required",
+            "declaredDirectives": [
+              "private, no-store, max-age=0"
+            ],
+            "verification": "permanent_static_and_runtime_contract"
+          },
+          "requestSizeLimitBytes": 1024,
+          "requestSizeLimitStatus": "explicit_read_bounded_json",
+          "positiveResponse": {
+            "expectedStatuses": [
+              200,
+              201
+            ],
+            "contract": "scripts/api-contract-check.mjs"
+          },
+          "negativeStatusMatrix": [
+            400,
+            401,
+            403,
+            405,
+            413,
+            429,
+            503
+          ],
+          "diagnosticExposure": "authenticated_preview_only_minimized_evidence_no_secret_or_provider_detail"
         }
       }
     },

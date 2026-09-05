@@ -1,0 +1,16 @@
+HTTP/2 200 
+x-content-type-options: nosniff
+content-language: en
+accept-ch: 
+vary: Accept-Encoding,Accept-Language,Cookie
+expires: Thu, 01 Jan 1970 00:00:00 GMT
+cache-control: private, must-revalidate, max-age=0
+x-request-id: 4fc6584551288a1281ca93c1
+strict-transport-security: max-age=31536000; includeSubDomains; preload
+last-modified: Wed, 12 Aug 2026 20:08:13 GMT
+content-encoding: gzip
+content-length: 19465
+content-type: text/html; charset=UTF-8
+date: Mon, 31 Aug 2026 20:39:49 GMT
+server: Apache
+

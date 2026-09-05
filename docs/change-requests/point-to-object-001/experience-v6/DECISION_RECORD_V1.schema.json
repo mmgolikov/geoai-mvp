@@ -1,0 +1,866 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:geoai:decision-record:1.0.0",
+  "title": "GeoAI DecisionRecord V1",
+  "description": "Immutable decision-stage record binding scenario, context snapshots, methods, outputs and rendering. Semantic cross-reference, cohort, hash, claim and no-recompute validation is required in addition to JSON Schema.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaId",
+    "schemaVersion",
+    "decisionRecordId",
+    "recordHash",
+    "status",
+    "finalization",
+    "truthLanguagePolicy",
+    "projectRef",
+    "preferenceContext",
+    "scenarioRef",
+    "operation",
+    "createdAt",
+    "decisionAsOf",
+    "parentRecordRefs",
+    "inputs",
+    "methodExecutions",
+    "operationGates",
+    "outputs",
+    "renderPolicy",
+    "lineage",
+    "governance"
+  ],
+  "properties": {
+    "schemaId": { "const": "urn:geoai:decision-record:1.0.0" },
+    "schemaVersion": { "const": "1.0.0" },
+    "decisionRecordId": { "$ref": "#/$defs/boundedId" },
+    "recordHash": { "$ref": "#/$defs/sha256" },
+    "status": { "enum": ["completed", "partial", "blocked", "superseded"] },
+    "finalization": { "$ref": "#/$defs/finalization" },
+    "truthLanguagePolicy": { "const": "locale_neutral_codes_and_user_authored_inputs_v1" },
+    "projectRef": {
+      "oneOf": [
+        { "$ref": "#/$defs/projectRef" },
+        { "type": "null" }
+      ]
+    },
+    "preferenceContext": { "$ref": "#/$defs/preferenceContext" },
+    "scenarioRef": { "$ref": "#/$defs/scenarioRef" },
+    "operation": { "$ref": "#/$defs/operation" },
+    "createdAt": { "$ref": "#/$defs/dateTime" },
+    "decisionAsOf": { "$ref": "#/$defs/dateTime" },
+    "parentRecordRefs": {
+      "type": "array",
+      "maxItems": 50,
+      "items": { "$ref": "#/$defs/recordRef" }
+    },
+    "inputs": { "$ref": "#/$defs/inputs" },
+    "methodExecutions": {
+      "type": "array",
+      "maxItems": 200,
+      "items": { "$ref": "#/$defs/methodExecution" }
+    },
+    "operationGates": {
+      "type": "array",
+      "minItems": 18,
+      "maxItems": 18,
+      "items": { "$ref": "#/$defs/operationGate" }
+    },
+    "outputs": { "$ref": "#/$defs/outputs" },
+    "renderPolicy": { "$ref": "#/$defs/renderPolicy" },
+    "lineage": { "$ref": "#/$defs/lineage" },
+    "governance": { "$ref": "#/$defs/governance" }
+  },
+  "$defs": {
+    "boundedId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/@-]*$"
+    },
+    "semver": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "dateTime": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "finalization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "finalizedAt", "validatorId", "validatorVersion", "schemaValidationPassed", "semanticValidationPassed"],
+      "properties": {
+        "state": { "const": "finalized" },
+        "finalizedAt": { "$ref": "#/$defs/dateTime" },
+        "validatorId": { "$ref": "#/$defs/boundedId" },
+        "validatorVersion": { "$ref": "#/$defs/semver" },
+        "schemaValidationPassed": { "const": true },
+        "semanticValidationPassed": { "const": true }
+      }
+    },
+    "operation": {
+      "enum": ["resolve", "acquire", "normalize", "calculate", "analyse", "find", "shortlist", "compare", "rank", "create", "generate", "evaluate", "model_input", "dashboard", "report", "project", "export", "persist"]
+    },
+    "channel": {
+      "enum": ["internal_operator", "authenticated_user", "public_preview", "client_shared", "third_party_model", "machine_api", "mcp_tool"]
+    },
+    "deliveryMode": {
+      "enum": ["interactive_display", "server_to_server", "download", "email", "embedded_report", "project_storage", "model_prompt"]
+    },
+    "rightsEvaluation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rightsEvaluationId", "evaluationHash", "rightsReceiptId", "rightsScopeHash", "operation", "channel", "deliveryMode", "territoryCountryCode", "evaluatedAt", "decision", "evaluatorId", "evaluatorVersion"],
+      "properties": {
+        "rightsEvaluationId": { "$ref": "#/$defs/boundedId" },
+        "evaluationHash": { "$ref": "#/$defs/sha256" },
+        "rightsReceiptId": { "$ref": "#/$defs/boundedId" },
+        "rightsScopeHash": { "$ref": "#/$defs/sha256" },
+        "operation": { "$ref": "#/$defs/operation" },
+        "channel": { "$ref": "#/$defs/channel" },
+        "deliveryMode": { "$ref": "#/$defs/deliveryMode" },
+        "territoryCountryCode": { "type": "string", "pattern": "^[A-Z]{2}$" },
+        "evaluatedAt": { "$ref": "#/$defs/dateTime" },
+        "decision": { "const": "permitted" },
+        "evaluatorId": { "$ref": "#/$defs/boundedId" },
+        "evaluatorVersion": { "$ref": "#/$defs/semver" }
+      }
+    },
+    "evidenceClass": {
+      "enum": ["observed", "calculated", "modelled", "hypothesis"]
+    },
+    "projectRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["organizationId", "projectId", "projectKey"],
+      "properties": {
+        "organizationId": { "$ref": "#/$defs/boundedId" },
+        "projectId": { "$ref": "#/$defs/boundedId" },
+        "projectKey": { "$ref": "#/$defs/boundedId" }
+      }
+    },
+    "preferenceContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["audience", "roleId", "preferenceOnly"],
+      "properties": {
+        "audience": { "enum": ["b2b", "b2c"] },
+        "roleId": { "$ref": "#/$defs/boundedId" },
+        "preferenceOnly": { "const": true }
+      }
+    },
+    "scenarioRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "registryId",
+        "registryVersion",
+        "registryHash",
+        "scenarioId",
+        "scenarioVersion",
+        "scenarioHash",
+        "businessQuestionId"
+      ],
+      "properties": {
+        "registryId": { "$ref": "#/$defs/boundedId" },
+        "registryVersion": { "$ref": "#/$defs/semver" },
+        "registryHash": { "$ref": "#/$defs/sha256" },
+        "scenarioId": { "$ref": "#/$defs/boundedId" },
+        "scenarioVersion": { "$ref": "#/$defs/semver" },
+        "scenarioHash": { "$ref": "#/$defs/sha256" },
+        "businessQuestionId": { "$ref": "#/$defs/boundedId" }
+      }
+    },
+    "recordRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["decisionRecordId", "recordHash", "relationship"],
+      "properties": {
+        "decisionRecordId": { "$ref": "#/$defs/boundedId" },
+        "recordHash": { "$ref": "#/$defs/sha256" },
+        "relationship": { "enum": ["continues", "refines", "compares", "generates_from", "evaluates", "renders", "supersedes"] }
+      }
+    },
+    "subjectRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["subjectId", "subjectType", "geometryHash", "role"],
+      "properties": {
+        "subjectId": { "$ref": "#/$defs/boundedId" },
+        "subjectType": { "enum": ["point", "object", "site", "aoi", "generated_alternative"] },
+        "geometryHash": { "$ref": "#/$defs/sha256" },
+        "role": { "enum": ["primary", "candidate", "comparison", "alternative_site"] }
+      }
+    },
+    "snapshotRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "snapshotId",
+        "snapshotHash",
+        "subjectId",
+        "contextProfileId",
+        "contextProfileVersion",
+        "acquisitionWindowStart",
+        "acquisitionWindowEnd"
+      ],
+      "properties": {
+        "snapshotId": { "$ref": "#/$defs/boundedId" },
+        "snapshotHash": { "$ref": "#/$defs/sha256" },
+        "subjectId": { "$ref": "#/$defs/boundedId" },
+        "contextProfileId": { "$ref": "#/$defs/boundedId" },
+        "contextProfileVersion": { "$ref": "#/$defs/semver" },
+        "acquisitionWindowStart": { "$ref": "#/$defs/dateTime" },
+        "acquisitionWindowEnd": { "$ref": "#/$defs/dateTime" }
+      }
+    },
+    "criterion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["criterionId", "value", "unit", "source", "normalizedHash"],
+      "properties": {
+        "criterionId": { "$ref": "#/$defs/boundedId" },
+        "value": {
+          "oneOf": [
+            { "type": "string", "maxLength": 2000 },
+            { "type": "number" },
+            { "type": "boolean" },
+            { "type": "null" },
+            {
+              "type": "array",
+              "maxItems": 100,
+              "items": {
+                "oneOf": [
+                  { "type": "string" },
+                  { "type": "number" },
+                  { "type": "boolean" }
+                ]
+              }
+            }
+          ]
+        },
+        "unit": { "oneOf": [{ "$ref": "#/$defs/boundedId" }, { "type": "null" }] },
+        "source": { "enum": ["user", "scenario_default", "profile_preference"] },
+        "normalizedHash": { "$ref": "#/$defs/sha256" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "source": { "enum": ["scenario_default", "profile_preference"] } },
+            "required": ["source"]
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "oneOf": [
+                  { "$ref": "#/$defs/boundedId" },
+                  { "type": "number" },
+                  { "type": "boolean" },
+                  { "type": "null" },
+                  {
+                    "type": "array",
+                    "maxItems": 100,
+                    "items": {
+                      "oneOf": [
+                        { "$ref": "#/$defs/boundedId" },
+                        { "type": "number" },
+                        { "type": "boolean" }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "inputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["subjects", "criteria", "criteriaHash", "contextSnapshots", "acquisitionPosture", "refreshReasonCode"],
+      "properties": {
+        "subjects": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 200,
+          "items": { "$ref": "#/$defs/subjectRef" }
+        },
+        "criteria": {
+          "type": "array",
+          "maxItems": 200,
+          "items": { "$ref": "#/$defs/criterion" }
+        },
+        "criteriaHash": { "$ref": "#/$defs/sha256" },
+        "contextSnapshots": {
+          "type": "array",
+          "maxItems": 200,
+          "items": { "$ref": "#/$defs/snapshotRef" }
+        },
+        "acquisitionPosture": { "enum": ["new_context", "reuse_exact_snapshot", "refresh_context", "no_context_for_discovery"] },
+        "refreshReasonCode": { "oneOf": [{ "$ref": "#/$defs/boundedId" }, { "type": "null" }] }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "acquisitionPosture": { "const": "refresh_context" } }, "required": ["acquisitionPosture"] },
+          "then": { "properties": { "refreshReasonCode": { "$ref": "#/$defs/boundedId" } } }
+        }
+      ]
+    },
+    "modelReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider",
+        "model",
+        "modelVersion",
+        "promptOrConfigHash",
+        "requestId",
+        "reasoningEffort",
+        "inputTokens",
+        "outputTokens",
+        "estimatedCostUsd",
+        "storedByProvider",
+        "toolCalls",
+        "structuredOutputValidation"
+      ],
+      "properties": {
+        "provider": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "model": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "modelVersion": { "oneOf": [{ "type": "string", "maxLength": 200 }, { "type": "null" }] },
+        "promptOrConfigHash": { "$ref": "#/$defs/sha256" },
+        "requestId": { "oneOf": [{ "type": "string", "maxLength": 512 }, { "type": "null" }] },
+        "reasoningEffort": { "enum": ["low", "medium", "high", "xhigh", "not_applicable"] },
+        "inputTokens": { "oneOf": [{ "type": "integer", "minimum": 0 }, { "type": "null" }] },
+        "outputTokens": { "oneOf": [{ "type": "integer", "minimum": 0 }, { "type": "null" }] },
+        "estimatedCostUsd": { "oneOf": [{ "type": "number", "minimum": 0 }, { "type": "null" }] },
+        "storedByProvider": { "type": "boolean" },
+        "toolCalls": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "structuredOutputValidation": { "enum": ["passed", "failed", "not_applicable"] }
+      }
+    },
+    "methodExecution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "executionId",
+        "methodId",
+        "methodVersion",
+        "operation",
+        "status",
+        "deterministic",
+        "inputSnapshotHashes",
+        "inputFactIds",
+        "inputHash",
+        "outputKeys",
+        "outputHash",
+        "startedAt",
+        "completedAt",
+        "modelReceipt",
+        "failureReasonCodes"
+      ],
+      "properties": {
+        "executionId": { "$ref": "#/$defs/boundedId" },
+        "methodId": { "$ref": "#/$defs/boundedId" },
+        "methodVersion": { "$ref": "#/$defs/semver" },
+        "operation": { "$ref": "#/$defs/operation" },
+        "status": { "enum": ["completed", "partial", "blocked", "failed"] },
+        "deterministic": { "type": "boolean" },
+        "inputSnapshotHashes": {
+          "type": "array",
+          "maxItems": 200,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/sha256" }
+        },
+        "inputFactIds": {
+          "type": "array",
+          "maxItems": 2000,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/boundedId" }
+        },
+        "inputHash": { "$ref": "#/$defs/sha256" },
+        "outputKeys": {
+          "type": "array",
+          "maxItems": 500,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/boundedId" }
+        },
+        "outputHash": {
+          "oneOf": [
+            { "$ref": "#/$defs/sha256" },
+            { "type": "null" }
+          ]
+        },
+        "startedAt": { "$ref": "#/$defs/dateTime" },
+        "completedAt": {
+          "oneOf": [
+            { "$ref": "#/$defs/dateTime" },
+            { "type": "null" }
+          ]
+        },
+        "modelReceipt": {
+          "oneOf": [
+            { "$ref": "#/$defs/modelReceipt" },
+            { "type": "null" }
+          ]
+        },
+        "failureReasonCodes": {
+          "type": "array",
+          "maxItems": 100,
+          "items": { "$ref": "#/$defs/boundedId" }
+        }
+      }
+    },
+    "operationGate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation", "status", "gapIds", "validationTaskIds", "rightsReceiptIds", "rightsEvaluations", "reasons"],
+      "properties": {
+        "operation": { "$ref": "#/$defs/operation" },
+        "status": { "enum": ["pass", "partial", "blocked"] },
+        "gapIds": {
+          "type": "array",
+          "maxItems": 500,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/boundedId" }
+        },
+        "validationTaskIds": {
+          "type": "array",
+          "maxItems": 500,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/boundedId" }
+        },
+        "rightsReceiptIds": {
+          "type": "array",
+          "maxItems": 200,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/boundedId" }
+        },
+        "rightsEvaluations": {
+          "type": "array",
+          "maxItems": 200,
+          "items": { "$ref": "#/$defs/rightsEvaluation" }
+        },
+        "reasons": {
+          "type": "array",
+          "maxItems": 100,
+          "items": { "$ref": "#/$defs/boundedId" }
+        }
+      }
+    },
+    "claim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["claimId", "claimKey", "evidenceClass", "snapshotHashes", "factIds", "methodExecutionIds", "assumptionKeys", "confidence", "validationRequired", "proofLimitCode"],
+      "properties": {
+        "claimId": { "$ref": "#/$defs/boundedId" },
+        "claimKey": { "$ref": "#/$defs/boundedId" },
+        "evidenceClass": { "$ref": "#/$defs/evidenceClass" },
+        "snapshotHashes": {
+          "type": "array",
+          "maxItems": 200,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/sha256" }
+        },
+        "factIds": {
+          "type": "array",
+          "maxItems": 2000,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/boundedId" }
+        },
+        "methodExecutionIds": {
+          "type": "array",
+          "maxItems": 100,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/boundedId" }
+        },
+        "assumptionKeys": {
+          "type": "array",
+          "maxItems": 100,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/boundedId" }
+        },
+        "confidence": { "enum": ["low", "medium", "high"] },
+        "validationRequired": { "type": "boolean" },
+        "proofLimitCode": { "$ref": "#/$defs/boundedId" }
+      }
+    },
+    "metric": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["metricId", "metricKey", "subjectId", "valueState", "value", "unit", "evidenceClass", "snapshotHashes", "factIds", "methodExecutionId", "confidence", "proofLimitCode"],
+      "properties": {
+        "metricId": { "$ref": "#/$defs/boundedId" },
+        "metricKey": { "$ref": "#/$defs/boundedId" },
+        "subjectId": { "$ref": "#/$defs/boundedId" },
+        "valueState": { "enum": ["known", "unknown", "not_observed", "not_calculable"] },
+        "value": {
+          "oneOf": [
+            { "type": "number" },
+            { "type": "string" },
+            { "type": "boolean" },
+            { "type": "null" }
+          ]
+        },
+        "unit": { "oneOf": [{ "$ref": "#/$defs/boundedId" }, { "type": "null" }] },
+        "evidenceClass": { "$ref": "#/$defs/evidenceClass" },
+        "snapshotHashes": {
+          "type": "array",
+          "maxItems": 200,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/sha256" }
+        },
+        "factIds": {
+          "type": "array",
+          "maxItems": 2000,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/boundedId" }
+        },
+        "methodExecutionId": {
+          "oneOf": [
+            { "$ref": "#/$defs/boundedId" },
+            { "type": "null" }
+          ]
+        },
+        "confidence": { "enum": ["low", "medium", "high"] },
+        "proofLimitCode": { "$ref": "#/$defs/boundedId" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "valueState": { "enum": ["unknown", "not_observed", "not_calculable"] } }, "required": ["valueState"] },
+          "then": { "properties": { "value": { "type": "null" } } }
+        }
+      ]
+    },
+    "candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["candidateId", "subjectId", "snapshotHash", "state", "reasonCode", "gapIds"],
+      "properties": {
+        "candidateId": { "$ref": "#/$defs/boundedId" },
+        "subjectId": { "$ref": "#/$defs/boundedId" },
+        "snapshotHash": {
+          "oneOf": [
+            { "$ref": "#/$defs/sha256" },
+            { "type": "null" }
+          ]
+        },
+        "state": { "enum": ["discovered", "shortlisted", "excluded", "blocked_for_comparison"] },
+        "reasonCode": { "oneOf": [{ "$ref": "#/$defs/boundedId" }, { "type": "null" }] },
+        "gapIds": {
+          "type": "array",
+          "maxItems": 100,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/boundedId" }
+        }
+      }
+    },
+    "rankingItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["candidateId", "position", "score", "metricContributions", "missingDataTreatment", "claimIds"],
+      "properties": {
+        "candidateId": { "$ref": "#/$defs/boundedId" },
+        "position": { "type": "integer", "minimum": 1, "maximum": 200 },
+        "score": { "type": "number" },
+        "metricContributions": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 100,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["metricId", "normalizedValue", "weight", "contribution"],
+            "properties": {
+              "metricId": { "$ref": "#/$defs/boundedId" },
+              "normalizedValue": { "type": "number" },
+              "weight": { "type": "number", "minimum": 0, "maximum": 1 },
+              "contribution": { "type": "number" }
+            }
+          }
+        },
+        "missingDataTreatment": { "enum": ["none", "candidate_excluded"] },
+        "claimIds": {
+          "type": "array",
+          "maxItems": 100,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/boundedId" }
+        }
+      }
+    },
+    "ranking": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["methodId", "methodVersion", "cohortHash", "gate", "items", "tieHandlingPolicyId", "sensitivityResultHash", "screeningPreferenceOnly"],
+      "properties": {
+        "methodId": { "$ref": "#/$defs/boundedId" },
+        "methodVersion": { "$ref": "#/$defs/semver" },
+        "cohortHash": { "$ref": "#/$defs/sha256" },
+        "gate": { "const": "pass" },
+        "items": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 200,
+          "items": { "$ref": "#/$defs/rankingItem" }
+        },
+        "tieHandlingPolicyId": { "$ref": "#/$defs/boundedId" },
+        "sensitivityResultHash": { "$ref": "#/$defs/sha256" },
+        "screeningPreferenceOnly": { "const": true }
+      }
+    },
+    "candidateSet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["candidateSetId", "candidateSetHash", "candidates", "ordering", "ranking", "coverageGapIds"],
+      "properties": {
+        "candidateSetId": { "$ref": "#/$defs/boundedId" },
+        "candidateSetHash": { "$ref": "#/$defs/sha256" },
+        "candidates": {
+          "type": "array",
+          "maxItems": 200,
+          "items": { "$ref": "#/$defs/candidate" }
+        },
+        "ordering": { "enum": ["source_identity", "manual", "ranked_by_method", "not_ordered"] },
+        "ranking": {
+          "oneOf": [
+            { "$ref": "#/$defs/ranking" },
+            { "type": "null" }
+          ]
+        },
+        "coverageGapIds": {
+          "type": "array",
+          "maxItems": 100,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/boundedId" }
+        }
+      }
+    },
+    "alternative": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "alternativeId",
+        "labelKey",
+        "state",
+        "sourceSubjectId",
+        "sourceSnapshotHash",
+        "programmeArtifactHash",
+        "geometryArtifactHash",
+        "metricIds",
+        "claimIds",
+        "assumptionKeys",
+        "violationCodes",
+        "validationTaskIds",
+        "generationExecutionId"
+      ],
+      "properties": {
+        "alternativeId": { "$ref": "#/$defs/boundedId" },
+        "labelKey": { "$ref": "#/$defs/boundedId" },
+        "state": { "enum": ["generated", "evaluated", "rejected", "selected_for_further_screening"] },
+        "sourceSubjectId": { "$ref": "#/$defs/boundedId" },
+        "sourceSnapshotHash": { "$ref": "#/$defs/sha256" },
+        "programmeArtifactHash": { "$ref": "#/$defs/sha256" },
+        "geometryArtifactHash": { "$ref": "#/$defs/sha256" },
+        "metricIds": {
+          "type": "array",
+          "maxItems": 200,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/boundedId" }
+        },
+        "claimIds": {
+          "type": "array",
+          "maxItems": 200,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/boundedId" }
+        },
+        "assumptionKeys": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 100,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/boundedId" }
+        },
+        "violationCodes": {
+          "type": "array",
+          "maxItems": 100,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/boundedId" }
+        },
+        "validationTaskIds": {
+          "type": "array",
+          "maxItems": 200,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/boundedId" }
+        },
+        "generationExecutionId": { "$ref": "#/$defs/boundedId" }
+      }
+    },
+    "validationTask": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["validationTaskId", "titleKey", "priority", "status", "evidenceRequirementKeys", "blocks", "ownerRole"],
+      "properties": {
+        "validationTaskId": { "$ref": "#/$defs/boundedId" },
+        "titleKey": { "$ref": "#/$defs/boundedId" },
+        "priority": { "enum": ["critical", "high", "medium", "low"] },
+        "status": { "enum": ["open", "in_progress", "satisfied", "waived_by_named_authority"] },
+        "evidenceRequirementKeys": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 100,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/boundedId" }
+        },
+        "blocks": {
+          "type": "array",
+          "maxItems": 18,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/operation" }
+        },
+        "ownerRole": { "oneOf": [{ "$ref": "#/$defs/boundedId" }, { "type": "null" }] }
+      }
+    },
+    "recommendation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "summaryKey", "claimIds", "metricIds", "validationTaskIds", "screeningOnly"],
+      "properties": {
+        "status": { "enum": ["continue_screening", "hold", "compare_more", "insufficient_evidence"] },
+        "summaryKey": { "$ref": "#/$defs/boundedId" },
+        "claimIds": {
+          "type": "array",
+          "maxItems": 200,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/boundedId" }
+        },
+        "metricIds": {
+          "type": "array",
+          "maxItems": 200,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/boundedId" }
+        },
+        "validationTaskIds": {
+          "type": "array",
+          "maxItems": 200,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/boundedId" }
+        },
+        "screeningOnly": { "const": true }
+      }
+    },
+    "outputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["claims", "metrics", "candidateSet", "alternatives", "recommendation", "validationTasks", "gapIds"],
+      "properties": {
+        "claims": {
+          "type": "array",
+          "maxItems": 1000,
+          "items": { "$ref": "#/$defs/claim" }
+        },
+        "metrics": {
+          "type": "array",
+          "maxItems": 1000,
+          "items": { "$ref": "#/$defs/metric" }
+        },
+        "candidateSet": {
+          "oneOf": [
+            { "$ref": "#/$defs/candidateSet" },
+            { "type": "null" }
+          ]
+        },
+        "alternatives": {
+          "type": "array",
+          "maxItems": 100,
+          "items": { "$ref": "#/$defs/alternative" }
+        },
+        "recommendation": {
+          "oneOf": [
+            { "$ref": "#/$defs/recommendation" },
+            { "type": "null" }
+          ]
+        },
+        "validationTasks": {
+          "type": "array",
+          "maxItems": 500,
+          "items": { "$ref": "#/$defs/validationTask" }
+        },
+        "gapIds": {
+          "type": "array",
+          "maxItems": 500,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/boundedId" }
+        }
+      }
+    },
+    "templateBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["templateId", "templateVersion", "recomputationAllowed"],
+      "properties": {
+        "templateId": { "$ref": "#/$defs/boundedId" },
+        "templateVersion": { "$ref": "#/$defs/semver" },
+        "recomputationAllowed": { "const": false }
+      }
+    },
+    "renderPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dashboard", "report", "projectSummary"],
+      "properties": {
+        "dashboard": {
+          "oneOf": [
+            { "$ref": "#/$defs/templateBinding" },
+            { "type": "null" }
+          ]
+        },
+        "report": {
+          "oneOf": [
+            { "$ref": "#/$defs/templateBinding" },
+            { "type": "null" }
+          ]
+        },
+        "projectSummary": {
+          "oneOf": [
+            { "$ref": "#/$defs/templateBinding" },
+            { "type": "null" }
+          ]
+        }
+      }
+    },
+    "lineage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["canonicalizationProfile", "inputGraphHash", "outputGraphHash", "decisionArtifactHashes", "refreshReasonCode"],
+      "properties": {
+        "canonicalizationProfile": { "const": "JCS_SHA256_OMIT_RECORD_HASH_V1" },
+        "inputGraphHash": { "$ref": "#/$defs/sha256" },
+        "outputGraphHash": { "$ref": "#/$defs/sha256" },
+        "decisionArtifactHashes": {
+          "type": "array",
+          "maxItems": 500,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/sha256" }
+        },
+        "refreshReasonCode": { "oneOf": [{ "$ref": "#/$defs/boundedId" }, { "type": "null" }] }
+      }
+    },
+    "governance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["claimPolicyId", "claimPolicyVersion", "maximumClaimLevel", "validationState", "privacyClass", "releaseState", "caveatPolicyId"],
+      "properties": {
+        "claimPolicyId": { "$ref": "#/$defs/boundedId" },
+        "claimPolicyVersion": { "$ref": "#/$defs/semver" },
+        "maximumClaimLevel": { "enum": ["open_context_screening", "client_provided_screening", "validated_for_named_scope"] },
+        "validationState": { "enum": ["official_validation_required", "client_validation_required", "named_scope_validated"] },
+        "privacyClass": { "enum": ["public_open_context", "user_provided_local", "protected_project"] },
+        "releaseState": { "enum": ["local_candidate", "preview_candidate", "released"] },
+        "caveatPolicyId": { "const": "caveat.screening-official-validation-required.v1" }
+      }
+    }
+  }
+}

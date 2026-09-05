@@ -1,0 +1,282 @@
+{
+  "protocol": "POINT_TO_OBJECT_001_CASE_PACK_MANIFEST_V1",
+  "manifestVersion": "1.0.1",
+  "pathBases": {
+    "files": "case_pack_directory",
+    "rightsDecision": "repository_root",
+    "sourceOffer": "repository_root",
+    "tools": "repository_root",
+    "postgisTempValidation": "repository_root"
+  },
+  "casePackId": "p2o-uae-dubai-museum-future-osm-20260831",
+  "caseId": "P2O-UAE-DXB-MUSEUM-FUTURE-001",
+  "caseRole": "UAE_BOUNDED_RUNTIME_CASE",
+  "sourceId": "SPAT-001",
+  "sourceNamespace": "openstreetmap",
+  "sourceSnapshotId": "p2o-uae-dubai-museum-future-osm-20260831t211331z-v1",
+  "sourceReleaseId": "osm-base-2026-08-31T21:13:31Z",
+  "sourceDatabaseObservedAtUtc": "2026-08-31T21:13:31Z",
+  "sourceFeatureMetadataAvailability": "unavailable_in_body_snapshot",
+  "officialStatus": "open_context_not_official",
+  "acquisition": {
+    "operatorRecordedRequest": {
+      "endpoint": "https://overpass-api.de/api/interpreter",
+      "method": "POST",
+      "evidenceState": "OPERATOR_RECORDED_NOT_CONTEMPORANEOUS_MACHINE_PROOF"
+    },
+    "completedAtUtc": "2026-08-31T21:14:52Z",
+    "startTimeRetained": false,
+    "exactClientVersionRetained": false,
+    "acquiredBytesRetained": false,
+    "acquiredBytes": 737369,
+    "acquiredSha256": "c2d3586683b6998d8bd2b7f3a798f75e43a00d31e5ab926b9317723d61bafbe6",
+    "minimizedSnapshot": {
+      "path": "raw-overpass-response.json",
+      "bytes": 443617,
+      "sha256": "be6a9b56efd9389bb624166345f3f8bb52c7e9c60a1a01ed53bed64724802d34"
+    },
+    "finalizationState": "HASH_VERIFIED_NON_ATOMIC_OPERATOR_STEP"
+  },
+  "query": {
+    "path": "acquisition-query.overpassql",
+    "bytes": 313,
+    "sha256": "044f6efaa2dd9ca39c2c8748986c867d4d6b369f44539106cb08073783c00e38"
+  },
+  "acquisitionReceipt": {
+    "path": "acquisition-minimization-receipt.json",
+    "bytes": 8173,
+    "sha256": "1e0d7efa038147db7e18d7a4e141993e532ebc4f0562a0c5cc75c8edef72682c"
+  },
+  "normalizedSnapshot": {
+    "path": "normalized-features.geojson",
+    "bytes": 2182917,
+    "sha256": "917e607e124200d2b421b59a8c311c8b47e42bfc5d7f06eec8ac57e677ecaf18"
+  },
+  "spatialIndex": {
+    "path": "spatial-grid-index.json",
+    "bytes": 227593,
+    "sha256": "7f3fd99c72651684bfa0ff16be68f010619864158487eabeb8b35ad2f5e25804",
+    "version": "geoai-p2o-bbox-grid-index/1.0.0",
+    "semantics": "BBOX_PREFILTER_ONLY_EXACT_TOPOLOGY_REQUIRED"
+  },
+  "normalizationReceipt": {
+    "path": "normalization-receipt.json",
+    "bytes": 7020,
+    "sha256": "680eca1b49b2b35fe08f6d37f5d1a0d0cd0091bcb2f84c1d7f5d2cd1058f89e2"
+  },
+  "coverageGeometry": {
+    "coordinates": [
+      [
+        [
+          55.278,
+          25.215
+        ],
+        [
+          55.288,
+          25.215
+        ],
+        [
+          55.288,
+          25.224
+        ],
+        [
+          55.278,
+          25.224
+        ],
+        [
+          55.278,
+          25.215
+        ]
+      ]
+    ],
+    "type": "Polygon"
+  },
+  "coverageGeometryHashSha256": "81aa7351937a9c6fcac91bbd54bc80b1ba55cba48495086137e457fcea62d3fc",
+  "coverageBboxWgs84": [
+    55.278,
+    25.215,
+    55.288,
+    25.224
+  ],
+  "retainedGeometryExtentWgs84": [
+    55.1303333,
+    25.0614605,
+    55.3016151,
+    25.2502429
+  ],
+  "retainedFeatureGeometryMayExtendOutsideCoverage": true,
+  "maxRadiusContainedWithinQueryBboxAtAnchorM": 300,
+  "contextCompletenessAtContainedRadius": "UNKNOWN",
+  "defaultRequestedContextRadiusM": 800,
+  "defaultContextCoverageState": "partial_unknown_completeness",
+  "absenceClaimAtDefaultRadiusAllowed": false,
+  "calculationCrs": "EPSG:32640",
+  "taxonomyVersions": {
+    "normalizedFeatureSchema": "LivePointSnapshotBundleV2/1.0.0",
+    "normalization": "geoai-p2o-osm-normalization/1.0.1",
+    "index": "geoai-p2o-bbox-grid-index/1.0.0",
+    "contextCategoryMap": "geoai-p2o-osm-context-category-map/1.0.0",
+    "resolver": "resolver-policy-p2o-v1.0.1",
+    "hashContract": "geoai-hash-contract-v1-rfc8785-compatible-subset"
+  },
+  "normalizationTool": {
+    "path": "scripts/point-to-object-001-build-case-pack.mjs",
+    "bytes": 38740,
+    "sha256": "91ee5ec5cb31fed3e01bc74f23a94af432251545424442b64887d88fce8bf653",
+    "nodeRuntime": "v20.19.6"
+  },
+  "minimizationTool": {
+    "path": "scripts/point-to-object-001-sanitize-osm-snapshot-v1_0_0.mjs",
+    "bytes": 8419,
+    "sha256": "1cc911012dc46d5bf7028b2e0f83009ed1d799776dbb62b432be58290fd9737f",
+    "nodeRuntime": "v20.19.6"
+  },
+  "geometryQuality": {
+    "state": "PASS_FOR_IDENTITY_ELIGIBLE_POLYGON_FEATURES",
+    "localScreen": {
+      "state": "LIMITED_LOCAL_TOPOLOGY_SCREEN",
+      "checks": [
+        "coordinate range",
+        "ring closure",
+        "consecutive duplicate coordinate",
+        "zero ring area",
+        "ring self-intersection",
+        "hole first-point containment"
+      ],
+      "notProven": [
+        "full GEOS validity for every feature",
+        "multipolygon component overlap",
+        "semantic parent/part hierarchy correctness"
+      ],
+      "routeActivationAllowed": false
+    },
+    "postgisTempValidation": {
+      "path": "docs/point-to-object-001/POINT_TO_OBJECT_001_POSTGIS_TEMP_VALIDATION_RECEIPT.json",
+      "bytes": 5180,
+      "sha256": "29071934fba9508f53eae14462c24bff711bf98be83bea319b5c99b50b7940b0",
+      "identityEligiblePolygonFeatureCount": 175,
+      "validGeometryCount": 175,
+      "invalidGeometryCount": 0,
+      "temporaryOnly": true,
+      "persistentP2oTableCountAfterTests": 0
+    },
+    "contextGeometryValidation": "PARTIAL_NOT_ALL_POINT_LINE_CONTEXT_FEATURES",
+    "routeActivationAllowed": false
+  },
+  "rightsDecision": {
+    "path": "data/point-to-object-001/rights/osm-20260831/OSM_RIGHTS_DECISION_V1.json",
+    "bytes": 9642,
+    "sha256": "d01ef3e7e3af38ee4e57a80cd2ca546f9d7307cb232e9e13bd46b7a38efc6e85",
+    "decisionId": "P2O-RIGHTS-OSM-ODBL-001",
+    "decisionVersion": "1.0.0",
+    "rightsState": "cleared",
+    "permissionPhase": "internal_preview_experiment"
+  },
+  "attribution": "© OpenStreetMap contributors",
+  "sourceOffer": {
+    "noticePath": "data/point-to-object-001/NOTICE.md",
+    "noticeBytes": 1132,
+    "noticeSha256": "c2aa93be8c84005b6ac3b999327ee6f2cee7375c48bb45f787f9ce5652dbaa8a",
+    "rawAndDerivedDatabasePaths": "data/point-to-object-001/case-packs/",
+    "transformationPath": "scripts/point-to-object-001-build-case-pack.mjs",
+    "notice": {
+      "path": "data/point-to-object-001/NOTICE.md",
+      "bytes": 1132,
+      "sha256": "c2aa93be8c84005b6ac3b999327ee6f2cee7375c48bb45f787f9ce5652dbaa8a"
+    }
+  },
+  "counts": {
+    "raw": 967,
+    "accepted": 967,
+    "rejected": 0,
+    "normalizationStageDroppedTagFieldCount": 0,
+    "minimizationStageDroppedTagFieldOccurrences": 2021,
+    "minimizationStageDroppedDistinctTagKeyCount": 169,
+    "byFeatureClass": {
+      "building": 134,
+      "building_part": 27,
+      "green_space": 37,
+      "land_use": 114,
+      "poi_place": 109,
+      "road_area": 2,
+      "road_context": 83,
+      "road_segment": 449,
+      "transport_feature": 10,
+      "water_environmental": 2
+    },
+    "identityEligible": 175,
+    "nonPolygonBuildingTaggedIdentityIneligible": 0,
+    "unsupportedBuildingRelationsRejected": 0
+  },
+  "anchor": {
+    "sourceFeatureId": "way/1054289435",
+    "featureKey": "geoai:prototype:p2o-uae-dubai-museum-future-osm-20260831:openstreetmap:way/1054289435",
+    "name": "متحف المستقبل",
+    "geometryHashSha256": "d9591a306ab9555094b3830248ee22ffec16114d70b10172cb60ff96634f395e",
+    "deterministicInteriorPointWgs84": [
+      55.2818037,
+      25.2191
+    ],
+    "boundaryTestPointWgs84": [
+      55.2812974,
+      25.2187139
+    ]
+  },
+  "knownAnchorInterpretation": "RESOLVED_SINGLE_BUILDING_PART_WITH_SOURCE_CLASSIFICATION_CONFLICT",
+  "activationState": {
+    "immutableFileBackedTooling": "CANDIDATE",
+    "routeIntegration": "BLOCKED_PENDING_MAIN_ACCEPTED_DEV_INTEGRATION_AND_CONTEXT_SCOPE",
+    "default800mCompleteContext": "FAIL_PARTIAL",
+    "externalPreview": "BLOCKED_PENDING_VISIBLE_ATTRIBUTION_AND_MAIN_GATE",
+    "production": "PROHIBITED"
+  },
+  "files": [
+    {
+      "path": "acquisition-minimization-receipt.json",
+      "bytes": 8173,
+      "sha256": "1e0d7efa038147db7e18d7a4e141993e532ebc4f0562a0c5cc75c8edef72682c"
+    },
+    {
+      "path": "acquisition-query.overpassql",
+      "bytes": 313,
+      "sha256": "044f6efaa2dd9ca39c2c8748986c867d4d6b369f44539106cb08073783c00e38"
+    },
+    {
+      "path": "acquisition-response-headers.txt",
+      "bytes": 214,
+      "sha256": "b1a3497f9decfbfe7254bb23eccf2b3f5439a65fa9dcfb827d53cca35cbcd0a8"
+    },
+    {
+      "path": "case-config-at-minimization.json",
+      "bytes": 1909,
+      "sha256": "8178326597023625c121b7d07ed1a269c7733bce306742c5e97a85a8d51cb024"
+    },
+    {
+      "path": "case-config.json",
+      "bytes": 1938,
+      "sha256": "18e636e258f63b69b90da6a94f1ec953deee329ad3664924740f964bf331f037"
+    },
+    {
+      "path": "normalization-receipt.json",
+      "bytes": 7020,
+      "sha256": "680eca1b49b2b35fe08f6d37f5d1a0d0cd0091bcb2f84c1d7f5d2cd1058f89e2"
+    },
+    {
+      "path": "normalized-features.geojson",
+      "bytes": 2182917,
+      "sha256": "917e607e124200d2b421b59a8c311c8b47e42bfc5d7f06eec8ac57e677ecaf18"
+    },
+    {
+      "path": "raw-overpass-response.json",
+      "bytes": 443617,
+      "sha256": "be6a9b56efd9389bb624166345f3f8bb52c7e9c60a1a01ed53bed64724802d34"
+    },
+    {
+      "path": "spatial-grid-index.json",
+      "bytes": 227593,
+      "sha256": "7f3fd99c72651684bfa0ff16be68f010619864158487eabeb8b35ad2f5e25804"
+    }
+  ],
+  "nonCircularManifestHash": null,
+  "mandatoryCaveat": "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
+}

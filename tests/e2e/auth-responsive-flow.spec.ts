@@ -71,7 +71,7 @@ for (const viewport of viewports) {
       await expect(page.getByRole("heading", { level: 1, name: "Sign in to GeoAI" })).toBeVisible();
       await expect(page.getByLabel("Email or phone")).toBeVisible();
       await expect(page.getByLabel("Password")).toBeVisible();
-      await expect(page.getByRole("button", { name: "Use demo credentials" })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Open demo access" })).toBeVisible();
       await expectNoHorizontalOverflow(page);
     });
   });
@@ -98,7 +98,7 @@ test.describe("mobile keyboard and target-size access", () => {
     await page.keyboard.press("Enter");
     await expect(page).toHaveURL((url) => url.pathname === "/login" && url.searchParams.get("intent") === "demo");
 
-    await tabUntil(page, (control) => control.text === "Use demo credentials");
+    await tabUntil(page, (control) => control.text === "Open demo access");
     await page.keyboard.press("Enter");
     await expect(page.getByLabel("Email or phone")).toHaveValue("demo@geoai.space");
     await expect(page.getByLabel("Password")).toHaveValue("111111");

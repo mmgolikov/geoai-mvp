@@ -9,6 +9,14 @@ const publicSourceFiles = [
   "data/normalized/osm_source_quality.json",
   "data/normalized/overture_source_quality.json"
 ];
+const pointToObjectPrototypeFiles = [
+  "data/point-to-object-001/NOTICE.md",
+  "data/point-to-object-001/rights/osm-20260831/OSM_RIGHTS_DECISION_V1.json",
+  "data/point-to-object-001/case-packs/uae-dubai-museum-future-v1/case-pack-manifest.json",
+  "data/point-to-object-001/case-packs/uae-dubai-museum-future-v1/normalized-features.geojson",
+  "data/point-to-object-001/case-packs/singapore-marina-bay-v1/case-pack-manifest.json",
+  "data/point-to-object-001/case-packs/singapore-marina-bay-v1/normalized-features.geojson"
+];
 const requirements = {
   ".next/server/app/api/context/spatial/route.js.nft.json": [
     "data/normalized/overture_buildings_snapshot.json"
@@ -24,7 +32,11 @@ const requirements = {
   ".next/server/app/api/external-data/manifest/route.js.nft.json": publicSourceFiles,
   ".next/server/app/api/external-data/sources/route.js.nft.json": publicSourceFiles,
   ".next/server/app/api/external-data/status/route.js.nft.json": publicSourceFiles,
-  ".next/server/app/api/source-lineage/route.js.nft.json": publicSourceFiles
+  ".next/server/app/api/source-lineage/route.js.nft.json": publicSourceFiles,
+  ".next/server/app/api/prototype/point-to-object/ai/route.js.nft.json": [],
+  ".next/server/app/api/prototype/point-to-object/cases/route.js.nft.json": pointToObjectPrototypeFiles,
+  ".next/server/app/api/prototype/point-to-object/context/route.js.nft.json": [],
+  ".next/server/app/api/prototype/point-to-object/resolve/route.js.nft.json": pointToObjectPrototypeFiles
 };
 
 const openContextFiles = [
@@ -52,7 +64,11 @@ const tracePolicies = {
   ".next/server/app/api/external-data/manifest/route.js.nft.json": { allowed: publicSourceFiles, maxBytes: 24 * 1024 },
   ".next/server/app/api/external-data/sources/route.js.nft.json": { allowed: publicSourceFiles, maxBytes: 24 * 1024 },
   ".next/server/app/api/external-data/status/route.js.nft.json": { allowed: publicSourceFiles, maxBytes: 24 * 1024 },
-  ".next/server/app/api/source-lineage/route.js.nft.json": { allowed: publicSourceFiles, maxBytes: 24 * 1024 }
+  ".next/server/app/api/source-lineage/route.js.nft.json": { allowed: publicSourceFiles, maxBytes: 24 * 1024 },
+  ".next/server/app/api/prototype/point-to-object/ai/route.js.nft.json": { allowed: [], maxBytes: 0 },
+  ".next/server/app/api/prototype/point-to-object/cases/route.js.nft.json": { allowed: pointToObjectPrototypeFiles, maxBytes: 7 * 1024 * 1024 },
+  ".next/server/app/api/prototype/point-to-object/context/route.js.nft.json": { allowed: [], maxBytes: 0 },
+  ".next/server/app/api/prototype/point-to-object/resolve/route.js.nft.json": { allowed: pointToObjectPrototypeFiles, maxBytes: 7 * 1024 * 1024 }
 };
 
 const failures = [];
@@ -86,4 +102,4 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-console.log(`Vercel output-file tracing contract passed: ${Object.keys(requirements).length} route traces include only allowlisted runtime data within 4/24/32 KB budgets.`);
+console.log(`Vercel output-file tracing contract passed: ${Object.keys(requirements).length} route traces include only allowlisted runtime data within their route-specific budgets.`);

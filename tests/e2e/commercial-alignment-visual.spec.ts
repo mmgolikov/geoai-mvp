@@ -88,8 +88,8 @@ async function captureCommercialVisual(page: Page, label: string, fileName: stri
 
 async function openDemoProfile(page: Page) {
   await page.goto("/login?next=/workspace&intent=demo");
-  await page.getByRole("button", { name: "Use demo credentials" }).click();
-  await page.getByRole("button", { name: "Open demo" }).click();
+  await page.getByRole("button", { name: "Open demo access" }).click();
+  await page.getByRole("button", { name: "Open demo", exact: true }).click();
   await expect(page).toHaveURL((url) => url.pathname === "/workspace");
   await page.goto("/profile");
   await expect(page.getByRole("heading", { level: 1, name: "Your profile" })).toBeVisible();

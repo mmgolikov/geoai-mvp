@@ -1,0 +1,110 @@
+{
+  "schema_version": "1.0.0",
+  "manifest_id": "SECURITY-GATE-001-LOCAL-DEPENDENCY-REMEDIATION",
+  "status": "ACCEPT_LOCAL_REMEDIATION_CANDIDATE",
+  "prepared_at": "2026-09-01",
+  "released_base": "7f323c4227f2409f3fe2d4d68be48a30176f4e2a",
+  "branch": "codex/security-gate-001-local-v1",
+  "commit": "DETACHED_IN_FINAL_HUMAN_RECEIPT",
+  "hash_algorithm": "sha256",
+  "hash_policy": {
+    "hashed_entries": 7,
+    "artifact_count_including_manifest": 8,
+    "manifest_self_hash": "detached: reported in the human completion receipt after this file is frozen",
+    "reason": "The manifest excludes its own digest to avoid recursive self-hashing. The completion receipt intentionally does not embed the manifest digest or commit SHA."
+  },
+  "baseline": {
+    "package.json": {
+      "sha256": "413c8139895145997e08356c7d22ba47b1475d0ee586a287f82b03923ef5bf5b"
+    },
+    "package-lock.json": {
+      "sha256": "c69d93015f2d91332f823d16cd545f2220357602d3a5b483d401983cb0245416"
+    }
+  },
+  "files": [
+    {
+      "path": "package.json",
+      "bytes": 8594,
+      "sha256": "f9099f6f2e2dd2c31fb794c3b16a1cccf2a89efca99c0adfa7b9badef7d9eb29",
+      "classification": "dependency_manifest",
+      "change": "postcss ^8.5.19 -> exact 8.5.23"
+    },
+    {
+      "path": "package-lock.json",
+      "bytes": 159523,
+      "sha256": "e70d7ee93c4d66c208d0d5905ef91f651badadd54cc7fdeacc758e4ce2c6fb23",
+      "classification": "dependency_lock",
+      "change": "postcss 8.5.19 -> 8.5.23; nanoid 3.3.12 -> 3.3.18"
+    },
+    {
+      "path": "docs/DOCUMENT_ARCHIVE_INDEX.md",
+      "bytes": 26985,
+      "sha256": "ae86da9f1cedc3948a135f4684191f8e332ee6f3723dce8f206b5c3bb7baa424",
+      "classification": "generated_documentation_lifecycle_sidecar"
+    },
+    {
+      "path": "docs/DOCUMENT_LIFECYCLE_MANIFEST.json",
+      "bytes": 44693,
+      "sha256": "bb59b3e5765422dc1cb6f25047ec74e669d62b07aac80d616d963134a598fafc",
+      "classification": "generated_documentation_lifecycle_sidecar"
+    },
+    {
+      "path": "docs/change-requests/security-gate-001/SECURITY_GATE_001_CHANGE_REQUEST.md",
+      "bytes": 6518,
+      "sha256": "b04bf2a112f7e14a1b4c37ee56a64bac6a8fb9dd651a535a2c07d5e2a41485f0",
+      "classification": "change_request"
+    },
+    {
+      "path": "docs/change-requests/security-gate-001/SECURITY_GATE_001_DEPENDENCY_DECISION.md",
+      "bytes": 7290,
+      "sha256": "bdd77e401786060d5f91e0078dc8c6e359f6b892294182436189c08980aa9938",
+      "classification": "dependency_decision"
+    },
+    {
+      "path": "docs/change-requests/security-gate-001/SECURITY_GATE_001_COMPLETION_RECEIPT.json",
+      "bytes": 10583,
+      "sha256": "3d90df190d6ea43244e639ba24bd0f5cc530a35bf2eb047374c29683e4e42a8c",
+      "classification": "completion_receipt"
+    }
+  ],
+  "self": {
+    "path": "docs/change-requests/security-gate-001/SECURITY_GATE_001_MANIFEST.json",
+    "sha256": null,
+    "classification": "manifest_self"
+  },
+  "dependency_coordinates": {
+    "next": "15.5.21",
+    "postcss": "8.5.23",
+    "nanoid": "3.3.18",
+    "postcss_override": "$postcss"
+  },
+  "integrity": {
+    "postcss": "sha512-g50586zr4bZmwFiTlflMu8E0bDTb5I5gertgwAKmsdUlTQIhZtunzUlD1WSzwcVWPoAVpsrA6vlfCD7oXvRwgg==",
+    "nanoid": "sha512-DTg4MJbGMWkfi6VZFdNt2/caMbQy4Ou+Op/hJQvGEWcnVfoA1QA+xzRKAzw9jD6+GVOOeYr/mIcuDSdug6F6+w=="
+  },
+  "audit_summary": {
+    "before_production": "3 total: moderate 2, high 1",
+    "after_production": "PASS: 0 total; 31 production dependencies; 318 total tree",
+    "before_full": "21 total: moderate 19, high 2",
+    "after_full": "18 development-only: moderate 17, high 1, critical 0",
+    "after_audit_provenance": "main_1 standard registry-backed audit against the current physical candidate on 2026-09-01; exact timestamp not supplied"
+  },
+  "verification_summary": {
+    "clean_offline_install": "PASS",
+    "dependency_tree": "PASS",
+    "typescript": "PASS",
+    "production_build_66_routes": "PASS",
+    "api_route_inventory_66": "PASS",
+    "permanent_static_contracts_40": "PASS",
+    "documentation_lifecycle_144": "PASS",
+    "git_diff_check": "PASS",
+    "commit_gate": "OPEN_FOR_ONE_LOCAL_COMMIT"
+  },
+  "scope_exclusions": {
+    "lighthouse_or_brace_expansion_remediation": "SECURITY-GATE-002-DEV-TOOLING",
+    "push_pr_preview_production_changed": false,
+    "runtime_feature_or_route_changed": false,
+    "supabase_auth_storage_secrets_env_changed": false
+  },
+  "external_mutations": false
+}

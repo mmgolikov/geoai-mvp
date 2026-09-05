@@ -10,8 +10,8 @@ async function signInDemo(page: Page, next = "/workspace") {
   await page.goto(`/login?next=${encodeURIComponent(next)}&intent=demo`);
   const redirected = await page.waitForURL((url) => url.pathname === next, { timeout: 3000 }).then(() => true, () => false);
   if (redirected) return;
-  await page.getByRole("button", { name: "Use demo credentials" }).click();
-  await page.getByRole("button", { name: "Open demo" }).click();
+  await page.getByRole("button", { name: "Open demo access" }).click();
+  await page.getByRole("button", { name: "Open demo", exact: true }).click();
   await expect(page).toHaveURL((url) => url.pathname === next);
 }
 
@@ -177,8 +177,13 @@ test("Projects, Profile and report actions use the same Product-primary teal", a
   await expectProductPrimary(b2b, "Profile selected B2B");
   await b2c.click();
   await expect(b2c).toHaveAttribute("aria-pressed", "true");
+  // Read the selected control's default token after leaving its intentional
+  // darker hover state.
+  await page.mouse.move(1, 1);
   await expectProductPrimary(b2c, "Profile selected B2C");
-  await expectProductPrimary(page.getByRole("link", { name: "Open workspace", exact: true }), "Profile Open workspace action");
+  const openMap = page.getByRole("link", { name: "Open map", exact: true });
+  await expect(openMap).toHaveAttribute("href", "/prototype/point-to-object");
+  await expectProductPrimary(openMap, "Profile Open map action");
   await expectProductPrimary(page.getByRole("button", { name: "Save profile", exact: true }), "Profile Save profile action");
 
   await page.goto("/reports/seeded-analysis-dubai-marina-report/print");

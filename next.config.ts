@@ -10,7 +10,7 @@ const contentSecurityPolicy = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' blob: data: https:",
   "font-src 'self' data:",
-  "connect-src 'self' https://*.mapbox.com https://*.tiles.mapbox.com https://*.supabase.co wss://*.supabase.co",
+  "connect-src 'self' https://*.mapbox.com https://*.tiles.mapbox.com https://tiles.openfreemap.org https://*.supabase.co wss://*.supabase.co",
   "worker-src 'self' blob:",
   "child-src 'self' blob:",
   "manifest-src 'self'",
@@ -23,6 +23,30 @@ const publicSourceRuntimeFiles = [
   "./data/normalized/dld_source_quality.json",
   "./data/normalized/osm_source_quality.json",
   "./data/normalized/overture_source_quality.json"
+];
+
+const pointToObjectPrototypeFiles = [
+  "./data/point-to-object-001/NOTICE.md",
+  "./data/point-to-object-001/rights/osm-20260831/OSM_RIGHTS_DECISION_V1.json",
+  "./data/point-to-object-001/case-packs/uae-dubai-museum-future-v1/case-pack-manifest.json",
+  "./data/point-to-object-001/case-packs/uae-dubai-museum-future-v1/normalized-features.geojson",
+  "./data/point-to-object-001/case-packs/singapore-marina-bay-v1/case-pack-manifest.json",
+  "./data/point-to-object-001/case-packs/singapore-marina-bay-v1/normalized-features.geojson"
+];
+
+const pointToObjectPrototypeExcludedFiles = [
+  "./data/point-to-object-001/.gitattributes",
+  "./data/point-to-object-001/POINT_TO_OBJECT_001_GOLD_FIXTURES.json",
+  "./data/point-to-object-001/POINT_TO_OBJECT_001_PACK_MANIFEST.json",
+  "./data/point-to-object-001/case-packs/*/acquisition-*",
+  "./data/point-to-object-001/case-packs/*/case-config*.json",
+  "./data/point-to-object-001/case-packs/*/normalization-receipt.json",
+  "./data/point-to-object-001/case-packs/*/raw-overpass-response.json",
+  "./data/point-to-object-001/case-packs/*/spatial-grid-index.json",
+  "./data/point-to-object-001/rights/osm-20260831/odbl-*",
+  "./data/point-to-object-001/rights/osm-20260831/osm-*",
+  "./data/point-to-object-001/rights/osm-20260831/osmf-*",
+  "./data/point-to-object-001/rights/osm-20260831/overpass-*"
 ];
 
 const nextConfig: NextConfig = {
@@ -39,7 +63,12 @@ const nextConfig: NextConfig = {
     "/api/external-data/manifest": publicSourceRuntimeFiles,
     "/api/external-data/sources": publicSourceRuntimeFiles,
     "/api/external-data/status": publicSourceRuntimeFiles,
-    "/api/source-lineage": publicSourceRuntimeFiles
+    "/api/source-lineage": publicSourceRuntimeFiles,
+    "/api/prototype/point-to-object/cases": pointToObjectPrototypeFiles,
+    "/api/prototype/point-to-object/resolve": pointToObjectPrototypeFiles
+  },
+  outputFileTracingExcludes: {
+    "/api/prototype/point-to-object/*": pointToObjectPrototypeExcludedFiles
   },
   async headers() {
     return [

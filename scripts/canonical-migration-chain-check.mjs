@@ -34,6 +34,16 @@ if (live.length !== manifest.canonicalBaselineCount) {
   failures.push("Ledger manifest count does not match liveAppliedMigrations length");
 }
 
+const parsedByVersion = new Map(parsed.map((migration) => [migration.version, migration]));
+const liveVersions = new Set(live.map((migration) => migration.version));
+const preLedgerVersions = new Set(preLedger.map((migration) => migration.version));
+if (new Set(live.map((migration) => migration.version)).size !== live.length) {
+  failures.push("Applied ledger manifest contains duplicate versions");
+}
+if (live.some((migration, index) => index > 0 && migration.version <= live[index - 1].version)) {
+  failures.push("Applied ledger manifest entries are not strictly version-ordered");
+}
+
 for (let index = 0; index < preLedger.length; index += 1) {
   const expected = preLedger[index];
   const actual = parsed[index];
@@ -53,11 +63,11 @@ for (let index = 0; index < preLedger.length; index += 1) {
 
 for (let index = 0; index < live.length; index += 1) {
   const expected = live[index];
-  const actual = parsed[preLedger.length + index];
+  const actual = parsedByVersion.get(expected.version);
   const expectedFile = `${expected.version}_${expected.name}.sql`;
 
   if (!actual || actual.file !== expectedFile) {
-    failures.push(`Applied ledger position ${index + 1} must be ${expectedFile}; found ${actual?.file ?? "nothing"}`);
+    failures.push(`Applied ledger entry ${expected.version} must be ${expectedFile}; found ${actual?.file ?? "nothing"}`);
     continue;
   }
 
@@ -77,27 +87,40 @@ for (let index = 0; index < live.length; index += 1) {
 const lastAppliedVersion = live.at(-1)?.version;
 if (!lastAppliedVersion) failures.push("Ledger manifest has no applied baseline");
 
-const pendingStart = preLedger.length + live.length;
-for (const migration of parsed.slice(pendingStart)) {
-  if (lastAppliedVersion && migration.version <= lastAppliedVersion) {
-    failures.push(`Untracked migration ${migration.file} sorts inside the immutable applied ledger`);
-  }
-}
-
 const pendingMigrations = manifest.pendingMigrations ?? [];
 const pendingFiles = new Set(pendingMigrations.map((pending) => `${pending.version}_${pending.name}.sql`));
+const pendingVersions = new Set(pendingMigrations.map((pending) => pending.version));
+if (pendingVersions.size !== pendingMigrations.length) failures.push("Pending manifest contains duplicate versions");
 for (const pending of pendingMigrations) {
   const expectedFile = `${pending.version}_${pending.name}.sql`;
   if (!files.includes(expectedFile)) failures.push(`Manifest pending migration is missing: ${expectedFile}`);
-  if (lastAppliedVersion && pending.version <= lastAppliedVersion) {
-    failures.push(`Pending migration does not sort after the applied ledger: ${expectedFile}`);
+  if (liveVersions.has(pending.version) || preLedgerVersions.has(pending.version)) {
+    failures.push(`Migration version is declared in more than one ledger state: ${pending.version}`);
   }
 }
 
-for (const migration of parsed.slice(pendingStart)) {
-  if (!pendingFiles.has(migration.file)) {
-    failures.push(`Pending migration is not tracked in the ledger manifest: ${migration.file}`);
+for (const migration of parsed) {
+  if (!preLedgerVersions.has(migration.version) && !liveVersions.has(migration.version) && !pendingFiles.has(migration.file)) {
+    failures.push(`Migration is not tracked in the ledger manifest: ${migration.file}`);
   }
+}
+
+const pendingInsideAppliedRange = pendingMigrations
+  .filter((pending) => lastAppliedVersion && pending.version < lastAppliedVersion)
+  .map((pending) => pending.version)
+  .sort();
+const declaredTopology = manifest.ledgerTopology ?? {};
+const declaredPendingInside = Array.isArray(declaredTopology.pendingVersionsInsideAppliedRange)
+  ? [...declaredTopology.pendingVersionsInsideAppliedRange].sort()
+  : [];
+if (declaredTopology.kind !== "noncontiguous_applied_version_set") {
+  failures.push("Ledger topology must explicitly declare the noncontiguous hosted applied version set");
+}
+if (JSON.stringify(declaredPendingInside) !== JSON.stringify(pendingInsideAppliedRange)) {
+  failures.push("Declared pending versions inside the applied range do not match the manifest-derived ledger holes");
+}
+if (pendingInsideAppliedRange.length !== 7 || pendingInsideAppliedRange.some((version) => !version.startsWith("20260716"))) {
+  failures.push("Expected exactly the seven 20260716 migrations to remain pending inside the hosted applied range");
 }
 
 const seedSql = await readFile(path.join(root, "supabase", "seed.sql"), "utf8");
@@ -112,5 +135,5 @@ if (failures.length > 0) {
 }
 
 console.log(
-  `Canonical migration-chain contract passed: ${preLedger.length} pre-ledger reconciliation and ${live.length} immutable live-ledger migrations verified; ${parsed.length - pendingStart} pending migration(s) sort after the baseline.`
+  `Canonical migration-chain contract passed: ${preLedger.length} pre-ledger reconciliation and ${live.length} immutable hosted-ledger migrations verified as a noncontiguous applied set; ${pendingMigrations.length} migration(s) remain pending, including ${pendingInsideAppliedRange.length} version holes inside the applied range.`
 );

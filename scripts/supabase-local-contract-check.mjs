@@ -43,10 +43,18 @@ for (const evidence of [
   if (!workflow.includes(evidence)) failures.push(`CI database replay evidence is missing: ${evidence}`);
 }
 for (const localOnlyControl of [
-  '["db", "reset", "--local", "--version", lastLiveEntry.version, "--no-seed"]',
+  '["db", "reset", "--local", "--version", lastContiguousLiveEntry.version, "--no-seed"]',
   '["migration", "repair", preLedgerEntry.version, "--status", "reverted", "--local"]',
   '["migration", "repair", preLedgerEntry.version, "--status", "applied", "--local"]',
-  '["migration", "up", "--local"]',
+  'const localDatabaseContainer = `supabase_db_${localProjectId}`',
+  '"docker",',
+  'localDatabaseContainer,',
+  '"ON_ERROR_STOP=1",',
+  'input: sql,',
+  'await queryLocalFile(',
+  '["migration", "repair", entry.version, "--status", "applied", "--local"]',
+  '["migration", "up", "--local", "--include-all"]',
+  "noncontiguous applied version set",
   "not a current-development clone",
   "does not certify DB-01"
 ]) {

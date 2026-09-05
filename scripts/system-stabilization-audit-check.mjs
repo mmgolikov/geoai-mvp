@@ -78,7 +78,10 @@ for (const file of ["docs/SYSTEM_STABILIZATION_AUDIT_V2_2026_07_21.md", "docs/RE
 
 const inventory = parseJson("security/api-route-inventory.json");
 if (inventory) {
-  if (inventory.schemaVersion !== "1.0" || inventory.routeCount !== 66 || Object.keys(inventory.routes ?? {}).length !== 66) failures.push("security/api-route-inventory.json: complete 66-route inventory required");
+  const classifiedRouteCount = Object.keys(inventory.routes ?? {}).length;
+  if (inventory.schemaVersion !== "1.0" || inventory.routeCount !== classifiedRouteCount || inventory.routeCount < 66) {
+    failures.push("security/api-route-inventory.json: complete route inventory required; it must retain the 66-route released baseline and classify every added route");
+  }
   for (const [route, entry] of Object.entries(inventory.routes ?? {})) {
     for (const field of ["route", "classification", "methods", "sourcePath"]) if (!(field in entry)) failures.push(`security/api-route-inventory.json: ${route} missing ${field}`);
     for (const [method, contract] of Object.entries(entry.methods ?? {})) {

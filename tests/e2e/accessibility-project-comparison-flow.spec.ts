@@ -81,13 +81,13 @@ async function signInDemoWithKeyboard(page: Page, nextPath: "/projects" | "/work
   await page.goto(`/login?next=${encodeURIComponent(nextPath)}&intent=demo`);
   await expect(page.getByRole("heading", { level: 1, name: "Sign in to GeoAI" })).toBeVisible();
 
-  const demoCredentials = page.getByRole("button", { name: "Use demo credentials" });
+  const demoCredentials = page.getByRole("button", { name: "Open demo access" });
   await tabUntilLocator(page, demoCredentials, { maximumTabs: 40 });
   await page.keyboard.press("Enter");
   await expect(page.getByLabel("Email or phone")).toHaveValue("demo@geoai.space");
   await expect(page.getByLabel("Password")).toHaveValue("111111");
 
-  const openDemo = page.getByRole("button", { name: "Open demo" });
+  const openDemo = page.getByRole("button", { name: "Open demo", exact: true });
   await tabUntilLocator(page, openDemo, { maximumTabs: 20 });
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL((url) => url.pathname === nextPath);
