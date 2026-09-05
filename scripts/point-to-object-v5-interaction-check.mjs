@@ -95,7 +95,7 @@ assert.doesNotMatch(marketChange, /setFindResult\(null\)|setFindResultIntent\(nu
 assert.match(marketChange, /findRequestRef\.current\?\.abort\(\)/, "Market changes must cancel an in-flight Find request before preserving the prior result as stale");
 assert.match(findDrawer, /min-h-11 w-full rounded-xl bg-\[#087f8c\]/, "Find CTA must retain a 44px target");
 assert.match(client, /grid-rows-\[clamp\(108px,32svh,360px\)_minmax\(0,1fr\)\]/, "Stacked map and drawer must own a bounded viewport height");
-assert.match(client, /sm:landscape:grid-cols-\[minmax\(0,1fr\)_minmax\(340px,48%\)\]/, "Short landscape and zoom-equivalent reflow must preserve usable map and drawer columns");
+assert.match(client, /sm:max-lg:landscape:grid-cols-\[minmax\(0,1fr\)_minmax\(340px,48%\)\]/, "Narrow landscape reflow must stop below the desktop breakpoint");
 assert.match(client, /mode === "find" \? "overflow-hidden" : "overflow-y-auto"/, "Find must delegate vertical scrolling to its single internal region");
 assert.match(client, /role="tab"[\s\S]*min-h-11/, "Mode tabs must retain 44px targets");
 assert.match(client, /lg:pb-4/);

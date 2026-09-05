@@ -12,6 +12,14 @@ Current released-runtime authority remains `docs/CURRENT_RELEASE_STATE.md`.
 
 ## Executive outcome
 
+### 2026-09-05 corrective scope — desktop drawer width
+
+Founder-reported regression: the narrow-landscape 48% drawer rule also matches wide desktop windows, overriding the existing 430 px desktop drawer. The affected users are all map-first users in Analyse, Find and Create; the map loses working space without a requested product change.
+
+This correction restores the existing desktop split, limits narrow-landscape rules to widths below 1024 px, and preserves the current mobile stacked layout. Acceptance: the drawer is 430 px at desktop widths, the map owns the remaining width, and switching modes does not change those dimensions. Check portrait/landscape and both sides of 640/1024 px breakpoints, including the founder's approximately 1710 × 877 CSS-pixel viewport. Keep Find's scroll/footer and methodology containment checks. Add rendered geometry assertions, because element visibility alone missed this regression.
+
+No data, model, API, map-layer, authorization, source or generation behavior changes. The engineering/design impact is limited to responsive layout and regression coverage. Delivery is to the existing protected Preview branch only; `86a70ef95a50b5910733ecb98ee42bd5f08aed01` is the immediate pre-fix rollback point, not a visually accepted baseline. Validation and deployment results must be recorded after execution, not inferred from a successful build.
+
 Use the current `Analyse / Find / Create` implementation as the canonical development candidate and turn it into one coherent, evidence-backed development-decision workflow:
 
 `Analyse / Find -> shortlist -> compare -> object dashboard -> generate alternatives -> evaluate -> report -> project`.
@@ -194,4 +202,3 @@ Before V6 Preview evidence can be recorded:
 ## Rollback
 
 Revert the bounded V6 commit chain to pre-V6 branch head `d85ef69624bc79c50af788c165c0760dcab01c8f`, then restore its protected Preview if required. Do not reset or rewrite `main`.
-

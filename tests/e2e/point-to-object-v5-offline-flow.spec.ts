@@ -282,6 +282,63 @@ async function expectFindDrawerGeometry(page: Page, checkMapAlignment = false) {
   }
 }
 
+test("map-first layout keeps a compact desktop drawer across all modes and breakpoint boundaries", async ({ page }, testInfo) => {
+  const unexpectedExternal = await installOfflineRoutes(page);
+  await page.goto("/prototype/point-to-object");
+  await expect(page.locator(".maplibregl-canvas")).toBeVisible();
+
+  for (const viewport of [
+    { width: 1710, height: 877, drawerWidth: 430, stacked: false },
+    { width: 1440, height: 720, drawerWidth: 430, stacked: false },
+    { width: 1280, height: 900, drawerWidth: 430, stacked: false },
+    { width: 1024, height: 768, drawerWidth: 430, stacked: false },
+    { width: 1024, height: 1366, drawerWidth: 430, stacked: false },
+    { width: 1023, height: 720, drawerWidth: 491.04, stacked: false },
+    { width: 720, height: 450, drawerWidth: 345.6, stacked: false },
+    { width: 640, height: 450, drawerWidth: 340, stacked: false },
+    { width: 639, height: 450, drawerWidth: 639, stacked: true },
+    { width: 834, height: 1112, drawerWidth: 834, stacked: true },
+    { width: 390, height: 844, drawerWidth: 390, stacked: true }
+  ]) {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    for (const mode of ["Analyse", "Find", "Create"]) {
+      await page.getByRole("tab", { name: mode, exact: true }).click();
+      await expect.poll(async () => {
+        const drawer = await page.locator("main aside").boundingBox();
+        return Math.abs((drawer?.width ?? 0) - viewport.drawerWidth);
+      }, { message: `${mode}: drawer width at ${viewport.width}x${viewport.height}` }).toBeLessThanOrEqual(1);
+      const geometry = await page.locator("main aside").evaluate((aside) => {
+        const map = aside.previousElementSibling;
+        if (!map) throw new Error("Map must precede the drawer.");
+        const drawerRect = aside.getBoundingClientRect();
+        const mapRect = map.getBoundingClientRect();
+        return {
+          drawerLeft: drawerRect.left, drawerTop: drawerRect.top, drawerRight: drawerRect.right,
+          mapLeft: mapRect.left, mapTop: mapRect.top, mapRight: mapRect.right,
+          mapBottom: mapRect.bottom, mapWidth: mapRect.width,
+          pageWidth: document.documentElement.scrollWidth
+        };
+      });
+      expect(geometry.pageWidth).toBeLessThanOrEqual(viewport.width);
+      expect(Math.abs(geometry.drawerRight - viewport.width)).toBeLessThanOrEqual(1);
+      expect(Math.abs(geometry.mapLeft)).toBeLessThanOrEqual(1);
+      if (viewport.stacked) {
+        expect(Math.abs(geometry.mapWidth - viewport.width)).toBeLessThanOrEqual(1);
+        expect(Math.abs(geometry.drawerLeft)).toBeLessThanOrEqual(1);
+        expect(Math.abs(geometry.drawerTop - geometry.mapBottom)).toBeLessThanOrEqual(1);
+      } else {
+        expect(Math.abs(geometry.mapWidth - (viewport.width - viewport.drawerWidth))).toBeLessThanOrEqual(1);
+        expect(Math.abs(geometry.drawerLeft - geometry.mapRight)).toBeLessThanOrEqual(1);
+        expect(Math.abs(geometry.drawerTop - geometry.mapTop)).toBeLessThanOrEqual(1);
+      }
+      if (viewport.width === 1710) {
+        await page.screenshot({ path: testInfo.outputPath(`desktop-drawer-${mode.toLowerCase()}.png`) });
+      }
+    }
+  }
+  expect(unexpectedExternal).toEqual([]);
+});
+
 test("V5.1 keeps exact identity, Find lineage, Create A/B and mobile profile coherent offline", async ({ page }) => {
   contextRequests.length = 0;
   const unexpectedExternal = await installOfflineRoutes(page);

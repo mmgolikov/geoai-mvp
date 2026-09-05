@@ -1,11 +1,17 @@
 # Changelog
 
 Status: Active chronological change authority
-Last verified: 2026-09-04
+Last verified: 2026-09-05
 Owner: GeoAI Release Engineering
 Authority: Chronological released/unreleased change record; runtime truth remains `docs/CURRENT_RELEASE_STATE.md`
 Successor: None; any replacement must update `docs/DOCUMENTATION_INDEX.md`
 Navigation: [Documentation Index](docs/DOCUMENTATION_INDEX.md) · [Current Release State](docs/CURRENT_RELEASE_STATE.md) · [Full System Audit](docs/FULL_SYSTEM_AUDIT_2026_07_16.md) · [Codex Backlog](docs/CODEX_BACKLOG_2026_07_16.md)
+
+## Unreleased — 2026-09-05 compact desktop drawer correction
+
+- Limited the narrow-landscape grid and methodology-width rules to screens below the 1024 px desktop breakpoint. Analyse, Find and Create retain the original 430 px desktop drawer; the map takes the remaining width. Mobile stacking and the existing methodology height/scroll behavior are unchanged.
+- Added rendered map/drawer geometry coverage for all three modes at 11 viewports, including 1710 × 877 and either side of the 640/1024 px breakpoints. Previous visibility/footer checks missed a cascade regression introduced by `4d9fb452e94b3674209a4d280b0801eb89248137`.
+- Scope is the existing protected Preview only. No data, model, API, map layer, generation, authorization, source, `main` or Production behavior is changed. Immediate pre-fix rollback: `86a70ef95a50b5910733ecb98ee42bd5f08aed01`. Exact-head checks and Preview evidence will be recorded externally in Draft PR #147 after execution; this entry does not claim them in advance.
 
 ## Unreleased — POINT_TO_OBJECT_001 V6 product consolidation Preview iteration
 
