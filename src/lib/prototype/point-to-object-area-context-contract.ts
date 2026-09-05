@@ -100,6 +100,25 @@ export const POINT_OBJECT_AREA_UPSTREAM_LIMIT = 300;
 export const POINT_OBJECT_AREA_FEATURE_LIMIT = 80;
 export const POINT_OBJECT_AREA_MAX_SQ_M = 1_000_000;
 export const POINT_OBJECT_AREA_MAX_VERTICES = 25;
+// Overpass maxsize is an execution-memory budget, not an HTTP response-size cap.
+// Keep enough bounded working memory for the union query while the server wrapper
+// independently limits the response body to 512 KiB.
+export const POINT_OBJECT_AREA_UPSTREAM_MEMORY_MAX_BYTES = 32 * 1024 * 1024;
+
+export type PointObjectAreaContextPayloadErrorCode =
+  | "OVERPASS_RUNTIME_TIMEOUT"
+  | "OVERPASS_RUNTIME_FAILURE"
+  | "OVERPASS_RESPONSE_INVALID";
+
+export class PointObjectAreaContextPayloadError extends Error {
+  readonly code: PointObjectAreaContextPayloadErrorCode;
+
+  constructor(code: PointObjectAreaContextPayloadErrorCode, message: string) {
+    super(message);
+    this.name = "PointObjectAreaContextPayloadError";
+    this.code = code;
+  }
+}
 
 type ParsedAreaContextRequest =
   | { ok: true; value: PointObjectAreaContextRequest }
@@ -172,7 +191,7 @@ export function buildPointObjectAreaContextOverpassQuery(request: PointObjectAre
     .join(" ");
   const poly = `(poly:"${polygon}")`;
   return [
-    "[out:json][timeout:6][maxsize:524288];",
+    `[out:json][timeout:6][maxsize:${POINT_OBJECT_AREA_UPSTREAM_MEMORY_MAX_BYTES}];`,
     "(",
     `nwr${poly}["building"];`,
     `nwr${poly}["landuse"~"^(residential|commercial|retail|industrial|construction|brownfield|recreation_ground|forest)$"];`,
@@ -189,6 +208,33 @@ export function buildPointObjectAreaContextOverpassQuery(request: PointObjectAre
     ");",
     `out tags center ${POINT_OBJECT_AREA_UPSTREAM_LIMIT + 1};`
   ].join("\n");
+}
+
+function validatedPayloadElements(payload: unknown): unknown[] {
+  if (!isRecord(payload) || !Array.isArray(payload.elements)) {
+    throw new PointObjectAreaContextPayloadError(
+      "OVERPASS_RESPONSE_INVALID",
+      "The open-map area lookup returned an invalid payload."
+    );
+  }
+  if (Object.hasOwn(payload, "remark")) {
+    const remark = cleanText(payload.remark, 400);
+    if (!remark) {
+      throw new PointObjectAreaContextPayloadError(
+        "OVERPASS_RESPONSE_INVALID",
+        "The open-map area lookup returned an invalid payload."
+      );
+    }
+    throw new PointObjectAreaContextPayloadError(
+      /tim(?:e|ed)[ -]?out|timeout/i.test(remark) ? "OVERPASS_RUNTIME_TIMEOUT" : "OVERPASS_RUNTIME_FAILURE",
+      "The open-map area lookup reported an upstream runtime failure."
+    );
+  }
+  return payload.elements;
+}
+
+export function assertUsablePointObjectAreaContextPayload(payload: unknown): void {
+  validatedPayloadElements(payload);
 }
 
 const TAG_KEYS = new Set([
@@ -292,7 +338,7 @@ export function normalizePointObjectAreaContext(
   const openRing = request.aoiCoordinates[0].slice(0, -1);
   const measurements = calculatePolygonMeasurements(openRing);
   const centroid: PointObjectAreaPosition = [measurements.centroid.longitude, measurements.centroid.latitude];
-  const elements = isRecord(payload) && Array.isArray(payload.elements) ? payload.elements : [];
+  const elements = validatedPayloadElements(payload);
   const byIdentity = new Map<string, PointObjectAreaContextFeature>();
   for (const raw of elements.slice(0, POINT_OBJECT_AREA_UPSTREAM_LIMIT + 1)) {
     if (!isRecord(raw)) continue;
@@ -387,4 +433,3 @@ export function normalizePointObjectAreaContext(
     caveat: POINT_OBJECT_AREA_CONTEXT_CAVEAT
   };
 }
-

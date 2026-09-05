@@ -2722,6 +2722,10 @@ async function assertLiveOverpassContext(): Promise<void> {
   const liveEvidence = await importErasableTypeScript(liveEvidencePath, [
     [/import "server-only";\n/, ""],
     [
+      /import \{ unstable_cache \} from "next\/cache";\n/,
+      "const unstable_cache = (callback) => callback;\n"
+    ],
+    [
       /import \{ LIVE_POINT_CAVEAT \} from "@\/src\/lib\/point-to-object\/contracts";\n/,
       `const LIVE_POINT_CAVEAT = ${JSON.stringify(LIVE_POINT_CAVEAT)};\n`
     ],
@@ -2757,11 +2761,14 @@ async function assertLiveOverpassContext(): Promise<void> {
     point: [number, number]
   ) => JsonObject;
   const calculateGeometryMetrics = liveEvidence.geometryMetrics as (geometry: unknown) => JsonObject | null;
+  const overpassExecutionMemoryMaxBytes = liveEvidence.POINT_OBJECT_OVERPASS_EXECUTION_MEMORY_MAX_BYTES as number;
 
   const point: [number, number] = [55.271928, 25.20811];
   const query = buildQuery(point);
-  assert.match(query, /\[out:json\]\[timeout:4\]\[maxsize:524288\]/,
-    "Nearby live context must enforce an upstream execution and response-size budget.");
+  assert.equal(overpassExecutionMemoryMaxBytes, 32 * 1024 * 1024,
+    "Overpass execution memory must remain explicitly bounded and independent from the 512 KiB HTTP response cap.");
+  assert.match(query, /\[out:json\]\[timeout:4\]\[maxsize:33554432\]/,
+    "Nearby live context must enforce its bounded upstream execution-memory budget.");
   assert.match(query, /\(around:800,25\.208110,55\.271928\)/,
     "Nearby live context must use the normalized server-side point and a bounded 800 m radius.");
   assert.match(query, /out center 120;/,
@@ -2769,6 +2776,8 @@ async function assertLiveOverpassContext(): Promise<void> {
   assert.equal(query.includes("owner"), false, "Nearby context must not request ownership data.");
 
   const fabricQuery = buildFabricQuery(point);
+  assert.match(fabricQuery, /\[out:json\]\[timeout:4\]\[maxsize:33554432\]/,
+    "Urban-fabric context must use the separate bounded upstream execution-memory budget.");
   assert.match(fabricQuery, /\(around:400,25\.208110,55\.271928\)/,
     "Urban-fabric aggregation must use a separately bounded 400 m radius.");
   assert.match(fabricQuery, /out tags center 320;/,
@@ -2797,6 +2806,11 @@ async function assertLiveOverpassContext(): Promise<void> {
     "Mapped transit and major-road proximity must be derived as straight-line context metrics.");
   assert.equal((fabric.groups as JsonObject[]).some((group) => group.group === "residential" && group.count === 3), true,
     "The aggregate must expose a compact mapped activity/use mix.");
+  assert.throws(
+    () => normalizeFabric({ elements: [], remark: "runtime error: Query ran out of memory." }, point),
+    /runtime failure/,
+    "An HTTP 200 Overpass runtime failure must not become available zero-sample urban coverage."
+  );
 
   const squareMetrics = calculateGeometryMetrics({
     type: "Polygon",
@@ -2847,6 +2861,11 @@ async function assertLiveOverpassContext(): Promise<void> {
     "Every nearby record must expose a bounded straight-line distance.");
   assert.equal(items.every((item) => item.method === "overpass_around_query_element_center_haversine"), true,
     "Every nearby distance must disclose its exact non-routing method.");
+  assert.throws(
+    () => normalize({ elements: [], remark: "runtime error: Query timed out." }, point, "node/99", "en"),
+    /runtime failure/,
+    "An HTTP 200 Overpass runtime failure must not become available empty nearby context."
+  );
 
   let injectedQuery = "";
   const resolved = await resolve(point, "node/99", "en-AE", async (candidateQuery) => {
@@ -2862,6 +2881,11 @@ async function assertLiveOverpassContext(): Promise<void> {
     await resolve(point, "node/99", "en", async () => { throw new Error("upstream unavailable"); }),
     { status: "unavailable", items: [], responseHash: null, observedAt: null },
     "Nearby enrichment must degrade to an explicit empty result without failing primary object resolution."
+  );
+  assert.deepEqual(
+    await resolve(point, "node/99", "en", async () => ({ elements: [], remark: "runtime error: Query ran out of memory." })),
+    { status: "unavailable", items: [], responseHash: null, observedAt: null },
+    "An Overpass runtime remark must preserve explicit unavailable enrichment semantics."
   );
 }
 

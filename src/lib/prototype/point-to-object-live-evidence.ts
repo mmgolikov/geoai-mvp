@@ -1,5 +1,7 @@
 import "server-only";
 
+import { unstable_cache } from "next/cache";
+
 import { LIVE_POINT_CAVEAT } from "@/src/lib/point-to-object/contracts";
 import { semanticHash } from "@/src/lib/point-to-object/hash";
 import type {
@@ -32,6 +34,7 @@ const NOMINATIM_MIN_INTERVAL_MS = 1_000;
 const MAX_GEOMETRY_POSITIONS = 25_000;
 const OVERPASS_TIMEOUT_MS = 4_500;
 const OVERPASS_RESPONSE_MAX_BYTES = 512 * 1024;
+export const POINT_OBJECT_OVERPASS_EXECUTION_MEMORY_MAX_BYTES = 32 * 1024 * 1024;
 const OVERPASS_REVALIDATE_SECONDS = 6 * 60 * 60;
 const OVERPASS_MIN_INTERVAL_MS = 1_200;
 const OVERPASS_RADIUS_M = 800;
@@ -619,7 +622,7 @@ export function buildOverpassNearbyQuery(point: [number, number]): string {
   if (longitude === null || latitude === null) throw new Error("Invalid WGS84 point.");
   const around = `(around:${OVERPASS_RADIUS_M},${latitude.toFixed(6)},${longitude.toFixed(6)})`;
   return [
-    `[out:json][timeout:4][maxsize:${OVERPASS_RESPONSE_MAX_BYTES}];`,
+    `[out:json][timeout:4][maxsize:${POINT_OBJECT_OVERPASS_EXECUTION_MEMORY_MAX_BYTES}];`,
     "(",
     `nwr${around}["amenity"~"^(school|kindergarten|college|university|hospital|clinic|doctors|pharmacy|marketplace|parking|library|community_centre|arts_centre|theatre|cinema)$"];`,
     `nwr${around}["shop"~"^(supermarket|convenience|mall)$"];`,
@@ -642,7 +645,7 @@ export function buildOverpassUrbanFabricQuery(point: [number, number]): string {
   if (longitude === null || latitude === null) throw new Error("Invalid WGS84 point.");
   const around = `(around:${URBAN_FABRIC_RADIUS_M},${latitude.toFixed(6)},${longitude.toFixed(6)})`;
   return [
-    `[out:json][timeout:4][maxsize:${OVERPASS_RESPONSE_MAX_BYTES}];`,
+    `[out:json][timeout:4][maxsize:${POINT_OBJECT_OVERPASS_EXECUTION_MEMORY_MAX_BYTES}];`,
     "(",
     `nwr${around}["building"];`,
     `nwr${around}["landuse"~"^(residential|commercial|retail|industrial|construction|brownfield|recreation_ground|forest)$"];`,
@@ -685,7 +688,19 @@ async function readOverpassText(response: Response): Promise<string> {
   return text + decoder.decode();
 }
 
-async function fetchOverpassJson(query: string): Promise<unknown> {
+function assertUsableOverpassPayload(payload: unknown): asserts payload is Record<string, unknown> & { elements: unknown[] } {
+  if (!isRecord(payload) || !Array.isArray(payload.elements) || Object.hasOwn(payload, "remark")) {
+    throw new Error("Overpass returned an invalid or runtime-failed payload.");
+  }
+}
+
+function assertNoOverpassRuntimeRemark(payload: unknown): void {
+  if (isRecord(payload) && Object.hasOwn(payload, "remark")) {
+    throw new Error("Overpass reported a runtime failure.");
+  }
+}
+
+async function fetchOverpassJsonUncached(query: string): Promise<unknown> {
   await waitForOverpassSlot();
   const url = configuredOverpassEndpoint();
   url.searchParams.set("data", query);
@@ -698,13 +713,22 @@ async function fetchOverpassJson(query: string): Promise<unknown> {
       Referer: APPLICATION_REFERER,
       "User-Agent": configuredUserAgent()
     },
-    cache: "force-cache",
-    next: { revalidate: OVERPASS_REVALIDATE_SECONDS }
+    // Cache only after validating the JSON body. Overpass reports some runtime
+    // failures as HTTP 200 with `remark` plus an empty element array.
+    cache: "no-store"
   });
   if (!response.ok) throw new Error(`Overpass returned HTTP ${response.status}.`);
   const text = await readOverpassText(response);
-  return JSON.parse(text);
+  const payload: unknown = JSON.parse(text);
+  assertUsableOverpassPayload(payload);
+  return payload;
 }
+
+const fetchOverpassJson = unstable_cache(
+  fetchOverpassJsonUncached,
+  ["point-object-live-overpass-v2"],
+  { revalidate: OVERPASS_REVALIDATE_SECONDS }
+);
 
 function normalizePosition(value: unknown, counter: { count: number }): [number, number] | null {
   if (!Array.isArray(value) || value.length < 2 || value.length > 3) return null;
@@ -1060,6 +1084,7 @@ export function normalizeOverpassUrbanFabric(
   payload: unknown,
   point: [number, number]
 ): LiveGeoContextProfile {
+  assertNoOverpassRuntimeRemark(payload);
   if (!isRecord(payload) || !Array.isArray(payload.elements)) {
     return {
       radiusM: URBAN_FABRIC_RADIUS_M,
@@ -1174,6 +1199,7 @@ export function normalizeOverpassNearbyContext(
   selectedSourceFeatureId: string,
   locale = "en"
 ): LiveNearbyContextItem[] {
+  assertNoOverpassRuntimeRemark(payload);
   if (!isRecord(payload) || !Array.isArray(payload.elements)) return [];
   const bySourceIdentity = new Map<string, NearbyCandidate>();
   for (const raw of payload.elements.slice(0, MAX_OVERPASS_ELEMENTS_TO_PARSE)) {

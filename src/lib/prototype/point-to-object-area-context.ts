@@ -1,8 +1,12 @@
 import "server-only";
 
+import { unstable_cache } from "next/cache";
+
 import {
+  assertUsablePointObjectAreaContextPayload,
   buildPointObjectAreaContextOverpassQuery,
   normalizePointObjectAreaContext,
+  PointObjectAreaContextPayloadError,
   type PointObjectAreaContextRequest,
   type PointObjectAreaContextResult
 } from "./point-to-object-area-context-contract";
@@ -16,13 +20,18 @@ const USER_AGENT = "GeoAI-PointToObject-Preview/1.0 (+https://github.com/mmgolik
 const REFERER = "https://github.com/mmgolikov/geoai-mvp";
 
 export class PointObjectAreaContextError extends Error {
+  readonly httpStatus: 429 | 502 | 504;
+  readonly retryable: boolean;
+
   constructor(
-    public readonly httpStatus: 429 | 502 | 504,
+    httpStatus: 429 | 502 | 504,
     message: string,
-    public readonly retryable: boolean
+    retryable: boolean
   ) {
     super(message);
     this.name = "PointObjectAreaContextError";
+    this.httpStatus = httpStatus;
+    this.retryable = retryable;
   }
 }
 
@@ -78,8 +87,9 @@ async function fetchAreaContext(query: string): Promise<unknown> {
       redirect: "error",
       signal: AbortSignal.timeout(OVERPASS_TIMEOUT_MS),
       headers: { Accept: "application/json", Referer: REFERER, "User-Agent": USER_AGENT },
-      cache: "force-cache",
-      next: { revalidate: OVERPASS_REVALIDATE_SECONDS }
+      // Cache only after payload validation. Overpass can report a runtime error
+      // in an HTTP 200 JSON body, which must never become a cached empty result.
+      cache: "no-store"
     });
   } catch (error) {
     if (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")) {
@@ -92,18 +102,45 @@ async function fetchAreaContext(query: string): Promise<unknown> {
     throw new PointObjectAreaContextError(502, "The open-map area lookup did not return a usable response.", response.status >= 500);
   }
   try {
-    return JSON.parse(await readBoundedText(response)) as unknown;
+    const payload = JSON.parse(await readBoundedText(response)) as unknown;
+    // Validate before the enclosing Next data cache can store the payload.
+    assertUsablePointObjectAreaContextPayload(payload);
+    return payload;
   } catch (error) {
     if (error instanceof PointObjectAreaContextError) throw error;
+    if (error instanceof PointObjectAreaContextPayloadError) throw mapPayloadError(error);
     throw new PointObjectAreaContextError(502, "The open-map area lookup returned invalid data.", true);
   }
 }
 
-export async function resolvePointObjectAreaContext(
-  request: PointObjectAreaContextRequest,
-  loader: (query: string) => Promise<unknown> = fetchAreaContext
-): Promise<PointObjectAreaContextResult> {
-  const payload = await loader(buildPointObjectAreaContextOverpassQuery(request));
-  return normalizePointObjectAreaContext(payload, request);
+function mapPayloadError(error: PointObjectAreaContextPayloadError): PointObjectAreaContextError {
+  return error.code === "OVERPASS_RUNTIME_TIMEOUT"
+    ? new PointObjectAreaContextError(504, "The open-map area lookup timed out.", true)
+    : new PointObjectAreaContextError(
+      502,
+      error.code === "OVERPASS_RUNTIME_FAILURE"
+        ? "The open-map area lookup is temporarily unavailable."
+        : "The open-map area lookup returned invalid data.",
+      true
+    );
 }
 
+const fetchCachedAreaContext = unstable_cache(
+  fetchAreaContext,
+  ["point-object-area-context-overpass-v2"],
+  { revalidate: OVERPASS_REVALIDATE_SECONDS }
+);
+
+export async function resolvePointObjectAreaContext(
+  request: PointObjectAreaContextRequest,
+  loader: (query: string) => Promise<unknown> = fetchCachedAreaContext
+): Promise<PointObjectAreaContextResult> {
+  try {
+    const payload = await loader(buildPointObjectAreaContextOverpassQuery(request));
+    return normalizePointObjectAreaContext(payload, request);
+  } catch (error) {
+    if (error instanceof PointObjectAreaContextError) throw error;
+    if (error instanceof PointObjectAreaContextPayloadError) throw mapPayloadError(error);
+    throw error;
+  }
+}
