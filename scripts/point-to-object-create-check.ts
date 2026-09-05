@@ -49,6 +49,10 @@ function geometrySignature(result: ReturnType<typeof generateConceptMassing>) {
   })));
 }
 
+function footprintFormSignature(result: ReturnType<typeof generateConceptMassing>) {
+  return result.featureCollection.features.map((feature) => feature.properties.footprintForm ?? "rectangle").join("|");
+}
+
 function featureAreaSqM(feature: ReturnType<typeof generateConceptMassing>["featureCollection"]["features"][number]) {
   return calculatePolygonMeasurements(feature.geometry.coordinates[0].slice(0, -1) as [number, number][]).areaSqM;
 }
@@ -64,6 +68,105 @@ function featureAspectRatio(feature: ReturnType<typeof generateConceptMassing>["
     );
   });
   return Math.max(...lengths) / Math.min(...lengths);
+}
+
+function featureMinimumEdgeM(feature: ReturnType<typeof generateConceptMassing>["featureCollection"]["features"][number]) {
+  const ring = feature.geometry.coordinates[0];
+  return Math.min(...ring.slice(0, -1).map((point, index) => {
+    const next = ring[index + 1];
+    const latitude = (point[1] + next[1]) / 2 * Math.PI / 180;
+    return Math.hypot(
+      (next[0] - point[0]) * 111_320 * Math.cos(latitude),
+      (next[1] - point[1]) * 110_540
+    );
+  }));
+}
+
+function featureMinimumCaliperM(feature: ReturnType<typeof generateConceptMassing>["featureCollection"]["features"][number]) {
+  const ring = feature.geometry.coordinates[0].slice(0, -1);
+  const origin = ring[0];
+  const latitude = origin[1] * Math.PI / 180;
+  const points = ring.map((point) => ({
+    x: (point[0] - origin[0]) * 111_320 * Math.cos(latitude),
+    y: (point[1] - origin[1]) * 110_540
+  }));
+  let minimumWidthM = Number.POSITIVE_INFINITY;
+  for (let index = 0; index < points.length; index += 1) {
+    const start = points[index];
+    const end = points[(index + 1) % points.length];
+    const deltaX = end.x - start.x;
+    const deltaY = end.y - start.y;
+    const length = Math.hypot(deltaX, deltaY);
+    if (length <= Number.EPSILON) continue;
+    const normalX = -deltaY / length;
+    const normalY = deltaX / length;
+    const projections = points.map((point) => point.x * normalX + point.y * normalY);
+    minimumWidthM = Math.min(minimumWidthM, Math.max(...projections) - Math.min(...projections));
+  }
+  return minimumWidthM;
+}
+
+function carveRectangularTowerFixture(
+  feature: ReturnType<typeof generateConceptMassing>["featureCollection"]["features"][number],
+  form: "l_shape" | "u_shape"
+) {
+  const [bottomLeft, bottomRight, , topLeft] = feature.geometry.coordinates[0];
+  const normalized = form === "l_shape"
+    ? [[0, 0], [1, 0], [1, 0.6], [0.6, 0.6], [0.6, 1], [0, 1]]
+    : [[0, 0], [1, 0], [1, 1], [0.68, 1], [0.68, 0.55], [0.32, 0.55], [0.32, 1], [0, 1]];
+  const footprint = normalized.map(([horizontal, vertical]): [number, number] => [
+    bottomLeft[0] + (bottomRight[0] - bottomLeft[0]) * horizontal +
+      (topLeft[0] - bottomLeft[0]) * vertical,
+    bottomLeft[1] + (bottomRight[1] - bottomLeft[1]) * horizontal +
+      (topLeft[1] - bottomLeft[1]) * vertical
+  ]);
+  feature.properties.footprintForm = form;
+  feature.geometry.coordinates[0] = [...footprint, footprint[0]];
+}
+
+function recomputeFloorArea(result: ReturnType<typeof generateConceptMassing>) {
+  result.estimatedFloorAreaSqM = Number(result.featureCollection.features.reduce((sum, feature) =>
+    sum + featureAreaSqM(feature) *
+      (feature.properties.heightM - feature.properties.baseM) / 3.4, 0).toFixed(1));
+}
+
+function featureCenter(feature: ReturnType<typeof generateConceptMassing>["featureCollection"]["features"][number]) {
+  const ring = feature.geometry.coordinates[0].slice(0, -1);
+  const origin = ring[0];
+  let twiceArea = 0;
+  let longitudeNumerator = 0;
+  let latitudeNumerator = 0;
+  for (let index = 0; index < ring.length; index += 1) {
+    const current = [ring[index][0] - origin[0], ring[index][1] - origin[1]];
+    const nextPoint = ring[(index + 1) % ring.length];
+    const next = [nextPoint[0] - origin[0], nextPoint[1] - origin[1]];
+    const cross = current[0] * next[1] - next[0] * current[1];
+    twiceArea += cross;
+    longitudeNumerator += (current[0] + next[0]) * cross;
+    latitudeNumerator += (current[1] + next[1]) * cross;
+  }
+  return [
+    origin[0] + longitudeNumerator / (3 * twiceArea),
+    origin[1] + latitudeNumerator / (3 * twiceArea)
+  ] as [number, number];
+}
+
+function normalizedPrimaryCentroidSpan(
+  polygon: [number, number][][],
+  result: ReturnType<typeof generateConceptMassing>
+) {
+  const ring = polygon[0].slice(0, -1);
+  const minLongitude = Math.min(...ring.map((point) => point[0]));
+  const maxLongitude = Math.max(...ring.map((point) => point[0]));
+  const minLatitude = Math.min(...ring.map((point) => point[1]));
+  const maxLatitude = Math.max(...ring.map((point) => point[1]));
+  const centers = result.featureCollection.features
+    .filter((feature) => feature.properties.primaryBlock)
+    .map(featureCenter);
+  return (Math.max(...centers.map((point) => point[0])) - Math.min(...centers.map((point) => point[0]))) /
+      Math.max(Number.EPSILON, maxLongitude - minLongitude) +
+    (Math.max(...centers.map((point) => point[1])) - Math.min(...centers.map((point) => point[1]))) /
+      Math.max(Number.EPSILON, maxLatitude - minLatitude);
 }
 
 function assertTowerPodiumContract(
@@ -321,7 +424,21 @@ function generateTimedCycle03Alternatives(
   assert.notEqual(geometrySignature(generated[0].massing), geometrySignature(generated[1].massing));
   for (const alternative of generated) {
     assertTowerPodiumContract(polygon, cycle03Program, alternative.massing, expectedPodiumCount);
+    const shapedTowers = alternative.massing.featureCollection.features.filter((feature) =>
+      feature.properties.volumeRole === "tower" && feature.properties.footprintForm !== "rectangle");
+    assert.ok(shapedTowers.length >= 1, `${id} must retain at least one accepted non-rectangular tower footprint.`);
+    assert.ok(shapedTowers.every((feature) => feature.geometry.coordinates[0].length - 1 > 4),
+      "A declared non-rectangular tower must have more than four meaningful exterior vertices.");
+    assert.ok(shapedTowers.every((feature) => featureMinimumEdgeM(feature) >= 2.45),
+      "Generated articulation must respect the bounded non-rectangular edge floor without slivers.");
+    const articulatedTowers = shapedTowers.filter((feature) =>
+      feature.properties.footprintForm === "l_shape" || feature.properties.footprintForm === "u_shape");
+    assert.ok(articulatedTowers.every((feature) => featureMinimumEdgeM(feature) >=
+      (feature.properties.levels >= 40 ? 7.45 : 6.45)),
+    "Every accepted L/U tower must meet its level-dependent local arm/neck visual floor.");
   }
+  assert.notEqual(footprintFormSignature(generated[0].massing), footprintFormSignature(generated[1].massing),
+    `${id} alternatives must use genuinely different deterministic footprint grammars.`);
   return { polygon, generated };
 }
 
@@ -331,8 +448,70 @@ const rotatedPodium = rotatedCycle03.generated[0].massing.featureCollection.feat
 assert.ok(rotatedPodium);
 assert.ok(featureAspectRatio(rotatedPodium) > 2.5,
   "The elongated rotated AOI must use an adaptive podium aspect ratio instead of the old fixed 1.45 ratio.");
+
+const rotatedA = rotatedCycle03.generated.find((alternative) => alternative.id === "A")?.massing;
+const rotatedB = rotatedCycle03.generated.find((alternative) => alternative.id === "B")?.massing;
+assert.ok(rotatedA && rotatedB);
+const rotatedATowers = rotatedA.featureCollection.features
+  .filter((feature) => feature.properties.volumeRole === "tower");
+const rotatedBTowers = rotatedB.featureCollection.features
+  .filter((feature) => feature.properties.volumeRole === "tower");
+const highRiseLFallback = rotatedATowers[8];
+const highRiseUFallback = rotatedBTowers[8];
+assert.ok(highRiseLFallback.properties.levels >= 40 && highRiseUFallback.properties.levels >= 40,
+  "The negative local-width fixtures must remain high-rise towers.");
+assert.equal(highRiseLFallback.properties.footprintForm, "rectangle",
+  "A high-rise L candidate with a thin local arm must fall back to its valid rectangle.");
+assert.equal(highRiseUFallback.properties.footprintForm, "rectangle",
+  "A high-rise U candidate with thin local legs must fall back to its valid rectangle.");
+
+const thinHighRiseL = structuredClone(rotatedA);
+const thinHighRiseLFeature = thinHighRiseL.featureCollection.features
+  .filter((feature) => feature.properties.volumeRole === "tower")[8];
+carveRectangularTowerFixture(thinHighRiseLFeature, "l_shape");
+recomputeFloorArea(thinHighRiseL);
+const thinHighRiseLMetrics = {
+  areaSqM: featureAreaSqM(thinHighRiseLFeature),
+  globalCaliperM: featureMinimumCaliperM(thinHighRiseLFeature),
+  localArmM: featureMinimumEdgeM(thinHighRiseLFeature)
+};
+assert.ok(thinHighRiseLMetrics.areaSqM >= 90 && thinHighRiseLMetrics.globalCaliperM >= 7.45,
+  "The L counterexample must pass the prior high-rise area and whole-envelope caliper checks.");
+assert.ok(thinHighRiseLMetrics.localArmM < 7.5,
+  "The L counterexample must expose a local arm below the high-rise visual floor.");
+assert.ok(validateConceptMassingGeometry(rotatedCycle03.polygon, cycle03Program, thinHighRiseL)
+  .some((error) => /geometry-quality floor/.test(error)),
+"Validation must reject an L high-rise whose local arm fails even when area and global caliper pass.");
+
+const thinHighRiseU = structuredClone(rotatedB);
+const thinHighRiseUFeature = thinHighRiseU.featureCollection.features
+  .filter((feature) => feature.properties.volumeRole === "tower")[8];
+carveRectangularTowerFixture(thinHighRiseUFeature, "u_shape");
+recomputeFloorArea(thinHighRiseU);
+const thinHighRiseUMetrics = {
+  areaSqM: featureAreaSqM(thinHighRiseUFeature),
+  globalCaliperM: featureMinimumCaliperM(thinHighRiseUFeature),
+  localArmM: featureMinimumEdgeM(thinHighRiseUFeature)
+};
+assert.ok(thinHighRiseUMetrics.areaSqM >= 90 && thinHighRiseUMetrics.globalCaliperM >= 7.45,
+  "The U counterexample must pass the prior high-rise area and whole-envelope caliper checks.");
+assert.ok(thinHighRiseUMetrics.localArmM < 7.5,
+  "The U counterexample must expose local legs below the high-rise visual floor.");
+assert.ok(validateConceptMassingGeometry(rotatedCycle03.polygon, cycle03Program, thinHighRiseU)
+  .some((error) => /geometry-quality floor/.test(error)),
+"Validation must reject a U high-rise whose local legs fail even when area and global caliper pass.");
+console.log("cycle04 rejected high-rise local-width fixtures", {
+  lShape: thinHighRiseLMetrics,
+  uShape: thinHighRiseUMetrics
+});
+
 const lCycle03 = generateTimedCycle03Alternatives("concaveL", 2);
 const uCycle03 = generateTimedCycle03Alternatives("concaveU", 3);
+assert.ok([...lCycle03.generated, ...uCycle03.generated].some((alternative) =>
+  alternative.massing.featureCollection.features.some((feature) =>
+    feature.properties.volumeRole === "tower" &&
+    (feature.properties.footprintForm === "l_shape" || feature.properties.footprintForm === "u_shape"))),
+"The local-width guard must retain genuinely articulated towers where the complex-site envelopes are large enough.");
 
 const clockwiseL = [[...lCycle03.polygon[0]].reverse()] as [number, number][][];
 const clockwiseStarted = performance.now();
@@ -468,6 +647,14 @@ if (!civicValidation.ok) throw new Error(civicValidation.errors.join("; "));
 const campus = generateConceptMassing(aoi, civicValidation.value, "geoai-campus");
 assertGeometryContract(aoi, civicValidation.value, campus);
 assert.ok(campus.featureCollection.features.every((feature) => feature.properties.volumeRole === "campus_block"));
+const shapedCampusFeatures = campus.featureCollection.features
+  .filter((feature) => feature.properties.footprintForm !== "rectangle");
+assert.ok(shapedCampusFeatures.length >= 3,
+  "A spacious campus control must exercise the bounded L/U/chamfered footprint grammar, not only rectangles.");
+assert.ok(shapedCampusFeatures.every((feature) => feature.geometry.coordinates[0].length - 1 > 4));
+assert.ok(shapedCampusFeatures.every((feature) => featureMinimumEdgeM(feature) >= 2.45));
+assert.equal(campus.achievedSiteCoveragePct, civicValidation.value.targetSiteCoveragePct,
+  "Campus coverage must be calculated from and match the actual carved footprint geometry.");
 assert.ok(campus.featureCollection.features.some((feature) => {
   const [firstPoint, secondPoint] = feature.geometry.coordinates[0];
   return Math.abs(firstPoint[0] - secondPoint[0]) > 1e-8 && Math.abs(firstPoint[1] - secondPoint[1]) > 1e-8;
@@ -475,6 +662,20 @@ assert.ok(campus.featureCollection.features.some((feature) => {
 const campusAlternatives = generateConceptMassingAlternatives(aoi, civicValidation.value, "geoai-campus-alternatives");
 assert.equal(campusAlternatives.length, 2);
 assert.notEqual(geometrySignature(campusAlternatives[0].massing), geometrySignature(campusAlternatives[1].massing));
+for (const squareCampusAoi of [aoi, [[...aoi[0]].reverse()] as [number, number][][]]) {
+  const squareCampusAlternatives = generateConceptMassingAlternatives(
+    squareCampusAoi,
+    civicValidation.value,
+    "cycle04-independent:shaped-campus-square"
+  );
+  assert.equal(squareCampusAlternatives.length, 2);
+  for (const alternative of squareCampusAlternatives) {
+    assertGeometryContract(squareCampusAoi, civicValidation.value, alternative.massing);
+    assert.ok(alternative.massing.featureCollection.features.filter((feature) =>
+      feature.properties.footprintForm !== "rectangle").length >= 3,
+    "Both roomy-square alternatives must retain real articulation for the independent audit seed and either AOI winding.");
+  }
+}
 const overlapCounterexample = structuredClone(campus);
 overlapCounterexample.featureCollection.features[1].geometry.coordinates = structuredClone(
   overlapCounterexample.featureCollection.features[0].geometry.coordinates
@@ -509,6 +710,73 @@ const uShapedAoi = [[
   [55.2780, 25.2200],
   [55.2780, 25.2160]
 ]] as [number, number][][];
+
+const cycle04CampusTimings: Record<string, number> = {};
+const cycle04CampusSpanScores: Record<string, number> = {};
+const cycle04ConcaveStarted = performance.now();
+const cycle04ConcaveAlternatives = generateConceptMassingAlternatives(
+  concaveAoi,
+  civicValidation.value,
+  "cycle04:concave-l-campus"
+);
+cycle04CampusTimings.concaveL = Number((performance.now() - cycle04ConcaveStarted).toFixed(1));
+assert.ok(cycle04CampusTimings.concaveL < 2_500);
+assert.equal(cycle04ConcaveAlternatives.length, 2);
+assert.notEqual(
+  footprintFormSignature(cycle04ConcaveAlternatives[0].massing),
+  footprintFormSignature(cycle04ConcaveAlternatives[1].massing),
+  "Concave-site alternatives must use distinct deterministic footprint grammars."
+);
+for (const alternative of cycle04ConcaveAlternatives) {
+  assertGeometryContract(concaveAoi, civicValidation.value, alternative.massing);
+  const spanScore = normalizedPrimaryCentroidSpan(concaveAoi, alternative.massing);
+  cycle04CampusSpanScores[`concaveL-${alternative.id}`] = Number(spanScore.toFixed(3));
+  assert.ok(spanScore > 1.3,
+    "The L-site ensemble must achieve a quantified, two-axis distributed centroid span.");
+  const centers = alternative.massing.featureCollection.features
+    .filter((feature) => feature.properties.primaryBlock)
+    .map(featureCenter);
+  assert.ok(centers.some(([longitude, latitude]) => longitude > 55.2797 && latitude < 25.2172),
+    "The L-site ensemble must occupy the horizontal arm beyond the shared corner.");
+  assert.ok(centers.some(([longitude, latitude]) => longitude < 55.2797 && latitude > 25.2172),
+    "The L-site ensemble must occupy the vertical arm beyond the shared corner.");
+}
+
+const cycle04UStarted = performance.now();
+const cycle04UAlternatives = generateConceptMassingAlternatives(
+  uShapedAoi,
+  civicValidation.value,
+  "cycle04:concave-u-campus"
+);
+cycle04CampusTimings.concaveU = Number((performance.now() - cycle04UStarted).toFixed(1));
+assert.ok(cycle04CampusTimings.concaveU < 2_500);
+assert.equal(cycle04UAlternatives.length, 2);
+for (const alternative of cycle04UAlternatives) {
+  assertGeometryContract(uShapedAoi, civicValidation.value, alternative.massing);
+  const spanScore = normalizedPrimaryCentroidSpan(uShapedAoi, alternative.massing);
+  cycle04CampusSpanScores[`concaveU-${alternative.id}`] = Number(spanScore.toFixed(3));
+  assert.ok(spanScore > 1.3,
+    "The U-site ensemble must achieve a quantified, two-axis distributed centroid span.");
+  const centers = alternative.massing.featureCollection.features
+    .filter((feature) => feature.properties.primaryBlock)
+    .map(featureCenter);
+  assert.ok(centers.some(([, latitude]) => latitude < 25.2172),
+    "The U-site ensemble must retain a block in the connecting base.");
+  assert.ok(centers.some(([longitude, latitude]) => longitude < 55.2790 && latitude > 25.2172),
+    "The U-site ensemble must occupy the upper left lobe.");
+  assert.ok(centers.some(([longitude, latitude]) => longitude > 55.2810 && latitude > 25.2172),
+    "The U-site ensemble must occupy the upper right lobe.");
+}
+assert.deepEqual(
+  generateConceptMassingAlternatives(concaveAoi, civicValidation.value, "cycle04:concave-l-campus"),
+  cycle04ConcaveAlternatives,
+  "Site-responsive non-rectangular alternatives must remain deterministic."
+);
+console.log("cycle04 campus geometry metrics", {
+  timingsMs: cycle04CampusTimings,
+  normalizedCentroidSpan: cycle04CampusSpanScores
+});
+
 const uProgramValidation = validateRedevelopmentProgram({
   ...civicProgram,
   blockCount: 1,
@@ -530,6 +798,107 @@ edgeCrossingCounterexample.featureCollection.features[0].geometry.coordinates = 
 assert.ok(validateConceptMassingGeometry(uShapedAoi, uProgramValidation.value, edgeCrossingCounterexample)
   .some((error) => /AOI setback/.test(error)),
 "Containment validation must reject a polygon whose corners are inside separate arms but whose edges bridge a concave void.");
+
+const compactCenter = [55.28, 25.218] as const;
+const compactWidthLng = 20 / (111_320 * Math.cos(compactCenter[1] * Math.PI / 180));
+const compactHeightLat = 20 / 110_540;
+const compactFallbackAoi = [[
+  [compactCenter[0], compactCenter[1]],
+  [compactCenter[0] + compactWidthLng, compactCenter[1]],
+  [compactCenter[0] + compactWidthLng, compactCenter[1] + compactHeightLat],
+  [compactCenter[0], compactCenter[1] + compactHeightLat],
+  [compactCenter[0], compactCenter[1]]
+]] as [number, number][][];
+const compactFallbackValidation = validateRedevelopmentProgram({
+  ...civicProgram,
+  blockCount: 1,
+  levelsMin: 4,
+  levelsMax: 4,
+  targetSiteCoveragePct: 8,
+  setbackM: 2
+});
+if (!compactFallbackValidation.ok) throw new Error(compactFallbackValidation.errors.join("; "));
+const compactFallback = generateConceptMassing(
+  compactFallbackAoi,
+  compactFallbackValidation.value,
+  "cycle04:compact-safe-fallback",
+  "A"
+);
+assertGeometryContract(compactFallbackAoi, compactFallbackValidation.value, compactFallback);
+assert.ok(compactFallback.featureCollection.features.every((feature) =>
+  feature.properties.footprintForm === "rectangle" && feature.geometry.coordinates[0].length - 1 === 4),
+"A non-rectangular family that would create sub-floor articulation must fall back to the prior valid rectangle.");
+
+const selfIntersectionMutation = structuredClone(campus);
+const selfIntersectionFeature = selfIntersectionMutation.featureCollection.features[0];
+const selfIntersectionSource = selfIntersectionFeature.geometry.coordinates[0].slice(0, -1);
+const selfIntersectionLongitudes = selfIntersectionSource.map((point) => point[0]);
+const selfIntersectionLatitudes = selfIntersectionSource.map((point) => point[1]);
+const selfIntersectionMinLng = Math.min(...selfIntersectionLongitudes);
+const selfIntersectionMaxLng = Math.max(...selfIntersectionLongitudes);
+const selfIntersectionMinLat = Math.min(...selfIntersectionLatitudes);
+const selfIntersectionMaxLat = Math.max(...selfIntersectionLatitudes);
+selfIntersectionFeature.properties.footprintForm = "rectangle";
+selfIntersectionFeature.geometry.coordinates[0] = [
+  [selfIntersectionMinLng, selfIntersectionMinLat],
+  [selfIntersectionMaxLng, selfIntersectionMaxLat],
+  [selfIntersectionMinLng, selfIntersectionMaxLat],
+  [selfIntersectionMaxLng, selfIntersectionMinLat],
+  [selfIntersectionMinLng, selfIntersectionMinLat]
+];
+assert.ok(validateConceptMassingGeometry(aoi, civicValidation.value, selfIntersectionMutation)
+  .some((error) => /self-intersecting/.test(error)),
+"Geometry validation must reject a bow-tie footprint independently of area and containment metrics.");
+
+const clockwiseFootprintMutation = structuredClone(campus);
+const clockwiseFootprintFeature = clockwiseFootprintMutation.featureCollection.features[0];
+const clockwiseFootprintOpenRing = clockwiseFootprintFeature.geometry.coordinates[0].slice(0, -1).reverse();
+clockwiseFootprintFeature.geometry.coordinates[0] = [...clockwiseFootprintOpenRing, clockwiseFootprintOpenRing[0]];
+assert.ok(validateConceptMassingGeometry(aoi, civicValidation.value, clockwiseFootprintMutation)
+  .some((error) => /counter-clockwise/.test(error)),
+"Geometry validation must reject reversed exterior-ring winding while opposite AOI winding remains supported.");
+
+const sliverMutation = structuredClone(campus);
+const sliverFeature = sliverMutation.featureCollection.features
+  .find((feature) => feature.properties.footprintForm !== "rectangle");
+assert.ok(sliverFeature);
+const sliverStart = sliverFeature.geometry.coordinates[0][0];
+sliverFeature.geometry.coordinates[0][1] = [sliverStart[0] + 1e-9, sliverStart[1]];
+assert.ok(validateConceptMassingGeometry(aoi, civicValidation.value, sliverMutation)
+  .some((error) => /sliver/.test(error)),
+"Geometry validation must reject a non-rectangular edge below the explicit articulation floor.");
+
+const falseArticulationMutation = structuredClone(compactFallback);
+falseArticulationMutation.featureCollection.features[0].properties.footprintForm = "l_shape";
+assert.ok(validateConceptMassingGeometry(compactFallbackAoi, compactFallbackValidation.value, falseArticulationMutation)
+  .some((error) => /declared l_shape footprint topology/.test(error)),
+"A rectangular ring must not be relabelled as a complex footprint without real geometry.");
+
+const mislabelledChamferMutation = structuredClone(campus);
+const mislabelledChamferFeature = mislabelledChamferMutation.featureCollection.features
+  .find((feature) => feature.properties.footprintForm === "l_shape");
+assert.ok(mislabelledChamferFeature);
+mislabelledChamferFeature.properties.footprintForm = "chamfered";
+assert.ok(validateConceptMassingGeometry(aoi, civicValidation.value, mislabelledChamferMutation)
+  .some((error) => /declared chamfered footprint topology/.test(error)),
+"A concave six-vertex L must not bypass local-shape policy by claiming the convex chamfered grammar.");
+
+const missingFormOnArticulation = structuredClone(campus);
+const missingFormFeature = missingFormOnArticulation.featureCollection.features
+  .find((feature) => feature.properties.footprintForm === "l_shape");
+assert.ok(missingFormFeature);
+delete missingFormFeature.properties.footprintForm;
+assert.ok(validateConceptMassingGeometry(aoi, civicValidation.value, missingFormOnArticulation)
+  .some((error) => /declared rectangle footprint topology/.test(error)),
+"Missing legacy form metadata must not default an articulated ring into a rectangular policy class.");
+
+const legacyRectangleWithoutForm = structuredClone(compactFallback);
+delete legacyRectangleWithoutForm.featureCollection.features[0].properties.footprintForm;
+assert.deepEqual(
+  validateConceptMassingGeometry(compactFallbackAoi, compactFallbackValidation.value, legacyRectangleWithoutForm),
+  [],
+  "A convex four-vertex legacy rectangle without footprint-form metadata must remain readable."
+);
 
 const narrowAoi = [[
   [55.2780, 25.2160],

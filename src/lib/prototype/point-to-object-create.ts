@@ -8,6 +8,7 @@ export type ConceptMassingStyle = "perimeter" | "courtyard" | "towers_on_podium"
 export type ConceptUse = "residential" | "office" | "retail" | "hospitality" | "civic" | "open_space";
 export type ConceptAlternativeId = "A" | "B";
 export type ConceptVolumeRole = "perimeter_wing" | "courtyard_wing" | "podium" | "tower" | "campus_block";
+export type ConceptFootprintForm = "rectangle" | "chamfered" | "l_shape" | "u_shape";
 
 export type RedevelopmentProgramInput = {
   templateId: ConceptTemplateId;
@@ -44,6 +45,8 @@ export type ConceptMassingProperties = {
   baseM: number;
   /** Tower support lineage; may be omitted only for legacy single-podium tower results. */
   supportingPodiumId?: string | null;
+  /** Explicit generator grammar; omitted only when reading legacy rectangular results. */
+  footprintForm?: ConceptFootprintForm;
   label: string;
 };
 
@@ -450,6 +453,7 @@ type OrientedRectangle = {
 };
 type PlannedVolume = {
   footprint: MetricPoint[];
+  footprintForm?: ConceptFootprintForm;
   role: ConceptVolumeRole;
   primaryBlock: boolean;
   levels: number;
@@ -467,6 +471,10 @@ const MIN_TOWER_SHORT_SIDE_M = 6.5;
 const HIGH_RISE_LEVEL_THRESHOLD = 40;
 const MIN_HIGH_RISE_FOOTPRINT_AREA_SQM = 90;
 const MIN_HIGH_RISE_SHORT_SIDE_M = 7.5;
+// Visual-massing guard only: fixed-ratio articulated families still need enough real edge
+// length to avoid cosmetic notches or sliver arms. This is not a code/planning minimum.
+const MIN_NON_RECT_EDGE_M = 2.5;
+const CONCEPT_FOOTPRINT_FORMS = new Set<ConceptFootprintForm>(["rectangle", "chamfered", "l_shape", "u_shape"]);
 
 function openRing<T extends MetricPoint | Point>(ring: T[]): T[] {
   const first = ring[0];
@@ -489,13 +497,18 @@ function metricBounds(points: MetricPoint[]): MetricBounds {
 
 function metricPolygonArea(points: MetricPoint[]): number {
   const ring = openRing(points);
+  return Math.abs(metricSignedPolygonArea(ring));
+}
+
+function metricSignedPolygonArea(points: MetricPoint[]): number {
+  const ring = openRing(points);
   let area = 0;
   for (let index = 0; index < ring.length; index += 1) {
     const current = ring[index];
     const next = ring[(index + 1) % ring.length];
     area += current.x * next.y - next.x * current.y;
   }
-  return Math.abs(area) / 2;
+  return area / 2;
 }
 
 function towerGeometryQualityFloor(levels: number): { areaSqM: number; shortSideM: number } {
@@ -504,7 +517,11 @@ function towerGeometryQualityFloor(levels: number): { areaSqM: number; shortSide
     : { areaSqM: MIN_TOWER_FOOTPRINT_AREA_SQM, shortSideM: MIN_TOWER_SHORT_SIDE_M };
 }
 
-function towerFootprintMeetsQuality(footprint: MetricPoint[], levels: number): boolean {
+function towerFootprintMeetsQuality(
+  footprint: MetricPoint[],
+  levels: number,
+  footprintForm: ConceptFootprintForm = "rectangle"
+): boolean {
   const floor = towerGeometryQualityFloor(levels);
   const ring = openRing(footprint);
   let minimumWidthM = Number.POSITIVE_INFINITY;
@@ -521,8 +538,15 @@ function towerFootprintMeetsQuality(footprint: MetricPoint[], levels: number): b
     minimumWidthM = Math.min(minimumWidthM, Math.max(...projections) - Math.min(...projections));
   }
   if (!Number.isFinite(minimumWidthM)) minimumWidthM = 0;
+  // In the fixed L/U grammar, every arm thickness and notch/neck opening is represented
+  // by a boundary segment. Requiring the shortest segment to meet the same level-dependent
+  // visual floor closes the concave-shape gap that a whole-envelope caliper cannot detect.
+  const localArticulationWidthM = footprintForm === "l_shape" || footprintForm === "u_shape"
+    ? minimumFootprintEdge(footprint)
+    : Number.POSITIVE_INFINITY;
   return metricPolygonArea(footprint) + GEOMETRY_EPSILON_M >= floor.areaSqM &&
-    minimumWidthM + GEOMETRY_EPSILON_M >= floor.shortSideM;
+    minimumWidthM + GEOMETRY_EPSILON_M >= floor.shortSideM &&
+    localArticulationWidthM + GEOMETRY_EPSILON_M >= floor.shortSideM;
 }
 
 function pointDistance(left: MetricPoint, right: MetricPoint): number {
@@ -605,6 +629,80 @@ function polygonEdges(pointsInput: MetricPoint[]): Array<[MetricPoint, MetricPoi
     edges.push([points[index], points[(index + 1) % points.length]]);
   }
   return edges;
+}
+
+function footprintHasRepeatedVertex(pointsInput: MetricPoint[]): boolean {
+  const points = openRing(pointsInput);
+  return points.some((point, index) => points.slice(index + 1)
+    .some((other) => pointDistance(point, other) <= GEOMETRY_EPSILON_M));
+}
+
+function footprintHasSelfIntersection(pointsInput: MetricPoint[]): boolean {
+  const edges = polygonEdges(pointsInput);
+  for (let leftIndex = 0; leftIndex < edges.length; leftIndex += 1) {
+    for (let rightIndex = leftIndex + 1; rightIndex < edges.length; rightIndex += 1) {
+      const adjacent = rightIndex === leftIndex + 1 ||
+        (leftIndex === 0 && rightIndex === edges.length - 1);
+      if (adjacent) continue;
+      const [leftStart, leftEnd] = edges[leftIndex];
+      const [rightStart, rightEnd] = edges[rightIndex];
+      if (segmentsIntersect(leftStart, leftEnd, rightStart, rightEnd)) return true;
+    }
+  }
+  return false;
+}
+
+function minimumFootprintEdge(pointsInput: MetricPoint[]): number {
+  return Math.min(...polygonEdges(pointsInput).map(([start, end]) => pointDistance(start, end)));
+}
+
+function counterClockwiseFootprint(pointsInput: MetricPoint[]): MetricPoint[] {
+  const points = openRing(pointsInput);
+  return metricSignedPolygonArea(points) >= 0 ? points : [...points].reverse();
+}
+
+function simpleFootprintIsValid(pointsInput: MetricPoint[], minimumEdgeM = GEOMETRY_EPSILON_M): boolean {
+  const points = openRing(pointsInput);
+  return points.length >= 4 &&
+    !footprintHasRepeatedVertex(points) &&
+    !footprintHasSelfIntersection(points) &&
+    minimumFootprintEdge(points) + GEOMETRY_EPSILON_M >= minimumEdgeM &&
+    metricPolygonArea(points) > 1;
+}
+
+function footprintTurnTopology(pointsInput: MetricPoint[]): { reflex: number; collinear: number } {
+  const points = openRing(pointsInput);
+  const winding = metricSignedPolygonArea(points) >= 0 ? 1 : -1;
+  let reflex = 0;
+  let collinear = 0;
+  for (let index = 0; index < points.length; index += 1) {
+    const previous = points[(index + points.length - 1) % points.length];
+    const current = points[index];
+    const next = points[(index + 1) % points.length];
+    const cross = (current.x - previous.x) * (next.y - current.y) -
+      (current.y - previous.y) * (next.x - current.x);
+    if (Math.abs(cross) <= GEOMETRY_EPSILON_M) collinear += 1;
+    else if (cross * winding < 0) reflex += 1;
+  }
+  return { reflex, collinear };
+}
+
+function footprintMatchesDeclaredFormTopology(
+  pointsInput: MetricPoint[],
+  form: ConceptFootprintForm
+): boolean {
+  const points = openRing(pointsInput);
+  const topology = footprintTurnTopology(points);
+  const expected = form === "rectangle"
+    ? { vertices: 4, reflex: 0 }
+    : form === "chamfered"
+      ? { vertices: 6, reflex: 0 }
+      : form === "l_shape"
+        ? { vertices: 6, reflex: 1 }
+        : { vertices: 8, reflex: 2 };
+  return points.length === expected.vertices &&
+    topology.reflex === expected.reflex &&
+    topology.collinear === 0;
 }
 
 function polygonsOverlap(left: MetricPoint[], right: MetricPoint[]): boolean {
@@ -742,6 +840,29 @@ function centroidOfPoints(pointsInput: MetricPoint[]): MetricPoint {
   return points.reduce<MetricPoint>((sum, point) => ({ x: sum.x + point.x / points.length, y: sum.y + point.y / points.length }), { x: 0, y: 0 });
 }
 
+function centroidOfPolygon(pointsInput: MetricPoint[]): MetricPoint {
+  const points = openRing(pointsInput);
+  const origin = points[0];
+  if (!origin) return { x: 0, y: 0 };
+  let twiceArea = 0;
+  let xNumerator = 0;
+  let yNumerator = 0;
+  for (let index = 0; index < points.length; index += 1) {
+    const current = { x: points[index].x - origin.x, y: points[index].y - origin.y };
+    const nextPoint = points[(index + 1) % points.length];
+    const next = { x: nextPoint.x - origin.x, y: nextPoint.y - origin.y };
+    const cross = current.x * next.y - next.x * current.y;
+    twiceArea += cross;
+    xNumerator += (current.x + next.x) * cross;
+    yNumerator += (current.y + next.y) * cross;
+  }
+  if (Math.abs(twiceArea) <= GEOMETRY_EPSILON_M) return centroidOfPoints(points);
+  return {
+    x: origin.x + xNumerator / (3 * twiceArea),
+    y: origin.y + yNumerator / (3 * twiceArea)
+  };
+}
+
 function findLargestEnvelope(
   rings: MetricPoint[][],
   aspectRatio: number,
@@ -806,6 +927,63 @@ function seededFraction(seed: string, index: number): number {
   return stableHash(`${seed}:${index}`) / 0xffffffff;
 }
 
+const normalizedFootprintGrammar: Record<ConceptFootprintForm, MetricPoint[]> = {
+  rectangle: [
+    { x: -0.5, y: -0.5 }, { x: 0.5, y: -0.5 },
+    { x: 0.5, y: 0.5 }, { x: -0.5, y: 0.5 }
+  ],
+  chamfered: [
+    { x: -0.25, y: -0.5 }, { x: 0.25, y: -0.5 },
+    { x: 0.5, y: -0.25 }, { x: 0.5, y: 0.5 },
+    { x: -0.5, y: 0.5 }, { x: -0.5, y: -0.25 }
+  ],
+  l_shape: [
+    { x: -0.5, y: -0.5 }, { x: 0.5, y: -0.5 },
+    { x: 0.5, y: 0.1 }, { x: 0.1, y: 0.1 },
+    { x: 0.1, y: 0.5 }, { x: -0.5, y: 0.5 }
+  ],
+  u_shape: [
+    { x: -0.5, y: -0.5 }, { x: 0.5, y: -0.5 },
+    { x: 0.5, y: 0.5 }, { x: 0.18, y: 0.5 },
+    { x: 0.18, y: 0.05 }, { x: -0.18, y: 0.05 },
+    { x: -0.18, y: 0.5 }, { x: -0.5, y: 0.5 }
+  ]
+};
+
+function footprintFormFillRatio(form: ConceptFootprintForm): number {
+  return metricPolygonArea(normalizedFootprintGrammar[form]);
+}
+
+function preferredFootprintForm(variantId: ConceptAlternativeId, index: number): ConceptFootprintForm {
+  const sequence: ConceptFootprintForm[] = variantId === "A"
+    ? ["l_shape", "chamfered", "rectangle", "u_shape"]
+    : ["u_shape", "rectangle", "chamfered", "l_shape"];
+  return sequence[index % sequence.length];
+}
+
+function applyFootprintGrammar(
+  rectangle: OrientedRectangle,
+  form: ConceptFootprintForm,
+  variantId: ConceptAlternativeId,
+  seed: string,
+  index: number
+): { footprint: MetricPoint[]; footprintForm: ConceptFootprintForm } {
+  if (form === "rectangle") return { footprint: rectangle.points, footprintForm: "rectangle" };
+  const mirrorX = (variantId === "B") !== (index % 2 === 1);
+  const mirrorY = seededFraction(`${seed}:footprint-mirror`, index) >= 0.5;
+  const footprint = counterClockwiseFootprint(normalizedFootprintGrammar[form].map((point) => localToWorld(
+    rectangle.center,
+    rectangle.angle,
+    {
+      x: point.x * rectangle.width * (mirrorX ? -1 : 1),
+      y: point.y * rectangle.height * (mirrorY ? -1 : 1)
+    }
+  )));
+  return simpleFootprintIsValid(footprint, MIN_NON_RECT_EDGE_M)
+    ? { footprint, footprintForm: form }
+    : { footprint: rectangle.points, footprintForm: "rectangle" };
+}
+
 function normalizedUseSequence(program: ValidatedRedevelopmentProgram): Array<Exclude<ConceptUse, "open_space">> {
   const activeUses = program.useMix.filter((item): item is { use: Exclude<ConceptUse, "open_space">; sharePct: number } => item.use !== "open_space");
   if (!activeUses.length) return ["civic"];
@@ -862,6 +1040,7 @@ function featureFromVolume(
       ...(volume.supportingPodiumIndex === undefined ? {} : {
         supportingPodiumId: `concept-${variantId.toLowerCase()}-${volume.supportingPodiumIndex + 1}`
       }),
+      footprintForm: volume.footprintForm ?? "rectangle",
       label: `${program.title} · ${volume.role.replaceAll("_", " ")} ${index + 1}`
     },
     geometry: { type: "Polygon", coordinates: [closedRing] }
@@ -989,6 +1168,7 @@ type DistributedRectangleOptions = {
   aspectRatios?: number[];
   areaFactors?: number[];
   gridDivisions?: number;
+  separationWeight?: number;
   scaleSteps?: number[];
   targetFractions?: Array<[number, number]>;
 };
@@ -1049,7 +1229,7 @@ function placeDistributedRectangles(
           ? Math.min(...placed.map((other) => pointDistance(rectangle.center, other.center)))
           : 0;
         const tieBreak = seededFraction(`${seed}:candidate:${index}`, Math.round(candidate.x * 10) + Math.round(candidate.y * 10)) * 0.01;
-        const score = pointDistance(candidate, target) - separation * 0.22 + tieBreak;
+        const score = pointDistance(candidate, target) - separation * (options.separationWeight ?? 0.22) + tieBreak;
         if (!choice || score < choice.score) choice = { rectangle, score };
       }
       if (!choice) break;
@@ -1083,6 +1263,115 @@ function planPerimeterOrCourtyard(
   }));
 }
 
+function footprintDistributionScore(footprints: MetricPoint[][], siteRing: MetricPoint[]): number {
+  if (footprints.length < 2) return 0;
+  const bounds = metricBounds(siteRing);
+  const width = Math.max(1, bounds.maxX - bounds.minX);
+  const height = Math.max(1, bounds.maxY - bounds.minY);
+  const centers = footprints.map(centroidOfPolygon);
+  const horizontalSpan = (Math.max(...centers.map((point) => point.x)) -
+    Math.min(...centers.map((point) => point.x))) / width;
+  const verticalSpan = (Math.max(...centers.map((point) => point.y)) -
+    Math.min(...centers.map((point) => point.y))) / height;
+  let pairwise = 0;
+  let pairs = 0;
+  for (let leftIndex = 0; leftIndex < centers.length; leftIndex += 1) {
+    for (let rightIndex = leftIndex + 1; rightIndex < centers.length; rightIndex += 1) {
+      pairwise += Math.hypot(
+        (centers[leftIndex].x - centers[rightIndex].x) / width,
+        (centers[leftIndex].y - centers[rightIndex].y) / height
+      );
+      pairs += 1;
+    }
+  }
+  return horizontalSpan + verticalSpan + pairwise / Math.max(1, pairs) * 0.25;
+}
+
+function planShapedCampus(
+  rings: MetricPoint[][],
+  program: ValidatedRedevelopmentProgram,
+  variantId: ConceptAlternativeId,
+  seed: string,
+  desiredArea: number,
+  openSpaceGap: number
+): PlannedVolume[] | null {
+  const forms = Array.from({ length: program.blockCount }, (_, index) => preferredFootprintForm(variantId, index));
+  if (!forms.some((form) => form !== "rectangle")) return null;
+  const rawFinalAreaFactors = forms.map((_, index) => 0.88 + (index % 3) * 0.12);
+  const factorScale = desiredArea / rawFinalAreaFactors.reduce((sum, factor) => sum + factor, 0);
+  const targetFinalAreas = rawFinalAreaFactors.map((factor) => factor * factorScale);
+  const envelopeAreas = targetFinalAreas.map((area, index) => area / footprintFormFillRatio(forms[index]));
+  const desiredEnvelopeArea = envelopeAreas.reduce((sum, area) => sum + area, 0);
+  const angles = variantId === "A" ? [-18, 12, 0, 24, -10] : [28, -12, 15, -26, 0];
+  const gapProfiles = [
+    Math.max(4, program.setbackM * 0.45, openSpaceGap),
+    Math.max(3, program.setbackM * 0.35, openSpaceGap * 0.65)
+  ];
+  // B's primary targets deliberately differ from A, but on a bounded roomy square the first
+  // sequence can dead-end solely because of greedy ordering. Reusing A's target sequence as a
+  // second B-only search order changes neither coverage nor clearance constraints; B retains
+  // its own footprint grammar, angles and seed.
+  const targetProfiles = variantId === "B" && program.blockCount >= 3
+    ? [targetFractions("B"), targetFractions("A")]
+    : [targetFractions(variantId)];
+  const orientedCandidates: PlannedVolume[][] = [];
+  const axisAlignedFallbackCandidates: PlannedVolume[][] = [];
+  for (const gapM of gapProfiles) {
+    for (const angleProfile of [angles, [0]]) {
+      for (let targetProfileIndex = 0; targetProfileIndex < targetProfiles.length; targetProfileIndex += 1) {
+        const envelopes = placeDistributedRectangles(
+          rings,
+          program,
+          variantId,
+          desiredEnvelopeArea,
+          `${seed}:shaped:${gapM}:${angleProfile.join(",")}` +
+            (targetProfileIndex === 0 ? "" : `:targets:${targetProfileIndex}`),
+          program.setbackM,
+          gapM,
+          angleProfile,
+          {
+            areaFactors: envelopeAreas,
+            gridDivisions: 28,
+            scaleSteps: [10],
+            separationWeight: 0.38,
+            targetFractions: targetProfiles[targetProfileIndex]
+          }
+        );
+        if (!envelopes) continue;
+        const shaped = envelopes.map((envelope, index) => applyFootprintGrammar(
+          envelope,
+          forms[index],
+          variantId,
+          seed,
+          index
+        ));
+        if (shaped.some((item, index) => item.footprintForm !== forms[index])) continue;
+        if (!shaped.every((item) => polygonInsideAoi(item.footprint, rings, program.setbackM))) continue;
+        if (shaped.some((item, index) => shaped.slice(index + 1)
+          .some((other) => polygonGap(item.footprint, other.footprint) < gapM))) continue;
+        const actualArea = shaped.reduce((sum, item) => sum + metricPolygonArea(item.footprint), 0);
+        if (Math.abs(actualArea - desiredArea) / Math.max(1, desiredArea) > 0.002) continue;
+        const candidate: PlannedVolume[] = shaped.map((item, index) => ({
+          footprint: item.footprint,
+          footprintForm: item.footprintForm,
+          role: "campus_block",
+          primaryBlock: true,
+          levels: levelForPrimary(program, seed, index, shaped.length),
+          baseLevels: 0,
+          use: useForPrimary(program, index)
+        }));
+        if (angleProfile.length === 1 && angleProfile[0] === 0) axisAlignedFallbackCandidates.push(candidate);
+        else orientedCandidates.push(candidate);
+      }
+    }
+  }
+  const candidates = orientedCandidates.length ? orientedCandidates : axisAlignedFallbackCandidates;
+  return candidates.sort((left, right) =>
+    footprintDistributionScore(right.map((item) => item.footprint), rings[0]) -
+    footprintDistributionScore(left.map((item) => item.footprint), rings[0])
+  )[0] ?? null;
+}
+
 function planCampus(
   rings: MetricPoint[][],
   program: ValidatedRedevelopmentProgram,
@@ -1092,6 +1381,8 @@ function planCampus(
 ): PlannedVolume[] {
   const angles = variantId === "A" ? [-18, 12, 0, 24, -10] : [28, -12, 15, -26, 0];
   const openSpaceGap = Math.sqrt(desiredArea / Math.max(1, program.blockCount)) * program.openSpacePct / 100 * 0.35;
+  const shaped = planShapedCampus(rings, program, variantId, seed, desiredArea, openSpaceGap);
+  if (shaped) return shaped;
   const candidates = [
     placeDistributedRectangles(
       rings,
@@ -1131,6 +1422,7 @@ function planCampus(
   if (!pieces) throw new ConceptMassingError("programme_does_not_fit", "The requested campus blocks do not fit inside this AOI and setback.");
   return pieces.map((piece, index) => ({
     footprint: piece.points,
+    footprintForm: "rectangle",
     role: "campus_block",
     primaryBlock: true,
     levels: levelForPrimary(program, seed, index, pieces.length),
@@ -1246,6 +1538,7 @@ function planTowersForPodiums(
   }
   const podiumVolumes: PlannedVolume[] = podiums.map((podium) => ({
     footprint: podium.points,
+    footprintForm: "rectangle",
     role: "podium",
     primaryBlock: false,
     levels: podiumLevels,
@@ -1256,11 +1549,19 @@ function planTowersForPodiums(
   const towerVolumes: PlannedVolume[] = [];
   for (let podiumIndex = 0; podiumIndex < placedGroups.length; podiumIndex += 1) {
     for (const tower of placedGroups[podiumIndex]) {
+      const levels = levelForPrimary(program, seed, towerIndex, program.blockCount);
+      const preferredForm = preferredFootprintForm(variantId, towerIndex);
+      const shaped = applyFootprintGrammar(tower, preferredForm, variantId, seed, towerIndex);
+      const accepted = shaped.footprintForm !== "rectangle" &&
+          towerFootprintMeetsQuality(shaped.footprint, levels, shaped.footprintForm)
+        ? shaped
+        : { footprint: tower.points, footprintForm: "rectangle" as const };
       towerVolumes.push({
-        footprint: tower.points,
+        footprint: accepted.footprint,
+        footprintForm: accepted.footprintForm,
         role: "tower",
         primaryBlock: true,
-        levels: levelForPrimary(program, seed, towerIndex, program.blockCount),
+        levels,
         baseLevels: podiumLevels,
         use: useForPrimary(program, towerIndex),
         supportingPodiumIndex: podiumIndex
@@ -1420,13 +1721,32 @@ export function validateConceptMassingGeometry(
       errors.push(`Concept feature ${properties.id} has an invalid polygon ring.`);
     }
     const footprint = geoJsonRingToMetric(ring, projection.forward);
+    const footprintForm = properties.footprintForm ?? "rectangle";
+    if (!CONCEPT_FOOTPRINT_FORMS.has(footprintForm)) {
+      errors.push(`Concept feature ${properties.id} has an unsupported footprint form.`);
+    }
+    if (footprintHasRepeatedVertex(footprint)) {
+      errors.push(`Concept feature ${properties.id} repeats a footprint vertex.`);
+    }
+    if (footprintHasSelfIntersection(footprint)) {
+      errors.push(`Concept feature ${properties.id} has a self-intersecting footprint.`);
+    }
+    if (metricSignedPolygonArea(footprint) <= GEOMETRY_EPSILON_M) {
+      errors.push(`Concept feature ${properties.id} must use counter-clockwise exterior-ring winding.`);
+    }
+    if (!footprintMatchesDeclaredFormTopology(footprint, footprintForm)) {
+      errors.push(`Concept feature ${properties.id} does not match its declared ${footprintForm} footprint topology.`);
+    }
+    if (footprintForm !== "rectangle" && minimumFootprintEdge(footprint) + GEOMETRY_EPSILON_M < MIN_NON_RECT_EDGE_M) {
+      errors.push(`Concept feature ${properties.id} contains a non-rectangular sliver below the bounded edge floor.`);
+    }
     if (metricPolygonArea(footprint) <= 1) errors.push(`Concept feature ${properties.id} has a degenerate footprint.`);
-    if (properties.volumeRole === "tower" && !towerFootprintMeetsQuality(footprint, properties.levels)) {
+    if (properties.volumeRole === "tower" && !towerFootprintMeetsQuality(footprint, properties.levels, footprintForm)) {
       const floor = towerGeometryQualityFloor(properties.levels);
       errors.push(`Tower ${properties.id} is below the bounded conceptual geometry-quality floor ` +
-        `(${floor.areaSqM} sq m footprint and ${floor.shortSideM} m minimum width).`);
+        `(${floor.areaSqM} sq m footprint and ${floor.shortSideM} m minimum global/local width).`);
     }
-    if (!polygonInsideAoi(footprint, rings, Math.max(0, program.setbackM - 0.25))) {
+    if (!polygonInsideAoi(footprint, rings, Math.max(0, program.setbackM - GEOMETRY_EPSILON_M))) {
       errors.push(`Concept feature ${properties.id} does not respect the AOI setback.`);
     }
     return { feature, footprint };
@@ -1664,6 +1984,7 @@ function reflectValidatedAlternativeAcrossAoiCenter(
         x: 2 * center.x - point.x,
         y: 2 * center.y - point.y
       })),
+      footprintForm: feature.properties.footprintForm ?? "rectangle",
       role: feature.properties.volumeRole,
       primaryBlock: feature.properties.primaryBlock,
       levels: feature.properties.levels,
