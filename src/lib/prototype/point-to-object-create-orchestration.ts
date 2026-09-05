@@ -1,6 +1,7 @@
 import {
   createProgramSeed,
   inferPromptMassingStyle,
+  normalizePointObjectCreateCustomPrompt,
   POINT_OBJECT_CREATE_CONTROL_KEYS,
   type PointObjectCreateControlKey,
   type PointObjectCreateNumericControls
@@ -32,7 +33,7 @@ export type PointObjectCreatePreflightResult =
   | {
       kind: "not_applicable";
       requestedMassingStyle: ConceptMassingStyle | null;
-      reason: "numeric_programme_not_fully_fixed";
+      reason: "custom_programme_requires_resolution" | "numeric_programme_not_fully_fixed";
     }
   | {
       kind: "ready";
@@ -94,6 +95,13 @@ export function preflightPointObjectCreate(input: {
   lockedControlKeys: readonly PointObjectCreateControlKey[];
 }): PointObjectCreatePreflightResult {
   const inferredStyle = inferPromptMassingStyle(input.customPrompt);
+  if (normalizePointObjectCreateCustomPrompt(input.customPrompt) !== null) {
+    return {
+      kind: "not_applicable",
+      requestedMassingStyle: inferredStyle,
+      reason: "custom_programme_requires_resolution"
+    };
+  }
   if (!hasEveryFixedControl(input.lockedControlKeys)) {
     return {
       kind: "not_applicable",

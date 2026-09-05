@@ -78,7 +78,7 @@ const ready = preflightPointObjectCreate({
   aoiHash: "cycle03:square100:towers",
   locale: "en",
   templateId: "commercial_hub",
-  customPrompt: "Create towers on a podium.",
+  customPrompt: null,
   controls: fixedTowerControls,
   lockedControlKeys: allFixedKeys
 });
@@ -98,22 +98,78 @@ const partial = preflightPointObjectCreate({
   aoiHash: "cycle03:partial-unconstrained",
   locale: "en",
   templateId: "commercial_hub",
-  customPrompt: "Create towers on a podium.",
+  customPrompt: null,
   controls: fixedTowerControls,
   lockedControlKeys: allFixedKeys.slice(0, -1)
 });
 assert.deepEqual(partial, {
   kind: "not_applicable",
-  requestedMassingStyle: "towers_on_podium",
+  requestedMassingStyle: null,
   reason: "numeric_programme_not_fully_fixed"
 }, "A genuinely variable programme must not be pre-rejected by fixed-programme geometry.");
+
+const negativeStylePrompt = preflightPointObjectCreate({
+  aoiCoordinates: squareAoi,
+  aoiHash: "cycle03:negative-style",
+  locale: "en",
+  templateId: "commercial_hub",
+  customPrompt: "No towers; use low-rise freestanding buildings.",
+  controls: fixedTowerControls,
+  lockedControlKeys: allFixedKeys
+});
+assert.deepEqual(negativeStylePrompt, {
+  kind: "not_applicable",
+  requestedMassingStyle: null,
+  reason: "custom_programme_requires_resolution"
+}, "A negative style instruction must not fall back to the template's tower style.");
+
+const noRetailPrompt = preflightPointObjectCreate({
+  aoiCoordinates: squareAoi,
+  aoiHash: "cycle03:no-retail",
+  locale: "en",
+  templateId: "commercial_hub",
+  customPrompt: "No retail.",
+  controls: fixedTowerControls,
+  lockedControlKeys: allFixedKeys
+});
+assert.deepEqual(noRetailPrompt, {
+  kind: "not_applicable",
+  requestedMassingStyle: null,
+  reason: "custom_programme_requires_resolution"
+}, "A custom use-mix instruction must be resolved without locking template retail.");
+
+const positiveStylePrompt = preflightPointObjectCreate({
+  aoiCoordinates: squareAoi,
+  aoiHash: "cycle03:positive-style",
+  locale: "en",
+  templateId: "commercial_hub",
+  customPrompt: "Use a courtyard composition.",
+  controls: fixedTowerControls,
+  lockedControlKeys: allFixedKeys
+});
+assert.deepEqual(positiveStylePrompt, {
+  kind: "not_applicable",
+  requestedMassingStyle: "courtyard",
+  reason: "custom_programme_requires_resolution"
+}, "A single safe positive style may remain an explicit model constraint without running template geometry first.");
+
+const whitespacePrompt = preflightPointObjectCreate({
+  aoiCoordinates: squareAoi,
+  aoiHash: "cycle03:whitespace-template",
+  locale: "en",
+  templateId: "commercial_hub",
+  customPrompt: " \n\t ",
+  controls: fixedTowerControls,
+  lockedControlKeys: allFixedKeys
+});
+assert.equal(whitespacePrompt.kind, "ready", "Whitespace-only input must retain bounded blank-template preflight.");
 
 const elongated = preflightPointObjectCreate({
   aoiCoordinates: rotatedLongAoi,
   aoiHash: "rotatedLong:towers",
   locale: "en",
   templateId: "commercial_hub",
-  customPrompt: "Create towers on a podium.",
+  customPrompt: null,
   controls: fixedTowerControls,
   lockedControlKeys: allFixedKeys
 });
@@ -131,7 +187,7 @@ const suggestion = preflightPointObjectCreate({
   aoiHash: "cycle03:square100:coverage60:setback20",
   locale: "en",
   templateId: "commercial_hub",
-  customPrompt: "Create towers on a podium.",
+  customPrompt: null,
   controls: constrainedSquareControls,
   lockedControlKeys: allFixedKeys
 });
@@ -154,7 +210,7 @@ const exhausted = preflightPointObjectCreate({
   aoiHash: "cycle03:genuine-nonfit:towers",
   locale: "en",
   templateId: "commercial_hub",
-  customPrompt: "Create towers on a podium.",
+  customPrompt: null,
   controls: fixedTowerControls,
   lockedControlKeys: allFixedKeys
 });
@@ -190,6 +246,19 @@ assert.deepEqual(boundProgram.useMix, ready.program.useMix, "Fixed-programme str
 for (const key of POINT_OBJECT_CREATE_CONTROL_KEYS) assert.equal(boundProgram[key], fixedTowerControls[key]);
 assert.equal(boundProgram.massingStyle, "towers_on_podium");
 
+const customResolvedProgram = {
+  ...conceptTemplate("civic_green", "en"),
+  blockCount: fixedTowerControls.blockCount,
+  levelsMin: fixedTowerControls.levelsMin,
+  levelsMax: fixedTowerControls.levelsMax,
+  targetSiteCoveragePct: fixedTowerControls.targetSiteCoveragePct,
+  openSpacePct: fixedTowerControls.openSpacePct,
+  setbackM: fixedTowerControls.setbackM,
+  schemaVersion: 1 as const
+};
+assert.deepEqual(bindPointObjectCreateProgramToPreflight(customResolvedProgram, negativeStylePrompt), customResolvedProgram,
+  "A custom programme must never be replaced by the template programme during binding.");
+
 const profile = resolvePointObjectCreateModelProfile("standard", null);
 assert.ok(profile);
 const request = buildPointObjectCreateResponsesRequest({
@@ -209,6 +278,39 @@ const requestPayload = request.input[1].content[0].text;
 assert.match(requestPayload, /"requestedMassingStyle":"towers_on_podium"/);
 assert.match(requestPayload, /"requestedUseMix":\[\{"use":"office","sharePct":56\}/);
 assert.match(request.input[0].content[0].text, /preserve its ordered use\/share pairs exactly/);
+
+const negativeStyleRequest = buildPointObjectCreateResponsesRequest({
+  locale: "en",
+  templateId: "commercial_hub",
+  customPrompt: "No towers; use low-rise freestanding buildings.",
+  aoiAreaSqM: ready.alternatives[0].massing.aoiAreaSqM,
+  aoiWidthM: 100,
+  aoiHeightM: 100,
+  areaContext: null,
+  requestedParameters: fixedTowerControls,
+  requestedMassingStyle: null,
+  requestedUseMix: null
+}, profile);
+const negativeStylePayload = negativeStyleRequest.input[1].content[0].text;
+assert.match(negativeStylePayload, /"customIntent":"No towers; use low-rise freestanding buildings\."/);
+assert.match(negativeStylePayload, /"requestedMassingStyle":null/);
+assert.match(negativeStylePayload, /"requestedUseMix":null/);
+assert.equal("enum" in negativeStyleRequest.text.format.schema.properties.massingStyle, true,
+  "Custom negative style intent must leave the model schema open to the supported style enum.");
+
+const positiveStyleRequest = buildPointObjectCreateResponsesRequest({
+  locale: "en",
+  templateId: "commercial_hub",
+  customPrompt: "Use a courtyard composition.",
+  aoiAreaSqM: ready.alternatives[0].massing.aoiAreaSqM,
+  aoiWidthM: 100,
+  aoiHeightM: 100,
+  areaContext: null,
+  requestedParameters: fixedTowerControls,
+  requestedMassingStyle: "courtyard",
+  requestedUseMix: null
+}, profile);
+assert.deepEqual(positiveStyleRequest.text.format.schema.properties.massingStyle.enum, ["courtyard"]);
 
 assert.deepEqual(POINT_OBJECT_CREATE_EDITOR_CONTROL_KEYS, POINT_OBJECT_CREATE_CONTROL_KEYS,
   "The browser editor and API must share the exact six-control fixed contract.");

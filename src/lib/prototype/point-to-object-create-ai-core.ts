@@ -171,7 +171,7 @@ When requestedUseMix is present, preserve its ordered use/share pairs exactly an
 
 Write title, summary and rationale in the requested locale. Do not claim official parcel identity, ownership, zoning, development rights, approval, demand, cost, value, return, feasibility, environmental clearance or guaranteed best use. Do not describe the programme as an architectural design or BIM model. It is a screening hypothesis for conceptual massing only.`;
 
-function boundedPrompt(value: string | null): string | null {
+export function normalizePointObjectCreateCustomPrompt(value: string | null): string | null {
   if (!value) return null;
   const normalized = value.normalize("NFKC")
     .replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]/g, " ")
@@ -181,7 +181,7 @@ function boundedPrompt(value: string | null): string | null {
 }
 
 export function inferPromptMassingStyle(value: string | null): ConceptMassingStyle | null {
-  const prompt = boundedPrompt(value)?.toLowerCase() ?? "";
+  const prompt = normalizePointObjectCreateCustomPrompt(value)?.toLowerCase() ?? "";
   if (!prompt) return null;
   const stylePatterns: Array<[ConceptMassingStyle, RegExp]> = [
     ["courtyard", /\b(?:courtyard|inner[ -]?court|court[ -]?block)\b|(?<![\p{L}\p{N}_])(?:двор|внутренн(?:ий|его)\s+двор)(?![\p{L}\p{N}_])/iu],
@@ -229,7 +229,7 @@ export function buildPointObjectCreateResponsesRequest(
               : "Prepare a conceptual redevelopment programme for deterministic massing.",
             locale: input.locale,
             templateId: input.templateId,
-            customIntent: boundedPrompt(input.customPrompt),
+            customIntent: normalizePointObjectCreateCustomPrompt(input.customPrompt),
             aoiScreeningGeometry: {
               approximateAreaSqM: Math.round(input.aoiAreaSqM),
               approximateWidthM: Math.round(input.aoiWidthM),
