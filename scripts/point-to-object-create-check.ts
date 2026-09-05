@@ -744,12 +744,12 @@ assert.notEqual(seedOne, createProgramSeed({ ...validated.value, openSpacePct: v
 
 const editorScopeKey = createPointObjectCreateEditorScopeKey({
   aoiId: "editor-aoi",
-  marketKey: "dubai",
-  locale: "en",
-  depth: "standard"
+  marketKey: "dubai"
 });
 const editorDraftKey = createPointObjectCreateDraftKey({
   scopeKey: editorScopeKey,
+  locale: "en",
+  depth: "standard",
   templateId: programInput.templateId,
   customPrompt: "  shaded courtyard  ",
   controls: controlsFromProgram(programInput),
@@ -757,6 +757,8 @@ const editorDraftKey = createPointObjectCreateDraftKey({
 });
 assert.equal(editorDraftKey, createPointObjectCreateDraftKey({
   scopeKey: editorScopeKey,
+  locale: "en",
+  depth: "standard",
   templateId: programInput.templateId,
   customPrompt: "shaded courtyard",
   controls: controlsFromProgram(programInput),
@@ -764,11 +766,22 @@ assert.equal(editorDraftKey, createPointObjectCreateDraftKey({
 }), "Equivalent draft inputs must retain the same no-op key.");
 assert.notEqual(editorDraftKey, createPointObjectCreateDraftKey({
   scopeKey: editorScopeKey,
+  locale: "en",
+  depth: "standard",
   templateId: programInput.templateId,
   customPrompt: "shaded courtyard",
   controls: { ...controlsFromProgram(programInput), setbackM: programInput.setbackM + 1 },
   lockedControlKeys: ["levelsMin", "levelsMax", "setbackM"]
 }), "An edited numeric lock must invalidate the committed draft key.");
+assert.notEqual(editorDraftKey, createPointObjectCreateDraftKey({
+  scopeKey: editorScopeKey,
+  locale: "ru",
+  depth: "standard",
+  templateId: programInput.templateId,
+  customPrompt: "shaded courtyard",
+  controls: controlsFromProgram(programInput),
+  lockedControlKeys: ["levelsMin", "levelsMax"]
+}), "A locale change must invalidate generated prose without changing the editor scope.");
 const editorSnapshot = {
   version: 1 as const,
   scopeKey: editorScopeKey,
@@ -783,7 +796,7 @@ assert.deepEqual(restorePointObjectCreateEditorSnapshot(editorSnapshot, editorSc
   lockedControlKeys: ["levelsMin", "levelsMax"]
 });
 assert.equal(restorePointObjectCreateEditorSnapshot(editorSnapshot, `${editorScopeKey}:other`), null,
-  "An editor snapshot must never cross an AOI/market/locale/depth scope.");
+  "An editor snapshot must never cross an AOI/market scope.");
 assert.equal(restorePointObjectCreateEditorSnapshot({ ...editorSnapshot, controls: { ...editorSnapshot.controls, blockCount: 99 } }, editorScopeKey), null,
   "Out-of-range editor memory must fail closed.");
 

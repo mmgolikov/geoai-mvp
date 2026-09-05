@@ -501,9 +501,9 @@ test("V5.1 keeps exact identity and the complete Find comparison flow coherent o
 
   await page.getByRole("tab", { name: "Find" }).click();
   await expect(page.getByRole("heading", { name: "Find places" })).toBeVisible();
-  await expect(page.getByTestId("find-audience-b2b")).toHaveAttribute("aria-pressed", "true");
-  await expect(page.getByTestId("find-audience-b2c")).toBeVisible();
-  await expect(page.getByRole("combobox", { name: "Role" })).toHaveValue("developer");
+  await expect(page.locator('[data-testid^="find-audience-"]')).toHaveCount(0);
+  const findRole = page.getByRole("combobox", { name: "Role" });
+  await expect(findRole).toHaveValue("developer");
   const findScenario = page.getByRole("combobox", { name: "Scenario" });
   const findObjectType = page.getByRole("combobox", { name: "Object type" });
   const findLevelsFrom = page.getByLabel("Levels from");
@@ -511,6 +511,11 @@ test("V5.1 keeps exact identity and the complete Find comparison flow coherent o
   await expect(page.getByRole("option", { name: /development-zone search unavailable/i })).toHaveCount(0);
   await expect(page.getByRole("option", { name: "Buildings and construction sites" })).toHaveCount(1);
   await expect(findObjectType).toHaveValue("construction");
+  await findRole.selectOption("real_estate_fund");
+  await expect(findScenario).toHaveValue("b2b_lowrise_luxury_residential");
+  await expect(findScenario.getByRole("option", { name: "Commercial properties" })).toHaveCount(1);
+  await findRole.selectOption("developer");
+  await expect(findScenario).toHaveValue("b2b_redevelopment_selected_aoi");
   await page.screenshot({ path: testInfo.outputPath("find-complete-settings-en.png") });
   await findScenario.selectOption("b2b_lowrise_luxury_residential");
   await expect(findObjectType).toHaveValue("residential");
@@ -618,6 +623,12 @@ test("Create A/B and mobile profile remain coherent offline", async ({ page }, t
   await expect(page.locator(".maplibregl-canvas")).toBeVisible();
 
   await page.getByRole("tab", { name: "Create" }).click();
+  await page.getByTestId("live-map-canvas").evaluate((element) => {
+    (window as typeof window & { __geoAiAoiFitReceipts?: string[] }).__geoAiAoiFitReceipts = [];
+    element.addEventListener("geoai:aoi-fit-applied", ((event: CustomEvent<{ requestId: string }>) => {
+      (window as typeof window & { __geoAiAoiFitReceipts?: string[] }).__geoAiAoiFitReceipts?.push(event.detail.requestId);
+    }) as EventListener);
+  });
   await page.getByLabel("Upload GeoJSON").setInputFiles({
     name: "offline-create-area.geojson",
     mimeType: "application/geo+json",
@@ -633,6 +644,7 @@ test("Create A/B and mobile profile remain coherent offline", async ({ page }, t
     }))
   });
   await expect(page.getByText(/Area ready ·/)).toBeVisible();
+  await expect.poll(() => page.evaluate(() => (window as typeof window & { __geoAiAoiFitReceipts?: string[] }).__geoAiAoiFitReceipts?.length ?? 0)).toBe(1);
   await expect(page.getByText("Objects inside the polygon")).toBeVisible();
   await expect(page.getByText("Mapped objects", { exact: true })).toBeVisible();
   await expect(page.getByText(/Uses returned feature centres inside the AOI/)).toHaveCount(0);
@@ -642,8 +654,30 @@ test("Create A/B and mobile profile remain coherent offline", async ({ page }, t
   await expect(mapPresentation).toHaveText("Show existing");
   await mapPresentation.click();
   await expect(mapPresentation).toHaveText("Hide existing buildings");
+  await page.getByRole("button", { name: /Business towers/ }).click();
   await page.getByText("Concept parameters", { exact: true }).click();
-  await page.getByRole("slider", { name: "Blocks" }).press("ArrowRight");
+  await page.getByRole("slider", { name: "Blocks" }).fill("5");
+  await page.getByRole("slider", { name: "Site coverage" }).fill("31");
+  await page.getByRole("slider", { name: "Minimum levels" }).fill("12");
+  await page.getByRole("slider", { name: "Maximum levels" }).fill("24");
+  await page.getByRole("slider", { name: "Open space" }).fill("42");
+  await page.getByRole("slider", { name: "Setback" }).fill("11");
+  await page.getByLabel("Custom direction").fill("Keep a shaded civic spine and active ground floors.");
+  await page.getByRole("button", { name: "ru", exact: true }).click();
+  await expect(page.getByRole("button", { name: /Деловой комплекс/ })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("slider", { name: "Корпуса" })).toHaveValue("5");
+  await expect(page.getByRole("slider", { name: "Плотность застройки" })).toHaveValue("31");
+  await expect(page.getByRole("slider", { name: "Минимум этажей" })).toHaveValue("12");
+  await expect(page.getByRole("slider", { name: "Максимум этажей" })).toHaveValue("24");
+  await expect(page.getByRole("slider", { name: "Открытые пространства" })).toHaveValue("42");
+  await expect(page.getByRole("slider", { name: "Отступ" })).toHaveValue("11");
+  await expect(page.getByLabel("Дополнительное задание")).toHaveValue("Keep a shaded civic spine and active ground floors.");
+  await page.getByRole("button", { name: "en", exact: true }).click();
+  await expect(page.getByRole("button", { name: /Business towers/ })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("slider", { name: "Blocks" })).toHaveValue("5");
+  await expect(page.getByLabel("Custom direction")).toHaveValue("Keep a shaded civic spine and active ground floors.");
+  await page.getByRole("combobox", { name: "Map style" }).selectOption("light");
+  await expect.poll(() => page.evaluate(() => (window as typeof window & { __geoAiAoiFitReceipts?: string[] }).__geoAiAoiFitReceipts?.length ?? 0)).toBe(1);
   await expect(page.getByText("Edited", { exact: true })).toHaveCount(0);
   await expect(page.getByTestId("reset-edited-create-controls")).toBeVisible();
   const generateConcept = page.getByTestId("create-generate-action");
@@ -652,7 +686,28 @@ test("Create A/B and mobile profile remain coherent offline", async ({ page }, t
   await expect(page.getByTestId("generated-concept-summary")).toContainText("A deterministic mixed-use concept for the selected area.");
   await expect(generateConcept).toHaveText("Already generated");
   await expect(generateConcept).toBeDisabled();
+  await page.getByRole("button", { name: "ru", exact: true }).click();
+  await expect(page.getByTestId("create-result-language-stale")).toBeVisible();
+  await expect(page.getByText("A deterministic mixed-use concept for the selected area.")).toHaveCount(0);
+  await expect(page.getByTestId("create-generate-action")).toHaveText("Обновить концепцию");
+  await page.getByRole("button", { name: "en", exact: true }).click();
+  await expect(page.getByTestId("create-result-language-stale")).toHaveCount(0);
+  await expect(generateConcept).toHaveText("Already generated");
   expect(createPostRequests).toHaveLength(1);
+  expect(createPostRequests[0]).toMatchObject({
+    locale: "en",
+    depth: "standard",
+    templateId: "commercial_hub",
+    customPrompt: "Keep a shaded civic spine and active ground floors.",
+    controls: {
+      blockCount: 5,
+      targetSiteCoveragePct: 31,
+      levelsMin: 12,
+      levelsMax: 24,
+      openSpacePct: 42,
+      setbackM: 11
+    }
+  });
   expect([...(createPostRequests[0]?.lockedControlKeys as string[])].sort()).toEqual(
     ["blockCount", "levelsMin", "levelsMax", "targetSiteCoveragePct", "openSpacePct", "setbackM"].sort());
   await expect(page.getByTestId("create-alternative-a")).toHaveAttribute("aria-selected", "true");
@@ -693,6 +748,16 @@ test("Create A/B and mobile profile remain coherent offline", async ({ page }, t
   await page.getByTestId("create-delete-area").click();
   await expect(page.getByText(/Area ready ·/)).toHaveCount(0);
 
+  await page.getByRole("tab", { name: "Find", exact: true }).click();
+  await page.getByTestId("find-search-cta").click();
+  await expect(page.getByText("Showing 3", { exact: true })).toBeVisible();
+  const savedCandidateOne = page.getByRole("listitem").filter({ hasText: "Marina Candidate One" });
+  const savedCandidateTwo = page.getByRole("listitem").filter({ hasText: "Marina Candidate Two" });
+  await savedCandidateOne.getByRole("button", { name: "Compare", exact: true }).click();
+  await savedCandidateTwo.getByRole("button", { name: "Compare", exact: true }).click();
+  await page.getByRole("button", { name: "Compare selected", exact: true }).click();
+  await expect(page.getByTestId("find-comparison-grid")).toBeVisible();
+
   await signInDemo(page, "/profile");
   await page.setViewportSize({ width: 390, height: 844 });
   const russianLocale = page.getByRole("button", { name: "ru", exact: true });
@@ -703,22 +768,25 @@ test("Create A/B and mobile profile remain coherent offline", async ({ page }, t
   await expect(page.getByRole("heading", { name: "Ваш профиль" })).toBeVisible();
   await page.getByRole("button", { name: "B2C", exact: true }).click();
   await expect(page.getByRole("combobox", { name: "Роль по умолчанию" })).toHaveValue("tourist");
-  await page.getByRole("button", { name: "B2B", exact: true }).click();
-  await expect(page.getByRole("combobox", { name: "Роль по умолчанию" })).toHaveValue("developer");
+  await page.getByRole("button", { name: "Сохранить профиль", exact: true }).click();
+  await expect(page.getByText("Демо-профиль сохранён для этой браузерной сессии.")).toBeVisible();
   await expect(page.getByRole("link", { name: "Вернуться к карте" })).toBeVisible();
   await page.goto("/prototype/point-to-object");
   await page.getByRole("tab", { name: "Поиск" }).click();
-  await expect(page.getByTestId("find-audience-b2b")).toHaveAttribute("aria-pressed", "true");
-  await expect(page.getByRole("combobox", { name: "Роль" })).toHaveValue("developer");
+  await expect(page.locator('[data-testid^="find-audience-"]')).toHaveCount(0);
+  await expect(page.getByRole("combobox", { name: "Роль" })).toHaveValue("tourist");
+  await expect(page.getByText("Показано: 3", { exact: true })).toHaveCount(0);
+  await expect(page.getByTestId("find-comparison-toolbar")).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() => {
+    const state = JSON.parse(sessionStorage.getItem("geoai:point-to-object:find:v1") ?? "null");
+    return { audience: state?.audience, result: state?.result, shortlist: state?.shortlist };
+  })).toEqual({ audience: "b2c", result: null, shortlist: [] });
   await expect(page.getByRole("combobox", { name: "Сценарий" })).toBeVisible();
   await expect(page.getByRole("combobox", { name: "Тип объекта" })).toBeVisible();
   await expect(page.getByLabel("Этажей от")).toBeVisible();
   await expect(page.getByLabel("Этажей до")).toBeVisible();
-  await page.getByTestId("find-audience-b2c").click();
-  await expect(page.getByTestId("find-audience-b2c")).toHaveAttribute("aria-pressed", "true");
-  await expect(page.getByRole("combobox", { name: "Роль" })).toHaveValue("tourist");
   await page.goto("/profile");
-  await expect(page.getByRole("combobox", { name: "Роль по умолчанию" })).toHaveValue("developer");
+  await expect(page.getByRole("combobox", { name: "Роль по умолчанию" })).toHaveValue("tourist");
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(1);
   expect(unexpectedExternal).toEqual([]);
