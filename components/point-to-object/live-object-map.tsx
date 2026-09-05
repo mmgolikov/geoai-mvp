@@ -1304,7 +1304,13 @@ export function LiveObjectMap({
       aria-label={`${t("map.region")} — ${pointObjectMarket(locationKey).label[locale]}`}
       aria-describedby="live-map-instructions"
     >
-      <div ref={containerRef} className="absolute inset-0" data-testid="live-map-canvas" />
+      {/* MapLibre adds `position: relative` at runtime; pin geometry across CSS import orders. */}
+      <div
+        ref={containerRef}
+        className="absolute inset-0"
+        data-testid="live-map-canvas"
+        style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
+      />
       <p id="live-map-instructions" className="sr-only">
         {t(instructionKey)}
       </p>

@@ -360,6 +360,41 @@ async function expectFindDrawerGeometry(page: Page, checkMapAlignment = false) {
   }
 }
 
+test("actual MapLibre canvas fills its desktop map region", async ({ page }) => {
+  const unexpectedExternal = await installOfflineRoutes(page);
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto("/prototype/point-to-object");
+
+  const host = page.getByTestId("live-map-canvas");
+  await expect(host).toHaveCSS("position", "absolute");
+  await expect.poll(async () => host.evaluate((element) => element.getBoundingClientRect().height)).toBeGreaterThan(0);
+  await expect(page.locator("canvas.maplibregl-canvas")).toBeVisible();
+
+  const geometry = await host.evaluate((element) => {
+    const region = element.parentElement;
+    const canvas = element.querySelector<HTMLCanvasElement>("canvas.maplibregl-canvas");
+    if (!region || !canvas) throw new Error("MapLibre geometry targets are missing.");
+    const rect = (target: Element) => {
+      const value = target.getBoundingClientRect();
+      return { x: value.x, y: value.y, width: value.width, height: value.height };
+    };
+    return {
+      region: rect(region),
+      host: rect(element),
+      canvas: rect(canvas)
+    };
+  });
+
+  expect(geometry.host.height).toBeGreaterThan(0);
+  for (const target of [geometry.host, geometry.canvas]) {
+    expect(Math.abs(target.x - geometry.region.x)).toBeLessThanOrEqual(1);
+    expect(Math.abs(target.y - geometry.region.y)).toBeLessThanOrEqual(1);
+    expect(Math.abs(target.width - geometry.region.width)).toBeLessThanOrEqual(1);
+    expect(Math.abs(target.height - geometry.region.height)).toBeLessThanOrEqual(1);
+  }
+  expect(unexpectedExternal).toEqual([]);
+});
+
 test("map-first layout keeps a compact desktop drawer across all modes and breakpoint boundaries", async ({ page }, testInfo) => {
   const unexpectedExternal = await installOfflineRoutes(page);
   await page.goto("/prototype/point-to-object");
