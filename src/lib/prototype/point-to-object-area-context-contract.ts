@@ -287,18 +287,29 @@ function contextGroup(tags: Record<string, string>): PointObjectAreaContextGroup
   const building = tags.building?.toLowerCase();
   const landuse = tags.landuse?.toLowerCase();
   const amenity = tags.amenity?.toLowerCase();
+  const tourism = tags.tourism?.toLowerCase();
   if (landuse === "industrial" || ["industrial", "warehouse", "manufacture", "storage_tank"].includes(building ?? "")) return "industrial";
   if (["construction", "brownfield"].includes(landuse ?? "") || building === "construction") return "construction";
-  if (tags.tourism || ["hotel", "guest_house", "hostel", "resort"].includes(building ?? "")) return "hospitality";
-  if (tags.shop || landuse === "retail" || building === "retail") return "retail_daily_needs";
-  if (tags.office || landuse === "commercial" || ["commercial", "office"].includes(building ?? "")) return "commercial";
-  if (["residential", "apartments", "house", "detached", "terrace", "semidetached_house", "dormitory"].includes(building ?? "") || landuse === "residential") return "residential";
   if (["school", "kindergarten", "college", "university"].includes(amenity ?? "")) return "education";
   if (["hospital", "clinic", "doctors", "dentist", "pharmacy"].includes(amenity ?? "")) return "healthcare";
+  if (["marketplace", "restaurant", "cafe", "fast_food", "food_court"].includes(amenity ?? "")) return "retail_daily_needs";
+  if ([
+    "library", "community_centre", "arts_centre", "theatre", "cinema", "place_of_worship", "townhall",
+    "courthouse", "police", "fire_station", "post_office", "social_facility", "childcare"
+  ].includes(amenity ?? "")) return "civic_culture";
+  if ([
+    "hotel", "guest_house", "hostel", "motel", "resort", "apartment", "chalet", "alpine_hut",
+    "wilderness_hut", "camp_site", "caravan_site", "holiday_village"
+  ].includes(tourism ?? "") || ["hotel", "guest_house", "hostel", "resort"].includes(building ?? "")) return "hospitality";
+  if (["museum", "gallery"].includes(tourism ?? "") || ["civic", "government", "public", "museum"].includes(building ?? "")) return "civic_culture";
+  if (tags.shop || landuse === "retail" || building === "retail") return "retail_daily_needs";
+  if (tags.office || landuse === "commercial" || ["commercial", "office"].includes(building ?? "")) return "commercial";
+  if (["school", "kindergarten", "college", "university"].includes(building ?? "")) return "education";
+  if (["hospital", "clinic", "healthcare"].includes(building ?? "")) return "healthcare";
+  if (["residential", "apartments", "house", "detached", "terrace", "semidetached_house", "dormitory"].includes(building ?? "") || landuse === "residential") return "residential";
   if (tags.public_transport || tags.railway || tags.highway === "bus_stop") return "transport";
   if (["motorway", "trunk", "primary", "secondary", "tertiary"].includes(tags.highway ?? "")) return "access";
   if (tags.leisure || tags.natural || ["recreation_ground", "forest"].includes(landuse ?? "")) return "open_space";
-  if (amenity) return "civic_culture";
   return building ? "other_built" : null;
 }
 
