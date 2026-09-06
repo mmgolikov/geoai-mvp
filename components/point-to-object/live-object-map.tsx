@@ -19,6 +19,7 @@ import type { ConceptMassingResult, PointObjectCreateAoi } from "@/src/lib/proto
 import type { PointObjectFindBounds } from "@/src/lib/prototype/point-to-object-find-contract";
 import {
   buildPointObjectBuildingReplacementFilter,
+  pointObjectReplacementMinimumReliableZoom,
   restorePointObjectMapFilter,
   snapshotPointObjectMapFilter,
   type PointObjectMapFilterSnapshot
@@ -584,9 +585,16 @@ function restoreBuildingFilters(map: MapLibreMap) {
 }
 
 function applyBuildingReplacement(map: MapLibreMap, aoi: PointObjectCreateAoi): boolean {
+  if (map.getZoom() < pointObjectReplacementMinimumReliableZoom) {
+    restoreBuildingFilters(map);
+    return false;
+  }
   const snapshots = snapshotBuildingFilters(map);
   const layerIds = buildingLayerIds(map);
-  if (!layerIds.length || layerIds.some((layerId) => !snapshots.has(layerId))) return false;
+  if (!layerIds.length || layerIds.some((layerId) => !snapshots.has(layerId))) {
+    restoreBuildingFilters(map);
+    return false;
+  }
   const plans = layerIds.map((layerId) => ({
     layerId,
     plan: buildPointObjectBuildingReplacementFilter(
@@ -594,7 +602,10 @@ function applyBuildingReplacement(map: MapLibreMap, aoi: PointObjectCreateAoi): 
       { type: "Polygon", coordinates: aoi.coordinates }
     )
   }));
-  if (plans.some(({ plan }) => !plan.applied || !plan.filter)) return false;
+  if (plans.some(({ plan }) => !plan.applied || !plan.filter)) {
+    restoreBuildingFilters(map);
+    return false;
+  }
   try {
     for (const { layerId, plan } of plans) map.setFilter(layerId, plan.filter);
     return true;
@@ -732,6 +743,7 @@ function installGeoAiLayers(map: MapLibreMap, viewMode: MapViewMode) {
     id: CONCEPT_FILL_LAYER_ID,
     type: "fill",
     source: CONCEPT_SOURCE_ID,
+    minzoom: pointObjectReplacementMinimumReliableZoom,
     layout: { visibility: "none" },
     paint: { "fill-color": conceptColor, "fill-opacity": 0.68, "fill-outline-color": "#285951" }
   }, labelLayer);
@@ -739,6 +751,7 @@ function installGeoAiLayers(map: MapLibreMap, viewMode: MapViewMode) {
     id: CONCEPT_VOLUME_LAYER_ID,
     type: "fill-extrusion",
     source: CONCEPT_SOURCE_ID,
+    minzoom: pointObjectReplacementMinimumReliableZoom,
     layout: { visibility: "none" },
     paint: {
       "fill-extrusion-color": conceptColor,
@@ -1037,6 +1050,7 @@ export function LiveObjectMap({
         let observedBuildingLayerIds = new Set<string>();
         let buildingLayerReconciliationReady = false;
         let reconcilingBuildingLayers = false;
+        let replacementZoomEligible = map.getZoom() >= pointObjectReplacementMinimumReliableZoom;
 
         handleStyleData = () => {
           if (disposed || reconcilingBuildingLayers || !buildingLayerReconciliationReady || styleChangeInProgressRef.current) return;
@@ -1080,6 +1094,7 @@ export function LiveObjectMap({
           setHighlight(map, selectionRef.current, viewModeRef.current, showSelectedVolumeRef.current);
           const replacementStatus = setCreateLayers(map, createDraftRef.current, createAoiRef.current, createAreaClearedRef.current, conceptMassingRef.current, viewModeRef.current);
           replacementStatusCallbackRef.current?.(replacementStatus);
+          replacementZoomEligible = map.getZoom() >= pointObjectReplacementMinimumReliableZoom;
           observedBuildingLayerIds = new Set(buildingLayerIds(map));
           buildingLayerReconciliationReady = true;
           styleChangeInProgressRef.current = false;
@@ -1150,6 +1165,21 @@ export function LiveObjectMap({
         const handleMoveEnd = () => {
           const visibleBounds = map.getBounds();
           visibleBoundsCallbackRef.current?.([visibleBounds.getWest(), visibleBounds.getSouth(), visibleBounds.getEast(), visibleBounds.getNorth()]);
+          const nextReplacementZoomEligible = map.getZoom() >= pointObjectReplacementMinimumReliableZoom;
+          if (nextReplacementZoomEligible !== replacementZoomEligible) {
+            replacementZoomEligible = nextReplacementZoomEligible;
+            if (createAreaClearedRef.current && createAoiRef.current && map.isStyleLoaded() && !styleChangeInProgressRef.current) {
+              const replacementStatus = setCreateLayers(
+                map,
+                createDraftRef.current,
+                createAoiRef.current,
+                createAreaClearedRef.current,
+                conceptMassingRef.current,
+                viewModeRef.current
+              );
+              replacementStatusCallbackRef.current?.(replacementStatus);
+            }
+          }
           const current = selectionRef.current;
           if (!current) return;
           const center = map.getCenter();
@@ -1200,6 +1230,7 @@ export function LiveObjectMap({
       if (map) {
         if (handleStyleData) map.off("styledata", handleStyleData);
         if (handleStyleReady) map.off("style.load", handleStyleReady);
+        restoreBuildingFilters(map);
         resetBuildingFilterSnapshots(map);
         map.remove();
       }

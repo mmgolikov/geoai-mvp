@@ -1,9 +1,18 @@
 import { convertFilter } from "@maplibre/maplibre-gl-style-spec";
 import type { FilterSpecification } from "maplibre-gl";
-import type { Feature, Polygon, Position } from "geojson";
+import type { Feature, MultiPolygon, Polygon, Position } from "geojson";
 
 export const pointObjectReplacementSnapshotVersion = 1 as const;
 export const pointObjectReplacementMaxVertices = 1_000;
+export const pointObjectReplacementMinimumReliableZoom = 13 as const;
+
+const WGS84_WORLD_RING: Position[] = [
+  [-180, -90],
+  [180, -90],
+  [180, 90],
+  [-180, 90],
+  [-180, -90]
+];
 
 export type PointObjectReplacementAoi = Polygon | Feature<Polygon>;
 
@@ -267,9 +276,31 @@ export function validatePointObjectReplacementAoi(input: unknown): PointObjectRe
 }
 
 /**
- * Builds a filter for a primary building layer. Polygon features intersecting or
- * touching the AOI have distance 0 and are hidden; all outside and non-polygon
- * features retain the source layer's original filter semantics.
+ * GeoJSON representation of the WGS84 world outside the AOI. The AOI exterior
+ * is a hole in the world polygon; AOI holes are outside islands in their own
+ * right. This lets MapLibre distinguish a feature that is wholly internal from
+ * one that crosses the boundary or has any disjoint component outside it.
+ */
+function buildPointObjectOutsideAoi(aoi: Polygon): MultiPolygon {
+  const [exterior, ...holes] = aoi.coordinates;
+  return {
+    type: "MultiPolygon",
+    coordinates: [
+      [cloneJsonValue(WGS84_WORLD_RING, "world"), cloneJsonValue(exterior, "aoi.exterior")],
+      ...holes.map((hole, index) => [cloneJsonValue(hole, `aoi.holes[${index}]`)])
+    ]
+  };
+}
+
+/**
+ * Builds a fail-safe filter for a primary building layer. A polygon is hidden
+ * only when MapLibre can prove that it intersects the AOI and has no geometry
+ * in the world outside it. Boundary-crossing and mixed/disjoint multipart
+ * features are retained whole because a style filter cannot clip one component
+ * without also removing the feature's outside geometry.
+ *
+ * Below zoom 13 MapLibre documents reduced distance-expression precision, so
+ * source geometry is retained rather than risk an out-of-AOI false positive.
  */
 export function buildPointObjectBuildingReplacementFilter(
   originalFilter: FilterSpecification | null | undefined,
@@ -288,10 +319,13 @@ export function buildPointObjectBuildingReplacementFilter(
   }
 
   const aoi = cloneJsonValue(validation.aoi, "aoi");
+  const outsideAoi = buildPointObjectOutsideAoi(aoi);
   const outsideAoiFilter = [
     "any",
+    ["<", ["zoom"], pointObjectReplacementMinimumReliableZoom],
     ["!=", ["geometry-type"], "Polygon"],
-    [">", ["distance", aoi], 0]
+    [">", ["distance", aoi], 0],
+    ["==", ["distance", outsideAoi], 0]
   ] as unknown as FilterSpecification;
   const original = restorePointObjectMapFilter(originalSnapshot);
   const filter = original === null
