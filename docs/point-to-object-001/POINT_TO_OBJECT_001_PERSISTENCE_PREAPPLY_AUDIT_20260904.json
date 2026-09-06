@@ -1,0 +1,136 @@
+{
+  "protocol": "POINT_TO_OBJECT_001_PERSISTENCE_PREAPPLY_AUDIT_V1",
+  "observedAtUtc": "2026-09-04T06:47:00Z",
+  "scope": "read_only_exact_target_preapply_audit",
+  "target": {
+    "projectName": "geoai-dev",
+    "projectRef": "pphdqkurxneyagvnnjdt",
+    "region": "eu-west-1",
+    "status": "ACTIVE_HEALTHY",
+    "postgresVersion": "17.6.1.141",
+    "production": false
+  },
+  "hostedMigrationLedger": {
+    "appliedCount": 12,
+    "repositoryBaselineCount": 12,
+    "reconciled": true,
+    "topology": "noncontiguous_applied_version_set",
+    "pendingVersionsInsideAppliedRange": [
+      "20260716000000",
+      "20260716085854",
+      "20260716113000",
+      "20260716164451",
+      "20260716172000",
+      "20260716175210",
+      "20260716213214"
+    ],
+    "recoveredAndExactMatchedRepositoryArtifacts": [
+      {
+        "version": "20260726151724",
+        "name": "dld_demo_ingestion_foundation_v1",
+        "statementBytes": 9436,
+        "statementMd5": "043e7c30317fb72bd9e30240f24041d0"
+      },
+      {
+        "version": "20260726152858",
+        "name": "dld_demo_http_client_v1a",
+        "statementBytes": 198,
+        "statementMd5": "d6f3ba5a353066facb8dd5b7110245a6"
+      }
+    ],
+    "interpretation": "All 12 hosted applied statements are now represented by exact repository artifacts. This does not make the applied set a contiguous prefix: the seven 20260716 migrations remain pending even though the two later 20260726 DLD migrations are applied."
+  },
+  "identityAndApi": {
+    "authUsers": 0,
+    "profiles": 1,
+    "projects": 5,
+    "activeProjectMemberships": 5,
+    "apiFunctions": 0,
+    "apiRelations": 0,
+    "pgrstRoleExposedSchemaSettingsFound": 0,
+    "interpretation": "No real Auth persona exists and the reviewed api-only identity/RPC surface is absent from the hosted development project."
+  },
+  "analysisRuns": {
+    "rowCount": 0,
+    "rlsEnabled": true,
+    "selectPolicies": [
+      "geoai preview demo analysis read",
+      "geoai project scoped analysis read"
+    ],
+    "insertPolicyCount": 0,
+    "updatePolicyCount": 0,
+    "deletePolicyCount": 0,
+    "anonPrivileges": ["SELECT", "REFERENCES", "TRIGGER", "TRUNCATE"],
+    "authenticatedPrivileges": ["SELECT", "REFERENCES", "TRIGGER", "TRUNCATE"]
+  },
+  "rlsAndGrants": {
+    "publicApplicationTables": 19,
+    "publicApplicationTablesWithoutRls": 0,
+    "managedSpatialRefSysRlsEnabled": false,
+    "anonAndAuthenticatedPublicTablePrivilegeCountsEach": {
+      "SELECT": 22,
+      "REFERENCES": 22,
+      "TRIGGER": 22,
+      "TRUNCATE": 22,
+      "INSERT": 3,
+      "UPDATE": 3,
+      "DELETE": 3
+    }
+  },
+  "advisorFindings": {
+    "errors": [
+      "public.spatial_ref_sys has RLS disabled; this is a managed PostGIS object and must not be altered automatically"
+    ],
+    "warnings": [
+      "PostGIS extension is installed in public",
+      "legacy public SECURITY DEFINER authorization helpers remain executable by anon",
+      "multiple permissive SELECT policies remain on analysis_runs and other public tables"
+    ]
+  },
+  "preparedLocalArtifacts": {
+    "recoveredHostedMigrationArtifacts": [
+      "supabase/migrations/20260726151724_dld_demo_ingestion_foundation_v1.sql",
+      "supabase/migrations/20260726152858_dld_demo_http_client_v1a.sql"
+    ],
+    "ledgerBaseline": "supabase/migration-ledger-baseline.json",
+    "migration": "supabase/migrations/20260904065018_point_object_analysis_persistence_v1.sql",
+    "route": "app/api/prototype/point-to-object/analysis-runs/route.ts",
+    "repository": "src/lib/prototype/point-object-analysis-runs.ts",
+    "previewGate": "src/lib/prototype/point-object-persistence-gate.ts",
+    "focusedContract": "scripts/point-to-object-persistence-check.mjs",
+    "deactivation": "supabase/operator/point_object_analysis_persistence_v1_deactivation.sql"
+  },
+  "tests": {
+    "focusedStaticContract": "PASS",
+    "canonicalMigrationChain": "PASS_WITH_EXACT_12_ENTRY_NONCONTIGUOUS_HOSTED_BASELINE_AND_8_PENDING",
+    "syntheticStaticUpgradeContract": "PASS_REVIEW_ONLY_NONCONTIGUOUS_LEDGER",
+    "localSqlReplay": "BLOCKED_DOCKER_CLI_UNAVAILABLE_ON_CURRENT_HOST",
+    "hostedSqlReplay": "NOT_RUN_NO_HOSTED_MUTATION_AUTHORITY"
+  },
+  "authLogoutRisk": {
+    "status": "BLOCKING_RISK_NOT_CHANGED_IN_THIS_LANE",
+    "reason": "A safe correction is not isolated from the shared AuthProvider and demo-session transition and could not be fully regression-tested within this persistence lane.",
+    "observations": [
+      "the client can clear its visible profile state even when server-side logout fails",
+      "demo sign-in does not require successful removal of a prior real Supabase session",
+      "client route gating and browser profile state are not authorization evidence"
+    ],
+    "requiredFollowUp": "Make real-to-demo session transition atomic and retain the authenticated UI state when request-scoped logout fails; verify with real-cookie, failed-logout and cross-tab regression tests."
+  },
+  "decision": {
+    "hostedDevelopmentApply": "NO_GO",
+    "reasons": [
+      "the hosted applied set is noncontiguous: all seven 20260716 migrations remain pending while two later 20260726 DLD migrations are applied",
+      "containment and identity migrations are among those unapplied 20260716 migrations",
+      "api-only exposure is not configured or evidenced",
+      "there are no Auth users for a real JWT/RLS persona matrix",
+      "local SQL replay is not available because the Docker CLI is not installed or exposed on the current host"
+    ]
+  },
+  "mutations": {
+    "hostedDatabase": 0,
+    "production": 0,
+    "main": 0,
+    "secretsPrinted": false
+  }
+}

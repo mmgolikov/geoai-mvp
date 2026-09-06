@@ -26,8 +26,9 @@ async function collectSourceFiles(relativeDirectory) {
   return files;
 }
 
-const [landing, navigation, workspace, analysisPanel, exploreCompatibility] = await Promise.all([
+const [landingRoute, landing, navigation, workspace, analysisPanel, exploreCompatibility] = await Promise.all([
   read("app/page.tsx"),
+  read("components/landing/geoai-landing-page.tsx"),
   read("components/product-navigation.tsx"),
   read("components/workspace-shell.tsx"),
   read("components/analysis-panel.tsx"),
@@ -52,8 +53,14 @@ requireCondition(
   "Explore must not exist as a canonical Product navigation destination."
 );
 requireCondition(
-  landing.includes("Open workspace") && !landing.includes("Explore platform"),
-  "Landing must use the canonical Open workspace CTA and must not advertise Explore as a separate Product."
+  landingRoute.includes('import { GeoAILandingPage } from "@/components/landing/geoai-landing-page";') &&
+    landingRoute.includes("<GeoAILandingPage />") &&
+    landing.includes('const mapHref = "/prototype/point-to-object";') &&
+    landing.includes("href={mapHref}") &&
+    landing.includes('const projectsHref = "/projects?view=spatial";') &&
+    landing.includes("href={projectsHref}") &&
+    !landing.includes("Explore platform"),
+  "Landing must render the accepted component, enter Point-to-Object and local Projects, and must not advertise Explore as a separate Product."
 );
 requireCondition(
   exploreCompatibility.includes('redirect("/workspace")'),
@@ -120,7 +127,7 @@ const evidence = {
   compatibilityRoute: "/explore",
   compatibilityDestination: "/workspace",
   criteriaFirstPreserved: true,
-  checkedFiles: activeSourceFiles.length + 5,
+  checkedFiles: activeSourceFiles.length + 6,
   findings,
   activeViolations,
   checkedAt: new Date().toISOString()

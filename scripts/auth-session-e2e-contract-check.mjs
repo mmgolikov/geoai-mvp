@@ -16,6 +16,11 @@ const mobileGlobalNavigationSpec = read("tests/e2e/mobile-global-navigation.spec
 const commercialAlignmentVisualSpec = read("tests/e2e/commercial-alignment-visual.spec.ts");
 const systemResilienceSpec = read("tests/e2e/system-resilience-flow.spec.ts");
 const workspaceConsolidationSpec = read("tests/e2e/workspace-consolidation.spec.ts");
+const loginPanel = read("components/auth/login-panel.tsx");
+const browserSpecs = fs.readdirSync(path.join(root, "tests/e2e"))
+  .filter((file) => file.endsWith(".spec.ts") || file.endsWith(".spec.tsx"))
+  .map((file) => read(`tests/e2e/${file}`))
+  .join("\n");
 const productNavigation = read("components/product-navigation.tsx");
 const lighthouseBudgetScript = read("scripts/lighthouse-budget-check.mjs");
 const workflow = read(".github/workflows/geoai-quality-gate.yml");
@@ -39,6 +44,15 @@ if (packageJson.scripts?.["test:e2e:auth-session"] !== "playwright test tests/e2
 if (packageJson.scripts?.["test:e2e:auth-real-persona"] !== "playwright test tests/e2e/real-email-auth-flow.spec.ts") {
   failures.push("The explicit trusted-terminal real email Auth persona command is missing");
 }
+if (!loginPanel.includes("Open demo access") || loginPanel.includes("Use demo credentials")) {
+  failures.push("The login panel and browser tests must share the current demo-access label");
+}
+if (browserSpecs.includes("Use demo credentials")) {
+  failures.push("A browser spec still targets the retired demo-access label");
+}
+if (browserSpecs.includes('getByRole("button", { name: "Open demo" })')) {
+  failures.push("The Open demo submit locator must use exact matching to avoid colliding with Open demo access");
+}
 if (packageJson.devDependencies?.lighthouse !== "13.4.0") {
   failures.push("Lighthouse must stay exactly pinned to 13.4.0");
 }
@@ -57,7 +71,7 @@ for (const route of ["/workspace?segment=b2b", "/projects", "/explore", "/profil
   requireText(spec, route, `Browser flow must cover ${route}`);
 }
 for (const marker of [
-  "Use demo credentials",
+  "Open demo access",
   "Open demo profile",
   "geoai-mock-demo-session-v1",
   "page.reload()",
@@ -144,8 +158,8 @@ for (const marker of [
   '{ name: "mobile-390", width: 390, height: 844 }',
   "expectNoHorizontalOverflow(page)",
   "Primary mobile controls must have a rendered box",
-  'control.href === "/login?next=/workspace&intent=demo"',
-  'control.text === "Use demo credentials"',
+  'control.href === "/prototype/point-to-object"',
+  'control.text === "Open demo access"',
   'control.text === "Open demo"',
   'control.label === "Open demo profile"'
 ]) requireText(responsiveSpec, marker, `Responsive/keyboard browser flow is missing ${marker}`);
@@ -223,7 +237,11 @@ for (const marker of [
   "expectNoHorizontalOverflow(page)",
   'reducedMotion: "reduce"',
   'page.clock.setFixedTime(new Date("2026-07-19T09:00:00.000Z"))',
-  'name: "Ask the map. Move with evidence."',
+  'name: "Turn a location into a decision path."',
+  'name: "Open map"',
+  '"/prototype/point-to-object"',
+  'name: "Projects"',
+  '"/projects?view=spatial"',
   'name: "Sign in to GeoAI"',
   'name: "Your profile"',
   "landing-${viewport.name}.png",

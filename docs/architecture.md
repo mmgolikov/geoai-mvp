@@ -1,16 +1,16 @@
 # GeoAI Implemented Architecture
 
 Status: Active implementation baseline
-Last verified: 2026-07-21
+Last verified: 2026-09-05
 Owner: GeoAI Engineering
 Authority: Current implemented architecture and trust boundaries
 Successor: None; any replacement must update `DOCUMENTATION_INDEX.md`
-Released baseline: `main` `cc8f9ebcf3989fab4a3c4eac9be9dfb8da786a7b` (merged PR #106), Production `dpl_6RC2ohEdLBjiV82k758tFMkaDB9X` at https://geoai-mvp.vercel.app, rollback `dpl_ERVqZPD5GAGDLjAVhMcPF2HT5Br7`, stage `public_demo_prototype`
+Current externally verified release baseline: PR #113 / `main` `7f323c4227f2409f3fe2d4d68be48a30176f4e2a` (`Merge PR #113: Product System v3.2.2 correction`), Production `dpl_4yBHCo1eZ7N6GYQWGAg1EdQGwFTE` READY at https://geoai-a71p4fxnr-geoaidev.vercel.app, aliases including https://geoai-mvp.vercel.app; GitHub deployment `5601335100` status `15930263481` success; stage `public_demo_prototype`. Historical PR #106 evidence remains in the linked historical snapshot and current release-state archive.
 Release policy/schema: [RELEASE_AUTHORITY_POLICY.json](RELEASE_AUTHORITY_POLICY.json) · Historical snapshot: [LAST_VERIFIED_RELEASE_SNAPSHOT.json](LAST_VERIFIED_RELEASE_SNAPSHOT.json) · Live authority is external post-release evidence.
 Maturity: public demo prototype; not Production-ready or pilot-ready
 Navigation: [Confluence Hub](https://geoaimvp.atlassian.net/wiki/spaces/PH/overview) · [Documentation Index](DOCUMENTATION_INDEX.md) · [Current Release State](CURRENT_RELEASE_STATE.md) · [Full System Audit](FULL_SYSTEM_AUDIT_2026_07_16.md) · [Data Strategy](data-strategy.md) · [Roadmap](roadmap.md) · [Codex Backlog](CODEX_BACKLOG_2026_07_16.md)
 
-This page describes the current released public-demo implementation and its still-blocked protected boundaries. Target architecture remains a separate owner-review artifact and must not be treated as released merely because a draft exists.
+This page separates the current released public-demo implementation from explicitly named isolated candidates and their still-blocked protected boundaries. Candidate code or Preview evidence must not be interpreted as merged `main`, Production activation or target-architecture approval.
 
 ## Runtime topology
 
@@ -18,14 +18,45 @@ This page describes the current released public-demo implementation and its stil
 | --- | --- | --- |
 | Web | Next.js 15 App Router, React 19, TypeScript, Tailwind | Vercel Production is a public demo |
 | Product UI | Mapbox workspace, criteria/map-first flows, dashboards, comparisons, print routes and `/profile` personal account/defaults | Large client coordinators remain a maintainability/performance risk; avatar persistence is browser-local until protected Storage is activated |
-| API | 66 route patterns / 88 handlers | 51 project-scoped handlers plus identity-mutation and permanent-identity organization-admin handlers are declared in `security/api-route-access.json`; public-demo handlers are explicitly allowlisted |
+| API | Current branch inventory: 76 route patterns / 101 handlers | 54 project-scoped, 9 protected-Preview-bounded, 31 public-sanitized and 7 identity/operator/admin handlers are explicitly classified; candidate routes do not change the released Production tuple |
 | Authorization | Exact role/action/capability matrix; existing-user-only email/phone Supabase Auth; browser-only mock demo; exact-target SSR/PKCE/session/logout; permanent-identity Admin/Onboarding APIs; AUTH-01B request-scoped Product read facade | MFA is not part of the current product flow. Auth routes consume the permanent non-anonymous boundary locally without asserting verified email/phone ownership; Product repositories and all runtime persona-readiness flags remain false, and real hosted personas are blocked |
 | Persistence | Project-scoped browser-local public-demo state, local-development JSON fallback and Supabase repository adapters | Vercel `/tmp` fallback and public-demo server mutations are disabled; request repositories are not yet caller-JWT clients; durable user writes are not active |
 | Database | Supabase/Postgres/PostGIS development foundation; exact ten-entry development ledger reconstructed; isolated Free rehearsal carries the first six containment/identity/source/Auth/FK/lifecycle candidates | Those six migrations are rehearsal-only and pass hosted SQL `183/183`; the seventh permanent non-anonymous identity/no-MFA compatibility migration is unapplied everywhere. API-only PostgREST and rollback-only table-level invitation concurrency are proven; real email/phone/Admin/Storage personas, development apply and Production remain blocked |
 | Storage | Private-bucket/readiness/upload foundations plus narrow review-only role predicate and operation-aware object-read draft | Policies are unapplied; client binaries remain blocked pending live user-context policy, content validation and signed-URL evidence |
-| AI | Browser-local deterministic analysis/scoring plus dormant OpenAI server code | Both server generation POST routes return 403 before parsing until AUTH-01; no key/flag can activate them now |
-| Sources | Compact bundled public manifest, bounded operator source-pack contract, SOURCE-01 custody draft and provider-neutral SOURCE-02 `reserve_or_replay` claim v1 | SOURCE-02 ships an empty registry and has no fetch/env/secrets/persistence or atomic pre-fetch reservation writer; its unsigned claim authorizes nothing, Production is denied and no real geometry/assets/persistence or score impact exists |
+| Released AI | Browser-local deterministic analysis/scoring plus dormant released-product OpenAI server code | The released generation POST routes return 403 before parsing until AUTH-01; no released-product key/flag path activates them |
+| Isolated point-to-object AI candidate | Protected-Preview-only OpenAI analysis and Create programme routes with one-time browser challenge, origin/rate/request bounds and model profiles | Separate from released generation routes; requires the point-to-object Preview flag and server-only key, writes no hosted Supabase data and produces screening analysis/concept inputs only |
+| Released sources | Compact bundled public manifest, bounded count-only operator source-pack contract, SOURCE-01 custody draft and provider-neutral SOURCE-02 `reserve_or_replay` claim v1 | SOURCE-02 ships an empty registry and has no fetch/env/secrets/persistence or atomic pre-fetch reservation writer; its unsigned claim authorizes nothing, Production is denied and no live source geometry/assets/persistence or score impact exists in released `main` / Production |
+| Isolated point-to-object candidate | V5.1 server-only Photon suggestions, explicit Nominatim lookup and bounded Overpass object/AOI context on the protected Preview branch | Not merged or Production-active; public-provider availability/coverage only, ODbL attribution required, no hosted Supabase write and no official/cadastral/zoning/ownership/valuation authority |
 | Operations | Successful exact-snapshot Quality Gate/artifact, CI `database-replay` clean start/reset/71-assertion pgTAP receipt, static custody checker and READY Vercel Preview with HTTP negative matrix | Upgrade replay, live JWT/Auth/RLS/Storage/source personas, browser evidence, distributed tracing and certified audit remain open |
+
+## POINT_TO_OBJECT_001 V5.1 isolated Preview candidate
+
+The V5.1 candidate on `codex/point-to-object-clickable-prototype-v1` is a separate product route family, not an activation of the released source pack. The browser calls same-origin Next.js APIs; third-party geocoder and map-data requests remain server-side and are bounded by route-specific Preview/origin/rate/timeout/body/response contracts.
+
+- `/api/prototype/point-to-object/suggest` uses Photon for search-as-you-type after two normalized CJK characters or three other normalized characters. It applies selected-market country, bounds, coordinate bias, locale and result caps; public Photon has no product SLA.
+- The existing explicit-submit search remains a separate Nominatim path. Public Nominatim is not used for autocomplete.
+- `/api/prototype/point-to-object/find` and `/area-context` use bounded Overpass feature queries for observed OpenStreetMap objects. Results are samples, not complete inventories; ordering is source-identity based and no suitability score is produced.
+- Find candidate selection carries the expected OSM identity into Analyse. Nominatim lookup re-resolves that identity and AI analysis fails closed when it changes rather than silently analysing a nearby object.
+- Create uses OpenAI to propose a bounded programme and deterministic application geometry to render conceptual massing. The result is a screening visualization, not an AI-authored architectural model, BIM deliverable or approved plan.
+- Map replacement is browser-rendered and reversible. No source feature is deleted or edited, and no candidate geometry is persisted to hosted Supabase.
+
+The 2026-09-05 Create correction extends the candidate response with `alternatives[{id,label,massing}]`; legacy `massing` aliases A. One bounded AI programme feeds deterministic courtyard, perimeter, podium/tower or campus generators; switching validated A/B does not call the model. `baseM` and `heightM` are absolute base/top elevations, tower levels are counted from the site datum, primary buildings are separate from rendered-feature count, and ground coverage/floor-area estimates avoid podium double-counting. Current AOIs accept one exterior ring only. Both geometry and fallback placement must pass containment, setback, overlap and height validation. Request `lockedControlKeys` is an allowlisted subset of six numeric controls: omission preserves legacy all-locked behavior; an empty array permits soft defaults; user-edited fields remain exact. This does not change model routing, credentials, provider access or hosted persistence. Local integration, rendered checks and exact-head Preview evidence remain distinct from these implementation contracts.
+
+All Photon, Nominatim and Overpass context is OpenStreetMap-derived and requires `© OpenStreetMap contributors` / ODbL 1.0 attribution. Coverage and tagging may be incomplete or uneven. The mandatory interpretation remains: “Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.” Exact-head CI, protected Preview deployment and rendered-browser evidence remain required before a V5.1 Preview-verified status may be recorded. `main`, Production and hosted Supabase are unchanged.
+
+### Cycle 02 candidate reliability contract — 2026-09-05
+
+Overpass query working memory is separate from the 512 KiB HTTP response cap. Area context and nearby/urban-fabric loaders use a bounded 32 MiB query allowance, reject runtime `remark` and malformed payloads, and cache only validated responses. An upstream error must never become an empty successful inventory. A valid empty `elements` array remains an observed empty query result, not proof of no buildings.
+
+Create keeps editable draft inputs separate from the last committed programme/geometry. Template, numeric-control, prompt and A/B interactions do not themselves call OpenAI. An unchanged committed draft disables generation; edited inputs expose Update concept. Failed or obsolete requests cannot erase or overwrite the last valid result. Deleting the area, clearing the generated result and hiding/restoring source buildings are different operations; actual renderer feedback, rather than requested visibility alone, controls presentation state. Building filter snapshots include late-discovered layers and retain originals for reversal. These local contracts do not certify a deployed Preview; exact-head integration and browser receipts remain required.
+
+Find exposes role/scenario selection and an executed minimum/maximum mapped-floor range (1–100; missing levels never satisfy an active range). The low-rise preset applies an explicit maximum of four floors without asserting luxury class or development suitability. Up to three records can be selected for side-by-side comparison of available type, floors and locality, then opened by verified source identity. Find caches the validated payload together with its network acquisition time, not a refreshed cache-hit timestamp. Late same-style building layers trigger guarded style-graph reconciliation even while tiles reload; full style changes reset original-filter snapshots separately. The regression suite verifies one application to a new layer, no recursion on unrelated styledata and exact restoration.
+
+## Planned Cycle 05 successor slice — not yet activated
+
+The [approved Cycle 05 contract](change-requests/point-to-object-001/experience-v6/CYCLE_05_PROJECTS_SPATIAL_REPLACEMENT_LANDING_CR.md) introduces an explicit saved-operation layer shared by Analyse, Find and Create. Completed output and draft state must remain separate; reopen restores versioned inputs/results without provider execution. Existing demo Projects and caller-scoped protected APIs are distinct: browser persistence is not cloud storage, and global legacy repositories must not be enabled as a shortcut. The [roadmap](change-requests/point-to-object-001/experience-v6/CYCLE_05_PRODUCT_TO_PRODUCTION_ROADMAP.md) defines phased radius/scenario/source and contextual generation contracts. Implementation/verification will be recorded against the combined head rather than pre-claimed here.
+
+Replacement is a component-level spatial operation, not an ID-only or source-layer operation. Fully contained geometry may be hidden; outside components and boundary portions must remain, or the crossing feature must be retained conservatively. Style/filter lifecycle and real renderer tests are part of the contract.
 
 ## Product System v3.2.1 candidate boundary
 
@@ -36,10 +67,16 @@ The approved 32 px identity is a repository-owned Figma export with a pinned SHA
 ## Request and trust boundaries
 
 ```text
-Browser
+Released browser
   -> public-demo APIs (explicit allowlist)
   -> browser-local user artifacts + immutable seed reads
-  -> protected/generate server APIs -> 403 before body parsing
+  -> released protected/generate server APIs -> 403 before body parsing
+
+Isolated POINT_TO_OBJECT_001 V5.1 Preview browser
+  -> same-origin prototype routes with explicit protected-Preview gates
+  -> Photon / Nominatim / bounded Overpass open context
+  -> challenge-bound OpenAI analysis / Create programme routes
+  -> browser-session state only; no hosted Supabase persistence
 
 Future authenticated request
   -> SSR cookie -> claims + canonical user -> api.current_profile()
@@ -73,17 +110,19 @@ Candidate browser state is keyed by project for uploads, AOIs, analysis history,
 
 ## Data and source behavior
 
-The current release separates source metadata from evidence activation:
+The released baseline separates source metadata from evidence activation:
 
 - NASA POWER: fixed historical point screening context in bounded Preview only.
 - Copernicus: Sentinel-2 catalogue metadata only; no geometry, bbox, assets or imagery processing.
-- OSM Overpass: bounded counts only; no features, coordinates or geometry.
+- Released source-pack OSM Overpass: bounded counts only; no features, coordinates or geometry.
 - Open-Meteo: `permission_required`; excluded from Product evidence and AI payloads.
 - DLD/Dubai Pulse: blocked without approved stable access/snapshot custody and reusable rights.
-- Overture/OSM geometry, imagery and source-dependent scoring: deferred.
+- Released-product Overture/OSM geometry, imagery and source-dependent scoring: deferred.
 - Production `/api/external-data/source-connection-pack`: HTTP 503, disabled, zero sources.
 - Preview/local provider execution: requires the explicit flag, a server-only operator token of at least 32 characters and a matching request Bearer/header; Production stays disabled. Upstream fetches use fixed HTTPS hosts, reject redirects, cancel non-success/oversized bodies and enforce strict NASA date/value, Copernicus collection/timestamp/cloud and Overpass count contracts; the pack remains non-persistent and non-scoring.
 - Public data-sources/readiness/manifest/sources/status/lineage routes: reviewed `compact_public_v1`, `liveRegistryIncluded:false`, diagnostics withheld and no Supabase query. They statically import one manifest plus three aggregate-quality records; per-source DLD/OSM/Overture truth is not inferred from group totals and deep snapshots stay outside anonymous function traces.
+
+The isolated V5.1 point-to-object candidate does not change that released source-pack state. It separately uses Photon suggestions, explicit Nominatim lookup and bounded Overpass object/AOI feature queries behind same-origin Preview routes. Those routes return open-map feature identity, coordinates and geometry only for the candidate experience; they are non-persistent, non-official, provider-availability dependent and do not activate Production or Supabase source custody. Find output is a capped current-view sample with observed attributes and no suitability ranking. Its OpenStreetMap-derived responses require ODbL attribution and cannot establish parcel identity, title, zoning, ownership, value or development permission.
 
 Public source DTOs enumerate approved fields and omit filesystem/storage paths by construction; new internal manifest fields do not flow through automatically. Pending SOURCE-01 replaces the nullable-project convention for future acquired releases with non-null organization/project scope and immutable custody metadata. Its project read RPC also omits arbitrary `quality_summary`/`lineage_summary` JSON, provider URI, object paths and secrets.
 

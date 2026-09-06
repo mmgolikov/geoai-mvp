@@ -1,0 +1,248 @@
+{
+  "protocol": "GEOAI_COMPLETION_RECEIPT_V1",
+  "cycle_id": "TEAM-PILOT-001",
+  "work_package_id": "SECURITY-GATE-001-LOCAL-DEPENDENCY-REMEDIATION",
+  "task": "dev_1",
+  "thread_id": "01a01607-80cd-7fa1-a1eb-48fc8d37c4b4",
+  "result": "COMPLETE",
+  "executive_result": "The minimal same-major PostCSS/Nano ID correction is accepted as a local remediation Candidate: the registry-backed production audit is zero, the full audit is reduced to 18 development-only findings, and all required local checks pass.",
+  "prepared_at": "2026-09-01",
+  "authority": {
+    "released_sha": "7f323c4227f2409f3fe2d4d68be48a30176f4e2a",
+    "released_product_stage": "public_demo_prototype",
+    "worktree": "/private/tmp/geoai-security-gate-001-local",
+    "branch": "codex/security-gate-001-local-v1",
+    "base_head_before_commit": "7f323c4227f2409f3fe2d4d68be48a30176f4e2a",
+    "candidate_head": "DETACHED_IN_FINAL_HUMAN_RECEIPT",
+    "commit_created": true,
+    "commit_sha_policy": "Detached: the exact local commit and tree are reported after this self-containing receipt is committed.",
+    "candidate_manifest": "docs/change-requests/security-gate-001/SECURITY_GATE_001_MANIFEST.json",
+    "separate_durable_e1_preserved": {
+      "worktree": "/private/tmp/geoai-point-object-e1-durable",
+      "commit": "fddd003142b6d4d97cecc1fcb7fb25a65a449610",
+      "mutated_by_this_package": false
+    }
+  },
+  "decision": {
+    "verdict": "ACCEPT_LOCAL_REMEDIATION_CANDIDATE",
+    "technical_diff_verdict": "ACCEPT_DEPENDENCY_DIFF",
+    "selected_change": {
+      "postcss": {
+        "before": "8.5.19",
+        "after": "8.5.23",
+        "manifest_spec_before": "^8.5.19",
+        "manifest_spec_after": "8.5.23"
+      },
+      "nanoid": {
+        "before": "3.3.12",
+        "after": "3.3.18"
+      },
+      "next": {
+        "before": "15.5.21",
+        "after": "15.5.21"
+      },
+      "postcss_override": {
+        "before": "$postcss",
+        "after": "$postcss"
+      }
+    },
+    "major_upgrade_required": false,
+    "new_packages": 0,
+    "audit_suppression_or_threshold_change": false
+  },
+  "audit_evidence": {
+    "before": {
+      "scope": "exact released lock",
+      "standard_audit_observed_at": "2026-09-01",
+      "environment": "Node 20.19.6 / npm 10.8.2 (audit-only independent read-back)",
+      "production": {
+        "total": 3,
+        "moderate": 2,
+        "high": 1
+      },
+      "full": {
+        "total": 21,
+        "moderate": 19,
+        "high": 2
+      }
+    },
+    "after": {
+      "provenance": "Executed independently by main_1 against the current physical candidate at /private/tmp/geoai-security-gate-001-local",
+      "observed_at": "2026-09-01; exact timestamp not supplied in the handoff",
+      "environment": "main_1 execution context; exact Node/npm versions were not supplied in the handoff",
+      "production_standard_audit": {
+        "exit_code": 0,
+        "total": 0,
+        "info": 0,
+        "low": 0,
+        "moderate": 0,
+        "high": 0,
+        "critical": 0,
+        "production_dependencies": 31,
+        "total_tree": 318
+      },
+      "full_standard_audit": {
+        "total": 18,
+        "moderate": 17,
+        "high": 1,
+        "critical": 0,
+        "classification": "PARTIAL_REMAINING_DEV_ONLY_18",
+        "next_package": "SECURITY-GATE-002-DEV-TOOLING"
+      },
+      "offline_empty_report_accepted": false,
+      "production_zero_vulnerability_claim": true,
+      "full_tree_zero_vulnerability_claim": false
+    }
+  },
+  "dependency_integrity": {
+    "clean_offline_install": "PASS: npm ci --ignore-scripts --offline --no-audit --no-fund; 281 packages",
+    "npm_ls": "PASS: all consumers dedupe to postcss@8.5.23; sole nanoid node is 3.3.18; next remains 15.5.21",
+    "inventory_counts": {
+      "npm_ci_installed_packages": 281,
+      "npm_audit_total_dependencies": 318,
+      "npm_audit_production_dependencies": 31,
+      "counting_note": "npm ci and npm audit expose different counting lanes; their values are preserved separately and are not treated as contradictory inventory totals.",
+      "new_package_coordinates": 0
+    },
+    "licence_distribution_changed": false,
+    "postcss_licence": "MIT",
+    "nanoid_licence": "MIT",
+    "install_scripts_added": false,
+    "formal_sbom_generated": false,
+    "cached_tarball_integrity": "PASS: both SHA-512 values match package-lock.json"
+  },
+  "local_verification": {
+    "environment": "macOS local isolated worktree; Node 24.19.0; npm 10.8.2",
+    "reviewer": "dev_1; main_1 for registry-backed audit; independent security_dependency_redteam, security_static_checks and security_final_artifact_audit",
+    "lint_typescript": "PASS",
+    "production_build": "PASS: Next 15.5.21, 66/66 routes",
+    "static_contracts": {
+      "result": "PASS",
+      "executed_count": 40,
+      "notable_counts": {
+        "api_routes": 66,
+        "api_handlers": 88,
+        "protected_handlers": 51,
+        "blocking_branches": 79,
+        "secret_hygiene_paths": 807,
+        "runtime_credential_files": 351,
+        "data_honesty_files": 351,
+        "data_honesty_findings": 0,
+        "aoi_personas": 11,
+        "spatial_b2a_assertions": 67
+      }
+    },
+    "documentation_lifecycle": "PASS: generated sidecars cover 144 Markdown documents",
+    "supplemental_local_bind_observation": "listen EPERM on 0.0.0.0:3032; built-runtime smoke was not a required gate for this dependency-only package",
+    "aggregate_browser_lighthouse_pdf": "NOT_REQUIRED_IN_THIS_LOCAL_DEPENDENCY_PACKAGE; complete hosted Quality Gate remains mandatory after integration",
+    "git_diff_check": "PASS"
+  },
+  "independent_review": {
+    "p0": 0,
+    "p1": 0,
+    "p2": 1,
+    "p1_findings": [],
+    "p2_findings": [
+      "The full development-tool audit retains 18 findings and requires the separate bounded SECURITY-GATE-002-DEV-TOOLING package; no CycloneDX/SPDX SBOM is claimed here."
+    ]
+  },
+  "sources": [
+    {
+      "title": "GitHub Advisory Database — PostCSS GHSA-fxqj-rqcc-2cmp",
+      "url": "https://github.com/advisories/GHSA-fxqj-rqcc-2cmp",
+      "publisher": "GitHub Advisory Database",
+      "publication_date": "UNVERIFIED_IN_RECEIPT",
+      "access_date": "2026-09-01",
+      "confidence": "high"
+    },
+    {
+      "title": "PostCSS 8.5.23 release",
+      "url": "https://github.com/postcss/postcss/releases/tag/8.5.23",
+      "publisher": "PostCSS maintainers",
+      "publication_date": "UNVERIFIED_IN_RECEIPT",
+      "access_date": "2026-09-01",
+      "confidence": "high"
+    },
+    {
+      "title": "GitHub Advisory Database — Nano ID GHSA-28wg-ghj8-5hjv",
+      "url": "https://github.com/advisories/GHSA-28wg-ghj8-5hjv",
+      "publisher": "GitHub Advisory Database",
+      "publication_date": "UNVERIFIED_IN_RECEIPT",
+      "access_date": "2026-09-01",
+      "confidence": "high"
+    },
+    {
+      "title": "GitHub Advisory Database — Nano ID GHSA-2v37-7h3g-55p8",
+      "url": "https://github.com/advisories/GHSA-2v37-7h3g-55p8",
+      "publisher": "GitHub Advisory Database",
+      "publication_date": "UNVERIFIED_IN_RECEIPT",
+      "access_date": "2026-09-01",
+      "confidence": "high"
+    }
+  ],
+  "verified_facts": [
+    "The candidate descends from and currently points to exact released SHA 7f323c4227f2409f3fe2d4d68be48a30176f4e2a.",
+    "Only package.json, package-lock.json, four required security-gate artifacts and two mechanically generated documentation lifecycle sidecars are intended local changes.",
+    "PostCSS 8.5.23 and Nano ID 3.3.18 match cached registry tarball integrity and remain MIT/Node-compatible.",
+    "TypeScript, the 66-route build and all executed permanent static contracts pass."
+  ],
+  "hypotheses": [],
+  "counter_evidence": [
+    "The full dependency tree is not vulnerability-free: 18 development-tool findings remain, including a direct Lighthouse patch path and transitive brace-expansion findings."
+  ],
+  "unverified_items": [
+    "Hosted CI, Preview and Production behavior for this local Candidate.",
+    "Integration compatibility with the separate Point-to-Object E1 commit until Main performs an explicit integration and exact-head hosted rerun."
+  ],
+  "data_rights": {
+    "data_owner": "NOT_APPLICABLE_DEPENDENCY_ONLY",
+    "licence": "NOT_APPLICABLE_TO_CUSTOMER_DATA",
+    "permitted_use": "NO_DATA_OPERATION",
+    "redistribution": "NO_DATA_OPERATION",
+    "residency": "NO_DATA_OPERATION",
+    "official_or_live_status": false
+  },
+  "commercial_evidence": {
+    "interviews": 0,
+    "wtp_observations": 0,
+    "proposals": 0,
+    "paid_pilots": 0
+  },
+  "mutations": {
+    "local_files_only": true,
+    "package_manifest": "postcss exact spec 8.5.23",
+    "lockfile": "postcss 8.5.23 and nanoid 3.3.18",
+    "evidence_artifacts": "four files under docs/change-requests/security-gate-001 plus two generated lifecycle sidecars",
+    "commit": "one local commit; exact SHA/tree detached in the final human receipt",
+    "push": false,
+    "pull_request": false,
+    "vercel_or_preview": false,
+    "production": false,
+    "supabase_auth_storage": false,
+    "secrets_or_environment": false,
+    "reversibility": "Revert the single local commit or discard the isolated worktree; no external rollback required.",
+    "rollback_point": "7f323c4227f2409f3fe2d4d68be48a30176f4e2a"
+  },
+  "production_main_changed": false,
+  "external_outreach_performed": false,
+  "secrets_or_personal_data_accessed": false,
+  "due_diligence_status": "PARTIAL",
+  "risks": [
+    "This Candidate does not resolve the 18 development-tool findings; SECURITY-GATE-002-DEV-TOOLING must remain separate.",
+    "The PostCSS source-map behavior change must be covered again by the complete hosted Quality Gate after integration.",
+    "PR #146 and Production remain unchanged and must not be described as fixed by this local commit."
+  ],
+  "handoff": {
+    "target": "main_1",
+    "readiness": "ACCEPT_LOCAL_REMEDIATION_CANDIDATE",
+    "required_inputs": [
+      "Main integration decision for the separate E1 branch.",
+      "A complete exact-head hosted Quality Gate after integration."
+    ]
+  },
+  "decisions_required": [
+    "None from the founder in this package; Main controls any future integration."
+  ],
+  "recommended_next_action": "Keep this commit local; Main may integrate it into a separately authorized E1 descendant and must rerun the complete exact-head hosted Quality Gate. Track the residual 18 development findings under SECURITY-GATE-002-DEV-TOOLING.",
+  "mandatory_caveat": "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
+}

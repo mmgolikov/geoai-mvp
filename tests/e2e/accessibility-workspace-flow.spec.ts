@@ -82,13 +82,13 @@ async function tabUntilLocator(
 }
 
 async function useDemoCredentialsWithKeyboard(page: Page) {
-  const demoCredentials = page.getByRole("button", { name: "Use demo credentials" });
+  const demoCredentials = page.getByRole("button", { name: "Open demo access" });
   await tabUntilLocator(page, demoCredentials, { maximumTabs: 40 });
   await page.keyboard.press("Enter");
   await expect(page.getByLabel("Email or phone")).toHaveValue("demo@geoai.space");
   await expect(page.getByLabel("Password")).toHaveValue("111111");
 
-  const openDemo = page.getByRole("button", { name: "Open demo" });
+  const openDemo = page.getByRole("button", { name: "Open demo", exact: true });
   await tabUntilLocator(page, openDemo, { maximumTabs: 20 });
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL((url) => url.pathname === "/workspace");
@@ -99,12 +99,15 @@ test.describe("accessible critical screens and keyboard-only workspace journey",
     const evidence: AccessibilityResult[] = [];
 
     await page.goto("/");
-    await expect(page.getByRole("heading", { level: 1, name: "Ask the map. Move with evidence." })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Turn a location into a decision path." })).toBeVisible();
     await recordAccessibilityResult(page, "Landing hub", evidence);
 
-    const demoLink = page.getByRole("link", { name: "View demo" }).last();
-    await tabUntilLocator(page, demoLink, { maximumTabs: 40 });
+    const mapLink = page.locator("main > section").first().getByRole("link", { name: "Open map", exact: true });
+    await tabUntilLocator(page, mapLink, { maximumTabs: 40 });
     await page.keyboard.press("Enter");
+    await expect(page).toHaveURL((url) => url.pathname === "/prototype/point-to-object");
+
+    await page.goto("/login?next=/workspace&intent=demo");
     await expect(page.getByRole("heading", { level: 1, name: "Sign in to GeoAI" })).toBeVisible();
     await recordAccessibilityResult(page, "Unified login", evidence);
 

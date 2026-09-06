@@ -4,14 +4,15 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 
 const productPrimary = "rgb(8, 127, 140)";
 const brandBlue = "rgb(6, 79, 207)";
+const cycle05LandingPrimary = "rgb(8, 127, 127)";
 const evidenceDirectory = path.join(process.cwd(), "artifacts", "product-system-v322");
 
 async function signInDemo(page: Page, next = "/workspace") {
   await page.goto(`/login?next=${encodeURIComponent(next)}&intent=demo`);
   const redirected = await page.waitForURL((url) => url.pathname === next, { timeout: 3000 }).then(() => true, () => false);
   if (redirected) return;
-  await page.getByRole("button", { name: "Use demo credentials" }).click();
-  await page.getByRole("button", { name: "Open demo" }).click();
+  await page.getByRole("button", { name: "Open demo access" }).click();
+  await page.getByRole("button", { name: "Open demo", exact: true }).click();
   await expect(page).toHaveURL((url) => url.pathname === next);
 }
 
@@ -61,7 +62,7 @@ test("v3.2.2 remains a bounded correction over the immutable v3.2/v3.2.1 foundat
   expect(tokenSource).toContain("productionAuthorized: false");
 });
 
-test("commercial cockpit correction keeps label lines separated and selected state teal", async ({ page }) => {
+test("historical v3.2.2 SVG labels stay intact while the current Cycle 05 landing is responsive", async ({ page }) => {
   const css = await fs.readFile(path.join(process.cwd(), "app", "product-system-v322-correction.css"), "utf8");
   const encodedSvgs = [...css.matchAll(/base64,([^"\)]+)/g)].map((match) => match[1]);
   expect(encodedSvgs.length).toBeGreaterThanOrEqual(2);
@@ -96,23 +97,29 @@ test("commercial cockpit correction keeps label lines separated and selected sta
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     await page.goto("/");
     await page.evaluate(async () => document.fonts.ready);
-    const cockpit = page.locator('[data-landing-cockpit-authority="commercial-v1.8"]');
-    await expect(cockpit).toBeVisible();
-    const overlay = await cockpit.evaluate((element) => ({
-      backgroundImage: getComputedStyle(element, "::after").backgroundImage,
-      pointerEvents: getComputedStyle(element, "::after").pointerEvents,
-      zIndex: getComputedStyle(element, "::after").zIndex
-    }));
-    expect(overlay.backgroundImage).toContain("data:image/svg+xml;base64");
-    expect(overlay.pointerEvents).toBe("none");
-    expect(Number(overlay.zIndex)).toBeGreaterThanOrEqual(2);
+    const heroHeading = page.getByRole("heading", { name: "Turn a location into a decision path." });
+    const hero = page.locator("section").filter({ has: heroHeading }).first();
+    const heroVisual = hero.getByRole("img", {
+      name: "GeoAI map-first workspace showing a three-dimensional Dubai map and the Analyse, Find and Create product modes"
+    });
+    const primaryCta = hero.getByRole("link", { name: "Open map", exact: true });
+    await expect(heroHeading).toBeVisible();
+    await expect(heroVisual).toBeVisible();
+    await expect.poll(() => heroVisual.evaluate((image: HTMLImageElement) => image.complete && image.naturalWidth > 0)).toBe(true);
+    await expect(primaryCta).toHaveAttribute("href", "/prototype/point-to-object");
+    await expect.poll(
+      () => primaryCta.evaluate((element) => getComputedStyle(element).backgroundColor),
+      { message: `Cycle 05 ${viewport.name} landing primary action must use the approved landing green`, timeout: 2000 }
+    ).toBe(cycle05LandingPrimary);
     await expectNoHorizontalOverflow(page);
     await page.screenshot({
-      path: path.join(evidenceDirectory, `landing-cockpit-${viewport.name}.png`),
+      path: path.join(evidenceDirectory, `landing-cycle05-${viewport.name}.png`),
       fullPage: true,
       animations: "disabled",
       caret: "hide"
     });
+    await primaryCta.click();
+    await expect(page).toHaveURL((url) => url.pathname === "/prototype/point-to-object");
   }
 });
 
@@ -177,8 +184,13 @@ test("Projects, Profile and report actions use the same Product-primary teal", a
   await expectProductPrimary(b2b, "Profile selected B2B");
   await b2c.click();
   await expect(b2c).toHaveAttribute("aria-pressed", "true");
+  // Read the selected control's default token after leaving its intentional
+  // darker hover state.
+  await page.mouse.move(1, 1);
   await expectProductPrimary(b2c, "Profile selected B2C");
-  await expectProductPrimary(page.getByRole("link", { name: "Open workspace", exact: true }), "Profile Open workspace action");
+  const openMap = page.getByRole("link", { name: "Open map", exact: true });
+  await expect(openMap).toHaveAttribute("href", "/prototype/point-to-object");
+  await expectProductPrimary(openMap, "Profile Open map action");
   await expectProductPrimary(page.getByRole("button", { name: "Save profile", exact: true }), "Profile Save profile action");
 
   await page.goto("/reports/seeded-analysis-dubai-marina-report/print");

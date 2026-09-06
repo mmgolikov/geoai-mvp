@@ -12,9 +12,18 @@ export type AccessStatusBadgeVisualProps = {
   href: string;
   isAuthenticated: boolean;
   label: string;
+  tone?: "brand" | "product";
 };
 
-export function AccessStatusBadgeVisual({ avatar, fullName, href, isAuthenticated, label }: AccessStatusBadgeVisualProps) {
+export function AccessStatusBadgeVisual({ avatar, fullName, href, isAuthenticated, label, tone = "brand" }: AccessStatusBadgeVisualProps) {
+  const authenticatedTone = tone === "product"
+    ? "border-[#087f8c] bg-[#e5fafa] text-[#087f8c] hover:bg-[#d8f5f5]"
+    : "border-[#064fcf] bg-[#e8f3f2] text-[#064fcf] hover:bg-[#e8f3f2]";
+  const anonymousTone = tone === "product"
+    ? "border-line bg-white text-muted hover:border-[#087f8c] hover:text-[#087f8c]"
+    : "border-line bg-white text-muted hover:border-brand hover:text-brand";
+  const focusTone = tone === "product" ? "focus-visible:ring-[#087f8c]" : "focus-visible:ring-[#1769e0]";
+
   return (
     <Link
       href={href}
@@ -22,11 +31,7 @@ export function AccessStatusBadgeVisual({ avatar, fullName, href, isAuthenticate
       title={label}
       data-authenticated={isAuthenticated ? "true" : "false"}
       data-figma-node="219:425"
-      className={`geoai-v32 relative inline-flex h-10 w-10 shrink-0 items-center justify-center overflow-visible rounded-full border transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1769e0] focus-visible:ring-offset-2 ${
-        isAuthenticated
-          ? "border-[#064fcf] bg-[#e8f3f2] text-[#064fcf] hover:bg-[#e8f3f2]"
-          : "border-line bg-white text-muted hover:border-brand hover:text-brand"
-      }`}
+      className={`geoai-v32 relative inline-flex h-10 w-10 shrink-0 items-center justify-center overflow-visible rounded-full border transition focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${focusTone} ${isAuthenticated ? authenticatedTone : anonymousTone}`}
     >
       {isAuthenticated && avatar ? (
         // eslint-disable-next-line @next/next/no-img-element

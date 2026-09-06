@@ -1,18 +1,26 @@
 # GeoAI MVP
 
 Status: Active repository overview
-Last verified: 2026-07-21
+Last verified: 2026-09-06
 Owner: GeoAI Engineering
 Authority: Current repository/product behavior and local setup
 Successor: None; any replacement must update `docs/DOCUMENTATION_INDEX.md`
 
 GeoAI is a Next.js spatial decision intelligence MVP for evaluating Dubai real estate, infrastructure, construction, and climate-risk scenarios. The current release is a public demo prototype, not a production-ready or pilot-ready product. It uses Mapbox, synthetic/demo geospatial layers, deterministic scoring, bounded source-context contracts, comparison dashboards, and print-friendly report previews.
 
-The last externally verified release snapshot records merged PR #106 at `cc8f9ebcf3989fab4a3c4eac9be9dfb8da786a7b`, deployment `dpl_6RC2ohEdLBjiV82k758tFMkaDB9X` at https://geoai-mvp.vercel.app and rollback `dpl_ERVqZPD5GAGDLjAVhMcPF2HT5Br7`. See the stable [`docs/RELEASE_AUTHORITY_POLICY.json`](docs/RELEASE_AUTHORITY_POLICY.json) and historical [`docs/LAST_VERIFIED_RELEASE_SNAPSHOT.json`](docs/LAST_VERIFIED_RELEASE_SNAPSHOT.json). Live authority is external post-release GitHub/Vercel/Project Hub evidence, which supersedes repository snapshots. The evidenced stage is `public_demo_prototype`: browser-local demo behavior is active, while protected persistence, confidential pilot operation and real sources remain blocked. Do not enter confidential, regulated, sensitive or client-protected information.
+The current externally verified release is PR #113 at `main` SHA `7f323c4227f2409f3fe2d4d68be48a30176f4e2a` (`Merge PR #113: Product System v3.2.2 correction`). Vercel Production is deployment `dpl_4yBHCo1eZ7N6GYQWGAg1EdQGwFTE`, READY at https://geoai-a71p4fxnr-geoaidev.vercel.app, with aliases including https://geoai-mvp.vercel.app; GitHub deployment `5601335100` has successful status `15930263481`. See the stable [`docs/RELEASE_AUTHORITY_POLICY.json`](docs/RELEASE_AUTHORITY_POLICY.json) and historical [`docs/LAST_VERIFIED_RELEASE_SNAPSHOT.json`](docs/LAST_VERIFIED_RELEASE_SNAPSHOT.json). The prior PR #106 tuple remains preserved as historical evidence. Live authority is external post-release GitHub/Vercel/Project Hub evidence, which supersedes repository snapshots. The evidenced stage is `public_demo_prototype`: browser-local demo behavior is active, while protected persistence, confidential pilot operation and real sources remain blocked. Do not enter confidential, regulated, sensitive or client-protected information.
 
 The historical Pilot UX v3.6 label describes the current workspace-first and criteria-first design lineage; it is not Product SemVer or evidence of client/pilot approval. The current released build is identified by its Git commit and deployment ID. Outputs remain screening hypotheses requiring official/client validation.
 
-Public-demo analysis and decision scoring run deterministically in the browser. Server `POST /api/analyze` and `POST /api/ai/decision-score` fail closed with 403 before body parsing until AUTH-01 supplies a permanent non-anonymous request identity. OpenAI upstream code is dormant and cannot be activated by an API key or environment flag alone.
+Public-demo analysis and decision scoring run deterministically in the browser. The legacy server routes `POST /api/analyze` and `POST /api/ai/decision-score` fail closed with 403 before body parsing until AUTH-01 supplies a permanent non-anonymous request identity; their OpenAI upstream cannot be activated by an API key or environment flag alone. The separately gated Point-to-Object exception is governed by the Cycle 05 release process below and does not mean current Production AI is enabled.
+
+## Cycle 05 controlled release candidate
+
+Accepted UI/Projects baseline `8062b29523990ebd7aebea53acbd106c25f484ac` integrates Point-to-Object Analyse / Find / Create, reliable browser-local Projects with exact saved-result restoration, corrected select behavior, map containment and `zoom-required` handling, and the bilingual landing page. The conservative classifier increment is integrated in the local line at `ef2f4853975caeae47915e4bd5c0845c0d26555e`. Neither SHA is declared here as the final runtime release tuple: that exact tuple belongs to the Cycle 05 CR and subsequent external receipt. The candidate is not yet released; the externally verified `main` and Production tuple above remains current until new GitHub, Vercel and Project Hub evidence is recorded.
+
+The founder has approved the bounded release process, the disclosed public paid AI/Create risk and the existing public-source Production scope for unauthenticated address search/suggestions, Find and point/polygon geocontext in the [Cycle 05 Controlled Main Release CR](docs/change-requests/point-to-object-001/experience-v6/CYCLE_05_MAIN_RELEASE_CR.md). This is scope authority only: Production activation still requires final exact-candidate CI, Preview, live geocontext/OpenAI/Create/restore acceptance and Production route checks. The conservative classifier passed a bounded live semantic check on exact Preview `af46254` (Dubai `223`; Singapore `178`), but neither it nor the approved source scope is released, activated or certified official-source readiness.
+
+Wikimapia, Maxis-inspired design work, cloud persistence and new Auth, Supabase or database changes are excluded. Saved Projects remain identity-scoped browser-local state on this device, not protected cloud storage.
 
 ## CR 10.02 design candidate
 
@@ -222,9 +230,10 @@ See [Repository Mode & Fallback Consistency v2.0.2](docs/REPOSITORY_MODE_FALLBAC
 - [System Stabilization Audit v2 — 2026-07-21](docs/SYSTEM_STABILIZATION_AUDIT_V2_2026_07_21.md)
 - [Full System Audit — 2026-07-16](docs/FULL_SYSTEM_AUDIT_2026_07_16.md)
 - [Supabase Data API Containment Runbook — rehearsal executed; development draft](docs/SUPABASE_DATA_API_CONTAINMENT_RUNBOOK_2026_07_16.md)
-- Last externally verified `main` snapshot: merged PR #106 at `cc8f9ebcf3989fab4a3c4eac9be9dfb8da786a7b`.
-- Last externally verified Production snapshot: `dpl_6RC2ohEdLBjiV82k758tFMkaDB9X`, READY at https://geoai-mvp.vercel.app on that exact SHA.
-- Rollback deployment: `dpl_ERVqZPD5GAGDLjAVhMcPF2HT5Br7`.
+- Current externally verified `main`: PR #113, SHA `7f323c4227f2409f3fe2d4d68be48a30176f4e2a` (`Merge PR #113: Product System v3.2.2 correction`).
+- Current externally verified Production: `dpl_4yBHCo1eZ7N6GYQWGAg1EdQGwFTE`, READY at https://geoai-a71p4fxnr-geoaidev.vercel.app; aliases include https://geoai-mvp.vercel.app.
+- Verified GitHub deployment: `5601335100`, status `15930263481` success.
+- Historical rollback deployment: `dpl_ERVqZPD5GAGDLjAVhMcPF2HT5Br7`.
 - Product stage in the historical snapshot: `public_demo_prototype`; policy: [`docs/RELEASE_AUTHORITY_POLICY.json`](docs/RELEASE_AUTHORITY_POLICY.json); snapshot: [`docs/LAST_VERIFIED_RELEASE_SNAPSHOT.json`](docs/LAST_VERIFIED_RELEASE_SNAPSHOT.json). External post-release evidence is the live authority.
 - Current functional/evidence head: `80645d64662699bd646f96718d300df5d2b84f5f`, tree `0fb7982f3a9cbd40366a84fdfb715a083ba26cde`; Quality Gate run `29611412924`, app job `87986721079` and DB job `87986721050` succeeded. Quality artifact `8418943293` (`sha256:3112ace57e3b6c7e020c0d19dbc737cc7bfa148564b7e8a636e1fd77f1aa6619`) and database artifact `8418941261` (`sha256:b30a4df40f2840a4f4b5bc8528beb2076eef95e0d7700345e03c37c8878005a7`) preserve the receipts.
 - Last fully evidenced functional Preview: `dpl_94eRMRsM8NJR2hdmYE1zLLbiQE8b`, READY on that exact head at [geoai-ln4ohqv5m-geoaidev.vercel.app](https://geoai-ln4ohqv5m-geoaidev.vercel.app). Mock Auth, global product navigation at 430px/834px, deep keyboard paths, six visual-regression baselines and entry plus Projects/Explore Lighthouse budgets are browser-proven; all nine scanned surfaces have zero serious/critical Axe findings. Field Core Web Vitals, broader device/route coverage and real-user personas remain unclaimed.
@@ -356,7 +365,9 @@ No external API keys are required for Data Ingestion v0.1. Tiny samples are scor
 
 ## Open Geospatial Baseline v0.1
 
-GeoAI includes an offline open-geodata baseline prototype for OSM-style roads, POI anchors, landuse context and accessibility metrics. The released source pack also contains a bounded OSM Overpass count-only Preview path without features, coordinates or geometry; it is disabled in Production. No real geometry is activated.
+GeoAI includes an offline open-geodata baseline prototype for OSM-style roads, POI anchors, landuse context and accessibility metrics. In the released `main` / Production baseline, the controlled source pack contains only a bounded OSM Overpass count path without feature identities, coordinates or geometry; Production execution is disabled and returns no active sources. No live source geometry is activated in the released Production product.
+
+The isolated `POINT_TO_OBJECT_001` V5.1 Preview candidate is a separate, non-Production product proof. Its server-only routes use Photon for search-as-you-type, explicit-submit Nominatim for place lookup and bounded Overpass queries for observed OpenStreetMap objects and area context. The candidate can render and analyse live open-map feature geometry, but it is not merged, has no provider SLA, does not use hosted Supabase persistence and does not turn community-map context into official, cadastral, zoning, ownership or valuation evidence. Photon, Nominatim and Overpass results remain subject to provider availability, incomplete tagging and `© OpenStreetMap contributors` / ODbL 1.0 attribution.
 
 Run:
 

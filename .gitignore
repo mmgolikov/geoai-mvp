@@ -21,3 +21,7 @@ data/external/raw/
 data/local_fallback/
 data/local-fallback/
 data/local-fallback/*.json
+.vercel
+.env*
+!.env.example
+!.env.operator.example

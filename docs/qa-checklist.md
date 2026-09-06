@@ -3,14 +3,14 @@
 Use this checklist before demos, Vercel deployments, and milestone checkpoints.
 
 Status: Active checklist
-Last verified: 2026-07-21
+Last verified: 2026-09-04
 Owner: GeoAI Engineering / QA
 Authority: Current verification and release-gate criteria
 Successor: None; any replacement must update `DOCUMENTATION_INDEX.md`
 Current authority: [Current Release State](CURRENT_RELEASE_STATE.md)
 Navigation: [Documentation Index](DOCUMENTATION_INDEX.md) · [Current Release State](CURRENT_RELEASE_STATE.md) · [Full System Audit](FULL_SYSTEM_AUDIT_2026_07_16.md) · [Codex Backlog](CODEX_BACKLOG_2026_07_16.md) · [Confluence Hub](https://geoaimvp.atlassian.net/wiki/spaces/PH/overview)
 
-This checklist uses the historical last-verified PR #106 public-demo snapshot at `cc8f9ebcf3989fab4a3c4eac9be9dfb8da786a7b`, Production `dpl_6RC2ohEdLBjiV82k758tFMkaDB9X` at https://geoai-mvp.vercel.app, rollback `dpl_ERVqZPD5GAGDLjAVhMcPF2HT5Br7` and stage `public_demo_prototype`; see the [policy](RELEASE_AUTHORITY_POLICY.json) and [snapshot](LAST_VERIFIED_RELEASE_SNAPSHOT.json). Live authority is external post-release evidence. Use only built-in synthetic fixtures and do not enter/upload confidential, regulated, sensitive or client-protected AOIs, CSV, GeoJSON, filenames, evidence or dynamic package data. Protected persistence and real sources remain blocked.
+This checklist uses the historical last-verified PR #106 public-demo snapshot at `cc8f9ebcf3989fab4a3c4eac9be9dfb8da786a7b`, Production `dpl_6RC2ohEdLBjiV82k758tFMkaDB9X` at https://geoai-mvp.vercel.app, rollback `dpl_ERVqZPD5GAGDLjAVhMcPF2HT5Br7` and stage `public_demo_prototype`; see the [policy](RELEASE_AUTHORITY_POLICY.json) and [snapshot](LAST_VERIFIED_RELEASE_SNAPSHOT.json). Live authority is external post-release evidence. The isolated V5.1 point-to-object candidate has separate gates below and does not change this released tuple. Do not enter/upload confidential, regulated, sensitive or client-protected AOIs, CSV, GeoJSON, filenames, evidence or dynamic package data. Protected persistence and Production source activation remain blocked.
 
 Exact-head receipt: head `80645d64662699bd646f96718d300df5d2b84f5f`, tree `0fb7982f3a9cbd40366a84fdfb715a083ba26cde`; run `29611412924`, app job `87986721079` and DB job `87986721050` succeeded. Quality artifact `8418943293` and database artifact `8418941261` preserve separate receipts. Preview `dpl_94eRMRsM8NJR2hdmYE1zLLbiQE8b` is READY at `https://geoai-ln4ohqv5m-geoaidev.vercel.app`. Browser evidence is bounded to the mock session and declared routes/viewports/lab profiles; real-user authorization and field telemetry remain separate gates.
 
@@ -54,6 +54,64 @@ Exact-head receipt: head `80645d64662699bd646f96718d300df5d2b84f5f`, tree `0fb79
 - [ ] Runtime negative matrix proves flag-only and token-without-request-auth do not call providers, wrong tokens return 403, Production remains 503, upstream hosts stay on the fixed HTTPS allowlist, redirects fail closed and streamed bodies above 2 MB are cancelled before full allocation.
 - [x] Frozen provider contracts reject NASA date misalignment/out-of-period/invalid-calendar/value-range data, wrong Copernicus collection/timestamp/cloud range and null/duplicate/malformed Overpass counts; non-success retry bodies are cancelled. **Live-provider smoke evidence remains separate.**
 
+## POINT_TO_OBJECT_001 V5.1 isolated Preview candidate
+
+These checks apply only to `codex/point-to-object-clickable-prototype-v1` / PR #147. They do not alter the released count-only source pack, `main`, Production or hosted Supabase. No final V5.1 receipt or Preview-verified status may be issued until every required item below has exact-head evidence.
+
+- [ ] `npm run lint` and `npm run build` pass on Node 22 for the final candidate SHA.
+- [ ] `npm run test:point-to-object`, `test:point-to-object-autocomplete`, `test:point-to-object-v5-interaction`, `test:point-to-object-trusted-identity`, `test:point-to-object-find`, `test:point-to-object-area-context`, `test:point-to-object-create`, `test:point-to-object-map-replacement`, `test:point-to-object-persistence` and `test:user-profile` pass and remain wired into the permanent Quality Gate where applicable.
+- [ ] `npm run test:api-access-guards`, `test:api-route-inventory`, `test:api-contract`, `test:data-honesty`, `test:secret-hygiene`, `test:private-cache-boundary`, `test:security-headers`, `test:vercel-output-tracing` and `test:documentation-current-truth` pass.
+- [ ] Photon suggestions start after two normalized CJK characters or three other normalized characters and prove debounce, superseded-request abort, bounded session cache, keyboard navigation, localized loading/empty/error states and explicit-submit fallback.
+- [ ] `/api/prototype/point-to-object/suggest` proves same-origin and protected-Preview gating, selected-market bounds/country/bias, locale/result caps, timeout/body limits, response allowlisting, rate limiting and provider-failure handling without exposing raw upstream payloads.
+- [ ] Public Nominatim is used only for explicit submit and bounded object/identity lookup, never search-as-you-type. Photon, Nominatim and Overpass surfaces show `© OpenStreetMap contributors` / ODbL 1.0 attribution and do not claim an SLA or official status.
+- [ ] Find proves current-view bounded Overpass execution, capability/limitation disclosure, capped-sample lineage, observed-only shortlist/comparison and source-identity ordering with no composite score, suitability, availability, zoning, ownership, valuation or financial claim.
+- [ ] Opening a Find candidate passes the expected OSM identity into Analyse; changed/unresolved identity fails closed. `Back to map` followed by `Find` restores the browser-session shortlist; no direct analysis-to-Find CTA is claimed.
+- [ ] Create proves AOI draw/upload, source-building replacement across every relevant rendered fill/extrusion layer, fail-closed restoration, 2D/3D and basemap changes, unmount/reset rollback and no deletion or hosted persistence. OpenAI programme generation and deterministic conceptual massing are described separately; output is not BIM, architectural design or an approved plan.
+- [ ] Profile proves RU/EN copy, B2B/B2C-compatible role defaults, identity-scoped browser storage and sign-out cleanup without treating preferences as authorization.
+- [ ] Focused rendered-browser journeys pass at 1440×900, 834×1112 and 390×844, including autocomplete keyboard/empty/error states, Find result/comparison/return-state, Create replacement/reset and Profile localization. Static source checks alone do not satisfy this item.
+- [ ] Exact-head protected Vercel Preview is READY; route/security smoke and deployment-scoped error/fatal log review pass. Record deployment ID, exact URL and SHA. Production alias/deployment, `main` SHA and hosted Supabase remain unchanged.
+- [ ] After the final CR, active-doc and release-receipt edits, run `npm run docs:lifecycle:generate`, `npm run test:document-lifecycle` and `git diff --check`; lifecycle generation must be the final documentation step before commit.
+
+## 2026-09-05 isolated functional-UI/Create acceptance
+
+- [ ] Evening correction: Find exposes visible roles/scenarios and scenario-specific effective controls; two or more real available object records can be added/removed/compared and opened for analysis with search context retained. No synthetic score or inert filter is introduced.
+- [ ] Find/area context separate Overpass query working-memory from HTTP response caps; HTTP 200 with an error remark or partial error response never becomes successful zero data or a cached result.
+- [ ] Create separates draft/committed results; unchanged completed Generate is a no-op with explicit UI state; edited inputs enable an update. Template/input/A-B changes do not spend API budget; failures/cancellation retain the last valid result and stale responses cannot overwrite a newer AOI.
+- [ ] Clear/Show existing labels match applied replacement, not merely intended state. Repeat hide/show/delete/reselect with context failure, late building layers and style/2D/3D changes; restoration and retry work without a successful context query.
+- [ ] No Data sources/Data & methodology action, Optional prompt marker or repetitive successful replacement/massing narration is visible. Native map attribution and actionable errors remain.
+- [ ] Analyse has intrinsic object-card height, a useful question composer and visible bottom CTA; empty question works. Find offers executable tasks, preserves filters/profile context, comparison and stale identity handling, with EN/RU parity.
+- [ ] All three map modes preserve the 33 viewport/mode drawer geometry assertions from the desktop-width correction.
+- [ ] Request/UI/server agree on `lockedControlKeys`, legacy omission, empty soft locks, coupled floor edits and actual returned alternative count. Negated/ambiguous prompt keywords do not force an incompatible style.
+- [ ] Courtyard, perimeter, podium/towers and campus differ in actual valid geometry; fixed floors remain fixed, setbacks/concave AOIs are respected, podium metrics do not double-count, and feasible A/B options differ without extra model requests.
+- [ ] Rendered checks distinguish mocked/offline journeys from live API evidence and prove A/B display, full existing-building replacement and Show existing/Reset restoration. Publish only after the verified integration; record exact Preview/CI separately from local checks.
+
+## Cycle 03 adaptive Create acceptance
+
+- [x] Locally verified on controls/preflight integration `2e70a7d`: displayed numeric values are fixed by default, including restored/reset editor state. No new automatic-adjustment UI is introduced. Dedicated fixtures and actual browser request payloads confirm all six fixed keys.
+- [x] Local actual-handler offline checks confirm deterministic fixed-programme failure and its validated coverage suggestion before source/provider calls. Suggestions are not mathematical maxima. The browser proposal/apply journey confirms explicit application, retained prior result and no new request on Apply.
+- [x] Custom direction is not constrained to the template use mix/style merely by six numeric locks. Blank direction supports deterministic template preflight; nonempty direction requires programme resolution and post-model validation. Actual-handler no-retail regression returns the requested changed use mix in one attempt without silent template substitution. Independent P1 closure verified at `e19a274`; focused checks and build 79/79 pass after correction.
+- [ ] Multi-podium output validates every support: towers remain inside their associated podium and above its top, podiums do not overlap, primary counts remain exact, and footprint/floor-area metrics include all supports without double counting.
+- [ ] Synthetic elongated/rotated/L/U/concave/narrow AOIs, clockwise rings and infeasible controls are checked with explicit fixture scope and bounded measured solver time. A failed heuristic search is not presented as planning infeasibility.
+- [ ] The existing 33 layout combinations and Create draft/stale-response/rollback tests stay active. Inspect actual generated 3D geometry, not only metadata or rectangles invented by UI fixtures.
+- [x] Local actual-handler checks confirm error telemetry after provider dispatch; unknown transport usage remains unknown cost, not zero. Deterministic preflight failures confirm zero provider calls and zero cost. All provider transport is stubbed in these tests; no live paid request was made.
+- [ ] Exact-head CI and protected Preview receipt distinguish offline tests, actual live UI and any unavailable paid-provider checks. No paid live control, Main/Production or hosted state change is authorized by this slice.
+
+Local controls/preflight verification: Node 24.19.0 lint and build (79/79 routes), existing Create checks, new preflight/actual-route checks, V5 interaction, V6 contracts, data honesty and API/secret static checks pass. The combined offline browser suite passes six journeys, including layout boundaries, Find comparison, source replacement/restoration, A/B, stale-response preservation and explicit coverage application. After custom-intent correction, all six journeys pass again in 46.4 s on application head `e19a274`; final screenshots live in `/private/tmp/geoai-cycle03-final-browser-evidence`. The proposal uses blank custom direction and a numeric control change, consistent with template preflight; its screenshot was visually inspected. This is not adaptive multi-podium acceptance or live-map/provider evidence. Geometry permission and interactive Mac unlock remain separate blockers.
+
+## Cycle 05 controlled release acceptance
+
+- [x] Accepted UI/Projects baseline `8062b29523990ebd7aebea53acbd106c25f484ac` integrates reliable city/role/scenario selects, Profile-owned Find audience, role-specific settings/comparison and the accepted 430 px desktop drawer. It is not asserted as the final runtime tuple.
+- [x] Local map checks preserve containment, `zoom-required`, outside/colliding/missing-ID objects and replacement restoration across repeated lifecycle changes. Exact Preview browser acceptance remains required.
+- [x] Local browser-local Projects checks cover Analyse, Find and Create save/reopen, EN/RU locale restoration, idempotent retry/conflict, non-destructive 30/31 capacity, multiple pending operations and Find/Create view-state updates without automatic source/model calls.
+- [x] Browser-local and cloud statuses remain distinct; identity-scoped state is not described as protected storage. Cloud persistence and Auth/Supabase/database changes are excluded.
+- [x] Local EN/RU landing and 390/768/1280/1440 product journeys pass the integrated browser checks without fake metrics, testimony, nonfunctional actions or official-integration claims.
+- [x] Classifier commit `fc54b8a` is integrated in local head `ef2f4853975caeae47915e4bd5c0845c0d26555e`; its local point/AOI geocontext contract and bounded live semantic check on exact Preview `af46254` passed (Dubai `223`; Singapore `178`). This is not final-candidate acceptance, certified readiness, official data or complete inventory.
+- [ ] Push the exact candidate, pass exact-head CI and obtain a Ready protected Preview. Record SHA, deployment ID/URL, route/security smoke, logs and rollback; local results cannot satisfy this gate.
+- [ ] On that exact Preview, complete real geocontext, OpenAI analysis and Create generation/visible-geometry checks, then reopen saved results with zero repeat provider calls. Live calls are mandatory; mocked/offline evidence cannot satisfy this gate.
+- [ ] The existing public-source Production scope for unauthenticated address search/suggestions, Find and point/polygon geocontext is founder-approved. Before activation, complete final exact-candidate CI, Preview and live acceptance; process-local rate limits are not a distributed hard billing cap.
+- [ ] After merge, verify exact `main`, Production deployment/alias, real essential flows and rollback, then update the external Project Hub/release receipt. Until then the prior externally verified tuple remains current.
+- [ ] Figma and Confluence current nodes/pages are read back after scoped updates; local handoff or staged text alone cannot close remote parity.
+
 ## Environment
 
 - [ ] `.env.local` exists locally when running Mapbox.
@@ -61,8 +119,8 @@ Exact-head receipt: head `80645d64662699bd646f96718d300df5d2b84f5f`, tree `0fb79
 - [ ] `.env.example` contains only safe placeholder keys.
 - [ ] `NEXT_PUBLIC_MAPBOX_TOKEN` is configured locally.
 - [ ] `NEXT_PUBLIC_MAPBOX_TOKEN` is configured in Vercel.
-- [ ] `OPENAI_API_KEY` is not required for current MVP behavior.
-- [ ] `GEOAI_ALLOW_OPENAI_UPSTREAM` remains false until hard Auth, request membership, privacy and quota gates are verified.
+- [ ] `OPENAI_API_KEY` is not required for the currently externally verified Production behavior. Cycle 05 may reuse the existing server-only credential only under its bounded release CR; no new key or credential exposure is authorized.
+- [ ] Cycle 05 point-to-object upstream execution remains closed unless its explicit surface gates and origin/challenge/rate/cost controls pass final exact-candidate Preview acceptance. Generic flags, key presence or approved source scope alone cannot activate it; source endpoints outside the approved existing public-source scope require separate authority.
 - [ ] `NEXT_PUBLIC_AUTH_MODE` is optional and defaults to public demo access.
 - [ ] `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, if configured after AUTH-01 approval, starts with `sb_publishable_`; legacy anon JWT keys are rejected.
 - [x] Invalid environment values fail closed: Auth -> `disabled`, enforcement -> `hard`, demo bypass -> `false`, Supabase/Storage readiness requirements -> `true`.

@@ -14,6 +14,15 @@ const legacyBrowserDemoStorageKeys = [
 
 const legacyBrowserDemoStoragePrefixes = ["geoai-print-report:"] as const;
 
+const pointObjectTransientSessionKeys = [
+  "geoai:point-to-object:selection:v3",
+  "geoai:point-to-object:question:v2",
+  "geoai:point-to-object:analysis:v8",
+  "geoai:point-to-object:analysis:v7",
+  "geoai:point-to-object:find:v1",
+  "geoai:point-to-object:project-restore:v1"
+] as const;
+
 export function isBrowserDemoStorageEnabled() {
   const requestedMode = process.env.NEXT_PUBLIC_AUTH_MODE?.trim();
   if (!requestedMode || requestedMode === "demo_public") return true;
@@ -40,6 +49,8 @@ export function clearBrowserDemoStorage() {
         ));
       for (const key of [...keys, ...legacyBrowserDemoStorageKeys]) storage.removeItem(key);
     }
+    for (const key of pointObjectTransientSessionKeys) window.sessionStorage.removeItem(key);
+    window.localStorage.removeItem("geoai:point-to-object:browser-identity:v1");
   } catch {
     // Storage can be unavailable in privacy-restricted browsers. The Auth
     // runtime already fails closed and never reads this demo namespace.

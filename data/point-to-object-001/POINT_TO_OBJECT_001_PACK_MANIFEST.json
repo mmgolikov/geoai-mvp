@@ -1,0 +1,295 @@
+{
+  "protocol": "POINT_TO_OBJECT_001_ROOT_PACK_MANIFEST_V1",
+  "manifestVersion": "1.0.0",
+  "finalizedAtUtc": "2026-08-31T22:36:09Z",
+  "status": "CANDIDATE_NOT_MAIN_ACCEPTED",
+  "pathBase": "repository_root",
+  "authority": {
+    "releasedMainSha": "7f323c4227f2409f3fe2d4d68be48a30176f4e2a",
+    "productionStage": "public_demo_prototype",
+    "productionChanged": false
+  },
+  "runtimeLoadGate": {
+    "rootManifestRequired": true,
+    "caseManifestRequired": true,
+    "rightsDecisionRequired": true,
+    "noticeHashRequired": true,
+    "exactHashAndByteMatchRequired": true,
+    "rightsStateMustBeClearedForOperation": true,
+    "sourceSnapshotAndIndexHashRequired": true,
+    "failureMode": "typed_error_no_identity_success",
+    "routeActivationAllowedByThisManifest": false
+  },
+  "casePacks": [
+    {
+      "casePackId": "p2o-uae-dubai-museum-future-osm-20260831",
+      "caseId": "P2O-UAE-DXB-MUSEUM-FUTURE-001",
+      "role": "UAE_BOUNDED_RUNTIME_CASE",
+      "sourceSnapshotId": "p2o-uae-dubai-museum-future-osm-20260831t211331z-v1",
+      "manifest": {
+        "path": "data/point-to-object-001/case-packs/uae-dubai-museum-future-v1/case-pack-manifest.json",
+        "pathBase": "repository_root",
+        "bytes": 9696,
+        "sha256": "e4fa629b012074d85103d11064bdf91761f1a5d7bd47fe29c4b420a07d4c789d"
+      },
+      "rightsState": "cleared",
+      "officialStatus": "open_context_not_official",
+      "identityGeometryState": "PASS_FOR_IDENTITY_ELIGIBLE_POLYGON_FEATURES",
+      "identityEligiblePolygonFeatureCount": 175,
+      "contextCompleteness": "UNKNOWN",
+      "default800mComplete": false,
+      "absenceClaimAllowed": false
+    },
+    {
+      "casePackId": "p2o-sg-marina-bay-osm-20260831",
+      "caseId": "P2O-SG-MARINA-BAY-001",
+      "role": "SINGAPORE_CONTRACT_BENCHMARK",
+      "sourceSnapshotId": "p2o-sg-marina-bay-osm-20260831t211331z-v1",
+      "manifest": {
+        "path": "data/point-to-object-001/case-packs/singapore-marina-bay-v1/case-pack-manifest.json",
+        "pathBase": "repository_root",
+        "bytes": 9679,
+        "sha256": "7e4e46aa5f7481ee88bfbdc2b40a8ec131de8b9c690a38595c69db36f7d7d44c"
+      },
+      "rightsState": "cleared",
+      "officialStatus": "open_context_not_official",
+      "identityGeometryState": "PASS_FOR_IDENTITY_ELIGIBLE_POLYGON_FEATURES",
+      "identityEligiblePolygonFeatureCount": 258,
+      "contextCompleteness": "UNKNOWN",
+      "default800mComplete": false,
+      "absenceClaimAllowed": false
+    }
+  ],
+  "rightsArtifacts": [
+    {
+      "path": "data/point-to-object-001/NOTICE.md",
+      "pathBase": "repository_root",
+      "bytes": 1132,
+      "sha256": "c2aa93be8c84005b6ac3b999327ee6f2cee7375c48bb45f787f9ce5652dbaa8a"
+    },
+    {
+      "path": "data/point-to-object-001/rights/osm-20260831/OSM_RIGHTS_DECISION_V1.json",
+      "pathBase": "repository_root",
+      "bytes": 9642,
+      "sha256": "d01ef3e7e3af38ee4e57a80cd2ca546f9d7307cb232e9e13bd46b7a38efc6e85"
+    },
+    {
+      "path": "data/point-to-object-001/rights/osm-20260831/odbl-1.0-legal-code-headers.txt",
+      "pathBase": "repository_root",
+      "bytes": 1020,
+      "sha256": "20c6b946ac2a354b5225ec000df682cad40f77d4e66d7881663c2ee9c13084a0"
+    },
+    {
+      "path": "data/point-to-object-001/rights/osm-20260831/odbl-1.0-legal-code.html",
+      "pathBase": "repository_root",
+      "bytes": 51176,
+      "sha256": "b8d8aebb21bf405f93f6e21bbf0d8f0a749844f9812ec58692f189add6402b47"
+    },
+    {
+      "path": "data/point-to-object-001/rights/osm-20260831/osm-api-policy-headers.txt",
+      "pathBase": "repository_root",
+      "bytes": 323,
+      "sha256": "e6a4366a13410f6f4807989b5e8546354ae7187bce1e401e91de894791f2c3e1"
+    },
+    {
+      "path": "data/point-to-object-001/rights/osm-20260831/osm-api-policy.html",
+      "pathBase": "repository_root",
+      "bytes": 7223,
+      "sha256": "ec52fb959caa8bb0d6ac26b7c547a7f805c461e28c6bdb4691a0c5844962597a"
+    },
+    {
+      "path": "data/point-to-object-001/rights/osm-20260831/osm-copyright-headers.txt",
+      "pathBase": "repository_root",
+      "bytes": 2703,
+      "sha256": "08d1df9a30174bedf8ae43c09380af4cb0481c2eb50497c1feb7917f21587640"
+    },
+    {
+      "path": "data/point-to-object-001/rights/osm-20260831/osm-copyright.html",
+      "pathBase": "repository_root",
+      "bytes": 21344,
+      "sha256": "9627e33d0eb6e90832e852296f41b0922634655f58188fe5e8b740eee65d0875"
+    },
+    {
+      "path": "data/point-to-object-001/rights/osm-20260831/osmf-attribution-guidelines-headers.txt",
+      "pathBase": "repository_root",
+      "bytes": 520,
+      "sha256": "149e0c8ce0f16fa4dfa76fffc4fad1f25de949ca09cf9c5fc043639e6ab45910"
+    },
+    {
+      "path": "data/point-to-object-001/rights/osm-20260831/osmf-attribution-guidelines.html",
+      "pathBase": "repository_root",
+      "bytes": 51358,
+      "sha256": "e5f20d028bd3db61651ed7bde434d406527b7e3e68f28a7f07f84bd71702d6c2"
+    },
+    {
+      "path": "data/point-to-object-001/rights/osm-20260831/osmf-licence-faq-headers.txt",
+      "pathBase": "repository_root",
+      "bytes": 520,
+      "sha256": "a4002ad9ef930f1682d291eee6d0c6f3d1e0ed480d4302735d064f95ec9a4e36"
+    },
+    {
+      "path": "data/point-to-object-001/rights/osm-20260831/osmf-licence-faq.html",
+      "pathBase": "repository_root",
+      "bytes": 82249,
+      "sha256": "78b2c3ab2e923c98143e595c5064ad228a0b9176f8d3750615c9fa19ab40d27d"
+    },
+    {
+      "path": "data/point-to-object-001/rights/osm-20260831/overpass-commons-headers.txt",
+      "pathBase": "repository_root",
+      "bytes": 279,
+      "sha256": "74242664a699d30b4b1c52dbe9549eb7f59886c0bc783560e223f062cba3de5d"
+    },
+    {
+      "path": "data/point-to-object-001/rights/osm-20260831/overpass-commons.html",
+      "pathBase": "repository_root",
+      "bytes": 12237,
+      "sha256": "664ae364690159d960ea919539a9e399f773aaa2ada8c751a53795f4d7a54785"
+    }
+  ],
+  "contractAndEvidenceArtifacts": [
+    {
+      "path": "data/point-to-object-001/.gitattributes",
+      "pathBase": "repository_root",
+      "bytes": 128,
+      "sha256": "a348a0ea2da290d6afbe459007a56942b20d82deaf2968c1a9e3b76398b2175f"
+    },
+    {
+      "path": "data/point-to-object-001/POINT_TO_OBJECT_001_GOLD_FIXTURES.json",
+      "pathBase": "repository_root",
+      "bytes": 10905,
+      "sha256": "45bdfbfacc486c737ad3610e7e60012d17db43ab3b50203902e3bdbadb7497e3"
+    },
+    {
+      "path": "docs/point-to-object-001/POINT_TO_OBJECT_001_DATA_CONTRACT.json",
+      "pathBase": "repository_root",
+      "bytes": 17682,
+      "sha256": "fb0956dd3d135a23430f4c04f266de5fa69f7739a9f713f9fc09e04457fc94f1"
+    },
+    {
+      "path": "docs/point-to-object-001/POINT_TO_OBJECT_001_DATA_DECISION.md",
+      "pathBase": "repository_root",
+      "bytes": 10381,
+      "sha256": "b39664b9e1e77541d634747a94035583511d0e99842009b43713d915c90883cd"
+    },
+    {
+      "path": "docs/point-to-object-001/POINT_TO_OBJECT_001_DB_SOURCE_AUDIT_RECEIPT.json",
+      "pathBase": "repository_root",
+      "bytes": 7297,
+      "sha256": "f4a45fdfa6bff3bbd26c1fdc255f08335706b9a97b68a972bf8e3b8bca63db09"
+    },
+    {
+      "path": "docs/point-to-object-001/POINT_TO_OBJECT_001_POSTGIS_TEMP_VALIDATION_RECEIPT.json",
+      "pathBase": "repository_root",
+      "bytes": 5180,
+      "sha256": "29071934fba9508f53eae14462c24bff711bf98be83bea319b5c99b50b7940b0"
+    },
+    {
+      "path": "docs/point-to-object-001/POINT_TO_OBJECT_001_RESOLVER_CONTEXT_SPEC.md",
+      "pathBase": "repository_root",
+      "bytes": 10810,
+      "sha256": "38147d019a3dc29892ee94ec6e1478b6fa1f65c27ed3cf480f95a0992339b6f7"
+    },
+    {
+      "path": "docs/point-to-object-001/POINT_TO_OBJECT_001_VALIDATION_RECEIPT.json",
+      "pathBase": "repository_root",
+      "bytes": 16128,
+      "sha256": "4ac03e609b8a23121b44d92747856e657e1efa6eac9c3c934e045cbcd82bdacc"
+    }
+  ],
+  "tools": [
+    {
+      "path": "scripts/point-to-object-001-build-case-pack.mjs",
+      "pathBase": "repository_root",
+      "bytes": 38740,
+      "sha256": "91ee5ec5cb31fed3e01bc74f23a94af432251545424442b64887d88fce8bf653"
+    },
+    {
+      "path": "scripts/point-to-object-001-contract-gates.mjs",
+      "pathBase": "repository_root",
+      "bytes": 11164,
+      "sha256": "2350237dbac6c348c9f611da80c6019e95792f522c2907ee3c56e4bb15807418"
+    },
+    {
+      "path": "scripts/point-to-object-001-finalize-case-manifests.mjs",
+      "pathBase": "repository_root",
+      "bytes": 9248,
+      "sha256": "7a07afa46f029fb709eabc77fe036bf1f1f963e6e3ff3625a2bee03d701b175c"
+    },
+    {
+      "path": "scripts/point-to-object-001-finalize-root-manifest.mjs",
+      "pathBase": "repository_root",
+      "bytes": 7601,
+      "sha256": "f1ada1ad64b73ad6016e98ff0d80b81375c611c70780acdb224ea04e433742b5"
+    },
+    {
+      "path": "scripts/point-to-object-001-generate-postgis-temp-validation.mjs",
+      "pathBase": "repository_root",
+      "bytes": 6399,
+      "sha256": "65eef92f6cece97467b48424d7d2b213c7c5bf8e0e6db05778d7fd20bdba1924"
+    },
+    {
+      "path": "scripts/point-to-object-001-postgis-sg-temp-validation.sql",
+      "pathBase": "repository_root",
+      "bytes": 163617,
+      "sha256": "5ce2b3f7bbd92403fa215e05b68fd487fe90a05bbebaca6e6507c97b0e2577de"
+    },
+    {
+      "path": "scripts/point-to-object-001-postgis-uae-temp-validation.sql",
+      "pathBase": "repository_root",
+      "bytes": 94330,
+      "sha256": "ee097c40346e478b520c2bd7453c6a75f12ed1849f8e8fd1977dac216d53c55d"
+    },
+    {
+      "path": "scripts/point-to-object-001-sanitize-osm-snapshot-v1_0_0.mjs",
+      "pathBase": "repository_root",
+      "bytes": 8419,
+      "sha256": "1cc911012dc46d5bf7028b2e0f83009ed1d799776dbb62b432be58290fd9737f"
+    },
+    {
+      "path": "scripts/point-to-object-001-sanitize-osm-snapshot.mjs",
+      "pathBase": "repository_root",
+      "bytes": 9648,
+      "sha256": "0bbb2faff34e44b5253cd0cfea559a935aade357ac3188ef5efba2d68ec10a93"
+    },
+    {
+      "path": "scripts/point-to-object-001-validate.mjs",
+      "pathBase": "repository_root",
+      "bytes": 19806,
+      "sha256": "cbf894205d27b986ba0034cd85646eeef33e00cff1867352145b384daca5eb45"
+    }
+  ],
+  "acceptanceSummary": {
+    "uaeCaseCount": 1,
+    "benchmarkCaseCount": 1,
+    "deterministicFixtureCount": 10,
+    "deterministicFixturePassCount": 10,
+    "identityEligiblePolygonFeatureCount": 433,
+    "fullPostgisValidGeometryCount": 433,
+    "quarantinedUnsupportedBuildingRelationCount": 2,
+    "nonPolygonBuildingTaggedIdentityIneligibleCount": 1,
+    "persistentP2oTableCount": 0,
+    "statisticalAccuracyCohort": "NOT_EVALUATED",
+    "contextCompleteness": "UNKNOWN_PARTIAL",
+    "externalPreview": "BLOCKED",
+    "production": "PROHIBITED"
+  },
+  "sourceOffer": {
+    "notice": {
+      "path": "data/point-to-object-001/NOTICE.md",
+      "pathBase": "repository_root",
+      "bytes": 1132,
+      "sha256": "c2aa93be8c84005b6ac3b999327ee6f2cee7375c48bb45f787f9ce5652dbaa8a"
+    },
+    "casePackDirectory": "data/point-to-object-001/case-packs/",
+    "currentTransformationTool": {
+      "path": "scripts/point-to-object-001-build-case-pack.mjs",
+      "pathBase": "repository_root",
+      "bytes": 38740,
+      "sha256": "91ee5ec5cb31fed3e01bc74f23a94af432251545424442b64887d88fce8bf653"
+    },
+    "licence": "ODbL-1.0",
+    "attribution": "© OpenStreetMap contributors"
+  },
+  "nonCircularManifestHash": null,
+  "mandatoryCaveat": "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
+}

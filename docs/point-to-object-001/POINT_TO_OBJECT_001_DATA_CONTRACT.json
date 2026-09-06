@@ -1,0 +1,193 @@
+{
+  "protocol": "POINT_TO_OBJECT_001_DATA_CONTRACT_V1",
+  "contractId": "POINT-TO-OBJECT-001-DATA-CONTRACT",
+  "contractVersion": "1.0.1",
+  "status": "CANDIDATE_NOT_MAIN_ACCEPTED",
+  "authority": {
+    "masterBriefPath": "/Users/mmgolikov/.codex/.chatgpt-projects/g-p-69ad6f8f8f4881919685beb94a855ac6/POINT_TO_OBJECT_001_MASTER_BRIEF.md",
+    "masterBriefSha256": "fd7312cc2275d66fdeafa4c0e4b1cbe6192441b4e34d34966cec102679cb8da2",
+    "releasedMainSha": "7f323c4227f2409f3fe2d4d68be48a30176f4e2a",
+    "productionStage": "public_demo_prototype",
+    "productionChanged": false
+  },
+  "parentSchemas": {
+    "canonical": "urn:geoai:schema:place-object-evidence-response:0.3.0",
+    "prototype": "urn:geoai:schema:live-point-evidence-response:0.1.0",
+    "profile": "POINT_TO_OBJECT_001/1.0.1",
+    "profileRule": "This contract is a narrow point-only implementation profile, not a byte-for-byte subset of either parent."
+  },
+  "scope": {
+    "locatorKinds": ["point"],
+    "runtimeIdentitySources": ["SPAT-001"],
+    "runtimeSourcePolicy": "one immutable source-isolated OSM snapshot per enabled AOI",
+    "overtureRole": "offline_evaluation_only",
+    "mapboxRole": "presentation_only_not_evidence",
+    "openAiRole": "optional_post-validation_narrative_only",
+    "excluded": ["official parcel", "cadastre", "ownership", "zoning", "planning approval", "valuation", "routing time", "public REST", "MCP", "customer data", "Production"]
+  },
+  "enumerations": {
+    "operation": ["resolve_entity", "get_context", "get_evidence_bundle"],
+    "selectionIntent": ["general_object", "building", "road", "poi", "land_use"],
+    "identityStatus": ["resolved", "ambiguous", "coordinate_context_only", "no_result", "outside_coverage"],
+    "evidenceQuality": ["sufficient_for_open_context", "partial_open_context", "insufficient_evidence", "blocked_by_rights", "blocked_by_identity", "blocked_by_conflict"],
+    "contextState": ["complete", "partial", "not_requested", "not_available"],
+    "rightsState": ["cleared", "limited", "unknown", "blocked", "not_evaluated"],
+    "executionStatus": ["completed", "partial"],
+    "errorEnvelopeStatus": ["invalid_input", "source_unavailable", "blocked", "failed"],
+    "errorCode": ["INVALID_REQUEST", "INVALID_COORDINATE", "COORDINATE_ORDER_SUSPECTED", "INPUT_LIMIT_EXCEEDED", "ANCHOR_MISMATCH", "SNAPSHOT_MISSING", "SNAPSHOT_CORRUPT", "SNAPSHOT_HASH_MISMATCH", "SNAPSHOT_INDEX_UNAVAILABLE", "GEOMETRY_NOT_FOUND", "GEOMETRY_HASH_MISMATCH", "CANDIDATE_SET_OVERFLOW", "RIGHTS_UNKNOWN", "RIGHTS_BLOCKED", "SOURCE_STALE_BLOCKED", "PREVIEW_DISABLED", "PRODUCTION_DENIED", "ACCESS_DENIED", "CONTRACT_VALIDATION_FAILED", "INTERNAL_ERROR"],
+    "warningCode": ["BOUNDARY_CONTACT", "PARTIAL_CONTEXT_SOURCE", "SOURCE_FRESHNESS_UNKNOWN", "SOURCE_STALE", "SOURCE_CONFLICT", "CONTEXT_TRUNCATED", "CENTROID_FALLBACK", "MODEL_FALLBACK", "COORDINATE_CONTEXT_ONLY", "UNNAMED_SOURCE_FEATURE", "MISSING_IS_NOT_ABSENCE"],
+    "categoryObservationState": ["observed", "not_observed_in_source_snapshot", "coverage_unknown", "source_unavailable"]
+  },
+  "separationRules": [
+    "insufficient_evidence is evidence quality, never identity status",
+    "source/system/rights failures return an error envelope with identityStatus=null",
+    "no_result is allowed only after a healthy cleared snapshot and exact in-coverage search",
+    "rightsState must equal cleared for every source used by a success envelope",
+    "missing source records never support a real-world absence conclusion"
+  ],
+  "request": {
+    "required": ["operation", "selectionIntent", "locator", "locale", "requestedContextCategories", "requestedRadiusM"],
+    "locator": {
+      "kind": "point",
+      "longitude": "finite number in [-180,180]",
+      "latitude": "finite number in [-90,90]",
+      "crs": "EPSG:4326",
+      "coordinateOrder": "named fields only; arrays and silent swapping prohibited",
+      "rawNumbersPreserved": true
+    },
+    "optionalCandidateAssertion": {
+      "candidateId": "server-issued opaque/canonical ID from the same snapshot",
+      "selectionReceiptId": "required when candidateId is supplied",
+      "serverRevalidationRequired": true
+    },
+    "caps": { "maximumCandidates": 20, "maximumReturnedFacilities": 100, "maximumCategories": 20, "maximumRadiusM": 1500 }
+  },
+  "responseDimensions": {
+    "identity": "one identityStatus or null only for typed failure",
+    "evidence": "one evidenceQuality independent of identity",
+    "context": "one contextState independent of identity",
+    "rights": "per source and operation",
+    "execution": "success or typed error envelope",
+    "warnings": "finite list; warnings cannot upgrade evidence"
+  },
+  "selectedObjectRequiredFields": ["entityId", "entityHashSha256", "sourceId", "sourceFeatureId", "sourceSnapshotId", "featureClass", "authorityStatus", "geometry", "geometryVersion", "geometryHashSha256", "relationshipToClick", "fieldProvenance", "rightsDecisionId", "warnings"],
+  "sourceFeature": {
+    "schemaVersion": "LivePointSnapshotFeatureV2/1.0.0",
+    "required": ["id", "bbox", "geometry", "properties.sourceId", "properties.sourceFeatureId", "properties.sourceSnapshotId", "properties.sourceReleaseId", "properties.featureClass", "properties.identityEligibility", "properties.geometryHashSha256", "properties.rightsState", "properties.permissionPhase", "properties.officialStatus", "properties.missingDoesNotMeanAbsent", "properties.mandatoryCaveat"],
+    "sourceFeatureVersionNullable": true,
+    "sourceFeatureObservedAtUtcNullable": true,
+    "nullMetadataWarning": "SOURCE_FRESHNESS_UNKNOWN",
+    "tagProjectionPolicy": "geoai-p2o-osm-tag-allowlist/1.0.0",
+    "arbitraryRawTagUseAllowed": false,
+    "untrustedText": true,
+    "buildingDoesNotMeanParcel": true
+  },
+  "snapshotManifestRequiredFields": ["absenceClaimAtDefaultRadiusAllowed", "acquisition", "acquisitionReceipt", "activationState", "anchor", "attribution", "calculationCrs", "caseId", "casePackId", "caseRole", "contextCompletenessAtContainedRadius", "counts", "coverageBboxWgs84", "coverageGeometry", "coverageGeometryHashSha256", "defaultContextCoverageState", "defaultRequestedContextRadiusM", "files", "geometryQuality", "knownAnchorInterpretation", "mandatoryCaveat", "manifestVersion", "maxRadiusContainedWithinQueryBboxAtAnchorM", "minimizationTool", "nonCircularManifestHash", "normalizationReceipt", "normalizationTool", "normalizedSnapshot", "officialStatus", "pathBases", "protocol", "query", "retainedFeatureGeometryMayExtendOutsideCoverage", "retainedGeometryExtentWgs84", "rightsDecision", "sourceDatabaseObservedAtUtc", "sourceFeatureMetadataAvailability", "sourceId", "sourceNamespace", "sourceOffer", "sourceReleaseId", "sourceSnapshotId", "spatialIndex", "taxonomyVersions"],
+  "snapshotManifestSchema": {
+    "schemaVersion": "POINT_TO_OBJECT_001_CASE_PACK_MANIFEST_SCHEMA/1.0.0",
+    "additionalTopLevelPropertiesAllowed": false,
+    "requiredTopLevelFields": ["absenceClaimAtDefaultRadiusAllowed", "acquisition", "acquisitionReceipt", "activationState", "anchor", "attribution", "calculationCrs", "caseId", "casePackId", "caseRole", "contextCompletenessAtContainedRadius", "counts", "coverageBboxWgs84", "coverageGeometry", "coverageGeometryHashSha256", "defaultContextCoverageState", "defaultRequestedContextRadiusM", "files", "geometryQuality", "knownAnchorInterpretation", "mandatoryCaveat", "manifestVersion", "maxRadiusContainedWithinQueryBboxAtAnchorM", "minimizationTool", "nonCircularManifestHash", "normalizationReceipt", "normalizationTool", "normalizedSnapshot", "officialStatus", "pathBases", "protocol", "query", "retainedFeatureGeometryMayExtendOutsideCoverage", "retainedGeometryExtentWgs84", "rightsDecision", "sourceDatabaseObservedAtUtc", "sourceFeatureMetadataAvailability", "sourceId", "sourceNamespace", "sourceOffer", "sourceReleaseId", "sourceSnapshotId", "spatialIndex", "taxonomyVersions"],
+    "pathBases": {
+      "files": "case_pack_directory",
+      "rightsDecision": "repository_root",
+      "sourceOffer": "repository_root",
+      "tools": "repository_root",
+      "postgisTempValidation": "repository_root"
+    },
+    "exactHashRecordFields": ["query", "acquisitionReceipt", "normalizedSnapshot", "normalizationReceipt"],
+    "extendedHashRecordFields": ["spatialIndex"],
+    "rightsDecisionExactFields": ["path", "bytes", "sha256", "decisionId", "decisionVersion", "rightsState", "permissionPhase"],
+    "sourceOfferExactFields": ["noticePath", "noticeBytes", "noticeSha256", "rawAndDerivedDatabasePaths", "transformationPath", "notice"],
+    "postgisTempValidationExactFields": ["path", "bytes", "sha256", "identityEligiblePolygonFeatureCount", "validGeometryCount", "invalidGeometryCount", "temporaryOnly", "persistentP2oTableCountAfterTests"],
+    "toolRecordExactFields": ["path", "bytes", "sha256", "nodeRuntime"],
+    "fileRecordExactFields": ["path", "bytes", "sha256"],
+    "pathRule": "Every path is relative and resolves only against its named pathBases entry; path traversal and symlink escape are prohibited at runtime.",
+    "hashRule": "Every path-bearing evidence record requires exact non-negative bytes and lowercase SHA-256 before any state is inherited.",
+    "physicalBindingRule": "Before case or root finalization, every files[], alias, rights, tool, NOTICE and PostGIS record must resolve inside its declared realpath base, reject a symlink record, match physical bytes/SHA-256 and reconcile duplicate aliases exactly."
+  },
+  "receiptSchemas": {
+    "acquisition": ["protocol", "receiptSerializationVersion", "sanitizerVersion", "caseDirectory", "pathBases", "operatorRecordedRequest", "acquisitionSource", "minimizedSnapshot", "normalizationInputParity", "query", "responseHeaders", "configAtMinimization", "minimizationTool", "currentHardenedMinimizationTool", "operatorRecordedFinalization", "acquisitionEvidenceLimitations"],
+    "geometry": ["receiptId", "sourceFeatureId", "sourceSnapshotId", "sourceFeatureVersion", "sourceFeatureObservedAtUtc", "rawLocator", "normalizedGeometryHashSha256", "geometryVersion", "validationEngine", "validationEngineVersion", "validityState", "classificationConflicts", "hierarchyState"],
+    "selection": ["receiptId", "operation", "selectionIntent", "rawPoint", "snapshotId", "snapshotHashSha256", "coverageGeometryHashSha256", "indexHashSha256", "resolverPolicyVersion", "exactSortedCandidateIds", "eligibleCandidateSetHashSha256", "relationshipByCandidate", "identityStatus", "selectedId", "warnings", "resolvedAtUtc"],
+    "context": ["receiptId", "anchorId", "anchorGeometryHashSha256", "categoryMapVersion", "requestedRadiusM", "maxRadiusContainedWithinQueryBboxAtAnchorM", "coverageState", "contextCompleteness", "snapshotIds", "observations", "metrics", "truncated"],
+    "distance": ["receiptId", "originId", "originGeometryHashSha256", "destinationId", "destinationGeometryHashSha256", "method", "crsOrEllipsoid", "library", "libraryVersion", "value", "unit", "graphVersion", "calculatedAtUtc", "fallbackNote"],
+    "absence": ["receiptId", "queryId", "querySha256", "category", "radiusM", "snapshotIds", "queriedAtUtc", "resultCount", "coverageState", "absenceSemantics", "supportsAbsenceConclusion", "evidenceIds"],
+    "rights": ["decisionId", "decisionVersion", "sourceId", "licenceId", "permissionPhase", "territory", "operativeEvidence", "permissions", "rightsState", "obligations", "limitations"]
+  },
+  "rightsDecisionSchema": {
+    "schemaVersion": "POINT_TO_OBJECT_001_RIGHTS_DECISION_SCHEMA/1.0.0",
+    "requiredTopLevelFields": ["decisionId", "decisionVersion", "sourceId", "licenceId", "permissionPhase", "territory", "operativeEvidence", "permissions", "rightsState", "obligations", "limitations", "publicOverpassRuntimeAllowed"],
+    "obligationItemExactFields": ["obligationId", "appliesTo", "requirement", "evidenceLocator"],
+    "clearanceRule": "rightsState=cleared requires at least one fully serialized obligation and exact linked rights bytes before any case or root manifest may inherit clearance."
+  },
+  "resolverPolicy": {
+    "version": "resolver-policy-p2o-v1.0.1",
+    "coverage": "bbox prefilter plus exact boundary-inclusive covers test against hashed coverage polygon",
+    "priority": ["server-verified candidate assertion", "exact interior candidates by intent/class policy", "boundary candidates", "intent-specific nearest line/point within frozen tolerance", "coordinate context"],
+    "classPriority": { "building": ["building", "building_part"], "general_object": ["building", "building_part", "land_use"], "land_use": ["land_use"], "road": ["road_segment"], "poi": ["poi_place"] },
+    "buildingIntentLandUseRule": "land_use is context only under building intent and cannot become a building identity",
+    "hierarchyRule": "A parent may outrank a part only when the source relationship is validated; otherwise a credible overlap is ambiguous.",
+    "tieRule": "two or more eligible candidates at the same priority returns ambiguous; no weighted or smallest-area tie-break",
+    "boundaryRule": "a single boundary candidate may resolve with BOUNDARY_CONTACT; multiple boundary candidates are ambiguous",
+    "overflowRule": "more than 20 eligible candidates returns blocked/CANDIDATE_SET_OVERFLOW; truncation is prohibited",
+    "nearestIdentity": "disabled for building/land-use identity; allowed only for explicit road/poi intent after a versioned tolerance is separately validated",
+    "modelParticipation": false
+  },
+  "context": {
+    "categoryMapVersion": "geoai-p2o-osm-context-category-map/1.0.0",
+    "categories": ["school", "childcare", "clinic", "hospital", "pharmacy", "grocery", "supermarket", "retail_anchor", "public_transport_stop", "public_transport_station", "major_road", "park_green_space"],
+    "defaultRadiusM": { "buildingOrLandUse": 800, "road": 500 },
+    "maximumRadiusM": 1500,
+    "currentCasePackMaxRadiusContainedWithinQueryBboxAtAnchorM": { "P2O-UAE-DXB-MUSEUM-FUTURE-001": 300, "P2O-SG-MARINA-BAY-001": 400 },
+    "containedRadiusDoesNotProveSourceCompleteness": true,
+    "currentDefault800mState": "partial_unknown_completeness",
+    "zeroRule": "observed_count=0 means no matching records observed in the named snapshot/window only",
+    "absenceConclusionAllowed": false,
+    "missingTourismOnlyCoverage": "The acquisition predicate does not separately request tourism-only features; tourism-only POI absence is unobservable."
+  },
+  "distanceMethods": {
+    "identityTopology": "exact 2D topology in EPSG:4326 after validation; no distance used for building identity",
+    "dubaiMetric": "PostGIS ST_Transform to EPSG:32640 then ST_Distance for point/line/polygon metric operations",
+    "singaporeMetric": "PostGIS ST_Transform to EPSG:32648 then ST_Distance for point/line/polygon metric operations",
+    "pointToPoint": "WGS84 ellipsoidal/geodesic method with implementation and version recorded",
+    "graphVersion": null,
+    "routeOrTravelTimeClaimAllowed": false,
+    "tolerancePolicy": "method/range-specific tolerances must be frozen after independent cross-check; max(5m,1%) is rejected",
+    "nearestOrderGate": "zero ordering inversions between primary and independent implementations"
+  },
+  "goldSet": {
+    "requiredFields": ["fixtureId", "scoreable", "caseId", "operation", "selectionIntent", "pointWgs84", "snapshotId", "snapshotManifestSha256", "coverageGeometryHashSha256", "rightsDecisionId", "expectedIdentityStatus", "expectedSelectedId", "expectedSortedCandidateIds", "expectedWarnings", "expectedError", "adjudicationBasis"],
+    "acceptance": "100% exact expected status/ID/candidate-set on every scoreable deterministic fixture and zero false-confident identity",
+    "statisticalTargets": { "top1PrecisionGte98Percent": "UNVALIDATED", "resolvableShareGte80Percent": "UNVALIDATED" },
+    "flexibleExpectedResultAllowed": false
+  },
+  "rightsAndActivation": {
+    "rightsDecisionId": "P2O-RIGHTS-OSM-ODBL-001",
+    "rightsDecisionVersion": "1.0.0",
+    "currentPhase": "internal_preview_experiment",
+    "successRequiresCleared": true,
+    "visibleAttribution": "© OpenStreetMap contributors",
+    "sourceOfferRequired": true,
+    "unknownLimitedBlockedOrNotEvaluatedCanEnterSuccess": false,
+    "runtimePublicOverpassDependencyAllowed": false,
+    "externalPreviewState": "BLOCKED_PENDING_VISIBLE_ATTRIBUTION_UI_EVIDENCE_PARITY_AND_MAIN_GATE"
+  },
+  "storageDecision": {
+    "selected": "immutable_file_backed_case_packs",
+    "reason": "smallest reversible path; current geoai-dev has migration drift, broad grants/policies, no POINT_TO_OBJECT persistence requirement and no accepted dynamic/shared/customer-data need",
+    "supabaseMigrationRequired": false,
+    "futurePostgisTriggers": ["dynamic snapshots", "shared ingestion", "tenant/customer data", "version-diff querying", "measured file-backed performance failure"],
+    "futureDatabaseGate": ["private non-exposed schema", "additive migration", "explicit GRANT matrix", "RLS and negative personas", "GiST and B-tree indexes", "EXPLAIN evidence", "rollback", "post-change advisors"]
+  },
+  "currentReadiness": {
+    "dataContract": "CANDIDATE",
+    "sourceAcquisition": "LIMITED_HASH_VERIFIED_MINIMIZED_INPUT_WITH_OPERATOR_RECORDED_NON_ATOMIC_CHRONOLOGY",
+    "rights": "CLEARED_FOR_INTERNAL_PREVIEW_EXPERIMENT_WITH_OBLIGATIONS",
+    "geometryQuality": "PASS_FOR_ALL_433_IDENTITY_ELIGIBLE_POLYGON_FEATURES_CONTEXT_GEOMETRY_PARTIAL",
+    "default800mContextCompleteness": "FAIL_PARTIAL",
+    "routeIntegration": "BLOCKED",
+    "externalPreview": "BLOCKED",
+    "production": "PROHIBITED"
+  },
+  "mandatoryCaveat": "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
+}

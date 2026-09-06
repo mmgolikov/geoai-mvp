@@ -1,0 +1,11 @@
+HTTP/2 200 
+strict-transport-security: max-age=31536000; includeSubDomains; preload
+server: nginx/1.30.4
+date: Mon, 31 Aug 2026 20:39:49 GMT
+content-type: text/html; charset=utf-8
+content-length: 2803
+last-modified: Sat, 29 Aug 2026 10:51:53 GMT
+etag: "6a92b9c9-af3"
+content-encoding: gzip
+accept-ranges: bytes
+

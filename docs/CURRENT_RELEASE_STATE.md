@@ -1,30 +1,43 @@
 # GeoAI Current Release State
 
-Status: Active release guidance with a historical last-verified snapshot
-Last verified: 2026-07-21
+Status: Active release guidance with current and historical runtime evidence
+Last verified: 2026-09-06
 Owner: GeoAI Release Engineering
 Authority: Repository release policy and interpretation of external runtime evidence
 Successor: None; any replacement must update `DOCUMENTATION_INDEX.md`
 Operational dashboard: [Confluence Project Hub](https://geoaimvp.atlassian.net/wiki/spaces/PH/overview)
 Navigation: [Documentation Index](DOCUMENTATION_INDEX.md) · [Full System Audit](FULL_SYSTEM_AUDIT_2026_07_16.md) · [Architecture](architecture.md) · [Data Strategy](data-strategy.md) · [QA Checklist](qa-checklist.md) · [Codex Backlog](CODEX_BACKLOG_2026_07_16.md)
 
-## Last externally verified release snapshot
+## Current externally verified release
 
 | Item | Verified state |
 | --- | --- |
-| GitHub release | PR [#106](https://github.com/mmgolikov/geoai-mvp/pull/106), merged |
-| `main` SHA | `cc8f9ebcf3989fab4a3c4eac9be9dfb8da786a7b` |
+| GitHub release | PR [#113](https://github.com/mmgolikov/geoai-mvp/pull/113), merged; commit `Merge PR #113: Product System v3.2.2 correction` |
+| `main` SHA | `7f323c4227f2409f3fe2d4d68be48a30176f4e2a` |
 | Repository policy/schema | [RELEASE_AUTHORITY_POLICY.json](RELEASE_AUTHORITY_POLICY.json) |
 | Historical snapshot | [LAST_VERIFIED_RELEASE_SNAPSHOT.json](LAST_VERIFIED_RELEASE_SNAPSHOT.json) |
-| Vercel Production | `dpl_6RC2ohEdLBjiV82k758tFMkaDB9X`, READY at https://geoai-mvp.vercel.app on exact SHA |
-| Rollback deployment | `dpl_ERVqZPD5GAGDLjAVhMcPF2HT5Br7` |
+| Vercel Production | `dpl_4yBHCo1eZ7N6GYQWGAg1EdQGwFTE`, READY at https://geoai-a71p4fxnr-geoaidev.vercel.app; aliases include https://geoai-mvp.vercel.app |
+| GitHub deployment | Deployment `5601335100`; status `15930263481` success |
+| Historical rollback deployment | `dpl_ERVqZPD5GAGDLjAVhMcPF2HT5Br7` |
 | Product stage | `public_demo_prototype` |
 | Production mode | Public demo, `demo_only`, `local_fallback`, soft access |
 | Production Supabase | Not configured |
 | Production source pack | HTTP 503, disabled, activation not allowed, zero sources |
 | Product maturity | Not Production-ready; not pilot-ready |
 
-The live authority is external post-release evidence: GitHub default-branch and merge state, GitHub Deployments or Production environment, the Vercel Production alias and the Project Hub post-release receipt. The tuple below is historical point-in-time evidence and is superseded whenever those external authorities record a newer release.
+The live authority is external post-release evidence: GitHub default-branch and merge state, GitHub Deployments or Production environment, the Vercel Production alias and the Project Hub post-release receipt. The tuple above records facts verified on 2026-09-04. Historical sections below preserve earlier point-in-time evidence and do not override the current tuple.
+
+## Cycle 05 controlled release candidate — not yet externally released
+
+Accepted UI/Projects baseline `8062b29523990ebd7aebea53acbd106c25f484ac` integrates Point-to-Object Analyse / Find / Create; identity-scoped device-local Projects with strict saved-result validation, recovery and reopen without automatic source/model calls; corrected select controls; current map containment and `zoom-required` lifecycle fixes; and the bilingual landing page. The conservative classifier increment is integrated locally at `ef2f4853975caeae47915e4bd5c0845c0d26555e`. These are not asserted as the final runtime release tuple; the exact tuple is governed by the Cycle 05 CR and subsequent external receipt. No new externally verified release replaces the PR #113 / `main` / Production tuple above yet.
+
+The [Cycle 05 Controlled Main Release CR](change-requests/point-to-object-001/experience-v6/CYCLE_05_MAIN_RELEASE_CR.md) records explicit founder authority for the bounded release, public paid AI/Create after disclosure of the current cost-control risk and the existing public-source Production scope for unauthenticated address search/suggestions, Find and point/polygon geocontext. This is scope authority only: Production activation still requires final exact-candidate CI and Ready Preview plus live geocontext/OpenAI/Create/restore acceptance, route/security smoke and rollback evidence. This documentation sync does not activate sources or change `main` or Production.
+
+The point/AOI geocontext classifier correction has passed its local contract and a bounded live semantic check on exact Preview `af46254` (Dubai `223`; Singapore `178`). This is evidence for that Preview only, not certified source readiness, official data, complete inventory, final-candidate acceptance or Production activation. Wikimapia and Maxis-inspired design exploration are excluded. Cloud persistence, Auth, Supabase and database state are unchanged.
+
+The active POINT_TO_OBJECT_001 V6 work is a separate protected-Preview candidate on Draft PR #147. Integrated application/documentation head `3f2ca5bda547b52c3c80db44b77a4d8ded058ad9`, tree `5893157a41bb07542be31867a5bde6966eaa7d95`, passed Quality Gate `33915252452` and is Ready as protected Preview `dpl_J98acMVSCxAUFQ37noZsy8nt9KPR`; the exact evidence and limits are recorded in the [V6 Preview receipt](change-requests/point-to-object-001/experience-v6/RELEASE_POINT_TO_OBJECT_001_V6_PREVIEW_RECEIPT_20260904.md). Exact CI/Preview evidence for the documentation-only successor containing that receipt must be recorded externally in Draft PR #147 after verification and is not self-certified by the receipt. This iteration reconciled repository documentation against current GitHub and Vercel evidence only. It performed no Confluence read-back or mutation, so current Project Hub parity with the V6 candidate is `UNVERIFIED` and must not be inferred from repository consistency.
+
+Governance anomaly recorded on 2026-09-04: a malformed read-only evidence query accidentally created GitHub Deployment metadata record `6271790484` for branch SHA `d85ef69624bc79c50af788c165c0760dcab01c8f`. GitHub labels its `environment` as `production`, but the record has `production_environment=false`, an empty status history and no deployment URL. Read-back confirmed that it triggered no Vercel deployment, changed no Production alias and changed neither `main` nor application code. The orphan metadata record remains unresolved; no deletion, deactivation or other cleanup is authorized by this Preview iteration.
 
 ## Historical post-merge CI and Production evidence
 
@@ -33,7 +46,7 @@ PR #106 merged CR 09.22 public-funnel and release-truth corrections into `main` 
 Vercel Production inspection resolves https://geoai-mvp.vercel.app to deployment `dpl_6RC2ohEdLBjiV82k758tFMkaDB9X`, READY, exact deployment URL `https://geoai-15h7r8l4k-geoaidev.vercel.app`, target `production`. The previous PR #97 deployment `dpl_ERVqZPD5GAGDLjAVhMcPF2HT5Br7` is now rollback, not current Production. External route smoke returned HTTP 200 for `/`, `/workspace`, `/projects`, `/explore`, `/api/health`, `/api/db/health`, `/api/platform/activation-status`, `/api/pilot-backend/status`, `/reports/seeded-analysis-dubai-marina-report/print` and `/reports/seeded-comparison-dubai-shortlist-report/print`. Deployment-scoped Vercel logs in the checked window showed info-level requests and no error/fatal entries.
 
 The authority lifecycle decision is recorded in [Release Authority Lifecycle Decision](RELEASE_AUTHORITY_LIFECYCLE_DECISION.md). Repository CI validates schema and historical/current distinction; it does not claim to query live GitHub or Vercel state.
-The historical PR #97 full-system audit remains valid as containment evidence, while the PR #106 tuple is only the last externally verified repository snapshot.
+The historical PR #97 full-system audit remains valid as containment evidence. The PR #106 tuple is preserved as historical released-runtime evidence and is superseded by the current PR #113 / `main` / Production tuple above.
 
 ## Isolated Free rehearsal — current candidate evidence
 

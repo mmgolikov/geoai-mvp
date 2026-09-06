@@ -214,6 +214,84 @@ jobs:
           set -euo pipefail
           npm run test:source-connector-foundation | tee artifacts/source-connector-foundation-check.txt
 
+      - name: Point-to-object prototype contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:point-to-object | tee artifacts/point-to-object-contract-check.txt
+
+      - name: Point-to-object autocomplete contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:point-to-object-autocomplete | tee artifacts/point-to-object-autocomplete-check.txt
+
+      - name: Point-to-object source and semantic analysis contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:point-to-object-geocontext | tee artifacts/point-to-object-geocontext-check.txt
+
+      - name: Point-to-object V5 interaction contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:point-to-object-v5-interaction | tee artifacts/point-to-object-v5-interaction-check.txt
+
+      - name: Point-to-object trusted identity contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:point-to-object-trusted-identity | tee artifacts/point-to-object-trusted-identity-check.txt
+
+      - name: Point-to-object Find contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:point-to-object-find | tee artifacts/point-to-object-find-check.txt
+
+      - name: Point-to-object area-context contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:point-to-object-area-context | tee artifacts/point-to-object-area-context-check.txt
+
+      - name: Point-to-object Create contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:point-to-object-create | tee artifacts/point-to-object-create-check.txt
+
+      - name: Point-to-object runtime gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:point-to-object-runtime-gate | tee artifacts/point-to-object-runtime-gate-check.txt
+
+      - name: Point-to-object saved Projects and live-producer contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:point-to-object-projects | tee artifacts/point-to-object-projects-check.txt
+
+      - name: Point-to-object map-replacement contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:point-to-object-map-replacement | tee artifacts/point-to-object-map-replacement-check.txt
+
+      - name: Point-to-object V6 architecture contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:point-to-object-v6-contracts | tee artifacts/point-to-object-v6-contract-check.txt
+
+      - name: User-profile contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:user-profile | tee artifacts/user-profile-check.txt
+
       - name: Workspace-panel source checks
         shell: bash
         run: |
@@ -348,6 +426,7 @@ jobs:
           fi
 
           google-chrome --version | tee artifacts/google-chrome-version.txt
+          npm run test:e2e:point-to-object-v5 | tee artifacts/point-to-object-v5-e2e.txt
           npm run test:e2e:auth-session | tee artifacts/auth-session-e2e.txt
           npx lighthouse 'http://127.0.0.1:3100/login?next=/workspace&intent=demo' \
             --quiet \

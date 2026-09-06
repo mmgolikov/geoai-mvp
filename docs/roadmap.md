@@ -1,16 +1,18 @@
 # GeoAI Delivery Roadmap
 
 Status: Active
-Last verified: 2026-07-21
+Last verified: 2026-09-04
 Owner: GeoAI Product / Engineering
 Authority: Current dependency-ordered delivery plan
 Successor: None; any replacement must update `DOCUMENTATION_INDEX.md`
-Last externally verified release snapshot: merged PR #106 at `cc8f9ebcf3989fab4a3c4eac9be9dfb8da786a7b`; Production `dpl_6RC2ohEdLBjiV82k758tFMkaDB9X` at https://geoai-mvp.vercel.app; rollback `dpl_ERVqZPD5GAGDLjAVhMcPF2HT5Br7`; stage `public_demo_prototype`. Policy: [RELEASE_AUTHORITY_POLICY.json](RELEASE_AUTHORITY_POLICY.json); historical snapshot: [LAST_VERIFIED_RELEASE_SNAPSHOT.json](LAST_VERIFIED_RELEASE_SNAPSHOT.json). Live authority is external post-release evidence.
+Current externally verified release: PR #113 / `main` `7f323c4227f2409f3fe2d4d68be48a30176f4e2a` (`Merge PR #113: Product System v3.2.2 correction`); Production `dpl_4yBHCo1eZ7N6GYQWGAg1EdQGwFTE` READY at https://geoai-a71p4fxnr-geoaidev.vercel.app; aliases include https://geoai-mvp.vercel.app; GitHub deployment `5601335100` status `15930263481` success; stage `public_demo_prototype`. Historical PR #106 evidence remains preserved in the historical snapshot. Policy: [RELEASE_AUTHORITY_POLICY.json](RELEASE_AUTHORITY_POLICY.json); historical snapshot: [LAST_VERIFIED_RELEASE_SNAPSHOT.json](LAST_VERIFIED_RELEASE_SNAPSHOT.json). Live authority is external post-release evidence.
 Navigation: [Confluence Hub](https://geoaimvp.atlassian.net/wiki/spaces/PH/overview) · [Documentation Index](DOCUMENTATION_INDEX.md) · [Current Release State](CURRENT_RELEASE_STATE.md) · [Full System Audit](FULL_SYSTEM_AUDIT_2026_07_16.md) · [Codex Backlog](CODEX_BACKLOG_2026_07_16.md)
 
 GeoAI remains a public demo prototype. Production is `demo_only`, `local_fallback`, soft access and has no Production Supabase connection. The source pack is fail-closed in Production. No Production-ready or pilot-ready maturity claim is supported.
 
 ## P0 — precondition for Auth, RBAC, Admin and real sources
+
+Current successor-product planning is governed by the [Cycle 05 product-to-Production roadmap](change-requests/point-to-object-001/experience-v6/CYCLE_05_PRODUCT_TO_PRODUCTION_ROADMAP.md), approved in scope on 2026-09-06. It explicitly separates the live-map candidate from the released public demo described above, and stages exact building replacement, saved Projects, EN/RU landing, configurable scenario geocontext and contextual massing. The legacy dependencies below remain historical/current protected-runtime constraints where not superseded; they do not block the newly authorized isolated Preview UI scope or authorize cloud/Production activation.
 
 1. Data API and identity boundary: complete on isolated Free rehearsal only. Ref `bkmfcjzalcvdsdvyxpgi` exposes the RPC-only 14-function `api` schema; HTTP health is 200 and `public` is denied with `PGRST106`. Development and Production are unchanged.
 2. Canonical database migration: the first six candidates replayed on rehearsal; hosted pgTAP is `183/183`; all 29 GeoAI domain tables have RLS and uncovered domain FKs are zero. Table-level two-session lock-order runtime evidence passes without deadlock or residual rows. A seventh migration that replaces the Admin AAL2 requirement with a permanent non-anonymous identity is prepared but unapplied everywhere. Next prove the same concurrency through authenticated invitation RPCs, real email/phone HTTP Auth, resource-specific Admin pagination, Storage personas and the separately authorized development upgrade/drift/apply plan. [Receipt](SUPABASE_AUTH_REHEARSAL_RECEIPT_2026_07_16.json).

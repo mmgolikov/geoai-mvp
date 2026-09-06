@@ -47,31 +47,25 @@ for (const viewport of viewports) {
   test.describe(`${viewport.name} public access entry`, () => {
     test.use({ viewport: { width: viewport.width, height: viewport.height } });
 
-    test("keeps the landing and login entry usable without horizontal overflow", async ({ page }) => {
+    test("keeps the landing product entries and login usable without horizontal overflow", async ({ page }) => {
       await page.goto("/");
 
       await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
-      await expect(page.getByRole("heading", { level: 1, name: "Ask the map. Move with evidence." })).toBeVisible();
+      await expect(page.getByRole("heading", { level: 1, name: "Turn a location into a decision path." })).toBeVisible();
 
-      const demoLink = page.getByRole("link", { name: "View demo" }).last();
-      const requestLink = page.getByRole("link", { name: "Prepare request brief" }).last();
-      await expect(demoLink).toBeVisible();
-      await expect(demoLink).toHaveAttribute("href", "/login?next=/workspace&intent=demo");
-      await expect(requestLink).toBeVisible();
-      await expect(requestLink).toHaveAttribute("href", "/request-access");
-      await expect(page.getByRole("link", { name: "Sign in to GeoAI" })).toBeVisible();
+      const hero = page.locator("main > section").first();
+      const mapLink = hero.getByRole("link", { name: "Open map", exact: true });
+      const projectsLink = hero.getByRole("link", { name: "Projects", exact: true });
+      await expect(mapLink).toHaveAttribute("href", "/prototype/point-to-object");
+      await expect(projectsLink).toHaveAttribute("href", "/projects?view=spatial");
+      await expect(page.getByRole("link", { name: "Profile", exact: true }).last()).toHaveAttribute("href", "/profile");
       await expectNoHorizontalOverflow(page);
 
-      await demoLink.click();
-      await expect(page).toHaveURL((url) =>
-        url.pathname === "/login"
-        && url.searchParams.get("next") === "/workspace"
-        && url.searchParams.get("intent") === "demo"
-      );
+      await page.goto("/login?next=/workspace&intent=demo");
       await expect(page.getByRole("heading", { level: 1, name: "Sign in to GeoAI" })).toBeVisible();
       await expect(page.getByLabel("Email or phone")).toBeVisible();
       await expect(page.getByLabel("Password")).toBeVisible();
-      await expect(page.getByRole("button", { name: "Use demo credentials" })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Open demo access" })).toBeVisible();
       await expectNoHorizontalOverflow(page);
     });
   });
@@ -80,25 +74,35 @@ for (const viewport of viewports) {
 test.describe("mobile keyboard and target-size access", () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
-  test("opens the demo workspace with the keyboard and exposes the authenticated profile control", async ({ page }) => {
+  test("switches landing locale and opens the demo workspace with the keyboard", async ({ page }) => {
     await page.goto("/");
 
-    const demoLink = page.getByRole("link", { name: "View demo" }).last();
-    const requestLink = page.getByRole("link", { name: "Prepare request brief" }).last();
-    const profileLink = page.getByRole("link", { name: "Sign in to GeoAI" });
+    await expect(page.getByRole("heading", { level: 1, name: "Turn a location into a decision path." })).toBeVisible();
+    const hero = page.locator("main > section").first();
+    const mapLink = hero.getByRole("link", { name: "Open map", exact: true });
+    const projectsLink = hero.getByRole("link", { name: "Projects", exact: true });
+    const russianLocale = page.getByRole("button", { name: "RU", exact: true });
 
-    for (const control of [demoLink, requestLink, profileLink]) {
+    for (const control of [mapLink, projectsLink, russianLocale]) {
       const box = await control.boundingBox();
       expect(box, "Primary mobile controls must have a rendered box").not.toBeNull();
       expect(box?.width ?? 0).toBeGreaterThanOrEqual(40);
       expect(box?.height ?? 0).toBeGreaterThanOrEqual(40);
     }
 
-    await tabUntil(page, (control) => control.href === "/login?next=/workspace&intent=demo");
-    await page.keyboard.press("Enter");
+    await russianLocale.click();
+    await expect(page.getByRole("heading", { level: 1, name: "Превратите локацию в понятный путь к решению." })).toBeVisible();
+    const russianHero = page.locator("main > section").first();
+    await expect(russianHero.getByRole("link", { name: "Открыть карту", exact: true })).toHaveAttribute("href", "/prototype/point-to-object");
+    await expect(russianHero.getByRole("link", { name: "Проекты", exact: true })).toHaveAttribute("href", "/projects?view=spatial");
+
+    await page.getByRole("button", { name: "EN", exact: true }).click();
+    await tabUntil(page, (control) => control.href === "/prototype/point-to-object", 40);
+
+    await page.goto("/login?next=/workspace&intent=demo");
     await expect(page).toHaveURL((url) => url.pathname === "/login" && url.searchParams.get("intent") === "demo");
 
-    await tabUntil(page, (control) => control.text === "Use demo credentials");
+    await tabUntil(page, (control) => control.text === "Open demo access");
     await page.keyboard.press("Enter");
     await expect(page.getByLabel("Email or phone")).toHaveValue("demo@geoai.space");
     await expect(page.getByLabel("Password")).toHaveValue("111111");

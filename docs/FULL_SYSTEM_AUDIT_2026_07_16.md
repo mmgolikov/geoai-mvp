@@ -1,12 +1,13 @@
 # GeoAI Full System Audit — 2026-07-16
 
 Status: Active audit record; PR #97 remediation is released
-Last verified: 2026-07-21
+Last verified: 2026-09-04
 Owner: GeoAI Engineering / Governance
 Authority: Current full-system findings, remediation and residual risk
 Successor: None; any replacement must update `DOCUMENTATION_INDEX.md`
 Audit mode: critical, multi-agent, evidence-led; no independent-reviewer approval claim
-Last externally verified release snapshot: merged PR #106 / `cc8f9ebcf3989fab4a3c4eac9be9dfb8da786a7b` / `dpl_6RC2ohEdLBjiV82k758tFMkaDB9X` / https://geoai-mvp.vercel.app / `public_demo_prototype`
+Current externally verified release: PR #113 / `main` `7f323c4227f2409f3fe2d4d68be48a30176f4e2a` (`Merge PR #113: Product System v3.2.2 correction`) / Production `dpl_4yBHCo1eZ7N6GYQWGAg1EdQGwFTE` READY at https://geoai-a71p4fxnr-geoaidev.vercel.app / `public_demo_prototype`; GitHub deployment `5601335100` status `15930263481` success
+Historical PR #106 release evidence is preserved in the detailed section below and is not the current runtime tuple.
 Historical audit release: merged PR #97 / `b915a831d5e5b28eab5fd26ac86059820e7e4a32` / rollback deployment `dpl_ERVqZPD5GAGDLjAVhMcPF2HT5Br7`
 Release policy/schema: [RELEASE_AUTHORITY_POLICY.json](RELEASE_AUTHORITY_POLICY.json) · Historical snapshot: [LAST_VERIFIED_RELEASE_SNAPSHOT.json](LAST_VERIFIED_RELEASE_SNAPSHOT.json) · Live authority is external post-release evidence.
 Navigation: [Confluence Hub](https://geoaimvp.atlassian.net/wiki/spaces/PH/overview) · [Documentation Index](DOCUMENTATION_INDEX.md) · [Current Release State](CURRENT_RELEASE_STATE.md) · [Codex Backlog](CODEX_BACKLOG_2026_07_16.md) · [Supabase containment runbook](SUPABASE_DATA_API_CONTAINMENT_RUNBOOK_2026_07_16.md)
@@ -35,9 +36,9 @@ The audit covered:
 
 No Production deployment, development/Production Supabase migration/apply, secret change, provider activation, real geometry publication or application Auth activation was performed. All database writes described here were confined to the explicitly authorized Free rehearsal.
 
-## Verified released state
+## Historical PR #106 released state
 
-Operational warning: PR #97 containment and PR #106 public-funnel/release-truth corrections are released, but the public demo remains browser-local and fixture-bounded. Use only built-in synthetic/demo fixtures; do not enter or upload confidential, regulated, sensitive or client-protected AOIs, CSV, GeoJSON, filenames, evidence or dynamic report/package data. Protected persistence and real sources remain blocked.
+Operational warning: PR #97 containment and subsequent public-funnel/release-truth corrections are released, but the public demo remains browser-local and fixture-bounded. Use only built-in synthetic/demo fixtures; do not enter or upload confidential, regulated, sensitive or client-protected AOIs, CSV, GeoJSON, filenames, evidence or dynamic report/package data. Protected persistence and real sources remain blocked.
 
 | Control | Evidence | Result |
 | --- | --- | --- |

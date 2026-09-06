@@ -1,0 +1,637 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:geoai:scenario-registry:1.0.0",
+  "title": "GeoAI Scenario Registry V1",
+  "description": "Versioned linkage between product roles, business questions, modes, GeoContext profiles, methods, ranking, dashboard, report and validation. Cross-reference and hash validation is required in addition to JSON Schema.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaId",
+    "schemaVersion",
+    "registryId",
+    "registryVersion",
+    "registryHash",
+    "status",
+    "generatedAt",
+    "roles",
+    "contextProfiles",
+    "methods",
+    "dashboardTemplates",
+    "reportTemplates",
+    "scenarios",
+    "governance"
+  ],
+  "properties": {
+    "schemaId": { "const": "urn:geoai:scenario-registry:1.0.0" },
+    "schemaVersion": { "const": "1.0.0" },
+    "registryId": { "$ref": "#/$defs/boundedId" },
+    "registryVersion": { "$ref": "#/$defs/semver" },
+    "registryHash": { "$ref": "#/$defs/sha256" },
+    "status": { "enum": ["draft", "candidate", "released"] },
+    "generatedAt": { "$ref": "#/$defs/dateTime" },
+    "roles": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100,
+      "items": { "$ref": "#/$defs/role" }
+    },
+    "contextProfiles": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100,
+      "items": { "$ref": "#/$defs/contextProfile" }
+    },
+    "methods": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 500,
+      "items": { "$ref": "#/$defs/method" }
+    },
+    "dashboardTemplates": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100,
+      "items": { "$ref": "#/$defs/template" }
+    },
+    "reportTemplates": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100,
+      "items": { "$ref": "#/$defs/template" }
+    },
+    "scenarios": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 200,
+      "items": { "$ref": "#/$defs/scenario" }
+    },
+    "governance": { "$ref": "#/$defs/governance" }
+  },
+  "$defs": {
+    "boundedId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/@-]*$"
+    },
+    "semver": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "dateTime": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "localizedText": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["en", "ru"],
+      "properties": {
+        "en": { "type": "string", "minLength": 1, "maxLength": 4000 },
+        "ru": { "type": "string", "minLength": 1, "maxLength": 4000 }
+      }
+    },
+    "contextSection": {
+      "enum": [
+        "identity_geometry",
+        "built_environment",
+        "land_use",
+        "mobility_accessibility",
+        "infrastructure_poi",
+        "open_space_public_realm",
+        "terrain_environment",
+        "climate",
+        "satellite_change",
+        "market_socioeconomic",
+        "risks_constraints"
+      ]
+    },
+    "operation": {
+      "enum": ["resolve", "acquire", "normalize", "calculate", "analyse", "find", "shortlist", "compare", "rank", "create", "generate", "evaluate", "model_input", "dashboard", "report", "project", "export", "persist"]
+    },
+    "role": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["roleId", "audience", "label", "description", "preferenceOnly"],
+      "properties": {
+        "roleId": { "$ref": "#/$defs/boundedId" },
+        "audience": { "enum": ["b2b", "b2c"] },
+        "label": { "$ref": "#/$defs/localizedText" },
+        "description": { "$ref": "#/$defs/localizedText" },
+        "preferenceOnly": { "const": true }
+      }
+    },
+    "factRequirement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "factKey",
+        "section",
+        "necessity",
+        "allowedEvidenceClasses",
+        "maximumAgeSeconds",
+        "minimumCoverage",
+        "absenceSemantics",
+        "blocks"
+      ],
+      "properties": {
+        "factKey": { "$ref": "#/$defs/boundedId" },
+        "section": { "$ref": "#/$defs/contextSection" },
+        "necessity": { "enum": ["required", "optional"] },
+        "allowedEvidenceClasses": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 4,
+          "uniqueItems": true,
+          "items": { "enum": ["observed", "calculated", "modelled", "hypothesis"] }
+        },
+        "maximumAgeSeconds": {
+          "oneOf": [
+            { "type": "integer", "minimum": 0 },
+            { "type": "null" }
+          ]
+        },
+        "minimumCoverage": { "enum": ["complete_for_declared_extent", "partial_allowed", "unknown_allowed"] },
+        "absenceSemantics": { "enum": ["not_applicable", "measured_absence_required", "absence_not_supported"] },
+        "blocks": {
+          "type": "array",
+          "maxItems": 18,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/operation" }
+        }
+      }
+    },
+    "contextProfile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contextProfileId",
+        "version",
+        "requiredSections",
+        "optionalSections",
+        "radiusRule",
+        "acquisitionWindowToleranceSeconds",
+        "factRequirements",
+        "comparisonCohortPolicy"
+      ],
+      "properties": {
+        "contextProfileId": { "$ref": "#/$defs/boundedId" },
+        "version": { "$ref": "#/$defs/semver" },
+        "requiredSections": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 11,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/contextSection" }
+        },
+        "optionalSections": {
+          "type": "array",
+          "maxItems": 11,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/contextSection" }
+        },
+        "radiusRule": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "defaultM", "minimumM", "maximumM"],
+          "properties": {
+            "kind": { "enum": ["fixed", "bounded_user_choice", "subject_extent_buffer", "scenario_method_defined"] },
+            "defaultM": { "oneOf": [{ "type": "number", "minimum": 0, "maximum": 100000 }, { "type": "null" }] },
+            "minimumM": { "oneOf": [{ "type": "number", "minimum": 0, "maximum": 100000 }, { "type": "null" }] },
+            "maximumM": { "oneOf": [{ "type": "number", "minimum": 0, "maximum": 100000 }, { "type": "null" }] }
+          }
+        },
+        "acquisitionWindowToleranceSeconds": { "type": "integer", "minimum": 0, "maximum": 31536000 },
+        "factRequirements": {
+          "type": "array",
+          "maxItems": 500,
+          "items": { "$ref": "#/$defs/factRequirement" }
+        },
+        "comparisonCohortPolicy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["sameProfileVersion", "sameMetricDefinitions", "compatibleAcquisitionWindow", "allowPartialFactualComparison"],
+          "properties": {
+            "sameProfileVersion": { "const": true },
+            "sameMetricDefinitions": { "const": true },
+            "compatibleAcquisitionWindow": { "const": true },
+            "allowPartialFactualComparison": { "type": "boolean" }
+          }
+        }
+      }
+    },
+    "modelPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["providerAdapterId", "modelClass", "reasoningEffort", "timeoutMs", "maxOutputTokens", "maxCostUsd", "store", "toolCallsAllowed", "outputValidationId"],
+      "properties": {
+        "providerAdapterId": { "$ref": "#/$defs/boundedId" },
+        "modelClass": { "$ref": "#/$defs/boundedId" },
+        "reasoningEffort": { "enum": ["low", "medium", "high", "xhigh"] },
+        "timeoutMs": { "type": "integer", "minimum": 1, "maximum": 120000 },
+        "maxOutputTokens": { "type": "integer", "minimum": 1, "maximum": 100000 },
+        "maxCostUsd": { "type": "number", "minimum": 0, "maximum": 100 },
+        "store": { "type": "boolean" },
+        "toolCallsAllowed": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "outputValidationId": { "$ref": "#/$defs/boundedId" }
+      }
+    },
+    "method": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "methodId",
+        "version",
+        "status",
+        "operation",
+        "implementationKind",
+        "executionPlane",
+        "deterministic",
+        "inputFactKeys",
+        "outputKeys",
+        "modelPolicy",
+        "failurePolicy",
+        "explainabilityRequired",
+        "validationPolicyId"
+      ],
+      "properties": {
+        "methodId": { "$ref": "#/$defs/boundedId" },
+        "version": { "$ref": "#/$defs/semver" },
+        "status": { "enum": ["candidate", "enabled", "blocked", "retired"] },
+        "operation": { "$ref": "#/$defs/operation" },
+        "implementationKind": { "enum": ["spatial_query", "deterministic_rule", "statistical_model", "optimization", "simulation", "llm_structured", "generation_provider", "manual_validation", "renderer"] },
+        "executionPlane": { "enum": ["browser", "server", "operator"] },
+        "deterministic": { "type": "boolean" },
+        "inputFactKeys": {
+          "type": "array",
+          "maxItems": 500,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/boundedId" }
+        },
+        "outputKeys": {
+          "type": "array",
+          "maxItems": 500,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/boundedId" }
+        },
+        "modelPolicy": {
+          "oneOf": [
+            { "$ref": "#/$defs/modelPolicy" },
+            { "type": "null" }
+          ]
+        },
+        "failurePolicy": { "enum": ["fail_closed", "return_partial", "mark_unavailable"] },
+        "explainabilityRequired": { "type": "boolean" },
+        "validationPolicyId": { "$ref": "#/$defs/boundedId" }
+      }
+    },
+    "templateSection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sectionId", "label", "requiredFactKeys", "requiredOutputKeys", "missingValueBehavior"],
+      "properties": {
+        "sectionId": { "$ref": "#/$defs/boundedId" },
+        "label": { "$ref": "#/$defs/localizedText" },
+        "requiredFactKeys": {
+          "type": "array",
+          "maxItems": 500,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/boundedId" }
+        },
+        "requiredOutputKeys": {
+          "type": "array",
+          "maxItems": 500,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/boundedId" }
+        },
+        "missingValueBehavior": { "const": "render_named_gap_no_default" }
+      }
+    },
+    "template": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["templateId", "version", "status", "sections", "recomputationAllowed"],
+      "properties": {
+        "templateId": { "$ref": "#/$defs/boundedId" },
+        "version": { "$ref": "#/$defs/semver" },
+        "status": { "enum": ["candidate", "enabled", "retired"] },
+        "sections": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 100,
+          "items": { "$ref": "#/$defs/templateSection" }
+        },
+        "recomputationAllowed": { "const": false }
+      }
+    },
+    "modeBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "status", "operations", "subjectTypes", "methodIds", "outputKeys", "blockingRequirementIds", "limitation"],
+      "properties": {
+        "mode": { "enum": ["analyse", "find", "create"] },
+        "status": { "enum": ["enabled", "partial", "blocked", "not_applicable"] },
+        "operations": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 18,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/operation" }
+        },
+        "subjectTypes": {
+          "type": "array",
+          "maxItems": 4,
+          "uniqueItems": true,
+          "items": { "enum": ["point", "object", "site", "aoi"] }
+        },
+        "methodIds": {
+          "type": "array",
+          "maxItems": 100,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/boundedId" }
+        },
+        "outputKeys": {
+          "type": "array",
+          "maxItems": 500,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/boundedId" }
+        },
+        "blockingRequirementIds": {
+          "type": "array",
+          "maxItems": 100,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/boundedId" }
+        },
+        "limitation": { "$ref": "#/$defs/localizedText" }
+      }
+    },
+    "operationPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation", "status", "blockingRequirementIds"],
+      "properties": {
+        "operation": { "$ref": "#/$defs/operation" },
+        "status": { "enum": ["enabled", "partial", "blocked", "not_applicable"] },
+        "blockingRequirementIds": {
+          "type": "array",
+          "maxItems": 100,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/boundedId" }
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "status": { "const": "blocked" } }, "required": ["status"] },
+          "then": { "properties": { "blockingRequirementIds": { "type": "array", "minItems": 1 } } }
+        }
+      ]
+    },
+    "rankingMetric": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["metricKey", "direction", "weight", "transformMethodId", "requiredFactKeys"],
+      "properties": {
+        "metricKey": { "$ref": "#/$defs/boundedId" },
+        "direction": { "enum": ["higher_is_better", "lower_is_better", "target_range", "constraint_only"] },
+        "weight": { "type": "number", "minimum": 0, "maximum": 1 },
+        "transformMethodId": { "$ref": "#/$defs/boundedId" },
+        "requiredFactKeys": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 100,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/boundedId" }
+        }
+      }
+    },
+    "rankingPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "methodId", "metrics", "missingDataPolicy", "minimumComparableCandidates", "explainabilityRequired", "winnerLanguage", "blockingRequirementIds"],
+      "properties": {
+        "status": { "enum": ["enabled", "blocked", "not_applicable"] },
+        "methodId": {
+          "oneOf": [
+            { "$ref": "#/$defs/boundedId" },
+            { "type": "null" }
+          ]
+        },
+        "metrics": {
+          "type": "array",
+          "maxItems": 100,
+          "items": { "$ref": "#/$defs/rankingMetric" }
+        },
+        "missingDataPolicy": { "enum": ["block_ranking", "exclude_candidate", "not_applicable"] },
+        "minimumComparableCandidates": { "type": "integer", "minimum": 2, "maximum": 100 },
+        "explainabilityRequired": { "const": true },
+        "winnerLanguage": { "const": "screening_preference_only" },
+        "blockingRequirementIds": {
+          "type": "array",
+          "maxItems": 100,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/boundedId" }
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "status": { "const": "enabled" } }, "required": ["status"] },
+          "then": {
+            "properties": {
+              "methodId": { "$ref": "#/$defs/boundedId" },
+              "metrics": { "type": "array", "minItems": 1 },
+              "missingDataPolicy": { "enum": ["block_ranking", "exclude_candidate"] }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "status": { "const": "blocked" } }, "required": ["status"] },
+          "then": { "properties": { "blockingRequirementIds": { "type": "array", "minItems": 1 } } }
+        }
+      ]
+    },
+    "businessQuestion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["questionId", "text", "decisionType", "decisionOwnerRoleIds", "decisionHorizon"],
+      "properties": {
+        "questionId": { "$ref": "#/$defs/boundedId" },
+        "text": { "$ref": "#/$defs/localizedText" },
+        "decisionType": { "enum": ["screen", "select", "compare", "generate", "monitor", "report"] },
+        "decisionOwnerRoleIds": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 100,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/boundedId" }
+        },
+        "decisionHorizon": { "enum": ["current", "one_to_three_years", "long_term", "user_defined"] }
+      }
+    },
+    "validationRequirement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["requirementId", "label", "status", "blocks", "evidenceNeeded"],
+      "properties": {
+        "requirementId": { "$ref": "#/$defs/boundedId" },
+        "label": { "$ref": "#/$defs/localizedText" },
+        "status": { "enum": ["required", "conditional", "not_applicable"] },
+        "blocks": {
+          "type": "array",
+          "maxItems": 18,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/operation" }
+        },
+        "evidenceNeeded": { "$ref": "#/$defs/localizedText" }
+      }
+    },
+    "scenario": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scenarioId",
+        "version",
+        "entryHash",
+        "status",
+        "audience",
+        "roleIds",
+        "businessQuestion",
+        "subjectTypes",
+        "contextProfileRef",
+        "modeBindings",
+        "operationPolicies",
+        "methodIds",
+        "ranking",
+        "dashboardTemplateRef",
+        "reportTemplateRef",
+        "validationRequirements",
+        "requiredProjectCapabilities",
+        "maximumClaimLevel",
+        "limitations",
+        "changeControl"
+      ],
+      "properties": {
+        "scenarioId": { "$ref": "#/$defs/boundedId" },
+        "version": { "$ref": "#/$defs/semver" },
+        "entryHash": { "$ref": "#/$defs/sha256" },
+        "status": { "enum": ["draft", "candidate", "enabled", "blocked", "retired"] },
+        "audience": { "enum": ["b2b", "b2c"] },
+        "roleIds": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 100,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/boundedId" }
+        },
+        "businessQuestion": { "$ref": "#/$defs/businessQuestion" },
+        "subjectTypes": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 4,
+          "uniqueItems": true,
+          "items": { "enum": ["point", "object", "site", "aoi"] }
+        },
+        "contextProfileRef": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["contextProfileId", "version"],
+          "properties": {
+            "contextProfileId": { "$ref": "#/$defs/boundedId" },
+            "version": { "$ref": "#/$defs/semver" }
+          }
+        },
+        "modeBindings": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": { "$ref": "#/$defs/modeBinding" }
+        },
+        "operationPolicies": {
+          "type": "array",
+          "minItems": 18,
+          "maxItems": 18,
+          "items": { "$ref": "#/$defs/operationPolicy" }
+        },
+        "methodIds": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 200,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/boundedId" }
+        },
+        "ranking": { "$ref": "#/$defs/rankingPolicy" },
+        "dashboardTemplateRef": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["templateId", "version"],
+          "properties": {
+            "templateId": { "$ref": "#/$defs/boundedId" },
+            "version": { "$ref": "#/$defs/semver" }
+          }
+        },
+        "reportTemplateRef": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["templateId", "version"],
+          "properties": {
+            "templateId": { "$ref": "#/$defs/boundedId" },
+            "version": { "$ref": "#/$defs/semver" }
+          }
+        },
+        "validationRequirements": {
+          "type": "array",
+          "maxItems": 200,
+          "items": { "$ref": "#/$defs/validationRequirement" }
+        },
+        "requiredProjectCapabilities": {
+          "type": "array",
+          "maxItems": 100,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/boundedId" }
+        },
+        "maximumClaimLevel": { "enum": ["open_context_screening", "client_provided_screening", "validated_for_named_scope"] },
+        "limitations": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 100,
+          "items": { "$ref": "#/$defs/localizedText" }
+        },
+        "changeControl": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["owner", "approvedBy", "approvedAt", "supersedes"],
+          "properties": {
+            "owner": { "type": "string", "minLength": 1, "maxLength": 300 },
+            "approvedBy": { "oneOf": [{ "type": "string", "maxLength": 300 }, { "type": "null" }] },
+            "approvedAt": {
+              "oneOf": [
+                { "$ref": "#/$defs/dateTime" },
+                { "type": "null" }
+              ]
+            },
+            "supersedes": {
+              "type": "array",
+              "maxItems": 50,
+              "items": { "$ref": "#/$defs/boundedId" }
+            }
+          }
+        }
+      }
+    },
+    "governance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["claimPolicyId", "claimPolicyVersion", "validationState", "canonicalizationProfile", "caveat"],
+      "properties": {
+        "claimPolicyId": { "$ref": "#/$defs/boundedId" },
+        "claimPolicyVersion": { "$ref": "#/$defs/semver" },
+        "validationState": { "const": "official_validation_required" },
+        "canonicalizationProfile": { "const": "JCS_SHA256_OMIT_REGISTRY_HASH_V1" },
+        "caveat": { "const": "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion." }
+      }
+    }
+  }
+}

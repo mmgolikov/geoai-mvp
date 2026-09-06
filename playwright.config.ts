@@ -18,6 +18,8 @@ export default defineConfig({
     baseURL: process.env.GEOAI_E2E_BASE_URL ?? "http://127.0.0.1:3100",
     channel: "chrome",
     headless: true,
+    actionTimeout: 30_000,
+    navigationTimeout: 60_000,
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
     video: "off"

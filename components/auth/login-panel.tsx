@@ -253,14 +253,13 @@ export function LoginPanel() {
                 <div>
                   <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-personal">Guided access</p>
                   <p className="mt-1 text-xs leading-5 text-muted">Use the ready browser-local sample account. It never authorizes protected server resources.</p>
-                  <p className="mt-2 text-[11px] font-semibold text-ink"><code>{mockDemoEmail}</code> · <code>{mockDemoPassword}</code></p>
                 </div>
                 <button
                   type="button"
                   onClick={fillDemoCredentials}
                   className="inline-flex h-12 items-center justify-center rounded-control border border-personal bg-white px-5 text-sm font-semibold text-personal transition hover:bg-white/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-personal"
                 >
-                  Use demo credentials
+                  Open demo access
                 </button>
               </div>
 

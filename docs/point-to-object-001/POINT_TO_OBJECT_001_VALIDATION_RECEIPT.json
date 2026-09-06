@@ -1,0 +1,379 @@
+{
+  "protocol": "POINT_TO_OBJECT_001_DETERMINISTIC_VALIDATION_RECEIPT_V1",
+  "validatorVersion": "1.0.1",
+  "validationEvidenceCutoffUtc": "2026-08-31T21:50:15Z",
+  "serializationDeterministic": true,
+  "nodeRuntime": "v20.19.6",
+  "fixtureSet": {
+    "path": "data/point-to-object-001/POINT_TO_OBJECT_001_GOLD_FIXTURES.json",
+    "bytes": 10905,
+    "sha256": "45bdfbfacc486c737ad3610e7e60012d17db43ab3b50203902e3bdbadb7497e3",
+    "fixtureCount": 10
+  },
+  "postgisTempValidation": {
+    "path": "docs/point-to-object-001/POINT_TO_OBJECT_001_POSTGIS_TEMP_VALIDATION_RECEIPT.json",
+    "bytes": 5180,
+    "sha256": "29071934fba9508f53eae14462c24bff711bf98be83bea319b5c99b50b7940b0",
+    "all433IdentityEligiblePolygonFeaturesValid": "PASS"
+  },
+  "cases": {
+    "P2O-UAE-DXB-MUSEUM-FUTURE-001": {
+      "directory": "data/point-to-object-001/case-packs/uae-dubai-museum-future-v1",
+      "manifestBytes": 9696,
+      "manifestSha256": "e4fa629b012074d85103d11064bdf91761f1a5d7bd47fe29c4b420a07d4c789d",
+      "sourceSnapshotId": "p2o-uae-dubai-museum-future-osm-20260831t211331z-v1",
+      "normalizedSha256": "917e607e124200d2b421b59a8c311c8b47e42bfc5d7f06eec8ac57e677ecaf18",
+      "indexSha256": "7f3fd99c72651684bfa0ff16be68f010619864158487eabeb8b35ad2f5e25804"
+    },
+    "P2O-SG-MARINA-BAY-001": {
+      "directory": "data/point-to-object-001/case-packs/singapore-marina-bay-v1",
+      "manifestBytes": 9679,
+      "manifestSha256": "7e4e46aa5f7481ee88bfbdc2b40a8ec131de8b9c690a38595c69db36f7d7d44c",
+      "sourceSnapshotId": "p2o-sg-marina-bay-osm-20260831t211331z-v1",
+      "normalizedSha256": "c4e3eb9b4abece3e2dc0364761e36b02d26c8a06c7462c8312030fa09dd69cd1",
+      "indexSha256": "8616fa002a4e177b0d9854fb6125226d2656f2a7095ec42da5175dfcc202c94b"
+    }
+  },
+  "checks": {
+    "exactFixtureOracle": "PASS",
+    "scoreableFixtureCount": 10,
+    "exactPassCount": 10,
+    "failureCount": 0,
+    "falseConfidentIdentityCount": 0,
+    "indexFalseNegativeCount": 0,
+    "identityIneligibleNonPolygonFeatureCount": 202,
+    "nonPolygonIdentityFeaturesExcluded": true,
+    "nonPolygonBuildingTagMisclassifiedCount": 0,
+    "unsupportedBuildingRelationAcceptedCount": 0,
+    "buildingIdentityRequiresPolygonOrMultiPolygon": true,
+    "osmTypeBuildingRelationsRejectedPendingExplicitUnionSemantics": true,
+    "buildingIntentLandUseOnlyCandidateCount": 0,
+    "buildingIntentDoesNotPromoteLandUse": true,
+    "candidateOverflowBlocksWithoutTruncation": true,
+    "rightsUnknownReturnsTypedError": true,
+    "snapshotHashFailureIsNotNoResult": true
+  },
+  "contractGateNegativeControls": [
+    {
+      "controlId": "P2O-NC-MANIFEST-MISSING-CASE-ROLE",
+      "expected": "REJECTED",
+      "observed": "REJECTED",
+      "observedError": "casePackManifest: exact keys mismatch; expected=absenceClaimAtDefaultRadiusAllowed,acquisition,acquisitionReceipt,activationState,anchor,attribution,calculationCrs,caseId,casePackId,caseRole,contextCompletenessAtContainedRadius,counts,coverageBboxWgs84,coverageGeometry,coverageGeometryHashSha256,defaultContextCoverageState,defaultRequestedContextRadiusM,files,geometryQuality,knownAnchorInterpretation,mandatoryCaveat,manifestVersion,maxRadiusContainedWithinQueryBboxAtAnchorM,minimizationTool,nonCircularManifestHash,normalizationReceipt,normalizationTool,normalizedSnapshot,officialStatus,pathBases,protocol,query,retainedFeatureGeometryMayExtendOutsideCoverage,retainedGeometryExtentWgs84,rightsDecision,sourceDatabaseObservedAtUtc,sourceFeatureMetadataAvailability,sourceId,sourceNamespace,sourceOffer,sourceReleaseId,sourceSnapshotId,spatialIndex,taxonomyVersions actual=absenceClaimAtDefaultRadiusAllowed,acquisition,acquisitionReceipt,activationState,anchor,attribution,calculationCrs,caseId,casePackId,contextCompletenessAtContainedRadius,counts,coverageBboxWgs84,coverageGeometry,coverageGeometryHashSha256,defaultContextCoverageState,defaultRequestedContextRadiusM,files,geometryQuality,knownAnchorInterpretation,mandatoryCaveat,manifestVersion,maxRadiusContainedWithinQueryBboxAtAnchorM,minimizationTool,nonCircularManifestHash,normalizationReceipt,normalizationTool,normalizedSnapshot,officialStatus,pathBases,protocol,query,retainedFeatureGeometryMayExtendOutsideCoverage,retainedGeometryExtentWgs84,rightsDecision,sourceDatabaseObservedAtUtc,sourceFeatureMetadataAvailability,sourceId,sourceNamespace,sourceOffer,sourceReleaseId,sourceSnapshotId,spatialIndex,taxonomyVersions"
+    },
+    {
+      "controlId": "P2O-NC-MANIFEST-UNEXPECTED-TOP-LEVEL-FIELD",
+      "expected": "REJECTED",
+      "observed": "REJECTED",
+      "observedError": "casePackManifest: exact keys mismatch; expected=absenceClaimAtDefaultRadiusAllowed,acquisition,acquisitionReceipt,activationState,anchor,attribution,calculationCrs,caseId,casePackId,caseRole,contextCompletenessAtContainedRadius,counts,coverageBboxWgs84,coverageGeometry,coverageGeometryHashSha256,defaultContextCoverageState,defaultRequestedContextRadiusM,files,geometryQuality,knownAnchorInterpretation,mandatoryCaveat,manifestVersion,maxRadiusContainedWithinQueryBboxAtAnchorM,minimizationTool,nonCircularManifestHash,normalizationReceipt,normalizationTool,normalizedSnapshot,officialStatus,pathBases,protocol,query,retainedFeatureGeometryMayExtendOutsideCoverage,retainedGeometryExtentWgs84,rightsDecision,sourceDatabaseObservedAtUtc,sourceFeatureMetadataAvailability,sourceId,sourceNamespace,sourceOffer,sourceReleaseId,sourceSnapshotId,spatialIndex,taxonomyVersions actual=absenceClaimAtDefaultRadiusAllowed,acquisition,acquisitionReceipt,activationState,anchor,attribution,calculationCrs,caseId,casePackId,caseRole,contextCompletenessAtContainedRadius,counts,coverageBboxWgs84,coverageGeometry,coverageGeometryHashSha256,defaultContextCoverageState,defaultRequestedContextRadiusM,files,geometryQuality,knownAnchorInterpretation,mandatoryCaveat,manifestVersion,maxRadiusContainedWithinQueryBboxAtAnchorM,minimizationTool,nonCircularManifestHash,normalizationReceipt,normalizationTool,normalizedSnapshot,officialStatus,pathBases,protocol,query,retainedFeatureGeometryMayExtendOutsideCoverage,retainedGeometryExtentWgs84,rightsDecision,sourceDatabaseObservedAtUtc,sourceFeatureMetadataAvailability,sourceId,sourceNamespace,sourceOffer,sourceReleaseId,sourceSnapshotId,spatialIndex,taxonomyVersions,uncontractedAuthority"
+    },
+    {
+      "controlId": "P2O-NC-MANIFEST-MISSING-POSTGIS-PATH-BASE",
+      "expected": "REJECTED",
+      "observed": "REJECTED",
+      "observedError": "casePackManifest.pathBases: exact keys mismatch; expected=files,postgisTempValidation,rightsDecision,sourceOffer,tools actual=files,rightsDecision,sourceOffer,tools"
+    },
+    {
+      "controlId": "P2O-NC-CLEARED-RIGHTS-MISSING-OBLIGATIONS",
+      "expected": "REJECTED",
+      "observed": "REJECTED",
+      "observedError": "rightsDecision: missing keys obligations"
+    },
+    {
+      "controlId": "P2O-NC-PHYSICAL-POSTGIS-HASH-MISMATCH",
+      "expected": "REJECTED",
+      "observed": "REJECTED",
+      "observedError": "casePackManifest.geometryQuality.postgisTempValidation: physical bytes/hash mismatch"
+    },
+    {
+      "controlId": "P2O-NC-UNBOUND-TRANSFORMATION-PATH",
+      "expected": "REJECTED",
+      "observed": "REJECTED",
+      "observedError": "casePackManifest.sourceOffer: transformationPath is not bound by normalizationTool"
+    }
+  ],
+  "results": [
+    {
+      "fixtureId": "P2O-FX-UAE-INTERIOR-001",
+      "pass": true,
+      "expected": {
+        "identityStatus": "resolved",
+        "selectedId": "geoai:prototype:p2o-uae-dubai-museum-future-osm-20260831:openstreetmap:way/1054289435",
+        "candidateIds": [
+          "geoai:prototype:p2o-uae-dubai-museum-future-osm-20260831:openstreetmap:way/1054289435"
+        ],
+        "warnings": [
+          "SOURCE_CONFLICT",
+          "SOURCE_FRESHNESS_UNKNOWN"
+        ],
+        "error": null
+      },
+      "observed": {
+        "identityStatus": "resolved",
+        "selectedId": "geoai:prototype:p2o-uae-dubai-museum-future-osm-20260831:openstreetmap:way/1054289435",
+        "candidateIds": [
+          "geoai:prototype:p2o-uae-dubai-museum-future-osm-20260831:openstreetmap:way/1054289435"
+        ],
+        "candidateSetHashSha256": "db093b7c2fa06585ca6655c4c425009c27d5b6f6834872257f9b4861116a3c79",
+        "warnings": [
+          "SOURCE_CONFLICT",
+          "SOURCE_FRESHNESS_UNKNOWN"
+        ],
+        "error": null,
+        "indexFalseNegative": false
+      }
+    },
+    {
+      "fixtureId": "P2O-FX-UAE-BOUNDARY-001",
+      "pass": true,
+      "expected": {
+        "identityStatus": "resolved",
+        "selectedId": "geoai:prototype:p2o-uae-dubai-museum-future-osm-20260831:openstreetmap:way/1054289435",
+        "candidateIds": [
+          "geoai:prototype:p2o-uae-dubai-museum-future-osm-20260831:openstreetmap:way/1054289435"
+        ],
+        "warnings": [
+          "BOUNDARY_CONTACT",
+          "SOURCE_CONFLICT",
+          "SOURCE_FRESHNESS_UNKNOWN"
+        ],
+        "error": null
+      },
+      "observed": {
+        "identityStatus": "resolved",
+        "selectedId": "geoai:prototype:p2o-uae-dubai-museum-future-osm-20260831:openstreetmap:way/1054289435",
+        "candidateIds": [
+          "geoai:prototype:p2o-uae-dubai-museum-future-osm-20260831:openstreetmap:way/1054289435"
+        ],
+        "candidateSetHashSha256": "db093b7c2fa06585ca6655c4c425009c27d5b6f6834872257f9b4861116a3c79",
+        "warnings": [
+          "BOUNDARY_CONTACT",
+          "SOURCE_CONFLICT",
+          "SOURCE_FRESHNESS_UNKNOWN"
+        ],
+        "error": null,
+        "indexFalseNegative": false
+      }
+    },
+    {
+      "fixtureId": "P2O-FX-UAE-NO-RESULT-001",
+      "pass": true,
+      "expected": {
+        "identityStatus": "no_result",
+        "selectedId": null,
+        "candidateIds": [],
+        "warnings": [
+          "MISSING_IS_NOT_ABSENCE",
+          "SOURCE_FRESHNESS_UNKNOWN"
+        ],
+        "error": null
+      },
+      "observed": {
+        "identityStatus": "no_result",
+        "selectedId": null,
+        "candidateIds": [],
+        "candidateSetHashSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "warnings": [
+          "MISSING_IS_NOT_ABSENCE",
+          "SOURCE_FRESHNESS_UNKNOWN"
+        ],
+        "error": null,
+        "indexFalseNegative": false
+      }
+    },
+    {
+      "fixtureId": "P2O-FX-UAE-OUTSIDE-001",
+      "pass": true,
+      "expected": {
+        "identityStatus": "outside_coverage",
+        "selectedId": null,
+        "candidateIds": [],
+        "warnings": [],
+        "error": null
+      },
+      "observed": {
+        "identityStatus": "outside_coverage",
+        "selectedId": null,
+        "candidateIds": [],
+        "warnings": [],
+        "error": null,
+        "indexFalseNegative": false
+      }
+    },
+    {
+      "fixtureId": "P2O-FX-UAE-CONTEXT-ONLY-001",
+      "pass": true,
+      "expected": {
+        "identityStatus": "coordinate_context_only",
+        "selectedId": null,
+        "candidateIds": [],
+        "warnings": [
+          "COORDINATE_CONTEXT_ONLY",
+          "MISSING_IS_NOT_ABSENCE",
+          "PARTIAL_CONTEXT_SOURCE",
+          "SOURCE_FRESHNESS_UNKNOWN"
+        ],
+        "error": null
+      },
+      "observed": {
+        "identityStatus": "coordinate_context_only",
+        "selectedId": null,
+        "candidateIds": [],
+        "candidateSetHashSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "warnings": [
+          "COORDINATE_CONTEXT_ONLY",
+          "MISSING_IS_NOT_ABSENCE",
+          "PARTIAL_CONTEXT_SOURCE",
+          "SOURCE_FRESHNESS_UNKNOWN"
+        ],
+        "error": null,
+        "indexFalseNegative": false
+      }
+    },
+    {
+      "fixtureId": "P2O-FX-SG-AMBIGUOUS-001",
+      "pass": true,
+      "expected": {
+        "identityStatus": "ambiguous",
+        "selectedId": null,
+        "candidateIds": [
+          "geoai:prototype:p2o-sg-marina-bay-osm-20260831:openstreetmap:way/116800998",
+          "geoai:prototype:p2o-sg-marina-bay-osm-20260831:openstreetmap:way/116801004"
+        ],
+        "warnings": [
+          "SOURCE_FRESHNESS_UNKNOWN"
+        ],
+        "error": null
+      },
+      "observed": {
+        "identityStatus": "ambiguous",
+        "selectedId": null,
+        "candidateIds": [
+          "geoai:prototype:p2o-sg-marina-bay-osm-20260831:openstreetmap:way/116800998",
+          "geoai:prototype:p2o-sg-marina-bay-osm-20260831:openstreetmap:way/116801004"
+        ],
+        "candidateSetHashSha256": "c2c6de8617ef7fea0a4709e70a1d664162bf670eed9812456d85cd24a0c1f8e9",
+        "warnings": [
+          "SOURCE_FRESHNESS_UNKNOWN"
+        ],
+        "error": null,
+        "indexFalseNegative": false
+      }
+    },
+    {
+      "fixtureId": "P2O-FX-SG-BOUNDARY-001",
+      "pass": true,
+      "expected": {
+        "identityStatus": "resolved",
+        "selectedId": "geoai:prototype:p2o-sg-marina-bay-osm-20260831:openstreetmap:way/116801004",
+        "candidateIds": [
+          "geoai:prototype:p2o-sg-marina-bay-osm-20260831:openstreetmap:way/116801004"
+        ],
+        "warnings": [
+          "BOUNDARY_CONTACT",
+          "SOURCE_FRESHNESS_UNKNOWN"
+        ],
+        "error": null
+      },
+      "observed": {
+        "identityStatus": "resolved",
+        "selectedId": "geoai:prototype:p2o-sg-marina-bay-osm-20260831:openstreetmap:way/116801004",
+        "candidateIds": [
+          "geoai:prototype:p2o-sg-marina-bay-osm-20260831:openstreetmap:way/116801004"
+        ],
+        "candidateSetHashSha256": "ce69de99ff15821cf7808034e092cea13b129ed7bf46c75df289a4eb5426577b",
+        "warnings": [
+          "BOUNDARY_CONTACT",
+          "SOURCE_FRESHNESS_UNKNOWN"
+        ],
+        "error": null,
+        "indexFalseNegative": false
+      }
+    },
+    {
+      "fixtureId": "P2O-FX-RIGHTS-UNKNOWN-001",
+      "pass": true,
+      "expected": {
+        "identityStatus": null,
+        "selectedId": null,
+        "candidateIds": [],
+        "warnings": [],
+        "error": {
+          "status": "blocked",
+          "code": "RIGHTS_UNKNOWN"
+        }
+      },
+      "observed": {
+        "identityStatus": null,
+        "selectedId": null,
+        "candidateIds": [],
+        "warnings": [],
+        "error": {
+          "status": "blocked",
+          "code": "RIGHTS_UNKNOWN"
+        },
+        "indexFalseNegative": false
+      }
+    },
+    {
+      "fixtureId": "P2O-FX-SNAPSHOT-HASH-001",
+      "pass": true,
+      "expected": {
+        "identityStatus": null,
+        "selectedId": null,
+        "candidateIds": [],
+        "warnings": [],
+        "error": {
+          "status": "source_unavailable",
+          "code": "SNAPSHOT_HASH_MISMATCH"
+        }
+      },
+      "observed": {
+        "identityStatus": null,
+        "selectedId": null,
+        "candidateIds": [],
+        "warnings": [],
+        "error": {
+          "status": "source_unavailable",
+          "code": "SNAPSHOT_HASH_MISMATCH"
+        },
+        "indexFalseNegative": false
+      }
+    },
+    {
+      "fixtureId": "P2O-FX-CANDIDATE-OVERFLOW-001",
+      "pass": true,
+      "expected": {
+        "identityStatus": null,
+        "selectedId": null,
+        "candidateIds": [],
+        "warnings": [],
+        "error": {
+          "status": "blocked",
+          "code": "CANDIDATE_SET_OVERFLOW"
+        }
+      },
+      "observed": {
+        "identityStatus": null,
+        "selectedId": null,
+        "candidateIds": [],
+        "warnings": [],
+        "error": {
+          "status": "blocked",
+          "code": "CANDIDATE_SET_OVERFLOW"
+        },
+        "indexFalseNegative": false
+      }
+    }
+  ],
+  "statisticalTargets": {
+    "top1PrecisionGte98Percent": "NOT_EVALUATED",
+    "resolvableShareGte80Percent": "NOT_EVALUATED",
+    "reason": "No independently adjudicated statistical cohort exists."
+  },
+  "geometryGate": "PASS_FOR_ALL_433_IDENTITY_ELIGIBLE_POLYGON_FEATURES",
+  "context800mGate": "FAIL_PARTIAL_COVERAGE",
+  "routeActivationAllowed": false,
+  "externalPreviewAllowed": false,
+  "productionChanged": false,
+  "mandatoryCaveat": "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
+}

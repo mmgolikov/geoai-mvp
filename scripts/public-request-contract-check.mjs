@@ -3,7 +3,8 @@ import path from "node:path";
 
 const root = process.cwd();
 const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
-const landing = read("app/page.tsx");
+const landingRoute = read("app/page.tsx");
+const landing = read("components/landing/geoai-landing-page.tsx");
 const login = read("app/login/page.tsx");
 const requestPage = read("app/request-access/page.tsx");
 const requestPanel = read("components/request-access-panel.tsx");
@@ -16,9 +17,20 @@ function assert(condition, message) {
   if (!condition) failures.push(message);
 }
 
-assert((landing.match(/href="\/request-access"/g) ?? []).length === 3, "Landing must route all three commercial request CTAs to /request-access");
+assert(
+  landingRoute.includes('import { GeoAILandingPage } from "@/components/landing/geoai-landing-page";') &&
+    landingRoute.includes("<GeoAILandingPage />"),
+  "The root route must render the accepted bilingual landing component"
+);
+assert(
+  landing.includes('const mapHref = "/prototype/point-to-object";') && landing.includes("href={mapHref}"),
+  "Landing must enter the accepted public Point-to-Object product route"
+);
+assert(
+  landing.includes('const projectsHref = "/projects?view=spatial";') && landing.includes("href={projectsHref}"),
+  "Landing must expose the accepted device-local spatial Projects route"
+);
 assert(!landing.includes("intent=request"), "Landing must not route a commercial request through Login");
-assert(landing.includes('href="/login?next=/workspace&intent=demo"'), "Landing demo CTA must preserve the bounded demo Login path");
 assert(login.includes('intent === "request"') && login.includes('redirect("/request-access")'), "Legacy Login request intent must redirect deterministically to /request-access");
 assert(requestPage.includes("RequestAccessPanel") && !requestPage.includes("AuthenticatedRouteGate"), "Request route must remain public and independent of Auth");
 
@@ -66,4 +78,4 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-console.log("Public request contract passed: commercial and demo destinations are separate; the request brief stays in React memory with no request mutation or browser storage path.");
+console.log("Public request contract passed: the accepted landing enters Point-to-Object and local Projects; the separate request brief stays in React memory with no request mutation or browser storage path.");

@@ -1,0 +1,9 @@
+HTTP/1.1 200 OK
+Date: Mon, 31 Aug 2026 21:14:52 GMT
+Server: Apache/2.4.68 (Debian)
+Vary: Accept-Encoding
+Content-Encoding: gzip
+Connection: close
+Transfer-Encoding: chunked
+Content-Type: application/json
+
