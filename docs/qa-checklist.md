@@ -98,6 +98,17 @@ These checks apply only to `codex/point-to-object-clickable-prototype-v1` / PR #
 
 Local controls/preflight verification: Node 24.19.0 lint and build (79/79 routes), existing Create checks, new preflight/actual-route checks, V5 interaction, V6 contracts, data honesty and API/secret static checks pass. The combined offline browser suite passes six journeys, including layout boundaries, Find comparison, source replacement/restoration, A/B, stale-response preservation and explicit coverage application. After custom-intent correction, all six journeys pass again in 46.4 s on application head `e19a274`; final screenshots live in `/private/tmp/geoai-cycle03-final-browser-evidence`. The proposal uses blank custom direction and a numeric control change, consistent with template preflight; its screenshot was visually inspected. This is not adaptive multi-podium acceptance or live-map/provider evidence. Geometry permission and interactive Mac unlock remain separate blockers.
 
+## Cycle 05 acceptance — pending exact combined implementation
+
+- [ ] City/role/scenario controls open on first activation including chevron; keyboard arrows/Enter/Escape, focus return and touch work without clipping.
+- [ ] Find retains Profile-only audience, role-specific scenarios/settings and comparisons; all approved map modes retain 430 px desktop drawer.
+- [ ] Replacement preserves distant objects with colliding/missing IDs and outside MultiPolygon components; boundary-crossing objects are clipped safely or retained. Repeat five hide/restore cycles, tile/zoom/style changes and stale AOI responses; inspect an outside landmark in the actual browser.
+- [ ] Analyse, Find and Create completed records save/reopen exact geometry, parameters, locale and result without automatic model/source calls. Retry is idempotent; mismatched reuse conflicts; quota/failure preserves the visible result and cannot display Saved.
+- [ ] Browser-local and cloud statuses remain distinct; logout/identity/project transitions cannot reveal another user's previous operation. Cloud claims require real caller, cross-user/project isolation and default-off activation review.
+- [ ] Landing EN/RU navigation, CTAs and role capability copy match the actual candidate; no fake metrics, testimony, nonfunctional contact/report controls or implied official integration.
+- [ ] Check 390/768/1280/1440 rendering and keyboard operation; exact final CI/Preview SHA, source/auth boundary smoke and rollback recorded; main/Production unchanged.
+- [ ] Figma and Confluence current nodes/pages are read back after scoped updates; local handoff or staged text alone cannot close remote parity.
+
 ## Environment
 
 - [ ] `.env.local` exists locally when running Mapbox.

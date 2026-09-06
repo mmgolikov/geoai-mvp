@@ -16,7 +16,20 @@ The first iteration improves the current protected Preview, establishes contract
 
 ## Current iteration
 
-### Cycle 04 — active successor
+### Cycle 05 — active successor
+
+The [Cycle 05 CR](CYCLE_05_PROJECTS_SPATIAL_REPLACEMENT_LANDING_CR.md) and [full-version roadmap](CYCLE_05_PRODUCT_TO_PRODUCTION_ROADMAP.md) govern the founder's 2026-09-06 request. Starting head is `833b575561853942530bb4766d04c2ad8ae06b31`; protected Preview `dpl_GazGmmiDkznQwuM2GwWK2RDGZNMu`. Main is the sole integrator/publisher. No new Production or cloud activation is implied.
+
+| Item | Owner | Required outcome | State |
+| --- | --- | --- | --- |
+| C05-SELECT | dev_1 | Reliable inset-chevron controls, keyboard/touch, no Find audience selector | In progress |
+| C05-PROJECTS | dev_1 | Versioned Analyse/Find/Create saves and exact replay; truthful storage status | In progress; hosted activation separately gated |
+| C05-REPLACE | gen_ai_1 | No out-of-area/multipart/tile-ID collateral hiding; exact restore | In progress |
+| C05-LANDING | design_1 | Grounded EN/RU selling entry and functional routes, no invented capabilities | In progress |
+| C05-ROADMAP | Main | Scenario/radius context and site-aware generation dependency plan | Prepared; not implementation evidence |
+| C05-DOCS | wiki_1 / Main | Current candidate at top of navigation; history and Production distinct | Read/merge preparation; final readback pending |
+
+### Cycle 04 — preceding candidate
 
 The [founder-approved Cycle 04 change request](CYCLE_04_GEOCONTEXT_GENERATOR_CHANGE_REQUEST.md) takes precedence for this iteration. Baseline is `d5091f2c62e14936fc0440f396b4cfedfd45f53c`. The [integration receipt](CYCLE_04_INTEGRATION_RECEIPT.md) records completed local source/UX/geometry acceptance, build 79/79 and ten browser journeys. Exact successor CI/Preview readbacks belong in Draft PR #147 after publication, not in a pre-claimed release statement.
 
