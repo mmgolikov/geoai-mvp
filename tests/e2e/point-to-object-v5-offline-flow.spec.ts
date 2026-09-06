@@ -639,6 +639,12 @@ test("V5.1 keeps exact identity and the complete Find comparison flow coherent o
   await page.getByTestId("find-search-cta").click();
   await expect.poll(() => findPostRequests.length).toBe(1);
   expect(findPostRequests[0]).toMatchObject({ group: "residential", mappedMinimumLevels: 2, mappedMaximumLevels: 4, limit: 12 });
+  await expect(page.getByText("Showing 3", { exact: true })).toBeVisible();
+  await expect.poll(() => page.evaluate(() => {
+    const key = Object.keys(localStorage).find((item) => item.startsWith("geoai:point-to-object:projects:v1:"));
+    const store = key ? JSON.parse(localStorage.getItem(key) ?? "null") : null;
+    return store?.projects?.reduce((count: number, project: { artifacts?: unknown[] }) => count + (project.artifacts?.length ?? 0), 0) ?? 0;
+  })).toBe(1);
   await findScenario.selectOption("b2b_redevelopment_selected_aoi");
   await expect(findObjectType).toHaveValue("construction");
   await expect(findLevelsFrom).toHaveValue("");
