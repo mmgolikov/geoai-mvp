@@ -33,7 +33,7 @@ const BASEMAPS: Array<{ id: LiveMapBasemapId; labelKey: "map.style.street" | "ma
 ];
 export type LiveMapViewMode = "2d" | "3d";
 export type LiveMapInteractionMode = "analyse" | "find" | "create";
-export type PointObjectReplacementStatus = "idle" | "applied" | "error";
+export type PointObjectReplacementStatus = "idle" | "applied" | "zoom-required" | "error";
 type MapViewMode = LiveMapViewMode;
 const CAMERA: Record<MapViewMode, { pitch: number; bearing: number }> = {
   "2d": { pitch: 0, bearing: 0 },
@@ -627,7 +627,12 @@ function setCreateLayers(
   (map.getSource(CONCEPT_SOURCE_ID) as GeoJSONSource | undefined)?.setData(massing?.featureCollection ?? { type: "FeatureCollection", features: [] });
   let replacementStatus: PointObjectReplacementStatus = "idle";
   if (suppressExistingBuildings && aoi) {
-    replacementStatus = applyBuildingReplacement(map, aoi) ? "applied" : "error";
+    if (map.getZoom() < pointObjectReplacementMinimumReliableZoom) {
+      restoreBuildingFilters(map);
+      replacementStatus = "zoom-required";
+    } else {
+      replacementStatus = applyBuildingReplacement(map, aoi) ? "applied" : "error";
+    }
   } else {
     restoreBuildingFilters(map);
   }

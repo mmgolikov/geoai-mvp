@@ -597,12 +597,14 @@ test("actual MapLibre rendering hides only the internal target and retains outsi
   });
 
   await focusSpatialReplacementFixture(page, 12);
-  await expect(page.getByText("Safe replacement could not be applied: source buildings were restored and the concept is hidden.")).toBeVisible();
+  await expect(page.getByText("Zoom in to view the concept.")).toBeVisible();
+  await expect(page.getByText("Safe replacement could not be applied: source buildings were restored and the concept is hidden.")).toHaveCount(0);
   await expect.poll(async () => {
     const state = await readSpatialReplacementFixture(page);
     return { filterRestored: state.filter == null, zoom: state.zoom, conceptVisibility: state.conceptVisibility };
   }).toEqual({ filterRestored: true, zoom: 12, conceptVisibility: "none" });
   await focusSpatialReplacementFixture(page, 16);
+  await expect(page.getByText("Zoom in to view the concept.")).toHaveCount(0);
   await expect(page.getByText("Safe replacement could not be applied: source buildings were restored and the concept is hidden.")).toHaveCount(0);
   await expect.poll(async () => (await readSpatialReplacementFixture(page)).insideTarget).toBe(false);
   await page.screenshot({ path: testInfo.outputPath("spatial-replacement-outside-retained.png") });
