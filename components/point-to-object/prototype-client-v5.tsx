@@ -31,6 +31,12 @@ import {
   type PointObjectAreaContextResult
 } from "@/src/lib/prototype/point-to-object-area-context-contract";
 import {
+  consumePointObjectProjectRestore,
+  pointObjectProjectIdentity,
+  reconcilePointObjectBrowserIdentity,
+  savePointObjectOperation
+} from "@/src/lib/prototype/point-object-projects";
+import {
   type PointObjectCreateAoi,
   validatePointObjectCreateAoiVertices
 } from "@/src/lib/prototype/point-to-object-create";
@@ -279,8 +285,9 @@ function isAreaContextResult(value: unknown): value is PointObjectAreaContextRes
 
 export function PointToObjectPrototypeV5() {
   const router = useRouter();
-  const { locale, t } = usePointObjectLocale();
+  const { locale, setLocale, t } = usePointObjectLocale();
   const { user, isSessionResolved } = useAuth();
+  const projectIdentity = useMemo(() => pointObjectProjectIdentity(user), [user]);
   const [locationKey, setLocationKey] = useState<LiveMapLocationKey>("dubai");
   const [selection, setSelection] = useState<LiveMapSelection | null>(null);
   const [question, setQuestion] = useState("");
@@ -336,6 +343,8 @@ export function PointToObjectPrototypeV5() {
   const restoredFindSessionRef = useRef<PointObjectFindSessionState | null>(null);
   const appliedProfileAudienceRef = useRef<string | null>(null);
   const previousLocaleRef = useRef(locale);
+  const projectRestoreAppliedRef = useRef(false);
+  const suppressRestoredAreaContextRequestRef = useRef(false);
 
   const findRoles = useMemo(() => getExecutableFindRoles(findAudience), [findAudience]);
   const findScenarios = useMemo(() => getExecutableFindScenarios(findAudience, findRole), [findAudience, findRole]);
@@ -370,6 +379,40 @@ export function PointToObjectPrototypeV5() {
     setQuestion(readPointObjectQuestion());
     setSessionReady(true);
   }, []);
+
+  useEffect(() => {
+    if (!sessionReady || !isSessionResolved || projectRestoreAppliedRef.current) return;
+    reconcilePointObjectBrowserIdentity(projectIdentity);
+    projectRestoreAppliedRef.current = true;
+    if (!projectIdentity) return;
+    const artifact = consumePointObjectProjectRestore(projectIdentity);
+    if (!artifact) return;
+    setLocale(artifact.locale);
+    setLocationKey(artifact.marketKey);
+    if (artifact.kind === "find") {
+      restoredFindSessionRef.current = artifact.payload.session;
+      setMode("find");
+      setViewModeRequest({ requestId: `restore-find:${artifact.artifactId}`, mode: "2d" });
+      return;
+    }
+    if (artifact.kind === "create") {
+      suppressRestoredAreaContextRequestRef.current = true;
+      setMode("create");
+      setIsDrawing(false);
+      setDraftCoordinates(artifact.payload.aoi.coordinates[0]?.slice(0, -1) ?? []);
+      setCreateAoi(artifact.payload.aoi);
+      setCreateAoiFitRequest({ requestId: `restore-create:${artifact.artifactId}`, bounds: createAoiBounds(artifact.payload.aoi.coordinates[0] ?? []) });
+      setCreateEditorSnapshot(artifact.payload.editorSnapshot);
+      setGeneratedConcept(artifact.payload.generated);
+      setGeneratedConceptLocale(artifact.payload.generatedLocale);
+      setActiveCreateAlternativeId(artifact.payload.activeAlternativeId);
+      setAreaContext(artifact.payload.areaContext);
+      setAreaContextStatus("idle");
+      setCreateAreaCleared(true);
+      setCreateReplacementStatus("idle");
+      setCreateReplacementRevision((revision) => revision + 1);
+    }
+  }, [isSessionResolved, projectIdentity, sessionReady, setLocale]);
 
   useEffect(() => {
     if (!sessionReady || !isSessionResolved) return;
@@ -595,6 +638,12 @@ export function PointToObjectPrototypeV5() {
       setAreaContextRetryAfterSeconds(0);
       return;
     }
+    if (suppressRestoredAreaContextRequestRef.current) {
+      suppressRestoredAreaContextRequestRef.current = false;
+      setAreaContextStatus("idle");
+      setAreaContextRetryAfterSeconds(0);
+      return;
+    }
     const controller = new AbortController();
     setAreaContextStatus("loading");
     setAreaContextRetryAfterSeconds(0);
@@ -705,17 +754,75 @@ export function PointToObjectPrototypeV5() {
     markFindOutcomeStale();
   }
 
+  function saveFindArtifact(
+    result: PointObjectFindResult,
+    shortlist: PointObjectFindCandidate[],
+    comparisonOpen: boolean,
+    intent: FindIntent = findResultIntent ?? { audience: findAudience, role: findRole, scenario: findScenario }
+  ) {
+    if (!projectIdentity) return;
+    const session: PointObjectFindSessionState & { result: PointObjectFindResult } = {
+      version: 1,
+      marketKey: result.criteria.marketKey,
+      locale: result.criteria.locale,
+      audience: intent.audience,
+      role: intent.role,
+      scenario: intent.scenario,
+      group: result.criteria.group,
+      mappedMinimumLevels: result.criteria.mappedMinimumLevels === null ? "" : String(result.criteria.mappedMinimumLevels),
+      mappedMaximumLevels: result.criteria.mappedMaximumLevels === null ? "" : String(result.criteria.mappedMaximumLevels),
+      result,
+      shortlist,
+      comparisonOpen: comparisonOpen && shortlist.length >= 2,
+      analysisTargetSourceFeatureId: null,
+      updatedAt: new Date().toISOString()
+    };
+    void savePointObjectOperation(projectIdentity, {
+      kind: "find",
+      locale: result.criteria.locale,
+      marketKey: result.criteria.marketKey,
+      label: `${locale === "ru" ? "Поиск" : "Find"} · ${result.candidates.length} ${locale === "ru" ? "объектов" : "places"}`,
+      payload: { session }
+    });
+  }
+
+  function saveCreateArtifact(concept: PointObjectGeneratedConcept, activeAlternativeId: "A" | "B") {
+    if (!projectIdentity || !createAoi) return;
+    void savePointObjectOperation(projectIdentity, {
+      kind: "create",
+      locale,
+      marketKey: locationKey,
+      label: concept.program.title,
+      payload: {
+        aoi: createAoi,
+        editorSnapshot: createEditorSnapshot,
+        generated: concept,
+        generatedLocale: locale,
+        activeAlternativeId,
+        areaContext
+      }
+    });
+  }
+
   function toggleFindShortlist(candidate: PointObjectFindCandidate) {
     const next = findShortlist.some((item) => item.sourceFeatureId === candidate.sourceFeatureId)
       ? findShortlist.filter((item) => item.sourceFeatureId !== candidate.sourceFeatureId)
       : findShortlist.length >= 3 ? findShortlist : [...findShortlist, candidate];
     setFindShortlist(next);
+    const nextComparisonOpen = next.length >= 2 && findComparisonOpen;
     if (next.length < 2) setFindComparisonOpen(false);
+    if (findResult && !findResultIsStale) saveFindArtifact(findResult, next, nextComparisonOpen);
   }
 
   function clearFindShortlist() {
     setFindShortlist([]);
     setFindComparisonOpen(false);
+    if (findResult && !findResultIsStale) saveFindArtifact(findResult, [], false);
+  }
+
+  function setFindComparison(open: boolean) {
+    setFindComparisonOpen(open);
+    if (findResult && !findResultIsStale) saveFindArtifact(findResult, findShortlist, open);
   }
 
   async function findInView() {
@@ -745,6 +852,7 @@ export function PointToObjectPrototypeV5() {
         setFindComparisonOpen(false);
         setFindAnalysisTargetSourceFeatureId(null);
         setFindStatus("idle");
+        saveFindArtifact(payload, [], false, requestIntent);
       } else if (response.status === 400) {
         setFindStatus("zoom");
       } else if (response.status === 429) {
@@ -1094,7 +1202,7 @@ export function PointToObjectPrototypeV5() {
                 {findShortlist.length > 0 ? <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-[#e6f5f1] px-3 py-2" data-testid="find-comparison-toolbar">
                   <span className="text-xs font-bold text-[#176548]">{locale === "ru" ? `Выбрано: ${findShortlist.length}` : `Selected: ${findShortlist.length}`}</span>
                   <div className="flex flex-wrap justify-end gap-1.5">
-                    {findComparisonOpen ? <button type="button" onClick={() => setFindComparisonOpen(false)} className="min-h-11 rounded-lg border border-[#8ebdb4] bg-white px-3 text-[11px] font-bold text-[#176548] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c]">{locale === "ru" ? "К результатам" : "Back to results"}</button> : <button type="button" disabled={findShortlist.length < 2} onClick={() => setFindComparisonOpen(true)} className="min-h-11 rounded-lg bg-[#087f70] px-3 text-[11px] font-bold text-white disabled:cursor-not-allowed disabled:bg-[#9bbdb5] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c]">{locale === "ru" ? "Сравнить выбранные" : "Compare selected"}</button>}
+                    {findComparisonOpen ? <button type="button" onClick={() => setFindComparison(false)} className="min-h-11 rounded-lg border border-[#8ebdb4] bg-white px-3 text-[11px] font-bold text-[#176548] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c]">{locale === "ru" ? "К результатам" : "Back to results"}</button> : <button type="button" disabled={findShortlist.length < 2} onClick={() => setFindComparison(true)} className="min-h-11 rounded-lg bg-[#087f70] px-3 text-[11px] font-bold text-white disabled:cursor-not-allowed disabled:bg-[#9bbdb5] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c]">{locale === "ru" ? "Сравнить выбранные" : "Compare selected"}</button>}
                     <button type="button" onClick={clearFindShortlist} className="min-h-11 rounded-lg px-3 text-[11px] font-bold text-[#176548] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c]">{locale === "ru" ? "Очистить" : "Clear"}</button>
                   </div>
                 </div> : null}
@@ -1152,7 +1260,7 @@ export function PointToObjectPrototypeV5() {
                   {areaContextStatus === "error" ? <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-[#e6bd74] bg-[#fff9ed] p-3 text-xs text-[#79520d]" role="alert"><span>{locale === "ru" ? "Контекст зоны временно недоступен." : "Area context is temporarily unavailable."}</span><button type="button" onClick={() => setAreaContextRetryVersion((value) => value + 1)} className="min-h-8 rounded-lg border border-[#d6b36e] bg-white px-2 font-bold">{t("selection.retry")}</button></div> : null}
                   {areaContext ? <><div className="mt-3 grid grid-cols-3 gap-2"><div className="rounded-lg bg-white p-2"><span className="block text-[10px] text-muted">{locale === "ru" ? "Объекты на карте" : "Mapped objects"}</span><strong className="mt-1 block text-sm">{areaContext.summary.sampleSize}</strong></div><div className="rounded-lg bg-white p-2"><span className="block text-[10px] text-muted">{locale === "ru" ? "Здания на карте" : "Mapped buildings"}</span><strong className="mt-1 block text-sm">{areaContext.summary.mappedBuildingCount}</strong></div><div className="rounded-lg bg-white p-2"><span className="block text-[10px] text-muted">{locale === "ru" ? "Медиана этажей" : "Median levels"}</span><strong className="mt-1 block text-sm">{areaContext.summary.medianMappedLevels ?? "—"}</strong></div></div><div className="mt-3 flex flex-wrap gap-1.5">{areaContext.summary.groups.slice(0, 5).map((group) => <span key={group.group} className="rounded-full bg-white px-2.5 py-1 text-[10px] font-semibold text-[#475467] ring-1 ring-inset ring-[#d7dee4]">{areaGroupLabels[group.group]} · {group.count}</span>)}</div>{areaContext.coverage.capReached ? <p className="mt-3 text-[10px] font-semibold leading-4 text-[#79520d]">{locale === "ru" ? "Нарисуйте меньшую зону, чтобы сузить список объектов на карте." : "Draw a smaller area to narrow the mapped objects."}</p> : null}</> : null}
                 </section>
-                <PointObjectCreatePanel locale={locale} marketKey={locationKey} aoi={createAoi} depth="standard" generated={generatedConcept} generatedLocale={generatedConceptLocale} editorSnapshot={createEditorSnapshot} onEditorSnapshotChange={setCreateEditorSnapshot} activeAlternativeId={activeCreateAlternativeId} onGenerated={(concept) => { setGeneratedConcept(concept); setGeneratedConceptLocale(locale); setActiveCreateAlternativeId("A"); setCreateReplacementStatus("idle"); setCreateAreaCleared(true); setCreateReplacementRevision((revision) => revision + 1); }} onAlternativeChange={(id) => { setActiveCreateAlternativeId(id); setCreateReplacementStatus("idle"); setCreateAreaCleared(true); setCreateReplacementRevision((revision) => revision + 1); }} onReset={() => { setGeneratedConcept(null); setGeneratedConceptLocale(null); setActiveCreateAlternativeId("A"); setCreateAreaCleared(false); setCreateReplacementStatus("idle"); setCreateReplacementRevision(0); }} />
+                <PointObjectCreatePanel locale={locale} marketKey={locationKey} aoi={createAoi} depth="standard" generated={generatedConcept} generatedLocale={generatedConceptLocale} editorSnapshot={createEditorSnapshot} onEditorSnapshotChange={setCreateEditorSnapshot} activeAlternativeId={activeCreateAlternativeId} onGenerated={(concept) => { setGeneratedConcept(concept); setGeneratedConceptLocale(locale); setActiveCreateAlternativeId("A"); setCreateReplacementStatus("idle"); setCreateAreaCleared(true); setCreateReplacementRevision((revision) => revision + 1); saveCreateArtifact(concept, "A"); }} onAlternativeChange={(id) => { setActiveCreateAlternativeId(id); setCreateReplacementStatus("idle"); setCreateAreaCleared(true); setCreateReplacementRevision((revision) => revision + 1); if (generatedConcept) saveCreateArtifact(generatedConcept, id); }} onReset={() => { setGeneratedConcept(null); setGeneratedConceptLocale(null); setActiveCreateAlternativeId("A"); setCreateAreaCleared(false); setCreateReplacementStatus("idle"); setCreateReplacementRevision(0); }} />
                 {createAreaCleared && createReplacementStatus !== "applied" ? (
                   <p className={`rounded-xl border px-3 py-2 text-[10px] leading-4 ${createReplacementStatus === "error" ? "border-[#e6bd74] bg-[#fff9ed] text-[#79520d]" : "border-[#d8e2df] bg-[#f8faf9] text-[#62716d]"}`} role="status">
                     {createReplacementStatus === "zoom-required"

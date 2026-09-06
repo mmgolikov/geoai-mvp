@@ -491,6 +491,17 @@ test("V6 renders useful GeoContext and linked-source facts in EN/RU and restores
   await expect.poll(() => page.evaluate(() => JSON.parse(sessionStorage.getItem("geoai:point-to-object:analysis:v8") ?? "null")?.analysis?.schemaVersion)).toBe(6);
 
   const callsAfterEnglish = apiCalls.length;
+  await expect.poll(() => page.evaluate(() => {
+    const key = Object.keys(localStorage).find((item) => item.startsWith("geoai:point-to-object:projects:v1:"));
+    const store = key ? JSON.parse(localStorage.getItem(key) ?? "null") : null;
+    return store?.projects?.[0]?.artifacts?.[0]?.kind;
+  })).toBe("analyse");
+  await page.goto("/projects?view=spatial");
+  await expect(page.getByText("Storage mode: on this device.")).toBeVisible();
+  await page.getByRole("button", { name: "Reopen without rerunning" }).click();
+  await expect(page).toHaveURL(/\/prototype\/point-to-object\/analysis$/);
+  await expect(page.getByRole("heading", { name: "Continue bounded object screening" })).toBeVisible();
+  expect(apiCalls).toHaveLength(callsAfterEnglish);
   await page.reload();
   await expect(page.getByRole("heading", { name: "Continue bounded object screening" })).toBeVisible();
   expect(apiCalls).toHaveLength(callsAfterEnglish);

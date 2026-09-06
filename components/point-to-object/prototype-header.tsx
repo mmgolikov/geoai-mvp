@@ -6,6 +6,7 @@ import { AccessStatusBadgeVisual } from "@/components/auth/access-status-badge-v
 import { useAuth } from "@/components/auth/auth-provider";
 import { IdentitySymbol } from "@/components/design-system/identity-symbol";
 import { usePointObjectLocale } from "@/components/point-to-object/locale-provider";
+import { PointObjectProjectControl } from "@/components/point-to-object/project-control";
 
 export type PointObjectHeaderProps = {
   backToMap?: boolean;
@@ -27,6 +28,7 @@ export function PointObjectHeader({ backToMap = false }: PointObjectHeaderProps)
       </Link>
 
       <div data-point-object-header-actions className="flex shrink-0 items-center gap-2">
+        <PointObjectProjectControl />
         {backToMap ? (
           <Link href="/prototype/point-to-object" aria-label={t("header.backToMap")} className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-line bg-white px-0 text-xs font-semibold text-ink hover:border-[#087f8c] hover:bg-[#f3fbfb] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] sm:w-auto sm:px-4 sm:text-sm">
             <span className="text-lg leading-none sm:hidden" aria-hidden="true">←</span>

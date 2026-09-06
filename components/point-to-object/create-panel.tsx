@@ -30,6 +30,9 @@ export type { PointObjectCreateEditorSnapshot } from "@/src/lib/prototype/point-
 type CreateDepth = "quick" | "standard" | "deep";
 
 export type PointObjectGeneratedConcept = {
+  mode: "openai_concept";
+  generatedAt: string;
+  promptVersion: string;
   program: ValidatedRedevelopmentProgram;
   massing: ConceptMassingResult;
   alternatives?: ConceptMassingAlternative[];
@@ -160,7 +163,9 @@ function isGeneratedConcept(value: unknown): value is PointObjectGeneratedConcep
       typeof (alternative as { massing?: unknown }).massing === "object" &&
       (alternative as { massing?: unknown }).massing !== null)
   );
-  return candidate.mode === undefined &&
+  return candidate.mode === "openai_concept" &&
+    typeof candidate.generatedAt === "string" && Number.isFinite(Date.parse(candidate.generatedAt)) &&
+    typeof candidate.promptVersion === "string" && candidate.promptVersion.length > 0 && candidate.promptVersion.length <= 160 &&
     typeof candidate.program === "object" && candidate.program !== null &&
     typeof candidate.massing === "object" && candidate.massing !== null &&
     typeof candidate.telemetry === "object" && candidate.telemetry !== null &&
@@ -397,11 +402,10 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
           : copy.error;
         throw new Error(message);
       }
-      const { mode: _mode, generatedAt: _generatedAt, promptVersion: _promptVersion, ...concept } = payload as PointObjectGeneratedConcept & { mode: string; generatedAt: string; promptVersion: string };
-      if (!isGeneratedConcept(concept)) throw new Error(copy.error);
+      if (!isGeneratedConcept(payload)) throw new Error(copy.error);
       if (controller.signal.aborted || requestId !== requestIdRef.current) return;
       setCommittedDraftKey(requestDraftKey);
-      onGenerated(concept);
+      onGenerated(payload);
     } catch (requestError) {
       if (controller.signal.aborted || requestId !== requestIdRef.current || (requestError instanceof DOMException && requestError.name === "AbortError")) return;
       setError(requestError instanceof Error ? requestError.message : copy.error);

@@ -1240,9 +1240,12 @@ function assertStaticBoundaries(): void {
     "components/point-to-object/live-session.ts",
     "components/point-to-object/live-types.ts",
     "components/point-to-object/locale-provider.tsx",
+    "components/point-to-object/project-control.tsx",
+    "components/point-to-object/projects-page-client.tsx",
     "components/point-to-object/prototype-client-v5.tsx",
     "components/point-to-object/prototype-client.tsx",
-    "components/point-to-object/prototype-header.tsx"
+    "components/point-to-object/prototype-header.tsx",
+    "components/point-to-object/reliable-select.tsx"
   ]);
   const candidateSurfaceFiles = [
     ...collectFiles(path.join(ROOT, "app/prototype/point-to-object")),
@@ -1258,6 +1261,7 @@ function assertStaticBoundaries(): void {
     ...candidateSurfaceAllowlist,
     "app/layout.tsx",
     "app/profile/page.tsx",
+    "app/projects/page.tsx",
     "components/auth/profile-panel.tsx"
   ]);
 

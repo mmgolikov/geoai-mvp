@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { useAuth } from "@/components/auth/auth-provider";
 import { usePointObjectLocale } from "@/components/point-to-object/locale-provider";
 import { ReliableSelect } from "@/components/point-to-object/reliable-select";
 import { PointObjectHeader } from "@/components/point-to-object/prototype-header";
@@ -25,6 +26,7 @@ import type {
   PointObjectAnalysisPerspective
 } from "@/components/point-to-object/live-types";
 import type { ExploreRole, ExploreScenarioId } from "@/src/lib/explore/types";
+import { pointObjectProjectIdentity, reconcilePointObjectBrowserIdentity, savePointObjectOperation, type PointObjectProjectIdentity } from "@/src/lib/prototype/point-object-projects";
 import { readPointObjectFindSession } from "@/src/lib/prototype/point-to-object-find-session";
 
 type AnalysisSettings = {
@@ -134,6 +136,7 @@ function evidenceClassStyle(value: "observed" | "derived" | "hypothesis"): strin
 
 export function PointToObjectAnalysis() {
   const { locale, t } = usePointObjectLocale();
+  const { user, isSessionResolved } = useAuth();
   const [selection, setSelection] = useState<LiveMapSelection | null>(null);
   const [analysis, setAnalysis] = useState<PointObjectAiResponse | null>(null);
   const [question, setQuestion] = useState("");
@@ -151,8 +154,14 @@ export function PointToObjectAnalysis() {
   const localeRef = useRef(locale);
   const translationRef = useRef(t);
   const localeRefreshAttemptRef = useRef<string | null>(null);
+  const projectIdentityRef = useRef<PointObjectProjectIdentity | null>(pointObjectProjectIdentity(user));
   localeRef.current = locale;
   translationRef.current = t;
+  projectIdentityRef.current = pointObjectProjectIdentity(user);
+
+  useEffect(() => {
+    if (isSessionResolved) reconcilePointObjectBrowserIdentity(projectIdentityRef.current);
+  }, [isSessionResolved, user]);
 
   const focusedAnalyses: Array<{ goal: PointObjectAnalysisGoal; label: string; question: string }> = [
     { goal: "object_profile", label: t("focus.object.label"), question: t("focus.object.question") },
@@ -170,6 +179,16 @@ export function PointToObjectAnalysis() {
     analysisRef.current = nextAnalysis;
     setAnalysis(nextAnalysis);
     writePointObjectAnalysis(nextAnalysis, activeSelection);
+    const identityKey = projectIdentityRef.current;
+    if (identityKey && nextAnalysis.mode === "openai") {
+      void savePointObjectOperation(identityKey, {
+        kind: "analyse",
+        locale: nextAnalysis.request.locale,
+        marketKey: activeSelection.locationKey,
+        label: nextAnalysis.subject.name ?? activeSelection.object.name ?? (nextAnalysis.request.locale === "ru" ? "Анализ выбранного объекта" : "Selected object analysis"),
+        payload: { selection: activeSelection, analysis: nextAnalysis }
+      });
+    }
   }, []);
 
   const requestAnalysis = useCallback(async (activeSelection: LiveMapSelection, activeQuestion: string, settings: AnalysisSettings) => {

@@ -5,6 +5,7 @@ const acquiredAt = "2026-09-04T09:00:00.000Z";
 const contextRequests: Array<Record<string, unknown>> = [];
 const findPostRequests: Array<Record<string, unknown>> = [];
 const createPostRequests: Array<Record<string, unknown>> = [];
+let areaContextPostRequests = 0;
 
 const candidates = [
   candidate("way", "2001", "Marina Candidate One", 55.2704, 25.2054, 12),
@@ -170,6 +171,7 @@ async function installOfflineRoutes(page: Page, options: { areaContextMode?: "su
     });
   });
   await page.route("**/api/prototype/point-to-object/area-context", (route) => {
+    areaContextPostRequests += 1;
     if (options.areaContextMode === "rate") {
       return route.fulfill({ status: 429, contentType: "application/json", headers: { "Retry-After": "30" }, body: JSON.stringify({ mode: "unavailable", error: "rate limited" }) });
     }
@@ -647,6 +649,32 @@ test("V5.1 keeps exact identity and the complete Find comparison flow coherent o
   await expect(page.getByTestId("find-comparison-grid").getByRole("article")).toHaveCount(2);
   await expect(page.getByTestId("find-comparison-grid")).toContainText("Dubai Marina");
   await expect(page.getByTestId("find-comparison-grid")).toContainText("Jumeirah Lakes Towers");
+  const findCallsBeforeReopen = findPostRequests.length;
+  await expect.poll(() => page.evaluate(() => Object.keys(localStorage).some((key) => key.startsWith("geoai:point-to-object:projects:v1:")))).toBe(true);
+  await page.goto("/projects?view=spatial");
+  await expect(page.getByTestId("point-object-projects-page")).toBeVisible();
+  await expect(page.getByText("Storage mode: on this device.")).toBeVisible();
+  for (const viewport of [
+    { width: 1440, height: 900 },
+    { width: 1280, height: 900 },
+    { width: 768, height: 1024 },
+    { width: 390, height: 844 }
+  ]) {
+    await page.setViewportSize(viewport);
+    await expect(page.getByTestId("saved-project-card").first()).toBeVisible();
+    await expect(page.getByRole("button", { name: "Reopen without rerunning" }).first()).toBeVisible();
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  }
+  await page.getByRole("button", { name: "ru", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Проекты GeoAI" })).toBeVisible();
+  await expect(page.getByText("Режим хранения: на этом устройстве.")).toBeVisible();
+  await page.getByRole("button", { name: "en", exact: true }).click();
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.getByRole("button", { name: "Reopen without rerunning" }).first().click();
+  await expect(page).toHaveURL(/\/prototype\/point-to-object$/);
+  await expect(page.getByRole("tab", { name: "Find", exact: true })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByTestId("find-comparison-grid").getByRole("article")).toHaveCount(2);
+  expect(findPostRequests).toHaveLength(findCallsBeforeReopen);
   await page.getByTestId("find-comparison-grid").scrollIntoViewIfNeeded();
   await page.screenshot({ path: testInfo.outputPath("find-side-by-side-comparison-en.png") });
   await expect(page.getByText(/SHA-256/)).toHaveCount(0);
@@ -719,6 +747,7 @@ test("V5.1 keeps exact identity and the complete Find comparison flow coherent o
 
 test("Create A/B and mobile profile remain coherent offline", async ({ page }, testInfo) => {
   createPostRequests.length = 0;
+  areaContextPostRequests = 0;
   const unexpectedExternal = await installOfflineRoutes(page);
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto("/prototype/point-to-object");
@@ -831,6 +860,22 @@ test("Create A/B and mobile profile remain coherent offline", async ({ page }, t
   await expect(page.locator(".maplibregl-canvas")).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath("create-alternative-b.png") });
   expect(createPostRequests).toHaveLength(1);
+  const areaContextCallsBeforeReopen = areaContextPostRequests;
+  await expect.poll(() => page.evaluate(() => {
+    const key = Object.keys(localStorage).find((item) => item.startsWith("geoai:point-to-object:projects:v1:"));
+    const store = key ? JSON.parse(localStorage.getItem(key) ?? "null") : null;
+    return store?.projects?.[0]?.artifacts?.some((artifact: { kind?: string; payload?: { generated?: { mode?: string; generatedAt?: string; promptVersion?: string } } }) =>
+      artifact.kind === "create" && artifact.payload?.generated?.mode === "openai_concept" &&
+      Boolean(artifact.payload.generated.generatedAt) && Boolean(artifact.payload.generated.promptVersion));
+  })).toBe(true);
+  await page.goto("/projects?view=spatial");
+  await page.getByRole("button", { name: "Reopen without rerunning" }).first().click();
+  await expect(page).toHaveURL(/\/prototype\/point-to-object$/);
+  await expect(page.getByRole("tab", { name: "Create", exact: true })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByTestId("generated-concept-summary")).toBeVisible();
+  await expect(page.getByTestId("create-alternative-b")).toHaveAttribute("aria-selected", "true");
+  expect(createPostRequests).toHaveLength(1);
+  expect(areaContextPostRequests).toBe(areaContextCallsBeforeReopen);
   await page.getByTestId("create-alternative-a").click();
   expect(createPostRequests).toHaveLength(1);
   await expect(page.getByText("Concept ready")).toHaveCount(0);
@@ -842,6 +887,7 @@ test("Create A/B and mobile profile remain coherent offline", async ({ page }, t
   await page.getByRole("button", { name: "Show generated concept" }).click();
   await expect(page.getByRole("button", { name: "Show existing" })).toBeVisible();
   await expect(page.getByText(/Source buildings inside the selected area are hidden/)).toHaveCount(0);
+  await page.getByText("Concept parameters", { exact: true }).click();
   await page.getByTestId("reset-edited-create-controls").click();
   await expect(page.getByText("Edited", { exact: true })).toHaveCount(0);
   await expect(page.getByTestId("generated-concept-summary")).toBeVisible();
