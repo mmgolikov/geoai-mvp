@@ -1,6 +1,6 @@
 # Cycle 05 — Projects, precise replacement and bilingual product entry
 
-Status: Founder-approved scope; source audit in progress; no Production activation
+Status: Founder-approved scope; shared source audit complete; spatial slice locally verified; other implementation lanes blocked; no Production activation
 Date: 2026-09-06
 Owner: GeoAI Main
 Baseline: `833b575561853942530bb4766d04c2ad8ae06b31`
@@ -30,6 +30,8 @@ Use the existing approved light/teal product system. Align chevrons with consist
 
 ## B. Projects and saved work
 
+Execution refinement after the shared audit: the first implementation slice is versioned browser-local Saved Projects and zero-call reopening. The cloud contract is documentation only in this slice. Hosted schema/API activation, Auth/enforcement and environment changes are not part of DEV-05. Device saving does not satisfy cross-device/cloud acceptance. As of this checkpoint, dev_1 has not applied its patch because its execution policy still requires direct in-task user authorization to supersede the previous DEV-G2A read-only scope; a confirmation relayed by Main was not accepted. Do not bypass this denial from another lane.
+
 Default product assumption: a new independent work session creates a project at its first successful Analyse/Find/Create operation; subsequent deliberate runs within that project become distinct saved artifacts/revisions, not duplicate projects on retries. Provide a clear project name, mode, city/location and last-updated time. The user can select an existing project or start a new one. Save only completed outcomes; preserve draft edits separately from last completed results. Save failure must remain visible and retryable without another model call. Never show Saved before durable acknowledgement.
 
 Restore the useful existing Projects flow with adaptation, not a second incompatible project universe. A project holds selected identity/AOI, role/scenario/settings and language, Find results/shortlist/comparison, analysis result/source snapshot references, and Create parameters, alternative geometries and active selection. Reopening restores actual geometry and intent, not a screenshot, and must not automatically regenerate paid output or refetch sources. Preserve original provenance/model/cost/version metadata; do not relabel historic reports as new analysis. Reports/exports are future work, not dead buttons.
@@ -47,6 +49,8 @@ Resolve and document boundary policy: fully inside components may be hidden; if 
 Required counterexamples: two distant buildings sharing an ID; missing IDs; one multipart feature with one inside and one distant component; adjacent tile boundaries; zoom/load refresh; AOI holes/concavity; boundary crossing; successive selections; style switching; 2D/3D; clear and restore repeated five times. Browser verification must assert an outside landmark remains while the target is hidden. No provider data is actually deleted.
 
 ## D. New bilingual selling landing
+
+Execution checkpoint: design_1's previous Figma-only authorization still blocks code changes in its task. A direct in-task authorization is required before implementation can resume. The captured product screenshot and staged concept do not constitute an implemented landing. Do not reproduce the denied patch from another lane.
 
 Use the current approved visual system as the grounding reference: light, premium, restrained teal accent, readable dark type, real map/product imagery and generous but purposeful spacing. This is an existing-product design/build, not permission for an unrelated theme. The new entry describes Analyse, Find, Create and Projects through role-specific jobs/outcomes and clear paths into the prototype. Primary audiences: developers, real-estate/asset owners, funds, advisors and urban/public teams; support consumer users as a secondary path without misrepresenting available scenarios.
 

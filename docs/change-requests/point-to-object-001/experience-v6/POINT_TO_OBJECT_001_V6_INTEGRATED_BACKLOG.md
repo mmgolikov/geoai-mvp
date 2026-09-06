@@ -22,12 +22,12 @@ The [Cycle 05 CR](CYCLE_05_PROJECTS_SPATIAL_REPLACEMENT_LANDING_CR.md) and [full
 
 | Item | Owner | Required outcome | State |
 | --- | --- | --- | --- |
-| C05-SELECT | dev_1 | Reliable inset-chevron controls, keyboard/touch, no Find audience selector | In progress |
-| C05-PROJECTS | dev_1 | Versioned Analyse/Find/Create saves and exact replay; truthful storage status | In progress; hosted activation separately gated |
-| C05-REPLACE | gen_ai_1 | No out-of-area/multipart/tile-ID collateral hiding; exact restore | In progress |
-| C05-LANDING | design_1 | Grounded EN/RU selling entry and functional routes, no invented capabilities | In progress |
+| C05-SELECT | dev_1 | Reliable inset-chevron controls, keyboard/touch, no Find audience selector | Blocked: direct in-task authorization required; no patch applied |
+| C05-PROJECTS | dev_1 | Versioned device-only Analyse/Find/Create saves and exact replay; cloud contract only initially | Blocked with C05-SELECT; cloud activation is separate and not implemented |
+| C05-REPLACE | gen_ai_1 / Main | No out-of-area/multipart/tile-ID collateral hiding; exact restore | Locally integrated through 71aa34d; independent review and 11 browser tests pass; external Preview readback pending |
+| C05-LANDING | design_1 | Grounded EN/RU selling entry and functional routes, no invented capabilities | Blocked: direct in-task authorization required; no code implemented |
 | C05-ROADMAP | Main | Scenario/radius context and site-aware generation dependency plan | Prepared; not implementation evidence |
-| C05-DOCS | wiki_1 / Main | Current candidate at top of navigation; history and Production distinct | Read/merge preparation; final readback pending |
+| C05-DOCS | wiki_1 / Main | Current candidate at top of navigation; history and Production distinct | Five Confluence page patches staged with source/version audit; publication/readback pending final tuple |
 
 ### Cycle 04 — preceding candidate
 

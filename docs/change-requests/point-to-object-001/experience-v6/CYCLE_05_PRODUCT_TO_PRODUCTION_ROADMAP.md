@@ -17,10 +17,12 @@ The next full version is this product branch, not a parallel redesign of the old
 ## Current truth and gaps
 
 - The candidate supports a live map, observed open-map objects, bounded nearby context, identity-bound Wikidata enrichment, role/scenario Find, comparison, and AI programme plus deterministic site massing. It is not a legal, cadastral, investment or architectural conclusion.
-- The founder reports occasional out-of-area building disappearance. A successful geometry test does not disprove that renderer defect; exact replacement is the immediate correctness priority.
+- Out-of-area disappearance was traced to whole-feature intersection-based hiding. The [Cycle 05 spatial slice](CYCLE_05_SPATIAL_INTEGRATION_RECEIPT.md) now preserves boundary-crossing and mixed multipart source features and passes a real MapLibre renderer regression using synthetic counterexamples. Published Preview verification is recorded separately; this is not universal live-provider acceptance.
 - Old Projects and profile UI exist, but generic product mutations remain demo/blocked. The candidate analysis persistence route is not wired to the UI. Cross-device saved projects have not been demonstrated.
 - Old root landing and Confluence delivery summaries lag the accepted candidate. Design and documentation must identify the actual candidate, while preserving Released history.
 - Source availability, identity quality, map coverage, useful AI answers and commercial demand are separate questions. None is established by adding a model or a provider logo.
+
+Current delivery constraint: select/Saved Projects and landing code remain unimplemented because dev_1/design_1 require direct user authorization in their own tasks. The bounded spatial slice can proceed independently. Initial Saved Projects scope is device-only plus a documented cloud contract; do not imply Supabase saving has been activated.
 
 ## Delivery order and exit criteria
 
