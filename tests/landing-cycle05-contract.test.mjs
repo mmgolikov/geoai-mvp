@@ -37,6 +37,7 @@ test("data and project boundaries remain explicit", () => {
   assert.match(content, /Облачная совместная работа не активна/);
   assert.match(content, /Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion\./);
   assert.doesNotMatch(content, /pilot ready|production ready|commercially validated|official integration|guaranteed/i);
+  assert.doesNotMatch(content, /current product preview|current preview|still gated|later evidence gate|public demo prototype|публичная демоверсия/i);
 });
 
 test("responsive and accessibility contracts are present", () => {
@@ -53,7 +54,7 @@ test("responsive and accessibility contracts are present", () => {
   assert.match(component, /ArrowLeft/);
 });
 
-test("hero uses the captured current product preview", () => {
+test("hero uses the captured GeoAI workspace image", () => {
   assert.match(component, /geoai-map-workspace-preview\.png/);
   assert.match(component, /geoai-map-workspace-preview-ru\.png/);
   assert.equal(productPreview.byteLength > 100_000, true);

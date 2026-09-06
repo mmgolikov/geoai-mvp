@@ -30,7 +30,7 @@ The product narrative uses four task-oriented paths—Analyse, Find, Create and 
 
 ## Content and claim boundary
 
-- The page separates “Current product” from “Validation required”.
+- The page separates available functions from evidence that must be verified before a material decision.
 - It does not publish prices, ROI, ARR, gross margin, customer results, official integration or maturity claims.
 - Project persistence is described as browser-local only.
 - The captured interface and copy identify open-map context and preserve visible map attribution.
@@ -107,6 +107,13 @@ No Figma node was created or mutated in CYCLE-05. The required later registry ac
 - Brand/home and EN/RU controls were measured at 44 px minimum hit height; language controls are 44×44 px at 390 CSS pixels.
 - EN and RU were rendered at 390 CSS pixels and EN was rendered at 1280 CSS pixels after the correction; the header remains compact and no horizontal overflow was observed.
 - No Auth, API, map runtime, environment, database, Vercel or Production files were changed.
+
+## Product-copy correction — 2026-09-06
+
+- Removed Preview, release-status and evidence-gate jargon from the product interface before Main release.
+- EN now uses “GeoAI workspace”, “Available functions” and “What to verify”; RU uses “Рабочее пространство GeoAI”, “Доступные функции” and “Что проверить”.
+- Natural-language boundaries still state open-map/sample context, browser-local project storage, the confidential-data restriction and the required official-validation caveat.
+- Layout, assets, routes and product behavior are unchanged.
 
 ## Integration note
 

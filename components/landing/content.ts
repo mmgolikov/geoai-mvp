@@ -82,8 +82,8 @@ export const landingContent: Record<PointObjectLocale, LandingContent> = {
       title: "Turn a location into a decision path.",
       body:
         "Select a mapped object or area, inspect available context, compare candidates and shape bounded development concepts — with assumptions and missing evidence kept visible.",
-      note: "Open-map and sample contexts in the public demo. No confidential data.",
-      previewLabel: "Current product preview · Dubai",
+      note: "Uses open-map and sample contexts. Do not enter confidential data.",
+      previewLabel: "GeoAI workspace · Dubai",
       previewCaption: "Real GeoAI interface using OpenFreeMap and OpenStreetMap context.",
       previewAlt:
         "GeoAI map-first workspace showing a three-dimensional Dubai map and the Analyse, Find and Create product modes"
@@ -92,7 +92,7 @@ export const landingContent: Record<PointObjectLocale, LandingContent> = {
       eyebrow: "What you can do",
       title: "One map. Four practical working paths.",
       body:
-        "Start from the task in front of you. The public demo keeps its source boundary visible and stores project work only in the supported browser-local flow.",
+        "Start from the task in front of you. Sources and limits remain visible; supported project work stays in this browser.",
       localLabel: "This device",
       paths: [
         {
@@ -171,18 +171,18 @@ export const landingContent: Record<PointObjectLocale, LandingContent> = {
     },
     boundary: {
       eyebrow: "Clear operating boundary",
-      title: "Use what is available. See what is still gated.",
-      body: "The public demo is an evidence-aware workspace, not a substitute for client records, expert review or official authority decisions.",
-      currentLabel: "Current product",
-      currentTitle: "Available in the current preview",
+      title: "Use the map. Verify the evidence that matters.",
+      body: "Use the workspace for early spatial screening with open-map and sample context. Confirm material decisions against client records, expert review and the responsible authority.",
+      currentLabel: "Available functions",
+      currentTitle: "Work with mapped places and areas",
       current: [
         "Analyse a selected map object or point using available open context.",
         "Find mapped objects in the visible area and compare selected candidates.",
         "Create bounded, deterministic massing concepts inside one selected area.",
         "Return to project work supported by the current browser-local flow."
       ],
-      gatedLabel: "Validation required",
-      gatedTitle: "Requires a later evidence gate",
+      gatedLabel: "What to verify",
+      gatedTitle: "Before relying on the result",
       gated: [
         "Parcel, zoning, ownership, planning or valuation evidence from the responsible authority.",
         "Protected customer-data onboarding and multi-user cloud projects.",
@@ -197,7 +197,7 @@ export const landingContent: Record<PointObjectLocale, LandingContent> = {
       title: "Open the map and make the first decision step visible.",
       body: "Choose a mapped object, search the visible area or draw a bounded zone."
     },
-    footer: { product: "Product", projects: "Projects", profile: "Profile", rights: "GeoAI public demo prototype" }
+    footer: { product: "Product", projects: "Projects", profile: "Profile", rights: "GeoAI · Spatial decision intelligence" }
   },
   ru: {
     brandSubtitle: "Геопространственная аналитика",
@@ -207,15 +207,15 @@ export const landingContent: Record<PointObjectLocale, LandingContent> = {
       eyebrow: "Пространственный интеллект для решений",
       title: "Превратите локацию в понятный путь к решению.",
       body: "Выберите объект или зону на карте, изучите доступный контекст, сравните варианты и сформируйте ограниченные концепции развития — с видимыми допущениями и пробелами в данных.",
-      note: "В публичной демоверсии используются открытые и демонстрационные контексты. Без конфиденциальных данных.",
-      previewLabel: "Текущий продукт · Дубай",
+      note: "Используются открытые и демонстрационные контексты. Не вводите конфиденциальные данные.",
+      previewLabel: "Рабочее пространство GeoAI · Дубай",
       previewCaption: "Реальный интерфейс GeoAI на базе OpenFreeMap и контекста OpenStreetMap.",
       previewAlt: "Интерфейс GeoAI с трехмерной картой Дубая и режимами Анализ, Поиск и Создать"
     },
     workflow: {
       eyebrow: "Что можно сделать",
       title: "Одна карта. Четыре практических сценария работы.",
-      body: "Начните с вашей задачи. Публичная демоверсия показывает границы источников, а проектная работа сохраняется только в поддерживаемом локальном сценарии браузера.",
+      body: "Начните с вашей задачи. Источники и ограничения остаются видимыми, а поддерживаемая проектная работа сохраняется в этом браузере.",
       localLabel: "На этом устройстве",
       paths: [
         { number: "01", name: "Анализ", title: "Понять выбранное место", body: "Выберите объект или точку и превратите доступный контекст открытой карты в структурированную аналитическую справку.", action: "Открыть Анализ", href: mapHref },
@@ -241,18 +241,18 @@ export const landingContent: Record<PointObjectLocale, LandingContent> = {
     },
     boundary: {
       eyebrow: "Понятные границы использования",
-      title: "Используйте доступное. Видьте то, что ещё требует подтверждения.",
-      body: "Публичная демоверсия помогает работать с доказательствами, но не заменяет клиентские документы, экспертизу или решения официальных органов.",
-      currentLabel: "Текущий продукт",
-      currentTitle: "Доступно в текущем Preview",
+      title: "Работайте с картой. Проверяйте значимые данные.",
+      body: "Используйте рабочее пространство для предварительного пространственного анализа на открытых и демонстрационных данных. Значимые решения подтверждайте клиентскими документами, экспертизой и ответственным органом.",
+      currentLabel: "Доступные функции",
+      currentTitle: "Работа с объектами и зонами на карте",
       current: [
         "Анализ выбранного объекта или точки с доступным открытым контекстом.",
         "Поиск объектов в видимой области карты и сравнение выбранных вариантов.",
         "Создание ограниченных детерминированных концепций объёмов внутри одной зоны.",
         "Возврат к проектной работе в текущем локальном сценарии браузера."
       ],
-      gatedLabel: "Требуется проверка",
-      gatedTitle: "Требует отдельной доказательной готовности",
+      gatedLabel: "Что проверить",
+      gatedTitle: "Перед использованием результата",
       gated: [
         "Официальные данные о земельных участках, зонировании, собственности, планировании или стоимости.",
         "Защищённая загрузка клиентских данных и многопользовательские облачные проекты.",
@@ -267,6 +267,6 @@ export const landingContent: Record<PointObjectLocale, LandingContent> = {
       title: "Откройте карту и сделайте первый шаг решения видимым.",
       body: "Выберите объект, найдите варианты в видимой области или нарисуйте ограниченную зону."
     },
-    footer: { product: "Продукт", projects: "Проекты", profile: "Профиль", rights: "GeoAI · Публичная демоверсия" }
+    footer: { product: "Продукт", projects: "Проекты", profile: "Профиль", rights: "GeoAI · Геопространственная аналитика" }
   }
 };
