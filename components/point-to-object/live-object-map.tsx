@@ -862,6 +862,10 @@ export function LiveObjectMap({
   }, [onReplacementStatus]);
 
   useEffect(() => {
+    createVertexCallbackRef.current = onCreateVertex;
+  }, [onCreateVertex]);
+
+  useEffect(() => {
     interactionModeRef.current = interactionMode;
     const map = mapRef.current;
     if (!map) return;
@@ -874,7 +878,6 @@ export function LiveObjectMap({
 
   useEffect(() => {
     createDrawingRef.current = createDrawing;
-    createVertexCallbackRef.current = onCreateVertex;
     createDraftRef.current = createDraftCoordinates;
     createAoiRef.current = createAoi;
     createAreaClearedRef.current = createAreaCleared;
@@ -895,7 +898,7 @@ export function LiveObjectMap({
     const replacementStatus = setCreateLayers(map, createDraftCoordinates, createAoi, createAreaCleared, conceptMassing, viewModeRef.current);
     replacementStatusCallbackRef.current?.(replacementStatus);
     map.getCanvas().style.cursor = interactionModeRef.current === "create" && createDrawing ? "crosshair" : "";
-  }, [conceptMassing, createAoi, createAreaCleared, createDraftCoordinates, createDrawing, createReplacementRevision, onCreateVertex]);
+  }, [conceptMassing, createAoi, createAreaCleared, createDraftCoordinates, createDrawing, createReplacementRevision]);
 
   useEffect(() => {
     selectionRef.current = selection;

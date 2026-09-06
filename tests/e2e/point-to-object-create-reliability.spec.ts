@@ -169,6 +169,7 @@ async function addLateBuildingLayer(page: Page) {
       map: TestMap;
       originalFilter: unknown;
       setFilterCalls: number;
+      effectiveSetFilterChanges: number;
       styleDataEvents: number;
     };
     const canvas = document.querySelector<HTMLElement>("[data-testid='live-map-canvas']");
@@ -193,10 +194,15 @@ async function addLateBuildingLayer(page: Page) {
     if (!map) throw new Error("MapLibre instance not found in LiveObjectMap hooks.");
 
     const originalFilter = ["==", ["get", "kind"], "main"];
-    const harness: Harness = { map, originalFilter, setFilterCalls: 0, styleDataEvents: 0 };
+    const harness: Harness = { map, originalFilter, setFilterCalls: 0, effectiveSetFilterChanges: 0, styleDataEvents: 0 };
     const originalSetFilter = map.setFilter.bind(map);
     map.setFilter = (layerId, filter) => {
-      if (layerId === "late-building") harness.setFilterCalls += 1;
+      if (layerId === "late-building") {
+        harness.setFilterCalls += 1;
+        if (JSON.stringify(map.getFilter(layerId)) !== JSON.stringify(filter)) {
+          harness.effectiveSetFilterChanges += 1;
+        }
+      }
       return originalSetFilter(layerId, filter);
     };
     map.on("styledata", () => {
@@ -220,6 +226,7 @@ async function readLateBuildingLayerState(page: Page) {
       map: { getFilter: (layerId: string) => unknown };
       originalFilter: unknown;
       setFilterCalls: number;
+      effectiveSetFilterChanges: number;
       styleDataEvents: number;
     };
     const harness = (window as typeof window & { __geoAiLateBuildingHarness?: Harness }).__geoAiLateBuildingHarness;
@@ -230,6 +237,7 @@ async function readLateBuildingLayerState(page: Page) {
       filter,
       originalFilter: harness.originalFilter,
       setFilterCalls: harness.setFilterCalls,
+      effectiveSetFilterChanges: harness.effectiveSetFilterChanges,
       styleDataEvents: harness.styleDataEvents,
       suppressed: serializedFilter.includes('"distance"'),
       distanceChecks: (serializedFilter.match(/"distance"/g) ?? []).length,
@@ -276,14 +284,12 @@ async function installSpatialReplacementFixture(page: Page) {
       fiber = fiber.return;
     }
     if (!map) throw new Error("MapLibre instance not found.");
-    if (!map.isStyleLoaded()) {
-      await new Promise<void>((resolve, reject) => {
-        const timeout = window.setTimeout(() => reject(new Error("MapLibre style did not become ready.")), 5_000);
-        map?.once("style.load", () => {
-          window.clearTimeout(timeout);
-          resolve();
-        });
-      });
+    // AOI setData can transiently unset readiness after style.load has already
+    // fired. Observe current readiness instead of waiting for that one-shot event.
+    const styleDeadline = performance.now() + 5_000;
+    while (!map.isStyleLoaded()) {
+      if (performance.now() >= styleDeadline) throw new Error("MapLibre style did not become ready.");
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 25));
     }
 
     const sourceId = "geoai-spatial-replacement-fixture";
@@ -507,6 +513,7 @@ test("Create separates draft from committed geometry and never spends on local-o
     await page.getByRole("button", { name: "3d", exact: true }).press("Enter");
     await expect.poll(async () => (await readLateBuildingLayerState(page)).distanceChecks).toBe(2);
 
+    const effectiveChangesBeforeCycles = (await readLateBuildingLayerState(page)).effectiveSetFilterChanges;
     for (let cycle = 0; cycle < 5; cycle += 1) {
       await page.getByTestId("create-map-presentation-toggle").click();
       await expect.poll(async () => (await readLateBuildingLayerState(page)).filter)
@@ -514,7 +521,23 @@ test("Create separates draft from committed geometry and never spends on local-o
       await page.getByTestId("create-map-presentation-toggle").click();
       await expect.poll(async () => (await readLateBuildingLayerState(page)).distanceChecks).toBe(2);
     }
-    await expect.poll(async () => (await readLateBuildingLayerState(page)).setFilterCalls).toBe(13);
+    // Count actual original↔replacement transitions, not incidental same-value
+    // reconciliation calls whose scheduling differs between next dev and start.
+    await expect.poll(async () => (await readLateBuildingLayerState(page)).effectiveSetFilterChanges)
+      .toBe(effectiveChangesBeforeCycles + 10);
+
+    // Keep the raw-call no-loop check: an unrelated style event must not cause
+    // any replacement reapplication, including a same-value no-op.
+    const settledState = await readLateBuildingLayerState(page);
+    await page.evaluate(() => {
+      type Harness = { map: { setPaintProperty: (layerId: string, property: string, value: unknown) => unknown } };
+      const harness = (window as typeof window & { __geoAiLateBuildingHarness?: Harness }).__geoAiLateBuildingHarness;
+      if (!harness) throw new Error("Late-building harness is not installed.");
+      harness.map.setPaintProperty("background", "background-color", "#edf1f4");
+    });
+    await expect.poll(async () => (await readLateBuildingLayerState(page)).styleDataEvents)
+      .toBeGreaterThan(settledState.styleDataEvents);
+    expect((await readLateBuildingLayerState(page)).setFilterCalls).toBe(settledState.setFilterCalls);
 
     await page.getByLabel("Map style").selectOption("light");
     await expect.poll(async () => page.evaluate(() => {

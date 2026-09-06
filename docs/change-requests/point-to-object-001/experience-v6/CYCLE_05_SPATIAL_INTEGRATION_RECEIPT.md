@@ -49,6 +49,12 @@ No paid API calls, new provider purchase, hosted Supabase/Auth/env change or Pro
 
 ## Incomplete scope and next work
 
+### First publication and CI correction
+
+The first published head `7c74f111c0b2a21278e428bde10527b84a160cf2` produced READY protected Preview `dpl_Bke2UXp14SDayhkq7VCbEEpW2FCD`. Main opened its live map, Create and Russian Find in the browser; the drawer measured 430 px and captured error logs were empty. Unauthenticated route access redirected to Vercel SSO. This deployment was not accepted as final because [CI 34030056273](https://github.com/mmgolikov/geoai-mvp/actions/runs/34030056273) failed the late-layer raw-call aggregate (expected 13, received 14); ten other point-object browser cases and the CI-local Supabase job passed.
+
+Bounded follow-up found a concrete extra-reconciliation path: a delayed camera move updates visible bounds, rerenders the parent and changes its vertex-handler identity. The map effect unnecessarily treated that handler identity as a geometry change. The callback ref now updates independently of the layer effect. The test checks exactly ten effective filter transitions across five restore/apply cycles and preserves a strict raw-call no-loop assertion for unrelated style changes. The renderer fixture also polls transient style readiness instead of awaiting an already-emitted style.load event. All three focused Create tests passed in the local next-dev configuration in 12.8 s after both corrections; lint, helper and interaction contracts passed. Final full build/browser/hosted successor checks remain part of the post-publication receipt. No failed CI result was relabelled successful, and no assertion was widened to permit 13 or 14.
+
 Selects, Saved Projects and landing are not implemented in this receipt. Their owning tasks rejected writes under older read-only/Figma-only scopes; Main-relayed confirmations were insufficient. They await direct user authorization in those tasks. Main did not bypass the rejected patches. Initial Projects implementation is device-only with a future cloud contract; cloud activation remains separately reviewed and approved.
 
 The [full-version roadmap](CYCLE_05_PRODUCT_TO_PRODUCTION_ROADMAP.md) orders saved work, scenario/radius-based geocontext, source-aware generation, secure cloud/reporting and release gates. Five current Confluence patches are staged; no published parity is claimed here. Figma code/node parity remains unverified.
