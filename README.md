@@ -1,7 +1,7 @@
 # GeoAI MVP
 
 Status: Active repository overview
-Last verified: 2026-09-04
+Last verified: 2026-09-06
 Owner: GeoAI Engineering
 Authority: Current repository/product behavior and local setup
 Successor: None; any replacement must update `docs/DOCUMENTATION_INDEX.md`
@@ -12,7 +12,15 @@ The current externally verified release is PR #113 at `main` SHA `7f323c4227f240
 
 The historical Pilot UX v3.6 label describes the current workspace-first and criteria-first design lineage; it is not Product SemVer or evidence of client/pilot approval. The current released build is identified by its Git commit and deployment ID. Outputs remain screening hypotheses requiring official/client validation.
 
-Public-demo analysis and decision scoring run deterministically in the browser. Server `POST /api/analyze` and `POST /api/ai/decision-score` fail closed with 403 before body parsing until AUTH-01 supplies a permanent non-anonymous request identity. OpenAI upstream code is dormant and cannot be activated by an API key or environment flag alone.
+Public-demo analysis and decision scoring run deterministically in the browser. The legacy server routes `POST /api/analyze` and `POST /api/ai/decision-score` fail closed with 403 before body parsing until AUTH-01 supplies a permanent non-anonymous request identity; their OpenAI upstream cannot be activated by an API key or environment flag alone. The separately gated Point-to-Object exception is governed by the Cycle 05 release process below and does not mean current Production AI is enabled.
+
+## Cycle 05 controlled release candidate
+
+Accepted UI/Projects baseline `8062b29523990ebd7aebea53acbd106c25f484ac` integrates Point-to-Object Analyse / Find / Create, reliable browser-local Projects with exact saved-result restoration, corrected select behavior, map containment and `zoom-required` handling, and the bilingual landing page. The conservative classifier increment is integrated in the local line at `ef2f4853975caeae47915e4bd5c0845c0d26555e`. Neither SHA is declared here as the final runtime release tuple: that exact tuple belongs to the Cycle 05 CR and subsequent external receipt. The candidate is not yet released; the externally verified `main` and Production tuple above remains current until new GitHub, Vercel and Project Hub evidence is recorded.
+
+The founder has approved the bounded release process and public paid AI/Create risk disclosed in the [Cycle 05 Controlled Main Release CR](docs/change-requests/point-to-object-001/experience-v6/CYCLE_05_MAIN_RELEASE_CR.md). Production activation remains subject to completed scope approval and exact Preview acceptance. A successful build is insufficient: the final candidate must pass real geocontext, OpenAI analysis, Create geometry, restore-without-another-call and Production route checks. Named source endpoints remain a separate pending approval card. The conservative point/AOI geocontext classifier correction is included locally but remains pending live semantic acceptance and is not certified source readiness.
+
+Wikimapia, Maxis-inspired design work, cloud persistence and new Auth, Supabase or database changes are excluded. Saved Projects remain identity-scoped browser-local state on this device, not protected cloud storage.
 
 ## CR 10.02 design candidate
 

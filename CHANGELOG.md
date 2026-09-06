@@ -1,11 +1,19 @@
 # Changelog
 
 Status: Active chronological change authority
-Last verified: 2026-09-05
+Last verified: 2026-09-06
 Owner: GeoAI Release Engineering
 Authority: Chronological released/unreleased change record; runtime truth remains `docs/CURRENT_RELEASE_STATE.md`
 Successor: None; any replacement must update `docs/DOCUMENTATION_INDEX.md`
 Navigation: [Documentation Index](docs/DOCUMENTATION_INDEX.md) · [Current Release State](docs/CURRENT_RELEASE_STATE.md) · [Full System Audit](docs/FULL_SYSTEM_AUDIT_2026_07_16.md) · [Codex Backlog](docs/CODEX_BACKLOG_2026_07_16.md)
+
+## Unreleased — 2026-09-06 Cycle 05 controlled release candidate
+
+- Accepted UI/Projects baseline `8062b29523990ebd7aebea53acbd106c25f484ac` integrates Point-to-Object Analyse / Find / Create, reliable select controls, current map containment and `zoom-required` corrections, strict identity-scoped device-local Projects save/reopen/recovery, and the bilingual landing page. Classifier integration is present locally at `ef2f4853975caeae47915e4bd5c0845c0d26555e`; the exact final runtime tuple is reserved for the CR and external receipt.
+- Local acceptance covers exact saved Analyse/Find/Create results, locale restoration without automatic paid reruns, Find shortlist/comparison and Create A/B view-state updates without new completed records, non-destructive capacity/retry behavior, and map replacement containment/restore regressions.
+- The bounded [Controlled Main Release CR](docs/change-requests/point-to-object-001/experience-v6/CYCLE_05_MAIN_RELEASE_CR.md) records founder approval for the release sequence and disclosed public paid AI/Create risk. Production activation remains subject to completed scope approval and exact Preview acceptance; real geocontext, OpenAI analysis, Create geometry, zero-repeat-call restore and Production route checks are mandatory.
+- The point/AOI geocontext classifier correction passed its local contract after integration but remains pending new deployed live semantic acceptance and is not certified readiness. Named source endpoints require a separate pending approval card.
+- This candidate is not yet pushed, merged or released. The prior externally verified `main`/Production tuple remains current. Wikimapia, Maxis-inspired design, cloud persistence and Auth/Supabase/database changes are excluded.
 
 ## Unreleased — 2026-09-05 evening Find/Create reliability, Cycle 02
 

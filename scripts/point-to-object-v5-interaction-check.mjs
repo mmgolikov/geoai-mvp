@@ -34,7 +34,8 @@ assert.match(map, /interactionModeRef\.current !== "analyse"/);
 
 assert.match(session, /geoai:point-to-object:find:v1/);
 assert.match(session, /sourceResponseHash/);
-assert.match(session, /shortlist\.some\(\(item\) => !candidateIds\.has\(item\.sourceFeatureId\)\)/);
+assert.match(session, /candidateIds\.size !== candidates\.length \|\| shortlistIds\.size !== shortlist\.length/, "Find restore must reject duplicate result or shortlist identities");
+assert.match(session, /!candidate \|\| canonicalJson\(candidate\) !== canonicalJson\(item\)/, "Find restore must require each shortlist item to equal its immutable result candidate");
 assert.match(client, /readPointObjectFindSession\(\)/);
 assert.match(client, /writePointObjectFindSession\(\{/);
 assert.doesNotMatch(client, /if \(restoredFind\.locale ===/, "Session restore must retain the last successful Find result across a locale change and expose it as stale until refreshed");

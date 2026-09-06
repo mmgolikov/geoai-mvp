@@ -1262,6 +1262,7 @@ function assertStaticBoundaries(): void {
     "app/layout.tsx",
     "app/profile/page.tsx",
     "app/projects/page.tsx",
+    "components/landing/geoai-landing-page.tsx",
     "components/auth/profile-panel.tsx"
   ]);
 

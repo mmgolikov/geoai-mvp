@@ -1,7 +1,7 @@
 # GeoAI Current Release State
 
 Status: Active release guidance with current and historical runtime evidence
-Last verified: 2026-09-04
+Last verified: 2026-09-06
 Owner: GeoAI Release Engineering
 Authority: Repository release policy and interpretation of external runtime evidence
 Successor: None; any replacement must update `DOCUMENTATION_INDEX.md`
@@ -26,6 +26,14 @@ Navigation: [Documentation Index](DOCUMENTATION_INDEX.md) · [Full System Audit]
 | Product maturity | Not Production-ready; not pilot-ready |
 
 The live authority is external post-release evidence: GitHub default-branch and merge state, GitHub Deployments or Production environment, the Vercel Production alias and the Project Hub post-release receipt. The tuple above records facts verified on 2026-09-04. Historical sections below preserve earlier point-in-time evidence and do not override the current tuple.
+
+## Cycle 05 controlled release candidate — not yet externally released
+
+Accepted UI/Projects baseline `8062b29523990ebd7aebea53acbd106c25f484ac` integrates Point-to-Object Analyse / Find / Create; identity-scoped device-local Projects with strict saved-result validation, recovery and reopen without automatic source/model calls; corrected select controls; current map containment and `zoom-required` lifecycle fixes; and the bilingual landing page. The conservative classifier increment is integrated locally at `ef2f4853975caeae47915e4bd5c0845c0d26555e`. These are not asserted as the final runtime release tuple; the exact tuple is governed by the Cycle 05 CR and subsequent external receipt. No new externally verified release replaces the PR #113 / `main` / Production tuple above yet.
+
+The [Cycle 05 Controlled Main Release CR](change-requests/point-to-object-001/experience-v6/CYCLE_05_MAIN_RELEASE_CR.md) records explicit founder authority for the bounded release and for public paid AI/Create after disclosure of the current cost-control risk. Production activation remains subject to completed scope approval and exact Preview acceptance. Required acceptance includes exact-head CI and Ready Preview plus real geocontext, OpenAI analysis, Create geometry, saved-result restore with zero repeat provider calls, route/security smoke and rollback evidence. Named source endpoints require a separate pending approval card and are not activated by this documentation sync.
+
+The point/AOI geocontext classifier correction has passed its local contract after integration, but new deployed live semantic acceptance remains pending; it is not certified source readiness, official data or complete inventory. Wikimapia and Maxis-inspired design exploration are excluded. Cloud persistence, Auth, Supabase and database state are unchanged.
 
 The active POINT_TO_OBJECT_001 V6 work is a separate protected-Preview candidate on Draft PR #147. Integrated application/documentation head `3f2ca5bda547b52c3c80db44b77a4d8ded058ad9`, tree `5893157a41bb07542be31867a5bde6966eaa7d95`, passed Quality Gate `33915252452` and is Ready as protected Preview `dpl_J98acMVSCxAUFQ37noZsy8nt9KPR`; the exact evidence and limits are recorded in the [V6 Preview receipt](change-requests/point-to-object-001/experience-v6/RELEASE_POINT_TO_OBJECT_001_V6_PREVIEW_RECEIPT_20260904.md). Exact CI/Preview evidence for the documentation-only successor containing that receipt must be recorded externally in Draft PR #147 after verification and is not self-certified by the receipt. This iteration reconciled repository documentation against current GitHub and Vercel evidence only. It performed no Confluence read-back or mutation, so current Project Hub parity with the V6 candidate is `UNVERIFIED` and must not be inferred from repository consistency.
 

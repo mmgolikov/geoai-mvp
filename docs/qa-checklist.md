@@ -98,15 +98,18 @@ These checks apply only to `codex/point-to-object-clickable-prototype-v1` / PR #
 
 Local controls/preflight verification: Node 24.19.0 lint and build (79/79 routes), existing Create checks, new preflight/actual-route checks, V5 interaction, V6 contracts, data honesty and API/secret static checks pass. The combined offline browser suite passes six journeys, including layout boundaries, Find comparison, source replacement/restoration, A/B, stale-response preservation and explicit coverage application. After custom-intent correction, all six journeys pass again in 46.4 s on application head `e19a274`; final screenshots live in `/private/tmp/geoai-cycle03-final-browser-evidence`. The proposal uses blank custom direction and a numeric control change, consistent with template preflight; its screenshot was visually inspected. This is not adaptive multi-podium acceptance or live-map/provider evidence. Geometry permission and interactive Mac unlock remain separate blockers.
 
-## Cycle 05 acceptance — pending exact combined implementation
+## Cycle 05 controlled release acceptance
 
-- [ ] City/role/scenario controls open on first activation including chevron; keyboard arrows/Enter/Escape, focus return and touch work without clipping.
-- [ ] Find retains Profile-only audience, role-specific scenarios/settings and comparisons; all approved map modes retain 430 px desktop drawer.
-- [ ] Replacement preserves distant objects with colliding/missing IDs and outside MultiPolygon components; boundary-crossing objects are clipped safely or retained. Repeat five hide/restore cycles, tile/zoom/style changes and stale AOI responses; inspect an outside landmark in the actual browser.
-- [ ] Analyse, Find and Create completed records save/reopen exact geometry, parameters, locale and result without automatic model/source calls. Retry is idempotent; mismatched reuse conflicts; quota/failure preserves the visible result and cannot display Saved.
-- [ ] Browser-local and cloud statuses remain distinct; logout/identity/project transitions cannot reveal another user's previous operation. Cloud claims require real caller, cross-user/project isolation and default-off activation review.
-- [ ] Landing EN/RU navigation, CTAs and role capability copy match the actual candidate; no fake metrics, testimony, nonfunctional contact/report controls or implied official integration.
-- [ ] Check 390/768/1280/1440 rendering and keyboard operation; exact final CI/Preview SHA, source/auth boundary smoke and rollback recorded; main/Production unchanged.
+- [x] Accepted UI/Projects baseline `8062b29523990ebd7aebea53acbd106c25f484ac` integrates reliable city/role/scenario selects, Profile-owned Find audience, role-specific settings/comparison and the accepted 430 px desktop drawer. It is not asserted as the final runtime tuple.
+- [x] Local map checks preserve containment, `zoom-required`, outside/colliding/missing-ID objects and replacement restoration across repeated lifecycle changes. Exact Preview browser acceptance remains required.
+- [x] Local browser-local Projects checks cover Analyse, Find and Create save/reopen, EN/RU locale restoration, idempotent retry/conflict, non-destructive 30/31 capacity, multiple pending operations and Find/Create view-state updates without automatic source/model calls.
+- [x] Browser-local and cloud statuses remain distinct; identity-scoped state is not described as protected storage. Cloud persistence and Auth/Supabase/database changes are excluded.
+- [x] Local EN/RU landing and 390/768/1280/1440 product journeys pass the integrated browser checks without fake metrics, testimony, nonfunctional actions or official-integration claims.
+- [x] Classifier commit `fc54b8a` is integrated in local head `ef2f4853975caeae47915e4bd5c0845c0d26555e`; its local point/AOI geocontext contract passed. New deployed live semantic acceptance remains pending, so this is not certified readiness.
+- [ ] Push the exact candidate, pass exact-head CI and obtain a Ready protected Preview. Record SHA, deployment ID/URL, route/security smoke, logs and rollback; local results cannot satisfy this gate.
+- [ ] On that exact Preview, complete real geocontext, OpenAI analysis and Create generation/visible-geometry checks, then reopen saved results with zero repeat provider calls. Live calls are mandatory; mocked/offline evidence cannot satisfy this gate.
+- [ ] Complete the approved scope and exact Preview acceptance before Production activation. Named source endpoints require their separate approval card; process-local rate limits are not a distributed hard billing cap.
+- [ ] After merge, verify exact `main`, Production deployment/alias, real essential flows and rollback, then update the external Project Hub/release receipt. Until then the prior externally verified tuple remains current.
 - [ ] Figma and Confluence current nodes/pages are read back after scoped updates; local handoff or staged text alone cannot close remote parity.
 
 ## Environment
@@ -116,8 +119,8 @@ Local controls/preflight verification: Node 24.19.0 lint and build (79/79 routes
 - [ ] `.env.example` contains only safe placeholder keys.
 - [ ] `NEXT_PUBLIC_MAPBOX_TOKEN` is configured locally.
 - [ ] `NEXT_PUBLIC_MAPBOX_TOKEN` is configured in Vercel.
-- [ ] `OPENAI_API_KEY` is not required for the released Production public-demo behavior; the isolated V5.1 AI analysis/Create candidate requires a server-only key plus its explicit protected-Preview gate.
-- [ ] `GEOAI_ALLOW_OPENAI_UPSTREAM` remains false until hard Auth, request membership, privacy and quota gates are verified.
+- [ ] `OPENAI_API_KEY` is not required for the currently externally verified Production behavior. Cycle 05 may reuse the existing server-only credential only under its bounded release CR; no new key or credential exposure is authorized.
+- [ ] Cycle 05 point-to-object upstream execution remains closed unless its explicit surface gates and origin/challenge/rate/cost controls pass exact Preview acceptance. Generic flags or key presence alone cannot activate it; named source endpoints require separate approval.
 - [ ] `NEXT_PUBLIC_AUTH_MODE` is optional and defaults to public demo access.
 - [ ] `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, if configured after AUTH-01 approval, starts with `sb_publishable_`; legacy anon JWT keys are rejected.
 - [x] Invalid environment values fail closed: Auth -> `disabled`, enforcement -> `hard`, demo bypass -> `false`, Supabase/Storage readiness requirements -> `true`.
