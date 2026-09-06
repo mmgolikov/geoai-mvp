@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { usePointObjectLocale } from "@/components/point-to-object/locale-provider";
+import { ReliableSelect } from "@/components/point-to-object/reliable-select";
 import { PointObjectHeader } from "@/components/point-to-object/prototype-header";
 import {
   parsePointObjectAiResponse,
@@ -568,8 +569,8 @@ export function PointToObjectAnalysis() {
             <details className="mt-4 rounded-xl border border-line bg-[#fbfcfd] p-3">
               <summary className="cursor-pointer text-xs font-bold text-[#475467]">{t("analysis.settings")}</summary>
               <div className="mt-3 grid gap-3">
-                <label className="text-xs font-semibold text-[#475467]">{t("analysis.perspective")}<select value={perspective} onChange={(event) => setPerspective(event.target.value as PointObjectAnalysisPerspective)} className="mt-1 min-h-10 w-full rounded-lg border border-line bg-white px-3 text-sm text-[#344054] outline-none focus:border-[#087f8c]"><option value="developer">{t("analysis.developer")}</option><option value="investor">{t("analysis.investor")}</option><option value="asset_owner">{t("analysis.assetOwner")}</option></select></label>
-                <label className="text-xs font-semibold text-[#475467]">{t("analysis.horizon")}<select value={horizon} onChange={(event) => setHorizon(event.target.value as PointObjectAnalysisHorizon)} className="mt-1 min-h-10 w-full rounded-lg border border-line bg-white px-3 text-sm text-[#344054] outline-none focus:border-[#087f8c]"><option value="current">{t("analysis.current")}</option><option value="one_to_three_years">{t("analysis.oneToThree")}</option><option value="long_term">{t("analysis.longTerm")}</option></select></label>
+                <label className="text-xs font-semibold text-[#475467]">{t("analysis.perspective")}<ReliableSelect value={perspective} onChange={(event) => setPerspective(event.target.value as PointObjectAnalysisPerspective)} data-testid="point-object-analysis-perspective-select" wrapperClassName="mt-1" className="min-h-10 rounded-lg border border-line bg-white pl-3 text-sm text-[#344054] outline-none focus:border-[#087f8c] focus-visible:ring-2 focus-visible:ring-[#bfe4e2]"><option value="developer">{t("analysis.developer")}</option><option value="investor">{t("analysis.investor")}</option><option value="asset_owner">{t("analysis.assetOwner")}</option></ReliableSelect></label>
+                <label className="text-xs font-semibold text-[#475467]">{t("analysis.horizon")}<ReliableSelect value={horizon} onChange={(event) => setHorizon(event.target.value as PointObjectAnalysisHorizon)} data-testid="point-object-analysis-horizon-select" wrapperClassName="mt-1" className="min-h-10 rounded-lg border border-line bg-white pl-3 text-sm text-[#344054] outline-none focus:border-[#087f8c] focus-visible:ring-2 focus-visible:ring-[#bfe4e2]"><option value="current">{t("analysis.current")}</option><option value="one_to_three_years">{t("analysis.oneToThree")}</option><option value="long_term">{t("analysis.longTerm")}</option></ReliableSelect></label>
               </div>
             </details>
             <button type="submit" disabled={!question.trim() || loading} className="mt-4 min-h-12 w-full rounded-control bg-[#087f8c] px-4 text-sm font-bold text-white disabled:cursor-not-allowed disabled:bg-[#b7c4d7]">{loading ? t("analysis.running", { depth: localizedDepth }) : t("analysis.run")}</button>

@@ -395,6 +395,73 @@ test("actual MapLibre canvas fills its desktop map region", async ({ page }) => 
   expect(unexpectedExternal).toEqual([]);
 });
 
+test("native select controls keep the full chevron inset mouse, touch and keyboard operable", async ({ page }) => {
+  const unexpectedExternal = await installOfflineRoutes(page);
+  await page.goto("/prototype/point-to-object");
+
+  for (const viewport of [
+    { width: 1440, height: 900 },
+    { width: 1280, height: 800 },
+    { width: 768, height: 1024 },
+    { width: 390, height: 844 }
+  ]) {
+    await page.setViewportSize(viewport);
+    for (const locale of ["en", "ru"] as const) {
+      await page.getByRole("button", { name: locale, exact: true }).click();
+      const city = page.getByTestId("point-object-city-select");
+      await city.selectOption("dubai");
+      const cityBox = await city.boundingBox();
+      expect(cityBox, `${viewport.width}px ${locale} city select must render`).not.toBeNull();
+      await city.click({ position: { x: Math.max(1, (cityBox?.width ?? 1) - 4), y: (cityBox?.height ?? 1) / 2 } });
+      await expect(city).toBeFocused();
+      await city.press("Escape");
+      await city.press("ArrowDown");
+      await city.press("Enter");
+      // Chrome's headless native menu does not expose its highlighted option to Playwright;
+      // selectOption verifies the same native change event without replacing the real control.
+      await city.selectOption("abu_dhabi");
+      await expect(city).toHaveValue("abu_dhabi");
+
+      const chevron = city.locator("xpath=following-sibling::*[1]");
+      await expect(chevron).toHaveCSS("pointer-events", "none");
+      expect(await chevron.evaluate((element) => element.getBoundingClientRect().width)).toBeGreaterThanOrEqual(44);
+
+      await page.getByRole("tab", { name: locale === "ru" ? "Поиск" : "Find", exact: true }).click();
+      for (const testId of [
+        "point-object-find-role-select",
+        "point-object-find-scenario-select",
+        "point-object-find-group-select"
+      ]) {
+        const control = page.getByTestId(testId);
+        const box = await control.boundingBox();
+        expect(box, `${viewport.width}px ${locale} ${testId} must render`).not.toBeNull();
+        await control.click({ position: { x: Math.max(1, (box?.width ?? 1) - 4), y: (box?.height ?? 1) / 2 } });
+        await expect(control).toBeFocused();
+        await control.press("Escape");
+      }
+    }
+  }
+
+  await page.getByRole("button", { name: "en", exact: true }).click();
+  await page.getByRole("tab", { name: "Analyse", exact: true }).click();
+  const search = page.getByRole("combobox", { name: "Search address or place" });
+  await search.fill("Shangri");
+  await page.getByRole("option", { name: /Shangri-La exact search result/ }).click();
+  await page.getByRole("button", { name: "Analyze", exact: true }).click();
+  await expect(page).toHaveURL(/\/prototype\/point-to-object\/analysis$/);
+  await page.getByText("Analysis settings", { exact: true }).click();
+  for (const testId of ["point-object-analysis-perspective-select", "point-object-analysis-horizon-select"]) {
+    const control = page.getByTestId(testId);
+    const box = await control.boundingBox();
+    expect(box).not.toBeNull();
+    await control.click({ position: { x: Math.max(1, (box?.width ?? 1) - 4), y: (box?.height ?? 1) / 2 } });
+    await expect(control).toBeFocused();
+    await control.press("Escape");
+  }
+
+  expect(unexpectedExternal).toEqual([]);
+});
+
 test("map-first layout keeps a compact desktop drawer across all modes and breakpoint boundaries", async ({ page }, testInfo) => {
   const unexpectedExternal = await installOfflineRoutes(page);
   await page.goto("/prototype/point-to-object");
