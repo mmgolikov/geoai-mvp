@@ -105,10 +105,10 @@ Local controls/preflight verification: Node 24.19.0 lint and build (79/79 routes
 - [x] Local browser-local Projects checks cover Analyse, Find and Create save/reopen, EN/RU locale restoration, idempotent retry/conflict, non-destructive 30/31 capacity, multiple pending operations and Find/Create view-state updates without automatic source/model calls.
 - [x] Browser-local and cloud statuses remain distinct; identity-scoped state is not described as protected storage. Cloud persistence and Auth/Supabase/database changes are excluded.
 - [x] Local EN/RU landing and 390/768/1280/1440 product journeys pass the integrated browser checks without fake metrics, testimony, nonfunctional actions or official-integration claims.
-- [x] Classifier commit `fc54b8a` is integrated in local head `ef2f4853975caeae47915e4bd5c0845c0d26555e`; its local point/AOI geocontext contract passed. New deployed live semantic acceptance remains pending, so this is not certified readiness.
+- [x] Classifier commit `fc54b8a` is integrated in local head `ef2f4853975caeae47915e4bd5c0845c0d26555e`; its local point/AOI geocontext contract and bounded live semantic check on exact Preview `af46254` passed (Dubai `223`; Singapore `178`). This is not final-candidate acceptance, certified readiness, official data or complete inventory.
 - [ ] Push the exact candidate, pass exact-head CI and obtain a Ready protected Preview. Record SHA, deployment ID/URL, route/security smoke, logs and rollback; local results cannot satisfy this gate.
 - [ ] On that exact Preview, complete real geocontext, OpenAI analysis and Create generation/visible-geometry checks, then reopen saved results with zero repeat provider calls. Live calls are mandatory; mocked/offline evidence cannot satisfy this gate.
-- [ ] Complete the approved scope and exact Preview acceptance before Production activation. Named source endpoints require their separate approval card; process-local rate limits are not a distributed hard billing cap.
+- [ ] The existing public-source Production scope for unauthenticated address search/suggestions, Find and point/polygon geocontext is founder-approved. Before activation, complete final exact-candidate CI, Preview and live acceptance; process-local rate limits are not a distributed hard billing cap.
 - [ ] After merge, verify exact `main`, Production deployment/alias, real essential flows and rollback, then update the external Project Hub/release receipt. Until then the prior externally verified tuple remains current.
 - [ ] Figma and Confluence current nodes/pages are read back after scoped updates; local handoff or staged text alone cannot close remote parity.
 
@@ -120,7 +120,7 @@ Local controls/preflight verification: Node 24.19.0 lint and build (79/79 routes
 - [ ] `NEXT_PUBLIC_MAPBOX_TOKEN` is configured locally.
 - [ ] `NEXT_PUBLIC_MAPBOX_TOKEN` is configured in Vercel.
 - [ ] `OPENAI_API_KEY` is not required for the currently externally verified Production behavior. Cycle 05 may reuse the existing server-only credential only under its bounded release CR; no new key or credential exposure is authorized.
-- [ ] Cycle 05 point-to-object upstream execution remains closed unless its explicit surface gates and origin/challenge/rate/cost controls pass exact Preview acceptance. Generic flags or key presence alone cannot activate it; named source endpoints require separate approval.
+- [ ] Cycle 05 point-to-object upstream execution remains closed unless its explicit surface gates and origin/challenge/rate/cost controls pass final exact-candidate Preview acceptance. Generic flags, key presence or approved source scope alone cannot activate it; source endpoints outside the approved existing public-source scope require separate authority.
 - [ ] `NEXT_PUBLIC_AUTH_MODE` is optional and defaults to public demo access.
 - [ ] `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, if configured after AUTH-01 approval, starts with `sb_publishable_`; legacy anon JWT keys are rejected.
 - [x] Invalid environment values fail closed: Auth -> `disabled`, enforcement -> `hard`, demo bypass -> `false`, Supabase/Storage readiness requirements -> `true`.

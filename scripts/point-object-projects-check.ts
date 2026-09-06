@@ -28,6 +28,9 @@ registerHooks({
 
 // @ts-expect-error Node's strip-types runner requires the physical .ts suffix; production imports remain extensionless.
 const projects = await import("../src/lib/prototype/point-object-projects.ts");
+const create = await import("../src/lib/prototype/point-to-object-create");
+const createAi = await import("../src/lib/prototype/point-to-object-create-ai-core");
+const createResult = await import("../src/lib/prototype/point-to-object-create-result");
 const {
   continuePendingPointObjectOperationInNewProject,
   createPointObjectProject,
@@ -337,5 +340,108 @@ localStorage.denyReads = true;
 assert.equal(inspectPointObjectProjects(demoIdentity).status, "inaccessible", "storage denial must remain distinct from damage and absence");
 localStorage.denyReads = false;
 assert.equal((await readVerifiedPointObjectProjects(demoIdentity)).status, "ready");
+
+const createIdentity = pointObjectProjectIdentity({ id: "demo-create-seed", isDemoUser: true } as never);
+if (!createIdentity) throw new Error("Expected a valid Create test identity.");
+reconcilePointObjectBrowserIdentity(createIdentity);
+await createPointObjectProject(createIdentity, "en", "Create seed regression");
+const createCoordinates: Array<Array<[number, number]>> = [[
+  [55.2808, 25.2182],
+  [55.2828, 25.2182],
+  [55.2828, 25.2197],
+  [55.2808, 25.2197],
+  [55.2808, 25.2182]
+]];
+const aoiValidation = create.validatePointObjectCreateAoiVertices(createCoordinates[0].slice(0, -1));
+assert.equal(aoiValidation.ok, true);
+if (!aoiValidation.ok) throw new Error("Expected a valid Create AOI fixture.");
+const createAoi = {
+  id: "create-aoi-route-seed-regression",
+  coordinates: createCoordinates,
+  vertexCount: createCoordinates[0].length - 1,
+  areaSqM: aoiValidation.measurements.areaSqM,
+  perimeterM: aoiValidation.measurements.perimeterM
+};
+const programValidation = create.validateRedevelopmentProgram({
+  templateId: "residential_mixed_use",
+  title: "Shaded residential courtyard mixed-use concept",
+  summary: "A conceptual five-block courtyard programme for bounded massing screening.",
+  massingStyle: "courtyard",
+  blockCount: 5,
+  levelsMin: 6,
+  levelsMax: 12,
+  targetSiteCoveragePct: 28,
+  openSpacePct: 35,
+  setbackM: 8,
+  useMix: [
+    { use: "residential", sharePct: 72 },
+    { use: "retail", sharePct: 18 },
+    { use: "open_space", sharePct: 10 }
+  ],
+  rationale: ["Uses a courtyard form for conceptual screening only."]
+});
+assert.equal(programValidation.ok, true);
+if (!programValidation.ok) throw new Error("Expected a valid Create programme fixture.");
+const routeSeed = createAi.createProgramSeed(programValidation.value, "a".repeat(64));
+const routeAlternatives = create.generateConceptMassingAlternatives(createCoordinates, programValidation.value, routeSeed, "en");
+assert.equal(routeAlternatives.length, 2);
+assert.deepEqual(routeAlternatives.map((item) => item.massing.seed.length), [389, 389], "the fixture must exercise the real producer seed shape that exceeded the former 256-character parser cap");
+const routeGenerated = {
+  mode: "openai_concept" as const,
+  generatedAt: "2026-09-06T15:48:02.790Z",
+  promptVersion: createAi.POINT_OBJECT_CREATE_PROMPT_VERSION,
+  program: programValidation.value,
+  massing: routeAlternatives[0].massing,
+  alternatives: routeAlternatives,
+  telemetry: {
+    model: "gpt-5.6-sol",
+    reasoningEffort: "medium",
+    requestId: "req_create_seed_regression",
+    latencyMs: 10_280,
+    attempts: 1,
+    inputTokens: 1_011,
+    outputTokens: 319,
+    totalTokens: 1_330,
+    estimatedCostUsd: 0.010424,
+    stored: false as const,
+    toolCalls: 0 as const
+  },
+  caveat
+};
+assert.ok(createResult.parsePointObjectGeneratedConcept(routeGenerated, createAoi), "a bounded seed emitted by the real Create producer must parse");
+
+const malformedSeed = structuredClone(routeGenerated) as typeof routeGenerated;
+malformedSeed.massing.seed = "";
+assert.equal(createResult.parsePointObjectGeneratedConcept(malformedSeed, createAoi), null, "an empty seed must remain rejected");
+const excessiveSeed = structuredClone(routeGenerated) as typeof routeGenerated;
+excessiveSeed.massing.seed = "x".repeat(1_025);
+assert.equal(createResult.parsePointObjectGeneratedConcept(excessiveSeed, createAoi), null, "an excessive primary seed must remain rejected");
+const excessiveAlternativeSeed = structuredClone(routeGenerated) as typeof routeGenerated;
+excessiveAlternativeSeed.alternatives[1].massing.seed = "x".repeat(1_025);
+assert.equal(createResult.parsePointObjectGeneratedConcept(excessiveAlternativeSeed, createAoi), null, "an excessive alternative seed must remain rejected");
+
+const createSave = await savePointObjectOperation(createIdentity, {
+  kind: "create",
+  locale: "en",
+  marketKey: "dubai",
+  label: "Route-produced Create result",
+  payload: {
+    aoi: createAoi,
+    editorSnapshot: null,
+    generated: routeGenerated,
+    generatedLocale: "en",
+    activeAlternativeId: "A",
+    areaContext: null
+  }
+}, "operation-create-route-seed");
+assert.equal(createSave.status, "saved", "the route-produced Create result must save successfully");
+const reopenedCreate = await readVerifiedPointObjectProjects(createIdentity);
+assert.equal(reopenedCreate.status, "ready", "the saved Create result must reopen with integrity verification");
+const reopenedArtifact = reopenedCreate.store?.projects[0]?.artifacts[0];
+assert.equal(reopenedArtifact?.kind, "create");
+if (reopenedArtifact?.kind === "create") {
+  assert.equal(reopenedArtifact.payload.generated.massing.seed.length, 389, "reopen must preserve the accepted producer seed exactly");
+  assert.equal(reopenedArtifact.payload.generated.alternatives?.[1]?.massing.seed.length, 389, "reopen must preserve alternative seeds exactly");
+}
 
 console.log("point-to-object browser-local project contract checks passed");

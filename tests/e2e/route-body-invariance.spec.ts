@@ -65,12 +65,6 @@ async function expectElementUnobstructed(locator: Locator, label: string) {
   ).toBe(true);
 }
 
-function expectedCockpitAsset(width: number) {
-  if (width <= 639) return "/design/landing-geoai-cockpit-mobile-v18.png";
-  if (width <= 1023) return "/design/landing-geoai-cockpit-tablet-v18.png";
-  return "/design/landing-geoai-cockpit-desktop-v18.png";
-}
-
 async function newPage(browser: Browser, viewport: { width: number; height: number }) {
   const context = await browser.newContext({ colorScheme: "light", reducedMotion: "reduce", viewport });
   const page = await context.newPage();
@@ -118,7 +112,7 @@ test("records the founder-authorized runtime body migration boundary", async () 
   ]);
 });
 
-test("commercial landing uses the responsive Figma cockpit and keeps primary actions unobstructed", async ({ browser }) => {
+test("current landing keeps the accepted map preview and primary actions unobstructed", async ({ browser }) => {
   const records = [];
   for (const viewport of viewports) {
     const { context, page } = await newPage(browser, viewport);
@@ -128,31 +122,43 @@ test("commercial landing uses the responsive Figma cockpit and keeps primary act
     const internalValidationOverlay = page.getByText("Validation gap · official confirmation required", { exact: true });
     await expect(internalValidationOverlay).toHaveCount(0);
 
-    const cockpitImage = page.locator('[data-landing-cockpit-authority="commercial-v1.8"] img').first();
-    await expect(cockpitImage).toBeVisible();
-    const cockpitMetrics = await cockpitImage.evaluate((element) => {
+    await expect(page.getByRole("heading", { level: 1, name: "Turn a location into a decision path." })).toBeVisible();
+    const previewImage = page.getByRole("img", {
+      name: "GeoAI map-first workspace showing a three-dimensional Dubai map and the Analyse, Find and Create product modes"
+    });
+    await expect(previewImage).toBeVisible();
+    const previewMetrics = await previewImage.evaluate((element) => {
       const image = element as HTMLImageElement;
       return {
         complete: image.complete,
-        currentPath: new URL(image.currentSrc || image.src, window.location.href).pathname,
+        currentSource: image.currentSrc || image.src,
         naturalHeight: image.naturalHeight,
         naturalWidth: image.naturalWidth
       };
     });
-    expect(cockpitMetrics.complete, `${viewport.name} cockpit image must finish loading`).toBe(true);
-    expect(cockpitMetrics.naturalWidth, `${viewport.name} cockpit image must have intrinsic width`).toBeGreaterThan(0);
-    expect(cockpitMetrics.naturalHeight, `${viewport.name} cockpit image must have intrinsic height`).toBeGreaterThan(0);
-    expect(cockpitMetrics.currentPath).toBe(expectedCockpitAsset(viewport.width));
-    const cockpitBox = await cockpitImage.boundingBox();
-    expect(cockpitBox).not.toBeNull();
-    expect(cockpitBox?.width ?? 0, `${viewport.name} cockpit must remain legible`).toBeGreaterThanOrEqual(300);
-    expect(cockpitBox?.width ?? 0, `${viewport.name} cockpit must fit the viewport`).toBeLessThanOrEqual(viewport.width);
+    expect(previewMetrics.complete, `${viewport.name} preview image must finish loading`).toBe(true);
+    expect(previewMetrics.naturalWidth, `${viewport.name} preview image must have intrinsic width`).toBeGreaterThan(0);
+    expect(previewMetrics.naturalHeight, `${viewport.name} preview image must have intrinsic height`).toBeGreaterThan(0);
+    expect(decodeURIComponent(previewMetrics.currentSource)).toContain("/landing/geoai-map-workspace-preview.png");
+    const previewBox = await previewImage.boundingBox();
+    expect(previewBox).not.toBeNull();
+    expect(previewBox?.width ?? 0, `${viewport.name} preview must remain legible`).toBeGreaterThanOrEqual(300);
+    const previewFrameBox = await previewImage.locator("xpath=ancestor::figure[1]").boundingBox();
+    expect(previewFrameBox).not.toBeNull();
+    expect(previewFrameBox?.width ?? 0, `${viewport.name} preview frame must fit the viewport`).toBeLessThanOrEqual(viewport.width);
+    expect(
+      (previewFrameBox?.width ?? 0) - (previewBox?.width ?? 0),
+      `${viewport.name} preview must fill its frame inside the 1 px border`
+    ).toBeLessThanOrEqual(2);
 
     const hero = page.locator("main > section").first();
-    const viewDemo = hero.getByRole("link", { name: "View demo", exact: true });
-    await expectElementUnobstructed(viewDemo, `${viewport.name} View demo`);
+    const openMap = hero.getByRole("link", { name: "Open map", exact: true });
+    const projects = hero.getByRole("link", { name: "Projects", exact: true });
+    await expect(openMap).toHaveAttribute("href", "/prototype/point-to-object");
+    await expect(projects).toHaveAttribute("href", "/projects?view=spatial");
+    await expectElementUnobstructed(openMap, `${viewport.name} Open map`);
 
-    const heading = page.getByRole("heading", { name: "Make the reasoning visible" });
+    const heading = page.getByRole("heading", { level: 3, name: "Understand a mapped place" });
     await expect(heading).toBeVisible();
     const card = heading.locator("xpath=ancestor::article[1]");
     const cardBox = await card.boundingBox();
@@ -165,7 +171,7 @@ test("commercial landing uses the responsive Figma cockpit and keeps primary act
     const screenshot = path.join(evidenceDirectory, `landing-${viewport.name}.png`);
     await page.screenshot({ path: screenshot, fullPage: true, animations: "disabled", caret: "hide" });
     records.push({
-      cockpitAsset: cockpitMetrics.currentPath,
+      previewAsset: decodeURIComponent(previewMetrics.currentSource),
       route: "/",
       viewport,
       screenshot: path.relative(process.cwd(), screenshot)

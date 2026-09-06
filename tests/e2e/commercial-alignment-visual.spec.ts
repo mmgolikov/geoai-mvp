@@ -112,16 +112,22 @@ test.describe("commercial Landing and Account visual acceptance", () => {
       await page.clock.setFixedTime(new Date("2026-07-19T09:00:00.000Z"));
 
       await page.goto("/");
-      await expect(page.getByRole("heading", { level: 1, name: "Ask the map. Move with evidence." })).toBeVisible();
+      await expect(page.getByRole("heading", { level: 1, name: "Turn a location into a decision path." })).toBeVisible();
       await expect(page.locator('header img[src="/brand/geoai-identity-symbol-32.svg"]')).toBeVisible();
-      const landingCockpit = page.locator('img[alt="GeoAI illustrative screening cockpit"]');
-      await expect(landingCockpit).toBeVisible();
-      const cockpitDimensions = await landingCockpit.evaluate((image) => ({
+      const landingPreview = page.getByRole("img", {
+        name: "GeoAI map-first workspace showing a three-dimensional Dubai map and the Analyse, Find and Create product modes"
+      });
+      await expect(landingPreview).toBeVisible();
+      await expect(landingPreview).toHaveAttribute("src", /geoai-map-workspace-preview\.png/);
+      const previewDimensions = await landingPreview.evaluate((image) => ({
         naturalHeight: (image as HTMLImageElement).naturalHeight,
         naturalWidth: (image as HTMLImageElement).naturalWidth
       }));
-      expect(cockpitDimensions.naturalWidth).toBeGreaterThanOrEqual(350);
-      expect(cockpitDimensions.naturalHeight).toBeGreaterThanOrEqual(460);
+      expect(previewDimensions.naturalWidth).toBeGreaterThanOrEqual(350);
+      expect(previewDimensions.naturalHeight).toBeGreaterThanOrEqual(190);
+      const hero = page.locator("main > section").first();
+      await expect(hero.getByRole("link", { name: "Open map", exact: true })).toHaveAttribute("href", "/prototype/point-to-object");
+      await expect(hero.getByRole("link", { name: "Projects", exact: true })).toHaveAttribute("href", "/projects?view=spatial");
       await expectNoHorizontalOverflow(page);
       await captureCommercialVisual(page, `${viewport.name} Landing`, `landing-${viewport.name}.png`);
 

@@ -14,6 +14,11 @@ import {
 
 export const POINT_OBJECT_CREATE_RESULT_CAVEAT = "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.";
 const AREA_CONTEXT_GROUPS: readonly PointObjectAreaContextGroup[] = ["residential", "commercial", "hospitality", "retail_daily_needs", "education", "healthcare", "civic_culture", "transport", "access", "open_space", "industrial", "construction", "other_built"];
+// Producer seeds combine a bounded prompt/version namespace, a 64-character AOI hash,
+// bounded programme identity JSON and a short variant/fallback suffix. Keep headroom
+// for the current 389-character output and compatible legacy values without accepting
+// unbounded saved/server payloads.
+const MAX_MASSING_SEED_LENGTH = 1_024;
 
 export type PointObjectGeneratedConcept = {
   mode: "openai_concept";
@@ -166,7 +171,7 @@ function isMassingShape(value: unknown, program: ValidatedRedevelopmentProgram):
     value.minGeneratedLevels === Math.min(...primaryLevels) && value.maxGeneratedLevels === Math.max(...primaryLevels) &&
     finite(value.achievedSiteCoveragePct, 0, 100) && Number(value.generatedFootprintAreaSqM) <= Number(value.aoiAreaSqM) &&
     Math.abs(Number(value.achievedSiteCoveragePct) - Number(value.generatedFootprintAreaSqM) / Number(value.aoiAreaSqM) * 100) <= 1 &&
-    typeof value.seed === "string" && value.seed.length > 0 && value.seed.length <= 256;
+    typeof value.seed === "string" && value.seed.length > 0 && value.seed.length <= MAX_MASSING_SEED_LENGTH;
 }
 
 function validTelemetry(value: unknown): value is PointObjectGeneratedConcept["telemetry"] {
