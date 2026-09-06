@@ -27,6 +27,7 @@ function routeClassification(accesses) {
   if (accesses.includes("identity_mutation")) return "identity_mutation";
   if (accesses.includes("identity")) return "identity_session";
   if (accesses.includes("project")) return "project_scoped";
+  if (accesses.includes("public_bounded_runtime")) return "public_bounded_runtime";
   if (accesses.includes("protected_preview")) return "protected_preview_bounded";
   if (accesses.includes("public_preview")) return "public_preview_bounded";
   return "public_sanitized";
@@ -42,6 +43,7 @@ function diagnosticExposure(classification) {
   if (classification === "public_sanitized") return "compact_sanitized_public_contract";
   if (classification === "protected_preview_bounded") return "authenticated_preview_only_minimized_evidence_no_secret_or_provider_detail";
   if (classification === "public_preview_bounded") return "preview_only_minimized_evidence_no_secret_or_provider_detail";
+  if (classification === "public_bounded_runtime") return "public_explicitly_enabled_bounded_runtime_no_secret_or_provider_detail";
   if (classification === "operator_only") return "operator_authenticated_minimum_necessary";
   return "authenticated_minimum_necessary_no_secret_or_inventory_leak";
 }
@@ -53,6 +55,11 @@ function negativeStatuses(classification, method, requestSizeLimitBytes) {
     statuses.add(403);
   }
   if (classification === "public_preview_bounded") {
+    statuses.delete(401);
+    statuses.add(429);
+    statuses.add(503);
+  }
+  if (classification === "public_bounded_runtime") {
     statuses.delete(401);
     statuses.add(429);
     statuses.add(503);

@@ -4,6 +4,9 @@ import { registerHooks, stripTypeScriptTypes } from "node:module";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
+// @ts-expect-error Node's strip-types runner requires the physical .ts suffix; production imports remain extensionless.
+import { resolvePointObjectRuntimePolicy } from "../src/lib/prototype/point-object-runtime-policy.ts";
+
 registerHooks({
   resolve(specifier, context, nextResolve) {
     if (specifier.startsWith("@/")) {
@@ -22,21 +25,29 @@ const controls = { blockCount: 10, levelsMin: 10, levelsMax: 53, targetSiteCover
 const allKeys = Object.keys(controls);
 const negative = [[[37.62, 55.75], [37.62063845, 55.75], [37.62063845, 55.75036186], [37.62, 55.75036186], [37.62, 55.75]]];
 const feasible = [[[37.62, 55.75], [37.621596, 55.75], [37.621596, 55.750905], [37.62, 55.750905], [37.62, 55.75]]];
-const fixtureGlobal = globalThis as typeof globalThis & { __geoaiCreateSourceCalls?: number };
+const fixtureGlobal = globalThis as typeof globalThis & {
+  __geoaiCreateSourceCalls?: number;
+  __geoaiCreateRuntimeStatus?: () => { enabled: boolean };
+};
 const previousSourceCalls = fixtureGlobal.__geoaiCreateSourceCalls;
 fixtureGlobal.__geoaiCreateSourceCalls = 0;
+fixtureGlobal.__geoaiCreateRuntimeStatus = () => ({
+  enabled: resolvePointObjectRuntimePolicy(process.env, {
+    openAiKeyConfigured: Boolean(process.env.OPENAI_API_KEY?.trim()),
+    generalUpstreamEnabled: false
+  }).ai.enabled
+});
 
 // Execute the actual handler and geometry. Only platform/source adapters and
 // network transport are fixtures; no environment file or live key is accessed.
 const source = readFileSync(new URL("app/api/prototype/point-to-object/create/route.ts", repositoryRoot), "utf8")
   .replace('import { NextResponse } from "next/server";', `
-    const process = { env: { VERCEL_ENV: "preview", OPENAI_API_KEY: "offline-placeholder-not-a-credential" } };
     const NextResponse = { json(body, init = {}) { return new Response(JSON.stringify(body), {
       status: init.status ?? 200, headers: { "Content-Type": "application/json", ...(init.headers ?? {}) }
     }); } };
   `)
-  .replace('import { getPointObjectPreviewUpstreamStatus } from "@/src/lib/ai/openai-upstream-gate";',
-    'const getPointObjectPreviewUpstreamStatus = () => ({ enabled: true });')
+  .replace('import { getPointObjectUpstreamStatus } from "@/src/lib/ai/openai-upstream-gate";',
+    'const getPointObjectUpstreamStatus = () => globalThis.__geoaiCreateRuntimeStatus();')
   .replace('import { resolvePointObjectAreaContext } from "@/src/lib/prototype/point-to-object-area-context";',
     'const resolvePointObjectAreaContext = async () => { globalThis.__geoaiCreateSourceCalls += 1; return null; };')
   .replace(/from "@\/([^\"]+)";/g, (_match, relative: string) =>
@@ -45,7 +56,7 @@ const route = await import(`data:text/javascript;base64,${Buffer.from(stripTypeS
   GET(request: Request): Promise<Response>;
   POST(request: Request): Promise<Response>;
 };
-const origin = "https://preview.example.test";
+const origin = "https://production.example.test";
 const url = `${origin}/api/prototype/point-to-object/create`;
 let providerCalls = 0;
 let providerBehavior: "success" | "no-retail" | "network-error" = "success";
@@ -69,6 +80,25 @@ globalThis.fetch = async (input, init) => {
   }), { status: 200, headers: { "Content-Type": "application/json", "x-request-id": "offline-request" } });
 };
 
+function configure(environment: "preview" | "production", values: {
+  preview?: string;
+  surface?: string;
+  ai?: string;
+  key?: boolean;
+}) {
+  process.env.VERCEL_ENV = environment;
+  for (const name of [
+    "GEOAI_ALLOW_POINT_OBJECT_PREVIEW_AI",
+    "GEOAI_ALLOW_POINT_OBJECT_PRODUCTION_SURFACE",
+    "GEOAI_ALLOW_POINT_OBJECT_PRODUCTION_AI",
+    "OPENAI_API_KEY"
+  ]) delete process.env[name];
+  if (values.preview !== undefined) process.env.GEOAI_ALLOW_POINT_OBJECT_PREVIEW_AI = values.preview;
+  if (values.surface !== undefined) process.env.GEOAI_ALLOW_POINT_OBJECT_PRODUCTION_SURFACE = values.surface;
+  if (values.ai !== undefined) process.env.GEOAI_ALLOW_POINT_OBJECT_PRODUCTION_AI = values.ai;
+  if (values.key) process.env.OPENAI_API_KEY = "offline-placeholder-not-a-credential";
+}
+
 async function invoke(aoiCoordinates: number[][][], ip: string, requestOrigin = origin, requestedControls = controls, customPrompt: string | null = null) {
   const challengeResponse = await route.GET(new Request(url));
   assert.equal(challengeResponse.status, 200);
@@ -84,6 +114,19 @@ async function invoke(aoiCoordinates: number[][][], ip: string, requestOrigin = 
 }
 
 try {
+  configure("production", { key: true });
+  assert.equal((await route.GET(new Request(url))).status, 403, "Production must deny when both flags are absent.");
+
+  configure("production", { surface: "true", key: true });
+  assert.equal((await route.GET(new Request(url))).status, 403, "Surface-only Production must deny paid Create.");
+
+  configure("production", { surface: "true", ai: "true" });
+  assert.equal((await route.GET(new Request(url))).status, 403, "Production Create must deny without the server key.");
+
+  configure("preview", { preview: "true", key: true });
+  assert.equal((await route.GET(new Request(url))).status, 200, "Existing explicitly enabled Preview behavior must remain available.");
+
+  configure("production", { surface: "true", ai: "true", key: true });
   const denied = await invoke(feasible, "203.0.113.91", "https://other.example.test");
   assert.equal(denied.status, 403);
   assert.equal(providerCalls, 0);
@@ -140,7 +183,16 @@ try {
   assert.ok(customBody.program.useMix.every((item: { use: string }) => item.use !== "retail"));
   assert.ok(customBody.massing.featureCollection.features.every((item: { properties: { use: string } }) => item.properties.use !== "retail"));
   assert.equal(customBody.telemetry.attempts, 1);
-  console.log("Create actual-route offline checks passed: origin, no-fit, suggestion, success, unknown-usage failure and custom intent without template override. No live network or credentials used.");
+
+  for (let index = 0; index < 15; index += 1) {
+    const bounded = await invoke(negative, `198.51.100.${index + 1}`);
+    assert.equal(bounded.status, 422, "The first 20 process-local attempts in the window remain available.");
+  }
+  const globallyLimited = await invoke(negative, "198.51.100.200");
+  assert.equal(globallyLimited.status, 429, "The process-local Create cap must reject attempt 21 in the window.");
+  assert.equal(providerCalls, 3, "Preflight rejects and the global limiter must not add provider calls.");
+
+  console.log("Create actual-route offline checks passed: Production flag/key matrix, Preview compatibility, origin, no-fit, suggestion, success, unknown-usage failure, custom intent and process-local global cap. No live network or credentials used.");
 } finally {
   globalThis.fetch = originalFetch;
   if (previousSourceCalls === undefined) delete fixtureGlobal.__geoaiCreateSourceCalls;

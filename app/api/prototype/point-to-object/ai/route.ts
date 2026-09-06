@@ -2,7 +2,7 @@ import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 
 import { NextResponse } from "next/server";
 
-import { getPointObjectPreviewUpstreamStatus } from "@/src/lib/ai/openai-upstream-gate";
+import { getPointObjectUpstreamStatus } from "@/src/lib/ai/openai-upstream-gate";
 import { readBoundedJson } from "@/src/lib/http/bounded-json";
 import {
   generatePointObjectAiAnalysis,
@@ -62,8 +62,8 @@ function isAnalysisHorizon(value: unknown): value is PointObjectAnalysisHorizon 
   return value === "current" || value === "one_to_three_years" || value === "long_term";
 }
 
-function previewRuntimeAllowed(): boolean {
-  return process.env.VERCEL_ENV === "preview" && getPointObjectPreviewUpstreamStatus().enabled;
+function runtimeAllowed(): boolean {
+  return getPointObjectUpstreamStatus().enabled;
 }
 
 function noStoreHeaders(extra: Record<string, string> = {}): Record<string, string> {
@@ -211,8 +211,8 @@ function validBody(value: unknown): value is {
 }
 
 export async function GET(request: Request) {
-  if (!previewRuntimeAllowed()) {
-    return NextResponse.json({ mode: "unavailable", code: "AI_PREVIEW_ONLY", error: "AI analysis is not available in this environment." }, {
+  if (!runtimeAllowed()) {
+    return NextResponse.json({ mode: "unavailable", code: "AI_RUNTIME_DISABLED", error: "AI analysis is not available in this environment." }, {
       status: 403,
       headers: noStoreHeaders()
     });
@@ -234,8 +234,8 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   const routeDeadline = Date.now() + ROUTE_SAFE_BUDGET_MS;
-  if (!previewRuntimeAllowed()) {
-    return NextResponse.json({ mode: "unavailable", code: "AI_PREVIEW_ONLY", error: "AI analysis is not available in this environment." }, {
+  if (!runtimeAllowed()) {
+    return NextResponse.json({ mode: "unavailable", code: "AI_RUNTIME_DISABLED", error: "AI analysis is not available in this environment." }, {
       status: 403,
       headers: clearChallengeHeader(request)
     });

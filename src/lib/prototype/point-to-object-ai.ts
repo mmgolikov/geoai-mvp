@@ -1,6 +1,6 @@
 import "server-only";
 
-import { getPointObjectPreviewUpstreamStatus } from "@/src/lib/ai/openai-upstream-gate";
+import { getPointObjectUpstreamStatus } from "@/src/lib/ai/openai-upstream-gate";
 import {
   POINT_OBJECT_AI_PROMPT_VERSION,
   POINT_OBJECT_AI_RESULT_SCHEMA_VERSION,
@@ -119,7 +119,7 @@ const DEFAULT_PROFILES: Record<AttemptKind, Record<PointObjectAnalysisDepth, Omi
 };
 
 export type PointObjectAiErrorCode =
-  | "AI_PREVIEW_ONLY"
+  | "AI_RUNTIME_DISABLED"
   | "AI_NOT_CONFIGURED"
   | "AI_TIMEOUT"
   | "AI_PROVIDER_REJECTED"
@@ -279,9 +279,9 @@ export async function generatePointObjectAiAnalysis(
   analysisRequest: PointObjectAnalysisRequest,
   routeDeadline?: number
 ): Promise<PointObjectAiResult> {
-  if (process.env.VERCEL_ENV !== "preview" || !getPointObjectPreviewUpstreamStatus().enabled) {
+  if (!getPointObjectUpstreamStatus().enabled) {
     throw new PointObjectAiServiceError(
-      "AI_PREVIEW_ONLY",
+      "AI_RUNTIME_DISABLED",
       403,
       "AI analysis is not available in this environment."
     );

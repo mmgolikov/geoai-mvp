@@ -44,14 +44,18 @@ for (const file of await collectRouteFiles(apiRoot)) {
       failures.push(`${relative} ${handler.method}: missing explicit route-access classification`);
       continue;
     }
-    if (policy.access === "public_preview" || policy.access === "protected_preview") {
-      const previewIndexes = [
-        handler.body.indexOf("if (!previewRuntimeAllowed())"),
-        handler.body.indexOf('if (process.env.VERCEL_ENV !== "preview" || !getPointObjectPreviewUpstreamStatus().enabled)')
-      ].filter((index) => index >= 0);
-      const previewIndex = previewIndexes.length > 0 ? Math.min(...previewIndexes) : -1;
-      if (previewIndex < 0) {
-        failures.push(`${relative} ${handler.method}: Preview route must fail closed outside the enabled Preview runtime`);
+    if (policy.access === "public_preview" || policy.access === "protected_preview" || policy.access === "public_bounded_runtime") {
+      const publicBoundedRuntime = policy.access === "public_bounded_runtime";
+      const runtimeIndexes = publicBoundedRuntime
+        ? [handler.body.indexOf("if (!runtimeAllowed())")]
+        : [
+            handler.body.indexOf("if (!previewRuntimeAllowed())"),
+            handler.body.indexOf('if (process.env.VERCEL_ENV !== "preview" || !getPointObjectPreviewUpstreamStatus().enabled)')
+          ];
+      const validRuntimeIndexes = runtimeIndexes.filter((index) => index >= 0);
+      const runtimeIndex = validRuntimeIndexes.length > 0 ? Math.min(...validRuntimeIndexes) : -1;
+      if (runtimeIndex < 0) {
+        failures.push(`${relative} ${handler.method}: bounded runtime route must fail closed outside its enabled environment policy`);
         continue;
       }
       if (
@@ -62,19 +66,23 @@ for (const file of await collectRouteFiles(apiRoot)) {
         failures.push(`${relative} ${handler.method}: protected Preview route must require its dedicated upstream operator gate`);
         continue;
       }
+      if (publicBoundedRuntime && !source.includes("getPointObjectUpstreamStatus().enabled")) {
+        failures.push(`${relative} ${handler.method}: public bounded runtime route must require the centralized point-to-object upstream policy`);
+        continue;
+      }
 
       if (policy.action === "prototype.ai.challenge" && handler.method === "GET") {
         const challengeIndex = handler.body.indexOf("randomBytes(");
         const crossSiteIndex = handler.body.indexOf('request.headers.get("sec-fetch-site")');
         if (
           challengeIndex < 0 ||
-          previewIndex > challengeIndex ||
-          crossSiteIndex < previewIndex ||
+          runtimeIndex > challengeIndex ||
+          crossSiteIndex < runtimeIndex ||
           crossSiteIndex > challengeIndex ||
           !handler.body.includes("noStoreHeaders") ||
           !handler.body.includes("challengeCookie")
         ) {
-          failures.push(`${relative} ${handler.method}: Preview challenge must deny non-Preview and cross-site access before issuing a private one-time cookie`);
+          failures.push(`${relative} ${handler.method}: bounded AI challenge must deny disabled-runtime and cross-site access before issuing a private one-time cookie`);
         }
         protectedHandlers += 1;
         continue;
@@ -88,7 +96,7 @@ for (const file of await collectRouteFiles(apiRoot)) {
         const evidenceIndex = handler.body.indexOf("buildPointObjectEvidencePack(");
         const providerIndex = handler.body.indexOf("generatePointObjectAiAnalysis(");
         if (
-          originIndex < previewIndex ||
+          originIndex < runtimeIndex ||
           bodyIndex < originIndex ||
           challengeIndex < bodyIndex ||
           rateIndex < challengeIndex ||
@@ -96,7 +104,7 @@ for (const file of await collectRouteFiles(apiRoot)) {
           providerIndex < evidenceIndex ||
           !handler.body.includes("clearChallengeHeader(request)")
         ) {
-          failures.push(`${relative} ${handler.method}: Preview AI execution must enforce runtime, origin, bounded body, one-time challenge and rate limit before rebuilding evidence and calling the provider`);
+          failures.push(`${relative} ${handler.method}: bounded AI execution must enforce runtime, origin, bounded body, one-time challenge and rate limit before rebuilding evidence and calling the provider`);
         }
         protectedHandlers += 1;
         continue;
@@ -108,7 +116,7 @@ for (const file of await collectRouteFiles(apiRoot)) {
         const rateIndex = handler.body.indexOf("consumeRateLimit(request)");
         const evidenceIndex = handler.body.indexOf("buildLivePointObjectEvidencePack(");
         if (
-          originIndex < previewIndex ||
+          originIndex < runtimeIndex ||
           bodyIndex < originIndex ||
           rateIndex < bodyIndex ||
           evidenceIndex < rateIndex ||
@@ -127,7 +135,7 @@ for (const file of await collectRouteFiles(apiRoot)) {
         const rateIndex = handler.body.indexOf("consumeRateLimit(request)", parseIndex);
         const findIndex = handler.body.indexOf("findPointObjects(", rateIndex);
         if (
-          originIndex < previewIndex ||
+          originIndex < runtimeIndex ||
           bodyIndex < originIndex ||
           parseIndex < bodyIndex ||
           rateIndex < parseIndex ||
@@ -147,7 +155,7 @@ for (const file of await collectRouteFiles(apiRoot)) {
         const rateIndex = handler.body.indexOf("consumeRateLimit(request)", parseIndex);
         const contextIndex = handler.body.indexOf("resolvePointObjectAreaContext(", rateIndex);
         if (
-          originIndex < previewIndex ||
+          originIndex < runtimeIndex ||
           bodyIndex < originIndex ||
           parseIndex < bodyIndex ||
           rateIndex < parseIndex ||
@@ -166,7 +174,7 @@ for (const file of await collectRouteFiles(apiRoot)) {
         const rateIndex = handler.body.indexOf("const clientRate = consumeBucket", bodyIndex);
         const searchIndex = handler.body.indexOf("searchLivePointObjects(", rateIndex);
         if (
-          originIndex < previewIndex ||
+          originIndex < runtimeIndex ||
           bodyIndex < originIndex ||
           rateIndex < bodyIndex ||
           searchIndex < rateIndex ||
@@ -185,7 +193,7 @@ for (const file of await collectRouteFiles(apiRoot)) {
         const rateIndex = handler.body.indexOf("consumeRateLimit(request)", parseIndex);
         const suggestIndex = handler.body.indexOf("suggestPointObjects(", rateIndex);
         if (
-          originIndex < previewIndex ||
+          originIndex < runtimeIndex ||
           bodyIndex < originIndex ||
           parseIndex < bodyIndex ||
           rateIndex < parseIndex ||
@@ -203,13 +211,13 @@ for (const file of await collectRouteFiles(apiRoot)) {
         const crossSiteIndex = handler.body.indexOf('request.headers.get("sec-fetch-site")');
         if (
           challengeIndex < 0 ||
-          previewIndex > challengeIndex ||
-          crossSiteIndex < previewIndex ||
+          runtimeIndex > challengeIndex ||
+          crossSiteIndex < runtimeIndex ||
           crossSiteIndex > challengeIndex ||
           !handler.body.includes("noStoreHeaders") ||
           !handler.body.includes("challengeCookie")
         ) {
-          failures.push(`${relative} ${handler.method}: Preview Create challenge must deny non-Preview and cross-site access before issuing a private one-time cookie`);
+          failures.push(`${relative} ${handler.method}: bounded Create challenge must deny disabled-runtime and cross-site access before issuing a private one-time cookie`);
         }
         protectedHandlers += 1;
         continue;
@@ -222,14 +230,14 @@ for (const file of await collectRouteFiles(apiRoot)) {
         const rateIndex = handler.body.indexOf("consumeRateLimit(request)", challengeIndex);
         const providerIndex = handler.body.indexOf("callOpenAi(", rateIndex);
         if (
-          originIndex < previewIndex ||
+          originIndex < runtimeIndex ||
           bodyIndex < originIndex ||
           challengeIndex < bodyIndex ||
           rateIndex < challengeIndex ||
           providerIndex < rateIndex ||
           !handler.body.includes("noStoreHeaders(request, true)")
         ) {
-          failures.push(`${relative} ${handler.method}: Preview Create must enforce runtime, origin, bounded body, one-time challenge and rate limit before provider execution`);
+          failures.push(`${relative} ${handler.method}: bounded Create must enforce runtime, origin, bounded body, one-time challenge and rate limit before provider execution`);
         }
         protectedHandlers += 1;
         continue;

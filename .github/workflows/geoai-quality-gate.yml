@@ -262,6 +262,12 @@ jobs:
           set -euo pipefail
           npm run test:point-to-object-create | tee artifacts/point-to-object-create-check.txt
 
+      - name: Point-to-object runtime gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:point-to-object-runtime-gate | tee artifacts/point-to-object-runtime-gate-check.txt
+
       - name: Point-to-object map-replacement contract
         shell: bash
         run: |

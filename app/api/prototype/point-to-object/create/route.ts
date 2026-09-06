@@ -2,7 +2,7 @@ import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 
 import { NextResponse } from "next/server";
 
-import { getPointObjectPreviewUpstreamStatus } from "@/src/lib/ai/openai-upstream-gate";
+import { getPointObjectUpstreamStatus } from "@/src/lib/ai/openai-upstream-gate";
 import { readBoundedJson } from "@/src/lib/http/bounded-json";
 import { resolvePointObjectAreaContext } from "@/src/lib/prototype/point-to-object-area-context";
 import { parsePointObjectAreaContextRequest } from "@/src/lib/prototype/point-to-object-area-context-contract";
@@ -51,6 +51,8 @@ const CHALLENGE_COOKIE = "geoai_p2o_create_challenge";
 const CHALLENGE_TTL_SECONDS = 5 * 60;
 const RATE_WINDOW_MS = 10 * 60 * 1000;
 const RATE_MAX_REQUESTS = 4;
+// Defense in depth for one warm process only; this is not a distributed spend cap.
+const GLOBAL_RATE_MAX_REQUESTS = 20;
 const CREATE_TIMEOUT_MS = 95_000;
 const CREATE_PREFLIGHT_BUDGET_MS = 8_000;
 const CREATE_CAVEAT = "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.";
@@ -142,18 +144,26 @@ function rateKey(request: Request): string {
   return sha256(forwarded.split(",")[0]?.trim() || "preview-anonymous");
 }
 
-function consumeRateLimit(request: Request): { allowed: true } | { allowed: false; retryAfterSeconds: number } {
+function consumeBucket(key: string, maxRequests: number): { allowed: true } | { allowed: false; retryAfterSeconds: number } {
   const now = Date.now();
   for (const [key, bucket] of rateBuckets) if (now - bucket.startedAt >= RATE_WINDOW_MS) rateBuckets.delete(key);
-  const key = rateKey(request);
   const bucket = rateBuckets.get(key);
   if (!bucket) {
     rateBuckets.set(key, { startedAt: now, count: 1 });
     return { allowed: true };
   }
-  if (bucket.count >= RATE_MAX_REQUESTS) return { allowed: false, retryAfterSeconds: Math.max(1, Math.ceil((RATE_WINDOW_MS - (now - bucket.startedAt)) / 1_000)) };
+  if (bucket.count >= maxRequests) return { allowed: false, retryAfterSeconds: Math.max(1, Math.ceil((RATE_WINDOW_MS - (now - bucket.startedAt)) / 1_000)) };
   bucket.count += 1;
   return { allowed: true };
+}
+
+function consumeRateLimit(request: Request): { allowed: true } | { allowed: false; retryAfterSeconds: number } {
+  const client = consumeBucket(`client:${rateKey(request)}`, RATE_MAX_REQUESTS);
+  return client.allowed ? consumeBucket("global", GLOBAL_RATE_MAX_REQUESTS) : client;
+}
+
+function runtimeAllowed(): boolean {
+  return getPointObjectUpstreamStatus().enabled;
 }
 
 function validCoordinates(value: unknown): value is [number, number][][] {
@@ -263,7 +273,7 @@ function requireCreateAttemptTimeout(requestedMs: number, deadlineMs: number): n
 }
 
 export async function GET(request: Request) {
-  if (process.env.VERCEL_ENV !== "preview" || !getPointObjectPreviewUpstreamStatus().enabled) {
+  if (!runtimeAllowed()) {
     return NextResponse.json({ mode: "unavailable", error: "Concept generation is not available in this environment." }, { status: 403, headers: noStoreHeaders(request) });
   }
   if (request.headers.get("sec-fetch-site") === "cross-site") {
@@ -280,7 +290,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  if (process.env.VERCEL_ENV !== "preview" || !getPointObjectPreviewUpstreamStatus().enabled) {
+  if (!runtimeAllowed()) {
     return NextResponse.json({ mode: "unavailable", error: "Concept generation is not available in this environment." }, { status: 403, headers: noStoreHeaders(request, true) });
   }
   if (!sameOrigin(request)) {
