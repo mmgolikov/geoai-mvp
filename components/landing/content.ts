@@ -125,7 +125,7 @@ export const landingContent: Record<PointObjectLocale, LandingContent> = {
           title: "Return to saved work",
           body: "Reopen work supported by the current browser-local project flow. Cloud collaboration is not active.",
           action: "Open Projects",
-          href: "/projects",
+          href: "/projects?view=spatial",
           localOnly: true
         }
       ]
@@ -184,7 +184,7 @@ export const landingContent: Record<PointObjectLocale, LandingContent> = {
       gatedLabel: "Validation required",
       gatedTitle: "Requires a later evidence gate",
       gated: [
-        "Official parcel, zoning, ownership, planning or valuation evidence.",
+        "Parcel, zoning, ownership, planning or valuation evidence from the responsible authority.",
         "Protected customer-data onboarding and multi-user cloud projects.",
         "Customer-specific investment models, approvals and production operation."
       ],
@@ -221,7 +221,7 @@ export const landingContent: Record<PointObjectLocale, LandingContent> = {
         { number: "01", name: "Анализ", title: "Понять выбранное место", body: "Выберите объект или точку и превратите доступный контекст открытой карты в структурированную аналитическую справку.", action: "Открыть Анализ", href: mapHref },
         { number: "02", name: "Поиск", title: "Найти и сравнить видимые объекты", body: "Задайте наблюдаемые критерии, выполните поиск в текущей области карты и сравните выбранные варианты.", action: "Открыть карту и Поиск", href: mapHref },
         { number: "03", name: "Создать", title: "Сформировать ограниченные пространственные варианты", body: "Нарисуйте или загрузите одну зону и изучите прозрачные детерминированные варианты объёмов внутри неё.", action: "Открыть карту и Создать", href: mapHref },
-        { number: "04", name: "Проекты", title: "Вернуться к сохранённой работе", body: "Откройте работу, доступную в текущем локальном сценарии браузера. Облачная совместная работа не активна.", action: "Открыть Проекты", href: "/projects", localOnly: true }
+        { number: "04", name: "Проекты", title: "Вернуться к сохранённой работе", body: "Откройте работу, доступную в текущем локальном сценарии браузера. Облачная совместная работа не активна.", action: "Открыть Проекты", href: "/projects?view=spatial", localOnly: true }
       ]
     },
     roles: {

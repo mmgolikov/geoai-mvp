@@ -44,6 +44,7 @@
 
 .brand, .footerBrand {
   min-width: 0;
+  min-height: 44px;
   display: inline-flex;
   align-items: center;
   gap: 10px;
@@ -85,8 +86,8 @@
   background: var(--surface);
 }
 .localeSwitch button {
-  min-width: 38px;
-  min-height: 36px;
+  min-width: 44px;
+  min-height: 44px;
   border: 0;
   border-radius: 9px;
   color: var(--muted);

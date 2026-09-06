@@ -11,6 +11,7 @@ import { landingContent, landingRoleKeys, type LandingRoleKey } from "./content"
 import styles from "./landing.module.css";
 
 const mapHref = "/prototype/point-to-object";
+const projectsHref = "/projects?view=spatial";
 
 export function GeoAILandingPage() {
   const { locale, setLocale } = usePointObjectLocale();
@@ -86,7 +87,7 @@ export function GeoAILandingPage() {
             <p className={styles.heroBody}>{copy.hero.body}</p>
             <div className={styles.heroActions}>
               <Link href={mapHref} className={styles.primaryAction}>{copy.actions.openMap}</Link>
-              <Link href="/projects" className={styles.secondaryAction}>{copy.actions.projects}</Link>
+              <Link href={projectsHref} className={styles.secondaryAction}>{copy.actions.projects}</Link>
             </div>
             <p className={styles.heroNote}>{copy.hero.note}</p>
           </div>
@@ -219,7 +220,7 @@ export function GeoAILandingPage() {
         </div>
         <div className={styles.finalActions}>
           <Link href={mapHref} className={styles.primaryAction}>{copy.actions.openMap}</Link>
-          <Link href="/projects" className={styles.secondaryAction}>{copy.actions.projects}</Link>
+          <Link href={projectsHref} className={styles.secondaryAction}>{copy.actions.projects}</Link>
         </div>
       </section>
 
@@ -228,7 +229,7 @@ export function GeoAILandingPage() {
           <Link href="/" className={styles.footerBrand}><IdentitySymbol />GeoAI</Link>
           <nav aria-label={copy.actions.menu}>
             <a href="#product">{copy.footer.product}</a>
-            <Link href="/projects">{copy.footer.projects}</Link>
+            <Link href={projectsHref}>{copy.footer.projects}</Link>
             <Link href="/profile">{copy.footer.profile}</Link>
           </nav>
           <p>{copy.footer.rights}</p>

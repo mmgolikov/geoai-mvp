@@ -23,7 +23,7 @@ The landing page is a bilingual EN/RU product entry for the currently available 
 | Entry | Route | Current behavior represented |
 | --- | --- | --- |
 | Open map / Analyse / Find / Create | `/prototype/point-to-object` | Current map-first Candidate workflow using open-map and sample context |
-| Projects | `/projects` | Current browser-local project flow; cloud collaboration is explicitly not active |
+| Projects | `/projects?view=spatial` | Saved spatial work in the current browser-local project flow; cloud collaboration is explicitly not active |
 | Profile | `/profile` | Existing profile route |
 
 The product narrative uses four task-oriented paths—Analyse, Find, Create and Projects—and a role selector for Developer, Owner / manager, Fund / advisor and Urban / public users. The role selector changes bounded benefit copy only; it does not change product state or infer buyer validation.
@@ -47,7 +47,7 @@ The product narrative uses four task-oriented paths—Analyse, Find, Create and 
 - Locale source: the existing `PointObjectLocaleProvider`; the landing does not create a second locale store.
 - Initial role: `developer`; available keys are `developer`, `owner`, `advisor`, `public`.
 - Role keyboard behavior: Arrow Left/Right/Up/Down wraps across tabs; Home and End select the first and last tab.
-- All route destinations are existing application routes. No placeholder links or contact form were added.
+- All route destinations are existing application routes. Projects entries use `/projects?view=spatial`, the accepted CYCLE-05 saved-spatial-work view. No placeholder links or contact form were added.
 
 ## Responsive and accessibility contract
 
@@ -92,13 +92,21 @@ No Figma node was created or mutated in CYCLE-05. The required later registry ac
 
 ## Verification receipt
 
-- Contract test: 6/6 passed.
+- Contract test: 6/6 passed, including the saved-spatial-work Projects route and 44 px target contract.
 - TypeScript lint: passed.
+- Repository data-honesty scan: passed; the gated parcel/zoning/ownership/planning/valuation requirement remains explicit without triggering an unsupported affirmative claim.
 - Next.js production build: passed on Next.js 15.5.21; 79 static pages generated.
 - Browser review: 1440 RU, 1280 EN, 768 EN and 390 EN; hero, workflow, role chooser, evidence boundary and responsive ordering inspected.
 - Interaction review: EN/RU switch, role pointer selection, role keyboard navigation and the map, Projects and Profile routes passed.
 - Landing console errors: zero during landing review.
 - Production and main changed: false.
+
+## Corrective verification — 2026-09-06
+
+- The landing Projects CTA was reconciled read-only against accepted DEV commit `3d7540f44e2f338c1965027aa7f3109e5775335e` and now targets `/projects?view=spatial`.
+- Brand/home and EN/RU controls were measured at 44 px minimum hit height; language controls are 44×44 px at 390 CSS pixels.
+- EN and RU were rendered at 390 CSS pixels and EN was rendered at 1280 CSS pixels after the correction; the header remains compact and no horizontal overflow was observed.
+- No Auth, API, map runtime, environment, database, Vercel or Production files were changed.
 
 ## Integration note
 

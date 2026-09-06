@@ -25,7 +25,8 @@ test("landing exposes bilingual product and decision copy", () => {
 
 test("all landing entry links resolve to existing product routes", () => {
   assert.match(component, /const mapHref = "\/prototype\/point-to-object"/);
-  assert.match(content, /href: "\/projects"/);
+  assert.match(content, /href: "\/projects\?view=spatial"/);
+  assert.match(component, /const projectsHref = "\/projects\?view=spatial"/);
   assert.match(component, /href="\/profile"/);
   assert.doesNotMatch(component, /href=["']#["']/);
   assert.doesNotMatch(content, /request-access|pricing|contact/i);
@@ -44,6 +45,8 @@ test("responsive and accessibility contracts are present", () => {
   assert.match(styles, /@media \(max-width: 620px\)/);
   assert.match(styles, /:focus-visible/);
   assert.match(styles, /prefers-reduced-motion/);
+  assert.match(styles, /\.brand, \.footerBrand \{[\s\S]*?min-height: 44px/);
+  assert.match(styles, /\.localeSwitch button \{[\s\S]*?min-width: 44px;[\s\S]*?min-height: 44px/);
   assert.match(component, /role="tablist"/);
   assert.match(component, /aria-selected/);
   assert.match(component, /ArrowRight/);
