@@ -176,12 +176,21 @@ async function installOfflineRoutes(page: Page, options: { areaContextMode?: "su
       return route.fulfill({ status: 429, contentType: "application/json", headers: { "Retry-After": "30" }, body: JSON.stringify({ mode: "unavailable", error: "rate limited" }) });
     }
     if (options.areaContextMode === "error") return json(route, { mode: "unavailable", error: "upstream unavailable" }, 502);
+    const request = route.request().postDataJSON() as { marketKey: "dubai"; locale: "en" | "ru"; aoiCoordinates: [[number, number][]] };
     return json(route, {
       protocol: "POINT_TO_OBJECT_001_AREA_CONTEXT_V1",
       mode: "results",
-      features: [],
-      summary: { sampleSize: 2, mappedBuildingCount: 2, mappedLevelsKnownCount: 1, medianMappedLevels: 6, groups: [{ group: "residential", count: 2 }] },
-      coverage: { capReached: false }
+      request,
+      area: { areaSqM: 2_500, perimeterM: 200, centroid: { longitude: 55.27035, latitude: 25.20535 } },
+      features: [
+        { sourceFeatureId: "way/3001", longitude: 55.27025, latitude: 25.20525, label: "Mapped residence 1", group: "residential", mappedBuildingLevels: 6, observedTags: { building: "residential" }, inclusionMethod: "returned_center_inside_aoi" },
+        { sourceFeatureId: "way/3002", longitude: 55.2704, latitude: 25.2054, label: "Mapped residence 2", group: "residential", mappedBuildingLevels: null, observedTags: { building: "residential" }, inclusionMethod: "returned_center_inside_aoi" }
+      ],
+      summary: { sampleSize: 2, namedFeatureCount: 2, mappedBuildingCount: 2, mappedLevelsKnownCount: 1, medianMappedLevels: 6, nearestTransitM: null, nearestMajorRoadM: null, groups: [{ group: "residential", count: 2, sharePct: 100 }] },
+      coverage: { kind: "bounded_open_map_polygon_sample", inclusionMethod: "returned_center_inside_aoi", geometryCoverage: "centroid_proxy_not_complete_intersection", upstreamElementCount: 2, normalizedInsideCount: 2, returnedFeatureCount: 2, upstreamQueryLimit: 300, featureReturnLimit: 80, capReached: false, completeInventory: false },
+      source: { name: "OpenStreetMap", service: "Overpass API", sourceResponseHash: sha256, observedAt: null, acquiredAt, licenceId: "ODbL-1.0", attribution: "© OpenStreetMap contributors", licenceUrl: "https://www.openstreetmap.org/copyright", officialStatus: "open_context_not_official", runtimeNetworkUsed: true, persistenceUsed: false },
+      limitations: ["Bounded deterministic E2E area sample."],
+      caveat: "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
     });
   });
   await page.route("**/api/prototype/point-to-object/create", async (route) => {
@@ -206,7 +215,7 @@ async function installOfflineRoutes(page: Page, options: { areaContextMode?: "su
         targetSiteCoveragePct: 38,
         openSpacePct: 35,
         setbackM: 8,
-        useMix: [{ use: "residential", sharePct: 100 }],
+        useMix: [{ use: "residential", sharePct: 65 }, { use: "open_space", sharePct: 35 }],
         rationale: ["Deterministic offline E2E fixture."]
       },
       massing: {
@@ -214,6 +223,7 @@ async function installOfflineRoutes(page: Page, options: { areaContextMode?: "su
           type: "FeatureCollection",
           features: [{
             type: "Feature",
+            id: "concept-a-1",
             properties: { id: "concept-a-1", kind: "concept_massing", templateId: "residential_mixed_use", massingStyle: "courtyard", variantId: "A", volumeRole: "courtyard_wing", primaryBlock: true, use: "residential", levels: 8, heightM: 27.2, baseM: 0, label: "Option A block" },
             geometry: { type: "Polygon", coordinates: [[[55.2702, 25.2052], [55.2705, 25.2052], [55.2705, 25.2055], [55.2702, 25.2055], [55.2702, 25.2052]]] }
           }]
@@ -239,6 +249,7 @@ async function installOfflineRoutes(page: Page, options: { areaContextMode?: "su
             type: "FeatureCollection",
             features: [{
               type: "Feature",
+              id: "concept-a-1",
               properties: { id: "concept-a-1", kind: "concept_massing", templateId: "residential_mixed_use", massingStyle: "courtyard", variantId: "A", volumeRole: "courtyard_wing", primaryBlock: true, use: "residential", levels: 8, heightM: 27.2, baseM: 0, label: "Option A block" },
               geometry: { type: "Polygon", coordinates: [[[55.2702, 25.2052], [55.2705, 25.2052], [55.2705, 25.2055], [55.2702, 25.2055], [55.2702, 25.2052]]] }
             }]
@@ -264,30 +275,27 @@ async function installOfflineRoutes(page: Page, options: { areaContextMode?: "su
             type: "FeatureCollection",
             features: [{
               type: "Feature",
+              id: "concept-b-1",
               properties: { id: "concept-b-1", kind: "concept_massing", templateId: "residential_mixed_use", massingStyle: "courtyard", variantId: "B", volumeRole: "courtyard_wing", primaryBlock: true, use: "residential", levels: 6, heightM: 20.4, baseM: 0, label: "Option B block 1" },
               geometry: { type: "Polygon", coordinates: [[[55.2702, 25.2052], [55.27035, 25.2052], [55.27035, 25.2055], [55.2702, 25.2055], [55.2702, 25.2052]]] }
-            }, {
-              type: "Feature",
-              properties: { id: "concept-b-2", kind: "concept_massing", templateId: "residential_mixed_use", massingStyle: "courtyard", variantId: "B", volumeRole: "courtyard_wing", primaryBlock: true, use: "residential", levels: 10, heightM: 34, baseM: 0, label: "Option B block 2" },
-              geometry: { type: "Polygon", coordinates: [[[55.27036, 25.2052], [55.2705, 25.2052], [55.2705, 25.2055], [55.27036, 25.2055], [55.27036, 25.2052]]] }
             }]
           },
           requestedBlockCount: 1,
-          generatedBlockCount: 2,
-          generatedFeatureCount: 2,
+          generatedBlockCount: 1,
+          generatedFeatureCount: 1,
           aoiAreaSqM: 2_500,
           generatedFootprintAreaSqM: 925,
           estimatedFloorAreaSqM: 8_100,
           achievedSiteCoveragePct: 37,
           minGeneratedLevels: 6,
-          maxGeneratedLevels: 10,
+          maxGeneratedLevels: 6,
           massingStyle: "courtyard",
           variantId: "B",
           seed: "offline-e2e-b"
         }
       }],
       telemetry: { model: "offline-fixture", reasoningEffort: "none", latencyMs: 1, attempts: 1, estimatedCostUsd: 0 },
-      caveat: "Concept massing is a screening visualization, not an architectural design or approved plan."
+      caveat: "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion."
     });
   });
   await page.route("**/api/prototype/point-to-object/ai", (route) => json(route, {
@@ -641,6 +649,16 @@ test("V5.1 keeps exact identity and the complete Find comparison flow coherent o
   await expect(page.getByText("Showing 3", { exact: true })).toBeVisible();
   await expect(page.getByText(/OpenStreetMap sample · acquired/)).toHaveCount(0);
   await expect(page.getByTestId("find-result-stale")).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() => {
+    const key = Object.keys(localStorage).find((item) => item.startsWith("geoai:point-to-object:projects:v1:"));
+    const store = key ? JSON.parse(localStorage.getItem(key) ?? "null") : null;
+    return store?.projects?.reduce((count: number, project: { artifacts?: unknown[] }) => count + (project.artifacts?.length ?? 0), 0) ?? 0;
+  })).toBe(2);
+  const completedFindArtifactsBeforeViewChanges = await page.evaluate(() => {
+    const key = Object.keys(localStorage).find((item) => item.startsWith("geoai:point-to-object:projects:v1:"));
+    const store = key ? JSON.parse(localStorage.getItem(key) ?? "null") : null;
+    return store?.projects?.reduce((count: number, project: { artifacts?: unknown[] }) => count + (project.artifacts?.length ?? 0), 0) ?? 0;
+  });
   const firstCandidate = page.getByRole("listitem").filter({ hasText: "Marina Candidate One" });
   const secondCandidate = page.getByRole("listitem").filter({ hasText: "Marina Candidate Two" });
   await firstCandidate.getByRole("button", { name: "Compare", exact: true }).click();
@@ -649,6 +667,11 @@ test("V5.1 keeps exact identity and the complete Find comparison flow coherent o
   await expect(page.getByTestId("find-comparison-grid").getByRole("article")).toHaveCount(2);
   await expect(page.getByTestId("find-comparison-grid")).toContainText("Dubai Marina");
   await expect(page.getByTestId("find-comparison-grid")).toContainText("Jumeirah Lakes Towers");
+  await expect.poll(() => page.evaluate(() => {
+    const key = Object.keys(localStorage).find((item) => item.startsWith("geoai:point-to-object:projects:v1:"));
+    const store = key ? JSON.parse(localStorage.getItem(key) ?? "null") : null;
+    return store?.projects?.reduce((count: number, project: { artifacts?: unknown[] }) => count + (project.artifacts?.length ?? 0), 0) ?? 0;
+  })).toBe(completedFindArtifactsBeforeViewChanges);
   const findCallsBeforeReopen = findPostRequests.length;
   await expect.poll(() => page.evaluate(() => Object.keys(localStorage).some((key) => key.startsWith("geoai:point-to-object:projects:v1:")))).toBe(true);
   await page.goto("/projects?view=spatial");
@@ -668,12 +691,15 @@ test("V5.1 keeps exact identity and the complete Find comparison flow coherent o
   await page.getByRole("button", { name: "ru", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Проекты GeoAI" })).toBeVisible();
   await expect(page.getByText("Режим хранения: на этом устройстве.")).toBeVisible();
-  await page.getByRole("button", { name: "en", exact: true }).click();
   await page.setViewportSize({ width: 1280, height: 900 });
-  await page.getByRole("button", { name: "Reopen without rerunning" }).first().click();
+  await page.getByRole("button", { name: "Открыть без повторного запроса" }).first().click();
   await expect(page).toHaveURL(/\/prototype\/point-to-object$/);
   await expect(page.getByRole("tab", { name: "Find", exact: true })).toHaveAttribute("aria-selected", "true");
   await expect(page.getByTestId("find-comparison-grid").getByRole("article")).toHaveCount(2);
+  await expect(page.getByTestId("find-result-stale")).toHaveCount(0);
+  const restoredFindSession = await page.evaluate(() => JSON.parse(sessionStorage.getItem("geoai:point-to-object:find:v1") ?? "null"));
+  expect(restoredFindSession.marketKey).toBe("dubai");
+  expect(restoredFindSession.result.criteria.bounds).toEqual(findPostRequests[1]?.bounds);
   expect(findPostRequests).toHaveLength(findCallsBeforeReopen);
   await page.getByTestId("find-comparison-grid").scrollIntoViewIfNeeded();
   await page.screenshot({ path: testInfo.outputPath("find-side-by-side-comparison-en.png") });
@@ -856,7 +882,7 @@ test("Create A/B and mobile profile remain coherent offline", async ({ page }, t
   await page.getByTestId("create-alternative-b").click();
   await expect(page.getByTestId("create-alternative-b")).toHaveAttribute("aria-selected", "true");
   await expect(page.getByTestId("create-alternative-b")).toHaveCSS("background-color", "rgb(8, 127, 112)");
-  await expect(page.getByTestId("generated-concept-metrics")).toContainText("Generated blocks2");
+  await expect(page.getByTestId("generated-concept-metrics")).toContainText("Generated blocks1");
   await expect(page.locator(".maplibregl-canvas")).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath("create-alternative-b.png") });
   expect(createPostRequests).toHaveLength(1);
@@ -878,6 +904,11 @@ test("Create A/B and mobile profile remain coherent offline", async ({ page }, t
   expect(areaContextPostRequests).toBe(areaContextCallsBeforeReopen);
   await page.getByTestId("create-alternative-a").click();
   expect(createPostRequests).toHaveLength(1);
+  await expect.poll(() => page.evaluate(() => {
+    const key = Object.keys(localStorage).find((item) => item.startsWith("geoai:point-to-object:projects:v1:"));
+    const store = key ? JSON.parse(localStorage.getItem(key) ?? "null") : null;
+    return store?.projects?.reduce((count: number, project: { artifacts?: unknown[] }) => count + (project.artifacts?.length ?? 0), 0) ?? 0;
+  })).toBe(1);
   await expect(page.getByText("Concept ready")).toHaveCount(0);
   const showExisting = page.getByRole("button", { name: "Show existing" });
   await expect(showExisting).toBeVisible();
@@ -892,14 +923,35 @@ test("Create A/B and mobile profile remain coherent offline", async ({ page }, t
   await expect(page.getByText("Edited", { exact: true })).toHaveCount(0);
   await expect(page.getByTestId("generated-concept-summary")).toBeVisible();
   await expect(generateConcept).toHaveText("Update concept");
+  await page.getByRole("button", { name: "ru", exact: true }).click();
+  await expect(generateConcept).toHaveText("Обновить концепцию");
   await generateConcept.click();
   // The prior summary deliberately remains visible during regeneration, so it
   // cannot signal completion of the new request.
   await expect.poll(() => createPostRequests.length).toBe(2);
-  await expect(generateConcept).toHaveText("Already generated");
+  await expect(generateConcept).toHaveText("Уже создано");
   await expect(generateConcept).toBeDisabled();
   expect([...(createPostRequests[1]?.lockedControlKeys as string[])].sort()).toEqual(
     ["blockCount", "levelsMin", "levelsMax", "targetSiteCoveragePct", "openSpacePct", "setbackM"].sort());
+  const createCallsBeforeLocaleReopens = createPostRequests.length;
+  await expect.poll(() => page.evaluate(() => {
+    const key = Object.keys(localStorage).find((item) => item.startsWith("geoai:point-to-object:projects:v1:"));
+    const store = key ? JSON.parse(localStorage.getItem(key) ?? "null") : null;
+    return store?.projects?.reduce((count: number, project: { artifacts?: unknown[] }) => count + (project.artifacts?.length ?? 0), 0) ?? 0;
+  })).toBe(2);
+  await page.goto("/projects?view=spatial");
+  await page.getByRole("button", { name: "en", exact: true }).click();
+  await page.getByRole("button", { name: "Reopen without rerunning" }).first().click();
+  await expect(page.getByRole("tab", { name: "Создать", exact: true })).toHaveAttribute("aria-selected", "true");
+  expect(createPostRequests).toHaveLength(createCallsBeforeLocaleReopens);
+  await page.reload();
+  await expect(page.getByRole("tab", { name: "Создать", exact: true })).toHaveAttribute("aria-selected", "true");
+  expect(createPostRequests).toHaveLength(createCallsBeforeLocaleReopens);
+  await page.goBack();
+  await expect(page.getByRole("heading", { name: "Проекты GeoAI" })).toBeVisible();
+  await page.getByRole("button", { name: "Открыть без повторного запроса" }).nth(1).click();
+  await expect(page.getByRole("tab", { name: "Create", exact: true })).toHaveAttribute("aria-selected", "true");
+  expect(createPostRequests).toHaveLength(createCallsBeforeLocaleReopens);
   await page.getByTestId("create-clear-generated").click();
   await expect(page.getByTestId("generated-concept-summary")).toHaveCount(0);
   await expect(mapPresentation).toHaveText("Hide existing buildings");
@@ -1031,5 +1083,66 @@ test("Create source-building replacement stays reversible when area context is r
   await expect(page.getByText(/Area ready ·/)).toHaveCount(0);
   await expect(page.getByText(/Retry in \d+s\.|Try again\./)).toHaveCount(0);
   await expect(presentationToggle).toHaveCount(0);
+  expect(unexpectedExternal).toEqual([]);
+});
+
+test("Saved Projects exposes recoverable storage failure at every supported width without rerunning Find", async ({ page }) => {
+  findPostRequests.length = 0;
+  const unexpectedExternal = await installOfflineRoutes(page);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto("/prototype/point-to-object");
+  await expect(page.locator(".maplibregl-canvas")).toBeVisible();
+  await page.evaluate(() => {
+    const target = window as typeof window & { __geoAiFailProjectWrites?: boolean; __geoAiOriginalStorageSetItem?: typeof Storage.prototype.setItem };
+    target.__geoAiFailProjectWrites = true;
+    target.__geoAiOriginalStorageSetItem = Storage.prototype.setItem;
+    Storage.prototype.setItem = function setItem(key: string, value: string) {
+      if (target.__geoAiFailProjectWrites && key.startsWith("geoai:point-to-object:projects:v1:")) {
+        throw new DOMException("Synthetic project storage denial", "QuotaExceededError");
+      }
+      return target.__geoAiOriginalStorageSetItem!.call(this, key, value);
+    };
+  });
+  await page.getByRole("tab", { name: "Find", exact: true }).click();
+  await page.getByTestId("find-search-cta").click();
+  await expect(page.getByText("Showing 3", { exact: true })).toBeVisible();
+  const recovery = page.getByTestId("point-object-project-recovery");
+  await expect(recovery).toBeVisible();
+  await expect(recovery).toHaveAccessibleName(/Quota exceeded|Synthetic project storage denial|Retry/i);
+  expect(findPostRequests).toHaveLength(1);
+
+  for (const language of ["en", "ru"] as const) {
+    if (language === "ru") {
+      await page.getByRole("button", { name: "ru", exact: true }).click();
+      await expect(recovery).toHaveAccessibleName(/Повторить|Synthetic project storage denial/i);
+    }
+    for (const viewport of [
+      { width: 1440, height: 900 },
+      { width: 1280, height: 900 },
+      { width: 768, height: 1024 },
+      { width: 390, height: 844 }
+    ]) {
+      await page.setViewportSize(viewport);
+      await expect(recovery).toBeVisible();
+      const box = await recovery.boundingBox();
+      expect(box, `Recovery control must be rendered at ${viewport.width}px in ${language}`).not.toBeNull();
+      expect(box!.width).toBeGreaterThanOrEqual(44);
+      expect(box!.height).toBeGreaterThanOrEqual(44);
+      expect(box!.x + box!.width).toBeLessThanOrEqual(viewport.width + 1);
+      await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    }
+  }
+
+  await page.evaluate(() => {
+    (window as typeof window & { __geoAiFailProjectWrites?: boolean }).__geoAiFailProjectWrites = false;
+  });
+  await recovery.click();
+  await expect(recovery).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() => {
+    const key = Object.keys(localStorage).find((item) => item.startsWith("geoai:point-to-object:projects:v1:"));
+    const store = key ? JSON.parse(localStorage.getItem(key) ?? "null") : null;
+    return store?.projects?.[0]?.artifacts?.length ?? 0;
+  })).toBe(1);
+  expect(findPostRequests).toHaveLength(1);
   expect(unexpectedExternal).toEqual([]);
 });

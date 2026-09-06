@@ -353,12 +353,8 @@ function geometry(value: unknown): GeoJsonGeometry | null {
   return coordinates === null ? null : { type: value.type, coordinates } as GeoJsonGeometry;
 }
 
-export function readPointObjectSelection(): LiveMapSelection | null {
-  try {
-    const raw = window.sessionStorage.getItem(POINT_OBJECT_SESSION_KEYS.selection);
-    if (!raw || raw.length > MAX_SELECTION_BYTES) return null;
-    const value: unknown = JSON.parse(raw);
-    if (!isRecord(value) || !isRecord(value.object) || !isRecord(value.viewport) ||
+export function parsePointObjectSelection(value: unknown): LiveMapSelection | null {
+  if (!isRecord(value) || !isRecord(value.object) || !isRecord(value.viewport) ||
         !isPointObjectMarketKey(value.locationKey) ||
         value.provider !== "OpenFreeMap / OpenStreetMap") return null;
     const point = coordinate([value.longitude, value.latitude]);
@@ -407,7 +403,7 @@ export function readPointObjectSelection(): LiveMapSelection | null {
       ? value.viewport.basemapId
       : "street";
     if (pitch === null || bearing === null) return null;
-    return {
+  return {
       locationKey: value.locationKey,
       longitude: point[0],
       latitude: point[1],
@@ -417,7 +413,14 @@ export function readPointObjectSelection(): LiveMapSelection | null {
       viewport: { center, zoom: value.viewport.zoom, pitch, bearing, viewMode, basemapId },
       provider: "OpenFreeMap / OpenStreetMap",
       nearbyLabels
-    };
+  };
+}
+
+export function readPointObjectSelection(): LiveMapSelection | null {
+  try {
+    const raw = window.sessionStorage.getItem(POINT_OBJECT_SESSION_KEYS.selection);
+    if (!raw || raw.length > MAX_SELECTION_BYTES) return null;
+    return parsePointObjectSelection(JSON.parse(raw));
   } catch {
     return null;
   }

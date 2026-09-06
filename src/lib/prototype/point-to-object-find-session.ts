@@ -113,7 +113,7 @@ export function isPointObjectFindResult(value: unknown): value is PointObjectFin
   return true;
 }
 
-function parseState(value: unknown): PointObjectFindSessionState | null {
+export function parsePointObjectFindSessionState(value: unknown): PointObjectFindSessionState | null {
   if (!isRecord(value) || value.version !== 1 || !isPointObjectMarketKey(value.marketKey) ||
       !isPointObjectLocale(value.locale) || (value.audience !== "b2b" && value.audience !== "b2c") ||
       typeof value.role !== "string" || !ROLES.has(value.role as ExploreRole) ||
@@ -164,7 +164,7 @@ export function readPointObjectFindSession(): PointObjectFindSessionState | null
   try {
     const raw = window.sessionStorage.getItem(STORAGE_KEY);
     if (!raw || new TextEncoder().encode(raw).byteLength > MAX_BYTES) return null;
-    return parseState(JSON.parse(raw));
+    return parsePointObjectFindSessionState(JSON.parse(raw));
   } catch {
     return null;
   }

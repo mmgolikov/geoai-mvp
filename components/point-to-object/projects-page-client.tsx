@@ -2,25 +2,28 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useAuth } from "@/components/auth/auth-provider";
-import { writePointObjectAnalysis, writePointObjectQuestion, writePointObjectSelection } from "@/components/point-to-object/live-session";
+import { readPointObjectAnalysis, readPointObjectSelection, writePointObjectAnalysis, writePointObjectQuestion, writePointObjectSelection } from "@/components/point-to-object/live-session";
+import { usePointObjectLocale } from "@/components/point-to-object/locale-provider";
 import {
   createPointObjectProject,
   POINT_OBJECT_PROJECTS_EVENT,
   pointObjectProjectIdentity,
+  queuePointObjectAnalysisRestore,
   queuePointObjectProjectRestore,
-  readPointObjectProjects,
+  readVerifiedPointObjectProjects,
   reconcilePointObjectBrowserIdentity,
   selectPointObjectProject,
   verifySavedPointObjectArtifact,
   type PointObjectProjectEventDetail,
+  type PointObjectProjectStoreReadResult,
   type PointObjectProjectStore,
   type SavedPointObjectArtifact
 } from "@/src/lib/prototype/point-object-projects";
-import { writePointObjectFindSession } from "@/src/lib/prototype/point-to-object-find-session";
-import { POINT_OBJECT_LOCALE_COOKIE, type PointObjectLocale } from "@/src/lib/prototype/point-to-object-i18n";
+import { readPointObjectFindSession, writePointObjectFindSession } from "@/src/lib/prototype/point-to-object-find-session";
+import type { PointObjectLocale } from "@/src/lib/prototype/point-to-object-i18n";
 
 const CAVEAT = "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.";
 
@@ -40,44 +43,48 @@ function artifactEvidence(artifact: SavedPointObjectArtifact, locale: PointObjec
 export function PointObjectProjectsPageClient() {
   const router = useRouter();
   const { user, isSessionResolved } = useAuth();
+  const { locale, setLocale } = usePointObjectLocale();
   const identityKey = useMemo(() => pointObjectProjectIdentity(user), [user]);
-  const [locale, setLocaleState] = useState<PointObjectLocale>("en");
   const [store, setStore] = useState<PointObjectProjectStore | null>(null);
+  const [readStatus, setReadStatus] = useState<PointObjectProjectStoreReadResult["status"]>("missing");
   const [error, setError] = useState<string | null>(null);
-  const refresh = useCallback(() => setStore(identityKey ? readPointObjectProjects(identityKey) : null), [identityKey]);
-
-  useEffect(() => {
-    const cookieLocale = document.cookie.match(new RegExp(`(?:^|; )${POINT_OBJECT_LOCALE_COOKIE}=(en|ru)(?:;|$)`))?.[1];
-    if (cookieLocale === "ru") setLocaleState("ru");
-  }, []);
+  const identityRef = useRef(identityKey);
+  identityRef.current = identityKey;
+  const refresh = useCallback(async () => {
+    if (!identityKey) {
+      setStore(null);
+      setReadStatus("missing");
+      return;
+    }
+    const result = await readVerifiedPointObjectProjects(identityKey);
+    if (identityRef.current !== identityKey) return;
+    setReadStatus(result.status);
+    setStore(result.store);
+    if (!result.store) setError(result.message);
+  }, [identityKey]);
 
   useEffect(() => {
     if (!isSessionResolved) return;
     reconcilePointObjectBrowserIdentity(identityKey);
-    refresh();
+    void refresh();
     const update = (event: Event) => {
-      if ((event as CustomEvent<PointObjectProjectEventDetail>).detail?.identityKey === identityKey) refresh();
+      if ((event as CustomEvent<PointObjectProjectEventDetail>).detail?.identityKey === identityKey) void refresh();
     };
     window.addEventListener(POINT_OBJECT_PROJECTS_EVENT, update);
-    window.addEventListener("storage", refresh);
+    const storage = () => void refresh();
+    window.addEventListener("storage", storage);
     return () => {
       window.removeEventListener(POINT_OBJECT_PROJECTS_EVENT, update);
-      window.removeEventListener("storage", refresh);
+      window.removeEventListener("storage", storage);
     };
   }, [identityKey, isSessionResolved, refresh]);
 
-  function setLocale(next: PointObjectLocale) {
-    document.cookie = `${POINT_OBJECT_LOCALE_COOKIE}=${next}; Path=/; Max-Age=31536000; SameSite=Lax`;
-    document.documentElement.lang = next;
-    setLocaleState(next);
-  }
-
-  function newProject() {
+  async function newProject() {
     if (!identityKey) return;
     try {
-      createPointObjectProject(identityKey, locale);
+      await createPointObjectProject(identityKey, locale);
       setError(null);
-      refresh();
+      await refresh();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : locale === "ru" ? "Не удалось создать проект." : "Project could not be created.");
     }
@@ -85,25 +92,52 @@ export function PointObjectProjectsPageClient() {
 
   async function reopen(projectId: string, artifact: SavedPointObjectArtifact) {
     if (!identityKey) return;
+    const initiatingIdentity = identityKey;
     setError(null);
     if (!await verifySavedPointObjectArtifact(artifact)) {
       setError(locale === "ru" ? "Локальная запись повреждена или изменена; открытие заблокировано." : "The local record is damaged or changed; reopen is blocked.");
       return;
     }
-    selectPointObjectProject(identityKey, projectId);
-    document.cookie = `${POINT_OBJECT_LOCALE_COOKIE}=${artifact.locale}; Path=/; Max-Age=31536000; SameSite=Lax`;
+    if (identityRef.current !== initiatingIdentity) {
+      setError(locale === "ru" ? "Пользователь изменился во время открытия; действие отменено." : "The browser identity changed during reopen; the action was cancelled.");
+      return;
+    }
+    try {
+      if (!await selectPointObjectProject(initiatingIdentity, projectId)) throw new Error("The saved project is no longer available.");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : locale === "ru" ? "Не удалось выбрать проект." : "The project could not be selected.");
+      return;
+    }
+    if (identityRef.current !== initiatingIdentity) return;
+    setLocale(artifact.locale);
     if (artifact.kind === "analyse") {
       writePointObjectSelection(artifact.payload.selection);
       writePointObjectAnalysis(artifact.payload.analysis, artifact.payload.selection);
       writePointObjectQuestion(artifact.payload.analysis.request.question ?? "");
+      const restoredSelection = readPointObjectSelection();
+      const restoredAnalysis = restoredSelection ? readPointObjectAnalysis(restoredSelection) : null;
+      if (!restoredSelection || !restoredAnalysis || restoredAnalysis.mode !== "openai" ||
+          restoredAnalysis.evidencePackHash !== artifact.payload.analysis.evidencePackHash ||
+          !queuePointObjectAnalysisRestore(initiatingIdentity, artifact)) {
+        setError(locale === "ru" ? "Не удалось подготовить безопасное локальное открытие." : "The saved result could not be prepared for a safe reopen.");
+        return;
+      }
       router.push("/prototype/point-to-object/analysis");
       return;
     }
     if (artifact.kind === "find") {
       const { version: _version, updatedAt: _updatedAt, ...session } = artifact.payload.session;
       writePointObjectFindSession(session);
+      const restored = readPointObjectFindSession();
+      if (!restored?.result || restored.result.source.sourceResponseHash !== artifact.payload.session.result.source.sourceResponseHash) {
+        setError(locale === "ru" ? "Не удалось подготовить безопасное локальное открытие." : "The saved result could not be prepared for a safe reopen.");
+        return;
+      }
     }
-    queuePointObjectProjectRestore(identityKey, artifact);
+    if (!queuePointObjectProjectRestore(initiatingIdentity, artifact)) {
+      setError(locale === "ru" ? "Не удалось подготовить безопасное локальное открытие." : "The saved result could not be prepared for a safe reopen.");
+      return;
+    }
     router.push("/prototype/point-to-object");
   }
 
@@ -125,7 +159,7 @@ export function PointObjectProjectsPageClient() {
           <div className="inline-flex h-10 rounded-xl border border-line bg-white p-1" aria-label={locale === "ru" ? "Язык" : "Language"} role="group">
             {(["en", "ru"] as const).map((item) => <button key={item} type="button" onClick={() => setLocale(item)} aria-pressed={locale === item} className={`h-8 min-w-9 rounded-lg px-2 text-[11px] font-bold uppercase ${locale === item ? "bg-[#087f8c] text-white" : "text-[#667085]"}`}>{item}</button>)}
           </div>
-          <button type="button" onClick={newProject} disabled={!identityKey} className="min-h-11 rounded-xl bg-[#087f8c] px-4 text-sm font-bold text-white disabled:bg-[#b7c4c4]">{locale === "ru" ? "+ Новый проект" : "+ New project"}</button>
+          <button type="button" onClick={() => void newProject()} disabled={!identityKey || readStatus === "damaged" || readStatus === "inaccessible"} className="min-h-11 rounded-xl bg-[#087f8c] px-4 text-sm font-bold text-white disabled:bg-[#b7c4c4]">{locale === "ru" ? "+ Новый проект" : "+ New project"}</button>
         </div>
       </div>
 
@@ -144,7 +178,7 @@ export function PointObjectProjectsPageClient() {
           <section key={project.projectId} className={`rounded-2xl border bg-white p-5 shadow-soft ${store.activeProjectId === project.projectId ? "border-[#69aaa0]" : "border-line"}`} data-testid="saved-project-card">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div><h2 className="text-lg font-bold">{project.name}</h2><p className="mt-1 text-xs text-muted">{locale === "ru" ? "Хранится на этом устройстве" : "Stored on this device"} · {project.artifacts.length} {locale === "ru" ? "результатов" : "results"}</p></div>
-              {store.activeProjectId === project.projectId ? <span className="rounded-full bg-[#e8f7f2] px-3 py-1 text-[11px] font-bold text-[#176548]">{locale === "ru" ? "Активный" : "Active"}</span> : <button type="button" onClick={() => { if (identityKey) selectPointObjectProject(identityKey, project.projectId); refresh(); }} className="min-h-10 rounded-lg border border-line px-3 text-xs font-bold">{locale === "ru" ? "Выбрать" : "Select"}</button>}
+              {store.activeProjectId === project.projectId ? <span className="rounded-full bg-[#e8f7f2] px-3 py-1 text-[11px] font-bold text-[#176548]">{locale === "ru" ? "Активный" : "Active"}</span> : <button type="button" onClick={() => { if (identityKey) void selectPointObjectProject(identityKey, project.projectId).then(() => refresh()).catch((caught) => setError(caught instanceof Error ? caught.message : "Project selection failed.")); }} className="min-h-11 rounded-lg border border-line px-3 text-xs font-bold">{locale === "ru" ? "Выбрать" : "Select"}</button>}
             </div>
             {project.artifacts.length ? <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{project.artifacts.map((artifact) => (
               <article key={artifact.artifactId} className="flex min-w-0 flex-col rounded-xl border border-line bg-[#fbfcfd] p-4">

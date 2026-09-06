@@ -4,13 +4,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   conceptTemplates,
-  type ConceptMassingAlternative,
-  type ConceptMassingResult,
   type ConceptTemplateId,
   type PointObjectCreateAoi,
-  type RedevelopmentProgramInput,
-  type ValidatedRedevelopmentProgram
+  type RedevelopmentProgramInput
 } from "@/src/lib/prototype/point-to-object-create";
+import { parsePointObjectGeneratedConcept, type PointObjectGeneratedConcept } from "@/src/lib/prototype/point-to-object-create-result";
 import {
   createPointObjectCreateDraftKey,
   createPointObjectCreateEditorScopeKey,
@@ -29,22 +27,7 @@ export type { PointObjectCreateEditorSnapshot } from "@/src/lib/prototype/point-
 
 type CreateDepth = "quick" | "standard" | "deep";
 
-export type PointObjectGeneratedConcept = {
-  mode: "openai_concept";
-  generatedAt: string;
-  promptVersion: string;
-  program: ValidatedRedevelopmentProgram;
-  massing: ConceptMassingResult;
-  alternatives?: ConceptMassingAlternative[];
-  telemetry: {
-    model: string;
-    reasoningEffort: string;
-    latencyMs: number;
-    attempts: number;
-    estimatedCostUsd: number | null;
-  };
-  caveat: string;
-};
+export type { PointObjectGeneratedConcept } from "@/src/lib/prototype/point-to-object-create-result";
 
 type CreatePanelProps = {
   locale: "en" | "ru";
@@ -54,6 +37,7 @@ type CreatePanelProps = {
   generated: PointObjectGeneratedConcept | null;
   generatedLocale: "en" | "ru" | null;
   activeAlternativeId: "A" | "B";
+  onGenerationStart?: () => void;
   onGenerated: (concept: PointObjectGeneratedConcept) => void;
   onAlternativeChange: (id: "A" | "B") => void;
   onReset: () => void;
@@ -151,28 +135,6 @@ function templateLabel(templateId: ConceptTemplateId, locale: "en" | "ru"): stri
   return labels[templateId][locale];
 }
 
-function isGeneratedConcept(value: unknown): value is PointObjectGeneratedConcept {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
-  const candidate = value as Partial<PointObjectGeneratedConcept> & { mode?: unknown };
-  const alternativesAreValid = candidate.alternatives === undefined || (
-    Array.isArray(candidate.alternatives) &&
-    candidate.alternatives.length >= 1 &&
-    candidate.alternatives.every((alternative) => typeof alternative === "object" && alternative !== null &&
-      ((alternative as { id?: unknown }).id === "A" || (alternative as { id?: unknown }).id === "B") &&
-      typeof (alternative as { label?: unknown }).label === "string" &&
-      typeof (alternative as { massing?: unknown }).massing === "object" &&
-      (alternative as { massing?: unknown }).massing !== null)
-  );
-  return candidate.mode === "openai_concept" &&
-    typeof candidate.generatedAt === "string" && Number.isFinite(Date.parse(candidate.generatedAt)) &&
-    typeof candidate.promptVersion === "string" && candidate.promptVersion.length > 0 && candidate.promptVersion.length <= 160 &&
-    typeof candidate.program === "object" && candidate.program !== null &&
-    typeof candidate.massing === "object" && candidate.massing !== null &&
-    typeof candidate.telemetry === "object" && candidate.telemetry !== null &&
-    typeof candidate.caveat === "string" &&
-    alternativesAreValid;
-}
-
 function coverageSuggestionResponse(value: unknown): {
   error: string;
   suggestion: PointObjectCreateCoverageSuggestion;
@@ -229,7 +191,7 @@ function RangeControl({
   );
 }
 
-export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generated, generatedLocale, activeAlternativeId, onGenerated, onAlternativeChange, onReset, editorSnapshot = null, onEditorSnapshotChange }: CreatePanelProps) {
+export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generated, generatedLocale, activeAlternativeId, onGenerationStart, onGenerated, onAlternativeChange, onReset, editorSnapshot = null, onEditorSnapshotChange }: CreatePanelProps) {
   const templates = useMemo(() => conceptTemplates(locale), [locale]);
   const editorScopeKey = createPointObjectCreateEditorScopeKey({ aoiId: aoi.id, marketKey });
   const restoredEditor = restorePointObjectCreateEditorSnapshot(editorSnapshot, editorScopeKey);
@@ -364,6 +326,7 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
     const requestId = requestIdRef.current + 1;
     const requestDraftKey = draftKey;
     requestIdRef.current = requestId;
+    onGenerationStart?.();
     setLoading(true);
     setError(null);
     setCoverageSuggestion(null);
@@ -402,10 +365,11 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
           : copy.error;
         throw new Error(message);
       }
-      if (!isGeneratedConcept(payload)) throw new Error(copy.error);
+      const concept = parsePointObjectGeneratedConcept(payload, aoi);
+      if (!concept) throw new Error(copy.error);
       if (controller.signal.aborted || requestId !== requestIdRef.current) return;
       setCommittedDraftKey(requestDraftKey);
-      onGenerated(payload);
+      onGenerated(concept);
     } catch (requestError) {
       if (controller.signal.aborted || requestId !== requestIdRef.current || (requestError instanceof DOMException && requestError.name === "AbortError")) return;
       setError(requestError instanceof Error ? requestError.message : copy.error);

@@ -31,11 +31,20 @@ import {
   type PointObjectAreaContextResult
 } from "@/src/lib/prototype/point-to-object-area-context-contract";
 import {
+  capturePointObjectProjectDestination,
+  clearPointObjectProjectRestore,
   consumePointObjectProjectRestore,
   pointObjectProjectIdentity,
   reconcilePointObjectBrowserIdentity,
-  savePointObjectOperation
+  savePointObjectOperation,
+  updatePointObjectCreateViewState,
+  updatePointObjectFindViewState,
+  type PointObjectProjectDestination,
+  type PointObjectProjectIdentity
 } from "@/src/lib/prototype/point-object-projects";
+import {
+  isPointObjectAreaContextResult
+} from "@/src/lib/prototype/point-to-object-create-result";
 import {
   type PointObjectCreateAoi,
   validatePointObjectCreateAoiVertices
@@ -71,6 +80,17 @@ type FindIntent = {
   role: ExploreRole;
   scenario: ExploreScenarioId;
 };
+type CreateSaveContext = {
+  identityKey: PointObjectProjectIdentity;
+  destination: PointObjectProjectDestination;
+  aoi: PointObjectCreateAoi;
+  editorSnapshot: PointObjectCreateEditorSnapshot | null;
+  locale: "en" | "ru";
+  marketKey: LiveMapLocationKey;
+  areaContext: PointObjectAreaContextResult | null;
+};
+
+const ignoreMapSelection = () => undefined;
 
 function exactOsmFeatureId(value: string | null | undefined): ExactOsmFeatureId | null {
   return /^(?:node|way|relation)\/[1-9]\d{0,19}$/.test(value ?? "") ? value as ExactOsmFeatureId : null;
@@ -127,6 +147,14 @@ function sameCoordinate(left: Coordinate, right: Coordinate): boolean {
 
 function sameFindBounds(left: PointObjectFindBounds | null, right: PointObjectFindBounds): boolean {
   return left !== null && left.every((coordinate, index) => Math.abs(coordinate - right[index]) < 1e-6);
+}
+
+function isRestoredFindViewport(candidate: PointObjectFindBounds, query: PointObjectFindBounds): boolean {
+  const [west, south, east, north] = candidate;
+  const [queryWest, querySouth, queryEast, queryNorth] = query;
+  const candidateArea = Math.max(0, east - west) * Math.max(0, north - south);
+  const queryArea = Math.max(Number.EPSILON, queryEast - queryWest) * Math.max(Number.EPSILON, queryNorth - querySouth);
+  return west <= queryWest && south <= querySouth && east >= queryEast && north >= queryNorth && candidateArea / queryArea <= 6;
 }
 
 function boundedRetryAfterSeconds(value: string | null): number {
@@ -273,16 +301,6 @@ function isAutocompleteResponse(value: unknown): value is { protocol: "POINT_TO_
     });
 }
 
-function isAreaContextResult(value: unknown): value is PointObjectAreaContextResult {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-  const candidate = value as { protocol?: unknown; mode?: unknown; features?: unknown; summary?: unknown; coverage?: unknown };
-  return candidate.protocol === "POINT_TO_OBJECT_001_AREA_CONTEXT_V1" &&
-    (candidate.mode === "results" || candidate.mode === "empty") &&
-    Array.isArray(candidate.features) &&
-    typeof candidate.summary === "object" && candidate.summary !== null &&
-    typeof candidate.coverage === "object" && candidate.coverage !== null;
-}
-
 export function PointToObjectPrototypeV5() {
   const router = useRouter();
   const { locale, setLocale, t } = usePointObjectLocale();
@@ -319,6 +337,7 @@ export function PointToObjectPrototypeV5() {
   const [areaContextRetryVersion, setAreaContextRetryVersion] = useState(0);
   const [areaContextRetryAfterSeconds, setAreaContextRetryAfterSeconds] = useState(0);
   const [visibleBounds, setVisibleBounds] = useState<PointObjectFindBounds | null>(null);
+  const [restoredFindViewportBounds, setRestoredFindViewportBounds] = useState<PointObjectFindBounds | null>(null);
   const [findAudience, setFindAudience] = useState<ExploreAudience>("b2b");
   const [findRole, setFindRole] = useState<ExploreRole>("developer");
   const [findScenario, setFindScenario] = useState<ExploreScenarioId>("b2b_redevelopment_selected_aoi");
@@ -331,6 +350,8 @@ export function PointToObjectPrototypeV5() {
   const [findAnalysisTargetSourceFeatureId, setFindAnalysisTargetSourceFeatureId] = useState<PointObjectFindCandidate["sourceFeatureId"] | null>(null);
   const [findStatus, setFindStatus] = useState<"idle" | "loading" | "zoom" | "rate" | "error">("idle");
   const [findResultIntent, setFindResultIntent] = useState<FindIntent | null>(null);
+  const [findSavedArtifactId, setFindSavedArtifactId] = useState<string | null>(null);
+  const [createSavedArtifactId, setCreateSavedArtifactId] = useState<string | null>(null);
   const [findSessionReady, setFindSessionReady] = useState(false);
   const findRequestRef = useRef<AbortController | null>(null);
   const findRequestIdRef = useRef(0);
@@ -341,10 +362,22 @@ export function PointToObjectPrototypeV5() {
   const suggestionRequestIdRef = useRef(0);
   const suggestionCacheRef = useRef(new Map<string, LiveMapSearchResult[]>());
   const restoredFindSessionRef = useRef<PointObjectFindSessionState | null>(null);
+  const pendingRestoredFindBoundsRef = useRef<PointObjectFindBounds | null>(null);
   const appliedProfileAudienceRef = useRef<string | null>(null);
   const previousLocaleRef = useRef(locale);
-  const projectRestoreAppliedRef = useRef(false);
+  const projectRestoreAppliedRef = useRef<PointObjectProjectIdentity | null | undefined>(undefined);
   const suppressRestoredAreaContextRequestRef = useRef(false);
+  const projectIdentityRef = useRef<PointObjectProjectIdentity | null>(projectIdentity);
+  const createSaveContextRef = useRef<CreateSaveContext | null>(null);
+  const findShortlistRef = useRef(findShortlist);
+  const findComparisonOpenRef = useRef(findComparisonOpen);
+  const findAnalysisTargetRef = useRef(findAnalysisTargetSourceFeatureId);
+  const activeCreateAlternativeRef = useRef(activeCreateAlternativeId);
+  projectIdentityRef.current = projectIdentity;
+  findShortlistRef.current = findShortlist;
+  findComparisonOpenRef.current = findComparisonOpen;
+  findAnalysisTargetRef.current = findAnalysisTargetSourceFeatureId;
+  activeCreateAlternativeRef.current = activeCreateAlternativeId;
 
   const findRoles = useMemo(() => getExecutableFindRoles(findAudience), [findAudience]);
   const findScenarios = useMemo(() => getExecutableFindScenarios(findAudience, findRole), [findAudience, findRole]);
@@ -362,7 +395,7 @@ export function PointToObjectPrototypeV5() {
     findResult.criteria.group !== findGroup ||
     findResult.criteria.mappedMinimumLevels !== findMappedMinimumLevels ||
     findResult.criteria.mappedMaximumLevels !== findMappedMaximumLevels ||
-    !sameFindBounds(visibleBounds, findResult.criteria.bounds)
+    !(sameFindBounds(visibleBounds, findResult.criteria.bounds) || sameFindBounds(visibleBounds, restoredFindViewportBounds ?? findResult.criteria.bounds))
   );
   const findResultMarketMismatch = findResult !== null && findResult.criteria.marketKey !== locationKey;
   const activeConceptMassing = generatedConcept?.alternatives?.find((alternative) => alternative.id === activeCreateAlternativeId)?.massing ?? generatedConcept?.massing ?? null;
@@ -381,37 +414,71 @@ export function PointToObjectPrototypeV5() {
   }, []);
 
   useEffect(() => {
-    if (!sessionReady || !isSessionResolved || projectRestoreAppliedRef.current) return;
+    if (!sessionReady || !isSessionResolved || projectRestoreAppliedRef.current === projectIdentity) return;
     reconcilePointObjectBrowserIdentity(projectIdentity);
-    projectRestoreAppliedRef.current = true;
+    projectRestoreAppliedRef.current = projectIdentity;
+    setFindSavedArtifactId(null);
+    setCreateSavedArtifactId(null);
+    createSaveContextRef.current = null;
     if (!projectIdentity) return;
-    const artifact = consumePointObjectProjectRestore(projectIdentity);
-    if (!artifact) return;
-    setLocale(artifact.locale);
-    setLocationKey(artifact.marketKey);
-    if (artifact.kind === "find") {
-      restoredFindSessionRef.current = artifact.payload.session;
-      setMode("find");
-      setViewModeRequest({ requestId: `restore-find:${artifact.artifactId}`, mode: "2d" });
-      return;
-    }
-    if (artifact.kind === "create") {
-      suppressRestoredAreaContextRequestRef.current = true;
-      setMode("create");
-      setIsDrawing(false);
-      setDraftCoordinates(artifact.payload.aoi.coordinates[0]?.slice(0, -1) ?? []);
-      setCreateAoi(artifact.payload.aoi);
-      setCreateAoiFitRequest({ requestId: `restore-create:${artifact.artifactId}`, bounds: createAoiBounds(artifact.payload.aoi.coordinates[0] ?? []) });
-      setCreateEditorSnapshot(artifact.payload.editorSnapshot);
-      setGeneratedConcept(artifact.payload.generated);
-      setGeneratedConceptLocale(artifact.payload.generatedLocale);
-      setActiveCreateAlternativeId(artifact.payload.activeAlternativeId);
-      setAreaContext(artifact.payload.areaContext);
-      setAreaContextStatus("idle");
-      setCreateAreaCleared(true);
-      setCreateReplacementStatus("idle");
-      setCreateReplacementRevision((revision) => revision + 1);
-    }
+    void consumePointObjectProjectRestore(projectIdentity).then((artifact) => {
+      if (!artifact || projectIdentityRef.current !== projectIdentity) return;
+      setLocale(artifact.locale);
+      setLocationKey(artifact.marketKey);
+      if (artifact.kind === "find") {
+        const restored = artifact.payload.session;
+        setFindSavedArtifactId(artifact.artifactId);
+        restoredFindSessionRef.current = restored;
+        setMode("find");
+        setFindAudience(restored.audience);
+        setFindRole(restored.role);
+        setFindScenario(restored.scenario);
+        setFindGroup(restored.group);
+        setFindMinimumLevels(restored.mappedMinimumLevels);
+        setFindMaximumLevels(restored.mappedMaximumLevels);
+        setFindResult(restored.result);
+        setFindResultIntent({ audience: restored.audience, role: restored.role, scenario: restored.scenario });
+        setFindShortlist(restored.shortlist);
+        setFindComparisonOpen(restored.comparisonOpen);
+        setFindAnalysisTargetSourceFeatureId(restored.analysisTargetSourceFeatureId);
+        setFindSessionReady(true);
+        setRestoredFindViewportBounds(null);
+        pendingRestoredFindBoundsRef.current = restored.result.criteria.bounds;
+        setViewModeRequest({ requestId: `restore-find:${artifact.artifactId}`, mode: "2d" });
+        const first = restored.result.candidates[0];
+        if (first) {
+          const [west, south, east, north] = restored.result.criteria.bounds;
+          setNavigationTarget({
+            requestId: `restore-find-bounds:${artifact.artifactId}`,
+            longitude: first.longitude,
+            latitude: first.latitude,
+            boundingBox: [south, north, west, east],
+            expectedSourceFeatureId: first.sourceFeatureId,
+            expectedLabel: first.label,
+            expectedFeatureClass: first.group
+          });
+        }
+        return;
+      }
+      if (artifact.kind === "create") {
+        setCreateSavedArtifactId(artifact.artifactId);
+        suppressRestoredAreaContextRequestRef.current = true;
+        setMode("create");
+        setIsDrawing(false);
+        setDraftCoordinates(artifact.payload.aoi.coordinates[0]?.slice(0, -1) ?? []);
+        setCreateAoi(artifact.payload.aoi);
+        setCreateAoiFitRequest({ requestId: `restore-create:${artifact.artifactId}`, bounds: createAoiBounds(artifact.payload.aoi.coordinates[0] ?? []) });
+        setCreateEditorSnapshot(artifact.payload.editorSnapshot);
+        setGeneratedConcept(artifact.payload.generated);
+        setGeneratedConceptLocale(artifact.payload.generatedLocale);
+        setActiveCreateAlternativeId(artifact.payload.activeAlternativeId);
+        setAreaContext(artifact.payload.areaContext);
+        setAreaContextStatus("idle");
+        setCreateAreaCleared(true);
+        setCreateReplacementStatus("idle");
+        setCreateReplacementRevision((revision) => revision + 1);
+      }
+    });
   }, [isSessionResolved, projectIdentity, sessionReady, setLocale]);
 
   useEffect(() => {
@@ -661,7 +728,7 @@ export function PointToObjectPrototypeV5() {
         setAreaContextRetryAfterSeconds(boundedRetryAfterSeconds(response.headers.get("retry-after")));
         return;
       }
-      if (!response.ok || !isAreaContextResult(payload)) {
+      if (!response.ok || !isPointObjectAreaContextResult(payload)) {
         setAreaContextStatus("error");
         return;
       }
@@ -683,6 +750,7 @@ export function PointToObjectPrototypeV5() {
   }, [areaContextStatus]);
 
   const handleSelection = useCallback((nextSelection: LiveMapSelection | null) => {
+    clearPointObjectProjectRestore();
     contextRequestId.current += 1;
     setSelection(nextSelection);
     setFindAnalysisTargetSourceFeatureId((current) => nextSelection?.object.sourceFeatureId === current ? current : null);
@@ -691,9 +759,21 @@ export function PointToObjectPrototypeV5() {
   }, []);
 
   const handleViewportChange = useCallback((nextSelection: LiveMapSelection) => writePointObjectSelection(nextSelection), []);
+  const handleVisibleBoundsChange = useCallback((bounds: PointObjectFindBounds) => {
+    const pending = pendingRestoredFindBoundsRef.current;
+    if (pending && isRestoredFindViewport(bounds, pending)) {
+      pendingRestoredFindBoundsRef.current = null;
+      setRestoredFindViewportBounds(bounds);
+    }
+    setVisibleBounds(bounds);
+  }, []);
 
   function changeMarket(nextMarket: LiveMapLocationKey) {
     if (nextMarket === locationKey) return;
+    clearPointObjectProjectRestore();
+    pendingRestoredFindBoundsRef.current = null;
+    setRestoredFindViewportBounds(null);
+    setFindSavedArtifactId(null);
     searchRequestRef.current?.abort();
     suggestionRequestRef.current?.abort();
     findRequestRef.current?.abort();
@@ -754,13 +834,14 @@ export function PointToObjectPrototypeV5() {
     markFindOutcomeStale();
   }
 
-  function saveFindArtifact(
+  async function saveFindArtifact(
     result: PointObjectFindResult,
     shortlist: PointObjectFindCandidate[],
     comparisonOpen: boolean,
-    intent: FindIntent = findResultIntent ?? { audience: findAudience, role: findRole, scenario: findScenario }
+    intent: FindIntent,
+    identityKey: PointObjectProjectIdentity,
+    destination: PointObjectProjectDestination
   ) {
-    if (!projectIdentity) return;
     const session: PointObjectFindSessionState & { result: PointObjectFindResult } = {
       version: 1,
       marketKey: result.criteria.marketKey,
@@ -777,30 +858,64 @@ export function PointToObjectPrototypeV5() {
       analysisTargetSourceFeatureId: null,
       updatedAt: new Date().toISOString()
     };
-    void savePointObjectOperation(projectIdentity, {
+    const saved = await savePointObjectOperation(identityKey, {
       kind: "find",
       locale: result.criteria.locale,
       marketKey: result.criteria.marketKey,
       label: `${locale === "ru" ? "Поиск" : "Find"} · ${result.candidates.length} ${locale === "ru" ? "объектов" : "places"}`,
       payload: { session }
-    });
+    }, undefined, destination);
+    if (projectIdentityRef.current === identityKey && (saved.status === "saved" || saved.status === "replayed")) {
+      setFindSavedArtifactId(saved.artifact.artifactId);
+      if (findShortlistRef.current.length || findComparisonOpenRef.current || findAnalysisTargetRef.current) {
+        void updatePointObjectFindViewState(identityKey, saved.artifact.artifactId, {
+          shortlist: findShortlistRef.current,
+          comparisonOpen: findComparisonOpenRef.current,
+          analysisTargetSourceFeatureId: findAnalysisTargetRef.current
+        });
+      }
+    }
   }
 
-  function saveCreateArtifact(concept: PointObjectGeneratedConcept, activeAlternativeId: "A" | "B") {
-    if (!projectIdentity || !createAoi) return;
-    void savePointObjectOperation(projectIdentity, {
+  async function saveCreateArtifact(
+    concept: PointObjectGeneratedConcept,
+    activeAlternativeId: "A" | "B",
+    context: CreateSaveContext | null
+  ) {
+    if (!context || projectIdentityRef.current !== context.identityKey) return;
+    const saved = await savePointObjectOperation(context.identityKey, {
       kind: "create",
-      locale,
-      marketKey: locationKey,
+      locale: context.locale,
+      marketKey: context.marketKey,
       label: concept.program.title,
       payload: {
-        aoi: createAoi,
-        editorSnapshot: createEditorSnapshot,
+        aoi: context.aoi,
+        editorSnapshot: context.editorSnapshot,
         generated: concept,
-        generatedLocale: locale,
+        generatedLocale: context.locale,
         activeAlternativeId,
-        areaContext
+        areaContext: context.areaContext
       }
+    }, undefined, context.destination);
+    if (projectIdentityRef.current === context.identityKey && (saved.status === "saved" || saved.status === "replayed")) {
+      setCreateSavedArtifactId(saved.artifact.artifactId);
+      if (activeCreateAlternativeRef.current !== activeAlternativeId) {
+        void updatePointObjectCreateViewState(context.identityKey, saved.artifact.artifactId, activeCreateAlternativeRef.current);
+      }
+    }
+  }
+
+  function updateFindSavedView(
+    shortlist: PointObjectFindCandidate[],
+    comparisonOpen: boolean,
+    analysisTargetSourceFeatureId = findAnalysisTargetSourceFeatureId
+  ) {
+    const identityKey = projectIdentityRef.current;
+    if (!identityKey || !findSavedArtifactId) return;
+    void updatePointObjectFindViewState(identityKey, findSavedArtifactId, {
+      shortlist,
+      comparisonOpen,
+      analysisTargetSourceFeatureId
     });
   }
 
@@ -811,26 +926,31 @@ export function PointToObjectPrototypeV5() {
     setFindShortlist(next);
     const nextComparisonOpen = next.length >= 2 && findComparisonOpen;
     if (next.length < 2) setFindComparisonOpen(false);
-    if (findResult && !findResultIsStale) saveFindArtifact(findResult, next, nextComparisonOpen);
+    if (findResult && !findResultIsStale) updateFindSavedView(next, nextComparisonOpen);
   }
 
   function clearFindShortlist() {
     setFindShortlist([]);
     setFindComparisonOpen(false);
-    if (findResult && !findResultIsStale) saveFindArtifact(findResult, [], false);
+    if (findResult && !findResultIsStale) updateFindSavedView([], false, null);
   }
 
   function setFindComparison(open: boolean) {
     setFindComparisonOpen(open);
-    if (findResult && !findResultIsStale) saveFindArtifact(findResult, findShortlist, open);
+    if (findResult && !findResultIsStale) updateFindSavedView(findShortlist, open);
   }
 
   async function findInView() {
     if (!visibleBounds || findStatus === "loading" || findCapability.status === "unsupported") return;
+    clearPointObjectProjectRestore();
+    pendingRestoredFindBoundsRef.current = null;
+    setRestoredFindViewportBounds(null);
     findRequestRef.current?.abort();
     const controller = new AbortController();
     const requestId = findRequestIdRef.current + 1;
     const requestIntent = { audience: findAudience, role: findRole, scenario: findScenario };
+    const initiatingIdentity = projectIdentityRef.current;
+    const destination = initiatingIdentity ? capturePointObjectProjectDestination(initiatingIdentity, { label: locale === "ru" ? "Поиск объектов" : "Find places" }) : null;
     findRequestIdRef.current = requestId;
     findRequestRef.current = controller;
     setFindStatus("loading");
@@ -852,7 +972,9 @@ export function PointToObjectPrototypeV5() {
         setFindComparisonOpen(false);
         setFindAnalysisTargetSourceFeatureId(null);
         setFindStatus("idle");
-        saveFindArtifact(payload, [], false, requestIntent);
+        if (initiatingIdentity && destination && projectIdentityRef.current === initiatingIdentity) {
+          await saveFindArtifact(payload, [], false, requestIntent, initiatingIdentity, destination);
+        }
       } else if (response.status === 400) {
         setFindStatus("zoom");
       } else if (response.status === 429) {
@@ -876,6 +998,7 @@ export function PointToObjectPrototypeV5() {
     }
     setMode("analyse");
     setFindAnalysisTargetSourceFeatureId(expectedSourceFeatureId);
+    updateFindSavedView(findShortlist, findComparisonOpen, expectedSourceFeatureId);
     setNavigationTarget({
       requestId: `find:${candidate.sourceFeatureId}:${Date.now()}`,
       longitude: candidate.longitude,
@@ -888,11 +1011,14 @@ export function PointToObjectPrototypeV5() {
   }
 
   function changeMode(nextMode: ProductMode) {
+    clearPointObjectProjectRestore();
     setMode(nextMode);
     if (nextMode === "find") {
       setViewModeRequest({ requestId: `find-2d:${Date.now()}`, mode: "2d" });
     }
     if (nextMode !== "create") {
+      createSaveContextRef.current = null;
+      setCreateSavedArtifactId(null);
       setIsDrawing(false);
       setDraftCoordinates([]);
       setCreateAoi(null);
@@ -918,6 +1044,7 @@ export function PointToObjectPrototypeV5() {
   }
 
   function closeCreateArea(vertices = draftCoordinates, fitUploadedArea = false) {
+    clearPointObjectProjectRestore();
     const validation = validatePointObjectCreateAoiVertices(vertices);
     if (validation.ok === false) {
       if (validation.code === "too_small") setCreateError(t("create.tooSmall"));
@@ -940,6 +1067,8 @@ export function PointToObjectPrototypeV5() {
       bounds: createAoiBounds(vertices)
     } : null);
     setCreateEditorSnapshot(null);
+    createSaveContextRef.current = null;
+    setCreateSavedArtifactId(null);
     setDraftCoordinates(vertices);
     setIsDrawing(false);
     setGeneratedConcept(null);
@@ -970,6 +1099,9 @@ export function PointToObjectPrototypeV5() {
   }
 
   function resetCreate() {
+    clearPointObjectProjectRestore();
+    createSaveContextRef.current = null;
+    setCreateSavedArtifactId(null);
     setIsDrawing(false);
     setDraftCoordinates([]);
     setCreateAoi(null);
@@ -1140,7 +1272,7 @@ export function PointToObjectPrototypeV5() {
       <PointObjectHeader />
       <div className="grid h-[calc(100svh-64px)] min-h-0 grid-rows-[clamp(108px,32svh,360px)_minmax(0,1fr)] bg-white sm:max-lg:landscape:grid-cols-[minmax(0,1fr)_minmax(340px,48%)] sm:max-lg:landscape:grid-rows-1 lg:grid-cols-[minmax(0,1fr)_430px] lg:grid-rows-1">
         <section className="relative h-full min-h-0 overflow-hidden border-b border-line sm:max-lg:landscape:border-b-0 lg:border-b-0" aria-label={t("map.region")}>
-          {sessionReady ? <LiveObjectMap {...createReplacementMapProps} locationKey={locationKey} interactionMode={mode} selection={mode === "analyse" ? selection : null} navigationTarget={navigationTarget} viewModeRequest={viewModeRequest} onSelection={handleSelection} onViewportChange={handleViewportChange} onVisibleBoundsChange={setVisibleBounds} createDrawing={mode === "create" && isDrawing} createDraftCoordinates={mode === "create" ? draftCoordinates : []} createAoi={mode === "create" ? createAoi : null} createAoiFitRequest={mode === "create" ? createAoiFitRequest : null} createAreaCleared={mode === "create" && createAreaCleared} conceptMassing={mode === "create" ? activeConceptMassing : null} onCreateVertex={addCreateVertex} onReplacementStatus={setCreateReplacementStatus} className="h-full min-h-0" /> : <div className="grid h-full min-h-0 place-items-center bg-[#f4f6f7] text-sm font-medium text-[#52606a]" role="status">{t("map.loading")}</div>}
+          {sessionReady ? <LiveObjectMap {...createReplacementMapProps} locationKey={locationKey} interactionMode={mode} selection={mode === "analyse" ? selection : null} navigationTarget={navigationTarget} viewModeRequest={viewModeRequest} onSelection={mode === "analyse" ? handleSelection : ignoreMapSelection} onViewportChange={handleViewportChange} onVisibleBoundsChange={handleVisibleBoundsChange} createDrawing={mode === "create" && isDrawing} createDraftCoordinates={mode === "create" ? draftCoordinates : []} createAoi={mode === "create" ? createAoi : null} createAoiFitRequest={mode === "create" ? createAoiFitRequest : null} createAreaCleared={mode === "create" && createAreaCleared} conceptMassing={mode === "create" ? activeConceptMassing : null} onCreateVertex={addCreateVertex} onReplacementStatus={setCreateReplacementStatus} className="h-full min-h-0" /> : <div className="grid h-full min-h-0 place-items-center bg-[#f4f6f7] text-sm font-medium text-[#52606a]" role="status">{t("map.loading")}</div>}
           <div className="absolute left-4 top-4 z-10 flex w-[min(650px,calc(100%-5rem))] flex-col gap-2 sm:left-5 sm:top-5 sm:flex-row">
             <label className="flex h-11 w-fit shrink-0 items-center rounded-xl border border-white/70 bg-white/95 px-3 shadow-[0_10px_30px_rgba(20,35,45,0.14)] backdrop-blur">
               <span className="sr-only">{t("city.label")}</span>
@@ -1260,7 +1392,7 @@ export function PointToObjectPrototypeV5() {
                   {areaContextStatus === "error" ? <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-[#e6bd74] bg-[#fff9ed] p-3 text-xs text-[#79520d]" role="alert"><span>{locale === "ru" ? "Контекст зоны временно недоступен." : "Area context is temporarily unavailable."}</span><button type="button" onClick={() => setAreaContextRetryVersion((value) => value + 1)} className="min-h-8 rounded-lg border border-[#d6b36e] bg-white px-2 font-bold">{t("selection.retry")}</button></div> : null}
                   {areaContext ? <><div className="mt-3 grid grid-cols-3 gap-2"><div className="rounded-lg bg-white p-2"><span className="block text-[10px] text-muted">{locale === "ru" ? "Объекты на карте" : "Mapped objects"}</span><strong className="mt-1 block text-sm">{areaContext.summary.sampleSize}</strong></div><div className="rounded-lg bg-white p-2"><span className="block text-[10px] text-muted">{locale === "ru" ? "Здания на карте" : "Mapped buildings"}</span><strong className="mt-1 block text-sm">{areaContext.summary.mappedBuildingCount}</strong></div><div className="rounded-lg bg-white p-2"><span className="block text-[10px] text-muted">{locale === "ru" ? "Медиана этажей" : "Median levels"}</span><strong className="mt-1 block text-sm">{areaContext.summary.medianMappedLevels ?? "—"}</strong></div></div><div className="mt-3 flex flex-wrap gap-1.5">{areaContext.summary.groups.slice(0, 5).map((group) => <span key={group.group} className="rounded-full bg-white px-2.5 py-1 text-[10px] font-semibold text-[#475467] ring-1 ring-inset ring-[#d7dee4]">{areaGroupLabels[group.group]} · {group.count}</span>)}</div>{areaContext.coverage.capReached ? <p className="mt-3 text-[10px] font-semibold leading-4 text-[#79520d]">{locale === "ru" ? "Нарисуйте меньшую зону, чтобы сузить список объектов на карте." : "Draw a smaller area to narrow the mapped objects."}</p> : null}</> : null}
                 </section>
-                <PointObjectCreatePanel locale={locale} marketKey={locationKey} aoi={createAoi} depth="standard" generated={generatedConcept} generatedLocale={generatedConceptLocale} editorSnapshot={createEditorSnapshot} onEditorSnapshotChange={setCreateEditorSnapshot} activeAlternativeId={activeCreateAlternativeId} onGenerated={(concept) => { setGeneratedConcept(concept); setGeneratedConceptLocale(locale); setActiveCreateAlternativeId("A"); setCreateReplacementStatus("idle"); setCreateAreaCleared(true); setCreateReplacementRevision((revision) => revision + 1); saveCreateArtifact(concept, "A"); }} onAlternativeChange={(id) => { setActiveCreateAlternativeId(id); setCreateReplacementStatus("idle"); setCreateAreaCleared(true); setCreateReplacementRevision((revision) => revision + 1); if (generatedConcept) saveCreateArtifact(generatedConcept, id); }} onReset={() => { setGeneratedConcept(null); setGeneratedConceptLocale(null); setActiveCreateAlternativeId("A"); setCreateAreaCleared(false); setCreateReplacementStatus("idle"); setCreateReplacementRevision(0); }} />
+                <PointObjectCreatePanel locale={locale} marketKey={locationKey} aoi={createAoi} depth="standard" generated={generatedConcept} generatedLocale={generatedConceptLocale} editorSnapshot={createEditorSnapshot} onEditorSnapshotChange={setCreateEditorSnapshot} activeAlternativeId={activeCreateAlternativeId} onGenerationStart={() => { clearPointObjectProjectRestore(); setCreateSavedArtifactId(null); const identityKey = projectIdentityRef.current; createSaveContextRef.current = identityKey ? { identityKey, destination: capturePointObjectProjectDestination(identityKey, { label: locale === "ru" ? "Созданная концепция" : "Generated concept" }), aoi: structuredClone(createAoi), editorSnapshot: structuredClone(createEditorSnapshot), locale, marketKey: locationKey, areaContext: structuredClone(areaContext) } : null; }} onGenerated={(concept) => { const saveContext = createSaveContextRef.current; setGeneratedConcept(concept); setGeneratedConceptLocale(locale); setActiveCreateAlternativeId("A"); setCreateReplacementStatus("idle"); setCreateAreaCleared(true); setCreateReplacementRevision((revision) => revision + 1); void saveCreateArtifact(concept, "A", saveContext); }} onAlternativeChange={(id) => { setActiveCreateAlternativeId(id); setCreateReplacementStatus("idle"); setCreateAreaCleared(true); setCreateReplacementRevision((revision) => revision + 1); const identityKey = projectIdentityRef.current; if (identityKey && createSavedArtifactId) void updatePointObjectCreateViewState(identityKey, createSavedArtifactId, id); }} onReset={() => { clearPointObjectProjectRestore(); createSaveContextRef.current = null; setCreateSavedArtifactId(null); setGeneratedConcept(null); setGeneratedConceptLocale(null); setActiveCreateAlternativeId("A"); setCreateAreaCleared(false); setCreateReplacementStatus("idle"); setCreateReplacementRevision(0); }} />
                 {createAreaCleared && createReplacementStatus !== "applied" ? (
                   <p className={`rounded-xl border px-3 py-2 text-[10px] leading-4 ${createReplacementStatus === "error" ? "border-[#e6bd74] bg-[#fff9ed] text-[#79520d]" : "border-[#d8e2df] bg-[#f8faf9] text-[#62716d]"}`} role="status">
                     {createReplacementStatus === "zoom-required"

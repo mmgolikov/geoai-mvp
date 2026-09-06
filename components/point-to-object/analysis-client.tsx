@@ -26,7 +26,15 @@ import type {
   PointObjectAnalysisPerspective
 } from "@/components/point-to-object/live-types";
 import type { ExploreRole, ExploreScenarioId } from "@/src/lib/explore/types";
-import { pointObjectProjectIdentity, reconcilePointObjectBrowserIdentity, savePointObjectOperation, type PointObjectProjectIdentity } from "@/src/lib/prototype/point-object-projects";
+import {
+  capturePointObjectProjectDestination,
+  consumePointObjectAnalysisRestore,
+  pointObjectProjectIdentity,
+  reconcilePointObjectBrowserIdentity,
+  savePointObjectOperation,
+  type PointObjectProjectDestination,
+  type PointObjectProjectIdentity
+} from "@/src/lib/prototype/point-object-projects";
 import { readPointObjectFindSession } from "@/src/lib/prototype/point-to-object-find-session";
 
 type AnalysisSettings = {
@@ -135,7 +143,7 @@ function evidenceClassStyle(value: "observed" | "derived" | "hypothesis"): strin
 }
 
 export function PointToObjectAnalysis() {
-  const { locale, t } = usePointObjectLocale();
+  const { locale, setLocale, t } = usePointObjectLocale();
   const { user, isSessionResolved } = useAuth();
   const [selection, setSelection] = useState<LiveMapSelection | null>(null);
   const [analysis, setAnalysis] = useState<PointObjectAiResponse | null>(null);
@@ -154,6 +162,7 @@ export function PointToObjectAnalysis() {
   const localeRef = useRef(locale);
   const translationRef = useRef(t);
   const localeRefreshAttemptRef = useRef<string | null>(null);
+  const skipSavedLocaleRefreshRef = useRef(false);
   const projectIdentityRef = useRef<PointObjectProjectIdentity | null>(pointObjectProjectIdentity(user));
   localeRef.current = locale;
   translationRef.current = t;
@@ -175,23 +184,30 @@ export function PointToObjectAnalysis() {
     { value: "deep", label: t("analysis.deep"), description: t("analysis.deepHelp") }
   ];
 
-  const commitAnalysis = useCallback((nextAnalysis: PointObjectAiResponse, activeSelection: LiveMapSelection) => {
+  const commitAnalysis = useCallback((
+    nextAnalysis: PointObjectAiResponse,
+    activeSelection: LiveMapSelection,
+    saveContext: { identityKey: PointObjectProjectIdentity; destination: PointObjectProjectDestination } | null = null
+  ) => {
     analysisRef.current = nextAnalysis;
     setAnalysis(nextAnalysis);
     writePointObjectAnalysis(nextAnalysis, activeSelection);
-    const identityKey = projectIdentityRef.current;
-    if (identityKey && nextAnalysis.mode === "openai") {
-      void savePointObjectOperation(identityKey, {
+    if (saveContext && projectIdentityRef.current === saveContext.identityKey && nextAnalysis.mode === "openai") {
+      void savePointObjectOperation(saveContext.identityKey, {
         kind: "analyse",
         locale: nextAnalysis.request.locale,
         marketKey: activeSelection.locationKey,
         label: nextAnalysis.subject.name ?? activeSelection.object.name ?? (nextAnalysis.request.locale === "ru" ? "Анализ выбранного объекта" : "Selected object analysis"),
         payload: { selection: activeSelection, analysis: nextAnalysis }
-      });
+      }, undefined, saveContext.destination);
     }
   }, []);
 
   const requestAnalysis = useCallback(async (activeSelection: LiveMapSelection, activeQuestion: string, settings: AnalysisSettings) => {
+    const initiatingIdentity = projectIdentityRef.current;
+    const destination = initiatingIdentity ? capturePointObjectProjectDestination(initiatingIdentity, {
+      label: activeSelection.resolvedObject?.name ?? activeSelection.object.name ?? "Selected object analysis"
+    }) : null;
     activeRequestRef.current?.abort();
     const requestId = requestSequenceRef.current + 1;
     requestSequenceRef.current = requestId;
@@ -251,7 +267,9 @@ export function PointToObjectAnalysis() {
         retryable: payload.retryable ?? response.status >= 500
       };
       if (normalized.mode === "openai") {
-        commitAnalysis(normalized, activeSelection);
+        commitAnalysis(normalized, activeSelection, initiatingIdentity && destination && projectIdentityRef.current === initiatingIdentity
+          ? { identityKey: initiatingIdentity, destination }
+          : null);
         setQuestion("");
         writePointObjectQuestion("");
         setAnnouncement(preserveExisting ? translationRef.current("analysis.updated") : translationRef.current("analysis.complete"));
@@ -284,6 +302,12 @@ export function PointToObjectAnalysis() {
       setSelection(restoredSelection);
       setQuestion(restoredQuestion);
       if (restoredAnalysis?.mode === "openai") {
+        const identityKey = projectIdentityRef.current;
+        const restoreReceipt = identityKey ? consumePointObjectAnalysisRestore(identityKey) : null;
+        if (restoreReceipt && restoreReceipt.locale === restoredAnalysis.request.locale) {
+          skipSavedLocaleRefreshRef.current = true;
+          if (localeRef.current !== restoreReceipt.locale) setLocale(restoreReceipt.locale);
+        }
         analysisRef.current = restoredAnalysis;
         setAnalysis(restoredAnalysis);
         setDepth(restoredAnalysis.request.depth);
@@ -315,13 +339,18 @@ export function PointToObjectAnalysis() {
       activeRequestRef.current?.abort();
       activeRequestRef.current = null;
     };
-  }, [requestAnalysis]);
+  }, [requestAnalysis, setLocale]);
 
   useEffect(() => {
     if (!selection || analysis?.mode !== "openai" || loading) return;
     if (analysis.schemaVersion !== POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION) return;
     if (analysis.request.locale === locale) {
+      skipSavedLocaleRefreshRef.current = false;
       localeRefreshAttemptRef.current = null;
+      return;
+    }
+    if (skipSavedLocaleRefreshRef.current) {
+      skipSavedLocaleRefreshRef.current = false;
       return;
     }
     const refreshKey = `${selection.clickedAt}:${locale}`;
