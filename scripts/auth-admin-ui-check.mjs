@@ -4,7 +4,7 @@ async function source(path) {
   return fs.promises.readFile(new URL(`../${path}`, import.meta.url), "utf8");
 }
 
-const [adminRoute, onboardingRoute, onboardingStageRoute, invitationCookie, tokenHelper, elevated, adminUi, onboardingUi, callback, redirectPath, landing, navigation, accessBadge, accessBadgeVisual, login, provider, routeGate, workspacePage, projectsPage, explorePage, profilePage] = await Promise.all([
+const [adminRoute, onboardingRoute, onboardingStageRoute, invitationCookie, tokenHelper, elevated, adminUi, onboardingUi, callback, redirectPath, landingRoute, landing, navigation, accessBadge, accessBadgeVisual, login, provider, routeGate, workspacePage, projectsPage, explorePage, profilePage] = await Promise.all([
   source("app/api/admin/route.ts"),
   source("app/api/onboarding/invitation/route.ts"),
   source("app/api/onboarding/invitation/stage/route.ts"),
@@ -16,6 +16,7 @@ const [adminRoute, onboardingRoute, onboardingStageRoute, invitationCookie, toke
   source("app/auth/callback/route.ts"),
   source("src/lib/auth/redirect-path.ts"),
   source("app/page.tsx"),
+  source("components/landing/geoai-landing-page.tsx"),
   source("components/top-navigation.tsx"),
   source("components/auth/access-status-badge.tsx"),
   source("components/auth/access-status-badge-visual.tsx"),
@@ -60,9 +61,10 @@ assert(onboardingRoute.includes("onboardingInvitationCookieName") && onboardingR
 assert(callback.includes("exchangeCodeForSession") && redirectPath.includes("approvedAuthDestinations"), "PKCE callback must use a bounded same-origin redirect allowlist");
 assert(!callback.includes(".mfa") && !adminUi.includes("MFA") && !onboardingUi.includes("MFA"), "Current user flows must not expose or require MFA");
 assert(!onboardingUi.includes('type="password"') && !onboardingUi.includes("One-time invitation token"), "Onboarding must not ask users to paste technical invitation tokens");
-assert(landing.includes('href="/login?next=/workspace&intent=demo"') && landing.includes("View demo"), "Landing demo CTA must enter the bounded auth flow before Workspace");
-assert(landing.includes('href="/request-access"') && landing.includes("Prepare request brief"), "Landing must expose the separate public request-brief CTA");
-assert(!landing.includes('href="/workspace"') && !landing.includes('href="/projects"'), "Landing must not bypass the requested authentication funnel");
+assert(landingRoute.includes('import { GeoAILandingPage } from "@/components/landing/geoai-landing-page";') && landingRoute.includes("<GeoAILandingPage />"), "The root route must render the accepted bilingual landing component");
+assert(landing.includes('const mapHref = "/prototype/point-to-object";') && landing.includes("href={mapHref}"), "Landing must enter the accepted public Point-to-Object product route");
+assert(landing.includes('const projectsHref = "/projects?view=spatial";') && landing.includes("href={projectsHref}"), "Landing must expose the accepted device-local spatial Projects route");
+assert(landing.includes('href="/profile"'), "Landing profile links must continue through the separately gated Profile route");
 assert(login.includes("Sign in to GeoAI") && login.includes("sign-in only") && login.includes("separate approved invitation") && !login.includes("Sign in or create account") && login.includes("window.location.replace(getDestination())") && login.includes("Authorization saved. Opening Workspace"), "Existing-user-only login must not advertise public signup and must immediately continue a saved session to Workspace");
 assert(navigation.includes("AccessStatusBadge") && accessBadgeVisual.includes('data-authenticated={isAuthenticated ? "true" : "false"}') && accessBadge.includes('isAuthenticated ? "/profile" : "/login"'), "Product navigation must expose a highlighted profile icon that opens the personal account");
 assert(provider.includes("isSessionResolved") && provider.includes("finally") && provider.includes("setIsSessionResolved(true)"), "AuthProvider must resolve the browser session before protected product UI renders");

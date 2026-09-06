@@ -8,8 +8,10 @@ async function read(relativePath) {
   return fs.readFile(path.join(root, relativePath), "utf8");
 }
 
-const [landing, panel, css, correctionCss, layout, packageJson] = await Promise.all([
+const [landingRoute, landing, landingContent, panel, css, correctionCss, layout, packageJson] = await Promise.all([
   read("app/page.tsx"),
+  read("components/landing/geoai-landing-page.tsx"),
+  read("components/landing/content.ts"),
   read("components/analysis-panel.tsx"),
   read("app/runtime-design-recovery.css"),
   read("app/founder-ux-runtime-correction.css"),
@@ -26,6 +28,11 @@ function requireCondition(condition, message) {
 }
 
 requireCondition(
+  landingRoute.includes('import { GeoAILandingPage } from "@/components/landing/geoai-landing-page";') &&
+    landingRoute.includes("<GeoAILandingPage />"),
+  "The root route must render the accepted bilingual landing component."
+);
+requireCondition(
   landing.includes('import { IdentitySymbol } from "@/components/design-system/identity-symbol";') &&
     !landing.includes("function BrandMark") &&
     !landing.includes("LandingHeroMap"),
@@ -33,20 +40,25 @@ requireCondition(
 );
 
 for (const asset of [
-  "public/design/landing-geoai-cockpit-desktop-v18.png",
-  "public/design/landing-geoai-cockpit-tablet-v18.png",
-  "public/design/landing-geoai-cockpit-mobile-v18.png"
+  "public/landing/geoai-map-workspace-preview.png",
+  "public/landing/geoai-map-workspace-preview-ru.png"
 ]) {
   const stat = await fs.stat(path.join(root, asset));
-  requireCondition(stat.size > 150000, `${asset} must be a repository-owned Figma cockpit export.`);
+  requireCondition(stat.size > 100000, `${asset} must be a repository-owned accepted landing preview.`);
 }
 
 requireCondition(
-  landing.includes('data-figma-node="1495:53"') &&
-    landing.includes("/design/landing-geoai-cockpit-desktop-v18.png") &&
-    landing.includes("/design/landing-geoai-cockpit-tablet-v18.png") &&
-    landing.includes("/design/landing-geoai-cockpit-mobile-v18.png"),
-  "Landing cockpit must trace to Figma node 1495:53 and use responsive approved exports."
+  landing.includes('const mapHref = "/prototype/point-to-object";') &&
+    landing.includes("href={mapHref}") &&
+    landing.includes('const projectsHref = "/projects?view=spatial";') &&
+    landing.includes("href={projectsHref}"),
+  "Landing must enter the accepted public Point-to-Object route and device-local spatial Projects route."
+);
+requireCondition(
+  landingContent.includes("export const landingContent") &&
+    landingContent.includes("  en: {") &&
+    landingContent.includes("  ru: {"),
+  "Landing content must preserve explicit English and Russian variants."
 );
 requireCondition(
   !landing.includes("Validation gap · official confirmation required"),
@@ -89,11 +101,14 @@ requireCondition(
 const evidence = {
   schemaVersion: "1.1",
   status: failures.length === 0 ? "pass" : "fail",
+  landingContract: {
+    route: "app/page.tsx",
+    component: "components/landing/geoai-landing-page.tsx",
+    content: "components/landing/content.ts",
+    productEntry: "/prototype/point-to-object",
+    localProjectsEntry: "/projects?view=spatial"
+  },
   figmaAuthorities: {
-    landing: "1495:23",
-    desktopCockpit: "1495:53",
-    tabletCockpit: "1495:725",
-    mobileCockpit: "1495:1144",
     criteriaDesktop: "1540:499",
     criteriaMobile: "1540:964"
   },
