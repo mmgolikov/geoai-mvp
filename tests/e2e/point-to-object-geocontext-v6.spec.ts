@@ -575,7 +575,7 @@ test("a persisted legacy V5 result restores and survives EN/RU locale changes wi
     }
   }, { selected: selection, analysis: legacy, fingerprint: selectionFingerprint() });
 
-  await page.goto("/prototype/point-to-object/analysis");
+  await signInDemo(page, "/prototype/point-to-object/analysis");
   await expect(page.getByTestId("ai-success")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Stored V5 screening result" })).toBeVisible();
   await expect(page.getByText("This exact historical result is restored from the browser session.")).toBeVisible();
