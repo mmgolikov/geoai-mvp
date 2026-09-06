@@ -1,16 +1,39 @@
 "use client";
 
 import Link from "next/link";
+import dynamic from "next/dynamic";
 
 import { AccessStatusBadgeVisual } from "@/components/auth/access-status-badge-visual";
 import { useAuth } from "@/components/auth/auth-provider";
 import { IdentitySymbol } from "@/components/design-system/identity-symbol";
 import { usePointObjectLocale } from "@/components/point-to-object/locale-provider";
-import { PointObjectProjectControl } from "@/components/point-to-object/project-control";
+
+const PointObjectProjectControl = dynamic(
+  () => import("@/components/point-to-object/project-control").then((module) => module.PointObjectProjectControl),
+  { ssr: false, loading: PointObjectProjectControlFallback }
+);
 
 export type PointObjectHeaderProps = {
   backToMap?: boolean;
 };
+
+function PointObjectProjectControlFallback() {
+  const { locale } = usePointObjectLocale();
+  const label = locale === "ru" ? "Проекты" : "Projects";
+  return (
+    <div className="flex min-w-0 items-center gap-1.5" data-testid="point-object-project-control-loading">
+      <Link
+        href="/projects?view=spatial"
+        aria-label={label}
+        title={label}
+        className="inline-flex h-11 items-center justify-center rounded-lg border border-line bg-white px-2 text-[11px] font-bold text-[#345c54] hover:border-[#087f8c] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] sm:px-3"
+      >
+        <span aria-hidden="true" className="sm:hidden">P</span>
+        <span className="hidden sm:inline">{label}</span>
+      </Link>
+    </div>
+  );
+}
 
 export function PointObjectHeader({ backToMap = false }: PointObjectHeaderProps) {
   const { locale, setLocale, t } = usePointObjectLocale();
