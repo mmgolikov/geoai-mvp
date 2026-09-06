@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 
 import { NextResponse } from "next/server";
 
-import { getPointObjectPreviewSurfaceStatus } from "@/src/lib/ai/openai-upstream-gate";
+import { getPointObjectSurfaceStatus } from "@/src/lib/ai/openai-upstream-gate";
 import { readBoundedJson } from "@/src/lib/http/bounded-json";
 import {
   parsePointObjectAutocompleteRequest,
@@ -19,8 +19,8 @@ const GLOBAL_RATE_MAX_REQUESTS = 240;
 type RateBucket = { startedAt: number; count: number };
 const rateBuckets = new Map<string, RateBucket>();
 
-function previewRuntimeAllowed(): boolean {
-  return getPointObjectPreviewSurfaceStatus().enabled;
+function runtimeAllowed(): boolean {
+  return getPointObjectSurfaceStatus().enabled;
 }
 
 function noStoreHeaders(extra: Record<string, string> = {}): Record<string, string> {
@@ -75,7 +75,7 @@ function consumeRateLimit(request: Request): { allowed: true } | { allowed: fals
 }
 
 export async function POST(request: Request) {
-  if (!previewRuntimeAllowed()) {
+  if (!runtimeAllowed()) {
     return NextResponse.json({ mode: "unavailable", code: "AUTOCOMPLETE_DISABLED", error: "Place suggestions are not available in this environment." }, {
       status: 403,
       headers: noStoreHeaders()

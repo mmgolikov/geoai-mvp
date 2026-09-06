@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 
 import { NextResponse } from "next/server";
 
-import { getPointObjectPreviewSurfaceStatus } from "@/src/lib/ai/openai-upstream-gate";
+import { getPointObjectSurfaceStatus } from "@/src/lib/ai/openai-upstream-gate";
 import { readBoundedJson } from "@/src/lib/http/bounded-json";
 import {
   isPointObjectLocale,
@@ -28,8 +28,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function previewRuntimeAllowed(): boolean {
-  return getPointObjectPreviewSurfaceStatus().enabled;
+function runtimeAllowed(): boolean {
+  return getPointObjectSurfaceStatus().enabled;
 }
 
 function noStoreHeaders(extra: Record<string, string> = {}): Record<string, string> {
@@ -88,7 +88,7 @@ function validBody(value: unknown): value is {
 }
 
 export async function POST(request: Request) {
-  if (!previewRuntimeAllowed()) {
+  if (!runtimeAllowed()) {
     return NextResponse.json({ mode: "unavailable", error: "Address search is not available in this environment." }, {
       status: 403, headers: noStoreHeaders()
     });

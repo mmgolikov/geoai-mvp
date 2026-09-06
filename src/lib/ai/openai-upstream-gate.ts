@@ -72,20 +72,3 @@ export function getPointObjectSurfaceStatus() {
       : "Read-only point-to-object sources are disabled outside an explicitly allowed runtime surface."
   };
 }
-
-/**
- * Compatibility gate for the read-only source routes. Those routes remain
- * Preview-only until their independent Production surface authorization lands.
- */
-export function getPointObjectPreviewSurfaceStatus() {
-  const surface = getPointObjectSurfaceStatus();
-  const enabled = surface.environment === "preview" && surface.enabled;
-
-  return {
-    enabled,
-    mode: enabled ? "preview_surface_enabled" as const : "preview_surface_disabled" as const,
-    caveat: enabled
-      ? "Read-only point-to-object Preview sources are enabled by the isolated Preview operator flag."
-      : "Read-only point-to-object sources are disabled outside the explicitly enabled Preview surface."
-  };
-}

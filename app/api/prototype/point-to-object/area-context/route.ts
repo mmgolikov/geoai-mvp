@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 
 import { NextResponse } from "next/server";
 
-import { getPointObjectPreviewSurfaceStatus } from "@/src/lib/ai/openai-upstream-gate";
+import { getPointObjectSurfaceStatus } from "@/src/lib/ai/openai-upstream-gate";
 import { readBoundedJson } from "@/src/lib/http/bounded-json";
 import { resolvePointObjectAreaContext, PointObjectAreaContextError } from "@/src/lib/prototype/point-to-object-area-context";
 import { parsePointObjectAreaContextRequest } from "@/src/lib/prototype/point-to-object-area-context-contract";
@@ -18,8 +18,8 @@ function noStoreHeaders(extra: Record<string, string> = {}): Record<string, stri
   return { "Cache-Control": "private, no-store, max-age=0", Vary: "Cookie", ...extra };
 }
 
-function previewRuntimeAllowed(): boolean {
-  return getPointObjectPreviewSurfaceStatus().enabled;
+function runtimeAllowed(): boolean {
+  return getPointObjectSurfaceStatus().enabled;
 }
 
 function sameOrigin(request: Request): boolean {
@@ -51,7 +51,7 @@ function consumeRateLimit(request: Request): { allowed: true } | { allowed: fals
 }
 
 export async function POST(request: Request) {
-  if (!previewRuntimeAllowed()) {
+  if (!runtimeAllowed()) {
     return NextResponse.json({ mode: "unavailable", error: "Open-map area context is not available in this environment." }, { status: 403, headers: noStoreHeaders() });
   }
   if (!sameOrigin(request)) {

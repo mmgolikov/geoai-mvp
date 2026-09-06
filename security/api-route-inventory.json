@@ -1879,10 +1879,10 @@
     "/api/prototype/point-to-object/area-context": {
       "route": "/api/prototype/point-to-object/area-context",
       "sourcePath": "app/api/prototype/point-to-object/area-context/route.ts",
-      "classification": "protected_preview_bounded",
+      "classification": "public_bounded_runtime",
       "methods": {
         "POST": {
-          "access": "protected_preview",
+          "access": "public_bounded_runtime",
           "cachePolicy": {
             "required": "no_store_required",
             "declaredDirectives": [
@@ -1901,14 +1901,13 @@
           },
           "negativeStatusMatrix": [
             400,
-            401,
             403,
             405,
             413,
             429,
             503
           ],
-          "diagnosticExposure": "authenticated_preview_only_minimized_evidence_no_secret_or_provider_detail"
+          "diagnosticExposure": "public_explicitly_enabled_bounded_runtime_no_secret_or_provider_detail"
         }
       }
     },
@@ -1945,10 +1944,10 @@
     "/api/prototype/point-to-object/context": {
       "route": "/api/prototype/point-to-object/context",
       "sourcePath": "app/api/prototype/point-to-object/context/route.ts",
-      "classification": "protected_preview_bounded",
+      "classification": "public_bounded_runtime",
       "methods": {
         "POST": {
-          "access": "protected_preview",
+          "access": "public_bounded_runtime",
           "cachePolicy": {
             "required": "no_store_required",
             "declaredDirectives": [
@@ -1967,14 +1966,13 @@
           },
           "negativeStatusMatrix": [
             400,
-            401,
             403,
             405,
             413,
             429,
             503
           ],
-          "diagnosticExposure": "authenticated_preview_only_minimized_evidence_no_secret_or_provider_detail"
+          "diagnosticExposure": "public_explicitly_enabled_bounded_runtime_no_secret_or_provider_detail"
         }
       }
     },
@@ -2042,10 +2040,10 @@
     "/api/prototype/point-to-object/find": {
       "route": "/api/prototype/point-to-object/find",
       "sourcePath": "app/api/prototype/point-to-object/find/route.ts",
-      "classification": "protected_preview_bounded",
+      "classification": "public_bounded_runtime",
       "methods": {
         "POST": {
-          "access": "protected_preview",
+          "access": "public_bounded_runtime",
           "cachePolicy": {
             "required": "no_store_required",
             "declaredDirectives": [
@@ -2064,14 +2062,13 @@
           },
           "negativeStatusMatrix": [
             400,
-            401,
             403,
             405,
             413,
             429,
             503
           ],
-          "diagnosticExposure": "authenticated_preview_only_minimized_evidence_no_secret_or_provider_detail"
+          "diagnosticExposure": "public_explicitly_enabled_bounded_runtime_no_secret_or_provider_detail"
         }
       }
     },
@@ -2110,10 +2107,10 @@
     "/api/prototype/point-to-object/search": {
       "route": "/api/prototype/point-to-object/search",
       "sourcePath": "app/api/prototype/point-to-object/search/route.ts",
-      "classification": "protected_preview_bounded",
+      "classification": "public_bounded_runtime",
       "methods": {
         "POST": {
-          "access": "protected_preview",
+          "access": "public_bounded_runtime",
           "cachePolicy": {
             "required": "no_store_required",
             "declaredDirectives": [
@@ -2132,24 +2129,23 @@
           },
           "negativeStatusMatrix": [
             400,
-            401,
             403,
             405,
             413,
             429,
             503
           ],
-          "diagnosticExposure": "authenticated_preview_only_minimized_evidence_no_secret_or_provider_detail"
+          "diagnosticExposure": "public_explicitly_enabled_bounded_runtime_no_secret_or_provider_detail"
         }
       }
     },
     "/api/prototype/point-to-object/suggest": {
       "route": "/api/prototype/point-to-object/suggest",
       "sourcePath": "app/api/prototype/point-to-object/suggest/route.ts",
-      "classification": "protected_preview_bounded",
+      "classification": "public_bounded_runtime",
       "methods": {
         "POST": {
-          "access": "protected_preview",
+          "access": "public_bounded_runtime",
           "cachePolicy": {
             "required": "no_store_required",
             "declaredDirectives": [
@@ -2168,14 +2164,13 @@
           },
           "negativeStatusMatrix": [
             400,
-            401,
             403,
             405,
             413,
             429,
             503
           ],
-          "diagnosticExposure": "authenticated_preview_only_minimized_evidence_no_secret_or_provider_detail"
+          "diagnosticExposure": "public_explicitly_enabled_bounded_runtime_no_secret_or_provider_detail"
         }
       }
     },

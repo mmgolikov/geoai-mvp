@@ -66,8 +66,18 @@ for (const file of await collectRouteFiles(apiRoot)) {
         failures.push(`${relative} ${handler.method}: protected Preview route must require its dedicated upstream operator gate`);
         continue;
       }
-      if (publicBoundedRuntime && !source.includes("getPointObjectUpstreamStatus().enabled")) {
-        failures.push(`${relative} ${handler.method}: public bounded runtime route must require the centralized point-to-object upstream policy`);
+      const sourceRuntimeAction = [
+        "prototype.context.resolve",
+        "prototype.find.open_map",
+        "prototype.area_context.open_map",
+        "prototype.search.place",
+        "prototype.search.suggest"
+      ].includes(policy.action);
+      const requiredRuntimeStatus = sourceRuntimeAction
+        ? "getPointObjectSurfaceStatus().enabled"
+        : "getPointObjectUpstreamStatus().enabled";
+      if (publicBoundedRuntime && !source.includes(requiredRuntimeStatus)) {
+        failures.push(`${relative} ${handler.method}: public bounded runtime route must require its centralized point-to-object policy`);
         continue;
       }
 
@@ -122,7 +132,7 @@ for (const file of await collectRouteFiles(apiRoot)) {
           evidenceIndex < rateIndex ||
           !handler.body.includes("noStoreHeaders")
         ) {
-          failures.push(`${relative} ${handler.method}: Preview context resolution must enforce runtime, origin, bounded body and rate limit before rebuilding live evidence`);
+          failures.push(`${relative} ${handler.method}: bounded context resolution must enforce runtime, origin, bounded body and rate limit before rebuilding live evidence`);
         }
         protectedHandlers += 1;
         continue;
@@ -142,7 +152,7 @@ for (const file of await collectRouteFiles(apiRoot)) {
           findIndex < rateIndex ||
           !handler.body.includes("noStoreHeaders")
         ) {
-          failures.push(`${relative} ${handler.method}: Preview Find must enforce runtime, origin, bounded body, strict criteria parsing and rate limit before open-map execution`);
+          failures.push(`${relative} ${handler.method}: bounded Find must enforce runtime, origin, bounded body, strict criteria parsing and rate limit before open-map execution`);
         }
         protectedHandlers += 1;
         continue;
@@ -162,7 +172,7 @@ for (const file of await collectRouteFiles(apiRoot)) {
           contextIndex < rateIndex ||
           !handler.body.includes("noStoreHeaders")
         ) {
-          failures.push(`${relative} ${handler.method}: Preview AOI context must enforce runtime, origin, bounded body, strict polygon parsing and rate limit before open-map execution`);
+          failures.push(`${relative} ${handler.method}: bounded AOI context must enforce runtime, origin, bounded body, strict polygon parsing and rate limit before open-map execution`);
         }
         protectedHandlers += 1;
         continue;
@@ -180,7 +190,7 @@ for (const file of await collectRouteFiles(apiRoot)) {
           searchIndex < rateIndex ||
           !handler.body.includes("noStoreHeaders")
         ) {
-          failures.push(`${relative} ${handler.method}: Preview place search must enforce runtime, origin, bounded body and rate limit before live source execution`);
+          failures.push(`${relative} ${handler.method}: bounded place search must enforce runtime, origin, bounded body and rate limit before live source execution`);
         }
         protectedHandlers += 1;
         continue;
@@ -200,7 +210,7 @@ for (const file of await collectRouteFiles(apiRoot)) {
           suggestIndex < rateIndex ||
           !handler.body.includes("noStoreHeaders")
         ) {
-          failures.push(`${relative} ${handler.method}: Preview autocomplete must enforce runtime, origin, bounded body, strict query parsing and rate limit before Photon execution`);
+          failures.push(`${relative} ${handler.method}: bounded autocomplete must enforce runtime, origin, bounded body, strict query parsing and rate limit before Photon execution`);
         }
         protectedHandlers += 1;
         continue;

@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 
 import { NextResponse } from "next/server";
 
-import { getPointObjectPreviewSurfaceStatus } from "@/src/lib/ai/openai-upstream-gate";
+import { getPointObjectSurfaceStatus } from "@/src/lib/ai/openai-upstream-gate";
 import { readBoundedJson } from "@/src/lib/http/bounded-json";
 import { parsePointObjectFindRequest } from "@/src/lib/prototype/point-to-object-find-contract";
 import { findPointObjects, PointObjectFindError } from "@/src/lib/prototype/point-to-object-find";
@@ -16,8 +16,8 @@ const GLOBAL_RATE_MAX_REQUESTS = 50;
 type RateBucket = { startedAt: number; count: number };
 const rateBuckets = new Map<string, RateBucket>();
 
-function previewRuntimeAllowed(): boolean {
-  return getPointObjectPreviewSurfaceStatus().enabled;
+function runtimeAllowed(): boolean {
+  return getPointObjectSurfaceStatus().enabled;
 }
 
 function noStoreHeaders(extra: Record<string, string> = {}): Record<string, string> {
@@ -65,7 +65,7 @@ function consumeRateLimit(request: Request): { allowed: true } | { allowed: fals
 }
 
 export async function POST(request: Request) {
-  if (!previewRuntimeAllowed()) {
+  if (!runtimeAllowed()) {
     return NextResponse.json({ mode: "unavailable", error: "Open-map Find is not available in this environment." }, {
       status: 403,
       headers: noStoreHeaders()

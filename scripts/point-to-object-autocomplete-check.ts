@@ -177,14 +177,14 @@ await assert.rejects(
 );
 
 const routeSource = readFileSync(path.join(ROOT, "app/api/prototype/point-to-object/suggest/route.ts"), "utf8");
-const previewIndex = routeSource.indexOf("if (!previewRuntimeAllowed())");
+const runtimeIndex = routeSource.indexOf("if (!runtimeAllowed())");
 const originIndex = routeSource.indexOf("if (!sameOrigin(request))");
 const bodyIndex = routeSource.indexOf("await readBoundedJson(request, 1_024)");
 const parseIndex = routeSource.indexOf("parsePointObjectAutocompleteRequest(", bodyIndex);
 const rateIndex = routeSource.indexOf("consumeRateLimit(request)", parseIndex);
 const providerIndex = routeSource.indexOf("suggestPointObjects(", rateIndex);
-assert.ok(previewIndex >= 0 && originIndex > previewIndex && bodyIndex > originIndex && parseIndex > bodyIndex && rateIndex > parseIndex && providerIndex > rateIndex,
-  "Preview, same-origin, body, parser and rate gates must run before Photon.");
+assert.ok(runtimeIndex >= 0 && originIndex > runtimeIndex && bodyIndex > originIndex && parseIndex > bodyIndex && rateIndex > parseIndex && providerIndex > rateIndex,
+  "Runtime, same-origin, body, parser and rate gates must run before Photon.");
 assert.match(routeSource, /private, no-store/);
 assert.equal(routeSource.includes("Nominatim"), false, "Autocomplete must not be routed through public Nominatim.");
 const explicitSearchSource = readFileSync(path.join(ROOT, "app/api/prototype/point-to-object/search/route.ts"), "utf8");
@@ -233,7 +233,7 @@ const NextResponse = {
     });
   }
 };
-const getPointObjectPreviewSurfaceStatus = () => ({ enabled: process.env.GEOAI_AUTOCOMPLETE_ROUTE_TEST_ENABLED === "1" });
+const getPointObjectSurfaceStatus = () => ({ enabled: process.env.GEOAI_AUTOCOMPLETE_ROUTE_TEST_ENABLED === "1" });
 const readBoundedJson = async (request, maximumBytes) => {
   const text = await request.text();
   if (new TextEncoder().encode(text).byteLength > maximumBytes) return { ok: false, status: 413 };
@@ -255,7 +255,7 @@ const suggestPointObjects = async (request) => {
 `;
 const routeRuntimeSource = routeSource
   .replace('import { NextResponse } from "next/server";', routeRuntimeStub)
-  .replace(/import \{ getPointObjectPreviewSurfaceStatus \} from "@\/src\/lib\/ai\/openai-upstream-gate";\n/, "")
+  .replace(/import \{ getPointObjectSurfaceStatus \} from "@\/src\/lib\/ai\/openai-upstream-gate";\n/, "")
   .replace(/import \{ readBoundedJson \} from "@\/src\/lib\/http\/bounded-json";\n/, "")
   .replace(/import \{\n\s+parsePointObjectAutocompleteRequest,[\s\S]*?\n\} from "@\/src\/lib\/prototype\/point-to-object-autocomplete";\n/, "");
 const routeRuntimeJavascript = stripTypeScriptTypes(routeRuntimeSource, { mode: "transform", sourceMap: false });
@@ -275,9 +275,9 @@ function routeRequest(body: string, options: { origin?: string; ip?: string } = 
 const validRouteBody = JSON.stringify({ marketKey: "dubai", locale: "en", query: "Marina" });
 const previousRouteTestEnabled = process.env.GEOAI_AUTOCOMPLETE_ROUTE_TEST_ENABLED;
 process.env.GEOAI_AUTOCOMPLETE_ROUTE_TEST_ENABLED = "0";
-const previewDenied = await routeRuntime.POST(routeRequest(validRouteBody, { origin: "https://preview.example.test" }));
-assert.equal(previewDenied.status, 403);
-assert.equal((await previewDenied.json() as { code?: string }).code, "AUTOCOMPLETE_DISABLED");
+const runtimeDenied = await routeRuntime.POST(routeRequest(validRouteBody, { origin: "https://preview.example.test" }));
+assert.equal(runtimeDenied.status, 403);
+assert.equal((await runtimeDenied.json() as { code?: string }).code, "AUTOCOMPLETE_DISABLED");
 process.env.GEOAI_AUTOCOMPLETE_ROUTE_TEST_ENABLED = "1";
 const originDenied = await routeRuntime.POST(routeRequest(validRouteBody));
 assert.equal(originDenied.status, 403);

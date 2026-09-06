@@ -1306,8 +1306,10 @@ function assertStaticBoundaries(): void {
     "Direct-click enrichment must debounce rapid exploratory clicks.");
   assert.match(prototypeClientSource, /setSessionReady\(true\)[\s\S]*sessionReady \? \([\s\S]*<LiveObjectMap/,
     "The map must mount only after browser-session restoration so a reload cannot overwrite the saved viewport.");
-  assert.match(contextRouteSource, /previewRuntimeAllowed\(\)/,
-    "The live context route must remain Preview-gated.");
+  assert.match(contextRouteSource, /runtimeAllowed\(\)/,
+    "The live context route must remain centrally runtime-gated.");
+  assert.match(contextRouteSource, /getPointObjectSurfaceStatus\(\)\.enabled/,
+    "The live context route must use the isolated point-to-object surface policy.");
   assert.equal(contextRouteSource.includes("frozen-osm-repository"), false,
     "The live context route must not trace frozen case data.");
   assert.equal(readFileSync(path.join(ROOT, "app/api/prototype/point-to-object/ai/route.ts"), "utf8").includes("frozen-osm-repository"), false,
