@@ -178,11 +178,15 @@ const secondProject = await createPointObjectProject(demoIdentity, "en", "Second
 const laterSuccess = await savePointObjectOperation(demoIdentity, findInput(6), "operation-stable-6");
 assert.equal(laterSuccess.status, "saved");
 assert.equal(pointObjectPendingOperationCount(demoIdentity), 2, "later success must not mask or discard earlier failures");
-await retryPendingPointObjectOperations(demoIdentity);
+const interleavedRetry = await retryPendingPointObjectOperations(demoIdentity);
+assert.deepEqual(interleavedRetry.map((result) => result.status === "saved" || result.status === "replayed" ? result.artifact.idempotencyKey : null), [
+  "operation-stable-4",
+  "operation-stable-5"
+], "pending recovery must execute in original FIFO order");
 const afterRetry = readPointObjectProjects(demoIdentity);
 assert.deepEqual(
-  afterRetry.projects.find((item) => item.projectId === firstProject.projectId)?.artifacts.slice(0, 2).map((item) => item.idempotencyKey).sort(),
-  ["operation-stable-4", "operation-stable-5"],
+  afterRetry.projects.find((item) => item.projectId === firstProject.projectId)?.artifacts.slice(0, 2).map((item) => item.idempotencyKey),
+  ["operation-stable-5", "operation-stable-4"],
   "active-project changes must not move retried results away from their initiating destination"
 );
 assert.equal(afterRetry.projects.find((item) => item.projectId === secondProject.projectId)?.artifacts[0]?.idempotencyKey, "operation-stable-6");
@@ -239,6 +243,32 @@ assert.equal("code" in invalidCreate ? invalidCreate.code : null, "payload_inval
 const demoStoreKey = `geoai:point-to-object:projects:v1:${encodeURIComponent(demoIdentity)}`;
 const goodRaw = localStorage.getItem(demoStoreKey);
 assert.ok(goodRaw, "expected the identity-scoped project store");
+const nullActiveStore = JSON.parse(goodRaw) as { activeProjectId: string | null };
+nullActiveStore.activeProjectId = null;
+localStorage.setItem(demoStoreKey, JSON.stringify(nullActiveStore));
+const nullActiveRead = inspectPointObjectProjects(demoIdentity);
+assert.equal(nullActiveRead.status, "ready", "a legitimate explicit null active project must remain valid");
+assert.equal(nullActiveRead.store?.activeProjectId, null, "parsing must preserve explicit null without selecting another project");
+
+const danglingActiveStore = JSON.parse(goodRaw) as { activeProjectId: string | null; projects: Array<{ projectId: string }> };
+danglingActiveStore.activeProjectId = "project-missing";
+const danglingRaw = JSON.stringify(danglingActiveStore);
+localStorage.setItem(demoStoreKey, danglingRaw);
+assert.equal(inspectPointObjectProjects(demoIdentity).status, "damaged", "a dangling non-null active project reference must fail closed");
+await assert.rejects(() => createPointObjectProject(demoIdentity, "en", "Must not replace dangling bytes"));
+assert.equal(localStorage.getItem(demoStoreKey), danglingRaw, "create must preserve exact dangling-reference bytes");
+await assert.rejects(() => selectPointObjectProject(demoIdentity, danglingActiveStore.projects[0].projectId));
+assert.equal(localStorage.getItem(demoStoreKey), danglingRaw, "select must preserve exact dangling-reference bytes");
+const danglingSave = await savePointObjectOperation(demoIdentity, findInput(35), "operation-dangling-active");
+assert.equal(danglingSave.status, "failed");
+assert.equal("code" in danglingSave ? danglingSave.code : null, "store_damaged");
+assert.equal(localStorage.getItem(demoStoreKey), danglingRaw, "save must preserve exact dangling-reference bytes and unrelated results");
+
+localStorage.setItem(demoStoreKey, goodRaw);
+await retryPendingPointObjectOperations(demoIdentity);
+const recoveredRaw = localStorage.getItem(demoStoreKey);
+assert.ok(recoveredRaw, "expected recovery to clear the accepted pending save after restoring valid bytes");
+localStorage.setItem(demoStoreKey, goodRaw);
 const malformedStore = JSON.parse(goodRaw) as { projects: Array<{ artifacts: Array<Record<string, unknown>> }> };
 const damagedArtifact = malformedStore.projects[0].artifacts[0];
 const damagedPayload = damagedArtifact.payload as { session: { result: { candidates: Array<Record<string, unknown>> } } };
@@ -257,6 +287,42 @@ duplicateIdentityStore.projects[1].artifacts[0].artifactId = duplicateIdentitySt
 duplicateIdentityStore.projects[1].artifacts[0].idempotencyKey = duplicateIdentityStore.projects[0].artifacts[0].idempotencyKey;
 localStorage.setItem(demoStoreKey, JSON.stringify(duplicateIdentityStore));
 assert.equal(inspectPointObjectProjects(demoIdentity).status, "damaged", "duplicate artifact and operation identities must fail closed before restore");
+
+localStorage.setItem(demoStoreKey, goodRaw);
+const shortlistMismatchStore = JSON.parse(goodRaw) as { projects: Array<{ artifacts: Array<Record<string, unknown>> }> };
+const shortlistMismatchArtifact = shortlistMismatchStore.projects.flatMap((project) => project.artifacts).find((artifact) => artifact.kind === "find");
+assert.ok(shortlistMismatchArtifact, "expected a saved Find artifact");
+const shortlistMismatchPayload = shortlistMismatchArtifact.payload as { session: { result: { candidates: Array<Record<string, unknown>> }; shortlist: Array<Record<string, unknown>>; comparisonOpen: boolean } };
+const canonicalCandidate = shortlistMismatchPayload.session.result.candidates[0];
+shortlistMismatchPayload.session.shortlist = [{ ...canonicalCandidate, label: "Tampered shortlist label" }];
+shortlistMismatchPayload.session.comparisonOpen = false;
+shortlistMismatchArtifact.payloadHash = await hashPointObjectOperation(shortlistMismatchArtifact as unknown as PointObjectProjectOperationInput);
+const shortlistMismatchRaw = JSON.stringify(shortlistMismatchStore);
+localStorage.setItem(demoStoreKey, shortlistMismatchRaw);
+assert.equal(inspectPointObjectProjects(demoIdentity).status, "damaged", "a matching-hash shortlist record that differs from its result candidate must fail closed");
+assert.equal(localStorage.getItem(demoStoreKey), shortlistMismatchRaw, "shortlist mismatch bytes must remain untouched");
+
+const duplicateShortlistStore = JSON.parse(goodRaw) as { projects: Array<{ artifacts: Array<Record<string, unknown>> }> };
+const duplicateShortlistArtifact = duplicateShortlistStore.projects.flatMap((project) => project.artifacts).find((artifact) => artifact.kind === "find");
+assert.ok(duplicateShortlistArtifact, "expected another saved Find artifact");
+const duplicateShortlistPayload = duplicateShortlistArtifact.payload as { session: { result: { candidates: Array<Record<string, unknown>> }; shortlist: Array<Record<string, unknown>>; comparisonOpen: boolean } };
+const duplicatedCandidate = duplicateShortlistPayload.session.result.candidates[0];
+duplicateShortlistPayload.session.shortlist = [duplicatedCandidate, { ...duplicatedCandidate }];
+duplicateShortlistPayload.session.comparisonOpen = true;
+duplicateShortlistArtifact.payloadHash = await hashPointObjectOperation(duplicateShortlistArtifact as unknown as PointObjectProjectOperationInput);
+localStorage.setItem(demoStoreKey, JSON.stringify(duplicateShortlistStore));
+assert.equal(inspectPointObjectProjects(demoIdentity).status, "damaged", "duplicate shortlist source IDs must fail closed");
+
+const reorderedShortlistStore = JSON.parse(goodRaw) as { projects: Array<{ artifacts: Array<Record<string, unknown>> }> };
+const reorderedShortlistArtifact = reorderedShortlistStore.projects.flatMap((project) => project.artifacts).find((artifact) => artifact.kind === "find");
+assert.ok(reorderedShortlistArtifact, "expected a Find artifact for key-order coverage");
+const reorderedShortlistPayload = reorderedShortlistArtifact.payload as { session: { result: { candidates: Array<Record<string, unknown>> }; shortlist: Array<Record<string, unknown>>; comparisonOpen: boolean } };
+const reorderedCandidate = Object.fromEntries(Object.entries(reorderedShortlistPayload.session.result.candidates[0]).reverse());
+reorderedShortlistPayload.session.shortlist = [reorderedCandidate];
+reorderedShortlistPayload.session.comparisonOpen = false;
+reorderedShortlistArtifact.payloadHash = await hashPointObjectOperation(reorderedShortlistArtifact as unknown as PointObjectProjectOperationInput);
+localStorage.setItem(demoStoreKey, JSON.stringify(reorderedShortlistStore));
+assert.equal(inspectPointObjectProjects(demoIdentity).status, "ready", "legitimate candidate key reordering must not invalidate an exact shortlist subset");
 
 localStorage.setItem(demoStoreKey, goodRaw);
 const hashMismatch = JSON.parse(goodRaw) as { projects: Array<{ artifacts: Array<{ payload: { session: { result: { candidates: Array<{ label: string }> } } } }> }> };

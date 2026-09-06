@@ -450,6 +450,15 @@ function pointObjectCalls(apiCalls: Array<{ path: string }>) {
   return apiCalls.filter((call) => call.path.startsWith("/api/prototype/point-to-object/"));
 }
 
+async function savedAnalyseArtifactCount(page: Page) {
+  return page.evaluate(() => {
+    const key = Object.keys(localStorage).find((item) => item.startsWith("geoai:point-to-object:projects:v1:"));
+    const store = key ? JSON.parse(localStorage.getItem(key) ?? "null") : null;
+    return store?.projects?.reduce((count: number, project: { artifacts?: Array<{ kind?: string }> }) =>
+      count + (project.artifacts?.filter((artifact) => artifact.kind === "analyse").length ?? 0), 0) ?? 0;
+  });
+}
+
 async function expectNoVisibleResolverBoilerplate(page: Page) {
   const visibleCopy = await page.locator("body").innerText();
   expect(visibleCopy).not.toMatch(/way\/91001|Q777|EVD-|SHA-256|sourceResponseHash|resolver/i);
@@ -558,5 +567,97 @@ test("a persisted legacy V5 result restores and survives EN/RU locale changes wi
   await page.reload();
   await expect(page.getByRole("heading", { name: "Stored V5 screening result" })).toBeVisible();
   expect(pointObjectCalls(apiCalls)).toEqual([]);
+  expect(unexpectedExternal).toEqual([]);
+});
+
+test("Saved Analyse reopens RU from EN Projects and EN from RU Projects without implicit provider calls", async ({ page }) => {
+  const { apiCalls, unexpectedExternal } = await installAnalysisRoutes(page);
+  await seedSelection(page);
+
+  await page.goto("/prototype/point-to-object/analysis");
+  await expect(page.getByRole("heading", { name: "Continue bounded object screening" })).toBeVisible();
+  await expect.poll(() => savedAnalyseArtifactCount(page)).toBe(1);
+  await page.getByRole("button", { name: "ru", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Продолжить ограниченный скрининг объекта" })).toBeVisible();
+  await expect.poll(() => savedAnalyseArtifactCount(page)).toBe(2);
+
+  const callsBeforeReopen = pointObjectCalls(apiCalls).length;
+  await page.goto("/projects?view=spatial");
+  await page.getByRole("button", { name: "en", exact: true }).click();
+  await page.getByRole("button", { name: "Reopen without rerunning" }).first().click();
+  await expect(page.getByRole("heading", { name: "Продолжить ограниченный скрининг объекта" })).toBeVisible();
+  await expect(page.locator("html")).toHaveAttribute("lang", "ru");
+  expect(pointObjectCalls(apiCalls)).toHaveLength(callsBeforeReopen);
+  await expect.poll(() => savedAnalyseArtifactCount(page)).toBe(2);
+
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Продолжить ограниченный скрининг объекта" })).toBeVisible();
+  expect(pointObjectCalls(apiCalls)).toHaveLength(callsBeforeReopen);
+  await page.goBack();
+  await expect(page.getByRole("heading", { name: "Проекты GeoAI" })).toBeVisible();
+  await page.getByRole("button", { name: "Открыть без повторного запроса" }).nth(1).click();
+  await expect(page.getByRole("heading", { name: "Continue bounded object screening" })).toBeVisible();
+  await expect(page.locator("html")).toHaveAttribute("lang", "en");
+  expect(pointObjectCalls(apiCalls)).toHaveLength(callsBeforeReopen);
+  await expect.poll(() => savedAnalyseArtifactCount(page)).toBe(2);
+
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Continue bounded object screening" })).toBeVisible();
+  expect(pointObjectCalls(apiCalls)).toHaveLength(callsBeforeReopen);
+  await page.goBack();
+  await expect(page.getByRole("heading", { name: "GeoAI Projects" })).toBeVisible();
+  expect(pointObjectCalls(apiCalls)).toHaveLength(callsBeforeReopen);
+  expect(unexpectedExternal).toEqual([]);
+});
+
+test("Projects preserves bytes and permits explicit retry when integrity hashing is temporarily unavailable", async ({ page }) => {
+  const { apiCalls, unexpectedExternal } = await installAnalysisRoutes(page);
+  const pageErrors: string[] = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+  await seedSelection(page);
+
+  await page.goto("/prototype/point-to-object/analysis");
+  await expect(page.getByRole("heading", { name: "Continue bounded object screening" })).toBeVisible();
+  await expect.poll(() => savedAnalyseArtifactCount(page)).toBe(1);
+  await page.goto("/projects?view=spatial");
+  await page.getByRole("button", { name: "ru", exact: true }).click();
+  const before = await page.evaluate(() => {
+    const key = Object.keys(localStorage).find((item) => item.startsWith("geoai:point-to-object:projects:v1:"));
+    if (!key) throw new Error("Expected a saved project namespace.");
+    const target = window as typeof window & { __geoAiUnhandled?: string[]; __geoAiOriginalDigest?: SubtleCrypto["digest"] };
+    target.__geoAiUnhandled = [];
+    window.addEventListener("unhandledrejection", (event) => target.__geoAiUnhandled?.push(String(event.reason)));
+    const original = crypto.subtle.digest.bind(crypto.subtle);
+    target.__geoAiOriginalDigest = original;
+    let failOnce = true;
+    Object.defineProperty(crypto.subtle, "digest", {
+      configurable: true,
+      value: async (...args: Parameters<SubtleCrypto["digest"]>) => {
+        if (failOnce) {
+          failOnce = false;
+          throw new DOMException("Synthetic digest unavailable", "OperationError");
+        }
+        return original(...args);
+      }
+    });
+    return { key, raw: localStorage.getItem(key), locale: document.documentElement.lang };
+  });
+  const callsBeforeReopen = pointObjectCalls(apiCalls).length;
+
+  await page.getByRole("button", { name: "Открыть без повторного запроса" }).click();
+  await expect(page).toHaveURL(/\/projects\?view=spatial$/);
+  await expect(page.locator("main").getByRole("alert")).toHaveText("Проверка целостности временно недоступна. Сохранённые данные не изменены; попробуйте открыть ещё раз.");
+  expect(await page.evaluate((key) => localStorage.getItem(key), before.key)).toBe(before.raw);
+  await expect(page.locator("html")).toHaveAttribute("lang", before.locale);
+  expect(pointObjectCalls(apiCalls)).toHaveLength(callsBeforeReopen);
+  expect(pageErrors).toEqual([]);
+  expect(await page.evaluate(() => (window as typeof window & { __geoAiUnhandled?: string[] }).__geoAiUnhandled ?? [])).toEqual([]);
+
+  await page.getByRole("button", { name: "Открыть без повторного запроса" }).click();
+  await expect(page.getByRole("heading", { name: "Continue bounded object screening" })).toBeVisible();
+  await expect(page.locator("html")).toHaveAttribute("lang", "en");
+  expect(pointObjectCalls(apiCalls)).toHaveLength(callsBeforeReopen);
+  await expect.poll(() => savedAnalyseArtifactCount(page)).toBe(1);
+  expect(pageErrors).toEqual([]);
   expect(unexpectedExternal).toEqual([]);
 });

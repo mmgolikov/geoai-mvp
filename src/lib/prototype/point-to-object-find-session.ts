@@ -138,8 +138,15 @@ export function parsePointObjectFindSessionState(value: unknown): PointObjectFin
   if (mappedMinimumLevels !== null && mappedMaximumLevels !== null && mappedMinimumLevels > mappedMaximumLevels) return null;
   if (result && (result.criteria.marketKey !== value.marketKey || result.criteria.locale !== value.locale || result.criteria.group !== value.group ||
       result.criteria.mappedMinimumLevels !== mappedMinimumLevels || result.criteria.mappedMaximumLevels !== mappedMaximumLevels)) return null;
-  const candidateIds = new Set(result?.candidates.map((item) => item.sourceFeatureId) ?? []);
-  if (shortlist.some((item) => !candidateIds.has(item.sourceFeatureId))) return null;
+  const candidates = result?.candidates ?? [];
+  const candidateIds = new Set(candidates.map((item) => item.sourceFeatureId));
+  const shortlistIds = new Set(shortlist.map((item) => item.sourceFeatureId));
+  if (candidateIds.size !== candidates.length || shortlistIds.size !== shortlist.length) return null;
+  const candidateById = new Map(candidates.map((item) => [item.sourceFeatureId, item]));
+  if (shortlist.some((item) => {
+    const candidate = candidateById.get(item.sourceFeatureId);
+    return !candidate || canonicalJson(candidate) !== canonicalJson(item);
+  })) return null;
   if (value.analysisTargetSourceFeatureId !== null && !candidateIds.has(value.analysisTargetSourceFeatureId as PointObjectFindCandidate["sourceFeatureId"])) return null;
   return {
     version: 1,
@@ -157,6 +164,12 @@ export function parsePointObjectFindSessionState(value: unknown): PointObjectFin
     analysisTargetSourceFeatureId: value.analysisTargetSourceFeatureId as PointObjectFindCandidate["sourceFeatureId"] | null,
     updatedAt: value.updatedAt
   };
+}
+
+function canonicalJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  if (isRecord(value)) return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(",")}}`;
+  return JSON.stringify(value);
 }
 
 export function readPointObjectFindSession(): PointObjectFindSessionState | null {

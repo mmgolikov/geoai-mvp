@@ -1,6 +1,6 @@
 # CYCLE-05 DEV-05 Saved Projects Persistence Contract
 
-Status: Candidate implementation contract · correction R1 · browser-local active · cloud persistence deferred/default-off
+Status: Candidate implementation contract · correction R2 · browser-local active · cloud persistence deferred/default-off
 Authority baseline: `833b575561853942530bb4766d04c2ad8ae06b31`
 Product surface: Point-to-Object Analyse / Find / Create and `/projects`
 
@@ -24,6 +24,8 @@ Find shortlist/comparison changes and Create A/B selection are non-generative vi
 
 The browser store read contract distinguishes `missing`, `ready`, `damaged` and `inaccessible`. Strict per-kind runtime validators and SHA-256 verification run before result-dependent fields are displayed, restored or extended. A malformed, partially damaged or hash-mismatched namespace is never normalized to an empty store and never overwritten. Original bytes remain untouched; the UI provides a controlled error and blocks writes until the namespace is repaired outside this package.
 
+A non-null `activeProjectId` must resolve to exactly one stored project; a dangling reference marks the namespace damaged and blocks create, select and save without normalizing bytes. Explicit `null` remains valid and is preserved. A Find shortlist is an ordered unique subset of the immutable result candidates: every complete candidate record must match its source-result record independent of object key order. Matching-hash tampering and duplicate shortlist IDs fail closed.
+
 Auth transitions clear transient selection/question/analysis/find/restore session keys. Saved project stores remain identity-scoped and are never enumerated across identities. Every async save captures its initiating identity and destination project. Completion revalidates the current browser identity marker before writing; an identity change leaves that operation pending under the original identity.
 
 ## Reopen contract
@@ -33,6 +35,10 @@ Auth transitions clear transient selection/question/analysis/find/restore sessio
 - Create restores the AOI, editor snapshot, full generation receipt (`mode`, `generatedAt`, `promptVersion`), generated alternatives, active alternative and captured area context. The first restored render suppresses automatic area-context fetching.
 
 Reopen verifies the initiating identity again after asynchronous hashing and catches selection/session/restore storage failures. EN→saved-RU and RU→saved-EN SPA navigation, reload and back navigation must preserve the saved result without an implicit AI/source call.
+
+An operational integrity-verification failure is distinct from a verified hash mismatch. If SHA-256 cannot be evaluated, reopen remains on the Projects surface, preserves the current locale/result and exact stored bytes, reports that verification is temporarily unavailable, and permits a later explicit retry. It must not label the artifact damaged, navigate, duplicate the artifact or invoke a provider/source.
+
+R2 browser evidence uses valid completed EN and RU Analyse artifacts and covers both opposite-locale Projects journeys, SPA navigation, reload and back/reopen. The request counter and completed-artifact count must remain unchanged after the explicit precondition generations. A separate one-shot digest-failure journey requires zero page errors/unhandled rejections, byte preservation and a successful later explicit reopen after the verifier recovers.
 
 Save failures expose a compact accessible recovery control at 390, 768, 1280 and 1440 px in EN/RU. The control reports whether the action is Retry, New project & save, or a blocked damaged/inaccessible store; no permanent developer banner is shown.
 

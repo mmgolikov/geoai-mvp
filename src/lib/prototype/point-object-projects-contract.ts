@@ -176,8 +176,6 @@ export function parsePointObjectProjectStore(
   const artifacts = parsed.flatMap((project) => project.artifacts);
   if (new Set(artifacts.map((artifact) => artifact.artifactId)).size !== artifacts.length ||
       new Set(artifacts.map((artifact) => artifact.idempotencyKey)).size !== artifacts.length) return null;
-  const activeProjectId = parsed.some((project) => project.projectId === value.activeProjectId)
-    ? value.activeProjectId as string
-    : parsed[0]?.projectId ?? null;
-  return { schemaVersion: 1, identityKey, activeProjectId, projects: parsed };
+  if (value.activeProjectId !== null && !parsed.some((project) => project.projectId === value.activeProjectId)) return null;
+  return { schemaVersion: 1, identityKey, activeProjectId: value.activeProjectId as string | null, projects: parsed };
 }

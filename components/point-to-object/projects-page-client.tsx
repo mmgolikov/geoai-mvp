@@ -94,7 +94,18 @@ export function PointObjectProjectsPageClient() {
     if (!identityKey) return;
     const initiatingIdentity = identityKey;
     setError(null);
-    if (!await verifySavedPointObjectArtifact(artifact)) {
+    let integrityVerified = false;
+    try {
+      integrityVerified = await verifySavedPointObjectArtifact(artifact);
+    } catch {
+      if (identityRef.current === initiatingIdentity) {
+        setError(locale === "ru"
+          ? "Проверка целостности временно недоступна. Сохранённые данные не изменены; попробуйте открыть ещё раз."
+          : "Integrity verification is temporarily unavailable. Saved data was not changed; try reopening.");
+      }
+      return;
+    }
+    if (!integrityVerified) {
       setError(locale === "ru" ? "Локальная запись повреждена или изменена; открытие заблокировано." : "The local record is damaged or changed; reopen is blocked.");
       return;
     }
