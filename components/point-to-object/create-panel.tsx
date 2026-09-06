@@ -38,7 +38,7 @@ type CreatePanelProps = {
   generatedLocale: "en" | "ru" | null;
   activeAlternativeId: "A" | "B";
   onGenerationStart?: () => void;
-  onGenerated: (concept: PointObjectGeneratedConcept) => void;
+  onGenerated: (concept: PointObjectGeneratedConcept, committedEditorSnapshot: PointObjectCreateEditorSnapshot) => void;
   onAlternativeChange: (id: "A" | "B") => void;
   onReset: () => void;
   editorSnapshot?: PointObjectCreateEditorSnapshot | null;
@@ -368,8 +368,17 @@ export function PointObjectCreatePanel({ locale, marketKey, aoi, depth, generate
       const concept = parsePointObjectGeneratedConcept(payload, aoi);
       if (!concept) throw new Error(copy.error);
       if (controller.signal.aborted || requestId !== requestIdRef.current) return;
+      const committedEditorSnapshot: PointObjectCreateEditorSnapshot = {
+        version: 1,
+        scopeKey: editorScopeKey,
+        templateId,
+        controls: { ...controls },
+        lockedControlKeys: [...lockedControlKeys].sort(),
+        customPrompt,
+        committedDraftKey: requestDraftKey
+      };
       setCommittedDraftKey(requestDraftKey);
-      onGenerated(concept);
+      onGenerated(concept, committedEditorSnapshot);
     } catch (requestError) {
       if (controller.signal.aborted || requestId !== requestIdRef.current || (requestError instanceof DOMException && requestError.name === "AbortError")) return;
       setError(requestError instanceof Error ? requestError.message : copy.error);

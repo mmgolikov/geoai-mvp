@@ -308,16 +308,29 @@ async function installOfflineRoutes(page: Page, options: { areaContextMode?: "su
 }
 
 async function signInDemo(page: Page, nextPath: string) {
-  await page.goto(`/login?next=${encodeURIComponent(nextPath)}&intent=demo`);
+  const loginNextPath = nextPath.startsWith("/prototype/point-to-object") ? "/workspace" : nextPath;
+  await page.goto(`/login?next=${encodeURIComponent(loginNextPath)}&intent=demo`);
   const demoAccess = page.getByRole("button", { name: "Open demo access" });
   await expect.poll(async () => {
-    return new URL(page.url()).pathname === nextPath || await demoAccess.isVisible().catch(() => false);
+    return new URL(page.url()).pathname === loginNextPath || await demoAccess.isVisible().catch(() => false);
   }, { timeout: 10_000, intervals: [50, 100, 250] }).toBe(true);
-  if (new URL(page.url()).pathname === nextPath) return;
-  await expect(demoAccess).toBeVisible();
-  await demoAccess.click();
-  await page.getByRole("button", { name: "Open demo", exact: true }).click();
-  await expect(page).toHaveURL((url) => url.pathname === nextPath);
+  if (new URL(page.url()).pathname !== loginNextPath) {
+    await expect(demoAccess).toBeVisible();
+    await demoAccess.click();
+    await page.getByRole("button", { name: "Open demo", exact: true }).click();
+    await expect.poll(async () => {
+      try {
+        return await page.evaluate(() => localStorage.getItem("geoai-mock-demo-session-v1"));
+      } catch {
+        return null;
+      }
+    }).toBe("active");
+    await page.goto(loginNextPath);
+    await expect(page).toHaveURL((url) => url.pathname === loginNextPath);
+  }
+  if (loginNextPath === nextPath) return;
+  await expect(page.getByRole("link", { name: "Open demo profile" })).toBeVisible();
+  await page.goto(nextPath);
 }
 
 async function expectFindDrawerGeometry(page: Page, checkMapAlignment = false) {
@@ -593,7 +606,7 @@ test("V5.1 keeps exact identity and the complete Find comparison flow coherent o
   createPostRequests.length = 0;
   const unexpectedExternal = await installOfflineRoutes(page);
   await page.setViewportSize({ width: 1280, height: 900 });
-  await page.goto("/prototype/point-to-object");
+  await signInDemo(page, "/prototype/point-to-object");
   await expect(page.locator(".maplibregl-canvas")).toBeVisible();
 
   const search = page.getByRole("combobox", { name: "Search address or place" });
@@ -780,9 +793,15 @@ test("V5.1 keeps exact identity and the complete Find comparison flow coherent o
 test("Create A/B and mobile profile remain coherent offline", async ({ page }, testInfo) => {
   createPostRequests.length = 0;
   areaContextPostRequests = 0;
+  const createRequestMethods: string[] = [];
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname === "/api/prototype/point-to-object/create") {
+      createRequestMethods.push(request.method());
+    }
+  });
   const unexpectedExternal = await installOfflineRoutes(page);
   await page.setViewportSize({ width: 1280, height: 900 });
-  await page.goto("/prototype/point-to-object");
+  await signInDemo(page, "/prototype/point-to-object");
   await expect(page.locator(".maplibregl-canvas")).toBeVisible();
 
   await page.getByRole("tab", { name: "Create" }).click();
@@ -866,6 +885,7 @@ test("Create A/B and mobile profile remain coherent offline", async ({ page }, t
   await page.getByRole("button", { name: "en", exact: true }).click();
   await expect(page.getByTestId("create-result-language-stale")).toHaveCount(0);
   await expect(generateConcept).toHaveText("Already generated");
+  await expect(generateConcept).toBeDisabled();
   expect(createPostRequests).toHaveLength(1);
   expect(createPostRequests[0]).toMatchObject({
     locale: "en",
@@ -889,9 +909,12 @@ test("Create A/B and mobile profile remain coherent offline", async ({ page }, t
   await expect(page.getByTestId("create-alternative-b")).toHaveAttribute("aria-selected", "true");
   await expect(page.getByTestId("create-alternative-b")).toHaveCSS("background-color", "rgb(8, 127, 112)");
   await expect(page.getByTestId("generated-concept-metrics")).toContainText("Generated blocks1");
+  await expect(generateConcept).toHaveText("Already generated");
+  await expect(generateConcept).toBeDisabled();
   await expect(page.locator(".maplibregl-canvas")).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath("create-alternative-b.png") });
   expect(createPostRequests).toHaveLength(1);
+  const createCallsBeforeReopen = createRequestMethods.length;
   const areaContextCallsBeforeReopen = areaContextPostRequests;
   await expect.poll(() => page.evaluate(() => {
     const key = Object.keys(localStorage).find((item) => item.startsWith("geoai:point-to-object:projects:v1:"));
@@ -906,6 +929,9 @@ test("Create A/B and mobile profile remain coherent offline", async ({ page }, t
   await expect(page.getByRole("tab", { name: "Create", exact: true })).toHaveAttribute("aria-selected", "true");
   await expect(page.getByTestId("generated-concept-summary")).toBeVisible();
   await expect(page.getByTestId("create-alternative-b")).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByTestId("create-generate-action")).toHaveText("Already generated");
+  await expect(page.getByTestId("create-generate-action")).toBeDisabled();
+  expect(createRequestMethods).toHaveLength(createCallsBeforeReopen);
   expect(createPostRequests).toHaveLength(1);
   expect(areaContextPostRequests).toBe(areaContextCallsBeforeReopen);
   await page.getByTestId("create-alternative-a").click();
@@ -1096,7 +1122,7 @@ test("Saved Projects exposes recoverable storage failure at every supported widt
   findPostRequests.length = 0;
   const unexpectedExternal = await installOfflineRoutes(page);
   await page.setViewportSize({ width: 1280, height: 900 });
-  await page.goto("/prototype/point-to-object");
+  await signInDemo(page, "/prototype/point-to-object");
   await expect(page.locator(".maplibregl-canvas")).toBeVisible();
   await page.evaluate(() => {
     const target = window as typeof window & { __geoAiFailProjectWrites?: boolean; __geoAiOriginalStorageSetItem?: typeof Storage.prototype.setItem };

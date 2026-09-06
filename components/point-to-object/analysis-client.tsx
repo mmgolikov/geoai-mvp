@@ -292,6 +292,9 @@ export function PointToObjectAnalysis() {
   }, [commitAnalysis]);
 
   useEffect(() => {
+    // Capture the settled browser identity before restoring or starting analysis.
+    // Anonymous visitors remain supported once session resolution completes.
+    if (!isSessionResolved) return;
     const restoredSelection = readPointObjectSelection();
     if (!restoredSelection) {
       setMissingSelection(true);
@@ -339,7 +342,7 @@ export function PointToObjectAnalysis() {
       activeRequestRef.current?.abort();
       activeRequestRef.current = null;
     };
-  }, [requestAnalysis, setLocale]);
+  }, [isSessionResolved, requestAnalysis, setLocale]);
 
   useEffect(() => {
     if (!selection || analysis?.mode !== "openai" || loading) return;

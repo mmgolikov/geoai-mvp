@@ -425,6 +425,7 @@ async function installAnalysisRoutes(page: Page) {
     await route.abort("blockedbyclient");
   });
   await page.route("**/api/auth/session", (route) => json(route, { isAuthenticated: false, user: null }));
+  await page.route("**/api/auth/logout", (route) => json(route, { ok: true }));
   await page.route("**/api/prototype/point-to-object/ai", async (route) => {
     if (route.request().method() === "GET") {
       await json(route, { mode: "ready", challenge: "A".repeat(43) });
@@ -436,6 +437,32 @@ async function installAnalysisRoutes(page: Page) {
   });
 
   return { apiCalls, unexpectedExternal };
+}
+
+async function signInDemo(page: Page, nextPath: string) {
+  const loginNextPath = nextPath.startsWith("/prototype/point-to-object") ? "/workspace" : nextPath;
+  await page.goto(`/login?next=${encodeURIComponent(loginNextPath)}&intent=demo`);
+  const demoAccess = page.getByRole("button", { name: "Open demo access" });
+  await expect.poll(async () => {
+    return new URL(page.url()).pathname === loginNextPath || await demoAccess.isVisible().catch(() => false);
+  }, { timeout: 10_000, intervals: [50, 100, 250] }).toBe(true);
+  if (new URL(page.url()).pathname !== loginNextPath) {
+    await expect(demoAccess).toBeVisible();
+    await demoAccess.click();
+    await page.getByRole("button", { name: "Open demo", exact: true }).click();
+    await expect.poll(async () => {
+      try {
+        return await page.evaluate(() => localStorage.getItem("geoai-mock-demo-session-v1"));
+      } catch {
+        return null;
+      }
+    }).toBe("active");
+    await page.goto(loginNextPath);
+    await expect(page).toHaveURL((url) => url.pathname === loginNextPath);
+  }
+  if (loginNextPath === nextPath) return;
+  await expect(page.getByRole("link", { name: "Open demo profile" })).toBeVisible();
+  await page.goto(nextPath);
 }
 
 async function seedSelection(page: Page) {
@@ -468,7 +495,7 @@ test("V6 renders useful GeoContext and linked-source facts in EN/RU and restores
   const { apiCalls, unexpectedExternal } = await installAnalysisRoutes(page);
   await seedSelection(page);
 
-  await page.goto("/prototype/point-to-object/analysis");
+  await signInDemo(page, "/prototype/point-to-object/analysis");
   await expect(page.getByTestId("ai-success")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Continue bounded object screening" })).toBeVisible();
   await expect(page.getByText("Decision context", { exact: true })).toBeVisible();
@@ -574,7 +601,7 @@ test("Saved Analyse reopens RU from EN Projects and EN from RU Projects without 
   const { apiCalls, unexpectedExternal } = await installAnalysisRoutes(page);
   await seedSelection(page);
 
-  await page.goto("/prototype/point-to-object/analysis");
+  await signInDemo(page, "/prototype/point-to-object/analysis");
   await expect(page.getByRole("heading", { name: "Continue bounded object screening" })).toBeVisible();
   await expect.poll(() => savedAnalyseArtifactCount(page)).toBe(1);
   await page.getByRole("button", { name: "ru", exact: true }).click();
@@ -616,7 +643,7 @@ test("Projects preserves bytes and permits explicit retry when integrity hashing
   page.on("pageerror", (error) => pageErrors.push(error.message));
   await seedSelection(page);
 
-  await page.goto("/prototype/point-to-object/analysis");
+  await signInDemo(page, "/prototype/point-to-object/analysis");
   await expect(page.getByRole("heading", { name: "Continue bounded object screening" })).toBeVisible();
   await expect.poll(() => savedAnalyseArtifactCount(page)).toBe(1);
   await page.goto("/projects?view=spatial");
