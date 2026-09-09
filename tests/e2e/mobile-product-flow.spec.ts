@@ -138,6 +138,13 @@ async function expectPixelStableScreenshot(
 
   expect(comparison.dimensionsMatch, `${label} candidate baseline dimensions must remain stable`).toBe(true);
   const allowedChangedPixels = Math.max(100, Math.ceil(comparison.totalPixels * 0.001));
+  if (comparison.maxChannelDelta > 2 || comparison.changedPixelCount > allowedChangedPixels) {
+    await test.info().attach(`${label} first frame`, { body: firstImage, contentType: "image/png" });
+    await test.info().attach(`${label} repeat frame`, { body: repeatImage, contentType: "image/png" });
+    await test.info().attach(`${label} pixel diff`, {
+      body: JSON.stringify(comparison, null, 2), contentType: "application/json"
+    });
+  }
   expect(
     comparison.maxChannelDelta,
     `${label} candidate baseline may contain only negligible rasterization noise`
@@ -168,6 +175,10 @@ async function captureVisualEvidence(
   await page.evaluate(() => window.scrollTo(0, 0));
   await fs.mkdir(visualDirectory, { recursive: true });
   const filePath = path.join(visualDirectory, fileName);
+  // Prime Chrome's full-page compositor before comparing candidate frames.
+  // The first enlarged capture can rasterize rounded corners differently;
+  // both measured frames below must still meet the unchanged pixel thresholds.
+  if (candidateBaseline && fullPage) await page.screenshot({ animations: "disabled", caret: "hide", fullPage });
   const image = await page.screenshot({
     animations: "disabled",
     caret: "hide",

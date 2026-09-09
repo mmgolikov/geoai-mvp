@@ -325,7 +325,7 @@ async function signInDemo(page: Page, nextPath: string) {
         return null;
       }
     }).toBe("active");
-    await page.goto(loginNextPath);
+    // The demo action owns navigation; a competing goto can abort that redirect.
     await expect(page).toHaveURL((url) => url.pathname === loginNextPath);
   }
   if (loginNextPath === nextPath) return;
@@ -385,8 +385,15 @@ async function expectFindDrawerGeometry(page: Page, checkMapAlignment = false) {
 
 test("Sprint06 J06 keeps unsent RU refinement separate on Back and restores it without another request", async ({ page }, testInfo) => {
   await installOfflineRoutes(page);
-  let aiRequests = 0;
-  page.on("request", (request) => { if (new URL(request.url()).pathname.endsWith("/point-to-object/ai")) aiRequests += 1; });
+  const aiRequests = { challenge: 0, generation: 0 };
+  await page.route("**/api/prototype/point-to-object/ai", (route) => route.request().method() === "GET"
+    ? json(route, { mode: "ready", challenge: "offline-j06-challenge" })
+    : json(route, { mode: "unavailable", error: "Offline J06 generation unavailable", retryable: false }, 503));
+  page.on("request", (request) => {
+    if (!new URL(request.url()).pathname.endsWith("/point-to-object/ai")) return;
+    if (request.method() === "GET") aiRequests.challenge += 1;
+    if (request.method() === "POST") aiRequests.generation += 1;
+  });
   await page.setViewportSize({ width: 430, height: 932 });
   await signInDemo(page, "/prototype/point-to-object");
   await page.getByRole("button", { name: "ru", exact: true }).click();
@@ -400,7 +407,7 @@ test("Sprint06 J06 keeps unsent RU refinement separate on Back and restores it w
   await page.getByRole("button", { name: "Анализировать", exact: true }).click();
   await expect(page).toHaveURL(/\/analysis$/);
   const composer = page.getByLabel("Провести целевой анализ", { exact: true });
-  await expect.poll(() => aiRequests).toBe(1);
+  await expect.poll(() => ({ ...aiRequests })).toEqual({ challenge: 1, generation: 1 });
   await composer.fill(draft);
   await expect.poll(() => page.evaluate(() => sessionStorage.getItem("geoai:point-to-object:question:v2"))).toBe(original);
   await page.getByRole("link", { name: "Вернуться к карте", exact: true }).click();
@@ -409,16 +416,16 @@ test("Sprint06 J06 keeps unsent RU refinement separate on Back and restores it w
   await page.goBack();
   await expect(page).toHaveURL(/\/analysis$/);
   await expect(composer).toHaveValue(draft);
-  expect(aiRequests).toBe(1);
+  expect(aiRequests).toEqual({ challenge: 1, generation: 1 });
   await page.screenshot({ path: testInfo.outputPath("j06-unsent-refinement-restored-430-ru.png") });
   await page.reload();
   await expect(composer).toHaveValue(draft);
-  expect(aiRequests).toBe(1);
+  expect(aiRequests).toEqual({ challenge: 1, generation: 1 });
   await page.getByRole("button", { name: "en", exact: true }).click();
   await expect(page.getByLabel("Run a focused analysis", { exact: true })).toHaveValue(original);
   await page.getByRole("button", { name: "ru", exact: true }).click();
   await expect(composer).toHaveValue(draft);
-  expect(aiRequests).toBe(1);
+  expect(aiRequests).toEqual({ challenge: 1, generation: 1 });
 });
 
 test("Sprint06 half sheet fits the selected object inside the uncovered map", async ({ page }, testInfo) => {
@@ -505,6 +512,9 @@ test("native select controls keep the full chevron inset mouse, touch and keyboa
     await page.setViewportSize(viewport);
     for (const locale of ["en", "ru"] as const) {
       await page.getByRole("button", { name: locale, exact: true }).click();
+      if (viewport.width < 1024 && await page.getByTestId("mobile-workspace-shell").getAttribute("data-sheet") !== "peek") {
+        await page.getByRole("button", { name: locale === "ru" ? "На карту" : "Show map", exact: true }).click();
+      }
       const city = page.getByTestId("point-object-city-select");
       await city.selectOption("dubai");
       const cityBox = await city.boundingBox();
@@ -521,7 +531,10 @@ test("native select controls keep the full chevron inset mouse, touch and keyboa
 
       const chevron = city.locator("xpath=following-sibling::*[1]");
       await expect(chevron).toHaveCSS("pointer-events", "none");
-      expect(await chevron.evaluate((element) => element.getBoundingClientRect().width)).toBeGreaterThanOrEqual(44);
+      const chevronWidth = await chevron.evaluate((element) => element.getBoundingClientRect().width);
+      expect(chevronWidth).toBeGreaterThanOrEqual(24);
+      expect(await city.evaluate((element) => Number.parseFloat(getComputedStyle(element).paddingRight))).toBeGreaterThanOrEqual(chevronWidth);
+      expect(cityBox?.height, "The native select, not its decorative chevron, owns the 44px target").toBeGreaterThanOrEqual(44);
 
       await page.getByRole("tab", { name: locale === "ru" ? "Поиск" : "Find", exact: true }).click();
       for (const testId of [
@@ -529,6 +542,9 @@ test("native select controls keep the full chevron inset mouse, touch and keyboa
         "point-object-find-scenario-select",
         "point-object-find-group-select"
       ]) {
+        if (viewport.width < 1024 && await page.getByTestId("mobile-workspace-shell").getAttribute("data-sheet") === "peek") {
+          await page.getByRole("button", { name: locale === "ru" ? "Открыть задачу" : "Open task", exact: true }).click();
+        }
         const control = page.getByTestId(testId);
         const box = await control.boundingBox();
         expect(box, `${viewport.width}px ${locale} ${testId} must render`).not.toBeNull();
@@ -541,9 +557,11 @@ test("native select controls keep the full chevron inset mouse, touch and keyboa
 
   await page.getByRole("button", { name: "en", exact: true }).click();
   await page.getByRole("tab", { name: "Analyse", exact: true }).click();
+  await page.getByRole("button", { name: "Show map", exact: true }).click();
   const search = page.getByRole("combobox", { name: "Search address or place" });
   await search.fill("Shangri");
   await page.getByRole("option", { name: /Shangri-La exact search result/ }).click();
+  await page.getByRole("button", { name: "Open task", exact: true }).click();
   await page.getByRole("button", { name: "Analyze", exact: true }).click();
   await expect(page).toHaveURL(/\/prototype\/point-to-object\/analysis$/);
   await page.getByText("Analysis settings", { exact: true }).click();
@@ -572,17 +590,17 @@ test("map-first layout keeps a compact desktop drawer across all modes and break
   await expect(page.getByText("Optional", { exact: true })).toHaveCount(0);
 
   for (const viewport of [
-    { width: 1710, height: 877, drawerWidth: 430, stacked: false },
-    { width: 1440, height: 720, drawerWidth: 430, stacked: false },
-    { width: 1280, height: 900, drawerWidth: 430, stacked: false },
-    { width: 1024, height: 768, drawerWidth: 430, stacked: false },
-    { width: 1024, height: 1366, drawerWidth: 430, stacked: false },
-    { width: 1023, height: 720, drawerWidth: 491.04, stacked: false },
-    { width: 720, height: 450, drawerWidth: 345.6, stacked: false },
-    { width: 640, height: 450, drawerWidth: 340, stacked: false },
-    { width: 639, height: 450, drawerWidth: 639, stacked: true },
-    { width: 834, height: 1112, drawerWidth: 834, stacked: true },
-    { width: 390, height: 844, drawerWidth: 390, stacked: true }
+    { width: 1710, height: 877, drawerWidth: 430, overlay: false },
+    { width: 1440, height: 720, drawerWidth: 430, overlay: false },
+    { width: 1280, height: 900, drawerWidth: 430, overlay: false },
+    { width: 1024, height: 768, drawerWidth: 430, overlay: false },
+    { width: 1024, height: 1366, drawerWidth: 430, overlay: false },
+    { width: 1023, height: 720, drawerWidth: 1023, overlay: true },
+    { width: 720, height: 450, drawerWidth: 720, overlay: true },
+    { width: 640, height: 450, drawerWidth: 640, overlay: true },
+    { width: 639, height: 450, drawerWidth: 639, overlay: true },
+    { width: 834, height: 1112, drawerWidth: 834, overlay: true },
+    { width: 390, height: 844, drawerWidth: 390, overlay: true }
   ]) {
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     for (const mode of ["Analyse", "Find", "Create"]) {
@@ -609,10 +627,17 @@ test("map-first layout keeps a compact desktop drawer across all modes and break
       expect(geometry.pageWidth).toBeLessThanOrEqual(viewport.width);
       expect(Math.abs(geometry.drawerRight - viewport.width)).toBeLessThanOrEqual(1);
       expect(Math.abs(geometry.mapLeft)).toBeLessThanOrEqual(1);
-      if (viewport.stacked) {
+      if (viewport.overlay) {
+        await expect(page.getByTestId("mobile-workspace-shell")).toHaveAttribute("data-sheet", "full");
         expect(Math.abs(geometry.mapWidth - viewport.width)).toBeLessThanOrEqual(1);
         expect(Math.abs(geometry.drawerLeft)).toBeLessThanOrEqual(1);
-        expect(Math.abs(geometry.drawerTop - geometry.mapBottom)).toBeLessThanOrEqual(1);
+        expect(Math.abs(geometry.drawerTop - geometry.mapTop)).toBeLessThanOrEqual(1);
+        expect(Math.abs(geometry.mapBottom - viewport.height)).toBeLessThanOrEqual(1);
+        await page.getByRole("button", { name: "Show map", exact: true }).click();
+        await expect(page.getByTestId("mobile-workspace-shell")).toHaveAttribute("data-sheet", "peek");
+        const uncoveredMapHeight = await page.locator("main aside").evaluate((aside) => aside.previousElementSibling?.getBoundingClientRect().height);
+        expect(uncoveredMapHeight).toBeCloseTo(geometry.mapBottom - geometry.mapTop, 0);
+        await page.getByRole("button", { name: "Open task", exact: true }).click();
       } else {
         expect(Math.abs(geometry.mapWidth - (viewport.width - viewport.drawerWidth))).toBeLessThanOrEqual(1);
         expect(Math.abs(geometry.drawerLeft - geometry.mapRight)).toBeLessThanOrEqual(1);
@@ -655,7 +680,7 @@ test("map-first layout keeps a compact desktop drawer across all modes and break
         await page.screenshot({ path: testInfo.outputPath(`desktop-drawer-${mode.toLowerCase()}.png`) });
       }
       if ((viewport.width === 720 || viewport.width === 640) && mode === "Analyse") {
-        await page.locator("main aside > div").evaluate((element) => { element.scrollTop = 0; });
+        await page.locator("#workspace-task-content").evaluate((element) => { element.scrollTop = 0; });
         const selectedObject = page.getByTestId("selected-object");
         const analyze = page.getByTestId("analyse-composer").getByRole("button", { name: "Analyze", exact: true });
         await expect(selectedObject).toBeVisible();

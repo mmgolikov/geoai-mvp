@@ -316,6 +316,7 @@ export function PointToObjectAnalysis() {
     // Capture the settled browser identity before restoring or starting analysis.
     // Anonymous visitors remain supported once session resolution completes.
     if (!isSessionResolved) return;
+    let cancelled = false;
     const restoredSelection = readPointObjectSelection();
     if (!restoredSelection) {
       setMissingSelection(true);
@@ -357,10 +358,15 @@ export function PointToObjectAnalysis() {
         setGoal(restoredSettings.goal);
         setPerspective(restoredSettings.perspective);
         setHorizon(restoredSettings.horizon);
-        if (restoredDraft === null) void requestAnalysis(restoredSelection, restoredQuestion, restoredSettings);
+        // Defer automatic dispatch until this effect survives React's setup /
+        // cleanup replay. A cleaned-up mount must not send even a challenge GET.
+        if (restoredDraft === null) queueMicrotask(() => {
+          if (!cancelled) void requestAnalysis(restoredSelection, restoredQuestion, restoredSettings);
+        });
       }
     }
     return () => {
+      cancelled = true;
       requestSequenceRef.current += 1;
       activeRequestRef.current?.abort();
       activeRequestRef.current = null;
