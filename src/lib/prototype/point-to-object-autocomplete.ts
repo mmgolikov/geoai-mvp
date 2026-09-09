@@ -162,7 +162,9 @@ export function buildPhotonAutocompleteUrl(
   url.searchParams.set("lon", market.center[0].toFixed(6));
   url.searchParams.set("zoom", "12");
   url.searchParams.set("location_bias_scale", "0.2");
-  url.searchParams.set("lang", request.locale);
+  // Public Photon supports default/de/en/fr, not ru. This selects result-label
+  // language only; preserve the user's query and application locale unchanged.
+  url.searchParams.set("lang", request.locale === "ru" ? "en" : request.locale);
   url.searchParams.set("limit", String(PHOTON_AUTOCOMPLETE_LIMIT));
   url.searchParams.set("dedupe", "1");
   return url;

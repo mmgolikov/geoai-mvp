@@ -92,7 +92,7 @@ for (const market of markets) {
   assert.equal(url.searchParams.get("lon"), market.center[0].toFixed(6));
   assert.equal(url.searchParams.get("zoom"), "12");
   assert.equal(url.searchParams.get("location_bias_scale"), "0.2");
-  assert.equal(url.searchParams.get("lang"), "ru");
+  assert.equal(url.searchParams.get("lang"), "en", "RU must use a language supported by public Photon.");
   assert.equal(url.searchParams.get("limit"), "5");
   assert.equal(url.searchParams.get("dedupe"), "1");
 }
@@ -148,6 +148,22 @@ assert.equal(response.provider, "Photon");
 assert.equal((response.results as unknown[]).length, 1);
 assert.equal((response.source as Record<string, unknown>).officialStatus, "open_context_not_official");
 
+for (const locale of ["en", "ru"]) {
+  for (const query of ["Shangri-La", "Шангри-Ла"]) {
+    const request = Object.freeze({ marketKey: "dubai", locale, query });
+    let calls = 0;
+    const localizedResponse = await suggest(request, async (url) => {
+      calls += 1;
+      assert.equal(url.searchParams.get("lang"), "en");
+      assert.equal(url.searchParams.get("q"), query, "Provider-language fallback must not translate or replace the query.");
+      return { type: "FeatureCollection", features: [validFeature] };
+    });
+    assert.equal(calls, 1, "Language fallback must not add a retry or duplicate provider operation.");
+    assert.deepEqual(request, { marketKey: "dubai", locale, query }, "Application locale and query must remain unchanged.");
+    assert.deepEqual(localizedResponse, response, "Provider fallback must preserve result identity and source metadata.");
+  }
+}
+
 let observedInit: (RequestInit & { next?: { revalidate: number } }) | undefined;
 const loaded = await fetchPayload(new URL("https://photon.example.test/api?q=Marina"), async (_input, init) => {
   observedInit = init;
@@ -174,6 +190,12 @@ await assert.rejects(
 await assert.rejects(
   () => fetchPayload(new URL("https://photon.example.test/api?q=Marina"), async () => new Response("rate limited", { status: 429 })),
   (error: unknown) => error instanceof Error && "code" in error && error.code === "PHOTON_RATE_LIMITED"
+);
+await assert.rejects(
+  () => suggest({ marketKey: "dubai", locale: "ru", query: "Шангри-Ла" }, (url) =>
+    fetchPayload(url, async () => new Response("unavailable", { status: 503 }))),
+  (error: unknown) => error instanceof Error && "code" in error && error.code === "PHOTON_UNAVAILABLE",
+  "A real RU provider failure must remain an error, not an empty-success fallback."
 );
 
 const routeSource = readFileSync(path.join(ROOT, "app/api/prototype/point-to-object/suggest/route.ts"), "utf8");
