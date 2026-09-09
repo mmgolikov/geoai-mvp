@@ -14,6 +14,7 @@ const session = read("src/lib/prototype/point-to-object-find-session.ts");
 const capabilities = read("src/lib/prototype/point-to-object-find-capabilities.ts");
 const i18n = read("src/lib/prototype/point-to-object-i18n.ts");
 const header = read("components/point-to-object/prototype-header.tsx");
+const mobileCss = read("components/point-to-object/mobile-workspace.module.css");
 
 assert.match(client, /expectedSourceFeatureId: exactOsmFeatureId\(selection\.object\.sourceFeatureId\)/);
 assert.match(client, /const expectedSourceFeatureId = exactOsmFeatureId\(candidate\.sourceFeatureId\)/);
@@ -48,7 +49,7 @@ assert.match(analysis, /findSession\?\.analysisTargetSourceFeatureId === selecte
 assert.match(analysis, /settingsForFindIntent\(findSession\.role, findSession\.scenario\)/);
 
 const findDrawerStart = client.indexOf('data-testid="find-drawer"');
-const findDrawerEnd = client.indexOf('{mode === "create"', findDrawerStart);
+const findDrawerEnd = client.indexOf('<div hidden={mode !== "create"}', findDrawerStart);
 assert.ok(findDrawerStart >= 0 && findDrawerEnd > findDrawerStart, "Find drawer source must be addressable for deterministic UI checks");
 const findDrawer = client.slice(findDrawerStart, findDrawerEnd);
 assert.doesNotMatch(header, /showDataSources|source-offer|header\.dataSources/, "Prototype headers must not expose the removed Data sources action");
@@ -122,11 +123,20 @@ assert.match(marketChange, /findRequestRef\.current\?\.abort\(\)/, "Market chang
 assert.match(findDrawer, /min-h-11 w-full rounded-xl bg-\[#087f8c\]/, "Find CTA must retain a 44px target");
 assert.match(client, /body: JSON\.stringify\(\{ marketKey: locationKey, locale, bounds: visibleBounds, group: findGroup, mappedMinimumLevels, mappedMaximumLevels, limit: 12 \}\)/, "Visible Find settings must be sent to the bounded server request");
 assert.match(capabilities, /b2b_lowrise_luxury_residential:[\s\S]*mappedLevelsPreset: \{ minimum: null, maximum: 4 \}/, "The low-rise scenario must set a real maximum-level preset");
-assert.match(client, /grid-rows-\[clamp\(108px,32svh,360px\)_minmax\(0,1fr\)\]/, "Stacked map and drawer must own a bounded viewport height");
-assert.match(client, /sm:max-lg:landscape:grid-cols-\[minmax\(0,1fr\)_minmax\(340px,48%\)\]/, "Narrow landscape reflow must stop below the desktop breakpoint");
-assert.match(client, /mode === "find" \? "overflow-hidden" : "overflow-y-auto"/, "Find must delegate vertical scrolling to its single internal region");
+assert.match(client, /const \[sheet, setSheet\] = useState<"peek" \| "half" \| "full">\("peek"\)/, "Task sheet state must remain independent of product mode");
+assert.match(client, /data-sheet=\{effectiveSheet\} data-testid="mobile-workspace-shell"/);
+assert.match(mobileCss, /\.workspace \{ height: var\(--workspace-height, 100dvh\); \}/, "Workspace must own a bounded dynamic viewport");
+assert.match(mobileCss, /\.map \{ height: 100%; min-height: 0; \}/, "Map must retain full height behind the independent task sheet");
+assert.match(mobileCss, /\.sheet \{ position: absolute;[^}]*height: var\(--sheet-height\)/, "Mobile task sheet must overlay, not shrink, the mounted map");
+assert.match(mobileCss, /@media \(min-width: 1024px\)[\s\S]*grid-template-columns: minmax\(0, 1fr\) 430px/, "Desktop must retain the 430px drawer at the accepted breakpoint");
+assert.match(mobileCss, /@media \(max-height: 599px\) and \(max-width: 1023px\)[\s\S]*\.halfControl \{ display: none; \}/, "Short mobile landscape must omit the half-sheet control");
+assert.match(client, /const effectiveSheet = mobile && viewportHeight < 600 && sheet === "half" \? "full" : sheet/);
+assert.match(client, /aria-controls="workspace-task-content" aria-expanded=\{sheet !== "peek"\}/, "Map/task navigation must expose its controlled region and expanded state");
+assert.match(client, /inert=\{mobile && effectiveSheet === "full"\}/, "Covered map controls must not remain keyboard interactive");
+assert.match(mobileCss, /\.content \{[^}]*min-height: 0;[^}]*flex: 1;[^}]*overflow-y: auto;[^}]*overscroll-behavior: contain/, "Task content must be flex-bounded and contain its scrolling");
+assert.match(client, /id="workspace-task-content" className=\{mobileStyles\.content\}/);
 assert.match(client, /role="tab"[\s\S]*min-h-11/, "Mode tabs must retain 44px targets");
-assert.match(client, /lg:pb-4/);
+assert.match(mobileCss, /\.drawer \{ padding: 24px 24px 16px; \}/, "Desktop drawer must retain its 16px lower inset");
 assert.match(client, /data-testid="analyse-composer"/);
 assert.match(client, /h-\[120px\][\s\S]*lg:h-\[132px\][\s\S]*lg:min-h-\[120px\][\s\S]*lg:max-h-\[200px\]/, "Analyse composer must retain a useful bounded writing area");
 const selectionCardStart = client.indexOf('data-testid="selection-card"');
@@ -144,11 +154,14 @@ assert.match(map, /map\.fitBounds\(createAoiFitRequest\.bounds/);
 assert.match(map, /bearing: map\.getBearing\(\),[\s\S]*pitch: map\.getPitch\(\)/, "Uploaded AOI fit must preserve the user's orientation and 2D\/3D posture");
 assert.match(client, /closeCreateArea\(vertices, true\)/, "Only uploaded AOIs should request automatic fitting");
 assert.match(map, /min-h-11 rounded-lg px-3 text-xs font-bold uppercase/, "2D and 3D controls must retain 44px targets");
-assert.match(map, /sm:bottom-3/, "Desktop map controls must retain their anchored lower edge");
+assert.match(map, /data-map-bottom-controls/);
+assert.match(mobileCss, /\.map \[data-map-bottom-controls\] \{ bottom: 12px; \}/, "Desktop map controls must retain their anchored lower edge");
+assert.match(mobileCss, /\.controls button \{ min-height: 44px;/, "Mobile task controls must retain 44px targets");
 
 assert.doesNotMatch(client, /setCreateAreaCleared\(\(value\) => !value\);\s*setGeneratedConcept\(null\)/);
 assert.match(client, /const \[createReplacementRevision, setCreateReplacementRevision\] = useState\(0\)/);
-assert.match(client, /createReplacementMapProps = \{ createReplacementRevision \}/);
+assert.match(client, /createReplacementMapProps = \{\s*createReplacementRevision,/);
+assert.match(client, /overlayBottomInset: mobile \? sheet === "half"/, "Map replacement must retain the sheet-aware camera inset");
 assert.match(client, /data-testid="create-map-presentation-toggle"/);
 assert.match(client, /const sourceBuildingsHidden = createAreaCleared && createReplacementStatus === "applied"/);
 assert.match(client, /"Show generated concept"/);
