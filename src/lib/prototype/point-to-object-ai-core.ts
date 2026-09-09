@@ -2463,7 +2463,11 @@ function requiredMissingEvidence(
   if (/\b(?:owner|ownership|title|right|legal)\b|(?:собствен|владел|право|титул|юрид)/.test(normalized)) add("title_rights", "official_identity");
   if (/\b(?:zoning|planning|permitted|approval|development rights|far|fsi)\b|(?:зонир|планир|разреш|регламент)/.test(normalized)) add("planning_controls", "parcel_boundary");
   if (/\b(?:condition|structur|capacity|occupan|operator|performance|refurbish)\b|(?:состояни|конструкц|мощност|заполняем|эксплуатац|реконструкц)/.test(normalized)) add("physical_baseline");
-  if (/\b(?:market|demand|supply|rent|price|value|valuation|yield|return|roi|financial|cost)\b|(?:рынок|спрос|предлож|аренд|цен|стоимост|оценк|доходн|возврат|финанс|затрат)/.test(normalized)) add("current_market", "cost_financials");
+  // Generic RU assessment ("оцени", "оценка окружения") is not valuation.
+  // Match price as a complete Unicode word, not the "цен" inside "оцени".
+  const asksPrice = /(?:^|[^\p{L}\p{N}_])(?:цен(?:а|ы|е|у|ой|ою|ам|ами|ах|ов[\p{L}]*|ност[\p{L}]*|ообразован[\p{L}]*|ник[\p{L}]*)?|расцен(?:к[\p{L}]*|ок))(?=$|[^\p{L}\p{N}_])/u.test(normalized);
+  const asksFinancialEvidence = /\b(?:market|demand|supply|rent|price|value|valuation|yield|return|roi|financial|cost)\b|(?:рынок|рынк|рыночн|спрос|предлож|аренд|стоимост|доходн|возврат|финанс|затрат)/.test(normalized);
+  if (asksPrice || asksFinancialEvidence) add("current_market", "cost_financials");
   if (/\b(?:compar|benchmark|transaction)\b|(?:сравн|аналог|сделк)/.test(normalized)) add("transaction_comparables");
   if (/\b(?:walk|drive|route|travel time|access time|minutes away)\b|(?:пешком|ехать|маршрут|время в пути|доступност)/.test(normalized)) add("route_access");
   if ((/\b(?:histor|heritage|past|previous use|opened|built when)\b|(?:истор|прошл|предыдущ|когда постро)/.test(normalized)) && !support.hasLifecycleMarker) add("historical_sources");

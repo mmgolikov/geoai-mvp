@@ -2288,6 +2288,43 @@ async function assertCandidateAiSafety(): Promise<void> {
   assert.equal(missingFocusedAnswer.ok, false,
     "A focused request must fail closed when the model omits its evidence-bound answer.");
 
+  const surroundingsPlan = {
+    ...rawPlan,
+    focusedAnswer: {
+      ...rawPlan.focusedAnswer,
+      status: "answered",
+      scope: "nearby_context",
+      statement: "World Trade Centre — картографический ориентир транспортного окружения; выборка открытых данных не доказывает полноту списка объектов.",
+      evidenceRefs: ["EVD-CONTEXT-01"],
+      missingEvidenceCodes: []
+    }
+  };
+  for (const question of [
+    "Оцени окружение отеля: назови ближайшие магазины, аптеку и транспорт, расстояния до них и практические ограничения этих данных.",
+    "Оценка окружения отеля",
+    "Опиши окружение отеля",
+    "Assess the hotel surroundings and the limitations of these data."
+  ]) {
+    const result = validateContentDetailed(surroundingsPlan, evidencePack, { ...focusedAnalysisRequest, locale: "ru", question });
+    assert.equal(result.ok, true, `Informational assessment must not require financial sources: ${question}: ${JSON.stringify(result)}`);
+  }
+  for (const question of [
+    "Оцени рыночную стоимость отеля", "Какова цена отеля?", "Какие цены на отели?",
+    "Анализ цен", "Ценовой прогноз", "Какова ценность актива?", "Какие расценки?",
+    "Как устроено ценообразование?", "Какой ценник?", "Какие ценники?", "Анализ расценок",
+    "Нужна рыночная оценка", "Какова аренда?",
+    "Оцени доходность и ROI", "What is the price, value and rental yield?"
+  ]) {
+    const result = validateContentDetailed(surroundingsPlan, evidencePack, { ...focusedAnalysisRequest, locale: "ru", question });
+    assert.equal(result.ok, false, `Financial conclusions must still require missing financial sources: ${question}`);
+    assert.equal(result.ok ? null : result.detail, "focused_answer_missing_source_gate");
+  }
+  const physicalAssessment = validateContentDetailed({
+    ...surroundingsPlan,
+    focusedAnswer: { ...surroundingsPlan.focusedAnswer, status: "partial", missingEvidenceCodes: ["physical_baseline"] }
+  }, evidencePack, { ...focusedAnalysisRequest, locale: "ru", question: "Оценка состояния отеля" });
+  assert.equal(physicalAssessment.ok, true, "Generic condition assessment requires physical evidence, not financial evidence.");
+
   const mismatchedLensAnswer = validateContentDetailed({
     ...rawPlan,
     focusedAnswer: { ...rawPlan.focusedAnswer, perspective: "developer" }
