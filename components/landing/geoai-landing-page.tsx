@@ -97,17 +97,34 @@ export function GeoAILandingPage() {
               <span>{copy.hero.previewLabel}</span>
               <span>{copy.workflow.paths.slice(0, 3).map((path) => path.name).join(" · ")}</span>
             </div>
-            <Image
-              src={locale === "en"
-                ? "/landing/geoai-map-workspace-preview.png"
-                : "/landing/geoai-map-workspace-preview-ru.png"}
-              alt={copy.hero.previewAlt}
-              width={1280}
-              height={720}
-              priority
-              sizes="(max-width: 767px) 94vw, (max-width: 1199px) 88vw, 760px"
-            />
-            <figcaption>{copy.hero.previewCaption}</figcaption>
+            <Link href={mapHref} className={styles.previewLink} aria-label={copy.actions.openMap}>
+              <Image
+                className={styles.previewWide}
+                src="/landing/sprint06-selected-site-wide.png"
+                alt={copy.hero.previewAlt}
+                width={849}
+                height={540}
+                priority
+                sizes="(max-width: 620px) 1px, (max-width: 1199px) 88vw, 760px"
+              />
+              <Image
+                className={styles.previewNarrow}
+                src="/landing/sprint06-selected-site-narrow.png"
+                alt={copy.hero.previewAlt}
+                width={430}
+                height={400}
+                priority
+                sizes="(max-width: 620px) calc(100vw - 32px), 1px"
+              />
+            </Link>
+            <figcaption>
+              <span>{copy.hero.previewCaption}</span>
+              <span className={styles.previewAttribution}>
+                <a href="https://openfreemap.org/" target="_blank" rel="noopener noreferrer">OpenFreeMap</a>
+                {" © "}<a href="https://openmaptiles.org/" target="_blank" rel="noopener noreferrer">OpenMapTiles</a>
+                {" · "}<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">{locale === "en" ? "Data from OpenStreetMap" : "Данные OpenStreetMap"}</a>
+              </span>
+            </figcaption>
           </figure>
         </div>
       </section>

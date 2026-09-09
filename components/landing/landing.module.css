@@ -200,6 +200,11 @@
 }
 .previewMeta span:last-child { color: var(--accent-strong); }
 .productPreview img { display: block; width: 100%; height: auto; }
+.previewLink { display: block; }
+.previewLink:focus-visible { outline: 3px solid var(--accent-strong); outline-offset: -3px; }
+.productPreview .previewNarrow { display: none; }
+.previewAttribution { display: block; margin-top: 5px; font-size: 10px; }
+.previewAttribution a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
 .productPreview figcaption { margin: 0; padding: 12px 18px 14px; color: var(--muted); font-size: 11px; line-height: 1.5; }
 
 .section, .finalCta { padding-block: 104px; scroll-margin-top: 92px; }
@@ -459,7 +464,8 @@
   .heroActions { align-items: stretch; flex-direction: column; }
   .heroActions a { width: 100%; }
   .productPreview { border-radius: 16px; }
-  .productPreview img { width: auto; max-width: none; height: 320px; object-fit: cover; object-position: 61% center; }
+  .productPreview .previewWide { display: none; }
+  .productPreview .previewNarrow { display: block; width: 100%; height: auto; object-fit: contain; }
   .section, .finalCta { padding-block: 70px; }
   .sectionHeading h2, .finalCta h2 { font-size: 38px; }
   .sectionHeading > p:last-child, .finalCta > div > p:last-child { font-size: 14px; }

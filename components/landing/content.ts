@@ -84,9 +84,9 @@ export const landingContent: Record<PointObjectLocale, LandingContent> = {
         "Select a mapped object or area, inspect available context, compare candidates and shape bounded development concepts — with assumptions and missing evidence kept visible.",
       note: "Uses open-map and sample contexts. Do not enter confidential data.",
       previewLabel: "GeoAI workspace · Dubai",
-      previewCaption: "Real GeoAI interface using OpenFreeMap and OpenStreetMap context.",
+      previewCaption: "A selected building in Dubai Trade Centre, captured in GeoAI. Open the map to explore.",
       previewAlt:
-        "GeoAI map-first workspace showing a three-dimensional Dubai map and the Analyse, Find and Create product modes"
+        "A real three-dimensional map of Dubai Trade Centre with a selected building highlighted in teal"
     },
     workflow: {
       eyebrow: "What you can do",
@@ -209,8 +209,8 @@ export const landingContent: Record<PointObjectLocale, LandingContent> = {
       body: "Выберите объект или зону на карте, изучите доступный контекст, сравните варианты и сформируйте ограниченные концепции развития — с видимыми допущениями и пробелами в данных.",
       note: "Используются открытые и демонстрационные контексты. Не вводите конфиденциальные данные.",
       previewLabel: "Рабочее пространство GeoAI · Дубай",
-      previewCaption: "Реальный интерфейс GeoAI на базе OpenFreeMap и контекста OpenStreetMap.",
-      previewAlt: "Интерфейс GeoAI с трехмерной картой Дубая и режимами Анализ, Поиск и Создать"
+      previewCaption: "Выбранное здание в Dubai Trade Centre на снимке из GeoAI. Откройте карту, чтобы изучить район.",
+      previewAlt: "Реальная трёхмерная карта Dubai Trade Centre: выбранное здание выделено бирюзовым"
     },
     workflow: {
       eyebrow: "Что можно сделать",
