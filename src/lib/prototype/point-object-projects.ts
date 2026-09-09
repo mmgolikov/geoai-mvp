@@ -567,6 +567,7 @@ export function reconcilePointObjectBrowserIdentity(identityKey: PointObjectProj
       for (const key of [
         "geoai:point-to-object:selection:v3",
         "geoai:point-to-object:question:v2",
+        "geoai:point-to-object:analysis-draft:v1",
         "geoai:point-to-object:analysis:v8",
         "geoai:point-to-object:analysis:v7",
         POINT_OBJECT_FIND_SESSION_KEY,

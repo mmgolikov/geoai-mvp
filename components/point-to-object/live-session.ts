@@ -40,6 +40,7 @@ import type {
 export const POINT_OBJECT_SESSION_KEYS = {
   selection: "geoai:point-to-object:selection:v3",
   question: "geoai:point-to-object:question:v2",
+  analysisDraft: "geoai:point-to-object:analysis-draft:v1",
   analysis: "geoai:point-to-object:analysis:v8",
   legacyAnalysis: "geoai:point-to-object:analysis:v7"
 } as const;
@@ -445,6 +446,42 @@ export function clearPointObjectSelection(): void {
   }
 }
 
+export type PointObjectQuestionScope = {
+  selection: LiveMapSelection;
+  identityKey: string | null;
+  projectId: string | null;
+  locale: "en" | "ru";
+  profileKey: string;
+};
+
+function questionScopeKey(scope: PointObjectQuestionScope): string {
+  return JSON.stringify([selectionFingerprint(scope.selection), scope.identityKey, scope.projectId, scope.locale, scope.profileKey]);
+}
+
+export function readPointObjectQuestionDraft(scope: PointObjectQuestionScope): string | null {
+  try {
+    const value = window.sessionStorage.getItem(POINT_OBJECT_SESSION_KEYS.analysisDraft);
+    if (typeof value !== "string" || value.length > 4096) return null;
+    const draft: unknown = JSON.parse(value);
+    return scope && isRecord(draft) && hasExactKeys(draft, ["version", "scope", "question"]) &&
+      draft.version === 1 && draft.scope === questionScopeKey(scope) && typeof draft.question === "string" && draft.question.length <= 500
+      ? draft.question : null;
+  } catch {
+    return null;
+  }
+}
+
+export function writePointObjectQuestionDraft(question: string, scope: PointObjectQuestionScope): boolean {
+  try {
+    const value = JSON.stringify({ version: 1, scope: questionScopeKey(scope), question: question.slice(0, 500) });
+    window.sessionStorage.setItem(POINT_OBJECT_SESSION_KEYS.analysisDraft, value);
+    return window.sessionStorage.getItem(POINT_OBJECT_SESSION_KEYS.analysisDraft) === value;
+  } catch {
+    // The current in-memory question remains available.
+    return false;
+  }
+}
+
 export function readPointObjectQuestion(): string {
   try {
     const value = window.sessionStorage.getItem(POINT_OBJECT_SESSION_KEYS.question);
@@ -457,6 +494,7 @@ export function readPointObjectQuestion(): string {
 export function writePointObjectQuestion(question: string): void {
   try {
     window.sessionStorage.setItem(POINT_OBJECT_SESSION_KEYS.question, question.slice(0, 500));
+    window.sessionStorage.removeItem(POINT_OBJECT_SESSION_KEYS.analysisDraft);
   } catch {
     // The current in-memory question remains available.
   }

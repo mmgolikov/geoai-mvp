@@ -383,6 +383,44 @@ async function expectFindDrawerGeometry(page: Page, checkMapAlignment = false) {
   }
 }
 
+test("Sprint06 J06 keeps unsent RU refinement separate on Back and restores it without another request", async ({ page }, testInfo) => {
+  await installOfflineRoutes(page);
+  let aiRequests = 0;
+  page.on("request", (request) => { if (new URL(request.url()).pathname.endsWith("/point-to-object/ai")) aiRequests += 1; });
+  await page.setViewportSize({ width: 430, height: 932 });
+  await signInDemo(page, "/prototype/point-to-object");
+  await page.getByRole("button", { name: "ru", exact: true }).click();
+  await page.getByRole("tab", { name: "Поиск", exact: true }).click();
+  await page.getByTestId("find-search-cta").click();
+  const third = page.getByRole("listitem").filter({ hasText: "Marina Candidate Three" });
+  await third.getByRole("button").first().click();
+  const original = "Проверить окружение выбранного объекта QA06";
+  const draft = "QA06 несохранённое уточнение: транспорт и подъезд";
+  await page.getByLabel("Что вы хотите узнать?").fill(original);
+  await page.getByRole("button", { name: "Анализировать", exact: true }).click();
+  await expect(page).toHaveURL(/\/analysis$/);
+  const composer = page.getByLabel("Провести целевой анализ", { exact: true });
+  await expect.poll(() => aiRequests).toBe(1);
+  await composer.fill(draft);
+  await expect.poll(() => page.evaluate(() => sessionStorage.getItem("geoai:point-to-object:question:v2"))).toBe(original);
+  await page.getByRole("link", { name: "Вернуться к карте", exact: true }).click();
+  await page.getByRole("button", { name: "Открыть задачу", exact: true }).click();
+  await expect(page.getByLabel("Что вы хотите узнать?")).toHaveValue(original);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/analysis$/);
+  await expect(composer).toHaveValue(draft);
+  expect(aiRequests).toBe(1);
+  await page.screenshot({ path: testInfo.outputPath("j06-unsent-refinement-restored-430-ru.png") });
+  await page.reload();
+  await expect(composer).toHaveValue(draft);
+  expect(aiRequests).toBe(1);
+  await page.getByRole("button", { name: "en", exact: true }).click();
+  await expect(page.getByLabel("Run a focused analysis", { exact: true })).toHaveValue(original);
+  await page.getByRole("button", { name: "ru", exact: true }).click();
+  await expect(composer).toHaveValue(draft);
+  expect(aiRequests).toBe(1);
+});
+
 test("Sprint06 half sheet fits the selected object inside the uncovered map", async ({ page }, testInfo) => {
   await installOfflineRoutes(page);
   await page.setViewportSize({ width: 390, height: 844 });

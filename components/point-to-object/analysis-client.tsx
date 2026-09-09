@@ -11,9 +11,11 @@ import {
   parsePointObjectAiResponse,
   readPointObjectAnalysis,
   readPointObjectQuestion,
+  readPointObjectQuestionDraft,
   readPointObjectSelection,
   writePointObjectAnalysis,
-  writePointObjectQuestion
+  writePointObjectQuestion,
+  writePointObjectQuestionDraft
 } from "@/components/point-to-object/live-session";
 import { POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION } from "@/components/point-to-object/live-types";
 import type {
@@ -28,6 +30,8 @@ import type {
 import type { ExploreRole, ExploreScenarioId } from "@/src/lib/explore/types";
 import {
   capturePointObjectProjectDestination,
+  inspectPointObjectProjects,
+  POINT_OBJECT_PROJECTS_EVENT,
   consumePointObjectAnalysisRestore,
   pointObjectProjectIdentity,
   reconcilePointObjectBrowserIdentity,
@@ -148,6 +152,7 @@ export function PointToObjectAnalysis() {
   const [selection, setSelection] = useState<LiveMapSelection | null>(null);
   const [analysis, setAnalysis] = useState<PointObjectAiResponse | null>(null);
   const [question, setQuestion] = useState("");
+  const [draftStorageFailed, setDraftStorageFailed] = useState(false);
   const [depth, setDepth] = useState<PointObjectAnalysisDepth>(DEFAULT_SETTINGS.depth);
   const [goal, setGoal] = useState<PointObjectAnalysisGoal>(DEFAULT_SETTINGS.goal);
   const [perspective, setPerspective] = useState<PointObjectAnalysisPerspective>(DEFAULT_SETTINGS.perspective);
@@ -167,6 +172,22 @@ export function PointToObjectAnalysis() {
   localeRef.current = locale;
   translationRef.current = t;
   projectIdentityRef.current = pointObjectProjectIdentity(user);
+  const questionScope = useCallback((activeSelection: LiveMapSelection) => {
+    const identityKey = pointObjectProjectIdentity(user);
+    return { selection: activeSelection, identityKey, locale,
+      projectId: identityKey ? inspectPointObjectProjects(identityKey).store?.activeProjectId ?? null : null,
+      profileKey: `${user?.profile.defaultAudience ?? ""}:${user?.profile.defaultRole ?? ""}` };
+  }, [locale, user]);
+  const questionScopeRef = useRef(questionScope);
+  questionScopeRef.current = questionScope;
+
+  useEffect(() => {
+    if (!selection || !isSessionResolved) return;
+    const restoreDraft = () => setQuestion(readPointObjectQuestionDraft(questionScope(selection)) ?? readPointObjectQuestion());
+    restoreDraft();
+    window.addEventListener(POINT_OBJECT_PROJECTS_EVENT, restoreDraft);
+    return () => window.removeEventListener(POINT_OBJECT_PROJECTS_EVENT, restoreDraft);
+  }, [isSessionResolved, questionScope, selection]);
 
   useEffect(() => {
     if (isSessionResolved) reconcilePointObjectBrowserIdentity(projectIdentityRef.current);
@@ -300,10 +321,12 @@ export function PointToObjectAnalysis() {
       setMissingSelection(true);
     } else {
       const restoredQuestion = readPointObjectQuestion();
+      const restoredDraft = readPointObjectQuestionDraft(questionScopeRef.current(restoredSelection));
+      if (restoredDraft !== null) skipSavedLocaleRefreshRef.current = true;
       const restoredAnalysis = readPointObjectAnalysis(restoredSelection);
       setMissingSelection(false);
       setSelection(restoredSelection);
-      setQuestion(restoredQuestion);
+      setQuestion(restoredDraft ?? restoredQuestion);
       if (restoredAnalysis?.mode === "openai") {
         const identityKey = projectIdentityRef.current;
         const restoreReceipt = identityKey ? consumePointObjectAnalysisRestore(identityKey) : null;
@@ -314,7 +337,7 @@ export function PointToObjectAnalysis() {
         analysisRef.current = restoredAnalysis;
         setAnalysis(restoredAnalysis);
         setDepth(restoredAnalysis.request.depth);
-        setGoal(restoredAnalysis.request.goal);
+        setGoal(restoredDraft !== null ? "custom" : restoredAnalysis.request.goal);
         setPerspective(restoredAnalysis.request.perspective);
         setHorizon(restoredAnalysis.request.horizon);
         setAnnouncement(translationRef.current("analysis.saved"));
@@ -334,7 +357,7 @@ export function PointToObjectAnalysis() {
         setGoal(restoredSettings.goal);
         setPerspective(restoredSettings.perspective);
         setHorizon(restoredSettings.horizon);
-        void requestAnalysis(restoredSelection, restoredQuestion, restoredSettings);
+        if (restoredDraft === null) void requestAnalysis(restoredSelection, restoredQuestion, restoredSettings);
       }
     }
     return () => {
@@ -382,7 +405,7 @@ export function PointToObjectAnalysis() {
     if (loading) return;
     setGoal(focusedGoal);
     setQuestion(focusedQuestion);
-    writePointObjectQuestion(focusedQuestion);
+    if (selection) setDraftStorageFailed(!writePointObjectQuestionDraft(focusedQuestion, questionScope(selection)));
   }
 
   if (missingSelection) {
@@ -609,7 +632,8 @@ export function PointToObjectAnalysis() {
             <div className="mt-4 grid grid-cols-2 gap-2" aria-label={t("analysis.focusedOptions")}>
               {focusedAnalyses.map((item) => <button key={item.goal} type="button" onClick={() => selectFocusedAnalysis(item.goal, item.question)} disabled={loading} aria-pressed={goal === item.goal} className={`min-h-11 rounded-xl border px-3 text-left text-xs font-bold transition disabled:cursor-not-allowed disabled:opacity-50 ${goal === item.goal ? "border-[#087f8c] bg-[#e5fafa] text-[#087f8c]" : "border-line bg-[#f8fafc] text-[#344054] hover:border-[#76bfc1] hover:bg-white"}`}>{item.label}</button>)}
             </div>
-            <textarea id="analysis-follow-up" value={question} onChange={(event) => { setQuestion(event.target.value.slice(0, 500)); setGoal("custom"); }} rows={5} placeholder={t("analysis.followUpPlaceholder")} className="mt-4 w-full resize-y rounded-xl border border-line p-3 text-sm leading-6 outline-none focus:border-[#087f8c] focus:ring-2 focus:ring-[#a8d8d5]" />
+            <textarea id="analysis-follow-up" value={question} onChange={(event) => { const draft = event.target.value.slice(0, 500); setQuestion(draft); setGoal("custom"); if (selection) setDraftStorageFailed(!writePointObjectQuestionDraft(draft, questionScope(selection))); }} rows={5} placeholder={t("analysis.followUpPlaceholder")} className="mt-4 w-full resize-y rounded-xl border border-line p-3 text-sm leading-6 outline-none focus:border-[#087f8c] focus:ring-2 focus:ring-[#a8d8d5]" />
+            {draftStorageFailed ? <p role="alert" className="mt-2 text-sm text-[#79520d]">{locale === "ru" ? "Не удалось сохранить черновик в этой вкладке. Скопируйте текст перед уходом со страницы." : "The draft could not be kept in this tab. Copy the text before leaving this page."}</p> : null}
             <fieldset className="mt-4">
               <legend className="text-xs font-bold text-[#344054]">{t("analysis.depth")}</legend>
               <div className="mt-2 grid grid-cols-3 gap-1 rounded-xl bg-[#f2f5f8] p-1">
