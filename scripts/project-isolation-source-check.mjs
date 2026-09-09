@@ -69,6 +69,40 @@ else process.env.NEXT_PUBLIC_AUTH_MODE = originalAuthMode;
 assert(browserDemoStorage.browserDemoStorageKey("contract") === "geoai-public-demo-v2:contract", "Browser demo keys must use the versioned public-demo namespace");
 assert(browserDemoStorageSource.includes("storage.removeItem(key)"), "Demo storage cleanup must remove only enumerated namespace keys");
 
+function memoryStorage() {
+  const values = new Map();
+  return { get length() { return values.size; }, key: (index) => [...values.keys()][index] ?? null,
+    getItem: (key) => values.get(key) ?? null, setItem: (key, value) => values.set(key, value), removeItem: (key) => values.delete(key) };
+}
+const transientKeys = ["selection:v3", "question:v2", "analysis-draft:v1", "analysis:v8", "analysis:v7", "find:v1", "project-restore:v1", "analysis-restore:v1"].map(key => `geoai:point-to-object:${key}`);
+for (const scenario of [
+  { name: "anonymous startup", owner: null, preserve: true },
+  { name: "same account waits for reconciliation", owner: "user:account-a", preserve: true },
+  { name: "stale demo ownership", owner: "demo:demo-user-geoai", preserve: false },
+  { name: "malformed ownership", owner: "unknown:actor", preserve: false },
+  { name: "empty ownership", owner: "", preserve: false },
+  { name: "malformed account ownership", owner: "user:", preserve: false },
+  { name: "stale demo namespace without owner", owner: null, demoKey: "geoai-public-demo-v2:contract", preserve: false },
+  { name: "legacy demo key without owner", owner: null, demoKey: "geoai-local-projects-v1", preserve: false },
+  { name: "invalid mock session marker", owner: null, demoKey: "geoai-mock-demo-session-v1", preserve: false },
+  { name: "explicit sign out without marker", owner: null, explicit: true, preserve: false },
+  { name: "explicit account sign out", owner: "user:account-a", explicit: true, preserve: false }
+]) {
+  const localStorage = memoryStorage();
+  const sessionStorage = memoryStorage();
+  if (scenario.owner !== null) localStorage.setItem("geoai:point-to-object:browser-identity:v1", scenario.owner);
+  if (scenario.demoKey) localStorage.setItem(scenario.demoKey, "stale");
+  localStorage.setItem("unrelated-user-data", "retain");
+  for (const key of transientKeys) sessionStorage.setItem(key, "bounded-state");
+  globalThis.window = { localStorage, sessionStorage };
+  browserDemoStorage.clearBrowserDemoStorage(scenario.explicit ? undefined : { reason: "startup" });
+  for (const key of transientKeys) assert(sessionStorage.getItem(key) === (scenario.preserve ? "bounded-state" : null), `${scenario.name}: ${key}`);
+  assert(localStorage.getItem("geoai:point-to-object:browser-identity:v1") === (scenario.preserve ? scenario.owner : null), `${scenario.name}: preserve owner until reconciliation only`);
+  assert(localStorage.getItem("unrelated-user-data") === "retain", "Cleanup must preserve unrelated storage");
+  if (scenario.demoKey && scenario.demoKey !== "geoai-mock-demo-session-v1") assert(localStorage.getItem(scenario.demoKey) === null, "Startup must still remove stale demo namespaces");
+  delete globalThis.window;
+}
+
 const validBrowserArtifact = {
   id: "analysis-report-contract",
   projectKey: "contract-project",

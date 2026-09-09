@@ -491,6 +491,69 @@ async function expectNoVisibleResolverBoilerplate(page: Page) {
   expect(visibleCopy).not.toMatch(/way\/91001|Q777|EVD-|SHA-256|sourceResponseHash|resolver/i);
 }
 
+test('fresh guest retains selection and unsent RU analysis draft after normal Back and reload', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 430, height: 932 });
+  const { apiCalls } = await installAnalysisRoutes(page);
+  await page.route('https://tiles.openfreemap.org/styles/**', route => route.fulfill({ json: { version: 8, sources: {}, layers: [{ id: 'background', type: 'background', paint: { 'background-color': '#e8edf0' } }] } }));
+  await page.route('**/api/prototype/point-to-object/suggest', route => route.fulfill({ json: {
+    protocol: 'POINT_TO_OBJECT_001_AUTOCOMPLETE_V1', mode: 'results', provider: 'Photon',
+    results: [{ id: 'way/91001', label: 'Synthetic Harbour Hotel', secondaryLabel: 'Dubai', longitude: 55.27, latitude: 25.2, category: 'tourism', featureType: 'hotel', boundingBox: null }],
+    source: { attribution: '© OpenStreetMap contributors', licenceId: 'ODbL-1.0', licenceUrl: 'https://www.openstreetmap.org/copyright', serviceUrl: 'https://photon.komoot.io/', officialStatus: 'open_context_not_official' }
+  } }));
+  await page.route('**/api/prototype/point-to-object/context', route => route.fulfill({ json: { mode: 'resolved', subject: selection.resolvedObject } }));
+  await page.context().addCookies([{ name: 'geoai_locale', value: 'ru', url: testInfo.project.use.baseURL! }]);
+  await page.goto('/prototype/point-to-object');
+  await page.getByRole('combobox', { name: 'Поиск адреса или места', exact: true }).fill('Synthetic Harbour');
+  await page.getByRole('option').filter({ hasText: 'Synthetic Harbour Hotel' }).click();
+  await page.getByRole('button', { name: 'Открыть задачу', exact: true }).click();
+  await page.getByRole('button', { name: 'Анализировать', exact: true }).click();
+  await expect(page.getByTestId('ai-success')).toBeVisible();
+  const draft = 'GUEST06 несохранённое уточнение: транспорт и подъезд';
+  const input = page.getByRole('textbox', { name: 'Провести целевой анализ', exact: true });
+  await input.fill(draft);
+  const state = () => page.evaluate(() => ({
+    selection: sessionStorage.getItem('geoai:point-to-object:selection:v3'),
+    draft: sessionStorage.getItem('geoai:point-to-object:analysis-draft:v1'),
+    analysis: sessionStorage.getItem('geoai:point-to-object:analysis:v8'),
+    question: sessionStorage.getItem('geoai:point-to-object:question:v2'),
+    identity: localStorage.getItem('geoai:point-to-object:browser-identity:v1')
+  }));
+  const before = await state();
+  expect(before.identity).toBeNull();
+  expect(before.draft).toContain(draft);
+  expect(before.selection).not.toBeNull();
+  const count = () => apiCalls.filter(call => call.path.endsWith('/ai')).map(call => call.method);
+  expect(count()).toEqual(['GET', 'POST']);
+  await page.getByRole('link', { name: 'Вернуться к карте', exact: true }).click();
+  await expect(page).toHaveURL(/\/prototype\/point-to-object$/);
+  await page.getByRole('button', { name: 'Открыть задачу', exact: true }).click();
+  await expect(page.getByRole('textbox', { name: 'Что вы хотите узнать?', exact: true })).toBeVisible();
+  const afterMap = await state();
+  expect(afterMap.selection).not.toBeNull();
+  expect(JSON.parse(afterMap.selection!).clickedAt).toBe(JSON.parse(before.selection!).clickedAt);
+  expect(afterMap.draft).toBe(before.draft);
+  expect(afterMap.question).toBe(before.question);
+  await page.screenshot({ path: testInfo.outputPath('guest-map-after-back-430-ru.png') });
+  await page.goBack();
+  await expect(page).toHaveURL(/\/prototype\/point-to-object\/analysis$/);
+  await expect(page.getByTestId('ai-success')).toBeVisible();
+  await expect(input).toHaveValue(draft);
+  expect(count()).toEqual(['GET', 'POST']);
+  await page.reload();
+  await expect(page.getByTestId('ai-success')).toBeVisible();
+  await expect(input).toHaveValue(draft);
+  expect(count()).toEqual(['GET', 'POST']);
+  await page.goto('/prototype/point-to-object/analysis');
+  await expect(page.getByTestId('ai-success')).toBeVisible();
+  await expect(input).toHaveValue(draft);
+  expect(count()).toEqual(['GET', 'POST']);
+  const final = await state();
+  expect(final.identity).toBeNull();
+  expect(final.draft).toBe(before.draft);
+  await page.screenshot({ path: testInfo.outputPath('guest-analysis-restored-430-ru.png'), fullPage: true });
+  console.log(JSON.stringify({ result: 'PASS', viewport: '430x932', locale: 'ru', guest: true, aiRequests: count(), selectionRetainedAfterMap: true, draftRecoveredAfterBrowserBack: true, reloadAndDirectEntryRecovered: true }));
+});
+
 test("V6 renders useful GeoContext and linked-source facts in EN/RU and restores each locale without automatic calls", async ({ page }, testInfo) => {
   const { apiCalls, unexpectedExternal } = await installAnalysisRoutes(page);
   await seedSelection(page);

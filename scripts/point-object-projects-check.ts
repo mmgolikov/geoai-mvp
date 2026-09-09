@@ -31,6 +31,7 @@ const projects = await import("../src/lib/prototype/point-object-projects.ts");
 const create = await import("../src/lib/prototype/point-to-object-create");
 const createAi = await import("../src/lib/prototype/point-to-object-create-ai-core");
 const createResult = await import("../src/lib/prototype/point-to-object-create-result");
+const browserDemoStorage = await import("../src/lib/browser-demo-storage");
 const {
   continuePendingPointObjectOperationInNewProject,
   createPointObjectProject,
@@ -231,6 +232,23 @@ assert.equal(sessionStorage.getItem("geoai:point-to-object:selection:v3"), null,
 assert.equal(readPointObjectProjects(demoIdentity).projects.length >= 1, true, "identity transition must not destroy scoped saved projects");
 reconcilePointObjectBrowserIdentity(demoIdentity);
 await retryPendingPointObjectOperations(demoIdentity);
+
+// Startup must retain an account owner until this resolved-identity guard runs.
+localStorage.setItem(projects.POINT_OBJECT_BROWSER_IDENTITY_KEY, userIdentity);
+sessionStorage.setItem("geoai:point-to-object:analysis-draft:v1", "same-account-draft");
+browserDemoStorage.clearBrowserDemoStorage({ reason: "startup" });
+reconcilePointObjectBrowserIdentity(userIdentity);
+assert.equal(sessionStorage.getItem("geoai:point-to-object:analysis-draft:v1"), "same-account-draft", "Same account startup and reconciliation must retain its draft");
+for (const targetIdentity of [userIdentity, null] as const) {
+  localStorage.setItem(projects.POINT_OBJECT_BROWSER_IDENTITY_KEY, "user:other-account");
+  const transientKeys = ["selection:v3", "question:v2", "analysis-draft:v1", "analysis:v8", "find:v1", "project-restore:v1", "analysis-restore:v1"];
+  for (const key of transientKeys) sessionStorage.setItem(`geoai:point-to-object:${key}`, "other-account-state");
+  browserDemoStorage.clearBrowserDemoStorage({ reason: "startup" });
+  assert.equal(localStorage.getItem(projects.POINT_OBJECT_BROWSER_IDENTITY_KEY), "user:other-account", "Startup must not erase the owner before reconciliation");
+  reconcilePointObjectBrowserIdentity(targetIdentity);
+  for (const key of transientKeys) assert.equal(sessionStorage.getItem(`geoai:point-to-object:${key}`), null, `Account switch to ${targetIdentity} must clear ${key}`);
+}
+reconcilePointObjectBrowserIdentity(demoIdentity);
 
 const invalidAnalyse = await savePointObjectOperation(demoIdentity, {
   kind: "analyse", locale: "en", marketKey: "dubai", label: "Invalid analysis", payload: { selection: { locationKey: "dubai" }, analysis: { mode: "openai" } }

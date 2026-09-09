@@ -139,7 +139,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (authStatus.effectiveMode !== "demo_public" && !isMockDemoSessionActive()) {
-      clearBrowserDemoStorage();
+      clearBrowserDemoStorage({ reason: "startup" });
     }
     void refreshSession();
     // Run once at startup; auth mode is static per deployment.
