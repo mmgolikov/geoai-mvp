@@ -28,7 +28,7 @@ function PointObjectProjectControlFallback() {
         title={label}
         className="inline-flex h-11 items-center justify-center rounded-lg border border-line bg-white px-2 text-[11px] font-bold text-[#345c54] hover:border-[#087f8c] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] sm:px-3"
       >
-        <span aria-hidden="true" className="sm:hidden">P</span>
+        <svg aria-hidden="true" className="h-6 w-6 sm:hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M3 7a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v9H3Z" /></svg>
         <span className="hidden sm:inline">{label}</span>
       </Link>
     </div>

@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import mobileStyles from "./mobile-workspace.module.css";
 
 import { useAuth } from "@/components/auth/auth-provider";
 import { PointObjectCreatePanel, type PointObjectCreateEditorSnapshot, type PointObjectGeneratedConcept } from "@/components/point-to-object/create-panel";
@@ -320,9 +321,38 @@ export function PointToObjectPrototypeV5() {
   const [navigationTarget, setNavigationTarget] = useState<LiveMapNavigationTarget | null>(null);
   const [viewModeRequest, setViewModeRequest] = useState<{ requestId: string; mode: LiveMapViewMode } | null>(null);
   const [mode, setMode] = useState<ProductMode>("analyse");
+  const [sheet, setSheet] = useState<"peek" | "half" | "full">("peek");
+  const [mobile, setMobile] = useState(false);
+  const [viewportHeight, setViewportHeight] = useState(844);
+  const effectiveSheet = mobile && viewportHeight < 600 && sheet === "half" ? "full" : sheet;
+  const workspaceRef = useRef<HTMLElement>(null);
+  const mapToggleRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 1023px)");
+    const resize = () => {
+      setMobile(media.matches);
+      setViewportHeight(window.visualViewport?.height ?? window.innerHeight);
+      workspaceRef.current?.style.setProperty("--workspace-height", `${window.visualViewport?.height ?? window.innerHeight}px`);
+    };
+    resize();
+    media.addEventListener("change", resize);
+    window.visualViewport?.addEventListener("resize", resize);
+    return () => {
+      media.removeEventListener("change", resize);
+      window.visualViewport?.removeEventListener("resize", resize);
+    };
+  }, []);
+  function showMap() {
+    setSheet("peek");
+    mapToggleRef.current?.focus();
+  }
   const [isDrawing, setIsDrawing] = useState(false);
   const [draftCoordinates, setDraftCoordinates] = useState<Coordinate[]>([]);
   const [createAoi, setCreateAoi] = useState<PointObjectCreateAoi | null>(null);
+  const selectedCreateVertices = useMemo(() => {
+    const vertices = extractSinglePolygon(selection?.object.geometry);
+    return vertices && validatePointObjectCreateAoiVertices(vertices).ok ? vertices : null;
+  }, [selection?.object.geometry]);
   const [createAoiFitRequest, setCreateAoiFitRequest] = useState<LiveMapCreateAoiFitRequest | null>(null);
   const [createEditorSnapshot, setCreateEditorSnapshot] = useState<PointObjectCreateEditorSnapshot | null>(null);
   const [generatedConcept, setGeneratedConcept] = useState<PointObjectGeneratedConcept | null>(null);
@@ -337,6 +367,7 @@ export function PointToObjectPrototypeV5() {
   const [areaContextRetryVersion, setAreaContextRetryVersion] = useState(0);
   const [areaContextRetryAfterSeconds, setAreaContextRetryAfterSeconds] = useState(0);
   const [visibleBounds, setVisibleBounds] = useState<PointObjectFindBounds | null>(null);
+  const [mapMoving, setMapMoving] = useState(false);
   const [restoredFindViewportBounds, setRestoredFindViewportBounds] = useState<PointObjectFindBounds | null>(null);
   const [findAudience, setFindAudience] = useState<ExploreAudience>("b2b");
   const [findRole, setFindRole] = useState<ExploreRole>("developer");
@@ -369,6 +400,8 @@ export function PointToObjectPrototypeV5() {
   const suppressRestoredAreaContextRequestRef = useRef(false);
   const projectIdentityRef = useRef<PointObjectProjectIdentity | null>(projectIdentity);
   const createSaveContextRef = useRef<CreateSaveContext | null>(null);
+  const restoreRemovedCreateRef = useRef<(() => void) | null>(null);
+  const [canRestoreRemovedCreate, setCanRestoreRemovedCreate] = useState(false);
   const findShortlistRef = useRef(findShortlist);
   const findComparisonOpenRef = useRef(findComparisonOpen);
   const findAnalysisTargetRef = useRef(findAnalysisTargetSourceFeatureId);
@@ -400,7 +433,11 @@ export function PointToObjectPrototypeV5() {
   const findResultMarketMismatch = findResult !== null && findResult.criteria.marketKey !== locationKey;
   const activeConceptMassing = generatedConcept?.alternatives?.find((alternative) => alternative.id === activeCreateAlternativeId)?.massing ?? generatedConcept?.massing ?? null;
   const sourceBuildingsHidden = createAreaCleared && createReplacementStatus === "applied";
-  const createReplacementMapProps = { createReplacementRevision };
+  const createReplacementMapProps = {
+    createReplacementRevision,
+    onCameraMovingChange: setMapMoving,
+    overlayBottomInset: mobile ? sheet === "half" && viewportHeight >= 600 ? Math.min((viewportHeight - 64) / 2, viewportHeight - 284) : 164 : 0
+  };
 
   useEffect(() => {
     const restoredSelection = readPointObjectSelection();
@@ -416,6 +453,8 @@ export function PointToObjectPrototypeV5() {
   useEffect(() => {
     if (!sessionReady || !isSessionResolved || projectRestoreAppliedRef.current === projectIdentity) return;
     reconcilePointObjectBrowserIdentity(projectIdentity);
+    restoreRemovedCreateRef.current = null;
+    setCanRestoreRemovedCreate(false);
     projectRestoreAppliedRef.current = projectIdentity;
     setFindSavedArtifactId(null);
     setCreateSavedArtifactId(null);
@@ -699,7 +738,7 @@ export function PointToObjectPrototypeV5() {
   }, []);
 
   useEffect(() => {
-    if (!createAoi || mode !== "create") {
+    if (!createAoi) {
       setAreaContext(null);
       setAreaContextStatus("idle");
       setAreaContextRetryAfterSeconds(0);
@@ -739,7 +778,7 @@ export function PointToObjectPrototypeV5() {
       setAreaContextStatus("error");
     });
     return () => controller.abort();
-  }, [areaContextRetryVersion, createAoi, locale, locationKey, mode]);
+  }, [areaContextRetryVersion, createAoi, locale, locationKey]);
 
   useEffect(() => {
     if (areaContextStatus !== "rate") return;
@@ -770,6 +809,8 @@ export function PointToObjectPrototypeV5() {
 
   function changeMarket(nextMarket: LiveMapLocationKey) {
     if (nextMarket === locationKey) return;
+    restoreRemovedCreateRef.current = null;
+    setCanRestoreRemovedCreate(false);
     clearPointObjectProjectRestore();
     pendingRestoredFindBoundsRef.current = null;
     setRestoredFindViewportBounds(null);
@@ -1017,24 +1058,9 @@ export function PointToObjectPrototypeV5() {
       setViewModeRequest({ requestId: `find-2d:${Date.now()}`, mode: "2d" });
     }
     if (nextMode !== "create") {
-      createSaveContextRef.current = null;
-      setCreateSavedArtifactId(null);
       setIsDrawing(false);
-      setDraftCoordinates([]);
-      setCreateAoi(null);
-      setCreateAoiFitRequest(null);
-      setCreateEditorSnapshot(null);
-      setGeneratedConcept(null);
-      setGeneratedConceptLocale(null);
-      setActiveCreateAlternativeId("A");
-      setCreateAreaCleared(false);
-      setCreateReplacementStatus("idle");
-      setCreateReplacementRevision(0);
-      setAreaContext(null);
-      setAreaContextStatus("idle");
-      setAreaContextRetryAfterSeconds(0);
-      setCreateError(null);
     }
+    setSheet("full");
   }
 
   function addCreateVertex(coordinate: Coordinate) {
@@ -1054,6 +1080,8 @@ export function PointToObjectPrototypeV5() {
       return;
     }
     const ring = closePolygonRing(vertices);
+    restoreRemovedCreateRef.current = null;
+    setCanRestoreRemovedCreate(false);
     const aoiId = `create-aoi-${Date.now()}`;
     setCreateAoi({
       id: aoiId,
@@ -1078,12 +1106,14 @@ export function PointToObjectPrototypeV5() {
     setCreateReplacementStatus("idle");
     setCreateReplacementRevision(0);
     setCreateError(null);
+    setSheet("full");
   }
 
   async function uploadCreateArea(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     event.target.value = "";
-    if (!file || file.size > 1_000_000) {
+    if (!file) return;
+    if (file.size > 1_000_000) {
       setCreateError(t("create.uploadError"));
       return;
     }
@@ -1099,6 +1129,23 @@ export function PointToObjectPrototypeV5() {
   }
 
   function resetCreate() {
+    if (createAoi) {
+      restoreRemovedCreateRef.current = () => {
+        suppressRestoredAreaContextRequestRef.current = true;
+        setCreateAoi(createAoi);
+        setDraftCoordinates(createAoi.coordinates[0].slice(0, -1));
+        setCreateEditorSnapshot(createEditorSnapshot);
+        setGeneratedConcept(generatedConcept);
+        setGeneratedConceptLocale(generatedConceptLocale);
+        setActiveCreateAlternativeId(activeCreateAlternativeId);
+        setCreateAreaCleared(createAreaCleared);
+        setAreaContext(areaContext);
+        setCreateSavedArtifactId(createSavedArtifactId);
+        setCreateReplacementRevision((revision) => revision + 1);
+        setSheet("full");
+      };
+      setCanRestoreRemovedCreate(true);
+    }
     clearPointObjectProjectRestore();
     createSaveContextRef.current = null;
     setCreateSavedArtifactId(null);
@@ -1117,6 +1164,13 @@ export function PointToObjectPrototypeV5() {
     setAreaContextStatus("idle");
     setAreaContextRetryAfterSeconds(0);
     setCreateError(null);
+  }
+
+  function cancelCreateDrawing() {
+    setIsDrawing(false);
+    setDraftCoordinates(createAoi?.coordinates[0]?.slice(0, -1) ?? []);
+    setCreateError(null);
+    if (createAoi) setSheet("full");
   }
 
   function toggleCreateMapPresentation() {
@@ -1248,7 +1302,7 @@ export function PointToObjectPrototypeV5() {
   const findHasInvalidLevels = (findMinimumLevels !== "" && (Number(findMinimumLevels) < 1 || Number(findMinimumLevels) > 100)) ||
     (findMaximumLevels !== "" && (Number(findMaximumLevels) < 1 || Number(findMaximumLevels) > 100)) ||
     (findMinimumLevels !== "" && findMaximumLevels !== "" && Number(findMinimumLevels) > Number(findMaximumLevels));
-  const findCtaDisabled = !visibleBounds || findStatus === "loading" || findCapability.status === "unsupported" || findHasInvalidLevels;
+  const findCtaDisabled = !visibleBounds || mapMoving || findStatus === "loading" || findCapability.status === "unsupported" || findHasInvalidLevels;
   const findFooterStatus = findStatus === "loading"
     ? (locale === "ru" ? "Ищем объекты в текущей видимой области…" : "Searching the current visible area…")
     : findStatus === "zoom"
@@ -1268,15 +1322,15 @@ export function PointToObjectPrototypeV5() {
                   : "";
 
   return (
-    <main className="h-[100svh] min-h-[420px] overflow-hidden bg-white text-ink">
+    <main ref={workspaceRef} className={`${mobileStyles.workspace} overflow-hidden bg-white text-ink`}>
       <PointObjectHeader />
-      <div className="grid h-[calc(100svh-64px)] min-h-0 grid-rows-[clamp(108px,32svh,360px)_minmax(0,1fr)] bg-white sm:max-lg:landscape:grid-cols-[minmax(0,1fr)_minmax(340px,48%)] sm:max-lg:landscape:grid-rows-1 lg:grid-cols-[minmax(0,1fr)_430px] lg:grid-rows-1">
-        <section className="relative h-full min-h-0 overflow-hidden border-b border-line sm:max-lg:landscape:border-b-0 lg:border-b-0" aria-label={t("map.region")}>
+      <div className={mobileStyles.shell} data-sheet={effectiveSheet} data-testid="mobile-workspace-shell">
+        <section className={`${mobileStyles.map} relative overflow-hidden`} inert={mobile && effectiveSheet === "full"} aria-hidden={mobile && effectiveSheet === "full" ? true : undefined} aria-label={t("map.region")}>
           {sessionReady ? <LiveObjectMap {...createReplacementMapProps} locationKey={locationKey} interactionMode={mode} selection={mode === "analyse" ? selection : null} navigationTarget={navigationTarget} viewModeRequest={viewModeRequest} onSelection={mode === "analyse" ? handleSelection : ignoreMapSelection} onViewportChange={handleViewportChange} onVisibleBoundsChange={handleVisibleBoundsChange} createDrawing={mode === "create" && isDrawing} createDraftCoordinates={mode === "create" ? draftCoordinates : []} createAoi={mode === "create" ? createAoi : null} createAoiFitRequest={mode === "create" ? createAoiFitRequest : null} createAreaCleared={mode === "create" && createAreaCleared} conceptMassing={mode === "create" ? activeConceptMassing : null} onCreateVertex={addCreateVertex} onReplacementStatus={setCreateReplacementStatus} className="h-full min-h-0" /> : <div className="grid h-full min-h-0 place-items-center bg-[#f4f6f7] text-sm font-medium text-[#52606a]" role="status">{t("map.loading")}</div>}
-          <div className="absolute left-4 top-4 z-10 flex w-[min(650px,calc(100%-5rem))] flex-col gap-2 sm:left-5 sm:top-5 sm:flex-row">
+          <div className="absolute left-3 top-3 z-10 flex w-[min(650px,calc(100%-4.5rem))] flex-row gap-2 sm:left-5 sm:top-5">
             <label className="flex h-11 w-fit shrink-0 items-center rounded-xl border border-white/70 bg-white/95 px-3 shadow-[0_10px_30px_rgba(20,35,45,0.14)] backdrop-blur">
               <span className="sr-only">{t("city.label")}</span>
-              <ReliableSelect value={locationKey} onChange={(event) => changeMarket(event.target.value as LiveMapLocationKey)} aria-label={t("city.label")} data-testid="point-object-city-select" wrapperClassName="max-w-[190px]" className="min-h-10 max-w-[190px] bg-transparent pl-0 text-sm font-bold text-ink outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c]">
+              <ReliableSelect value={locationKey} onChange={(event) => changeMarket(event.target.value as LiveMapLocationKey)} aria-label={t("city.label")} data-testid="point-object-city-select" wrapperClassName="w-[70px] sm:w-auto sm:max-w-[190px]" className="min-h-11 max-w-[190px] bg-transparent pl-0 text-base sm:text-sm font-bold text-ink outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c]">
                 {POINT_OBJECT_MARKETS.map((market) => <option key={market.key} value={market.key}>{market.label[locale]}</option>)}
               </ReliableSelect>
             </label>
@@ -1292,11 +1346,22 @@ export function PointToObjectPrototypeV5() {
           </div>
         </section>
 
-        <aside className="h-full min-h-0 min-w-0 overflow-hidden border-l border-line bg-white">
-          <div className={`flex h-full min-h-0 flex-col p-3 pb-3 sm:p-4 sm:pb-3 lg:p-6 lg:pb-4 ${mode === "find" ? "overflow-hidden" : "overflow-y-auto"}`}>
+        {mode === "create" && isDrawing ? <div className={mobileStyles.drawTools} data-testid="create-map-drawing-tools" data-editing={Boolean(createAoi)}>
+          <p className="text-xs font-semibold" aria-live="polite">{t("create.drawing", { count: draftCoordinates.length })}</p>
+          <div className="grid grid-cols-3 gap-2"><button disabled={draftCoordinates.length < 3} onClick={() => closeCreateArea()} className="rounded-lg bg-[#087f70] text-xs font-bold text-white disabled:opacity-40">{t("create.close")}</button><button disabled={!draftCoordinates.length} onClick={() => setDraftCoordinates((current) => current.slice(0, -1))}>{t("create.undo")}</button><button onClick={cancelCreateDrawing}>{t("create.cancel")}</button></div>
+          {createError ? <p role="alert" className="text-xs text-[#79520d]">{createError}</p> : null}
+        </div> : null}
+        <aside id="workspace-task" className={`${mobileStyles.sheet} min-h-0 min-w-0 overflow-hidden border-l border-line bg-white`} aria-label={locale === "ru" ? "Задача" : "Task"} onKeyDown={(event) => { if (event.key === "Escape" && !event.defaultPrevented && sheet === "full") { event.stopPropagation(); showMap(); } }}>
+          <div className={mobileStyles.drawer}>
+            {mobile ? <div className={mobileStyles.controls}>
+              <span className={mobileStyles.summary}>{mode === "analyse" ? selectionTitle : t(`mode.${mode}` as "mode.find" | "mode.create")}</span>
+              <button ref={mapToggleRef} type="button" aria-controls="workspace-task-content" aria-expanded={sheet !== "peek"} onClick={() => sheet === "peek" ? setSheet("full") : showMap()}>{sheet === "peek" ? (locale === "ru" ? "Открыть задачу" : "Open task") : (locale === "ru" ? "На карту" : "Show map")}</button>
+              <button type="button" className={mobileStyles.halfControl} aria-label={locale === "ru" ? "Изменить размер задачи" : "Resize task"} onClick={() => setSheet(sheet === "half" ? "full" : "half")}>{sheet === "half" ? (locale === "ru" ? "Развернуть" : "Expand") : (locale === "ru" ? "Половина" : "Half")}</button>
+            </div> : null}
             <div className="mb-2 grid shrink-0 grid-cols-3 gap-1 rounded-xl bg-[#f2f5f4] p-1" role="tablist" aria-label={t("mode.label")}>
               {(["analyse", "find", "create"] as ProductMode[]).map((item) => <button key={item} type="button" role="tab" aria-selected={mode === item} onClick={() => changeMode(item)} className={`min-h-11 rounded-lg px-2 text-xs font-bold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] ${mode === item ? "bg-white text-[#087f8c] shadow-sm" : "text-[#667085] hover:text-[#344054]"}`}>{t(`mode.${item}` as "mode.analyse" | "mode.find" | "mode.create")}</button>)}
             </div>
+            <div id="workspace-task-content" className={mobileStyles.content} onFocusCapture={(event) => { if (mobile && /^(INPUT|TEXTAREA|SELECT)$/.test(event.target.tagName)) setSheet("full"); }}>
             <div className="min-w-0">
                 {mode === "find" ? null : <p className="text-xs font-bold uppercase tracking-[0.11em] text-[#087f8c]">{mode === "create" ? t("mode.create") : t("panel.eyebrow")}</p>}
                 <h1 className={`${mode === "find" ? "text-[22px] sm:text-2xl" : "mt-2 text-2xl sm:text-[28px]"} font-bold tracking-[-0.035em]`}>{mode === "create" ? t("create.title") : mode === "find" ? t("find.title") : t("panel.title")}</h1>
@@ -1370,13 +1435,17 @@ export function PointToObjectPrototypeV5() {
               </footer>
             </section> : null}
 
-            {mode === "create" ? <div className="mt-5 space-y-4">
+            <div hidden={mode !== "create"} className="mt-5 space-y-4">
               {!createAoi ? <section className="rounded-[18px] border border-[#cfe0da] bg-[#f4faf7] p-4">
+                {canRestoreRemovedCreate ? <button type="button" data-testid="create-undo-remove" onClick={() => { restoreRemovedCreateRef.current?.(); restoreRemovedCreateRef.current = null; setCanRestoreRemovedCreate(false); }} className="mb-3 min-h-11 w-full rounded-xl border border-[#9bbdb5] bg-white px-3 text-xs font-bold text-[#345c54]">{locale === "ru" ? "Вернуть удалённую зону" : "Undo area removal"}</button> : null}
                 <div className="grid grid-cols-2 gap-2">
-                  <button type="button" onClick={() => { setIsDrawing(true); setDraftCoordinates([]); setCreateError(null); setGeneratedConcept(null); setActiveCreateAlternativeId("A"); setCreateAreaCleared(false); setCreateReplacementStatus("idle"); setCreateReplacementRevision(0); }} className="min-h-11 rounded-xl bg-[#087f70] px-3 text-xs font-bold text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f70] focus-visible:ring-offset-2">{t("create.draw")}</button>
+                  <button type="button" onClick={() => { setIsDrawing(true); setSheet("peek"); setCreateError(null); }} className="min-h-11 rounded-xl bg-[#087f70] px-3 text-xs font-bold text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f70] focus-visible:ring-offset-2">{draftCoordinates.length ? (locale === "ru" ? "Продолжить рисование" : "Resume drawing") : t("create.draw")}</button>
                   <label className="grid min-h-11 cursor-pointer place-items-center rounded-xl border border-[#9bbdb5] bg-white px-3 text-center text-xs font-bold text-[#345c54] focus-within:ring-2 focus-within:ring-[#087f70]"><span>{t("create.upload")}</span><input type="file" accept="application/geo+json,application/json,.geojson,.json" aria-label={t("create.upload")} onChange={(event) => void uploadCreateArea(event)} className="sr-only focus-visible:outline-none" /></label>
                 </div>
-                {isDrawing ? <><p className="mt-3 text-xs font-semibold text-[#345c54]">{t("create.drawing", { count: draftCoordinates.length })}</p><div className="mt-3 grid grid-cols-3 gap-2"><button type="button" disabled={draftCoordinates.length < 3} onClick={() => closeCreateArea()} className="min-h-10 rounded-lg bg-[#087f70] px-2 text-xs font-bold text-white disabled:opacity-40">{t("create.close")}</button><button type="button" disabled={!draftCoordinates.length} onClick={() => setDraftCoordinates((current) => current.slice(0, -1))} className="min-h-10 rounded-lg border border-[#b8cbc6] bg-white px-2 text-xs font-bold text-[#345c54] disabled:opacity-40">{t("create.undo")}</button><button type="button" onClick={resetCreate} className="min-h-10 rounded-lg border border-[#b8cbc6] bg-white px-2 text-xs font-bold text-[#345c54]">{t("create.cancel")}</button></div></> : null}
+                <button type="button" data-testid="create-use-selection" disabled={!selectedCreateVertices} onClick={() => { if (selectedCreateVertices) closeCreateArea(selectedCreateVertices, true); }} className="mt-2 min-h-11 w-full rounded-xl border border-[#9bbdb5] bg-white px-3 text-xs font-bold text-[#345c54] disabled:opacity-50">{locale === "ru" ? "Использовать выбранный объект" : "Use selected object"}</button>
+                {!selectedCreateVertices ? <p className="mt-2 text-xs text-muted">{locale === "ru" ? "Выберите объект с поддерживаемой границей или нарисуйте зону." : "Select an object with a supported boundary, or draw an area."}</p> : null}
+                <p className="mt-2 text-xs text-muted">GeoJSON · Polygon · WGS84 · ≤1 MB</p>
+                {isDrawing ? <><p className="mt-3 text-xs font-semibold text-[#345c54]">{t("create.drawing", { count: draftCoordinates.length })}</p><div className="mt-3 grid grid-cols-3 gap-2"><button type="button" disabled={draftCoordinates.length < 3} onClick={() => closeCreateArea()} className="min-h-11 rounded-lg bg-[#087f70] px-2 text-xs font-bold text-white disabled:opacity-40">{t("create.close")}</button><button type="button" disabled={!draftCoordinates.length} onClick={() => setDraftCoordinates((current) => current.slice(0, -1))} className="min-h-11 rounded-lg border border-[#b8cbc6] bg-white px-2 text-xs font-bold text-[#345c54] disabled:opacity-40">{t("create.undo")}</button><button type="button" onClick={cancelCreateDrawing} className="min-h-11 rounded-lg border border-[#b8cbc6] bg-white px-2 text-xs font-bold text-[#345c54]">{t("create.cancel")}</button></div></> : null}
                 {createError ? <p className="mt-3 rounded-lg border border-[#e6bd74] bg-[#fff9ed] px-3 py-2 text-xs text-[#79520d]" role="alert">{createError}</p> : null}
               </section> : <><p className="rounded-xl border border-[#cfe0da] bg-[#f4faf7] px-4 py-3 text-xs font-bold text-[#345c54]">{t("create.ready", { area: createAoi.areaSqM >= 10_000 ? `${(createAoi.areaSqM / 10_000).toFixed(2)} ${locale === "ru" ? "га" : "ha"}` : `${Math.round(createAoi.areaSqM).toLocaleString(locale)} ${locale === "ru" ? "м²" : "m²"}` })}</p>
                 <section className="rounded-[18px] border border-line bg-[#f8fafc] p-4" aria-live="polite">
@@ -1402,8 +1471,9 @@ export function PointToObjectPrototypeV5() {
                         : (locale === "ru" ? "Подготавливаем замещение зданий…" : "Preparing building replacement…")}
                   </p>
                 ) : null}
-                <button type="button" data-testid="create-delete-area" onClick={resetCreate} className="min-h-11 w-full rounded-xl border border-[#b8cbc6] bg-white px-3 text-xs font-bold text-[#345c54] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c]">{t("create.deleteArea")}</button></>}
-            </div> : null}
+                <button type="button" data-testid="create-edit-area" onClick={() => { setDraftCoordinates(createAoi.coordinates[0].slice(0, -1)); setIsDrawing(true); setSheet("peek"); }} className="min-h-11 w-full rounded-xl border border-[#b8cbc6] bg-white px-3 text-xs font-bold text-[#345c54]">{locale === "ru" ? "Изменить границу" : "Edit boundary"}</button><button type="button" data-testid="create-delete-area" onClick={resetCreate} className="min-h-11 w-full rounded-xl border border-[#b8cbc6] bg-white px-3 text-xs font-bold text-[#345c54] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c]">{t("create.deleteArea")}</button></>}
+            </div>
+            </div>
           </div>
         </aside>
       </div>

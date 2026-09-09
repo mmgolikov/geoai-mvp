@@ -97,9 +97,11 @@ export type LiveObjectMapProps = {
   locationKey?: LiveMapLocationKey;
   selection?: LiveMapSelection | null;
   className?: string;
+  overlayBottomInset?: number;
   onSelection: (selection: LiveMapSelection | null) => void;
   onViewportChange?: (selection: LiveMapSelection) => void;
   onVisibleBoundsChange?: (bounds: PointObjectFindBounds) => void;
+  onCameraMovingChange?: (moving: boolean) => void;
   navigationTarget?: LiveMapNavigationTarget | null;
   viewModeRequest?: { requestId: string; mode: LiveMapViewMode } | null;
   interactionMode?: LiveMapInteractionMode;
@@ -793,9 +795,11 @@ export function LiveObjectMap({
   locationKey = "dubai",
   selection = null,
   className,
+  overlayBottomInset = 0,
   onSelection,
   onViewportChange,
   onVisibleBoundsChange,
+  onCameraMovingChange,
   navigationTarget = null,
   viewModeRequest = null,
   interactionMode = "analyse",
@@ -810,6 +814,11 @@ export function LiveObjectMap({
   onReplacementStatus
 }: LiveObjectMapProps) {
   const { locale, t } = usePointObjectLocale();
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const overlayBottomInsetRef = useRef(overlayBottomInset);
+  useEffect(() => { overlayBottomInsetRef.current = overlayBottomInset; }, [overlayBottomInset]);
+  const cameraMovingCallbackRef = useRef(onCameraMovingChange);
+  useEffect(() => { cameraMovingCallbackRef.current = onCameraMovingChange; }, [onCameraMovingChange]);
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const selectAtRef = useRef<((point: { x: number; y: number }, clicked: Wgs84Position) => void) | null>(null);
@@ -970,9 +979,9 @@ export function LiveObjectMap({
     const fallbackTimer = window.setTimeout(selectAfterMove, 1_400);
     if (navigationTarget.boundingBox) {
       const [south, north, west, east] = navigationTarget.boundingBox;
-      map.fitBounds([[west, south], [east, north]], { padding: 72, maxZoom: navigationTarget.zoom ?? 18, duration: 650 });
+      map.fitBounds([[west, south], [east, north]], { padding: overlayBottomInsetRef.current ? { top: 72, left: 32, right: 56, bottom: 72 + overlayBottomInsetRef.current } : 72, maxZoom: navigationTarget.zoom ?? 18, duration: 650 });
     } else {
-      map.easeTo({ center: coordinates, zoom: navigationTarget.zoom ?? 18, duration: 650 });
+      map.easeTo({ center: coordinates, zoom: navigationTarget.zoom ?? 18, offset: [0, -overlayBottomInsetRef.current / 2], duration: 650 });
     }
     return () => {
       map.off("moveend", selectAfterMove);
@@ -995,7 +1004,7 @@ export function LiveObjectMap({
     handledCreateAoiFitRequestRef.current = createAoiFitRequest.requestId;
     const horizontalPadding = Math.max(20, Math.min(72, Math.floor(container.clientWidth * 0.12)));
     const topPadding = Math.max(20, Math.min(72, Math.floor(container.clientHeight * 0.18)));
-    const bottomPadding = Math.max(20, Math.min(56, Math.floor(container.clientHeight * 0.14)));
+    const bottomPadding = Math.max(20, Math.min(56, Math.floor(container.clientHeight * 0.14))) + overlayBottomInsetRef.current;
     map.fitBounds(createAoiFitRequest.bounds, {
       padding: { top: topPadding, right: horizontalPadding, bottom: bottomPadding, left: horizontalPadding },
       maxZoom: 18,
@@ -1173,6 +1182,7 @@ export function LiveObjectMap({
         const handleMoveEnd = () => {
           const visibleBounds = map.getBounds();
           visibleBoundsCallbackRef.current?.([visibleBounds.getWest(), visibleBounds.getSouth(), visibleBounds.getEast(), visibleBounds.getNorth()]);
+          cameraMovingCallbackRef.current?.(false);
           const nextReplacementZoomEligible = map.getZoom() >= pointObjectReplacementMinimumReliableZoom;
           if (nextReplacementZoomEligible !== replacementZoomEligible) {
             replacementZoomEligible = nextReplacementZoomEligible;
@@ -1215,6 +1225,7 @@ export function LiveObjectMap({
           setIsReady(true);
         });
         map.on("click", handleClick);
+        map.on("movestart", () => cameraMovingCallbackRef.current?.(true));
         map.on("moveend", handleMoveEnd);
         map.on("error", (event) => {
           const message = event.error instanceof Error ? event.error.message : "";
@@ -1353,7 +1364,8 @@ export function LiveObjectMap({
       <p id="live-map-instructions" className="sr-only">
         {t(instructionKey)}
       </p>
-      <div className="absolute bottom-8 left-3 z-10 flex max-w-[calc(100%-6rem)] flex-wrap items-center gap-2 sm:bottom-3">
+      <div data-map-bottom-controls data-camera-open={cameraOpen} className="absolute bottom-8 left-3 z-10 flex max-w-[calc(100%-6rem)] flex-wrap items-center gap-2 sm:bottom-3">
+        <button type="button" data-camera-toggle aria-expanded={cameraOpen} aria-controls="mobile-camera-actions" onClick={() => setCameraOpen((open) => !open)} className="min-h-11 rounded-xl border border-line bg-white px-3 text-xs font-bold text-[#176548] focus-visible:outline-2 focus-visible:outline-[#087f8c] lg:hidden">{locale === "ru" ? "Камера" : "Camera"}</button>
         <div className="inline-flex rounded-xl border border-white/80 bg-white/95 p-1 shadow-sm backdrop-blur" role="group" aria-label={t("map.dimension")} data-testid="map-dimension-control">
           {(["2d", "3d"] as MapViewMode[]).map((mode) => (
             <button
@@ -1388,9 +1400,18 @@ export function LiveObjectMap({
             {t("map.volume")}
           </button>
         ) : null}
+        {cameraOpen ? <div id="mobile-camera-actions" className="grid grid-cols-2 gap-1 rounded-xl bg-white p-1 lg:hidden">
+          {([
+            [locale === "ru" ? "Повернуть влево" : "Rotate left", -30, 0],
+            [locale === "ru" ? "Повернуть вправо" : "Rotate right", 30, 0],
+            [locale === "ru" ? "Наклонить вверх" : "Tilt up", 0, 15],
+            [locale === "ru" ? "Наклонить вниз" : "Tilt down", 0, -15]
+          ] as const).map(([label, bearing, pitch]) => <button key={label} type="button" className="min-h-11 rounded-lg px-2 text-xs font-semibold focus-visible:outline-2" onClick={() => { const map = mapRef.current; if (map) map.easeTo({ bearing: map.getBearing() + bearing, pitch: Math.max(0, Math.min(70, map.getPitch() + pitch)), duration: 200 }); }}>{label}</button>)}
+          <button type="button" className="col-span-2 min-h-11 rounded-lg text-xs font-semibold focus-visible:outline-2" onClick={() => mapRef.current?.easeTo({ bearing: 0, duration: 200 })}>{locale === "ru" ? "Север вверх" : "Reset north"}</button>
+        </div> : null}
       </div>
       {viewMode === "3d" ? (
-        <p className="pointer-events-none absolute bottom-[62px] left-3 z-10 hidden rounded-lg bg-white/90 px-2.5 py-1.5 text-[11px] font-semibold text-[#475467] shadow-sm backdrop-blur sm:block">
+        <p data-map-gesture-hint className="pointer-events-none absolute bottom-[62px] left-3 z-10 hidden rounded-lg bg-white/90 px-2.5 py-1.5 text-[11px] font-semibold text-[#475467] shadow-sm backdrop-blur sm:block">
           {t("map.rotate")}
         </p>
       ) : null}

@@ -383,6 +383,42 @@ async function expectFindDrawerGeometry(page: Page, checkMapAlignment = false) {
   }
 }
 
+test("Sprint06 half sheet fits the selected object inside the uncovered map", async ({ page }, testInfo) => {
+  await installOfflineRoutes(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/prototype/point-to-object");
+  await expect(page.getByText("Live map ready for object selection.")).toBeAttached();
+  await page.getByRole("button", { name: "Resize task" }).click();
+  await expect(page.getByTestId("mobile-workspace-shell")).toHaveAttribute("data-sheet", "half");
+  const search = page.getByRole("combobox", { name: "Search address or place" });
+  await search.fill("Shangri");
+  await page.getByRole("option", { name: /Shangri-La exact search result/ }).click();
+  await expect(page.getByTestId("selected-object")).toHaveText("Shangri-La exact search result");
+  await expect.poll(async () => page.getByTestId("live-map-canvas").evaluate((element) => {
+    type Map = { project: (point: [number, number]) => { x: number; y: number }; isMoving: () => boolean };
+    type Hook = { memoizedState: { current?: Partial<Map> } | null; next: Hook | null };
+    type Fiber = { memoizedState?: Hook; return?: Fiber };
+    const key = Object.getOwnPropertyNames(element).find((item) => item.startsWith("__reactFiber$"))!;
+    let fiber: Fiber | undefined = (element as unknown as Record<string, Fiber>)[key];
+    while (fiber) {
+      let hook = fiber.memoizedState;
+      while (hook) {
+        const map = hook.memoizedState?.current;
+        if (map && typeof map.project === "function" && typeof map.isMoving === "function") {
+          const point = map.project([55.271928, 25.208110]);
+          const box = element.getBoundingClientRect();
+          const sheetTop = document.getElementById("workspace-task")!.getBoundingClientRect().top;
+          return !map.isMoving() && point.y + box.top > 136 && point.y + box.top < sheetTop - 24 && point.x > 24 && point.x < box.width - 56;
+        }
+        hook = hook.next ?? undefined;
+      }
+      fiber = fiber.return;
+    }
+    return false;
+  })).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath("half-sheet-selected-object-fit.png") });
+});
+
 test("actual MapLibre canvas fills its desktop map region", async ({ page }) => {
   const unexpectedExternal = await installOfflineRoutes(page);
   await page.setViewportSize({ width: 1280, height: 720 });

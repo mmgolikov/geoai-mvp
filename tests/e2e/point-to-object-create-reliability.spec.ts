@@ -414,6 +414,127 @@ async function readSpatialReplacementFixture(page: Page) {
   });
 }
 
+test.describe("Sprint06 touch input", () => {
+  test.use({ hasTouch: true, viewport: { width: 390, height: 844 } });
+  test("drawing keeps vertices across mode switches and explicit cancel discards only the draft", async ({ page }, testInfo) => {
+    await installRoutes(page);
+    await page.goto("/prototype/point-to-object");
+    await expect(page.getByText("Live map ready for object selection.")).toBeAttached();
+    await page.getByRole("tab", { name: "Create", exact: true }).tap();
+    await page.getByRole("button", { name: "Draw area", exact: true }).tap();
+    const tools = page.getByTestId("create-map-drawing-tools");
+    await expect(tools).toContainText("(0/25)");
+    await page.touchscreen.tap(140, 260);
+    await expect(tools).toContainText("(1/25)");
+    await page.touchscreen.tap(240, 260);
+    await expect(tools).toContainText("(2/25)");
+    await page.mouse.move(170, 340);
+    await page.mouse.down();
+    await page.mouse.move(210, 380, { steps: 8 });
+    await page.mouse.up();
+    await expect(tools).toContainText("(2/25)");
+    await page.getByRole("tab", { name: "Find", exact: true }).tap();
+    await page.getByRole("tab", { name: "Create", exact: true }).tap();
+    await page.getByRole("button", { name: "Resume drawing", exact: true }).tap();
+    await expect(tools).toContainText("(2/25)");
+    await page.touchscreen.tap(200, 350);
+    await expect(tools).toContainText("(3/25)");
+    await page.screenshot({ path: testInfo.outputPath("mobile-touch-drawing.png") });
+    await tools.getByRole("button", { name: "Select", exact: true }).tap();
+    await expect(page.getByTestId("create-edit-area")).toBeVisible();
+    await page.getByTestId("create-edit-area").tap();
+    await tools.getByRole("button", { name: "Undo", exact: true }).tap();
+    await tools.getByRole("button", { name: "Cancel", exact: true }).tap();
+    await expect(page.getByTestId("create-edit-area")).toBeVisible();
+    await page.getByTestId("create-delete-area").tap();
+    await page.getByRole("button", { name: "Draw area", exact: true }).tap();
+    await expect(tools).toContainText("(0/25)");
+    await tools.getByRole("button", { name: "Cancel", exact: true }).tap();
+    await expect(tools).toHaveCount(0);
+  });
+});
+
+for (const width of [390, 430]) {
+  test(`Sprint06 mobile ${width}: mounted map, recoverable Create and request-free navigation`, async ({ page }, testInfo) => {
+    createPosts.length = 0;
+    challengeGets = 0;
+    let areaRequests = 0;
+    page.on("request", (request) => { if (request.url().endsWith("/area-context")) areaRequests += 1; });
+    await installRoutes(page);
+    await page.setViewportSize({ width, height: width === 390 ? 844 : 932 });
+    await page.goto("/prototype/point-to-object");
+    const shell = page.getByTestId("mobile-workspace-shell");
+    const canvas = page.getByTestId("live-map-canvas");
+    await expect(shell).toHaveAttribute("data-sheet", "peek");
+    await expect(canvas).toBeVisible();
+    const mapHeight = (await canvas.boundingBox())!.height;
+    expect(mapHeight).toBe((width === 390 ? 844 : 932) - 64);
+    await canvas.evaluate((element) => element.setAttribute("data-mount-proof", "retained"));
+    await page.screenshot({ path: testInfo.outputPath("mobile-peek-en.png") });
+    await page.getByRole("button", { name: "Open task", exact: true }).click();
+    await expect(shell).toHaveAttribute("data-sheet", "full");
+    await expect(canvas.locator("xpath=ancestor::section")).toHaveAttribute("inert", "");
+    await page.getByRole("button", { name: "Resize task" }).click();
+    await expect(shell).toHaveAttribute("data-sheet", "half");
+    await page.getByRole("tab", { name: "Create", exact: true }).click();
+    await page.getByLabel("Upload GeoJSON").setInputFiles({
+      name: "sprint06-public-fixture.geojson", mimeType: "application/geo+json",
+      buffer: Buffer.from(JSON.stringify({ type: "Polygon", coordinates: [[
+        [55.27015, 25.20515], [55.27065, 25.20515], [55.27065, 25.20565],
+        [55.27015, 25.20565], [55.27015, 25.20515]
+      ]] }))
+    });
+    await expect(page.getByText("Area context is temporarily unavailable.")).toBeVisible();
+    await page.getByRole("button", { name: "Public campus" }).click();
+    await page.getByTestId("create-generate-action").click();
+    await expect(page.getByTestId("generated-concept-summary")).toContainText("Generation 1 committed result.");
+    await page.getByTestId("create-alternative-b").click();
+    await page.getByTestId("create-delete-area").click();
+    await page.getByTestId("create-undo-remove").click();
+    await expect(page.getByTestId("generated-concept-metrics")).toContainText("1,500");
+    await page.getByTestId("create-edit-area").click();
+    await expect(shell).toHaveAttribute("data-sheet", "peek");
+    await page.getByTestId("create-map-drawing-tools").getByRole("button", { name: "Undo", exact: true }).click();
+    await page.getByTestId("create-map-drawing-tools").getByRole("button", { name: "Cancel", exact: true }).click();
+    await expect(page.getByTestId("generated-concept-metrics")).toContainText("1,500");
+    await page.getByRole("button", { name: "Show map", exact: true }).click();
+    await page.getByRole("button", { name: "Camera", exact: true }).click();
+    await page.getByRole("button", { name: "Rotate left", exact: true }).click();
+    await page.getByRole("button", { name: "Reset north", exact: true }).click();
+    await page.getByRole("button", { name: "3d", exact: true }).click();
+    await page.getByRole("button", { name: "Camera", exact: true }).click();
+    await expect(canvas).toHaveAttribute("data-mount-proof", "retained");
+    expect((await canvas.boundingBox())!.height).toBe(mapHeight);
+    await page.getByRole("tab", { name: "Find", exact: true }).click();
+    await expect(page.getByTestId("find-search-cta")).toBeDisabled();
+    await expect(page.getByTestId("find-search-cta")).toBeEnabled();
+    await expect(page.getByTestId("find-search-cta")).toBeVisible();
+    await expect(page.getByTestId("find-drawer").getByText("B2B", { exact: true })).toHaveCount(0);
+    await page.getByRole("tab", { name: "Analyse", exact: true }).click();
+    await page.getByRole("tab", { name: "Create", exact: true }).click();
+    await expect(page.getByTestId("generated-concept-summary")).toContainText("Generation 1 committed result.");
+    await expect(page.getByTestId("generated-concept-metrics")).toContainText("1,500");
+    expect(areaRequests).toBe(1);
+    expect(createPosts).toHaveLength(1);
+    expect(challengeGets).toBe(1);
+    await page.getByRole("button", { name: "ru", exact: true }).click();
+    await page.getByRole("button", { name: "На карту", exact: true }).click();
+    await page.screenshot({ path: testInfo.outputPath("mobile-peek-ru.png") });
+    await page.getByRole("button", { name: "Открыть задачу", exact: true }).click();
+    await page.setViewportSize({ width: 640, height: 450 });
+    await expect(page.getByRole("button", { name: "Изменить размер задачи" })).toBeHidden();
+    await expect(page.getByTestId("create-generate-action")).toBeAttached();
+    await page.getByRole("button", { name: "На карту", exact: true }).click();
+    await expect(canvas).toHaveAttribute("data-mount-proof", "retained");
+    await page.setViewportSize({ width: 1280, height: 900 });
+    expect((await page.locator("#workspace-task").boundingBox())!.width).toBe(430);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    expect(createPosts).toHaveLength(1);
+    expect(challengeGets).toBe(1);
+    await page.screenshot({ path: testInfo.outputPath("desktop-create-ru.png") });
+  });
+}
+
 test("Create separates draft from committed geometry and never spends on local-only actions", async ({ page }, testInfo) => {
   createPosts.length = 0;
   challengeGets = 0;
