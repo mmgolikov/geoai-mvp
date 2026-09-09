@@ -124,7 +124,7 @@ test("current landing keeps the accepted map preview and primary actions unobstr
 
     await expect(page.getByRole("heading", { level: 1, name: "Turn a location into a decision path." })).toBeVisible();
     const previewImage = page.getByRole("img", {
-      name: "GeoAI map-first workspace showing a three-dimensional Dubai map and the Analyse, Find and Create product modes"
+      name: "A real three-dimensional map of Dubai Trade Centre with a selected building highlighted in teal"
     });
     await expect(previewImage).toBeVisible();
     const previewMetrics = await previewImage.evaluate((element) => {
@@ -139,7 +139,7 @@ test("current landing keeps the accepted map preview and primary actions unobstr
     expect(previewMetrics.complete, `${viewport.name} preview image must finish loading`).toBe(true);
     expect(previewMetrics.naturalWidth, `${viewport.name} preview image must have intrinsic width`).toBeGreaterThan(0);
     expect(previewMetrics.naturalHeight, `${viewport.name} preview image must have intrinsic height`).toBeGreaterThan(0);
-    expect(decodeURIComponent(previewMetrics.currentSource)).toContain("/landing/geoai-map-workspace-preview.png");
+    expect(decodeURIComponent(previewMetrics.currentSource)).toContain(`/landing/sprint06-selected-site-${viewport.width <= 620 ? "narrow" : "wide"}.png`);
     const previewBox = await previewImage.boundingBox();
     expect(previewBox).not.toBeNull();
     expect(previewBox?.width ?? 0, `${viewport.name} preview must remain legible`).toBeGreaterThanOrEqual(300);
@@ -152,7 +152,7 @@ test("current landing keeps the accepted map preview and primary actions unobstr
     ).toBeLessThanOrEqual(2);
 
     const hero = page.locator("main > section").first();
-    const openMap = hero.getByRole("link", { name: "Open map", exact: true });
+    const openMap = hero.getByRole("link", { name: "Open map", exact: true }).filter({ hasText: /^Open map$/ });
     const projects = hero.getByRole("link", { name: "Projects", exact: true });
     await expect(openMap).toHaveAttribute("href", "/prototype/point-to-object");
     await expect(projects).toHaveAttribute("href", "/projects?view=spatial");

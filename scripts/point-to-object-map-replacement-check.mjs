@@ -70,7 +70,7 @@ function vectorTilePolygonFeature(geometry, canonical, { id, properties = {} } =
 function mapLibreKeeps(filter, geometry, { zoom = 14, id, properties = {}, canonical } = {}) {
   const tile = canonical ?? canonicalForPosition(firstGeometryPosition(geometry), zoom);
   const feature = vectorTilePolygonFeature(geometry, tile, { id, properties });
-  return featureFilter(filter).filter({ zoom }, feature, tile);
+  return featureFilter(filter, "layers.replacement.filter").filter({ zoom }, feature, tile);
 }
 
 function rectangle(west, south, east, north) {
@@ -127,8 +127,8 @@ assert.deepEqual(plan.filter, [
   ]
 ]);
 assert.equal(JSON.stringify(originalFilter), originalBytes, "Building replacement must not mutate the source filter.");
-assert.equal(createExpression(plan.filter).result, "success", "The composed filter must compile in MapLibre 5.11.");
-assert.equal(featureFilter(plan.filter).needGeometry, true, "The compiled replacement must request feature geometry.");
+assert.equal(createExpression(plan.filter, "layers.replacement.filter").result, "success", "The composed filter must compile in the installed MapLibre.");
+assert.equal(featureFilter(plan.filter, "layers.replacement.filter").needGeometry, true, "The compiled replacement must request feature geometry.");
 
 const insideBuilding = rectangle(55.2705, 25.2055, 55.2710, 25.2060);
 const outsideLandmark = rectangle(55.2780, 25.2055, 55.2785, 25.2060);
@@ -249,7 +249,7 @@ const featurePlan = buildPointObjectBuildingReplacementFilter(null, {
 });
 assert.equal(featurePlan.applied, true);
 assert.deepEqual(featurePlan.filter[0], "any");
-assert.equal(createExpression(featurePlan.filter).result, "success");
+assert.equal(createExpression(featurePlan.filter, "layers.replacement.filter").result, "success");
 
 const polygonWithHole = {
   type: "Polygon",

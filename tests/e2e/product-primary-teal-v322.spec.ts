@@ -100,9 +100,9 @@ test("historical v3.2.2 SVG labels stay intact while the current Cycle 05 landin
     const heroHeading = page.getByRole("heading", { name: "Turn a location into a decision path." });
     const hero = page.locator("section").filter({ has: heroHeading }).first();
     const heroVisual = hero.getByRole("img", {
-      name: "GeoAI map-first workspace showing a three-dimensional Dubai map and the Analyse, Find and Create product modes"
+      name: "A real three-dimensional map of Dubai Trade Centre with a selected building highlighted in teal"
     });
-    const primaryCta = hero.getByRole("link", { name: "Open map", exact: true });
+    const primaryCta = hero.getByRole("link", { name: "Open map", exact: true }).filter({ hasText: /^Open map$/ });
     await expect(heroHeading).toBeVisible();
     await expect(heroVisual).toBeVisible();
     await expect.poll(() => heroVisual.evaluate((image: HTMLImageElement) => image.complete && image.naturalWidth > 0)).toBe(true);

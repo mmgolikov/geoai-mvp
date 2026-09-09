@@ -105,7 +105,7 @@ for (const viewport of viewports) {
       await page.goto("/");
       await expect(page.getByRole("heading", { level: 1, name: "Turn a location into a decision path." })).toBeVisible();
       const hero = page.locator("main > section").first();
-      await expect(hero.getByRole("link", { name: "Open map", exact: true })).toHaveAttribute("href", "/prototype/point-to-object");
+      await expect(hero.getByRole("link", { name: "Open map", exact: true }).filter({ hasText: /^Open map$/ })).toHaveAttribute("href", "/prototype/point-to-object");
       await expect(hero.getByRole("link", { name: "Projects", exact: true })).toHaveAttribute("href", "/projects?view=spatial");
       await expect(page.locator('a[href="/request-access"]')).toHaveCount(0);
 

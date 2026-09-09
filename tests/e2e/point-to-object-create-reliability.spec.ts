@@ -1,4 +1,5 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
+import packageManifest from "../../package.json";
 
 const createPosts: Array<Record<string, unknown>> = [];
 let challengeGets = 0;
@@ -682,12 +683,53 @@ test("Create separates draft from committed geometry and never spends on local-o
   await expect(generate).toHaveText("Generate concept");
 });
 
+test("Security06 reapplies the latest Create alternative after pending source work becomes idle", async ({ page }) => {
+  createPosts.length = 0;
+  await installRoutes(page);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto("/prototype/point-to-object");
+  await page.getByRole("tab", { name: "Create" }).click();
+  await page.getByLabel("Upload GeoJSON").setInputFiles({
+    name: "pending-source.geojson", mimeType: "application/geo+json",
+    buffer: Buffer.from(JSON.stringify({ type: "Polygon", coordinates: [[[55.27015, 25.20515], [55.27065, 25.20515], [55.27065, 25.20565], [55.27015, 25.20565], [55.27015, 25.20515]]] }))
+  });
+  await expect(page.getByText("Area context is temporarily unavailable.")).toBeVisible();
+  await installSpatialReplacementFixture(page);
+  await page.getByRole("button", { name: "Public campus" }).click();
+  await page.getByTestId("create-generate-action").click();
+  await expect(page.getByTestId("generated-concept-summary")).toBeVisible();
+  await focusSpatialReplacementFixture(page);
+  await expect.poll(async () => (await readSpatialReplacementFixture(page)).insideTarget).toBe(false);
+  await page.evaluate(() => {
+    const fixture = window as typeof window & { __geoAiSpatialReplacementMap?: { isStyleLoaded: () => boolean; triggerRepaint: () => void }; __releaseSourceReadiness?: () => void };
+    const map = fixture.__geoAiSpatialReplacementMap!;
+    const original = map.isStyleLoaded.bind(map);
+    map.isStyleLoaded = () => false;
+    fixture.__releaseSourceReadiness = () => { map.isStyleLoaded = original; map.triggerRepaint(); };
+  });
+  await page.getByTestId("create-alternative-b").click();
+  await page.getByTestId("create-alternative-a").click();
+  await expect(page.getByRole("status").filter({ hasText: "Preparing building replacement" })).toBeVisible();
+  await page.evaluate(() => (window as typeof window & { __releaseSourceReadiness?: () => void }).__releaseSourceReadiness?.());
+  await expect(page.getByRole("status").filter({ hasText: "Preparing building replacement" })).toHaveCount(0);
+  await expect(page.getByTestId("create-alternative-a")).toHaveAttribute("aria-selected", "true");
+  await expect.poll(async () => (await readSpatialReplacementFixture(page)).insideTarget).toBe(false);
+  expect((await readSpatialReplacementFixture(page)).outsideLandmark).toBe(true);
+  expect(createPosts).toHaveLength(1);
+});
+
 test("actual MapLibre rendering hides only the internal target and retains outside geometry", async ({ page }, testInfo) => {
   createPosts.length = 0;
   challengeGets = 0;
   await installRoutes(page);
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto("/prototype/point-to-object");
+  // The ESM worker must load its sibling module from this deployment, not a CDN.
+  for (const asset of ["maplibre-gl-worker.mjs", "maplibre-gl-shared.mjs"]) {
+    const response = await page.request.get(`/_next/static/maplibre/${packageManifest.dependencies["maplibre-gl"]}/${asset}`);
+    expect(response.status(), asset).toBe(200);
+    expect(response.headers()["content-type"], asset).toMatch(/(?:application|text)\/javascript/);
+  }
   await page.getByRole("tab", { name: "Create" }).click();
   await page.getByLabel("Upload GeoJSON").setInputFiles({
     name: "spatial-replacement-browser-fixture.geojson",

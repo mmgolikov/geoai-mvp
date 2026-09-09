@@ -94,8 +94,8 @@ requireCondition(
   "Workspace selected primary controls must resolve immediately to exact spatial teal without transient blue/grey color interpolation."
 );
 requireCondition(
-  packageJson.dependencies?.next === "15.5.21",
-  "Next.js must resolve to patched Maintenance LTS version 15.5.21."
+  packageJson.dependencies?.next === "15.5.25",
+  "Next.js must resolve to patched Maintenance LTS version 15.5.25."
 );
 
 const evidence = {

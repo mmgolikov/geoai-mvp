@@ -892,21 +892,28 @@ export function LiveObjectMap({
     createAreaClearedRef.current = createAreaCleared;
     conceptMassingRef.current = conceptMassing;
     const map = mapRef.current;
-    if (!map || !map.isStyleLoaded()) return;
-    if (createDrawing && viewModeRef.current !== "2d") {
-      viewModeRef.current = "2d";
-      setViewMode("2d");
-      applyViewMode(map, "2d", createAreaCleared);
-      const current = selectionRef.current;
-      if (current) {
-        const nextSelection = { ...current, viewport: { ...current.viewport, ...CAMERA["2d"], viewMode: "2d" as const } };
-        selectionRef.current = nextSelection;
-        viewportCallbackRef.current?.(nextSelection);
+    if (!map) return;
+    const applyCreateState = () => {
+      if (createDrawing && viewModeRef.current !== "2d") {
+        viewModeRef.current = "2d";
+        setViewMode("2d");
+        applyViewMode(map, "2d", createAreaCleared);
+        const current = selectionRef.current;
+        if (current) {
+          const nextSelection = { ...current, viewport: { ...current.viewport, ...CAMERA["2d"], viewMode: "2d" as const } };
+          selectionRef.current = nextSelection;
+          viewportCallbackRef.current?.(nextSelection);
+        }
       }
-    }
-    const replacementStatus = setCreateLayers(map, createDraftCoordinates, createAoi, createAreaCleared, conceptMassing, viewModeRef.current);
-    replacementStatusCallbackRef.current?.(replacementStatus);
-    map.getCanvas().style.cursor = interactionModeRef.current === "create" && createDrawing ? "crosshair" : "";
+      const replacementStatus = setCreateLayers(map, createDraftCoordinates, createAoi, createAreaCleared, conceptMassing, viewModeRef.current);
+      replacementStatusCallbackRef.current?.(replacementStatus);
+      map.getCanvas().style.cursor = interactionModeRef.current === "create" && createDrawing ? "crosshair" : "";
+    };
+    if (map.isStyleLoaded()) applyCreateState();
+    else map.once("idle", applyCreateState);
+    // Source work can make isStyleLoaded false after style.load. Do not lose a
+    // new A/B/reopen state; latest props replace this one-shot pending apply.
+    return () => { map.off("idle", applyCreateState); };
   }, [conceptMassing, createAoi, createAreaCleared, createDraftCoordinates, createDrawing, createReplacementRevision]);
 
   useEffect(() => {
@@ -1030,6 +1037,8 @@ export function LiveObjectMap({
     void import("maplibre-gl")
       .then((maplibregl) => {
         if (disposed || !containerRef.current) return;
+        // v6 uses a separate ESM worker; let the bundler emit its same-origin URL.
+        maplibregl.setWorkerUrl(new URL("maplibre-gl/dist/maplibre-gl-worker.mjs", import.meta.url).toString());
         const view = pointObjectMarket(locationKeyRef.current);
         const restored = selectionRef.current;
         const initialBasemap = restored?.viewport.basemapId ?? basemapIdRef.current;
@@ -1048,6 +1057,7 @@ export function LiveObjectMap({
           zoom: restored?.locationKey === locationKeyRef.current ? restored.viewport.zoom : view.zoom,
           minZoom: 3,
           maxZoom: 20,
+          zoomLevelsToOverscale: undefined,
           maxBounds: [[...view.bounds[0]], [...view.bounds[1]]],
           maxPitch: 60,
           pitch: initialCamera.pitch,
