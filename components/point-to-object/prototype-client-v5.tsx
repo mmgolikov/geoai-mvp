@@ -426,13 +426,18 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
     : null;
   const findMappedMinimumLevels = findMinimumLevels.trim() ? Number(findMinimumLevels) : null;
   const findMappedMaximumLevels = findMaximumLevels.trim() ? Number(findMaximumLevels) : null;
-  const findResultIsStale = findResult !== null && (
+  const findResultCriteriaMismatch = findResult !== null && (
     findResultIntentKey !== findIntentKey ||
     findResult.criteria.marketKey !== locationKey ||
     findResult.criteria.locale !== locale ||
     findResult.criteria.group !== findGroup ||
     findResult.criteria.mappedMinimumLevels !== findMappedMinimumLevels ||
-    findResult.criteria.mappedMaximumLevels !== findMappedMaximumLevels ||
+    findResult.criteria.mappedMaximumLevels !== findMappedMaximumLevels
+  );
+  // Camera focus changes the visible search area, not the identity or position
+  // of already returned candidates. Preserve those markers while the drawer
+  // honestly labels the prior-area result stale; criteria changes still hide it.
+  const findResultIsStale = findResult !== null && (findResultCriteriaMismatch ||
     !(sameFindBounds(visibleBounds, findResult.criteria.bounds) || sameFindBounds(visibleBounds, restoredFindViewportBounds ?? findResult.criteria.bounds))
   );
   const findResultMarketMismatch = findResult !== null && findResult.criteria.marketKey !== locationKey;
@@ -1473,7 +1478,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
       <PointObjectHeader />
       <div className={mobileStyles.shell} data-sheet={effectiveSheet} data-testid="mobile-workspace-shell">
         <section className={`${mobileStyles.map} relative overflow-hidden`} inert={mobile && effectiveSheet === "full"} aria-hidden={mobile && effectiveSheet === "full" ? true : undefined} aria-label={t("map.region")}>
-          {sessionReady ? <LiveObjectMap {...createReplacementMapProps} locationKey={locationKey} interactionMode={mode} selection={mode === "analyse" ? selection : null} navigationTarget={navigationTarget} viewModeRequest={viewModeRequest} onSelection={mode === "analyse" ? handleSelection : ignoreMapSelection} onViewportChange={handleViewportChange} onVisibleBoundsChange={handleVisibleBoundsChange} projectMarkers={projectOverviewMarkers.map((marker, index) => ({ id: marker.artifactId, label: marker.label, longitude: marker.longitude, latitude: marker.latitude, kind: marker.kind, number: index + 1 }))} activeProjectMarkerId={activeProjectMarkerId} onProjectMarkerSelect={openProjectOverviewMarker} findResults={mode === "find" && findResult && !findResultIsStale ? findResult.candidates.map((candidate, index) => ({ id: candidate.sourceFeatureId, longitude: candidate.longitude, latitude: candidate.latitude, label: candidate.label, number: index + 1 })) : []} activeFindResultId={mode === "find" ? activeFindResultId : null} onFindResultSelect={focusFindResult} createDrawing={mode === "create" && isDrawing} createDraftCoordinates={mode === "create" ? draftCoordinates : []} createAoi={mode === "create" ? createAoi : null} createAoiFitRequest={mode === "create" ? createAoiFitRequest : null} createAreaCleared={mode === "create" && createAreaCleared} conceptMassing={mode === "create" ? activeConceptMassing : null} onCreateVertex={addCreateVertex} onCreateFinishDrawing={() => closeCreateArea()} onReplacementStatus={setCreateReplacementStatus} className="h-full min-h-0" /> : <div className="grid h-full min-h-0 place-items-center bg-[#f4f6f7] text-sm font-medium text-[#52606a]" role="status">{t("map.loading")}</div>}
+          {sessionReady ? <LiveObjectMap {...createReplacementMapProps} locationKey={locationKey} interactionMode={mode} selection={mode === "analyse" ? selection : null} navigationTarget={navigationTarget} viewModeRequest={viewModeRequest} onSelection={mode === "analyse" ? handleSelection : ignoreMapSelection} onViewportChange={handleViewportChange} onVisibleBoundsChange={handleVisibleBoundsChange} projectMarkers={projectOverviewMarkers.map((marker, index) => ({ id: marker.artifactId, label: marker.label, longitude: marker.longitude, latitude: marker.latitude, kind: marker.kind, number: index + 1 }))} activeProjectMarkerId={activeProjectMarkerId} onProjectMarkerSelect={openProjectOverviewMarker} findResults={mode === "find" && findResult && !findResultCriteriaMismatch ? findResult.candidates.map((candidate, index) => ({ id: candidate.sourceFeatureId, longitude: candidate.longitude, latitude: candidate.latitude, label: candidate.label, number: index + 1 })) : []} activeFindResultId={mode === "find" ? activeFindResultId : null} onFindResultSelect={focusFindResult} createDrawing={mode === "create" && isDrawing} createDraftCoordinates={mode === "create" ? draftCoordinates : []} createAoi={mode === "create" ? createAoi : null} createAoiFitRequest={mode === "create" ? createAoiFitRequest : null} createAreaCleared={mode === "create" && createAreaCleared} conceptMassing={mode === "create" ? activeConceptMassing : null} onCreateVertex={addCreateVertex} onCreateFinishDrawing={() => closeCreateArea()} onReplacementStatus={setCreateReplacementStatus} className="h-full min-h-0" /> : <div className="grid h-full min-h-0 place-items-center bg-[#f4f6f7] text-sm font-medium text-[#52606a]" role="status">{t("map.loading")}</div>}
           <div className="absolute left-3 top-3 z-10 flex w-[min(650px,calc(100%-4.5rem))] flex-row gap-2 sm:left-5 sm:top-5">
             <label className="flex h-11 w-fit shrink-0 items-center rounded-xl border border-white/70 bg-white/95 px-3 shadow-[0_10px_30px_rgba(20,35,45,0.14)] backdrop-blur">
               <span className="sr-only">{t("city.label")}</span>

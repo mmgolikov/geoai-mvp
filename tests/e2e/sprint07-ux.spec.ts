@@ -272,6 +272,8 @@ test("Sprint07: Project Hub overview clears the active canvas only, shows every 
 
 test("Sprint07: Find map marker focuses its numbered result rather than starting Analyse", async ({ page }) => {
   await installOfflineHub(page);
+  let findRequests = 0;
+  await page.route("**/api/prototype/point-to-object/find", async (route) => { findRequests += 1; await route.abort(); });
   await page.goto("/projects");
   await page.getByTestId("saved-result-card").filter({ hasText: "Saved bounded site" }).getByRole("button", { name: "Show on map", exact: true }).click();
   await expect(page.getByTestId("find-drawer")).toBeVisible();
@@ -280,7 +282,24 @@ test("Sprint07: Find map marker focuses its numbered result rather than starting
   await marker.click();
   await expect(page.getByRole("tab", { name: "Find", exact: true })).toHaveAttribute("aria-selected", "true");
   await expect(page.locator("#find-result-way\\/701")).toBeFocused();
+  // Wait for the focus animation's new bounds, not merely its first frame.
+  // Camera-only staleness must retain the returned coordinates and Fit action.
+  await expect(page.getByTestId("find-result-stale")).toBeVisible();
+  await expect(page.getByTestId("find-search-cta")).toBeEnabled();
+  await expect(marker).toBeVisible();
   await expect(page.getByTestId("find-fit-results")).toBeVisible();
+  await page.getByTestId("find-fit-results").click();
+  await expect(page.getByTestId("find-search-cta")).toBeEnabled();
+  await expect(marker).toBeVisible();
+  await expect(page.getByTestId("find-fit-results")).toBeVisible();
+  await page.getByRole("textbox", { name: "Levels from", exact: true }).fill("1");
+  await expect(marker).toHaveCount(0);
+  await expect(page.getByTestId("find-fit-results")).toHaveCount(0);
+  await expect(page.getByTestId("find-result-stale")).toBeVisible();
+  await page.getByRole("textbox", { name: "Levels from", exact: true }).fill("");
+  await expect(marker).toBeVisible();
+  await expect(page.getByTestId("find-fit-results")).toBeVisible();
+  expect(findRequests).toBe(0);
 });
 
 test("Sprint07: a stacked project marker opens an exact saved result only after the user chooses it", async ({ page }) => {
@@ -408,6 +427,8 @@ test("Sprint07: Find accepts one explicit search only after its 2D camera transi
     await route.fulfill({ contentType: "application/json", body: JSON.stringify(findArtifact().payload.session.result) });
   });
   await page.goto("/prototype/point-to-object");
+  await expect(page.getByText("Live map ready for object selection.", { exact: true })).toBeVisible();
+  await expect(page.getByTestId("map-dimension-control").getByRole("button", { name: "3d", exact: true })).toHaveAttribute("aria-pressed", "true");
   await page.getByRole("tab", { name: "Find", exact: true }).click();
   const findCta = page.getByTestId("find-search-cta");
   await expect(findCta).toBeDisabled();

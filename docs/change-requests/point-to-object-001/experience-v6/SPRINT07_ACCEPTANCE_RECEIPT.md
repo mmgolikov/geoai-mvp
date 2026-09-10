@@ -1,6 +1,6 @@
 # Sprint07 — Acceptance and Remaining Field Checks
 
-Status: Local candidate verification passed; exact-head CI and protected Preview handoff pending; not released
+Status: Local candidate verified; exact-head CI exposed a Find camera lifecycle defect, corrected in successor; final CI pending; not released
 Last verified: 2026-09-10
 Owner: GeoAI Main
 Authority: [Approved CR](SPRINT07_USER_JOURNEY_RECOVERY_CR.md)
@@ -59,6 +59,14 @@ The broader compatibility suite also exposed stale Sprint06 landing-image expect
 The deadline diagnosis used a native one-second `AbortSignal.timeout` with a delayed local response and an invocation counter, without replacing `AbortSignal.any` or fabricating a UI error. The former app flow intermittently accepted the late response. The corrected application owns its timeout transition and cancels its request controller; both deadline paths passed three consecutive WebKit runs. Navigation initially passed six local-HTTPS/CSP-preserving repetitions but later failed on plain Chrome too, disproving an exclusively transport-only explanation. The duplicate UI navigation was then guarded; the exact-request-count assertion and full regressions are final acceptance gates, not inferred from the earlier TLS run.
 
 Find had two independent early-interaction races. Session/profile reconciliation could invalidate a just-started search; the CTA and handler now wait for it. Separately, the delayed 3D-to-2D map `movestart` could disable an already pressed CTA before its click completed. Find now arms its movement gate in the mode-change event and waits for the map's acknowledgement, including already-2D and not-yet-loaded paths. The original direct-click regression and explicit camera-transition/no-op regression each passed five consecutive Chrome runs. A temporary diagnostic delay was not retained as the fix. Responsive geometry assertions wait for the settled layout without loosening pixel or touch-target thresholds.
+
+## Exact-head CI recovery
+
+CI run `34531474169` on `797536b8b1b0b5b9050f5e16568e20c705a2bad8` passed the isolated database job and static checks but failed the browser stage: 51 point-to-object tests passed, one failed and one was flaky. The subsequent Auth/build/route/PDF stages did not run in that CI and must not be credited to it.
+
+The failed marker test exposed a real lifecycle bug after the 350 ms focus animation: camera movement made the prior search area stale and removed its still-valid returned coordinates. The successor separates criteria mismatch from viewport-only staleness. It preserves numbered candidates and Fit for the prior-area result, keeps the Stale/Update search notice, and still hides candidates when role/scenario/market/locale/group/level criteria change. Saved query bounds and immutable results are not rewritten, and no request is introduced.
+
+The strengthened regression waits for completed focus bounds, verifies retained markers/Fit, changes level criteria to verify removal, then restores them without a request. The camera-transition test now waits for the real initial 3D map to be ready: its earlier CI flaky attempt entered Find before map initialization, where the deliberate no-map acknowledgement correctly had no disabled animation state to observe. Original CI and local development failures remain diagnostic evidence. Final successor local and CI results are recorded in PR #148 and the Hub; earlier full-suite counts remain bound to the pre-successor runtime above.
 
 ## Cost and release controls
 
