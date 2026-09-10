@@ -118,7 +118,7 @@ test.describe("commercial Landing and Account visual acceptance", () => {
         name: "A real three-dimensional map of Dubai Trade Centre with a selected building highlighted in teal"
       });
       await expect(landingPreview).toBeVisible();
-      await expect(landingPreview).toHaveAttribute("src", new RegExp(`sprint06-selected-site-${viewport.width <= 620 ? "narrow" : "wide"}\\.png`));
+      await expect.poll(() => landingPreview.evaluate((image: HTMLImageElement) => decodeURIComponent(image.currentSrc))).toMatch(new RegExp(`sprint06-selected-site-${viewport.width <= 620 ? "narrow" : "wide"}\\.png`));
       const previewDimensions = await landingPreview.evaluate((image) => ({
         naturalHeight: (image as HTMLImageElement).naturalHeight,
         naturalWidth: (image as HTMLImageElement).naturalWidth
