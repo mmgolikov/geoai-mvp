@@ -1,6 +1,6 @@
 "use client";
 
-import Image from "next/image";
+import { getImageProps } from "next/image";
 import Link from "next/link";
 import { useState, type KeyboardEvent } from "react";
 
@@ -13,6 +13,22 @@ import styles from "./landing.module.css";
 const mapHref = "/prototype/point-to-object";
 const projectsHref = "/projects";
 const requestHref = "/request-access";
+const { props: widePreview } = getImageProps({
+  src: "/landing/sprint06-selected-site-wide.png",
+  alt: "",
+  width: 849,
+  height: 540,
+  loading: "eager",
+  fetchPriority: "high",
+  sizes: "(max-width: 1199px) 88vw, 760px"
+});
+const { props: narrowPreview } = getImageProps({
+  src: "/landing/sprint06-selected-site-narrow.png",
+  alt: "",
+  width: 430,
+  height: 400,
+  sizes: "calc(100vw - 32px)"
+});
 
 export function GeoAILandingPage() {
   const { locale, setLocale } = usePointObjectLocale();
@@ -100,24 +116,12 @@ export function GeoAILandingPage() {
             </div>
             <div className={styles.previewScene}>
               <Link href={mapHref} className={styles.previewLink} aria-label={copy.actions.openMap}>
-              <Image
-                className={styles.previewWide}
-                src="/landing/sprint06-selected-site-wide.png"
-                alt={copy.hero.previewAlt}
-                width={849}
-                height={540}
-                priority
-                sizes="(max-width: 620px) 1px, (max-width: 1199px) 88vw, 760px"
-              />
-              <Image
-                className={styles.previewNarrow}
-                src="/landing/sprint06-selected-site-narrow.png"
-                alt={copy.hero.previewAlt}
-                width={430}
-                height={400}
-                priority
-                sizes="(max-width: 620px) calc(100vw - 32px), 1px"
-              />
+                <picture className={styles.previewPicture}>
+                  <source media="(max-width: 620px)" srcSet={narrowPreview.srcSet} sizes={narrowPreview.sizes} width={430} height={400} />
+                  {/* getImageProps retains Next optimization; picture selects one asset without a hidden-image preload. */}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img {...widePreview} className={styles.previewImage} alt={copy.hero.previewAlt} />
+                </picture>
               </Link>
               <nav className={styles.objectActions} aria-label={copy.hero.objectActions}>
                 {(["analyse", "find", "create"] as const).map((mode, index) => (
