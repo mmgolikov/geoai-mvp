@@ -7,9 +7,15 @@ test("Security06 keeps the accepted landing images and map entry usable in EN an
   page.on("pageerror", (error) => errors.push(error.message));
   for (const width of [390, 430, 1440]) {
     await page.setViewportSize({ width, height: 932 });
-    await page.goto("/");
+    // Readiness is checked on the visible hero below, not the hidden breakpoint image optimizer.
+    await page.goto("/", { waitUntil: "domcontentloaded" });
     for (const locale of ["EN", "RU"] as const) {
-      await page.getByRole("button", { name: locale, exact: true }).click();
+      const localeButton = page.getByRole("button", { name: locale, exact: true });
+      // DOM readiness can precede hydration; confirm the locale interaction took effect.
+      await expect.poll(async () => {
+        await localeButton.click();
+        return localeButton.getAttribute("aria-pressed");
+      }).toBe("true");
       const hero = page.locator("main > section").first();
       await expect(hero.getByRole("heading", { level: 1 })).toBeVisible();
       const action = locale === "EN" ? "Open map" : "Открыть карту";
