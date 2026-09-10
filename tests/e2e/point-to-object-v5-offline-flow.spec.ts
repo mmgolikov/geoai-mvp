@@ -70,7 +70,7 @@ async function json(route: Route, body: unknown, status = 200) {
   await route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
 }
 
-async function installOfflineRoutes(page: Page, options: { areaContextMode?: "success" | "rate" | "error" } = {}) {
+async function installOfflineRoutes(page: Page, options: { areaContextMode?: "success" | "rate" | "error"; emptyFind?: boolean } = {}) {
   const unexpectedExternal: string[] = [];
   await page.route(/^https:\/\//, async (route) => {
     const url = new URL(route.request().url());
@@ -136,16 +136,16 @@ async function installOfflineRoutes(page: Page, options: { areaContextMode?: "su
     findPostRequests.push(request);
     await json(route, {
       protocol: "POINT_TO_OBJECT_001_FIND_OPEN_MAP_V1",
-      mode: "results",
+      mode: options.emptyFind ? "empty" : "results",
       criteria: request,
-      candidates,
+      candidates: options.emptyFind ? [] : candidates,
       ordering: "source_identity_ascending_not_ranked",
       coverage: {
         kind: "bounded_open_map_sample",
         approximateAreaSqKm: 1.25,
-        upstreamElementCount: 3,
-        normalizedCandidateCount: 3,
-        returnedCandidateCount: 3,
+        upstreamElementCount: options.emptyFind ? 0 : 3,
+        normalizedCandidateCount: options.emptyFind ? 0 : 3,
+        returnedCandidateCount: options.emptyFind ? 0 : 3,
         upstreamQueryLimit: 80,
         capReached: false,
         completeInventory: false,
@@ -891,6 +891,53 @@ test("V5.1 keeps exact identity and the complete Find comparison flow coherent o
   await expect(page).toHaveURL(/\/prototype\/point-to-object$/);
   await expect(page.getByRole("tab", { name: "Find", exact: true })).toHaveAttribute("aria-selected", "true");
   await expect(page.getByTestId("find-comparison-grid").getByRole("article")).toHaveCount(2);
+  // Inspect the real map only in the offline browser test, as in MAP10. Wait
+  // for the requested fit to finish, not a transient non-stale animation frame.
+  await expect(page.locator(".maplibregl-canvas")).toBeVisible();
+  await page.evaluate(() => {
+    type Hook = { memoizedState: unknown; next: Hook | null };
+    type Fiber = { memoizedState: Hook | null; return: Fiber | null };
+    const canvas = document.querySelector("[data-testid='live-map-canvas']")!;
+    const fiberKey = Object.getOwnPropertyNames(canvas).find(key => key.startsWith("__reactFiber$"))!;
+    let fiber: Fiber | null = (canvas as unknown as Record<string, Fiber>)[fiberKey];
+    while (fiber) {
+      for (let hook = fiber.memoizedState; hook; hook = hook.next) {
+        const map = (hook.memoizedState as { current?: { isMoving?: unknown } } | null)?.current;
+        if (typeof map?.isMoving === "function") {
+          (window as unknown as { findRestoreMap: unknown }).findRestoreMap = map;
+          return;
+        }
+      }
+      fiber = fiber.return;
+    }
+    throw new Error("Find restore map instance unavailable");
+  });
+  const waitForFindMapIdle = async () => {
+    await expect.poll(() => page.evaluate(() => {
+      const map = (window as unknown as { findRestoreMap: import("maplibre-gl").Map }).findRestoreMap;
+      return map.loaded() && !map.isMoving();
+    })).toBe(true);
+  };
+  await waitForFindMapIdle();
+  await expect(page.getByTestId("find-result-stale")).toHaveCount(0);
+  await page.getByRole("button", { name: "Zoom out", exact: true }).click();
+  await waitForFindMapIdle();
+  await expect(page.getByTestId("find-result-stale")).toHaveText("Stale");
+  await page.getByRole("button", { name: "Zoom in", exact: true }).click();
+  await waitForFindMapIdle();
+  await expect(page.getByTestId("find-result-stale")).toHaveCount(0);
+  const restoredCenter = await page.evaluate(() => (window as unknown as { findRestoreMap: import("maplibre-gl").Map }).findRestoreMap.getCenter().toArray());
+  const mapBox = await page.locator(".maplibregl-canvas").boundingBox();
+  if (!mapBox) throw new Error("Find map bounds unavailable for manual pan");
+  await page.mouse.move(mapBox.x + 200, mapBox.y + 300);
+  await page.mouse.down();
+  await page.mouse.move(mapBox.x + 280, mapBox.y + 300, { steps: 8 });
+  await page.mouse.up();
+  await waitForFindMapIdle();
+  await expect(page.getByTestId("find-result-stale")).toHaveText("Stale");
+  // Restore the test camera so the existing comparison/analysis flow continues.
+  await page.evaluate(center => (window as unknown as { findRestoreMap: import("maplibre-gl").Map }).findRestoreMap.jumpTo({ center }), restoredCenter);
+  await waitForFindMapIdle();
   await expect(page.getByTestId("find-result-stale")).toHaveCount(0);
   const restoredFindSession = await page.evaluate(() => JSON.parse(sessionStorage.getItem("geoai:point-to-object:find:v1") ?? "null"));
   expect(restoredFindSession.marketKey).toBe("dubai");
@@ -963,6 +1010,53 @@ test("V5.1 keeps exact identity and the complete Find comparison flow coherent o
   await expect.poll(() => page.evaluate(() => JSON.parse(sessionStorage.getItem("geoai:point-to-object:selection:v3") ?? "null"))).toBeNull();
   await page.locator(".maplibregl-canvas").click({ position: { x: 200, y: 150 }, force: true });
   await expect.poll(() => page.evaluate(() => JSON.parse(sessionStorage.getItem("geoai:point-to-object:selection:v3") ?? "null"))).toBeNull();
+  expect(unexpectedExternal).toEqual([]);
+});
+
+test("empty saved Find restores its query viewport without a fabricated selection or rerun", async ({ page }) => {
+  findPostRequests.length = 0;
+  contextRequests.length = 0;
+  const unexpectedExternal = await installOfflineRoutes(page, { emptyFind: true });
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await signInDemo(page, "/prototype/point-to-object");
+  const search = page.getByRole("combobox", { name: "Search address or place" });
+  await search.fill("Shangri");
+  await expect(page.getByRole("option", { name: /Shangri-La exact search result/ })).toBeVisible();
+  await search.press("ArrowDown");
+  await search.press("Enter");
+  await expect(page.getByText("Exact mapped object")).toBeVisible();
+  await page.getByRole("tab", { name: "Find", exact: true }).click();
+  await page.getByTestId("find-search-cta").click();
+  await expect(page.getByText("No matches for these filters.", { exact: true })).toBeVisible();
+  await expect.poll(() => findPostRequests.length).toBe(1);
+  await expect.poll(() => page.evaluate(() => {
+    const key = Object.keys(localStorage).find(key => key.startsWith("geoai:point-to-object:projects:v1:"));
+    return key ? JSON.parse(localStorage.getItem(key)!).projects.flatMap((project: { artifacts: unknown[] }) => project.artifacts).length : 0;
+  })).toBe(1);
+  const savedQuery = findPostRequests[0].bounds;
+  const contextCalls = contextRequests.length;
+  await page.getByRole("button", { name: "3d", exact: true }).click();
+  await expect(page.getByRole("button", { name: "3d", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await page.goto("/projects");
+  const priorSelection = await page.evaluate(() => JSON.parse(sessionStorage.getItem("geoai:point-to-object:selection:v3")!));
+  await page.getByRole("button", { name: "Open", exact: true }).click();
+  await expect(page).toHaveURL(/\/prototype\/point-to-object$/);
+  await expect(page.locator(".maplibregl-canvas")).toBeVisible();
+  await expect(page.getByText("No matches for these filters.", { exact: true })).toBeVisible();
+  await expect(page.getByTestId("find-result-stale")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "2d", exact: true })).toHaveAttribute("aria-pressed", "true");
+  const restored = await page.evaluate(() => JSON.parse(sessionStorage.getItem("geoai:point-to-object:find:v1")!));
+  expect(restored.result.criteria.bounds).toEqual(savedQuery);
+  expect(restored.result.candidates).toEqual([]);
+  expect(restored.result.source.sourceResponseHash).toBe(sha256);
+  const selectionAfterRestore = await page.evaluate(() => JSON.parse(sessionStorage.getItem("geoai:point-to-object:selection:v3")!));
+  // Find preserves prior legitimate Analyse work; an empty bbox fit must not
+  // replace it with a synthetic point or a fabricated source identity.
+  expect(selectionAfterRestore.object).toEqual(priorSelection.object);
+  expect(selectionAfterRestore.resolvedObject).toEqual(priorSelection.resolvedObject);
+  expect(selectionAfterRestore.clickedAt).toBe(priorSelection.clickedAt);
+  expect(findPostRequests).toHaveLength(1);
+  expect(contextRequests).toHaveLength(contextCalls);
   expect(unexpectedExternal).toEqual([]);
 });
 
@@ -1177,7 +1271,13 @@ test("Create A/B and mobile profile remain coherent offline", async ({ page }, t
   await page.getByRole("button", { name: "Compare selected", exact: true }).click();
   await expect(page.getByTestId("find-comparison-grid")).toBeVisible();
 
-  await signInDemo(page, "/profile");
+  // The session is already authenticated; exercise the actual map-to-profile journey.
+  const profileLink = page.locator('[data-point-object-header] a[href="/profile"]');
+  await expect(profileLink).toHaveAttribute("data-authenticated", "true");
+  await profileLink.click();
+  await expect(page).toHaveURL((url) => url.pathname === "/profile");
+  await expect(page.locator('[data-point-object-header] a[href="/profile"]')).toHaveAttribute("data-authenticated", "true");
+  await expect(page.getByRole("combobox", { name: /Default role|Роль по умолчанию/ })).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
   const russianLocale = page.getByRole("button", { name: "ru", exact: true });
   await expect.poll(async () => {
@@ -1190,6 +1290,7 @@ test("Create A/B and mobile profile remain coherent offline", async ({ page }, t
   await page.getByRole("button", { name: "Сохранить профиль", exact: true }).click();
   await expect(page.getByText("Демо-профиль сохранён для этой браузерной сессии.")).toBeVisible();
   await expect(page.getByRole("link", { name: "Вернуться к карте" })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("create-mobile-profile-390-ru.png") });
   await page.goto("/prototype/point-to-object");
   await page.getByRole("tab", { name: "Поиск" }).click();
   await expect(page.locator('[data-testid^="find-audience-"]')).toHaveCount(0);
@@ -1204,6 +1305,7 @@ test("Create A/B and mobile profile remain coherent offline", async ({ page }, t
   await expect(page.getByRole("combobox", { name: "Тип объекта" })).toBeVisible();
   await expect(page.getByLabel("Этажей от")).toBeVisible();
   await expect(page.getByLabel("Этажей до")).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("create-profile-return-b2c-criteria-390-ru.png") });
   await page.goto("/profile");
   await expect(page.getByRole("combobox", { name: "Роль по умолчанию" })).toHaveValue("tourist");
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);

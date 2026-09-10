@@ -4,7 +4,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 
 import { useEffect, useRef, useState } from "react";
 import type { Feature, FeatureCollection, Geometry, Position } from "geojson";
-import type { ExpressionSpecification, FilterSpecification, GeoJSONSource, Map as MapLibreMap, MapGeoJSONFeature, MapMouseEvent } from "maplibre-gl";
+import type { ExpressionSpecification, FilterSpecification, FitBoundsOptions, GeoJSONSource, Map as MapLibreMap, MapEventType, MapGeoJSONFeature, MapMouseEvent } from "maplibre-gl";
 
 import type {
   LiveMapBasemapId,
@@ -17,6 +17,7 @@ import { usePointObjectLocale } from "@/components/point-to-object/locale-provid
 import type { GeoJsonGeometry } from "@/src/lib/point-to-object/contracts";
 import type { ConceptMassingResult, PointObjectCreateAoi } from "@/src/lib/prototype/point-to-object-create";
 import type { PointObjectFindBounds } from "@/src/lib/prototype/point-to-object-find-contract";
+import { isCompletedNavigationCamera, type NavigationCamera } from "@/src/lib/prototype/point-to-object-find-viewport";
 import {
   buildPointObjectBuildingReplacementFilter,
   buildPointObjectNativeSelectionOutside,
@@ -101,7 +102,7 @@ export type LiveObjectMapProps = {
   overlayBottomInset?: number;
   onSelection: (selection: LiveMapSelection | null) => void;
   onViewportChange?: (selection: LiveMapSelection) => void;
-  onVisibleBoundsChange?: (bounds: PointObjectFindBounds) => void;
+  onVisibleBoundsChange?: (bounds: PointObjectFindBounds, navigationRequestId?: string) => void;
   onCameraMovingChange?: (moving: boolean) => void;
   navigationTarget?: LiveMapNavigationTarget | null;
   viewModeRequest?: { requestId: string; mode: LiveMapViewMode } | null;
@@ -131,6 +132,8 @@ export type LiveMapNavigationTarget = {
   expectedSourceFeatureId?: `${"node" | "way" | "relation"}/${string}`;
   expectedLabel?: string | null;
   expectedFeatureClass?: string | null;
+  selectAfterNavigation?: boolean;
+  viewMode?: LiveMapViewMode;
 };
 
 function safeText(value: unknown, maxLength = 160): string | null {
@@ -1012,10 +1015,17 @@ export function LiveObjectMap({
     const map = mapRef.current;
     if (!map || !selectAtRef.current) return;
     handledNavigationTargetRef.current = navigationTarget.requestId;
+    if (navigationTarget.viewMode) {
+      // Restore mode and fit are one camera operation. A separate mode ease
+      // would interrupt the tagged fit when reopening from a 3D map.
+      viewModeRef.current = navigationTarget.viewMode;
+      setViewMode(navigationTarget.viewMode);
+      applyViewMode(map, navigationTarget.viewMode, createAreaClearedRef.current, false, false);
+    }
     const coordinates: Wgs84Position = [navigationTarget.longitude, navigationTarget.latitude];
     let selectionCompleted = false;
     const selectAfterMove = () => {
-      if (selectionCompleted || !selectAtRef.current || !map.isStyleLoaded()) return;
+      if (navigationTarget.selectAfterNavigation === false || selectionCompleted || !selectAtRef.current || !map.isStyleLoaded()) return;
       selectionCompleted = true;
       if (navigationTarget.expectedSourceFeatureId) {
         const center = map.getCenter();
@@ -1057,7 +1067,16 @@ export function LiveObjectMap({
     const fallbackTimer = window.setTimeout(selectAfterMove, 1_400);
     if (navigationTarget.boundingBox) {
       const [south, north, west, east] = navigationTarget.boundingBox;
-      map.fitBounds([[west, south], [east, north]], { padding: overlayBottomInsetRef.current ? { top: 72, left: 32, right: 56, bottom: 72 + overlayBottomInsetRef.current } : 72, maxZoom: navigationTarget.zoom ?? 18, duration: 650 });
+      const fitOptions: FitBoundsOptions = { ...(navigationTarget.viewMode ? CAMERA[navigationTarget.viewMode] : {}), padding: overlayBottomInsetRef.current ? { top: 72, left: 32, right: 56, bottom: 72 + overlayBottomInsetRef.current } : 72, maxZoom: navigationTarget.zoom ?? 18, duration: 650 };
+      const camera = map.cameraForBounds([[west, south], [east, north]], fitOptions);
+      const center = camera?.center;
+      const expectedCamera: NavigationCamera | undefined = center && typeof camera?.zoom === "number" ? {
+        center: Array.isArray(center) ? center : ["lng" in center ? center.lng : center.lon, center.lat],
+        zoom: camera.zoom,
+        bearing: camera.bearing ?? 0,
+        pitch: fitOptions.pitch ?? map.getPitch()
+      } : undefined;
+      map.fitBounds([[west, south], [east, north]], fitOptions, { geoaiNavigationRequestId: navigationTarget.requestId, geoaiNavigationCamera: expectedCamera });
     } else {
       map.easeTo({ center: coordinates, zoom: navigationTarget.zoom ?? 18, offset: [0, -overlayBottomInsetRef.current / 2], duration: 650 });
     }
@@ -1260,9 +1279,13 @@ export function LiveObjectMap({
           selectAt(event.point, [event.lngLat.lng, event.lngLat.lat]);
         };
 
-        const handleMoveEnd = () => {
+        const handleMoveEnd = (event: MapEventType["moveend"] & { geoaiNavigationRequestId?: string; geoaiNavigationCamera?: NavigationCamera }) => {
           const visibleBounds = map.getBounds();
-          visibleBoundsCallbackRef.current?.([visibleBounds.getWest(), visibleBounds.getSouth(), visibleBounds.getEast(), visibleBounds.getNorth()]);
+          // MapLibre also emits tagged moveend when a gesture interrupts a fit.
+          // Its requestId is proof of completion only at the expected final camera.
+          const completedRequestId = isCompletedNavigationCamera({ center: map.getCenter().toArray(), zoom: map.getZoom(), bearing: map.getBearing(), pitch: map.getPitch() }, event.geoaiNavigationCamera)
+            ? event.geoaiNavigationRequestId : undefined;
+          visibleBoundsCallbackRef.current?.([visibleBounds.getWest(), visibleBounds.getSouth(), visibleBounds.getEast(), visibleBounds.getNorth()], completedRequestId);
           cameraMovingCallbackRef.current?.(false);
           const nextReplacementZoomEligible = map.getZoom() >= pointObjectReplacementMinimumReliableZoom;
           if (nextReplacementZoomEligible !== replacementZoomEligible) {

@@ -1,5 +1,7 @@
 "use client";
 
+import { findRestoreNavigationTarget, matchesRestoredFindViewport, sameFindBounds } from "@/src/lib/prototype/point-to-object-find-viewport";
+
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import mobileStyles from "./mobile-workspace.module.css";
@@ -145,18 +147,6 @@ const FIND_SCENARIO_LABELS: Record<"en" | "ru", Record<ExploreScenarioId, string
 
 function sameCoordinate(left: Coordinate, right: Coordinate): boolean {
   return Math.abs(left[0] - right[0]) < 1e-9 && Math.abs(left[1] - right[1]) < 1e-9;
-}
-
-function sameFindBounds(left: PointObjectFindBounds | null, right: PointObjectFindBounds): boolean {
-  return left !== null && left.every((coordinate, index) => Math.abs(coordinate - right[index]) < 1e-6);
-}
-
-function isRestoredFindViewport(candidate: PointObjectFindBounds, query: PointObjectFindBounds): boolean {
-  const [west, south, east, north] = candidate;
-  const [queryWest, querySouth, queryEast, queryNorth] = query;
-  const candidateArea = Math.max(0, east - west) * Math.max(0, north - south);
-  const queryArea = Math.max(Number.EPSILON, queryEast - queryWest) * Math.max(Number.EPSILON, queryNorth - querySouth);
-  return west <= queryWest && south <= querySouth && east >= queryEast && north >= queryNorth && candidateArea / queryArea <= 6;
 }
 
 function contextRequestKey(selection: LiveMapSelection | null, locale: "en" | "ru"): string | null {
@@ -399,7 +389,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
   const suggestionRequestIdRef = useRef(0);
   const suggestionCacheRef = useRef(new Map<string, LiveMapSearchResult[]>());
   const restoredFindSessionRef = useRef<PointObjectFindSessionState | null>(null);
-  const pendingRestoredFindBoundsRef = useRef<PointObjectFindBounds | null>(null);
+  const pendingRestoredFindBoundsRef = useRef<{ bounds: PointObjectFindBounds; requestId: string } | null>(null);
   const appliedProfileAudienceRef = useRef<string | null>(null);
   const previousLocaleRef = useRef(locale);
   const projectRestoreAppliedRef = useRef<PointObjectProjectIdentity | null | undefined>(undefined);
@@ -489,21 +479,9 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
         setFindAnalysisTargetSourceFeatureId(restored.analysisTargetSourceFeatureId);
         setFindSessionReady(true);
         setRestoredFindViewportBounds(null);
-        pendingRestoredFindBoundsRef.current = restored.result.criteria.bounds;
-        setViewModeRequest({ requestId: `restore-find:${artifact.artifactId}`, mode: "2d" });
-        const first = restored.result.candidates[0];
-        if (first) {
-          const [west, south, east, north] = restored.result.criteria.bounds;
-          setNavigationTarget({
-            requestId: `restore-find-bounds:${artifact.artifactId}`,
-            longitude: first.longitude,
-            latitude: first.latitude,
-            boundingBox: [south, north, west, east],
-            expectedSourceFeatureId: first.sourceFeatureId,
-            expectedLabel: first.label,
-            expectedFeatureClass: first.group
-          });
-        }
+        pendingRestoredFindBoundsRef.current = { bounds: restored.result.criteria.bounds, requestId: `restore-find-bounds:${artifact.artifactId}` };
+        // Empty saved searches have the same real query bounds but no object to select.
+        setNavigationTarget(findRestoreNavigationTarget(restored.result.criteria.bounds, artifact.artifactId));
         return;
       }
       if (artifact.kind === "create") {
@@ -835,9 +813,11 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
   }, []);
 
   const handleViewportChange = useCallback((nextSelection: LiveMapSelection) => writePointObjectSelection(nextSelection), []);
-  const handleVisibleBoundsChange = useCallback((bounds: PointObjectFindBounds) => {
+  const handleVisibleBoundsChange = useCallback((bounds: PointObjectFindBounds, navigationRequestId?: string) => {
     const pending = pendingRestoredFindBoundsRef.current;
-    if (pending && isRestoredFindViewport(bounds, pending)) {
+    // Initial load, resize and interrupted camera transitions may also contain
+    // the query. Only the requested restore fit can establish its viewport.
+    if (matchesRestoredFindViewport(bounds, pending, navigationRequestId)) {
       pendingRestoredFindBoundsRef.current = null;
       setRestoredFindViewportBounds(bounds);
     }
