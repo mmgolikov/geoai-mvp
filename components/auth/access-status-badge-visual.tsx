@@ -31,11 +31,11 @@ export function AccessStatusBadgeVisual({ avatar, fullName, href, isAuthenticate
       title={label}
       data-authenticated={isAuthenticated ? "true" : "false"}
       data-figma-node="219:425"
-      className={`geoai-v32 relative inline-flex h-10 w-10 shrink-0 items-center justify-center overflow-visible rounded-full border transition focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${focusTone} ${isAuthenticated ? authenticatedTone : anonymousTone}`}
+      className={`geoai-v32 relative inline-flex h-11 w-11 shrink-0 items-center justify-center overflow-visible rounded-xl border transition focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${focusTone} ${isAuthenticated ? authenticatedTone : anonymousTone}`}
     >
       {isAuthenticated && avatar ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={avatar} alt="" className="h-full w-full rounded-full object-cover" />
+        <img src={avatar} alt="" className="h-full w-full rounded-xl object-cover" />
       ) : isAuthenticated ? (
         <span className="text-sm font-semibold" aria-hidden="true">
           {profileInitial(fullName)}

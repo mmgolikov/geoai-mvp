@@ -7,6 +7,7 @@ import { useAuth } from "@/components/auth/auth-provider";
 import { usePointObjectLocale } from "@/components/point-to-object/locale-provider";
 import { ReliableSelect } from "@/components/point-to-object/reliable-select";
 import { PointObjectHeader } from "@/components/point-to-object/prototype-header";
+import { PointObjectDecisionCards } from "@/components/point-to-object/decision-cards";
 import {
   parsePointObjectAiResponse,
   readPointObjectAnalysis,
@@ -40,6 +41,7 @@ import {
   type PointObjectProjectIdentity
 } from "@/src/lib/prototype/point-object-projects";
 import { readPointObjectFindSession } from "@/src/lib/prototype/point-to-object-find-session";
+import { pointObjectHasSelectedIdentity, pointObjectSelectedLookupId, pointObjectSelectionLabel } from "@/src/lib/prototype/point-to-object-trusted-identity";
 
 type AnalysisSettings = {
   depth: PointObjectAnalysisDepth;
@@ -166,8 +168,6 @@ export function PointToObjectAnalysis() {
   const activeRequestRef = useRef<AbortController | null>(null);
   const localeRef = useRef(locale);
   const translationRef = useRef(t);
-  const localeRefreshAttemptRef = useRef<string | null>(null);
-  const skipSavedLocaleRefreshRef = useRef(false);
   const projectIdentityRef = useRef<PointObjectProjectIdentity | null>(pointObjectProjectIdentity(user));
   localeRef.current = locale;
   translationRef.current = t;
@@ -218,7 +218,7 @@ export function PointToObjectAnalysis() {
         kind: "analyse",
         locale: nextAnalysis.request.locale,
         marketKey: activeSelection.locationKey,
-        label: nextAnalysis.subject.name ?? activeSelection.object.name ?? (nextAnalysis.request.locale === "ru" ? "Анализ выбранного объекта" : "Selected object analysis"),
+        label: pointObjectSelectionLabel(activeSelection, nextAnalysis.subject, nextAnalysis.request.locale === "ru" ? "Анализ выбранного объекта" : "Selected object analysis"),
         payload: { selection: activeSelection, analysis: nextAnalysis }
       }, undefined, saveContext.destination);
     }
@@ -227,7 +227,7 @@ export function PointToObjectAnalysis() {
   const requestAnalysis = useCallback(async (activeSelection: LiveMapSelection, activeQuestion: string, settings: AnalysisSettings) => {
     const initiatingIdentity = projectIdentityRef.current;
     const destination = initiatingIdentity ? capturePointObjectProjectDestination(initiatingIdentity, {
-      label: activeSelection.resolvedObject?.name ?? activeSelection.object.name ?? "Selected object analysis"
+      label: pointObjectSelectionLabel(activeSelection, activeSelection.resolvedObject, localeRef.current === "ru" ? "Анализ выбранного объекта" : "Selected object analysis")
     }) : null;
     activeRequestRef.current?.abort();
     const requestId = requestSequenceRef.current + 1;
@@ -264,7 +264,7 @@ export function PointToObjectAnalysis() {
           goal: settings.goal,
           perspective: settings.perspective,
           horizon: settings.horizon,
-          expectedSourceFeatureId: activeSelection.resolvedObject?.sourceFeatureId ?? null,
+          expectedSourceFeatureId: pointObjectSelectedLookupId(activeSelection),
           consent: true,
           challenge: challengePayload.challenge
         })
@@ -323,7 +323,6 @@ export function PointToObjectAnalysis() {
     } else {
       const restoredQuestion = readPointObjectQuestion();
       const restoredDraft = readPointObjectQuestionDraft(questionScopeRef.current(restoredSelection));
-      if (restoredDraft !== null) skipSavedLocaleRefreshRef.current = true;
       const restoredAnalysis = readPointObjectAnalysis(restoredSelection);
       setMissingSelection(false);
       setSelection(restoredSelection);
@@ -332,7 +331,6 @@ export function PointToObjectAnalysis() {
         const identityKey = projectIdentityRef.current;
         const restoreReceipt = identityKey ? consumePointObjectAnalysisRestore(identityKey) : null;
         if (restoreReceipt && restoreReceipt.locale === restoredAnalysis.request.locale) {
-          skipSavedLocaleRefreshRef.current = true;
           if (localeRef.current !== restoreReceipt.locale) setLocale(restoreReceipt.locale);
         }
         analysisRef.current = restoredAnalysis;
@@ -373,28 +371,8 @@ export function PointToObjectAnalysis() {
     };
   }, [isSessionResolved, requestAnalysis, setLocale]);
 
-  useEffect(() => {
-    if (!selection || analysis?.mode !== "openai" || loading) return;
-    if (analysis.schemaVersion !== POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION) return;
-    if (analysis.request.locale === locale) {
-      skipSavedLocaleRefreshRef.current = false;
-      localeRefreshAttemptRef.current = null;
-      return;
-    }
-    if (skipSavedLocaleRefreshRef.current) {
-      skipSavedLocaleRefreshRef.current = false;
-      return;
-    }
-    const refreshKey = `${selection.clickedAt}:${locale}`;
-    if (localeRefreshAttemptRef.current === refreshKey) return;
-    localeRefreshAttemptRef.current = refreshKey;
-    void requestAnalysis(selection, analysis.request.question ?? "", {
-      depth: analysis.request.depth,
-      goal: analysis.request.goal,
-      perspective: analysis.request.perspective,
-      horizon: analysis.request.horizon
-    });
-  }, [analysis, loading, locale, requestAnalysis, selection]);
+  // Language and viewing-profile changes never trigger paid work. Saved report
+  // text keeps its original language until the user explicitly updates it.
 
   function currentSettings(overrides: Partial<AnalysisSettings> = {}): AnalysisSettings {
     return { depth, goal, perspective, horizon, ...overrides };
@@ -433,10 +411,9 @@ export function PointToObjectAnalysis() {
     : null;
   const subject = analysis?.mode === "openai" ? analysis.subject : null;
   const sourceGeometryContainsPoint = subject?.coordinateAssociation === "open_map_geometry_contains_point";
-  const sourceIdentityTrusted = subject?.coordinateAssociation === "trusted_open_map_identity";
-  const title = subject && !sourceGeometryContainsPoint && !sourceIdentityTrusted
-    ? t("analysis.nearestTitle")
-    : subject?.name ?? selection?.object.name ?? t("analysis.selectedTitle");
+  const sourceIdentityTrusted = pointObjectHasSelectedIdentity(selection, subject);
+  const legacyIdentityUnconfirmed = subject?.coordinateAssociation === "trusted_open_map_identity" && !sourceIdentityTrusted;
+  const title = pointObjectSelectionLabel(selection, subject, t("analysis.selectedTitle"));
   const resolvedName = subject?.name && subject.name !== title ? subject.name : null;
   const contextRelation = subject
     ? sourceGeometryContainsPoint
@@ -487,14 +464,15 @@ export function PointToObjectAnalysis() {
       <p className="sr-only" aria-live="polite">{announcement}</p>
       <PointObjectHeader backToMap />
 
-      <div className="grid w-full gap-5 p-4 sm:p-6 xl:grid-cols-[minmax(0,1fr)_400px]">
+      <div className="mx-auto grid w-full max-w-[1920px] gap-5 p-4 sm:p-6 xl:grid-cols-[minmax(0,1fr)_340px]">
         <section className="min-w-0">
           <div className="rounded-[20px] border border-line bg-white p-5 shadow-soft sm:p-7">
             <p className="text-xs font-bold uppercase tracking-[0.11em] text-[#087f8c]">{t("panel.eyebrow")}</p>
             <h1 className="mt-2 break-words text-2xl font-bold tracking-[-0.035em] sm:text-3xl">{title}</h1>
             {resolvedName ? <p className="mt-2 text-base font-semibold text-[#344054]">{resolvedName}</p> : null}
             {contextRelation ? <p className="mt-2 text-xs font-semibold text-[#087f8c]">{contextRelation}</p> : null}
-            {subject?.address ? <p className="mt-2 text-sm leading-6 text-muted">{subject.address}</p> : null}
+            {legacyIdentityUnconfirmed ? <p className="mt-3 rounded-xl border border-[#e7c47e] bg-[#fffaf0] p-3 text-xs leading-5 text-[#6b4b16]">{locale === "ru" ? "В сохранённом отчёте ближайший объект был отмечен как точный. Совпадение с выбранным объектом не подтверждено; исходный отчёт сохранён без изменений." : "This saved report labelled a nearby object as exact. Its identity is not confirmed against the selected feature; the original report is preserved unchanged."}</p> : null}
+            {subject?.address ? <details className="mt-2 text-sm leading-6 text-muted"><summary className="cursor-pointer">{locale === "ru" ? "Адрес и запись источника" : "Address & source record"}</summary><p>{subject.address}</p><p className="text-xs">{subject.sourceFeatureId}</p></details> : null}
             {subject && Object.keys(subject.tags).length ? (
               <div className="mt-4 flex flex-wrap gap-2" aria-label={t("selection.attributes")}>
                 {Object.entries(subject.tags).slice(0, 6).map(([key, value]) => <span key={key} className="rounded-full bg-[#f3f6f8] px-2.5 py-1 text-[11px] font-semibold text-[#475467]">{humanizeAttribute(key)} · {value}</span>)}
@@ -516,6 +494,8 @@ export function PointToObjectAnalysis() {
 
             {content ? (
               <div className="space-y-5" data-testid="ai-success">
+                {analysis?.mode === "openai" ? <PointObjectDecisionCards context={geoContext} generatedAt={analysis.generatedAt} reportPerspective={localizedPerspective(analysis.request.perspective)} places={mergedLocationContext.filter((item) => item.evidenceRefs.some((ref) => /^EVD-CONTEXT-\d+$/.test(ref)))} groupLabels={contextGroupLabels} districtLabels={districtLabels} /> : null}
+                {analysis?.mode === "openai" && analysis.request.locale !== locale ? <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-white p-3 text-xs text-muted"><span>{locale === "ru" ? "Текст отчёта сохранён на исходном языке. Обновление — отдельный AI-запрос." : "Report text is kept in its saved language. Updating is a separate AI request."}</span><button type="button" disabled={loading} className="min-h-11 rounded-lg border border-line px-3 font-bold text-[#087f8c] disabled:opacity-50" onClick={() => selection && void requestAnalysis(selection, analysis.request.question ?? "", { depth: analysis.request.depth, goal: analysis.request.goal, perspective: analysis.request.perspective, horizon: analysis.request.horizon })}>{locale === "ru" ? "Обновить на русском" : "Update in English"}</button></div> : null}
                 <section className="rounded-[20px] border border-[#c8d9ec] bg-white p-5 shadow-soft sm:p-7">
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="text-xs font-bold uppercase tracking-[0.1em] text-[#087f8c]">{t("analysis.decisionBrief")}</p>
@@ -524,11 +504,13 @@ export function PointToObjectAnalysis() {
                   </div>
                   <h2 className="mt-4 text-xl font-bold leading-8 tracking-[-0.025em] text-[#172b4d]">{content.decisionBrief.headline}</h2>
                   <p className="mt-3 text-base leading-7 text-[#344054]">{content.decisionBrief.summary}</p>
+                  <details className="mt-4"><summary className="cursor-pointer text-sm font-bold text-[#087f8c]">{locale === "ru" ? "Обоснование и контекст решения" : "Decision reasoning & context"}</summary>
                   {semanticBrief ? <div className="mt-5 rounded-2xl border border-[#d6e4e1] bg-[#f5faf8] p-4">
                     <div className="flex items-center justify-between gap-3"><p className="text-[11px] font-bold uppercase tracking-[0.07em] text-[#176548]">{locale === "ru" ? "Контекст решения" : "Decision context"}</p><span className="text-[10px] font-semibold text-[#536963]">{confidenceLabel(semanticBrief.confidence)}</span></div>
                     <ClaimList items={[semanticBrief.subject, semanticBrief.context, semanticBrief.access, semanticBrief.implication]} />
                   </div> : null}
                   <ClaimList items={content.decisionBrief.reasons} />
+                  </details>
                   {content.answerToQuestion && analysis?.mode === "openai" && Boolean(analysis.request.question) ? (
                     <div className="mt-6 rounded-2xl border border-[#cfe0f7] bg-[#eef6ff] p-4">
                       <p className="text-xs font-bold uppercase tracking-[0.08em] text-[#087f8c]">{t("analysis.answer")}</p>
@@ -547,7 +529,9 @@ export function PointToObjectAnalysis() {
                   <p className="mt-5 border-t border-line pt-4 text-[11px] leading-5 text-muted" data-testid="analysis-caveat">{content.caveat}</p>
                 </section>
 
-                {geoContext ? <section className="rounded-[20px] border border-line bg-white p-5 shadow-soft sm:p-7">
+                {geoContext ? <details className="rounded-[20px] border border-line bg-white p-5 shadow-soft sm:p-7" data-testid="analysis-geocontext">
+                  <summary className="cursor-pointer text-sm font-bold text-[#087f8c]">{locale === "ru" ? "Измерения и состав выборки" : "Measurements & sample details"}</summary>
+                  <section className="mt-4">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div><h2 className="text-base font-bold">{locale === "ru" ? "Окружение в радиусе 400 м" : "Surroundings within 400 m"}</h2><p className="mt-1 text-xs leading-5 text-muted">{locale === "ru" ? "Объекты, найденные в открытой карте вокруг выбранной точки; расстояния рассчитаны по прямой." : "Features returned by the open map around the selected point; distances are straight-line."}</p></div>
                     <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase ${geoContext.coverage === "available" ? "bg-[#edf7f2] text-[#176548]" : "bg-[#fff5e8] text-[#8a4b08]"}`}>{geoContext.coverage === "available" ? (locale === "ru" ? "Данные доступны" : "Coverage available") : (locale === "ru" ? "Данные недоступны" : "Coverage unavailable")}</span>
@@ -562,9 +546,10 @@ export function PointToObjectAnalysis() {
                     </dl>
                     {geoContext.groups.some((group) => group.count > 0) ? <div className="mt-4 grid gap-2 sm:grid-cols-2">{geoContext.groups.filter((group) => group.count > 0).slice(0, 8).map((group) => <div key={group.group} className="flex items-center justify-between gap-3 rounded-xl bg-[#f8fafc] px-3 py-2 text-xs"><span className="font-semibold text-[#344054]">{contextGroupLabels[group.group] ?? group.group}</span><span className="shrink-0 tabular-nums text-muted">{group.count} · {group.sharePct}%{group.nearestDistanceM === null ? "" : ` · ${group.nearestDistanceM} m`}</span></div>)}</div> : null}
                     {geoContext.capReached ? <p className="mt-3 rounded-lg border border-[#e6bd74] bg-[#fff9ed] px-3 py-2 text-[11px] text-[#79520d]">{locale === "ru" ? "Достигнут лимит выборки: доли относятся только к найденным объектам, а не ко всему окружению." : "The sample cap was reached: shares describe only the returned features, not the full surroundings."}</p> : null}
-                    {subject?.metrics ? <p className="mt-3 text-[11px] leading-5 text-muted">{locale === "ru" ? "Приближённая геометрия объекта" : "Approximate object geometry"}: {Math.round(subject.metrics.footprintAreaSqM).toLocaleString(locale)} {locale === "ru" ? "м²" : "m²"} · {Math.round(subject.metrics.footprintPerimeterM).toLocaleString(locale)} {locale === "ru" ? "м по периметру. Расчёт выполнен локально по генерализованной геометрии WGS84." : "m perimeter. Locally calculated from generalized WGS84 geometry."}</p> : null}
+                    {subject?.metrics ? <p className="mt-3 text-[11px] leading-5 text-muted">{sourceIdentityTrusted ? (locale === "ru" ? "Приближённая геометрия выбранной записи" : "Approximate selected-record geometry") : (locale === "ru" ? "Геометрия записи окружения; совпадение с выбранным зданием не подтверждено" : "Context-record geometry; match to the selected building is not confirmed")}: {Math.round(subject.metrics.footprintAreaSqM).toLocaleString(locale)} {locale === "ru" ? "м²" : "m²"} · {Math.round(subject.metrics.footprintPerimeterM).toLocaleString(locale)} {locale === "ru" ? "м по периметру. Расчёт выполнен локально по генерализованной геометрии WGS84." : "m perimeter. Locally calculated from generalized WGS84 geometry."}</p> : null}
                   </> : <p className="mt-4 text-sm leading-6 text-muted">{locale === "ru" ? "Для этой точки выборка окружающих объектов не получена. Выводы о типе района не формируются." : "No surrounding-feature sample was returned for this point. No district-type inference is shown."}</p>}
-                </section> : null}
+                  </section>
+                </details> : null}
 
                 <section className="rounded-[20px] border border-line bg-white p-5 shadow-soft sm:p-7">
                   <div className="flex flex-wrap items-end justify-between gap-2">

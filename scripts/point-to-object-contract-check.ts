@@ -1236,6 +1236,7 @@ function assertStaticBoundaries(): void {
     "app/api/prototype/point-to-object/suggest/route.ts",
     "components/point-to-object/analysis-client.tsx",
     "components/point-to-object/create-panel.tsx",
+    "components/point-to-object/decision-cards.tsx",
     "components/point-to-object/live-object-map.tsx",
     "components/point-to-object/live-session.ts",
     "components/point-to-object/live-types.ts",

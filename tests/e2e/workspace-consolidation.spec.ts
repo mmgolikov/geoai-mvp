@@ -54,7 +54,8 @@ test("uses Workspace as the only visible Product destination and preserves crite
 
   await writeEvidence({
     schemaVersion: "1.0",
-    canonicalProductRoute: "/workspace",
+    canonicalProductRoute: "/prototype/point-to-object",
+    directlyTestedLegacyRoute: "/workspace",
     compatibilityRoute: "/explore",
     compatibilityDestination: "/workspace",
     visibleProductDestinations: ["Workspace", "Projects"],

@@ -169,6 +169,86 @@ function normalizedPrimaryCentroidSpan(
       Math.max(Number.EPSILON, maxLatitude - minLatitude);
 }
 
+function normalizeUndirectedAngle(angle: number) {
+  let normalized = angle;
+  while (normalized >= Math.PI / 2) normalized -= Math.PI;
+  while (normalized < -Math.PI / 2) normalized += Math.PI;
+  return normalized;
+}
+
+function undirectedAngleDifference(left: number, right: number) {
+  const delta = Math.abs(normalizeUndirectedAngle(left) - normalizeUndirectedAngle(right));
+  return Math.min(delta, Math.PI - delta);
+}
+
+function pointToSegmentDistanceM(
+  point: [number, number],
+  start: [number, number],
+  end: [number, number]
+) {
+  const latitude = point[1] * Math.PI / 180;
+  const metresPerLongitude = 111_320 * Math.cos(latitude);
+  const toMetric = (candidate: [number, number]) => ({
+    x: (candidate[0] - point[0]) * metresPerLongitude,
+    y: (candidate[1] - point[1]) * 110_540
+  });
+  const metricStart = toMetric(start);
+  const metricEnd = toMetric(end);
+  const deltaX = metricEnd.x - metricStart.x;
+  const deltaY = metricEnd.y - metricStart.y;
+  const lengthSquared = deltaX * deltaX + deltaY * deltaY;
+  const projection = lengthSquared <= Number.EPSILON ? 0 : Math.max(0, Math.min(1,
+    -(metricStart.x * deltaX + metricStart.y * deltaY) / lengthSquared
+  ));
+  return Math.hypot(metricStart.x + deltaX * projection, metricStart.y + deltaY * projection);
+}
+
+function featureBoundaryAlignment(
+  polygon: [number, number][][],
+  feature: ReturnType<typeof generateConceptMassing>["featureCollection"]["features"][number]
+) {
+  const center = featureCenter(feature);
+  const siteRing = polygon[0].slice(0, -1);
+  let nearestDistanceM = Number.POSITIVE_INFINITY;
+  let nearestBoundaryAngle = 0;
+  for (let index = 0; index < siteRing.length; index += 1) {
+    const start = siteRing[index];
+    const end = siteRing[(index + 1) % siteRing.length];
+    const distanceM = pointToSegmentDistanceM(center, start, end);
+    if (distanceM < nearestDistanceM) {
+      nearestDistanceM = distanceM;
+      const latitude = (start[1] + end[1]) / 2 * Math.PI / 180;
+      nearestBoundaryAngle = Math.atan2(
+        (end[1] - start[1]) * 110_540,
+        (end[0] - start[0]) * 111_320 * Math.cos(latitude)
+      );
+    }
+  }
+  const footprint = feature.geometry.coordinates[0].slice(0, -1);
+  const footprintAngles = footprint.map((start, index) => {
+    const end = footprint[(index + 1) % footprint.length];
+    const latitude = (start[1] + end[1]) / 2 * Math.PI / 180;
+    return Math.atan2(
+      (end[1] - start[1]) * 110_540,
+      (end[0] - start[0]) * 111_320 * Math.cos(latitude)
+    );
+  });
+  return {
+    errorDeg: Math.min(...footprintAngles.map((angle) =>
+      undirectedAngleDifference(angle, nearestBoundaryAngle))) * 180 / Math.PI,
+    boundaryAngle: normalizeUndirectedAngle(nearestBoundaryAngle)
+  };
+}
+
+function distinctOrientationCount(angles: number[], toleranceDeg: number) {
+  const tolerance = toleranceDeg * Math.PI / 180;
+  const unique: number[] = [];
+  for (const angle of angles) {
+    if (unique.every((candidate) => undirectedAngleDifference(candidate, angle) > tolerance)) unique.push(angle);
+  }
+  return unique.length;
+}
+
 function assertTowerPodiumContract(
   polygon: [number, number][][],
   program: Parameters<typeof generateConceptMassing>[1],
@@ -676,6 +756,55 @@ for (const squareCampusAoi of [aoi, [[...aoi[0]].reverse()] as [number, number][
     "Both roomy-square alternatives must retain real articulation for the independent audit seed and either AOI winding.");
   }
 }
+
+const siteResponsiveCenter = [55.28, 25.218] as const;
+const siteResponsiveMetresPerLongitude = 111_320 * Math.cos(siteResponsiveCenter[1] * Math.PI / 180);
+const siteResponsivePoint = (x: number, y: number): [number, number] => [
+  siteResponsiveCenter[0] + x / siteResponsiveMetresPerLongitude,
+  siteResponsiveCenter[1] + y / 110_540
+];
+const siteResponsiveAoi = [[
+  siteResponsivePoint(-180, -120),
+  siteResponsivePoint(160, -100),
+  siteResponsivePoint(220, 20),
+  siteResponsivePoint(80, 180),
+  siteResponsivePoint(-160, 140),
+  siteResponsivePoint(-180, -120)
+]] as [number, number][][];
+const siteResponsiveStarted = performance.now();
+const siteResponsiveAlternatives = generateConceptMassingAlternatives(
+  siteResponsiveAoi,
+  civicValidation.value,
+  "cycle04:site-responsive-campus"
+);
+const siteResponsiveElapsedMs = performance.now() - siteResponsiveStarted;
+assert.ok(siteResponsiveElapsedMs < 2_500,
+  "Two site-responsive campus alternatives must complete inside the bounded per-case budget.");
+assert.equal(siteResponsiveAlternatives.length, 2);
+assert.deepEqual(
+  generateConceptMassingAlternatives(siteResponsiveAoi, civicValidation.value, "cycle04:site-responsive-campus"),
+  siteResponsiveAlternatives,
+  "Local boundary orientation must remain deterministic."
+);
+for (const alternative of siteResponsiveAlternatives) {
+  assertGeometryContract(siteResponsiveAoi, civicValidation.value, alternative.massing);
+  const primary = alternative.massing.featureCollection.features
+    .filter((feature) => feature.properties.primaryBlock);
+  const alignment = primary.map((feature) => featureBoundaryAlignment(siteResponsiveAoi, feature));
+  assert.ok(alignment.filter((item) => item.errorDeg <= 3).length >= 5,
+    "At least five of six campus blocks must expose an edge aligned to their nearest local AOI boundary.");
+  assert.ok(distinctOrientationCount(alignment.map((item) => item.boundaryAngle), 20) >= 2,
+    "A non-orthogonal AOI must produce at least two distinct local boundary-orientation families.");
+}
+console.log("cycle04 site-responsive campus metric", {
+  elapsedMs: Number(siteResponsiveElapsedMs.toFixed(1)),
+  alignments: siteResponsiveAlternatives.map((alternative) => ({
+    id: alternative.id,
+    errorDeg: alternative.massing.featureCollection.features
+      .filter((feature) => feature.properties.primaryBlock)
+      .map((feature) => Number(featureBoundaryAlignment(siteResponsiveAoi, feature).errorDeg.toFixed(2)))
+  }))
+});
 const overlapCounterexample = structuredClone(campus);
 overlapCounterexample.featureCollection.features[1].geometry.coordinates = structuredClone(
   overlapCounterexample.featureCollection.features[0].geometry.coordinates

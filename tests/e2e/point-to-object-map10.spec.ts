@@ -161,6 +161,17 @@ test("MAP10 native complex/multipart highlight preserves geometry without duplic
   // Capture only after MapLibre reports the rendered map fully settled.
   await expect.poll(() => page.evaluate(() => (window as unknown as { map10: import("maplibre-gl").Map }).map10.loaded())).toBe(true);
   await page.screenshot({ path: testInfo.outputPath("complex-native-highlight-desktop.png") });
+  // The complete courtyard Polygon supports native 3D emphasis. Preserve the
+  // founder's mobile control-size/alignment coverage on this eligible object.
+  await page.setViewportSize({ width: 430, height: 932 });
+  await expect(page.getByRole("button", { name: "Open task", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Camera", exact: true }).click();
+  const volumeButton = page.getByRole("button", { name: "3D volume", exact: true });
+  await expect(volumeButton).toBeVisible();
+  if (await volumeButton.getAttribute("aria-pressed") === "false") await volumeButton.click();
+  expect(await volumeButton.evaluate(element => ({ align: getComputedStyle(element).alignItems, justify: getComputedStyle(element).justifyContent, height: element.getBoundingClientRect().height }))).toMatchObject({ align: "center", justify: "center", height: 44 });
+  await page.getByRole("button", { name: "Camera", exact: true }).click();
+  await page.setViewportSize({ width: 1440, height: 900 });
   await page.getByRole("button", { name: "3D volume", exact: true }).click();
   await expect.poll(() => page.evaluate(() => (window as unknown as { map10: import("maplibre-gl").Map }).map10.getPaintProperty("geoai-buildings-3d", "fill-extrusion-color"))).toBe("#d6dcdf");
   await page.getByRole("button", { name: "2d", exact: true }).press("Enter");
@@ -172,27 +183,48 @@ test("MAP10 native complex/multipart highlight preserves geometry without duplic
   const multipartPoint = await page.evaluate(() => {
     const map = (window as unknown as { map10: import("maplibre-gl").Map }).map10;
     const p = map.project([55.2842, 25.2138]); const rect = map.getContainer().getBoundingClientRect();
-    return { x: p.x + rect.left, y: p.y + rect.top };
+    const native = map.queryRenderedFeatures(p, { layers: ["building"] }).find(feature => feature.properties.name === "Multipart neighbour");
+    if (native?.geometry.type !== "MultiPolygon") throw new Error("Expected the native multipart fixture at the tapped point.");
+    const clickedParts = native.geometry.coordinates.filter(part => part[0].every(position => position[1] < 25.214));
+    if (clickedParts.length !== 1) throw new Error("Expected exactly one complete southern member.");
+    return { x: p.x + rect.left, y: p.y + rect.top, clickedMember: clickedParts[0], sourceFeatureId: String(native.id), heightM: native.properties.render_height, minHeightM: native.properties.render_min_height };
   });
   await page.mouse.click(multipartPoint.x, multipartPoint.y);
   await expect(page.getByTestId("selected-object")).toHaveText("Multipart neighbour");
   const multipart = await page.evaluate(() => JSON.parse(sessionStorage.getItem("geoai:point-to-object:selection:v3")!));
-  expect(multipart.object.geometry.type).toBe("MultiPolygon");
-  expect(multipart.object.geometry.coordinates).toHaveLength(2);
+  expect(multipart.object.geometry).toEqual({ type: "Polygon", coordinates: multipartPoint.clickedMember });
+  expect(multipart.object.geometryProvenance).toBe("rendered_tile_polygon_member");
+  expect(multipart.object.sourceFeatureId).toBe(multipartPoint.sourceFeatureId);
+  expect(multipart.object.renderHeightM).toBe(multipartPoint.heightM);
+  expect(multipart.object.renderMinHeightM).toBe(multipartPoint.minHeightM);
+  const otherMultipartMemberVisible = () => page.evaluate(() => {
+    const map = (window as unknown as { map10: import("maplibre-gl").Map }).map10;
+    return map.queryRenderedFeatures(map.project([55.2842, 25.2142]), { layers: ["building"] })
+      .some(feature => feature.properties.name === "Multipart neighbour");
+  });
+  await expect.poll(otherMultipartMemberVisible).toBe(true);
   await page.setViewportSize({ width: 430, height: 932 });
   await expect(page.getByRole("button", { name: "Open task", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Camera", exact: true }).click();
   await page.getByRole("button", { name: "3d", exact: true }).press("Enter");
-  const volumeButton = page.getByRole("button", { name: "3D volume", exact: true });
-  await expect(volumeButton).toBeVisible();
-  if (await volumeButton.getAttribute("aria-pressed") === "false") await volumeButton.click();
-  expect(await volumeButton.evaluate(element => ({ align: getComputedStyle(element).alignItems, justify: getComputedStyle(element).justifyContent, height: element.getBoundingClientRect().height }))).toMatchObject({ align: "center", justify: "center", height: 44 });
+  // A tile Polygon member remains a flat, provenance-labelled selection even
+  // when the surrounding native map switches to 3D.
+  await expect(volumeButton).toHaveCount(0);
   await page.evaluate(() => {
     const map = (window as unknown as { map10: import("maplibre-gl").Map }).map10;
     map.stop(); map.jumpTo({ center: [55.2842, 25.214], zoom: 16.5, pitch: 55, bearing: -25 });
   });
   await expect.poll(() => page.evaluate(() => (window as unknown as { map10: import("maplibre-gl").Map }).map10.isStyleLoaded())).toBe(true);
-  await expect.poll(highlightedNames).toContain("Multipart neighbour");
+  await expect.poll(() => page.evaluate(() => {
+    const map = (window as unknown as { map10: import("maplibre-gl").Map }).map10;
+    return map.queryRenderedFeatures(undefined, { layers: ["geoai-live-selection-fill"] })
+      .some(feature => feature.geometry.type === "Polygon" && feature.properties.geometryProvenance === "rendered_tile_polygon_member");
+  })).toBe(true);
+  expect(await page.evaluate(() => {
+    const map = (window as unknown as { map10: import("maplibre-gl").Map }).map10;
+    return { color: map.getPaintProperty("geoai-buildings-3d", "fill-extrusion-color"), duplicate: !!map.getLayer("geoai-live-selection-volume") };
+  })).toEqual({ color: "#d6dcdf", duplicate: false });
+  await expect.poll(otherMultipartMemberVisible).toBe(true);
   await page.getByRole("button", { name: "Camera", exact: true }).click();
   await page.screenshot({ path: testInfo.outputPath("multipart-native-highlight-mobile-430.png") });
   expect(pageErrors).toEqual([]);

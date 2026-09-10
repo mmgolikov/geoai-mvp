@@ -1,4 +1,9 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
+import { installLocalWebKitHttpCsp } from "./helpers/local-webkit-csp";
+
+test.beforeEach(async ({ page, browserName }, testInfo) => {
+  await installLocalWebKitHttpCsp(page, browserName, testInfo.project.use.baseURL);
+});
 
 const CAVEAT = "Screening hypothesis; official validation required; not a legal, cadastral, zoning, planning or valuation conclusion.";
 const CLICKED_AT = "2026-09-06T08:59:00.000Z";
@@ -555,17 +560,31 @@ test('fresh guest retains selection and unsent RU analysis draft after normal Ba
 });
 
 test("V6 renders useful GeoContext and linked-source facts in EN/RU and restores each locale without automatic calls", async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
   const { apiCalls, unexpectedExternal } = await installAnalysisRoutes(page);
   await seedSelection(page);
 
   await signInDemo(page, "/prototype/point-to-object/analysis");
   await expect(page.getByTestId("ai-success")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Continue bounded object screening" })).toBeVisible();
+  await expect(page.getByTestId("role-decision-cards")).toBeVisible();
+  await page.getByTestId("role-decision-cards").screenshot({ path: testInfo.outputPath("decision-cards-1440.png") });
+  await page.setViewportSize({ width: 393, height: 852 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.getByTestId("role-decision-cards").screenshot({ path: testInfo.outputPath("decision-cards-393.png") });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const beforeProfileSwitch = apiCalls.length;
+  await page.getByRole("combobox", { name: "Viewing profile", exact: true }).selectOption("living");
+  await expect(page.locator("[data-card]").first()).toHaveAttribute("data-card", "daily_needs");
+  expect(apiCalls).toHaveLength(beforeProfileSwitch);
+  await page.getByRole("combobox", { name: "Viewing profile", exact: true }).selectOption("development");
+  await page.getByText("Decision reasoning & context", { exact: true }).click();
+  await page.getByText("Measurements & sample details", { exact: true }).click();
   await expect(page.getByText("Decision context", { exact: true })).toBeVisible();
   await expect(page.getByText("Nearest returned transit is 120 m and the nearest major road is 80 m away in a straight line.")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Surroundings within 400 m" })).toBeVisible();
-  await expect(page.getByText("Commercial", { exact: true })).toBeVisible();
-  await expect(page.getByText("Hospitality", { exact: true })).toBeVisible();
+  await expect(page.getByTestId("analysis-geocontext").getByText("Commercial", { exact: true })).toBeVisible();
+  await expect(page.getByTestId("analysis-geocontext").getByText("Hospitality", { exact: true })).toBeVisible();
   await expect(page.getByText("Transit: 120 m", { exact: true })).toBeVisible();
   await expect(page.getByText("Major road: 80 m", { exact: true })).toBeVisible();
 
@@ -598,7 +617,7 @@ test("V6 renders useful GeoContext and linked-source facts in EN/RU and restores
   await page.goto("/projects?view=spatial");
   await expect(page.getByText("Saved on this device")).toBeVisible();
   await expect(page.getByTestId("hub-count-analyse").getByTestId("hub-count-value")).toHaveText("1");
-  await page.getByRole("button", { name: "Open", exact: true }).click();
+  await page.getByRole("button", { name: "Open result", exact: true }).click();
   await expect(page).toHaveURL(/\/prototype\/point-to-object\/analysis$/);
   await expect(page.getByRole("heading", { name: "Continue bounded object screening" })).toBeVisible();
   expect(apiCalls).toHaveLength(callsAfterEnglish);
@@ -607,14 +626,19 @@ test("V6 renders useful GeoContext and linked-source facts in EN/RU and restores
   expect(apiCalls).toHaveLength(callsAfterEnglish);
 
   await page.getByRole("button", { name: "ru", exact: true }).click();
+  await expect(page.locator("html")).toHaveAttribute("lang", "ru");
+  expect(apiCalls).toHaveLength(callsAfterEnglish);
+  await page.getByRole("button", { name: "Обновить на русском", exact: true }).click();
   await expect.poll(() => apiCalls.filter((call) => call.path.endsWith("/ai") && call.method === "POST").map((call) => call.body?.locale)).toEqual(["en", "ru"]);
   await expect(page.locator("html")).toHaveAttribute("lang", "ru");
   await expect(page.getByRole("heading", { name: "Продолжить ограниченный скрининг объекта" })).toBeVisible();
+  await page.getByText("Обоснование и контекст решения", { exact: true }).click();
+  await page.getByText("Измерения и состав выборки", { exact: true }).click();
   await expect(page.getByText("Контекст решения", { exact: true })).toBeVisible();
   await expect(page.getByText("Ближайший найденный транспорт — 120 м, магистраль — 80 м по прямой.")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Окружение в радиусе 400 м" })).toBeVisible();
-  await expect(page.getByText("Деловые объекты", { exact: true })).toBeVisible();
-  await expect(page.getByText("Гостиницы", { exact: true })).toBeVisible();
+  await expect(page.getByTestId("analysis-geocontext").getByText("Деловые объекты", { exact: true })).toBeVisible();
+  await expect(page.getByTestId("analysis-geocontext").getByText("Гостиницы", { exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Геоконтекст" }).locator("..")).toContainText("Wikidata указывает 321,4 м; значение расходится с OpenStreetMap и не выбирается автоматически.");
   await expectNoVisibleResolverBoilerplate(page);
   await page.screenshot({ path: testInfo.outputPath("v6-analysis-ru.png"), fullPage: true });
@@ -625,6 +649,59 @@ test("V6 renders useful GeoContext and linked-source facts in EN/RU and restores
   expect(apiCalls).toHaveLength(callsAfterRussian);
   expect(pointObjectCalls(apiCalls).filter((call) => !call.path.endsWith("/ai"))).toEqual([]);
   expect(unexpectedExternal).toEqual([]);
+});
+
+test("a rendered tile selection never promotes a nearest POI into the requested exact identity", async ({ page }) => {
+  const { apiCalls, unexpectedExternal } = await installAnalysisRoutes(page);
+  const tileSelection = { ...selection, object: { ...selection.object, name: "Selected building footprint", sourceFeatureId: "18290731" } };
+  await page.addInitScript((value) => sessionStorage.setItem("geoai:point-to-object:selection:v3", JSON.stringify(value)), tileSelection);
+  await page.route("**/api/prototype/point-to-object/ai", async (route) => {
+    if (route.request().method() === "GET") return json(route, { mode: "ready", challenge: "A".repeat(43) });
+    const response = syntheticV6Response("en");
+    response.subject = { ...response.subject, name: "Synthetic nearby fountain", sourceFeatureId: "node/91099", coordinateAssociation: "reverse_nearest_indexed_object_not_point_in_polygon", resultCentroidDistanceM: 63 };
+    await json(route, response);
+  });
+  await signInDemo(page, "/prototype/point-to-object/analysis");
+  await expect(page.getByTestId("ai-success")).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Selected building footprint");
+  await expect(page.getByText(/Nearest mapped context.*63/)).toBeVisible();
+  await expect(page.getByText("Exact mapped object", { exact: true })).toHaveCount(0);
+  expect(apiCalls.find(call => call.method === "POST")?.body?.expectedSourceFeatureId).toBeNull();
+  await expect.poll(() => savedAnalyseArtifactCount(page)).toBe(1);
+  const saved = await page.evaluate(() => {
+    const key = Object.keys(localStorage).find(item => item.startsWith("geoai:point-to-object:projects:v1:"));
+    const project = JSON.parse(localStorage.getItem(key!)!).projects[0];
+    return { name: project.name, artifact: project.artifacts[0] };
+  });
+  expect(saved.name).not.toContain("fountain");
+  expect(saved.artifact.label).toBe("Selected building footprint");
+  // The selected name is presentation metadata; the original provider receipt
+  // and its nearby-object evidence must remain unmodified and hash-verifiable.
+  expect(saved.artifact.payload.analysis.subject.name).toBe("Synthetic nearby fountain");
+  const callsBeforeReopen = apiCalls.length;
+  await page.goto("/projects");
+  await expect(page.getByTestId("saved-result-card")).toContainText("Selected building footprint");
+  await page.getByRole("button", { name: "Open result", exact: true }).click();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Selected building footprint");
+  expect(apiCalls).toHaveLength(callsBeforeReopen);
+  expect(unexpectedExternal).toEqual([]);
+});
+
+test("a legacy exact-identity mismatch stays immutable and displays its warning without a provider call", async ({ page }) => {
+  const { apiCalls } = await installAnalysisRoutes(page);
+  const tileSelection = { ...selection, object: { ...selection.object, name: "Selected building footprint", sourceFeatureId: "18290731" } };
+  const legacy = syntheticLegacyV5Response();
+  const stored = JSON.stringify({ selectionFingerprint: selectionFingerprint(), analysis: legacy });
+  await page.addInitScript(({ value, raw }) => {
+    sessionStorage.setItem("geoai:point-to-object:selection:v3", JSON.stringify(value));
+    sessionStorage.setItem("geoai:point-to-object:analysis:v7", raw);
+  }, { value: tileSelection, raw: stored });
+  await signInDemo(page, "/prototype/point-to-object/analysis");
+  await expect(page.getByTestId("ai-success")).toBeVisible();
+  await expect(page.getByText(/This saved report labelled a nearby object as exact/)).toBeVisible();
+  await expect(page.getByText("Exact mapped object", { exact: true })).toHaveCount(0);
+  expect(await page.evaluate(() => sessionStorage.getItem("geoai:point-to-object:analysis:v7"))).toBe(stored);
+  expect(pointObjectCalls(apiCalls)).toEqual([]);
 });
 
 test("a persisted legacy V5 result restores and survives EN/RU locale changes with zero source or AI requests", async ({ page }, testInfo) => {
@@ -669,13 +746,16 @@ test("Saved Analyse reopens RU from EN Projects and EN from RU Projects without 
   await expect(page.getByRole("heading", { name: "Continue bounded object screening" })).toBeVisible();
   await expect.poll(() => savedAnalyseArtifactCount(page)).toBe(1);
   await page.getByRole("button", { name: "ru", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Continue bounded object screening" })).toBeVisible();
+  expect(apiCalls.filter((call) => call.method === "POST")).toHaveLength(1);
+  await page.getByRole("button", { name: "Обновить на русском", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Продолжить ограниченный скрининг объекта" })).toBeVisible();
   await expect.poll(() => savedAnalyseArtifactCount(page)).toBe(2);
 
   const callsBeforeReopen = pointObjectCalls(apiCalls).length;
   await page.goto("/projects?view=spatial");
   await page.getByRole("button", { name: "en", exact: true }).click();
-  await page.getByRole("button", { name: "Open", exact: true }).first().click();
+  await page.getByRole("button", { name: "Open result", exact: true }).first().click();
   await expect(page.getByRole("heading", { name: "Продолжить ограниченный скрининг объекта" })).toBeVisible();
   await expect(page.locator("html")).toHaveAttribute("lang", "ru");
   expect(pointObjectCalls(apiCalls)).toHaveLength(callsBeforeReopen);
@@ -686,7 +766,7 @@ test("Saved Analyse reopens RU from EN Projects and EN from RU Projects without 
   expect(pointObjectCalls(apiCalls)).toHaveLength(callsBeforeReopen);
   await page.goBack();
   await expect(page.getByRole("heading", { name: "Центр проектов" })).toBeVisible();
-  await page.getByRole("button", { name: "Открыть", exact: true }).nth(1).click();
+  await page.getByRole("button", { name: "Открыть результат", exact: true }).nth(1).click();
   await expect(page.getByRole("heading", { name: "Continue bounded object screening" })).toBeVisible();
   await expect(page.locator("html")).toHaveAttribute("lang", "en");
   expect(pointObjectCalls(apiCalls)).toHaveLength(callsBeforeReopen);
@@ -735,7 +815,7 @@ test("Projects preserves bytes and permits explicit retry when integrity hashing
   });
   const callsBeforeReopen = pointObjectCalls(apiCalls).length;
 
-  await page.getByRole("button", { name: "Открыть", exact: true }).click();
+  await page.getByRole("button", { name: "Открыть результат", exact: true }).click();
   await expect(page).toHaveURL(/\/projects\?view=spatial$/);
   await expect(page.locator("main").getByRole("alert")).toHaveText("Проверка целостности временно недоступна. Сохранённые данные не изменены; попробуйте открыть ещё раз.");
   expect(await page.evaluate((key) => localStorage.getItem(key), before.key)).toBe(before.raw);
@@ -744,7 +824,7 @@ test("Projects preserves bytes and permits explicit retry when integrity hashing
   expect(pageErrors).toEqual([]);
   expect(await page.evaluate(() => (window as typeof window & { __geoAiUnhandled?: string[] }).__geoAiUnhandled ?? [])).toEqual([]);
 
-  await page.getByRole("button", { name: "Открыть", exact: true }).click();
+  await page.getByRole("button", { name: "Открыть результат", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Continue bounded object screening" })).toBeVisible();
   await expect(page.locator("html")).toHaveAttribute("lang", "en");
   expect(pointObjectCalls(apiCalls)).toHaveLength(callsBeforeReopen);

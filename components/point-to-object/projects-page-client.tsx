@@ -13,6 +13,7 @@ import {
   POINT_OBJECT_PROJECTS_EVENT,
   pointObjectProjectIdentity,
   queuePointObjectAnalysisRestore,
+  queuePointObjectProjectOverview,
   queuePointObjectProjectRestore,
   readVerifiedPointObjectProjects,
   reconcilePointObjectBrowserIdentity,
@@ -55,6 +56,8 @@ export function PointObjectProjectsPageClient() {
   const [query, setQuery] = useState("");
   const [kindFilter, setKindFilter] = useState<ResultFilter>("all");
   const [sort, setSort] = useState<ResultSort>("newest");
+  const [openingArtifactId, setOpeningArtifactId] = useState<string | null>(null);
+  const [navigationPending, setNavigationPending] = useState(false);
   const refreshSequence = useRef(0);
   const identityRef = useRef(identityKey);
   identityRef.current = identityKey;
@@ -123,7 +126,10 @@ export function PointObjectProjectsPageClient() {
   async function reopen(projectId: string, artifact: SavedPointObjectArtifact) {
     if (!identityKey) return;
     const initiatingIdentity = identityKey;
+    setOpeningArtifactId(artifact.artifactId);
     setError(null);
+    let navigationStarted = false;
+    try {
     let integrityVerified = false;
     try {
       integrityVerified = await verifySavedPointObjectArtifact(artifact);
@@ -163,6 +169,7 @@ export function PointObjectProjectsPageClient() {
         setError(locale === "ru" ? "Не удалось подготовить безопасное локальное открытие." : "The saved result could not be prepared for a safe reopen.");
         return;
       }
+      navigationStarted = true;
       router.push("/prototype/point-to-object/analysis");
       return;
     }
@@ -177,6 +184,22 @@ export function PointObjectProjectsPageClient() {
     }
     if (!queuePointObjectProjectRestore(initiatingIdentity, artifact)) {
       setError(locale === "ru" ? "Не удалось подготовить безопасное локальное открытие." : "The saved result could not be prepared for a safe reopen.");
+      return;
+    }
+    navigationStarted = true;
+    router.push("/prototype/point-to-object");
+    } finally {
+      if (!navigationStarted) setOpeningArtifactId(null);
+    }
+  }
+
+  async function openProjectOverview() {
+    if (!identityKey) return;
+    setNavigationPending(true);
+    setError(null);
+    if (!await queuePointObjectProjectOverview(identityKey)) {
+      setNavigationPending(false);
+      setError(locale === "ru" ? "Не удалось безопасно подготовить обзор сохранённых объектов." : "The saved-location overview could not be prepared safely.");
       return;
     }
     router.push("/prototype/point-to-object");
@@ -195,7 +218,7 @@ export function PointObjectProjectsPageClient() {
           <div className="inline-flex rounded-xl border border-line bg-white p-1" aria-label={locale === "ru" ? "Язык" : "Language"} role="group">
             {(["en", "ru"] as const).map((item) => <button key={item} type="button" onClick={() => setLocale(item)} aria-pressed={locale === item} className={`h-11 min-w-11 rounded-lg px-2 text-xs font-bold uppercase focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] ${locale === item ? "bg-[#087f8c] text-white" : "text-[#667085]"}`}>{item}</button>)}
           </div>
-          <Link href="/prototype/point-to-object" className={`${CONTROL} inline-flex items-center text-sm font-bold`}>{locale === "ru" ? "Открыть карту" : "Open map"}</Link>
+          <button type="button" onClick={() => void openProjectOverview()} disabled={!visibleStore || unavailable || navigationPending} className={`${CONTROL} inline-flex items-center text-sm font-bold disabled:cursor-wait disabled:opacity-60`}>{locale === "ru" ? "Открыть карту" : "Open map"}</button>
           <button type="button" onClick={() => void newProject()} disabled={!visibleStore || unavailable} className="min-h-11 rounded-xl bg-[#087f8c] px-4 text-sm font-bold text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] focus-visible:ring-offset-2 disabled:bg-[#b7c4c4]">{locale === "ru" ? "+ Новый проект" : "+ New project"}</button>
         </div>
       </div>
@@ -236,12 +259,14 @@ export function PointObjectProjectsPageClient() {
                 <div className="flex items-center justify-between gap-2"><span className="rounded-full bg-[#e8f7f2] px-2.5 py-1 text-[10px] font-bold uppercase text-[#176548]">{artifactKindLabel(artifact.kind, locale)}</span><time className="text-[10px] text-muted">{new Date(artifact.completedAt).toLocaleDateString(locale)}</time></div>
                 <h4 className="mt-3 break-words text-sm font-bold">{artifact.label}</h4>
                 <p className="mt-2 break-words text-[11px] leading-5 text-muted">{artifactEvidence(artifact, locale)}</p>
-                <button type="button" onClick={() => void reopen(project.projectId, artifact)} title={locale === "ru" ? "Без повторного запроса" : "Without rerunning"} className="mt-4 min-h-11 rounded-xl bg-[#087f8c] px-3 text-xs font-bold text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] focus-visible:ring-offset-2">{locale === "ru" ? "Открыть" : "Open"}</button>
+                <p className="mt-2 text-[10px] font-semibold text-[#667085]">{locale === "ru" ? `Версия просмотра ${artifact.viewRevision + 1}` : `View revision ${artifact.viewRevision + 1}`}</p>
+                <button type="button" onClick={() => void reopen(project.projectId, artifact)} disabled={openingArtifactId === artifact.artifactId} title={locale === "ru" ? "Без повторного запроса к источнику" : "Without rerunning a source request"} className="mt-4 min-h-11 rounded-xl bg-[#087f8c] px-3 text-xs font-bold text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] focus-visible:ring-offset-2 disabled:cursor-wait disabled:bg-[#9cb8b9]">{openingArtifactId === artifact.artifactId ? (locale === "ru" ? "Открываем…" : "Opening…") : artifact.kind === "analyse" ? (locale === "ru" ? "Открыть результат" : "Open result") : (locale === "ru" ? "Показать на карте" : "Show on map")}</button>
               </article>
             ))}</div> : <p className="mt-4 text-sm text-muted">{locale === "ru" ? "Результатов пока нет. Выберите проект и завершите Analyse, Find или Create, чтобы добавить первый результат." : "No results yet. Select this project and complete Analyse, Find or Create to add its first result."}</p>}
           </section>
         ))}
       </div>
+      {navigationPending ? <span className="sr-only" role="status">{locale === "ru" ? "Открываем карту…" : "Opening map…"}</span> : null}
       <p className="mt-8 border-t border-line pt-4 text-xs text-muted">{locale === "ru" ? "Сохранено на этом устройстве" : "Saved on this device"}</p>
     </main>
   );

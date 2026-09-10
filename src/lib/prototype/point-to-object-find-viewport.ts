@@ -2,6 +2,24 @@ import type { PointObjectFindBounds } from "./point-to-object-find-contract";
 
 export type NavigationCamera = { center: [number, number]; zoom: number; bearing: number; pitch: number };
 
+/** Fit only returned source coordinates; this never expands the search request. */
+export function projectResultCoordinateBounds(results: readonly { longitude: number; latitude: number }[]): PointObjectFindBounds | null {
+  const positions = results.filter(({ longitude, latitude }) => Number.isFinite(longitude) && Number.isFinite(latitude) && Math.abs(longitude) <= 180 && Math.abs(latitude) <= 85);
+  if (!positions.length) return null;
+  const west = Math.min(...positions.map(result => result.longitude));
+  const south = Math.min(...positions.map(result => result.latitude));
+  const east = Math.max(...positions.map(result => result.longitude));
+  const north = Math.max(...positions.map(result => result.latitude));
+  return [west, south, east, north];
+}
+
+export function findResultCoordinateBounds(results: readonly { longitude: number; latitude: number }[]): PointObjectFindBounds | null {
+  const bounds = projectResultCoordinateBounds(results);
+  // A malformed/restored set spanning continents must not pull the camera away
+  // from a bounded Find result. All supported market queries are under 8 km.
+  return bounds && bounds[2] - bounds[0] <= 1 && bounds[3] - bounds[1] <= 1 ? bounds : null;
+}
+
 export function isCompletedNavigationCamera(actual: NavigationCamera, expected?: NavigationCamera): boolean {
   if (!expected) return false;
   const bearingDelta = ((actual.bearing - expected.bearing + 540) % 360) - 180;

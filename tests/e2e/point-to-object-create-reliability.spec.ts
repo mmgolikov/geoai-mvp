@@ -1,5 +1,10 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
 import packageManifest from "../../package.json";
+import { installLocalWebKitHttpCsp } from "./helpers/local-webkit-csp";
+
+test.beforeEach(async ({ page, browserName }, testInfo) => {
+  await installLocalWebKitHttpCsp(page, browserName, testInfo.project.use.baseURL);
+});
 
 const createPosts: Array<Record<string, unknown>> = [];
 let challengeGets = 0;
@@ -412,6 +417,7 @@ async function readSpatialReplacementFixture(page: Page) {
   return page.evaluate(() => {
     type FixtureMap = {
       getFilter: (layerId: string) => unknown;
+      getLayer: (layerId: string) => unknown;
       getLayoutProperty: (layerId: string, property: string) => unknown;
       getZoom: () => number;
       project: (coordinate: [number, number]) => { x: number; y: number };
@@ -419,8 +425,10 @@ async function readSpatialReplacementFixture(page: Page) {
     };
     const map = (window as typeof window & { __geoAiSpatialReplacementMap?: FixtureMap }).__geoAiSpatialReplacementMap;
     if (!map) throw new Error("Spatial replacement fixture is not installed.");
+    const retainedLayer = "geoai-existing-partition-layer:geoai-buildings-3d";
+    const layers = ["geoai-buildings-3d", ...(map.getLayer(retainedLayer) ? [retainedLayer] : [])];
     const visible = (coordinate: [number, number], fixture: string) =>
-      map.queryRenderedFeatures(map.project(coordinate), { layers: ["geoai-buildings-3d"] })
+      map.queryRenderedFeatures(map.project(coordinate), { layers })
         .some((feature) => feature.properties?.fixture === fixture);
     const filter = map.getFilter("geoai-buildings-3d");
     return {
@@ -457,12 +465,12 @@ test.describe("Sprint06 touch input", () => {
     await expect(tools).toContainText("(2/25)");
     await page.getByRole("tab", { name: "Find", exact: true }).tap();
     await page.getByRole("tab", { name: "Create", exact: true }).tap();
-    await page.getByRole("button", { name: "Resume drawing", exact: true }).tap();
+    await page.getByRole("button", { name: "Edit drawing", exact: true }).tap();
     await expect(tools).toContainText("(2/25)");
     await page.touchscreen.tap(200, 350);
     await expect(tools).toContainText("(3/25)");
     await page.screenshot({ path: testInfo.outputPath("mobile-touch-drawing.png") });
-    await tools.getByRole("button", { name: "Select", exact: true }).tap();
+    await tools.getByRole("button", { name: "Finish area", exact: true }).tap();
     await expect(page.getByTestId("create-edit-area")).toBeVisible();
     await page.getByTestId("create-edit-area").tap();
     await tools.getByRole("button", { name: "Undo", exact: true }).tap();
@@ -798,10 +806,31 @@ test("actual MapLibre rendering hides only the internal target and retains outsi
     filterApplied: true,
     insideTarget: false,
     outsideLandmark: true,
-    multipartInside: true,
+    multipartInside: false,
     multipartOutside: true,
     boundaryOutside: true
   });
+  // Complete exterior members move to a retained layer. Compare exact source
+  // tile coordinates, not the pre-tiling GeoJSON (which MapLibre quantizes).
+  expect(await page.evaluate(async () => {
+    const map = (window as unknown as { __geoAiSpatialReplacementMap: import("maplibre-gl").Map }).__geoAiSpatialReplacementMap;
+    const sourceId = "geoai-spatial-replacement-fixture";
+    const nativeParts = map.querySourceFeatures(sourceId).filter(feature => feature.properties.fixture === "multipart-landmark")
+      .flatMap(feature => feature.geometry.type === "MultiPolygon" ? feature.geometry.coordinates : [])
+      .filter(part => part[0].every(position => position[0] > 55.271));
+    const data = await (map.getSource(`geoai-existing-partition-source:${sourceId}`) as import("maplibre-gl").GeoJSONSource).getData() as import("geojson").FeatureCollection;
+    const retained = data.features.filter(feature => feature.properties?.fixture === "multipart-landmark");
+    const retainedParts = retained.flatMap(feature => feature.geometry.type === "MultiPolygon" ? feature.geometry.coordinates : []);
+    const bytes = (parts: unknown[]) => [...new Set(parts.map(part => JSON.stringify(part)))].sort();
+    const outside = map.project([55.27135, 25.20525]);
+    const at = (layer: string) => map.queryRenderedFeatures(outside, { layers: [layer] }).some(feature => feature.properties.fixture === "multipart-landmark");
+    return {
+      exactExteriorBytes: nativeParts.length > 0 && JSON.stringify(bytes(retainedParts)) === JSON.stringify(bytes(nativeParts)),
+      exactProperties: retained.length > 0 && retained.every(feature => JSON.stringify(feature.properties) === JSON.stringify({ fixture: "multipart-landmark" })),
+      retainedOutside: at("geoai-existing-partition-layer:geoai-buildings-3d"),
+      nativeOutside: at("geoai-buildings-3d")
+    };
+  })).toEqual({ exactExteriorBytes: true, exactProperties: true, retainedOutside: true, nativeOutside: false });
 
   await focusSpatialReplacementFixture(page, 12);
   await expect(page.getByText("Zoom in to view the concept.")).toBeVisible();

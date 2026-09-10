@@ -14,6 +14,15 @@ type VisualEvidence = {
   width: number;
 };
 
+type PixelComparison = {
+  changedPixelCount: number;
+  dimensionsMatch: boolean;
+  height: number;
+  maxChannelDelta: number;
+  totalPixels: number;
+  width: number;
+};
+
 const visualDirectory = path.join(process.cwd(), "artifacts", "mobile-visual-evidence");
 const visualManifest = path.join(visualDirectory, "manifest.json");
 const visualEvidence: VisualEvidence[] = [];
@@ -69,13 +78,12 @@ async function expectMinimumTargetSize(label: string, locator: Locator, minimum 
   expect(box?.height ?? 0, `${label} height must be at least ${minimum}px`).toBeGreaterThanOrEqual(minimum);
 }
 
-async function expectPixelStableScreenshot(
+async function comparePixelStableScreenshot(
   page: Page,
-  label: string,
   firstImage: Buffer,
   repeatImage: Buffer
 ) {
-  const comparison = await page.evaluate(async ({ firstBase64, repeatBase64 }) => {
+  return page.evaluate(async ({ firstBase64, repeatBase64 }) => {
     async function readPixels(base64: string) {
       const image = new Image();
       await new Promise<void>((resolve, reject) => {
@@ -134,17 +142,12 @@ async function expectPixelStableScreenshot(
   }, {
     firstBase64: firstImage.toString("base64"),
     repeatBase64: repeatImage.toString("base64")
-  });
+  }) as Promise<PixelComparison>;
+}
 
+function expectPixelComparison(label: string, comparison: PixelComparison) {
   expect(comparison.dimensionsMatch, `${label} candidate baseline dimensions must remain stable`).toBe(true);
   const allowedChangedPixels = Math.max(100, Math.ceil(comparison.totalPixels * 0.001));
-  if (comparison.maxChannelDelta > 2 || comparison.changedPixelCount > allowedChangedPixels) {
-    await test.info().attach(`${label} first frame`, { body: firstImage, contentType: "image/png" });
-    await test.info().attach(`${label} repeat frame`, { body: repeatImage, contentType: "image/png" });
-    await test.info().attach(`${label} pixel diff`, {
-      body: JSON.stringify(comparison, null, 2), contentType: "application/json"
-    });
-  }
   expect(
     comparison.maxChannelDelta,
     `${label} candidate baseline may contain only negligible rasterization noise`
@@ -153,6 +156,50 @@ async function expectPixelStableScreenshot(
     comparison.changedPixelCount,
     `${label} candidate baseline changed pixels must stay below ${allowedChangedPixels}`
   ).toBeLessThanOrEqual(allowedChangedPixels);
+}
+
+async function attachPixelComparison(label: string, firstImage: Buffer, repeatImage: Buffer, comparison: PixelComparison) {
+  await test.info().attach(`${label} first frame`, { body: firstImage, contentType: "image/png" });
+  await test.info().attach(`${label} repeat frame`, { body: repeatImage, contentType: "image/png" });
+  await test.info().attach(`${label} pixel diff`, {
+    body: JSON.stringify(comparison, null, 2), contentType: "application/json"
+  });
+}
+
+async function expectPixelStableScreenshot(
+  page: Page,
+  label: string,
+  firstImage: Buffer,
+  repeatImage: Buffer
+) {
+  const comparison = await comparePixelStableScreenshot(page, firstImage, repeatImage);
+  try {
+    expectPixelComparison(label, comparison);
+  } catch (error) {
+    await attachPixelComparison(label, firstImage, repeatImage, comparison);
+    throw error;
+  }
+}
+
+async function captureConvergedFullPageCandidate(page: Page, label: string) {
+  let latest: { comparison: PixelComparison; firstImage: Buffer; repeatImage: Buffer } | null = null;
+  let acceptedFirstImage: Buffer | null = null;
+  try {
+    await expect(async () => {
+      const firstImage = await page.screenshot({ animations: "disabled", caret: "hide", fullPage: true });
+      const repeatImage = await page.screenshot({ animations: "disabled", caret: "hide", fullPage: true });
+      const comparison = await comparePixelStableScreenshot(page, firstImage, repeatImage);
+      latest = { comparison, firstImage, repeatImage };
+      expectPixelComparison(label, comparison);
+      acceptedFirstImage = firstImage;
+    }).toPass({ timeout: 5_000, intervals: [100, 250, 500] });
+  } catch (error) {
+    const latestFailure = latest as { comparison: PixelComparison; firstImage: Buffer; repeatImage: Buffer } | null;
+    if (latestFailure) await attachPixelComparison(label, latestFailure.firstImage, latestFailure.repeatImage, latestFailure.comparison);
+    throw error;
+  }
+  if (!acceptedFirstImage) throw new Error(`${label} did not produce an accepted candidate baseline.`);
+  return acceptedFirstImage;
 }
 
 async function captureVisualEvidence(
@@ -179,17 +226,20 @@ async function captureVisualEvidence(
   // The first enlarged capture can rasterize rounded corners differently;
   // both measured frames below must still meet the unchanged pixel thresholds.
   if (candidateBaseline && fullPage) await page.screenshot({ animations: "disabled", caret: "hide", fullPage });
-  const image = await page.screenshot({
-    animations: "disabled",
-    caret: "hide",
-    fullPage,
-    path: filePath
-  });
+  const image = candidateBaseline && fullPage
+    ? await captureConvergedFullPageCandidate(page, label)
+    : await page.screenshot({
+        animations: "disabled",
+        caret: "hide",
+        fullPage,
+        path: filePath
+      });
+  if (candidateBaseline && fullPage) await fs.writeFile(filePath, image);
   const sha256 = createHash("sha256").update(image).digest("hex");
-  if (candidateBaseline) {
+  if (candidateBaseline && !fullPage) {
     const repeatImage = await page.screenshot({ animations: "disabled", caret: "hide", fullPage });
     await expectPixelStableScreenshot(page, label, image, repeatImage);
-  } else {
+  } else if (!candidateBaseline) {
     await expect(page).toHaveScreenshot(fileName, {
       animations: "disabled",
       caret: "hide",

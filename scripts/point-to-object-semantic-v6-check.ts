@@ -273,6 +273,25 @@ assert.match(outputs[0].context.statement, /business and office uses — 3.*hote
 assert.match(outputs[0].implication.statement, /hotel\/business programme.*permitted use.*access capacity/);
 assert.match(outputs[1].implication.statement, /Longer-term view:.*investment review.*income history.*comparable transactions/);
 assert.match(outputs[2].implication.statement, /1–3 year view:.*reuse choices.*condition.*refurbishment phasing/);
+
+// Two provider samples have different radii. A 759 m place must never be
+// narrated as inside the 400 m urban-fabric sample (founder regression).
+const mixedRadiusPack = evidencePack();
+mixedRadiusPack.nearbyContext[1].distanceM = 759;
+const distantItem = mixedRadiusPack.nearbyContext[1];
+mixedRadiusPack.evidence.find((entry: any) => entry.id === "EVD-CONTEXT-2").value = JSON.stringify({
+  sourceFeatureId: distantItem.sourceFeatureId, name: distantItem.name, categories: distantItem.categories,
+  featureClass: distantItem.featureClass, distanceM: distantItem.distanceM, method: distantItem.method
+});
+for (const locale of ["en", "ru"]) {
+  const mixed = validate(rawPlan(), mixedRadiusPack, { ...requests[0], locale });
+  assert.equal(mixed.ok, true, mixed.detail);
+  const statement = mixed.content.initialSemanticBrief.context.statement;
+  const outsideLabel = locale === "en" ? "Further nearby (outside that radius)" : "Другие объекты поблизости (за пределами этого радиуса)";
+  assert.ok(statement.includes(outsideLabel));
+  assert.ok(statement.indexOf("759") > statement.indexOf(outsideLabel));
+  assert.ok(!statement.slice(0, statement.indexOf(outsideLabel)).includes("Harbour Offices"));
+}
 for (const output of outputs) {
   assert.doesNotMatch(JSON.stringify(output), /linked community entity|bounded open-map subject|mapped records|close .*gates|downside protection|optionality/i);
 }

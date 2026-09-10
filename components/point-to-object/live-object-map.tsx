@@ -17,16 +17,20 @@ import { usePointObjectLocale } from "@/components/point-to-object/locale-provid
 import type { GeoJsonGeometry } from "@/src/lib/point-to-object/contracts";
 import type { ConceptMassingResult, PointObjectCreateAoi } from "@/src/lib/prototype/point-to-object-create";
 import type { PointObjectFindBounds } from "@/src/lib/prototype/point-to-object-find-contract";
-import { isCompletedNavigationCamera, type NavigationCamera } from "@/src/lib/prototype/point-to-object-find-viewport";
+import { findResultCoordinateBounds, projectResultCoordinateBounds, isCompletedNavigationCamera, type NavigationCamera } from "@/src/lib/prototype/point-to-object-find-viewport";
 import {
   buildPointObjectBuildingReplacementFilter,
   buildPointObjectNativeSelectionOutside,
+  pointObjectNativeBuilding3dFilter,
   pointObjectReplacementMinimumReliableZoom,
   restorePointObjectMapFilter,
   snapshotPointObjectMapFilter,
   type PointObjectMapFilterSnapshot
 } from "@/src/lib/prototype/point-to-object-map-replacement";
 import { pointObjectMarket } from "@/src/lib/prototype/point-to-object-markets";
+import { clearPointObjectPartitionRenderer, reconcilePointObjectPartitionRenderer } from "@/src/lib/prototype/point-to-object-map-partition-renderer";
+import { pointObjectTilePolygonMemberAt } from "@/src/lib/prototype/point-to-object-map-selection";
+import { createPointObjectMapResultOpenGuard, groupExactPointObjectProjectResults } from "@/src/lib/prototype/point-to-object-map-project-groups";
 
 const BASEMAPS: Array<{ id: LiveMapBasemapId; labelKey: "map.style.street" | "map.style.light" | "map.style.contrast"; styleUrl: string }> = [
   { id: "street", labelKey: "map.style.street", styleUrl: "https://tiles.openfreemap.org/styles/liberty" },
@@ -57,6 +61,8 @@ const CONCEPT_VOLUME_LAYER_ID = "geoai-concept-volume";
 const MAX_GEOMETRY_POSITIONS = 5_000;
 const MAX_NEARBY_LABELS = 5;
 const EMPTY_CREATE_COORDINATES: Wgs84Position[] = [];
+const EMPTY_FIND_RESULTS: LiveMapFindResult[] = [];
+const EMPTY_PROJECT_RESULTS: LiveMapProjectResult[] = [];
 const BUILDING_FILTER_SNAPSHOTS = new WeakMap<MapLibreMap, Map<string, PointObjectMapFilterSnapshot>>();
 
 const SELECTABLE_SOURCE_LAYERS = new Set([
@@ -104,6 +110,12 @@ export type LiveObjectMapProps = {
   onViewportChange?: (selection: LiveMapSelection) => void;
   onVisibleBoundsChange?: (bounds: PointObjectFindBounds, navigationRequestId?: string) => void;
   onCameraMovingChange?: (moving: boolean) => void;
+  findResults?: LiveMapFindResult[];
+  activeFindResultId?: string | null;
+  onFindResultSelect?: (id: string) => void;
+  projectMarkers?: LiveMapProjectResult[];
+  activeProjectMarkerId?: string | null;
+  onProjectMarkerSelect?: (id: string) => boolean | void | Promise<boolean | void>;
   navigationTarget?: LiveMapNavigationTarget | null;
   viewModeRequest?: { requestId: string; mode: LiveMapViewMode } | null;
   interactionMode?: LiveMapInteractionMode;
@@ -115,7 +127,21 @@ export type LiveObjectMapProps = {
   createReplacementRevision?: number;
   conceptMassing?: ConceptMassingResult | null;
   onCreateVertex?: (coordinate: Wgs84Position) => void;
+  onCreateFinishDrawing?: () => void;
   onReplacementStatus?: (status: PointObjectReplacementStatus) => void;
+};
+
+export type LiveMapFindResult = {
+  id: string;
+  longitude: number;
+  latitude: number;
+  label: string;
+  number: number;
+};
+
+export type LiveMapProjectResult = Omit<LiveMapFindResult, "number"> & {
+  kind: "analyse" | "find" | "create";
+  number?: number;
 };
 
 export type LiveMapCreateAoiFitRequest = {
@@ -306,17 +332,18 @@ function featureGeometryBounds(feature: Pick<MapGeoJSONFeature, "geometry">): [n
 function featureScore(
   feature: MapGeoJSONFeature,
   zoom: number,
-  viewportBounds: [west: number, south: number, east: number, north: number]
+  viewportBounds: [west: number, south: number, east: number, north: number],
+  geometry: Geometry = feature.geometry
 ): number {
   if (feature.source === HIGHLIGHT_SOURCE_ID) return -1;
   const sourceLayer = sourceLayerOf(feature);
   if (!sourceLayer) return -1;
 
   const isBuilding = sourceLayer === "building" || feature.layer?.id.toLowerCase().includes("building");
-  const isPolygon = feature.geometry.type === "Polygon" || feature.geometry.type === "MultiPolygon";
+  const isPolygon = geometry.type === "Polygon" || geometry.type === "MultiPolygon";
   const name = featureName(feature);
   if (isPolygon) {
-    const bounds = featureGeometryBounds(feature);
+    const bounds = featureGeometryBounds({ geometry });
     if (!bounds) return -1;
     if (NON_OBJECT_POLYGON_SOURCE_LAYERS.has(sourceLayer)) return -1;
     const featureClassName = firstSafeProperty(feature.properties, CLASS_PROPERTY_KEYS, 80)?.toLowerCase() ?? null;
@@ -352,12 +379,17 @@ function featureScore(
 function selectFeature(
   features: MapGeoJSONFeature[],
   zoom: number,
-  viewportBounds: [west: number, south: number, east: number, north: number]
-): MapGeoJSONFeature | null {
+  viewportBounds: [west: number, south: number, east: number, north: number],
+  clicked: Wgs84Position
+) {
   return features
-    .map((feature, index) => ({ feature, index, score: featureScore(feature, zoom, viewportBounds) }))
+    .map((feature, index) => {
+      const isTileMember = sourceLayerOf(feature) === "building" && feature.geometry.type === "MultiPolygon" && feature.geometry.coordinates.length > 1;
+      const geometry = isTileMember && feature.geometry.type === "MultiPolygon" ? pointObjectTilePolygonMemberAt(feature.geometry, clicked) : feature.geometry;
+      return { feature, index, geometry, isTileMember, score: geometry ? featureScore(feature, zoom, viewportBounds, geometry) : -1 };
+    })
     .filter(({ score }) => score >= 0)
-    .sort((left, right) => right.score - left.score || left.index - right.index)[0]?.feature ?? null;
+    .sort((left, right) => right.score - left.score || left.index - right.index)[0] ?? null;
 }
 
 function representativePosition(geometry: GeoJsonGeometry): Wgs84Position | null {
@@ -495,6 +527,7 @@ function collectNearbyLabels(map: MapLibreMap, point: { x: number; y: number }):
 function selectionCanShowVolume(selection: LiveMapSelection | null): boolean {
   return Boolean(
     selection?.object.geometry &&
+    selection.object.geometryProvenance !== "rendered_tile_polygon_member" &&
     selection.object.sourceFeatureId !== null &&
     (selection.object.geometry.type === "Polygon" || selection.object.geometry.type === "MultiPolygon") &&
     selection.object.renderHeightM !== null &&
@@ -575,6 +608,8 @@ function setSelectedVolumeVisibility(
   });
   const nativePredicate: ExpressionSpecification = selectionCanShowVolume(selection) && selection && spatial.length ? ["all",
       ["==", ["to-string", ["coalesce", ["id"], ["get", "osm_id"], ["get", "id"], ""]], selection.object.sourceFeatureId!],
+      ["==", ["case", ["has", "render_height"], ["to-number", ["get", "render_height"], -1], ["has", "height"], ["to-number", ["get", "height"], -1], -1], selection.object.renderHeightM ?? -1],
+      ["==", ["case", ["has", "render_min_height"], ["to-number", ["get", "render_min_height"], -1], ["has", "min_height"], ["to-number", ["get", "min_height"], -1], -1], selection.object.renderMinHeightM ?? -1],
       // Require whole-feature containment: even a touching same-ID neighbour
       // must remain unhighlighted. Ambiguous/clipped outside pieces stay native.
       ["any", ...spatial]
@@ -602,6 +637,7 @@ function setHighlight(
     ? {
         type: "Feature",
         properties: {
+          geometryProvenance: selection?.object.geometryProvenance ?? null,
           renderHeightM: selection?.object.renderHeightM ?? 0,
           renderMinHeightM: selection?.object.renderMinHeightM ?? 0
         },
@@ -634,7 +670,7 @@ function buildingLayerIds(map: MapLibreMap): string[] {
     const candidate = layer as typeof layer & { source?: unknown; "source-layer"?: unknown };
     const isBuildingLayer = candidate.id === BUILDINGS_3D_LAYER_ID || (
       candidate.id !== HIGHLIGHT_NATIVE_FILL_LAYER_ID &&
-      (candidate.type === "fill" || candidate.type === "fill-extrusion") &&
+      (candidate.type === "fill" || candidate.type === "fill-extrusion" || candidate.type === "line") &&
       candidate.source === "openmaptiles" &&
       candidate["source-layer"] === "building"
     );
@@ -643,6 +679,7 @@ function buildingLayerIds(map: MapLibreMap): string[] {
 }
 
 function resetBuildingFilterSnapshots(map: MapLibreMap) {
+  clearPointObjectPartitionRenderer(map, true);
   BUILDING_FILTER_SNAPSHOTS.delete(map);
 }
 
@@ -658,6 +695,7 @@ function snapshotBuildingFilters(map: MapLibreMap): Map<string, PointObjectMapFi
 }
 
 function restoreBuildingFilters(map: MapLibreMap) {
+  clearPointObjectPartitionRenderer(map);
   const snapshots = BUILDING_FILTER_SNAPSHOTS.get(map);
   if (!snapshots) return;
   for (const [layerId, snapshot] of snapshots) {
@@ -689,6 +727,7 @@ function applyBuildingReplacement(map: MapLibreMap, aoi: PointObjectCreateAoi): 
   }
   try {
     for (const { layerId, plan } of plans) map.setFilter(layerId, plan.filter);
+    reconcilePointObjectPartitionRenderer(map, { type: "Polygon", coordinates: aoi.coordinates }, layerIds, snapshots, true);
     return true;
   } catch {
     restoreBuildingFilters(map);
@@ -707,6 +746,7 @@ function setCreateLayers(
   (map.getSource(CREATE_AOI_SOURCE_ID) as GeoJSONSource | undefined)?.setData(createAoiData(draft, aoi));
   (map.getSource(CONCEPT_SOURCE_ID) as GeoJSONSource | undefined)?.setData(massing?.featureCollection ?? { type: "FeatureCollection", features: [] });
   let replacementStatus: PointObjectReplacementStatus = "idle";
+  if (map.getLayer(BUILDINGS_3D_LAYER_ID)) map.setLayoutProperty(BUILDINGS_3D_LAYER_ID, "visibility", viewMode === "3d" ? "visible" : "none");
   if (suppressExistingBuildings && aoi) {
     if (map.getZoom() < pointObjectReplacementMinimumReliableZoom) {
       restoreBuildingFilters(map);
@@ -739,12 +779,13 @@ function installGeoAiLayers(map: MapLibreMap, viewMode: MapViewMode) {
       source: "openmaptiles",
       "source-layer": "building",
       minzoom: 14,
+      filter: pointObjectNativeBuilding3dFilter,
       layout: { visibility: viewMode === "3d" ? "visible" : "none" },
       paint: {
         "fill-extrusion-color": "#d6dcdf",
         "fill-extrusion-height": ["coalesce", ["to-number", ["get", "render_height"]], 0],
         "fill-extrusion-base": ["coalesce", ["to-number", ["get", "render_min_height"]], 0],
-        "fill-extrusion-opacity": 0.82,
+        "fill-extrusion-opacity": 1,
         "fill-extrusion-vertical-gradient": true
       }
     }, labelLayer);
@@ -874,6 +915,12 @@ export function LiveObjectMap({
   onViewportChange,
   onVisibleBoundsChange,
   onCameraMovingChange,
+  findResults = EMPTY_FIND_RESULTS,
+  activeFindResultId = null,
+  onFindResultSelect,
+  projectMarkers = EMPTY_PROJECT_RESULTS,
+  activeProjectMarkerId = null,
+  onProjectMarkerSelect,
   navigationTarget = null,
   viewModeRequest = null,
   interactionMode = "analyse",
@@ -885,10 +932,52 @@ export function LiveObjectMap({
   createReplacementRevision = 0,
   conceptMassing = null,
   onCreateVertex,
+  onCreateFinishDrawing,
   onReplacementStatus
 }: LiveObjectMapProps) {
   const { locale, t } = usePointObjectLocale();
   const [cameraOpen, setCameraOpen] = useState(false);
+  const [openProjectGroup, setOpenProjectGroup] = useState<LiveMapProjectResult[] | null>(null);
+  const [projectResultOpening, setProjectResultOpening] = useState(false);
+  const [projectResultOpenError, setProjectResultOpenError] = useState(false);
+  const projectResultOpenGuardRef = useRef(createPointObjectMapResultOpenGuard());
+  const projectGroupDialogRef = useRef<HTMLDivElement>(null);
+  const projectGroupTriggerRef = useRef<HTMLButtonElement | null>(null);
+  useEffect(() => {
+    if (!openProjectGroup) return;
+    const trigger = projectGroupTriggerRef.current;
+    trigger?.setAttribute("aria-expanded", "true");
+    projectGroupDialogRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
+    const outside = (event: PointerEvent) => {
+      if (event.target instanceof Node && !projectGroupDialogRef.current?.contains(event.target)) setOpenProjectGroup(null);
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setOpenProjectGroup(null);
+      trigger?.focus();
+    };
+    document.addEventListener("pointerdown", outside, true);
+    document.addEventListener("keydown", escape);
+    return () => {
+      trigger?.setAttribute("aria-expanded", "false");
+      document.removeEventListener("pointerdown", outside, true);
+      document.removeEventListener("keydown", escape);
+    };
+  }, [openProjectGroup]);
+  const cameraControlsRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!cameraOpen) return;
+    const dismiss = (event: PointerEvent) => {
+      if (event.target instanceof Node && !cameraControlsRef.current?.contains(event.target)) setCameraOpen(false);
+    };
+    const escape = (event: KeyboardEvent) => { if (event.key === "Escape") setCameraOpen(false); };
+    document.addEventListener("pointerdown", dismiss, true);
+    document.addEventListener("keydown", escape);
+    return () => {
+      document.removeEventListener("pointerdown", dismiss, true);
+      document.removeEventListener("keydown", escape);
+    };
+  }, [cameraOpen]);
   const overlayBottomInsetRef = useRef(overlayBottomInset);
   useEffect(() => { overlayBottomInsetRef.current = overlayBottomInset; }, [overlayBottomInset]);
   const cameraMovingCallbackRef = useRef(onCameraMovingChange);
@@ -899,6 +988,7 @@ export function LiveObjectMap({
   const handledNavigationTargetRef = useRef<string | null>(null);
   const handledViewModeRequestRef = useRef<string | null>(null);
   const handledCreateAoiFitRequestRef = useRef<string | null>(null);
+  const handledProjectOverviewFitRef = useRef<string | null>(null);
   const callbackRef = useRef(onSelection);
   const viewportCallbackRef = useRef(onViewportChange);
   const visibleBoundsCallbackRef = useRef(onVisibleBoundsChange);
@@ -911,6 +1001,23 @@ export function LiveObjectMap({
   const createDrawingRef = useRef(createDrawing);
   const interactionModeRef = useRef<LiveMapInteractionMode>(interactionMode);
   const createVertexCallbackRef = useRef(onCreateVertex);
+  const finishDrawingCallbackRef = useRef(onCreateFinishDrawing);
+  const findResultCallbackRef = useRef(onFindResultSelect);
+  const projectResultCallbackRef = useRef(onProjectMarkerSelect);
+  function openProjectResult(id: string) {
+    const guard = projectResultOpenGuardRef.current;
+    if (guard.isPending()) return;
+    setOpenProjectGroup(null);
+    setProjectResultOpenError(false);
+    setProjectResultOpening(true);
+    void guard.run(async () => {
+      const navigating = await projectResultCallbackRef.current?.(id);
+      if (navigating === false) setProjectResultOpenError(true);
+      return navigating;
+    })
+      .catch(() => setProjectResultOpenError(true))
+      .finally(() => setProjectResultOpening(guard.isPending()));
+  }
   const replacementStatusCallbackRef = useRef(onReplacementStatus);
   const createDraftRef = useRef(createDraftCoordinates);
   const createAoiRef = useRef(createAoi);
@@ -923,6 +1030,18 @@ export function LiveObjectMap({
   const [viewMode, setViewMode] = useState<MapViewMode>("3d");
   const [basemapId, setBasemapId] = useState<LiveMapBasemapId>("street");
   const [showSelectedVolume, setShowSelectedVolume] = useState(true);
+  const hasProjectOverview = projectMarkers.length > 0;
+  const projectOverviewSignature = JSON.stringify(projectMarkers.map(({ id, longitude, latitude }) => [id, longitude, latitude]));
+  const markerDataSignature = JSON.stringify([findResults, projectMarkers]);
+  useEffect(() => { setOpenProjectGroup(null); }, [projectOverviewSignature]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const market = pointObjectMarket(locationKey);
+    map.setMinZoom(hasProjectOverview ? 0 : 3);
+    map.setMaxBounds(hasProjectOverview ? null : [[...market.bounds[0]], [...market.bounds[1]]]);
+  }, [hasProjectOverview, isReady, locationKey]);
 
   useEffect(() => {
     callbackRef.current = onSelection;
@@ -947,6 +1066,61 @@ export function LiveObjectMap({
   useEffect(() => {
     createVertexCallbackRef.current = onCreateVertex;
   }, [onCreateVertex]);
+
+  useEffect(() => { finishDrawingCallbackRef.current = onCreateFinishDrawing; }, [onCreateFinishDrawing]);
+  useEffect(() => { findResultCallbackRef.current = onFindResultSelect; }, [onFindResultSelect]);
+  useEffect(() => { projectResultCallbackRef.current = onProjectMarkerSelect; }, [onProjectMarkerSelect]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !isReady || (!projectMarkers.length && interactionMode !== "find")) return;
+    const isProjectOverview = projectMarkers.length > 0;
+    const resultGroups = isProjectOverview ? groupExactPointObjectProjectResults(projectMarkers) : findResults.map(result => ({ key: result.id, results: [result] }));
+    const activeId = isProjectOverview ? activeProjectMarkerId : activeFindResultId;
+    let disposed = false;
+    const markers: import("maplibre-gl").Marker[] = [];
+    void import("maplibre-gl").then(({ Marker }) => {
+      if (disposed) return;
+      for (const [index, group] of resultGroups.entries()) {
+        const result = group.results[0];
+        const grouped = isProjectOverview && group.results.length > 1;
+        const active = group.results.some(result => result.id === activeId);
+        if (!Number.isFinite(result.longitude) || !Number.isFinite(result.latitude) || Math.abs(result.longitude) > 180 || Math.abs(result.latitude) > 85) continue;
+        const button = document.createElement("button");
+        button.type = "button";
+        button.disabled = isProjectOverview && projectResultOpening;
+        if (isProjectOverview) button.setAttribute("aria-busy", String(projectResultOpening));
+        const number = result.number ?? index + 1;
+        if (isProjectOverview) button.dataset.projectResultMarker = result.id;
+        else button.dataset.findResultMarker = result.id;
+        if (grouped) button.dataset.projectResultGroup = group.key;
+        button.dataset.active = String(active);
+        const label = grouped ? (locale === "ru" ? `${group.results.length} сохранённых результата в этой точке` : `${group.results.length} saved results at this location`) : `${number}. ${result.label}`;
+        button.setAttribute("aria-label", label);
+        if (grouped) { button.setAttribute("aria-haspopup", "dialog"); button.setAttribute("aria-expanded", "false"); }
+        button.setAttribute("aria-pressed", String(active));
+        button.title = label;
+        button.textContent = String(grouped ? group.results.length : number);
+        button.className = `flex h-11 min-w-11 items-center justify-center rounded-full border-[3px] border-white px-2 text-sm font-bold shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087f8c] ${active ? "bg-[#07515a] text-white" : "bg-[#087f8c] text-white"}`;
+        button.style.zIndex = active ? "2" : "1";
+        button.addEventListener("click", (event) => {
+          event.stopPropagation();
+          if (isProjectOverview && projectResultOpenGuardRef.current.isPending()) return;
+          if (grouped) {
+            projectGroupTriggerRef.current = button;
+            button.setAttribute("aria-expanded", "true");
+            setOpenProjectGroup(group.results as LiveMapProjectResult[]);
+          } else if (isProjectOverview) openProjectResult(result.id);
+          else {
+            map.easeTo({ center: [result.longitude, result.latitude], zoom: Math.max(map.getZoom(), 16), offset: [0, -overlayBottomInsetRef.current / 2], duration: 350 });
+            findResultCallbackRef.current?.(result.id);
+          }
+        });
+        markers.push(new Marker({ element: button, anchor: "center" }).setLngLat([result.longitude, result.latitude]).addTo(map));
+      }
+    });
+    return () => { disposed = true; for (const marker of markers) marker.remove(); };
+  }, [activeFindResultId, activeProjectMarkerId, markerDataSignature, interactionMode, isReady, retryVersion, locale, projectResultOpening]);
 
   useEffect(() => {
     interactionModeRef.current = interactionMode;
@@ -1005,7 +1179,9 @@ export function LiveObjectMap({
     setError(null);
     setIsReady(false);
     setHighlight(map, null, viewModeRef.current, showSelectedVolumeRef.current);
-    map.setMaxBounds([ [...view.bounds[0]], [...view.bounds[1]] ]);
+    // A location change can coincide with opening the cross-market overview.
+    // Do not let this later effect overwrite its intentionally unbounded map.
+    map.setMaxBounds(hasProjectOverview ? null : [[...view.bounds[0]], [...view.bounds[1]]]);
     map.easeTo({ center: [...view.center], zoom: view.zoom, ...CAMERA[viewModeRef.current], duration: 650 });
     map.once("idle", () => setIsReady(true));
   }, [locationKey]);
@@ -1086,6 +1262,34 @@ export function LiveObjectMap({
       window.clearTimeout(fallbackTimer);
     };
   }, [isReady, navigationTarget]);
+
+  useEffect(() => {
+    if (!projectMarkers.length) {
+      handledProjectOverviewFitRef.current = null;
+      return;
+    }
+    const map = mapRef.current;
+    const bounds = projectResultCoordinateBounds(projectMarkers);
+    if (!map || !isReady || !bounds) return;
+    const fit = (duration: number) => {
+      map.stop();
+      map.setMinZoom(0);
+      map.setMaxBounds(null);
+      map.fitBounds([[bounds[0], bounds[1]], [bounds[2], bounds[3]]], {
+        padding: { top: 88, left: 44, right: 60, bottom: 88 + overlayBottomInsetRef.current },
+        maxZoom: 17, pitch: 0, bearing: 0, duration
+      });
+    };
+    // Fit after MapLibre has updated its own transform dimensions, regardless
+    // of which container observer initiated the resize. Stop any old wide-screen
+    // camera animation so it cannot overwrite the new phone-sized fit.
+    const refitAfterResize = () => fit(0);
+    map.on("resize", refitAfterResize);
+    const firstFit = handledProjectOverviewFitRef.current !== projectOverviewSignature;
+    handledProjectOverviewFitRef.current = projectOverviewSignature;
+    fit(firstFit ? 450 : 0);
+    return () => { map.off("resize", refitAfterResize); };
+  }, [isReady, projectOverviewSignature, overlayBottomInset]);
 
   useEffect(() => {
     if (!viewModeRequest || handledViewModeRequestRef.current === viewModeRequest.requestId) return;
@@ -1225,14 +1429,19 @@ export function LiveObjectMap({
           point: { x: number; y: number },
           clicked: Wgs84Position
         ) => {
-          if (!map.isStyleLoaded()) return;
+          // Source tiles may still be loading while the installed style already
+          // renders an object. Query that visible geometry instead of dropping
+          // the user's tap because an unrelated tile is pending.
+          if (styleChangeInProgressRef.current) return;
           const visibleBounds = map.getBounds();
-          const selectedFeature = selectFeature(
+          const selected = selectFeature(
             map.queryRenderedFeatures([point.x, point.y]),
             map.getZoom(),
-            [visibleBounds.getWest(), visibleBounds.getSouth(), visibleBounds.getEast(), visibleBounds.getNorth()]
+            [visibleBounds.getWest(), visibleBounds.getSouth(), visibleBounds.getEast(), visibleBounds.getNorth()],
+            clicked
           );
-          const selectedGeometry = selectedFeature ? sanitizeGeometry(selectedFeature.geometry) : null;
+          const selectedFeature = selected?.feature ?? null;
+          const selectedGeometry = selected?.geometry ? sanitizeGeometry(selected.geometry) : null;
           const center = map.getCenter();
           const analysisPosition = objectLookupPosition(selectedGeometry, clicked);
           const nextSelection: LiveMapSelection = {
@@ -1244,8 +1453,9 @@ export function LiveObjectMap({
               name: selectedFeature ? featureName(selectedFeature) : null,
               featureClass: selectedFeature ? featureClass(selectedFeature) : "location",
               sourceFeatureId: selectedFeature ? safeFeatureId(selectedFeature) : null,
+              ...(selected?.isTileMember ? { geometryProvenance: "rendered_tile_polygon_member" as const } : {}),
               geometry: selectedGeometry,
-              renderHeightM: selectedFeature
+              renderHeightM: selectedFeature && ![true, "true", 1, "1"].includes(selectedFeature.properties?.hide_3d)
                 ? safeNumericProperty(selectedFeature.properties, ["render_height", "height"])
                 : null,
               renderMinHeightM: selectedFeature
@@ -1272,6 +1482,12 @@ export function LiveObjectMap({
 
         const handleClick = (event: MapMouseEvent) => {
           if (interactionModeRef.current === "create" && createDrawingRef.current) {
+            const draft = createDraftRef.current;
+            const first = draft.length >= 3 ? map.project(draft[0]) : null;
+            if (first && Math.hypot(first.x - event.point.x, first.y - event.point.y) <= 22 && finishDrawingCallbackRef.current) {
+              finishDrawingCallbackRef.current();
+              return;
+            }
             createVertexCallbackRef.current?.([event.lngLat.lng, event.lngLat.lat]);
             return;
           }
@@ -1290,7 +1506,10 @@ export function LiveObjectMap({
           const nextReplacementZoomEligible = map.getZoom() >= pointObjectReplacementMinimumReliableZoom;
           if (nextReplacementZoomEligible !== replacementZoomEligible) {
             replacementZoomEligible = nextReplacementZoomEligible;
-            if (createAreaClearedRef.current && createAoiRef.current && map.isStyleLoaded() && !styleChangeInProgressRef.current) {
+            // Source loading makes isStyleLoaded false during many zoom ends.
+            // The installed style is still writable; do not consume the zoom
+            // transition without restoring/reapplying its layer filters.
+            if (createAreaClearedRef.current && createAoiRef.current && !styleChangeInProgressRef.current) {
               const replacementStatus = setCreateLayers(
                 map,
                 createDraftRef.current,
@@ -1334,6 +1553,10 @@ export function LiveObjectMap({
         let nativeHighlightSignature = "";
         map.on("idle", () => {
           if (disposed || !map.isStyleLoaded()) return;
+          if (createAreaClearedRef.current && createAoiRef.current && map.getZoom() >= pointObjectReplacementMinimumReliableZoom) {
+            const snapshots = BUILDING_FILTER_SNAPSHOTS.get(map);
+            if (snapshots) reconcilePointObjectPartitionRenderer(map, { type: "Polygon", coordinates: createAoiRef.current.coordinates }, buildingLayerIds(map), snapshots);
+          }
           const geometry = currentNativeSelectionGeometry(map, selectionRef.current);
           const signature = JSON.stringify([geometry, viewModeRef.current, showSelectedVolumeRef.current]);
           if (signature === nativeHighlightSignature) return;
@@ -1370,10 +1593,16 @@ export function LiveObjectMap({
   }, [retryVersion]);
 
   function changeViewMode(nextMode: MapViewMode) {
-    if (nextMode === viewModeRef.current) return;
+    const map = mapRef.current;
+    if (nextMode === viewModeRef.current) {
+      // The parent may have pre-armed a Find transition before this request.
+      // A mode no-op has no `moveend`, so acknowledge the camera's real state
+      // instead of leaving the search action disabled.
+      cameraMovingCallbackRef.current?.(mapRef.current?.isMoving() ?? false);
+      return;
+    }
     viewModeRef.current = nextMode;
     setViewMode(nextMode);
-    const map = mapRef.current;
     const current = selectionRef.current;
     if (current) {
       const nextSelection: LiveMapSelection = {
@@ -1383,7 +1612,13 @@ export function LiveObjectMap({
       selectionRef.current = nextSelection;
       viewportCallbackRef.current?.(nextSelection);
     }
-    if (!map) return;
+    if (!map) {
+      // The request can arrive before MapLibre initializes; there is no
+      // camera operation to finish and the normal visible-bounds guard stays
+      // in effect until the map loads.
+      cameraMovingCallbackRef.current?.(mapRef.current?.isMoving() ?? false);
+      return;
+    }
     // MapLibre camera operations remain available while a style is loading.
     // Applying the mode immediately eliminates the style.load/toggle race.
     applyViewMode(map, nextMode, createAreaClearedRef.current);
@@ -1445,6 +1680,17 @@ export function LiveObjectMap({
     setRetryVersion((value) => value + 1);
   }
 
+  function fitFindResults() {
+    const map = mapRef.current;
+    const bounds = projectMarkers.length ? projectResultCoordinateBounds(projectMarkers) : findResultCoordinateBounds(findResults);
+    if (!map || !bounds) return;
+    map.fitBounds([[bounds[0], bounds[1]], [bounds[2], bounds[3]]], {
+      padding: { top: 88, left: 44, right: 60, bottom: 88 + overlayBottomInsetRef.current },
+      maxZoom: 17,
+      duration: 450
+    });
+  }
+
   const containerClassName = [
     "relative h-full min-h-0 w-full overflow-hidden bg-[#e8edf0]",
     className
@@ -1477,7 +1723,24 @@ export function LiveObjectMap({
       <p id="live-map-instructions" className="sr-only">
         {t(instructionKey)}
       </p>
-      <div data-map-bottom-controls data-camera-open={cameraOpen} className="absolute bottom-8 left-3 z-10 flex max-w-[calc(100%-6rem)] flex-wrap items-center gap-2 sm:bottom-3">
+      {openProjectGroup ? (
+        <div ref={projectGroupDialogRef} role="dialog" aria-label={locale === "ru" ? "Сохранённые результаты в этой точке" : "Saved results at this location"} data-testid="project-location-picker" className="absolute left-3 right-3 top-40 z-20 max-h-[60%] max-w-sm overflow-y-auto rounded-xl border border-[#cbdad7] bg-white p-3 shadow-xl">
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <p className="text-sm font-bold text-[#07515a]">{locale === "ru" ? "Выберите результат" : "Choose a saved result"}</p>
+            <button type="button" className="min-h-11 min-w-11 rounded-lg border border-[#cbdad7] px-3 text-sm focus-visible:outline-2" onClick={() => { setOpenProjectGroup(null); projectGroupTriggerRef.current?.focus(); }}>{locale === "ru" ? "Закрыть" : "Close"}</button>
+          </div>
+          <div className="grid gap-2">
+            {openProjectGroup.map(result => <button key={result.id} type="button" disabled={projectResultOpening} data-project-location-result={result.id} className="min-h-11 rounded-lg border border-[#cbdad7] px-3 py-2 text-left text-sm font-semibold text-[#07515a] focus-visible:outline-2" onClick={() => openProjectResult(result.id)}>{result.label}</button>)}
+          </div>
+        </div>
+      ) : null}
+      {projectResultOpenError ? <p role="alert" className="absolute left-3 top-28 z-20 rounded-lg border border-[#cbdad7] bg-white p-3 text-sm">{locale === "ru" ? "Не удалось открыть результат. Попробуйте ещё раз." : "Could not open this result. Please try again."}</p> : null}
+      {(projectMarkers.length || interactionMode === "find") && (projectMarkers.length ? projectResultCoordinateBounds(projectMarkers) : findResultCoordinateBounds(findResults)) ? (
+        <button type="button" data-testid={projectMarkers.length ? "project-fit-results" : "find-fit-results"} onClick={fitFindResults} className="absolute right-3 top-28 z-10 min-h-11 rounded-xl border border-[#cbdad7] bg-white px-3 text-xs font-bold text-[#07515a] shadow-sm focus-visible:outline-2 focus-visible:outline-[#087f8c]">
+          {locale === "ru" ? "Все результаты" : "Fit results"}
+        </button>
+      ) : null}
+      <div ref={cameraControlsRef} data-map-bottom-controls data-camera-open={cameraOpen} className="absolute bottom-8 left-3 z-10 flex max-w-[calc(100%-6rem)] flex-wrap items-center gap-2 sm:bottom-3">
         <button type="button" data-camera-toggle aria-expanded={cameraOpen} aria-controls="mobile-camera-actions" onClick={() => setCameraOpen((open) => !open)} className="min-h-11 rounded-xl border border-line bg-white px-3 text-xs font-bold text-[#176548] focus-visible:outline-2 focus-visible:outline-[#087f8c] lg:hidden">{locale === "ru" ? "Камера" : "Camera"}</button>
         <div className="inline-flex rounded-xl border border-white/80 bg-white/95 p-1 shadow-sm backdrop-blur" role="group" aria-label={t("map.dimension")} data-testid="map-dimension-control">
           {(["2d", "3d"] as MapViewMode[]).map((mode) => (

@@ -138,10 +138,10 @@
 .heroInner {
   position: relative;
   z-index: 1;
-  min-height: 704px;
-  padding-block: 72px 66px;
+  min-height: 596px;
+  padding-block: 46px 48px;
   display: grid;
-  grid-template-columns: minmax(360px, 0.78fr) minmax(600px, 1.22fr);
+  grid-template-columns: minmax(360px, 0.88fr) minmax(540px, 1.12fr);
   align-items: center;
   gap: 54px;
 }
@@ -177,6 +177,8 @@
 
 .productPreview {
   min-width: 0;
+  width: min(100%, 720px);
+  justify-self: end;
   margin: 0;
   overflow: hidden;
   border: 1px solid rgba(215, 226, 223, 0.9);
@@ -200,28 +202,32 @@
 }
 .previewMeta span:last-child { color: var(--accent-strong); }
 .productPreview img { display: block; width: 100%; height: auto; }
-.previewScene { position: relative; aspect-ratio: 1; overflow: hidden; background: var(--surface); }
+.previewScene { position: relative; aspect-ratio: 849 / 540; overflow: hidden; background: var(--surface); }
 .previewLink { display: block; height: 100%; }
 .previewPicture { display: block; height: 100%; }
-.previewScene .previewImage { width: 100%; height: 100%; object-fit: cover; object-position: right center; }
+.previewScene .previewImage {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  /* Window unchanged raw capture to map interior only: raw x≈410..2230,
+     y≈180..1340. That excludes search/zoom controls, right task strip and
+     bottom controls while holding the teal tower at the frame centre. */
+  object-position: 12% center;
+  transform: scale(1.38);
+  transform-origin: 44% 40%;
+}
 .objectActions {
   position: absolute;
-  top: 29%;
+  top: 31%;
   left: 50%;
-  width: max-content;
-  max-width: calc(100% - 24px);
-  transform: translateX(-50%);
+  z-index: 1;
   display: flex;
+  width: max-content;
+  max-width: calc(100% - 20px);
   gap: 8px;
-  align-items: center;
-  padding: 6px;
-  border: 1px solid rgba(8, 127, 127, 0.25);
-  border-radius: 36px;
-  background: rgba(255, 255, 255, 0.94);
-  box-shadow: 0 8px 24px rgba(7, 24, 50, 0.18);
+  transform: translateX(-50%);
 }
-.objectActions::after { content: ""; position: absolute; left: calc(50% - 7px); top: 100%; border: 7px solid transparent; border-top-color: rgba(255, 255, 255, 0.94); }
-.objectAction { display: inline-flex; justify-content: center; align-items: center; gap: 7px; min-height: 44px; padding: 0 14px; border-radius: 24px; color: var(--accent-strong); background: var(--surface); font-size: 13px; font-weight: 750; text-decoration: none; white-space: nowrap; }
+.objectAction { display: inline-flex; justify-content: center; align-items: center; gap: 7px; min-height: 44px; padding: 0 14px; border: 1px solid rgba(8, 127, 127, 0.24); border-radius: 24px; color: var(--accent-strong); background: rgba(255, 255, 255, 0.96); box-shadow: 0 8px 24px rgba(7, 24, 50, 0.16); font-size: 13px; font-weight: 750; text-decoration: none; white-space: nowrap; }
 .objectAction:hover { color: white; background: var(--accent-strong); }
 .objectAction svg { width: 18px; height: 18px; flex: none; }
 .previewLink:focus-visible { outline: 3px solid var(--accent-strong); outline-offset: -3px; }
@@ -448,9 +454,9 @@
 @media (max-width: 1180px) {
   .desktopNav { display: none; }
   .headerInner, .heroInner, .section, .finalCta, .footerInner { width: min(100% - 40px, 1040px); }
-  .heroInner { min-height: 0; grid-template-columns: 1fr; gap: 42px; padding-block: 64px; }
+  .heroInner { min-height: 0; grid-template-columns: 1fr; gap: 38px; padding-block: 52px; }
   .heroCopy { max-width: 760px; }
-  .productPreview { width: 100%; }
+  .productPreview { width: 100%; justify-self: stretch; }
   .workflowGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .workflowCard { min-height: 300px; }
   .rolesSection { width: 100%; padding-inline: 20px; }
@@ -480,16 +486,19 @@
   .headerInner { min-height: 66px; gap: 12px; }
   .brand small, .headerCta, .previewMeta span:last-child { display: none; }
   .brandMark { width: 30px; height: 30px; }
-  .heroInner { gap: 34px; padding-block: 48px 52px; }
+  .heroInner { gap: 28px; padding-block: 36px 44px; }
   .hero h1 { font-size: clamp(42px, 13vw, 56px); }
-  .heroBody { margin-top: 22px; font-size: 15px; }
-  .heroActions { align-items: stretch; flex-direction: column; }
+  .heroBody { margin-top: 16px; font-size: 15px; }
+  .heroActions { margin-top: 22px; align-items: stretch; flex-direction: column; }
+  .heroNote { margin-top: 14px; }
   .heroActions a { width: 100%; }
   .productPreview { border-radius: 16px; }
-  .previewScene { aspect-ratio: 0.8; }
-  .previewScene .previewImage { object-position: left center; }
-  .objectActions { top: 32%; gap: 3px; padding: 4px; }
-  .objectAction { padding: 0 10px; font-size: 12px; gap: 5px; }
+  .previewScene { aspect-ratio: 430 / 400; }
+  /* Same unmodified high-res capture, windowed to raw x≈580..1980 and
+     y≈150..1450 so mobile shows only map interior and the selected tower. */
+  .previewScene .previewImage { object-position: 14% center; transform: scale(1.24); transform-origin: 100% 50%; }
+  .objectActions { top: 28%; gap: 4px; }
+  .objectAction { min-height: 44px; padding: 0 10px; font-size: 12px; gap: 5px; }
   .objectAction svg { width: 16px; height: 16px; }
   .section, .finalCta { padding-block: 70px; }
   .sectionHeading h2, .finalCta h2 { font-size: 38px; }

@@ -16,7 +16,13 @@ export async function installLocalWebKitHttpCsp(page: Page, browserName: string 
     if (!route.request().isNavigationRequest()) return route.fallback();
     // Let the browser follow redirects through normal routing rather than
     // letting APIRequestContext fetch an unchecked redirect destination.
-    const response = await route.fetch({ maxRedirects: 0 });
+    // Avoid reusing a compressed streaming dev-server connection while WebKit
+    // is replacing the login document. This is loopback transport only: forward
+    // the original request/cookies and do not change routes or response content.
+    const response = await route.fetch({
+      maxRedirects: 0,
+      headers: { ...route.request().headers(), "accept-encoding": "identity", connection: "close" }
+    });
     const headers = response.headers();
     const csp = headers["content-security-policy"];
     if (csp) headers["content-security-policy"] = csp.split(";")

@@ -1,5 +1,6 @@
 .workspace { height: var(--workspace-height, 100dvh); }
 .shell { position: relative; height: calc(100% - 64px); min-height: 0; --sheet-height: 164px; }
+.shell[data-sheet="peek"] { --sheet-height: calc(116px + max(8px, env(safe-area-inset-bottom))); }
 .shell[data-sheet="half"] { --sheet-height: min(50%, calc(100% - 220px)); }
 .shell[data-sheet="full"] { --sheet-height: 100%; }
 .map { height: 100%; min-height: 0; }
@@ -13,14 +14,14 @@
 .content input, .content textarea, .content select { font-size: 16px; }
 .shell[data-sheet="peek"] .content { display: none; }
 .map :global(.maplibregl-ctrl-bottom-right), .map :global(.maplibregl-ctrl-bottom-left) { bottom: var(--sheet-height); }
-.map [data-map-bottom-controls] { bottom: calc(var(--sheet-height) + 30px); }
+.map [data-map-bottom-controls] { bottom: calc(var(--sheet-height) + 12px); }
 .map [data-map-bottom-controls][data-camera-open="false"] > :not([data-camera-toggle]) { display: none; }
 .map [data-map-gesture-hint] { display: none; }
 .map [data-testid="point-object-city-select"] { padding-right: 24px; }
 .map [data-testid="point-object-city-select"] + span { width: 24px; }
 .map input[type="search"] { font-size: 16px; }
 .map :global(.maplibregl-ctrl-group) button { width: 44px; height: 44px; }
-.drawTools { position: absolute; z-index: 15; left: 12px; right: 12px; bottom: calc(var(--sheet-height) + 82px); padding: 8px; border-radius: 12px; background: white; box-shadow: 0 4px 20px #183b2920; }
+.drawTools { position: absolute; z-index: 15; left: 12px; right: 12px; bottom: calc(var(--sheet-height) + 16px); padding: 8px; border-radius: 12px; background: white; box-shadow: 0 4px 20px #183b2920; }
 .drawTools button { min-height: 44px; }
 @media (max-height: 599px) and (max-width: 1023px) {
   .shell[data-sheet="half"] { --sheet-height: 100%; }

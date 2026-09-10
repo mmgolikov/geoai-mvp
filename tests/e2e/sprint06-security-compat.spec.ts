@@ -9,7 +9,7 @@ for (const width of [390, 430, 1440]) {
     page.on("pageerror", (error) => errors.push(error.message));
     page.on("request", request => {
       const url = new URL(request.url());
-      if (url.pathname === "/_next/image" && url.searchParams.get("url")?.startsWith("/landing/sprint06-selected-site-")) heroRequests.push(url);
+      if (url.pathname === "/_next/image" && url.searchParams.get("url") === "/landing/sprint07-workspace-capture.png") heroRequests.push(url);
     });
     await page.setViewportSize({ width, height: 932 });
     // One responsive picture must finish normal document load, without a hidden optimizer request.
@@ -46,8 +46,11 @@ for (const width of [390, 430, 1440]) {
       await expect(hero.locator("img")).toHaveCount(1);
       await expect(image).toHaveCount(1);
       await expect.poll(() => image.evaluate((element: HTMLImageElement) => element.complete && element.naturalWidth > 0)).toBe(true);
-      const asset = `/landing/sprint06-selected-site-${width <= 620 ? "narrow" : "wide"}.png`;
+      const asset = "/landing/sprint07-workspace-capture.png";
       expect(decodeURIComponent(await image.evaluate((element: HTMLImageElement) => element.currentSrc))).toContain(asset);
+      const imageBox = await image.boundingBox();
+      const servedWidth = Number(new URL(await image.evaluate((element: HTMLImageElement) => element.currentSrc)).searchParams.get("w"));
+      expect(servedWidth, "Serve the full CSS-windowed raster at sufficient resolution, not just the visible crop width").toBeGreaterThanOrEqual(Math.floor(imageBox!.width));
       for (const request of heroRequests) {
         expect(request.searchParams.get("url")).toBe(asset);
         expect(request.searchParams.get("w")).not.toBe("16");

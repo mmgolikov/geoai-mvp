@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { getSafeAuthRedirectPath } from "@/src/lib/auth/redirect-path";
 import { mockDemoEmail, mockDemoPassword } from "@/src/lib/auth/mock-demo-session";
@@ -41,6 +41,15 @@ export function LoginPanel() {
   const [phoneCodeSent, setPhoneCodeSent] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const navigationStartedRef = useRef(false);
+  const navigateAfterAuthentication = useCallback((replace = false) => {
+    // The sign-in promise and authenticated-state effect can settle together.
+    // Navigate once; two document replacements can cancel each other in Safari.
+    if (navigationStartedRef.current) return;
+    navigationStartedRef.current = true;
+    if (replace) window.location.replace(getDestination());
+    else window.location.assign(getDestination());
+  }, []);
   const normalizedIdentifier = identifier.trim().toLowerCase();
   const demoSelected = method === "email" && normalizedIdentifier === mockDemoEmail;
   const passwordSelected = method === "email" && password.length > 0;
@@ -52,8 +61,8 @@ export function LoginPanel() {
     if (url.searchParams.has("auth_error")) {
       setMessage("The sign-in link is invalid or expired. Request a new email.");
     }
-    if (isAuthenticated) window.location.replace(getDestination());
-  }, [isAuthenticated]);
+    if (isAuthenticated) navigateAfterAuthentication(true);
+  }, [isAuthenticated, navigateAfterAuthentication]);
 
   function changeMethod(nextMethod: AuthMethod) {
     setMethod(nextMethod);
@@ -78,13 +87,13 @@ export function LoginPanel() {
       if (demoSelected) {
         const result = await signInDemo(identifier, password);
         setMessage(result.message);
-        if (result.ok) window.location.assign(getDestination());
+        if (result.ok) navigateAfterAuthentication();
         return;
       }
       if (passwordSelected) {
         const result = await signInWithPassword(identifier, password);
         setMessage(result.message);
-        if (result.ok) window.location.assign(getDestination());
+        if (result.ok) navigateAfterAuthentication();
         return;
       }
       const result = await signIn(identifier);
@@ -101,7 +110,7 @@ export function LoginPanel() {
     try {
       const result = await verifyPhoneCode(identifier, phoneCode);
       setMessage(result.message);
-      if (result.ok) window.location.assign(getDestination());
+      if (result.ok) navigateAfterAuthentication();
     } finally {
       setPending(false);
     }

@@ -118,6 +118,10 @@ const approvedManifestPath = path.join(process.cwd(), "docs", "DESIGN_FOUNDATION
 const approvedManifestSource = fsSync.readFileSync(approvedManifestPath, "utf8");
 const approved = JSON.parse(approvedManifestSource) as ApprovedManifest;
 const primitiveMarkup = JSON.parse(execFileSync(process.execPath, [path.join(process.cwd(), "scripts", "render-design-foundation-primitives.cjs")], { encoding: "utf8" })) as Record<string, string>;
+// V3.2.1 remains immutable evidence (including its 40 px round badge). The
+// current workspace header intentionally supersedes only this geometry under
+// the founder-approved Sprint07 shell correction.
+const founderSprint07ProfileBadge = { borderRadius: 12, height: 44, width: 44 } as const;
 
 function markup(key: string) {
   const value = primitiveMarkup[key];
@@ -382,9 +386,12 @@ async function assertProfileBadge(page: Page, item: PrimitiveCase) {
   const contract = approved.components.authenticatedProfileBadge;
   const badge = page.locator("a[data-authenticated='true']");
   const actual = await computedStyle(badge);
-  expect(actual.width).toBe(pixels(contract.geometry.width));
-  expect(actual.height).toBe(pixels(contract.geometry.height));
-  expect(Number.parseFloat(actual.borderRadius)).toBeGreaterThanOrEqual(9999);
+  // Guard the original immutable fixture separately from the current Sprint07
+  // header override, rather than silently rewriting its historical contract.
+  expect(contract.geometry).toEqual({ height: "40px", width: "40px" });
+  expect(actual.width).toBe(founderSprint07ProfileBadge.width);
+  expect(actual.height).toBe(founderSprint07ProfileBadge.height);
+  expect(Number.parseFloat(actual.borderRadius)).toBe(founderSprint07ProfileBadge.borderRadius);
   expect(actual.background).toBe(rgb(contract.color.background));
   expect(actual.borderColor).toBe(rgb(contract.color.borderAndInitials));
   expect(actual.color).toBe(rgb(contract.color.borderAndInitials));

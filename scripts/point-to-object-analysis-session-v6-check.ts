@@ -116,8 +116,10 @@ assert.ok(restored && restored.mode === "openai" && restored.schemaVersion === 5
 assert.equal(restored.telemetry.requestId, "resp_historical", "Historical telemetry must remain historical and exact.");
 
 const clientSource = readFileSync(path.join(process.cwd(), "components/point-to-object/analysis-client.tsx"), "utf8");
-assert.match(clientSource, /analysis\.schemaVersion !== POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION\) return;/,
-  "Locale changes must not automatically regenerate a restored V5 analysis.");
+assert.doesNotMatch(clientSource, /localeRefreshAttemptRef|const refreshKey = `\$\{selection\.clickedAt\}:\$\{locale\}`/,
+  "The former locale-triggered regeneration effect must not exist for any saved schema; browser regressions verify zero calls.");
+assert.ok(clientSource.includes("Update in English") && clientSource.includes("Обновить на русском"),
+  "Language-specific regeneration must have an explicit user action.");
 
 const draftScope = { selection, identityKey: "demo:qa06", projectId: "project-qa06", locale: "ru", profileKey: "b2b:developer" };
 const draftText = "QA06 несохранённое уточнение: транспорт и подъезд";

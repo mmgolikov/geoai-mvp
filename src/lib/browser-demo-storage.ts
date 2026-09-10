@@ -22,6 +22,7 @@ const pointObjectTransientSessionKeys = [
   "geoai:point-to-object:analysis:v7",
   "geoai:point-to-object:find:v1",
   "geoai:point-to-object:project-restore:v1",
+  "geoai:point-to-object:project-overview:v1",
   "geoai:point-to-object:analysis-restore:v1"
 ] as const;
 

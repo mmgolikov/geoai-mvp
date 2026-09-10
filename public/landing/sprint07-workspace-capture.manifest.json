@@ -1,0 +1,13 @@
+{
+  "asset": "sprint07-workspace-capture.png",
+  "source": {
+    "kind": "user_provided_local_capture",
+    "originalSha256": "6a1b68699fe9d8686a23afc612cbaa8bead87bbc435be332d1546a396547aecf",
+    "copiedUnchanged": true
+  },
+  "presentation": {
+    "cssWindowOnly": true,
+    "imageEditing": "none",
+    "purpose": "Bounded map preview around the selected mapped building."
+  }
+}

@@ -44,7 +44,7 @@ function requireCondition(condition, message) {
 }
 
 requireCondition(
-  navigation.includes('{ href: "/workspace", label: "Workspace"') &&
+  navigation.includes('{ href: "/prototype/point-to-object", label: "Workspace"') &&
     navigation.includes('{ href: "/projects", label: "Projects"'),
   "Product navigation must expose Workspace and Projects."
 );
@@ -122,7 +122,7 @@ requireCondition(
 const evidence = {
   schemaVersion: "1.0",
   status: failures.length === 0 ? "pass" : "fail",
-  canonicalProductRoute: "/workspace",
+  canonicalProductRoute: "/prototype/point-to-object",
   canonicalProductDestinations: ["Workspace", "Projects"],
   compatibilityRoute: "/explore",
   compatibilityDestination: "/workspace",

@@ -1611,19 +1611,24 @@ export function renderInitialSemanticBrief(
     items.findIndex((candidate) => friendlyFeatureLabel(candidate.featureClass, locale) === friendlyFeatureLabel(item.featureClass, locale)) === index
   )).slice(0, 3);
   const groupPieces = meaningfulGroups.map((group) => `${GEO_CONTEXT_GROUP_LABELS[group.group][locale]} — ${group.count}`);
-  const namedPieces = nearby.map((item) => localized(
+  const describeNearby = (item: (typeof nearby)[number]) => localized(
     locale,
     `${item.name} — ${friendlyFeatureLabel(item.featureClass, locale)}, about ${item.distanceM} m straight-line`,
     `${item.name} — ${friendlyFeatureLabel(item.featureClass, locale)}, около ${item.distanceM} м по прямой`
-  ));
-  const contextPieces = [...groupPieces, ...namedPieces].slice(0, 5);
-  const contextStatement = geoContext?.coverage === "available" && contextCode !== "sparse_open_context" && contextPieces.length
+  );
+  const withinRadius = nearby.filter((item) => geoContext && item.distanceM <= geoContext.radiusM);
+  const furtherNearby = nearby.filter((item) => !geoContext || item.distanceM > geoContext.radiusM);
+  const contextPieces = [...groupPieces, ...withinRadius.map(describeNearby)].slice(0, 5);
+  const radiusStatement = geoContext?.coverage === "available" && contextCode !== "sparse_open_context" && contextPieces.length
     ? localized(locale,
       `Within ${geoContext.radiusM} m: ${contextPieces.join("; ")}.`,
       `В радиусе ${geoContext.radiusM} м: ${contextPieces.join("; ")}.`)
     : localized(locale,
       "Surroundings: the available map sample is insufficient to describe the area character.",
       "Окружение: доступной выборки карты недостаточно, чтобы описать характер территории.");
+  const contextStatement = furtherNearby.length
+    ? `${radiusStatement} ${localized(locale, "Further nearby (outside that radius)", "Другие объекты поблизости (за пределами этого радиуса)")}: ${furtherNearby.map(describeNearby).join("; ")}.`
+    : radiusStatement;
   const accessParts = [
     geoContext?.nearestTransitM === null || geoContext?.nearestTransitM === undefined ? null : localized(locale, `public transport point about ${geoContext.nearestTransitM} m`, `точка общественного транспорта около ${geoContext.nearestTransitM} м`),
     geoContext?.nearestMajorRoadM === null || geoContext?.nearestMajorRoadM === undefined ? null : localized(locale, `major road about ${geoContext.nearestMajorRoadM} m`, `магистральная дорога около ${geoContext.nearestMajorRoadM} м`)

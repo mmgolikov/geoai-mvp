@@ -124,7 +124,7 @@ test("current landing keeps the accepted map preview and primary actions unobstr
 
     await expect(page.getByRole("heading", { level: 1, name: "Turn a location into a decision path." })).toBeVisible();
     const previewImage = page.getByRole("img", {
-      name: "A real three-dimensional map of Dubai Trade Centre with a selected building highlighted in teal"
+      name: "A real three-dimensional map of Dubai with a selected building highlighted in teal"
     });
     await expect(previewImage).toBeVisible();
     const previewMetrics = await previewImage.evaluate((element) => {
@@ -139,7 +139,7 @@ test("current landing keeps the accepted map preview and primary actions unobstr
     expect(previewMetrics.complete, `${viewport.name} preview image must finish loading`).toBe(true);
     expect(previewMetrics.naturalWidth, `${viewport.name} preview image must have intrinsic width`).toBeGreaterThan(0);
     expect(previewMetrics.naturalHeight, `${viewport.name} preview image must have intrinsic height`).toBeGreaterThan(0);
-    expect(decodeURIComponent(previewMetrics.currentSource)).toContain(`/landing/sprint06-selected-site-${viewport.width <= 620 ? "narrow" : "wide"}.png`);
+    expect(decodeURIComponent(previewMetrics.currentSource)).toContain("/landing/sprint07-workspace-capture.png");
     const previewBox = await previewImage.boundingBox();
     expect(previewBox).not.toBeNull();
     expect(previewBox?.width ?? 0, `${viewport.name} preview must remain legible`).toBeGreaterThanOrEqual(300);

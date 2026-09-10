@@ -101,6 +101,7 @@ export type LiveMapSelection = {
     name: string | null;
     featureClass: string;
     sourceFeatureId: string | null;
+    geometryProvenance?: "rendered_tile_polygon_member";
     geometry: GeoJsonGeometry | null;
     renderHeightM: number | null;
     renderMinHeightM: number | null;

@@ -14,20 +14,22 @@ const mapHref = "/prototype/point-to-object";
 const projectsHref = "/projects";
 const requestHref = "/request-access";
 const { props: widePreview } = getImageProps({
-  src: "/landing/sprint06-selected-site-wide.png",
+  src: "/landing/sprint07-workspace-capture.png",
   alt: "",
-  width: 849,
-  height: 540,
+  width: 3418,
+  height: 1602,
   loading: "eager",
   fetchPriority: "high",
-  sizes: "(max-width: 1199px) 88vw, 760px"
+  // The image is deliberately windowed and enlarged inside its frame; request
+  // enough of the original bitmap for that covered region at retina density.
+  sizes: "(max-width: 1199px) 150vw, 1224px"
 });
 const { props: narrowPreview } = getImageProps({
-  src: "/landing/sprint06-selected-site-narrow.png",
+  src: "/landing/sprint07-workspace-capture.png",
   alt: "",
-  width: 430,
-  height: 400,
-  sizes: "calc(100vw - 32px)"
+  width: 3418,
+  height: 1602,
+  sizes: "230vw"
 });
 
 export function GeoAILandingPage() {

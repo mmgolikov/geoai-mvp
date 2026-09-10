@@ -5,6 +5,11 @@ import type { Feature, MultiPolygon, Polygon, Position } from "geojson";
 export const pointObjectReplacementSnapshotVersion = 1 as const;
 export const pointObjectReplacementMaxVertices = 1_000;
 export const pointObjectReplacementMinimumReliableZoom = 13 as const;
+// OpenMapTiles marks outlines covered by building parts with hide_3d. Drawing
+// those outlines as well creates an invented uniform prism over native parts.
+export const pointObjectNativeBuilding3dFilter: FilterSpecification = [
+  "!", ["in", ["to-string", ["coalesce", ["get", "hide_3d"], false]], ["literal", ["true", "1"]]]
+];
 // Numerical boundary inclusion, not a site buffer: 1 mm normal displacement,
 // capped at 2 mm at corners. Native tile quantization remains the source limit.
 export const pointObjectReplacementBoundaryToleranceM = 0.001;
@@ -310,8 +315,17 @@ export function buildPointObjectReplacementBoundaryAoi(aoi: Polygon): Polygon | 
       if (denominator <= 0) return null;
       const dx = (previous[0] + next[0]) * pointObjectReplacementBoundaryToleranceM / denominator;
       const dy = (previous[1] + next[1]) * pointObjectReplacementBoundaryToleranceM / denominator;
-      // Refuse acute/degenerate offsets instead of silently broadening the mask.
-      if (!Number.isFinite(dx + dy) || Math.hypot(dx, dy) > 2 * pointObjectReplacementBoundaryToleranceM) return null;
+      if (!Number.isFinite(dx + dy)) return null;
+      // A sharp but valid corner must not reject the entire AOI. Bevel the
+      // numerical join at the two 1 mm edge offsets instead of extending a
+      // long miter. The full output still passes topology validation below.
+      if (Math.hypot(dx, dy) > 2 * pointObjectReplacementBoundaryToleranceM) {
+        for (const normal of [previous, next]) expanded.push([
+          origin[0] + (point[0] + normal[0] * pointObjectReplacementBoundaryToleranceM) / longitudeScale,
+          origin[1] + (point[1] + normal[1] * pointObjectReplacementBoundaryToleranceM) / latitudeScale
+        ]);
+        continue;
+      }
       expanded.push([origin[0] + (point[0] + dx) / longitudeScale, origin[1] + (point[1] + dy) / latitudeScale]);
     }
     expanded.push([...expanded[0]]);

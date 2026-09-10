@@ -36,14 +36,19 @@ import {
 import {
   capturePointObjectProjectDestination,
   clearPointObjectProjectRestore,
+  clearPointObjectProjectOverview,
+  consumePointObjectProjectOverview,
   consumePointObjectProjectRestore,
   pointObjectProjectIdentity,
+  queuePointObjectProjectRestore,
+  readVerifiedPointObjectProjects,
   reconcilePointObjectBrowserIdentity,
   savePointObjectOperation,
   updatePointObjectCreateViewState,
   updatePointObjectFindViewState,
   type PointObjectProjectDestination,
-  type PointObjectProjectIdentity
+  type PointObjectProjectIdentity,
+  type PointObjectProjectOverviewMarker
 } from "@/src/lib/prototype/point-object-projects";
 import {
   isPointObjectAreaContextResult
@@ -62,6 +67,7 @@ import { pointObjectFindCapability } from "@/src/lib/prototype/point-to-object-f
 import { pointObjectSourceFailure, sourceFailureMessage, sourceRetryAfterSeconds, type PointObjectSourceFailure } from "@/src/lib/prototype/point-to-object-source-recovery";
 import {
   isPointObjectFindResult,
+  clearPointObjectFindSession,
   pointObjectFindSessionForProfileAudience,
   readPointObjectFindSession,
   type PointObjectFindSessionState,
@@ -369,6 +375,9 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
   const [findMinimumLevels, setFindMinimumLevels] = useState("");
   const [findMaximumLevels, setFindMaximumLevels] = useState("");
   const [findResult, setFindResult] = useState<PointObjectFindResult | null>(null);
+  const [activeFindResultId, setActiveFindResultId] = useState<PointObjectFindCandidate["sourceFeatureId"] | null>(null);
+  const [projectOverviewMarkers, setProjectOverviewMarkers] = useState<PointObjectProjectOverviewMarker[]>([]);
+  const [activeProjectMarkerId, setActiveProjectMarkerId] = useState<string | null>(null);
   const [findShortlist, setFindShortlist] = useState<PointObjectFindCandidate[]>([]);
   const [findComparisonOpen, setFindComparisonOpen] = useState(false);
   const [findAnalysisTargetSourceFeatureId, setFindAnalysisTargetSourceFeatureId] = useState<PointObjectFindCandidate["sourceFeatureId"] | null>(null);
@@ -435,6 +444,62 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
     overlayBottomInset: mobile ? sheet === "half" && viewportHeight >= 600 ? Math.min((viewportHeight - 64) / 2, viewportHeight - 284) : 164 : 0
   };
 
+  function clearCanvasForProjectOverview(markers: PointObjectProjectOverviewMarker[]) {
+    // This is intentionally limited to transient canvas state. Local saved
+    // artifacts and their exact-result receipts remain untouched.
+    clearPointObjectSelection();
+    clearPointObjectAnalysis();
+    writePointObjectQuestion("");
+    clearPointObjectFindSession();
+    findRequestIdRef.current += 1;
+    findRequestRef.current?.abort();
+    setSelection(null);
+    setQuestion("");
+    setMode("analyse");
+    setNavigationTarget(null);
+    setFindResult(null);
+    setActiveFindResultId(null);
+    setFindResultIntent(null);
+    setFindShortlist([]);
+    setFindComparisonOpen(false);
+    setFindAnalysisTargetSourceFeatureId(null);
+    setFindStatus("idle");
+    setFindSavedArtifactId(null);
+    setIsDrawing(false);
+    setDraftCoordinates([]);
+    setCreateAoi(null);
+    setCreateAoiFitRequest(null);
+    setGeneratedConcept(null);
+    setGeneratedConceptLocale(null);
+    setCreateEditorSnapshot(null);
+    setCreateSavedArtifactId(null);
+    setCreateAreaCleared(false);
+    setCreateReplacementStatus("idle");
+    setProjectOverviewMarkers(markers);
+    setActiveProjectMarkerId(null);
+  }
+
+  function exitProjectOverview() {
+    clearPointObjectProjectOverview();
+    setProjectOverviewMarkers([]);
+    setActiveProjectMarkerId(null);
+  }
+
+  async function openProjectOverviewMarker(artifactId: string): Promise<boolean> {
+    if (!projectIdentity) return false;
+    setActiveProjectMarkerId(artifactId);
+    const read = await readVerifiedPointObjectProjects(projectIdentity);
+    const artifact = read.store?.projects.flatMap((project) => project.artifacts).find((candidate) => candidate.artifactId === artifactId);
+    if (!artifact || !queuePointObjectProjectRestore(projectIdentity, artifact)) {
+      setActiveProjectMarkerId(null);
+      return false;
+    }
+    // A reload is deliberate: it consumes the exact verified artifact through
+    // the standard restore path rather than reconstructing it from a marker.
+    window.location.reload();
+    return true;
+  }
+
   useEffect(() => {
     const restoredSelection = readPointObjectSelection();
     restoredFindSessionRef.current = readPointObjectFindSession();
@@ -457,8 +522,13 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
     setCreateSavedArtifactId(null);
     createSaveContextRef.current = null;
     if (!projectIdentity) return;
-    void consumePointObjectProjectRestore(projectIdentity).then((artifact) => {
-      if (!artifact || projectIdentityRef.current !== projectIdentity) return;
+    void Promise.all([consumePointObjectProjectOverview(projectIdentity), consumePointObjectProjectRestore(projectIdentity)]).then(([overview, artifact]) => {
+      if (projectIdentityRef.current !== projectIdentity) return;
+      if (overview) {
+        clearCanvasForProjectOverview(overview);
+        return;
+      }
+      if (!artifact) return;
       setLocale(artifact.locale);
       setLocationKey(artifact.marketKey);
       if (artifact.kind === "find") {
@@ -473,6 +543,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
         setFindMinimumLevels(restored.mappedMinimumLevels);
         setFindMaximumLevels(restored.mappedMaximumLevels);
         setFindResult(restored.result);
+        setActiveFindResultId(null);
         setFindResultIntent({ audience: restored.audience, role: restored.role, scenario: restored.scenario });
         setFindShortlist(restored.shortlist);
         setFindComparisonOpen(restored.comparisonOpen);
@@ -544,6 +615,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
         ? restoredCapability.mappedLevelsPreset.maximum?.toString() ?? ""
         : restoredFind.mappedMaximumLevels);
       setFindResult(restoredIntentWasNormalized ? null : restoredFind.result);
+      setActiveFindResultId(null);
       setFindResultIntent(!restoredIntentWasNormalized && restoredFind.result ? {
         audience: restoredFind.audience,
         role: restoredFind.role,
@@ -563,6 +635,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
       setFindMinimumLevels(capability.mappedLevelsPreset.minimum?.toString() ?? "");
       setFindMaximumLevels(capability.mappedLevelsPreset.maximum?.toString() ?? "");
       setFindResult(null);
+      setActiveFindResultId(null);
       setFindResultIntent(null);
       setFindShortlist([]);
       setFindComparisonOpen(false);
@@ -611,6 +684,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
     findRequestIdRef.current += 1;
     findRequestRef.current?.abort();
     setFindStatus("idle");
+    setActiveFindResultId(null);
   }, [locale, sessionReady]);
 
   useEffect(() => {
@@ -691,13 +765,23 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
     const requestId = contextRequestId.current + 1;
     contextRequestId.current = requestId;
     const controller = new AbortController();
+    const timeoutSignal = AbortSignal.timeout(30_000);
+    const onDeadline = () => {
+      if (controller.signal.aborted || requestId !== contextRequestId.current) return;
+      setContextFailure("timeout");
+      setContextStatus("error");
+      controller.abort(timeoutSignal.reason);
+    };
+    // The UI owns its deadline state. Do not depend on a combined fetch signal
+    // rejecting promptly in every browser before allowing an explicit retry.
+    timeoutSignal.addEventListener("abort", onDeadline, { once: true });
     setContextStatus("loading");
     const timer = window.setTimeout(() => {
       void fetch("/api/prototype/point-to-object/context", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: unresolvedContextKey,
-        signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)])
+        signal: controller.signal
       }).then(async (response) => {
         const payload = await response.json() as PointObjectLiveContextResponse;
         if (controller.signal.aborted || requestId !== contextRequestId.current) return;
@@ -721,15 +805,18 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
         contextCacheRef.current.set(unresolvedContextKey, { value: resolvedObject, expiresAt: Date.now() + 5 * 60_000 });
         applyResolved(resolvedObject);
       }).catch((error: unknown) => {
-        if (controller.signal.aborted || (error instanceof DOMException && error.name === "AbortError")) return;
+        // A replaced selection is a local cancellation. A deadline can surface
+        // as AbortError too, so it must leave recoverable error state instead.
+        if (controller.signal.aborted || requestId !== contextRequestId.current) return;
         if (requestId === contextRequestId.current) {
-          setContextFailure(error instanceof Error && error.name === "TimeoutError" ? "timeout" : "unavailable");
+          setContextFailure(timeoutSignal.aborted || (error instanceof Error && error.name === "TimeoutError") ? "timeout" : "unavailable");
           setContextStatus("error");
         }
-      });
+      }).finally(() => timeoutSignal.removeEventListener("abort", onDeadline));
     }, 250);
     return () => {
       window.clearTimeout(timer);
+      timeoutSignal.removeEventListener("abort", onDeadline);
       controller.abort();
     };
   }, [unresolvedContextKey, contextRetryVersion, locale, projectIdentity]);
@@ -770,6 +857,14 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
       return;
     }
     const controller = new AbortController();
+    const timeoutSignal = AbortSignal.timeout(30_000);
+    const onDeadline = () => {
+      if (controller.signal.aborted) return;
+      setAreaContextFailure("timeout");
+      setAreaContextStatus("error");
+      controller.abort(timeoutSignal.reason);
+    };
+    timeoutSignal.addEventListener("abort", onDeadline, { once: true });
     setAreaContextStatus("loading");
     setAreaContextRetryAfterSeconds(0);
     setAreaContext(null);
@@ -777,7 +872,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ marketKey: locationKey, locale, aoiCoordinates: createAoi.coordinates }),
-      signal: AbortSignal.any([controller.signal, AbortSignal.timeout(28_000)])
+      signal: controller.signal
     }).then(async (response) => {
       const payload: unknown = await response.json();
       if (controller.signal.aborted) return;
@@ -797,15 +892,23 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
       setAreaContext(payload);
       setAreaContextStatus("idle");
     }).catch((error: unknown) => {
-      if (controller.signal.aborted || (error instanceof DOMException && error.name === "AbortError")) return;
-      setAreaContextFailure(error instanceof Error && error.name === "TimeoutError" ? "timeout" : "unavailable");
+      // Only the local cleanup cancel is silent. Deadline aborts remain
+      // actionable rather than leaving the Create panel in Loading forever.
+      if (controller.signal.aborted) return;
+      setAreaContextFailure(timeoutSignal.aborted || (error instanceof Error && error.name === "TimeoutError") ? "timeout" : "unavailable");
       setAreaContextStatus("error");
-    });
-    return () => controller.abort();
+    }).finally(() => timeoutSignal.removeEventListener("abort", onDeadline));
+    return () => {
+      timeoutSignal.removeEventListener("abort", onDeadline);
+      controller.abort();
+    };
   }, [areaContextRetryVersion, createAoi, locale, locationKey]);
 
   const handleSelection = useCallback((nextSelection: LiveMapSelection | null) => {
     clearPointObjectProjectRestore();
+    clearPointObjectProjectOverview();
+    setProjectOverviewMarkers([]);
+    setActiveProjectMarkerId(null);
     setSelection(nextSelection);
     setFindAnalysisTargetSourceFeatureId((current) => nextSelection?.object.sourceFeatureId === current ? current : null);
     if (!nextSelection) setContextStatus("idle");
@@ -829,6 +932,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
     restoreRemovedCreateRef.current = null;
     setCanRestoreRemovedCreate(false);
     clearPointObjectProjectRestore();
+    exitProjectOverview();
     pendingRestoredFindBoundsRef.current = null;
     setRestoredFindViewportBounds(null);
     setFindSavedArtifactId(null);
@@ -999,7 +1103,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
   }
 
   async function findInView() {
-    if (!visibleBounds || findRequestRef.current || findStatus === "loading" || findCapability.status === "unsupported" || findCooldownRef.current > Date.now()) return;
+    if (!isSessionResolved || !findSessionReady || !visibleBounds || findRequestRef.current || findStatus === "loading" || findCapability.status === "unsupported" || findCooldownRef.current > Date.now()) return;
     clearPointObjectProjectRestore();
     pendingRestoredFindBoundsRef.current = null;
     setRestoredFindViewportBounds(null);
@@ -1024,6 +1128,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
       if (controller.signal.aborted || requestId !== findRequestIdRef.current) return;
       if (response.ok && isPointObjectFindResult(payload)) {
         setFindResult(payload);
+        setActiveFindResultId(null);
         setFindResultIntent(requestIntent);
         setFindShortlist([]);
         setFindComparisonOpen(false);
@@ -1062,6 +1167,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
       return;
     }
     setMode("analyse");
+    setActiveFindResultId(candidate.sourceFeatureId);
     setFindAnalysisTargetSourceFeatureId(expectedSourceFeatureId);
     updateFindSavedView(findShortlist, findComparisonOpen, expectedSourceFeatureId);
     setNavigationTarget({
@@ -1075,8 +1181,22 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
     });
   }
 
+  function focusFindResult(value: string) {
+    const sourceFeatureId = exactOsmFeatureId(value);
+    if (!sourceFeatureId || !findResult?.candidates.some((candidate) => candidate.sourceFeatureId === sourceFeatureId)) return;
+    setActiveFindResultId(sourceFeatureId);
+    window.requestAnimationFrame(() => {
+      document.getElementById(`find-result-${sourceFeatureId}`)?.focus({ preventScroll: false });
+    });
+  }
+
   function changeMode(nextMode: ProductMode) {
     clearPointObjectProjectRestore();
+    exitProjectOverview();
+    // Enter the Find transition as unavailable before the sheet resize and
+    // 2D camera request can emit MapLibre's later `movestart`. Otherwise a
+    // pointerdown can land on an enabled CTA just before its click is ignored.
+    if (nextMode === "find") setMapMoving(true);
     setMode(nextMode);
     if (nextMode === "find") {
       setViewModeRequest({ requestId: `find-2d:${Date.now()}`, mode: "2d" });
@@ -1302,7 +1422,8 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
     router.push("/prototype/point-to-object/analysis");
   }
 
-  const selectionTitle = selection?.resolvedObject?.name ?? selection?.object.name ?? (selection?.object.featureClass.toLowerCase().includes("building")
+  const resolvedObjectIsNearest = selection?.resolvedObject?.coordinateAssociation === "reverse_nearest_indexed_object_not_point_in_polygon";
+  const selectionTitle = (!resolvedObjectIsNearest ? selection?.resolvedObject?.name : null) ?? selection?.object.name ?? (selection?.object.featureClass.toLowerCase().includes("building")
     ? t("selection.building")
     : selection?.object.geometry ? t("selection.object", { kind: humanize(selection.object.featureClass) }) : t("selection.location"));
   const selectionContextLabel = !selection?.resolvedObject
@@ -1326,7 +1447,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
   const findHasInvalidLevels = (findMinimumLevels !== "" && (Number(findMinimumLevels) < 1 || Number(findMinimumLevels) > 100)) ||
     (findMaximumLevels !== "" && (Number(findMaximumLevels) < 1 || Number(findMaximumLevels) > 100)) ||
     (findMinimumLevels !== "" && findMaximumLevels !== "" && Number(findMinimumLevels) > Number(findMaximumLevels));
-  const findCtaDisabled = !visibleBounds || mapMoving || findStatus === "loading" || findRetrySeconds > 0 || findCapability.status === "unsupported" || findHasInvalidLevels;
+  const findCtaDisabled = !isSessionResolved || !findSessionReady || !visibleBounds || mapMoving || findStatus === "loading" || findRetrySeconds > 0 || findCapability.status === "unsupported" || findHasInvalidLevels;
   const findFooterStatus = findStatus === "loading"
     ? (locale === "ru" ? "Ищем объекты в текущей видимой области…" : "Searching the current visible area…")
     : findStatus === "zoom"
@@ -1341,6 +1462,8 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
               ? (locale === "ru" ? "Укажите диапазон этажности от 1 до 100; минимум не должен превышать максимум." : "Enter mapped levels from 1 to 100; minimum cannot exceed maximum.")
               : findResultIsStale
                 ? (locale === "ru" ? "Карта или критерии изменились — обновите результаты." : "The map or criteria changed — update the results.")
+                : !isSessionResolved || !findSessionReady
+                  ? (locale === "ru" ? "Подготавливаем сохранённые параметры поиска…" : "Preparing saved search settings…")
                 : !visibleBounds
                   ? (locale === "ru" ? "Дождитесь загрузки области карты." : "Waiting for the visible map area.")
                   : "";
@@ -1350,7 +1473,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
       <PointObjectHeader />
       <div className={mobileStyles.shell} data-sheet={effectiveSheet} data-testid="mobile-workspace-shell">
         <section className={`${mobileStyles.map} relative overflow-hidden`} inert={mobile && effectiveSheet === "full"} aria-hidden={mobile && effectiveSheet === "full" ? true : undefined} aria-label={t("map.region")}>
-          {sessionReady ? <LiveObjectMap {...createReplacementMapProps} locationKey={locationKey} interactionMode={mode} selection={mode === "analyse" ? selection : null} navigationTarget={navigationTarget} viewModeRequest={viewModeRequest} onSelection={mode === "analyse" ? handleSelection : ignoreMapSelection} onViewportChange={handleViewportChange} onVisibleBoundsChange={handleVisibleBoundsChange} createDrawing={mode === "create" && isDrawing} createDraftCoordinates={mode === "create" ? draftCoordinates : []} createAoi={mode === "create" ? createAoi : null} createAoiFitRequest={mode === "create" ? createAoiFitRequest : null} createAreaCleared={mode === "create" && createAreaCleared} conceptMassing={mode === "create" ? activeConceptMassing : null} onCreateVertex={addCreateVertex} onReplacementStatus={setCreateReplacementStatus} className="h-full min-h-0" /> : <div className="grid h-full min-h-0 place-items-center bg-[#f4f6f7] text-sm font-medium text-[#52606a]" role="status">{t("map.loading")}</div>}
+          {sessionReady ? <LiveObjectMap {...createReplacementMapProps} locationKey={locationKey} interactionMode={mode} selection={mode === "analyse" ? selection : null} navigationTarget={navigationTarget} viewModeRequest={viewModeRequest} onSelection={mode === "analyse" ? handleSelection : ignoreMapSelection} onViewportChange={handleViewportChange} onVisibleBoundsChange={handleVisibleBoundsChange} projectMarkers={projectOverviewMarkers.map((marker, index) => ({ id: marker.artifactId, label: marker.label, longitude: marker.longitude, latitude: marker.latitude, kind: marker.kind, number: index + 1 }))} activeProjectMarkerId={activeProjectMarkerId} onProjectMarkerSelect={openProjectOverviewMarker} findResults={mode === "find" && findResult && !findResultIsStale ? findResult.candidates.map((candidate, index) => ({ id: candidate.sourceFeatureId, longitude: candidate.longitude, latitude: candidate.latitude, label: candidate.label, number: index + 1 })) : []} activeFindResultId={mode === "find" ? activeFindResultId : null} onFindResultSelect={focusFindResult} createDrawing={mode === "create" && isDrawing} createDraftCoordinates={mode === "create" ? draftCoordinates : []} createAoi={mode === "create" ? createAoi : null} createAoiFitRequest={mode === "create" ? createAoiFitRequest : null} createAreaCleared={mode === "create" && createAreaCleared} conceptMassing={mode === "create" ? activeConceptMassing : null} onCreateVertex={addCreateVertex} onCreateFinishDrawing={() => closeCreateArea()} onReplacementStatus={setCreateReplacementStatus} className="h-full min-h-0" /> : <div className="grid h-full min-h-0 place-items-center bg-[#f4f6f7] text-sm font-medium text-[#52606a]" role="status">{t("map.loading")}</div>}
           <div className="absolute left-3 top-3 z-10 flex w-[min(650px,calc(100%-4.5rem))] flex-row gap-2 sm:left-5 sm:top-5">
             <label className="flex h-11 w-fit shrink-0 items-center rounded-xl border border-white/70 bg-white/95 px-3 shadow-[0_10px_30px_rgba(20,35,45,0.14)] backdrop-blur">
               <span className="sr-only">{t("city.label")}</span>
@@ -1372,7 +1495,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
 
         {mode === "create" && isDrawing ? <div className={mobileStyles.drawTools} data-testid="create-map-drawing-tools" data-editing={Boolean(createAoi)}>
           <p className="text-xs font-semibold" aria-live="polite">{t("create.drawing", { count: draftCoordinates.length })}</p>
-          <div className="grid grid-cols-3 gap-2"><button disabled={draftCoordinates.length < 3} onClick={() => closeCreateArea()} className="rounded-lg bg-[#087f70] text-xs font-bold text-white disabled:opacity-40">{t("create.close")}</button><button disabled={!draftCoordinates.length} onClick={() => setDraftCoordinates((current) => current.slice(0, -1))}>{t("create.undo")}</button><button onClick={cancelCreateDrawing}>{t("create.cancel")}</button></div>
+          <div className="grid grid-cols-3 gap-2"><button disabled={draftCoordinates.length < 3} onClick={() => closeCreateArea()} className="rounded-lg bg-[#087f70] text-xs font-bold text-white disabled:opacity-40">{locale === "ru" ? "Завершить зону" : "Finish area"}</button><button disabled={!draftCoordinates.length} onClick={() => setDraftCoordinates((current) => current.slice(0, -1))}>{t("create.undo")}</button><button onClick={cancelCreateDrawing}>{t("create.cancel")}</button></div>
           {createError ? <p role="alert" className="text-xs text-[#79520d]">{createError}</p> : null}
         </div> : null}
         <aside id="workspace-task" className={`${mobileStyles.sheet} min-h-0 min-w-0 overflow-hidden border-l border-line bg-white`} aria-label={locale === "ru" ? "Задача" : "Task"} onKeyDown={(event) => { if (event.key === "Escape" && !event.defaultPrevented && sheet === "full") { event.stopPropagation(); showMap(); } }}>
@@ -1395,6 +1518,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
             {mode === "analyse" ? <div className="flex min-h-0 flex-1 flex-col"><section className="mt-4 shrink-0 overflow-hidden rounded-[18px] border border-line bg-[#f8fafc] p-4" data-testid="selection-card">
               {selection ? <><p className="text-[11px] font-bold uppercase tracking-[0.09em] text-[#667085]">{t("selection.selected")}</p><h2 className="mt-2 line-clamp-2 break-words text-lg font-bold tracking-[-0.02em]" data-testid="selected-object">{selectionTitle}</h2><p className="mt-1 text-sm text-muted">{humanize(selection.resolvedObject?.featureClass ?? selection.object.featureClass)}</p>
                 {selection.resolvedObject ? <p className="mt-1 text-xs font-semibold text-[#087f8c]">{selectionContextLabel}</p> : null}
+                {resolvedObjectIsNearest && selection.resolvedObject?.name ? <p className="mt-1 text-xs text-[#475467]">{locale === "ru" ? "Ближайший объект на карте" : "Nearest mapped object"}: {selection.resolvedObject.name}</p> : null}
                 {selection.resolvedObject?.address ? <p className="mt-2 line-clamp-2 text-xs leading-5 text-[#475467]">{selection.resolvedObject.address}</p> : null}
                 {contextStatus === "loading" ? <p className="mt-3 text-xs font-semibold text-[#087f8c]" role="status">{t("selection.resolving")}</p> : null}
                 {contextStatus === "error" ? <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-[#e7c47e] bg-[#fffaf0] px-3 py-2 text-xs text-[#6b4b16]" role="alert"><span>{sourceFailureMessage(contextFailure, contextRetrySeconds, locale)}</span><button type="button" disabled={contextRetrySeconds > 0} onClick={() => { if (contextCooldownRef.current > Date.now()) return; setContextStatus("loading"); setContextRetryVersion((value) => value + 1); }} className="min-h-9 shrink-0 rounded-lg border border-[#d6b36e] bg-white px-3 font-bold text-ink disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c]">{t("selection.retry")}</button></div> : null}
@@ -1438,7 +1562,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
                 </div> : <ul className="space-y-2">{findResult.candidates.map((candidate) => {
                   const selectedForComparison = findShortlist.some((item) => item.sourceFeatureId === candidate.sourceFeatureId);
                   const subtype = readableFindSubtype(candidate.matchedTag.value, candidate.group, locale);
-                  return <li key={candidate.sourceFeatureId} className="rounded-xl border border-line bg-white p-3"><button type="button" disabled={findResultMarketMismatch} onClick={() => chooseFindCandidate(candidate)} className="min-h-11 w-full text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] disabled:cursor-not-allowed disabled:opacity-40"><span className="block text-sm font-bold text-ink">{candidate.label}</span><span className="mt-1 block text-[11px] text-muted">{findGroupLabels[candidate.group]}{subtype ? ` · ${subtype}` : ""}{candidate.mappedBuildingLevels === null ? "" : ` · ${candidate.mappedBuildingLevels} ${locale === "ru" ? "эт." : "levels"}`}</span></button><button type="button" aria-pressed={selectedForComparison} disabled={!selectedForComparison && findShortlist.length >= 3} onClick={() => toggleFindShortlist(candidate)} className={`mt-2 min-h-11 rounded-lg px-3 text-[11px] font-bold transition disabled:opacity-40 ${selectedForComparison ? "bg-[#087f70] text-white" : "border border-[#8ebdb4] bg-white text-[#176548]"}`}>{selectedForComparison ? (locale === "ru" ? "Выбрано" : "Selected") : (locale === "ru" ? "В сравнение" : "Compare")}</button></li>;
+                  return <li key={candidate.sourceFeatureId} className={`rounded-xl border bg-white p-3 ${activeFindResultId === candidate.sourceFeatureId ? "border-[#087f8c] ring-2 ring-[#bfe4e2]" : "border-line"}`}><button id={`find-result-${candidate.sourceFeatureId}`} type="button" disabled={findResultMarketMismatch} onClick={() => chooseFindCandidate(candidate)} className="min-h-11 w-full text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] disabled:cursor-not-allowed disabled:opacity-40"><span className="mr-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[#e6f5f1] px-1 text-[10px] font-bold text-[#176548]">{findResult.candidates.indexOf(candidate) + 1}</span><span className="text-sm font-bold text-ink">{candidate.label}</span><span className="mt-1 block text-[11px] text-muted">{findGroupLabels[candidate.group]}{subtype ? ` · ${subtype}` : ""}{candidate.mappedBuildingLevels === null ? "" : ` · ${candidate.mappedBuildingLevels} ${locale === "ru" ? "эт." : "levels"}`}</span></button><button type="button" aria-pressed={selectedForComparison} disabled={!selectedForComparison && findShortlist.length >= 3} onClick={() => toggleFindShortlist(candidate)} className={`mt-2 min-h-11 rounded-lg px-3 text-[11px] font-bold transition disabled:opacity-40 ${selectedForComparison ? "bg-[#087f70] text-white" : "border border-[#8ebdb4] bg-white text-[#176548]"}`}>{selectedForComparison ? (locale === "ru" ? "Выбрано" : "Selected") : (locale === "ru" ? "В сравнение" : "Compare")}</button></li>;
                 })}</ul>}
               </div> : null}
               </div>
@@ -1463,13 +1587,13 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
               {!createAoi ? <section className="rounded-[18px] border border-[#cfe0da] bg-[#f4faf7] p-4">
                 {canRestoreRemovedCreate ? <button type="button" data-testid="create-undo-remove" onClick={() => { restoreRemovedCreateRef.current?.(); restoreRemovedCreateRef.current = null; setCanRestoreRemovedCreate(false); }} className="mb-3 min-h-11 w-full rounded-xl border border-[#9bbdb5] bg-white px-3 text-xs font-bold text-[#345c54]">{locale === "ru" ? "Вернуть удалённую зону" : "Undo area removal"}</button> : null}
                 <div className="grid grid-cols-2 gap-2">
-                  <button type="button" onClick={() => { setIsDrawing(true); setSheet("peek"); setCreateError(null); }} className="min-h-11 rounded-xl bg-[#087f70] px-3 text-xs font-bold text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f70] focus-visible:ring-offset-2">{draftCoordinates.length ? (locale === "ru" ? "Продолжить рисование" : "Resume drawing") : t("create.draw")}</button>
+                  <button type="button" onClick={() => { setIsDrawing(true); setSheet("peek"); setCreateError(null); }} className="min-h-11 rounded-xl bg-[#087f70] px-3 text-xs font-bold text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f70] focus-visible:ring-offset-2">{draftCoordinates.length ? (locale === "ru" ? "Редактировать контур" : "Edit drawing") : t("create.draw")}</button>
                   <label className="grid min-h-11 cursor-pointer place-items-center rounded-xl border border-[#9bbdb5] bg-white px-3 text-center text-xs font-bold text-[#345c54] focus-within:ring-2 focus-within:ring-[#087f70]"><span>{t("create.upload")}</span><input type="file" accept="application/geo+json,application/json,.geojson,.json" aria-label={t("create.upload")} onChange={(event) => void uploadCreateArea(event)} className="sr-only focus-visible:outline-none" /></label>
                 </div>
                 <button type="button" data-testid="create-use-selection" disabled={!selectedCreateVertices} onClick={() => { if (selectedCreateVertices) closeCreateArea(selectedCreateVertices, true); }} className="mt-2 min-h-11 w-full rounded-xl border border-[#9bbdb5] bg-white px-3 text-xs font-bold text-[#345c54] disabled:opacity-50">{locale === "ru" ? "Использовать выбранный объект" : "Use selected object"}</button>
                 {!selectedCreateVertices ? <p className="mt-2 text-xs text-muted">{locale === "ru" ? "Выберите объект с поддерживаемой границей или нарисуйте зону." : "Select an object with a supported boundary, or draw an area."}</p> : null}
                 <p className="mt-2 text-xs text-muted">GeoJSON · Polygon · WGS84 · ≤1 MB</p>
-                {isDrawing ? <><p className="mt-3 text-xs font-semibold text-[#345c54]">{t("create.drawing", { count: draftCoordinates.length })}</p><div className="mt-3 grid grid-cols-3 gap-2"><button type="button" disabled={draftCoordinates.length < 3} onClick={() => closeCreateArea()} className="min-h-11 rounded-lg bg-[#087f70] px-2 text-xs font-bold text-white disabled:opacity-40">{t("create.close")}</button><button type="button" disabled={!draftCoordinates.length} onClick={() => setDraftCoordinates((current) => current.slice(0, -1))} className="min-h-11 rounded-lg border border-[#b8cbc6] bg-white px-2 text-xs font-bold text-[#345c54] disabled:opacity-40">{t("create.undo")}</button><button type="button" onClick={cancelCreateDrawing} className="min-h-11 rounded-lg border border-[#b8cbc6] bg-white px-2 text-xs font-bold text-[#345c54]">{t("create.cancel")}</button></div></> : null}
+                {isDrawing ? <><p className="mt-3 text-xs font-semibold text-[#345c54]">{t("create.drawing", { count: draftCoordinates.length })}</p><div className="mt-3 grid grid-cols-3 gap-2"><button type="button" disabled={draftCoordinates.length < 3} onClick={() => closeCreateArea()} className="min-h-11 rounded-lg bg-[#087f70] px-2 text-xs font-bold text-white disabled:opacity-40">{locale === "ru" ? "Завершить зону" : "Finish area"}</button><button type="button" disabled={!draftCoordinates.length} onClick={() => setDraftCoordinates((current) => current.slice(0, -1))} className="min-h-11 rounded-lg border border-[#b8cbc6] bg-white px-2 text-xs font-bold text-[#345c54] disabled:opacity-40">{t("create.undo")}</button><button type="button" onClick={cancelCreateDrawing} className="min-h-11 rounded-lg border border-[#b8cbc6] bg-white px-2 text-xs font-bold text-[#345c54]">{t("create.cancel")}</button></div></> : null}
                 {createError ? <p className="mt-3 rounded-lg border border-[#e6bd74] bg-[#fff9ed] px-3 py-2 text-xs text-[#79520d]" role="alert">{createError}</p> : null}
               </section> : <><p className="rounded-xl border border-[#cfe0da] bg-[#f4faf7] px-4 py-3 text-xs font-bold text-[#345c54]">{t("create.ready", { area: createAoi.areaSqM >= 10_000 ? `${(createAoi.areaSqM / 10_000).toFixed(2)} ${locale === "ru" ? "га" : "ha"}` : `${Math.round(createAoi.areaSqM).toLocaleString(locale)} ${locale === "ru" ? "м²" : "m²"}` })}</p>
                 <section className="rounded-[18px] border border-line bg-[#f8fafc] p-4" aria-live="polite">
@@ -1486,6 +1610,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
                   {areaContext ? <><div className="mt-3 grid grid-cols-3 gap-2"><div className="rounded-lg bg-white p-2"><span className="block text-[10px] text-muted">{locale === "ru" ? "Объекты на карте" : "Mapped objects"}</span><strong className="mt-1 block text-sm">{areaContext.summary.sampleSize}</strong></div><div className="rounded-lg bg-white p-2"><span className="block text-[10px] text-muted">{locale === "ru" ? "Здания на карте" : "Mapped buildings"}</span><strong className="mt-1 block text-sm">{areaContext.summary.mappedBuildingCount}</strong></div><div className="rounded-lg bg-white p-2"><span className="block text-[10px] text-muted">{locale === "ru" ? "Медиана этажей" : "Median levels"}</span><strong className="mt-1 block text-sm">{areaContext.summary.medianMappedLevels ?? "—"}</strong></div></div><div className="mt-3 flex flex-wrap gap-1.5">{areaContext.summary.groups.slice(0, 5).map((group) => <span key={group.group} className="rounded-full bg-white px-2.5 py-1 text-[10px] font-semibold text-[#475467] ring-1 ring-inset ring-[#d7dee4]">{areaGroupLabels[group.group]} · {group.count}</span>)}</div>{areaContext.coverage.capReached ? <p className="mt-3 text-[10px] font-semibold leading-4 text-[#79520d]">{locale === "ru" ? "Нарисуйте меньшую зону, чтобы сузить список объектов на карте." : "Draw a smaller area to narrow the mapped objects."}</p> : null}</> : null}
                 </section>
                 <PointObjectCreatePanel locale={locale} marketKey={locationKey} aoi={createAoi} depth="standard" generated={generatedConcept} generatedLocale={generatedConceptLocale} editorSnapshot={createEditorSnapshot} onEditorSnapshotChange={setCreateEditorSnapshot} activeAlternativeId={activeCreateAlternativeId} onGenerationStart={() => { clearPointObjectProjectRestore(); setCreateSavedArtifactId(null); const identityKey = projectIdentityRef.current; createSaveContextRef.current = identityKey ? { identityKey, destination: capturePointObjectProjectDestination(identityKey, { label: locale === "ru" ? "Созданная концепция" : "Generated concept" }), aoi: structuredClone(createAoi), editorSnapshot: structuredClone(createEditorSnapshot), locale, marketKey: locationKey, areaContext: structuredClone(areaContext) } : null; }} onGenerated={(concept, committedEditorSnapshot) => { const saveContext = createSaveContextRef.current; const committedSaveContext = saveContext ? { ...saveContext, editorSnapshot: structuredClone(committedEditorSnapshot) } : null; setCreateEditorSnapshot(committedEditorSnapshot); setGeneratedConcept(concept); setGeneratedConceptLocale(locale); setActiveCreateAlternativeId("A"); setCreateReplacementStatus("idle"); setCreateAreaCleared(true); setCreateReplacementRevision((revision) => revision + 1); void saveCreateArtifact(concept, "A", committedSaveContext); }} onAlternativeChange={(id) => { setActiveCreateAlternativeId(id); setCreateReplacementStatus("idle"); setCreateAreaCleared(true); setCreateReplacementRevision((revision) => revision + 1); const identityKey = projectIdentityRef.current; if (identityKey && createSavedArtifactId) void updatePointObjectCreateViewState(identityKey, createSavedArtifactId, id); }} onReset={() => { clearPointObjectProjectRestore(); createSaveContextRef.current = null; setCreateSavedArtifactId(null); setGeneratedConcept(null); setGeneratedConceptLocale(null); setActiveCreateAlternativeId("A"); setCreateAreaCleared(false); setCreateReplacementStatus("idle"); setCreateReplacementRevision(0); }} />
+                {generatedConcept ? <button type="button" data-testid="create-show-result-on-map" onClick={() => { setCreateAreaCleared(true); setSheet("peek"); }} className="min-h-11 w-full rounded-xl bg-[#087f8c] px-3 text-sm font-bold text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] focus-visible:ring-offset-2">{locale === "ru" ? "Показать результат на карте" : "Show result on map"}</button> : null}
                 {createAreaCleared && createReplacementStatus !== "applied" ? (
                   <p className={`rounded-xl border px-3 py-2 text-[10px] leading-4 ${createReplacementStatus === "error" ? "border-[#e6bd74] bg-[#fff9ed] text-[#79520d]" : "border-[#d8e2df] bg-[#f8faf9] text-[#62716d]"}`} role="status">
                     {createReplacementStatus === "zoom-required"

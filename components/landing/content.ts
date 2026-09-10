@@ -88,9 +88,9 @@ export const landingContent: Record<PointObjectLocale, LandingContent> = {
       previewLabel: "GeoAI workspace · Dubai",
       objectActions: "Choose an action for the selected place",
       objectActionLabels: ["Analyse", "Find", "Create"],
-      previewCaption: "A selected building in Dubai Trade Centre, captured in GeoAI. Open the map to explore.",
+      previewCaption: "A selected mapped building in Dubai, captured in GeoAI.",
       previewAlt:
-        "A real three-dimensional map of Dubai Trade Centre with a selected building highlighted in teal"
+        "A real three-dimensional map of Dubai with a selected building highlighted in teal"
     },
     workflow: {
       eyebrow: "What you can do",
@@ -215,8 +215,8 @@ export const landingContent: Record<PointObjectLocale, LandingContent> = {
       previewLabel: "Рабочее пространство GeoAI · Дубай",
       objectActions: "Выберите действие с объектом",
       objectActionLabels: ["Анализ", "Поиск", "Генерация"],
-      previewCaption: "Выбранное здание в Dubai Trade Centre на снимке из GeoAI. Откройте карту, чтобы изучить район.",
-      previewAlt: "Реальная трёхмерная карта Dubai Trade Centre: выбранное здание выделено бирюзовым"
+      previewCaption: "Выбранное здание на карте Dubai, снято в GeoAI.",
+      previewAlt: "Реальная трёхмерная карта Dubai: выбранное здание выделено бирюзовым"
     },
     workflow: {
       eyebrow: "Что можно сделать",

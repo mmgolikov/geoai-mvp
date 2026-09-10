@@ -266,14 +266,14 @@ for (const marker of [
   'aria-label="Mobile product navigation"',
   'aria-controls="mobile-product-navigation-menu"',
   'aria-current={isCurrent ? "page" : undefined}',
-  'href: "/workspace"',
+  'href: "/prototype/point-to-object"',
   'href: "/projects"',
   "triggerRef.current?.focus()"
 ]) requireText(productNavigation, marker, `Product navigation component is missing ${marker}`);
 
 
 for (const marker of [
-  'canonicalProductRoute: "/workspace"',
+  'canonicalProductRoute: "/prototype/point-to-object"',
   'compatibilityRoute: "/explore"',
   'name: "Criteria-first"',
   'name: "Compare Candidates"',

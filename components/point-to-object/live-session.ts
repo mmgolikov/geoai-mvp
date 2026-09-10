@@ -372,13 +372,19 @@ export function parsePointObjectSelection(value: unknown): LiveMapSelection | nu
     const renderMinHeightM = value.object.renderMinHeightM === null || value.object.renderMinHeightM === undefined
       ? null
       : finiteNumber(value.object.renderMinHeightM, 0, 1_500);
+    const geometryProvenance = value.object.geometryProvenance === undefined
+      ? undefined
+      : value.object.geometryProvenance === "rendered_tile_polygon_member"
+        ? value.object.geometryProvenance
+        : null;
     if (!point || !center || !clickedAt || !featureClass ||
         typeof value.viewport.zoom !== "number" || !Number.isFinite(value.viewport.zoom) ||
         value.viewport.zoom < 0 || value.viewport.zoom > 24 ||
         (value.object.name !== null && name === null) ||
         (value.object.sourceFeatureId !== null && sourceFeatureId === null) ||
         (value.object.renderHeightM !== null && value.object.renderHeightM !== undefined && renderHeightM === null) ||
-        (value.object.renderMinHeightM !== null && value.object.renderMinHeightM !== undefined && renderMinHeightM === null)) return null;
+        (value.object.renderMinHeightM !== null && value.object.renderMinHeightM !== undefined && renderMinHeightM === null) ||
+        geometryProvenance === null) return null;
     const restoredGeometry = value.object.geometry === null ? null : geometry(value.object.geometry);
     if (value.object.geometry !== null && restoredGeometry === null) return null;
     const nearbyLabels = Array.isArray(value.nearbyLabels)
@@ -409,7 +415,7 @@ export function parsePointObjectSelection(value: unknown): LiveMapSelection | nu
       longitude: point[0],
       latitude: point[1],
       clickedAt,
-      object: { name, featureClass, sourceFeatureId, geometry: restoredGeometry, renderHeightM, renderMinHeightM },
+      object: { name, featureClass, sourceFeatureId, geometry: restoredGeometry, renderHeightM, renderMinHeightM, ...(geometryProvenance ? { geometryProvenance } : {}) },
       resolvedObject: restoredResolvedObject,
       viewport: { center, zoom: value.viewport.zoom, pitch, bearing, viewMode, basemapId },
       provider: "OpenFreeMap / OpenStreetMap",

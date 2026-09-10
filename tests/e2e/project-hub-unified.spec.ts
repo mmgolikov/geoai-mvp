@@ -62,7 +62,7 @@ test("unified Hub counts verified results, searches, filters, sorts and fits EN/
   await expect(hub.getByText(/Data readiness|Saved spatial work|B2B|B2C/)).toHaveCount(0);
   await expect(hub.getByText(/Cloud sync|Completed Analyse|Storage mode/)).toHaveCount(0);
   await expect(hub.getByText("Saved on this device", { exact: true })).toHaveCount(1);
-  await expect(hub.getByTestId("saved-result-card").getByRole("button", { name: "Open", exact: true })).toHaveCount(2);
+  await expect(hub.getByTestId("saved-result-card").getByRole("button", { name: "Show on map", exact: true })).toHaveCount(2);
   await expect(hub.getByTestId("saved-result-card").first()).toContainText("Zulu result");
   await hub.getByRole("combobox", { name: "Sort", exact: true }).selectOption("oldest");
   await expect(hub.getByTestId("saved-result-card").first()).toContainText("Alpha result");

@@ -3,6 +3,33 @@ export const POINT_OBJECT_TRUSTED_IDENTITY_MAX_BBOX_SPAN_M = 5_000 as const;
 
 export type PointObjectResolutionMethod = "nominatim_reverse" | "nominatim_lookup";
 
+/** Only the identity attached to the user's original selection may pin a lookup.
+ * A reverse-resolved neighbour is context, never an upgrade of that selection.
+ */
+export function pointObjectSelectedLookupId(selection: { object: { sourceFeatureId: string | null } } | null): string | null {
+  const id = selection?.object.sourceFeatureId;
+  return typeof id === "string" && /^(node|way|relation)\/[1-9]\d*$/.test(id) ? id : null;
+}
+
+export function pointObjectHasSelectedIdentity(
+  selection: { object: { sourceFeatureId: string | null } } | null,
+  subject: { sourceFeatureId: string; coordinateAssociation: string } | null
+): boolean {
+  const selectedId = pointObjectSelectedLookupId(selection);
+  return selectedId !== null && subject?.coordinateAssociation === "trusted_open_map_identity" && subject.sourceFeatureId === selectedId;
+}
+
+/** Shared display/save naming policy; reverse neighbours never name the
+ * selected geometry or its saved project. Existing receipt bytes stay intact. */
+export function pointObjectSelectionLabel(
+  selection: { object: { sourceFeatureId: string | null; name: string | null } } | null,
+  subject: { sourceFeatureId: string; coordinateAssociation: string; name: string | null } | null,
+  fallback: string
+): string {
+  const related = subject?.coordinateAssociation === "open_map_geometry_contains_point" || pointObjectHasSelectedIdentity(selection, subject);
+  return (related ? subject?.name ?? selection?.object.name : selection?.object.name) ?? fallback;
+}
+
 export type PointObjectLookupAssociation =
   | "open_map_geometry_contains_point"
   | "reverse_nearest_indexed_object_not_point_in_polygon"

@@ -381,14 +381,17 @@ const fakeMap = { getLayer: () => true, setFilter: () => {}, setLayoutProperty: 
 // The helper depends only on this native layer identifier, not React or a DOM.
 const applyNativeHighlight = new Function("BUILDINGS_3D_LAYER_ID", "HIGHLIGHT_NATIVE_FILL_LAYER_ID", "buildPointObjectNativeSelectionOutside", `${stripTypeScriptTypes(highlightFunctions)}; return setSelectedVolumeVisibility;`)("geoai-buildings-3d", "geoai-live-native-selection-fill", buildPointObjectNativeSelectionOutside);
 const highlighted = { object: { sourceFeatureId: "901", geometry: plan.aoi, renderHeightM: 42, renderMinHeightM: 4 } };
+const selectedNativeProperties = { render_height: 42, render_min_height: 4 };
 applyNativeHighlight(fakeMap, highlighted, "3d", true);
 assert.equal(nativeColor[0], "case");
-assert.equal(mapLibreKeeps(nativeColor[1], insideBuilding, { id: 901 }), true, "Native selected feature must receive highlight color");
-assert.equal(mapLibreKeeps(nativeColor[1], outsideLandmark, { id: 901 }), false, "A distant reused ID must not receive highlight color");
-assert.equal(mapLibreKeeps(nativeColor[1], insideBuilding, { id: 902 }), false, "A different feature must not receive highlight color");
-assert.equal(mapLibreKeeps(nativeColor[1], rectangle(55.273, 25.205, 55.274, 25.206), { id: 901 }), false, "An edge-touching reused ID must remain native");
-assert.equal(mapLibreKeeps(nativeColor[1], rectangle(55.273, 25.208, 55.274, 25.209), { id: 901 }), false, "A vertex-touching reused ID must remain native");
-assert.equal(mapLibreKeeps(nativeColor[1], multiPolygon(insideBuilding, outsideLandmark), { id: 901 }), false, "A mixed multipart feature sharing the selected component must remain native whole");
+assert.equal(mapLibreKeeps(nativeColor[1], insideBuilding, { id: 901, properties: selectedNativeProperties }), true, "Native selected feature must receive highlight color");
+assert.equal(mapLibreKeeps(nativeColor[1], insideBuilding, { id: 901, properties: { render_height: 65, render_min_height: 4 } }), false, "An overlapping reused ID with a different source height must stay native");
+assert.equal(mapLibreKeeps(nativeColor[1], insideBuilding, { id: 901, properties: { render_height: 42, render_min_height: 0 } }), false, "An overlapping reused ID with a different source base must stay native");
+assert.equal(mapLibreKeeps(nativeColor[1], outsideLandmark, { id: 901, properties: selectedNativeProperties }), false, "A distant reused ID must not receive highlight color");
+assert.equal(mapLibreKeeps(nativeColor[1], insideBuilding, { id: 902, properties: selectedNativeProperties }), false, "A different feature must not receive highlight color");
+assert.equal(mapLibreKeeps(nativeColor[1], rectangle(55.273, 25.205, 55.274, 25.206), { id: 901, properties: selectedNativeProperties }), false, "An edge-touching reused ID must remain native");
+assert.equal(mapLibreKeeps(nativeColor[1], rectangle(55.273, 25.208, 55.274, 25.209), { id: 901, properties: selectedNativeProperties }), false, "A vertex-touching reused ID must remain native");
+assert.equal(mapLibreKeeps(nativeColor[1], multiPolygon(insideBuilding, outsideLandmark), { id: 901, properties: selectedNativeProperties }), false, "A mixed multipart feature sharing the selected component must remain native whole");
 const selectedMultipart = multiPolygon(...[insideBuilding, outsideLandmark].map(polygon => nativeRoundTrip(polygon, canonicalForPosition(firstGeometryPosition(polygon), 14))));
 const clippedCourtyard = { type: "Polygon", coordinates: [
   [[55.28279995545745,25.21370005073568],[55.28279995545745,25.214399989082438],[55.28321385383606,25.214399989082438],[55.28321385383606,25.21370005073568],[55.28279995545745,25.21370005073568]],
@@ -397,10 +400,12 @@ const clippedCourtyard = { type: "Polygon", coordinates: [
 assert.equal(validatePointObjectReplacementAoi(clippedCourtyard).valid, false, "Create input validation must remain strict on boundary-touching holes");
 assert(buildPointObjectNativeSelectionOutside(clippedCourtyard), "Native clipped courtyard may separate coincident tile edges within the bounded tolerance");
 applyNativeHighlight(fakeMap, { object: { ...highlighted.object, geometry: selectedMultipart } }, "3d", true);
-assert.equal(mapLibreKeeps(nativeColor[1], selectedMultipart, { id: 901 }), true, "Selected multipart components must all retain native highlighting");
-assert.equal(mapLibreKeeps(nativeColor[1], { type: "Polygon", coordinates: selectedMultipart.coordinates[0] }, { id: 901 }), true, "A native tile fragment contained in one selected component may be highlighted");
+assert.equal(mapLibreKeeps(nativeColor[1], selectedMultipart, { id: 901, properties: selectedNativeProperties }), true, "Selected multipart components must all retain native highlighting");
+assert.equal(mapLibreKeeps(nativeColor[1], { type: "Polygon", coordinates: selectedMultipart.coordinates[0] }, { id: 901, properties: selectedNativeProperties }), true, "A native tile fragment contained in one selected component may be highlighted");
 applyNativeHighlight(fakeMap, highlighted, "3d", false);
 assert.equal(nativeColor, "#d6dcdf", "Volume toggle must restore native source color");
+applyNativeHighlight(fakeMap, { object: { ...highlighted.object, geometryProvenance: "rendered_tile_polygon_member" } }, "3d", true);
+assert.equal(nativeColor, "#d6dcdf", "A selected tile member must not recolor its entire aggregated native feature");
 applyNativeHighlight(fakeMap, highlighted, "2d", true);
 assert.equal(nativeColor, "#d6dcdf", "2D must not color a hidden native extrusion");
 applyNativeHighlight(fakeMap, { object: { ...highlighted.object, sourceFeatureId: null } }, "3d", true);

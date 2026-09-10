@@ -115,10 +115,10 @@ test.describe("commercial Landing and Account visual acceptance", () => {
       await expect(page.getByRole("heading", { level: 1, name: "Turn a location into a decision path." })).toBeVisible();
       await expect(page.locator('header img[src="/brand/geoai-identity-symbol-32.svg"]')).toBeVisible();
       const landingPreview = page.getByRole("img", {
-        name: "A real three-dimensional map of Dubai Trade Centre with a selected building highlighted in teal"
+        name: "A real three-dimensional map of Dubai with a selected building highlighted in teal"
       });
       await expect(landingPreview).toBeVisible();
-      await expect.poll(() => landingPreview.evaluate((image: HTMLImageElement) => decodeURIComponent(image.currentSrc))).toMatch(new RegExp(`sprint06-selected-site-${viewport.width <= 620 ? "narrow" : "wide"}\\.png`));
+      await expect.poll(() => landingPreview.evaluate((image: HTMLImageElement) => decodeURIComponent(image.currentSrc))).toMatch(/sprint07-workspace-capture\.png/);
       const previewDimensions = await landingPreview.evaluate((image) => ({
         naturalHeight: (image as HTMLImageElement).naturalHeight,
         naturalWidth: (image as HTMLImageElement).naturalWidth

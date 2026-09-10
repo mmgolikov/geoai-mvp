@@ -1,4 +1,9 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
+import { installLocalWebKitHttpCsp } from "./helpers/local-webkit-csp";
+
+test.beforeEach(async ({ page, browserName }, testInfo) => {
+  await installLocalWebKitHttpCsp(page, browserName, testInfo.project.use.baseURL);
+});
 
 const sha256 = "a".repeat(64);
 const acquiredAt = "2026-09-04T09:00:00.000Z";
@@ -335,52 +340,53 @@ async function signInDemo(page: Page, nextPath: string) {
 
 async function expectFindDrawerGeometry(page: Page, checkMapAlignment = false) {
   const drawer = page.getByTestId("find-drawer");
-  const scrollRegion = page.getByTestId("find-scroll-region");
   const footer = page.getByTestId("find-sticky-footer");
   const cta = page.getByTestId("find-search-cta");
-  await expect(drawer).toBeVisible();
-  await expect(footer).toBeVisible();
-  await expect(cta).toBeVisible();
-  const geometry = await drawer.evaluate((element) => {
-    const scroll = element.querySelector<HTMLElement>('[data-testid="find-scroll-region"]');
-    const localFooter = element.querySelector<HTMLElement>('[data-testid="find-sticky-footer"]');
-    const localCta = element.querySelector<HTMLElement>('[data-testid="find-search-cta"]');
-    if (!scroll || !localFooter || !localCta) throw new Error("Find drawer geometry targets are missing.");
-    const drawerRect = element.getBoundingClientRect();
-    const scrollRect = scroll.getBoundingClientRect();
-    const footerRect = localFooter.getBoundingClientRect();
-    const ctaRect = localCta.getBoundingClientRect();
-    const scrollOwners = [...element.querySelectorAll<HTMLElement>("*")].filter((candidate) => {
-      const overflowY = getComputedStyle(candidate).overflowY;
-      return candidate.getClientRects().length > 0 && (overflowY === "auto" || overflowY === "scroll");
+  await expect(async () => {
+    await expect(drawer).toBeVisible();
+    await expect(footer).toBeVisible();
+    await expect(cta).toBeVisible();
+    const geometry = await drawer.evaluate((element) => {
+      const scroll = element.querySelector<HTMLElement>('[data-testid="find-scroll-region"]');
+      const localFooter = element.querySelector<HTMLElement>('[data-testid="find-sticky-footer"]');
+      const localCta = element.querySelector<HTMLElement>('[data-testid="find-search-cta"]');
+      if (!scroll || !localFooter || !localCta) throw new Error("Find drawer geometry targets are missing.");
+      const drawerRect = element.getBoundingClientRect();
+      const scrollRect = scroll.getBoundingClientRect();
+      const footerRect = localFooter.getBoundingClientRect();
+      const ctaRect = localCta.getBoundingClientRect();
+      const scrollOwners = [...element.querySelectorAll<HTMLElement>("*")].filter((candidate) => {
+        const overflowY = getComputedStyle(candidate).overflowY;
+        return candidate.getClientRects().length > 0 && (overflowY === "auto" || overflowY === "scroll");
+      });
+      const visibleTargets = [...element.querySelectorAll<HTMLElement>("button, select, input, summary")].filter((candidate) => {
+        const rect = candidate.getBoundingClientRect();
+        const style = getComputedStyle(candidate);
+        return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
+      });
+      return {
+        drawerBottom: drawerRect.bottom,
+        scrollBottom: scrollRect.bottom,
+        footerTop: footerRect.top,
+        footerBottom: footerRect.bottom,
+        ctaHeight: ctaRect.height,
+        scrollOwnerCount: scrollOwners.length,
+        smallestTargetHeight: Math.min(...visibleTargets.map((candidate) => candidate.getBoundingClientRect().height))
+      };
     });
-    const visibleTargets = [...element.querySelectorAll<HTMLElement>("button, select, input, summary")].filter((candidate) => {
-      const rect = candidate.getBoundingClientRect();
-      const style = getComputedStyle(candidate);
-      return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
-    });
-    return {
-      drawerBottom: drawerRect.bottom,
-      scrollBottom: scrollRect.bottom,
-      footerTop: footerRect.top,
-      footerBottom: footerRect.bottom,
-      ctaHeight: ctaRect.height,
-      scrollOwnerCount: scrollOwners.length,
-      smallestTargetHeight: Math.min(...visibleTargets.map((candidate) => candidate.getBoundingClientRect().height))
-    };
-  });
-  expect(geometry.footerBottom).toBeLessThanOrEqual(geometry.drawerBottom + 1);
-  expect(geometry.scrollBottom).toBeLessThanOrEqual(geometry.footerTop + 1);
-  expect(geometry.scrollOwnerCount).toBe(1);
-  expect(geometry.ctaHeight).toBeGreaterThanOrEqual(44);
-  expect(geometry.smallestTargetHeight).toBeGreaterThanOrEqual(44);
-  if (checkMapAlignment) {
-    const ctaBox = await cta.boundingBox();
-    const dimensionButtonBox = await page.getByTestId("map-dimension-control").getByRole("button").first().boundingBox();
-    expect(ctaBox).not.toBeNull();
-    expect(dimensionButtonBox).not.toBeNull();
-    expect(Math.abs((ctaBox?.y ?? 0) + (ctaBox?.height ?? 0) - (dimensionButtonBox?.y ?? 0) - (dimensionButtonBox?.height ?? 0))).toBeLessThanOrEqual(2);
-  }
+    expect(geometry.footerBottom).toBeLessThanOrEqual(geometry.drawerBottom + 1);
+    expect(geometry.scrollBottom).toBeLessThanOrEqual(geometry.footerTop + 1);
+    expect(geometry.scrollOwnerCount).toBe(1);
+    expect(geometry.ctaHeight).toBeGreaterThanOrEqual(44);
+    expect(geometry.smallestTargetHeight).toBeGreaterThanOrEqual(44);
+    if (checkMapAlignment) {
+      const ctaBox = await cta.boundingBox();
+      const dimensionButtonBox = await page.getByTestId("map-dimension-control").getByRole("button").first().boundingBox();
+      expect(ctaBox).not.toBeNull();
+      expect(dimensionButtonBox).not.toBeNull();
+      expect(Math.abs((ctaBox?.y ?? 0) + (ctaBox?.height ?? 0) - (dimensionButtonBox?.y ?? 0) - (dimensionButtonBox?.height ?? 0))).toBeLessThanOrEqual(2);
+    }
+  }).toPass({ timeout: 5_000 });
 }
 
 test("SOURCE10 context quota ends resolving, preserves the question and retries only on demand", async ({ page }) => {
@@ -880,14 +886,14 @@ test("V5.1 keeps exact identity and the complete Find comparison flow coherent o
   ]) {
     await page.setViewportSize(viewport);
     await expect(page.getByTestId("saved-project-card").first()).toBeVisible();
-    await expect(page.getByRole("button", { name: "Open", exact: true }).first()).toBeVisible();
+    await expect(page.getByRole("button", { name: "Show on map", exact: true }).first()).toBeVisible();
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   }
   await page.getByRole("button", { name: "ru", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Центр проектов" })).toBeVisible();
   await expect(page.getByText("Сохранено на этом устройстве", { exact: true })).toBeVisible();
   await page.setViewportSize({ width: 1280, height: 900 });
-  await page.getByRole("button", { name: "Открыть", exact: true }).first().click();
+  await page.getByRole("button", { name: "Показать на карте", exact: true }).first().click();
   await expect(page).toHaveURL(/\/prototype\/point-to-object$/);
   await expect(page.getByRole("tab", { name: "Find", exact: true })).toHaveAttribute("aria-selected", "true");
   await expect(page.getByTestId("find-comparison-grid").getByRole("article")).toHaveCount(2);
@@ -1039,7 +1045,7 @@ test("empty saved Find restores its query viewport without a fabricated selectio
   await expect(page.getByRole("button", { name: "3d", exact: true })).toHaveAttribute("aria-pressed", "true");
   await page.goto("/projects");
   const priorSelection = await page.evaluate(() => JSON.parse(sessionStorage.getItem("geoai:point-to-object:selection:v3")!));
-  await page.getByRole("button", { name: "Open", exact: true }).click();
+  await page.getByRole("button", { name: "Show on map", exact: true }).click();
   await expect(page).toHaveURL(/\/prototype\/point-to-object$/);
   await expect(page.locator(".maplibregl-canvas")).toBeVisible();
   await expect(page.getByText("No matches for these filters.", { exact: true })).toBeVisible();
@@ -1195,7 +1201,7 @@ test("Create A/B and mobile profile remain coherent offline", async ({ page }, t
   })).toBe(true);
   await page.goto("/projects?view=spatial");
   await expect(page.getByTestId("hub-count-create").getByTestId("hub-count-value")).toHaveText("1");
-  await page.getByRole("button", { name: "Open", exact: true }).first().click();
+  await page.getByRole("button", { name: "Show on map", exact: true }).first().click();
   await expect(page).toHaveURL(/\/prototype\/point-to-object$/);
   await expect(page.getByRole("tab", { name: "Create", exact: true })).toHaveAttribute("aria-selected", "true");
   await expect(page.getByTestId("generated-concept-summary")).toBeVisible();
@@ -1244,7 +1250,7 @@ test("Create A/B and mobile profile remain coherent offline", async ({ page }, t
   })).toBe(2);
   await page.goto("/projects?view=spatial");
   await page.getByRole("button", { name: "en", exact: true }).click();
-  await page.getByRole("button", { name: "Open", exact: true }).first().click();
+  await page.getByRole("button", { name: "Show on map", exact: true }).first().click();
   await expect(page.getByRole("tab", { name: "Создать", exact: true })).toHaveAttribute("aria-selected", "true");
   expect(createPostRequests).toHaveLength(createCallsBeforeLocaleReopens);
   await page.reload();
@@ -1252,7 +1258,7 @@ test("Create A/B and mobile profile remain coherent offline", async ({ page }, t
   expect(createPostRequests).toHaveLength(createCallsBeforeLocaleReopens);
   await page.goBack();
   await expect(page.getByRole("heading", { name: "Центр проектов" })).toBeVisible();
-  await page.getByRole("button", { name: "Открыть", exact: true }).nth(1).click();
+  await page.getByRole("button", { name: "Показать на карте", exact: true }).nth(1).click();
   await expect(page.getByRole("tab", { name: "Create", exact: true })).toHaveAttribute("aria-selected", "true");
   expect(createPostRequests).toHaveLength(createCallsBeforeLocaleReopens);
   await page.getByTestId("create-clear-generated").click();

@@ -183,6 +183,16 @@ export function readPointObjectFindSession(): PointObjectFindSessionState | null
   }
 }
 
+/** Clears only the transient canvas session. Saved project artifacts are retained separately. */
+export function clearPointObjectFindSession(): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // The overview remains usable when browser session storage is unavailable.
+  }
+}
+
 export function pointObjectFindSessionForProfileAudience(
   state: PointObjectFindSessionState | null,
   profileAudience: ExploreAudience

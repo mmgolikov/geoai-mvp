@@ -1,0 +1,26 @@
+.meter {
+  display: block;
+  width: 100%;
+  height: 6px;
+  appearance: none;
+  border: 0;
+  background: #e8eff0;
+  border-radius: 4px;
+}
+
+.meter::-webkit-meter-bar {
+  background: #e8eff0;
+  border: 0;
+  border-radius: 4px;
+  box-shadow: none;
+}
+
+.meter::-webkit-meter-optimum-value {
+  background: #087f8c;
+  border-radius: 4px;
+}
+
+.meter::-moz-meter-bar {
+  background: #087f8c;
+  border-radius: 4px;
+}
