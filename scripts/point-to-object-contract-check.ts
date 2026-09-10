@@ -2772,8 +2772,15 @@ async function assertLiveOverpassContext(): Promise<void> {
   const trustedIdentityModuleUrl = pathToFileURL(
     path.join(ROOT, "src/lib/prototype/point-to-object-trusted-identity.ts")
   ).href;
+  const sourceRecoveryModuleUrl = pathToFileURL(
+    path.join(ROOT, "src/lib/prototype/point-to-object-source-recovery.ts")
+  ).href;
   const liveEvidence = await importErasableTypeScript(liveEvidencePath, [
     [/import "server-only";\n/, ""],
+    [
+      /from "\.\/point-to-object-source-recovery";/,
+      `from ${JSON.stringify(sourceRecoveryModuleUrl)};`
+    ],
     [
       /import \{ unstable_cache \} from "next\/cache";\n/,
       "const unstable_cache = (callback) => callback;\n"
