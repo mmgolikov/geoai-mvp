@@ -127,7 +127,7 @@ test.describe("commercial Landing and Account visual acceptance", () => {
       expect(previewDimensions.naturalHeight).toBeGreaterThanOrEqual(190);
       const hero = page.locator("main > section").first();
       await expect(hero.getByRole("link", { name: "Open map", exact: true }).filter({ hasText: /^Open map$/ })).toHaveAttribute("href", "/prototype/point-to-object");
-      await expect(hero.getByRole("link", { name: "Projects", exact: true })).toHaveAttribute("href", "/projects?view=spatial");
+      await expect(hero.getByRole("link", { name: "Leave a request", exact: true })).toHaveAttribute("href", "/request-access");
       await expectNoHorizontalOverflow(page);
       await captureCommercialVisual(page, `${viewport.name} Landing`, `landing-${viewport.name}.png`);
 

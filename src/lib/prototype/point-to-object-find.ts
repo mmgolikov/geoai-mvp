@@ -1,6 +1,7 @@
 import "server-only";
 
 import { unstable_cache } from "next/cache";
+import { sourceRetryAfterSeconds, waitForSourceAdmission } from "./point-to-object-source-recovery";
 
 import { semanticHash } from "@/src/lib/point-to-object/hash";
 import {
@@ -16,7 +17,8 @@ import {
 } from "./point-to-object-find-contract";
 
 const OVERPASS_ENDPOINT = "https://overpass-api.de/api/interpreter";
-const OVERPASS_TIMEOUT_MS = 6_000;
+// Public Overpass admission can queue for 15s before the unchanged 5s query budget.
+const OVERPASS_TIMEOUT_MS = 24_000;
 const OVERPASS_RESPONSE_MAX_BYTES = 512 * 1024;
 const OVERPASS_REVALIDATE_SECONDS = 15 * 60;
 const OVERPASS_MIN_INTERVAL_MS = 1_200;
@@ -37,7 +39,8 @@ export class PointObjectFindError extends Error {
     public readonly code: PointObjectFindErrorCode,
     public readonly httpStatus: number,
     message: string,
-    public readonly retryable: boolean
+    public readonly retryable: boolean,
+    public readonly retryAfterSeconds?: number
   ) {
     super(message);
     this.name = "PointObjectFindError";
@@ -47,7 +50,7 @@ export class PointObjectFindError extends Error {
 let overpassGate: Promise<void> = Promise.resolve();
 let lastOverpassDispatchAt = 0;
 
-async function waitForOverpassSlot(): Promise<void> {
+async function waitForOverpassSlot(signal: AbortSignal): Promise<void> {
   let release: (() => void) | undefined;
   const previous = overpassGate;
   overpassGate = new Promise<void>((resolve) => {
@@ -55,8 +58,10 @@ async function waitForOverpassSlot(): Promise<void> {
   });
   await previous;
   try {
+    signal.throwIfAborted();
     const waitMs = Math.max(0, lastOverpassDispatchAt + OVERPASS_MIN_INTERVAL_MS - Date.now());
     if (waitMs > 0) await new Promise((resolve) => setTimeout(resolve, waitMs));
+    signal.throwIfAborted();
     lastOverpassDispatchAt = Date.now();
   } finally {
     release?.();
@@ -94,15 +99,16 @@ async function readBoundedText(response: Response): Promise<string> {
 }
 
 async function fetchOverpassPayload(query: string): Promise<PointObjectFindUpstreamReceipt> {
-  await waitForOverpassSlot();
+  const signal = AbortSignal.timeout(OVERPASS_TIMEOUT_MS);
   const url = new URL(OVERPASS_ENDPOINT);
   url.searchParams.set("data", query);
   let response: Response;
   try {
+    await waitForSourceAdmission(waitForOverpassSlot(signal), signal);
     response = await fetch(url, {
       method: "GET",
       redirect: "error",
-      signal: AbortSignal.timeout(OVERPASS_TIMEOUT_MS),
+      signal,
       headers: { Accept: "application/json", Referer: REFERER, "User-Agent": USER_AGENT },
       // Cache only after payload validation. Overpass can return an HTTP 200
       // runtime-error remark, which must never become a cached empty result.
@@ -116,8 +122,9 @@ async function fetchOverpassPayload(query: string): Promise<PointObjectFindUpstr
   }
   if (!response.ok) {
     if (response.status === 429) {
-      throw new PointObjectFindError("OVERPASS_RATE_LIMITED", 429, "Open-map Find is temporarily rate limited.", true);
+      throw new PointObjectFindError("OVERPASS_RATE_LIMITED", 429, "Open-map Find is temporarily rate limited.", true, sourceRetryAfterSeconds(response.headers.get("retry-after")));
     }
+    if (response.status === 504) throw new PointObjectFindError("OVERPASS_TIMEOUT", 504, "Open-map Find timed out. Zoom in or retry later.", true);
     throw new PointObjectFindError(
       "OVERPASS_UNAVAILABLE",
       response.status >= 500 ? 502 : 422,
@@ -125,12 +132,14 @@ async function fetchOverpassPayload(query: string): Promise<PointObjectFindUpstr
       response.status >= 500
     );
   }
-  const text = await readBoundedText(response);
   try {
+    const text = await readBoundedText(response);
     const payload = JSON.parse(text) as unknown;
     assertUsablePointObjectFindPayload(payload);
     return { payload, acquiredAt: new Date().toISOString() };
   } catch (error) {
+    if (error instanceof PointObjectFindError) throw error;
+    if (timeoutError(error)) throw new PointObjectFindError("OVERPASS_TIMEOUT", 504, "Open-map Find timed out. Zoom in or retry later.", true);
     if (error instanceof PointObjectFindPayloadError) {
       throw new PointObjectFindError(
         error.code === "OVERPASS_RUNTIME_FAILURE" ? "OVERPASS_RUNTIME_ERROR" : "OVERPASS_RESPONSE_INVALID",

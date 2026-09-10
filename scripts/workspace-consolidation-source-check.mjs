@@ -57,7 +57,7 @@ requireCondition(
     landingRoute.includes("<GeoAILandingPage />") &&
     landing.includes('const mapHref = "/prototype/point-to-object";') &&
     landing.includes("href={mapHref}") &&
-    landing.includes('const projectsHref = "/projects?view=spatial";') &&
+    landing.includes('const projectsHref = "/projects";') &&
     landing.includes("href={projectsHref}") &&
     !landing.includes("Explore platform"),
   "Landing must render the accepted component, enter Point-to-Object and local Projects, and must not advertise Explore as a separate Product."

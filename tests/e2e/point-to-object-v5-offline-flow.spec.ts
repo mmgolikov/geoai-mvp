@@ -383,6 +383,82 @@ async function expectFindDrawerGeometry(page: Page, checkMapAlignment = false) {
   }
 }
 
+test("SOURCE10 context quota ends resolving, preserves the question and retries only on demand", async ({ page }) => {
+  const external = await installOfflineRoutes(page);
+  let requests = 0;
+  await page.route("**/api/prototype/point-to-object/context", async (route) => {
+    requests += 1;
+    if (requests === 1) return route.fulfill({ status: 429, contentType: "application/json", headers: { "Retry-After": "5" }, body: JSON.stringify({ mode: "unavailable", code: "APPLICATION_RATE_LIMITED", retryable: true }) });
+    return route.fallback();
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/prototype/point-to-object");
+  await page.getByRole("button", { name: "Open task", exact: true }).click();
+  await page.locator("#point-object-question").fill("Keep this redevelopment question");
+  await page.getByRole("button", { name: "Show map", exact: true }).click();
+  const search = page.getByRole("combobox", { name: "Search address or place" });
+  await search.fill("Shangri");
+  await expect(page.getByRole("option", { name: /Shangri-La exact search result/ })).toBeVisible();
+  await search.press("ArrowDown");
+  await search.press("Enter");
+  if (await page.getByRole("button", { name: "Open task", exact: true }).isVisible()) await page.getByRole("button", { name: "Open task", exact: true }).click();
+  await expect(page.getByRole("alert").filter({ hasText: "Application request limit reached." })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Resolving location…", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Analyze", exact: true })).toBeDisabled();
+  const retry = page.getByRole("button", { name: "Retry", exact: true });
+  await expect(retry).toBeDisabled();
+  await expect(retry).toBeEnabled({ timeout: 8_000 });
+  expect(requests).toBe(1);
+  await retry.click();
+  await expect(page.getByRole("button", { name: "Analyze", exact: true })).toBeEnabled();
+  await expect(page.locator("#point-object-question")).toHaveValue("Keep this redevelopment question");
+  expect(requests).toBe(2);
+  const clickedAt = await page.evaluate(() => JSON.parse(sessionStorage.getItem("geoai:point-to-object:selection:v3") ?? "null")?.clickedAt);
+  await page.getByRole("button", { name: "Show map", exact: true }).click();
+  await search.fill("Shangri again");
+  await expect(page.getByRole("option", { name: /Shangri-La exact search result/ })).toBeVisible();
+  await search.press("ArrowDown");
+  await search.press("Enter");
+  await expect.poll(() => page.evaluate(() => JSON.parse(sessionStorage.getItem("geoai:point-to-object:selection:v3") ?? "null")?.clickedAt)).not.toBe(clickedAt);
+  await page.getByRole("button", { name: "Open task", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Analyze", exact: true })).toBeEnabled();
+  expect(requests).toBe(2); // Validated same-object cache does not consume another route quota.
+  expect(external).toEqual([]);
+});
+
+test("SOURCE10 Find preserves exact criteria through timeout, recovery and source cooldown", async ({ page }) => {
+  const external = await installOfflineRoutes(page);
+  const requests: Record<string, unknown>[] = [];
+  await page.route("**/api/prototype/point-to-object/find", async (route) => {
+    requests.push(route.request().postDataJSON());
+    if (requests.length === 1) return json(route, { mode: "unavailable", code: "OVERPASS_TIMEOUT", retryable: true }, 504);
+    if (requests.length === 3) return route.fulfill({ status: 429, contentType: "application/json", headers: { "Retry-After": "2" }, body: JSON.stringify({ mode: "unavailable", code: "OVERPASS_RATE_LIMITED", retryable: true }) });
+    return route.fallback();
+  });
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await signInDemo(page, "/prototype/point-to-object");
+  await page.getByRole("tab", { name: "Find", exact: true }).click();
+  const cta = page.getByTestId("find-search-cta");
+  await expect(cta).toBeEnabled();
+  await cta.click();
+  await expect(page.getByTestId("find-sticky-footer")).toContainText("The source did not respond in time.");
+  await expect(page.getByRole("combobox", { name: "Object type" })).toHaveValue("construction");
+  await cta.click();
+  await expect(page.getByText("Showing 3", { exact: true })).toBeVisible();
+  expect(requests[1]).toEqual(requests[0]);
+  await cta.click();
+  await expect(page.getByTestId("find-sticky-footer")).toContainText("The source limited requests.");
+  await expect(cta).toBeDisabled();
+  await expect(cta).toBeEnabled({ timeout: 8_000 });
+  expect(requests).toHaveLength(3);
+  await expect(page.getByText("Showing 3", { exact: true })).toBeVisible();
+  await cta.click();
+  await expect(page.getByTestId("find-sticky-footer")).not.toContainText("The source limited requests.");
+  expect(requests).toHaveLength(4);
+  expect(requests[3]).toEqual(requests[0]);
+  expect(external).toEqual([]);
+});
+
 test("Sprint06 J06 keeps unsent RU refinement separate on Back and restores it without another request", async ({ page }, testInfo) => {
   await installOfflineRoutes(page);
   const aiRequests = { challenge: 0, generation: 0 };
@@ -794,7 +870,8 @@ test("V5.1 keeps exact identity and the complete Find comparison flow coherent o
   await expect.poll(() => page.evaluate(() => Object.keys(localStorage).some((key) => key.startsWith("geoai:point-to-object:projects:v1:")))).toBe(true);
   await page.goto("/projects?view=spatial");
   await expect(page.getByTestId("point-object-projects-page")).toBeVisible();
-  await expect(page.getByText("Storage mode: on this device.")).toBeVisible();
+  await expect(page.getByTestId("hub-count-find").getByTestId("hub-count-value")).toHaveText(String(completedFindArtifactsBeforeViewChanges));
+  await expect(page.getByText("Saved on this device")).toBeVisible();
   for (const viewport of [
     { width: 1440, height: 900 },
     { width: 1280, height: 900 },
@@ -803,14 +880,14 @@ test("V5.1 keeps exact identity and the complete Find comparison flow coherent o
   ]) {
     await page.setViewportSize(viewport);
     await expect(page.getByTestId("saved-project-card").first()).toBeVisible();
-    await expect(page.getByRole("button", { name: "Reopen without rerunning" }).first()).toBeVisible();
+    await expect(page.getByRole("button", { name: "Open", exact: true }).first()).toBeVisible();
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   }
   await page.getByRole("button", { name: "ru", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Проекты GeoAI" })).toBeVisible();
-  await expect(page.getByText("Режим хранения: на этом устройстве.")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Центр проектов" })).toBeVisible();
+  await expect(page.getByText("Сохранено на этом устройстве", { exact: true })).toBeVisible();
   await page.setViewportSize({ width: 1280, height: 900 });
-  await page.getByRole("button", { name: "Открыть без повторного запроса" }).first().click();
+  await page.getByRole("button", { name: "Открыть", exact: true }).first().click();
   await expect(page).toHaveURL(/\/prototype\/point-to-object$/);
   await expect(page.getByRole("tab", { name: "Find", exact: true })).toHaveAttribute("aria-selected", "true");
   await expect(page.getByTestId("find-comparison-grid").getByRole("article")).toHaveCount(2);
@@ -1023,7 +1100,8 @@ test("Create A/B and mobile profile remain coherent offline", async ({ page }, t
       Boolean(artifact.payload.generated.generatedAt) && Boolean(artifact.payload.generated.promptVersion));
   })).toBe(true);
   await page.goto("/projects?view=spatial");
-  await page.getByRole("button", { name: "Reopen without rerunning" }).first().click();
+  await expect(page.getByTestId("hub-count-create").getByTestId("hub-count-value")).toHaveText("1");
+  await page.getByRole("button", { name: "Open", exact: true }).first().click();
   await expect(page).toHaveURL(/\/prototype\/point-to-object$/);
   await expect(page.getByRole("tab", { name: "Create", exact: true })).toHaveAttribute("aria-selected", "true");
   await expect(page.getByTestId("generated-concept-summary")).toBeVisible();
@@ -1072,15 +1150,15 @@ test("Create A/B and mobile profile remain coherent offline", async ({ page }, t
   })).toBe(2);
   await page.goto("/projects?view=spatial");
   await page.getByRole("button", { name: "en", exact: true }).click();
-  await page.getByRole("button", { name: "Reopen without rerunning" }).first().click();
+  await page.getByRole("button", { name: "Open", exact: true }).first().click();
   await expect(page.getByRole("tab", { name: "Создать", exact: true })).toHaveAttribute("aria-selected", "true");
   expect(createPostRequests).toHaveLength(createCallsBeforeLocaleReopens);
   await page.reload();
   await expect(page.getByRole("tab", { name: "Создать", exact: true })).toHaveAttribute("aria-selected", "true");
   expect(createPostRequests).toHaveLength(createCallsBeforeLocaleReopens);
   await page.goBack();
-  await expect(page.getByRole("heading", { name: "Проекты GeoAI" })).toBeVisible();
-  await page.getByRole("button", { name: "Открыть без повторного запроса" }).nth(1).click();
+  await expect(page.getByRole("heading", { name: "Центр проектов" })).toBeVisible();
+  await page.getByRole("button", { name: "Открыть", exact: true }).nth(1).click();
   await expect(page.getByRole("tab", { name: "Create", exact: true })).toHaveAttribute("aria-selected", "true");
   expect(createPostRequests).toHaveLength(createCallsBeforeLocaleReopens);
   await page.getByTestId("create-clear-generated").click();
@@ -1201,7 +1279,7 @@ test("Create source-building replacement stays reversible when area context is r
     }))
   });
 
-  await expect(page.getByText("Retry in 30s.")).toBeVisible();
+  await expect(page.getByText(/The source limited requests\. Retry in \d+s\./)).toBeVisible();
   await expect(page.getByRole("button", { name: "Retry", exact: true })).toBeDisabled();
   const presentationToggle = page.getByTestId("create-map-presentation-toggle");
   await expect(presentationToggle).toHaveText("Hide existing buildings");

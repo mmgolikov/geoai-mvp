@@ -11,7 +11,8 @@ import { landingContent, landingRoleKeys, type LandingRoleKey } from "./content"
 import styles from "./landing.module.css";
 
 const mapHref = "/prototype/point-to-object";
-const projectsHref = "/projects?view=spatial";
+const projectsHref = "/projects";
+const requestHref = "/request-access";
 
 export function GeoAILandingPage() {
   const { locale, setLocale } = usePointObjectLocale();
@@ -87,7 +88,7 @@ export function GeoAILandingPage() {
             <p className={styles.heroBody}>{copy.hero.body}</p>
             <div className={styles.heroActions}>
               <Link href={mapHref} className={styles.primaryAction}>{copy.actions.openMap}</Link>
-              <Link href={projectsHref} className={styles.secondaryAction}>{copy.actions.projects}</Link>
+              <Link href={requestHref} className={styles.secondaryAction}>{copy.actions.request}</Link>
             </div>
             <p className={styles.heroNote}>{copy.hero.note}</p>
           </div>
@@ -97,7 +98,8 @@ export function GeoAILandingPage() {
               <span>{copy.hero.previewLabel}</span>
               <span>{copy.workflow.paths.slice(0, 3).map((path) => path.name).join(" · ")}</span>
             </div>
-            <Link href={mapHref} className={styles.previewLink} aria-label={copy.actions.openMap}>
+            <div className={styles.previewScene}>
+              <Link href={mapHref} className={styles.previewLink} aria-label={copy.actions.openMap}>
               <Image
                 className={styles.previewWide}
                 src="/landing/sprint06-selected-site-wide.png"
@@ -116,7 +118,18 @@ export function GeoAILandingPage() {
                 priority
                 sizes="(max-width: 620px) calc(100vw - 32px), 1px"
               />
-            </Link>
+              </Link>
+              <nav className={styles.objectActions} aria-label={copy.hero.objectActions}>
+                {(["analyse", "find", "create"] as const).map((mode, index) => (
+                  <Link key={mode} href={`${mapHref}?mode=${mode}`} className={styles.objectAction}>
+                    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                      {mode === "analyse" ? <path d="M5 19V5M5 19h14M9 15v-4M13 15V7M17 15v-6" /> : mode === "find" ? <><circle cx="10.5" cy="10.5" r="5.5" /><path d="m15 15 4 4" /></> : <path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z M4 7.5l8 4.5 8-4.5M12 12v9" />}
+                    </svg>
+                    {copy.hero.objectActionLabels[index]}
+                  </Link>
+                ))}
+              </nav>
+            </div>
             <figcaption>
               <span>{copy.hero.previewCaption}</span>
               <span className={styles.previewAttribution}>
@@ -237,7 +250,7 @@ export function GeoAILandingPage() {
         </div>
         <div className={styles.finalActions}>
           <Link href={mapHref} className={styles.primaryAction}>{copy.actions.openMap}</Link>
-          <Link href={projectsHref} className={styles.secondaryAction}>{copy.actions.projects}</Link>
+          <Link href={requestHref} className={styles.secondaryAction}>{copy.actions.request}</Link>
         </div>
       </section>
 

@@ -200,7 +200,29 @@
 }
 .previewMeta span:last-child { color: var(--accent-strong); }
 .productPreview img { display: block; width: 100%; height: auto; }
-.previewLink { display: block; }
+.previewScene { position: relative; aspect-ratio: 1; overflow: hidden; background: var(--surface); }
+.previewLink { display: block; height: 100%; }
+.previewScene .previewWide { width: 100%; height: 100%; object-fit: cover; object-position: right center; }
+.objectActions {
+  position: absolute;
+  top: 29%;
+  left: 50%;
+  width: max-content;
+  max-width: calc(100% - 24px);
+  transform: translateX(-50%);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 6px;
+  border: 1px solid rgba(8, 127, 127, 0.25);
+  border-radius: 36px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 8px 24px rgba(7, 24, 50, 0.18);
+}
+.objectActions::after { content: ""; position: absolute; left: calc(50% - 7px); top: 100%; border: 7px solid transparent; border-top-color: rgba(255, 255, 255, 0.94); }
+.objectAction { display: inline-flex; justify-content: center; align-items: center; gap: 7px; min-height: 44px; padding: 0 14px; border-radius: 24px; color: var(--accent-strong); background: var(--surface); font-size: 13px; font-weight: 750; text-decoration: none; white-space: nowrap; }
+.objectAction:hover { color: white; background: var(--accent-strong); }
+.objectAction svg { width: 18px; height: 18px; flex: none; }
 .previewLink:focus-visible { outline: 3px solid var(--accent-strong); outline-offset: -3px; }
 .productPreview .previewNarrow { display: none; }
 .previewAttribution { display: block; margin-top: 5px; font-size: 10px; }
@@ -465,7 +487,11 @@
   .heroActions a { width: 100%; }
   .productPreview { border-radius: 16px; }
   .productPreview .previewWide { display: none; }
-  .productPreview .previewNarrow { display: block; width: 100%; height: auto; object-fit: contain; }
+  .previewScene { aspect-ratio: 0.8; }
+  .productPreview .previewNarrow { display: block; width: 100%; height: 100%; object-fit: cover; object-position: left center; }
+  .objectActions { top: 32%; gap: 3px; padding: 4px; }
+  .objectAction { padding: 0 10px; font-size: 12px; gap: 5px; }
+  .objectAction svg { width: 16px; height: 16px; }
   .section, .finalCta { padding-block: 70px; }
   .sectionHeading h2, .finalCta h2 { font-size: 38px; }
   .sectionHeading > p:last-child, .finalCta > div > p:last-child { font-size: 14px; }

@@ -28,9 +28,12 @@ test("quarantines malformed, unknown-version and oversized browser-local state",
   }, { prefix: namespace });
   await page.goto("/projects");
   await expect(page.getByRole("heading", { level: 1, name: "Project Hub" })).toBeVisible();
+  await expect(page.getByTestId("hub-summary")).toBeVisible();
+  await page.goto("/projects/legacy");
+  await expect(page.locator("#project-dashboard-selector")).toBeVisible();
   await expect(page.getByText("Must not load", { exact: true })).toHaveCount(0);
   await expect(page.locator("body")).not.toContainText("Application error");
-  record("browser-local-corruption", { malformedJson: "quarantined", unknownSchemaVersion: "ignored", oversizedRepository: "rejected", route: "/projects" });
+  record("browser-local-corruption", { malformedJson: "quarantined", unknownSchemaVersion: "ignored", oversizedRepository: "rejected", route: "/projects/legacy", canonicalEntry: "/projects" });
 });
 
 test("fails closed without crashing when localStorage is unavailable", async ({ page }) => {

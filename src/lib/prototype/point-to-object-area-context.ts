@@ -1,6 +1,7 @@
 import "server-only";
 
 import { unstable_cache } from "next/cache";
+import { sourceRetryAfterSeconds, waitForSourceAdmission } from "./point-to-object-source-recovery";
 
 import {
   assertUsablePointObjectAreaContextPayload,
@@ -12,7 +13,8 @@ import {
 } from "./point-to-object-area-context-contract";
 
 const OVERPASS_ENDPOINT = "https://overpass-api.de/api/interpreter";
-const OVERPASS_TIMEOUT_MS = 8_000;
+// Includes public-source queue admission; the bounded query itself is unchanged.
+const OVERPASS_TIMEOUT_MS = 24_000;
 const OVERPASS_RESPONSE_MAX_BYTES = 512 * 1024;
 const OVERPASS_REVALIDATE_SECONDS = 15 * 60;
 const OVERPASS_MIN_INTERVAL_MS = 1_200;
@@ -22,30 +24,35 @@ const REFERER = "https://github.com/mmgolikov/geoai-mvp";
 export class PointObjectAreaContextError extends Error {
   readonly httpStatus: 429 | 502 | 504;
   readonly retryable: boolean;
+  readonly retryAfterSeconds?: number;
 
   constructor(
     httpStatus: 429 | 502 | 504,
     message: string,
-    retryable: boolean
+    retryable: boolean,
+    retryAfterSeconds?: number
   ) {
     super(message);
     this.name = "PointObjectAreaContextError";
     this.httpStatus = httpStatus;
     this.retryable = retryable;
+    this.retryAfterSeconds = retryAfterSeconds;
   }
 }
 
 let overpassGate: Promise<void> = Promise.resolve();
 let lastOverpassDispatchAt = 0;
 
-async function waitForOverpassSlot(): Promise<void> {
+async function waitForOverpassSlot(signal: AbortSignal): Promise<void> {
   let release: (() => void) | undefined;
   const previous = overpassGate;
   overpassGate = new Promise<void>((resolve) => { release = resolve; });
   await previous;
   try {
+    signal.throwIfAborted();
     const waitMs = Math.max(0, lastOverpassDispatchAt + OVERPASS_MIN_INTERVAL_MS - Date.now());
     if (waitMs > 0) await new Promise((resolve) => setTimeout(resolve, waitMs));
+    signal.throwIfAborted();
     lastOverpassDispatchAt = Date.now();
   } finally {
     release?.();
@@ -77,15 +84,16 @@ async function readBoundedText(response: Response): Promise<string> {
 }
 
 async function fetchAreaContext(query: string): Promise<unknown> {
-  await waitForOverpassSlot();
+  const signal = AbortSignal.timeout(OVERPASS_TIMEOUT_MS);
   const url = new URL(OVERPASS_ENDPOINT);
   url.searchParams.set("data", query);
   let response: Response;
   try {
+    await waitForSourceAdmission(waitForOverpassSlot(signal), signal);
     response = await fetch(url, {
       method: "GET",
       redirect: "error",
-      signal: AbortSignal.timeout(OVERPASS_TIMEOUT_MS),
+      signal,
       headers: { Accept: "application/json", Referer: REFERER, "User-Agent": USER_AGENT },
       // Cache only after payload validation. Overpass can report a runtime error
       // in an HTTP 200 JSON body, which must never become a cached empty result.
@@ -98,7 +106,8 @@ async function fetchAreaContext(query: string): Promise<unknown> {
     throw new PointObjectAreaContextError(502, "The open-map area lookup is temporarily unavailable.", true);
   }
   if (!response.ok) {
-    if (response.status === 429) throw new PointObjectAreaContextError(429, "The open-map area lookup is temporarily rate limited.", true);
+    if (response.status === 429) throw new PointObjectAreaContextError(429, "The open-map area lookup is temporarily rate limited.", true, sourceRetryAfterSeconds(response.headers.get("retry-after")));
+    if (response.status === 504) throw new PointObjectAreaContextError(504, "The open-map area lookup timed out.", true);
     throw new PointObjectAreaContextError(502, "The open-map area lookup did not return a usable response.", response.status >= 500);
   }
   try {
@@ -108,6 +117,7 @@ async function fetchAreaContext(query: string): Promise<unknown> {
     return payload;
   } catch (error) {
     if (error instanceof PointObjectAreaContextError) throw error;
+    if (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")) throw new PointObjectAreaContextError(504, "The open-map area lookup timed out.", true);
     if (error instanceof PointObjectAreaContextPayloadError) throw mapPayloadError(error);
     throw new PointObjectAreaContextError(502, "The open-map area lookup returned invalid data.", true);
   }

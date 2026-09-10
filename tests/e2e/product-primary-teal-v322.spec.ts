@@ -172,10 +172,12 @@ test("Product primary and selected controls remain teal from Workspace through a
 test("Projects, Profile and report actions use the same Product-primary teal", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await signInDemo(page, "/projects");
-
-  await expectProductPrimary(page.getByRole("button", { name: "B2B", exact: true }).first(), "Projects selected B2B");
-  await expectProductPrimary(page.getByRole("link", { name: "Open workspace", exact: true }).first(), "Projects Open workspace action");
-  await expectProductPrimary(page.getByRole("button", { name: "Create project", exact: true }), "Projects Create project action");
+  await expect(page.getByTestId("hub-summary")).toBeVisible();
+  await expectProductPrimary(page.getByRole("button", { name: "+ New project", exact: true }), "Canonical Project Hub new project action");
+  await page.goto("/projects/legacy");
+  await expectProductPrimary(page.getByRole("button", { name: "B2B", exact: true }).first(), "Legacy projects selected B2B");
+  await expectProductPrimary(page.getByRole("link", { name: "Open workspace", exact: true }).first(), "Legacy projects Open workspace action");
+  await expectProductPrimary(page.getByRole("button", { name: "Create project", exact: true }), "Legacy projects Create project action");
 
   await page.goto("/profile");
   const profileAudience = page.getByRole("group", { name: "Default audience" });

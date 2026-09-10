@@ -596,8 +596,9 @@ test("V6 renders useful GeoContext and linked-source facts in EN/RU and restores
     return store?.projects?.[0]?.artifacts?.[0]?.kind;
   })).toBe("analyse");
   await page.goto("/projects?view=spatial");
-  await expect(page.getByText("Storage mode: on this device.")).toBeVisible();
-  await page.getByRole("button", { name: "Reopen without rerunning" }).click();
+  await expect(page.getByText("Saved on this device")).toBeVisible();
+  await expect(page.getByTestId("hub-count-analyse").getByTestId("hub-count-value")).toHaveText("1");
+  await page.getByRole("button", { name: "Open", exact: true }).click();
   await expect(page).toHaveURL(/\/prototype\/point-to-object\/analysis$/);
   await expect(page.getByRole("heading", { name: "Continue bounded object screening" })).toBeVisible();
   expect(apiCalls).toHaveLength(callsAfterEnglish);
@@ -674,7 +675,7 @@ test("Saved Analyse reopens RU from EN Projects and EN from RU Projects without 
   const callsBeforeReopen = pointObjectCalls(apiCalls).length;
   await page.goto("/projects?view=spatial");
   await page.getByRole("button", { name: "en", exact: true }).click();
-  await page.getByRole("button", { name: "Reopen without rerunning" }).first().click();
+  await page.getByRole("button", { name: "Open", exact: true }).first().click();
   await expect(page.getByRole("heading", { name: "Продолжить ограниченный скрининг объекта" })).toBeVisible();
   await expect(page.locator("html")).toHaveAttribute("lang", "ru");
   expect(pointObjectCalls(apiCalls)).toHaveLength(callsBeforeReopen);
@@ -684,8 +685,8 @@ test("Saved Analyse reopens RU from EN Projects and EN from RU Projects without 
   await expect(page.getByRole("heading", { name: "Продолжить ограниченный скрининг объекта" })).toBeVisible();
   expect(pointObjectCalls(apiCalls)).toHaveLength(callsBeforeReopen);
   await page.goBack();
-  await expect(page.getByRole("heading", { name: "Проекты GeoAI" })).toBeVisible();
-  await page.getByRole("button", { name: "Открыть без повторного запроса" }).nth(1).click();
+  await expect(page.getByRole("heading", { name: "Центр проектов" })).toBeVisible();
+  await page.getByRole("button", { name: "Открыть", exact: true }).nth(1).click();
   await expect(page.getByRole("heading", { name: "Continue bounded object screening" })).toBeVisible();
   await expect(page.locator("html")).toHaveAttribute("lang", "en");
   expect(pointObjectCalls(apiCalls)).toHaveLength(callsBeforeReopen);
@@ -695,7 +696,7 @@ test("Saved Analyse reopens RU from EN Projects and EN from RU Projects without 
   await expect(page.getByRole("heading", { name: "Continue bounded object screening" })).toBeVisible();
   expect(pointObjectCalls(apiCalls)).toHaveLength(callsBeforeReopen);
   await page.goBack();
-  await expect(page.getByRole("heading", { name: "GeoAI Projects" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Project Hub", exact: true })).toBeVisible();
   expect(pointObjectCalls(apiCalls)).toHaveLength(callsBeforeReopen);
   expect(unexpectedExternal).toEqual([]);
 });
@@ -734,7 +735,7 @@ test("Projects preserves bytes and permits explicit retry when integrity hashing
   });
   const callsBeforeReopen = pointObjectCalls(apiCalls).length;
 
-  await page.getByRole("button", { name: "Открыть без повторного запроса" }).click();
+  await page.getByRole("button", { name: "Открыть", exact: true }).click();
   await expect(page).toHaveURL(/\/projects\?view=spatial$/);
   await expect(page.locator("main").getByRole("alert")).toHaveText("Проверка целостности временно недоступна. Сохранённые данные не изменены; попробуйте открыть ещё раз.");
   expect(await page.evaluate((key) => localStorage.getItem(key), before.key)).toBe(before.raw);
@@ -743,7 +744,7 @@ test("Projects preserves bytes and permits explicit retry when integrity hashing
   expect(pageErrors).toEqual([]);
   expect(await page.evaluate(() => (window as typeof window & { __geoAiUnhandled?: string[] }).__geoAiUnhandled ?? [])).toEqual([]);
 
-  await page.getByRole("button", { name: "Открыть без повторного запроса" }).click();
+  await page.getByRole("button", { name: "Открыть", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Continue bounded object screening" })).toBeVisible();
   await expect(page.locator("html")).toHaveAttribute("lang", "en");
   expect(pointObjectCalls(apiCalls)).toHaveLength(callsBeforeReopen);

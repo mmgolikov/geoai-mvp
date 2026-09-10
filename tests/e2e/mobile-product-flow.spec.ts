@@ -244,6 +244,10 @@ test.describe("mobile product navigation, targets and visual evidence", () => {
     await page.clock.setFixedTime(new Date("2026-07-17T16:23:00.000Z"));
     await signInDemo(page, "/projects");
     await expect(page.getByRole("heading", { level: 1, name: "Project Hub" })).toBeVisible();
+    await expect(page.getByTestId("hub-summary")).toBeVisible();
+    await expectNoHorizontalOverflow(page);
+    await page.goto("/projects/legacy");
+    await expect(page.locator("#project-dashboard-selector")).toBeVisible();
     await expectNoHorizontalOverflow(page);
 
     const controls: Array<[string, Locator]> = [
@@ -279,7 +283,7 @@ test.describe("mobile product navigation, targets and visual evidence", () => {
     await page.reload();
     await expect(page.locator("#project-dashboard-selector option:checked")).toHaveText(projectName);
     await expectNoHorizontalOverflow(page);
-    await captureVisualEvidence(page, "Mobile project hub", "mobile-project-hub.png", { candidateBaseline: true, fullPage: true });
+    await captureVisualEvidence(page, "Mobile legacy projects archive", "mobile-project-hub.png", { candidateBaseline: true, fullPage: true });
 
     await page.getByRole("link", { name: "Open workspace", exact: true }).first().click();
     await expect(page).toHaveURL((url) => url.pathname === "/workspace" && url.searchParams.has("projectId"));

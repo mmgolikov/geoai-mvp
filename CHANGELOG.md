@@ -7,6 +7,14 @@ Authority: Chronological released/unreleased change record; runtime truth remain
 Successor: None; any replacement must update `docs/DOCUMENTATION_INDEX.md`
 Navigation: [Documentation Index](docs/DOCUMENTATION_INDEX.md) · [Current Release State](docs/CURRENT_RELEASE_STATE.md) · [Full System Audit](docs/FULL_SYSTEM_AUDIT_2026_07_16.md) · [Codex Backlog](docs/CODEX_BACKLOG_2026_07_16.md)
 
+## Unreleased — 2026-09-10 Sprint06 regression correction
+
+- Recolors connected native building geometry without an overlapping copied extrusion; preserves holes, multipart and unrelated same-ID neighbors. Exact-footprint replacement uses a bounded numerical tolerance, with outside/cross-boundary retention and reversible style/zoom/reset behavior.
+- Adds bounded context caching, request cancellation and truthful timeout/rate-limit recovery for context, Find and polygon context. Protective limits and provider contracts remain unchanged; a failed source response is not an empty result.
+- Unifies `/projects` into an identity-scoped, device-local Project Hub with three result widgets, search/filter/sort and unchanged saved-result reopening. The old dashboard is retained only at the explicit compatibility route; unowned demo records are not imported.
+- Updates desktop/mobile landing actions and centered selected-object presentation, with three working mode-entry bubbles. Compact contact collection remains a proposal, not a new submission integration.
+- Adds native vector geometry, source recovery, Project Hub and mobile landing navigation regressions, including local WebKit coverage. See the [approved correction scope](docs/change-requests/point-to-object-001/experience-v6/SEPT10_REGRESSION_PROJECT_HUB_CHANGE_REQUEST.md). Main, Production, Auth, hosted persistence and provider keys are unchanged; exact runtime acceptance remains in the private operational receipt.
+
 ## Unreleased — 2026-09-06 Cycle 05 controlled release candidate
 
 - Accepted UI/Projects baseline `8062b29523990ebd7aebea53acbd106c25f484ac` integrates Point-to-Object Analyse / Find / Create, reliable select controls, current map containment and `zoom-required` corrections, strict identity-scoped device-local Projects save/reopen/recovery, and the bilingual landing page. Classifier integration is present locally at `ef2f4853975caeae47915e4bd5c0845c0d26555e`; the exact final runtime tuple is reserved for the CR and external receipt.

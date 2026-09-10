@@ -19,6 +19,7 @@ import type { ConceptMassingResult, PointObjectCreateAoi } from "@/src/lib/proto
 import type { PointObjectFindBounds } from "@/src/lib/prototype/point-to-object-find-contract";
 import {
   buildPointObjectBuildingReplacementFilter,
+  buildPointObjectNativeSelectionOutside,
   pointObjectReplacementMinimumReliableZoom,
   restorePointObjectMapFilter,
   snapshotPointObjectMapFilter,
@@ -42,7 +43,7 @@ const CAMERA: Record<MapViewMode, { pitch: number; bearing: number }> = {
 const BUILDINGS_3D_LAYER_ID = "geoai-buildings-3d";
 const HIGHLIGHT_SOURCE_ID = "geoai-live-selection";
 const HIGHLIGHT_FILL_LAYER_ID = "geoai-live-selection-fill";
-const HIGHLIGHT_VOLUME_LAYER_ID = "geoai-live-selection-volume";
+const HIGHLIGHT_NATIVE_FILL_LAYER_ID = "geoai-live-native-selection-fill";
 const HIGHLIGHT_LINE_LAYER_ID = "geoai-live-selection-line";
 const HIGHLIGHT_POINT_LAYER_ID = "geoai-live-selection-point";
 const CREATE_AOI_SOURCE_ID = "geoai-create-aoi";
@@ -177,7 +178,7 @@ function firstSymbolLayerId(map: MapLibreMap): string | undefined {
   return map.getStyle().layers?.find((layer) => layer.type === "symbol")?.id;
 }
 
-function safeFeatureId(feature: MapGeoJSONFeature): string | null {
+function safeFeatureId(feature: Pick<MapGeoJSONFeature, "id" | "properties">): string | null {
   if (typeof feature.id === "number" && Number.isFinite(feature.id)) return String(feature.id);
   if (typeof feature.id === "string" && /^[a-zA-Z0-9_:./-]{1,128}$/.test(feature.id)) return feature.id;
 
@@ -268,7 +269,7 @@ function sourceLayerOf(feature: MapGeoJSONFeature): string | null {
   return value && SELECTABLE_SOURCE_LAYERS.has(value) ? value : null;
 }
 
-function featureName(feature: MapGeoJSONFeature): string | null {
+function featureName(feature: Pick<MapGeoJSONFeature, "properties">): string | null {
   return firstSafeProperty(feature.properties, NAME_PROPERTY_KEYS, 160);
 }
 
@@ -277,7 +278,7 @@ function featureClass(feature: MapGeoJSONFeature): string {
   return firstSafeProperty(feature.properties, CLASS_PROPERTY_KEYS, 80) ?? sourceLayer ?? "location";
 }
 
-function featureGeometryBounds(feature: MapGeoJSONFeature): [number, number, number, number] | null {
+function featureGeometryBounds(feature: Pick<MapGeoJSONFeature, "geometry">): [number, number, number, number] | null {
   const geometry = sanitizeGeometry(feature.geometry);
   if (!geometry || geometry.type === "Point") return null;
   const positions = geometry.type === "LineString"
@@ -319,7 +320,9 @@ function featureScore(
     if (sourceLayer === "landuse" && (!featureClassName || !SELECTABLE_LANDUSE_CLASSES.has(featureClassName))) return -1;
     const viewportWidth = Math.max(1e-9, viewportBounds[2] - viewportBounds[0]);
     const viewportHeight = Math.max(1e-9, viewportBounds[3] - viewportBounds[1]);
-    if ((bounds[2] - bounds[0]) / viewportWidth >= 0.8 || (bounds[3] - bounds[1]) / viewportHeight >= 0.8) return -1;
+    // A real building can fill the viewport at close zoom. Keep the relative
+    // guard for background/land-use polygons; buildings have metric limits below.
+    if (!isBuilding && ((bounds[2] - bounds[0]) / viewportWidth >= 0.8 || (bounds[3] - bounds[1]) / viewportHeight >= 0.8)) return -1;
     const latitude = (bounds[1] + bounds[3]) / 2;
     const widthM = (bounds[2] - bounds[0]) * 111_320 * Math.max(0.01, Math.cos(latitude * Math.PI / 180));
     const heightM = (bounds[3] - bounds[1]) * 110_574;
@@ -489,10 +492,66 @@ function collectNearbyLabels(map: MapLibreMap, point: { x: number; y: number }):
 function selectionCanShowVolume(selection: LiveMapSelection | null): boolean {
   return Boolean(
     selection?.object.geometry &&
+    selection.object.sourceFeatureId !== null &&
     (selection.object.geometry.type === "Polygon" || selection.object.geometry.type === "MultiPolygon") &&
     selection.object.renderHeightM !== null &&
     selection.object.renderHeightM > 0
   );
+}
+
+function currentNativeSelectionGeometry(map: MapLibreMap, selection: LiveMapSelection | null) {
+  const fallback = selection?.object.geometry ? [selection.object.geometry] : [];
+  if (!selection || !selectionCanShowVolume(selection) || typeof map.querySourceFeatures !== "function") return fallback;
+  const insideRing = (ring: Position[], point: Position, includeBoundary = false) => {
+    let inside = false;
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const [xi, yi] = ring[i]; const [xj, yj] = ring[j];
+      const cross = (point[0] - xi) * (yj - yi) - (point[1] - yi) * (xj - xi);
+      if (Math.abs(cross) < 1e-14 && point[0] >= Math.min(xi, xj) && point[0] <= Math.max(xi, xj) && point[1] >= Math.min(yi, yj) && point[1] <= Math.max(yi, yj)) return includeBoundary;
+      if ((yi > point[1]) !== (yj > point[1]) && point[0] < (xj - xi) * (point[1] - yi) / (yj - yi) + xi) inside = !inside;
+    }
+    return inside;
+  };
+  const contains = (rings: Position[][], point: Position) => insideRing(rings[0], point) && !rings.slice(1).some(ring => insideRing(ring, point, true));
+  const polygons = (geometry: Geometry) => geometry.type === "Polygon" ? [geometry.coordinates] : geometry.type === "MultiPolygon" ? geometry.coordinates : [];
+  const candidates = map.querySourceFeatures("openmaptiles", { sourceLayer: "building" }).filter(feature => {
+    if (safeFeatureId(feature) !== selection.object.sourceFeatureId || featureName(feature) !== selection.object.name) return false;
+    if (safeNumericProperty(feature.properties, ["render_height", "height"]) !== selection.object.renderHeightM) return false;
+    if (safeNumericProperty(feature.properties, ["render_min_height", "min_height"]) !== selection.object.renderMinHeightM) return false;
+    return polygons(feature.geometry).length > 0;
+  });
+  if (candidates.length > 64) return fallback;
+  const unique = [...new Map(candidates.map(feature => [JSON.stringify(feature.geometry), feature.geometry])).values()];
+  const probes = (rings: Position[][]) => rings.flatMap(ring => ring.slice(0, -1).flatMap((point, i) => {
+    const next = ring[i + 1]; const dx = next[0] - point[0]; const dy = next[1] - point[1];
+    return [point, ...[0.25, 0.5, 0.75].flatMap(fraction => {
+      const x = point[0] + dx * fraction; const y = point[1] + dy * fraction;
+      // Probe both sides, admitting only the polygon's own interior. This
+      // recognizes identical/quantized courtyard edges without treating a
+      // shared boundary as positive area or expanding any selection geometry.
+      return [[x, y], [x - dy * 0.0001, y + dx * 0.0001], [x + dy * 0.0001, y - dx * 0.0001]];
+    })];
+  })).filter(point => contains(rings, point));
+  const overlaps = (a: Position[][], b: Position[][]) => JSON.stringify(a) === JSON.stringify(b) || probes(a).some(point => contains(b, point)) || probes(b).some(point => contains(a, point));
+  const canonicalParts = fallback.flatMap(geometry => polygons(geometry));
+  const selected = unique.filter(geometry =>
+    polygons(geometry).some(rings => contains(rings, [selection.longitude, selection.latitude])) &&
+    polygons(geometry).every(part => canonicalParts.some(known => overlaps(part, known)))
+  );
+  if (!selected.length) return fallback;
+  // Follow positive-area tile-buffer overlap, never edge/vertex contact. Every
+  // component must connect; a reused-ID multipart with an outside island stays
+  // native. This does not change the canonical selection or provider payload.
+  for (let changed = true; changed;) {
+    changed = false;
+    for (const geometry of unique) {
+      if (selected.includes(geometry)) continue;
+      if (polygons(geometry).every(part => selected.some(current => polygons(current).some(known => overlaps(part, known))))) {
+        selected.push(geometry); changed = true;
+      }
+    }
+  }
+  return selected.map(geometry => sanitizeGeometry(geometry)).filter((geometry): geometry is NonNullable<typeof geometry> => geometry !== null);
 }
 
 function setSelectedVolumeVisibility(
@@ -501,12 +560,28 @@ function setSelectedVolumeVisibility(
   viewMode: MapViewMode,
   showVolume: boolean
 ) {
-  if (!map.getLayer(HIGHLIGHT_VOLUME_LAYER_ID)) return;
-  map.setLayoutProperty(
-    HIGHLIGHT_VOLUME_LAYER_ID,
-    "visibility",
-    viewMode === "3d" && showVolume && selectionCanShowVolume(selection) ? "visible" : "none"
-  );
+  if (!map.getLayer(BUILDINGS_3D_LAYER_ID)) return;
+  // Recolor the original source feature instead of extruding a copied footprint
+  // at the same depth. Native holes, multipart pieces and per-part heights stay
+  // intact, with no overlapping surfaces or invented uniform prism.
+  const selected = viewMode === "3d" && showVolume && selectionCanShowVolume(selection);
+  const geometries = currentNativeSelectionGeometry(map, selection);
+  const spatial: ExpressionSpecification[] = geometries.flatMap(geometry => {
+    const outside = geometry.type === "Polygon" || geometry.type === "MultiPolygon" ? buildPointObjectNativeSelectionOutside(geometry) : null;
+    return outside ? [["all", ["==", ["distance", geometry], 0], [">", ["distance", outside], 0]] as ExpressionSpecification] : [];
+  });
+  const nativePredicate: ExpressionSpecification = selectionCanShowVolume(selection) && selection && spatial.length ? ["all",
+      ["==", ["to-string", ["coalesce", ["id"], ["get", "osm_id"], ["get", "id"], ""]], selection.object.sourceFeatureId!],
+      // Require whole-feature containment: even a touching same-ID neighbour
+      // must remain unhighlighted. Ambiguous/clipped outside pieces stay native.
+      ["any", ...spatial]
+    ] : ["==", 1, 0];
+  const color: string | ExpressionSpecification = selected ? ["case", nativePredicate, "#0f7c88", "#d6dcdf"] : "#d6dcdf";
+  map.setPaintProperty(BUILDINGS_3D_LAYER_ID, "fill-extrusion-color", color);
+  if (map.getLayer(HIGHLIGHT_NATIVE_FILL_LAYER_ID)) {
+    map.setFilter(HIGHLIGHT_NATIVE_FILL_LAYER_ID, nativePredicate as FilterSpecification);
+    map.setLayoutProperty(HIGHLIGHT_NATIVE_FILL_LAYER_ID, "visibility", selected ? "none" : "visible");
+  }
 }
 
 function setHighlight(
@@ -517,7 +592,7 @@ function setHighlight(
 ) {
   const source = map.getSource(HIGHLIGHT_SOURCE_ID) as GeoJSONSource | undefined;
   if (!source) return;
-  const geometry = selection?.object.geometry ?? (selection
+  const geometry = selectionCanShowVolume(selection) ? null : selection?.object.geometry ?? (selection
     ? { type: "Point" as const, coordinates: [selection.longitude, selection.latitude] }
     : null);
   const data: Feature<Geometry> | { type: "FeatureCollection"; features: [] } = geometry
@@ -555,6 +630,7 @@ function buildingLayerIds(map: MapLibreMap): string[] {
   return (map.getStyle().layers ?? []).flatMap((layer) => {
     const candidate = layer as typeof layer & { source?: unknown; "source-layer"?: unknown };
     const isBuildingLayer = candidate.id === BUILDINGS_3D_LAYER_ID || (
+      candidate.id !== HIGHLIGHT_NATIVE_FILL_LAYER_ID &&
       (candidate.type === "fill" || candidate.type === "fill-extrusion") &&
       candidate.source === "openmaptiles" &&
       candidate["source-layer"] === "building"
@@ -686,19 +762,14 @@ function installGeoAiLayers(map: MapLibreMap, viewMode: MapViewMode) {
       "fill-opacity": 0.28
     }
   }, labelLayer);
-  if (!map.getLayer(HIGHLIGHT_VOLUME_LAYER_ID)) map.addLayer({
-    id: HIGHLIGHT_VOLUME_LAYER_ID,
-    type: "fill-extrusion",
-    source: HIGHLIGHT_SOURCE_ID,
-    filter: ["==", ["geometry-type"], "Polygon"],
-    layout: { visibility: "none" },
-    paint: {
-      "fill-extrusion-color": "#0f7c88",
-      "fill-extrusion-height": ["get", "renderHeightM"],
-      "fill-extrusion-base": ["get", "renderMinHeightM"],
-      "fill-extrusion-opacity": 0.58,
-      "fill-extrusion-vertical-gradient": true
-    }
+  if (!map.getLayer(HIGHLIGHT_NATIVE_FILL_LAYER_ID) && map.getSource("openmaptiles")) map.addLayer({
+    id: HIGHLIGHT_NATIVE_FILL_LAYER_ID,
+    type: "fill",
+    minzoom: pointObjectReplacementMinimumReliableZoom,
+    source: "openmaptiles",
+    "source-layer": "building",
+    filter: ["==", 1, 0],
+    paint: { "fill-color": "#116b78", "fill-opacity": 0.28, "fill-outline-color": "#0b5261" }
   }, labelLayer);
   if (!map.getLayer(HIGHLIGHT_LINE_LAYER_ID)) map.addLayer({
     id: HIGHLIGHT_LINE_LAYER_ID,
@@ -1237,6 +1308,15 @@ export function LiveObjectMap({
         map.on("click", handleClick);
         map.on("movestart", () => cameraMovingCallbackRef.current?.(true));
         map.on("moveend", handleMoveEnd);
+        let nativeHighlightSignature = "";
+        map.on("idle", () => {
+          if (disposed || !map.isStyleLoaded()) return;
+          const geometry = currentNativeSelectionGeometry(map, selectionRef.current);
+          const signature = JSON.stringify([geometry, viewModeRef.current, showSelectedVolumeRef.current]);
+          if (signature === nativeHighlightSignature) return;
+          nativeHighlightSignature = signature;
+          setSelectedVolumeVisibility(map, selectionRef.current, viewModeRef.current, showSelectedVolumeRef.current);
+        });
         map.on("error", (event) => {
           const message = event.error instanceof Error ? event.error.message : "";
           if (/image .+ could not be loaded|sprite/i.test(message)) return;
@@ -1405,7 +1485,7 @@ export function LiveObjectMap({
             type="button"
             onClick={toggleSelectedVolume}
             aria-pressed={showSelectedVolume}
-            className={`min-h-11 rounded-xl border border-white/80 px-3 text-xs font-bold shadow-sm backdrop-blur focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] ${showSelectedVolume ? "bg-[#087f8c] text-white" : "bg-white/95 text-[#475467]"}`}
+            className={`inline-flex min-h-11 items-center justify-center rounded-xl border border-white/80 px-3 py-2 text-xs font-bold leading-none shadow-sm backdrop-blur focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] ${showSelectedVolume ? "bg-[#087f8c] text-white" : "bg-white/95 text-[#475467]"}`}
           >
             {t("map.volume")}
           </button>

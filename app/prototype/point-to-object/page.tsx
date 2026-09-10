@@ -7,6 +7,8 @@ export const metadata: Metadata = {
   description: "Select a real mapped object and explore its open-data context with GeoAI."
 };
 
-export default function PointToObjectPrototypePage() {
-  return <PointToObjectPrototype />;
+export default async function PointToObjectPrototypePage({ searchParams }: { searchParams: Promise<{ mode?: string | string[] }> }) {
+  const { mode } = await searchParams;
+  const initialMode = mode === "find" || mode === "create" ? mode : "analyse";
+  return <PointToObjectPrototype initialMode={initialMode} />;
 }

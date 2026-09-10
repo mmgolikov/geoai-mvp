@@ -1,6 +1,8 @@
 import { expect, test } from "@playwright/test";
+import { installLocalWebKitHttpCsp } from "./helpers/local-webkit-csp";
 
 test("Security06 keeps the accepted landing images and map entry usable in EN and RU", async ({ page }, testInfo) => {
+  await installLocalWebKitHttpCsp(page, testInfo.project.use.browserName, testInfo.project.use.baseURL);
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   for (const width of [390, 430, 1440]) {
@@ -14,6 +16,20 @@ test("Security06 keeps the accepted landing images and map entry usable in EN an
       const links = hero.getByRole("link", { name: action, exact: true });
       await expect(links).toHaveCount(2);
       for (const link of await links.all()) await expect(link).toHaveAttribute("href", "/prototype/point-to-object");
+      const requestAction = locale === "EN" ? "Leave a request" : "Оставить заявку";
+      await expect(hero.getByRole("link", { name: requestAction, exact: true })).toHaveAttribute("href", "/request-access");
+      const objectActions = hero.getByRole("navigation", { name: locale === "EN" ? "Choose an action for the selected place" : "Выберите действие с объектом" });
+      const bubbles = objectActions.getByRole("link");
+      await expect(bubbles).toHaveCount(3);
+      await expect(bubbles.first()).toHaveCSS("min-height", "44px");
+      for (const [index, mode] of ["analyse", "find", "create"].entries()) {
+        const bubble = bubbles.nth(index);
+        await expect(bubble).toHaveAttribute("href", `/prototype/point-to-object?mode=${mode}`);
+        const box = await bubble.boundingBox();
+        expect(box?.height).toBeGreaterThanOrEqual(44);
+        expect(box!.x).toBeGreaterThanOrEqual(0);
+        expect(box!.x + box!.width).toBeLessThanOrEqual(width);
+      }
       const image = hero.locator("img:visible");
       await expect(image).toHaveCount(1);
       await expect.poll(() => image.evaluate((element: HTMLImageElement) => element.complete && element.naturalWidth > 0)).toBe(true);
@@ -22,4 +38,18 @@ test("Security06 keeps the accepted landing images and map entry usable in EN an
     }
   }
   expect(errors).toEqual([]);
+});
+
+test("landing action bubbles open the corresponding workspace mode on mobile", async ({ page }, testInfo) => {
+  await page.route(/^https:\/\//, route => route.abort());
+  await page.route("**/api/prototype/point-to-object/**", route => route.fulfill({ status: 503, json: { mode: "unavailable", error: "Offline navigation check." } }));
+  await installLocalWebKitHttpCsp(page, testInfo.project.use.browserName, testInfo.project.use.baseURL);
+  await page.setViewportSize({ width: 390, height: 844 });
+  for (const [mode, label] of [["analyse", "Analyse"], ["find", "Find"], ["create", "Create"]]) {
+    await page.goto("/");
+    await page.getByRole("button", { name: "EN", exact: true }).click();
+    await page.getByRole("navigation", { name: "Choose an action for the selected place" }).getByRole("link", { name: label, exact: true }).click();
+    await expect(page).toHaveURL(new RegExp(`/prototype/point-to-object\\?mode=${mode}$`));
+    await expect(page.getByRole("tab", { name: label, exact: true })).toHaveAttribute("aria-selected", "true");
+  }
 });

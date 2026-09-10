@@ -179,6 +179,7 @@ for (const marker of [
 for (const marker of [
   "axe-project-comparison-results.json",
   'signInDemoWithKeyboard(page, "/projects")',
+  'page.goto("/projects/legacy")',
   'name: "Create project"',
   'name: "Project name"',
   "local-projects-v1",
@@ -241,7 +242,7 @@ for (const marker of [
   'name: "Open map"',
   '"/prototype/point-to-object"',
   'name: "Projects"',
-  '"/projects?view=spatial"',
+  '"/projects"',
   'name: "Sign in to GeoAI"',
   'name: "Your profile"',
   "landing-${viewport.name}.png",

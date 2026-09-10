@@ -50,7 +50,7 @@ for (const asset of [
 requireCondition(
   landing.includes('const mapHref = "/prototype/point-to-object";') &&
     landing.includes("href={mapHref}") &&
-    landing.includes('const projectsHref = "/projects?view=spatial";') &&
+    landing.includes('const projectsHref = "/projects";') &&
     landing.includes("href={projectsHref}"),
   "Landing must enter the accepted public Point-to-Object route and device-local spatial Projects route."
 );
@@ -106,7 +106,7 @@ const evidence = {
     component: "components/landing/geoai-landing-page.tsx",
     content: "components/landing/content.ts",
     productEntry: "/prototype/point-to-object",
-    localProjectsEntry: "/projects?view=spatial"
+    localProjectsEntry: "/projects"
   },
   figmaAuthorities: {
     criteriaDesktop: "1540:499",

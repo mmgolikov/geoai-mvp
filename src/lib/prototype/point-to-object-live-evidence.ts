@@ -1,6 +1,7 @@
 import "server-only";
 
 import { unstable_cache } from "next/cache";
+import { sourceRetryAfterSeconds, waitForSourceAdmission } from "./point-to-object-source-recovery";
 
 import { LIVE_POINT_CAVEAT } from "@/src/lib/point-to-object/contracts";
 import { semanticHash, sha256 } from "@/src/lib/point-to-object/hash";
@@ -358,7 +359,8 @@ export class LivePointEvidenceError extends Error {
     public readonly code: LivePointEvidenceErrorCode,
     public readonly httpStatus: number,
     message: string,
-    public readonly retryable: boolean
+    public readonly retryable: boolean,
+    public readonly retryAfterSeconds?: number
   ) {
     super(message);
     this.name = "LivePointEvidenceError";
@@ -466,7 +468,7 @@ function configuredOverpassEndpoint(): URL {
   return endpoint;
 }
 
-async function waitForNominatimSlot(): Promise<void> {
+async function waitForNominatimSlot(signal: AbortSignal): Promise<void> {
   let release: (() => void) | undefined;
   const previous = nominatimGate;
   nominatimGate = new Promise<void>((resolve) => {
@@ -474,17 +476,19 @@ async function waitForNominatimSlot(): Promise<void> {
   });
   await previous;
   try {
+    signal.throwIfAborted();
     const waitMs = Math.max(0, lastNominatimDispatchAt + NOMINATIM_MIN_INTERVAL_MS - Date.now());
     if (waitMs > 0) {
       await new Promise((resolve) => setTimeout(resolve, waitMs));
     }
+    signal.throwIfAborted();
     lastNominatimDispatchAt = Date.now();
   } finally {
     release?.();
   }
 }
 
-async function waitForOverpassSlot(): Promise<void> {
+async function waitForOverpassSlot(signal: AbortSignal): Promise<void> {
   let release: (() => void) | undefined;
   const previous = overpassGate;
   overpassGate = new Promise<void>((resolve) => {
@@ -492,10 +496,12 @@ async function waitForOverpassSlot(): Promise<void> {
   });
   await previous;
   try {
+    signal.throwIfAborted();
     const waitMs = Math.max(0, lastOverpassDispatchAt + OVERPASS_MIN_INTERVAL_MS - Date.now());
     if (waitMs > 0) {
       await new Promise((resolve) => setTimeout(resolve, waitMs));
     }
+    signal.throwIfAborted();
     lastOverpassDispatchAt = Date.now();
   } finally {
     release?.();
@@ -556,13 +562,14 @@ type NominatimResponseReceipt = {
 };
 
 async function fetchNominatimJsonUncached(urlString: string): Promise<NominatimResponseReceipt> {
-  await waitForNominatimSlot();
+  const signal = AbortSignal.timeout(NOMINATIM_TIMEOUT_MS);
   let response: Response;
   try {
+    await waitForSourceAdmission(waitForNominatimSlot(signal), signal);
     response = await fetch(new URL(urlString), {
       method: "GET",
       redirect: "error",
-      signal: AbortSignal.timeout(NOMINATIM_TIMEOUT_MS),
+      signal,
       headers: {
         Accept: "application/json",
         Referer: APPLICATION_REFERER,
@@ -593,7 +600,8 @@ async function fetchNominatimJsonUncached(urlString: string): Promise<NominatimR
         "NOMINATIM_RATE_LIMITED",
         429,
         "The live OpenStreetMap resolver is temporarily rate limited.",
-        true
+        true,
+        sourceRetryAfterSeconds(response.headers.get("retry-after"))
       );
     }
     throw new LivePointEvidenceError(
@@ -732,13 +740,14 @@ function assertNoOverpassRuntimeRemark(payload: unknown): void {
 }
 
 async function fetchOverpassJsonUncached(query: string): Promise<unknown> {
-  await waitForOverpassSlot();
+  const signal = AbortSignal.timeout(OVERPASS_TIMEOUT_MS);
+  await waitForSourceAdmission(waitForOverpassSlot(signal), signal);
   const url = configuredOverpassEndpoint();
   url.searchParams.set("data", query);
   const response = await fetch(url, {
     method: "GET",
     redirect: "error",
-    signal: AbortSignal.timeout(OVERPASS_TIMEOUT_MS),
+    signal,
     headers: {
       Accept: "application/json",
       Referer: APPLICATION_REFERER,

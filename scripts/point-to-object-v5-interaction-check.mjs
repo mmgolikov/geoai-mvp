@@ -172,7 +172,7 @@ assert.match(client, /t\("create\.deleteArea"\)/);
 assert.match(i18n, /"create\.deleteArea": "Delete area"/);
 assert.match(i18n, /"create\.deleteArea": "Удалить зону"/);
 assert.match(client, /response\.status === 429/);
-assert.match(client, /boundedRetryAfterSeconds\(response\.headers\.get\("retry-after"\)\)/);
+assert.match(client, /sourceRetryAfterSeconds\(response\.headers\.get\("retry-after"\)\)/, "Source recovery must preserve the provider Retry-After contract via the shared parser");
 assert.match(client, /areaContextRetryAfterSeconds > 0/);
 const pendingInvalidationStart = create.indexOf("function invalidatePendingRequest()");
 const pendingInvalidationEnd = create.indexOf("function selectTemplate", pendingInvalidationStart);

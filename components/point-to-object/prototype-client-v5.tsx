@@ -57,6 +57,7 @@ import {
   type PointObjectFindResult
 } from "@/src/lib/prototype/point-to-object-find-contract";
 import { pointObjectFindCapability } from "@/src/lib/prototype/point-to-object-find-capabilities";
+import { pointObjectSourceFailure, sourceFailureMessage, sourceRetryAfterSeconds, type PointObjectSourceFailure } from "@/src/lib/prototype/point-to-object-source-recovery";
 import {
   isPointObjectFindResult,
   pointObjectFindSessionForProfileAudience,
@@ -158,12 +159,8 @@ function isRestoredFindViewport(candidate: PointObjectFindBounds, query: PointOb
   return west <= queryWest && south <= querySouth && east >= queryEast && north >= queryNorth && candidateArea / queryArea <= 6;
 }
 
-function boundedRetryAfterSeconds(value: string | null): number {
-  const numeric = value?.trim().match(/^\d+$/) ? Number(value) : Number.NaN;
-  const seconds = Number.isFinite(numeric)
-    ? numeric
-    : value ? Math.ceil((Date.parse(value) - Date.now()) / 1_000) : Number.NaN;
-  return Number.isFinite(seconds) ? Math.min(600, Math.max(1, seconds)) : 60;
+function contextRequestKey(selection: LiveMapSelection | null, locale: "en" | "ru"): string | null {
+  return selection ? JSON.stringify({ caseKey: selection.locationKey, longitude: selection.longitude, latitude: selection.latitude, locale, expectedSourceFeatureId: exactOsmFeatureId(selection.object.sourceFeatureId) }) : null;
 }
 
 function acceptedMappedLevelsInput(value: string): string | null {
@@ -302,7 +299,7 @@ function isAutocompleteResponse(value: unknown): value is { protocol: "POINT_TO_
     });
 }
 
-export function PointToObjectPrototypeV5() {
+export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialMode?: ProductMode } = {}) {
   const router = useRouter();
   const { locale, setLocale, t } = usePointObjectLocale();
   const { user, isSessionResolved } = useAuth();
@@ -313,14 +310,18 @@ export function PointToObjectPrototypeV5() {
   const [sessionReady, setSessionReady] = useState(false);
   const [contextStatus, setContextStatus] = useState<"idle" | "loading" | "error">("idle");
   const [contextRetryVersion, setContextRetryVersion] = useState(0);
+  const [contextFailure, setContextFailure] = useState<PointObjectSourceFailure>("unavailable");
+  const [contextRetrySeconds, setContextRetrySeconds] = useState(0);
+  const contextCooldownRef = useRef(0);
+  const contextCacheRef = useRef(new Map<string, { expiresAt: number; value: NonNullable<ReturnType<typeof parseLiveResolvedObject>> }>());
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<LiveMapSearchResult[]>([]);
   const [searchStatus, setSearchStatus] = useState<"idle" | "loading" | "empty" | "error">("idle");
   const [suggestionStatus, setSuggestionStatus] = useState<"idle" | "loading" | "empty" | "error">("idle");
   const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(-1);
   const [navigationTarget, setNavigationTarget] = useState<LiveMapNavigationTarget | null>(null);
-  const [viewModeRequest, setViewModeRequest] = useState<{ requestId: string; mode: LiveMapViewMode } | null>(null);
-  const [mode, setMode] = useState<ProductMode>("analyse");
+  const [viewModeRequest, setViewModeRequest] = useState<{ requestId: string; mode: LiveMapViewMode } | null>(initialMode === "find" ? { requestId: "initial-find-2d", mode: "2d" } : null);
+  const [mode, setMode] = useState<ProductMode>(initialMode);
   const [sheet, setSheet] = useState<"peek" | "half" | "full">("peek");
   const [mobile, setMobile] = useState(false);
   const [viewportHeight, setViewportHeight] = useState(844);
@@ -366,6 +367,8 @@ export function PointToObjectPrototypeV5() {
   const [areaContextStatus, setAreaContextStatus] = useState<"idle" | "loading" | "rate" | "error">("idle");
   const [areaContextRetryVersion, setAreaContextRetryVersion] = useState(0);
   const [areaContextRetryAfterSeconds, setAreaContextRetryAfterSeconds] = useState(0);
+  const areaContextCooldownRef = useRef(0);
+  const [areaContextFailure, setAreaContextFailure] = useState<PointObjectSourceFailure>("unavailable");
   const [visibleBounds, setVisibleBounds] = useState<PointObjectFindBounds | null>(null);
   const [mapMoving, setMapMoving] = useState(false);
   const [restoredFindViewportBounds, setRestoredFindViewportBounds] = useState<PointObjectFindBounds | null>(null);
@@ -380,6 +383,9 @@ export function PointToObjectPrototypeV5() {
   const [findComparisonOpen, setFindComparisonOpen] = useState(false);
   const [findAnalysisTargetSourceFeatureId, setFindAnalysisTargetSourceFeatureId] = useState<PointObjectFindCandidate["sourceFeatureId"] | null>(null);
   const [findStatus, setFindStatus] = useState<"idle" | "loading" | "zoom" | "rate" | "error">("idle");
+  const [findFailure, setFindFailure] = useState<PointObjectSourceFailure>("unavailable");
+  const [findRetrySeconds, setFindRetrySeconds] = useState(0);
+  const findCooldownRef = useRef(0);
   const [findResultIntent, setFindResultIntent] = useState<FindIntent | null>(null);
   const [findSavedArtifactId, setFindSavedArtifactId] = useState<string | null>(null);
   const [createSavedArtifactId, setCreateSavedArtifactId] = useState<string | null>(null);
@@ -453,6 +459,7 @@ export function PointToObjectPrototypeV5() {
   useEffect(() => {
     if (!sessionReady || !isSessionResolved || projectRestoreAppliedRef.current === projectIdentity) return;
     reconcilePointObjectBrowserIdentity(projectIdentity);
+    contextCacheRef.current.clear();
     restoreRemovedCreateRef.current = null;
     setCanRestoreRemovedCreate(false);
     projectRestoreAppliedRef.current = projectIdentity;
@@ -679,9 +686,28 @@ export function PointToObjectPrototypeV5() {
     if (selection) writePointObjectSelection(selection);
   }, [selection]);
 
+  const unresolvedContextKey = selection?.resolvedObject ? null : contextRequestKey(selection, locale);
   useEffect(() => {
-    if (!selection || selection.resolvedObject) {
+    if (!unresolvedContextKey) {
       setContextStatus("idle");
+      return;
+    }
+    const applyResolved = (resolvedObject: NonNullable<ReturnType<typeof parseLiveResolvedObject>>) => {
+      const storedSelection = readPointObjectSelection();
+      setSelection((current) => current && contextRequestKey(current, locale) === unresolvedContextKey ? {
+        ...current,
+        viewport: storedSelection?.clickedAt === current.clickedAt ? storedSelection.viewport : current.viewport,
+        resolvedObject
+      } : current);
+      setContextStatus("idle");
+    };
+    const cached = contextCacheRef.current.get(unresolvedContextKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      applyResolved(cached.value);
+      return;
+    }
+    if (contextCooldownRef.current > Date.now()) {
+      setContextStatus("error");
       return;
     }
     const requestId = contextRequestId.current + 1;
@@ -692,43 +718,52 @@ export function PointToObjectPrototypeV5() {
       void fetch("/api/prototype/point-to-object/context", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          caseKey: selection.locationKey,
-          longitude: selection.longitude,
-          latitude: selection.latitude,
-          locale,
-          expectedSourceFeatureId: exactOsmFeatureId(selection.object.sourceFeatureId)
-        }),
-        signal: controller.signal
+        body: unresolvedContextKey,
+        signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)])
       }).then(async (response) => {
         const payload = await response.json() as PointObjectLiveContextResponse;
         if (controller.signal.aborted || requestId !== contextRequestId.current) return;
         if (!response.ok || payload.mode !== "resolved") {
+          setContextFailure(pointObjectSourceFailure(response.status, payload));
+          if (response.status === 429) {
+            const seconds = sourceRetryAfterSeconds(response.headers.get("retry-after"));
+            contextCooldownRef.current = Date.now() + seconds * 1_000;
+            setContextRetrySeconds(seconds);
+          }
           setContextStatus("error");
           return;
         }
         const resolvedObject = parseLiveResolvedObject(payload.subject);
         if (!resolvedObject) {
+          setContextFailure("unavailable");
           setContextStatus("error");
           return;
         }
-        const storedSelection = readPointObjectSelection();
-        setSelection((current) => current?.clickedAt === selection.clickedAt ? {
-          ...current,
-          viewport: storedSelection?.clickedAt === current.clickedAt ? storedSelection.viewport : current.viewport,
-          resolvedObject
-        } : current);
-        setContextStatus("idle");
+        if (contextCacheRef.current.size >= 24) contextCacheRef.current.delete(contextCacheRef.current.keys().next().value!);
+        contextCacheRef.current.set(unresolvedContextKey, { value: resolvedObject, expiresAt: Date.now() + 5 * 60_000 });
+        applyResolved(resolvedObject);
       }).catch((error: unknown) => {
         if (controller.signal.aborted || (error instanceof DOMException && error.name === "AbortError")) return;
-        if (requestId === contextRequestId.current) setContextStatus("error");
+        if (requestId === contextRequestId.current) {
+          setContextFailure(error instanceof Error && error.name === "TimeoutError" ? "timeout" : "unavailable");
+          setContextStatus("error");
+        }
       });
     }, 250);
     return () => {
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [selection, contextRetryVersion, locale]);
+  }, [unresolvedContextKey, contextRetryVersion, locale, projectIdentity]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setContextRetrySeconds(Math.max(0, Math.ceil((contextCooldownRef.current - Date.now()) / 1_000)));
+      setFindRetrySeconds(Math.max(0, Math.ceil((findCooldownRef.current - Date.now()) / 1_000)));
+      setAreaContextRetryAfterSeconds(Math.max(0, Math.ceil((areaContextCooldownRef.current - Date.now()) / 1_000)));
+    }, 1_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => () => {
     searchRequestRef.current?.abort();
@@ -750,6 +785,12 @@ export function PointToObjectPrototypeV5() {
       setAreaContextRetryAfterSeconds(0);
       return;
     }
+    if (areaContextCooldownRef.current > Date.now()) {
+      setAreaContext(null);
+      setAreaContextStatus("rate");
+      setAreaContextRetryAfterSeconds(Math.ceil((areaContextCooldownRef.current - Date.now()) / 1_000));
+      return;
+    }
     const controller = new AbortController();
     setAreaContextStatus("loading");
     setAreaContextRetryAfterSeconds(0);
@@ -758,16 +799,20 @@ export function PointToObjectPrototypeV5() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ marketKey: locationKey, locale, aoiCoordinates: createAoi.coordinates }),
-      signal: controller.signal
+      signal: AbortSignal.any([controller.signal, AbortSignal.timeout(28_000)])
     }).then(async (response) => {
       const payload: unknown = await response.json();
       if (controller.signal.aborted) return;
       if (response.status === 429) {
+        const seconds = sourceRetryAfterSeconds(response.headers.get("retry-after"));
+        areaContextCooldownRef.current = Date.now() + seconds * 1_000;
+        setAreaContextFailure(pointObjectSourceFailure(response.status, payload));
         setAreaContextStatus("rate");
-        setAreaContextRetryAfterSeconds(boundedRetryAfterSeconds(response.headers.get("retry-after")));
+        setAreaContextRetryAfterSeconds(seconds);
         return;
       }
       if (!response.ok || !isPointObjectAreaContextResult(payload)) {
+        setAreaContextFailure(pointObjectSourceFailure(response.status, payload));
         setAreaContextStatus("error");
         return;
       }
@@ -775,25 +820,17 @@ export function PointToObjectPrototypeV5() {
       setAreaContextStatus("idle");
     }).catch((error: unknown) => {
       if (controller.signal.aborted || (error instanceof DOMException && error.name === "AbortError")) return;
+      setAreaContextFailure(error instanceof Error && error.name === "TimeoutError" ? "timeout" : "unavailable");
       setAreaContextStatus("error");
     });
     return () => controller.abort();
   }, [areaContextRetryVersion, createAoi, locale, locationKey]);
 
-  useEffect(() => {
-    if (areaContextStatus !== "rate") return;
-    const timer = window.setInterval(() => {
-      setAreaContextRetryAfterSeconds((seconds) => Math.max(0, seconds - 1));
-    }, 1_000);
-    return () => window.clearInterval(timer);
-  }, [areaContextStatus]);
-
   const handleSelection = useCallback((nextSelection: LiveMapSelection | null) => {
     clearPointObjectProjectRestore();
-    contextRequestId.current += 1;
     setSelection(nextSelection);
     setFindAnalysisTargetSourceFeatureId((current) => nextSelection?.object.sourceFeatureId === current ? current : null);
-    setContextStatus(nextSelection ? "loading" : "idle");
+    if (!nextSelection) setContextStatus("idle");
     clearPointObjectAnalysis();
   }, []);
 
@@ -982,11 +1019,10 @@ export function PointToObjectPrototypeV5() {
   }
 
   async function findInView() {
-    if (!visibleBounds || findStatus === "loading" || findCapability.status === "unsupported") return;
+    if (!visibleBounds || findRequestRef.current || findStatus === "loading" || findCapability.status === "unsupported" || findCooldownRef.current > Date.now()) return;
     clearPointObjectProjectRestore();
     pendingRestoredFindBoundsRef.current = null;
     setRestoredFindViewportBounds(null);
-    findRequestRef.current?.abort();
     const controller = new AbortController();
     const requestId = findRequestIdRef.current + 1;
     const requestIntent = { audience: findAudience, role: findRole, scenario: findScenario };
@@ -1001,7 +1037,7 @@ export function PointToObjectPrototypeV5() {
       const response = await fetch("/api/prototype/point-to-object/find", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        signal: controller.signal,
+        signal: AbortSignal.any([controller.signal, AbortSignal.timeout(28_000)]),
         body: JSON.stringify({ marketKey: locationKey, locale, bounds: visibleBounds, group: findGroup, mappedMinimumLevels, mappedMaximumLevels, limit: 12 })
       });
       const payload: unknown = await response.json();
@@ -1019,14 +1055,22 @@ export function PointToObjectPrototypeV5() {
       } else if (response.status === 400) {
         setFindStatus("zoom");
       } else if (response.status === 429) {
+        const seconds = sourceRetryAfterSeconds(response.headers.get("retry-after"));
+        findCooldownRef.current = Date.now() + seconds * 1_000;
+        setFindRetrySeconds(seconds);
+        setFindFailure(pointObjectSourceFailure(response.status, payload));
         setFindStatus("rate");
       } else {
+        setFindFailure(pointObjectSourceFailure(response.status, payload));
         setFindStatus("error");
       }
     } catch (error) {
-      if (requestId === findRequestIdRef.current && !(error instanceof DOMException && error.name === "AbortError")) setFindStatus("error");
+      if (requestId === findRequestIdRef.current && !controller.signal.aborted) {
+        setFindFailure(error instanceof Error && error.name === "TimeoutError" ? "timeout" : "unavailable");
+        setFindStatus("error");
+      }
     } finally {
-      if (requestId === findRequestIdRef.current && findRequestRef.current === controller) findRequestRef.current = null;
+      if (findRequestRef.current === controller) findRequestRef.current = null;
     }
   }
 
@@ -1302,15 +1346,15 @@ export function PointToObjectPrototypeV5() {
   const findHasInvalidLevels = (findMinimumLevels !== "" && (Number(findMinimumLevels) < 1 || Number(findMinimumLevels) > 100)) ||
     (findMaximumLevels !== "" && (Number(findMaximumLevels) < 1 || Number(findMaximumLevels) > 100)) ||
     (findMinimumLevels !== "" && findMaximumLevels !== "" && Number(findMinimumLevels) > Number(findMaximumLevels));
-  const findCtaDisabled = !visibleBounds || mapMoving || findStatus === "loading" || findCapability.status === "unsupported" || findHasInvalidLevels;
+  const findCtaDisabled = !visibleBounds || mapMoving || findStatus === "loading" || findRetrySeconds > 0 || findCapability.status === "unsupported" || findHasInvalidLevels;
   const findFooterStatus = findStatus === "loading"
     ? (locale === "ru" ? "Ищем объекты в текущей видимой области…" : "Searching the current visible area…")
     : findStatus === "zoom"
       ? (locale === "ru" ? "Приблизьте карту: текущая область слишком велика." : "Zoom in: the current area is too large.")
       : findStatus === "rate"
-        ? (locale === "ru" ? "Источник временно ограничил запрос. Повторите попытку." : "The source temporarily rate-limited this request. Try again.")
+        ? sourceFailureMessage(findFailure, findRetrySeconds, locale)
         : findStatus === "error"
-          ? (locale === "ru" ? "Не удалось получить объекты. Критерии сохранены." : "Objects could not be loaded. Your criteria are preserved.")
+          ? `${sourceFailureMessage(findFailure, 0, locale)} ${locale === "ru" ? "Критерии сохранены." : "Your criteria are preserved."}`
           : findCapability.status === "unsupported"
             ? (locale === "ru" ? "Для этого сценария нужны официальные земельные и градостроительные данные." : "This scenario requires authoritative land and planning data.")
             : findHasInvalidLevels
@@ -1373,11 +1417,11 @@ export function PointToObjectPrototypeV5() {
                 {selection.resolvedObject ? <p className="mt-1 text-xs font-semibold text-[#087f8c]">{selectionContextLabel}</p> : null}
                 {selection.resolvedObject?.address ? <p className="mt-2 line-clamp-2 text-xs leading-5 text-[#475467]">{selection.resolvedObject.address}</p> : null}
                 {contextStatus === "loading" ? <p className="mt-3 text-xs font-semibold text-[#087f8c]" role="status">{t("selection.resolving")}</p> : null}
-                {contextStatus === "error" ? <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-[#e7c47e] bg-[#fffaf0] px-3 py-2 text-xs text-[#6b4b16]" role="alert"><span>{t("selection.error")}</span><button type="button" onClick={() => { setContextStatus("loading"); setContextRetryVersion((value) => value + 1); }} className="min-h-9 shrink-0 rounded-lg border border-[#d6b36e] bg-white px-3 font-bold text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c]">{t("selection.retry")}</button></div> : null}
+                {contextStatus === "error" ? <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-[#e7c47e] bg-[#fffaf0] px-3 py-2 text-xs text-[#6b4b16]" role="alert"><span>{sourceFailureMessage(contextFailure, contextRetrySeconds, locale)}</span><button type="button" disabled={contextRetrySeconds > 0} onClick={() => { if (contextCooldownRef.current > Date.now()) return; setContextStatus("loading"); setContextRetryVersion((value) => value + 1); }} className="min-h-9 shrink-0 rounded-lg border border-[#d6b36e] bg-white px-3 font-bold text-ink disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c]">{t("selection.retry")}</button></div> : null}
                 {selectedAttributes.length ? <div className="mt-3 flex flex-wrap gap-1.5 border-t border-line pt-3" aria-label={t("selection.attributes")}>{selectedAttributes.map(([key, value]) => <span key={key} className="rounded-full bg-white px-2.5 py-1 text-[10px] font-semibold text-[#475467] ring-1 ring-inset ring-[#d7dee4]">{selectionAttributeLabel(key, locale)} · {humanize(value)}</span>)}</div> : null}</> : <div className="py-3"><p className="text-sm font-bold">{t("selection.empty.title")}</p><p className="mt-2 text-sm leading-6 text-muted">{t("selection.empty.body")}</p></div>}
             </section>
 
-            <div className="mt-auto shrink-0 pt-3" data-testid="analyse-composer"><label className="text-xs font-bold text-ink" htmlFor="point-object-question">{t("question.label")}</label><textarea id="point-object-question" value={question} onChange={(event) => setQuestion(event.target.value.slice(0, 500))} onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key === "Enter") { event.preventDefault(); startAnalysis(); } }} placeholder={t("question.placeholder")} className="mt-1.5 h-[120px] w-full resize-none rounded-xl border border-line bg-white px-3 py-2 text-sm leading-5 outline-none transition focus:border-[#087f8c] focus:ring-2 focus:ring-[#bfe4e2] lg:h-[132px] lg:min-h-[120px] lg:max-h-[200px] lg:resize-y" /><div className="sticky bottom-0 bg-white pt-2"><button type="button" onClick={startAnalysis} disabled={!selection?.resolvedObject} className="min-h-11 w-full rounded-control bg-[#087f8c] px-4 text-sm font-bold text-white transition hover:bg-[#006c78] disabled:cursor-not-allowed disabled:bg-[#b7c4c4] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] focus-visible:ring-offset-2">{selection && !selection.resolvedObject ? t("analyze.resolving") : t("analyze.action")}</button></div></div>
+            <div className="mt-auto shrink-0 pt-3" data-testid="analyse-composer"><label className="text-xs font-bold text-ink" htmlFor="point-object-question">{t("question.label")}</label><textarea id="point-object-question" value={question} onChange={(event) => setQuestion(event.target.value.slice(0, 500))} onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key === "Enter") { event.preventDefault(); startAnalysis(); } }} placeholder={t("question.placeholder")} className="mt-1.5 h-[120px] w-full resize-none rounded-xl border border-line bg-white px-3 py-2 text-sm leading-5 outline-none transition focus:border-[#087f8c] focus:ring-2 focus:ring-[#bfe4e2] lg:h-[132px] lg:min-h-[120px] lg:max-h-[200px] lg:resize-y" /><div className="sticky bottom-0 bg-white pt-2"><button type="button" onClick={startAnalysis} disabled={!selection?.resolvedObject} className="min-h-11 w-full rounded-control bg-[#087f8c] px-4 text-sm font-bold text-white transition hover:bg-[#006c78] disabled:cursor-not-allowed disabled:bg-[#b7c4c4] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] focus-visible:ring-offset-2">{selection && !selection.resolvedObject && contextStatus === "loading" ? t("analyze.resolving") : t("analyze.action")}</button></div></div>
             </div> : null}
 
             {mode === "find" ? <section className="mt-2 flex min-h-0 flex-1 flex-col" data-testid="find-drawer">
@@ -1457,8 +1501,8 @@ export function PointToObjectPrototypeV5() {
                     <button type="button" data-testid="create-map-presentation-toggle" onClick={toggleCreateMapPresentation} className="min-h-11 max-w-full rounded-lg border border-[#8ebdb4] bg-white px-3 text-left text-[11px] font-bold text-[#176548] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c]">{sourceBuildingsHidden ? (locale === "ru" ? "Показать исходные" : "Show existing") : activeConceptMassing ? (locale === "ru" ? "Показать созданную концепцию" : "Show generated concept") : (locale === "ru" ? "Скрыть исходные здания" : "Hide existing buildings")}</button>
                   </div>
                   {areaContextStatus === "loading" ? <p className="mt-3 text-xs font-semibold text-[#087f70]" role="status">{locale === "ru" ? "Собираем объекты открытой карты…" : "Reading open-map objects…"}</p> : null}
-                  {areaContextStatus === "rate" ? <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-[#e6bd74] bg-[#fff9ed] p-3 text-xs text-[#79520d]" role="alert"><span>{areaContextRetryAfterSeconds > 0 ? (locale === "ru" ? `Можно повторить через ${areaContextRetryAfterSeconds} с.` : `Retry in ${areaContextRetryAfterSeconds}s.`) : (locale === "ru" ? "Можно повторить запрос." : "Try again.")}</span><button type="button" disabled={areaContextRetryAfterSeconds > 0} onClick={() => setAreaContextRetryVersion((value) => value + 1)} className="min-h-11 shrink-0 rounded-lg border border-[#d6b36e] bg-white px-3 font-bold disabled:cursor-wait disabled:opacity-50">{t("selection.retry")}</button></div> : null}
-                  {areaContextStatus === "error" ? <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-[#e6bd74] bg-[#fff9ed] p-3 text-xs text-[#79520d]" role="alert"><span>{locale === "ru" ? "Контекст зоны временно недоступен." : "Area context is temporarily unavailable."}</span><button type="button" onClick={() => setAreaContextRetryVersion((value) => value + 1)} className="min-h-8 rounded-lg border border-[#d6b36e] bg-white px-2 font-bold">{t("selection.retry")}</button></div> : null}
+                  {areaContextStatus === "rate" ? <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-[#e6bd74] bg-[#fff9ed] p-3 text-xs text-[#79520d]" role="alert"><span>{sourceFailureMessage(areaContextFailure, areaContextRetryAfterSeconds, locale)}</span><button type="button" disabled={areaContextRetryAfterSeconds > 0} onClick={() => setAreaContextRetryVersion((value) => value + 1)} className="min-h-11 shrink-0 rounded-lg border border-[#d6b36e] bg-white px-3 font-bold disabled:cursor-wait disabled:opacity-50">{t("selection.retry")}</button></div> : null}
+                  {areaContextStatus === "error" ? <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-[#e6bd74] bg-[#fff9ed] p-3 text-xs text-[#79520d]" role="alert"><span>{areaContextFailure === "unavailable" ? (locale === "ru" ? "Контекст зоны временно недоступен." : "Area context is temporarily unavailable.") : sourceFailureMessage(areaContextFailure, 0, locale)}</span><button type="button" onClick={() => setAreaContextRetryVersion((value) => value + 1)} className="min-h-8 rounded-lg border border-[#d6b36e] bg-white px-2 font-bold">{t("selection.retry")}</button></div> : null}
                   {areaContext ? <><div className="mt-3 grid grid-cols-3 gap-2"><div className="rounded-lg bg-white p-2"><span className="block text-[10px] text-muted">{locale === "ru" ? "Объекты на карте" : "Mapped objects"}</span><strong className="mt-1 block text-sm">{areaContext.summary.sampleSize}</strong></div><div className="rounded-lg bg-white p-2"><span className="block text-[10px] text-muted">{locale === "ru" ? "Здания на карте" : "Mapped buildings"}</span><strong className="mt-1 block text-sm">{areaContext.summary.mappedBuildingCount}</strong></div><div className="rounded-lg bg-white p-2"><span className="block text-[10px] text-muted">{locale === "ru" ? "Медиана этажей" : "Median levels"}</span><strong className="mt-1 block text-sm">{areaContext.summary.medianMappedLevels ?? "—"}</strong></div></div><div className="mt-3 flex flex-wrap gap-1.5">{areaContext.summary.groups.slice(0, 5).map((group) => <span key={group.group} className="rounded-full bg-white px-2.5 py-1 text-[10px] font-semibold text-[#475467] ring-1 ring-inset ring-[#d7dee4]">{areaGroupLabels[group.group]} · {group.count}</span>)}</div>{areaContext.coverage.capReached ? <p className="mt-3 text-[10px] font-semibold leading-4 text-[#79520d]">{locale === "ru" ? "Нарисуйте меньшую зону, чтобы сузить список объектов на карте." : "Draw a smaller area to narrow the mapped objects."}</p> : null}</> : null}
                 </section>
                 <PointObjectCreatePanel locale={locale} marketKey={locationKey} aoi={createAoi} depth="standard" generated={generatedConcept} generatedLocale={generatedConceptLocale} editorSnapshot={createEditorSnapshot} onEditorSnapshotChange={setCreateEditorSnapshot} activeAlternativeId={activeCreateAlternativeId} onGenerationStart={() => { clearPointObjectProjectRestore(); setCreateSavedArtifactId(null); const identityKey = projectIdentityRef.current; createSaveContextRef.current = identityKey ? { identityKey, destination: capturePointObjectProjectDestination(identityKey, { label: locale === "ru" ? "Созданная концепция" : "Generated concept" }), aoi: structuredClone(createAoi), editorSnapshot: structuredClone(createEditorSnapshot), locale, marketKey: locationKey, areaContext: structuredClone(areaContext) } : null; }} onGenerated={(concept, committedEditorSnapshot) => { const saveContext = createSaveContextRef.current; const committedSaveContext = saveContext ? { ...saveContext, editorSnapshot: structuredClone(committedEditorSnapshot) } : null; setCreateEditorSnapshot(committedEditorSnapshot); setGeneratedConcept(concept); setGeneratedConceptLocale(locale); setActiveCreateAlternativeId("A"); setCreateReplacementStatus("idle"); setCreateAreaCleared(true); setCreateReplacementRevision((revision) => revision + 1); void saveCreateArtifact(concept, "A", committedSaveContext); }} onAlternativeChange={(id) => { setActiveCreateAlternativeId(id); setCreateReplacementStatus("idle"); setCreateAreaCleared(true); setCreateReplacementRevision((revision) => revision + 1); const identityKey = projectIdentityRef.current; if (identityKey && createSavedArtifactId) void updatePointObjectCreateViewState(identityKey, createSavedArtifactId, id); }} onReset={() => { clearPointObjectProjectRestore(); createSaveContextRef.current = null; setCreateSavedArtifactId(null); setGeneratedConcept(null); setGeneratedConceptLocale(null); setActiveCreateAlternativeId("A"); setCreateAreaCleared(false); setCreateReplacementStatus("idle"); setCreateReplacementRevision(0); }} />

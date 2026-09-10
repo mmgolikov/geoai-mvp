@@ -10,6 +10,8 @@ Navigation: [Documentation Index](DOCUMENTATION_INDEX.md) · [Full System Audit]
 
 ## Current externally verified release
 
+The isolated Sprint06 successor is governed by the [September 10 correction CR](change-requests/point-to-object-001/experience-v6/SEPT10_REGRESSION_PROJECT_HUB_CHANGE_REQUEST.md), not by the older runtime snapshots below. Founder tests reopened complex-map/source/mobile acceptance. New code is a Preview candidate only until its exact successor receipt is verified; this correction changes neither main nor Production.
+
 | Item | Verified state |
 | --- | --- |
 | GitHub release | PR [#113](https://github.com/mmgolikov/geoai-mvp/pull/113), merged; commit `Merge PR #113: Product System v3.2.2 correction` |

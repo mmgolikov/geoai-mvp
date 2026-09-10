@@ -153,9 +153,9 @@ test("current landing keeps the accepted map preview and primary actions unobstr
 
     const hero = page.locator("main > section").first();
     const openMap = hero.getByRole("link", { name: "Open map", exact: true }).filter({ hasText: /^Open map$/ });
-    const projects = hero.getByRole("link", { name: "Projects", exact: true });
+    const request = hero.getByRole("link", { name: "Leave a request", exact: true });
     await expect(openMap).toHaveAttribute("href", "/prototype/point-to-object");
-    await expect(projects).toHaveAttribute("href", "/projects?view=spatial");
+    await expect(request).toHaveAttribute("href", "/request-access");
     await expectElementUnobstructed(openMap, `${viewport.name} Open map`);
 
     const heading = page.getByRole("heading", { level: 3, name: "Understand a mapped place" });

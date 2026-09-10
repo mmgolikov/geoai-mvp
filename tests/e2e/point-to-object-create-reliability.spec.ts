@@ -248,6 +248,27 @@ async function readLateBuildingLayerState(page: Page) {
 }
 
 async function installSpatialReplacementFixture(page: Page) {
+  // Canvas DOM can be visible before the async MapLibre import populates the
+  // React map ref. Read readiness without mutating the fixture or sleeping.
+  await expect.poll(() => page.evaluate(() => {
+    type Hook = { memoizedState: unknown; next: Hook | null };
+    type Fiber = { memoizedState: Hook | null; return: Fiber | null };
+    const canvas = document.querySelector("[data-testid='live-map-canvas']");
+    if (!canvas) return false;
+    const key = Object.getOwnPropertyNames(canvas).find(key => key.startsWith("__reactFiber$"));
+    if (!key) return false;
+    let fiber: Fiber | null = (canvas as unknown as Record<string, Fiber>)[key];
+    while (fiber) {
+      let hook = fiber.memoizedState;
+      while (hook) {
+        const candidate = (hook.memoizedState as { current?: { addSource?: unknown; jumpTo?: unknown; isStyleLoaded?: () => boolean } } | null)?.current;
+        if (typeof candidate?.addSource === "function" && typeof candidate.jumpTo === "function" && candidate.isStyleLoaded?.()) return true;
+        hook = hook.next;
+      }
+      fiber = fiber.return;
+    }
+    return false;
+  }), { message: "MapLibre map ref and style must be ready before installing the spatial fixture" }).toBe(true);
   await page.evaluate(async () => {
     type HookNode = { memoizedState: unknown; next: HookNode | null };
     type FiberNode = { memoizedState: HookNode | null; return: FiberNode | null };

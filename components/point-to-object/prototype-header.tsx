@@ -23,7 +23,7 @@ function PointObjectProjectControlFallback() {
   return (
     <div className="flex min-w-0 items-center gap-1.5" data-testid="point-object-project-control-loading">
       <Link
-        href="/projects?view=spatial"
+        href="/projects"
         aria-label={label}
         title={label}
         className="inline-flex h-11 items-center justify-center rounded-lg border border-line bg-white px-2 text-[11px] font-bold text-[#345c54] hover:border-[#087f8c] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] sm:px-3"

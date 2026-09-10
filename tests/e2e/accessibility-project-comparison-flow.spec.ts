@@ -107,7 +107,13 @@ test.describe("accessible browser-local project and comparison journeys", () => 
 
     await signInDemoWithKeyboard(page, "/projects");
     await expect(page.getByRole("heading", { level: 1, name: "Project Hub" })).toBeVisible();
-    await recordAccessibilityResult(page, "Projects hub");
+    await expect(page.getByTestId("hub-summary")).toBeVisible();
+    await recordAccessibilityResult(page, "Canonical Project Hub");
+    // Preserve the old shared-demo project workflow without restoring it as
+    // the canonical product entry or broadening the Auth return-path allowlist.
+    await page.goto("/projects/legacy");
+    await expect(page.locator("#project-dashboard-selector")).toBeVisible();
+    await recordAccessibilityResult(page, "Legacy projects archive");
 
     const createProject = page.getByRole("button", { name: "Create project" });
     await tabUntilLocator(page, createProject, { maximumTabs: 80 });

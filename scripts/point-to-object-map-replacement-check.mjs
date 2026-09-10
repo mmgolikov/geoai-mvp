@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { registerHooks } from "node:module";
+import { registerHooks, stripTypeScriptTypes } from "node:module";
+import { readFileSync } from "node:fs";
 import { createExpression, featureFilter } from "@maplibre/maplibre-gl-style-spec";
 
 registerHooks({
@@ -17,6 +18,9 @@ registerHooks({
 
 const {
   buildPointObjectBuildingReplacementFilter,
+  buildPointObjectNativeSelectionOutside,
+  buildPointObjectReplacementBoundaryAoi,
+  pointObjectReplacementBoundaryToleranceM,
   clonePointObjectMapFilter,
   pointObjectReplacementMinimumReliableZoom,
   restorePointObjectMapFilter,
@@ -118,7 +122,7 @@ assert.deepEqual(plan.filter, [
           type: "MultiPolygon",
           coordinates: [[
             [[-180, -90], [180, -90], [180, 90], [-180, 90], [-180, -90]],
-            aoi.coordinates[0]
+            buildPointObjectReplacementBoundaryAoi(aoi).coordinates[0]
           ]]
         }
       ],
@@ -147,6 +151,38 @@ assert.equal(
   "Regression proof: minimum-distance filtering removes a whole multipart feature when one component touches the AOI."
 );
 assert.equal(mapLibreKeeps(spatialPlan.filter, insideBuilding), false, "A fully internal building may be hidden.");
+assert.equal(pointObjectReplacementBoundaryToleranceM, 0.001, "The numerical boundary offset is one millimetre, not a site buffer");
+function nativeRoundTrip(geometry, canonical) {
+  const convertRing = ring => ring.map(position => {
+    const point = tilePoint(position, canonical);
+    const x = (canonical.x + point.x / TILE_EXTENT) / 2 ** canonical.z;
+    const y = (canonical.y + point.y / TILE_EXTENT) / 2 ** canonical.z;
+    return [x * 360 - 180, Math.atan(Math.sinh(Math.PI * (1 - 2 * y))) * 180 / Math.PI];
+  });
+  return { type: "Polygon", coordinates: geometry.coordinates.map(convertRing) };
+}
+for (const sourceZoom of [13, 14, 18, 22]) {
+  const canonical = canonicalForPosition(aoi.coordinates[0][0], sourceZoom);
+  const nativeAoi = nativeRoundTrip(aoi, canonical);
+  const nativePlan = buildPointObjectBuildingReplacementFilter(null, nativeAoi);
+  assert.equal(mapLibreKeeps(nativePlan.filter, nativeAoi, { zoom: Math.max(18, sourceZoom), canonical }), false, `Exact native footprint must be hidden, source z${sourceZoom} including overscale`);
+  const numericalAoi = buildPointObjectReplacementBoundaryAoi(nativeAoi);
+  for (const [index, position] of nativeAoi.coordinates[0].entries()) {
+    const dx = (position[0] - numericalAoi.coordinates[0][index][0]) * 111_320 * Math.cos(position[1] * Math.PI / 180);
+    const dy = (position[1] - numericalAoi.coordinates[0][index][1]) * 110_574;
+    assert(Math.hypot(dx, dy) <= 0.002001, "Numerical corner displacement must never exceed 2 mm");
+  }
+  if (sourceZoom === 22) for (const outsideM of [0.01, 0.1, 10]) {
+    const eastShift = outsideM / (111_320 * Math.cos(nativeAoi.coordinates[0][0][1] * Math.PI / 180));
+    const crossing = structuredClone(nativeAoi);
+    for (const index of [1, 2]) crossing.coordinates[0][index][0] += eastShift;
+    assert.equal(mapLibreKeeps(nativePlan.filter, crossing, { zoom: 22, canonical }), true, `${outsideM} m observed outside geometry must remain`);
+  }
+}
+const difc = JSON.parse(readFileSync("tests/fixtures/difc-native-building-sept10.json", "utf8")).selection.object.geometry;
+const difcPlan = buildPointObjectBuildingReplacementFilter(null, difc);
+assert.equal(difcPlan.applied, true);
+for (const sourceZoom of [14, 18]) assert.equal(mapLibreKeeps(difcPlan.filter, difc, { zoom: 19, canonical: canonicalForPosition(difc.coordinates[0][0], sourceZoom) }), false, "Genuine native DIFC L-shape must be hidden by its exact footprint");
 assert.equal(mapLibreKeeps(spatialPlan.filter, outsideLandmark), true, "An outside landmark must remain visible.");
 assert.equal(
   mapLibreKeeps(spatialPlan.filter, multipartBuilding, { id: "shared-building" }),
@@ -315,4 +351,59 @@ for (const invalidAoi of [
   assert.equal(typeof invalidPlan.reason, "string");
 }
 
-console.log("Point-to-object MapLibre building-replacement filter contract passed.");
+// Exercise the native highlight predicate with the same real style evaluator.
+// A reused ID outside the selected geometry must not be recolored.
+const mapSource = readFileSync("components/point-to-object/live-object-map.tsx", "utf8");
+const currentNativeFunction = mapSource.slice(mapSource.indexOf("function currentNativeSelectionGeometry("), mapSource.indexOf("function setSelectedVolumeVisibility("));
+const collectNative = new Function("selectionCanShowVolume", "safeFeatureId", "featureName", "safeNumericProperty", "sanitizeGeometry", `${stripTypeScriptTypes(currentNativeFunction)}; return currentNativeSelectionGeometry;`)(
+  () => true, feature => String(feature.id), feature => feature.properties.name,
+  (properties, keys) => keys.map(key => properties[key]).find(value => typeof value === "number") ?? null,
+  geometry => geometry
+);
+const sourceFragment = rectangle(55.27, 25.205, 55.272, 25.207);
+const overlappingFragment = rectangle(55.2719, 25.205, 55.274, 25.207);
+const touchingFragment = rectangle(55.274, 25.205, 55.275, 25.207);
+const mixedFragment = multiPolygon(rectangle(55.271, 25.2055, 55.2715, 25.206), rectangle(55.28, 25.205, 55.281, 25.206));
+const nativeSelection = { longitude: 55.2705, latitude: 25.206, object: { name: "Same metadata", sourceFeatureId: "901", geometry: sourceFragment, renderHeightM: 42, renderMinHeightM: 4 } };
+const collected = collectNative({ querySourceFeatures: () => [sourceFragment, overlappingFragment, touchingFragment, mixedFragment].map(geometry => ({ id: 901, properties: { name: "Same metadata", render_height: 42, render_min_height: 4 }, geometry })) }, nativeSelection);
+assert.deepEqual(collected, [sourceFragment, overlappingFragment], "Only connected positive-interior tile fragments may join; touching and mixed outside components stay excluded even with identical metadata");
+assert.equal(nativeSelection.object.geometry, sourceFragment, "Native render matching must not mutate canonical selection geometry");
+const seamSelection = { ...nativeSelection, longitude: 55.27195 };
+const seamCollected = collectNative({ querySourceFeatures: () => [sourceFragment, overlappingFragment, touchingFragment, mixedFragment].map(geometry => ({ id: 901, properties: { name: "Same metadata", render_height: 42, render_min_height: 4 }, geometry })) }, seamSelection);
+assert.deepEqual(seamCollected, [sourceFragment, overlappingFragment], "An anchor in overlapping tile buffers must seed both legitimate fragments without admitting mixed outside components");
+const courtyardNative = { type: "Polygon", coordinates: [sourceFragment.coordinates[0], rectangle(55.2708, 25.2055, 55.2715, 25.2065).coordinates[0]] };
+const holeTouchingNative = rectangle(55.2708, 25.2055, 55.2711, 25.206);
+const courtyardCollected = collectNative({ querySourceFeatures: () => [courtyardNative, holeTouchingNative].map(geometry => ({ id: 901, properties: { name: "Same metadata", render_height: 42, render_min_height: 4 }, geometry })) }, { ...nativeSelection, object: { ...nativeSelection.object, geometry: courtyardNative } });
+assert.deepEqual(courtyardCollected, [courtyardNative], "A reused-ID building touching the inner courtyard boundary must not connect through a hole");
+const highlightFunctions = mapSource.slice(mapSource.indexOf("function selectionCanShowVolume("), mapSource.indexOf("function setHighlight("));
+let nativeColor;
+const fakeMap = { getLayer: () => true, setFilter: () => {}, setLayoutProperty: () => {}, setPaintProperty: (_layer, _property, value) => { nativeColor = value; } };
+// The helper depends only on this native layer identifier, not React or a DOM.
+const applyNativeHighlight = new Function("BUILDINGS_3D_LAYER_ID", "HIGHLIGHT_NATIVE_FILL_LAYER_ID", "buildPointObjectNativeSelectionOutside", `${stripTypeScriptTypes(highlightFunctions)}; return setSelectedVolumeVisibility;`)("geoai-buildings-3d", "geoai-live-native-selection-fill", buildPointObjectNativeSelectionOutside);
+const highlighted = { object: { sourceFeatureId: "901", geometry: plan.aoi, renderHeightM: 42, renderMinHeightM: 4 } };
+applyNativeHighlight(fakeMap, highlighted, "3d", true);
+assert.equal(nativeColor[0], "case");
+assert.equal(mapLibreKeeps(nativeColor[1], insideBuilding, { id: 901 }), true, "Native selected feature must receive highlight color");
+assert.equal(mapLibreKeeps(nativeColor[1], outsideLandmark, { id: 901 }), false, "A distant reused ID must not receive highlight color");
+assert.equal(mapLibreKeeps(nativeColor[1], insideBuilding, { id: 902 }), false, "A different feature must not receive highlight color");
+assert.equal(mapLibreKeeps(nativeColor[1], rectangle(55.273, 25.205, 55.274, 25.206), { id: 901 }), false, "An edge-touching reused ID must remain native");
+assert.equal(mapLibreKeeps(nativeColor[1], rectangle(55.273, 25.208, 55.274, 25.209), { id: 901 }), false, "A vertex-touching reused ID must remain native");
+assert.equal(mapLibreKeeps(nativeColor[1], multiPolygon(insideBuilding, outsideLandmark), { id: 901 }), false, "A mixed multipart feature sharing the selected component must remain native whole");
+const selectedMultipart = multiPolygon(...[insideBuilding, outsideLandmark].map(polygon => nativeRoundTrip(polygon, canonicalForPosition(firstGeometryPosition(polygon), 14))));
+const clippedCourtyard = { type: "Polygon", coordinates: [
+  [[55.28279995545745,25.21370005073568],[55.28279995545745,25.214399989082438],[55.28321385383606,25.214399989082438],[55.28321385383606,25.21370005073568],[55.28279995545745,25.21370005073568]],
+  [[55.28299994766712,25.213899946864956],[55.28321385383606,25.213899946864956],[55.28321385383606,25.21419994210889],[55.28299994766712,25.21419994210889],[55.28299994766712,25.213899946864956]]
+] };
+assert.equal(validatePointObjectReplacementAoi(clippedCourtyard).valid, false, "Create input validation must remain strict on boundary-touching holes");
+assert(buildPointObjectNativeSelectionOutside(clippedCourtyard), "Native clipped courtyard may separate coincident tile edges within the bounded tolerance");
+applyNativeHighlight(fakeMap, { object: { ...highlighted.object, geometry: selectedMultipart } }, "3d", true);
+assert.equal(mapLibreKeeps(nativeColor[1], selectedMultipart, { id: 901 }), true, "Selected multipart components must all retain native highlighting");
+assert.equal(mapLibreKeeps(nativeColor[1], { type: "Polygon", coordinates: selectedMultipart.coordinates[0] }, { id: 901 }), true, "A native tile fragment contained in one selected component may be highlighted");
+applyNativeHighlight(fakeMap, highlighted, "3d", false);
+assert.equal(nativeColor, "#d6dcdf", "Volume toggle must restore native source color");
+applyNativeHighlight(fakeMap, highlighted, "2d", true);
+assert.equal(nativeColor, "#d6dcdf", "2D must not color a hidden native extrusion");
+applyNativeHighlight(fakeMap, { object: { ...highlighted.object, sourceFeatureId: null } }, "3d", true);
+assert.equal(nativeColor, "#d6dcdf", "Missing source identity must not invent a duplicate prism");
+assert(!mapSource.includes('const HIGHLIGHT_VOLUME_LAYER_ID'), "Selection must not create a second coplanar extrusion layer");
+console.log("Point-to-object MapLibre building-replacement/native-highlight contract passed.");

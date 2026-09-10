@@ -131,7 +131,7 @@ export async function POST(request: Request) {
   }
   const rate = consumeRateLimit(request);
   if (!rate.allowed) {
-    return NextResponse.json({ mode: "unavailable", error: "Live object details are temporarily rate limited.", retryable: true }, {
+    return NextResponse.json({ mode: "unavailable", code: "APPLICATION_RATE_LIMITED", error: "Live object details are temporarily rate limited.", retryable: true }, {
       status: 429,
       headers: noStoreHeaders({ "Retry-After": String(rate.retryAfterSeconds) })
     });
@@ -143,7 +143,8 @@ export async function POST(request: Request) {
       latitude: parsed.value.latitude,
       locale: nominatimLocale(parsed.value.locale),
       osmFeatureId: parsed.value.expectedSourceFeatureId ?? null,
-      expectedCountryCode: pointObjectMarket(parsed.value.caseKey).countryCode
+      expectedCountryCode: pointObjectMarket(parsed.value.caseKey).countryCode,
+      deadlineAtMs: Date.now() + 12_000
     });
     return NextResponse.json({
       mode: "resolved",
@@ -165,9 +166,9 @@ export async function POST(request: Request) {
     }, { headers: noStoreHeaders() });
   } catch (error) {
     if (error instanceof LivePointEvidenceError) {
-      return NextResponse.json({ mode: "unavailable", error: error.message, retryable: error.retryable }, {
+      return NextResponse.json({ mode: "unavailable", code: error.code, error: error.message, retryable: error.retryable }, {
         status: error.httpStatus,
-        headers: noStoreHeaders()
+        headers: noStoreHeaders(error.httpStatus === 429 ? { "Retry-After": String(error.retryAfterSeconds ?? 15) } : {})
       });
     }
     return NextResponse.json({ mode: "unavailable", error: "Live object details could not be resolved.", retryable: true }, {

@@ -13,6 +13,8 @@ This index is the repository entry point for current documentation. If a version
 
 ## Start here
 
+September 10 Preview correction: [Map reliability, unified Project Hub and landing CR](change-requests/point-to-object-001/experience-v6/SEPT10_REGRESSION_PROJECT_HUB_CHANGE_REQUEST.md) is the owner-approved authority for the existing Sprint06 branch. It explicitly supersedes the older requirement to retain the product Data readiness / Saved spatial work split. Physical-device findings reopen the affected map/source acceptance areas; old passing receipts remain bounded historical evidence. This does not authorize main or Production changes.
+
 | Need | Current authority | What it answers |
 | --- | --- | --- |
 | Repository overview | [README](../README.md) | Supported prototype features, setup, routes and current public-demo restrictions |

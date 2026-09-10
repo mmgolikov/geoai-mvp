@@ -1,5 +1,7 @@
 # GeoAI Codex Backlog — 2026-07-16
 
+Current owner-approved Preview execution: [September 10 map/source/Hub/landing correction](change-requests/point-to-object-001/experience-v6/SEPT10_REGRESSION_PROJECT_HUB_CHANGE_REQUEST.md). MAP10, SOURCE10, HUB10 and LANDING10 are independent implementation lanes; integration and exact-candidate acceptance are Main-owned. No older readiness-dashboard preservation instruction overrides this explicit product change.
+
 Status: Active, implementation-ready
 Last verified: 2026-09-04
 Owner: GeoAI Engineering
