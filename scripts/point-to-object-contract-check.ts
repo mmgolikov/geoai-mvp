@@ -1236,17 +1236,21 @@ function assertStaticBoundaries(): void {
     "app/api/prototype/point-to-object/suggest/route.ts",
     "components/point-to-object/analysis-client.tsx",
     "components/point-to-object/create-panel.tsx",
+    "components/point-to-object/create-result-dashboard.tsx",
     "components/point-to-object/decision-cards.tsx",
+    "components/point-to-object/find-comparison-dashboard.tsx",
     "components/point-to-object/live-object-map.tsx",
     "components/point-to-object/live-session.ts",
     "components/point-to-object/live-types.ts",
     "components/point-to-object/locale-provider.tsx",
+    "components/point-to-object/point-object-icons.tsx",
     "components/point-to-object/project-control.tsx",
     "components/point-to-object/projects-page-client.tsx",
     "components/point-to-object/prototype-client-v5.tsx",
     "components/point-to-object/prototype-client.tsx",
     "components/point-to-object/prototype-header.tsx",
-    "components/point-to-object/reliable-select.tsx"
+    "components/point-to-object/reliable-select.tsx",
+    "components/point-to-object/use-modal-shell.ts"
   ]);
   const candidateSurfaceFiles = [
     ...collectFiles(path.join(ROOT, "app/prototype/point-to-object")),
@@ -1439,7 +1443,11 @@ async function assertCandidateAiSafety(): Promise<void> {
     ],
     [/import \{ semanticHash \} from "@\/src\/lib\/point-to-object\/hash";\n/, "const semanticHash = (value) => JSON.stringify(value);\n"],
     [/import type \{[\s\S]*?\} from "\.\/point-to-object-live-evidence";\n/, ""],
-    [/import type \{ PointObjectLocale \} from "\.\/point-to-object-markets";\n/, ""]
+    [/import type \{ PointObjectLocale \} from "\.\/point-to-object-markets";\n/, ""],
+    [
+      /import \{\n  POINT_OBJECT_ANALYSIS_DEPTH_CONTRACT_VERSION,[\s\S]*?\} from "\.\/point-to-object-analysis-depth-contract";\n/,
+      `const POINT_OBJECT_ANALYSIS_DEPTH_CONTRACT_VERSION = "POINT_OBJECT_DEPTH_CONTRACT_V1_2026_09_12";\nconst pointObjectAnalysisDepthContract = (depth) => ({\n  quick: { depth: "quick", purpose: "identity_evidence", selectionCounts: { decisionReasons: 2, signals: 3, opportunities: 1, risks: 2 }, reviewCounts: { criteria: 2, alternatives: 0, counterEvidence: 1, decisionTriggers: 1 }, instruction: "quick" },\n  standard: { depth: "standard", purpose: "decision_criteria", selectionCounts: { decisionReasons: 3, signals: 4, opportunities: 2, risks: 3 }, reviewCounts: { criteria: 3, alternatives: 1, counterEvidence: 2, decisionTriggers: 2 }, instruction: "standard" },\n  deep: { depth: "deep", purpose: "decision_challenge", selectionCounts: { decisionReasons: 4, signals: 5, opportunities: 3, risks: 3 }, reviewCounts: { criteria: 4, alternatives: 2, counterEvidence: 3, decisionTriggers: 3 }, instruction: "deep" }\n}[depth]);\n`
+    ]
   ]);
   const liveSessionPath = path.join(ROOT, "components/point-to-object/live-session.ts");
   const liveSession = await importErasableTypeScript(liveSessionPath, [
@@ -1448,8 +1456,8 @@ async function assertCandidateAiSafety(): Promise<void> {
       `const LIVE_POINT_CAVEAT = ${JSON.stringify(LIVE_POINT_CAVEAT)};\n`
     ],
     [
-      /import \{\n  POINT_OBJECT_ANALYSIS_LEGACY_PROMPT_VERSION,\n  POINT_OBJECT_ANALYSIS_LEGACY_RESULT_SCHEMA_VERSION,\n  POINT_OBJECT_ANALYSIS_PROMPT_VERSION,\n  POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION\n\} from "@\/components\/point-to-object\/live-types";\n/,
-      `const POINT_OBJECT_ANALYSIS_LEGACY_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V7_2026_09_04";\nconst POINT_OBJECT_ANALYSIS_LEGACY_RESULT_SCHEMA_VERSION = 5;\nconst POINT_OBJECT_ANALYSIS_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V8_2026_09_06";\nconst POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION = 6;\n`
+      /import \{\n  POINT_OBJECT_ANALYSIS_LEGACY_PROMPT_VERSION,\n  POINT_OBJECT_ANALYSIS_LEGACY_RESULT_SCHEMA_VERSION,\n  POINT_OBJECT_ANALYSIS_PREVIOUS_PROMPT_VERSION,\n  POINT_OBJECT_ANALYSIS_PROMPT_VERSION,\n  POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION\n\} from "@\/components\/point-to-object\/live-types";\n/,
+      `const POINT_OBJECT_ANALYSIS_LEGACY_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V7_2026_09_04";\nconst POINT_OBJECT_ANALYSIS_LEGACY_RESULT_SCHEMA_VERSION = 5;\nconst POINT_OBJECT_ANALYSIS_PREVIOUS_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V8_2026_09_06";\nconst POINT_OBJECT_ANALYSIS_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V9_2026_09_12";\nconst POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION = 6;\n`
     ],
     [
       /import \{ isPointObjectLocale, isPointObjectMarketKey \} from "@\/src\/lib\/prototype\/point-to-object-markets";\n/,
@@ -1774,8 +1782,8 @@ async function assertCandidateAiSafety(): Promise<void> {
     "The request must use the V6 evidence-bound decision-plan schema.");
   const responseSchema = (((request.text as JsonObject).format as JsonObject).schema as JsonObject);
   assert.deepEqual(responseSchema.required,
-    ["decision", "signalCodes", "opportunityCodes", "risks", "answerCode", "focusedAnswer", "caveat"],
-    "The raw model contract must expose the coded plan plus one bounded focused-answer field.");
+    ["decision", "signalCodes", "opportunityCodes", "risks", "depthPlan", "answerCode", "focusedAnswer", "caveat"],
+    "The raw model contract must expose the coded decision and depth plans plus one bounded focused-answer field.");
   const focusedAnswerSchema = (responseSchema.properties as JsonObject).focusedAnswer as JsonObject;
   assert.equal((focusedAnswerSchema.properties as JsonObject).perspective instanceof Object, true,
     "Focused-answer perspective must be request-bound in the strict schema.");
@@ -1811,8 +1819,11 @@ async function assertCandidateAiSafety(): Promise<void> {
   assert.ok(initialProjectedEvidenceIds.includes("EVD-CONTEXT-SUMMARY"));
   assert.ok(initialProjectedEvidenceIds.includes("EVD-DISTRICT-PROFILE"));
   assert.deepEqual(selectionPolicy.targetCounts,
-    { decisionReasons: 3, signals: 4, opportunities: 2, risks: 3 },
-    "The model must receive deterministic output counts that fit the runtime validator.");
+    { decisionReasons: 4, signals: 5, opportunities: 3, risks: 3 },
+    "The model must receive deterministic Deep output targets that fit the runtime validator.");
+  assert.deepEqual((userPayload.depthContract as JsonObject).reviewCounts,
+    { criteria: 4, alternatives: 2, counterEvidence: 3, decisionTriggers: 3 },
+    "The provider must receive the structural Deep-review contract rather than a text-length hint.");
   assert.ok((selectionPolicy.eligibleSignalCodes as string[]).includes("use_classification"),
     "The model must receive server-computed evidence-eligible code catalogs.");
   assert.equal(validationPolicy.exactCaveat, LIVE_POINT_CAVEAT,
@@ -1902,8 +1913,38 @@ async function assertCandidateAiSafety(): Promise<void> {
       attemptTrace: focusedAttemptTrace
     }
   };
+  const previousResponseBytes = JSON.stringify(fullClientResponse);
   assert.ok(parseClientResponse(fullClientResponse),
     "The network success envelope must pass strict V3 runtime validation before client state is committed.");
+  const parsedPreviousResponse = parseClientResponse(fullClientResponse) as JsonObject;
+  assert.equal("depthReview" in (parsedPreviousResponse.content as JsonObject), false,
+    "A saved V8/schema-6 response must remain review-free instead of receiving a fabricated current-depth block.");
+  assert.equal(JSON.stringify(fullClientResponse), previousResponseBytes,
+    "Reading a saved V8/schema-6 response must not mutate its persisted payload or evidence hashes.");
+  const currentRawPlan = {
+    ...rawPlan,
+    depthPlan: {
+      criteriaSignalCodes: ["use_classification", "lifecycle_marker", "source_limit", "object_identity"],
+      alternativePaths: ["identity_first_due_diligence", "planning_first_due_diligence"],
+      counterEvidenceRiskCodes: ["non_official_source", "identity_uncertainty", "geometry_not_parcel"],
+      decisionTriggerCodes: ["identity_rights_planning_first", "technical_baseline_first", "market_financial_after_gates"]
+    }
+  };
+  const currentValidation = validateContentDetailed(currentRawPlan, evidencePack, focusedAnalysisRequest);
+  assert.equal(currentValidation.ok, true,
+    `Current Deep plan must produce a bounded structured review: ${JSON.stringify(currentValidation)}`);
+  const currentClientResponse = {
+    ...fullClientResponse,
+    content: currentValidation.ok ? currentValidation.content : fullClientResponse.content,
+    telemetry: { ...fullClientResponse.telemetry, promptVersion: "POINT_OBJECT_AI_PROMPT_V9_2026_09_12" }
+  };
+  const parsedCurrentResponse = parseClientResponse(currentClientResponse) as JsonObject;
+  assert.ok(parsedCurrentResponse, "The client must accept a current V9 review that matches the request depth.");
+  assert.equal(((parsedCurrentResponse.content as JsonObject).depthReview as JsonObject).depth, "deep");
+  assert.equal(parseClientResponse({
+    ...currentClientResponse,
+    request: { ...currentClientResponse.request, depth: "quick" }
+  }), null, "A depth review must never be accepted under a mismatched request receipt.");
   assert.equal(parseClientResponse({ ...fullClientResponse, schemaVersion: undefined }), null);
   assert.equal(parseClientResponse({ ...fullClientResponse, schemaVersion: 2 }), null);
   assert.equal(parseClientResponse({ ...fullClientResponse, schemaVersion: "3" }), null,

@@ -3,8 +3,8 @@
 import "maplibre-gl/dist/maplibre-gl.css";
 
 import { useEffect, useRef, useState } from "react";
-import type { Feature, FeatureCollection, Geometry, Position } from "geojson";
-import type { ExpressionSpecification, FilterSpecification, FitBoundsOptions, GeoJSONSource, Map as MapLibreMap, MapEventType, MapGeoJSONFeature, MapMouseEvent } from "maplibre-gl";
+import type { Feature, FeatureCollection, Geometry, MultiPolygon, Polygon, Position } from "geojson";
+import type { ExpressionSpecification, FilterSpecification, FitBoundsOptions, GeoJSONSource, Map as MapLibreMap, MapEventType, MapGeoJSONFeature, MapMouseEvent, MapSourceDataEvent } from "maplibre-gl";
 
 import type {
   LiveMapBasemapId,
@@ -17,18 +17,19 @@ import { usePointObjectLocale } from "@/components/point-to-object/locale-provid
 import type { GeoJsonGeometry } from "@/src/lib/point-to-object/contracts";
 import type { ConceptMassingResult, PointObjectCreateAoi } from "@/src/lib/prototype/point-to-object-create";
 import type { PointObjectFindBounds } from "@/src/lib/prototype/point-to-object-find-contract";
-import { findResultCoordinateBounds, projectResultCoordinateBounds, isCompletedNavigationCamera, type NavigationCamera } from "@/src/lib/prototype/point-to-object-find-viewport";
+import { projectResultCoordinateBounds, isCompletedNavigationCamera, type NavigationCamera } from "@/src/lib/prototype/point-to-object-find-viewport";
 import {
-  buildPointObjectBuildingReplacementFilter,
   buildPointObjectNativeSelectionOutside,
   pointObjectNativeBuilding3dFilter,
   pointObjectReplacementMinimumReliableZoom,
   restorePointObjectMapFilter,
   snapshotPointObjectMapFilter,
+  validatePointObjectReplacementAoi,
   type PointObjectMapFilterSnapshot
 } from "@/src/lib/prototype/point-to-object-map-replacement";
 import { pointObjectMarket } from "@/src/lib/prototype/point-to-object-markets";
-import { clearPointObjectPartitionRenderer, reconcilePointObjectPartitionRenderer } from "@/src/lib/prototype/point-to-object-map-partition-renderer";
+import { clearPointObjectPartitionRenderer, reconcilePointObjectCompleteFootprintRenderer } from "@/src/lib/prototype/point-to-object-map-partition-renderer";
+import { pointObjectCompleteFootprintOverlap } from "@/src/lib/prototype/point-to-object-map-partition";
 import { pointObjectTilePolygonMemberAt } from "@/src/lib/prototype/point-to-object-map-selection";
 import { createPointObjectMapResultOpenGuard, groupExactPointObjectProjectResults } from "@/src/lib/prototype/point-to-object-map-project-groups";
 
@@ -39,7 +40,7 @@ const BASEMAPS: Array<{ id: LiveMapBasemapId; labelKey: "map.style.street" | "ma
 ];
 export type LiveMapViewMode = "2d" | "3d";
 export type LiveMapInteractionMode = "analyse" | "find" | "create";
-export type PointObjectReplacementStatus = "idle" | "applied" | "zoom-required" | "error";
+export type PointObjectReplacementStatus = "idle" | "applied" | "partial" | "zoom-required" | "error";
 type MapViewMode = LiveMapViewMode;
 const CAMERA: Record<MapViewMode, { pitch: number; bearing: number }> = {
   "2d": { pitch: 0, bearing: 0 },
@@ -58,6 +59,11 @@ const CREATE_AOI_VERTEX_LAYER_ID = "geoai-create-aoi-vertices";
 const CONCEPT_SOURCE_ID = "geoai-concept-massing";
 const CONCEPT_FILL_LAYER_ID = "geoai-concept-fill";
 const CONCEPT_VOLUME_LAYER_ID = "geoai-concept-volume";
+const FIND_FOOTPRINT_SOURCE_ID = "geoai-find-footprints";
+const FIND_FOOTPRINT_FILL_LAYER_ID = "geoai-find-footprints-fill";
+const FIND_FOOTPRINT_LINE_LAYER_ID = "geoai-find-footprints-line";
+const FIND_FOOTPRINT_VOLUME_LAYER_ID = "geoai-find-footprints-volume";
+const PARTITION_SOURCE_PREFIX = "geoai-existing-partition-source:";
 const MAX_GEOMETRY_POSITIONS = 5_000;
 const MAX_NEARBY_LABELS = 5;
 const EMPTY_CREATE_COORDINATES: Wgs84Position[] = [];
@@ -137,6 +143,11 @@ export type LiveMapFindResult = {
   latitude: number;
   label: string;
   number: number;
+  geometry?: Polygon | MultiPolygon | null;
+  geometryProvenance?: "confirmed_complete_footprint" | null;
+  renderHeightM?: number | null;
+  renderMinHeightM?: number | null;
+  resultKind?: "mapped_building_or_landuse" | "mapped_poi" | "unknown";
 };
 
 export type LiveMapProjectResult = Omit<LiveMapFindResult, "number"> & {
@@ -291,6 +302,87 @@ function sanitizeGeometry(geometry: Geometry): GeoJsonGeometry | null {
     return coordinates ? { type: "LineString", coordinates: coordinates as Wgs84Position[] } : null;
   }
   return null;
+}
+
+function confirmedFindFootprint(result: LiveMapFindResult): Polygon | MultiPolygon | null {
+  if (result.geometryProvenance !== "confirmed_complete_footprint" || !result.geometry) return null;
+  const geometry = sanitizeGeometry(result.geometry);
+  if (geometry?.type === "Polygon") {
+    return validatePointObjectReplacementAoi(geometry).valid ? geometry as Polygon : null;
+  }
+  if (geometry?.type === "MultiPolygon" && geometry.coordinates.length && geometry.coordinates.every((coordinates) =>
+    validatePointObjectReplacementAoi({ type: "Polygon", coordinates }).valid)) {
+    return geometry as MultiPolygon;
+  }
+  return null;
+}
+
+function reliableFindHeight(result: LiveMapFindResult): { height: number; base: number } | null {
+  const height = result.renderHeightM;
+  const base = result.renderMinHeightM ?? 0;
+  return typeof height === "number" && Number.isFinite(height) && height > 0 && height <= 1_500 &&
+    typeof base === "number" && Number.isFinite(base) && base >= 0 && base < height
+    ? { height, base }
+    : null;
+}
+
+function findFootprintData(results: readonly LiveMapFindResult[], activeId: string | null): FeatureCollection<Polygon | MultiPolygon> {
+  return {
+    type: "FeatureCollection",
+    features: results.flatMap((result) => {
+      const geometry = confirmedFindFootprint(result);
+      if (!geometry) return [];
+      const height = reliableFindHeight(result);
+      return [{
+        type: "Feature" as const,
+        id: result.id,
+        properties: {
+          resultId: result.id,
+          number: result.number,
+          label: result.label,
+          active: result.id === activeId,
+          reliableHeight: Boolean(height),
+          renderHeightM: height?.height ?? 0,
+          renderMinHeightM: height?.base ?? 0
+        },
+        geometry
+      }];
+    })
+  };
+}
+
+function setFindFootprintLayers(
+  map: MapLibreMap,
+  results: readonly LiveMapFindResult[],
+  activeId: string | null,
+  interactionMode: LiveMapInteractionMode,
+  viewMode: MapViewMode
+) {
+  (map.getSource(FIND_FOOTPRINT_SOURCE_ID) as GeoJSONSource | undefined)?.setData(findFootprintData(results, activeId));
+  const visible = interactionMode === "find";
+  if (map.getLayer(FIND_FOOTPRINT_FILL_LAYER_ID)) map.setLayoutProperty(FIND_FOOTPRINT_FILL_LAYER_ID, "visibility", visible ? "visible" : "none");
+  if (map.getLayer(FIND_FOOTPRINT_LINE_LAYER_ID)) map.setLayoutProperty(FIND_FOOTPRINT_LINE_LAYER_ID, "visibility", visible ? "visible" : "none");
+  if (map.getLayer(FIND_FOOTPRINT_VOLUME_LAYER_ID)) map.setLayoutProperty(FIND_FOOTPRINT_VOLUME_LAYER_ID, "visibility", visible && viewMode === "3d" ? "visible" : "none");
+}
+
+function liveFindResultBounds(results: readonly LiveMapFindResult[]): [number, number, number, number] | null {
+  const positions: Position[] = [];
+  for (const result of results) {
+    const geometry = confirmedFindFootprint(result);
+    if (geometry) {
+      const polygons = geometry.type === "Polygon" ? [geometry.coordinates] : geometry.coordinates;
+      for (const polygon of polygons) for (const ring of polygon) positions.push(...ring);
+    } else if (Number.isFinite(result.longitude) && Number.isFinite(result.latitude)) {
+      positions.push([result.longitude, result.latitude]);
+    }
+  }
+  if (!positions.length) return null;
+  const longitudes = positions.map(([longitude]) => longitude);
+  const latitudes = positions.map(([, latitude]) => latitude);
+  const bounds: [number, number, number, number] = [
+    Math.min(...longitudes), Math.min(...latitudes), Math.max(...longitudes), Math.max(...latitudes)
+  ];
+  return bounds.every(Number.isFinite) && bounds[2] - bounds[0] <= 30 && bounds[3] - bounds[1] <= 30 ? bounds : null;
 }
 
 function sourceLayerOf(feature: MapGeoJSONFeature): string | null {
@@ -703,35 +795,32 @@ function restoreBuildingFilters(map: MapLibreMap) {
   }
 }
 
-function applyBuildingReplacement(map: MapLibreMap, aoi: PointObjectCreateAoi): boolean {
+function applyBuildingReplacement(map: MapLibreMap, aoi: PointObjectCreateAoi): PointObjectReplacementStatus {
   if (map.getZoom() < pointObjectReplacementMinimumReliableZoom) {
     restoreBuildingFilters(map);
-    return false;
+    return "zoom-required";
   }
   const snapshots = snapshotBuildingFilters(map);
   const layerIds = buildingLayerIds(map);
   if (!layerIds.length || layerIds.some((layerId) => !snapshots.has(layerId))) {
     restoreBuildingFilters(map);
-    return false;
-  }
-  const plans = layerIds.map((layerId) => ({
-    layerId,
-    plan: buildPointObjectBuildingReplacementFilter(
-      restorePointObjectMapFilter(snapshots.get(layerId)!),
-      { type: "Polygon", coordinates: aoi.coordinates }
-    )
-  }));
-  if (plans.some(({ plan }) => !plan.applied || !plan.filter)) {
-    restoreBuildingFilters(map);
-    return false;
+    return "error";
   }
   try {
-    for (const { layerId, plan } of plans) map.setFilter(layerId, plan.filter);
-    reconcilePointObjectPartitionRenderer(map, { type: "Polygon", coordinates: aoi.coordinates }, layerIds, snapshots, true);
-    return true;
+    const result = reconcilePointObjectCompleteFootprintRenderer(
+      map,
+      { type: "Polygon", coordinates: aoi.coordinates },
+      layerIds,
+      snapshots,
+      true
+    );
+    if (result.coverage === "complete") return "applied";
+    if (result.coverage === "partial") return "partial";
+    if (result.coverage === "pending") return "idle";
+    return "error";
   } catch {
     restoreBuildingFilters(map);
-    return false;
+    return "error";
   }
 }
 
@@ -752,16 +841,61 @@ function setCreateLayers(
       restoreBuildingFilters(map);
       replacementStatus = "zoom-required";
     } else {
-      replacementStatus = applyBuildingReplacement(map, aoi) ? "applied" : "error";
+      replacementStatus = applyBuildingReplacement(map, aoi);
     }
   } else {
     restoreBuildingFilters(map);
   }
-  const canShowConcept = Boolean(massing && replacementStatus === "applied");
+  const canShowConcept = Boolean(massing &&
+    (replacementStatus === "applied" || replacementStatus === "partial") &&
+    !visibleNativeConceptConflict(map, massing));
   if (map.getLayer(CONCEPT_FILL_LAYER_ID)) map.setLayoutProperty(CONCEPT_FILL_LAYER_ID, "visibility", canShowConcept && viewMode === "2d" ? "visible" : "none");
   if (map.getLayer(CONCEPT_VOLUME_LAYER_ID)) map.setLayoutProperty(CONCEPT_VOLUME_LAYER_ID, "visibility", canShowConcept && viewMode === "3d" ? "visible" : "none");
   if (map.getLayer(BUILDINGS_3D_LAYER_ID)) map.setLayoutProperty(BUILDINGS_3D_LAYER_ID, "visibility", viewMode === "3d" ? "visible" : "none");
   return replacementStatus;
+}
+
+function visibleNativeConceptConflict(map: MapLibreMap, massing: ConceptMassingResult): boolean {
+  const layers = buildingLayerIds(map).filter((id) => map.getLayoutProperty(id, "visibility") !== "none");
+  if (!layers.length) return false;
+  const concepts: Array<Polygon | MultiPolygon> = [];
+  for (const feature of massing.featureCollection.features) {
+    if (feature.geometry.type === "Polygon" || feature.geometry.type === "MultiPolygon") concepts.push(feature.geometry);
+  }
+  const positions: Position[] = [];
+  for (const geometry of concepts) {
+    const polygons: Position[][][] = geometry.type === "Polygon" ? [geometry.coordinates] : geometry.coordinates;
+    for (const polygon of polygons) for (const ring of polygon) positions.push(...ring);
+  }
+  if (!positions.length || positions.some((position) => !Number.isFinite(position[0]) || !Number.isFinite(position[1]))) return true;
+  let visible: MapGeoJSONFeature[];
+  try {
+    const projected = positions.map((position) => map.project([position[0], position[1]]));
+    const queryBox: [[number, number], [number, number]] = [
+      [Math.min(...projected.map((point) => point.x)), Math.min(...projected.map((point) => point.y))],
+      [Math.max(...projected.map((point) => point.x)), Math.max(...projected.map((point) => point.y))]
+    ];
+    // Bound the query to generated geometry. An unknown rendered building in
+    // this box is a conflict, while an unrelated unknown elsewhere must not
+    // suppress a valid concept.
+    visible = map.queryRenderedFeatures(queryBox, { layers });
+  } catch {
+    return true;
+  }
+  for (const feature of visible) {
+    const geometry = sanitizeGeometry(feature.geometry);
+    if (geometry?.type !== "Polygon" && geometry?.type !== "MultiPolygon") return true;
+    for (const concept of concepts) {
+      const conceptPolygons: Polygon[] = concept.type === "Polygon"
+        ? [concept]
+        : concept.coordinates.map((coordinates) => ({ type: "Polygon", coordinates }));
+      for (const conceptPolygon of conceptPolygons) {
+        const overlap = pointObjectCompleteFootprintOverlap(geometry as Polygon | MultiPolygon, conceptPolygon);
+        if (!overlap || overlap.overlapSqM > 0.05) return true;
+      }
+    }
+  }
+  return false;
 }
 
 function installGeoAiLayers(map: MapLibreMap, viewMode: MapViewMode) {
@@ -790,6 +924,39 @@ function installGeoAiLayers(map: MapLibreMap, viewMode: MapViewMode) {
       }
     }, labelLayer);
   }
+  const findColor: ExpressionSpecification = ["case", ["==", ["get", "active"], true], "#07515a", "#0f978b"];
+  if (!map.getSource(FIND_FOOTPRINT_SOURCE_ID)) map.addSource(FIND_FOOTPRINT_SOURCE_ID, {
+    type: "geojson",
+    data: { type: "FeatureCollection", features: [] }
+  });
+  if (!map.getLayer(FIND_FOOTPRINT_FILL_LAYER_ID)) map.addLayer({
+    id: FIND_FOOTPRINT_FILL_LAYER_ID,
+    type: "fill",
+    source: FIND_FOOTPRINT_SOURCE_ID,
+    layout: { visibility: "none" },
+    paint: { "fill-color": findColor, "fill-opacity": ["case", ["==", ["get", "active"], true], 0.48, 0.28] }
+  }, labelLayer);
+  if (!map.getLayer(FIND_FOOTPRINT_VOLUME_LAYER_ID)) map.addLayer({
+    id: FIND_FOOTPRINT_VOLUME_LAYER_ID,
+    type: "fill-extrusion",
+    source: FIND_FOOTPRINT_SOURCE_ID,
+    minzoom: 14,
+    filter: ["==", ["get", "reliableHeight"], true],
+    layout: { visibility: "none" },
+    paint: {
+      "fill-extrusion-color": findColor,
+      "fill-extrusion-height": ["get", "renderHeightM"],
+      "fill-extrusion-base": ["get", "renderMinHeightM"],
+      "fill-extrusion-opacity": 0.78
+    }
+  }, labelLayer);
+  if (!map.getLayer(FIND_FOOTPRINT_LINE_LAYER_ID)) map.addLayer({
+    id: FIND_FOOTPRINT_LINE_LAYER_ID,
+    type: "line",
+    source: FIND_FOOTPRINT_SOURCE_ID,
+    layout: { visibility: "none" },
+    paint: { "line-color": "#07515a", "line-width": ["case", ["==", ["get", "active"], true], 4, 2.5] }
+  }, labelLayer);
   if (!map.getSource(HIGHLIGHT_SOURCE_ID)) {
     map.addSource(HIGHLIGHT_SOURCE_ID, {
       type: "geojson",
@@ -964,25 +1131,55 @@ export function LiveObjectMap({
       document.removeEventListener("keydown", escape);
     };
   }, [openProjectGroup]);
+  const containerRef = useRef<HTMLDivElement>(null);
   const cameraControlsRef = useRef<HTMLDivElement>(null);
+  const cameraOpenRef = useRef(cameraOpen);
+  cameraOpenRef.current = cameraOpen;
+  const cameraDismissPointerRef = useRef<number | null>(null);
+  const cameraMapClickGuardRef = useRef({ active: false, expiresAt: 0 });
   useEffect(() => {
-    if (!cameraOpen) return;
     const dismiss = (event: PointerEvent) => {
-      if (event.target instanceof Node && !cameraControlsRef.current?.contains(event.target)) setCameraOpen(false);
+      if (!cameraOpenRef.current || !(event.target instanceof Node) || cameraControlsRef.current?.contains(event.target)) return;
+      cameraOpenRef.current = false;
+      setCameraOpen(false);
+      // Let the same pointer continue through buttons and map drag handlers.
+      // Only the MapLibre selection/drawing click synthesized for this outside
+      // map pointer is consumed below.
+      if (containerRef.current?.contains(event.target)) {
+        cameraDismissPointerRef.current = event.pointerId;
+        cameraMapClickGuardRef.current = { active: true, expiresAt: Number.POSITIVE_INFINITY };
+      }
     };
-    const escape = (event: KeyboardEvent) => { if (event.key === "Escape") setCameraOpen(false); };
+    const finishPointer = (event: PointerEvent) => {
+      if (cameraDismissPointerRef.current !== event.pointerId) return;
+      cameraDismissPointerRef.current = null;
+      cameraMapClickGuardRef.current.expiresAt = Date.now() + 1_200;
+    };
+    const cancelPointer = (event: PointerEvent) => {
+      if (cameraDismissPointerRef.current !== event.pointerId) return;
+      cameraDismissPointerRef.current = null;
+      cameraMapClickGuardRef.current = { active: false, expiresAt: 0 };
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || !cameraOpenRef.current) return;
+      cameraOpenRef.current = false;
+      setCameraOpen(false);
+    };
     document.addEventListener("pointerdown", dismiss, true);
+    document.addEventListener("pointerup", finishPointer, true);
+    document.addEventListener("pointercancel", cancelPointer, true);
     document.addEventListener("keydown", escape);
     return () => {
       document.removeEventListener("pointerdown", dismiss, true);
+      document.removeEventListener("pointerup", finishPointer, true);
+      document.removeEventListener("pointercancel", cancelPointer, true);
       document.removeEventListener("keydown", escape);
     };
-  }, [cameraOpen]);
+  }, []);
   const overlayBottomInsetRef = useRef(overlayBottomInset);
   useEffect(() => { overlayBottomInsetRef.current = overlayBottomInset; }, [overlayBottomInset]);
   const cameraMovingCallbackRef = useRef(onCameraMovingChange);
   useEffect(() => { cameraMovingCallbackRef.current = onCameraMovingChange; }, [onCameraMovingChange]);
-  const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const selectAtRef = useRef<((point: { x: number; y: number }, clicked: Wgs84Position) => void) | null>(null);
   const handledNavigationTargetRef = useRef<string | null>(null);
@@ -1003,6 +1200,8 @@ export function LiveObjectMap({
   const createVertexCallbackRef = useRef(onCreateVertex);
   const finishDrawingCallbackRef = useRef(onCreateFinishDrawing);
   const findResultCallbackRef = useRef(onFindResultSelect);
+  const findResultsRef = useRef(findResults);
+  const activeFindResultIdRef = useRef(activeFindResultId);
   const projectResultCallbackRef = useRef(onProjectMarkerSelect);
   function openProjectResult(id: string) {
     const guard = projectResultOpenGuardRef.current;
@@ -1072,6 +1271,14 @@ export function LiveObjectMap({
   useEffect(() => { projectResultCallbackRef.current = onProjectMarkerSelect; }, [onProjectMarkerSelect]);
 
   useEffect(() => {
+    findResultsRef.current = findResults;
+    activeFindResultIdRef.current = activeFindResultId;
+    const map = mapRef.current;
+    if (!map || !map.isStyleLoaded()) return;
+    setFindFootprintLayers(map, findResults, activeFindResultId, interactionModeRef.current, viewModeRef.current);
+  }, [activeFindResultId, markerDataSignature]);
+
+  useEffect(() => {
     const map = mapRef.current;
     if (!map || !isReady || (!projectMarkers.length && interactionMode !== "find")) return;
     const isProjectOverview = projectMarkers.length > 0;
@@ -1086,6 +1293,7 @@ export function LiveObjectMap({
         const grouped = isProjectOverview && group.results.length > 1;
         const active = group.results.some(result => result.id === activeId);
         if (!Number.isFinite(result.longitude) || !Number.isFinite(result.latitude) || Math.abs(result.longitude) > 180 || Math.abs(result.latitude) > 85) continue;
+        if (!isProjectOverview && confirmedFindFootprint(result as LiveMapFindResult)) continue;
         const button = document.createElement("button");
         button.type = "button";
         button.disabled = isProjectOverview && projectResultOpening;
@@ -1127,6 +1335,7 @@ export function LiveObjectMap({
     const map = mapRef.current;
     if (!map) return;
     map.getCanvas().style.cursor = interactionMode === "create" && createDrawingRef.current ? "crosshair" : "";
+    if (map.isStyleLoaded()) setFindFootprintLayers(map, findResultsRef.current, activeFindResultIdRef.current, interactionMode, viewModeRef.current);
     if (interactionMode !== "analyse" && map.isStyleLoaded()) {
       selectionRef.current = null;
       setHighlight(map, null, viewModeRef.current, showSelectedVolumeRef.current);
@@ -1408,6 +1617,7 @@ export function LiveObjectMap({
           buildingLayerReconciliationReady = false;
           resetBuildingFilterSnapshots(map);
           installGeoAiLayers(map, viewModeRef.current);
+          setFindFootprintLayers(map, findResultsRef.current, activeFindResultIdRef.current, interactionModeRef.current, viewModeRef.current);
           // Camera state is independent of the style lifecycle. Reinstall only
           // mode-specific handlers and layer visibility here so a basemap load
           // cannot overwrite a user's rotation or a 2D/3D choice made mid-load.
@@ -1481,6 +1691,21 @@ export function LiveObjectMap({
         selectAtRef.current = selectAt;
 
         const handleClick = (event: MapMouseEvent) => {
+          const cameraGuard = cameraMapClickGuardRef.current;
+          if (cameraGuard.active && (cameraDismissPointerRef.current !== null || Date.now() <= cameraGuard.expiresAt)) {
+            cameraMapClickGuardRef.current = { active: false, expiresAt: 0 };
+            return;
+          }
+          if (cameraGuard.active) cameraMapClickGuardRef.current = { active: false, expiresAt: 0 };
+          if (interactionModeRef.current === "find") {
+            const layers = [FIND_FOOTPRINT_VOLUME_LAYER_ID, FIND_FOOTPRINT_FILL_LAYER_ID].filter((id) => map.getLayer(id));
+            const footprint = layers.length
+              ? map.queryRenderedFeatures(event.point, { layers }).find((feature) => typeof feature.properties?.resultId === "string")
+              : null;
+            const resultId = footprint?.properties?.resultId;
+            if (typeof resultId === "string") findResultCallbackRef.current?.(resultId);
+            return;
+          }
           if (interactionModeRef.current === "create" && createDrawingRef.current) {
             const draft = createDraftRef.current;
             const first = draft.length >= 3 ? map.project(draft[0]) : null;
@@ -1493,6 +1718,34 @@ export function LiveObjectMap({
           }
           if (interactionModeRef.current !== "analyse") return;
           selectAt(event.point, [event.lngLat.lng, event.lngLat.lat]);
+        };
+
+        const publishReadyBuildingReplacement = () => {
+          if (disposed || !createAreaClearedRef.current || !createAoiRef.current ||
+            map.getZoom() < pointObjectReplacementMinimumReliableZoom) return;
+          const snapshots = BUILDING_FILTER_SNAPSHOTS.get(map);
+          if (!snapshots) return;
+          const result = reconcilePointObjectCompleteFootprintRenderer(
+            map,
+            { type: "Polygon", coordinates: createAoiRef.current.coordinates },
+            buildingLayerIds(map),
+            snapshots
+          );
+          const status: PointObjectReplacementStatus = result.coverage === "complete"
+            ? "applied"
+            : result.coverage === "partial"
+              ? "partial"
+              : result.coverage === "pending"
+                ? "idle"
+                : "error";
+          replacementStatusCallbackRef.current?.(status);
+          const conceptVisible = Boolean(
+            conceptMassingRef.current &&
+            (status === "applied" || status === "partial") &&
+            !visibleNativeConceptConflict(map, conceptMassingRef.current)
+          );
+          if (map.getLayer(CONCEPT_FILL_LAYER_ID)) map.setLayoutProperty(CONCEPT_FILL_LAYER_ID, "visibility", conceptVisible && viewModeRef.current === "2d" ? "visible" : "none");
+          if (map.getLayer(CONCEPT_VOLUME_LAYER_ID)) map.setLayoutProperty(CONCEPT_VOLUME_LAYER_ID, "visibility", conceptVisible && viewModeRef.current === "3d" ? "visible" : "none");
         };
 
         const handleMoveEnd = (event: MapEventType["moveend"] & { geoaiNavigationRequestId?: string; geoaiNavigationCamera?: NavigationCamera }) => {
@@ -1539,6 +1792,52 @@ export function LiveObjectMap({
           viewportCallbackRef.current?.(nextSelection);
         };
 
+        const suspendConceptForNativeSourceChange = () => {
+          if (!createAreaClearedRef.current || !createAoiRef.current) return;
+          if (map.getLayer(CONCEPT_FILL_LAYER_ID)) map.setLayoutProperty(CONCEPT_FILL_LAYER_ID, "visibility", "none");
+          if (map.getLayer(CONCEPT_VOLUME_LAYER_ID)) map.setLayoutProperty(CONCEPT_VOLUME_LAYER_ID, "visibility", "none");
+          if (map.getZoom() < pointObjectReplacementMinimumReliableZoom) {
+            // Low zoom deliberately restores the native source. Later tile
+            // loading events must not overwrite that terminal UI state with
+            // "preparing", because idle reconciliation is disabled here.
+            restoreBuildingFilters(map);
+            replacementStatusCallbackRef.current?.("zoom-required");
+          } else {
+            replacementStatusCallbackRef.current?.("idle");
+          }
+        };
+
+        const handleMoveStart = () => {
+          cameraMovingCallbackRef.current?.(true);
+          // A pan/zoom can introduce a new native tile before the next idle
+          // reconciliation. Never leave generated geometry over that transient,
+          // not-yet-classified source footprint.
+          suspendConceptForNativeSourceChange();
+        };
+
+        const handleNativeSourceLoading = (event: MapSourceDataEvent) => {
+          if (!event.sourceId) return;
+          const isBuildingSource = buildingLayerIds(map).some((id) => {
+            const layer = map.getLayer(id);
+            return Boolean(layer && "source" in layer && layer.source === event.sourceId);
+          });
+          if (isBuildingSource) suspendConceptForNativeSourceChange();
+        };
+
+        let retainedReadyQueued = false;
+        const handleRetainedSourceData = (event: MapSourceDataEvent) => {
+          if (!event.sourceId?.startsWith(PARTITION_SOURCE_PREFIX) ||
+            !map.getSource(event.sourceId) || !map.isSourceLoaded(event.sourceId) || retainedReadyQueued) return;
+          retainedReadyQueued = true;
+          // Renderer listeners are registered after this long-lived handler.
+          // Reconcile in a microtask so applyPrepared has first marked the
+          // source ready, then publish the terminal status deterministically.
+          queueMicrotask(() => {
+            retainedReadyQueued = false;
+            publishReadyBuildingReplacement();
+          });
+        };
+
         map.once("load", () => {
           if (disposed) return;
           map.resize();
@@ -1548,15 +1847,14 @@ export function LiveObjectMap({
           setIsReady(true);
         });
         map.on("click", handleClick);
-        map.on("movestart", () => cameraMovingCallbackRef.current?.(true));
+        map.on("movestart", handleMoveStart);
         map.on("moveend", handleMoveEnd);
+        map.on("sourcedataloading", handleNativeSourceLoading);
+        map.on("sourcedata", handleRetainedSourceData);
         let nativeHighlightSignature = "";
         map.on("idle", () => {
           if (disposed || !map.isStyleLoaded()) return;
-          if (createAreaClearedRef.current && createAoiRef.current && map.getZoom() >= pointObjectReplacementMinimumReliableZoom) {
-            const snapshots = BUILDING_FILTER_SNAPSHOTS.get(map);
-            if (snapshots) reconcilePointObjectPartitionRenderer(map, { type: "Polygon", coordinates: createAoiRef.current.coordinates }, buildingLayerIds(map), snapshots);
-          }
+          publishReadyBuildingReplacement();
           const geometry = currentNativeSelectionGeometry(map, selectionRef.current);
           const signature = JSON.stringify([geometry, viewModeRef.current, showSelectedVolumeRef.current]);
           if (signature === nativeHighlightSignature) return;
@@ -1623,6 +1921,7 @@ export function LiveObjectMap({
     // Applying the mode immediately eliminates the style.load/toggle race.
     applyViewMode(map, nextMode, createAreaClearedRef.current);
     if (!map.isStyleLoaded()) return;
+    setFindFootprintLayers(map, findResultsRef.current, activeFindResultIdRef.current, interactionModeRef.current, nextMode);
     setSelectedVolumeVisibility(map, selectionRef.current, nextMode, showSelectedVolumeRef.current);
     const replacementStatus = setCreateLayers(map, createDraftRef.current, createAoiRef.current, createAreaClearedRef.current, conceptMassingRef.current, nextMode);
     replacementStatusCallbackRef.current?.(replacementStatus);
@@ -1682,7 +1981,7 @@ export function LiveObjectMap({
 
   function fitFindResults() {
     const map = mapRef.current;
-    const bounds = projectMarkers.length ? projectResultCoordinateBounds(projectMarkers) : findResultCoordinateBounds(findResults);
+    const bounds = projectMarkers.length ? projectResultCoordinateBounds(projectMarkers) : liveFindResultBounds(findResults);
     if (!map || !bounds) return;
     map.fitBounds([[bounds[0], bounds[1]], [bounds[2], bounds[3]]], {
       padding: { top: 88, left: 44, right: 60, bottom: 88 + overlayBottomInsetRef.current },
@@ -1735,7 +2034,7 @@ export function LiveObjectMap({
         </div>
       ) : null}
       {projectResultOpenError ? <p role="alert" className="absolute left-3 top-28 z-20 rounded-lg border border-[#cbdad7] bg-white p-3 text-sm">{locale === "ru" ? "Не удалось открыть результат. Попробуйте ещё раз." : "Could not open this result. Please try again."}</p> : null}
-      {(projectMarkers.length || interactionMode === "find") && (projectMarkers.length ? projectResultCoordinateBounds(projectMarkers) : findResultCoordinateBounds(findResults)) ? (
+      {(projectMarkers.length || interactionMode === "find") && (projectMarkers.length ? projectResultCoordinateBounds(projectMarkers) : liveFindResultBounds(findResults)) ? (
         <button type="button" data-testid={projectMarkers.length ? "project-fit-results" : "find-fit-results"} onClick={fitFindResults} className="absolute right-3 top-28 z-10 min-h-11 rounded-xl border border-[#cbdad7] bg-white px-3 text-xs font-bold text-[#07515a] shadow-sm focus-visible:outline-2 focus-visible:outline-[#087f8c]">
           {locale === "ru" ? "Все результаты" : "Fit results"}
         </button>

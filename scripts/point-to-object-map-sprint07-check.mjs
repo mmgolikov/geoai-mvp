@@ -7,9 +7,9 @@ registerHooks({ resolve(specifier, context, next) {
   }
   return next(specifier, context);
 } });
-const { buildPointObjectBuildingReplacementFilter, pointObjectNativeBuilding3dFilter, validatePointObjectReplacementAoi, snapshotPointObjectMapFilter } = await import("../src/lib/prototype/point-to-object-map-replacement.ts");
+const { buildPointObjectBuildingReplacementFilter, buildPointObjectKnownFootprintFilter, pointObjectNativeBuilding3dFilter, validatePointObjectReplacementAoi, snapshotPointObjectMapFilter } = await import("../src/lib/prototype/point-to-object-map-replacement.ts");
 const { findResultCoordinateBounds } = await import("../src/lib/prototype/point-to-object-find-viewport.ts");
-const { partitionPointObjectMapBuilding, pointObjectPreparedPartitionPredicate } = await import("../src/lib/prototype/point-to-object-map-partition.ts");
+const { partitionPointObjectMapBuilding, planPointObjectBuildingReplacement, pointObjectPreparedPartitionPredicate } = await import("../src/lib/prototype/point-to-object-map-partition.ts");
 const { reconcilePointObjectPartitionRenderer, clearPointObjectPartitionRenderer } = await import("../src/lib/prototype/point-to-object-map-partition-renderer.ts");
 const { pointObjectTilePolygonMemberAt } = await import("../src/lib/prototype/point-to-object-map-selection.ts");
 const { createPointObjectMapResultOpenGuard, groupExactPointObjectProjectResults } = await import("../src/lib/prototype/point-to-object-map-project-groups.ts");
@@ -52,7 +52,7 @@ const mixedBytes = JSON.stringify(mixed);
 const partition = partitionPointObjectMapBuilding(mixed, aoi);
 assert.equal(partition.hiddenMembers, 20);
 assert.equal(partition.retainedMembers, 2);
-assert.deepEqual(partition.retained.geometry.coordinates, [outside.coordinates, crossing.coordinates], "Outside and boundary-crossing members retain exact original rings");
+assert.deepEqual(partition.retained.geometry.coordinates, [outside.coordinates, crossing.coordinates], "The legacy complete-containment partition remains available for analysis");
 assert.deepEqual(partition.retained.properties, mixed.properties);
 assert.equal(partition.retained.id, mixed.id);
 assert.equal(JSON.stringify(mixed), mixedBytes, "Partition must not mutate source evidence");
@@ -93,6 +93,13 @@ for (const hide_3d of [undefined, false, "false", 0]) assert.equal(keeps(pointOb
 const composed = buildPointObjectBuildingReplacementFilter(pointObjectNativeBuilding3dFilter, aoi);
 assert.equal(keeps(composed.filter, outside, { hide_3d: true }), false, "Replacement must preserve the source 3D outline filter");
 assert.equal(keeps(composed.filter, outside, { render_height: 25 }), true);
+const legacyComposed = buildPointObjectKnownFootprintFilter(
+  ["==", "extrude", "true"],
+  [["==", ["get", "replace"], true]]
+);
+assert(legacyComposed.applied);
+assert.equal(keeps(legacyComposed.filter, outside, { extrude: "true", replace: false }), true, "A legacy basemap filter retains non-matching outside buildings after expression composition");
+assert.equal(keeps(legacyComposed.filter, outside, { extrude: "true", replace: true }), false);
 
 assert.deepEqual(findResultCoordinateBounds([{ longitude:55.32,latitude:25.22 },{ longitude:55.33,latitude:25.23 }]), [55.32,25.22,55.33,25.23]);
 assert.deepEqual(findResultCoordinateBounds([{ longitude:55.32,latitude:25.22 }]), [55.32,25.22,55.32,25.22]);
@@ -144,19 +151,21 @@ const fakeMap = {
   off: (_type, listener) => listeners.delete(listener)
 };
 const originals = new Map([["building", snapshotPointObjectMapFilter(pointObjectNativeBuilding3dFilter)]]);
-reconcilePointObjectPartitionRenderer(fakeMap, aoi, ["building"], originals);
+const initialPartitionReady = reconcilePointObjectPartitionRenderer(fakeMap, aoi, ["building"], originals);
+assert.equal(initialPartitionReady, false, "A newly added retained source is pending, so generated geometry must not be shown yet");
 assert.equal(keeps(fakeMap.getFilter("building"), nativeMixed.geometry, nativeMixed.properties), true, "Original mixed feature must remain until retained source loads");
 const retainedSourceId = "geoai-existing-partition-source:openmaptiles";
 sources.get(retainedSourceId).loaded = true;
 for (const listener of listeners) listener({ sourceId: retainedSourceId });
 assert.equal(keeps(fakeMap.getFilter("building"), nativeMixed.geometry, nativeMixed.properties), false, "Prepared retained geometry now permits native replacement");
+assert.equal(reconcilePointObjectPartitionRenderer(fakeMap, aoi, ["building"], originals), true, "The renderer reports ready only after retained geometry and native masking are both active");
 const writesAfterReady = rendererFilterWrites;
 for (const listener of listeners) listener({ sourceId: retainedSourceId });
 assert.equal(rendererFilterWrites, writesAfterReady, "Repeated source-ready events must not mutate an identical native filter");
 const copiedLayer = fakeMap.getLayer("geoai-existing-partition-layer:building");
 assert.deepEqual(copiedLayer.paint["fill-extrusion-height"], ["get", "render_height"]);
 assert.deepEqual(copiedLayer.filter, pointObjectNativeBuilding3dFilter, "Original outline policy must survive source replacement");
-assert.deepEqual(sources.get(retainedSourceId).data.features[0], partitionPointObjectMapBuilding(nativeMixed, aoi).retained);
+assert.deepEqual(sources.get(retainedSourceId).data.features[0], planPointObjectBuildingReplacement([nativeMixed], aoi).retained.features[0], "The visual renderer uses positive overlap while preserving exact non-overlap siblings");
 const nextAoi = rectangle(55.320,25.224,55.322,25.226);
 reconcilePointObjectPartitionRenderer(fakeMap, nextAoi, ["building"], originals);
 assert.equal(sources.get(retainedSourceId).loaded, false);
@@ -166,4 +175,4 @@ fakeMap.setFilter("building", pointObjectNativeBuilding3dFilter);
 assert.equal(listeners.size, 0, "Restore cancels late source-ready responses");
 assert.equal(copiedLayer.layout.visibility, "none");
 assert.deepEqual(fakeMap.getFilter("building"), pointObjectNativeBuilding3dFilter);
-console.log("Sprint07 map contract passed: 20 interior members, exact outside/crossing/hole retention, async source readiness/restore, acute AOI, native outline policy, bounded result fit, exact-coordinate grouping and duplicate-open guard.");
+console.log("Sprint07 map contract passed: positive-overlap members, exact outside/hole/tangent retention, async source readiness/restore, acute AOI, native outline policy, bounded result fit, exact-coordinate grouping and duplicate-open guard.");

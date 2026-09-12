@@ -8,8 +8,11 @@ import mobileStyles from "./mobile-workspace.module.css";
 
 import { useAuth } from "@/components/auth/auth-provider";
 import { PointObjectCreatePanel, type PointObjectCreateEditorSnapshot, type PointObjectGeneratedConcept } from "@/components/point-to-object/create-panel";
+import { CreateResultDashboard } from "@/components/point-to-object/create-result-dashboard";
+import { FindComparisonDashboard } from "@/components/point-to-object/find-comparison-dashboard";
 import { LiveObjectMap, type LiveMapCreateAoiFitRequest, type LiveMapNavigationTarget, type LiveMapViewMode, type PointObjectReplacementStatus } from "@/components/point-to-object/live-object-map";
 import { usePointObjectLocale } from "@/components/point-to-object/locale-provider";
+import { PointObjectIcon } from "@/components/point-to-object/point-object-icons";
 import { PointObjectHeader } from "@/components/point-to-object/prototype-header";
 import { ReliableSelect } from "@/components/point-to-object/reliable-select";
 import {
@@ -70,6 +73,7 @@ import {
   clearPointObjectFindSession,
   pointObjectFindSessionForProfileAudience,
   readPointObjectFindSession,
+  type PointObjectFindComparisonView,
   type PointObjectFindSessionState,
   writePointObjectFindSession
 } from "@/src/lib/prototype/point-to-object-find-session";
@@ -159,6 +163,10 @@ function contextRequestKey(selection: LiveMapSelection | null, locale: "en" | "r
   return selection ? JSON.stringify({ caseKey: selection.locationKey, longitude: selection.longitude, latitude: selection.latitude, locale, expectedSourceFeatureId: exactOsmFeatureId(selection.object.sourceFeatureId) }) : null;
 }
 
+function findCandidateContextRequestKey(candidate: PointObjectFindCandidate, caseKey: LiveMapLocationKey, locale: "en" | "ru"): string {
+  return JSON.stringify({ caseKey, longitude: candidate.longitude, latitude: candidate.latitude, locale, expectedSourceFeatureId: candidate.sourceFeatureId });
+}
+
 function acceptedMappedLevelsInput(value: string): string | null {
   return value === "" || /^\d{1,3}$/.test(value) ? value : null;
 }
@@ -224,6 +232,12 @@ function comparisonObservedAttribute(candidate: PointObjectFindCandidate, locale
     if (value) return { label: locale === "ru" ? "Район" : "Locality", value };
   }
   return null;
+}
+
+function findCandidateResultKind(candidate: PointObjectFindCandidate): "mapped_building_or_landuse" | "mapped_poi" | "unknown" {
+  if (candidate.matchedTag.key === "building" || candidate.matchedTag.key === "landuse") return "mapped_building_or_landuse";
+  if (["office", "shop", "amenity", "tourism"].includes(candidate.matchedTag.key)) return "mapped_poi";
+  return "unknown";
 }
 
 function getExecutableFindScenarios(audience: ExploreAudience, role: ExploreRole) {
@@ -355,6 +369,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
   const [generatedConcept, setGeneratedConcept] = useState<PointObjectGeneratedConcept | null>(null);
   const [generatedConceptLocale, setGeneratedConceptLocale] = useState<"en" | "ru" | null>(null);
   const [activeCreateAlternativeId, setActiveCreateAlternativeId] = useState<"A" | "B">("A");
+  const [createResultDashboardOpen, setCreateResultDashboardOpen] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [createAreaCleared, setCreateAreaCleared] = useState(false);
   const [createReplacementStatus, setCreateReplacementStatus] = useState<PointObjectReplacementStatus>("idle");
@@ -366,8 +381,9 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
   const areaContextCooldownRef = useRef(0);
   const [areaContextFailure, setAreaContextFailure] = useState<PointObjectSourceFailure>("unavailable");
   const [visibleBounds, setVisibleBounds] = useState<PointObjectFindBounds | null>(null);
+  const [findExplicitSearchBounds, setFindExplicitSearchBounds] = useState<PointObjectFindBounds | null>(null);
   const [mapMoving, setMapMoving] = useState(false);
-  const [restoredFindViewportBounds, setRestoredFindViewportBounds] = useState<PointObjectFindBounds | null>(null);
+  const [, setRestoredFindViewportBounds] = useState<PointObjectFindBounds | null>(null);
   const [findAudience, setFindAudience] = useState<ExploreAudience>("b2b");
   const [findRole, setFindRole] = useState<ExploreRole>("developer");
   const [findScenario, setFindScenario] = useState<ExploreScenarioId>("b2b_redevelopment_selected_aoi");
@@ -375,11 +391,13 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
   const [findMinimumLevels, setFindMinimumLevels] = useState("");
   const [findMaximumLevels, setFindMaximumLevels] = useState("");
   const [findResult, setFindResult] = useState<PointObjectFindResult | null>(null);
+  const [findResolvedObjects, setFindResolvedObjects] = useState<Record<string, NonNullable<ReturnType<typeof parseLiveResolvedObject>>>>({});
   const [activeFindResultId, setActiveFindResultId] = useState<PointObjectFindCandidate["sourceFeatureId"] | null>(null);
   const [projectOverviewMarkers, setProjectOverviewMarkers] = useState<PointObjectProjectOverviewMarker[]>([]);
   const [activeProjectMarkerId, setActiveProjectMarkerId] = useState<string | null>(null);
   const [findShortlist, setFindShortlist] = useState<PointObjectFindCandidate[]>([]);
   const [findComparisonOpen, setFindComparisonOpen] = useState(false);
+  const [findComparisonDashboardOpen, setFindComparisonDashboardOpen] = useState(false);
   const [findAnalysisTargetSourceFeatureId, setFindAnalysisTargetSourceFeatureId] = useState<PointObjectFindCandidate["sourceFeatureId"] | null>(null);
   const [findStatus, setFindStatus] = useState<"idle" | "loading" | "zoom" | "rate" | "error">("idle");
   const [findFailure, setFindFailure] = useState<PointObjectSourceFailure>("unavailable");
@@ -390,6 +408,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
   const [createSavedArtifactId, setCreateSavedArtifactId] = useState<string | null>(null);
   const [findSessionReady, setFindSessionReady] = useState(false);
   const findRequestRef = useRef<AbortController | null>(null);
+  const findFootprintRequestRef = useRef<{ sourceFeatureId: string; controller: AbortController } | null>(null);
   const findRequestIdRef = useRef(0);
   const contextRequestId = useRef(0);
   const searchRequestRef = useRef<AbortController | null>(null);
@@ -409,13 +428,19 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
   const [canRestoreRemovedCreate, setCanRestoreRemovedCreate] = useState(false);
   const findShortlistRef = useRef(findShortlist);
   const findComparisonOpenRef = useRef(findComparisonOpen);
+  const findComparisonViewRef = useRef<PointObjectFindComparisonView>("results");
   const findAnalysisTargetRef = useRef(findAnalysisTargetSourceFeatureId);
   const activeCreateAlternativeRef = useRef(activeCreateAlternativeId);
+  const findViewSaveQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const createViewSaveQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const findResultRef = useRef(findResult);
   projectIdentityRef.current = projectIdentity;
   findShortlistRef.current = findShortlist;
   findComparisonOpenRef.current = findComparisonOpen;
+  findComparisonViewRef.current = findComparisonDashboardOpen ? "dashboard" : findComparisonOpen ? "mini" : "results";
   findAnalysisTargetRef.current = findAnalysisTargetSourceFeatureId;
   activeCreateAlternativeRef.current = activeCreateAlternativeId;
+  findResultRef.current = findResult;
 
   const findRoles = useMemo(() => getExecutableFindRoles(findAudience), [findAudience]);
   const findScenarios = useMemo(() => getExecutableFindScenarios(findAudience, findRole), [findAudience, findRole]);
@@ -434,15 +459,17 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
     findResult.criteria.mappedMinimumLevels !== findMappedMinimumLevels ||
     findResult.criteria.mappedMaximumLevels !== findMappedMaximumLevels
   );
-  // Camera focus changes the visible search area, not the identity or position
-  // of already returned candidates. Preserve those markers while the drawer
-  // honestly labels the prior-area result stale; criteria changes still hide it.
-  const findResultIsStale = findResult !== null && (findResultCriteriaMismatch ||
-    !(sameFindBounds(visibleBounds, findResult.criteria.bounds) || sameFindBounds(visibleBounds, restoredFindViewportBounds ?? findResult.criteria.bounds))
-  );
+  // Camera fits and passive/manual map inspection do not mutate the committed
+  // search. A new viewport becomes criteria only after the explicit
+  // "Use current map area" action.
+  const findSearchAreaChanged = findResult !== null && findExplicitSearchBounds !== null &&
+    !sameFindBounds(findExplicitSearchBounds, findResult.criteria.bounds);
+  const findResultIsStale = findResult !== null && (findResultCriteriaMismatch || findSearchAreaChanged);
+  const findCanUseCurrentMapArea = findResult !== null && visibleBounds !== null &&
+    !sameFindBounds(visibleBounds, findResult.criteria.bounds) &&
+    (findExplicitSearchBounds === null || !sameFindBounds(visibleBounds, findExplicitSearchBounds));
   const findResultMarketMismatch = findResult !== null && findResult.criteria.marketKey !== locationKey;
   const activeConceptMassing = generatedConcept?.alternatives?.find((alternative) => alternative.id === activeCreateAlternativeId)?.massing ?? generatedConcept?.massing ?? null;
-  const sourceBuildingsHidden = createAreaCleared && createReplacementStatus === "applied";
   const createReplacementMapProps = {
     createReplacementRevision,
     onCameraMovingChange: setMapMoving,
@@ -458,15 +485,20 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
     clearPointObjectFindSession();
     findRequestIdRef.current += 1;
     findRequestRef.current?.abort();
+    findFootprintRequestRef.current?.controller.abort();
+    findFootprintRequestRef.current = null;
     setSelection(null);
     setQuestion("");
     setMode("analyse");
     setNavigationTarget(null);
     setFindResult(null);
+    setFindResolvedObjects({});
+    setFindExplicitSearchBounds(null);
     setActiveFindResultId(null);
     setFindResultIntent(null);
     setFindShortlist([]);
     setFindComparisonOpen(false);
+    setFindComparisonDashboardOpen(false);
     setFindAnalysisTargetSourceFeatureId(null);
     setFindStatus("idle");
     setFindSavedArtifactId(null);
@@ -476,6 +508,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
     setCreateAoiFitRequest(null);
     setGeneratedConcept(null);
     setGeneratedConceptLocale(null);
+    setCreateResultDashboardOpen(false);
     setCreateEditorSnapshot(null);
     setCreateSavedArtifactId(null);
     setCreateAreaCleared(false);
@@ -520,6 +553,9 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
     if (!sessionReady || !isSessionResolved || projectRestoreAppliedRef.current === projectIdentity) return;
     reconcilePointObjectBrowserIdentity(projectIdentity);
     contextCacheRef.current.clear();
+    findFootprintRequestRef.current?.controller.abort();
+    findFootprintRequestRef.current = null;
+    setFindResolvedObjects({});
     restoreRemovedCreateRef.current = null;
     setCanRestoreRemovedCreate(false);
     projectRestoreAppliedRef.current = projectIdentity;
@@ -548,10 +584,12 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
         setFindMinimumLevels(restored.mappedMinimumLevels);
         setFindMaximumLevels(restored.mappedMaximumLevels);
         setFindResult(restored.result);
+        setFindExplicitSearchBounds(null);
         setActiveFindResultId(null);
         setFindResultIntent({ audience: restored.audience, role: restored.role, scenario: restored.scenario });
         setFindShortlist(restored.shortlist);
         setFindComparisonOpen(restored.comparisonOpen);
+        setFindComparisonDashboardOpen(restored.comparisonView === "dashboard");
         setFindAnalysisTargetSourceFeatureId(restored.analysisTargetSourceFeatureId);
         setFindSessionReady(true);
         setRestoredFindViewportBounds(null);
@@ -572,6 +610,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
         setGeneratedConcept(artifact.payload.generated);
         setGeneratedConceptLocale(artifact.payload.generatedLocale);
         setActiveCreateAlternativeId(artifact.payload.activeAlternativeId);
+        setCreateResultDashboardOpen(true);
         setAreaContext(artifact.payload.areaContext);
         setAreaContextStatus("idle");
         setCreateAreaCleared(true);
@@ -620,6 +659,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
         ? restoredCapability.mappedLevelsPreset.maximum?.toString() ?? ""
         : restoredFind.mappedMaximumLevels);
       setFindResult(restoredIntentWasNormalized ? null : restoredFind.result);
+      setFindExplicitSearchBounds(null);
       setActiveFindResultId(null);
       setFindResultIntent(!restoredIntentWasNormalized && restoredFind.result ? {
         audience: restoredFind.audience,
@@ -628,6 +668,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
       } : null);
       setFindShortlist(restoredIntentWasNormalized ? [] : restoredFind.shortlist);
       setFindComparisonOpen(restoredIntentWasNormalized ? false : restoredFind.comparisonOpen);
+      setFindComparisonDashboardOpen(!restoredIntentWasNormalized && restoredFind.comparisonView === "dashboard");
       setFindAnalysisTargetSourceFeatureId(restoredIntentWasNormalized ? null : restoredFind.analysisTargetSourceFeatureId);
     } else {
       const role = getDefaultExecutableFindRole(profileAudience, user?.profile.defaultRole);
@@ -640,10 +681,12 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
       setFindMinimumLevels(capability.mappedLevelsPreset.minimum?.toString() ?? "");
       setFindMaximumLevels(capability.mappedLevelsPreset.maximum?.toString() ?? "");
       setFindResult(null);
+      setFindExplicitSearchBounds(null);
       setActiveFindResultId(null);
       setFindResultIntent(null);
       setFindShortlist([]);
       setFindComparisonOpen(false);
+      setFindComparisonDashboardOpen(false);
       setFindAnalysisTargetSourceFeatureId(null);
       setFindStatus("idle");
     }
@@ -672,9 +715,12 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
       result: findResult,
       shortlist: findResult ? findShortlist : [],
       comparisonOpen: Boolean(findResult) && findComparisonOpen,
+      comparisonView: findResult && findShortlist.length >= 2
+        ? findComparisonDashboardOpen ? "dashboard" : findComparisonOpen ? "mini" : "results"
+        : "results",
       analysisTargetSourceFeatureId: findResult ? findAnalysisTargetSourceFeatureId : null
     });
-  }, [findAnalysisTargetSourceFeatureId, findAudience, findComparisonOpen, findGroup, findMaximumLevels, findMinimumLevels, findResult, findResultIntent, findRole, findScenario, findSessionReady, findShortlist, locale, locationKey]);
+  }, [findAnalysisTargetSourceFeatureId, findAudience, findComparisonDashboardOpen, findComparisonOpen, findGroup, findMaximumLevels, findMinimumLevels, findResult, findResultIntent, findRole, findScenario, findSessionReady, findShortlist, locale, locationKey]);
 
   useEffect(() => {
     if (!sessionReady || previousLocaleRef.current === locale) return;
@@ -751,9 +797,24 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
     }
     const applyResolved = (resolvedObject: NonNullable<ReturnType<typeof parseLiveResolvedObject>>) => {
       const storedSelection = readPointObjectSelection();
+      const confirmedDisplayGeometry = resolvedObject.geometryProvenance === "confirmed_complete_footprint"
+        ? resolvedObject.displayGeometry ?? null
+        : null;
+      if (confirmedDisplayGeometry && findResultRef.current?.candidates.some((candidate) => candidate.sourceFeatureId === resolvedObject.sourceFeatureId)) {
+        setFindResolvedObjects((current) => current[resolvedObject.sourceFeatureId] === resolvedObject
+          ? current
+          : { ...current, [resolvedObject.sourceFeatureId]: resolvedObject });
+      }
       setSelection((current) => current && contextRequestKey(current, locale) === unresolvedContextKey ? {
         ...current,
         viewport: storedSelection?.clickedAt === current.clickedAt ? storedSelection.viewport : current.viewport,
+        object: confirmedDisplayGeometry ? {
+          ...current.object,
+          geometry: confirmedDisplayGeometry as LiveMapSelection["object"]["geometry"],
+          geometryProvenance: "confirmed_complete_footprint",
+          renderHeightM: resolvedObject.renderHeightM ?? null,
+          renderMinHeightM: resolvedObject.renderMinHeightM ?? null
+        } : current.object,
         resolvedObject
       } : current);
       setContextStatus("idle");
@@ -840,6 +901,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
     suggestionRequestRef.current?.abort();
     findRequestIdRef.current += 1;
     findRequestRef.current?.abort();
+    findFootprintRequestRef.current?.controller.abort();
   }, []);
 
   useEffect(() => {
@@ -960,6 +1022,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
     setGeneratedConcept(null);
     setGeneratedConceptLocale(null);
     setActiveCreateAlternativeId("A");
+    setCreateResultDashboardOpen(false);
     setCreateAreaCleared(false);
     setCreateReplacementStatus("idle");
     setCreateReplacementRevision(0);
@@ -969,6 +1032,8 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
     setIsDrawing(false);
     setCreateError(null);
     setFindStatus("idle");
+    setFindExplicitSearchBounds(null);
+    setFindComparisonDashboardOpen(false);
     clearPointObjectSelection();
     clearPointObjectAnalysis();
     contextRequestId.current += 1;
@@ -1022,6 +1087,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
       result,
       shortlist,
       comparisonOpen: comparisonOpen && shortlist.length >= 2,
+      comparisonView: comparisonOpen && shortlist.length >= 2 ? "mini" : "results",
       analysisTargetSourceFeatureId: null,
       updatedAt: new Date().toISOString()
     };
@@ -1035,13 +1101,31 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
     if (projectIdentityRef.current === identityKey && (saved.status === "saved" || saved.status === "replayed")) {
       setFindSavedArtifactId(saved.artifact.artifactId);
       if (findShortlistRef.current.length || findComparisonOpenRef.current || findAnalysisTargetRef.current) {
-        void updatePointObjectFindViewState(identityKey, saved.artifact.artifactId, {
+        queueFindViewUpdate(identityKey, saved.artifact.artifactId, {
           shortlist: findShortlistRef.current,
           comparisonOpen: findComparisonOpenRef.current,
+          comparisonView: findComparisonViewRef.current,
           analysisTargetSourceFeatureId: findAnalysisTargetRef.current
         });
       }
     }
+  }
+
+  function queueFindViewUpdate(
+    identityKey: PointObjectProjectIdentity,
+    artifactId: string,
+    view: Pick<PointObjectFindSessionState, "shortlist" | "comparisonOpen" | "comparisonView" | "analysisTargetSourceFeatureId">
+  ) {
+    const immutableView = structuredClone(view);
+    findViewSaveQueueRef.current = findViewSaveQueueRef.current
+      .catch(() => undefined)
+      .then(async () => { await updatePointObjectFindViewState(identityKey, artifactId, immutableView); });
+  }
+
+  function queueCreateViewUpdate(identityKey: PointObjectProjectIdentity, artifactId: string, id: "A" | "B") {
+    createViewSaveQueueRef.current = createViewSaveQueueRef.current
+      .catch(() => undefined)
+      .then(async () => { await updatePointObjectCreateViewState(identityKey, artifactId, id); });
   }
 
   async function saveCreateArtifact(
@@ -1067,7 +1151,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
     if (projectIdentityRef.current === context.identityKey && (saved.status === "saved" || saved.status === "replayed")) {
       setCreateSavedArtifactId(saved.artifact.artifactId);
       if (activeCreateAlternativeRef.current !== activeAlternativeId) {
-        void updatePointObjectCreateViewState(context.identityKey, saved.artifact.artifactId, activeCreateAlternativeRef.current);
+        queueCreateViewUpdate(context.identityKey, saved.artifact.artifactId, activeCreateAlternativeRef.current);
       }
     }
   }
@@ -1075,13 +1159,17 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
   function updateFindSavedView(
     shortlist: PointObjectFindCandidate[],
     comparisonOpen: boolean,
-    analysisTargetSourceFeatureId = findAnalysisTargetSourceFeatureId
+    analysisTargetSourceFeatureId = findAnalysisTargetSourceFeatureId,
+    comparisonView: PointObjectFindComparisonView = comparisonOpen
+      ? findComparisonDashboardOpen ? "dashboard" : "mini"
+      : "results"
   ) {
     const identityKey = projectIdentityRef.current;
     if (!identityKey || !findSavedArtifactId) return;
-    void updatePointObjectFindViewState(identityKey, findSavedArtifactId, {
+    queueFindViewUpdate(identityKey, findSavedArtifactId, {
       shortlist,
       comparisonOpen,
+      comparisonView: shortlist.length >= 2 ? comparisonView : "results",
       analysisTargetSourceFeatureId
     });
   }
@@ -1092,19 +1180,30 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
       : findShortlist.length >= 3 ? findShortlist : [...findShortlist, candidate];
     setFindShortlist(next);
     const nextComparisonOpen = next.length >= 2 && findComparisonOpen;
-    if (next.length < 2) setFindComparisonOpen(false);
-    if (findResult && !findResultIsStale) updateFindSavedView(next, nextComparisonOpen);
+    if (next.length < 2) {
+      setFindComparisonOpen(false);
+      setFindComparisonDashboardOpen(false);
+    }
+    if (findResult && !findResultIsStale) updateFindSavedView(next, nextComparisonOpen, findAnalysisTargetSourceFeatureId, nextComparisonOpen ? findComparisonViewRef.current : "results");
   }
 
   function clearFindShortlist() {
     setFindShortlist([]);
     setFindComparisonOpen(false);
+    setFindComparisonDashboardOpen(false);
     if (findResult && !findResultIsStale) updateFindSavedView([], false, null);
   }
 
   function setFindComparison(open: boolean) {
     setFindComparisonOpen(open);
-    if (findResult && !findResultIsStale) updateFindSavedView(findShortlist, open);
+    setFindComparisonDashboardOpen(false);
+    if (findResult && !findResultIsStale) updateFindSavedView(findShortlist, open, findAnalysisTargetSourceFeatureId, open ? "mini" : "results");
+  }
+
+  function setFindComparisonDashboard(open: boolean) {
+    setFindComparisonOpen(open || findComparisonOpen);
+    setFindComparisonDashboardOpen(open);
+    if (findResult && !findResultIsStale) updateFindSavedView(findShortlist, open || findComparisonOpen, findAnalysisTargetSourceFeatureId, open ? "dashboard" : "mini");
   }
 
   async function findInView() {
@@ -1115,6 +1214,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
     const controller = new AbortController();
     const requestId = findRequestIdRef.current + 1;
     const requestIntent = { audience: findAudience, role: findRole, scenario: findScenario };
+    const requestBounds = findExplicitSearchBounds ?? visibleBounds;
     const initiatingIdentity = projectIdentityRef.current;
     const destination = initiatingIdentity ? capturePointObjectProjectDestination(initiatingIdentity, { label: locale === "ru" ? "Поиск объектов" : "Find places" }) : null;
     findRequestIdRef.current = requestId;
@@ -1127,16 +1227,21 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
         method: "POST",
         headers: { "Content-Type": "application/json" },
         signal: AbortSignal.any([controller.signal, AbortSignal.timeout(28_000)]),
-        body: JSON.stringify({ marketKey: locationKey, locale, bounds: visibleBounds, group: findGroup, mappedMinimumLevels, mappedMaximumLevels, limit: 12 })
+        body: JSON.stringify({ marketKey: locationKey, locale, bounds: requestBounds, group: findGroup, mappedMinimumLevels, mappedMaximumLevels, limit: 12 })
       });
       const payload: unknown = await response.json();
       if (controller.signal.aborted || requestId !== findRequestIdRef.current) return;
       if (response.ok && isPointObjectFindResult(payload)) {
+        findFootprintRequestRef.current?.controller.abort();
+        findFootprintRequestRef.current = null;
+        setFindResolvedObjects({});
         setFindResult(payload);
+        setFindExplicitSearchBounds(null);
         setActiveFindResultId(null);
         setFindResultIntent(requestIntent);
         setFindShortlist([]);
         setFindComparisonOpen(false);
+        setFindComparisonDashboardOpen(false);
         setFindAnalysisTargetSourceFeatureId(null);
         setFindStatus("idle");
         if (initiatingIdentity && destination && projectIdentityRef.current === initiatingIdentity) {
@@ -1164,6 +1269,51 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
     }
   }
 
+  async function hydrateFindFootprint(candidate: PointObjectFindCandidate): Promise<void> {
+    if (findCandidateResultKind(candidate) !== "mapped_building_or_landuse" ||
+        !/^(?:way|relation)\/[1-9]\d{0,19}$/.test(candidate.sourceFeatureId)) return;
+    const requestKey = findCandidateContextRequestKey(candidate, locationKey, locale);
+    const applyFootprint = (resolvedObject: NonNullable<ReturnType<typeof parseLiveResolvedObject>>) => {
+      if (resolvedObject.sourceFeatureId !== candidate.sourceFeatureId ||
+          resolvedObject.coordinateAssociation !== "trusted_open_map_identity" ||
+          resolvedObject.geometryProvenance !== "confirmed_complete_footprint" ||
+          !resolvedObject.displayGeometry ||
+          !findResultRef.current?.candidates.some((current) => current.sourceFeatureId === candidate.sourceFeatureId)) return;
+      setFindResolvedObjects((current) => ({ ...current, [candidate.sourceFeatureId]: resolvedObject }));
+    };
+    const cached = contextCacheRef.current.get(requestKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      applyFootprint(cached.value);
+      return;
+    }
+    if (findFootprintRequestRef.current?.sourceFeatureId === candidate.sourceFeatureId) return;
+    findFootprintRequestRef.current?.controller.abort();
+    const controller = new AbortController();
+    findFootprintRequestRef.current = { sourceFeatureId: candidate.sourceFeatureId, controller };
+    try {
+      const response = await fetch("/api/prototype/point-to-object/context", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: requestKey,
+        signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)])
+      });
+      const payload: unknown = await response.json();
+      if (controller.signal.aborted || !response.ok || !payload || typeof payload !== "object" || !("mode" in payload) || payload.mode !== "resolved" || !("subject" in payload)) return;
+      const resolvedObject = parseLiveResolvedObject(payload.subject);
+      if (!resolvedObject || resolvedObject.sourceFeatureId !== candidate.sourceFeatureId || resolvedObject.coordinateAssociation !== "trusted_open_map_identity") return;
+      if (contextCacheRef.current.size >= 24) contextCacheRef.current.delete(contextCacheRef.current.keys().next().value!);
+      contextCacheRef.current.set(requestKey, { value: resolvedObject, expiresAt: Date.now() + 5 * 60_000 });
+      applyFootprint(resolvedObject);
+    } catch (error) {
+      if (!controller.signal.aborted && !(error instanceof DOMException && error.name === "AbortError")) {
+        // Geometry is optional. Keep the exact source marker rather than
+        // inventing a polygon when the bounded source lookup fails.
+      }
+    } finally {
+      if (findFootprintRequestRef.current?.controller === controller) findFootprintRequestRef.current = null;
+    }
+  }
+
   function chooseFindCandidate(candidate: PointObjectFindResult["candidates"][number]) {
     if (findResultMarketMismatch) return;
     const expectedSourceFeatureId = exactOsmFeatureId(candidate.sourceFeatureId);
@@ -1172,6 +1322,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
       return;
     }
     setMode("analyse");
+    setFindComparisonDashboardOpen(false);
     setActiveFindResultId(candidate.sourceFeatureId);
     setFindAnalysisTargetSourceFeatureId(expectedSourceFeatureId);
     updateFindSavedView(findShortlist, findComparisonOpen, expectedSourceFeatureId);
@@ -1188,8 +1339,10 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
 
   function focusFindResult(value: string) {
     const sourceFeatureId = exactOsmFeatureId(value);
-    if (!sourceFeatureId || !findResult?.candidates.some((candidate) => candidate.sourceFeatureId === sourceFeatureId)) return;
+    const candidate = sourceFeatureId ? findResult?.candidates.find((candidate) => candidate.sourceFeatureId === sourceFeatureId) : null;
+    if (!sourceFeatureId || !candidate) return;
     setActiveFindResultId(sourceFeatureId);
+    void hydrateFindFootprint(candidate);
     window.requestAnimationFrame(() => {
       document.getElementById(`find-result-${sourceFeatureId}`)?.focus({ preventScroll: false });
     });
@@ -1203,6 +1356,8 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
     // pointerdown can land on an enabled CTA just before its click is ignored.
     if (nextMode === "find") setMapMoving(true);
     setMode(nextMode);
+    setFindComparisonDashboardOpen(false);
+    setCreateResultDashboardOpen(false);
     if (nextMode === "find") {
       setViewModeRequest({ requestId: `find-2d:${Date.now()}`, mode: "2d" });
     }
@@ -1251,6 +1406,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
     setGeneratedConcept(null);
     setGeneratedConceptLocale(null);
     setActiveCreateAlternativeId("A");
+    setCreateResultDashboardOpen(false);
     setCreateAreaCleared(false);
     setCreateReplacementStatus("idle");
     setCreateReplacementRevision(0);
@@ -1287,6 +1443,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
         setGeneratedConcept(generatedConcept);
         setGeneratedConceptLocale(generatedConceptLocale);
         setActiveCreateAlternativeId(activeCreateAlternativeId);
+        setCreateResultDashboardOpen(false);
         setCreateAreaCleared(createAreaCleared);
         setAreaContext(areaContext);
         setCreateSavedArtifactId(createSavedArtifactId);
@@ -1306,6 +1463,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
     setGeneratedConcept(null);
     setGeneratedConceptLocale(null);
     setActiveCreateAlternativeId("A");
+    setCreateResultDashboardOpen(false);
     setCreateAreaCleared(false);
     setCreateReplacementStatus("idle");
     setCreateReplacementRevision(0);
@@ -1324,12 +1482,21 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
 
   function toggleCreateMapPresentation() {
     setCreateReplacementStatus("idle");
-    if (sourceBuildingsHidden) {
+    if (createAreaCleared) {
       setCreateAreaCleared(false);
       return;
     }
     setCreateAreaCleared(true);
     setCreateReplacementRevision((revision) => revision + 1);
+  }
+
+  function changeCreateAlternative(id: "A" | "B") {
+    setActiveCreateAlternativeId(id);
+    setCreateReplacementStatus("idle");
+    setCreateAreaCleared(true);
+    setCreateReplacementRevision((revision) => revision + 1);
+    const identityKey = projectIdentityRef.current;
+    if (identityKey && createSavedArtifactId) queueCreateViewUpdate(identityKey, createSavedArtifactId, id);
   }
 
   async function searchPlace(event: React.FormEvent<HTMLFormElement>) {
@@ -1466,19 +1633,42 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
             : findHasInvalidLevels
               ? (locale === "ru" ? "Укажите диапазон этажности от 1 до 100; минимум не должен превышать максимум." : "Enter mapped levels from 1 to 100; minimum cannot exceed maximum.")
               : findResultIsStale
-                ? (locale === "ru" ? "Карта или критерии изменились — обновите результаты." : "The map or criteria changed — update the results.")
+                ? (locale === "ru" ? "Критерии или явно выбранная область изменились — обновите результаты." : "Criteria or the explicitly selected search area changed — update the results.")
                 : !isSessionResolved || !findSessionReady
                   ? (locale === "ru" ? "Подготавливаем сохранённые параметры поиска…" : "Preparing saved search settings…")
-                : !visibleBounds
+                  : !visibleBounds
                   ? (locale === "ru" ? "Дождитесь загрузки области карты." : "Waiting for the visible map area.")
                   : "";
+  const findPrimaryNeedsSearch = findResult === null || findResultIsStale || (!findComparisonOpen && findShortlist.length < 2);
+  const findPrimaryDisabled = findPrimaryNeedsSearch ? findCtaDisabled : false;
+  const findPrimaryLabel = findStatus === "loading"
+    ? (locale === "ru" ? "Ищем…" : "Searching…")
+    : findResultIsStale
+      ? (locale === "ru" ? "Обновить поиск" : "Update search")
+      : findComparisonOpen
+        ? (locale === "ru" ? "Открыть полное сравнение" : "Open full comparison dashboard")
+        : findShortlist.length >= 2
+          ? (locale === "ru" ? "Сравнить выбранные" : "Compare selected")
+          : (locale === "ru" ? "Искать" : "Search");
+
+  function runFindPrimaryAction() {
+    if (!findResult || findResultIsStale || findShortlist.length < 2) {
+      void findInView();
+      return;
+    }
+    if (findComparisonOpen) {
+      setFindComparisonDashboard(true);
+      return;
+    }
+    setFindComparison(true);
+  }
 
   return (
     <main ref={workspaceRef} className={`${mobileStyles.workspace} overflow-hidden bg-white text-ink`}>
       <PointObjectHeader />
       <div className={mobileStyles.shell} data-sheet={effectiveSheet} data-testid="mobile-workspace-shell">
         <section className={`${mobileStyles.map} relative overflow-hidden`} inert={mobile && effectiveSheet === "full"} aria-hidden={mobile && effectiveSheet === "full" ? true : undefined} aria-label={t("map.region")}>
-          {sessionReady ? <LiveObjectMap {...createReplacementMapProps} locationKey={locationKey} interactionMode={mode} selection={mode === "analyse" ? selection : null} navigationTarget={navigationTarget} viewModeRequest={viewModeRequest} onSelection={mode === "analyse" ? handleSelection : ignoreMapSelection} onViewportChange={handleViewportChange} onVisibleBoundsChange={handleVisibleBoundsChange} projectMarkers={projectOverviewMarkers.map((marker, index) => ({ id: marker.artifactId, label: marker.label, longitude: marker.longitude, latitude: marker.latitude, kind: marker.kind, number: index + 1 }))} activeProjectMarkerId={activeProjectMarkerId} onProjectMarkerSelect={openProjectOverviewMarker} findResults={mode === "find" && findResult && !findResultCriteriaMismatch ? findResult.candidates.map((candidate, index) => ({ id: candidate.sourceFeatureId, longitude: candidate.longitude, latitude: candidate.latitude, label: candidate.label, number: index + 1 })) : []} activeFindResultId={mode === "find" ? activeFindResultId : null} onFindResultSelect={focusFindResult} createDrawing={mode === "create" && isDrawing} createDraftCoordinates={mode === "create" ? draftCoordinates : []} createAoi={mode === "create" ? createAoi : null} createAoiFitRequest={mode === "create" ? createAoiFitRequest : null} createAreaCleared={mode === "create" && createAreaCleared} conceptMassing={mode === "create" ? activeConceptMassing : null} onCreateVertex={addCreateVertex} onCreateFinishDrawing={() => closeCreateArea()} onReplacementStatus={setCreateReplacementStatus} className="h-full min-h-0" /> : <div className="grid h-full min-h-0 place-items-center bg-[#f4f6f7] text-sm font-medium text-[#52606a]" role="status">{t("map.loading")}</div>}
+          {sessionReady ? <LiveObjectMap {...createReplacementMapProps} locationKey={locationKey} interactionMode={mode} selection={mode === "analyse" ? selection : null} navigationTarget={navigationTarget} viewModeRequest={viewModeRequest} onSelection={mode === "analyse" ? handleSelection : ignoreMapSelection} onViewportChange={handleViewportChange} onVisibleBoundsChange={handleVisibleBoundsChange} projectMarkers={projectOverviewMarkers.map((marker, index) => ({ id: marker.artifactId, label: marker.label, longitude: marker.longitude, latitude: marker.latitude, kind: marker.kind, number: index + 1 }))} activeProjectMarkerId={activeProjectMarkerId} onProjectMarkerSelect={openProjectOverviewMarker} findResults={mode === "find" && findResult && !findResultCriteriaMismatch ? findResult.candidates.map((candidate, index) => { const resolved = findResolvedObjects[candidate.sourceFeatureId]; return { id: candidate.sourceFeatureId, longitude: candidate.longitude, latitude: candidate.latitude, label: candidate.label, number: index + 1, geometry: resolved?.displayGeometry ?? null, geometryProvenance: resolved?.geometryProvenance ?? null, renderHeightM: resolved?.renderHeightM ?? null, renderMinHeightM: resolved?.renderMinHeightM ?? null, resultKind: findCandidateResultKind(candidate) }; }) : []} activeFindResultId={mode === "find" ? activeFindResultId : null} onFindResultSelect={focusFindResult} createDrawing={mode === "create" && isDrawing} createDraftCoordinates={mode === "create" ? draftCoordinates : []} createAoi={mode === "create" ? createAoi : null} createAoiFitRequest={mode === "create" ? createAoiFitRequest : null} createAreaCleared={mode === "create" && createAreaCleared} conceptMassing={mode === "create" ? activeConceptMassing : null} onCreateVertex={addCreateVertex} onCreateFinishDrawing={() => closeCreateArea()} onReplacementStatus={setCreateReplacementStatus} className="h-full min-h-0" /> : <div className="grid h-full min-h-0 place-items-center bg-[#f4f6f7] text-sm font-medium text-[#52606a]" role="status">{t("map.loading")}</div>}
           <div className="absolute left-3 top-3 z-10 flex w-[min(650px,calc(100%-4.5rem))] flex-row gap-2 sm:left-5 sm:top-5">
             <label className="flex h-11 w-fit shrink-0 items-center rounded-xl border border-white/70 bg-white/95 px-3 shadow-[0_10px_30px_rgba(20,35,45,0.14)] backdrop-blur">
               <span className="sr-only">{t("city.label")}</span>
@@ -1508,7 +1698,7 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
             {mobile ? <div className={mobileStyles.controls}>
               <span className={mobileStyles.summary}>{mode === "analyse" ? selectionTitle : t(`mode.${mode}` as "mode.find" | "mode.create")}</span>
               <button ref={mapToggleRef} type="button" aria-controls="workspace-task-content" aria-expanded={sheet !== "peek"} onClick={() => sheet === "peek" ? setSheet("full") : showMap()}>{sheet === "peek" ? (locale === "ru" ? "Открыть задачу" : "Open task") : (locale === "ru" ? "На карту" : "Show map")}</button>
-              <button type="button" className={mobileStyles.halfControl} aria-label={locale === "ru" ? "Изменить размер задачи" : "Resize task"} onClick={() => setSheet(sheet === "half" ? "full" : "half")}>{sheet === "half" ? (locale === "ru" ? "Развернуть" : "Expand") : (locale === "ru" ? "Половина" : "Half")}</button>
+              <button type="button" className={mobileStyles.halfControl} data-testid="mobile-sheet-resize" aria-label={effectiveSheet === "half" ? (locale === "ru" ? "Развернуть задачу на весь экран" : "Expand task to full height") : effectiveSheet === "full" ? (locale === "ru" ? "Уменьшить задачу до половины экрана" : "Reduce task to half height") : (locale === "ru" ? "Открыть задачу на половину экрана" : "Open task at half height")} title={effectiveSheet === "half" ? (locale === "ru" ? "Развернуть" : "Expand") : (locale === "ru" ? "Разделить экран" : "Split view")} onClick={() => setSheet(sheet === "half" ? "full" : "half")}><PointObjectIcon name={effectiveSheet === "half" ? "expand" : "split"} className="h-5 w-5" /><span className="sr-only">{effectiveSheet === "half" ? (locale === "ru" ? "Развернуть" : "Expand") : (locale === "ru" ? "Разделить экран" : "Split view")}</span></button>
             </div> : null}
             <div className="mb-2 grid shrink-0 grid-cols-3 gap-1 rounded-xl bg-[#f2f5f4] p-1" role="tablist" aria-label={t("mode.label")}>
               {(["analyse", "find", "create"] as ProductMode[]).map((item) => <button key={item} type="button" role="tab" aria-selected={mode === item} onClick={() => changeMode(item)} className={`min-h-11 rounded-lg px-2 text-xs font-bold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] ${mode === item ? "bg-white text-[#087f8c] shadow-sm" : "text-[#667085] hover:text-[#344054]"}`}>{t(`mode.${item}` as "mode.analyse" | "mode.find" | "mode.create")}</button>)}
@@ -1548,11 +1738,11 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
                 </fieldset>
               </div>
               {findResult ? <div className="mt-4">
-                <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted"><span>{findResult.mode === "empty" ? (locale === "ru" ? "По этим условиям ничего не найдено." : "No matches for these filters.") : (locale === "ru" ? `Показано: ${findResult.candidates.length}` : `Showing ${findResult.candidates.length}`)}</span><span className="flex items-center gap-2">{findResultIsStale ? <span className="rounded-full bg-[#e8edef] px-2 py-0.5 font-bold uppercase tracking-[0.06em] text-[#52606a]" data-testid="find-result-stale">{locale === "ru" ? "Устарела" : "Stale"}</span> : null}{findResult.coverage.capReached ? <span className="font-semibold text-[#79520d]">{locale === "ru" ? "Увеличьте масштаб, чтобы сузить результаты." : "Zoom in to narrow results."}</span> : null}</span></div>
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted"><span>{findResult.mode === "empty" ? (locale === "ru" ? "По этим условиям ничего не найдено." : "No matches for these filters.") : (locale === "ru" ? `Показано: ${findResult.candidates.length}` : `Showing ${findResult.candidates.length}`)}</span><span className="flex flex-wrap items-center justify-end gap-2">{findResultIsStale ? <span className="rounded-full bg-[#e8edef] px-2 py-0.5 font-bold uppercase tracking-[0.06em] text-[#52606a]" data-testid="find-result-stale">{locale === "ru" ? "Устарела" : "Stale"}</span> : null}{findCanUseCurrentMapArea && !findSearchAreaChanged ? <button type="button" data-testid="find-use-current-map-area" onClick={() => { if (visibleBounds) setFindExplicitSearchBounds(visibleBounds); }} className="min-h-11 rounded-lg border border-[#8ebdb4] bg-white px-2.5 font-bold text-[#176548] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c]">{locale === "ru" ? "Искать в текущей области" : "Use current map area"}</button> : null}{findResult.coverage.capReached ? <span className="font-semibold text-[#79520d]">{locale === "ru" ? "Увеличьте масштаб, чтобы сузить результаты." : "Zoom in to narrow results."}</span> : null}</span></div>
                 {findShortlist.length > 0 ? <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-[#e6f5f1] px-3 py-2" data-testid="find-comparison-toolbar">
                   <span className="text-xs font-bold text-[#176548]">{locale === "ru" ? `Выбрано: ${findShortlist.length}` : `Selected: ${findShortlist.length}`}</span>
                   <div className="flex flex-wrap justify-end gap-1.5">
-                    {findComparisonOpen ? <button type="button" onClick={() => setFindComparison(false)} className="min-h-11 rounded-lg border border-[#8ebdb4] bg-white px-3 text-[11px] font-bold text-[#176548] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c]">{locale === "ru" ? "К результатам" : "Back to results"}</button> : <button type="button" disabled={findShortlist.length < 2} onClick={() => setFindComparison(true)} className="min-h-11 rounded-lg bg-[#087f70] px-3 text-[11px] font-bold text-white disabled:cursor-not-allowed disabled:bg-[#9bbdb5] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c]">{locale === "ru" ? "Сравнить выбранные" : "Compare selected"}</button>}
+                    {findComparisonOpen ? <button type="button" onClick={() => setFindComparison(false)} className="min-h-11 rounded-lg border border-[#8ebdb4] bg-white px-3 text-[11px] font-bold text-[#176548] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c]">{locale === "ru" ? "К результатам" : "Back to results"}</button> : null}
                     <button type="button" onClick={clearFindShortlist} className="min-h-11 rounded-lg px-3 text-[11px] font-bold text-[#176548] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c]">{locale === "ru" ? "Очистить" : "Clear"}</button>
                   </div>
                 </div> : null}
@@ -1580,11 +1770,11 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
                 >{findFooterStatus || <span aria-hidden="true">&nbsp;</span>}</p>
                 <button
                   type="button"
-                  onClick={() => void findInView()}
-                  disabled={findCtaDisabled}
+                  onClick={runFindPrimaryAction}
+                  disabled={findPrimaryDisabled}
                   className="min-h-11 w-full rounded-xl bg-[#087f8c] px-4 text-sm font-bold text-white transition hover:bg-[#006c78] disabled:cursor-not-allowed disabled:bg-[#b7c4c4] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] focus-visible:ring-offset-2"
                   data-testid="find-search-cta"
-                >{findStatus === "loading" ? (locale === "ru" ? "Ищем…" : "Searching…") : findResultIsStale ? (locale === "ru" ? "Обновить поиск" : "Update search") : (locale === "ru" ? "Искать в видимой области" : "Search visible area")}</button>
+                >{findPrimaryLabel}</button>
               </footer>
             </section> : null}
 
@@ -1607,19 +1797,21 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
                       <p className="text-[11px] font-bold uppercase tracking-[0.09em] text-[#087f70]">{locale === "ru" ? "КОНТЕКСТ ЗОНЫ" : "AREA CONTEXT"}</p>
                       <h2 data-testid="create-area-context-heading" className="mt-1 text-sm font-bold text-ink">{locale === "ru" ? "Сводка объектов внутри полигона" : "Objects inside the polygon"}</h2>
                     </div>
-                    <button type="button" data-testid="create-map-presentation-toggle" onClick={toggleCreateMapPresentation} className="min-h-11 max-w-full rounded-lg border border-[#8ebdb4] bg-white px-3 text-left text-[11px] font-bold text-[#176548] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c]">{sourceBuildingsHidden ? (locale === "ru" ? "Показать исходные" : "Show existing") : activeConceptMassing ? (locale === "ru" ? "Показать созданную концепцию" : "Show generated concept") : (locale === "ru" ? "Скрыть исходные здания" : "Hide existing buildings")}</button>
+                    <button type="button" data-testid="create-map-presentation-toggle" onClick={toggleCreateMapPresentation} className="min-h-11 max-w-full rounded-lg border border-[#8ebdb4] bg-white px-3 text-left text-[11px] font-bold text-[#176548] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c]">{createAreaCleared ? (locale === "ru" ? "Показать исходные" : "Show existing") : activeConceptMassing ? (locale === "ru" ? "Показать созданную концепцию" : "Show generated concept") : (locale === "ru" ? "Скрыть исходные здания" : "Hide existing buildings")}</button>
                   </div>
                   {areaContextStatus === "loading" ? <p className="mt-3 text-xs font-semibold text-[#087f70]" role="status">{locale === "ru" ? "Собираем объекты открытой карты…" : "Reading open-map objects…"}</p> : null}
                   {areaContextStatus === "rate" ? <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-[#e6bd74] bg-[#fff9ed] p-3 text-xs text-[#79520d]" role="alert"><span>{sourceFailureMessage(areaContextFailure, areaContextRetryAfterSeconds, locale)}</span><button type="button" disabled={areaContextRetryAfterSeconds > 0} onClick={() => setAreaContextRetryVersion((value) => value + 1)} className="min-h-11 shrink-0 rounded-lg border border-[#d6b36e] bg-white px-3 font-bold disabled:cursor-wait disabled:opacity-50">{t("selection.retry")}</button></div> : null}
                   {areaContextStatus === "error" ? <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-[#e6bd74] bg-[#fff9ed] p-3 text-xs text-[#79520d]" role="alert"><span>{areaContextFailure === "unavailable" ? (locale === "ru" ? "Контекст зоны временно недоступен." : "Area context is temporarily unavailable.") : sourceFailureMessage(areaContextFailure, 0, locale)}</span><button type="button" onClick={() => setAreaContextRetryVersion((value) => value + 1)} className="min-h-8 rounded-lg border border-[#d6b36e] bg-white px-2 font-bold">{t("selection.retry")}</button></div> : null}
                   {areaContext ? <><div className="mt-3 grid grid-cols-3 gap-2"><div className="rounded-lg bg-white p-2"><span className="block text-[10px] text-muted">{locale === "ru" ? "Объекты на карте" : "Mapped objects"}</span><strong className="mt-1 block text-sm">{areaContext.summary.sampleSize}</strong></div><div className="rounded-lg bg-white p-2"><span className="block text-[10px] text-muted">{locale === "ru" ? "Здания на карте" : "Mapped buildings"}</span><strong className="mt-1 block text-sm">{areaContext.summary.mappedBuildingCount}</strong></div><div className="rounded-lg bg-white p-2"><span className="block text-[10px] text-muted">{locale === "ru" ? "Медиана этажей" : "Median levels"}</span><strong className="mt-1 block text-sm">{areaContext.summary.medianMappedLevels ?? "—"}</strong></div></div><div className="mt-3 flex flex-wrap gap-1.5">{areaContext.summary.groups.slice(0, 5).map((group) => <span key={group.group} className="rounded-full bg-white px-2.5 py-1 text-[10px] font-semibold text-[#475467] ring-1 ring-inset ring-[#d7dee4]">{areaGroupLabels[group.group]} · {group.count}</span>)}</div>{areaContext.coverage.capReached ? <p className="mt-3 text-[10px] font-semibold leading-4 text-[#79520d]">{locale === "ru" ? "Нарисуйте меньшую зону, чтобы сузить список объектов на карте." : "Draw a smaller area to narrow the mapped objects."}</p> : null}</> : null}
                 </section>
-                <PointObjectCreatePanel locale={locale} marketKey={locationKey} aoi={createAoi} depth="standard" generated={generatedConcept} generatedLocale={generatedConceptLocale} editorSnapshot={createEditorSnapshot} onEditorSnapshotChange={setCreateEditorSnapshot} activeAlternativeId={activeCreateAlternativeId} onGenerationStart={() => { clearPointObjectProjectRestore(); setCreateSavedArtifactId(null); const identityKey = projectIdentityRef.current; createSaveContextRef.current = identityKey ? { identityKey, destination: capturePointObjectProjectDestination(identityKey, { label: locale === "ru" ? "Созданная концепция" : "Generated concept" }), aoi: structuredClone(createAoi), editorSnapshot: structuredClone(createEditorSnapshot), locale, marketKey: locationKey, areaContext: structuredClone(areaContext) } : null; }} onGenerated={(concept, committedEditorSnapshot) => { const saveContext = createSaveContextRef.current; const committedSaveContext = saveContext ? { ...saveContext, editorSnapshot: structuredClone(committedEditorSnapshot) } : null; setCreateEditorSnapshot(committedEditorSnapshot); setGeneratedConcept(concept); setGeneratedConceptLocale(locale); setActiveCreateAlternativeId("A"); setCreateReplacementStatus("idle"); setCreateAreaCleared(true); setCreateReplacementRevision((revision) => revision + 1); void saveCreateArtifact(concept, "A", committedSaveContext); }} onAlternativeChange={(id) => { setActiveCreateAlternativeId(id); setCreateReplacementStatus("idle"); setCreateAreaCleared(true); setCreateReplacementRevision((revision) => revision + 1); const identityKey = projectIdentityRef.current; if (identityKey && createSavedArtifactId) void updatePointObjectCreateViewState(identityKey, createSavedArtifactId, id); }} onReset={() => { clearPointObjectProjectRestore(); createSaveContextRef.current = null; setCreateSavedArtifactId(null); setGeneratedConcept(null); setGeneratedConceptLocale(null); setActiveCreateAlternativeId("A"); setCreateAreaCleared(false); setCreateReplacementStatus("idle"); setCreateReplacementRevision(0); }} />
-                {generatedConcept ? <button type="button" data-testid="create-show-result-on-map" onClick={() => { setCreateAreaCleared(true); setSheet("peek"); }} className="min-h-11 w-full rounded-xl bg-[#087f8c] px-3 text-sm font-bold text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] focus-visible:ring-offset-2">{locale === "ru" ? "Показать результат на карте" : "Show result on map"}</button> : null}
+                <PointObjectCreatePanel locale={locale} marketKey={locationKey} aoi={createAoi} depth="standard" generated={generatedConcept} generatedLocale={generatedConceptLocale} editorSnapshot={createEditorSnapshot} onEditorSnapshotChange={setCreateEditorSnapshot} activeAlternativeId={activeCreateAlternativeId} onGenerationStart={() => { clearPointObjectProjectRestore(); setCreateSavedArtifactId(null); const identityKey = projectIdentityRef.current; createSaveContextRef.current = identityKey ? { identityKey, destination: capturePointObjectProjectDestination(identityKey, { label: locale === "ru" ? "Созданная концепция" : "Generated concept" }), aoi: structuredClone(createAoi), editorSnapshot: structuredClone(createEditorSnapshot), locale, marketKey: locationKey, areaContext: structuredClone(areaContext) } : null; }} onGenerated={(concept, committedEditorSnapshot) => { const saveContext = createSaveContextRef.current; const committedSaveContext = saveContext ? { ...saveContext, editorSnapshot: structuredClone(committedEditorSnapshot) } : null; setCreateEditorSnapshot(committedEditorSnapshot); setGeneratedConcept(concept); setGeneratedConceptLocale(locale); setActiveCreateAlternativeId("A"); setCreateResultDashboardOpen(false); setCreateReplacementStatus("idle"); setCreateAreaCleared(true); setCreateReplacementRevision((revision) => revision + 1); void saveCreateArtifact(concept, "A", committedSaveContext); }} onAlternativeChange={changeCreateAlternative} onReset={() => { clearPointObjectProjectRestore(); createSaveContextRef.current = null; setCreateSavedArtifactId(null); setGeneratedConcept(null); setGeneratedConceptLocale(null); setActiveCreateAlternativeId("A"); setCreateResultDashboardOpen(false); setCreateAreaCleared(false); setCreateReplacementStatus("idle"); setCreateReplacementRevision(0); }} />
+                {generatedConcept ? <button type="button" data-testid="create-open-result-dashboard" onClick={() => setCreateResultDashboardOpen(true)} className="min-h-11 w-full rounded-xl bg-[#087f8c] px-3 text-sm font-bold text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] focus-visible:ring-offset-2">{locale === "ru" ? "Открыть результат" : "Open result"}</button> : null}
                 {createAreaCleared && createReplacementStatus !== "applied" ? (
                   <p className={`rounded-xl border px-3 py-2 text-[10px] leading-4 ${createReplacementStatus === "error" ? "border-[#e6bd74] bg-[#fff9ed] text-[#79520d]" : "border-[#d8e2df] bg-[#f8faf9] text-[#62716d]"}`} role="status">
                     {createReplacementStatus === "zoom-required"
                       ? (locale === "ru" ? "Приблизьте карту, чтобы увидеть концепцию." : "Zoom in to view the concept.")
+                      : createReplacementStatus === "partial"
+                        ? (locale === "ru" ? "Здания, пересекающие зону, скрыты в текущих тайлах карты; полнота исходного набора не подтверждена." : "Buildings intersecting the area are hidden from the current map tiles; source inventory completeness is not confirmed.")
                       : createReplacementStatus === "error"
                         ? (locale === "ru" ? "Безопасное замещение не применилось: исходные здания восстановлены, новая модель скрыта." : "Safe replacement could not be applied: source buildings were restored and the concept is hidden.")
                         : (locale === "ru" ? "Подготавливаем замещение зданий…" : "Preparing building replacement…")}
@@ -1631,6 +1823,28 @@ export function PointToObjectPrototypeV5({ initialMode = "analyse" }: { initialM
           </div>
         </aside>
       </div>
+      {mode === "find" && findResult && findComparisonDashboardOpen && findShortlist.length >= 2 ? <FindComparisonDashboard
+        locale={locale}
+        result={findResult}
+        candidates={findShortlist}
+        roleLabel={locale === "ru" ? FIND_ROLE_LABELS_RU[findRole] : findRoles.find((role) => role.id === findRole)?.label ?? findRole}
+        scenarioLabel={FIND_SCENARIO_LABELS[locale][findScenario]}
+        groupLabel={(candidate) => findGroupLabels[candidate.group]}
+        onBackToComparison={() => setFindComparisonDashboard(false)}
+        onBackToResults={() => setFindComparison(false)}
+        onShowMap={() => { setFindComparisonDashboard(false); setSheet("peek"); }}
+        onOpenAnalysis={chooseFindCandidate}
+      /> : null}
+      {mode === "create" && createAoi && generatedConcept && createResultDashboardOpen ? <CreateResultDashboard
+        locale={locale}
+        aoi={createAoi}
+        generated={generatedConcept}
+        generatedLocale={generatedConceptLocale}
+        activeAlternativeId={activeCreateAlternativeId}
+        onAlternativeChange={changeCreateAlternative}
+        onBackToEditor={() => setCreateResultDashboardOpen(false)}
+        onShowMap={() => { setCreateResultDashboardOpen(false); setCreateAreaCleared(true); setCreateReplacementStatus("idle"); setCreateReplacementRevision((revision) => revision + 1); setSheet("peek"); }}
+      /> : null}
     </main>
   );
 }

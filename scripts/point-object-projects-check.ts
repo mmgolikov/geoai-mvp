@@ -42,6 +42,7 @@ const {
   readPointObjectProjects,
   readVerifiedPointObjectProjects,
   reconcilePointObjectBrowserIdentity,
+  renamePointObjectProject,
   retryPendingPointObjectOperations,
   savePointObjectOperation,
   selectPointObjectProject,
@@ -155,6 +156,71 @@ const saved = await savePointObjectOperation(demoIdentity, findInput(1), "operat
 assert.equal(saved.status, "saved");
 if (saved.status !== "saved") throw new Error("Expected saved result.");
 assert.equal(await verifySavedPointObjectArtifact(saved.artifact), true);
+
+const originalArtifactBytes = JSON.stringify(saved.artifact);
+const renamed = await renamePointObjectProject(demoIdentity, firstProject.projectId, "  Dubai   decision room  ", firstProject.name, "en");
+assert.equal(renamed.name, "Dubai decision room");
+assert.equal(renamed.projectId, firstProject.projectId);
+assert.equal(readPointObjectProjects(demoIdentity).activeProjectId, firstProject.projectId);
+assert.equal(JSON.stringify(renamed.artifacts[0]), originalArtifactBytes, "renaming must preserve immutable artifact bytes");
+assert.equal(await verifySavedPointObjectArtifact(renamed.artifacts[0]), true);
+await assert.rejects(renamePointObjectProject(demoIdentity, firstProject.projectId, "   ", renamed.name, "en"), /1 and 120/);
+await assert.rejects(renamePointObjectProject(demoIdentity, firstProject.projectId, "x".repeat(121), renamed.name, "en"), /1 and 120/);
+await assert.rejects(renamePointObjectProject(demoIdentity, firstProject.projectId, "Stale overwrite", firstProject.name, "en"), /another tab/);
+await assert.rejects(renamePointObjectProject(userIdentity, firstProject.projectId, "Wrong identity", renamed.name, "en"), /identity changed/);
+localStorage.failWrites = 1;
+await assert.rejects(renamePointObjectProject(demoIdentity, firstProject.projectId, "Must not persist", renamed.name, "en"), /Quota exceeded/);
+assert.equal(readPointObjectProjects(demoIdentity).projects[0].name, renamed.name, "failed rename leaves original metadata intact");
+assert.equal(JSON.stringify(readPointObjectProjects(demoIdentity).projects[0].artifacts[0]), originalArtifactBytes);
+
+const renameStorageKey = `geoai:point-to-object:projects:v1:${encodeURIComponent(demoIdentity)}`;
+const legacyRenameStore = JSON.parse(localStorage.getItem(renameStorageKey)!);
+delete legacyRenameStore.projects[0].artifacts[0].updatedAt;
+delete legacyRenameStore.projects[0].artifacts[0].viewRevision;
+localStorage.setItem(renameStorageKey, JSON.stringify(legacyRenameStore));
+const legacyArtifactBytes = JSON.stringify(legacyRenameStore.projects[0].artifacts);
+await renamePointObjectProject(demoIdentity, firstProject.projectId, "Legacy-safe name", renamed.name, "en");
+assert.equal(JSON.stringify(JSON.parse(localStorage.getItem(renameStorageKey)!).projects[0].artifacts), legacyArtifactBytes,
+  "Renaming must not materialize legacy artifact defaults in storage.");
+
+const originalDigest = crypto.subtle.digest.bind(crypto.subtle);
+let releaseVerification: (() => void) | null = null;
+let verificationStarted: (() => void) | null = null;
+const verificationReady = new Promise<void>((resolve) => { verificationStarted = resolve; });
+const verificationDelay = new Promise<void>((resolve) => { releaseVerification = resolve; });
+Object.defineProperty(crypto.subtle, "digest", { configurable: true, value: async (...args: Parameters<typeof originalDigest>) => {
+  verificationStarted!(); await verificationDelay; return originalDigest(...args);
+} });
+const racingRename = renamePointObjectProject(demoIdentity, firstProject.projectId, "Stale async write", "Legacy-safe name", "en");
+await verificationReady;
+const otherTabStore = JSON.parse(localStorage.getItem(renameStorageKey)!);
+otherTabStore.projects[0].name = "Other tab preserved";
+const otherTabBytes = JSON.stringify(otherTabStore);
+localStorage.setItem(renameStorageKey, otherTabBytes);
+releaseVerification!();
+await assert.rejects(racingRename, /another tab/);
+assert.equal(localStorage.getItem(renameStorageKey), otherTabBytes, "Cross-tab changes during verification must not be overwritten.");
+Object.defineProperty(crypto.subtle, "digest", { configurable: true, value: originalDigest });
+
+let releaseIdentityVerification: (() => void) | null = null;
+let identityVerificationStarted: (() => void) | null = null;
+const identityVerificationReady = new Promise<void>((resolve) => { identityVerificationStarted = resolve; });
+const identityVerificationDelay = new Promise<void>((resolve) => { releaseIdentityVerification = resolve; });
+Object.defineProperty(crypto.subtle, "digest", { configurable: true, value: async (...args: Parameters<typeof originalDigest>) => {
+  identityVerificationStarted!(); await identityVerificationDelay; return originalDigest(...args);
+} });
+try {
+  const identityRaceRename = renamePointObjectProject(demoIdentity, firstProject.projectId, "Wrong session write", "Other tab preserved", "en");
+  await identityVerificationReady;
+  reconcilePointObjectBrowserIdentity(userIdentity);
+  releaseIdentityVerification!();
+  await assert.rejects(identityRaceRename, /identity changed/);
+  assert.equal(localStorage.getItem(renameStorageKey), otherTabBytes,
+    "An identity switch during asynchronous verification must not write project metadata.");
+} finally {
+  Object.defineProperty(crypto.subtle, "digest", { configurable: true, value: originalDigest });
+  reconcilePointObjectBrowserIdentity(demoIdentity);
+}
 
 const replay = await savePointObjectOperation(demoIdentity, findInput(1), "operation-stable-1");
 assert.equal(replay.status, "replayed", "identical retry must replay without a duplicate");

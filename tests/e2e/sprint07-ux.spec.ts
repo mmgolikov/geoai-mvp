@@ -247,10 +247,8 @@ test("Sprint07: Project Hub overview clears the active canvas only, shows every 
   await expectProjectMarkersInsideCanvas(page);
   await page.setViewportSize({ width: 1440, height: 900 });
   await expectProjectMarkersInsideCanvas(page);
-  const storage = page.getByTestId("project-storage-location");
-  await expect(storage).toBeVisible();
-  await expect(storage).toHaveAttribute("aria-label", "On this device — cloud sync is not enabled");
-  await expect.poll(() => storage.locator("img").evaluate((image: HTMLImageElement) => image.complete && image.naturalWidth > 0)).toBe(true);
+  await expect(page.getByTestId("project-storage-location")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "New local project", exact: true })).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath("project-overview-1440x900.png") });
   await page.setViewportSize({ width: 393, height: 852 });
   await expect(page.getByTestId("mobile-workspace-shell")).toHaveAttribute("data-sheet", "peek");
@@ -282,16 +280,27 @@ test("Sprint07: Find map marker focuses its numbered result rather than starting
   await marker.click();
   await expect(page.getByRole("tab", { name: "Find", exact: true })).toHaveAttribute("aria-selected", "true");
   await expect(page.locator("#find-result-way\\/701")).toBeFocused();
-  // Wait for the focus animation's new bounds, not merely its first frame.
-  // Camera-only staleness must retain the returned coordinates and Fit action.
-  await expect(page.getByTestId("find-result-stale")).toBeVisible();
+  // Marker focus and Fit are passive camera inspection: neither action commits
+  // new search criteria or makes the saved result stale.
+  await expect(page.getByTestId("find-result-stale")).toHaveCount(0);
+  await expect(page.getByTestId("find-search-cta")).toHaveText("Search");
+  await expect(page.getByTestId("point-object-find-group-select")).toHaveValue("construction");
+  await expect(page.getByRole("textbox", { name: "Levels from", exact: true })).toHaveValue("");
+  await expect(page.getByRole("textbox", { name: "Levels to", exact: true })).toHaveValue("");
   await expect(page.getByTestId("find-search-cta")).toBeEnabled();
   await expect(marker).toBeVisible();
   await expect(page.getByTestId("find-fit-results")).toBeVisible();
   await page.getByTestId("find-fit-results").click();
+  await expect(page.getByTestId("find-result-stale")).toHaveCount(0);
   await expect(page.getByTestId("find-search-cta")).toBeEnabled();
   await expect(marker).toBeVisible();
   await expect(page.getByTestId("find-fit-results")).toBeVisible();
+  await marker.click();
+  const useCurrentArea = page.getByTestId("find-use-current-map-area");
+  await expect(useCurrentArea).toBeVisible();
+  await useCurrentArea.click();
+  await expect(page.getByTestId("find-result-stale")).toBeVisible();
+  await expect(page.getByTestId("find-search-cta")).toHaveText("Update search");
   await page.getByRole("textbox", { name: "Levels from", exact: true }).fill("1");
   await expect(marker).toHaveCount(0);
   await expect(page.getByTestId("find-fit-results")).toHaveCount(0);

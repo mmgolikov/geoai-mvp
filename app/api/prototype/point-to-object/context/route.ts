@@ -160,6 +160,10 @@ export async function POST(request: Request) {
         addressParts: evidencePack.selectedObject.addressParts,
         tags: evidencePack.selectedObject.tags,
         metrics: evidencePack.selectedObject.metrics,
+        displayGeometry: evidencePack.displayGeometry ?? null,
+        geometryProvenance: evidencePack.displayGeometry ? "confirmed_complete_footprint" : null,
+        renderHeightM: null,
+        renderMinHeightM: null,
         geoContext: evidencePack.geoContext,
         linkedEntity: evidencePack.linkedEntity
       }

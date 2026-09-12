@@ -1,6 +1,7 @@
 import "server-only";
 
 import { unstable_cache } from "next/cache";
+import type { MultiPolygon, Polygon, Position } from "geojson";
 import { sourceRetryAfterSeconds, waitForSourceAdmission } from "./point-to-object-source-recovery";
 
 import { LIVE_POINT_CAVEAT } from "@/src/lib/point-to-object/contracts";
@@ -39,6 +40,7 @@ const NOMINATIM_RESPONSE_MAX_BYTES = 384 * 1024;
 const NOMINATIM_REVALIDATE_SECONDS = 24 * 60 * 60;
 const NOMINATIM_MIN_INTERVAL_MS = 1_000;
 const MAX_GEOMETRY_POSITIONS = 25_000;
+const MAX_DISPLAY_GEOMETRY_POSITIONS = 5_000;
 const OVERPASS_TIMEOUT_MS = 4_500;
 const OVERPASS_RESPONSE_MAX_BYTES = 512 * 1024;
 export const POINT_OBJECT_OVERPASS_EXECUTION_MEMORY_MAX_BYTES = 32 * 1024 * 1024;
@@ -134,6 +136,8 @@ type SafeGeometry = {
   type: "Point" | "LineString" | "MultiLineString" | "Polygon" | "MultiPolygon";
   coordinates: unknown;
 };
+
+export type PointObjectDisplayGeometry = Polygon | MultiPolygon;
 
 type SafeNominatimPlace = {
   placeId: string | null;
@@ -273,6 +277,8 @@ export type LivePointObjectEvidencePack = {
   evidencePackHash: string;
   caseKey: "live";
   caseId: string;
+  /** Display-only, exact-object geometry. Deliberately excluded from evidencePackHash and model projection. */
+  displayGeometry: PointObjectDisplayGeometry | null;
   coordinates: { longitude: number; latitude: number; crs: "EPSG:4326" };
   resolution: {
     status: "resolved";
@@ -805,6 +811,63 @@ function sanitizeGeometry(value: unknown): SafeGeometry | null {
   const counter = { count: 0 };
   const coordinates = normalizeCoordinates(value.coordinates, depthByType[type], counter);
   return coordinates === null ? null : { type, coordinates };
+}
+
+function displayPosition(value: unknown, counter: { count: number }): Position | null {
+  if (!Array.isArray(value) || value.length !== 2) return null;
+  const longitude = finiteCoordinate(value[0], 180);
+  const latitude = finiteCoordinate(value[1], 90);
+  if (longitude === null || latitude === null) return null;
+  counter.count += 1;
+  return counter.count <= MAX_DISPLAY_GEOMETRY_POSITIONS ? [longitude, latitude] : null;
+}
+
+function displayRing(value: unknown, counter: { count: number }): Position[] | null {
+  if (!Array.isArray(value) || value.length < 4) return null;
+  const ring: Position[] = [];
+  for (const rawPosition of value) {
+    const position = displayPosition(rawPosition, counter);
+    if (!position) return null;
+    ring.push(position);
+  }
+  const first = ring[0];
+  const last = ring[ring.length - 1];
+  if (first[0] !== last[0] || first[1] !== last[1]) return null;
+  const distinct = new Set(ring.slice(0, -1).map((position) => `${position[0]},${position[1]}`));
+  return distinct.size >= 3 ? ring : null;
+}
+
+function displayPolygonCoordinates(value: unknown, counter: { count: number }): Position[][] | null {
+  if (!Array.isArray(value) || value.length === 0) return null;
+  const polygon: Position[][] = [];
+  for (const rawRing of value) {
+    const ring = displayRing(rawRing, counter);
+    if (!ring) return null;
+    polygon.push(ring);
+  }
+  return polygon;
+}
+
+/**
+ * Export only an intact GeoJSON surface under the stricter UI budget. Returning
+ * null instead of truncating or simplifying keeps complete-footprint provenance
+ * from being attached to a partial shape.
+ */
+export function pointObjectDisplayGeometry(geometry: SafeGeometry | null): PointObjectDisplayGeometry | null {
+  if (!geometry || (geometry.type !== "Polygon" && geometry.type !== "MultiPolygon")) return null;
+  const counter = { count: 0 };
+  if (geometry.type === "Polygon") {
+    const coordinates = displayPolygonCoordinates(geometry.coordinates, counter);
+    return coordinates ? { type: "Polygon", coordinates } : null;
+  }
+  if (!Array.isArray(geometry.coordinates) || geometry.coordinates.length === 0) return null;
+  const coordinates: Position[][][] = [];
+  for (const rawPolygon of geometry.coordinates) {
+    const polygon = displayPolygonCoordinates(rawPolygon, counter);
+    if (!polygon) return null;
+    coordinates.push(polygon);
+  }
+  return { type: "MultiPolygon", coordinates };
 }
 
 function sanitizeMap(
@@ -1415,6 +1478,9 @@ async function lookupPlace(
 ): Promise<{ place: SafeNominatimPlace | null; receipt: NominatimResponseReceipt }> {
   const url = new URL("lookup", endpoint);
   addCommonParameters(url, locale);
+  // Exact Find hydration must not receive Nominatim's generalized display
+  // polygon: a simplified edge cannot support complete-footprint provenance.
+  url.searchParams.set("polygon_threshold", "0");
   url.searchParams.set("osm_ids", sourceFeatureId.lookupId);
   const receipt = await fetchNominatimJson(url.toString());
   if (!Array.isArray(receipt.payload)) return { place: null, receipt };
@@ -1798,6 +1864,10 @@ export async function buildLivePointObjectEvidencePack(
     ? await resolveLiveUrbanFabric(point, async () => fabricPayload.payload)
     : { profile: normalizeOverpassUrbanFabric(null, point), responseHash: null, observedAt: null };
   const selectedTags = displayTags(place);
+  const displayGeometry = trustedIdentity && (trustedIdentity.type === "way" || trustedIdentity.type === "relation") &&
+    (selectedTags["tag.building"] || selectedTags["tag.landuse"])
+    ? pointObjectDisplayGeometry(place.geometry)
+    : null;
   const selectedMetrics = geometryMetrics(place.geometry);
   const wikidata = await resolvePointObjectWikidata({
     qid: selectedTags["tag.wikidata"] ?? null,
@@ -1930,7 +2000,7 @@ export async function buildLivePointObjectEvidencePack(
         ? "The expected OpenStreetMap node, way or relation identity is checked server-side and spatially bound to the selected anchor; the request fails closed if the exact identity cannot be resolved consistently."
         : "A rendered vector-tile feature identity is not treated as authoritative; context is resolved server-side from the map-selected analysis point.",
       "OpenStreetMap is open community context and may be incomplete, stale or differently classified from authoritative registers.",
-      "Raw source geometry is used only to derive its type and semantic hash; it is not sent to the AI model.",
+      "Raw source geometry is excluded from the AI model; an intact exact-object polygon may be returned separately to the map UI within its display budget.",
       nearby.status === "available"
         ? `Nearby context is a bounded OpenStreetMap/Overpass sample within ${OVERPASS_RADIUS_M} m; it is not a complete inventory and absent records do not prove real-world absence.`
         : "Nearby OpenStreetMap context was unavailable for this request; the primary Nominatim object remains usable, but no inference may be made from the empty nearby list.",
@@ -1949,6 +2019,7 @@ export async function buildLivePointObjectEvidencePack(
   return {
     evidencePackId: `p2o_live_evidence_${evidencePackHash.slice(0, 24)}`,
     evidencePackHash,
+    displayGeometry,
     ...core
   };
 }

@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
+import { parsePointObjectFindSessionState } from "@/src/lib/prototype/point-to-object-find-session";
 import { installLocalWebKitHttpCsp } from "./helpers/local-webkit-csp";
 
 const identity = "demo:demo-user-geoai";
@@ -53,6 +54,23 @@ async function openHub(page: Page, raw: string | null) {
   await expect(page.getByTestId("hub-summary")).toHaveCSS("display", "grid");
 }
 
+test("legacy Find V1 session round-trips without adding dashboard state or changing its hash", () => {
+  const legacyArtifact = fixture(1, "Alpha result");
+  const originalSession = legacyArtifact.payload.session;
+  const parsedSession = parsePointObjectFindSessionState(originalSession);
+
+  expect(parsedSession).toEqual(originalSession);
+  expect(Object.prototype.hasOwnProperty.call(parsedSession, "comparisonView")).toBe(false);
+
+  const roundTripInput = {
+    kind: legacyArtifact.kind,
+    locale: legacyArtifact.locale,
+    marketKey: legacyArtifact.marketKey,
+    payload: { session: parsedSession }
+  };
+  expect(createHash("sha256").update(canonical(roundTripInput)).digest("hex")).toBe(legacyArtifact.payloadHash);
+});
+
 test("unified Hub counts verified results, searches, filters, sorts and fits EN/RU mobile", async ({ page }, testInfo) => {
   await openHub(page, JSON.stringify(fixtureStore()));
   const hub = page.getByTestId("point-object-projects-page");
@@ -96,6 +114,35 @@ test("unified Hub counts verified results, searches, filters, sorts and fits EN/
   await page.goto("/projects?view=spatial");
   await expect(page.getByRole("heading", { name: "Project Hub", exact: true })).toBeVisible();
   await expect(page.getByTestId("saved-result-card")).toHaveCount(2);
+});
+
+test("project rename persists metadata only, supports cancellation and mobile Russian", async ({ page }) => {
+  const initial = fixtureStore();
+  await openHub(page, JSON.stringify(initial));
+  const hub = page.getByTestId("point-object-projects-page");
+  let paidCalls = 0;
+  page.on("request", (request) => { if (request.method() === "POST" && /\/point-to-object\/(ai|create|analysis-runs)/.test(request.url())) paidCalls += 1; });
+  await hub.getByRole("button", { name: "Rename Dubai review", exact: true }).click();
+  await hub.getByLabel("Project name", { exact: true }).fill("Dubai decision room");
+  await hub.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(hub.getByRole("heading", { name: "Dubai decision room", exact: true })).toBeVisible();
+  const after = await page.evaluate((storageKey) => JSON.parse(localStorage.getItem(storageKey)!), key);
+  expect(after.activeProjectId).toBe(initial.activeProjectId);
+  expect(after.projects.find((item: { projectId: string }) => item.projectId === "project-1").artifacts).toEqual(initial.projects[0].artifacts);
+  await page.reload();
+  await expect(hub.getByRole("heading", { name: "Dubai decision room", exact: true })).toBeVisible();
+  await hub.getByRole("button", { name: "Rename Dubai decision room", exact: true }).click();
+  await hub.getByLabel("Project name", { exact: true }).fill("Discard this");
+  await hub.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(hub.getByRole("heading", { name: "Dubai decision room", exact: true })).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await hub.getByRole("button", { name: "ru", exact: true }).click();
+  await hub.getByRole("button", { name: "Переименовать Dubai decision room", exact: true }).click();
+  await hub.getByLabel("Название проекта", { exact: true }).fill("Дубай — сравнение площадок");
+  await hub.getByRole("button", { name: "Сохранить", exact: true }).click();
+  await expect(hub.getByRole("heading", { name: "Дубай — сравнение площадок", exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);
+  expect(paidCalls).toBe(0);
 });
 
 test("damaged saved bytes show unavailable counts and explicit retry, never an empty success", async ({ page }) => {

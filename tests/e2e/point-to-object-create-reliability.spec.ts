@@ -238,16 +238,12 @@ async function readLateBuildingLayerState(page: Page) {
     const harness = (window as typeof window & { __geoAiLateBuildingHarness?: Harness }).__geoAiLateBuildingHarness;
     if (!harness) throw new Error("Late-building harness is not installed.");
     const filter = harness.map.getFilter("late-building");
-    const serializedFilter = JSON.stringify(filter);
     return {
       filter,
       originalFilter: harness.originalFilter,
       setFilterCalls: harness.setFilterCalls,
       effectiveSetFilterChanges: harness.effectiveSetFilterChanges,
-      styleDataEvents: harness.styleDataEvents,
-      suppressed: serializedFilter.includes('"distance"'),
-      distanceChecks: (serializedFilter.match(/"distance"/g) ?? []).length,
-      hasLowZoomGuard: serializedFilter.includes('["<",["zoom"],13]')
+      styleDataEvents: harness.styleDataEvents
     };
   });
 }
@@ -342,6 +338,7 @@ async function installSpatialReplacementFixture(page: Page) {
           },
           {
             type: "Feature",
+            id: 502,
             properties: { fixture: "multipart-landmark" },
             geometry: {
               type: "MultiPolygon",
@@ -504,7 +501,7 @@ for (const width of [390, 430]) {
     await page.getByRole("button", { name: "Open task", exact: true }).click();
     await expect(shell).toHaveAttribute("data-sheet", "full");
     await expect(canvas.locator("xpath=ancestor::section")).toHaveAttribute("inert", "");
-    await page.getByRole("button", { name: "Resize task" }).click();
+    await page.getByRole("button", { name: "Reduce task to half height", exact: true }).click();
     await expect(shell).toHaveAttribute("data-sheet", "half");
     await page.getByRole("tab", { name: "Create", exact: true }).click();
     await page.getByLabel("Upload GeoJSON").setInputFiles({
@@ -518,7 +515,29 @@ for (const width of [390, 430]) {
     await page.getByRole("button", { name: "Public campus" }).click();
     await page.getByTestId("create-generate-action").click();
     await expect(page.getByTestId("generated-concept-summary")).toContainText("Generation 1 committed result.");
-    await page.getByTestId("create-alternative-b").click();
+    await page.getByTestId("create-open-result-dashboard").click();
+    await expect(page.getByTestId("create-full-result-dashboard")).toBeVisible();
+    await expect(page.getByTestId("create-result-preview")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Geometric KPIs" })).toBeVisible();
+    await expect(page.getByText("2D massing plan", { exact: true })).toBeVisible();
+    await page.screenshot({ path: testInfo.outputPath("create-full-result-dashboard-en.png"), fullPage: true });
+    await expect(page.getByRole("button", { name: "Back to parameters", exact: true })).toBeFocused();
+    const previewRatio = await page.getByTestId("create-preview-aoi").evaluate((element) => {
+      const box = (element as SVGGraphicsElement).getBBox();
+      return box.width / box.height;
+    });
+    expect(previewRatio).toBeGreaterThan(0.86);
+    expect(previewRatio).toBeLessThan(0.96);
+    const previewBuilding = page.getByTestId("create-preview-building").first();
+    await expect(previewBuilding).toHaveAttribute("fill-rule", "evenodd");
+    const dashboardAlternativeB = page.getByTestId("create-dashboard-alternative-b");
+    await dashboardAlternativeB.press("Enter");
+    await expect(dashboardAlternativeB).toHaveAttribute("aria-selected", "true");
+    await expect(dashboardAlternativeB).toBeFocused();
+    expect(createPosts).toHaveLength(1);
+    expect(challengeGets).toBe(1);
+    await page.getByRole("button", { name: "Back to parameters", exact: true }).click();
+    await expect(page.getByTestId("create-alternative-b")).toHaveAttribute("aria-selected", "true");
     await page.getByTestId("create-delete-area").click();
     await page.getByTestId("create-undo-remove").click();
     await expect(page.getByTestId("generated-concept-metrics")).toContainText("1,500");
@@ -544,15 +563,19 @@ for (const width of [390, 430]) {
     await page.getByRole("tab", { name: "Create", exact: true }).click();
     await expect(page.getByTestId("generated-concept-summary")).toContainText("Generation 1 committed result.");
     await expect(page.getByTestId("generated-concept-metrics")).toContainText("1,500");
+    await page.getByTestId("create-open-result-dashboard").click();
+    await expect(page.getByTestId("create-dashboard-alternative-b")).toHaveAttribute("aria-selected", "true");
+    await page.getByRole("button", { name: "Show on map", exact: true }).click();
+    await expect(shell).toHaveAttribute("data-sheet", "peek");
     expect(areaRequests).toBe(1);
     expect(createPosts).toHaveLength(1);
     expect(challengeGets).toBe(1);
     await page.getByRole("button", { name: "ru", exact: true }).click();
-    await page.getByRole("button", { name: "На карту", exact: true }).click();
+    await expect(page.getByRole("button", { name: "Открыть задачу", exact: true })).toBeVisible();
     await page.screenshot({ path: testInfo.outputPath("mobile-peek-ru.png") });
     await page.getByRole("button", { name: "Открыть задачу", exact: true }).click();
     await page.setViewportSize({ width: 640, height: 450 });
-    await expect(page.getByRole("button", { name: "Изменить размер задачи" })).toBeHidden();
+    await expect(page.getByTestId("mobile-sheet-resize")).toBeHidden();
     await expect(page.getByTestId("create-generate-action")).toBeAttached();
     await page.getByRole("button", { name: "На карту", exact: true }).click();
     await expect(canvas).toHaveAttribute("data-mount-proof", "retained");
@@ -636,19 +659,18 @@ test("Create separates draft from committed geometry and never spends on local-o
   await expect(generate).toHaveText("Update concept");
   expect(createPosts).toHaveLength(4);
 
-  await test.step("a late same-style building layer is suppressed once and restores its source filter", async () => {
+  await test.step("a late empty building layer remains unmodified and does not trigger a reconciliation loop", async () => {
     await addLateBuildingLayer(page);
     await expect.poll(async () => {
       const state = await readLateBuildingLayerState(page);
       return {
-        suppressed: state.suppressed,
-        distanceChecks: state.distanceChecks,
-        hasLowZoomGuard: state.hasLowZoomGuard,
+        filter: state.filter,
         setFilterCalls: state.setFilterCalls
       };
-    }).toEqual({ suppressed: true, distanceChecks: 2, hasLowZoomGuard: true, setFilterCalls: 1 });
+    }).toEqual({ filter: ["==", ["get", "kind"], "main"], setFilterCalls: 0 });
 
     const styleDataEventsBeforeUnrelatedChange = (await readLateBuildingLayerState(page)).styleDataEvents;
+    const setFilterCallsBeforeUnrelatedChange = (await readLateBuildingLayerState(page)).setFilterCalls;
     await page.evaluate(() => {
       type Harness = { map: { setPaintProperty: (layerId: string, property: string, value: unknown) => unknown } };
       const harness = (window as typeof window & { __geoAiLateBuildingHarness?: Harness }).__geoAiLateBuildingHarness;
@@ -657,12 +679,15 @@ test("Create separates draft from committed geometry and never spends on local-o
     });
     await expect.poll(async () => (await readLateBuildingLayerState(page)).styleDataEvents)
       .toBeGreaterThan(styleDataEventsBeforeUnrelatedChange);
-    await expect.poll(async () => (await readLateBuildingLayerState(page)).setFilterCalls).toBe(1);
+    await expect.poll(async () => (await readLateBuildingLayerState(page)).setFilterCalls)
+      .toBe(setFilterCallsBeforeUnrelatedChange);
 
     await page.getByRole("button", { name: "2d", exact: true }).press("Enter");
-    await expect.poll(async () => (await readLateBuildingLayerState(page)).distanceChecks).toBe(2);
+    await expect.poll(async () => (await readLateBuildingLayerState(page)).filter)
+      .toEqual(["==", ["get", "kind"], "main"]);
     await page.getByRole("button", { name: "3d", exact: true }).press("Enter");
-    await expect.poll(async () => (await readLateBuildingLayerState(page)).distanceChecks).toBe(2);
+    await expect.poll(async () => (await readLateBuildingLayerState(page)).filter)
+      .toEqual(["==", ["get", "kind"], "main"]);
 
     const effectiveChangesBeforeCycles = (await readLateBuildingLayerState(page)).effectiveSetFilterChanges;
     for (let cycle = 0; cycle < 5; cycle += 1) {
@@ -670,12 +695,13 @@ test("Create separates draft from committed geometry and never spends on local-o
       await expect.poll(async () => (await readLateBuildingLayerState(page)).filter)
         .toEqual(["==", ["get", "kind"], "main"]);
       await page.getByTestId("create-map-presentation-toggle").click();
-      await expect.poll(async () => (await readLateBuildingLayerState(page)).distanceChecks).toBe(2);
+      await expect.poll(async () => (await readLateBuildingLayerState(page)).filter)
+        .toEqual(["==", ["get", "kind"], "main"]);
     }
-    // Count actual original↔replacement transitions, not incidental same-value
-    // reconciliation calls whose scheduling differs between next dev and start.
+    // With no returned source footprint, replacement must fail safe: the
+    // original filter remains byte-equivalent through every local toggle.
     await expect.poll(async () => (await readLateBuildingLayerState(page)).effectiveSetFilterChanges)
-      .toBe(effectiveChangesBeforeCycles + 10);
+      .toBe(effectiveChangesBeforeCycles);
 
     // Keep the raw-call no-loop check: an unrelated style event must not cause
     // any replacement reapplication, including a same-value no-op.
@@ -699,8 +725,8 @@ test("Create separates draft from committed geometry and never spends on local-o
     await addLateBuildingLayer(page);
     await expect.poll(async () => {
       const state = await readLateBuildingLayerState(page);
-      return { distanceChecks: state.distanceChecks, setFilterCalls: state.setFilterCalls };
-    }).toEqual({ distanceChecks: 2, setFilterCalls: 1 });
+      return { filter: state.filter, setFilterCalls: state.setFilterCalls };
+    }).toEqual({ filter: ["==", ["get", "kind"], "main"], setFilterCalls: 0 });
     await page.getByTestId("create-map-presentation-toggle").click();
     await expect.poll(async () => (await readLateBuildingLayerState(page)).filter)
       .toEqual(["==", ["get", "kind"], "main"]);
@@ -795,7 +821,9 @@ test("actual MapLibre rendering hides only the internal target and retains outsi
   await expect.poll(async () => {
     const state = await readSpatialReplacementFixture(page);
     return {
-      filterApplied: JSON.stringify(state.filter).includes('["<",["zoom"],13]'),
+      filterApplied: JSON.stringify(state.filter).includes('"distance"') &&
+        JSON.stringify(state.filter).includes('"inside-target"') &&
+        JSON.stringify(state.filter).includes('"multipart-landmark"'),
       insideTarget: state.insideTarget,
       outsideLandmark: state.outsideLandmark,
       multipartInside: state.multipartInside,

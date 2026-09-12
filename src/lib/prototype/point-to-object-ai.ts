@@ -24,6 +24,7 @@ import type { GroundablePointObjectEvidencePack } from "./point-to-object-live-e
 const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
 const GENERATION_BUDGET_MS = 108_000;
 const MINIMUM_ATTEMPT_BUDGET_MS = 5_000;
+export const POINT_OBJECT_AI_MAX_REQUEST_BYTES = 80_000;
 
 type ModelTier = "luna" | "terra" | "sol";
 type AttemptKind = "initial" | "focused" | "repair";
@@ -121,6 +122,7 @@ const DEFAULT_PROFILES: Record<AttemptKind, Record<PointObjectAnalysisDepth, Omi
 export type PointObjectAiErrorCode =
   | "AI_RUNTIME_DISABLED"
   | "AI_NOT_CONFIGURED"
+  | "AI_REQUEST_TOO_LARGE"
   | "AI_TIMEOUT"
   | "AI_PROVIDER_REJECTED"
   | "AI_REFUSED"
@@ -194,6 +196,20 @@ async function requestOpenAi(
   repairCode: PointObjectAiValidationCode | null,
   repairDetail: string | null = null
 ): Promise<{ payload: unknown; requestId: string | null }> {
+  const body = JSON.stringify(buildPointObjectResponsesRequest(
+    evidencePack,
+    request,
+    profile,
+    repairCode,
+    repairDetail
+  ));
+  if (Buffer.byteLength(body, "utf8") > POINT_OBJECT_AI_MAX_REQUEST_BYTES) {
+    throw new PointObjectAiServiceError(
+      "AI_REQUEST_TOO_LARGE",
+      413,
+      "This object's evidence context is too large for a bounded AI analysis. Try another object."
+    );
+  }
   let response: Response;
   try {
     response = await fetch(OPENAI_RESPONSES_URL, {
@@ -203,7 +219,7 @@ async function requestOpenAi(
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json"
       },
-      body: JSON.stringify(buildPointObjectResponsesRequest(evidencePack, request, profile, repairCode, repairDetail))
+      body
     });
   } catch (error) {
     if (isTimeout(error)) {

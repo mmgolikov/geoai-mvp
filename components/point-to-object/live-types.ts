@@ -1,4 +1,5 @@
 import type { GeoJsonGeometry } from "@/src/lib/point-to-object/contracts";
+import type { MultiPolygon, Polygon } from "geojson";
 import type {
   PointObjectLocale,
   PointObjectMarketKey
@@ -90,6 +91,10 @@ export type LiveResolvedObjectContext = {
   metrics: PointObjectGeometryMetrics | null;
   geoContext: PointObjectGeoContext;
   linkedEntity: PointObjectWikidataLinkedEntity | null;
+  displayGeometry?: Polygon | MultiPolygon | null;
+  geometryProvenance?: "confirmed_complete_footprint" | null;
+  renderHeightM?: number | null;
+  renderMinHeightM?: number | null;
 };
 
 export type LiveMapSelection = {
@@ -101,7 +106,7 @@ export type LiveMapSelection = {
     name: string | null;
     featureClass: string;
     sourceFeatureId: string | null;
-    geometryProvenance?: "rendered_tile_polygon_member";
+    geometryProvenance?: "rendered_tile_polygon_member" | "confirmed_complete_footprint";
     geometry: GeoJsonGeometry | null;
     renderHeightM: number | null;
     renderMinHeightM: number | null;
@@ -139,7 +144,8 @@ export type PointObjectReasoningEffort = "low" | "medium" | "high" | "xhigh";
 export type PointObjectEvidenceClass = "observed" | "derived" | "hypothesis";
 export type PointObjectConfidence = "low" | "medium";
 
-export const POINT_OBJECT_ANALYSIS_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V8_2026_09_06" as const;
+export const POINT_OBJECT_ANALYSIS_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V9_2026_09_12" as const;
+export const POINT_OBJECT_ANALYSIS_PREVIOUS_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V8_2026_09_06" as const;
 export const POINT_OBJECT_ANALYSIS_RESULT_SCHEMA_VERSION = 6 as const;
 export const POINT_OBJECT_ANALYSIS_LEGACY_PROMPT_VERSION = "POINT_OBJECT_AI_PROMPT_V7_2026_09_04" as const;
 export const POINT_OBJECT_ANALYSIS_LEGACY_RESULT_SCHEMA_VERSION = 5 as const;
@@ -251,6 +257,38 @@ export type PointObjectInitialSemanticBrief = {
   confidence: PointObjectConfidence;
 };
 
+export type PointObjectDepthReview = {
+  depth: PointObjectAnalysisDepth;
+  basis: "structured_review_of_existing_evidence";
+  purpose: "identity_evidence" | "decision_criteria" | "decision_challenge";
+  analyticChecks: Array<{
+    title: string;
+    observation: string;
+    implication: string;
+    evidenceClass: PointObjectEvidenceClass;
+    evidenceRefs: string[];
+    confidence: PointObjectConfidence;
+  }>;
+  alternatives: Array<{
+    title: string;
+    rationale: string;
+    evidenceClass: "hypothesis";
+    evidenceRefs: string[];
+  }>;
+  uncertainties: Array<{
+    title: string;
+    statement: string;
+    decisionImpact: string;
+    evidenceRefs: string[];
+  }>;
+  decisionTriggers: Array<{
+    title: string;
+    action: string;
+    decisionImpact: string;
+    evidenceRefs: string[];
+  }>;
+};
+
 export type PointObjectAiContent = {
   initialSemanticBrief: PointObjectInitialSemanticBrief;
   decisionBrief: PointObjectDecisionBrief;
@@ -262,6 +300,7 @@ export type PointObjectAiContent = {
   nextValidation: PointObjectValidationAction[];
   answerToQuestion: PointObjectFocusedAnswer | null;
   geoContext: PointObjectGeoContext;
+  depthReview?: PointObjectDepthReview;
   caveat: string;
 };
 
@@ -271,7 +310,7 @@ export type PointObjectAiTelemetry = {
   model: string;
   reasoningEffort: PointObjectReasoningEffort;
   depth: PointObjectAnalysisDepth;
-  promptVersion: typeof POINT_OBJECT_ANALYSIS_PROMPT_VERSION;
+  promptVersion: typeof POINT_OBJECT_ANALYSIS_PROMPT_VERSION | typeof POINT_OBJECT_ANALYSIS_PREVIOUS_PROMPT_VERSION;
   requestId: string | null;
   latencyMs: number;
   attempts: number;

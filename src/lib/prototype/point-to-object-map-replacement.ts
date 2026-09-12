@@ -40,6 +40,13 @@ export type PointObjectBuildingReplacementFilterPlan = {
   reason: string | null;
 };
 
+export type PointObjectKnownFootprintFilterPlan = {
+  applied: boolean;
+  filter: FilterSpecification | null;
+  hiddenPredicateCount: number;
+  reason: string | null;
+};
+
 function cloneJsonValue<T>(value: T, path = "value"): T {
   if (value === null || typeof value === "string" || typeof value === "boolean") {
     return value;
@@ -417,6 +424,48 @@ export function buildPointObjectBuildingReplacementFilter(
     applied: true,
     filter: clonePointObjectMapFilter(filter),
     aoi: cloneJsonValue(aoi, "aoi"),
+    reason: null
+  };
+}
+
+/**
+ * Compose a source layer's immutable baseline with predicates for footprints
+ * already proven complete by the source planner. Geometry discovery and the
+ * 50% policy deliberately stay outside this style-expression helper.
+ */
+export function buildPointObjectKnownFootprintFilter(
+  originalFilter: FilterSpecification | null | undefined,
+  hiddenPredicates: readonly FilterSpecification[]
+): PointObjectKnownFootprintFilterPlan {
+  const originalSnapshot = snapshotPointObjectMapFilter(originalFilter);
+  if (hiddenPredicates.length > 1_000) {
+    return {
+      applied: false,
+      filter: restorePointObjectMapFilter(originalSnapshot),
+      hiddenPredicateCount: 0,
+      reason: "Complete-footprint replacement exceeds 1,000 source parents."
+    };
+  }
+  let predicates: FilterSpecification[];
+  try {
+    predicates = hiddenPredicates.map((predicate, index) => cloneJsonValue(predicate, `hiddenPredicates[${index}]`));
+  } catch (error) {
+    return {
+      applied: false,
+      filter: restorePointObjectMapFilter(originalSnapshot),
+      hiddenPredicateCount: 0,
+      reason: error instanceof Error ? error.message : "Complete-footprint predicates are invalid."
+    };
+  }
+  const original = restorePointObjectMapFilter(originalSnapshot);
+  if (!predicates.length) {
+    return { applied: true, filter: original, hiddenPredicateCount: 0, reason: null };
+  }
+  const exclusion = ["!", ["any", ...predicates]] as unknown as FilterSpecification;
+  return {
+    applied: true,
+    filter: original === null ? exclusion : ["all", convertFilter(original), exclusion] as FilterSpecification,
+    hiddenPredicateCount: predicates.length,
     reason: null
   };
 }

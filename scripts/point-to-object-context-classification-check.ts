@@ -34,7 +34,7 @@ const {
   normalizePointObjectAreaContext,
   parsePointObjectAreaContextRequest
 } = await import("../src/lib/prototype/point-to-object-area-context-contract");
-const { normalizeOverpassUrbanFabric } = await import("../src/lib/prototype/point-to-object-live-evidence");
+const { normalizeOverpassUrbanFabric, pointObjectDisplayGeometry } = await import("../src/lib/prototype/point-to-object-live-evidence");
 
 const point = [55.2715, 25.2065] as [number, number];
 const request = parsePointObjectAreaContextRequest({
@@ -107,5 +107,21 @@ assert.equal(nonCivicFabric.nearestMajorRoadM, null,
   "Mapped parking must not be reported as proximity to a major road.");
 assert.equal(nonCivicFabric.nearestTransitM, null,
   "Mapped parking and general amenities must not be reported as public transport proximity.");
+
+const polygonWithHole: { type: "Polygon"; coordinates: number[][][] } = {
+  type: "Polygon",
+  coordinates: [
+    [[55.27, 25.2], [55.28, 25.2], [55.28, 25.21], [55.27, 25.21], [55.27, 25.2]],
+    [[55.273, 25.203], [55.277, 25.203], [55.277, 25.207], [55.273, 25.207], [55.273, 25.203]]
+  ]
+};
+assert.deepEqual(pointObjectDisplayGeometry(polygonWithHole), polygonWithHole,
+  "The display projection must preserve an intact exact polygon and its holes byte-equivalently.");
+assert.equal(pointObjectDisplayGeometry({ type: "LineString", coordinates: [[55.27, 25.2], [55.28, 25.21]] }), null,
+  "Non-surface source geometry must remain marker-only.");
+const overBudgetRing = Array.from({ length: 5_001 }, (_, index) => [55.27 + index * 1e-8, 25.2]);
+overBudgetRing[overBudgetRing.length - 1] = overBudgetRing[0];
+assert.equal(pointObjectDisplayGeometry({ type: "Polygon", coordinates: [overBudgetRing] }), null,
+  "An over-budget source polygon must fail closed instead of being truncated or simplified.");
 
 console.log("Point-to-object point/AOI context classification contract passed.");

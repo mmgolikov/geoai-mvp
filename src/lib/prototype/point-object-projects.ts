@@ -253,6 +253,47 @@ export async function createPointObjectProject(identityKey: PointObjectProjectId
   return project;
 }
 
+export function renamePointObjectProject(
+  identityKey: PointObjectProjectIdentity,
+  projectId: string,
+  name: string,
+  expectedName: string,
+  locale: PointObjectLocale
+): Promise<SavedPointObjectProject> {
+  const normalized = name.normalize("NFKC").trim().replace(/\s+/g, " ");
+  if (!normalized || normalized.length > 120 || /[\u0000-\u001f\u007f]/.test(name)) {
+    return Promise.reject(new Error(locale === "ru" ? "Введите название от 1 до 120 символов." : "Enter a name between 1 and 120 characters."));
+  }
+  const previous = operationChains.get(identityKey) ?? Promise.resolve();
+  const current = previous.catch(() => undefined).then(async () => {
+    assertCurrentIdentity(identityKey);
+    const before = window.localStorage.getItem(projectStorageKey(identityKey));
+    const read = await readVerifiedPointObjectProjects(identityKey);
+    if (!read.store) throw new Error(read.message);
+    const project = read.store.projects.find((item) => item.projectId === projectId);
+    if (!project) throw new Error(locale === "ru" ? "Проект больше не доступен." : "This project is no longer available.");
+    assertCurrentIdentity(identityKey);
+    if (project.name !== expectedName || window.localStorage.getItem(projectStorageKey(identityKey)) !== before) {
+      throw new Error(locale === "ru" ? "Проект изменился в другой вкладке. Обновите страницу и повторите." : "The project changed in another tab. Refresh and try again.");
+    }
+    if (project.name === normalized) return project;
+    // Project metadata is not part of immutable artifact receipts. Do not
+    // regenerate results, change their IDs/hashes, or switch active projects.
+    const renamed = { ...project, name: normalized, updatedAt: new Date().toISOString() };
+    // Verification uses the canonical reader, but it may supply display-only
+    // legacy defaults. Persist only metadata into the original validated shape.
+    const rawStore = JSON.parse(before!) as PointObjectProjectStore;
+    writeStore({ ...rawStore, projects: rawStore.projects.map((item) => item.projectId === projectId
+      ? { ...item, name: normalized, updatedAt: renamed.updatedAt } : item) });
+    emitState(identityKey, { status: "saved", message: locale === "ru" ? "Название проекта сохранено." : "Project name saved." });
+    return renamed;
+  });
+  operationChains.set(identityKey, current);
+  const clear = () => { if (operationChains.get(identityKey) === current) operationChains.delete(identityKey); };
+  void current.then(clear, clear);
+  return current;
+}
+
 export async function selectPointObjectProject(identityKey: PointObjectProjectIdentity, projectId: string): Promise<boolean> {
   assertCurrentIdentity(identityKey);
   const read = await readVerifiedPointObjectProjects(identityKey);
@@ -498,7 +539,7 @@ async function updateArtifactViewState(
 export function updatePointObjectFindViewState(
   identityKey: PointObjectProjectIdentity,
   artifactId: string,
-  view: Pick<PointObjectFindProjectPayload["session"], "shortlist" | "comparisonOpen" | "analysisTargetSourceFeatureId">
+  view: Pick<PointObjectFindProjectPayload["session"], "shortlist" | "comparisonOpen" | "comparisonView" | "analysisTargetSourceFeatureId">
 ): Promise<PointObjectProjectSaveResult> {
   return updateArtifactViewState(identityKey, artifactId, (artifact) => {
     if (artifact.kind !== "find") return null;

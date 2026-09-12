@@ -92,7 +92,9 @@ test("Sprint07 partitions complete native members and restores exterior building
   await expect.poll(() => pointCovered(page, [55.3212,25.2252])).toBe(false);
   await expect.poll(() => pointCovered(page, [55.3242,25.2272])).toBe(false);
   await expect.poll(() => pointCovered(page, [55.3272,25.2252])).toBe(true);
-  await expect.poll(() => pointCovered(page, [55.3261,25.2262])).toBe(true);
+  // Sprint09's explicit visual policy hides a whole footprint member with
+  // positive AOI overlap, including its outside portion; unrelated siblings stay.
+  await expect.poll(() => pointCovered(page, [55.3261,25.2262])).toBe(false);
   await expect.poll(() => pointCovered(page, [55.3182,25.2262])).toBe(true);
   const preserved = await page.evaluate(async () => {
     const map = (window as unknown as { sprint07map: import("maplibre-gl").Map }).sprint07map;
@@ -124,6 +126,7 @@ test("Sprint07 partitions complete native members and restores exterior building
   await page.getByTestId("create-map-presentation-toggle").click();
   await expect.poll(() => pointCovered(page, [55.3212,25.2252])).toBe(true);
   await expect.poll(() => pointCovered(page, [55.3272,25.2252])).toBe(true);
+  await expect.poll(() => pointCovered(page, [55.3261,25.2262])).toBe(true);
   await page.getByTestId("create-delete-area").click();
   await expect.poll(() => page.evaluate(() => {
     const map = (window as unknown as { sprint07map: import("maplibre-gl").Map }).sprint07map;

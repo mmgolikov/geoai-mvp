@@ -333,6 +333,51 @@ function syntheticV6Response(locale: "en" | "ru") {
   };
 }
 
+function syntheticV9StandardResponse() {
+  const response = syntheticV6Response("en");
+  return {
+    ...response,
+    content: {
+      ...response.content,
+      depthReview: {
+        depth: "standard",
+        basis: "structured_review_of_existing_evidence",
+        purpose: "decision_criteria",
+        analyticChecks: [{
+          title: "Mapped-use gate",
+          observation: "The returned open-map record identifies a hotel use.",
+          implication: "Treat the use as screening evidence until an official record confirms it.",
+          evidenceClass: "observed",
+          evidenceRefs: ["EVD-ALLOWED-FIELDS"],
+          confidence: "medium"
+        }],
+        alternatives: [{
+          title: "Retain the existing-use path",
+          rationale: "The observed hotel tag supports checking an operating-asset path before redevelopment.",
+          evidenceClass: "hypothesis",
+          evidenceRefs: ["EVD-ALLOWED-FIELDS"]
+        }],
+        uncertainties: [{
+          title: "Official permitted use",
+          statement: "The open-map tag is not an official planning record.",
+          decisionImpact: "The development path remains conditional on official validation.",
+          evidenceRefs: ["EVD-ALLOWED-FIELDS"]
+        }],
+        decisionTriggers: [{
+          title: "Confirm the official use",
+          action: "Obtain the current planning record for the selected object.",
+          decisionImpact: "A conflicting official use would change the programme screened next.",
+          evidenceRefs: ["EVD-ALLOWED-FIELDS"]
+        }]
+      }
+    },
+    telemetry: {
+      ...response.telemetry,
+      promptVersion: "POINT_OBJECT_AI_PROMPT_V9_2026_09_12"
+    }
+  };
+}
+
 function syntheticLegacyV5Response() {
   const current = syntheticV6Response("en");
   const { linkedEntity: _linkedEntity, ...subject } = current.subject;
@@ -462,11 +507,11 @@ async function signInDemo(page: Page, nextPath: string) {
         return null;
       }
     }).toBe("active");
-    await page.goto(loginNextPath);
+    // The demo action owns navigation; a competing goto can abort that redirect.
     await expect(page).toHaveURL((url) => url.pathname === loginNextPath);
   }
   if (loginNextPath === nextPath) return;
-  await expect(page.getByRole("link", { name: "Open demo profile" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Open demo profile" })).toHaveAttribute("data-authenticated", "true");
   await page.goto(nextPath);
 }
 
@@ -559,6 +604,30 @@ test('fresh guest retains selection and unsent RU analysis draft after normal Ba
   console.log(JSON.stringify({ result: 'PASS', viewport: '430x932', locale: 'ru', guest: true, aiRequests: count(), selectionRetainedAfterMap: true, draftRecoveredAfterBrowserBack: true, reloadAndDirectEntryRecovered: true }));
 });
 
+test("V9 Standard renders its structured criteria review and restores it without another AI request", async ({ page }) => {
+  const { apiCalls, unexpectedExternal } = await installAnalysisRoutes(page);
+  await page.route("**/api/prototype/point-to-object/ai", async (route) => {
+    if (route.request().method() === "GET") return json(route, { mode: "ready", challenge: "A".repeat(43) });
+    await json(route, syntheticV9StandardResponse());
+  });
+  await seedSelection(page);
+
+  await signInDemo(page, "/prototype/point-to-object/analysis");
+  const review = page.getByTestId("analysis-depth-review");
+  await expect(review).toBeVisible();
+  await expect(review).toHaveAttribute("data-depth", "standard");
+  await expect(review.getByRole("heading", { name: "Decision criteria review" })).toBeVisible();
+  await expect(review.getByText("Retain the existing-use path", { exact: true })).toBeVisible();
+  await expect(review.getByText("Official permitted use", { exact: true })).toBeVisible();
+  await expect(review.getByRole("heading", { name: "Confirm the official use", exact: true })).toBeVisible();
+  await expect.poll(() => apiCalls.filter((call) => call.path.endsWith("/ai") && call.method === "POST").length).toBe(1);
+
+  await page.reload();
+  await expect(page.getByTestId("analysis-depth-review")).toHaveAttribute("data-depth", "standard");
+  expect(apiCalls.filter((call) => call.path.endsWith("/ai") && call.method === "POST")).toHaveLength(1);
+  expect(unexpectedExternal).toEqual([]);
+});
+
 test("V6 renders useful GeoContext and linked-source facts in EN/RU and restores each locale without automatic calls", async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   const { apiCalls, unexpectedExternal } = await installAnalysisRoutes(page);
@@ -568,6 +637,12 @@ test("V6 renders useful GeoContext and linked-source facts in EN/RU and restores
   await expect(page.getByTestId("ai-success")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Continue bounded object screening" })).toBeVisible();
   await expect(page.getByTestId("role-decision-cards")).toBeVisible();
+  await expect(page.getByTestId("infrastructure-cards").locator("[data-infrastructure]")).toHaveCount(7);
+  await expect(page.locator('[data-infrastructure="transport"]')).toContainText("120 m");
+  await expect(page.locator('[data-infrastructure="transport"]')).toContainText("not travel time");
+  await expect(page.locator('[data-infrastructure="tourism"]')).toContainText("2");
+  await expect(page.locator('[data-infrastructure="health"]')).toContainText("No matching feature was returned in this sample.");
+  await expect(page.getByTestId("infrastructure-cards").getByText("Not returned in sample", { exact: true })).toHaveCount(0);
   await page.getByTestId("role-decision-cards").screenshot({ path: testInfo.outputPath("decision-cards-1440.png") });
   await page.setViewportSize({ width: 393, height: 852 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
@@ -627,6 +702,8 @@ test("V6 renders useful GeoContext and linked-source facts in EN/RU and restores
 
   await page.getByRole("button", { name: "ru", exact: true }).click();
   await expect(page.locator("html")).toHaveAttribute("lang", "ru");
+  await expect(page.locator('[data-infrastructure="transport"]')).toContainText("120 м");
+  await expect(page.locator('[data-infrastructure="health"]')).toContainText("Совпадающие объекты не вернулись в этой выборке.");
   expect(apiCalls).toHaveLength(callsAfterEnglish);
   await page.getByRole("button", { name: "Обновить на русском", exact: true }).click();
   await expect.poll(() => apiCalls.filter((call) => call.path.endsWith("/ai") && call.method === "POST").map((call) => call.body?.locale)).toEqual(["en", "ru"]);

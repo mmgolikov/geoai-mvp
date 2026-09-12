@@ -26,7 +26,8 @@ import type {
   PointObjectAnalysisDepth,
   PointObjectAnalysisGoal,
   PointObjectAnalysisHorizon,
-  PointObjectAnalysisPerspective
+  PointObjectAnalysisPerspective,
+  PointObjectDepthReview
 } from "@/components/point-to-object/live-types";
 import type { ExploreRole, ExploreScenarioId } from "@/src/lib/explore/types";
 import {
@@ -146,6 +147,31 @@ function evidenceClassStyle(value: "observed" | "derived" | "hypothesis"): strin
   if (value === "observed") return "bg-[#edf7f2] text-[#176548]";
   if (value === "derived") return "bg-[#edf4ff] text-[#175cd3]";
   return "bg-[#fff5e8] text-[#8a4b08]";
+}
+
+function DepthReviewPanel({ review }: { review: PointObjectDepthReview }) {
+  const { locale, t } = usePointObjectLocale();
+  const ru = locale === "ru";
+  const title = review.depth === "quick"
+    ? (ru ? "Проверка фактов и идентичности" : "Identity and evidence check")
+    : review.depth === "standard"
+      ? (ru ? "Проверка критериев решения" : "Decision criteria review")
+      : (ru ? "Проверка альтернатив и контраргументов" : "Alternatives and decision challenge");
+  const intro = review.depth === "quick"
+    ? (ru ? "Кратко: что подтверждено, чего не хватает и какой следующий шаг." : "A concise check of what is supported, what is missing and the next gate.")
+    : review.depth === "standard"
+      ? (ru ? "Структурированная проверка критериев с учётом роли, цели и горизонта анализа." : "A structured criteria review aligned with the selected role, goal and horizon.")
+      : (ru ? "Расширенная проверка конкурирующих гипотез, неопределённостей и факторов, способных изменить решение." : "An expanded review of competing hypotheses, uncertainty and what could change the decision.");
+  const evidenceLabel = (value: "observed" | "derived" | "hypothesis") => value === "observed" ? t("analysis.observed") : value === "derived" ? t("analysis.derived") : t("analysis.hypothesis");
+
+  return <section className="rounded-[20px] border border-[#b9d8d1] bg-white p-5 shadow-soft sm:p-7" data-testid="analysis-depth-review" data-depth={review.depth}>
+    <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[0.1em] text-[#087f8c]">{ru ? "ГЛУБИНА АНАЛИЗА" : "ANALYSIS DEPTH"}</p><h2 className="mt-2 text-xl font-bold tracking-[-0.02em]">{title}</h2><p className="mt-2 max-w-3xl text-sm leading-6 text-muted">{intro}</p></div><span className="rounded-full bg-[#e6f5f1] px-3 py-1 text-xs font-bold text-[#176548]">{review.depth === "quick" ? t("analysis.quick") : review.depth === "standard" ? t("analysis.standard") : t("analysis.deep")}</span></div>
+    {review.analyticChecks.length > 0 ? <div className="mt-5 grid gap-3 lg:grid-cols-2">{review.analyticChecks.map((check, index) => <article key={`${check.title}-${index}`} className="rounded-2xl border border-line bg-[#fbfcfd] p-4"><div className="flex flex-wrap items-center gap-2"><span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.05em] ${evidenceClassStyle(check.evidenceClass)}`}>{evidenceLabel(check.evidenceClass)}</span><span className="text-[10px] font-semibold uppercase text-muted">{check.confidence === "medium" ? (ru ? "Средняя уверенность" : "Medium confidence") : (ru ? "Низкая уверенность" : "Low confidence")}</span></div><h3 className="mt-3 text-sm font-bold">{check.title}</h3><p className="mt-2 text-sm leading-6 text-[#475467]">{check.observation}</p><p className="mt-2 text-sm font-semibold leading-6 text-[#243447]">{ru ? "Для решения:" : "Decision implication:"} {check.implication}</p><EvidenceRefs references={check.evidenceRefs} /></article>)}</div> : null}
+    {review.alternatives.length > 0 ? <div className="mt-5"><h3 className="text-sm font-bold">{ru ? "Альтернативные гипотезы" : "Alternative hypotheses"}</h3><div className="mt-3 grid gap-3 lg:grid-cols-2">{review.alternatives.map((alternative, index) => <article key={`${alternative.title}-${index}`} className="rounded-2xl border border-[#ead7b8] bg-[#fffaf1] p-4"><span className="rounded-full bg-white px-2 py-1 text-[10px] font-bold uppercase text-[#8a4b08]">{t("analysis.hypothesis")}</span><h4 className="mt-3 text-sm font-bold">{alternative.title}</h4><p className="mt-2 text-sm leading-6 text-[#6b5735]">{alternative.rationale}</p><EvidenceRefs references={alternative.evidenceRefs} /></article>)}</div></div> : null}
+    {review.uncertainties.length > 0 ? <div className="mt-5"><h3 className="text-sm font-bold">{ru ? "Неопределённости" : "Uncertainties"}</h3><ul className="mt-3 grid gap-3 lg:grid-cols-2">{review.uncertainties.map((item, index) => <li key={`${item.title}-${index}`} className="rounded-2xl border border-[#d7dee4] bg-[#f7f9fa] p-4"><h4 className="text-sm font-bold">{item.title}</h4><p className="mt-2 text-sm leading-6 text-[#475467]">{item.statement}</p><p className="mt-2 text-xs font-semibold leading-5 text-[#344054]">{ru ? "Влияние:" : "Decision impact:"} {item.decisionImpact}</p><EvidenceRefs references={item.evidenceRefs} /></li>)}</ul></div> : null}
+    {review.decisionTriggers.length > 0 ? <div className="mt-5 rounded-2xl border border-[#b9d8d1] bg-[#edf7f3] p-4"><h3 className="text-sm font-bold text-[#173b35]">{ru ? "Что изменит решение" : "What could change the decision"}</h3><ol className="mt-3 space-y-3">{review.decisionTriggers.map((trigger, index) => <li key={`${trigger.title}-${index}`} className="text-sm leading-6 text-[#344054]"><h4 className="font-bold text-[#087f8c]"><span aria-hidden="true">{index + 1}. </span>{trigger.title}</h4><p>{trigger.action}</p><p className="text-xs font-semibold text-[#536963]">{ru ? "Влияние:" : "Impact:"} {trigger.decisionImpact}</p><EvidenceRefs references={trigger.evidenceRefs} /></li>)}</ol></div> : null}
+    <p className="mt-4 border-t border-line pt-3 text-[10px] leading-4 text-muted">{ru ? "Структурированная проверка существующих доказательств; не отдельный источник данных." : "Structured review of existing evidence; not a separate data source."}</p>
+  </section>;
 }
 
 export function PointToObjectAnalysis() {
@@ -528,6 +554,8 @@ export function PointToObjectAnalysis() {
                   ) : null}
                   <p className="mt-5 border-t border-line pt-4 text-[11px] leading-5 text-muted" data-testid="analysis-caveat">{content.caveat}</p>
                 </section>
+
+                {content.depthReview ? <DepthReviewPanel review={content.depthReview} /> : null}
 
                 {geoContext ? <details className="rounded-[20px] border border-line bg-white p-5 shadow-soft sm:p-7" data-testid="analysis-geocontext">
                   <summary className="cursor-pointer text-sm font-bold text-[#087f8c]">{locale === "ru" ? "Измерения и состав выборки" : "Measurements & sample details"}</summary>

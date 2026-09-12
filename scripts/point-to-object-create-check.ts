@@ -30,9 +30,13 @@ const {
   inferPromptMassingStyle,
   parsePointObjectCreateProgram,
   resolvePointObjectCreateModelProfile,
+  serializeBoundedPointObjectCreateRequest,
   selectPointObjectCreateRequestedParameters,
   validatePointObjectCreateLockedControlKeys
 } = await import("../src/lib/prototype/point-to-object-create-ai-core");
+assert.equal(serializeBoundedPointObjectCreateRequest({ value: "a".repeat(16_000) }), null);
+assert.equal(serializeBoundedPointObjectCreateRequest({ value: "я".repeat(8_000) }), null, "The provider limit measures UTF-8 bytes, not characters.");
+assert.equal(serializeBoundedPointObjectCreateRequest({ value: "safe" }), '{"value":"safe"}');
 const { calculatePolygonMeasurements } = await import("../src/lib/polygon-aoi");
 const {
   createPointObjectCreateDraftKey,
@@ -1183,6 +1187,7 @@ assert.equal(resolvePointObjectCreateModelProfile("quick", "gpt-5.6-terra-malici
   "Only exact GPT-5.6 aliases or dated snapshots may override Create routing.");
 
 const responsesRequest = buildPointObjectCreateResponsesRequest(aiInput, standardProfile);
+assert.notEqual(serializeBoundedPointObjectCreateRequest(responsesRequest), null, "A standard Create request must fit the provider request budget.");
 assert.equal(responsesRequest.model, "gpt-5.6-sol");
 assert.equal(responsesRequest.service_tier, "default");
 assert.equal(responsesRequest.store, false);

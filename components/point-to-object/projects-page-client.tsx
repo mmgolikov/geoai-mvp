@@ -17,6 +17,7 @@ import {
   queuePointObjectProjectRestore,
   readVerifiedPointObjectProjects,
   reconcilePointObjectBrowserIdentity,
+  renamePointObjectProject,
   selectPointObjectProject,
   verifySavedPointObjectArtifact,
   type PointObjectProjectEventDetail,
@@ -26,6 +27,7 @@ import {
 } from "@/src/lib/prototype/point-object-projects";
 import { readPointObjectFindSession, writePointObjectFindSession } from "@/src/lib/prototype/point-to-object-find-session";
 import type { PointObjectLocale } from "@/src/lib/prototype/point-to-object-i18n";
+import { pointObjectSelectionLabel } from "@/src/lib/prototype/point-to-object-trusted-identity";
 
 const KINDS = ["analyse", "find", "create"] as const;
 type ResultFilter = "all" | SavedPointObjectArtifact["kind"];
@@ -45,6 +47,11 @@ function artifactEvidence(artifact: SavedPointObjectArtifact, locale: PointObjec
   return `${artifact.payload.generated.promptVersion} · ${new Date(artifact.payload.generated.generatedAt).toLocaleString(locale)}`;
 }
 
+function artifactDisplayTitle(artifact: SavedPointObjectArtifact): string {
+  if (artifact.kind !== "analyse" || !/^(?:Selected object analysis|Анализ выбранного объекта)$/.test(artifact.label)) return artifact.label;
+  return pointObjectSelectionLabel(artifact.payload.selection, artifact.payload.analysis.subject, artifact.label);
+}
+
 export function PointObjectProjectsPageClient() {
   const router = useRouter();
   const { user, isSessionResolved } = useAuth();
@@ -58,6 +65,9 @@ export function PointObjectProjectsPageClient() {
   const [sort, setSort] = useState<ResultSort>("newest");
   const [openingArtifactId, setOpeningArtifactId] = useState<string | null>(null);
   const [navigationPending, setNavigationPending] = useState(false);
+  const [renaming, setRenaming] = useState<{ projectId: string; originalName: string; name: string } | null>(null);
+  const [renamePending, setRenamePending] = useState(false);
+  const renamePendingRef = useRef(false);
   const refreshSequence = useRef(0);
   const identityRef = useRef(identityKey);
   identityRef.current = identityKey;
@@ -77,6 +87,7 @@ export function PointObjectProjectsPageClient() {
 
   useEffect(() => {
     if (!isSessionResolved) return;
+    setRenaming(null);
     reconcilePointObjectBrowserIdentity(identityKey);
     void refresh();
     const update = (event: Event) => {
@@ -104,13 +115,37 @@ export function PointObjectProjectsPageClient() {
     ...project,
     artifacts: project.artifacts.filter((artifact) =>
       (kindFilter === "all" || artifact.kind === kindFilter) &&
-      (!normalizedQuery || `${project.name} ${artifact.label} ${artifactKindLabel(artifact.kind, locale)} ${artifact.kind} ${artifact.marketKey}`.toLocaleLowerCase(locale).includes(normalizedQuery))
-    ).sort((a, b) => sort === "name" ? a.label.localeCompare(b.label, locale) : compareDates(a.completedAt, b.completedAt))
+      (!normalizedQuery || `${project.name} ${artifactDisplayTitle(artifact)} ${artifact.label} ${artifactKindLabel(artifact.kind, locale)} ${artifact.kind} ${artifact.marketKey}`.toLocaleLowerCase(locale).includes(normalizedQuery))
+    ).sort((a, b) => sort === "name" ? artifactDisplayTitle(a).localeCompare(artifactDisplayTitle(b), locale) : compareDates(a.completedAt, b.completedAt))
   })).filter((project) => project.artifacts.length > 0 || (
     kindFilter === "all" && !project.artifacts.length &&
     (visibleStore?.projects.find((item) => item.projectId === project.projectId)?.artifacts.length ?? 0) === 0 &&
     (!normalizedQuery || project.name.toLocaleLowerCase(locale).includes(normalizedQuery))
   )).sort((a, b) => sort === "name" ? a.name.localeCompare(b.name, locale) : compareDates(a.updatedAt, b.updatedAt));
+
+  async function saveProjectName() {
+    if (!identityKey || !renaming || renamePendingRef.current) return;
+    const initiatingIdentity = identityKey;
+    renamePendingRef.current = true;
+    setRenamePending(true);
+    setError(null);
+    try {
+      await renamePointObjectProject(identityKey, renaming.projectId, renaming.name, renaming.originalName, locale);
+      if (identityRef.current !== initiatingIdentity) return;
+      setRenaming(null);
+      await refresh();
+    } catch (caught) {
+      if (identityRef.current === initiatingIdentity) {
+        // A verification started by an earlier storage event must not erase
+        // the conflict that this rename has just detected.
+        refreshSequence.current += 1;
+        setError(caught instanceof Error ? caught.message : locale === "ru" ? "Название не сохранено." : "The name was not saved.");
+      }
+    } finally {
+      renamePendingRef.current = false;
+      setRenamePending(false);
+    }
+  }
 
   async function newProject() {
     if (!identityKey) return;
@@ -251,13 +286,20 @@ export function PointObjectProjectsPageClient() {
         {visibleProjects.map((project) => (
           <section key={project.projectId} className={`min-w-0 rounded-2xl border bg-white p-5 shadow-soft ${visibleStore?.activeProjectId === project.projectId ? "border-[#69aaa0]" : "border-line"}`} data-testid="saved-project-card">
             <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="min-w-0"><h3 className="break-words text-lg font-bold">{project.name}</h3><p className="mt-1 text-xs text-muted">{locale === "ru" ? "Показано результатов" : "Results shown"}: {project.artifacts.length}</p></div>
+              <div className="min-w-0 flex-1">
+                {renaming?.projectId === project.projectId ? <form className="flex flex-wrap items-end gap-2" onSubmit={(event) => { event.preventDefault(); void saveProjectName(); }}>
+                  <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs font-bold text-muted">{locale === "ru" ? "Название проекта" : "Project name"}<input autoFocus maxLength={120} required value={renaming.name} disabled={renamePending} onChange={(event) => setRenaming({ ...renaming, name: event.target.value })} onKeyDown={(event) => { if (event.key === "Escape" && !renamePending) setRenaming(null); }} className={`${CONTROL} w-full`} /></label>
+                  <button type="submit" disabled={renamePending || !renaming.name.trim()} className="min-h-11 rounded-xl bg-[#087f8c] px-3 text-sm font-bold text-white disabled:opacity-50">{renamePending ? (locale === "ru" ? "Сохраняем…" : "Saving…") : (locale === "ru" ? "Сохранить" : "Save")}</button>
+                  <button type="button" disabled={renamePending} onClick={() => setRenaming(null)} className={`${CONTROL} text-sm`}>{locale === "ru" ? "Отмена" : "Cancel"}</button>
+                </form> : <div className="flex flex-wrap items-center gap-x-3 gap-y-1"><h3 className="break-words text-lg font-bold">{project.name}</h3><button type="button" disabled={renamePending} aria-label={locale === "ru" ? `Переименовать ${project.name}` : `Rename ${project.name}`} onClick={() => { setError(null); setRenaming({ projectId: project.projectId, originalName: project.name, name: project.name }); }} className="min-h-11 shrink-0 rounded-lg px-2 text-xs font-semibold text-[#087f8c] hover:bg-[#eefaf8] focus-visible:ring-2 focus-visible:ring-[#087f8c]">{locale === "ru" ? "Переименовать" : "Rename"}</button></div>}
+                <p className="mt-1 text-xs text-muted">{locale === "ru" ? "Показано результатов" : "Results shown"}: {project.artifacts.length}</p>
+              </div>
               {visibleStore?.activeProjectId === project.projectId ? <span className="rounded-full bg-[#e8f7f2] px-3 py-1 text-[11px] font-bold text-[#176548]">{locale === "ru" ? "Активный" : "Active"}</span> : <button type="button" onClick={() => { if (identityKey) void selectPointObjectProject(identityKey, project.projectId).then(() => refresh()).catch((caught) => setError(caught instanceof Error ? caught.message : "Project selection failed.")); }} className={`${CONTROL} text-xs font-bold`}>{locale === "ru" ? "Выбрать" : "Select"}</button>}
             </div>
             {project.artifacts.length ? <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{project.artifacts.map((artifact) => (
               <article key={artifact.artifactId} data-testid="saved-result-card" className="flex min-w-0 flex-col rounded-xl border border-line bg-[#fbfcfd] p-4">
                 <div className="flex items-center justify-between gap-2"><span className="rounded-full bg-[#e8f7f2] px-2.5 py-1 text-[10px] font-bold uppercase text-[#176548]">{artifactKindLabel(artifact.kind, locale)}</span><time className="text-[10px] text-muted">{new Date(artifact.completedAt).toLocaleDateString(locale)}</time></div>
-                <h4 className="mt-3 break-words text-sm font-bold">{artifact.label}</h4>
+                <h4 className="mt-3 break-words text-sm font-bold">{artifactDisplayTitle(artifact)}</h4>
                 <p className="mt-2 break-words text-[11px] leading-5 text-muted">{artifactEvidence(artifact, locale)}</p>
                 <p className="mt-2 text-[10px] font-semibold text-[#667085]">{locale === "ru" ? `Версия просмотра ${artifact.viewRevision + 1}` : `View revision ${artifact.viewRevision + 1}`}</p>
                 <button type="button" onClick={() => void reopen(project.projectId, artifact)} disabled={openingArtifactId === artifact.artifactId} title={locale === "ru" ? "Без повторного запроса к источнику" : "Without rerunning a source request"} className="mt-4 min-h-11 rounded-xl bg-[#087f8c] px-3 text-xs font-bold text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#087f8c] focus-visible:ring-offset-2 disabled:cursor-wait disabled:bg-[#9cb8b9]">{openingArtifactId === artifact.artifactId ? (locale === "ru" ? "Открываем…" : "Opening…") : artifact.kind === "analyse" ? (locale === "ru" ? "Открыть результат" : "Open result") : (locale === "ru" ? "Показать на карте" : "Show on map")}</button>

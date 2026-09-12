@@ -82,13 +82,24 @@ assert.match(findDrawer, /data-testid="find-search-cta"/);
 assert.match(findDrawer, /data-testid="find-comparison-toolbar"/);
 assert.match(findDrawer, /data-testid="find-comparison-grid"/);
 assert.match(findDrawer, /grid-flow-col auto-cols-\[minmax\(188px,1fr\)\]/, "Comparison candidates must remain side by side in the compact drawer");
-assert.match(findDrawer, /"Compare selected"/);
+const findPrimaryLabelStart = client.indexOf("const findPrimaryLabel =");
+const findPrimaryActionStart = client.indexOf("function runFindPrimaryAction()", findPrimaryLabelStart);
+const findPrimaryActionEnd = client.indexOf("\n  return (", findPrimaryActionStart);
+assert.ok(findPrimaryLabelStart >= 0 && findPrimaryActionStart > findPrimaryLabelStart && findPrimaryActionEnd > findPrimaryActionStart,
+  "Find primary footer state and action must be addressable");
+const findPrimaryLabel = client.slice(findPrimaryLabelStart, findPrimaryActionStart);
+const findPrimaryAction = client.slice(findPrimaryActionStart, findPrimaryActionEnd);
+assert.match(findPrimaryLabel, /findShortlist\.length >= 2[\s\S]*"Compare selected"/,
+  "Two unchanged selected candidates must expose Compare selected in the shared footer");
+assert.match(findPrimaryAction, /findShortlist\.length < 2[\s\S]*setFindComparison\(true\)/,
+  "Compare selected must open the compact comparison without rerunning Find");
 assert.match(findDrawer, /"Back to results"/);
 assert.match(findDrawer, /"Clear"/);
 assert.match(findDrawer, /"Remove from comparison"/);
 assert.match(findDrawer, /"Not mapped"/);
 assert.match(findDrawer, /disabled=\{findResultMarketMismatch\}/, "Cross-market stale candidate analysis actions must be visibly disabled");
-assert.match(findDrawer, /findResultIsStale[\s\S]*"Update search"/);
+assert.match(findPrimaryLabel, /findResultIsStale[\s\S]*"Update search"/,
+  "Stale criteria must expose Update search in the shared footer");
 assert.match(client, /findResult\.criteria\.bounds/);
 assert.match(client, /findResultIntentKey !== findIntentKey/);
 assert.match(client, /const findResultMarketMismatch = findResult !== null && findResult\.criteria\.marketKey !== locationKey/);
@@ -121,7 +132,10 @@ assert.ok(marketChangeStart >= 0 && marketChangeEnd > marketChangeStart, "Market
 assert.doesNotMatch(marketChange, /setFindResult\(null\)|setFindResultIntent\(null\)|setFindShortlist\(\[\]\)|setFindComparisonOpen\(false\)|setFindAnalysisTargetSourceFeatureId\(null\)/, "Market changes must mark existing Find output stale without deleting its lineage or continuation state");
 assert.match(marketChange, /findRequestRef\.current\?\.abort\(\)/, "Market changes must cancel an in-flight Find request before preserving the prior result as stale");
 assert.match(findDrawer, /min-h-11 w-full rounded-xl bg-\[#087f8c\]/, "Find CTA must retain a 44px target");
-assert.match(client, /body: JSON\.stringify\(\{ marketKey: locationKey, locale, bounds: visibleBounds, group: findGroup, mappedMinimumLevels, mappedMaximumLevels, limit: 12 \}\)/, "Visible Find settings must be sent to the bounded server request");
+assert.match(client, /const requestBounds = findExplicitSearchBounds \?\? visibleBounds/,
+  "Find must use the explicitly committed map area or the current visible fallback");
+assert.match(client, /body: JSON\.stringify\(\{ marketKey: locationKey, locale, bounds: requestBounds, group: findGroup, mappedMinimumLevels, mappedMaximumLevels, limit: 12 \}\)/,
+  "Visible Find settings must be sent to the bounded server request");
 assert.match(capabilities, /b2b_lowrise_luxury_residential:[\s\S]*mappedLevelsPreset: \{ minimum: null, maximum: 4 \}/, "The low-rise scenario must set a real maximum-level preset");
 assert.match(client, /const \[sheet, setSheet\] = useState<"peek" \| "half" \| "full">\("peek"\)/, "Task sheet state must remain independent of product mode");
 assert.match(client, /data-sheet=\{effectiveSheet\} data-testid="mobile-workspace-shell"/);
@@ -163,7 +177,10 @@ assert.match(client, /const \[createReplacementRevision, setCreateReplacementRev
 assert.match(client, /createReplacementMapProps = \{\s*createReplacementRevision,/);
 assert.match(client, /overlayBottomInset: mobile \? sheet === "half"/, "Map replacement must retain the sheet-aware camera inset");
 assert.match(client, /data-testid="create-map-presentation-toggle"/);
-assert.match(client, /const sourceBuildingsHidden = createAreaCleared && createReplacementStatus === "applied"/);
+assert.match(client, /function toggleCreateMapPresentation\(\)[\s\S]*if \(createAreaCleared\) \{[\s\S]*setCreateAreaCleared\(false\)/,
+  "A requested replacement, including partial coverage, must retain an explicit restore action");
+assert.match(map, /\(replacementStatus === "applied" \|\| replacementStatus === "partial"\) &&\s*!visibleNativeConceptConflict\(map, massing\)/,
+  "The concept may render for partial inventory only when no visible native geometry conflicts");
 assert.match(client, /"Show generated concept"/);
 assert.match(client, /"Hide existing buildings"/);
 assert.match(client, /setCreateReplacementRevision\(\(revision\) => revision \+ 1\)/);

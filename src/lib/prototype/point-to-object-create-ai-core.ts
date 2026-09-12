@@ -11,6 +11,15 @@ import {
 export const POINT_OBJECT_CREATE_PROMPT_VERSION = "POINT_OBJECT_CREATE_PROGRAM_V1_2026_09_04" as const;
 export const POINT_OBJECT_CREATE_SCHEMA_NAME = "geoai_redevelopment_program_v1" as const;
 
+// Includes instructions and response schema. Oversized evidence must not be
+// silently truncated or sent to a billable provider.
+export const POINT_OBJECT_CREATE_MAX_PROVIDER_REQUEST_BYTES = 16_000;
+export function serializeBoundedPointObjectCreateRequest(body: unknown): string | null {
+  const serialized = JSON.stringify(body);
+  return new TextEncoder().encode(serialized).byteLength <= POINT_OBJECT_CREATE_MAX_PROVIDER_REQUEST_BYTES
+    ? serialized : null;
+}
+
 export type PointObjectCreateDepth = "quick" | "standard" | "deep";
 export type PointObjectCreateModelProfile = {
   model: string;

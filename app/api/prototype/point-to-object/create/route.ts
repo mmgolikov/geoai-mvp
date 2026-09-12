@@ -14,6 +14,7 @@ import {
   parsePointObjectCreateProgram,
   POINT_OBJECT_CREATE_PROMPT_VERSION,
   resolvePointObjectCreateModelProfile,
+  serializeBoundedPointObjectCreateRequest,
   selectPointObjectCreateRequestedParameters,
   validatePointObjectCreateLockedControlKeys,
   type PointObjectCreateControlKey,
@@ -245,12 +246,14 @@ class PointObjectCreateProviderError extends Error {
   }
 }
 
-async function callOpenAi(body: ReturnType<typeof buildPointObjectCreateResponsesRequest>, apiKey: string, timeoutMs: number) {
+class PointObjectCreateRequestSizeError extends Error {}
+
+async function callOpenAi(serialized: string, apiKey: string, timeoutMs: number) {
   const response = await fetch(OPENAI_RESPONSES_URL, {
     method: "POST",
     signal: AbortSignal.timeout(timeoutMs),
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify(body)
+    body: serialized
   });
   const payload = await response.json().catch(() => null) as unknown;
   const requestId = response.headers.get("x-request-id");
@@ -455,6 +458,8 @@ export async function POST(request: Request) {
     purpose: PointObjectAiAttemptUsageInput["purpose"],
     timeoutMs: number
   ) => {
+    const serialized = serializeBoundedPointObjectCreateRequest(requestBody);
+    if (serialized === null) throw new PointObjectCreateRequestSizeError("Create request exceeds its safe size limit.");
     const index = attemptUsage.push({
       purpose,
       model: attemptProfile.model,
@@ -463,7 +468,7 @@ export async function POST(request: Request) {
       usage: extractResponsesUsage(null)
     }) - 1;
     try {
-      const attempt = await callOpenAi(requestBody, apiKey, timeoutMs);
+      const attempt = await callOpenAi(serialized, apiKey, timeoutMs);
       attemptUsage[index] = {
         purpose,
         model: attemptProfile.model,
@@ -563,6 +568,14 @@ export async function POST(request: Request) {
       caveat: CREATE_CAVEAT
     }, { headers: noStoreHeaders(request, true) });
   } catch (error) {
+    if (error instanceof PointObjectCreateRequestSizeError) {
+      return NextResponse.json({
+        mode: "unavailable",
+        code: "CREATE_REQUEST_TOO_LARGE",
+        error: body.locale === "ru" ? "Контекст концепции превышает безопасный размер запроса. Уменьшите зону или запрос." : "The concept context exceeds the safe request size. Reduce the area or request.",
+        telemetry: failureTelemetry() ?? { attempts: 0, providerCalls: 0, estimatedCostUsd: 0 }
+      }, { status: 413, headers: noStoreHeaders(request, true) });
+    }
     if (error instanceof ConceptMassingError) {
       const translated = body.locale === "ru"
         ? error.code === "courtyard_requires_four_blocks"

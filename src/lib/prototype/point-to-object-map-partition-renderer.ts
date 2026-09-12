@@ -1,17 +1,30 @@
-import type { Feature, FeatureCollection, MultiPolygon, Polygon } from "geojson";
+import type { FeatureCollection, Polygon } from "geojson";
 import type { FilterSpecification, GeoJSONSource, LayerSpecification, Map as MapLibreMap, MapSourceDataEvent } from "maplibre-gl";
-import { partitionPointObjectMapBuilding, pointObjectPreparedPartitionPredicate } from "./point-to-object-map-partition";
-import { buildPointObjectBuildingReplacementFilter, restorePointObjectMapFilter, type PointObjectMapFilterSnapshot } from "./point-to-object-map-replacement";
+import {
+  planPointObjectBuildingReplacement,
+  type PointObjectTileBackedBuildingFeature
+} from "./point-to-object-map-partition";
+import {
+  buildPointObjectKnownFootprintFilter,
+  restorePointObjectMapFilter,
+  type PointObjectMapFilterSnapshot
+} from "./point-to-object-map-replacement";
 
-type Building = Feature<Polygon | MultiPolygon>;
 type SourcePlan = { originalSource: string; sourceId: string; data: FeatureCollection; predicates: FilterSpecification[] };
 type RendererState = {
   signature: string;
+  ready: boolean;
   sourceIds: Set<string>;
   layerIds: Set<string>;
   listener?: (event: MapSourceDataEvent) => void;
 };
 const states = new WeakMap<MapLibreMap, RendererState>();
+type CompleteRendererState = {
+  aoiSignature: string;
+  filterSignature: string;
+  result: PointObjectCompleteFootprintRendererResult;
+};
+const completeStates = new WeakMap<MapLibreMap, CompleteRendererState>();
 const SOURCE_PREFIX = "geoai-existing-partition-source:";
 const LAYER_PREFIX = "geoai-existing-partition-layer:";
 
@@ -21,13 +34,17 @@ function setFilterIfChanged(map: MapLibreMap, id: string, filter: FilterSpecific
 
 /** Cancel pending applies before a restore, source update or style replacement. */
 export function clearPointObjectPartitionRenderer(map: MapLibreMap, reset = false) {
+  completeStates.delete(map);
   const state = states.get(map);
   if (!state) return;
   if (state.listener) map.off("sourcedata", state.listener);
   state.listener = undefined;
   state.signature = "";
+  state.ready = false;
   for (const layerId of state.layerIds) if (map.getLayer(layerId)) map.setLayoutProperty(layerId, "visibility", "none");
-  if (reset) states.delete(map);
+  if (reset) {
+    states.delete(map);
+  }
 }
 
 function sourcePlans(map: MapLibreMap, aoi: Polygon, layerIds: readonly string[]): SourcePlan[] {
@@ -36,34 +53,15 @@ function sourcePlans(map: MapLibreMap, aoi: Polygon, layerIds: readonly string[]
     return layer && "source" in layer && typeof layer.source === "string" ? [layer.source] : [];
   }));
   const result: SourcePlan[] = [];
-  let preparedPositions = 0;
   for (const source of sources) {
-    const data: FeatureCollection = { type: "FeatureCollection", features: [] };
-    const predicates: FilterSpecification[] = [];
-    const seen = new Set<string>();
-    let features;
-    try {
-      features = map.querySourceFeatures(source, { sourceLayer: "building", filter: ["==", ["distance", aoi], 0] });
-    } catch { continue; }
-    for (const feature of features) {
-      if (feature.geometry.type !== "MultiPolygon") continue;
-      const vertexCount = feature.geometry.coordinates.reduce((sum, polygon) => sum + polygon.reduce((n, ring) => n + ring.length, 0), 0);
-      // Each skipped feature remains fully native. A render cap must never
-      // silently remove its outside members or create fabricated geometry.
-      if (predicates.length >= 32 || preparedPositions + vertexCount > 24_000) continue;
-      const candidate: Building = { type: "Feature", ...(feature.id === undefined ? {} : { id: feature.id }), properties: feature.properties, geometry: feature.geometry };
-      const signature = JSON.stringify(candidate);
-      if (seen.has(signature)) continue;
-      seen.add(signature);
-      const partition = partitionPointObjectMapBuilding(candidate, aoi);
-      if (!partition.valid || !partition.hiddenMembers || !partition.retained) continue;
-      const predicate = pointObjectPreparedPartitionPredicate(candidate);
-      if (!predicate) continue;
-      preparedPositions += vertexCount;
-      data.features.push(partition.retained);
-      predicates.push(predicate);
-    }
-    if (predicates.length) result.push({ originalSource: source, sourceId: `${SOURCE_PREFIX}${source}`, data, predicates });
+    const features = map.querySourceFeatures(source, { sourceLayer: "building", filter: ["==", ["distance", aoi], 0] });
+    const plan = planPointObjectBuildingReplacement(features as PointObjectTileBackedBuildingFeature[], aoi);
+    if (plan.predicates.length) result.push({
+      originalSource: source,
+      sourceId: `${SOURCE_PREFIX}${source}`,
+      data: plan.retained,
+      predicates: plan.predicates
+    });
   }
   return result;
 }
@@ -80,22 +78,26 @@ export function reconcilePointObjectPartitionRenderer(
   aoi: Polygon,
   layerIds: readonly string[],
   originals: ReadonlyMap<string, PointObjectMapFilterSnapshot>,
-  force = false
-) {
-  const plans = sourcePlans(map, aoi, layerIds);
+  force = false,
+  preparedPlans?: readonly SourcePlan[]
+): boolean {
+  const plans = preparedPlans ? [...preparedPlans] : sourcePlans(map, aoi, layerIds);
   const layers = (map.getStyle().layers ?? []).filter(layer => layerIds.includes(layer.id));
   const signature = JSON.stringify([aoi, plans, layers.map(layer => [layer.id, layer.layout, layer.paint])]);
   let state = states.get(map);
   const changed = !state || state.signature !== signature;
-  if (!changed && !force) return;
+  if (!changed && !force) return state?.ready ?? false;
   if (!state) {
-    state = { signature: "", sourceIds: new Set(), layerIds: new Set() };
+    state = { signature: "", ready: false, sourceIds: new Set(), layerIds: new Set() };
     states.set(map, state);
   }
   if (state.listener) map.off("sourcedata", state.listener);
   state.listener = undefined;
   const activeLayerIds = new Set<string>();
-  const baseFilters = new Map(layerIds.map(id => [id, buildPointObjectBuildingReplacementFilter(originals.get(id)?.filter, aoi).filter]));
+  const baseFilters = new Map(layerIds.map(id => [
+    id,
+    originals.has(id) ? restorePointObjectMapFilter(originals.get(id)!) : null
+  ]));
   // Restore the mixed originals before changing any retained source data.
   for (const [id, filter] of baseFilters) if (map.getLayer(id)) setFilterIfChanged(map, id, filter);
   for (const plan of plans) {
@@ -130,20 +132,137 @@ export function reconcilePointObjectPartitionRenderer(
   state.signature = signature;
   const current = state;
   const applyPrepared = () => {
-    if (states.get(map) !== current || current.signature !== signature) return;
+    if (states.get(map) !== current || current.signature !== signature) return false;
+    let ready = true;
     for (const plan of plans) {
-      if (!map.getSource(plan.sourceId) || !map.isSourceLoaded(plan.sourceId)) continue;
+      if (!map.getSource(plan.sourceId) || !map.isSourceLoaded(plan.sourceId)) {
+        ready = false;
+        continue;
+      }
       for (const layer of layers) {
         if (!("source" in layer) || layer.source !== plan.originalSource || !map.getLayer(layer.id)) continue;
-        const baseline = baseFilters.get(layer.id);
-        setFilterIfChanged(map, layer.id, ["all", ...(baseline ? [baseline] : []), ["!", ["any", ...plan.predicates]]] as FilterSpecification);
+        const baseline = baseFilters.get(layer.id) ?? null;
+        // Basemap styles may still use the legacy property-filter syntax.
+        // The shared builder converts it before composing expression-backed
+        // geometry predicates; mixing the two syntaxes can reject a whole layer.
+        const composed = buildPointObjectKnownFootprintFilter(baseline, plan.predicates);
+        setFilterIfChanged(map, layer.id, composed.applied ? composed.filter : baseline);
       }
     }
+    current.ready = ready;
+    return ready;
   };
   const listener = (event: MapSourceDataEvent) => {
-    if (plans.some(plan => plan.sourceId === event.sourceId)) applyPrepared();
+    if (plans.some(plan => plan.sourceId === event.sourceId) && applyPrepared()) {
+      // The retained worker can become ready after MapLibre's last natural
+      // idle event. Schedule one render so the map-level idle reconciler can
+      // publish applied/partial instead of leaving the UI on "preparing".
+      map.triggerRepaint();
+    }
   };
   current.listener = listener;
   map.on("sourcedata", listener);
-  applyPrepared();
+  return applyPrepared();
+}
+
+export type PointObjectCompleteFootprintRendererResult = {
+  coverage: "complete" | "partial" | "pending" | "error";
+  examinedFeatures: number;
+  completeParents: number;
+  hiddenParents: number;
+  tileMatchedParents: number;
+  unknownFeatures: number;
+  reason: string | null;
+};
+
+const pendingResult = (reason: string): PointObjectCompleteFootprintRendererResult => ({
+  coverage: "pending",
+  examinedFeatures: 0,
+  completeParents: 0,
+  hiddenParents: 0,
+  tileMatchedParents: 0,
+  unknownFeatures: 0,
+  reason
+});
+
+/**
+ * Replace positive-overlap Polygon members from the current source tiles while
+ * retaining non-overlap siblings. Tile-fragment matches remain explicitly
+ * partial and this path does not consume the separately capped context sample.
+ */
+export function reconcilePointObjectCompleteFootprintRenderer(
+  map: MapLibreMap,
+  aoi: Polygon,
+  layerIds: readonly string[],
+  originals: ReadonlyMap<string, PointObjectMapFilterSnapshot>,
+  force = false
+): PointObjectCompleteFootprintRendererResult {
+  const aoiSignature = JSON.stringify(aoi);
+  const layers = layerIds.flatMap((id) => {
+    const layer = map.getLayer(id);
+    return layer && "source" in layer && typeof layer.source === "string" ? [{ id, source: layer.source }] : [];
+  });
+  const sources = [...new Set(layers.map(({ source }) => source))];
+  if (!layers.length || layers.some(({ id }) => !originals.has(id))) {
+    clearPointObjectPartitionRenderer(map);
+    return { ...pendingResult("building_layers_unavailable"), coverage: "error" };
+  }
+  if (sources.some((source) => !map.isSourceLoaded(source))) {
+    clearPointObjectPartitionRenderer(map);
+    for (const { id } of layers) setFilterIfChanged(map, id, restorePointObjectMapFilter(originals.get(id)!));
+    return pendingResult("building_source_loading");
+  }
+
+  const plans = new Map<string, ReturnType<typeof planPointObjectBuildingReplacement>>();
+  try {
+    for (const source of sources) {
+      const features = map.querySourceFeatures(source, {
+        sourceLayer: "building",
+        filter: ["==", ["distance", aoi], 0]
+      }) as PointObjectTileBackedBuildingFeature[];
+      plans.set(source, planPointObjectBuildingReplacement(features, aoi));
+    }
+  } catch {
+    clearPointObjectPartitionRenderer(map);
+    for (const { id } of layers) setFilterIfChanged(map, id, restorePointObjectMapFilter(originals.get(id)!));
+    return {
+      coverage: "error", examinedFeatures: 0, completeParents: 0, hiddenParents: 0, tileMatchedParents: 0,
+      unknownFeatures: 0, reason: "building_source_query_failed"
+    };
+  }
+
+  const result: PointObjectCompleteFootprintRendererResult = {
+    coverage: [...plans.values()].some((plan) => plan.coverage === "partial") ? "partial" : "complete",
+    examinedFeatures: [...plans.values()].reduce((sum, plan) => sum + plan.examinedFeatures, 0),
+    completeParents: [...plans.values()].reduce((sum, plan) => sum + plan.completeParents, 0),
+    hiddenParents: [...plans.values()].reduce((sum, plan) => sum + plan.hiddenParents, 0),
+    tileMatchedParents: [...plans.values()].reduce((sum, plan) => sum + plan.tileMatchedParents, 0),
+    unknownFeatures: [...plans.values()].reduce((sum, plan) => sum + plan.unknownFeatures, 0),
+    reason: [...plans.values()].find((plan) => plan.reason)?.reason ?? null
+  };
+  const filterSignature = JSON.stringify([...plans.entries()].map(([source, plan]) => [
+    source, plan.predicates, plan.retained
+  ]));
+  const current = completeStates.get(map);
+  const preparedSourcePlans: SourcePlan[] = [...plans.entries()].flatMap(([source, plan]) => plan.predicates.length ? [{
+    originalSource: source,
+    sourceId: `${SOURCE_PREFIX}${source}`,
+    data: plan.retained,
+    predicates: plan.predicates
+  }] : []);
+  let partitionReady = states.get(map)?.ready ?? false;
+  if (force || !current || current.aoiSignature !== aoiSignature || current.filterSignature !== filterSignature) {
+    try {
+      partitionReady = reconcilePointObjectPartitionRenderer(map, aoi, layerIds, originals, force, preparedSourcePlans);
+    } catch {
+      clearPointObjectPartitionRenderer(map);
+      for (const { id } of layers) if (map.getLayer(id)) setFilterIfChanged(map, id, restorePointObjectMapFilter(originals.get(id)!));
+      return { ...result, coverage: "error", reason: "building_partition_apply_failed" };
+    }
+  }
+  const reportedResult: PointObjectCompleteFootprintRendererResult = partitionReady
+    ? result
+    : { ...result, coverage: "pending", reason: "retained_source_loading" };
+  completeStates.set(map, { aoiSignature, filterSignature, result: reportedResult });
+  return reportedResult;
 }
