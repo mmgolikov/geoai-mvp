@@ -731,7 +731,9 @@ export function planPointObjectBuildingReplacement(
   // querySourceFeatures does not promise a stable order between idle/source
   // events. Stable output prevents an unchanged plan from calling setData
   // again and remaining in a perpetual retained-source loading cycle.
-  const preparedEntries = [...prepared.entries()].sort(([left], [right]) => left.localeCompare(right));
+  const preparedEntries = [...prepared.entries()].sort(([left], [right]) =>
+    left < right ? -1 : left > right ? 1 : 0
+  );
   for (const [, { feature, complete }] of preparedEntries) {
     if (complete) completeParents += 1;
     else unknownFeatures += 1;

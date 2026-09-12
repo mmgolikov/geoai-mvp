@@ -135,6 +135,7 @@ const layers = [{ id: "building", type: "fill-extrusion", source: "openmaptiles"
 const sources = new Map();
 const listeners = new Set();
 let rendererFilterWrites = 0;
+let rendererRepaints = 0;
 const fakeMap = {
   getStyle: () => ({ layers }),
   getLayer: id => layers.find(layer => layer.id === id),
@@ -147,6 +148,7 @@ const fakeMap = {
   addLayer: (layer, before) => layers.splice(layers.findIndex(candidate => candidate.id === before), 0, layer),
   setLayoutProperty: (id, key, value) => { const layer = fakeMap.getLayer(id); layer.layout ??= {}; layer.layout[key] = value; },
   setPaintProperty: (id, key, value) => { fakeMap.getLayer(id).paint[key] = value; },
+  triggerRepaint: () => { rendererRepaints++; },
   on: (_type, listener) => listeners.add(listener),
   off: (_type, listener) => listeners.delete(listener)
 };
@@ -158,6 +160,7 @@ const retainedSourceId = "geoai-existing-partition-source:openmaptiles";
 sources.get(retainedSourceId).loaded = true;
 for (const listener of listeners) listener({ sourceId: retainedSourceId });
 assert.equal(keeps(fakeMap.getFilter("building"), nativeMixed.geometry, nativeMixed.properties), false, "Prepared retained geometry now permits native replacement");
+assert(rendererRepaints >= 1, "Retained readiness schedules a terminal map idle reconciliation");
 assert.equal(reconcilePointObjectPartitionRenderer(fakeMap, aoi, ["building"], originals), true, "The renderer reports ready only after retained geometry and native masking are both active");
 const writesAfterReady = rendererFilterWrites;
 for (const listener of listeners) listener({ sourceId: retainedSourceId });

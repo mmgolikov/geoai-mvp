@@ -132,6 +132,17 @@ assert.deepEqual(
   { predicates: densePlan.predicates, retained: densePlan.retained },
   "An unchanged tile inventory must produce a stable renderer signature regardless of query order"
 );
+const unicodeOrder = [
+  tileFeature(40_001, rectangle(1, 1, 2, 2), { properties: { name: "\u00e9" } }),
+  tileFeature(40_002, rectangle(3, 1, 4, 2), { properties: { name: "e\u0301" } })
+];
+const unicodeForwardPlan = planPointObjectCompleteFootprints(unicodeOrder, aoi);
+const unicodeReversePlan = planPointObjectCompleteFootprints([...unicodeOrder].reverse(), aoi);
+assert.deepEqual(
+  { predicates: unicodeReversePlan.predicates, retained: unicodeReversePlan.retained },
+  { predicates: unicodeForwardPlan.predicates, retained: unicodeForwardPlan.retained },
+  "Canonical-equivalent Unicode labels cannot make source-query order change the renderer signature"
+);
 
 const longRing = Array.from({ length: 1_000 }, (_, index) => {
   const angle = index / 1_000 * Math.PI * 2;
